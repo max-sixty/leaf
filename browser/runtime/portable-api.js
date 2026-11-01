@@ -9,8 +9,7 @@
    visual-parts.js), and the parts it marks for Leaf to dress, a block's Copy control
    (`data-lf-copy`, code-copy.js) and a quiet word (`data-lf-quiet`, declared-words.js).
    A page without Leaf reads none of them, so there the widget binds no key, says
-   nothing aloud, offers no Comment target and shows no Leaf control. A widget Leaf
-   draws before the first paint (`x-initial`) draws itself there (`initialRender`).
+   nothing aloud, offers no Comment target and shows no Leaf control.
 
    widget-api.js re-exports all of it, so these are the same helpers by either path.
    Each home re-exported here must load, and work, in a document Leaf did not compose:
@@ -59,10 +58,26 @@ export { registerVisualParts } from "./visual-parts.js";
 export { inBaseLayer } from "./base-layer.js";
 export { tabStore } from "./tab-store.js";
 export { ensureSyntaxLanguage, synNodes, syntax, tokenLines } from "./syntax-tokens.js";
-export { drawsFirst, initialRender } from "./initial-render.js";
-// The role constructors an initial producer receives, with each symbol drawn from its
-// action, and the drawing of a press's symbol as its action changes.
-export { actionOffers, showAction } from "./icon-paths.js";
+export { actionName } from "./icon-paths.js";
 export { onMotionPreferenceChange, reducedMotion } from "./motion.js";
 // The time axis the Playwright timeline and lf-timeline both draw on.
 export { assignRows, axisTicks, textWidth } from "./time-axis.js";
+
+export { actionClass } from "./control-faces.js";
+export { actionTemplate } from "./icons.js";
+
+export {
+  offerElement,
+  generatedElement,
+  offer,
+  offerAction,
+  offerActionElement,
+  selectableOffer,
+  offered,
+  offeredAction,
+  selectableOffered,
+  generated,
+} from "./element-markers.js";
+export { describeFailure } from "./exception.js";
+
+export { canvas2D } from "./canvas.js";

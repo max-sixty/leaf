@@ -1,4 +1,4 @@
-"""A stamped version as one HTML file that opens offline.
+"""A captured revision as one HTML file that opens offline.
 
 The export packages the captured revision, its resources, the exporting Leaf's
 runtime (`runtime_selection`), and the page's authoritative state reading, which that
@@ -18,12 +18,12 @@ from __future__ import annotations
 import base64
 import hashlib
 import uuid
+from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
-from leaf.event_log import read_events
 from leaf.files import (
     published_versions,
     version_name,
@@ -42,13 +42,14 @@ from leaf.revision_artifact import (
 from leaf.revision_delivery import (
     Delivery,
     compose_document,
-    initial_script_paths,
     json_script,
     rebase_css,
     runtime_settings,
 )
+from leaf.revisioning import activate_source
 from leaf.runtime_selection import executing
 from leaf.served_state.service import PageStateService
+from leaf.service import PageTransaction
 from leaf.structure import UTF8_BOM, SourceDocument
 from leaf.thread_context import logged_fragment
 
@@ -97,8 +98,8 @@ def _fragment(address: str | None, reference: str) -> str | None:
     )
 
 
-class AssetInliner:
-    """Give a resource graph one embedded body and one document-lifetime URL per resource.
+class _Assets(ABC):
+    """Traverse the CSS resource graph with the delivery's embedding policy.
 
     Imports remain CSS imports with embedded stylesheet URLs: their namespaces,
     cascade layers, supports clauses, and media conditions retain browser semantics.
@@ -109,18 +110,10 @@ class AssetInliner:
     def __init__(self, read: ResourceReader):
         self.read = read
         self.resources: dict[str, Resource] = {}
-        self.embedded: dict[str, Resource] = {}
-        self.prefix = f"urn:leaf-resource:{uuid.uuid4().hex}:"
 
+    @abstractmethod
     def embed(self, resource: Resource) -> str | None:
-        """One document-lifetime address for exact bytes and their MIME type."""
-        data = resource.data
-        token = (
-            self.prefix
-            + hashlib.sha256(resource.mime.encode() + b"\0" + data).hexdigest()
-        )
-        self.embedded[token] = Resource(data, resource.mime)
-        return token
+        """Embed a resource, or omit it from this delivery."""
 
     def resource(self, path: str) -> Resource:
         if path not in self.resources:
@@ -190,7 +183,26 @@ class AssetInliner:
         return self.css(resource.data.decode("utf-8"), path)
 
 
-class ReadableAssets(AssetInliner):
+class AssetInliner(_Assets):
+    """Give each resource one embedded body and one document-lifetime URL."""
+
+    def __init__(self, read: ResourceReader):
+        super().__init__(read)
+        self.embedded: dict[str, Resource] = {}
+        self.prefix = f"urn:leaf-resource:{uuid.uuid4().hex}:"
+
+    def embed(self, resource: Resource) -> str:
+        """One document-lifetime address for exact bytes and their MIME type."""
+        data = resource.data
+        token = (
+            self.prefix
+            + hashlib.sha256(resource.mime.encode() + b"\0" + data).hexdigest()
+        )
+        self.embedded[token] = Resource(data, resource.mime)
+        return token
+
+
+class ReadableAssets(_Assets):
     """The same CSS graph with unavailable binary declarations omitted.
 
     Native authored text, alt text and CSS layout work without scripts. Captured
@@ -205,12 +217,11 @@ class ReadableAssets(AssetInliner):
 
 
 def _module_urls(
-    artifact: RevisionArtifact, markup: list[SourceDocument]
+    artifact: RevisionArtifact, markup: list[SourceDocument], inliner: AssetInliner
 ) -> dict[str, str]:
     """Embed the module graph this file can reach, and no other module.
 
-    The computed imports an exported page makes are widget modules and their declared
-    initial producers, asked for only
+    The computed imports an exported page makes are widget modules, asked for only
     where the widget's tag stands in markup about to be upgraded (`importWidgets` in
     `runtime/widget-loader.js`). Offline that markup is the captured page and the frozen
     markup its messages carry, since the embedded reading never activates another
@@ -219,7 +230,6 @@ def _module_urls(
     that draws no diff carries no diff renderer.
     """
     tags = {record["tag"] for document in markup for record in document.lf_elements}
-    registry = artifact.registry
     required = {f"/widgets/{tag}.js" for tag in tags}
     widgets = {
         alias: source
@@ -234,30 +244,17 @@ def _module_urls(
             if artifact.resources[path].mime == "application/javascript"
         ),
         *widgets.values(),
-        *(
-            initial
-            for tag in tags
-            if (initial := registry.get(tag, {}).get("x-initial"))
-        ),
     ]
-    # Only the actual document runs parser-time producers. Frozen message widgets
-    # arrive later, after the ordinary module Lit has initialized its shared global.
-    early_lit = bool(initial_script_paths(artifact.html.decode("utf-8"), registry))
     urls = {}
     while pending:
         path = pending.pop()
         if path in urls:
             continue
-        implementation = (
-            "/vendor/lit-shared.js" if early_lit and path == "/vendor/lit.js" else path
-        )
-        resource = artifact.resources[implementation]
-        imports = list(
-            captured_imports(resource.data, implementation, artifact.resources)
-        )
+        resource = artifact.resources[path]
+        imports = list(captured_imports(resource.data, path, artifact.resources))
         pending.extend(target for _, _, target in imports)
         source = bind_imports(resource.data, imports, lambda path: f"leaf:{path}")
-        urls[path] = _data_url(Resource(source, resource.mime))
+        urls[path] = inliner.embed(Resource(source, resource.mime))
     return urls | {alias: urls[path] for alias, path in widgets.items()}
 
 
@@ -267,7 +264,7 @@ def export_document(
     state: dict,
     data: dict,
     revision: int,
-    version: int,
+    version: int | None,
     data_resources: Mapping[str, Resource],
 ) -> str:
     """Package one captured revision for Leaf's normal runtime without a host.
@@ -276,23 +273,13 @@ def export_document(
     live sample is refused before this, by `cmd_export`.
 
     The import map is an address table: every module is the exact
-    captured module with only its parsed local imports rebound to an in-file ``data:``
-    URL. The normal application publisher, widgets, and presentation coordinator boot
+    captured module with its parsed local imports rebound to ``leaf:`` names.
+    The shared resource allocator gives each embedded module one object URL.
+    The normal application publisher, widgets, and presentation coordinator boot
     against the embedded authoritative reading, so the file opens offline wherever the
     page itself names no other server.
     """
     state = {**state, "others": []}
-    modules = _module_urls(
-        artifact,
-        [
-            document,
-            *(
-                logged_fragment(event)
-                for event in state["events"]
-                if event.get("markup")
-            ),
-        ],
-    )
     resources = {**artifact.resources, **data_resources}
     inliner = AssetInliner(resources.__getitem__)
     # Replacement markers belong to delivery, never to authored prose, state, data or
@@ -308,6 +295,18 @@ def export_document(
     ]
     while any(inliner.prefix in text for text in authored_text):
         inliner.prefix = f"urn:leaf-resource:{uuid.uuid4().hex}:"
+    modules = _module_urls(
+        artifact,
+        [
+            document,
+            *(
+                logged_fragment(event)
+                for event in state["events"]
+                if event.get("markup")
+            ),
+        ],
+        inliner,
+    )
     embedded_resources = {
         path: inliner.address(path)
         for path, resource in resources.items()
@@ -400,35 +399,51 @@ def export_document(
     return fallback[:body] + note + fallback[body:]
 
 
-def cmd_export(page_dir: Path, out: Path, version) -> dict:
-    """One stamped version as a standalone HTML file that opens offline.
+def cmd_export(
+    page_dir: Path, out: Path, version: int | None, *, draft: bool = False
+) -> dict:
+    """Export the selected stamp, or current valid source with `draft`.
 
-    The file carries the captured revision and Leaf's normal runtime, which boots from
-    the embedded authoritative reading. It has no host command or transport capability."""
-    events = read_events(page_dir)
-    published = published_versions(page_dir, events)
-    if not published:
-        raise Refused(
-            f"{page_dir} has no stamped version to export; run `leaf page stamp` first"
+    Draft export activates source through the same check as a live page, preserving
+    decisions and reanchors without adding a version checkpoint. Selection and the
+    authoritative snapshot share one page transaction. The file has no host command
+    or transport capability.
+    """
+    if draft and version is not None:
+        raise Refused("--draft and --version cannot be used together")
+    with PageTransaction(page_dir) as page:
+        if draft:
+            activation = activate_source(page_dir, transaction=page)
+            if activation.error:
+                raise Refused(activation.error)
+            revision = activation.revision
+            assert revision is not None
+            url = "/"
+        else:
+            published = published_versions(page_dir, page.events)
+            if not published:
+                raise Refused(
+                    f"{page_dir} has no stamped version to export; "
+                    "use --draft for current source or run `leaf page stamp` first"
+                )
+            version = published[-1] if version is None else version
+            if version not in published:
+                raise Refused(
+                    f"v{version} is not stamped — stamped: "
+                    + ", ".join(f"v{v}" for v in published)
+                )
+            revision = version_revisions(page.events)[version]
+            url = f"/versions/{version_name(version)}"
+        document = read_revision(page_dir, revision).document
+        if document.samples:
+            raise Refused(
+                "Live samples need a server, so a page that declares one "
+                "cannot be exported."
+            )
+        artifact = executing(read_artifact(page_dir, revision))
+        snapshot = capture_page_snapshot(
+            page_dir, document, revision, url=url, artifact=artifact, transaction=page
         )
-    version = published[-1] if version is None else version
-    if version not in published:
-        raise Refused(
-            f"v{version} is not stamped — stamped: "
-            + ", ".join(f"v{v}" for v in published)
-        )
-    name = version_name(version)
-    revision = version_revisions(events)[version]
-    document = read_revision(page_dir, revision).document
-    if document.samples:
-        raise Refused(
-            "Live samples need a server, so a page that declares one "
-            "cannot be exported."
-        )
-    artifact = executing(read_artifact(page_dir, revision))
-    snapshot = capture_page_snapshot(
-        page_dir, document, revision, url=f"/versions/{name}", artifact=artifact
-    )
     state = PageStateService(
         page_dir,
         source=snapshot,
@@ -445,4 +460,9 @@ def cmd_export(page_dir: Path, out: Path, version) -> dict:
 
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(html, encoding="utf-8")
-    return {"file": str(out), "version": version, "bytes": out.stat().st_size}
+    return {
+        "file": str(out),
+        "version": version,
+        "revision": revision,
+        "bytes": out.stat().st_size,
+    }

@@ -8,7 +8,8 @@
       "ES2024.Promise",
       "ESNext.TypedArrays",
       "DOM",
-      "DOM.Iterable"
+      "DOM.Iterable",
+      "ESNext.Disposable"
     ],
     "module": "ESNext",
     "moduleResolution": "Bundler",
@@ -18,8 +19,21 @@
     "exactOptionalPropertyTypes": true,
     "noEmit": true,
     "noUnusedLocals": true,
+    "noUncheckedSideEffectImports": true,
     "verbatimModuleSyntax": true,
-    "skipLibCheck": false
+    "erasableSyntaxOnly": true,
+    "skipLibCheck": false,
+    "checkJs": true,
+    "types": []
   },
-  "include": ["*.d.ts", "domain.test.js", "../runtime/**/*.js"]
+  "include": [
+    "*.d.ts",
+    "domain.test.js",
+    "../leaf.js",
+    "../runtime/**/*.js",
+    "../widgets/*.js",
+    "../../packages/*/widgets/**/*.js",
+    "../../src/leaf/render-checks/*.js",
+    "../../build/entries/**/*.mjs"
+  ]
 }

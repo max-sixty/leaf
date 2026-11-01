@@ -6,6 +6,7 @@ import { authoredScope, elementById, pageDocument } from "./passages.js";
 // The verbs that follow an `x-refers` attribute (`navigateToDatum`, `data`) are handed
 // it by package code, so an undeclared one is that code's error, thrown at the call
 // rather than read as a reference to nothing.
+/** @param {string} verb @param {Element} owner @param {string} attribute */
 export function requireReference(verb, owner, attribute) {
   if (
     typeof attribute !== "string" ||
@@ -23,6 +24,7 @@ export function requireReference(verb, owner, attribute) {
 // a page element with the same id, as the server's request check does, and then in the
 // page beside it, which a message's widget may name. A mounted input supplies its
 // captured value: its binding stays fixed while the producer instance may change.
+/** @param {Element} owner @param {string} attribute @param {string | null} [id] */
 export function referencedProjection(
   owner,
   attribute,
@@ -32,6 +34,7 @@ export function referencedProjection(
   const { tag, key } = registry[owner.localName]["x-refers"][attribute];
   if (tag) {
     const within = registry[tag]["x-unique"][key];
+    /** @param {Element} element */
     const scopeOf = (element) => element.parentElement?.closest(within) ?? null;
     const scope = scopeOf(owner);
     return (

@@ -1,3 +1,23 @@
+import {
+  offer,
+  offerAction,
+  generatedElement,
+  elementDirective,
+} from "./element-markers.js";
+export {
+  offerElement,
+  generatedElement,
+  offer,
+  offerAction,
+  offerActionElement,
+  selectableOfferElement,
+  selectableOffer,
+  elementDirective,
+  offered,
+  offeredAction,
+  selectableOffered,
+  generated,
+} from "./element-markers.js";
 /* The chrome a widget injects and the words it labels.
 
    A behavior module builds injected controls with `offer`, a press wearing one of
@@ -14,9 +34,13 @@
    A control is built so the browser does as much of it as it can. `offer` builds the
    corresponding native element, so activation, disabled state, focus, and
    accessibility stay the browser's. A page word that is also a control — a tab name, a
-   chosen option — has to stay selectable, which Chromium does not begin inside a form
-   control, so `selectableOffer` builds it as a span with the role, and its widget
-   supplies the complete keyboard pattern the native element would have.
+   chosen option — has to stay selectable, so `selectableOffer` builds it as a span with
+   the role. One with a button's role takes a button's Enter and Space from
+   role-button-press.js, on any page; for another role its widget supplies the keyboard
+   pattern the native element would have. A `<button>` would not do:
+   Chromium and Firefox begin a selection inside one styled `user-select: text`, but
+   WebKit, so Safari and every iOS browser, begins none inside a form control whatever
+   its style (notes/browser-support.md, "Selecting words inside a button in WebKit").
    Both constructors mark generated chrome consistently. The shared drag guard
    (`reachedForWords`) distinguishes a click from the mouseup ending an active text
    selection by comparing the selection's focus end with the release. It does not
@@ -38,25 +62,21 @@
    caller names that apparatus, which is the container's to press. The answer otherwise
    fails closed: declining one ambiguous container gesture is safer than recording a
    choice while the user operates nested evidence. */
+import { pageRange, selectionBackward } from "./native-selection.js";
+import { move } from "./dom-move.js";
+
 import { PRESSES, WORKS } from "./control-selectors.js";
 import { tagsDeclaring } from "./registry.js";
 import { paintKeysWithin } from "./keyboard/scopes.js";
 import { showNativeLayer } from "./keyboard/layer-stack.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
-import { actionName, actionOffers, showAction } from "./icon-paths.js";
+import { actionName, showAction } from "./icon-paths.js";
 import { actionTemplate } from "./icons.js";
 import { renderedParent } from "./shadow.js";
-import { isNativeLayer } from "./shadow-tree.js";
+import { isNativeLayer, renderedUnder } from "./shadow-tree.js";
+
 import { keeps, keepsText } from "./keeps.js";
-import {
-  Directive,
-  PartType,
-  directive,
-  nothing,
-  html,
-  render,
-  signal,
-} from "/runtime/framework.js";
+import { html, render, signal } from "/runtime/framework.js";
 
 // A scroll target can sit inside a collapsed container: a closed <details> or popover,
 // an inactive tab. Leaf reveals it as the browser's find-in-page and fragment
@@ -76,6 +96,7 @@ import {
 // which joins the `updateComplete` of each element holding what was revealed that has
 // one: a Lit widget whose view switch finishes after its listener extends its own
 // `updateComplete`, as Lit elements do.
+/** @param {Element | null} el @param {() => boolean} mayReveal */
 export function reveal(el, mayReveal) {
   const chain = [];
   const settling = new Set();
@@ -84,14 +105,17 @@ export function reveal(el, mayReveal) {
   chain.reverse();
   for (const [at, a] of chain.entries()) {
     if (!mayReveal()) break;
-    if (a.tagName === "DETAILS" && !a.open) a.open = true;
-    if (a.hasAttribute?.("popover") && !isNativeLayer(a))
+    if (a instanceof HTMLDetailsElement && !a.open) a.open = true;
+    if (a instanceof HTMLElement && a.hasAttribute("popover") && !isNativeLayer(a))
       showNativeLayer(a, { modal: false });
     if (a.getAttribute?.("hidden") !== "until-found") continue;
-    const shown = [...(a.parentNode?.children ?? [])].filter((s) => !s.hidden);
+    const shown = [...(a.parentNode?.children ?? [])].filter(
+      (s) => !("hidden" in s && s.hidden),
+    );
     a.dispatchEvent(new Event("beforematch", { bubbles: true }));
     a.removeAttribute("hidden");
-    if (shown.some((sibling) => sibling.hidden)) replacedView = true;
+    if (shown.some((sibling) => "hidden" in sibling && sibling.hidden))
+      replacedView = true;
     for (const owner of chain.slice(0, at + 1))
       if (owner.updateComplete?.then) settling.add(owner.updateComplete);
   }
@@ -105,6 +129,12 @@ export function reveal(el, mayReveal) {
 
 // The one way the layer makes an element: a tag, its classes, and the words it starts
 // with.
+/** @template {keyof HTMLElementTagNameMap} K
+ * @overload @param {K} tag @param {string} [cls] @param {string | null} [text]
+ * @returns {HTMLElementTagNameMap[K]} */
+/** @overload @param {string} tag @param {string} [cls] @param {string | null} [text]
+ * @returns {HTMLElement} */
+/** @param {string} tag @param {string} [cls] @param {string | null} [text] */
 export function el(tag, cls, text) {
   const node = document.createElement(tag);
   if (cls) node.className = cls;
@@ -127,10 +157,12 @@ export function el(tag, cls, text) {
 // signal, so that row's reflection, which reads them, hears them move (keyboard/scopes.js,
 // `reflectKeys`). The widget's own rows move with the grab too, even where it is a press
 // on an already-focused grip and no focus event fires, so its keys are painted here.
+/** @type {import("@preact/signals-core").Signal<Set<Element>>} */
 const hands = signal(new Set());
 
 export const dragHeld = () => hands.value.size > 0;
 
+/** @param {Element} el @param {boolean} on */
 export const dragging = (el, on) => {
   const held = new Set(hands.peek());
   if (on) held.add(el);
@@ -163,6 +195,7 @@ export const dragging = (el, on) => {
 // Tab and which used to cast a vote on the way into the thread. It catches the container's
 // own apparatus too, which no rule here could tell from the rest; a container excludes
 // its own, being the only thing that can name them.
+/** @param {Element} node @param {Element} container */
 export function worksInside(node, container) {
   // The closure, not one level: "what this container is made of" includes a
   // part's own parts — a column's cards are the board's, and one level deep a
@@ -199,26 +232,12 @@ export function worksInside(node, container) {
 // anchoring reads where no label speaks nearer; `data-lf-gen` for words the author
 // didn't write; `data-lf-offer` for a thing to work, which paper drops because there is
 // nothing there to press.
-// A widget writes none of the three by hand: they are what make an element chrome,
-// and one of them going missing is invisible until something breaks.
+// DOM writers and template directives share these markers through element-markers.js.
 //
-// Native controls are the ordinary case. A widget gets their activation, disabled state,
-// focus behavior, and platform accessibility contract without Leaf recreating any of it:
-// ordinary buttons and links need no Leaf activation binding, and a `selectableOffer`
-// registers its widget-specific keys. An input supplies its type here so the type and the
-// pressability marker cannot disagree. Custom controls opt in when their host exposes
-// the complete activation method that the go-to sequence can call.
-// Native elements also receive lf-ui-face, the default Leaf typography and ink.
-// Custom-element hosts keep their component-owned face and state styling.
-/** @type {LeafInitial["offer"]} */
-export const offer = (...args) => document.documentElement.lfInitial.offer(...args);
-/** @type {LeafInitial["offerElement"]} */
-const offerElement = (...args) =>
-  document.documentElement.lfInitial.offerElement(...args);
-
 // Runtime searches share the vendor's native editor, frame and focus band. Callers
 // own their query and results; an auxiliary reading, such as a match count, belongs
 // in the control's `end` slot so it stays inside that same frame.
+/** @param {string} cls @param {{name: string, label: string, placeholder?: string}} options */
 export function searchField(cls, { name, label, placeholder = label }) {
   const field = offer("wa-input", `lf-search-field lf-label-hidden ${cls}`);
   field.type = "search";
@@ -235,50 +254,6 @@ export function searchField(cls, { name, label, placeholder = label }) {
   field.spellcheck = false;
   return field;
 }
-
-// A template's element part handed to an imperative writer: `${name(...args)}` calls
-// `write(element, ...args)` on every render, so a template and retained DOM share one
-// writer for the attributes it owns while Lit keeps the element's content and bindings.
-export function elementDirective(name, write) {
-  return directive(
-    class extends Directive {
-      constructor(part) {
-        super(part);
-        if (part.type !== PartType.ELEMENT)
-          throw new TypeError(`${name} belongs in a template's element part`);
-      }
-      // The values the template passes, which `update` writes.
-      render(...args) {
-        return nothing;
-      }
-      update(part, args) {
-        write(part.element, ...args);
-        return nothing;
-      }
-    },
-  );
-}
-
-// The template form of `offer`: `<div ${offered("lf-tools")}>`. It owns the
-// element's class and generated-control markers; attributes, values and handlers
-// remain ordinary Lit bindings. Both forms use the same chrome anatomy.
-export const offered = elementDirective("offered", offerElement);
-
-// A press that wears one of Leaf's control faces is built by its role, never by naming
-// the face's classes: `offerAction(role, className, label, {title, action})` and, in a
-// template, `<button ${offeredAction(role, className, label, {action})}></button>`.
-// prepaint.js (`ACTION_FACES`) lists the roles and says what each is for; `className`
-// places the control and never restyles its face. A symbol or mark names its `action`
-// (icon-paths.js, `ACTIONS`), whose symbol it shows and whose name it says as its
-// tooltip and accessible name unless `label` says more. Initial producers wrap the
-// tools they receive with the same `actionOffers`.
-const { offerAction, offerActionElement } = actionOffers({
-  offerAction: (...args) => document.documentElement.lfInitial.offerAction(...args),
-  offerActionElement: (...args) =>
-    document.documentElement.lfInitial.offerActionElement(...args),
-});
-export { offerAction, offerActionElement };
-export const offeredAction = elementDirective("offeredAction", offerActionElement);
 
 // A press whose face its surface draws rather than a role, such as the floating
 // panel's or a message's controls, still takes its symbol and name from its action:
@@ -297,25 +272,6 @@ export function nameAction(control, action, { label, title, className } = {}) {
   showAction(control, action, className);
 }
 export const namedAction = elementDirective("namedAction", nameAction);
-
-// Some page words also act as controls: a tab name, a chosen mark, or the title of a
-// settled decision. Chromium does not begin text selection inside a form control, so those
-// few controls deliberately remain spans and their owning widget supplies the complete
-// key contract. Keeping this constructor separate makes selectable control text a visible
-// design decision instead of the behavior of every injected control.
-// `face` names the action role whose face it wears, as a `row` whose words are the
-// page's own does; left out, it wears the generated control's default face.
-const selectableOfferElement = (node, role, cls, face) =>
-  document.documentElement.lfInitial.selectableOfferElement(node, role, cls, face);
-
-export const selectableOffer = (role, cls, label, face) =>
-  document.documentElement.lfInitial.selectableOffer(role, cls, label, face);
-
-// The selectable offer's template form; Lit owns its label and tab stop.
-export const selectableOffered = elementDirective(
-  "selectableOffered",
-  selectableOfferElement,
-);
 
 // What the value above names as a press: the tag for a button, the type for a native
 // choice, or the role for a selectable offer, against the empty string the rest of a
@@ -348,9 +304,15 @@ export const PRESSABLE = '[data-lf-offer]:not([data-lf-offer=""])';
 // which presses can be a drag is each caller's own question. A click carries the answer
 // in `detail`, and a `pointerup` is a pointer by construction and carries no detail to
 // read.
+/** @param {Element} el */
 export function reachedForWords(el) {
   const sel = getSelection();
-  return !!sel && !sel.isCollapsed && el.contains(sel.focusNode);
+  if (!sel?.rangeCount) return false;
+  const range = pageRange(sel);
+  const focus = selectionBackward(sel, range)
+    ? range.startContainer
+    : range.endContainer;
+  return !range.collapsed && renderedUnder(focus, el);
 }
 
 document.addEventListener(
@@ -363,9 +325,12 @@ document.addEventListener(
     // inside chrome a widget made, such as a fold's toggle in a thread card that wears
     // `data-lf-offer`, is its own press: asked of the card, a selection anywhere in the
     // card's words deadened every button in it.
-    const control = /** @type {Partial<Element>} */ (ev.target).closest?.(
-      `${PRESSES},[data-lf-offer]`,
-    );
+    const control = ev
+      .composedPath()
+      .find(
+        /** @returns {node is Element} */ (node) =>
+          node instanceof Element && node.matches(`${PRESSES},[data-lf-offer]`),
+      );
     if (control && reachedForWords(control)) {
       ev.stopPropagation();
       ev.preventDefault();
@@ -412,8 +377,7 @@ document.addEventListener(
 // — the loud direction, in front of whoever wrote the label.
 //
 // `generatedElement(node, {says})` writes those markers without the words: for a box
-// whose contents the widget writes, or words it fills in some other way. prepaint.js
-// holds it so that an initial producer receives it as it receives `offerElement`.
+// whose contents the widget writes, or words it fills in some other way.
 // Widgets write the markers only through it, `relabel` and the offers, so the three
 // stay consistent. Words a module writes unmarked are the page's: the version
 // comparison reads sources (`version.js`), so they never read as a change, but `wrote`
@@ -422,20 +386,18 @@ document.addEventListener(
 // they do something it doesn't: the datum projection (projection/data.js) marks and
 // unmarks authored nodes as their data comes and goes, markdown.js serializes its
 // media button as HTML, and revision_delivery.py writes prepaint faces on the server.
-/** @type {LeafInitial["generatedElement"]} */
-export const generatedElement = (...args) =>
-  document.documentElement.lfInitial.generatedElement(...args);
-export const generated = elementDirective("generated", generatedElement);
 
+/** @overload @param {Element} node @param {string} label @param {{says: boolean | "echo"}} options @returns {void} */
 /** @param {Element} node @param {string} label @param {{says?: boolean | "echo"}} [options] */
-export function relabel(node, label, { says } = {}) {
-  generatedElement(node, { says });
+export function relabel(node, label, options = {}) {
+  generatedElement(node, options);
   keepsText(node, label);
 }
 
 // Every surface that closes wears one control for it: the cross, named for what it
 // closes, since the glyph alone says only "close". `name` is the accessible name, such
 // as "Close threads"; `title` is the hover's, which says the key where one closes it too.
+/** @param {{name: string, title?: string, className?: string}} options */
 export const closeControl = ({ name, title = name, className = "" }) =>
   offerAction("symbol", className, name, { title, action: "close" });
 
@@ -445,6 +407,8 @@ export const closeControl = ({ name, title = name, className = "" }) =>
 // change vocabulary without each inventing a button shape. A reaction shows its glyph,
 // and Leaf's own actions their symbol (icon-paths.js, `ACTIONS`). Restating the anatomy
 // a control already wears writes nothing (keeps.js).
+/** @template {HTMLElement} T @param {T} control
+ * @param {{glyph?: string | null, action?: string | null, label: string, behavior?: string, collapse?: boolean}} options @returns {T} */
 export function responseAction(
   control,
   { glyph = null, action = null, label, behavior = "action", collapse = false },
@@ -475,9 +439,23 @@ export function responseAction(
 
 // Motion carries the card's label, never a second live widget tree. Native chrome
 // avoids copied form groups, widget lifetimes and iframe browsing contexts.
+/** @param {string} label */
 export function motionPreview(label) {
   const preview = offer("div", "lf-motion-preview", label);
   preview.inert = true;
   preview.setAttribute("aria-hidden", "true");
   return preview;
+}
+
+// A widget's generated wrapper holding the children the page authored. Revision
+// member patching edits this body, while the widget keeps the wrapper itself.
+/** @type {WeakMap<Element, HTMLElement>} */
+const authoredBodies = new WeakMap();
+/** @param {Element} host */
+export const authoredBody = (host) => authoredBodies.get(host) ?? null;
+/** @template {HTMLElement} T @param {Element} host @param {T} body @returns {T} */
+export function holdAuthoredBody(host, body) {
+  for (const node of [...host.childNodes]) move(body, node, null);
+  authoredBodies.set(host, body);
+  return body;
 }

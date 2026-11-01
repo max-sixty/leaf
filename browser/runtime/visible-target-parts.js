@@ -10,6 +10,7 @@ import { drawn } from "./focus.js";
 import { shownParts } from "./geometry.js";
 import { skipped } from "./shown-box.js";
 
+/** @param {Element} target */
 export function visibleTargetParts(target) {
   if (skipped(target)) return [];
   const parts = shownParts(target).filter(drawn);

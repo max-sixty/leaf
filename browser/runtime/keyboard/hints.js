@@ -23,7 +23,7 @@
    opaque hint has no meaning once its face is hidden, so collisions are spread rather
    than removed. Geometry belongs to each caller and is passed in so this module
    introduces no ownership cycle through its callers. */
-import { bindingEnabled, cycledRow, spell } from "./bindings.js";
+import { bindingEnabled, cycledRow, hasRows, spell } from "./bindings.js";
 import { html, render } from "/runtime/framework.js";
 import { keySequenceModel, keySequenceTemplate } from "./key-sequence.js";
 import { clamp, overlaps, overlapsAcross } from "../rect.js";
@@ -34,31 +34,67 @@ import { announce } from "../notifications.js";
 import { repaint } from "../repaint.js";
 import { beginWalk, listWalkPosition } from "../walk-position.js";
 
+/** @typedef {import("../rect.js").Box & {held?: boolean}} HintBarrier */
+/** @typedef {import("../rect.js").Box & {width: number, height: number, held?: boolean, clippedTop?: boolean}} HintBox
+ * @typedef {"corner" | "below" | "before" | "above"} HintPlacement
+ * @typedef {{start: HintBox, target: HintBox, placement?: HintPlacement}} HintFace
+ */
+
 export const HINT_KEYS = [..."asdfghjklqwertyuiopzxcvbnm"];
 
-export function hintCodes(count, keys = HINT_KEYS) {
-  const codes = [...keys];
-  while (codes.length < count) {
-    const shortest = Math.min(...codes.map((code) => code.length));
-    const at = codes.findLastIndex((code) => code.length === shortest);
-    const parent = codes[at];
-    codes.splice(at, 1, ...keys.map((key) => parent + key));
+/** Associate every member with its prefix-free address. Expansion replaces the last
+ * shortest leaf, so earlier short addresses remain stable as the map grows.
+ * @template {object} T @param {readonly T[]} members @param {string} [alphabet] */
+export function codedHints(members, alphabet = HINT_KEYS.join("")) {
+  const radix = alphabet.length;
+  let depth = 1;
+  let shallow = radix;
+  let leaves = radix;
+  while (leaves < members.length) {
+    if (shallow === 0) {
+      depth += 1;
+      shallow = leaves;
+    }
+    shallow -= 1;
+    leaves += radix - 1;
   }
-  return codes.slice(0, count);
+  /** @param {number} value @param {number} digits */
+  const code = (value, digits) => {
+    let address = "";
+    for (let at = 0; at < digits; at += 1) {
+      address = alphabet.charAt(value % radix) + address;
+      value = Math.floor(value / radix);
+    }
+    return address;
+  };
+  return members.map((member, index) => ({
+    ...member,
+    code:
+      index < shallow
+        ? code(index, depth)
+        : code(shallow + Math.floor((index - shallow) / radix), depth) +
+          alphabet.charAt((index - shallow) % radix),
+  }));
 }
 
 // Lit sees only an opaque primitive. The native row or target remains controller state,
 // while an unchanged owner retains its seat, chip and keycaps across paint-only updates.
 export function renderKeys() {
+  /** @type {WeakMap<object, number>} */
   const keys = new WeakMap();
   let next = 1;
+  /** @param {object} owner */
   return (owner) => {
-    if (!keys.has(owner)) keys.set(owner, next++);
-    return keys.get(owner);
+    let key = keys.get(owner);
+    if (key === undefined) {
+      key = next++;
+      keys.set(owner, key);
+    }
+    return key;
   };
 }
 
-/** @returns {{left: number, right: number, top: number, bottom: number, width: number, height: number, held?: boolean}} */
+/** @param {HintBox} box @param {number} left @param {number} top @returns {HintBox} */
 const movedTo = (box, left, top) => ({
   left,
   right: left + box.width,
@@ -70,9 +106,10 @@ const movedTo = (box, left, top) => ({
 
 // The open top nearest `preferred`, and what decided it: the window's edge, a barrier
 // the seat stands clear of, or nothing where the preferred top is open.
+/** @param {HintBox} box @param {number} preferred @param {HintBarrier[]} barriers @param {number} top @param {number} bottom @param {number} gap */
 function nearestOpenTop(box, preferred, barriers, top, bottom, gap) {
   const last = Math.max(top, bottom - box.height);
-  /** @type {{at: number, by: null | "edge" | {held?: boolean}}[]} */
+  /** @type {{at: number, by: null | "edge" | HintBarrier}[]} */
   const seats = [
     { at: preferred, by: null },
     { at: top, by: "edge" },
@@ -84,10 +121,12 @@ function nearestOpenTop(box, preferred, barriers, top, bottom, gap) {
       { at: barrier.top - gap - box.height, by: barrier },
     );
   return seats
-    .map(({ at, by }) => {
-      const held = clamp(at, top, last);
-      return { at: held, by: held === at ? by : "edge" };
-    })
+    .map(
+      /** @returns {{at: number, by: null | "edge" | HintBarrier}} */ ({ at, by }) => {
+        const held = clamp(at, top, last);
+        return { at: held, by: held === at ? by : "edge" };
+      },
+    )
     .filter(
       ({ at }) =>
         !barriers.some((barrier) => overlaps(movedTo(box, box.left, at), barrier)),
@@ -103,31 +142,35 @@ function nearestOpenTop(box, preferred, barriers, top, bottom, gap) {
 // each seat stands (chip-seats.js), its `box` a barrier for a following pass.
 // `placement` chooses the corner, below, before, or above the target;
 // outside seats keep the target clear.
-/** @param {any} seats @param {any} hints @param {{barriers?: object[]}} [options] */
+/** @param {ReturnType<typeof chipSeats>} seats
+ * @param {{seat: HTMLElement, at: {left: number, top: number}, target: HintBox, placement?: HintPlacement, element: Element | null}[]} hints
+ * @param {{barriers?: HintBarrier[]}} [options] */
 function spreadHints(seats, hints, { barriers = [] } = {}) {
   const band =
     parseFloat(
       getComputedStyle(document.documentElement).getPropertyValue("--focus-ring-w"),
     ) || 0;
-  const faces = hints.map(({ seat, at, target, placement = "corner" }) => ({
-    start: seats.boxAt(seat, at),
-    target,
-    placement,
+  const faces = hints.map((hint) => ({
+    start: seats.measure(hint.seat, hint.at).box,
+    target: hint.target,
+    ...(hint.placement === undefined ? {} : { placement: hint.placement }),
+    hint,
   }));
-  const placed = seatHints(faces, { barriers, band, viewport: layoutWindow() });
-  return hints.map(({ seat, at, target, element }, index) => ({
-    seat,
-    target: element,
-    at,
-    start: faces[index].start,
-    box: placed[index],
-    // A chip on a target whose top the room cuts stands at the room's edge.
-    held: placed[index].held || Boolean(target?.clippedTop),
-  }));
+  return seatHints(faces, { barriers, band, viewport: layoutWindow() }).map(
+    ({ face, box }) => ({
+      seat: face.hint.seat,
+      target: face.hint.element,
+      at: face.hint.at,
+      start: face.start,
+      box,
+      held: box.held || Boolean(face.target.clippedTop),
+    }),
+  );
 }
 
 // Whether `outer` encloses `inner` and is larger across or down: an equal box is the same
 // place rather than a box around it.
+/** @param {import("../rect.js").Box} outer @param {import("../rect.js").Box} inner */
 const encloses = (outer, inner) =>
   outer.left <= inner.left &&
   outer.top <= inner.top &&
@@ -148,27 +191,42 @@ const encloses = (outer, inner) =>
 // chip the window clamps already has no room, so it does not narrow everyone else's.
 const NEST_STEP = 10;
 const NEST_FLOOR = 4;
+/** @template {HintFace} T
+ * @typedef {{face: T, ancestors: HintNest<T>[], root: () => HintNest<T>, deepest: number}} HintNest */
+/** @template {HintFace} T @param {readonly T[]} faces @param {(face: T) => number} room */
 function nestOutsets(faces, room) {
-  const before = faces.flatMap(({ placement }, at) =>
-    placement === "before" ? [at] : [],
+  const records = faces.map(
+    /** @returns {HintNest<T>} */ (face) => ({
+      face,
+      ancestors: [],
+      deepest: 0,
+      root() {
+        return this.ancestors.find((parent) => !parent.ancestors.length) ?? this;
+      },
+    }),
   );
-  const around = (at) =>
-    before.filter((by) => by !== at && encloses(faces[by].target, faces[at].target));
-  const depth = new Map(before.map((at) => [at, around(at).length]));
-  const root = new Map(
-    before.map((at) => [at, around(at).find((by) => depth.get(by) === 0) ?? at]),
-  );
-  const deepest = new Map();
-  for (const at of before)
-    deepest.set(root.get(at), Math.max(deepest.get(root.get(at)) ?? 0, depth.get(at)));
-  const levels = faces.map((_, at) =>
-    depth.has(at) ? deepest.get(root.get(at)) - depth.get(at) : 0,
-  );
-  const fits = faces
-    .map((face, at) => (levels[at] ? room(face) / levels[at] : null))
-    .filter((step) => step > 0);
+  const before = records.filter(({ face }) => face.placement === "before");
+  for (const record of before)
+    record.ancestors = before.filter(
+      (other) => other !== record && encloses(other.face.target, record.face.target),
+    );
+  for (const record of before) {
+    const root = record.root();
+    root.deepest = Math.max(root.deepest, record.ancestors.length);
+  }
+  const levels = records.map((record) => ({
+    face: record.face,
+    level:
+      record.face.placement === "before"
+        ? record.root().deepest - record.ancestors.length
+        : 0,
+  }));
+  const fits = levels.flatMap(({ face, level }) => {
+    const fit = level ? room(face) / level : 0;
+    return fit > 0 ? [fit] : [];
+  });
   const step = Math.floor(clamp(Math.min(NEST_STEP, ...fits), NEST_FLOOR, NEST_STEP));
-  return levels.map((level) => level * step);
+  return levels.map(({ face, level }) => ({ face, outset: level * step }));
 }
 
 // Where each face stands, folded from rectangles `spreadHints` has already read. Each
@@ -177,6 +235,7 @@ function nestOutsets(faces, room) {
 // before it. A box is `held` where what decided its seat stands still as the page
 // scrolls, the window's edge or a fixed barrier, rather than its target or a face
 // riding with its own, so the window holds it where a scroll carries the rest.
+/** @template {HintFace} T @param {readonly T[]} faces @param {{barriers?: HintBarrier[], band: number, viewport: import("../rect.js").Box}} options */
 export function seatHints(faces, { barriers: fixedBarriers = [], band, viewport }) {
   const gap = 2;
   // The browsed hint wears the layer's band (--focus-shadow, base.css), which a face's
@@ -192,37 +251,46 @@ export function seatHints(faces, { barriers: fixedBarriers = [], band, viewport 
   const edgeTop = viewport.top + band;
   const edgeRight = viewport.right - band;
   const edgeBottom = viewport.bottom - band;
+  /** @param {HintFace} face */
   const beforeLeft = ({ start, target }) => target.left - start.width - clear;
-  const outsets = nestOutsets(faces, (face) => beforeLeft(face) - edgeLeft);
-  const measured = faces.map(({ start, target, placement = "corner" }, at) => {
-    const preferredLeft =
-      placement === "below"
-        ? target.left + (target.width - start.width) / 2
-        : placement === "before"
-          ? beforeLeft({ start, target }) - outsets[at]
+  const measured = nestOutsets(faces, (face) => beforeLeft(face) - edgeLeft).map(
+    ({ face, outset }) => {
+      const { start, target, placement = "corner" } = face;
+      const preferredLeft =
+        placement === "below"
+          ? target.left + (target.width - start.width) / 2
+          : placement === "before"
+            ? beforeLeft({ start, target }) - outset
+            : placement === "above"
+              ? target.left
+              : start.left;
+      const preferredTop =
+        placement === "below"
+          ? target.bottom + clear
           : placement === "above"
-            ? target.left
-            : start.left;
-    const preferredTop =
-      placement === "below"
-        ? target.bottom + clear
-        : placement === "above"
-          ? target.top - start.height - clear
-          : start.top;
-    const first = movedTo(
-      start,
-      clamp(preferredLeft, edgeLeft, Math.max(edgeLeft, edgeRight - start.width)),
-      clamp(preferredTop, edgeTop, Math.max(edgeTop, edgeBottom - start.height)),
-    );
-    const held = first.left !== preferredLeft || first.top !== preferredTop;
-    return [first, placement !== "corner" ? target : null, held];
-  });
+            ? target.top - start.height - clear
+            : start.top;
+      const first = movedTo(
+        start,
+        clamp(preferredLeft, edgeLeft, Math.max(edgeLeft, edgeRight - start.width)),
+        clamp(preferredTop, edgeTop, Math.max(edgeTop, edgeBottom - start.height)),
+      );
+      const held = first.left !== preferredLeft || first.top !== preferredTop;
+      return {
+        face,
+        seated: first,
+        ownTarget: placement !== "corner" ? target : null,
+        clamped: held,
+      };
+    },
+  );
+  /** @type {{face: T, box: HintBox}[]} */
   const placed = [];
-  for (const [seated, ownTarget, clamped] of measured) {
+  for (const { face, seated, ownTarget, clamped } of measured) {
     const fixed = fixedBarriers.filter((other) => overlapsAcross(other, seated));
     const barriers = [
       ...fixed,
-      ...placed.filter((other) => overlapsAcross(other, seated)),
+      ...placed.filter(({ box }) => overlapsAcross(box, seated)).map(({ box }) => box),
     ];
     if (ownTarget && overlapsAcross(ownTarget, seated)) barriers.push(ownTarget);
     const open = nearestOpenTop(
@@ -238,9 +306,13 @@ export function seatHints(faces, { barriers: fixedBarriers = [], band, viewport 
     // the invariant tests exercise collisions at every viewport edge.
     const box = movedTo(seated, seated.left, open?.at ?? seated.top);
     // Below a face the window holds, the window holds this one too.
+    const by = open?.by;
     box.held =
-      clamped || open?.by === "edge" || fixed.includes(open?.by) || !!open?.by?.held;
-    placed.push(box);
+      clamped ||
+      by === "edge" ||
+      fixed.some((barrier) => barrier === by) ||
+      (typeof by === "object" && Boolean(by?.held));
+    placed.push({ face, box });
   }
   return placed;
 }
@@ -263,6 +335,16 @@ export function seatHints(faces, { barriers: fixedBarriers = [], band, viewport 
    wait for the scene to settle. A map armed into a page already in flight has stood
    still for nobody, and shows nothing until it settles rather than putting codes on a
    scene that is leaving. */
+/** @template {{code: string}} C
+ * @template R
+ * @template {{key: unknown, className: string}} M
+ * @typedef {{layer: HTMLElement, walk: string, read: () => C[], identity: (candidate: C) => Element,
+ * scene: () => R, layout: (candidates: C[], options: {current: C | undefined, reading: R}) => {candidate: C, model: M, left: number, top: number, target: HintBox, placement: HintPlacement}[],
+ * template: (model: M) => unknown, take: (candidate: C) => unknown,
+ * words: {describe: (candidate: C) => string, take: string, all: string}, chrome: {barriers: () => HintBarrier[]}}} HintSessionOptions
+ */
+/** @template {{code: string}} C @template R @template {{key: unknown, className: string}} M
+ * @param {HintSessionOptions<C, R, M>} options */
 export function createHintSession({
   layer,
   walk: walkKey,
@@ -277,6 +359,7 @@ export function createHintSession({
 }) {
   let armed = false;
   let prefix = "";
+  /** @type {C[]} */
   let candidates = [];
   // Where the audible walk stands in `hinted()`, or -1 when no hint has been heard.
   let at = -1;
@@ -284,9 +367,14 @@ export function createHintSession({
   const seats = chipSeats(layer);
 
   const hinted = () => candidates.filter(({ code }) => code.startsWith(prefix));
+  /** @param {C} candidate */
   const enabled = (candidate) => [...candidate.code].every(bindingEnabled);
+  /** @param {{candidate: C}} plan */
   const shown = (plan) => enabled(plan.candidate) || plan.candidate === hinted()[at];
-  const nativeTake = keySequenceModel([spell("Enter")], undefined, ["Enter"]);
+  const nativeTake = keySequenceModel([
+    { text: spell("Enter"), keys: [spell("Enter")], state: "neutral", spoken: "Enter" },
+  ]);
+  /** @param {{candidate: C, model: M}} plan */
   const face = (plan) =>
     plan.candidate && !enabled(plan.candidate)
       ? html`<span
@@ -299,6 +387,7 @@ export function createHintSession({
   // Every way the map is replaced whole puts the user back at its head, with no letters
   // typed and nothing heard. Whether the page is moving is a fact about the page rather
   // than about the map (arrivals.js, `scrolling`).
+  /** @param {C[]} found */
   function hold(found) {
     prefix = "";
     at = -1;
@@ -330,6 +419,7 @@ export function createHintSession({
     repaint();
   }
 
+  /** @param {C | undefined} candidate */
   function take(candidate) {
     const current = read();
     const found =
@@ -340,6 +430,7 @@ export function createHintSession({
     repaint();
   }
 
+  /** @param {string} key */
   function type(key) {
     const next = prefix + key;
     if (!candidates.some(({ code }) => code.startsWith(next))) {
@@ -354,9 +445,10 @@ export function createHintSession({
     repaint();
   }
 
+  /** @param {import("./bindings.js").Step} direction */
   function walk(direction) {
     const targets = hinted();
-    if (!targets.length) return;
+    if (!hasRows(targets)) return;
     // Nothing heard yet, the walk starts at whichever end it walks from.
     const target = cycledRow(targets, targets[at], direction);
     at = targets.indexOf(target);
@@ -385,6 +477,7 @@ export function createHintSession({
   // The walk's own rows, so both vocabularies offer Tab, Shift+Tab and Enter as one
   // declaration: each caller names them under `id`, says what taking a member does in
   // `choose`, and decides `when` the walk is offered.
+  /** @param {{id: string, when?: () => boolean, choose: {description?: string, title: string}}} options @returns {import("./bindings.js").Command[]} */
   function walkRows({ id, when = () => candidates.length > 0, choose }) {
     return [
       {
@@ -402,7 +495,8 @@ export function createHintSession({
         title: "browse hints",
         repeat: true,
         when,
-        run: (binding) => walk(binding === "Tab" ? 1 : -1),
+        runKey: /** @param {string} binding */ (binding) =>
+          walk(binding === "Tab" ? 1 : -1),
       },
       {
         id: `${id}.choose`,
@@ -417,6 +511,7 @@ export function createHintSession({
     ];
   }
 
+  /** @param {ReturnType<typeof layout>} codedPlans */
   function draw(codedPlans) {
     const plans = codedPlans.filter(shown);
     const drawn = plans.map((plan) => {

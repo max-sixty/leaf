@@ -774,7 +774,7 @@ class PageEndpoint:
                 self.posted, self.posted_error = prepare()
                 prepared = True
             return route()
-        except Exception as error:  # noqa: BLE001 - the boundary answers, never buries
+        except Exception as error:
             # Not a refusal: a fault may have landed either side of the append, so the
             # browser must retry the same attempt instead of putting its gesture back.
             if prepare and not prepared:

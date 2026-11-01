@@ -29,37 +29,16 @@ const STATE_CLASSES = {
   focus: "lf-visual-mark-focus",
   here: "lf-visual-mark-here",
 };
-const INSET = "lf-visual-mark-inset";
-
-// What the contour takes outside its target: the focus ring's band (chrome.css).
-function ringRoom() {
-  return parseFloat(
-    getComputedStyle(document.documentElement).getPropertyValue("--focus-ring-w"),
-  );
-}
-
-// The contour's brackets stand flush outside their target (chrome.css). Where a box that
-// clips the target, as a joined lf-options frame clips its cells, shows the target's edge
-// but not the band beyond it, they stand just inside the edge instead, as a control
-// packed into a list insets its own ring (base.css). Outside, the clip cut away their
-// sides and left stubs across the neighbours. An edge the clip already cuts, as on a
-// target scrolled partly out of its scroller, asks for no room.
-function cramped({ rect, levels }, room) {
-  const short = (band, low, high) =>
-    (rect[low] >= band[low] && rect[low] - room < band[low]) ||
-    (rect[high] <= band[high] && rect[high] + room > band[high]);
-  return levels.some(
-    ({ holder, band, axes }) =>
-      holder &&
-      ((axes.x && short(band, "left", "right")) ||
-        (axes.y && short(band, "top", "bottom"))),
-  );
-}
-
+/** @typedef {{element: Element, surface: Element, states: ReadonlySet<string>}} VisualTarget */
+/** @typedef {{overlay: HTMLDivElement, shape: SVGSVGElement,
+ * stand: import("../target-paint-geometry.js").PaintStand<import("../target-paint-geometry.js").PaintNode>, geometry: ReturnType<typeof paintGeometry>,
+ * shapeKey: string}} Overlay */
 export function createVisualMarkPaint() {
   const layer = el("div", "lf-ui lf-visual-marks");
   layer.setAttribute("aria-hidden", "true");
+  /** @type {Map<Element, VisualTarget>} */
   let targets = new Map();
+  /** @type {Map<Element, Overlay>} */
   const overlays = new Map();
   let placementFrame = 0;
   let geometryFrame = 0;
@@ -74,11 +53,10 @@ export function createVisualMarkPaint() {
   }
 
   function paintTargets(rebuildGeometry = true) {
-    const room = ringRoom();
-    for (const element of [...overlays.keys()])
+    for (const [element, record] of overlays)
       if (!targets.has(element)) {
         element.classList.toggle(PROJECTED, false);
-        dropStand(overlays.get(element).stand);
+        dropStand(record.stand);
         overlays.delete(element);
       }
 
@@ -111,7 +89,6 @@ export function createVisualMarkPaint() {
       element.classList.toggle(PROJECTED, true);
       keeps(overlay, "data-for", element.id || null);
       overlay.classList.toggle("lf-shaped", Boolean(geometry));
-      overlay.classList.toggle(INSET, !geometry && cramped(placed, room));
       if (
         rebuildGeometry ||
         record.geometry !== geometry ||
@@ -132,6 +109,7 @@ export function createVisualMarkPaint() {
     syncStates();
   }
 
+  /** @param {Iterable<VisualTarget>} next */
   function setTargets(next) {
     const nextTargets = new Map(
       [...next]

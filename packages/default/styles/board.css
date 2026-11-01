@@ -137,7 +137,7 @@ lf-column {
     }
     .lf-board-destinations-label {
       color: var(--muted);
-      font-size: var(--t-6);
+      font: var(--font-small);
     }
     .lf-board-destination {
       min-height: var(--aim-floor);
@@ -159,9 +159,7 @@ lf-column {
 lf-column::before,
 lf-column > [data-lf-said="label"] {
   display: block;
-  font-size: var(--t-working-label);
-  font-weight: 600;
-  line-height: 1.5;
+  font: var(--font-title);
   color: var(--ink-2);
   padding: 2px var(--lf-card-inset) 10px;
 }
@@ -197,7 +195,7 @@ lf-column > .lf-column-count {
   position: absolute;
   top: calc(var(--lf-reading-column-inset) + 2px);
   right: calc(var(--lf-reading-column-inset) + var(--lf-card-inset));
-  font: 600 var(--t-working-label)/1.5 var(--sans);
+  font: var(--font-title);
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
@@ -304,6 +302,13 @@ lf-card .lf-grip {
    reveal is the browser's, so a focus restored without scrolling leaves the board be. */
 lf-card .lf-grip {
   scroll-margin-inline-start: calc(100cqi + 2 * var(--lf-card-inset));
+  /* The ring is inset rather than at a control's gap, because the grip is flush with
+     its card's edge inside lf-board, which scrolls sideways. At the width where three
+     columns reach their 10rem floor the board clips a pixel outside the last column's
+     cards, so the ring's right run and both corners on that side fell outside the clip
+     while the grip itself stayed whole. An inset ring cannot leave the box it names, at
+     any scroll position. */
+  outline-offset: var(--focus-ring-inset);
 }
 lf-card:hover > .lf-grip {
   color: var(--ink-2);
@@ -311,15 +316,7 @@ lf-card:hover > .lf-grip {
 lf-card .lf-grip:hover {
   background: var(--chip);
 }
-/* The ring is inset rather than offset a pixel out, as the layer's other small controls
-   have theirs, because this one is flush with its card's edge inside lf-board, which
-   scrolls sideways. At the width where three columns reach their 10rem floor the board
-   clips a pixel outside the last column's cards, so the ring's right run and both
-   corners on that side fell outside the clip while the grip itself stayed whole. An
-   inset ring cannot leave the box it names, at any scroll position. */
 lf-card .lf-grip[data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  outline-offset: calc(-1 * var(--focus-ring-w));
   color: var(--ink-2);
 }
 /* SortableJS drag states on the real card: the in-flow slot and pressed card. */

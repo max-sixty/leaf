@@ -111,12 +111,14 @@ lf-sample {
 lf-sample > * {
   --lf-box-cap: 100%;
 }
+/* The sample's note takes the label font (base.css, `.lf-label`), stated here since a
+ * generated note can't wear the class. */
 lf-sample::before,
 lf-sample > [data-lf-said="label"] {
   display: table-caption;
-  font-size: var(--t-6);
   margin-bottom: var(--sp-1);
-  letter-spacing: 0.08em;
+  font: var(--font-label);
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted);
 }
@@ -204,7 +206,7 @@ lf-sample:has(> template[data-sample]) {
   align-content: center;
   white-space: nowrap;
   color: var(--muted);
-  font: var(--t-6)/1.4 var(--sans);
+  font: var(--font-small);
 }
 .lf-sample-failure {
   margin: 0;
@@ -250,10 +252,6 @@ lf-sample:has(> template[data-sample]) {
   .lf-sample-exhibit:has(> .lf-sample-frame[data-lf-focus]) {
     border-left-color: Highlight;
   }
-}
-.lf-sample-frame[data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  outline-offset: 2px;
 }
 /* A window sample keeps its outer height rather than its page's, and scrolls inside.
  * Three quarters of the viewport leaves its label, Reset, and the containing page's

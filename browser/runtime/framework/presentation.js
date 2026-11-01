@@ -17,13 +17,6 @@
 /** @typedef {{ complete: boolean; active: boolean; latest: object | null; release: (() => void) | null }} RegionRecord */
 import { signal } from "/vendor/signals-core.js";
 import { untracked } from "./snapshot.js";
-/** @param {unknown} reason @returns {string} */
-export function describeFailure(reason) {
-  const message = reason instanceof Error ? reason.message : String(reason);
-  return reason instanceof AggregateError && reason.errors.length
-    ? `${message}: ${reason.errors.map(describeFailure).join("; ")}`
-    : message;
-}
 /** @param {{reportFailure: (reason: unknown) => void}} options */
 export function createPresentationCoordinator({ reportFailure }) {
   const changes = signal(0);
@@ -220,7 +213,7 @@ export function createPresentationCoordinator({ reportFailure }) {
  * }} Claim
  */
 
-/** @param {<Result>(callback: () => Result) => () => Result} bindJob */
+/** @param {<Result>(callback: () => Result) => () => Result | undefined} bindJob */
 export function createPresentationSchedule(bindJob) {
   /** @type {(() => Promise<void>)[]} */
   let queued = [];
@@ -233,7 +226,7 @@ export function createPresentationSchedule(bindJob) {
 
   function open() {
     if (pass) return;
-    pass = /** @type {PromiseWithResolvers<void>} */ (Promise.withResolvers());
+    pass = Promise.withResolvers();
     // A caller that ignores this promise reads the failure from the coordinator's
     // report instead, so it must not raise a browser-level unhandled rejection.
     void pass.promise.catch(() => undefined);
@@ -305,7 +298,7 @@ export function createPresentationSchedule(bindJob) {
 
   /** Queue a native renderer, separating its scheduling return from committed DOM.
    * @param {() => readonly PromiseLike<unknown>[]} after
-   * @param {() => void | PromiseLike<void>} run
+   * @param {() => unknown} run
    * @param {() => PromiseLike<unknown>} committed
    */
   function enqueue(after, run, committed) {
@@ -335,8 +328,8 @@ export function createPresentationSchedule(bindJob) {
    * @param {{
    *   attach: () => PresentationHandle;
    *   paint: (value: Value, current: () => boolean) => unknown;
-   *   failSoft?: (reason: unknown) => unknown;
-   *   after?: () => readonly PromiseLike<unknown>[];
+   *   failSoft?: ((reason: unknown) => unknown) | undefined;
+   *   after?: (() => readonly PromiseLike<unknown>[]) | undefined;
    * }} options
    * @returns {ScheduledPresenter<Value>}
    */

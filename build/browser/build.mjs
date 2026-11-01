@@ -7,7 +7,7 @@
  * Run with --check to compare a fresh, typechecked build with committed bytes
  * without writing them. This module type-checks the runtime, builds the framework's
  * third-party packages, and writes and checks every other committed Node-built output
- * beside them: the initial renderers (`build/initial.mjs`), the third-party
+ * beside them: the third-party
  * stylesheets (`build/styles.mjs`), the page protocol's types, the event records and
  * the served state (`contract-types.mjs`), and the baseline its schemas are held to
  * (`protocol.mjs`), the third-party bundles and the runtime's table of their grammars
@@ -19,38 +19,26 @@
  * The compiler's layer paths are generated into `tsconfig.paths.json` from the
  * package directories, so its CLI and editors resolve the same installed modules.
  *
- * The framework (`runtime/framework.js` and the modules behind it) is written as
- * JavaScript the type check reads, so a page serves its source as it does every other
- * runtime module. Its third-party packages are minified builds from the lock and the
- * adaptations below. Delivery inlines Lit when a page declares an initial producer,
- * mapping `vendor/lit.js` to that instance's facade; otherwise it loads as a normal
- * module (`build/lit.mjs`). Both outputs share the same namespace source, and a page
- * loads one implementation. Signals are the framework's own: the kernel compiles
- * them in with it (`runtime-bundle.mjs`). `shipped.mjs` decides whether each output's
- * imports resolve on every page and writes the notices for the packages that reached
+ * Third-party packages are minified
+ * builds from the lock and the adaptations below. Runtime and package modules load
+ * one ordinary Lit module (`build/lit.mjs`). Signals are the framework's own: the
+ * kernel compiles them in with it (`runtime-bundle.mjs`). `shipped.mjs` decides whether
+ * each output's imports resolve on every page and writes notices for the packages
+ * that reached
  * them, as it does for every vendored bundle.
  */
-import { readFileSync } from "node:fs";
 import { cp, mkdtemp, readFile, readdir, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { build } from "../esbuild.mjs";
 import { contractTypes, protocolSchemas } from "./contract-types.mjs";
 import { baselineSchemas, protocolBreaks } from "./protocol.mjs";
-import { initialOutputs } from "../initial.mjs";
-import {
-  initialLitPath,
-  sharedLitPath,
-  litFacade,
-  litGlobal,
-  litNamespace,
-  litPath,
-} from "../lit.mjs";
+import { litNamespace, litPath } from "../lit.mjs";
 import { styleOutputs } from "../styles.mjs";
 import { kernelOutputs } from "../runtime-bundle.mjs";
-import { adapt, seam, vendorOutputs } from "../vendor.mjs";
+import { adapt, seam, vendorOutputs, vendorTypePaths } from "../vendor.mjs";
 import { bundledPackages, checkModule, licenseNotices } from "./shipped.mjs";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
@@ -85,6 +73,12 @@ export async function compilerPaths(directory = root) {
     [`/${litPath}`]: ["./lit.d.ts"],
     [`/${signalsPath}`]: ["./signals-core.d.ts"],
     ...Object.fromEntries(
+      Object.entries(await vendorTypePaths()).map(([name, entries]) => [
+        name,
+        entries.map((entry) => path.relative(path.join(root, typeRoot), entry)),
+      ]),
+    ),
+    ...Object.fromEntries(
       ["vendor", "widgets"].map((kind) => [
         `/${kind}/*`,
         roots.map((base) => path.posix.relative(typeRoot, `${base}/${kind}/*`)),
@@ -104,11 +98,11 @@ async function litTypes() {
   );
 }
 /**
- * Build the classic Lit implementation, adapting the locked published modules in memory.
+ * Build the shared Lit implementation, adapting the locked published modules in memory.
  *
  * Backport lit/lit#5218 while 3.3.0 avoids the repeat marker leak (#5298). Route
  * keyed and child-part insertions through the mover a Leaf page installs on its root
- * (`lfInitial.move`: prepaint's plain insertion, then `runtime/dom-move.js`, which keeps
+ * (`lfMove`, installed by `runtime/dom-move.js`, which keeps
  * the user's place and native state across the move). A document Leaf did not compose
  * has no mover, and Lit inserts as it always does, so this Lit loads in any document.
  *
@@ -120,7 +114,7 @@ async function litTypes() {
 async function litModule() {
   const contents = await litNamespace();
   const move =
-    "const leafMove = (parent, node, before) => { const move = document.documentElement.lfInitial?.move; return move ? move(parent, node, before) : parent.insertBefore(node, before); };\n";
+    "const leafMove = (parent, node, before) => { const move = window.lfMove; return move ? move(parent, node, before) : parent.insertBefore(node, before); };\n";
   return [
     {
       name: "leaf-lit",
@@ -204,74 +198,36 @@ async function protocolOutputs() {
   };
 }
 
-// Two programs type-check the browser code, and each file has one checker.
-// `tsconfig.json` holds the runtime modules that opt in with a leading `// @ts-check`
-// to strict mode; it includes every runtime module so that each one opting in is
-// checked there. Every framework module must opt in (`frameworkOptsIn`).
-// `tsconfig.runtime.json` checks without it the rest of the runtime's modules,
-// `leaf.js`, the kernel's and packages' widget modules, and the render checks pages
-// import from `/checks/`. The `paths` both share
-// resolve the rooted paths a page serves, a package's `vendor/` and `widgets/` among
-// them, and map the framework's bundles, `/vendor/lit.js` and `/vendor/signals-core.js`,
-// to declarations of the packages they bundle, so no declaration file ships in the
-// layer. A relative path to one reaches the minified bundle, which carries no types.
-// `runtime-globals.d.ts` declares what the classic scripts hang on `<html>` and
-// `window`, the events the runtime dispatches with a detail, and the runtime's own
-// elements by tag. tsc checks a JavaScript file wherever an import reaches it,
-// with the options of the program it is in, and has no per-file opt-out, so the
-// runtime program also reaches the strict program's files and the vendored
-// third-party bundles. A diagnostic there is not the runtime program's to report, and
-// the build drops it.
-const strict = (file) =>
-  readFileSync(path.join(root, file), "utf8").startsWith("// @ts-check");
-const runtimeChecks = (file) =>
-  file.endsWith(".js") &&
-  !/^(?:browser|packages\/[^/]+)\/vendor\//.test(file) &&
-  !strict(file);
-
-/** Refuse a framework module that doesn't opt into the strict program, since the
- * framework's types are strict wherever it puts a module. */
-async function frameworkOptsIn() {
-  const modules = [
-    `${assets}/runtime/framework.js`,
-    ...(
-      await readdir(path.join(root, assets, "runtime/framework"), { recursive: true })
-    )
-      .filter((name) => name.endsWith(".js"))
-      .map((name) => `${assets}/runtime/framework/${name}`),
-  ];
-  const lax = modules.filter((file) => !strict(file));
-  if (lax.length)
+/** Refuse TypeScript under the runtime, whose modules a page runs as written. */
+export async function checkRuntimeModules(directory = root) {
+  const runtime = `${assets}/runtime`;
+  const files = (await readdir(path.join(directory, runtime), { recursive: true })).map(
+    (name) => `${runtime}/${name}`,
+  );
+  const typescript = files.filter(
+    (file) => file.endsWith(".ts") && !file.endsWith(".d.ts"),
+  );
+  if (typescript.length)
     throw new Error(
-      `Start each framework module with \`// @ts-check\`, so the strict program checks it:\n${lax.join("\n")}`,
+      `Runtime modules are JavaScript with JSDoc so an edit reaches pages and tests without a build (#4112):\n${typescript.join("\n")}`,
     );
 }
 
-function typecheck(config, reports = () => true) {
-  const result = spawnSync(
+// One strict program checks all maintained browser modules, including modules no
+// entry point imports yet. Public bundle paths resolve through their source entries
+// to the installed dependencies' declarations.
+function typecheck() {
+  execFileSync(
     process.execPath,
     [
       path.join(root, "node_modules/typescript/bin/tsc"),
       "--project",
-      `${typeRoot}/${config}`,
+      `${typeRoot}/tsconfig.json`,
       "--pretty",
       "false",
     ],
-    { cwd: root, encoding: "utf8" },
+    { cwd: root, stdio: "inherit" },
   );
-  if (result.error) throw result.error;
-  if (result.signal) throw new Error(`${config}: tsc ended on ${result.signal}`);
-  if (result.status === 0) return;
-  // Each diagnostic starts unindented, with its file where it has one; its
-  // continuation lines indent.
-  const diagnostics = (result.stdout + result.stderr)
-    .split(/\n(?=\S)/)
-    .filter((diagnostic) => {
-      if (!diagnostic.trim()) return false;
-      const file = /^(\S+)\(\d+,\d+\): /.exec(diagnostic)?.[1];
-      return file === undefined || reports(file);
-    });
-  if (diagnostics.length) throw new Error(`${config}:\n${diagnostics.join("\n")}`);
 }
 
 export async function buildOutputs() {
@@ -285,9 +241,8 @@ export async function buildOutputs() {
   const protocol = await protocolOutputs();
   if ((await readFile(contractPath, "utf8")) !== protocol.contract)
     throw new Error("Stale protocol types; run pnpm run build:browser");
-  await frameworkOptsIn();
-  typecheck("tsconfig.json");
-  typecheck("tsconfig.runtime.json", runtimeChecks);
+  await checkRuntimeModules();
+  typecheck();
 
   const outputs = new Map([
     [compilerPathsFile, paths],
@@ -345,34 +300,10 @@ export async function buildOutputs() {
     checkModule(file.text, name);
     outputs.set(name, Buffer.from(file.contents));
   }
-  const initialLit = await build({
-    absWorkingDir: root,
-    stdin: {
-      contents: `import * as lit from "leaf:lit"; ${litGlobal} = lit;`,
-      resolveDir: root,
-      sourcefile: "leaf-initial-lit.js",
-    },
-    outfile: `${assets}/${initialLitPath}`,
-    plugins: await litModule(),
-    platform: "browser",
-    format: "iife",
-    target: "es2022",
-    bundle: true,
-    minify: true,
-    legalComments: "eof",
-    metafile: true,
-    write: false,
-    logLevel: "silent",
-  });
-  const [initialLitFile] = initialLit.outputFiles;
-  checkModule(initialLitFile.text, initialLitPath);
-  outputs.set(`${assets}/${initialLitPath}`, Buffer.from(initialLitFile.contents));
   const moduleLit = await build({
     absWorkingDir: root,
     stdin: {
-      // A Leaf page's later initial producers bind to this instance; a document Leaf
-      // did not compose has no root coordinator to hold it.
-      contents: `import * as lit from "leaf:lit"; if (document.documentElement.lfInitial) ${litGlobal} = lit; export * from "leaf:lit";`,
+      contents: `export * from "leaf:lit";`,
       resolveDir: root,
       sourcefile: "leaf-module-lit.js",
     },
@@ -384,23 +315,23 @@ export async function buildOutputs() {
     bundle: true,
     minify: true,
     legalComments: "eof",
+    metafile: true,
     write: false,
     logLevel: "silent",
   });
   const [moduleLitFile] = moduleLit.outputFiles;
   checkModule(moduleLitFile.text, litPath);
   outputs.set(`${assets}/${litPath}`, Buffer.from(moduleLitFile.contents));
-  outputs.set(`${assets}/${sharedLitPath}`, Buffer.from(await litFacade()));
-  // Each served bundle's notices, named after it; both builds of Lit hold one Lit.
+  // Each served bundle's notices, named after it.
   for (const [name, metafile] of [
     ["signals-core", result.metafile],
-    ["lit", initialLit.metafile],
+    ["lit", moduleLit.metafile],
   ])
     outputs.set(
       `${assets}/vendor/${name}.LICENSES.txt`,
       Buffer.from(licenseNotices(name, bundledPackages(metafile, root))),
     );
-  for (const producer of [initialOutputs, styleOutputs, vendorOutputs])
+  for (const producer of [styleOutputs, vendorOutputs])
     for (const [name, bytes] of await producer()) outputs.set(name, bytes);
   for (const [name, bytes] of await kernelOf(outputs))
     outputs.set(`${kernelDirectory}/${name}`, bytes);

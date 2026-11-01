@@ -10,6 +10,7 @@ import signal
 import subprocess
 import sys
 import threading
+import time
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -73,15 +74,7 @@ def reaper_retires(page: Path, monkeypatch) -> bool:
         controlled.setattr(
             server_model,
             "time",
-            SimpleNamespace(monotonic=lambda: clock.now),
-        )
-        controlled.setattr(
-            server_model,
-            "page_changes",
-            lambda _page: (
-                SimpleNamespace(wait=lambda _mark, seconds: next_check(seconds)),
-                None,
-            ),
+            SimpleNamespace(monotonic=lambda: clock.now, sleep=next_check),
         )
         controlled.setattr(server_model, "os", SimpleNamespace(_exit=retire))
         try:
@@ -246,8 +239,78 @@ def test_a_refused_revendor_leaves_the_running_server_alone(page_dir):
     [refused] = command_findings("page", "init", "--package", "./.leaf", str(page_dir))
 
     assert refused.code == "registry-json"
-    assert server_model.running_server(page_dir)["url"] == url
+    assert (current := server_model.running_server(page_dir)) is not None
+    assert current["url"] == url
     assert incarnation() == before
+
+
+def test_server_maintenance_needs_no_native_subscription(page_dir, monkeypatch):
+    """Retained servers publish rows and retire without spending native watchers.
+
+    Advance maintenance after a log append and then a service withdrawal. Both
+    loops must still read the files and act on the next look.
+    """
+    from leaf import file_changes, server_rows
+
+    fixture_service(page_dir, available_loopback_port(), lifetime="persistent")
+
+    def forbidden(*_args, **_kwargs):
+        pytest.fail("server maintenance allocated a native subscription")
+
+    monkeypatch.setattr(file_changes, "FileChanges", forbidden)
+    publisher = server_rows.RowPublisher(page_dir, "maintenance-test")
+    monkeypatch.setattr(
+        server_rows,
+        "exit_serving",
+        lambda status: pytest.fail(f"row publisher exited with status {status}"),
+    )
+
+    class Finished(BaseException):
+        pass
+
+    seen = []
+
+    def after_row(seconds):
+        assert seconds == presence_model.PRESENCE_CACHE_S
+        record = server_rows.ROW.read(publisher.path)
+        assert record is not None
+        row = record["row"]
+        seen.append(row["threads"]["open"])
+        if len(seen) == 1:
+            assert seen == [0]
+            append_carried_log_record(
+                page_dir, {"kind": "comment", "author": "user", "text": "why?"}
+            )
+            return
+        assert seen == [0, 1]
+        raise Finished
+
+    with monkeypatch.context() as timer:
+        timer.setattr(
+            server_rows,
+            "time",
+            SimpleNamespace(
+                monotonic=time.monotonic,
+                time=time.time,
+                sleep=after_row,
+            ),
+        )
+        with pytest.raises(Finished):
+            publisher.run()
+
+    def stop_after_check(_seconds):
+        service = server_model.read_service(page_dir)
+        assert service is not None
+        server_model.write_service(page_dir, {**service, "enabled": False})
+
+    def exited(status):
+        assert status == 0
+        raise Finished
+
+    monkeypatch.setattr(server_model, "time", SimpleNamespace(sleep=stop_after_check))
+    monkeypatch.setattr(server_model, "exit_serving", exited)
+    with pytest.raises(Finished):
+        server_model.stop_when_service_ends(page_dir)
 
 
 def test_a_background_jobs_server_lives_as_long_as_the_job(
@@ -535,7 +598,7 @@ def test_server_stop_waits_for_the_live_server_to_release_its_lease(
     def stop():
         try:
             outcomes.append(hosting_model.cmd_stop(page_dir))
-        except BaseException as error:  # noqa: BLE001 - carried to the assertion
+        except BaseException as error:
             errors.append(error)
 
     stopping = threading.Thread(target=stop)
@@ -750,6 +813,7 @@ def test_a_persistent_server_outlives_a_session_that_picks_the_page_up(
     process it didn't start nor a leaf that outlives it."""
     server = persistent_server(page_dir)
     launched = server_model.running_server(page_dir)
+    assert launched is not None
     assert read_record(page_dir / "service.json")["lifetime"] == "persistent"
 
     # A session picks the page up, the way `leaf wait` does.

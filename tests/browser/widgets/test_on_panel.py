@@ -527,7 +527,7 @@ def test_the_chosen_grouping_orders_on_me_and_the_m_walk_alike(browser, serve):
     chooser = page.get_by_role("combobox", name="Group On me")
     expect(chooser).to_have_value("place")
     # A group of two has a heading; the card alone in its group says its name.
-    groups = view.locator(".lf-fp-on-group")
+    groups = view.locator(".lf-fp-on-list > .lf-rows-head")
     expect(groups).to_have_text([re.compile(r"^\s*Implementation\s*2\s*$")])
     cards = view.locator(".lf-fp-on-item")
     expect(cards.locator(".lf-fp-prompt")).to_have_text(
@@ -624,7 +624,7 @@ def test_an_answer_in_on_me_keeps_its_groups_and_the_m_walk_in_one_order(
     exit_code.get_by_role("button", name="75").click()
     round_trip(page)
     expect(exit_code.locator(".lf-fp-said")).to_contain_text("Answered: 75")
-    groups = view.locator(".lf-fp-on-group")
+    groups = view.locator(".lf-fp-on-list > .lf-rows-head")
     expect(groups).to_have_text([re.compile(r"^\s*Options\s*1\s*$")])
     runners = on_card(page, "widget:runners")
     # Where the first `m` lands depends on the reading position, so it may take a
@@ -715,6 +715,12 @@ def test_an_option_s_choice_on_its_card_says_what_it_gives(browser, serve):
     expect(box.locator(".lf-fp-choice-says")).to_have_text(
         "One mechanism for any number of blocks."
     )
+    # Cut to two lines on the card, the words read whole on hover, and the press,
+    # whose name already holds them, isn't described by them again.
+    expect(box.locator(".lf-fp-choice-says")).to_have_attribute(
+        "title", "One mechanism for any number of blocks."
+    )
+    expect(box).to_have_accessible_description("")
     expect(aside.locator(".lf-fp-choice-says")).to_have_text("It covers the footer.")
     expect(aside.locator(".lf-fp-choice-tag")).to_have_count(0)
     expect(rule.locator(".lf-fp-choice-says")).to_have_text(
@@ -730,6 +736,41 @@ def test_an_option_s_choice_on_its_card_says_what_it_gives(browser, serve):
     round_trip(page)
     expect(page.locator("#stick-aside")).not_to_have_attribute("chosen", "")
     expect(card.locator(".lf-fp-answer[data-told]")).to_have_count(3)
+
+
+def test_a_group_s_done_on_its_card_commits_rather_than_reading_as_a_choice(
+    browser, serve
+):
+    """A `multiple` group's Done stands on its On me card as the press that commits the
+    picks, not as one more described choice: its name alone, what it does as its
+    tooltip, and as wide as its word while each described choice takes the line. A
+    press there answers the group as Done on the page does."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "done on its card",
+                """<h1 id="title">Tags</h1>
+<lf-ask id="tags-ask"><h2>Which tags?</h2>
+<lf-options id="tags" choose multiple>
+  <lf-option id="tag-alpha" chosen><strong>Alpha</strong> The first tag.</lf-option>
+  <lf-option id="tag-beta"><strong>Beta</strong> The second tag.</lf-option>
+</lf-options></lf-ask>""",
+            )
+        ),
+    )
+    open_on_me(page)
+    card = on_card(page, "widget:tags")
+    told = card.locator(".lf-fp-answer[data-told]")
+    expect(told).to_have_count(2)
+    done = card.get_by_role("button", name="Done", exact=True)
+    expect(done).to_have_text("Done")
+    expect(done).to_have_attribute("title", "Finish choosing options")
+    assert done.bounding_box()["width"] < told.first.bounding_box()["width"] / 3
+
+    done.click()
+    round_trip(page)
+    expect(page.locator("#tags .lf-done")).to_have_attribute("aria-pressed", "true")
 
 
 # Two decisions, the first under a heading a thread can be anchored on.

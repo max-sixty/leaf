@@ -282,13 +282,14 @@ def cli() -> None:
 @click.option("--if-claimed", is_flag=True, expose_value=False)
 @click.option("--watch", is_flag=True)
 @click.option("--pages", is_flag=True)
-def hook(harness: str, watch: bool, pages: bool) -> None:
+@click.option("--fork", is_flag=True)
+def hook(harness: str, watch: bool, pages: bool, fork: bool) -> None:
     """Answer a native harness hook from its JSON payload on stdin."""
-    if watch and pages:
-        raise click.UsageError("--watch and --pages are mutually exclusive")
+    if watch + pages + fork > 1:
+        raise click.UsageError("--watch, --pages and --fork are mutually exclusive")
     from leaf.hooks import main
 
-    main(harness, watch=watch, pages=pages)
+    main(harness, watch=watch, pages=pages, fork=fork)
 
 
 @cli.command(hidden=True)
@@ -713,7 +714,7 @@ def stamp(
     )
 
 
-@page.command(short_help="Export a stamped version to one HTML file.")
+@page.command(short_help="Export a stamped version or current draft to one HTML file.")
 @page_argument(renew=False)
 @click.option(
     "-o",
@@ -728,15 +729,24 @@ def stamp(
     metavar="N",
     help="stamped version to export (default: latest)",
 )
-def export(page_dir: Path, out: Path, version: int) -> dict:
-    """Export a stamped version to one HTML file that opens offline.
+@click.option(
+    "--draft",
+    is_flag=True,
+    help="export current source without stamping (cannot combine with --version)",
+)
+def export(page_dir: Path, out: Path, version: int | None, draft: bool) -> dict:
+    """Export a stamped version or current draft to one HTML file that opens offline.
+
+    By default exports the latest stamped version, including its version number in
+    the result. --draft checks and captures current source without adding a stamp.
+    The result names the captured revision in either mode.
 
     The file runs the page's own runtime against its captured state, with no Leaf
     server or host behind it.
     """
     from leaf.exporting import cmd_export
 
-    return cmd_export(page_dir, out, version)
+    return cmd_export(page_dir, out, version, draft=draft)
 
 
 @page.command(short_help="Picture a drawing comment as the user saw it.")

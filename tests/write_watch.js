@@ -62,7 +62,7 @@
     const changes = new Map();
     const positions = new Map();
     const shadows = new Map(
-      [...trees]
+      [...liveTrees()]
         .filter((tree) => tree instanceof ShadowRoot)
         .map((root) => [root.host, root]),
     );
@@ -137,7 +137,7 @@
   const hasFrame = (node) =>
     node instanceof HTMLIFrameElement ||
     [...node.childNodes].some(hasFrame) ||
-    [...trees].some(
+    [...liveTrees()].some(
       (tree) => tree instanceof ShadowRoot && tree.host === node && hasFrame(tree),
     );
   const renderedChildren = (nodes) =>
@@ -234,20 +234,20 @@
     // CodeMirror writes every attribute of its content element when it mounts a view,
     // the tab-size style that element already holds among them.
     (what, node) => what === "style" && is(node, "div.cm-content"),
-    // CodeMirror's setAttrs assigns a line's style whenever it syncs the line's
-    // attributes, as a list item's line carries its depth and number.
-    (what, node) =>
-      what === "style" && is(node, "div.cm-line.lf-md-item") && hosts(node).length > 0,
     // CodeMirror also restates a line's decoration class when it reconciles an
     // editor update, even when the preview gives that line the same face.
     (what, node) =>
       what === "class" &&
       is(node, "div.cm-line") &&
       hosts(node)[0]?.localName === "leaf-text",
-    // CodeMirror's CompositeTile.sync replaces a line's children while reconciling
-    // editor updates, including equivalent line-break nodes in either editor host.
+    // CodeMirror's CompositeTile.sync replaces the children of a line, or of a mark in a
+    // line, with equal nodes it reuses from elsewhere in the same update, in either
+    // editor host. A line can get another line's break, and as the caret moves between
+    // two quoted lines, one line's marker element moves to the other and takes its `>`.
     (what, node) =>
-      what === "children" && is(node, "div.cm-line") && hosts(node).length > 0,
+      what === "children" &&
+      is(node, "div.cm-line, div.cm-line *") &&
+      hosts(node).length > 0,
     // CodeMirror's GutterElement.setMarkers restates its class as marker sets
     // change, including when the resulting gutter class remains the same.
     (what, node) => what === "class" && is(node, "div.cm-gutterElement"),
@@ -317,7 +317,16 @@
   // close. Modals escape ancestor inertness, including inside closed shadow roots.
   // Credit only roots inhibited during an actual native transition and only inert
   // roundtrips that changed eligibility; unrelated restatements remain failures.
-  const trees = new Set([document]);
+  // Enumeration must not keep a discarded component's shadow tree alive. Detached
+  // trees still retained by the page remain observable, including closed roots.
+  const trees = new Set([new WeakRef(document)]);
+  function* liveTrees() {
+    for (const reference of trees) {
+      const tree = reference.deref();
+      if (tree) yield tree;
+      else trees.delete(reference);
+    }
+  }
   let dialogTransitions = new WeakSet();
   let focusGuards = new WeakSet();
   const posture = (dialog) =>
@@ -332,7 +341,7 @@
             ? [this]
             : [
                 document.documentElement,
-                ...[...trees].flatMap((tree) => [
+                ...[...liveTrees()].flatMap((tree) => [
                   ...tree.querySelectorAll("dialog:modal"),
                 ]),
               ]
@@ -509,7 +518,7 @@
   const attachShadow = Element.prototype.attachShadow;
   Element.prototype.attachShadow = function (init) {
     const root = attachShadow.call(this, init);
-    trees.add(root);
+    trees.add(new WeakRef(root));
     observer.observe(root, options);
     return root;
   };

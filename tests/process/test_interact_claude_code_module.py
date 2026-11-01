@@ -1,5 +1,6 @@
 """Leaf's Claude Code hooks module (`hooks/claude-code.ts`) drawing the session's
-pages above the prompt.
+pages above the prompt, and forking the conversation for Leaf's clerk as a turn
+ends.
 
 `claude_code_driver.mjs` stands in for Claude Code around the module, which calls
 the real launcher, so these hold the module and the follower it runs together."""
@@ -21,6 +22,7 @@ from interact_support import (
     wait_for,
 )
 
+from leaf import event_log as events_model
 from leaf import leases as leases_model
 from leaf import server as server_model
 from leaf import server_rows as server_rows_model
@@ -50,6 +52,7 @@ class ClaudeCode:
         self.debug = queue.Queue()
         self.bands = queue.Queue()
         self.pressed = queue.Queue()
+        self.forks = queue.Queue()
         threading.Thread(target=self.route, daemon=True).start()
         self.pid = self.read()["pid"]
 
@@ -62,6 +65,8 @@ class ClaudeCode:
                 self.debug.put(record["debug"])
             elif "band" in record:
                 self.bands.put(record["band"])
+            elif "forked" in record:
+                self.forks.put(record["forked"])
             elif {"copied", "toast"} & record.keys():
                 self.pressed.put(record)
             else:
@@ -233,7 +238,9 @@ def test_the_band_follows_the_pages_the_session_holds(
     read_result = server_rows_model.ROW.read(server_rows_model.row_path(page_dir))
     assert read_result is not None
     published = read_result["row"]
-    url, title = server_model.running_server(page_dir)["url"], published["title"]
+    server = server_model.running_server(page_dir)
+    assert server is not None
+    url, title = server["url"], published["title"]
     band([(f"Leaf {title}", url)])
     # A /clear ends the session and starts none; the next turn follows again.
     claude_code.emit(
@@ -295,7 +302,9 @@ def test_the_band_opens_a_page_from_the_keyboard(
         lambda drawn: band_lines(drawn, "terminal"),
         failure="the module drew no band",
     )
-    url = server_model.running_server(page_dir)["url"]
+    server = server_model.running_server(page_dir)
+    assert server is not None
+    url = server["url"]
     read_result_2 = server_rows_model.ROW.read(server_rows_model.row_path(page_dir))
     assert read_result_2 is not None
     title = read_result_2["row"]["title"]
@@ -370,4 +379,95 @@ def test_a_follower_terminated_from_outside_stays_out_of_the_conversation(
     )
     driven.settle()
     assert driven.diagnostics.empty()
+    driven.quit()
+
+
+def test_a_turn_end_forks_the_conversation_for_the_clerk(
+    page_dir, monkeypatch, spawn, sessionless
+):
+    """As a main-loop turn the model answered ends in a session holding a live page,
+    the module forks the conversation with the clerk's question and hands the answer
+    back, and Leaf asks what it names On me, in a thread of its own. A subagent's turn, or an interrupted
+    one, forks nothing."""
+    page = page_dir.resolve()
+    reply = json.dumps(
+        {
+            "asks": [
+                {
+                    "page": str(page),
+                    "kind": "question",
+                    "title": "The retry limit",
+                    "text": "Should the retry limit be 3 or 5?",
+                    "passage": "",
+                    "quote": "Should the retry limit be 3 or 5?",
+                }
+            ]
+        }
+    )
+    driven = ClaudeCode(spawn, "cc-fork", {"forkReply": reply})
+    holding_page(driven, page_dir, monkeypatch)
+    server_id = read_record(page_dir / "service.json")["server_id"]
+    server_rows_model.RowPublisher(page_dir, server_id).refresh()
+    wait_for(
+        lambda: band_lines(
+            driven.bands.get(timeout=STATED_TIMEOUT)["terminal"], "terminal"
+        ),
+        bool,
+        failure="the band never showed the page",
+    )
+    ended = {"answer": "Done.", "durationMs": 1, "isAborted": False, "turnId": "t1"}
+    driven.emit("turn.complete", {**ended, "reason": "answer", "agentId": "a1"})
+    driven.emit("turn.complete", {**ended, "reason": "aborted", "isAborted": True})
+    driven.emit("turn.complete", {**ended, "reason": "answer"})
+    assert "<leaf-fork-check>" in driven.forks.get(timeout=STATED_TIMEOUT)
+    told = wait_for(
+        lambda: driven.debug.get(timeout=STATED_TIMEOUT),
+        lambda line: line.startswith("Leaf: the clerk"),
+        failure=lambda: f"the clerk never reported: {list(driven.diagnostics.queue)}",
+    )
+    assert "added 1 to On me" in told, told
+    assert driven.forks.empty()
+    [asked] = [
+        event
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "comment"
+    ]
+    assert (asked["author"], asked["title"], asked["obligation"]) == (
+        "agent",
+        "The retry limit",
+        True,
+    )
+    driven.quit()
+
+
+def test_a_failed_fork_stays_out_of_the_conversation_and_the_next_turn_forks(
+    page_dir, monkeypatch, spawn, sessionless
+):
+    """A fork the model refuses writes nothing and reaches only the debug log, since
+    the user never meets the clerk, and a turn that ended while it was out still forks
+    after it. Neither waits on the band: Leaf says whether the session holds a page."""
+    driven = ClaudeCode(spawn, "cc-fork-refused", {"forkRejects": True})
+    holding_page(driven, page_dir, monkeypatch)
+    ended = {"answer": "Done.", "durationMs": 1, "isAborted": False, "reason": "answer"}
+    # The second ends while the first fork's question is still being asked.
+    driven.emit("turn.complete", {**ended, "turnId": "t1"})
+    driven.emit("turn.complete", {**ended, "turnId": "t2"})
+    for _ in range(2):
+        assert "<leaf-fork-check>" in driven.forks.get(timeout=STATED_TIMEOUT)
+        told = wait_for(
+            lambda: driven.debug.get(timeout=STATED_TIMEOUT),
+            lambda line: line.startswith("Leaf: the clerk"),
+            failure=lambda: (
+                f"the clerk never reported: {list(driven.diagnostics.queue)}"
+            ),
+        )
+        assert "wrote nothing: Error: the model refused the request" in told, told
+    driven.settle()
+    assert driven.forks.empty()
+    assert driven.diagnostics.empty()
+    assert not [
+        event
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "comment"
+    ]
     driven.quit()

@@ -96,7 +96,7 @@ Commands:
   claim         Connect a page to this session.
   close         Finish a page and stop watching for feedback.
   events        Print the event log as JSON lines.
-  export        Export a stamped version to one HTML file.
+  export        Export a stamped version or current draft to one HTML file.
   init          Create a page directory or change its packages.
   inspect       Read page source metrics and browser observations.
   instructions  Read selected vocabulary instructions by audience as JSON.

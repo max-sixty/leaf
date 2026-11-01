@@ -93,8 +93,7 @@ def test_history_dependent_keys_wait_for_the_first_read(browser, serve, command)
         expect(page.locator(".lf-held-keys kbd")).to_have_text(["e", "1"])
         assert not any(
             event["kind"] == "undo"
-            or event.get("token") == "keep"
-            and event["id"] != "saved-reaction"
+            or (event.get("token") == "keep" and event["id"] != "saved-reaction")
             for event in events_model.read_events(serve.page_dir)
         )
     release()
@@ -361,6 +360,7 @@ def test_a_key_pressed_before_presentation_runs_once_the_page_presents(
 
     page.keyboard.press("t")
     echo = page.locator(".lf-held-keys")
+    expect(echo).to_be_visible()
     expect(echo).to_contain_text("Page still loading")
     expect(echo.locator("kbd")).to_have_text("t")
     bounds = echo.bounding_box()
@@ -373,33 +373,24 @@ def test_a_key_pressed_before_presentation_runs_once_the_page_presents(
     expect(echo).to_have_count(0)
 
 
-def test_a_key_pressed_on_a_checkbox_before_the_runtime_loads_is_held(browser, serve):
-    """A checkbox takes no letters, so `t` pressed on one before the runtime loads is a
-    page key, held and replayed as it is from anywhere else on the page."""
+def test_a_checkbox_keeps_page_keys_after_reveal(browser, serve):
+    """A checkbox takes no letters, so its printed page key still walks threads."""
     url = serve(
         leaf_page(
-            "Held keys",
-            "<h1>Held keys</h1><p id='said'>A sentence the user commented on.</p>"
+            "Checkbox key",
+            "<h1>Checkbox key</h1>"
+            "<p id='said'>A sentence the user commented on.</p>"
             "<label><input type='checkbox' id='box'> Agreed</label>",
         ),
         events=[HELD_KEYS_THREAD],
     )
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
-    watched(page)
-    held, release = _hold_startup(page, "module")
-    page.goto(url, wait_until="commit")
-    holding(page, held, 1, "the module request")
+    page = open_page(browser, url)
     page.locator("#box").focus()
     page.keyboard.press("t")
-    expect(page.locator(".lf-held-keys kbd")).to_have_text("t")
-    release()
     expect(page.locator('[data-thread="held-thread"]').first).to_be_focused()
 
 
-@pytest.mark.parametrize("stage", ["module", "state"])
-def test_editors_and_select_typeahead_keep_letters_before_presentation(
-    browser, serve, stage
-):
+def test_editors_and_select_typeahead_keep_letters_while_history_waits(browser, serve):
     """A native field keeps typing and a select keeps typeahead while page keys wait."""
     url = serve(
         leaf_page(
@@ -413,11 +404,10 @@ def test_editors_and_select_typeahead_keep_letters_before_presentation(
     )
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     watched(page)
-    held, release = _hold_startup(page, stage)
+    held, release = _hold_startup(page, "state")
     page.goto(url, wait_until="commit")
-    holding(page, held, 1, f"the {stage} request")
-    if stage == "state":
-        expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
+    holding(page, held, 1, "the first state read")
+    expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
     page.locator("#editor").click()
     page.keyboard.press("c")
     expect(page.locator("#editor")).to_have_value("c")
@@ -462,7 +452,7 @@ def test_disabling_quick_shortcuts_discards_keys_already_held(browser, serve):
     # The queue has transferred to the controller, but its first frame has not run.
     page.add_init_script(
         """document.addEventListener('lf-upgraded', () => queueMicrotask(() =>
-          document.documentElement.lfKeyboard.setQuick(false)));"""
+          window.lfKeyboard.setQuick(false)));"""
     )
     held, release = _hold_startup(page, "module")
     page.goto(serve(HELD_KEYS_PAGE, events=[HELD_KEYS_THREAD]), wait_until="commit")

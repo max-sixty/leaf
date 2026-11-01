@@ -45,7 +45,7 @@ def thread_row(page, key):
     """The thread `key`'s row in the panel's Threads view, opening Threads where it is
     not the view standing open, and unfolding Resolved for a resolved thread folded
     there; a row the standing list holds in its place is drawn already. Its
-    `.lf-fp-value` says the thread's state. `key` may be the thread's id: a thread this
+    `.lf-row-end` says the thread's state. `key` may be the thread's id: a thread this
     tab started is keyed by the attempt that sent it (thread/model.js, `threadKey`)."""
     key, resolved = page.evaluate(
         """async (id) => {
@@ -199,7 +199,7 @@ def long_diff_thread(serve, lead=""):
         leaf_page(
             "a long diff thread",
             f'<h1 id="title">Review</h1>{lead}<lf-diff id="patch" source="review-patch">'
-            "<pre></pre></lf-diff><p>Reading the paragraph after the diff.</p>",
+            "</lf-diff><p>Reading the paragraph after the diff.</p>",
         )
     )
     data_model.cmd_data_set(
@@ -531,7 +531,7 @@ def pressed_send_surface(browser, serve, surface):
             leaf_page(
                 "diff",
                 '<h1 id="title">Review</h1><lf-diff id="patch" '
-                'source="review-patch"><pre></pre></lf-diff>',
+                'source="review-patch"></lf-diff>',
             )
         )
         data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)

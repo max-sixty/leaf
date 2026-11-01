@@ -1,19 +1,13 @@
-"""The widget quality report (`leaf/render_gate/widget_quality.py`): Leaf's own widgets
-held to it, and `package check --render` telling a package's author what it found. And
-the first box a widget keeps where the report's served examples do not reach: a tab set
-opening on a later panel, and an export."""
+"""Widget quality reports and restored values in complete gallery views."""
 
 import json
 import os
-import re
 import subprocess
 
 import pytest
 from browser.test_widget_quality import (
-    INITIAL_DRAWING_NODES,
     INITIAL_DRAWING_PAGE,
     gallery_page_files_fixture,  # noqa: F401 (fixtures)
-    grows_at_upgrade,
     keyed,
 )
 from click.testing import CliRunner
@@ -21,7 +15,6 @@ from conftest import LEAF_COMMAND
 from known_widget_findings import KNOWN, PACKAGES
 from model_folds import leaf_page
 from playwright.sync_api import expect
-from render_harness import displayed
 
 from leaf import cli as cli_model
 from leaf import layer as layer_model
@@ -56,30 +49,9 @@ def test_bundled_widgets_meet_the_widget_quality_checks(browser, package):
 
 
 def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shell):
-    """`package check --render` names each finding by tag, check and measured fact,
-    and still exits 0. `lf-grow` adds 40px at upgrade, on its own and inside two
-    holders that each grow by exactly that: `lf-holder` because what it holds grew, so
-    it is not named beside it, and `lf-fixed` because it sets its own height 40px
-    taller, so it is. `lf-word` is inline and doubles its type, and since no size
-    puts an inline box's lines back, the line holding it is named beside it. `lf-bare`
-    has no worked example.
-
-    `lf-pinned` keeps a height its theme sets and scrolls inside it, so it is named for
-    not growing with its content even though its one line fits. `lf-declared` keeps the
-    same height and says so with `--lf-holds-height: 1`, `lf-sideways` keeps it but asks
-    to scroll only sideways, and `lf-roomy` asks to scroll but grows past its minimum
-    height, so none of them is. `lf-shallow` asks only for sideways scrolling, but its
-    line runs past its height, so it scrolls vertically and is named.
-
-    `lf-keyed` declares a context key with no `bindingBadge`, so the page never shows
-    it and it is named; `lf-badged` asks for a corner badge, so it is not. Each finding
-    names the Layout it was read in, and each of these is read in both."""
+    """The report names actionable content-growth and context-key advice, and exits 0."""
     package = tmp_path / "package"
     for widget in (
-        "lf-grow",
-        "lf-holder",
-        "lf-fixed",
-        "lf-word",
         "lf-bare",
         "lf-pinned",
         "lf-declared",
@@ -94,18 +66,11 @@ def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shel
         )
         assert made.exit_code == 0, made.output
     widgets = package / "widgets"
-    (widgets / "lf-grow.js").write_text(
-        grows_at_upgrade("lf-grow", "padding-bottom: 40px")
-    )
-    (widgets / "lf-fixed.js").write_text(grows_at_upgrade("lf-fixed", "height: 140px"))
-    (widgets / "lf-word.js").write_text(grows_at_upgrade("lf-word", "font-size: 32px"))
     (widgets / "lf-keyed.js").write_text(keyed("lf-keyed", ""))
     (widgets / "lf-badged.js").write_text(keyed("lf-badged", ", bindingBadge: null"))
     # An element the theme does not style is inline, whose box a padding would not
     # grow the way a block's grows.
     (package / "defaults.css").write_text(
-        ":is(lf-grow, lf-holder, lf-fixed) { display: block; }\n"
-        "lf-fixed { height: 100px; }\n"
         ":is(lf-pinned, lf-declared, lf-sideways) { display: block; "
         "block-size: 100px; }\n"
         "lf-pinned { overflow: auto; }\n"
@@ -116,15 +81,6 @@ def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shel
     )
     registry_path = package / "registry.json"
     registry = json.loads(registry_path.read_text())
-    registry["lf-holder"]["x-example"] = (
-        '<lf-holder id="holder"><lf-grow id="held">Held.</lf-grow></lf-holder>'
-    )
-    registry["lf-holder"]["x-example"] += (
-        '<lf-holder id="line">A <lf-word id="spoken">word</lf-word> in a line.</lf-holder>'
-    )
-    registry["lf-fixed"]["x-example"] = (
-        '<lf-fixed id="fixed"><lf-grow id="inner">Inner.</lf-grow></lf-fixed>'
-    )
     del registry["lf-bare"]["x-example"]
     registry_path.write_text(json.dumps(registry))
 
@@ -157,7 +113,6 @@ def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shel
     assert all(seen == {"column", "workspace"} for seen in layouts.values()), layouts
     assert set(named) == {
         "example",
-        "keeps-first-box",
         "shows-context-keys",
         "grows-with-content",
     }, findings
@@ -169,26 +124,13 @@ def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shel
         "<lf-pinned id=pinned>": 100,
         "<lf-shallow id=shallow>": 10,
     }
-    grown = {}
-    for at, value in named["keeps-first-box"].items():
-        match = re.fullmatch(r"<lf-[a-z]+ id=(\w+)>", at)
-        assert match is not None
-        grown[match[1]] = round(value["now"]["height"]) - round(
-            value["first"]["height"]
-        )
-    assert all(grown.pop(word) > 0 for word in ("word", "spoken", "line")), findings
-    assert grown == {"grow": 40, "held": 40, "fixed": 40, "inner": 40}, findings
 
 
 @pytest.mark.parametrize("width", [1200, 390])
-def test_initial_drawings_keep_their_nodes_and_wrapped_geometry_on_upgrade(
+def test_complete_views_restore_native_values_in_wrapped_layouts(
     browser, serve, width, gallery_page_files
 ):
-    """Hold the full entry module to observe the actual parser-closing drawing.
-    The default and a restored longer instruction keep the same control and gallery
-    nodes and their geometry through upgrade, including the following reading and
-    different font metrics in the phone. Two
-    galleries also retain distinct control identities in one document."""
+    """Readable desktop and phone source enhances into controls with saved inputs."""
     url = serve(
         leaf_page(
             "First drawing",
@@ -206,37 +148,26 @@ def test_initial_drawings_keep_their_nodes_and_wrapped_geometry_on_upgrade(
         viewport={"width": width, "height": 900}, has_touch=width == 390
     )
     boot = []
-    reading = """selector => [...document.querySelectorAll(selector)]
-      .map(node => {
-        const box = node.getBoundingClientRect();
-        return [node.id || node.localName, ...[box.x, box.y + scrollY, box.width, box.height].map(Math.round)];
-      })"""
 
     def first_and_upgraded(navigate, title):
         page.route("**/leaf.js", lambda route: boot.append(route))
         with page.expect_request("**/leaf.js"):
             navigate()
-        displayed(page)
-        assert boot, "the positive control did not hold the entry module"
-        expect(page.locator('input[aria-label="Title"]')).to_have_value(title)
-        expect(page.locator("lf-playground-output")).to_contain_text(title)
-        assert page.locator(".margin-entry-gallery-face").count() == 44
-        page.evaluate(
-            "selector => window.initialDrawingNodes = [...document.querySelectorAll(selector)]",
-            INITIAL_DRAWING_NODES,
+        expect(page.locator("main")).to_be_visible()
+        expect(page.locator("#drawing lf-playground-preview")).to_have_text(
+            "The actual preview, with its own words."
         )
-        assert page.locator(".margin-entry-gallery-item").evaluate_all(
-            "items => items.every(item => item.querySelector('.margin-entry-gallery-copy').getBoundingClientRect().left - item.querySelector('.margin-entry-gallery-face').getBoundingClientRect().right >= 7.5)"
-        ), "the gallery label must follow the actual control's width"
-        first = page.evaluate(reading, INITIAL_DRAWING_NODES)
+        expect(page.locator("#drawing input")).to_have_count(0)
+        assert boot, "the positive control did not hold the entry module"
         page.unroute("**/leaf.js")
         boot.pop().continue_()
         wait_until_ready(page)
-        assert page.evaluate(reading, INITIAL_DRAWING_NODES) == first
-        assert page.evaluate(
-            "selector => [...document.querySelectorAll(selector)].every((node, i) => node === window.initialDrawingNodes[i])",
-            INITIAL_DRAWING_NODES,
-        )
+        expect(page.locator('input[aria-label="Title"]')).to_have_value(title)
+        expect(page.locator("lf-playground-output")).to_contain_text(title)
+        assert page.locator(".margin-entry-gallery-face").count() == 44
+        assert page.locator(".margin-entry-gallery-item").evaluate_all(
+            "items => items.every(item => item.querySelector('.margin-entry-gallery-copy').getBoundingClientRect().left - item.querySelector('.margin-entry-gallery-face').getBoundingClientRect().right >= 7.5)"
+        ), "the gallery label must follow the actual control's width"
         ids = page.locator(".margin-entry-gallery-face[id]").evaluate_all(
             "nodes => nodes.map(node => node.id)"
         )

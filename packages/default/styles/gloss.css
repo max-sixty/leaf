@@ -1,10 +1,16 @@
 /* lf-gloss: the prose stays prose, and its underline is the whole visible
  * affordance. The words keep the page's ink while the underline uses the accent —
  * this phrase goes nowhere — and the top-layer card uses the page's ordinary paper,
- * ink, and rule rather than inventing a tooltip palette. Paper puts the explanation
- * after the phrase, where it can honour its words. */
+ * ink, and rule rather than inventing a tooltip palette. The explanation is words in
+ * a card standing over the page, so it takes the face a thread card's words take
+ * (`--font-message`, base.css), upright and regular even where the phrase is
+ * emphasised. Paper puts the explanation after the phrase, where it can honour its
+ * words. */
 lf-gloss {
   display: inline;
+  /* The phrase wears its mark's ring, inside its edge, as every mark on it stands
+     (base.css, "Where it stands"). */
+  outline-offset: var(--focus-ring-inset);
 }
 /* The no-script rendering of x-says. Once the runtime writes the selectable span, that
  * span takes over. */
@@ -48,7 +54,6 @@ lf-gloss:has(> [data-lf-said="tip"])::after {
 }
 lf-gloss:has(> .lf-gloss-mark[data-lf-focus-visible]) {
   outline: var(--focus-ring);
-  outline-offset: calc(-1 * var(--focus-ring-w));
   --lf-wears-ring: 1;
 }
 .lf-gloss-popover {
@@ -67,9 +72,7 @@ lf-gloss:has(> .lf-gloss-mark[data-lf-focus-visible]) {
   background: var(--card);
   color: var(--ink);
   box-shadow: var(--raise-2);
-  font-family: var(--serif);
-  font-size: var(--t-5);
-  line-height: 1.45;
+  font: var(--font-message);
   text-align: left;
   white-space: normal;
   overflow-wrap: anywhere;

@@ -173,7 +173,7 @@ def test_the_catalog_sidenote_can_be_aimed_whole(browser, serve):
     Drive that example itself through the whole gesture, from outline to anchored
     composer."""
     registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
-    sidenote = registry["aside.sidenote"]["x-example"]
+    sidenote = registry["aside.note"]["x-example"]
     html = LONG_PAGE.replace(
         '<h1 id="t">Long</h1>', f'<h1 id="t">Long</h1>\n{sidenote}'
     )
@@ -771,12 +771,14 @@ def from_the_edges(drawn):
     return [drawn["words"] - drawn["top"], drawn["foot"] - drawn["send"]]
 
 
-def test_a_side_comment_s_words_and_send_ride_its_edges_as_it_grows(browser, serve):
-    """The comment box moves as the floating panel's field does (box-motion.js): a
-    line it gains at the window's foot shifts it up, and its words ride its top edge
-    up while Send rides its foot, as a line removed carries the words back down with
-    that edge. It used to change size in one frame, and a line taking it past the
-    window's foot jumped it up whole, its words with it."""
+def test_a_side_comment_s_words_and_send_keep_to_its_edges_as_lines_come_and_go(
+    browser, serve
+):
+    """A line the comment box gains at the window's foot shifts it up in the frame the
+    key lands, its words and Send with its edges, as a textarea's would; a line
+    removed carries the words back down with the top edge over the floating boxes'
+    tween while Send rides the foot (box-motion.js, "Whose change it is"). The new line
+    used to travel too, hiding the word being typed until the edge reached it."""
     page = open_page(
         browser,
         serve(
@@ -816,53 +818,116 @@ def test_a_side_comment_s_words_and_send_ride_its_edges_as_it_grows(browser, ser
         page.keyboard.type(f"Line {lines}")
         lines += 1
         rendered(page)
-    for key in ("Shift+Enter", "Backspace"):
-        # The last line's motion ends where the box stands.
+    hold = "() => { window.__lfAnimate = Element.prototype.animate;" + HOLD_MOTION + "}"
+    release = (
+        "() => { Element.prototype.animate = window.__lfAnimate;"
+        " __lfHeld.splice(0).filter(motion => motion.playState !== 'idle')"
+        ".forEach(motion => motion.finish()); }"
+    )
+    held_ground = """() => __lfHeld.some(motion =>
+      motion.effect?.target?.matches?.('.lf-fab-ground'))"""
+    stood = page.evaluate(SIDE_COMMENT_DRAWN)
+    page.evaluate(hold)
+    page.keyboard.press("Shift+Enter")
+    # The line shifts the box up inside the window, which its placement does before
+    # the frame paints; the box's reading follows in that frame.
+    page.wait_for_function(
+        "top => document.querySelector('.lf-fab-bar')"
+        ".getBoundingClientRect().top < top - 0.5",
+        arg=stood["top"],
+    )
+    page.evaluate("() => new Promise(r => requestAnimationFrame(() => r()))")
+    grown = page.evaluate(SIDE_COMMENT_DRAWN)
+    laid = page.locator(".lf-fab-bar .lf-compose-field").bounding_box()
+    assert not page.evaluate(held_ground)
+    assert [grown["top"], grown["foot"]] == pytest.approx(
+        [laid["y"], laid["y"] + laid["height"]], abs=1
+    ), (laid, grown)
+    assert grown["top"] < stood["top"] - 0.5, (stood, grown)
+    assert from_the_edges(grown) == pytest.approx(from_the_edges(stood), abs=1), grown
+    page.evaluate(release)
+    rendered(page)
+    stood = page.evaluate(SIDE_COMMENT_DRAWN)
+    page.evaluate(hold)
+    page.keyboard.press("Backspace")
+    page.wait_for_function(held_ground)
+    for at in (0, 60, 150):
+        # A motion a later reading cancelled stays cancelled.
         page.evaluate(
-            """() => Promise.all(document.querySelector('.lf-fab-ground')
-              .getAnimations().map(motion => motion.finished.catch(() => {})))"""
+            "at => __lfHeld.filter(motion => motion.playState !== 'idle')"
+            ".forEach(motion => { motion.currentTime = at; })",
+            at,
         )
-        stood = page.evaluate(SIDE_COMMENT_DRAWN)
-        page.evaluate(
-            "() => { window.__lfAnimate = Element.prototype.animate;"
-            + HOLD_MOTION
-            + "}"
+        drawn = page.evaluate(SIDE_COMMENT_DRAWN)
+        if at == 0:
+            assert drawn == pytest.approx(stood, abs=1), (stood, drawn)
+        assert from_the_edges(drawn) == pytest.approx(from_the_edges(stood), abs=1), (
+            at,
+            drawn,
         )
-        page.keyboard.press(key)
-        page.wait_for_function(
-            """() => __lfHeld.some(motion =>
-              motion.effect?.target?.matches?.('.lf-fab-ground'))"""
-        )
-        # The line shifts the box up inside the window, which its placement does a
-        # moment after the box grew.
-        if key == "Shift+Enter":
-            page.wait_for_function(
-                "top => document.querySelector('.lf-fab-bar')"
-                ".getBoundingClientRect().top < top - 0.5",
-                arg=stood["top"],
+    page.evaluate(release)
+    rendered(page)
+    rest = page.evaluate(SIDE_COMMENT_DRAWN)
+    assert from_the_edges(rest) == pytest.approx(from_the_edges(stood), abs=1)
+    assert rest["top"] > stood["top"] + 0.5, (stood, rest)
+
+
+def test_a_key_that_widens_the_comment_box_draws_it_at_once(browser, serve):
+    """A comment box sizes to its words, so each key past its least width widens it;
+    the box stands at its new width in the frame the key lands, as a textarea sized to
+    its words does (box-motion.js, "Whose change it is"). Each key used to start a
+    tween that trailed the caret, and the field's cut hid most of the glyph just
+    typed until the tween caught up."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "A passage with room",
+                '<p id="passage">This passage has room around it for a response.</p>',
             )
-        for at in (0, 60, 150):
-            # A motion a later reading cancelled stays cancelled.
-            page.evaluate(
-                "at => __lfHeld.filter(motion => motion.playState !== 'idle')"
-                ".forEach(motion => { motion.currentTime = at; })",
-                at,
-            )
-            drawn = page.evaluate(SIDE_COMMENT_DRAWN)
-            if at == 0:
-                assert drawn == pytest.approx(stood, abs=1), (key, stood, drawn)
-            assert from_the_edges(drawn) == pytest.approx(
-                from_the_edges(stood), abs=1
-            ), (key, at, drawn)
-        page.evaluate(
-            "() => { Element.prototype.animate = window.__lfAnimate;"
-            " __lfHeld.splice(0).filter(motion => motion.playState !== 'idle')"
-            ".forEach(motion => motion.finish()); }"
-        )
+        ),
+    )
+    page.emulate_media(reduced_motion="no-preference")
+    resized(page, 1000, 800)
+    page.locator("#passage").click(modifiers=["Alt"])
+    open_compact_comment(page)
+    box = page.locator(".lf-fab-bar .lf-compose-field")
+    least = box.bounding_box()["width"]
+    # Words until the box has begun to widen past its least width.
+    for word in "the window is too short for what we see in practice".split():
+        page.keyboard.type(f"{word} ")
         rendered(page)
-        rest = page.evaluate(SIDE_COMMENT_DRAWN)
-        assert from_the_edges(rest) == pytest.approx(from_the_edges(stood), abs=1), key
-        assert rest["top"] != pytest.approx(stood["top"], abs=1), (key, stood, rest)
+        if box.bounding_box()["width"] > least + 0.5:
+            break
+    else:
+        pytest.fail(f"the box never widened past {least}px")
+    wide = box.bounding_box()["width"]
+    page.evaluate("() => {" + HOLD_MOTION + "}")
+    page.keyboard.type("m")
+    page.wait_for_function(
+        "wide => document.querySelector('.lf-fab-bar .lf-compose-field')"
+        ".getBoundingClientRect().width > wide + 0.5",
+        arg=wide,
+    )
+    # A reading of the box follows its size change before the frame after it paints.
+    page.evaluate("() => new Promise(r => requestAnimationFrame(() => r()))")
+    drawn = page.evaluate(
+        """() => {
+          const ground = document.querySelector('.lf-fab-ground');
+          const right = /inset\\(([^r)]*)/
+            .exec(getComputedStyle(ground.querySelector('.lf-box-fill')).clipPath)[1]
+            .trim().split(/\\s+/).map(Number.parseFloat)[1];
+          const host = document.querySelector('.lf-fab-input');
+          return {
+            right: ground.getBoundingClientRect().right - right + 1,
+            cut: getComputedStyle(host).getPropertyValue('--lf-field-cut').trim(),
+          };
+        }"""
+    )
+    assert drawn["right"] == pytest.approx(
+        box.bounding_box()["x"] + box.bounding_box()["width"], abs=0.5
+    )
+    assert drawn["cut"] in ("", "none"), drawn
 
 
 def test_a_comment_near_the_bottom_grows_up_before_it_scrolls(browser, serve):
@@ -2550,7 +2615,7 @@ def test_design_mode_leaves_leaves_surfaces_working_inside_a_widget(browser, ser
         leaf_page(
             "diff in design mode",
             '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch">'
-            "<pre></pre></lf-diff>",
+            "</lf-diff>",
         )
     )
     data_model.cmd_data_set(
@@ -2844,7 +2909,9 @@ def test_a_visual_part_aim_follows_its_drawn_svg_shape(browser, serve):
     page.keyboard.down("Alt")
     armed = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
     delta = ImageChops.difference(quiet, armed)
-    changed = [max(pixel) >= 6 for pixel in zip(*[iter(delta.tobytes())] * 3)]
+    changed = [
+        max(pixel) >= 6 for pixel in zip(*[iter(delta.tobytes())] * 3, strict=True)
+    ]
     width, height = delta.size
 
     def ratio(where):
@@ -3160,13 +3227,11 @@ def test_a_shadow_visual_surface_is_clipped_by_its_host(browser, serve):
     surface.click(position={"x": 20, "y": 20})
     expect(mark).to_be_visible()
     host_box = host.bounding_box()
-    # Contours retain one stroke beyond a clip; the wider shadow
-    # surface must still be cut at that boundary, for both references and aim.
-    stroke = mark.evaluate(
-        "node => parseFloat(getComputedStyle(node).getPropertyValue('--focus-ring-w'))"
-    )
-    right = host_box["x"] + host_box["width"] + stroke
-    assert surface.bounding_box()["width"] > host_box["width"] + stroke
+    # The host cuts the wider shadow surface, so its marks stop exactly at that
+    # boundary, for both references and aim: a band on an edge the clip already cuts
+    # would stand over whatever lies past it.
+    right = host_box["x"] + host_box["width"]
+    assert surface.bounding_box()["width"] > host_box["width"] + 10
     shown = page.evaluate(SHOWN_PAINT, ".lf-visual-mark")
     assert shown["left"] >= host_box["x"]
     assert shown["right"] == pytest.approx(right)
@@ -3280,7 +3345,9 @@ def test_a_visual_part_mark_follows_its_drawn_svg_shape(browser, serve):
     clip = {**clip, "x": math.floor(moved["x"]), "y": math.floor(moved["y"])}
     painted = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
     delta = ImageChops.difference(quiet, painted)
-    changed = [max(pixel) >= 6 for pixel in zip(*[iter(delta.tobytes())] * 3)]
+    changed = [
+        max(pixel) >= 6 for pixel in zip(*[iter(delta.tobytes())] * 3, strict=True)
+    ]
     width, height = delta.size
 
     def ratio(where):
@@ -3529,7 +3596,8 @@ def test_a_held_aim_in_a_pane_paints_in_the_frame_its_target_scrolls(browser, se
 
 
 def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, subtests):
-    """Leaving Comment changes the mark, not which rectangle it identifies.
+    """Leaving Comment changes the mark, not which rectangle it identifies, and every
+    mark stands on the region's perimeter, at the gap the location ring takes.
 
     A native table ends at its last row, a card follows its authored corners, and a
     partly scrolled card keeps its shape behind the scrollport's cut. Compare to the content,
@@ -3551,7 +3619,7 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
                 head="""<style>
   #square { display:table; border-collapse:collapse; width:400px; }
   #square :is(th,td) { border:1px solid; }
-  #port { height:360px; width:440px; overflow:auto; border:1px solid; }
+  #port { height:400px; width:440px; overflow:auto; border:1px solid; }
   #rounded { border:1px solid; border-radius:12px; margin:12px; padding:12px; }
   .authored-contour { outline:1px dashed var(--ink-2); }
   </style>""",
@@ -3573,8 +3641,11 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
       const ink = end.content !== 'none' ? end : style;
       const rect = node.getBoundingClientRect();
       const stroke = parseFloat(ink.outlineWidth), gap = parseFloat(ink.outlineOffset);
-      const painted = {left:rect.left - stroke, top:rect.top - stroke,
-        right:rect.right + stroke, bottom:rect.bottom + stroke};
+      const reach = stroke + gap;
+      const painted = {left:rect.left - reach, top:rect.top - reach,
+        right:rect.right + reach, bottom:rect.bottom + reach};
+      const region = parseFloat(getComputedStyle(document.documentElement)
+        .getPropertyValue('--focus-region-gap'));
       for (let frame = node.parentElement; frame; frame = frame.parentElement) {
         if (!frame.matches('.lf-paint-frame')) continue;
         const values = getComputedStyle(frame).clipPath.match(/-?[\d.]+px/g)?.map(parseFloat);
@@ -3585,7 +3656,7 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
         painted.right = Math.min(painted.right, box.right - values[1]);
         painted.bottom = Math.min(painted.bottom, box.bottom - values[2]);
       }
-      return {source:box.toJSON(), shown, painted, rect:rect.toJSON(), stroke, gap, ink:ink.outlineStyle,
+      return {source:box.toJSON(), shown, painted, rect:rect.toJSON(), stroke, gap, region, ink:ink.outlineStyle,
         radius:style.borderRadius, clip:ink.clipPath,
         nativeOutline:getComputedStyle(target).outlineStyle,
         rowBottom:id === 'square' ? target.rows[target.rows.length - 1].getBoundingClientRect().bottom : null};
@@ -3594,12 +3665,15 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
     def boundary(target, selector):
         reading = page.evaluate(read, [target, selector])
         assert reading["ink"] == "solid", reading
-        assert (reading["stroke"], reading["gap"]) == (2, 0), reading
+        assert (reading["stroke"], reading["gap"]) == (2, reading["region"]), reading
+        reach = reading["stroke"] + reading["gap"]
         for edge in ("left", "top", "right", "bottom"):
             assert reading["rect"][edge] == pytest.approx(
                 reading["source"][edge], abs=0.5
             ), reading
-            outside = -2 if edge in ("left", "top") else 2
+            # An edge the scrollport cuts keeps no band past the cut.
+            cut = abs(reading["shown"][edge] - reading["source"][edge]) > 0.5
+            outside = 0 if cut else -reach if edge in ("left", "top") else reach
             assert reading["painted"][edge] == pytest.approx(
                 reading["shown"][edge] + outside, abs=0.5
             ), reading
@@ -3655,6 +3729,42 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
                 aimed = boundary(target, ".lf-aim")
                 assert aimed["radius"] == clipped["radius"], (aimed, clipped)
                 page.keyboard.up("Alt")
+
+
+def test_the_aim_and_a_comment_stand_inside_a_cell_their_frame_leaves_no_room(
+    browser, serve
+):
+    """A joined choice clips its cells, so a cell leaves no room for a mark outside it.
+    The aim and the comment's mark both stand just inside it: the aim stood outside,
+    across the frame and the next cell, while the comment's stood inside, so going from
+    one to the other moved the frame 7px."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Cramped cell",
+                """<h1 id="h">Cramped cell</h1>
+<lf-options id="ship" choose>
+  <lf-option id="ship-monday"><strong>Ship Monday</strong> soon</lf-option>
+  <lf-option id="ship-thursday"><strong>Ship Thursday</strong> later</lf-option>
+</lf-options>""",
+            )
+        ),
+    )
+    cell = page.locator("#ship-thursday")
+    cell.hover(position={"x": 300, "y": 10})
+    page.keyboard.down("Alt")
+    aim = page.locator(".lf-aim")
+    expect(aim).to_have_attribute("data-for", "ship-thursday")
+    inner = "node => getComputedStyle(node, '::before').outlineOffset"
+    assert aim.evaluate(inner) == "-2px"
+    page.mouse.down()
+    page.mouse.up()
+    page.keyboard.up("Alt")
+    open_compact_comment(page)
+    pending = page.locator('.lf-visual-mark-pending[data-for="ship-thursday"]')
+    expect(pending).to_be_visible()
+    assert pending.evaluate(inner) == "-2px"
 
 
 def test_focus_projection_follows_modality_and_leaves_private_controls_their_ring(
@@ -3899,7 +4009,9 @@ def test_the_aims_box_is_what_the_page_shows_of_the_element(browser, serve):
                 box.width - item.width, box.height - item.height].map(Math.abs);
     }""")
     assert max(geometry) < 1, f"the box missed the card it promises by {geometry}"
-    pixels = zip(*[iter(ImageChops.difference(quiet, armed).tobytes())] * 3)
+    pixels = zip(
+        *[iter(ImageChops.difference(quiet, armed).tobytes())] * 3, strict=True
+    )
     changed = sum(max(p) >= 6 for p in pixels) / (armed.size[0] * armed.size[1])
     assert changed > 0.5, (
         f"arming changed {changed:.0%} of the card's pixels — the promise is not "
@@ -4092,8 +4204,8 @@ def test_a_phone_comment_stays_inside_the_visual_viewport(browser, serve):
 
 COMPOSER_ATTACHMENT_PAGE = leaf_page(
     "An open comment keeps its writer",
-    """<h1 id="title">Resize an active comment</h1>
-<aside class="sidebar" id="bg-sidebar"><lf-toc id="bg-contents" max-level="2"></lf-toc></aside>
+    """<aside id="bg-sidebar"><div class="layout-track"><lf-toc id="bg-contents" max-level="2"></lf-toc></div></aside>
+<div class="layout-column"><h1 id="title">Resize an active comment</h1>
 <h2 id="first">First section</h2><p id="ordinary" tabindex="0">An ordinary paragraph remains visible at both widths.</p>
 <h2 id="second">Second section</h2><p>Another section gives the contents outline destinations.</p>
 <details id="disclosure" open><summary>Disclosure</summary><p id="detail-word" tabindex="0">A comment target inside a disclosure.</p></details>
@@ -4105,10 +4217,11 @@ COMPOSER_ATTACHMENT_PAGE = leaf_page(
  More lines inside its reading region.<br> More lines inside its reading region.<br> More lines inside its reading region.<br>
  More lines inside its reading region.<br> More lines inside its reading region.<br> More lines inside its reading region.<br>
  More lines inside its reading region.<br> More lines inside its reading region.<br> More lines inside its reading region.</p>
-<section id="reading-space" style="min-height:1400px"><h2 id="reading-title">Reading space</h2><p>Scroll downward while a comment remains open, then return.</p></section>
+<section id="reading-space" style="min-height:1400px"><h2 id="reading-title">Reading space</h2><p>Scroll downward while a comment remains open, then return.</p></section></div>
 """,
+    layout="sidebar",
     head="""<style>
-main:not([data-lf-margin~="map"], [data-lf-margin~="sidebar"]) #bg-sidebar {display:none}
+@media (max-width: 800px) { #bg-sidebar {display:none} }
 </style>""",
 )
 

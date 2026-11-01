@@ -40,6 +40,8 @@ if TYPE_CHECKING:
 #               whose decision leaves nothing showing goes with its slots (settledAway
 #               there, `gone` here). Its values are also the vocabulary's decision
 #               verbs, which is where `obligations` reads them from.
+#   x-owners with x-content markup  direct prose members remain readable inside a
+#               data widget; its other body content is source notation, withheld.
 #   x-state, record kind "body"  the verb whose detail text becomes this element's
 #               body once the user sends one (lf-draft's `edit`): replay writes
 #               the newest surviving one into the DOM verbatim (a widget's render is
@@ -92,9 +94,10 @@ def _rendered_words(markup: str, *, image_alt=False) -> str:
 
 
 @lru_cache(maxsize=2)
-def _markdown_dialect(added: bool):
-    """The browser's safe Markdown dialect; `added` reads soft line breaks as hard
-    ones, as a user-created child and a block body render them."""
+def _markdown_dialect(breaks: bool):
+    """The browser's safe Markdown dialect; `breaks` reads soft line breaks as hard
+    ones, as a user-created child renders them. A block body reads as a Markdown
+    file, its soft breaks spaces."""
     from markdown_it import MarkdownIt
     from markdown_it.renderer import RendererHTML
     from mdit_py_plugins.tasklists import tasklists_plugin
@@ -103,8 +106,10 @@ def _markdown_dialect(added: bool):
         def validateLink(self, url: str) -> bool:
             return True
 
-    parser = PageMarkdown("gfm-like", {"html": False, "breaks": added}).use(
-        tasklists_plugin
+    parser = (
+        PageMarkdown("gfm-like", {"html": False, "breaks": breaks})
+        .disable(["lheading", "code"])
+        .use(tasklists_plugin)
     )
     assert parser.linkify is not None
     parser.linkify.set({"fuzzy_link": False})
@@ -171,12 +176,15 @@ def inline_markdown_words(source: str, *, added: bool = False) -> str:
 
 def block_markdown():
     """The shared safe block Markdown dialect: the browser's `makeMarkdown`, with its
-    linkify and task lists, which messages and Markdown bodies render in."""
-    return _markdown_dialect(True)
+    linkify and task lists, which messages and Markdown bodies are parsed in. It
+    renders a Markdown body as a file, its soft line breaks spaces (markdown.js,
+    `paintMarkdown`)."""
+    return _markdown_dialect(False)
 
 
 def markdown_markup(source: str) -> str:
-    """The shared safe block Markdown dialect, as inert markup for passage reading."""
+    """A Markdown body (`x-text-format: markdown`) as the browser paints it, as inert
+    markup for passage reading and a revision's prepaint."""
     return block_markdown().render(source)
 
 
@@ -459,7 +467,27 @@ class _PassageParser:
         # Silenced from above: the element shows nothing of its own, so a rewrite of
         # its body has nothing to stand in for — an edited draft inside a slot the
         # user accepted away left the page with the slot.
-        silenced = bool((parent and parent["skip"]) or own_wall)
+        silenced = bool(
+            (
+                parent
+                and (
+                    parent["silenced"] or (parent["skip"] and parent["sub"] is not None)
+                )
+            )
+            or own_wall
+        )
+        # Data notation is withheld, but a declared prose member is authored text
+        # the widget preserves independently of that notation. Only a direct member
+        # reopens that reading; nesting a member tag in source does not.
+        prose_member = bool(
+            parent
+            and parent["tag"] in entry.get("x-owners", [])
+            and entry.get("x-content") == "markup"
+        )
+        withheld = bool(
+            (parent and parent["withheld"] and not prose_member)
+            or (opaque and entry.get("x-content") == "data")
+        )
         # A surviving child keeps its parent on the page even where it holds no text —
         # a kept slot whose only content is an image. The text case marks every
         # enclosing id in _write.
@@ -474,9 +502,9 @@ class _PassageParser:
             "id": attrs_d.get("id"),
             "added": "data-lf-added" in attrs_d,
             "ids": ids,
-            "skip": silenced
-            or sub is not None
-            or (opaque and entry.get("x-content") == "data"),
+            "skip": silenced or sub is not None or withheld,
+            "withheld": withheld,
+            "silenced": silenced,
             "sub": sub,
             "retired_by": retired_by,
             "opaque": opaque,

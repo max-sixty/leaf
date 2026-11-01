@@ -130,7 +130,8 @@ def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
         # Allow the real watchdog's orphan window to pass without any HTTP
         # request renewing page files; aged ownership must keep its listener.
         time.sleep(2)
-        assert server.running_server(page)["url"] == url
+        assert (current := server.running_server(page)) is not None
+        assert current["url"] == url
         if retirement != "stop":
             shutil.copytree(
                 page, sibling, ignore=shutil.ignore_patterns("service.json")
@@ -152,7 +153,8 @@ def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
         assert turn_record["generation"] == before["generation"]
         assert state.held_claims(sid)
         assert leases.lock_is_held(preview.preview_lease(page))
-        assert server.running_server(page)["url"] == url
+        assert (current := server.running_server(page)) is not None
+        assert current["url"] == url
 
         source.write_text(
             source.read_text().replace("Original candidate", "Revised candidate")
@@ -1022,7 +1024,8 @@ def test_fresh_preview_preparation_cannot_remove_a_successor(
             preview.run_preview(source, page, ROOT / "bin/leaf", ROOT, True)
         assert service.page_claim(page) == held["claim"]
         assert (page / "events.jsonl").read_bytes() == held["log"]
-        assert server.running_server(page)["url"] == held["url"]
+        assert (current := server.running_server(page)) is not None
+        assert current["url"] == held["url"]
         assert fetch(held["url"], token=None)[0] == 200
     finally:
         successor.stop()

@@ -1,3 +1,4 @@
+// @ts-check
 /* Leaf's one rendering loop and structured renderingState for chrome and geometry.
    updatesSettled says no queued update is waiting and the last update produced no
    size change a Leaf observer heard. preparationsSettled says no registered finite
@@ -6,8 +7,7 @@
    Each field is true when that axis is settled. Hidden documents read true on
    both axes because they owe no visible paint until they become visible again.
    A reader outside the page waits on those facts after a gesture rather than
-   guessing a number of frames, and one inside it on `afterSettling`, as a sample's
-   child does to say which of its heights a gesture caused (sample-child.js).
+   guessing a number of frames, and one inside it on `afterSettling`.
 
    Leaf's rendering callbacks and size observers go through this module: `nextRender`,
    `nextFrame` and `cancelRender` for settling work, `nextAnimation` and
@@ -102,12 +102,22 @@
 import { enqueueWork, runWork, cancelWork } from "./queued-work.js";
 import { frameVisibility, onFrameVisibility } from "./frame-visibility.js";
 
+/** @import {Work} from "./queued-work.js" */
+/** @typedef {Work<[number], unknown>} FrameWork */
+/** @typedef {Work<[], unknown>} ScriptWork */
+/** @typedef {Map<number, FrameWork>} WorkQueue */
+/** @typedef {"begin" | "settle" | "cancel"} PreparationPhase */
+/** @typedef {(phase: PreparationPhase, identity: Readonly<object>) => void} PreparationObserver */
+
 const ROUNDS = 8;
 // What the next pass runs, what the running pass is working through, and what a
 // `nextFrame` asked for during a pass, which waits for the pass after it. One id space
 // across the three, so `cancelRender` needs no word on which queue holds its callback.
+/** @type {WorkQueue} */
 let queued = new Map();
+/** @type {WorkQueue | null} */
 let running = null;
+/** @type {WorkQueue} */
 let afterPaint = new Map();
 let lastId = 0;
 let frame = 0;
@@ -117,9 +127,12 @@ let quiet = false;
 let checking = false;
 let preparations = 0;
 
+/** @type {Set<PreparationObserver>} */
 const preparationObservers = new Set();
 
-/** Observe each finite preparation's begin and terminal settle or cancel. */
+/** Observe each finite preparation's begin and terminal settle or cancel.
+ * @param {PreparationObserver} observer
+ */
 export function observePreparations(observer) {
   preparationObservers.add(observer);
   return () => preparationObservers.delete(observer);
@@ -135,7 +148,7 @@ export function holdRendering() {
   const observers = [...preparationObservers];
   for (const observer of observers) observer("begin", identity);
   let released = false;
-  return (phase = "settle") => {
+  return (/** @type {Exclude<PreparationPhase, "begin">} */ phase = "settle") => {
     if (released) return;
     released = true;
     preparations--;
@@ -148,6 +161,10 @@ export function holdRendering() {
   };
 }
 
+/**
+ * @param {WorkQueue} into
+ * @param {FrameRequestCallback} callback
+ */
 function request(into, callback) {
   const id = ++lastId;
   into.set(id, enqueueWork(callback));
@@ -156,28 +173,39 @@ function request(into, callback) {
   return id;
 }
 
-/** Run `callback` in the running pass, or else in the next frame's. */
+/** Run `callback` in the running pass, or else in the next frame's.
+ * @param {FrameRequestCallback} callback
+ */
 export const nextRender = (callback) => request(queued, callback);
 
-/** Run `callback` in the next frame's pass, never in the running one. */
+/** Run `callback` in the next frame's pass, never in the running one.
+ * @param {FrameRequestCallback} callback
+ */
 export const nextFrame = (callback) => request(running ? afterPaint : queued, callback);
 
 /** Continuous mechanical motion, such as a playing film, does not hold resting
- * proof open. Its owner cancels this browser frame when stopped or retired. */
+ * proof open. Its owner cancels this browser frame when stopped or retired.
+ * @param {FrameRequestCallback} callback
+ */
 export const nextAnimation = (callback) => requestAnimationFrame(callback);
+/** @param {number} id */
 export const cancelAnimation = (id) => cancelAnimationFrame(id);
 
-/** Withdraw a callback `nextRender` or `nextFrame` queued. */
+/** Withdraw a callback `nextRender` or `nextFrame` queued.
+ * @param {number | null | undefined} id
+ */
 export function cancelRender(id) {
+  if (id == null) return;
   for (const queue of [queued, afterPaint, running]) {
     const job = queue?.get(id);
     if (!job) continue;
-    queue.delete(id);
+    queue?.delete(id);
     cancelWork(job);
     return;
   }
 }
 
+/** @param {number} time */
 async function pass(time) {
   frame = 0;
   for (let round = 0; queued.size && round < ROUNDS; round++) {
@@ -201,6 +229,7 @@ async function pass(time) {
   if (queued.size) frame = requestAnimationFrame(pass);
 }
 
+/** @type {Map<() => unknown, ScriptWork>} */
 const owedThisScript = new Map();
 function settleScript() {
   // A callback asked for while the others run is visited too: a Map's iteration reaches
@@ -214,6 +243,7 @@ function settleScript() {
     }
   }
 }
+/** @param {() => unknown} callback */
 export function afterScript(callback) {
   if (!owedThisScript.size) queueMicrotask(settleScript);
   if (!owedThisScript.has(callback))
@@ -226,9 +256,14 @@ export function afterScript(callback) {
 // synchronously; only the new sensor waits. Counted sensors keep readiness pending.
 let deliveringSizes = 0;
 /** A `ResizeObserver` whose deliveries the settled reading counts, unless it watches
- * boxes that may move for as long as the page plays, which `counted: false` says. */
+ * boxes that may move for as long as the page plays, which `counted: false` says.
+ * @param {ResizeObserverCallback} callback
+ * @param {{counted?: boolean | undefined}} [options]
+ */
 export function sizeObserver(callback, { counted = true } = {}) {
+  /** @type {Map<Element, ResizeObserverOptions | undefined>} */
   const pending = new Map();
+  /** @type {number | null} */
   let installation = null;
   const observer = new ResizeObserver((entries, observer) => {
     if (counted) {
@@ -323,8 +358,10 @@ function check() {
 // Those waiting for the rendering begun when they asked to settle (`afterSettling`),
 // each with the last preparation begun before it asked; the preparations not yet
 // released, by the order they began in.
+/** @type {{settled: () => void, since: number}[]} */
 let settling = [];
 let begun = 0;
+/** @type {Set<number>} */
 const pending = new Set();
 const owed = () => {};
 
@@ -333,7 +370,9 @@ const owed = () => {};
     preparation begun since has landed. A preparation already waiting is someone
     else's. A gesture's rendering is the work its input sets going until then, its
     answers to that input included, such as a widget preparing what a disclosure the
-    reader opened shows. */
+    reader opened shows.
+ * @param {() => void} settled
+ */
 export function afterSettling(settled) {
   settling.push({ settled, since: begun });
   nextFrame(owed);
@@ -341,6 +380,6 @@ export function afterSettling(settled) {
 
 // Nothing has been heard yet: the page is unsettled until its first quiet update.
 onFrameVisibility((visibility) => {
-  if (visibility.visible) unsettle();
+  if (visibility?.visible) unsettle();
 });
 unsettle();

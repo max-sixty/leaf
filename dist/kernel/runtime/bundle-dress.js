@@ -6,7 +6,7 @@ function registerSampleDress(frame, send) {
 	return () => children.delete(frame);
 }
 function wear(owner, dress) {
-	document.documentElement.lfInitial.wear(owner, dress);
+	window.lfRootState.wear(owner, dress);
 	dresses.set(owner, dress);
 	for (const frame of owner.querySelectorAll("iframe[data-lf-contained]")) if (dressFor(frame) === dress) children.get(frame)?.(dress);
 }

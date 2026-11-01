@@ -5,77 +5,45 @@
  * scroller's own offsets. Drawing records points in these frames, so ink follows a
  * transformed, zoomed or resized target. */
 import { shownBox } from "./geometry.js";
-import { renderedParent } from "./shadow.js";
-
-// The composed affine basis of an element's own layout units in the viewport.
-// Translation and transform origins enter `elementFrame`; this basis also carries
-// local scroll distances through every transformed ancestor, including shadow hosts.
-export function elementAxes(source) {
-  let matrix = new window.DOMMatrix();
-  for (let node = source; node instanceof Element; node = renderedParent(node)) {
-    const style = getComputedStyle(node);
-    let local = new window.DOMMatrix();
-    if (style.rotate !== "none") {
-      const parts = style.rotate.split(" ");
-      const angle = parts.pop();
-      const degrees =
-        parseFloat(angle) *
-        (angle.endsWith("turn")
-          ? 360
-          : angle.endsWith("grad")
-            ? 0.9
-            : angle.endsWith("rad")
-              ? 180 / Math.PI
-              : 1);
-      const axis =
-        parts.length === 3
-          ? parts.map(Number)
-          : parts[0] === "x"
-            ? [1, 0, 0]
-            : parts[0] === "y"
-              ? [0, 1, 0]
-              : [0, 0, 1];
-      local = local.rotateAxisAngle(...axis, degrees);
-    }
-    if (style.scale !== "none") {
-      const scale = style.scale.split(" ").map(Number);
-      local = local.scale(scale[0], scale[1] ?? scale[0], scale[2] ?? 1);
-    }
-    if (style.transform !== "none")
-      local = local.multiply(new window.DOMMatrix(style.transform));
-    const zoom = Number(style.zoom);
-    local = local.scale(zoom, zoom);
-    matrix = local.multiply(matrix);
-  }
-  return { x: { x: matrix.a, y: matrix.b }, y: { x: matrix.c, y: matrix.d } };
-}
+import { elementAxes, scrollAxes } from "./element-axes.js";
+import { isHTML } from "./shadow-tree.js";
+export { elementAxes, scrollAxes } from "./element-axes.js";
 
 // Resolve the browser's computed two-component <position> in the free space left
 // around replaced content. Only percentage units acquire a signed pixel basis here;
 // the browser still parses and evaluates CSS math, including min/max/clamp. A cover
 // fit can leave negative space, which a CSS containing block cannot represent.
+/** @typedef {Pick<DOMPoint, "x" | "y">} Point */
+/** @type {WeakMap<Element, {key: string, offset: Point}>} */
 const nativePositions = new WeakMap();
+/** @type {{measure: HTMLDivElement, point: HTMLDivElement} | undefined} */
 let positionProbe;
+/** @param {Element} source @param {string} position @param {number} horizontal @param {number} vertical */
 function nativePosition(source, position, horizontal, vertical) {
   const key = JSON.stringify([position, horizontal, vertical]);
   const prior = nativePositions.get(source);
   if (prior?.key === key) return prior.offset;
-  const components = [];
   let depth = 0;
-  let start = 0;
-  for (let at = 0; at <= position.length; at++) {
+  let split = -1;
+  for (let at = 0; at < position.length; at++) {
     const character = position[at];
     if (character === "(") depth++;
     if (character === ")") depth--;
-    if (at === position.length || (character === " " && !depth)) {
-      if (at > start) components.push(position.slice(start, at));
-      start = at + 1;
+    if (character === " " && !depth) {
+      split = at;
+      break;
     }
   }
+  if (split < 0)
+    throw new TypeError(
+      `Computed object-position has no second component: ${position}`,
+    );
+  /** @param {string} value @param {number} space */
   const pixels = (value, space) =>
     value.replace(
       /([-+]?(?:\d*\.)?\d+(?:e[-+]?\d+)?)%/gi,
-      (_unit, percent) => `${(Number(percent) * space) / 100}px`,
+      (/** @type {string} */ _unit, /** @type {string} */ percent) =>
+        `${(Number(percent) * space) / 100}px`,
     );
   if (!positionProbe) {
     const measure = document.createElement("div");
@@ -90,11 +58,14 @@ function nativePosition(source, position, horizontal, vertical) {
     positionProbe = { measure, point };
   }
   const { measure, point } = positionProbe;
-  point.style.left = pixels(components[0], horizontal);
-  point.style.top = pixels(components[1], vertical);
+  point.style.left = pixels(position.slice(0, split), horizontal);
+  point.style.top = pixels(position.slice(split + 1), vertical);
   document.body.append(measure);
   const resolved = getComputedStyle(point);
-  const offset = [Number.parseFloat(resolved.left), Number.parseFloat(resolved.top)];
+  const offset = {
+    x: Number.parseFloat(resolved.left),
+    y: Number.parseFloat(resolved.top),
+  };
   measure.remove();
   nativePositions.set(source, { key, offset });
   return offset;
@@ -105,15 +76,15 @@ function nativePosition(source, position, horizontal, vertical) {
 // with the picture. SVG's native user-space matrix carries viewBox camera pans as
 // well as scale; its viewport origin never rebases stored points. Text reflow adds pixels
 // to an HTML frame instead of stretching the points already held there.
+/** @param {Element} source */
 export function elementFrame(source) {
   const box = shownBox(source);
   if (!box?.width || !box?.height) return null;
   if (source instanceof window.SVGGraphicsElement) {
-    const view = source instanceof window.SVGSVGElement && source.viewBox.baseVal;
     const local =
       source instanceof window.SVGSVGElement
-        ? view.width && view.height
-          ? view
+        ? source.viewBox.baseVal.width && source.viewBox.baseVal.height
+          ? source.viewBox.baseVal
           : {
               x: 0,
               y: 0,
@@ -145,21 +116,22 @@ export function elementFrame(source) {
   // that content, unlike an ordinary HTML box whose extra lines add local pixels.
   const native =
     source instanceof window.HTMLImageElement
-      ? [source.naturalWidth, source.naturalHeight]
+      ? { width: source.naturalWidth, height: source.naturalHeight }
       : source instanceof window.HTMLCanvasElement
-        ? [source.width, source.height]
+        ? { width: source.width, height: source.height }
         : source instanceof window.HTMLVideoElement
-          ? [source.videoWidth, source.videoHeight]
+          ? { width: source.videoWidth, height: source.videoHeight }
           : null;
   if (native) {
-    if (!native[0] || !native[1]) return null;
+    if (!native.width || !native.height) return null;
+    /** @param {"Left" | "Right" | "Top" | "Bottom"} side */
     const edge = (side) =>
       Number.parseFloat(style[`border${side}Width`]) +
       Number.parseFloat(style[`padding${side}`]);
     const contentWidth = width - edge("Left") - edge("Right");
     const contentHeight = height - edge("Top") - edge("Bottom");
-    let sx = contentWidth / native[0];
-    let sy = contentHeight / native[1];
+    let sx = contentWidth / native.width;
+    let sy = contentHeight / native.height;
     if (style.objectFit !== "fill") {
       const scale =
         style.objectFit === "cover"
@@ -169,17 +141,17 @@ export function elementFrame(source) {
             : Math.min(sx, sy, style.objectFit === "scale-down" ? 1 : Infinity);
       sx = sy = scale;
     }
-    const [dx, dy] = nativePosition(
+    const { x: dx, y: dy } = nativePosition(
       source,
       style.objectPosition,
-      contentWidth - native[0] * sx,
-      contentHeight - native[1] * sy,
+      contentWidth - native.width * sx,
+      contentHeight - native.height * sy,
     );
     if (![sx, sy, dx, dy].every(Number.isFinite) || !sx || !sy) return null;
     return {
       box,
-      width: native[0],
-      height: native[1],
+      width: native.width,
+      height: native.height,
       matrix: matrix.translate(edge("Left") + dx, edge("Top") + dy).scale(sx, sy),
     };
   }
@@ -188,6 +160,7 @@ export function elementFrame(source) {
 
 // The element's CSS border box, for consumers cloning its computed presentation.
 // Intrinsic content coordinates are a separate reading supplied by elementFrame.
+/** @param {Element} source */
 function elementBorderFrame(source) {
   const box = shownBox(source);
   if (!box?.width || !box?.height) return null;
@@ -199,6 +172,7 @@ function elementBorderFrame(source) {
       height: box.height,
       matrix: new window.DOMMatrix().translate(box.left, box.top),
     };
+  /** @param {"width" | "height"} side @param {readonly ("Left" | "Right" | "Top" | "Bottom")[]} edges @param {number | undefined} fallback */
   const borderSize = (side, edges, fallback) => {
     const size = Number.parseFloat(style[side]);
     if (!Number.isFinite(size)) return fallback;
@@ -213,8 +187,17 @@ function elementBorderFrame(source) {
             0,
           );
   };
-  const width = borderSize("width", ["Left", "Right"], source.offsetWidth);
-  const height = borderSize("height", ["Top", "Bottom"], source.offsetHeight);
+  const width = borderSize(
+    "width",
+    ["Left", "Right"],
+    isHTML(source) ? source.offsetWidth : undefined,
+  );
+  const height = borderSize(
+    "height",
+    ["Top", "Bottom"],
+    isHTML(source) ? source.offsetHeight : undefined,
+  );
+  if (width === undefined || height === undefined) return null;
   const { x, y } = elementAxes(source);
   const left =
     box.left - Math.min(0, width * x.x, height * y.x, width * x.x + height * y.x);
@@ -224,23 +207,17 @@ function elementBorderFrame(source) {
   return { box, width, height, matrix };
 }
 
-// One local scroll pixel's viewport displacement. The root's scroll is already
-// measured in viewport units, independently of transforms on its content.
-export function scrollAxes(source) {
-  return source === source.ownerDocument.scrollingElement
-    ? { x: { x: 1, y: 0 }, y: { x: 0, y: 1 } }
-    : elementAxes(source);
-}
-
 // Convert a viewport reveal movement into the scrollport's own layout offsets, as far
 // as the scrollport can still travel, so a reveal past its edge asks for nothing. A
 // one-axis scroller uses that axis's projected displacement; a two-axis scroller uses
 // the inverse basis. At an edge the browser clamps one offset, so the other axis must
 // take the remaining projected movement or a rotated scroller leaves words clipped.
+/** @param {Element} source @param {Point} movement */
 export function localScrollBy(source, { x, y }) {
   const axes = scrollAxes(source);
   const horizontal = source.scrollWidth > source.clientWidth;
   const vertical = source.scrollHeight > source.clientHeight;
+  /** @param {Point} axis */
   const along = (axis) => {
     const amounts = [
       ...(x && axis.x ? [x / axis.x] : []),
@@ -251,10 +228,12 @@ export function localScrollBy(source, { x, y }) {
       0,
     );
   };
+  /** @param {number} offset @param {number} current @param {number} minimum @param {number} maximum */
   const reach = (offset, current, minimum, maximum) =>
     Math.max(minimum - current, Math.min(maximum - current, offset));
   const horizontalLimit = source.scrollWidth - source.clientWidth;
   const rtl = getComputedStyle(source).direction === "rtl";
+  /** @param {number} offset */
   const reachLeft = (offset) =>
     reach(
       offset,
@@ -262,6 +241,7 @@ export function localScrollBy(source, { x, y }) {
       rtl ? -horizontalLimit : 0,
       rtl ? 0 : horizontalLimit,
     );
+  /** @param {number} offset */
   const reachTop = (offset) =>
     reach(offset, source.scrollTop, 0, source.scrollHeight - source.clientHeight);
   if (!horizontal) return { left: 0, top: vertical ? reachTop(along(axes.y)) : 0 };

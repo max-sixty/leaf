@@ -123,7 +123,8 @@ when the agent needs a fresh answer.
 Every check behind `page check` reports a record (`findings.py` owns its fields and
 words), and the browser probes return those records rather than sentences.
 
-A version that passes gets screens for its author to read (`render_gate/screens.py`).
+A render reading gets screens for its author to read, including when it reports
+findings (`render_gate/screens.py`).
 They are the command's, so the suite takes none.
 
 The gate serves its probe modules and the runtime they import from the Leaf running
@@ -142,6 +143,9 @@ A quote never spans a fence, so a passage the file cannot read is refused when t
 comment is written rather than detaching later in the user's browser; anchor on the
 widget's element (`--section`) instead. A file-side quote must also be unique in its
 declared section, and widget source, retired text and repeated passages are refused.
+Direct members declared by `x-owners` with `x-content: markup` retain their own prose
+reading inside a data widget; the rest of its source body remains withheld. A widget
+preserves those authored member nodes independently of its source rendering.
 Runtime anchors were resolved against rendered words, so admission does not recapture
 them.
 

@@ -858,6 +858,7 @@ FIRST_PRESENTATION = """
     if (old) {
       const box = old.getBoundingClientRect();
       window.__lfPresentation.frames.push({
+        upgraded: document.body.hasAttribute("data-lf-upgraded"),
         authoredPainted: old.checkVisibility({
           opacityProperty: true,
           visibilityProperty: true,

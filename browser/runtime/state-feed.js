@@ -38,6 +38,7 @@ import {
 // waits on a frame and on whatever a module does during one — and an ear that waited
 // for that would stop hearing. The page would then go silent for a reason none of its
 // news is about, which is a wedge rather than a delay: nothing else would ever ask.
+/** @param {number} bound @returns {Promise<{state: import("./layer-client.js").CompletedState | null, fault: string | null}>} */
 async function readState(bound) {
   countTraffic("asked");
   try {
@@ -81,7 +82,9 @@ async function readState(bound) {
     } catch {
       return NOTHING;
     }
-    return { state: completeData(JSON.parse(text), held), fault: null };
+    /** @type {import("./layer-client.js").StateAnswer} */
+    const state = JSON.parse(text);
+    return { state: completeData(state, held), fault: null };
   } finally {
     // Heard once the read has ended whichever way: the body in hand, or nothing.
     countTraffic("heard");
@@ -89,6 +92,7 @@ async function readState(bound) {
 }
 
 // A read whose rejection is observed here rather than wherever it is finally awaited.
+/** @param {number} bound */
 function buffer(bound) {
   return readState(bound).catch((error) => ({ error }));
 }
@@ -97,14 +101,19 @@ function buffer(bound) {
 // startup continues. The result is still applied through readAndApply, at the boundary
 // that has captured the upgraded authored state. A malformed answer therefore remains a
 // startup fault; buffering changes when the network work runs, not what its answer
-// means. The interface opens independently at upgrade, so the first read takes the long
-// bound while authoritative presentation waits for its actual answer.
+// means. Initial presentation waits for this answer, or its bounded offline result.
 export function beginRead() {
   return buffer(FIRST_READ_TIMEOUT_MS);
 }
 
 // Failed state reads and crossed freshness observations retry on the clock. Freshness names a changed reading, but
 // cannot guarantee its state read succeeded. Healthy pages read state only on change.
+/** @param {{
+ * stateApplying: () => boolean,
+ * invalidateDom: () => Promise<unknown>,
+ * receiveState: (state: import("./layer-client.js").CompletedState) => Promise<unknown>,
+ * prepareActivation: ReturnType<typeof import("./version.js").createVersionController>["prepareActivation"]
+ * }} dependencies */
 export function createStateFeed({
   stateApplying,
   invalidateDom,
@@ -115,10 +124,11 @@ export function createStateFeed({
 
   // A read that did not land: the page asks again on the next tick and says why. A fault
   // its producer already reported (a paint, a state application) is reported once.
+  /** @param {unknown} error */
   function failed(error) {
     readAnswered = false;
     reportCarried(error, `read failed`);
-    applicationState.setReach("broken");
+    applicationState.setReach({ reach: "broken" });
   }
 
   // The clock has no state to replay; time-dependent paints remember their own
@@ -133,11 +143,15 @@ export function createStateFeed({
 
   // What the page does with an answer that brought no state, and the server's `fault`
   // where it said why.
+  /** @param {string | null} fault */
   async function readNothing(fault = null) {
     readAnswered = false;
     if (runtime.statePhase === "waiting") applicationState.setPhase("offline");
-    if (fault !== null) applicationState.setReach("faulted", fault);
-    else applicationState.setReach(runtime.keyRefused ? "refused" : "unreachable");
+    if (fault !== null) applicationState.setReach({ reach: "faulted", fault });
+    else
+      applicationState.setReach({
+        reach: runtime.keyRefused ? "refused" : "unreachable",
+      });
     await invalidateDom();
     await tick();
   }
@@ -173,6 +187,7 @@ export function createStateFeed({
     }
   }
 
+  /** @param {() => void | Promise<unknown>} present */
   function startFeed(present, initialRead = beginRead()) {
     // Upgrade has already opened reading and commenting. Authoritative presentation
     // waits for an actual answer; elapsed time cannot turn an unanswered read offline.
@@ -279,12 +294,15 @@ export function createStateFeed({
     // this document's visible-page lease; hidden documents cancel it and stop asking.
     const pageIsVisible = () => document.visibilityState !== "hidden";
     let feedStarted = false;
+    /** @type {AbortController | null} */
     let listening = null;
+    /** @type {string | null} */
     let freshness = null;
-    let nextLook = null;
+    /** @type {ReturnType<typeof setTimeout> | undefined} */
+    let nextLook;
     const stopListening = () => {
       clearTimeout(nextLook);
-      nextLook = null;
+      nextLook = undefined;
       listening?.abort();
       listening = null;
       freshness = null;

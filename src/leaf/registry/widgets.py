@@ -54,6 +54,20 @@ def _validate_widget_schema(tag: str, entry: dict, path) -> None:
         )
     if entry.get("x-text-format") == "markdown" and entry.get("x-content") != "data":
         raise registry_error("markdown-needs-data", path, tag)
+    # An unbound data widget's <pre> is its one x-data input's text (leaf-element.js,
+    # "Bound values"), so it can feed only one, and none where the <pre> is already
+    # the element's words or its recorded state.
+    inputs = entry.get("x-data", {})
+    if entry.get("x-content") == "data" and inputs:
+        if len(inputs) > 1:
+            raise registry_error("data-input", path, tag, reason="inputs")
+        if entry.get("x-text-format") == "markdown":
+            raise registry_error("data-input", path, tag, reason="words")
+        if any(
+            spec.get("record", {}).get("kind") == "body"
+            for _, spec in state_specs(entry)
+        ):
+            raise registry_error("data-input", path, tag, reason="state")
     for verb, spec in state_specs(entry):
         if spec.get("record"):
             continue
@@ -119,10 +133,6 @@ def _validate_widget_structure(
                 "unknown-declarations", path, tag, key=key, names=unknown
             )
     properties = entry.get("properties", {})
-    if entry.get("x-initial") and not entry["x-upgrade"]:
-        raise registry_error(
-            "requires", path, tag, key="x-initial", needs="x-upgrade", value=True
-        )
     layout = entry.get("x-reading-role")
     if layout:
         if entry.get("x-content") != "markup":

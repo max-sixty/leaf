@@ -58,30 +58,49 @@ import { under, renderedUnder, renderedParent } from "./shadow.js";
 import { layoutBox, pageDocument } from "./passages.js";
 import { deepFocus, onCurrentLocation, pressing } from "./focus.js";
 
+/** @typedef {{id: string, host: Element & Partial<Pick<HTMLElement, "offsetWidth">>, body: Element, subject: string | null | undefined}} ReadingRegion
+ * @typedef {ReadingRegion & {scroller: Element | null, width: number | null | undefined, away: boolean}} RegionRegistration
+ * @typedef {string | ReadingRegion | Element | null | undefined} RegionTarget
+ * @typedef {{region: ReadingRegion, from: Element, to: Element, returned: boolean} | {region: null, band: number}} RegionShift
+ * @typedef {{owner: Element, regions: ReadingRegion[]}} CompositionTransition
+ * @typedef {{phase: "leaving" | "showing", region: ReadingRegion} |
+ * {phase: "shift", shifted: RegionShift[]} |
+ * (CompositionTransition & ({phase: "before", retained: boolean} | {phase: "after", cancelled: boolean}))} ReadingTransition */
+/** @type {Map<string, RegionRegistration>} */
 const regions = new Map();
+/** @type {Set<(transition: ReadingTransition) => void>} */
 const transitionWatchers = new Set();
 
+/** @param {Node} node */
 const depthOf = (node) => {
   let depth = 0;
-  for (let current = node; current; current = renderedParent(current)) depth += 1;
+  for (
+    let current = node instanceof Element ? node : node.parentElement;
+    current;
+    current = renderedParent(current)
+  )
+    depth += 1;
   return depth;
 };
 
-const live = (region) => region?.host?.isConnected && region.body?.isConnected;
+/** @template {ReadingRegion} T @param {T | undefined} region @returns {region is T} */
+const live = (region) => Boolean(region?.host.isConnected && region.body.isConnected);
 
 // Three questions about a region's visibility, each asked where its cost and answer fit:
 // `concealed` reads the page's own attributes alone, so the inventory decides what to
 // sample without asking any geometry; `shown` (below) asks whether the browser draws
 // the host at all, which a region scrolled out of the window still is; `hidden` asks
 // whether the region has bounds to give now, concealed or clipped away entirely.
+/** @param {ReadingRegion} region */
 const concealed = (region) =>
-  region.host.hidden ||
   region.host.closest?.("[hidden], [aria-hidden='true']") !== null ||
   region.body.matches("details:not([open])");
 
+/** @param {ReadingRegion} region */
 const hidden = (region) =>
   !live(region) || concealed(region) || shownRect(region.host, new Map()) === null;
 
+/** @param {ReadingRegion} region @returns {ReadingRegion} */
 const regionRecord = (region) => ({
   id: region.id,
   host: region.host,
@@ -89,12 +108,15 @@ const regionRecord = (region) => ({
   subject: region.subject,
 });
 
+/** @param {Element} owner @param {string} localName */
 export function compoundReadingRegionId(owner, localName) {
   if (!owner?.id || !/^[a-z][a-z0-9-]*$/.test(localName ?? ""))
     throw new Error("leaf: a compound reading region needs an owner id and local name");
   return `lf-region:${owner.id}:${localName}`;
 }
 
+/** @param {{id: string, host: Element, body: Element,
+ * paintContinuation?: (above: boolean) => void}} options */
 export function registerReadingRegion({
   id,
   host,
@@ -105,6 +127,7 @@ export function registerReadingRegion({
     throw new Error("leaf: a reading region needs id, host, and body");
   if (live(regions.get(id)))
     throw new Error(`leaf: reading region ${id} is already live`);
+  /** @type {RegionRegistration} */
   const region = {
     id,
     host,
@@ -125,9 +148,8 @@ export function registerReadingRegion({
 }
 
 // The boxes a page's Layout makes scroll, which no widget owns: the workspace's body,
-// which scrolls as a whole where a pane in it does not bound itself, a column page's
-// sidebar standing in the margin, and the box a sidebar page's track holds its blocks in
-// (prepaint.js, `holdTrack`), which scrolls while it stands beside the body
+// which scrolls as a whole where a pane in it does not bound itself, and a sidebar
+// page's authored track, which scrolls while it stands beside the body
 // (layouts.css). The stylesheet marks each one
 // (`--lf-reading-region: layout`): a child of `main`, or the only child of one that is
 // not itself marked. Each is registered like any other region, so what it holds is
@@ -137,7 +159,9 @@ export function registerReadingRegion({
 // arrival or removal never renames it; an unnamed one takes its place among the unnamed
 // ones, in a namespace of its own. Document composition asks on every pass, since a
 // revision can replace `main`'s children and a resize can change which of them the stylesheet marks.
+/** @type {Map<Element, {id: string, stop: () => void}>} */
 const layoutRegions = new Map();
+/** @param {Element} box */
 const marked = (box) =>
   box.checkVisibility() &&
   getComputedStyle(box).getPropertyValue("--lf-reading-region").trim() === "layout";
@@ -145,14 +169,14 @@ export function syncLayoutRegion() {
   const main = layoutBox();
   const bodies = main
     ? [...main.children].flatMap((child) => {
-        if (marked(child)) return [[child, child.id]];
+        if (marked(child)) return [{ body: child, name: child.id }];
         const only = child.childElementCount === 1 ? child.firstElementChild : null;
-        return only && marked(only) ? [[only, only.id || child.id]] : [];
+        return only && marked(only) ? [{ body: only, name: only.id || child.id }] : [];
       })
     : [];
   let unnamed = 0;
   const ids = new Map(
-    bodies.map(([body, name]) => [
+    bodies.map(({ body, name }) => [
       body,
       name ? `lf-region:layout#${name}` : `lf-region:layout@${unnamed++}`,
     ]),
@@ -172,6 +196,7 @@ export function syncLayoutRegion() {
 
 // Replace a region's contents with another subject's (see the header). A region not
 // registered yet has no place to keep, so the render runs alone.
+/** @template T @param {string} id @param {string | null} subject @param {() => T} render @returns {T} */
 export function showReadingSubject(id, subject, render) {
   const region = regions.get(id);
   if (!live(region) || region.subject === subject) {
@@ -185,8 +210,9 @@ export function showReadingSubject(id, subject, render) {
   return rendered;
 }
 
+/** @param {string | null | undefined} id */
 export const readingRegion = (id) => {
-  const region = regions.get(id);
+  const region = id == null ? undefined : regions.get(id);
   return live(region) ? regionRecord(region) : undefined;
 };
 
@@ -200,6 +226,7 @@ export const unconcealedReadingRegions = () =>
     .filter((region) => live(region) && !concealed(region) && !skipped(region.body))
     .map(regionRecord);
 
+/** @param {Node | null | undefined} node */
 const regionAt = (node) => {
   const region = [...regions.values()]
     .filter((candidate) => live(candidate) && renderedUnder(node, candidate.host))
@@ -207,6 +234,7 @@ const regionAt = (node) => {
   return region;
 };
 
+/** @param {Node | null | undefined} node */
 export const readingRegionFor = (node) => {
   const region = regionAt(node);
   return region && regionRecord(region);
@@ -231,16 +259,22 @@ export const readingRegionFor = (node) => {
 // page region they acted in last (`pageReadingRegion`), which a surface opened on top of
 // it never replaced. A landing in the document asks the page's answer alone, since a
 // surface is no part of the document it lands in.
+/** @type {string | null} */
 let recentRegionId = null;
+/** @type {string | null} */
 let pageRegionId = null;
 // Chrome can focus body between pointerdown on unfocusable words and pointerup.
 // That focus belongs to the same press while it is down (focus.js, `pressing`);
 // pointerdown has already named its place.
+/** @type {Set<(node: Node) => void>} */
 const readingInputReaders = new Set();
+/** @param {(node: Node) => void} read */
 export const onReadingInput = (read) => readingInputReaders.add(read);
+/** @param {Node} node */
 const readingInput = (node) => {
   for (const read of readingInputReaders) read(node);
 };
+/** @param {Node} at @param {boolean} arriving */
 const actedAt = (at, arriving) => {
   const region = readingRegionFor(at);
   if (region) {
@@ -257,8 +291,9 @@ for (const type of ["pointerdown", "wheel", "touchstart", "click"])
     type,
     (event) => {
       const at = event.composedPath()[0];
+      if (!(at instanceof Node)) return;
       if (type !== "click") actedAt(at, false);
-      else if (event.isTrusted && /** @type {MouseEvent} */ (event).button === 0)
+      else if (event.isTrusted && event instanceof MouseEvent && event.button === 0)
         readingInput(at);
     },
     { capture: true, passive: true },
@@ -271,6 +306,7 @@ onCurrentLocation((node, cause) => {
 export const recentReadingRegion = () => readingRegion(recentRegionId);
 // A region hidden from layout — a closed panel's list, a pane in a tab not shown — is not
 // where the user reads. One scrolled out of the window still is.
+/** @param {ReadingRegion | undefined} region */
 const shown = (region) => (region?.host.checkVisibility() ? region : undefined);
 export const pageReadingRegion = () => {
   const at = deepFocus();
@@ -289,6 +325,7 @@ export const userReadingRegion = () => {
 // geometry that must contain the node itself instead walks outward to the body it lives
 // in. Keep that containment walk shared with scrollerFor so placement and travel cannot
 // disagree about which reading box holds a control.
+/** @param {Node | null | undefined} node */
 export const containingReadingRegionFor = (node) => {
   let region = regionAt(node);
   while (region) {
@@ -298,20 +335,33 @@ export const containingReadingRegionFor = (node) => {
   return undefined;
 };
 
-const asRegion = (regionOrNode) =>
-  typeof regionOrNode === "string"
-    ? regions.get(regionOrNode)
-    : (regions.get(regionOrNode?.id) ??
-      regions.get(readingRegionFor(regionOrNode)?.id));
+/** @param {RegionTarget} regionOrNode */
+const asRegion = (regionOrNode) => {
+  if (typeof regionOrNode === "string") return regions.get(regionOrNode);
+  if (!regionOrNode) return undefined;
+  const named = regions.get(regionOrNode.id);
+  if (named || !(regionOrNode instanceof Element)) return named;
+  const containing = readingRegionFor(regionOrNode);
+  return containing ? regions.get(containing.id) : undefined;
+};
 
+/** @param {Element} box */
 const scrolls = (box) => userScrollport(getComputedStyle(box).overflowY);
 
 // "bounded" when the region's own body scrolls, "flow" when something outside it does.
+/** @param {RegionTarget} regionOrNode */
 export const regionScrollBehavior = (regionOrNode) => {
   const region = asRegion(regionOrNode);
-  return region && live(region) && scrolls(region.body) ? "bounded" : "flow";
+  return region &&
+    live(region) &&
+    !concealed(region) &&
+    !skipped(region.body) &&
+    scrolls(region.body)
+    ? "bounded"
+    : "flow";
 };
 
+/** @param {RegionTarget} regionOrNode @returns {Element} */
 export function effectiveScroller(regionOrNode) {
   const region = asRegion(regionOrNode);
   if (!region) return pageScroller;
@@ -333,6 +383,7 @@ export function effectiveScroller(regionOrNode) {
 // by nothing else. A drag naming the wrong one sits at the edge waiting for a scroll
 // that never comes. The list answers here as any region does: the panel registers it as
 // its bounded reading region (`mountPanelReadingRegion`).
+/** @param {Node | null | undefined} el */
 export const scrollerFor = (el) => {
   const region = containingReadingRegionFor(el);
   return region ? effectiveScroller(region) : pageScroller;
@@ -343,6 +394,7 @@ export const scrollerFor = (el) => {
 // the next one's to finish: a bounded block not yet full grows in the page rather than
 // scrolling, and a region scrolled to its end moves no further. A fixed box between a
 // node and a scroller stands still while that scroller moves, so the walk ends there.
+/** @param {Element | null} node @returns {Generator<Element>} */
 export function* scrollersOf(node) {
   for (let box = scrollerFor(node); ; box = scrollerFor(renderedParent(box))) {
     for (let at = node; at !== box; at = renderedParent(at))
@@ -357,29 +409,35 @@ export function* scrollersOf(node) {
 // at a box whose overscroll-behavior lets it go: `scrollersOf`'s, then the page's. A
 // fixed box ends `scrollersOf` because the page's scroll leaves it in place, but its
 // scroll still chains to the page, the box its containing block, the viewport, scrolls.
+/** @param {Element | null} node @returns {Generator<Element>} */
 export function* scrollChainOf(node) {
   let last = null;
   for (last of scrollersOf(node)) yield last;
   if (last !== pageScroller) yield pageScroller;
 }
 
+/** @param {RegionTarget} regionOrNode */
 export function shownRegionBounds(regionOrNode) {
   const region = asRegion(regionOrNode);
   if (!region || hidden(region)) return null;
   return shownRect(region.body, new Map());
 }
 
+/** @param {(transition: ReadingTransition) => void} listener */
 export function watchReadingRegionTransitions(listener) {
   transitionWatchers.add(listener);
   return () => transitionWatchers.delete(listener);
 }
 
+/** @param {ReadingTransition} detail */
 const notify = (detail) => {
   for (const listener of transitionWatchers) listener(detail);
 };
 
+/** @type {Map<Element, CompositionTransition>} */
 const compositionTransitions = new Map();
 
+/** @param {Element} owner @param {() => unknown} change */
 export async function preserveReadingRegions(owner, change) {
   const transition = {
     owner,
@@ -410,6 +468,7 @@ export async function preserveReadingRegions(owner, change) {
 }
 
 // Whether a region is scrolled by the box last seen for it, at the width last seen.
+/** @param {RegionRegistration} region @param {Element} scroller @param {number | undefined} width */
 const asSeen = (region, scroller, width) =>
   region.scroller === scroller && region.width === width;
 let viewportHeight = innerHeight;
@@ -417,6 +476,7 @@ let viewportHeight = innerHeight;
 // The page's width and the top of its landing band as last seen, or null before the
 // first delivery. The page needs no registration: the root is always there, and its
 // size changes only with the window's.
+/** @type {ReturnType<typeof pageGeometry> | null} */
 let pageSeen = null;
 const pageGeometry = () => ({
   width: pageScroller.clientWidth,
@@ -460,6 +520,7 @@ export const regionsSettled = () =>
 function measureRegions() {
   const viewportChanged = viewportHeight !== innerHeight;
   viewportHeight = innerHeight;
+  /** @type {RegionShift[]} */
   const shifted = [];
   for (const region of regions.values()) {
     if (!live(region) || !shown(region)) continue;
@@ -480,7 +541,9 @@ function measureRegions() {
     region.away = away;
   }
   const now = pageGeometry();
-  if (pageMoved(now)) shifted.push({ region: null, band: now.band - pageSeen.band });
+  const previousPage = pageSeen;
+  if (pageMoved(now) && previousPage)
+    shifted.push({ region: null, band: now.band - previousPage.band });
   pageSeen = now;
   if (shifted.length) notify({ phase: "shift", shifted });
 }

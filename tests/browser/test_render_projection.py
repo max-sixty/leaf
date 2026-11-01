@@ -70,7 +70,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
 <h1 id="title">Request call change</h1>
 <pre id="code-surface">reference code surface</pre>
 <lf-call-diff id="request-calls" source="request-call-diff" diff="patch"></lf-call-diff>
-<lf-diff id="patch" source="review-patch" collapsed><pre></pre></lf-diff>
+<lf-diff id="patch" source="review-patch" collapsed></lf-diff>
 """,
     )
     url = serve(authored, packages=("diff",))
@@ -674,7 +674,7 @@ def test_atlas_send_and_pause_is_one_thread_fold(browser, serve):
     seat.get_by_role("button", name="1 new reply").click()
     inline_link = seat.locator('a[href="https://example.com/run"]')
     expect(inline_link).to_have_attribute("target", "_blank")
-    expect(inline_link.locator(":scope > svg.lf-external-mark")).to_be_visible()
+    expect(inline_link).to_have_attribute("data-lf-external", "")
     # The record stands in the hub's track, which stays in view beside the goal, so
     # the reply waits behind its news as the pause did.
     page.locator("#atlas-record .lf-activity-news").click()

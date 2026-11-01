@@ -24,6 +24,7 @@
    viewer (layer-stack.js, `showNativeLayer`). A queued close from an earlier opening leaves a reopened viewer's
    image and focus intact. */
 
+import { describeFailure } from "./exception.js";
 import { html, render } from "/runtime/framework.js";
 import { offlineInteractive, pageUrl, runtimeResource } from "./context.js";
 import { inBaseLayer } from "./base-layer.js";
@@ -57,20 +58,24 @@ const MEDIA_SUFFIX = new RegExp(
   `(?:^|\\n\\n)${ATTACHED_IMAGE}(?:\\n\\n${ATTACHED_IMAGE})*(?![\\s\\S])`,
 );
 
+/** @param {string} href */
 export const isCanonicalMediaUrl = (href) => href.startsWith(CANONICAL_MEDIA_ROOT);
 
+/** @param {string} href */
 export const scopedMediaUrl = (href) =>
   offlineInteractive ? runtimeResource(href) : new URL(pageUrl(href.slice(1))).pathname;
 
+/** @param {string} value */
 export function readAttachedMedia(value) {
   const suffix = MEDIA_SUFFIX.exec(value);
   if (!suffix) return { text: value, paths: [] };
   return {
     text: value.slice(0, suffix.index),
-    paths: Array.from(suffix[0].matchAll(ATTACHED_MEDIA), (image) => image[1]),
+    paths: [...suffix[0].matchAll(ATTACHED_MEDIA)].flatMap((image) => image.slice(1)),
   };
 }
 
+/** @param {string} text @param {readonly string[]} paths */
 export function writeAttachedMedia(text, paths) {
   if (!paths.length) return text;
   const images = paths.map((path) => `![Attached image](${path})`).join("\n\n");
@@ -90,14 +95,17 @@ stage.className = "lf-media-viewer-stage";
 const caption = document.createElement("p");
 caption.className = "lf-media-viewer-caption scroll";
 
+/** @type {import("photoswipe").default | null} */
 let inspector = null;
+/** @type {Promise<typeof import("/vendor/photoswipe.esm.js").default> | null} */
 let loading = null;
 let opening = 0;
+/** @type {string | null} */
 let canvasUrl = null;
 
 function imageTools() {
   if (!loading) {
-    loading = import("../vendor/photoswipe.esm.js").then(
+    loading = import("/vendor/photoswipe.esm.js").then(
       ({ default: PhotoSwipe, styles }) => {
         const style = document.createElement("style");
         // Layered, as a dependency's defaults are, so the chrome's guard rolls back to
@@ -112,11 +120,14 @@ function imageTools() {
   return loading;
 }
 
+/** @param {{url: string, alt: string} | null} model */
 function presentViewer(model) {
   render(
     html`
       <div class="lf-media-viewer-head">
-        <strong id="lf-media-viewer-title">Image preview</strong>
+        <strong id="lf-media-viewer-title" class="lf-dialog-title"
+          >Image preview</strong
+        >
         <div class="lf-media-viewer-actions">
           ${
             model
@@ -170,7 +181,7 @@ keys(
             Math.abs(slide.currZoomLevel - slide.zoomLevels.initial) > 0.01),
         );
       },
-      run: () => inspector.toggleZoom(),
+      run: () => inspector?.toggleZoom(),
     },
     {
       id: "image.pan",
@@ -193,10 +204,11 @@ keys(
 // under it, a two-row header names a cell twice, outer first, and a header row written
 // without `<thead>` still counts. Each head reads as what it says, which leaves out a
 // comment's mark the paint pass wrote into it.
-const cellHeads = (from) => {
+const cellHeads = (/** @type {Element} */ from) => {
   const cell = from.closest("td");
   if (!cell) return "";
   const table = cell.closest("table");
+  if (!table) return "";
   const box = cell.getBoundingClientRect();
   const x = box.left + box.width / 2;
   const y = box.top + box.height / 2;
@@ -213,24 +225,27 @@ const cellHeads = (from) => {
       columns.push(head);
   }
   // A header row repeated before a later section stands above the capture twice.
-  return [...new Set([...columns, ...rows].map(says).filter(Boolean))].join(" · ");
+  return [
+    ...new Set([...columns, ...rows].map((head) => says(head)).filter(Boolean)),
+  ].join(" · ");
 };
 
 // The viewer hands the user back to the image they opened it from (focus.js,
 // `openLayer`) once the platform has closed it, by its button, Escape or a press outside.
+/** @param {string | HTMLCanvasElement} source @param {string} alt @param {Element} from */
 const open = async (source, alt, from) => {
   const attempt = ++opening;
   inspector?.destroy();
   inspector = null;
   if (canvasUrl) URL.revokeObjectURL(canvasUrl);
   canvasUrl = null;
-  const canvas = source instanceof window.HTMLCanvasElement;
+  const canvas = source instanceof HTMLCanvasElement;
   openLayer(mediaViewer, from);
   presentViewer(canvas ? null : { url: source, alt });
   render(canvas ? html`<p>Preparing image…</p>` : null, stage);
   const figureCaption = from.closest("figure")?.querySelector("figcaption");
   const description =
-    from.dataset.lfMediaCaption ||
+    from.getAttribute("data-lf-media-caption") ||
     (figureCaption && says(figureCaption)) ||
     cellHeads(from);
   keepsText(caption, description);
@@ -238,30 +253,33 @@ const open = async (source, alt, from) => {
   keepsText(viewerZoom, "100%");
   if (!mediaViewer.open) showNativeLayer(mediaViewer, { source: from });
   focusDestination(viewerClose, "move");
-  let url = source;
+  /** @type {string} */
+  let url;
   if (canvas) {
     // Native encoding snapshots the pixels at this press. A late completion cannot
     // reopen a closed viewer or replace an image the reader opened since.
     let blob;
     try {
-      blob = await new Promise((resolve) => source.toBlob(resolve));
+      /** @type {Promise<Blob | null>} */
+      const encoded = new Promise((resolve) => source.toBlob(resolve));
+      blob = await encoded;
       if (!blob) throw new Error("the drawing could not be encoded");
     } catch (error) {
       if (attempt !== opening || !mediaViewer.open) return;
-      render(html`<p>Image preview unavailable: ${error.message}.</p>`, stage);
+      render(html`<p>Image preview unavailable: ${describeFailure(error)}.</p>`, stage);
       return;
     }
     if (attempt !== opening || !mediaViewer.open) return;
     canvasUrl = URL.createObjectURL(blob);
     url = canvasUrl;
     presentViewer({ url, alt });
-  }
+  } else url = source;
   render(
     html`<span class="lf-media-viewer-probe"><img src=${url} alt="" /></span>`,
     stage,
   );
-  /** @type {HTMLImageElement} */
-  const probe = stage.querySelector(".lf-media-viewer-probe > img");
+  const probe = stage.querySelector("img");
+  if (!probe) throw new Error("Image inspection needs its rendered decode probe");
   Promise.all([imageTools(), probe.decode()]).then(
     ([PhotoSwipe]) => {
       // A delayed load belongs only to the image the reader still has open.
@@ -318,15 +336,14 @@ const open = async (source, alt, from) => {
           key.defaultPrevented ||
           !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(key.key) ||
           nativeLayers().at(-1)?.root !== mediaViewer ||
-          !mediaViewer.contains(key.target)
+          !(key.target instanceof Node && mediaViewer.contains(key.target))
         )
           event.preventDefault();
       });
       current.on("close", () => {
         if (mediaViewer.open) closeLayer(() => closeNativeLayer(mediaViewer));
       });
-      current.on("zoomPanUpdate", () => {
-        const slide = current.currSlide;
+      current.on("zoomPanUpdate", ({ slide }) => {
         const enlarged = slide.currZoomLevel > slide.zoomLevels.initial + 0.01;
         keepsText(viewerZoom, enlarged ? "Fit" : "100%");
         keeps(viewerZoom, "aria-label", enlarged ? "Fit image" : "Zoom to actual size");
@@ -334,15 +351,18 @@ const open = async (source, alt, from) => {
       });
       current.init();
       // Modality belongs to the containing native dialog, not a second ARIA dialog.
-      current.element.removeAttribute("role");
-      current.element.removeAttribute("aria-modal");
+      const root = current.element;
+      if (!root)
+        throw new Error("PhotoSwipe did not create its image inspection surface");
+      root.removeAttribute("role");
+      root.removeAttribute("aria-modal");
       paintKeys();
     },
     (error) => {
       if (attempt !== opening || !mediaViewer.open) return;
       keepsText(
         caption,
-        `Image preview unavailable: ${error.message}. Open Original to see the file.`,
+        `Image preview unavailable: ${describeFailure(error)}. Open Original to see the file.`,
       );
       keepsHidden(caption, false);
     },
@@ -369,36 +389,38 @@ document.addEventListener("click", (event) => {
   if (event.defaultPrevented || !plainPress(event)) return;
   // The path ends at the document and the window, and an element whose id is
   // `matches` puts an object at `window.matches`, so only elements are asked.
-  const trigger = /** @type {HTMLElement | undefined} */ (
-    event
-      .composedPath()
-      .find(
-        (node) =>
-          node instanceof Element &&
-          node.matches(
-            ".lf-media-open[data-lf-media-url], .lf-media-open[data-lf-media-canvas]",
-          ),
-      )
+  const path = event.composedPath();
+  const trigger = path.find(
+    /** @returns {node is Element} */ (node) =>
+      node instanceof Element &&
+      node.matches(
+        ".lf-media-open[data-lf-media-url], .lf-media-open[data-lf-media-canvas]",
+      ),
   );
-  const link = event.composedPath().find((node) => node instanceof HTMLAnchorElement);
+  const link = path.find((node) => node instanceof HTMLAnchorElement);
   const image = link?.querySelector("img");
-  // A linked image explicitly names its inspection destination; other image links
-  // retain their author's destination.
+  // Only an image link to its own file opens inspection; other links keep their destination.
   const imageLink =
+    link &&
     image &&
     !link.hasAttribute("download") &&
     (link.href === image.src || link.href === image.currentSrc);
-  if (trigger || imageLink) {
-    event.preventDefault();
-    open(
-      (trigger?.hasAttribute("data-lf-media-canvas") &&
-        trigger.querySelector("canvas")) ||
-        trigger?.dataset.lfMediaUrl ||
-        link.href,
-      trigger?.dataset.lfMediaAlt ||
-        (trigger?.querySelector("img") || image)?.alt ||
-        "Image",
-      trigger || link,
-    );
-  }
+  const origin = trigger ?? (link && imageLink ? link : null);
+  if (!origin) return;
+  const canvas = trigger?.hasAttribute("data-lf-media-canvas")
+    ? trigger.querySelector("canvas")
+    : null;
+  const source =
+    canvas ||
+    trigger?.getAttribute("data-lf-media-url") ||
+    (link && imageLink ? link.href : null);
+  if (!source) throw new Error("Image inspection needs a canvas or image URL");
+  event.preventDefault();
+  void open(
+    source,
+    trigger?.getAttribute("data-lf-media-alt") ||
+      (trigger?.querySelector("img") || image)?.alt ||
+      "Image",
+    origin,
+  );
 });

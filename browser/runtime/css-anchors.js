@@ -51,11 +51,20 @@ import {
   shownParts,
 } from "./geometry.js";
 import { hostIn, renderedParent, shadowHost } from "./shadow.js";
-import { nativeLayerHolding } from "./shadow-tree.js";
+import { isElement, isHTML, isText, nativeLayerHolding } from "./shadow-tree.js";
 import { watchArrivals } from "./arrivals.js";
-import { keeps, layoutPx } from "./keeps.js";
+import { inlineStyle, keeps, layoutPx } from "./keeps.js";
 import { move } from "./dom-move.js";
 import { chromeRoot } from "./chrome.js";
+
+/** @typedef {import("./rect.js").Box} Box
+ * @typedef {{scroller: Element, name: string, getBoundingClientRect(): DOMRect}} ContentStart
+ * @typedef {Element | ContentStart} Anchor
+ * @typedef {{el: Element, name: string, write?: string, part?: boolean} | {el?: never, name: string, write?: never, part?: never}} AnchorReading
+ * @typedef {{left: number, top: number} & ({right: number, bottom: number} | {right?: never, bottom?: never})} PaintBox
+ * @typedef {{x: boolean, y: boolean}} Axes
+ * @typedef {{anchor: Anchor | null, band: Box, axes: Axes, at?: Box | null, reading?: AnchorReading | null}} CutLevel
+ * @typedef {{target: Element, near: boolean, nodes: Map<Element, () => void>, observer: IntersectionObserver}} AnchorView */
 
 // Anchor names are global to their tree, so one per target element, merged with whatever
 // name the author gave the same box. The name stays for the element's life: rows come and
@@ -75,19 +84,32 @@ import { chromeRoot } from "./chrome.js";
 // its host too: declared again from the document, the name would leave the tree using it.
 // A widget that renders its part attribute again takes the part away, and the tree's
 // watch gives it back in the same mutation checkpoint (`keepParts`).
+/** @type {WeakMap<Element, string>} */
 const anchorNames = new WeakMap();
 let anchorOrdinal = 0;
 const nextName = () => `--lf-a${++anchorOrdinal}`;
+/** @param {string} name */
 const partOf = (name) => name.slice(2);
-const partNamed = (el) => el.part.contains(partOf(anchorNames.get(el)));
+/** @param {Element} el */
+const partNamed = (el) => {
+  const name = anchorNames.get(el);
+  return name !== undefined && el.part.contains(partOf(name));
+};
+/** @type {CSSStyleSheet | null} */
 let partRules = null;
+/** @type {Set<string>} */
 const declared = new Set();
+/** @type {WeakMap<Element, Set<string>>} */
 const given = new WeakMap(); // element → the anchor parts it was given
+/** @type {WeakSet<Node>} */
 const watchedTrees = new WeakSet();
+/** @param {Node} el */
 const restoreParts = (el) => {
+  if (!isElement(el)) return;
   for (const part of given.get(el) ?? [])
     if (!el.part.contains(part)) el.part.add(part);
 };
+/** @param {Node} root */
 function keepParts(root) {
   if (watchedTrees.has(root)) return;
   watchedTrees.add(root);
@@ -96,6 +118,7 @@ function keepParts(root) {
   }).observe(root, { subtree: true, attributes: true, attributeFilter: ["part"] });
 }
 // Names `el`, or its `::before` where `pseudo` says so, through the part `name` spells.
+/** @param {Element} el @param {string} name @param {string} [pseudo] */
 function namePart(el, name, pseudo = "") {
   if (!partRules) {
     partRules = new CSSStyleSheet();
@@ -113,15 +136,15 @@ function namePart(el, name, pseudo = "") {
   keepParts(el.getRootNode());
   restoreParts(el);
 }
-/** @returns {{el: any, name: string, write?: string, part?: boolean}} */
-export function anchorReading(el, name = anchorNames.get(el) ?? nextName()) {
+/** @param {Anchor} el @param {string} [name] @returns {AnchorReading} */
+export function anchorReading(el, name) {
   // A content start is named where it is made (`contentStart`).
-  const start = contentStarts.get(el);
-  if (start) return { el, name: start.name };
+  if (!isElement(el)) return { name: el.name };
+  name ??= anchorNames.get(el) ?? nextName();
   anchorNames.set(el, name);
   if (el.getRootNode() !== document)
     return partNamed(el) ? { el, name } : { el, name, write: name, part: true };
-  const written = el.style.anchorName;
+  const written = inlineStyle(el).anchorName;
   if (written.split(",").some((part) => part.trim() === name)) return { el, name };
   // What the author's stylesheet names this box, read only where this pass has not already
   // written: a revision patch that rewrote the style attribute has taken the name away.
@@ -137,12 +160,13 @@ export function nameAnchor({ el, name, write, part }) {
   // Two readings of one box can both find it unnamed before either names it.
   if (write && part) {
     if (!partNamed(el)) namePart(el, name);
-  } else if (write) el.style.anchorName = write;
+  } else if (write) inlineStyle(el).anchorName = write;
   return name;
 }
 
 // Whether the document can name `el` (`anchorReading`): it stands in the document, or in
 // the first shadow tree in, where nothing names it already.
+/** @param {Element} el */
 export function nameable(el) {
   const root = el.getRootNode();
   if (root === document) return true;
@@ -162,9 +186,12 @@ export function nameable(el) {
 // shape inside an SVG drawing has no CSS box of its own, so it anchors through the
 // drawing; a `display: contents` target through its first shown part. Wherever it
 // anchors, what stands against it is written as insets from the anchor's box.
+/** @param {Element} target */
 function outsideScopes(target) {
   let el = target;
-  for (let at = target; at instanceof Element; at = renderedParent(at))
+  /** @type {Node | null} */
+  let at = target;
+  for (; isElement(at); at = renderedParent(at))
     if (
       at.getRootNode() === document &&
       !at.contains(chromeRoot) &&
@@ -173,6 +200,7 @@ function outsideScopes(target) {
       el = renderedParent(at) ?? at;
   return el;
 }
+/** @param {Element} target */
 export function anchorElement(target) {
   let el = outsideScopes(target);
   for (let host; !nameable(el) && (host = shadowHost(el.getRootNode()));) el = host;
@@ -187,11 +215,14 @@ export function anchorElement(target) {
 // reaches into the top layer, laid out after it; within one native layer, or the
 // document, the anchor comes earlier in the tree; an anchor in another native layer is
 // read as out of reach, since which layer opened first is the browser's.
+/** @param {Anchor} anchor @param {Element} box */
 export function anchorReaches(anchor, box) {
   const holder = anchorHolder(anchor);
+  const host = hostIn(holder, document);
+  if (!host) return false;
   const layer = nativeLayerHolding(holder);
   if (layer !== nativeLayerHolding(box)) return !layer;
-  const order = hostIn(holder, document).compareDocumentPosition(box);
+  const order = host.compareDocumentPosition(box);
   return (
     Boolean(order & Node.DOCUMENT_POSITION_FOLLOWING) &&
     !(order & Node.DOCUMENT_POSITION_CONTAINED_BY)
@@ -202,11 +233,14 @@ export function anchorReaches(anchor, box) {
 // on `box`, or on a box `box` holds still (`carriedAnchor`), carries `node` through each:
 // `box` holds `node`, and nothing from `node` up to `box` is sticky, fixed or absolute,
 // whose spot is not the scrolls' alone, or scrolls what it holds past `node`.
+/** @param {Node} node @param {Node} box */
 export function scrollsWith(node, box) {
-  for (let at = node; at !== box; at = renderedParent(at)) {
+  /** @type {Node | null} */
+  let at = node;
+  for (; at !== box; at = renderedParent(at)) {
     if (!at) return false;
     if (
-      at instanceof Element &&
+      isElement(at) &&
       (!/^(static|relative)$/.test(getComputedStyle(at).position) ||
         (at !== node && scrollsContent(at)))
     )
@@ -223,10 +257,12 @@ export function scrollsWith(node, box) {
 // anchor to the start of what the scroller holds (`contentStart`). Null where none of
 // these is, or where the scroller lies in the top layer or a shadow tree the document
 // cannot name it in (`anchorElement`), whose anchors a box in the chrome cannot reach.
+/** @param {Element} scroller @param {Node | null} [near] */
 export function carriedAnchor(scroller, near = null) {
   if (anchorElement(scroller) !== scroller || nativeLayerHolding(scroller)) return null;
+  /** @param {Node | null | undefined} node @returns {node is Element} */
   const carried = (node) =>
-    node instanceof Element &&
+    isElement(node) &&
     !/^(br|wbr)$/.test(node.localName) &&
     anchorElement(node) === node &&
     node.getClientRects().length > 0 &&
@@ -238,7 +274,7 @@ export function carriedAnchor(scroller, near = null) {
   for (
     let before = near.previousSibling, after = near.nextSibling;
     before || after;
-    before = before?.previousSibling, after = after?.nextSibling
+    before = before?.previousSibling ?? null, after = after?.nextSibling ?? null
   )
     for (const node of [before, after]) if (carried(node)) return node;
   return contentStart(scroller);
@@ -248,8 +284,9 @@ export function carriedAnchor(scroller, near = null) {
 // (`anchorElement`). Words standing directly in a box that scrolls them move with that
 // scroll, which an anchor on the box itself does not follow, so they anchor to what the
 // scroll carries beside them (`carriedAnchor`), and to the box only where nothing does.
+/** @param {Node | null} context */
 export function anchorFor(context) {
-  const physical = context instanceof Element ? context : context?.parentElement;
+  const physical = isElement(context) ? context : context?.parentElement;
   if (!physical) return null;
   const anchor = anchorElement(physical);
   if (context === physical || anchor !== physical || !scrollContainer(physical))
@@ -273,9 +310,10 @@ export function anchorFor(context) {
 // `data-lf-content-start` (marks.css) in the document, and in a shadow tree through a
 // part, as a box there is named (`namePart`), each written where it is made and again
 // where a revision rewrote it.
-const contentStarts = new WeakMap(); // handle → { scroller, name }
+/** @type {WeakMap<Element, ContentStart>} */
 const starts = new WeakMap(); // scroller → handle
 const START = "data-lf-content-start";
+/** @param {Element} scroller */
 function contentStart(scroller) {
   const first = scroller.firstChild;
   if (
@@ -283,7 +321,7 @@ function contentStart(scroller) {
     [...scroller.childNodes].some(
       (node) =>
         node.nodeType !== Node.TEXT_NODE &&
-        !(node instanceof Element && /^(br|wbr)$/.test(node.localName)),
+        !(isElement(node) && /^(br|wbr)$/.test(node.localName)),
     )
   )
     return null;
@@ -302,12 +340,14 @@ function contentStart(scroller) {
     )
       return null;
     handle = {
+      scroller,
+      name: nextName(),
       // The first node that paints: white space collapsed away paints nothing, and
       // the start stands where what follows it does.
       getBoundingClientRect() {
         const range = document.createRange();
         for (const lead of scroller.childNodes) {
-          if (lead.nodeType === Node.TEXT_NODE) {
+          if (isText(lead)) {
             range.setStart(lead, 0);
             range.setEnd(lead, Math.min(1, lead.length));
           } else range.selectNode(lead);
@@ -318,9 +358,8 @@ function contentStart(scroller) {
       },
     };
     starts.set(scroller, handle);
-    contentStarts.set(handle, { scroller, name: nextName() });
   }
-  const { name } = contentStarts.get(handle);
+  const { name } = handle;
   if (scroller.getRootNode() === document) keeps(scroller, START, name);
   else namePart(scroller, name, "::before");
   return handle;
@@ -328,9 +367,11 @@ function contentStart(scroller) {
 
 // The box whose scrolls carry `anchor`: the scroller a content start stands in, whose
 // own scroll carries it too, or the anchor itself.
-const anchorHolder = (anchor) => contentStarts.get(anchor)?.scroller ?? anchor;
+/** @param {Anchor} anchor */
+const anchorHolder = (anchor) => (isElement(anchor) ? anchor : anchor.scroller);
 
 // The name `el` answers to as an anchor, given it first where it has none.
+/** @param {Anchor} el */
 export const anchorName = (el) => nameAnchor(anchorReading(el));
 
 // Where `anchor()` reads `anchor`'s box, in client coordinates, which every inset written
@@ -349,6 +390,7 @@ export const anchorName = (el) => nameAnchor(anchorReading(el));
 // read straight after a scroll between it and the anchor, the widened table's own
 // included, returned where the anchor stood before; and a probe in the chrome reaches
 // no anchor in a native layer.
+/** @type {boolean | undefined} */
 let dropsTransforms;
 // Firefox lacks transforms in `anchor()`; read once whether this engine does.
 function anchorDropsTransforms() {
@@ -369,6 +411,7 @@ function anchorDropsTransforms() {
 // from its offset parent's box, less the scrolls between, which offsets leave out. A
 // static body's offsets count from the document's corner, and a fixed box's from the
 // window's. Null where it has no offset to read.
+/** @param {HTMLElement} el */
 function laidOut(el) {
   const parent = el.offsetParent;
   let left = el.offsetLeft;
@@ -386,13 +429,14 @@ function laidOut(el) {
     top += from.top + parent.clientTop - parent.scrollTop;
   }
   for (let box = renderedParent(el); box !== parent; box = renderedParent(box)) {
-    if (!(box instanceof Element)) return null;
+    if (!isElement(box)) return null;
     left -= box.scrollLeft;
     top -= box.scrollTop;
   }
   return { left, top };
 }
 // Whether `style` moves its box at all, and whether only by a translation.
+/** @param {CSSStyleDeclaration} style */
 function movement(style) {
   const matrix =
     style.transform === "none" ? null : new window.DOMMatrixReadOnly(style.transform);
@@ -416,13 +460,16 @@ function movement(style) {
 }
 // How far the translations on `el` and its ancestors move its box, or null where one of
 // them scales, rotates or zooms it, or has no offset to read.
+/** @param {Element} el */
 function translationOf(el) {
   let x = 0;
   let y = 0;
-  for (let at = el; at instanceof Element; at = renderedParent(at)) {
+  /** @type {Node | null} */
+  let at = el;
+  for (; isElement(at); at = renderedParent(at)) {
     const { moves, slides } = movement(getComputedStyle(at));
     if (!moves) continue;
-    if (!slides || !(at instanceof HTMLElement) || at.currentCSSZoom !== 1) return null;
+    if (!slides || !isHTML(at) || at.currentCSSZoom !== 1) return null;
     const layout = laidOut(at);
     if (!layout) return null;
     const shown = at.getBoundingClientRect();
@@ -431,6 +478,7 @@ function translationOf(el) {
   }
   return { x, y };
 }
+/** @param {Anchor} anchor */
 export function anchorBox(anchor) {
   const box = anchor.getBoundingClientRect();
   if (!anchorDropsTransforms()) return box;
@@ -445,6 +493,7 @@ export function anchorBox(anchor) {
 // that moves the anchor. With no anchor it stands where the window holds it.
 // `visibility` is its `position-visibility`: a cut box stays drawn while its anchor
 // scrolls out of view, so the frames cutting it decide what shows.
+/** @param {Pick<ElementCSSInlineStyle, "style">} node @param {Anchor | null} anchor @param {PaintBox} box @param {Box | null} [at] @param {string} [visibility] */
 export function anchorAt(
   node,
   anchor,
@@ -452,6 +501,7 @@ export function anchorAt(
   at = anchor && anchorBox(anchor),
   visibility = "always",
 ) {
+  /** @param {string} side @param {number} length */
   const from = (side, length) =>
     anchor ? `calc(anchor(${side}, -9999px) + ${layoutPx(length)})` : layoutPx(length);
   Object.assign(node.style, {
@@ -472,13 +522,17 @@ export function anchorAt(
 // The frame itself has no painted box. Extend its zero-size clip to the measured band
 // (and beyond an uncut axis), so only its descendants stand over page text. A huge
 // transparent frame hid those words from contrast readers even though it took no press.
+/** @param {Axes} axes @param {Box} band */
 const cutPath = ({ x, y }, band) => {
   const open = 100000;
   const width = band.right - band.left;
   const height = band.bottom - band.top;
-  // Contours may spend a stroke outside the band; all other paint cuts exactly at it.
-  const edge = (value) => `calc(${layoutPx(value)} - var(--lf-paint-outset, 0px))`;
-  return `inset(${edge(y ? 0 : -open)} ${edge(-width - (x ? 0 : open))} ${edge(-height - (y ? 0 : open))} ${edge(x ? 0 : -open)})`;
+  // A mark may spend its band outside the band on each side its stand allows
+  // (target-paint-geometry.js, `standOver`); all other paint cuts exactly at it.
+  /** @param {number} value @param {string} side */
+  const edge = (value, side) =>
+    `calc(${layoutPx(value)} - var(--lf-paint-outset-${side}, 0px))`;
+  return `inset(${edge(y ? 0 : -open, "top")} ${edge(-width - (x ? 0 : open), "right")} ${edge(-height - (y ? 0 : open), "bottom")} ${edge(x ? 0 : -open, "left")})`;
 };
 
 // The levels a box following `item` is cut at so that it passes under the sticky headers
@@ -489,17 +543,15 @@ const cutPath = ({ x, y }, band) => {
 // follows scrolled content stands in these, so whether it passes under a header is
 // decided here once.
 const nowhere = { left: 0, top: 0, right: 0, bottom: 0 };
+/** @param {Element} item @param {import("./geometry.js").ClipCache} [clips] */
 export function headerLevels(item, clips = new Map()) {
   return headerCuts(item, clips).map(({ box, band }) => {
     const anchor =
       box === box.ownerDocument.scrollingElement ? null : anchorElement(box);
-    return {
-      anchor,
-      reading: anchor && anchorReading(anchor),
-      at: anchor && anchorBox(anchor),
-      band: band ?? nowhere,
-      axes: { x: false, y: true },
-    };
+    const cut = { band: band ?? nowhere, axes: { x: false, y: true } };
+    return anchor
+      ? { ...cut, anchor, reading: anchorReading(anchor), at: anchorBox(anchor) }
+      : { ...cut, anchor: null, reading: null, at: null };
   });
 }
 
@@ -511,37 +563,59 @@ export function headerLevels(item, clips = new Map()) {
 // here where it is. `frames` are the ones the levels stood in before, kept from the innermost
 // out, so what stands in the last keeps its frame while the frames around it change, and
 // `make` makes a missing one. A new outermost frame takes the old one's place. Answers
-// the frames; the caller places the outermost and stands what is cut in the last.
+// each level paired with its frame; the caller places the outermost and stands what
+// is cut in the last.
+/** @template {CutLevel} L @overload @param {[L, ...L[]]} levels @param {HTMLElement[]} frames @param {() => HTMLElement} make @returns {[{level: L, frame: HTMLElement}, ...{level: L, frame: HTMLElement}[]]} */
+/** @template {CutLevel} L @overload @param {L[]} levels @param {HTMLElement[]} frames @param {() => HTMLElement} make @returns {{level: L, frame: HTMLElement}[]} */
+/** @template {CutLevel} L @param {L[]} levels @param {HTMLElement[]} frames @param {() => HTMLElement} make */
 export function cutFrames(levels, frames, make) {
-  const kept = frames.slice(Math.max(0, frames.length - levels.length));
-  const chain = [...Array.from({ length: levels.length - kept.length }, make), ...kept];
+  const remaining = [...frames];
+  const placed = levels
+    .toReversed()
+    .map((level) => ({
+      level,
+      frame: remaining.pop() ?? make(),
+    }))
+    .reverse();
+  const chain = placed.map(({ frame }) => frame);
+  const first = chain[0];
   const was = frames[0];
-  if (chain[0] && was && chain[0] !== was && was.parentNode)
-    move(was.parentNode, chain[0], was);
-  for (let i = 1; i < chain.length; i++)
-    if (chain[i].parentNode !== chain[i - 1]) move(chain[i - 1], chain[i], null);
-  for (const dropped of frames.slice(0, frames.length - kept.length)) dropped.remove();
-  levels.forEach(({ anchor, band, axes, at, reading }, i) => {
+  if (first && was && first !== was && was.parentNode) move(was.parentNode, first, was);
+  /** @type {HTMLElement | null} */
+  let parent = null;
+  for (const frame of chain) {
+    if (parent && frame.parentNode !== parent) move(parent, frame, null);
+    parent = frame;
+  }
+  for (const dropped of remaining) dropped.remove();
+  for (const {
+    level: { anchor, band, axes, at, reading },
+    frame,
+  } of placed) {
     if (reading) nameAnchor(reading);
     anchorAt(
-      chain[i],
+      frame,
       anchor,
       { left: band.left, top: band.top, right: band.left, bottom: band.top },
       at,
     );
-    chain[i].style.clipPath = cutPath(axes, band);
-  });
-  return chain;
+    frame.style.clipPath = cutPath(axes, band);
+  }
+  return placed;
 }
 
 // Anchored controls cost layout even when their source is hidden or far down the page.
 // Observe the source once, shared by every control standing against it, for whether it
 // is near (geometry.js, `nearWindow`); continuous positioning remains the browser's,
 // rather than a scroll callback's.
+/** @type {Map<Element, AnchorView>} */
 const views = new Map();
+/** @type {WeakMap<Element, {target: Element, changed: () => void, view: AnchorView | null}>} */
 const viewedNodes = new WeakMap();
+/** @type {IntersectionObserver | undefined} */
 let viewObserver;
 
+/** @param {Element} node */
 export function refreshAnchorView(node) {
   const binding = viewedNodes.get(node);
   if (!binding) return;
@@ -556,6 +630,7 @@ export function refreshAnchorView(node) {
   for (const notify of view.nodes.values()) notify();
 }
 
+/** @param {Element} node */
 function releaseAnchorView(node) {
   const binding = viewedNodes.get(node);
   const view = binding?.view;
@@ -563,11 +638,12 @@ function releaseAnchorView(node) {
   binding.view = null;
   view.nodes.delete(node);
   if (!view.nodes.size) {
-    viewObserver.unobserve(view.target);
+    view.observer.unobserve(view.target);
     views.delete(view.target);
   }
 }
 
+/** @param {Element} node */
 function resumeAnchorView(node) {
   const binding = viewedNodes.get(node);
   if (!binding || binding.view || !node.isConnected || !binding.target.isConnected)
@@ -576,6 +652,7 @@ function resumeAnchorView(node) {
   binding.changed();
 }
 
+/** @param {Element} node @param {Element | null} target @param {() => void} changed */
 export function anchorView(node, target, changed) {
   const binding = viewedNodes.get(node);
   let view = binding?.view;
@@ -610,7 +687,12 @@ export function anchorView(node, target, changed) {
   if (!view) {
     // The first presentation cannot wait for an observer task after its paint. Seed
     // from the source before the caller writes positioning; observations maintain it.
-    view = { target, near: nearWindow(target), nodes: new Map() };
+    view = {
+      target,
+      near: nearWindow(target),
+      nodes: new Map(),
+      observer: viewObserver,
+    };
     views.set(target, view);
     viewObserver.observe(target);
   }

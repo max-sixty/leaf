@@ -28,6 +28,8 @@ export const intersect = (a, b, axes = BOTH) => ({
 export const hasArea = (box) => box.right > box.left && box.bottom > box.top;
 
 // The box that covers every one of some boxes, or null for none.
+/** @overload @param {readonly [Box, ...Box[]]} boxes @returns {Box & {width: number, height: number}} */
+/** @overload @param {readonly Box[]} boxes @returns {(Box & {width: number, height: number}) | null} */
 /** @param {readonly Box[]} boxes */
 export function union(boxes) {
   if (!boxes.length) return null;

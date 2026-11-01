@@ -37,9 +37,22 @@ import { stagesFailure } from "./widget-upgrade.js";
 // whenever its content changes, and a fresh <style> restyles every node in the root,
 // even with the same rules: a diff staging again as each file opened recomputed the
 // style of every file already open.
+/** @type {WeakMap<ShadowRoot, HTMLStyleElement>} */
 const stageStyles = new WeakMap();
 
+/** @param {ShadowRoot} root */
+function stageStyle(root) {
+  let style = stageStyles.get(root);
+  if (!style) {
+    style = document.createElement("style");
+    style.setAttribute("data-lf-gen", "1");
+    stageStyles.set(root, style);
+  }
+  return style;
+}
+
 // Both Lit roots and imperative stages receive the same sheets and watches.
+/** @param {ShadowRoot} root */
 export function adoptShadowStage(root) {
   // The stages' one registry (arrivals.js), and the watch over what stands in them: no
   // observer crosses the boundary on its own.
@@ -53,23 +66,19 @@ export function adoptShadowStage(root) {
   watchDisclosures(root);
   watchLayers(root);
   watchCurrentLocationIn(root);
-  let style = stageStyles.get(root);
-  if (!style) {
-    style = document.createElement("style");
-    style.setAttribute("data-lf-gen", "1");
-  }
+  const style = stageStyle(root);
   if (style.textContent !== shadowRules) {
     style.textContent = shadowRules;
   }
-  stageStyles.set(root, style);
   if (style.parentNode !== root) move(root, style, root.firstChild);
   watchPassageRoot(root);
   return root;
 }
 
+/** @param {Element} host @param {Iterable<Node>} nodes */
 export function shadowStage(host, nodes) {
   const root = adoptShadowStage(host.shadowRoot ?? stageFor(host));
-  const style = stageStyles.get(root);
+  const style = stageStyle(root);
   // Keep retained nodes connected, preserving their focus and widget lifecycle.
   setChildren(root, [style, ...nodes]);
   for (const child of [...host.childNodes]) child.remove();
@@ -81,6 +90,7 @@ export function shadowStage(host, nodes) {
 
 // An x-shadow widget shows only what its stage holds, so its failure box stands there,
 // and the widget's next stage replaces it.
+/** @param {Element} host */
 function stageFor(host) {
   stagesFailure(host, (box) => {
     shadowStage(host, [box]);

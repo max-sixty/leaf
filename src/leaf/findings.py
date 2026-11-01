@@ -849,8 +849,14 @@ _TEXT = {
         f"{_line(at, v)}: takes no content — write {at[:-1]} …></{at[1:-1]}>"
     ),
     "data-body": lambda at, v: (
-        f"{_line(at, v)}: its body is one <pre> holding the text (escape < and >),"
-        " found " + (", ".join(f"<{c}>" for c in v["children"]) or "nothing")
+        f"{_line(at, v)}: "
+        + (
+            "its bound input supplies the text, so it holds no <pre>"
+            if v.get("bound")
+            else "its body is one <pre> holding the text (escape < and >)"
+        )
+        + ", found "
+        + (", ".join(f"<{c}>" for c in v["children"]) or "nothing")
     ),
     "text-outside-pre": lambda at, v: (
         f"{_line(at, v)}: text outside its <pre> — the whole body goes inside it"
@@ -1123,6 +1129,17 @@ _TEXT = {
     ),
     "markdown-needs-data": _declared(
         lambda v: "block Markdown requires x-content: data"
+    ),
+    "data-input": _declared(
+        lambda v: (
+            "its <pre> is the text of its x-data input when the markup binds"
+            " none, so x-content: data takes "
+            + {
+                "inputs": "at most one input",
+                "words": "no input with x-text-format: markdown, whose <pre> is its words",
+                "state": "no input with a body record, whose <pre> is its state",
+            }[v["reason"]]
+        )
     ),
     "requires": _declared(
         lambda v: f"{v['key']} requires {v['needs']}: {_plain(v['value'])}"

@@ -14,6 +14,7 @@ import { at as locate } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 
 const PAINT_PROBE = "--_leaf-render-paint-value";
+/** @param {HTMLElement | SVGElement} element @param {string} property @param {string} value */
 const validPaint = (element, property, value) => {
   const hadStyle = element.hasAttribute("style");
   const prior = element.style.getPropertyValue(PAINT_PROBE);
@@ -29,9 +30,12 @@ const validPaint = (element, property, value) => {
   }
 };
 
+/** @param {Element} element */
 const renderedAt = (element) => {
   const ancestors = [];
-  for (let current = element; current;) {
+  /** @type {Element | null} */
+  let current = element;
+  for (; current;) {
     ancestors.push(current);
     current = upFrom(current);
   }
@@ -61,11 +65,13 @@ export function invalidPaints() {
     "stroke",
   ];
   const found = [];
+  /** @param {Element} element @returns {element is SVGElement} */
+  const svgElement = (element) => element.namespaceURI === "http://www.w3.org/2000/svg";
   for (const root of openRoots(document))
     for (const element of root.querySelectorAll(
       "[color], [fill], [flood-color], [lighting-color], [stop-color], [stroke], [style]",
     )) {
-      if (element.namespaceURI !== "http://www.w3.org/2000/svg") continue;
+      if (!svgElement(element)) continue;
       for (const property of properties) {
         const value =
           element.style.getPropertyValue(property).trim() ||
@@ -90,6 +96,7 @@ export function invalidPaints() {
 // every tag the page simply does not contain. `document`, not `main`, so a widget frozen
 // into an agent's reply answers here too. That a declared module exists at all is a layer
 // fact and `package check` holds it; this is the page's half.
+/** @param {Readonly<Record<string, import("../../../browser/types/contract.js").WidgetDeclaration>>} declarations */
 export const missingUpgrades = (declarations) =>
   Object.entries(declarations)
     .filter(
@@ -99,6 +106,7 @@ export const missingUpgrades = (declarations) =>
     .map(([tag]) => tag);
 // visual-parts.js reads each declaration, so a part the gate accepts is one the page
 // can anchor and travel to.
+/** @param {Readonly<Record<string, import("../../../browser/types/contract.js").WidgetDeclaration>>} declarations */
 export const invalidVisualProviders = (declarations) =>
   Object.entries(declarations)
     .filter(([, entry]) => entry["x-visual"])
@@ -110,17 +118,14 @@ export const invalidVisualProviders = (declarations) =>
       })),
     )
     .filter((instance) => instance.problems.length);
+/** @param {Readonly<Record<string, import("../../../browser/types/contract.js").WidgetDeclaration>>} declarations */
 export const missingThreads = (declarations) =>
   Object.entries(declarations)
-    .filter(([, entry]) => entry["x-thread-seat"])
-    .flatMap(([tag, entry]) =>
-      [...document.querySelectorAll(tag)]
-        .filter(
-          (el) =>
-            !inChrome(el) &&
-            !quoted(el) &&
-            matchesWhen(el, entry["x-thread-seat"].when),
-        )
+    .flatMap(([tag, entry]) => {
+      const seat = entry["x-thread-seat"];
+      if (!seat) return [];
+      return [...document.querySelectorAll(tag)]
+        .filter((el) => !inChrome(el) && !quoted(el) && matchesWhen(el, seat.when))
         .map((el) => ({
           code: "missing-thread-seat",
           at: locate(el),
@@ -129,8 +134,8 @@ export const missingThreads = (declarations) =>
               el.querySelectorAll(".lf-thread-seat")
             ),
           ].filter((host) => host.dataset.lfThreadSeat === el.id).length,
-        })),
-    )
+        }));
+    })
     .filter((instance) => instance.hosts !== 1);
 
 // Attributes on a widget that its entry never declared. The schema is the
@@ -154,6 +159,7 @@ export const missingThreads = (declarations) =>
 // `page check --render` uses to decide whether a version overrules the user.
 //
 // Deduped and reported per tag and attribute, because one mistake is on every instance.
+/** @param {Readonly<Record<string, import("../../../browser/types/contract.js").WidgetDeclaration>>} declarations */
 export function undeclaredAttrs(declarations) {
   // What a module may write without declaring: the platform's own vocabulary for
   // what a control is and how it behaves, and the data-* namespace the runtime and
@@ -216,9 +222,10 @@ export function undeclaredAttrs(declarations) {
 // before any reading starts. This reading stays synchronous: waiting on
 // `Animation.finished` here would give page.evaluate a promise the driver cannot
 // interrupt if the compositor stops.
+/** @param {{id: string, outcome?: string | null, slots: string[]}[]} holders */
 export function retiredSlots(holders) {
   const all = openRoots(document);
-  const find = (id) => {
+  const find = (/** @type {string} */ id) => {
     for (const r of all) {
       const el = r.getElementById(id);
       if (el) return el;
@@ -226,11 +233,11 @@ export function retiredSlots(holders) {
     return null;
   };
   const found = [];
-  const showing = (slot) => {
+  const showing = (/** @type {Element} */ slot) => {
     for (const seg of textNodesUnder(slot, "unsilenced")) {
       const n = seg.node,
         el = n.parentElement;
-      if (!n.data.trim()) continue;
+      if (!n.data.trim() || !el) continue;
       if (el.closest(".lf-chrome, .lf-quiet, [hidden]")) continue;
       if (!el.checkVisibility({ visibilityProperty: true, opacityProperty: true }))
         continue;
@@ -272,13 +279,20 @@ const ROUNDING = 1;
 
 // Whether the page shows an element: a node it hides once presented, as a tab strip
 // hides its inactive panels, has no box of its own to keep.
+/** @param {Element} element */
 const shown = (element) =>
   element.isConnected && !element.closest("[hidden]") && element.checkVisibility();
 
+/** @typedef {import("../../../browser/types/render-checks.js").FirstBox} FirstBox */
+/** @typedef {Pick<DOMRectReadOnly, "width" | "height">} Box */
+/** @typedef {{element: HTMLElement, first: FirstBox, now: Box}} SizeReading */
+/** @param {SizeReading} holder @param {SizeReading[]} inside */
 const withFirstSizes = (holder, inside) => {
+  /** @type {[HTMLElement, string | null][]} */
   const kept = inside.map(({ element }) => [element, element.getAttribute("style")]);
-  for (const { element, first } of inside)
-    for (const [property, value] of [
+  for (const { element, first } of inside) {
+    /** @type {[string, string][]} */
+    const writes = [
       // No padding or border, which would hold the box open past the size given.
       ["box-sizing", "border-box"],
       ["padding", "0"],
@@ -289,8 +303,10 @@ const withFirstSizes = (holder, inside) => {
       ["height", `${first.height}px`],
       ["min-height", "0"],
       ["max-height", "none"],
-    ])
+    ];
+    for (const [property, value] of writes)
       element.style.setProperty(property, value, "important");
+  }
   const { width, height } = holder.element.getBoundingClientRect();
   for (const [element, style] of kept)
     if (style === null) element.removeAttribute("style");
@@ -315,11 +331,11 @@ export function changedBoxes() {
       const { width, height } = first.element.getBoundingClientRect();
       return { element: first.element, first, now: { width, height } };
     });
-  const differs = (box, first) =>
+  const differs = (/** @type {Box} */ box, /** @type {Box} */ first) =>
     Math.abs(box.width - first.width) >= ROUNDING ||
     Math.abs(box.height - first.height) >= ROUNDING;
   const changed = readings.filter((reading) => differs(reading.now, reading.first));
-  const own = (holder) => {
+  const own = (/** @type {SizeReading} */ holder) => {
     const inside = changed.filter(
       (reading) => reading !== holder && holder.element.contains(reading.element),
     );
@@ -350,6 +366,7 @@ const WRITTEN_IN = `input, select, ${TEXT_BOX}`;
 // computes a `visible` block axis to `auto`, so a box that scrolls only sideways reads
 // as a vertical scroller too; with its inline axis set back to `visible` for one read,
 // only an asked-for vertical scroll remains.
+/** @param {HTMLElement} box */
 const asksVerticalScroll = (box) => {
   const style = box.getAttribute("style");
   box.style.setProperty("overflow-x", "visible", "important");
@@ -359,6 +376,7 @@ const asksVerticalScroll = (box) => {
   return asked;
 };
 
+/** @param {Element} box */
 const overflowsVertically = (box) => box.scrollHeight > box.clientHeight + ROUNDING;
 
 // Each box in one of `tags`' widgets that holds its own height and scrolls inside it
@@ -381,6 +399,7 @@ const overflowsVertically = (box) => box.scrollHeight > box.clientHeight + ROUND
 // own box as they type, so form controls, text fields and editable regions are left
 // out. This writes the page, so only a page nothing reads again, such as the report's
 // page of worked examples, is read this way.
+/** @param {string[]} tags */
 export function heldScrollers(tags) {
   const main = pageDocument();
   if (!main) return [];
@@ -403,6 +422,7 @@ export function heldScrollers(tags) {
         !shown(box)
       )
         continue;
+      /** @type {Element | null} */
       let owner = box;
       while (owner && !owner.localName.startsWith("lf-")) owner = upFrom(owner);
       if (!owner || !own.has(owner.localName)) continue;
@@ -436,11 +456,13 @@ export function heldScrollers(tags) {
 // read the same in every state. A command belongs to the nearest Leaf widget holding
 // the element that declared it, as a box does in `heldScrollers`, so a dependency's
 // widget nested in one of `tags`' answers for its own commands.
+/** @param {string[]} tags */
 export function unshownContextKeys(tags) {
   const own = new Set(tags);
   const found = [];
   const seen = new Set();
   for (const { source, scope } of commandDeclarationsWithin(document.body)) {
+    /** @type {Element | null} */
     let owner = source;
     while (owner && !owner.localName.startsWith("lf-")) owner = upFrom(owner);
     if (!owner || !own.has(owner.localName)) continue;

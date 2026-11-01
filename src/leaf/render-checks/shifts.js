@@ -12,22 +12,23 @@ import { at } from "./locate.js";
 // Chromium withholds a source inside a shadow tree, or one removed before delivery.
 // Its rectangles still prove movement. Hit testing would name whatever occupies the
 // box now, which is neither necessarily the moved element nor the cause.
+/** @param {import("../../../browser/types/render-checks.js").ShiftSource} source */
 const sourceReading = (source) => ({
   node: source.node ? at(source.node) : "a source node the browser did not expose",
   before: source.before,
   after: source.after,
 });
 
-let observation = null;
+/** @typedef {Omit<ReturnType<typeof sourceReading>, "node"> & {code: string, at: string}} PassiveShift */
 
-export function startPassiveLayoutShifts() {
-  observation?.stop();
+export function passiveLayoutShifts() {
+  /** @type {Map<Element, PassiveShift>} */
   const moved = new Map();
   const stop = globalThis.__leafRenderDriver.observeLayoutShifts((entries) => {
     for (const entry of entries) {
       for (const source of entry.sources) {
         const node = source.node;
-        if (!inPage(node)) continue;
+        if (!node || !inPage(node)) continue;
         if (node.closest(".lf-chrome, .lf-ui")) continue;
         // One example per moved node; repeated autoplay ticks need no repeated
         // finding. Anonymous sources remain in startup evidence, not per-node advice.
@@ -43,14 +44,10 @@ export function startPassiveLayoutShifts() {
       }
     }
   });
-  observation = { stop, moved };
-}
-
-export function finishPassiveLayoutShifts() {
-  const { stop, moved } = observation;
-  stop();
-  observation = null;
-  return [...moved.values()];
+  return () => {
+    stop();
+    return [...moved.values()];
+  };
 }
 
 // Native layout shifts are evidence for the page's author, not a refusal budget.

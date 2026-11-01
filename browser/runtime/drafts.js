@@ -88,6 +88,20 @@ import { CARET_KEYS, selectsAll } from "./control-selectors.js";
 import { passErrorsAt, raiseError } from "./errors.js";
 import { notice } from "./notifications.js";
 
+/** @typedef {object} DraftPayload
+ * @typedef {{attempt: string, base: string | null}} Generation
+ * @typedef {Generation & {text: string, payload?: DraftPayload, held?: string, settled?: never}} ActiveDraft
+ * @typedef {Generation & {settled: true, text?: never, payload?: never, held?: never}} SettledDraft
+ * @typedef {ActiveDraft | SettledDraft} DraftRecord
+ * @typedef {{ctx: string, value: string | null, payload?: DraftPayload}} DraftNews
+ * @typedef {import('./composing/text-field.js').LeafTextElement | HTMLTextAreaElement} DraftField
+ * @typedef {import('./composing/input.js').InputSync} InputSync
+ * @typedef {import('./anchor-travel.js').EditorDestination} EditorDestination
+ * @typedef {import('./focus.js').Caret} Caret
+ * @typedef {{context: string, selection: Caret | null, generation: string}} WritingPlace
+ * @typedef {{ctx: string, input: DraftField | (() => DraftField | null), mirrored: boolean,
+ * resume: (() => EditorDestination | null) | null}} DraftEditor */
+
 // ---------- draft persistence ----------
 // Text the user typed but hasn't sent must survive navigation, reload, version switches,
 // server death — and the tab itself. That last one is where this store came from: each
@@ -129,13 +143,17 @@ export const PAGE_DRAFT = "general";
 // Where the draft at `ctx` is kept, as the store says (`where`): the page scope is in
 // the key. The storage listener below reads other tabs' writes by it, and a test that
 // seeds or reads a stored draft asks it rather than spelling the key.
+/** @param {string} ctx */
 export const whereDraft = (ctx) => draftStore.where(DRAFT + ctx);
 const DRAFT_NEWS = "lf-drafts";
+/** @type {Map<string, {record: DraftRecord, durable: boolean}>} */
 const draftCache = new Map(); // context -> {record, durable}
+/** @param {string} ctx @param {string | null} value @param {DraftPayload} [payload] */
 export const tellDraft = (ctx, value, payload = undefined) =>
   document.dispatchEvent(
     new CustomEvent(DRAFT_NEWS, { detail: { ctx, value, payload } }),
   );
+/** @param {unknown} value @returns {DraftRecord | null} */
 const parseDraftRecord = (value) => {
   if (typeof value !== "string") return null;
   try {
@@ -168,27 +186,34 @@ const parseDraftRecord = (value) => {
 // What storage holds for the draft at `ctx`, parsed as this store parses it, whatever
 // this tab has cached: the record another tab or a reload would find. A test reading
 // the stored draft asks it rather than parsing the record itself.
+/** @param {string} ctx */
 export const storedDraft = (ctx) => {
   const read = draftStore.read(DRAFT + ctx);
   return read.available ? parseDraftRecord(read.value) : null;
 };
+/** @param {string} attempt */
 const attemptAccepted = (attempt) =>
   runtime.receipts.some((event) => event.attempt === attempt);
+/** @param {string} ctx @param {DraftRecord} record */
 const writeDraftRecord = (ctx, record) =>
   draftStore.set(DRAFT + ctx, JSON.stringify(record));
+/** @param {string} ctx */
 const rawDraftRecord = (ctx) => {
-  if (draftCache.has(ctx)) return draftCache.get(ctx).record;
+  const cached = draftCache.get(ctx);
+  if (cached) return cached.record;
   const read = draftStore.read(DRAFT + ctx);
   const record = read.available ? parseDraftRecord(read.value) : null;
   if (record) draftCache.set(ctx, { record, durable: true });
   return record;
 };
+/** @param {DraftRecord | null} left @param {DraftRecord | null} right */
 const sameDraftRecord = (left, right) =>
   (left === null && right === null) ||
   (left !== null && right !== null && JSON.stringify(left) === JSON.stringify(right));
 // Refresh is a reconciliation as real as a storage event. Publish an adopted shared
 // generation after the current call returns, so every mounted view follows the cache
 // without making a composer's synchronous close clear itself recursively.
+/** @param {string} ctx @param {DraftRecord | null} record */
 const projectDraftRecord = (ctx, record) =>
   queueMicrotask(() => {
     const current = draftCache.get(ctx)?.record ?? null;
@@ -200,19 +225,25 @@ const projectDraftRecord = (ctx, record) =>
 // merely whatever record happens to be there when a failed writer becomes writable
 // again. A tombstone for that base is the older branch settling; it still cannot erase
 // the newer local words. An unrelated attempt is later shared ownership and wins.
+/** @param {DraftRecord} branch @param {DraftRecord | null} shared */
 const sharedIsBaseOf = (branch, shared) =>
   branch.base === null ? shared === null : shared?.attempt === branch.base;
 // The drafts a thread holds, named only here: its reply box, under the thread's key
 // (`threadKey`, a first message's attempt until the log names the thread), and a
 // rewrite of one of its messages, under that message's id (thread/message-edit.js).
+/** @param {string} key */
 export const replyContext = (key) => `reply:${key}`;
+/** @param {string} id */
 export const rewriteContext = (id) => `rewrite:${id}`;
-const THREAD_DRAFT = /^(reply|rewrite):(.*)$/s;
+
 // Which of them `ctx` is, with the key or id it is under; null for any other draft.
+/** @param {string} ctx @returns {{part: "reply" | "rewrite", name: string} | null} */
 export function threadDraft(ctx) {
-  const match = THREAD_DRAFT.exec(ctx);
-  return match ? { part: match[1], name: match[2] } : null;
+  if (ctx.startsWith("reply:")) return { part: "reply", name: ctx.slice(6) };
+  if (ctx.startsWith("rewrite:")) return { part: "rewrite", name: ctx.slice(8) };
+  return null;
 }
+/** @param {string} ctx */
 const isReply = (ctx) => threadDraft(ctx)?.part === "reply";
 
 // A durable cache is a rendering convenience, never a claim that storage still holds
@@ -220,6 +251,7 @@ const isReply = (ctx) => threadDraft(ctx)?.part === "reply";
 // read itself is refused, the cache is the only copy available. A nondurable branch wins
 // only over its own base; unrelated shared news wins even when its storage event was
 // delayed or suppressed.
+/** @param {string} ctx */
 const refreshDraftRecord = (ctx) => {
   const cached = draftCache.get(ctx);
   const read = draftStore.read(DRAFT + ctx);
@@ -247,32 +279,39 @@ const refreshDraftRecord = (ctx) => {
 // facts: what a box shows is about this document, and settlement is a claim over every
 // tab. That is what lets a second tab still show and send the same generation, and what
 // brings the words back here on a refusal with nothing to restore them from.
+/** @type {Map<string, string>} */
 const sentAttempts = new Map(); // ctx -> attempt
 
+/** @param {string} ctx */
 const unsettledDraftRecord = (ctx) => {
   const record = rawDraftRecord(ctx);
   return record && !record.settled && !attemptAccepted(record.attempt) ? record : null;
 };
+/** @param {string} ctx */
 const activeDraftRecord = (ctx) => {
   const record = unsettledDraftRecord(ctx);
   return sentAttempts.get(ctx) === record?.attempt ? null : record;
 };
 // Sending hides a generation's words while its result stands on screen, but does
 // not end its editor's lifetime: refusal still owes those words that same editor.
+/** @param {string} ctx */
 export const draftHasContent = (ctx) => Boolean(unsettledDraftRecord(ctx)?.text);
 // Every tombstone is an ownership claim, whether it follows Send, Cancel, a widget
 // action, or a poll that observed the attempt in the log. Re-read shared storage before
 // making that claim so a stale view cannot settle a newer durable generation. A refused
 // read and a nondurable local edit still use the document cache, their only copy.
+/** @param {string} ctx @param {string} attempt */
 const settleDraft = (ctx, attempt) => {
   const current = refreshDraftRecord(ctx);
-  if (!current || current.settled || current.attempt !== attempt) return false;
+  if (!current || current.settled || current.attempt !== attempt) return null;
   const currentDurable = draftCache.get(ctx)?.durable;
   // If this write fails, the cache tombstone still descends from whatever the active
   // branch could replace. If it succeeds, the tombstone itself is the new shared
   // generation and later edits descend from its attempt.
+  /** @type {SettledDraft} */
   const storedRecord = { attempt, base: attempt, settled: true };
   const durable = writeDraftRecord(ctx, storedRecord);
+  /** @type {SettledDraft} */
   const record = durable
     ? storedRecord
     : {
@@ -281,8 +320,9 @@ const settleDraft = (ctx, attempt) => {
         settled: true,
       };
   draftCache.set(ctx, { record, durable });
-  return true;
+  return record;
 };
+/** @param {string} ctx @param {string} text @param {DraftPayload} [payload] @param {string | null} [held] */
 export const saveDraft = (ctx, text, payload, held = carriedHeld(ctx)) => {
   const cached = draftCache.get(ctx);
   const previous = rawDraftRecord(ctx);
@@ -306,6 +346,7 @@ export const saveDraft = (ctx, text, payload, held = carriedHeld(ctx)) => {
 // whatever moves the draft moves the reply with it (`transferDraft`). A generation in
 // flight has already put its reply in the thread its send opened (`sendMessage`), so an
 // edit made meanwhile starts without it.
+/** @param {string} ctx */
 const carriedHeld = (ctx) => {
   const previous = rawDraftRecord(ctx);
   return previous && !previous.settled && sentAttempts.get(ctx) !== previous.attempt
@@ -314,6 +355,7 @@ const carriedHeld = (ctx) => {
 };
 // Set the held reply on the draft's current generation without minting another: the
 // refused attempt stays the one a resend re-evaluates.
+/** @param {string} ctx @param {string} held */
 const holdReply = (ctx, held) => {
   const current = activeDraftRecord(ctx);
   if (!current) return false;
@@ -322,6 +364,7 @@ const holdReply = (ctx, held) => {
   draftCache.set(ctx, { record, durable: writeDraftRecord(ctx, record) });
   return true;
 };
+/** @param {string} ctx */
 export const clearDraft = (ctx) => {
   const current = rawDraftRecord(ctx);
   if (!current || current.settled) {
@@ -337,6 +380,7 @@ export const clearDraft = (ctx) => {
 // This explicit content move also moves Resume writing, with the source's caret, and the
 // reply the source holds (`held`): a reply box opens no thread, so there the reply's
 // words join the moved words.
+/** @param {string} from @param {string} to @param {string} text @param {DraftPayload} [payload] */
 export function transferDraft(from, to, text, payload) {
   const source = activeDraftRecord(from);
   if (!source || from === to) return false;
@@ -346,26 +390,29 @@ export function transferDraft(from, to, text, payload) {
   const selection =
     writingPlace?.context === from
       ? writingPlace.selection
-      : readCaret(editor && editorInput(editor));
+      : readCaret(editor ? editorInput(editor) : null);
   // A destination already holding a reply keeps it, with the source's after it.
   const held =
     [carriedHeld(to), carriedHeld(from)].filter(Boolean).join("\n\n") || null;
   const durable = isReply(to)
     ? saveDraft(to, held ? `${text}\n\n${held}` : text, payload, null)
     : saveDraft(to, text, payload, held);
-  keepWritingPlace({
+  /** @type {WritingPlace & {selection: Caret}} */
+  const place = {
     context: to,
     selection: selection ?? [0, 0],
     generation: randomId(),
-  });
-  if (durable && settleDraft(from, source.attempt))
-    projectDraftRecord(from, draftCache.get(from).record);
+  };
+  keepWritingPlace(place);
+  const settled = durable && settleDraft(from, source.attempt);
+  if (settled) projectDraftRecord(from, settled);
   tellDraft(to, activeDraftRecord(to)?.text ?? text, payload);
-  return true;
+  return place;
 }
 // Put words the user put away back into `ctx`, as a new generation every view shows,
 // unless it holds words of its own: those are newer than the words coming back. Shared
 // storage is re-read first, since another tab's storage event may not have arrived.
+/** @param {string} ctx @param {string} text @param {DraftPayload} [payload] */
 export function restoreDraft(ctx, text, payload) {
   refreshDraftRecord(ctx);
   if (draftHasContent(ctx)) return false;
@@ -373,8 +420,8 @@ export function restoreDraft(ctx, text, payload) {
   tellDraft(ctx, text, payload);
   return true;
 }
-export const loadDraft = (ctx) => activeDraftRecord(ctx)?.text ?? null;
-export const loadDraftPayload = (ctx) => activeDraftRecord(ctx)?.payload;
+/** @param {string} ctx */
+export const loadDraft = (ctx) => activeDraftRecord(ctx);
 export const draftContexts = () =>
   new Set([
     ...draftCache.keys(),
@@ -408,6 +455,7 @@ export function settleAcceptedDrafts() {
 // older send settles only that generation; any later edit has a fresh attempt and remains
 // open. This is the claim both senders below make, and the only thing they share: a
 // send that no longer owns its generation appends nothing, whichever lifecycle it is in.
+/** @param {string} ctx @param {() => boolean} owns */
 function claimDraft(ctx, owns) {
   const before = activeDraftRecord(ctx);
   const refreshed = refreshDraftRecord(ctx);
@@ -434,10 +482,11 @@ function claimDraft(ctx, owns) {
 // withdraws the result and lifts the mask, so the box the user typed in has the words
 // again; the record stood in the store throughout, which is what a tab that went down
 // with the send recovers from.
+/** @param {string} ctx @param {ActiveDraft} current */
 const standGesture = (ctx, current) => {
   sentAttempts.set(ctx, current.attempt);
   tellDraft(ctx, null);
-  return (sent) => {
+  return (/** @type {unknown} */ sent) => {
     // Lift this generation's mask, not whatever is current for the context: a second
     // send into the box this one emptied has masked its own words by the time this
     // answer arrives, and they are on screen as a gesture of their own.
@@ -457,6 +506,8 @@ const standGesture = (ctx, current) => {
 // projected outcome before the delivery it returns resolves, so the words are already
 // shown in the document by the time this awaits them. The caller's own control shows
 // the wait.
+/** @template T @param {string} ctx @param {() => boolean} owns
+ * @param {(attempt: string, payload: DraftPayload | undefined) => T | PromiseLike<T>} send @returns {Promise<T | null>} */
 export async function sendDraft(ctx, owns, send) {
   const current = claimDraft(ctx, owns);
   if (!current) return null;
@@ -476,6 +527,7 @@ export async function sendDraft(ctx, owns, send) {
 // the page refuses before posting, such as a reply to a thread being settled, drew
 // nothing: the words stay in the box and the caller hears null, as for a draft it could
 // not claim.
+/** @param {string} ctx @param {() => boolean} owns @param {(attempt: string, payload: DraftPayload | undefined) => unknown} send */
 export function sendMessage(ctx, owns, send) {
   const current = claimDraft(ctx, owns);
   if (!current) return null;
@@ -500,6 +552,7 @@ export function sendMessage(ctx, owns, send) {
   // the thread key before and after admission. Continue there, with an empty reply.
   // Refusal returns to the same original editor unless a later edit chose another.
   const previousPlace = writingPlace;
+  /** @type {WritingPlace | null} */
   const sentPlace =
     previousPlace?.context === ctx
       ? {
@@ -526,6 +579,7 @@ export function sendMessage(ctx, owns, send) {
 // The draft each first message still in flight was sent from, by its attempt. The
 // draft, not the attempt, is what lasts: a refusal keeps the attempt only until the
 // user edits the words, and the thread comes back under whichever one is sent.
+/** @type {Map<string, string>} */
 const openedFrom = new Map();
 
 // Existing draft subscriptions own current editor identity and lifetime. The store
@@ -539,6 +593,7 @@ const openedFrom = new Map();
 // and the boxes answer them differently: a draft editor opens on recovery at load and
 // stays shut for a keystroke made elsewhere, because news arriving has no gesture behind
 // it and so may move nothing.
+/** @type {Set<DraftEditor>} */
 const draftEditors = new Set();
 
 // Resume writing is mechanical page state, owned alongside editor identity. Only a
@@ -550,24 +605,53 @@ const draftEditors = new Set();
 // each context, so a place whose words are put away hands Resume writing back to the
 // latest earlier one still holding words; they survive reload with it.
 const WRITING_PLACE = "lf-writing-place";
-const isPlace = (place) =>
-  typeof place?.context === "string" &&
-  typeof place.generation === "string" &&
-  Array.isArray(place.selection) &&
-  place.selection.slice(0, 2).every(Number.isInteger);
-let [writingPlace, earlierPlaces] = (() => {
+/** @param {unknown} place @returns {place is WritingPlace} */
+const isPlace = (place) => {
+  if (
+    place === null ||
+    typeof place !== "object" ||
+    !("context" in place) ||
+    typeof place.context !== "string" ||
+    !("generation" in place) ||
+    typeof place.generation !== "string" ||
+    !("selection" in place) ||
+    !Array.isArray(place.selection)
+  )
+    return false;
+  const [start, end, direction] = place.selection;
+  return (
+    Number.isInteger(start) &&
+    Number.isInteger(end) &&
+    (direction === undefined ||
+      direction === "forward" ||
+      direction === "backward" ||
+      direction === "none")
+  );
+};
+/** @returns {[WritingPlace | null, WritingPlace[]]} */
+const savedWritingPlaces = () => {
   try {
-    const stored = JSON.parse(draftStore.get(WRITING_PLACE));
+    const value = draftStore.get(WRITING_PLACE);
+    if (value === null) return [null, []];
+    const stored = JSON.parse(value);
     if (!isPlace(stored)) return [null, []];
-    const { earlier = [], ...place } = stored;
-    return [place, Array.isArray(earlier) ? earlier.filter(isPlace) : []];
+    const earlier =
+      "earlier" in stored && Array.isArray(stored.earlier)
+        ? stored.earlier.filter(isPlace)
+        : [];
+    const { context, selection, generation } = stored;
+    return [{ context, selection, generation }, earlier];
   } catch {
     return [null, []];
   }
-})();
+};
+let [writingPlace, earlierPlaces] = savedWritingPlaces();
+/** @type {Map<string, (ctx: string) => EditorDestination | null>} */
 const writingRoutes = new Map();
+/** @param {string} ctx */
 const writingRoute = (ctx) =>
   [...writingRoutes].find(([prefix]) => ctx.startsWith(prefix))?.[1];
+/** @param {DraftEditor} editor */
 const editorInput = (editor) =>
   typeof editor.input === "function" ? editor.input() : editor.input;
 const storeWritingPlace = () =>
@@ -575,13 +659,15 @@ const storeWritingPlace = () =>
     WRITING_PLACE,
     writingPlace && JSON.stringify({ ...writingPlace, earlier: earlierPlaces }),
   );
+/** @param {WritingPlace | null} place */
 const keepWritingPlace = (place) => {
-  if (writingPlace && writingPlace.context !== place.context)
+  const previous = writingPlace;
+  if (previous && place && previous.context !== place.context)
     earlierPlaces = [
       ...earlierPlaces.filter(
-        ({ context }) => context !== writingPlace.context && context !== place.context,
+        ({ context }) => context !== previous.context && context !== place.context,
       ),
-      writingPlace,
+      previous,
     ].slice(-8);
   writingPlace = place;
   storeWritingPlace();
@@ -589,12 +675,13 @@ const keepWritingPlace = (place) => {
 // Words put away, discarded or sent, leave nowhere to resume there: Resume writing goes
 // back to the latest place still holding words, or a destination its owner can resume
 // without words, as a drawing's composer.
+/** @param {string} ctx */
 export function forgetWritingPlace(ctx) {
   earlierPlaces = earlierPlaces.filter(({ context }) => context !== ctx);
   if (writingPlace?.context !== ctx) return storeWritingPlace();
   writingPlace = null;
-  while (earlierPlaces.length && !writingPlace) {
-    const place = earlierPlaces.pop();
+  let place;
+  while (!writingPlace && (place = earlierPlaces.pop())) {
     if (
       draftHasContent(place.context) ||
       writingRoute(place.context)?.(place.context)?.hasContent
@@ -623,9 +710,11 @@ export function forgetWritingPlace(ctx) {
 //
 // Resume writing comes back to words a refusal handed back at their end (`atEnd`), as a
 // press on the error over them does (composing/input.js), so Enter sends them.
+/** @param {readonly string[]} attempts */
 export function keepRefusedWords(attempts) {
   // The draft's length, which the editor clamps to the end of its words, since any
   // attached images follow them.
+  /** @param {string} ctx @returns {Caret} */
   const atEnd = (ctx) => {
     const end = (activeDraftRecord(ctx)?.text ?? "").length;
     return [end, end];
@@ -653,6 +742,7 @@ export function keepRefusedWords(attempts) {
     );
     return ctx === undefined ? [] : [ctx];
   });
+  /** @param {string} ctx */
   const shownIn = (ctx) =>
     [...draftEditors]
       .filter((view) => view.ctx === ctx)
@@ -662,7 +752,7 @@ export function keepRefusedWords(attempts) {
   // Words back where Resume writing already goes are resumed at their end too, not at
   // the caret the send left.
   const resumes = returned.find((ctx) => ctx === writingPlace?.context);
-  if (resumes !== undefined)
+  if (resumes !== undefined && writingPlace)
     keepWritingPlace({ ...writingPlace, selection: atEnd(resumes) });
   // The gesture delivery was sending comes first, so it is the place Resume writing
   // reaches first, and the others stand behind it.
@@ -685,6 +775,7 @@ const keepWritingCaret = () => {
   if (editor && editor.ctx === writingPlace?.context)
     keepWritingPlace({ ...writingPlace, selection: readCaret(editorInput(editor)) });
 };
+/** @param {DraftField | null} input */
 export function rememberWriting(input) {
   const editor = [...draftEditors].find((view) => editorInput(view) === input);
   if (editor)
@@ -695,9 +786,11 @@ export function rememberWriting(input) {
     });
 }
 document.addEventListener("input", (event) => {
-  const editor = [...draftEditors].find((view) =>
-    event.composedPath().includes(editorInput(view)),
-  );
+  const path = event.composedPath();
+  const editor = [...draftEditors].find((view) => {
+    const input = editorInput(view);
+    return input !== null && path.includes(input);
+  });
   if (editor) rememberWriting(editorInput(editor));
 });
 document.addEventListener("keyup", (event) => {
@@ -707,6 +800,7 @@ document.addEventListener("keyup", (event) => {
 });
 document.addEventListener("pointerup", keepWritingCaret);
 
+/** @param {string} prefix @param {(ctx: string) => EditorDestination | null} reveal */
 export function registerWritingDestination(prefix, reveal) {
   // Availability can include an empty current editor. hasContent tells fallback
   // selection whether its owner holds work beyond the shared draft's words.
@@ -719,14 +813,16 @@ export function registerWritingDestination(prefix, reveal) {
 // and Resume writing moves with them (`transferDraft`): one copy, sent or put away like
 // any page comment. Whatever took the box away, the words now stand where a comment
 // about no particular place is written.
+/** @param {string} ctx */
 function moveToPage(ctx) {
-  const words = loadDraft(ctx) ?? "";
-  const text = [loadDraft(PAGE_DRAFT), words].filter(Boolean).join("\n\n");
-  if (!transferDraft(ctx, PAGE_DRAFT, text)) return false;
+  const words = loadDraft(ctx)?.text ?? "";
+  const text = [loadDraft(PAGE_DRAFT)?.text, words].filter(Boolean).join("\n\n");
+  const place = transferDraft(ctx, PAGE_DRAFT, text);
+  if (!place) return false;
   const shift = text.length - words.length;
-  const [start, end, ...direction] = writingPlace.selection;
+  const [start, end, ...direction] = place.selection;
   keepWritingPlace({
-    ...writingPlace,
+    ...place,
     selection: [start + shift, end + shift, ...direction],
   });
   return true;
@@ -735,11 +831,14 @@ function moveToPage(ctx) {
 // `holdsThreadDraft` answers whether the thread or message a thread-held draft is
 // written under still stands; any other draft is held by a route declared for its kind
 // or an editor registered for it, each for its owner's lifetime.
+/** @param {{revealInThread: (ctx: string, intent: ReturnType<typeof retainUserIntent>) => Promise<Element | null | undefined>,
+ * arriveEditor: ReturnType<typeof import("./anchor-travel.js").createAnchorTravel>["arriveEditor"], holdsThreadDraft: (ctx: string) => boolean}} options */
 export function createWritingResume({
   revealInThread,
   arriveEditor,
   holdsThreadDraft,
 }) {
+  /** @param {string} ctx */
   const holdsBox = (ctx) =>
     threadDraft(ctx)
       ? holdsThreadDraft(ctx)
@@ -758,26 +857,26 @@ export function createWritingResume({
         const editor = [...draftEditors].find(
           (view) => view.ctx === place.context && view.resume,
         );
-        return route ? route(place.context) : editor?.resume();
+        return route ? route(place.context) : editor?.resume?.();
       };
       input = await arriveEditor(resolve, { intent, caret: place.selection });
     }
     if (input === undefined || !intent()) return;
-    const matchesEditor = [...draftEditors].some(
+    const editor = [...draftEditors].find(
       (view) => view.ctx === place.context && editorInput(view) === input,
     );
+    const field = editor && editorInput(editor);
     if (
-      matchesEditor &&
-      input?.isConnected &&
-      input.checkVisibility() &&
-      !input.readOnly &&
-      !input.disabled
+      field?.isConnected &&
+      field.checkVisibility() &&
+      !field.readOnly &&
+      !("disabled" in field && field.disabled)
     ) {
       // Coming back to the words is the user dealing with any error over them, as a
       // press on it is (errors.js, `passErrorsAt`).
       intent.handoff(() => {
-        passErrorsAt(input);
-        focusDestination(input, "move", { caret: place.selection });
+        passErrorsAt(field);
+        focusDestination(field, "move", { caret: place.selection });
       });
       return;
     }
@@ -809,30 +908,41 @@ export function createWritingResume({
 // the box it is written in directly, which takes the caret back after a revision.
 // Replies explicitly declare mirrors and land through their thread owner.
 // A revision carries mechanical editing, never another copy of the draft's words.
-export function captureDraftEditing(input = focused()) {
-  const editor = [...draftEditors].find((view) => editorInput(view) === input);
-  if (!editor) return null;
-  return {
-    context: editor.ctx,
-    mirrored: editor.mirrored,
-    attempt: activeDraftRecord(editor.ctx)?.attempt,
-    words: input.value,
-    selection: readCaret(input),
-    scroll: [input.scrollLeft, input.scrollTop],
-  };
+/** @param {Element | null} [at] */
+export function captureDraftEditing(at = focused()) {
+  for (const editor of draftEditors) {
+    const input = editorInput(editor);
+    if (!input || input !== at) continue;
+    /** @type {[number, number]} */
+    const scroll = [input.scrollLeft, input.scrollTop];
+    return {
+      context: editor.ctx,
+      mirrored: editor.mirrored,
+      attempt: activeDraftRecord(editor.ctx)?.attempt,
+      words: input.value,
+      selection: readCaret(input),
+      scroll,
+    };
+  }
+  return null;
 }
 
+/** @typedef {NonNullable<ReturnType<typeof captureDraftEditing>>} DraftEditing */
+/** @param {DraftEditing | null} editing */
 export const draftEditingStands = (editing) =>
-  Boolean(editing) && activeDraftRecord(editing.context)?.attempt === editing.attempt;
+  editing !== null && activeDraftRecord(editing.context)?.attempt === editing.attempt;
 
 // The root editor a revision hands the caret back to, shown first through its owner's
 // Resume writing route when a disclosure holds it shut; `handoff` gates that showing on
 // the user's intent. A root off the page counts when its owner's route places it there,
 // as the page comment card places its box at its first open, and so does one whose
 // owner has no box until that route builds it, as a closed document edit has none.
+/** @param {DraftEditing} editing @param {(move: () => unknown) => unknown} handoff */
 export function draftEditingDestination(editing, handoff) {
+  /** @param {DraftEditor} view */
   const shown = (view) =>
     Boolean(editorInput(view)?.checkVisibility({ visibilityProperty: true }));
+  /** @param {DraftEditor} view */
   const placed = (view) => editorInput(view)?.isConnected;
   const roots = [...draftEditors].filter(
     (view) =>
@@ -846,23 +956,29 @@ export function draftEditingDestination(editing, handoff) {
   return shown(editor) ? editorInput(editor) : null;
 }
 
+/** @param {DraftEditing} editing @param {Element | null} input */
 export function restoreDraftEditing(editing, input) {
   if (!draftEditingStands(editing)) return false;
-  const editor = [...draftEditors].find((view) => editorInput(view) === input);
-  if (
-    !editor ||
-    editor.ctx !== editing.context ||
-    !input.isConnected ||
-    !input.checkVisibility() ||
-    input.value !== editing.words ||
-    focused() !== input
-  )
-    return false;
-  focusDestination(input, "return", { caret: editing.selection });
-  [input.scrollLeft, input.scrollTop] = editing.scroll;
-  return true;
+  for (const editor of draftEditors) {
+    const field = editorInput(editor);
+    if (!field || field !== input) continue;
+    if (
+      editor.ctx !== editing.context ||
+      !field.isConnected ||
+      !field.checkVisibility() ||
+      field.value !== editing.words ||
+      focused() !== field
+    )
+      return false;
+    focusDestination(field, "return", { caret: editing.selection });
+    [field.scrollLeft, field.scrollTop] = editing.scroll;
+    return true;
+  }
+  return false;
 }
 
+/** @param {string} ctx @param {(value: string | null, payload?: DraftPayload) => void} callback
+ * @param {{input?: DraftField | (() => DraftField | null) | null, mirrored?: boolean, resume?: (() => EditorDestination | null) | null}} [options] */
 export function watchDraft(
   ctx,
   callback,
@@ -870,6 +986,7 @@ export function watchDraft(
 ) {
   const editor = input && { ctx, input, mirrored, resume };
   if (editor) draftEditors.add(editor);
+  /** @param {CustomEvent<DraftNews>} ev */
   const update = (ev) =>
     ev.detail.ctx === ctx && callback(ev.detail.value, ev.detail.payload);
   document.addEventListener(DRAFT_NEWS, update);
@@ -880,7 +997,9 @@ export function watchDraft(
 }
 // News of every draft whose context starts with `prefix`, for a reader of a whole kind
 // of draft rather than one box's.
+/** @param {string} prefix @param {(ctx: string) => void} callback */
 export function watchDrafts(prefix, callback) {
+  /** @param {CustomEvent<DraftNews>} ev */
   const update = (ev) => ev.detail.ctx.startsWith(prefix) && callback(ev.detail.ctx);
   document.addEventListener(DRAFT_NEWS, update);
   return () => document.removeEventListener(DRAFT_NEWS, update);
@@ -923,11 +1042,11 @@ addEventListener("storage", (ev) => {
 // send or report settlement, so its lifecycle reads canonical draft availability.
 // `blank` answers what the box holds with no draft: nothing for a new message, and the
 // message's own words for a rewrite of it.
-/** @param {any} ta @param {any} sync @param {any} ctx
+/** @param {DraftField} ta @param {InputSync} sync @param {string} ctx
  * @param {{
  *   retained?: boolean,
  *   mirrored?: boolean,
- *   resume?: any,
+ *   resume?: (() => EditorDestination | null) | null,
  *   onChange?: (value: string | null) => void,
  *   blank?: () => string,
  * }} [options] */

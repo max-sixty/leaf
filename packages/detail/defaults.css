@@ -21,7 +21,7 @@ html[data-lf-interactive] lf-dial {
   border: 1px solid var(--rule);
   border-radius: calc(var(--r) * 2);
   background: var(--paper);
-  font: var(--t-working-label) / 1.4 var(--sans);
+  font: var(--font-compact);
 }
 .lf-dial-depths > .lf-btn {
   /* Selection changes the face, never the width of its words. */

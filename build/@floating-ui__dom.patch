@@ -1,0 +1,94 @@
+diff --git a/dist/floating-ui.dom.d.mts b/dist/floating-ui.dom.d.mts
+index bf767f8691328a85dd62db5c82463b7ef29a276c..a5ab4fed96249583af39bfdceae8b31593b6b94c 100644
+--- a/dist/floating-ui.dom.d.mts
++++ b/dist/floating-ui.dom.d.mts
+@@ -218,8 +218,9 @@ export { MiddlewareData }
+ 
+ export { MiddlewareReturn }
+ 
+-export declare type MiddlewareState = Prettify<Omit<MiddlewareState_2, 'elements'> & {
++export declare type MiddlewareState = Prettify<Omit<MiddlewareState_2, 'elements' | 'platform'> & {
+     elements: Elements;
++    platform: Platform;
+ }>;
+ 
+ export declare interface NodeScroll {
+@@ -285,7 +286,7 @@ export declare interface Platform {
+     convertOffsetParentRelativeRectToViewportRelativeRect: (args: {
+         elements?: Elements | undefined;
+         rect: Rect;
+-        offsetParent: Element;
++        offsetParent: Element | Window;
+         strategy: Strategy;
+     }) => Promisable<Rect>;
+     getOffsetParent: (element: Element, polyfill?: (element: HTMLElement) => Element | null) => Promisable<Element | Window>;
+@@ -293,7 +294,7 @@ export declare interface Platform {
+     getDocumentElement: (element: Element) => Promisable<HTMLElement>;
+     getClientRects: (element: Element) => Promisable<Array<ClientRectObject>>;
+     isRTL: (element: Element) => Promisable<boolean>;
+-    getScale: (element: HTMLElement) => Promisable<{
++    getScale: (element: Element | Window) => Promisable<{
+         x: number;
+         y: number;
+     }>;
+@@ -321,7 +322,12 @@ export { RootBoundary }
+  */
+ export declare const shift: (options?: ShiftOptions | Derivable<ShiftOptions>) => Middleware;
+ 
+-export declare type ShiftOptions = Prettify<Omit<ShiftOptions_2, 'boundary'> & DetectOverflowOptions>;
++export declare type ShiftOptions = Prettify<Omit<ShiftOptions_2, 'boundary' | 'limiter'> & DetectOverflowOptions & {
++    limiter?: {
++        fn: (state: MiddlewareState) => Coords;
++        options?: unknown;
++    } | undefined;
++}>;
+ 
+ export { Side }
+ 
+diff --git a/dist/floating-ui.dom.d.ts b/dist/floating-ui.dom.d.ts
+index bf767f8691328a85dd62db5c82463b7ef29a276c..a5ab4fed96249583af39bfdceae8b31593b6b94c 100644
+--- a/dist/floating-ui.dom.d.ts
++++ b/dist/floating-ui.dom.d.ts
+@@ -218,8 +218,9 @@ export { MiddlewareData }
+ 
+ export { MiddlewareReturn }
+ 
+-export declare type MiddlewareState = Prettify<Omit<MiddlewareState_2, 'elements'> & {
++export declare type MiddlewareState = Prettify<Omit<MiddlewareState_2, 'elements' | 'platform'> & {
+     elements: Elements;
++    platform: Platform;
+ }>;
+ 
+ export declare interface NodeScroll {
+@@ -285,7 +286,7 @@ export declare interface Platform {
+     convertOffsetParentRelativeRectToViewportRelativeRect: (args: {
+         elements?: Elements | undefined;
+         rect: Rect;
+-        offsetParent: Element;
++        offsetParent: Element | Window;
+         strategy: Strategy;
+     }) => Promisable<Rect>;
+     getOffsetParent: (element: Element, polyfill?: (element: HTMLElement) => Element | null) => Promisable<Element | Window>;
+@@ -293,7 +294,7 @@ export declare interface Platform {
+     getDocumentElement: (element: Element) => Promisable<HTMLElement>;
+     getClientRects: (element: Element) => Promisable<Array<ClientRectObject>>;
+     isRTL: (element: Element) => Promisable<boolean>;
+-    getScale: (element: HTMLElement) => Promisable<{
++    getScale: (element: Element | Window) => Promisable<{
+         x: number;
+         y: number;
+     }>;
+@@ -321,7 +322,12 @@ export { RootBoundary }
+  */
+ export declare const shift: (options?: ShiftOptions | Derivable<ShiftOptions>) => Middleware;
+ 
+-export declare type ShiftOptions = Prettify<Omit<ShiftOptions_2, 'boundary'> & DetectOverflowOptions>;
++export declare type ShiftOptions = Prettify<Omit<ShiftOptions_2, 'boundary' | 'limiter'> & DetectOverflowOptions & {
++    limiter?: {
++        fn: (state: MiddlewareState) => Coords;
++        options?: unknown;
++    } | undefined;
++}>;
+ 
+ export { Side }
+ 

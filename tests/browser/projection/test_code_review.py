@@ -403,7 +403,7 @@ def test_native_call_diff_json_keeps_spaced_paths_and_exact_patch_destinations(
             "native CallDiff",
             '<h1 id="title">Calls</h1>'
             '<lf-call-diff id="calls" source="calls-data" diff="patch"></lf-call-diff>'
-            '<lf-diff id="patch" source="patch-data" collapsed><pre></pre></lf-diff>',
+            '<lf-diff id="patch" source="patch-data" collapsed></lf-diff>',
         ),
         packages=("diff",),
     )
@@ -464,7 +464,7 @@ def test_missing_call_location_keeps_the_reader_at_the_source(browser, serve, to
             '<h1 id="title">Calls</h1>'
             '<lf-call-diff id="calls" source="calls-data" diff="patch"></lf-call-diff>'
             '<div style="height: 1600px"></div>'
-            '<lf-diff id="patch" source="patch-data" collapsed><pre></pre></lf-diff>',
+            '<lf-diff id="patch" source="patch-data" collapsed></lf-diff>',
         ),
         packages=("diff",),
     )
@@ -532,7 +532,7 @@ def test_diff_coordinates_keep_identity_separate_from_source_navigation(browser,
             "source coordinates",
             '<h1 id="title">Call locations</h1>'
             '<lf-call-diff id="calls" source="calls-data" diff="patch"></lf-call-diff>'
-            '<lf-diff id="patch" source="patch-data"><pre></pre></lf-diff>',
+            '<lf-diff id="patch" source="patch-data"></lf-diff>',
         ),
         packages=("diff",),
     )
@@ -663,7 +663,7 @@ def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(
             "renamed source paths",
             '<h1 id="title">Renamed calls</h1>'
             '<lf-call-diff id="calls" source="calls-data" diff="patch"></lf-call-diff>'
-            '<lf-diff id="patch" source="patch-data" collapsed><pre></pre></lf-diff>',
+            '<lf-diff id="patch" source="patch-data" collapsed></lf-diff>',
         ),
         packages=("diff",),
     )
@@ -832,7 +832,7 @@ def test_call_diff_keeps_the_user_on_a_row_a_new_capture_moves(browser, serve):
             "call diff order",
             '<h1 id="title">Request call change</h1>'
             '<lf-call-diff id="request-calls" source="request-call-diff" diff="patch">'
-            '</lf-call-diff><lf-diff id="patch" source="review-patch"><pre></pre></lf-diff>',
+            '</lf-call-diff><lf-diff id="patch" source="review-patch"></lf-diff>',
         ),
         packages=("diff",),
     )
@@ -1091,7 +1091,7 @@ def test_a_large_diff_filters_and_navigates_lazy_files(browser, serve):
     authored = leaf_page(
         "large diff review",
         '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch" '
-        "collapsed><pre></pre></lf-diff>",
+        "collapsed></lf-diff>",
     )
     url = serve(authored)
     manifest = {
@@ -1259,7 +1259,7 @@ def test_datum_travel_resolves_the_destination_after_reveal(browser, serve):
             "reveal replaces projection",
             '<h1 id="title">Call change</h1>'
             '<lf-call-diff id="calls" source="calls-data" diff="patch"></lf-call-diff>'
-            '<div id="holder"><lf-diff id="patch" source="patch-data"><pre></pre></lf-diff></div>',
+            '<div id="holder"><lf-diff id="patch" source="patch-data"></lf-diff></div>',
         ),
         packages=("diff",),
     )

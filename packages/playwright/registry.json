@@ -327,6 +327,22 @@
                 "callId",
                 "phase"
               ],
+              "oneOf": [
+                {
+                  "properties": {
+                    "kind": { "const": "frame" },
+                    "callId": { "type": "null" },
+                    "phase": { "const": null }
+                  }
+                },
+                {
+                  "properties": {
+                    "kind": { "const": "checkpoint" },
+                    "callId": { "type": "string" },
+                    "phase": { "enum": ["before", "action", "after"] }
+                  }
+                }
+              ],
               "additionalProperties": false
             },
             "page": {

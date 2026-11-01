@@ -16,15 +16,19 @@ import { nativeLayerHolding } from "../shadow-tree.js";
 
 // Document targets are beneath the chrome; a target in a native surface needs
 // the foreground chip plane, independently of the author's z-index values.
+/** @param {Element | null} target */
 const plane = (target) => (!target || nativeLayerHolding(target) ? "chrome" : "page");
 
+/** @param {HTMLElement} root */
 export function chipSeats(root) {
   const set = paintSet(root);
+  /** @type {Map<unknown, HTMLSpanElement>} */
   const seats = new Map(); // key → seat
 
   return {
     // The seat for `key`, made where there is none, in the document so the chip it is
     // given can be read before it is seated.
+    /** @param {unknown} key */
     seat(key) {
       let seat = seats.get(key);
       if (!seat) {
@@ -36,11 +40,16 @@ export function chipSeats(root) {
       return seat;
     },
     // The seat for `key`, if one is seated.
-    seated: (key) => (seats.get(key)?.isConnected ? seats.get(key) : null),
+    /** @param {unknown} key */
+    seated(key) {
+      const seat = seats.get(key);
+      return seat?.isConnected ? seat : null;
+    },
     // Hides every seat but those for `keys`, as a scroll holds the seats while
     // what they say changes: a typed letter leaves chips that no longer match, and a
     // command can leave reach. Hidden, a seat keeps its box, so the pass that seats it
     // again once the scroll settles reads its chip where it stands.
+    /** @param {ReadonlySet<unknown>} keys */
     keepOnly(keys) {
       for (const [key, seat] of seats) {
         const visibility = keys.has(key) ? "" : "hidden";
@@ -48,19 +57,25 @@ export function chipSeats(root) {
       }
     },
     // The box `seat`'s chip takes with the seat at `at`, read off where both stand.
-    boxAt(seat, at) {
-      const chip = seat.firstElementChild.getBoundingClientRect();
+    /** @param {HTMLElement} seat @param {{left: number, top: number}} at */
+    measure(seat, at) {
+      const element = seat.firstElementChild;
+      if (!(element instanceof HTMLElement))
+        throw new Error("A hint seat has no rendered chip");
+      const chip = element.getBoundingClientRect();
       const own = seat.getBoundingClientRect();
-      return new DOMRect(
+      const box = new DOMRect(
         at.left + chip.left - own.left,
         at.top + chip.top - own.top,
         chip.width,
         chip.height,
       );
+      return { chip: element, box };
     },
     // Stands each seat over `target` so its chip takes `box`, read as `start` with the
     // seat at `at`, or where the window holds it where it is `held` by the window's edge
     // or the chrome, and puts away every seat not among them.
+    /** @param {readonly {seat: HTMLElement, target: Element | null, at: {left: number, top: number}, start: import("../rect.js").Box, box: import("../rect.js").Box, held?: boolean}[]} seated */
     place(seated) {
       set.place(
         seated.map(({ seat, target, at, start, box, held = false }) => ({

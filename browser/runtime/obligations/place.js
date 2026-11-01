@@ -36,6 +36,8 @@ import { readObligations } from "./model.js";
 
 const NOWHERE = Object.freeze({ source: null, context: null, node: null });
 
+/** @param {import("../framework/application.js").ObligationRecord | null | undefined} item
+ * @param {readonly import("../framework/application.js").ObligationRecord[]} items */
 export function obligationPlace(item, items = readObligations().all) {
   if (item?.source.kind === "todo") {
     const node = subjectPlace(item.source.subject);
@@ -57,6 +59,7 @@ export function obligationPlace(item, items = readObligations().all) {
 // Where a to-do's or an update's subject stands on the page: the element or widget it
 // names, the page's head for the page as a whole, and nowhere for a thread, which its
 // owner draws.
+/** @param {import("../../types/contract.js").ServedSubject} subject */
 export const subjectPlace = (subject) =>
   subject.kind === "page"
     ? pageHead()
@@ -78,7 +81,7 @@ function pageHead() {
   }
   const main = document.querySelector("body > main");
   return (
-    main.firstElementChild ??
+    main?.firstElementChild ??
     [...pageDocument().children].find(
       (element) => element !== main && inPage(element),
     ) ??
@@ -87,6 +90,8 @@ function pageHead() {
 }
 
 // The obligations `region` holds, in the order `obligations` lists them.
+/** @param {Element} region
+ * @param {readonly import("../framework/application.js").ObligationRecord[]} items */
 export function obligationsIn(region, items = readObligations().all) {
   return items.filter((item) => {
     if (item.status === "withdrawn") return false;

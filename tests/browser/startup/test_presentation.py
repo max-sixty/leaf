@@ -149,9 +149,7 @@ def test_a_sample_starts_without_its_host_s_saved_chrome(browser, serve):
     context = browser.new_context(viewport={"width": 1600, "height": 900})
     priming = context.new_page()
     priming.goto(url, wait_until="load")
-    priming.evaluate(
-        "() => document.documentElement.lfStorage.userStore.set('lf-chrome-rest', 'mark')"
-    )
+    priming.evaluate("() => window.lfStorage.userStore.set('lf-chrome-rest', 'mark')")
     priming.close()
 
     host = context.new_page()

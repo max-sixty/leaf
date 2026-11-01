@@ -1130,8 +1130,8 @@ def test_a_datum_comment_names_the_source_revision_its_section_displayed(
     version.write_text(
         PAGE.replace(
             "</section>",
-            '<lf-diff id="patch" source="review-patch"><pre></pre></lf-diff>'
-            '<lf-diff id="other" source="other-patch"><pre></pre></lf-diff>'
+            '<lf-diff id="patch" source="review-patch"></lf-diff>'
+            '<lf-diff id="other" source="other-patch"></lf-diff>'
             "</section>",
         )
     )
@@ -1444,8 +1444,7 @@ def test_historical_deferred_reads_keep_the_document_revision_and_layer(
     """A pinned document reads current data through its captured data contract."""
     source = PAGE.replace(
         "</section>",
-        '<lf-diff id="patch" source="review-patch" collapsed>'
-        "<pre></pre></lf-diff></section>",
+        '<lf-diff id="patch" source="review-patch" collapsed></lf-diff></section>',
     )
     (page_dir / "index.html").write_text(source)
     first = revisioning_model.activate_source(page_dir)

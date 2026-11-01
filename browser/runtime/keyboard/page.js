@@ -20,7 +20,8 @@ import { heldThread } from "../thread/focus.js";
 import { heldObligation } from "../current-target.js";
 import { leavesBox } from "../thread/landing.js";
 import { claimsEsc } from "./scopes.js";
-import { DISCLOSE, DISCLOSURE_SELECTOR, disclosed } from "./disclosure.js";
+import { nativePress } from "./bindings.js";
+import { DISCLOSE, DISCLOSURE_SELECTOR, disclosureAt } from "./disclosure.js";
 import { nativeLayers } from "./layer-stack.js";
 import { LINK } from "./text-entry.js";
 import { pageCommand, pageRung, pageScope } from "./register.js";
@@ -41,6 +42,7 @@ import { pageCommand, pageRung, pageScope } from "./register.js";
 // stand on. One derivation and not a copy apiece: what a scope here asks is the same pair
 // of questions of a different selector, and the day the chrome rule changes is the day a
 // second copy of it is wrong.
+/** @param {string} name @param {string} title @param {string} sel @param {readonly import("./bindings.js").Command[]} rows */
 function currentLocationOn(name, title, sel, rows) {
   pageScope(name, {
     title,
@@ -84,7 +86,7 @@ currentLocationOn("disclosure", "On a disclosure", DISCLOSURE_SELECTOR, [
     // Read where it is painted rather than named once for both branches, the way a diff's
     // own file rows read theirs: what the press does is whichever way the disclosure is
     // set, and a word fixed at declaration could only ever say one of them.
-    title: () => (disclosed(focused()) ? "close" : "open"),
+    title: () => (disclosureAt(focused())?.open ? "close" : "open"),
     // Through the element's own click, so keyboard and pointer are one behaviour: a
     // <summary>'s click is the toggle the browser was already making, and a widget's
     // control runs the handler its own pointer press runs. Enter and Space are the
@@ -92,7 +94,7 @@ currentLocationOn("disclosure", "On a disclosure", DISCLOSURE_SELECTOR, [
     // and the dispatcher takes the key before the platform sees it. One toggle answers all
     // three: the arrow bound is the one that changes this disclosure, so a press cannot
     // mean anything else.
-    run: () => focused().click(),
+    run: () => nativePress(focused())?.(),
   },
 ]);
 
@@ -116,7 +118,9 @@ const holding = () => {
   const active = focused(document);
   return Boolean(active) && active !== document.body;
 };
+/** @type {() => HTMLElement | null} */
 let currentLocationFloor = () => null;
+/** @param {{pageState: () => unknown}} options */
 export function declareCurrentLocation({ pageState }) {
   currentLocationFloor = () => {
     if (!holding()) return null;
@@ -176,7 +180,7 @@ pageRung("page", () => {
   return document.documentElement.lfSample
     ? {
         title: "return to containing page",
-        out: () => sampleNotice("return"),
+        out: () => sampleNotice({ type: "return" }),
       }
     : null;
 });

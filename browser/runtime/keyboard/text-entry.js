@@ -14,23 +14,27 @@ export function EVERYTHING() {
 // with modifiers too, so Shift+Arrow can extend a selection and Mod+Backspace can delete a
 // word without an ancestor widget turning either into its own action. An exact element
 // scope still stands nearer and can specialise Enter for send.
+/** @param {string} binding */
 function CHARACTER(binding) {
   return [...parsed(binding).key].length === 1;
 }
 
 const EDITING = new Set(["Enter", "Backspace", "Delete", ...CARET_KEYS]);
 
+/** @param {string} binding */
 export function TEXT_ENTRY(binding) {
   return CHARACTER(binding) || EDITING.has(parsed(binding).key);
 }
 
 // The platform's claim at one exact control. Dispatch and accessible shortcut
 // projection use this same reading; context aliases always stand behind it.
+/** @param {Element | null} control */
 export function nativeClaimAt(control) {
   if (takesLetters(control)) return TEXT_ENTRY;
   const navigation = controlNavigationKeys(control);
   return navigation.length
-    ? (binding) => navigation.includes(parsed(binding).key)
+    ? /** @param {string} binding */ (binding) =>
+        navigation.includes(parsed(binding).key)
     : null;
 }
 
@@ -47,6 +51,7 @@ export function nativeClaimAt(control) {
 // Leaf offers as a button presses as a button does, by the default action
 // role-button-press.js gives it, so it is native activation here too.
 export const LINK = "a[href], area[href]";
+/** @type {readonly (readonly [string, readonly string[]])[]} */
 const ACTIVATION = [
   [LINK, ["Enter"]],
   [
@@ -55,7 +60,10 @@ const ACTIVATION = [
   ],
   ['input:is([type="checkbox"], [type="radio"])', [" "]],
 ];
+/** @param {Element | null} control */
 export function nativeActivationAt(control) {
   const presses = ACTIVATION.find(([selector]) => control?.matches?.(selector))?.[1];
-  return presses ? (binding) => presses.includes(binding) : null;
+  return presses
+    ? /** @param {string} binding */ (binding) => presses.includes(binding)
+    : null;
 }

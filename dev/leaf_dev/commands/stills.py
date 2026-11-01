@@ -245,6 +245,11 @@ def at_rest(page: Page) -> None:
     """The page as it loads."""
 
 
+def printed_exhibit(page: Page) -> None:
+    """A breakout exhibit within the paper's prose track."""
+    page.emulate_media(media="print")
+
+
 def worktree_summaries(page: Page) -> None:
     """Close the initially open worktree so the list's summary columns stand together.
     Press the widget's summary by its class, since the authored evidence in the row
@@ -1999,6 +2004,8 @@ class State:
 
 
 STATES = (
+    State("printed-exhibit", "lost-update", printed_exhibit, region="main"),
+    State("screen-exhibit", "lost-update", at_rest, region="main"),
     State("page-about", "review-a-plan", page_about, region=".lf-inspection-dialog"),
     State(
         "page-about-dark",

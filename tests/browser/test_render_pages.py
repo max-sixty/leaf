@@ -2231,11 +2231,9 @@ def test_paper_keeps_the_column(browser, serve):
     on_screen = page.evaluate(
         "() => document.getElementById('sprint').getBoundingClientRect().width"
     )
-    column = page.evaluate("""() => {
-        const m = document.querySelector('main'), s = getComputedStyle(m);
-        const b = m.getBoundingClientRect();
-        return b.width - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight);
-    }""")
+    column = page.evaluate(
+        "() => document.getElementById('prose').getBoundingClientRect().width"
+    )
     assert on_screen > column + 1, (
         "the board must be wider than the column on screen, or print proves nothing"
     )

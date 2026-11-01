@@ -370,17 +370,22 @@
       max-inline-size: min(100%, var(--wide));
     }
   }
+  /* A sheet has no window margin to borrow: exhibits keep the prose track on paper. */
+  @media screen {
+    :is(.layout-column, .layout-flow) {
+      > [data-lf-space="wide"] {
+        grid-column: prose-start / full-end;
+        max-inline-size: min(100%, var(--wide));
+        --lf-breakout: 1;
+      }
+      > [data-lf-space="available"] {
+        grid-column: full;
+        max-inline-size: 100%;
+        --lf-breakout: 1;
+      }
+    }
+  }
   :is(.layout-column, .layout-flow) {
-    > [data-lf-space="wide"] {
-      grid-column: prose-start / full-end;
-      max-inline-size: min(100%, var(--wide));
-      --lf-breakout: 1;
-    }
-    > [data-lf-space="available"] {
-      grid-column: full;
-      max-inline-size: 100%;
-      --lf-breakout: 1;
-    }
     > table[data-lf-space] {
       contain: none;
       container-type: normal;

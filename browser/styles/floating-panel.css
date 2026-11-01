@@ -1226,8 +1226,16 @@
     gap: 8px;
     min-height: 1lh;
   }
+  /* The value is words, so it keeps the name's first line's baseline: its box is a
+     line of the name's face, from a strut, as the On me count's is (above). Centred
+     with the keys on that line, the smaller value stood higher. */
   .lf-fp-end > .lf-fp-value {
     grid-area: 1 / 1;
+    line-height: 0;
+    &::before {
+      content: "\200b" / "";
+      font: var(--font-compact);
+    }
   }
   .lf-fp-end > .lf-binding-sequence {
     grid-area: 1 / 2;

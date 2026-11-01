@@ -169,10 +169,12 @@ lf-worktree > :last-child {
   margin-block-end: 0;
 }
 
+/* The label and the path, set in the sans and the mono, stand on one baseline. */
 .lf-worktree-path {
   margin-block-start: var(--sp-3);
   display: grid;
   grid-template-columns: 5rem minmax(0, 1fr);
+  align-items: baseline;
   gap: var(--sp-2);
   color: var(--muted);
   font-size: var(--t-6);

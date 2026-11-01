@@ -63,7 +63,8 @@ sees the line step by a pixel. In every state both arms completed,
 header says which), and the run's `baselines.txt` lists each line whose words stand a
 quarter of a CSS pixel or more apart (`baseline_changes`): those only head splits,
 those both arms split, and those only base splits. Words on a box of their own, such
-as a pill's fill, are marked, since the eye reads that box rather than their baseline.
+as a key's letter on its badge, are listed and marked but count toward no split, since
+the eye reads that box rather than their baseline.
 
 Capture and comparison failures are reported per state, with tracebacks in its
 directory; the remaining states still run. Only complete pairs enter the

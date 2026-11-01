@@ -17,10 +17,10 @@
  * box holding both holds one line, or one stands in a box placed beside the other, so
  * two cards side by side are two lines; and words in a box fixed over the page, or in
  * the top layer, share no line with words outside it, which it may cover. For each
- * run whose words stand at least `threshold` CSS px apart it returns each box's words,
- * face, baseline against the run's first, and whether they sit on a fill, border or
- * shadow of their own, as a pill's do, whose box the eye reads rather than their
- * baseline.
+ * run it returns each box's words, face, baseline against the run's first, and whether
+ * they sit on a fill, border or shadow of their own, as a key's letter on its badge
+ * does, when two or more words on no such box stand at least `threshold` CSS px apart:
+ * the eye reads a box, not the baseline of the words on it.
  *
  * A run of words' box stands a fixed ascent above its baseline, scaled as the page
  * scales the words. That ascent is read from a zero-size inline-block on the baseline
@@ -110,15 +110,22 @@
     }
     return { ...words, edge };
   };
+  // A fill, border or shadow drawn by a box between the words and their item, or by
+  // one of its ::before and ::after, as a trace's call bar draws its fill.
+  const paints = (s) =>
+    s.backgroundColor !== "rgba(0, 0, 0, 0)" ||
+    s.boxShadow !== "none" ||
+    ["Top", "Right", "Bottom", "Left"].some(
+      (side) =>
+        parseFloat(s[`border${side}Width`]) > 0 && s[`border${side}Style`] !== "none",
+    );
   const boxed = (item, node) => {
     for (let e = node.parentElement; e && item.contains(e); e = e.parentElement) {
-      const s = getComputedStyle(e);
-      const border = ["Top", "Right", "Bottom", "Left"].some(
-        (side) =>
-          parseFloat(s[`border${side}Width`]) > 0 && s[`border${side}Style`] !== "none",
-      );
-      if (s.backgroundColor !== "rgba(0, 0, 0, 0)" || border || s.boxShadow !== "none")
-        return true;
+      if (paints(getComputedStyle(e))) return true;
+      for (const pseudo of ["::before", "::after"]) {
+        const s = getComputedStyle(e, pseudo);
+        if (s.content !== "none" && s.content !== "normal" && paints(s)) return true;
+      }
     }
     return false;
   };
@@ -189,7 +196,12 @@
           face,
           size: parseFloat(face.fontSize),
           text: words.node.data.trim().slice(0, 24),
-          boxed: item.nodeType === Node.ELEMENT_NODE && boxed(item, words.node),
+          // Words alone in a row, as a key's letter in its badge or a call's name on its
+          // bar, stand on that row's box.
+          boxed:
+            (item.nodeType === Node.ELEMENT_NODE && boxed(item, words.node)) ||
+            (box.textContent.trim() === item.textContent.trim() &&
+              boxed(box, words.node)),
         });
       }
     }
@@ -316,9 +328,12 @@
     }),
   );
   host.remove();
+  // Words on a box of their own count toward no split: the eye reads the box.
   return lines.flatMap(({ row, nth, items: run }, l) => {
     const ys = measured[l];
-    const spread = Math.max(...ys) - Math.min(...ys);
+    const bare = ys.filter((_, i) => !run[i].boxed);
+    if (bare.length < 2) return [];
+    const spread = Math.max(...bare) - Math.min(...bare);
     if (spread < threshold) return [];
     return [
       {

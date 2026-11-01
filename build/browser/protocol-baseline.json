@@ -73,7 +73,7 @@
     },
     "fork-lane-start": {
       "since": 37,
-      "schema": {"description":"The admission cutoff of a session's fork lane, paired with the inode whose live lease alone proves that lane is running (`forks.take_lane`).","type":"object","properties":{"inode":{"type":"integer"},"since":{"type":"number"}},"required":["inode","since"]}
+      "schema": {"description":"The admission cutoff of a session's fork lane. Its live lease alone proves that lane is running (`forks.take_lane`).","type":"object","properties":{"since":{"type":"number"}},"required":["since"]}
     },
     "forks": {
       "since": 37,

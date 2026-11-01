@@ -64,7 +64,6 @@ what a later replay or audit scores.
 """
 
 import json
-import os
 import time
 from datetime import datetime
 from pathlib import Path
@@ -129,9 +128,9 @@ HANDED = Record(
 LANE_START = Record(
     "fork-lane-start",
     described(
-        "The admission cutoff of a session's fork lane, paired with the inode "
-        "whose live lease alone proves that lane is running (`forks.take_lane`).",
-        object_schema({"inode": {"type": "integer"}, "since": {"type": "number"}}),
+        "The admission cutoff of a session's fork lane. Its live lease alone "
+        "proves that lane is running (`forks.take_lane`).",
+        object_schema({"since": {"type": "number"}}),
     ),
     since=37,
 )
@@ -162,20 +161,25 @@ def lane_path(session_id: str) -> Path:
     return session_file(session_id, "fork-lane")
 
 
+def lane_lock_path(session_id: str) -> Path:
+    return session_file(session_id, "fork-lane.lock")
+
+
 def take_lane(session_id: str):
     """Hold the session's lane and record its cutoff after taking the name.
 
-    The session lock serializes take and publication, so a displaced taker cannot
-    overwrite its successor's cutoff. Readers match the record to the lease's
-    inode; until publication, the new lane holds nothing. Filesystem timestamps
-    cannot order the take against the admission clock, since they may be coarser.
+    The lane lock serializes publication and readers' decisions, so an input is
+    never exposed to the session while waiting for a cutoff that would hold it.
+    It is innermost: neither this writer nor `lane_since` takes a page or session
+    lock while holding it. Filesystem timestamps cannot order the take against
+    the admission clock, since they may be coarser.
     """
-    with flocked(session_lock_path(session_id)):
+    with flocked(lane_lock_path(session_id)):
         lease = take_wait_lease(lane_path(session_id), supersede=True)
         try:
             LANE_START.write(
                 session_file(session_id, LANE_START.kind),
-                {"inode": os.fstat(lease.fileno()).st_ino, "since": time.time()},
+                {"since": time.time()},
             )
         except BaseException:
             release_lease(lease)
@@ -184,21 +188,16 @@ def take_lane(session_id: str):
 
 
 def lane_since(session_id: str) -> float | None:
-    """The live lane's admission cutoff (POSIX seconds), or None without one.
+    """The live lane's published admission cutoff, waiting for a take in progress.
 
-    A record left by an earlier lane says nothing about its successor, including
-    while the successor has taken the name but has not published its cutoff.
+    Delivery can already hold the session lock, so publication has its own lock.
+    A crashed or ended writer's record is not live without its kernel lease.
     """
-    path = lane_path(session_id)
-    start = LANE_START.read(session_file(session_id, LANE_START.kind))
-    if not lease_speaks_here(path):
-        return None
-    try:
-        if start is not None and start["inode"] == path.stat().st_ino:
-            return start["since"]
-    except FileNotFoundError:
-        pass
-    return None
+    with flocked(lane_lock_path(session_id)):
+        if not lease_speaks_here(lane_path(session_id)):
+            return None
+        start = LANE_START.read(session_file(session_id, LANE_START.kind))
+        return start["since"] if start is not None else None
 
 
 def _admitted(event: dict) -> float:

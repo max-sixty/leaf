@@ -15,7 +15,8 @@ def test_a_host_stages_retained_shadow_content_without_leaf(browser):
 </head><body><div id="host"><pre>authored input</pre></div>
 <script type="module">
 try {{
-  const {{ shadowStage }} = await import("/runtime/portable-api.js");
+  const {{ shadowStage, move, setChildren, setChildLists, keeps, keepsText }} =
+    await import("/runtime/portable-api.js");
   const host = document.querySelector("#host");
   const field = document.createElement("input");
   field.value = "reader's draft";
@@ -23,7 +24,8 @@ try {{
   field.focus();
   field.setSelectionRange(2, 5);
   const words = document.createElement("p");
-  words.textContent = "Replacement content";
+  keepsText(words, "Replacement content");
+  keeps(words, "aria-label", "Evidence");
   shadowStage(host, [words, field]);
   shadowStage(host, [field, words]);
   window.staged = {{
@@ -32,6 +34,21 @@ try {{
     value: field.value,
     selection: [field.selectionStart, field.selectionEnd],
     authoredChildren: host.childNodes.length,
+  }};
+  const left = document.createElement("section");
+  const right = document.createElement("section");
+  setChildren(host.shadowRoot, [left, right]);
+  move(left, field);
+  field.focus();
+  field.setSelectionRange(2, 5);
+  setChildLists([[left, [words]], [right, [field]]]);
+  setChildren(right, [words, field]);
+  window.reconciled = {{
+    retained: right.querySelector("input") === field,
+    focused: host.shadowRoot.activeElement === field,
+    value: field.value,
+    selection: [field.selectionStart, field.selectionEnd],
+    order: [...right.children].map(node => node.localName),
   }};
 }} catch (error) {{
   document.querySelector("#failure").textContent = error.stack;
@@ -49,5 +66,13 @@ try {{
             "selection": [2, 5],
             "authoredChildren": 0,
         }
+        assert page.evaluate("reconciled") == {
+            "retained": True,
+            "focused": True,
+            "value": "reader's draft",
+            "selection": [2, 5],
+            "order": ["p", "input"],
+        }
         expect(page.locator("#host p")).to_have_text("Replacement content")
+        expect(page.locator("#host p")).to_have_attribute("aria-label", "Evidence")
         assert page.evaluate("!window.lfRootState")

@@ -45,6 +45,8 @@ Preact Signals it exports `signal`, for private state a command's `when` reads
 A widget that must also run on a page without Leaf's runtime, such as a chart another
 app shows, imports only from `/runtime/portable-api.js`, the part of the helper
 surface any document can load; `widget-api.js` re-exports all of it.
+The retained-node and write helpers under “Rendering” are available through either
+surface too.
 The control constructors and template directives under “Generated controls”
 are portable too: use the same offers and generated-word markers on either host. The host maps
 `/runtime/` and `/vendor/` to a Leaf install with an import map of its own, as a Leaf

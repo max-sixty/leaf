@@ -91,3 +91,8 @@ export { threadSurface, releaseOutlets } from "./thread/surface-handles.js";
 export { canvas2D } from "./canvas.js";
 
 export { nameAction, namedAction, relabel, searchField } from "./control-labels.js";
+
+// Retained placement and writes need only the document that owns the nodes.
+export { move } from "./dom-move.js";
+export { setChildLists, setChildren, setRenderedChildren } from "./dom-children.js";
+export { atLayoutPrecision, keeps, keepsHidden, keepsText, layoutPx } from "./keeps.js";

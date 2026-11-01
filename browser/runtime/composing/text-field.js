@@ -284,7 +284,9 @@ afterPresentation(loadEditor);
 // `base` is the words the history starts from, which a `value` write sets and the
 // user's typing doesn't.
 class Draft {
+  /** @type {[() => void, () => void][]} */
   steps = [];
+  /** @param {string} text */
   constructor(text) {
     this.text = this.base = text;
     this.anchor = this.head = text.length;
@@ -293,9 +295,10 @@ class Draft {
 
 // The words a node of the empty line's place holds: its text, with a line for each
 // break.
+/** @param {Node} node @returns {string} */
 const placeWords = (node) =>
-  node.nodeType === Node.TEXT_NODE
-    ? /** @type {Text} */ (node).data
+  node instanceof Text
+    ? node.data
     : node.nodeName === "BR"
       ? "\n"
       : [...node.childNodes].map(placeWords).join("");
@@ -306,14 +309,18 @@ class LeafText extends HTMLElement {
   // building the editor hands it to the view that edits it from then on (`#build`),
   // and an editor destroyed as the field leaves the page hands back its state, undo
   // history included.
-  /** @type {Draft | ReturnType<FieldEditor["fieldState"]>} */
-  #model = new Draft("");
-  #view = null;
+  /** @typedef {InstanceType<FieldEditor["LeafEditorView"]>} FieldView */
+  /** @type {{kind: "draft", draft: Draft} | {kind: "state", state: import("@codemirror/state").EditorState, module: FieldEditor} | {kind: "view", view: FieldView, module: FieldEditor}} */
+  #content = { kind: "draft", draft: new Draft("") };
+  get #view() {
+    return this.#content.kind === "view" ? this.#content.view : null;
+  }
   // The empty line's place while the field has no editor, and the node focus lands on
   // there, whichever route brought it. While the editor loads, it holds the words, plain,
   // and takes what the user types (`#typeAtRest`).
   #rest = document.createElement("div");
   // The rendering hold of a field waiting for its editor to load (`#build`).
+  /** @type {(() => void) | null} */
   #waiting = null;
   // Whether an input method is composing in the empty line's place. The words it
   // holds are unfinished until it ends, so they join the draft, and the editor builds,
@@ -321,10 +328,10 @@ class LeafText extends HTMLElement {
   #composing = false;
   #nativeInput = false;
   #root;
-  #internals = null;
+  #internals = this.attachInternals();
   /** The element whose blocks a field editing words where they are shown shows them
    * as, such as a draft's prose; unset, the field draws a sent message's faces.
-   * @type {Element | null} */
+   * @type {HTMLElement | null} */
   facesOf = null;
   // The rules that draw the words in its blocks' faces (`readFaces`), as last read.
   #faces = new CSSStyleSheet();
@@ -344,11 +351,16 @@ class LeafText extends HTMLElement {
     // A new width can set the display's blocks in other faces, as a heading sized to
     // its container's width is.
     this.#readFaces();
-    const view = this.#view;
-    if (view?.hasFocus)
-      view.requestMeasure({
+    const content = this.#content;
+    if (content.kind === "view" && content.view.hasFocus)
+      content.view.requestMeasure({
         key: this,
-        read: () => this.#rowTravel(view, view.state.selection.main.head),
+        read: () =>
+          this.#rowTravel(
+            content.module,
+            content.view,
+            content.view.state.selection.main.head,
+          ),
         write: (travel) => moveScrollerBy(this, travel),
       });
   });
@@ -356,8 +368,9 @@ class LeafText extends HTMLElement {
   // How far the host scrolls to show the row holding `pos` whole, its leading as well
   // as the caret, inside the host's padding (see the header). The words wrap, so the
   // host scrolls only down and up.
-  #rowTravel(view, pos) {
-    const { destination, rectangle: caret } = view.caretAt(pos);
+  /** @param {FieldEditor} module @param {import("@codemirror/view").EditorView} view @param {number} pos */
+  #rowTravel(module, view, pos) {
+    const { destination, rectangle: caret } = module.LeafEditorView.caretAt(view, pos);
     const node =
       destination instanceof Range ? destination.startContainer : destination;
     const row =
@@ -401,7 +414,9 @@ class LeafText extends HTMLElement {
   #overflow = sizeObserver(() => this.#measureOverflow());
 
   #measureOverflow() {
-    this.#view?.requestMeasure({
+    const content = this.#content;
+    if (content.kind !== "view") return;
+    content.view.requestMeasure({
       key: this.#overflow,
       // Words, not the host's padding, run past an edge.
       read: (view) => {
@@ -412,7 +427,7 @@ class LeafText extends HTMLElement {
           below:
             this.scrollTop + this.clientHeight <
             this.scrollHeight - Number.parseFloat(style.paddingBottom) - 1,
-          corner: this.#cornerTaken(view, style),
+          corner: this.#cornerTaken(content.module, view, style),
         };
       },
       write: (reading) => {
@@ -420,11 +435,13 @@ class LeafText extends HTMLElement {
         // An attribute invalidates the field's CSS at the same layout boundary.
         if (this.hasAttribute("data-scrolls") !== reading.scrolls)
           this.toggleAttribute("data-scrolls", reading.scrolls);
-        for (const [state, on] of [
+        /** @type {readonly (readonly [string, boolean])[]} */
+        const states = [
           ["more-above", reading.scrolls && reading.above],
           ["more-below", reading.scrolls && reading.below],
           ["corner-taken", reading.corner],
-        ]) {
+        ];
+        for (const [state, on] of states) {
           // Adding a state already set restyles all the same, on every scrolled frame.
           if (this.#internals.states.has(state) === on) continue;
           if (on) this.#internals.states.add(state);
@@ -448,7 +465,8 @@ class LeafText extends HTMLElement {
   // the words as drawn, which nothing reads again when the tween ends: a line removed
   // left Send over the words the carry brought down to it, and a line added left the
   // corner free with Send hidden.
-  #cornerTaken(view, style) {
+  /** @param {FieldEditor} module @param {import("@codemirror/view").EditorView} view @param {CSSStyleDeclaration} style */
+  #cornerTaken(module, view, style) {
     const size = Number.parseFloat(style.getPropertyValue("--lf-field-corner"));
     if (!(size > 0)) return false;
     const { scaleX, scaleY } = view;
@@ -466,6 +484,7 @@ class LeafText extends HTMLElement {
     const right = rtl ? box.left + size * scaleX : box.right;
     const top = box.bottom - size * scaleY;
     const middle = box.bottom - (size * scaleY) / 2;
+    /** @param {import("../rect.js").Box} rect @param {number} leading */
     const reaches = (rect, leading) =>
       rect.left < right &&
       rect.right > left &&
@@ -481,7 +500,10 @@ class LeafText extends HTMLElement {
         if (reaches(rect, Math.max(0, (height - rect.height) / 2) || 0)) return true;
     }
     if (!view.hasFocus) return false;
-    const { rectangle: caret } = view.caretAt(view.state.selection.main.head);
+    const { rectangle: caret } = module.LeafEditorView.caretAt(
+      view,
+      view.state.selection.main.head,
+    );
     const { left: x, top: y, bottom: foot } = caret;
     return reaches({ left: x, right: x + 1, top: y, bottom: foot }, 0);
   }
@@ -533,13 +555,14 @@ class LeafText extends HTMLElement {
   // input method finishes. Return asks its owner first, as in the editor, whether it
   // may make a new line; Shift+Return, a line break, does unless the field holds one
   // line (`#oneLine`).
+  /** @param {Event} event */
   #typeAtRest(event) {
-    if (this.#view || !(this.#model instanceof Draft)) return;
+    if (this.#content.kind !== "draft") return;
     if (event.type === "compositionstart") {
       this.#composing = true;
       return;
     }
-    if (event.type === "beforeinput") {
+    if (event instanceof InputEvent && event.type === "beforeinput") {
       if (
         this.#readOnly ||
         (event.inputType === "insertParagraph" && !this.#returned()) ||
@@ -549,8 +572,9 @@ class LeafText extends HTMLElement {
       return;
     }
     if (event.type === "compositionend") this.#composing = false;
-    else if (this.#composing || /** @type {InputEvent} */ (event).isComposing) return;
-    this.#readRest();
+    else if (this.#composing || (event instanceof InputEvent && event.isComposing))
+      return;
+    this.#readRest(this.#content.draft);
     this.#paintEmpty();
     this.#emit("input");
     if (event.type === "compositionend" && editor) this.#build();
@@ -559,12 +583,15 @@ class LeafText extends HTMLElement {
   // Takes the words and caret of the empty line's place into the draft. The last
   // break only holds an empty last line open, and a one-line field takes a pasted
   // line break as a space, as its editor does.
-  #readRest() {
+  /** @param {Draft} draft */
+  #readRest(draft) {
     const words = placeWords(this.#rest);
     const kept = this.#rest.lastChild?.nodeName === "BR" ? words.slice(0, -1) : words;
     const text = this.#oneLine ? kept.replaceAll("\n", " ") : kept;
     const selection = this.#selection();
+    if (!selection) return;
     const [range] = selection.getComposedRanges({ shadowRoots: [this.#root] });
+    /** @param {Node} node @param {number} offset */
     const at = (node, offset) => {
       if (!this.#rest.contains(node)) return text.length;
       const before = document.createRange();
@@ -575,7 +602,7 @@ class LeafText extends HTMLElement {
     const from = range ? at(range.startContainer, range.startOffset) : text.length;
     const to = range ? at(range.endContainer, range.endOffset) : text.length;
     const backward = selection.direction === "backward";
-    Object.assign(this.#model, {
+    Object.assign(draft, {
       text,
       anchor: backward ? to : from,
       head: backward ? from : to,
@@ -598,6 +625,7 @@ class LeafText extends HTMLElement {
     const shown = placeWords(this.#rest).slice(0, last ? -1 : undefined) === text;
     // Placing the caret needs the words as one text node, a break after them where
     // the last line is empty, as this writes them.
+    /** @param {Node | null} node */
     const plain = (node) => node?.nodeType === Node.TEXT_NODE;
     const one =
       this.#rest.childNodes.length === (text ? 1 : 0) + Number(last) &&
@@ -610,13 +638,15 @@ class LeafText extends HTMLElement {
     this.#placeRestCaret(here);
   }
 
+  /** @param {boolean} here */
   #placeRestCaret(here) {
     if (!here) return;
     const { anchor, head } = this.#range;
     const words = this.#rest.firstChild;
-    if (words.nodeType === Node.TEXT_NODE)
-      this.#selection().setBaseAndExtent(words, anchor, words, head);
-    else this.#selection().setBaseAndExtent(this.#rest, 0, this.#rest, 0);
+    const selection = this.#selection();
+    if (!selection) return;
+    if (words instanceof Text) selection.setBaseAndExtent(words, anchor, words, head);
+    else selection.setBaseAndExtent(this.#rest, 0, this.#rest, 0);
   }
 
   #returned() {
@@ -624,7 +654,8 @@ class LeafText extends HTMLElement {
   }
 
   // The hooks the editor's state calls (`fieldState`).
-  #hooks() {
+  /** @param {FieldEditor} module @returns {import("./field-editor.js").FieldConfiguration} */
+  #hooks(module) {
     return {
       readOnly: this.#readOnly,
       attributes: this.#contentAttributes(),
@@ -632,7 +663,7 @@ class LeafText extends HTMLElement {
       oneLine: () => this.#oneLine,
       // The caret counts toward the corner only while it shows.
       focused: () => this.#measureOverflow(),
-      revealed: (view, pos) => moveScrollerBy(this, this.#rowTravel(view, pos)),
+      revealed: (view, pos) => moveScrollerBy(this, this.#rowTravel(module, view, pos)),
       typed: (native, insert) => {
         this.#nativeInput = native;
         try {
@@ -647,7 +678,12 @@ class LeafText extends HTMLElement {
   // The field's model as it stands: the editor's state, the state a destroyed editor
   // left, or the draft.
   get #state() {
-    return this.#view?.state ?? this.#model;
+    const content = this.#content;
+    return content.kind === "view"
+      ? content.view.state
+      : content.kind === "state"
+        ? content.state
+        : content.draft;
   }
   get #text() {
     const state = this.#state;
@@ -665,14 +701,20 @@ class LeafText extends HTMLElement {
 
   /** Applies a change to the editor, to the state a destroyed editor left, or, before
    * the field has an editor, to its draft (`draft`). `spec` reads the editor module.
-   * @param {(module: FieldEditor) => object} spec
+   * @param {(module: FieldEditor) => import("@codemirror/state").TransactionSpec} spec
    * @param {(draft: Draft) => unknown} [draft] */
   #change(spec, draft = () => {}) {
-    if (this.#view) this.#view.dispatch(spec(editor));
-    else if (this.#model instanceof Draft) draft(this.#model);
-    else this.#model = this.#model.update(spec(editor)).state;
+    const content = this.#content;
+    if (content.kind === "view") content.view.dispatch(spec(content.module));
+    else if (content.kind === "draft") draft(content.draft);
+    else
+      this.#content = {
+        ...content,
+        state: content.state.update(spec(content.module)).state,
+      };
   }
 
+  /** @param {string} name */
   attributeChangedCallback(name) {
     if (name === "placeholder") this.#placeholderText.data = this.placeholder;
     if (name === "aria-describedby") return this.#describe();
@@ -698,7 +740,6 @@ class LeafText extends HTMLElement {
     // A tab stop, as a textarea is: delegation already stops Tab in the words, and a
     // host reading -1 is one every stop-counting walk would miss.
     if (!this.hasAttribute("tabindex")) this.tabIndex = 0;
-    this.#internals ??= this.attachInternals();
     this.#root.adoptedStyleSheets = [sheet, this.#faces];
     if (this.#length) this.#build();
     else this.#describe();
@@ -737,17 +778,18 @@ class LeafText extends HTMLElement {
   // with the user's focus there, so what they type meanwhile is the editor's first words
   // (`#typeAtRest`).
   #build() {
-    if (this.#view) return;
+    if (this.#content.kind === "view") return;
     if (!editor) {
       this.#paintRest();
       if (this.#waiting) return;
-      this.#waiting = holdRendering();
+      const release = holdRendering();
+      this.#waiting = release;
       // The hold covers the load. An input method still composing as it lands holds
       // the build until it ends, which waits on the user rather than on the page.
       void loadEditor()
         .then(() => this.isConnected && this.#build())
         .finally(() => {
-          this.#waiting();
+          release();
           this.#waiting = null;
         });
       return;
@@ -755,19 +797,19 @@ class LeafText extends HTMLElement {
     // An input method composing in the empty line's place builds the editor as it
     // ends (`#typeAtRest`).
     if (this.#composing) return;
-    if (this.#model instanceof Draft && this.#root.activeElement === this.#rest)
-      this.#readRest();
+    if (this.#content.kind === "draft" && this.#root.activeElement === this.#rest)
+      this.#readRest(this.#content.draft);
     // A field that stands where its words are shown takes their faces from there, read
     // as the editor builds: the field is in place, and nothing has drawn its words yet.
     this.#readFaces();
     const module = editor;
-    this.#view = new module.LeafEditorView({
+    const view = new module.LeafEditorView({
       root: this.#root,
       parent: this.#frame,
       state:
-        this.#model instanceof Draft
-          ? module.fieldState(this.#model, this.#hooks())
-          : this.#model,
+        this.#content.kind === "draft"
+          ? module.fieldState(this.#content.draft, this.#hooks(module))
+          : this.#content.state,
       // Dispatched word changes are the user's. The value setter updates the view
       // directly and silently; an owner's `record` changes no words.
       dispatchTransactions: (transactions, view) => {
@@ -782,28 +824,29 @@ class LeafText extends HTMLElement {
           this.dispatchEvent(new Event("lf-caret-move", { bubbles: true }));
       },
     });
-    this.#model = null;
+    this.#content = { kind: "view", view, module };
     this.#sizes.observe(this);
     this.#overflow.observe(this);
     // The host can keep the same height when a long draft shrinks. Watch the words'
     // box too: its height changes even when the scroller's viewport does not.
-    this.#overflow.observe(this.#view.contentDOM);
+    this.#overflow.observe(view.contentDOM);
     // The scroller is focusable only so a press on it keeps focus in the editor, and
     // the field's scroller never scrolls; left focusable it is the node the root
     // delegates focus to, which holds no caret.
-    this.#view.scrollDOM.removeAttribute("tabindex");
+    view.scrollDOM.removeAttribute("tabindex");
     this.#describe();
     // Focus that landed on the empty line's place moves on into the words, in that
     // place's `focusin`, which goes on to reach the page as the field's.
     if (this.#root.activeElement === this.#rest) {
-      this.#view.contentDOM.focus({ preventScroll: true });
-      this.#view.placeSelection();
+      view.contentDOM.focus({ preventScroll: true });
+      view.placeSelection();
     }
     this.#rest.hidden = true;
     this.#paintRest();
     this.#measureOverflow();
   }
 
+  /** @param {string} type */
   #emit(type) {
     this.dispatchEvent(new Event(type, { bubbles: true, composed: true }));
   }
@@ -818,12 +861,16 @@ class LeafText extends HTMLElement {
       if (this.isConnected) return;
       this.#internals.states.delete("ready");
       this.#internals.states.delete("corner-taken");
-      if (!this.#view) return;
-      this.#model = this.#view.state;
+      const content = this.#content;
+      if (content.kind !== "view") return;
+      this.#content = {
+        kind: "state",
+        state: content.view.state,
+        module: content.module,
+      };
       this.#sizes.disconnect();
       this.#overflow.disconnect();
-      this.#view.destroy();
-      this.#view = null;
+      content.view.destroy();
       this.#rest.hidden = false;
     });
   }
@@ -831,12 +878,7 @@ class LeafText extends HTMLElement {
   #describe() {
     if (!this.isConnected) return;
     const content = this.#view?.contentDOM ?? this.#rest;
-    const root = /** @type {Document | ShadowRoot} */ (this.getRootNode());
-    const described = (this.getAttribute("aria-describedby") ?? "")
-      .split(/\s+/)
-      .filter(Boolean)
-      .map((id) => root.getElementById(id))
-      .filter(Boolean);
+    const described = this.ariaDescribedByElements ?? [];
     const current = content.ariaDescribedByElements ?? [];
     if (
       described.length !== current.length ||
@@ -848,6 +890,7 @@ class LeafText extends HTMLElement {
   // The editor adapter places its recorded caret without native scrolling. The
   // field reveals itself separately when its caller requests ordinary focus. While
   // the editor loads, the user stands in the empty line's place.
+  /** @param {FocusOptions} [options] */
   focus(options) {
     if (!this.isConnected) return;
     this.#build();
@@ -864,6 +907,7 @@ class LeafText extends HTMLElement {
   // A press on the box outside the editor's own area — its padding — lands in the words
   // at the nearest character, the way a textarea's does. Presses inside the editor are
   // CodeMirror's to place.
+  /** @param {MouseEvent} event */
   #pressPadding(event) {
     if (event.button !== 0) return;
     if (!this.#view) {
@@ -878,6 +922,7 @@ class LeafText extends HTMLElement {
     const { clientX: x, clientY: y } = event;
     if (x >= area.left && x < area.right && y >= area.top && y < area.bottom) return;
     event.preventDefault();
+    /** @param {number} value @param {number} low @param {number} high */
     const clamp = (value, low, high) => Math.min(Math.max(value, low), high - 1);
     const at = this.#view.posAtCoords(
       { x: clamp(x, area.left, area.right), y: clamp(y, area.top, area.bottom) },
@@ -892,6 +937,7 @@ class LeafText extends HTMLElement {
   }
 
   #contentAttributes() {
+    /** @type {Record<string, string>} */
     const attributes = {
       spellcheck: "true",
       autocorrect: "on",
@@ -913,6 +959,7 @@ class LeafText extends HTMLElement {
     return this.#text;
   }
 
+  /** @param {string} text */
   edit(text) {
     text = String(text).replace(/\r\n?/g, "\n");
     if (text === this.value) return;
@@ -937,6 +984,7 @@ class LeafText extends HTMLElement {
 
   // Records a change the owner has just made outside the words as a step of the words'
   // history, standing alone: taking the step back calls `undo`, redoing it calls `redo`.
+  /** @param {() => void} undo @param {() => void} redo */
   record(undo, redo) {
     this.#change(
       (module) => module.record(undo, redo),
@@ -969,8 +1017,9 @@ class LeafText extends HTMLElement {
     text = String(text ?? "").replace(/\r\n?/g, "\n");
     if (text === this.value) return;
     if (!this.#view && this.isConnected) this.#build();
-    if (!this.#view) {
-      this.#model = new Draft(text);
+    const storage = this.#content;
+    if (storage.kind !== "view") {
+      this.#content = { kind: "draft", draft: new Draft(text) };
       if (!this.isConnected) return;
       this.#paintRest();
       this.#paintEmpty();
@@ -978,19 +1027,20 @@ class LeafText extends HTMLElement {
     }
     // Loading another draft ends the old native composition. Deactivating its
     // attachment resets the platform's replacement range without moving focus.
-    const content = this.#view.contentDOM;
-    const composing = this.#view.composing && content.editContext;
+    const { module, view } = storage;
+    const content = view.contentDOM;
+    const composing = view.composing && content.editContext;
     if (composing) content.editContext = null;
     // Updating the live view keeps its native input context in sync with the words.
     // Remove and restore history in successive states so the loaded draft starts it
     // empty, while both transactions paint together and announce no user edit.
-    const reset = this.#view.state.update({
-      changes: { from: 0, to: this.#view.state.doc.length, insert: text },
+    const reset = view.state.update({
+      changes: { from: 0, to: view.state.doc.length, insert: text },
       selection: { anchor: text.length },
-      ...editor.forgetHistory,
+      ...module.forgetHistory,
     });
-    const fresh = reset.state.update(editor.startHistory());
-    this.#view.update([reset, fresh]);
+    const fresh = reset.state.update(module.startHistory());
+    view.update([reset, fresh]);
     if (composing) content.editContext = composing;
     this.#paintEmpty();
     this.#measureOverflow();
@@ -1010,6 +1060,7 @@ class LeafText extends HTMLElement {
   }
   // A textarea's clamping: each end within the words, and a start past the end moved to
   // the end.
+  /** @param {number} start @param {number} end @param {"none" | "forward" | "backward"} [direction] */
   setSelectionRange(start, end, direction = "none") {
     const length = this.#length;
     const to = Math.min(Math.max(Number(end) || 0, 0), length);

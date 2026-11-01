@@ -85,6 +85,7 @@ import {
 import { seenRect } from "./geometry.js";
 import { inChrome } from "./passages.js";
 import { byRenderedOrder, under } from "./shadow.js";
+import { hasObligationSource } from "./obligations/source.js";
 import { obligationWord } from "./obligations/answer.js";
 import { answeredInWords, readObligations } from "./obligations/model.js";
 import { obligationsIn, obligationPlace, subjectPlace } from "./obligations/place.js";
@@ -100,6 +101,20 @@ import { effect, untracked } from "/runtime/framework.js";
 import { retainUserIntent } from "./user-intent.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
 
+/** @typedef {import("./queue-api.js").CurrentQueueItem} QueueItem
+ * @typedef {import("./obligations/answer.js").AnswerableObligation} Obligation
+ * @typedef {import("../types/contract.js").ServedPlanStep} PlanStep
+ * @typedef {import("./current-target.js").WalkOrigin} Origin
+ * @typedef {import("./keyboard/bindings.js").Step} Step
+ * @typedef {{kind: "obligation", id: string, thread: string | null, obligation: Obligation}
+ * | {kind: "thread", id: string, thread: string, message: string | null}
+ * | {kind: "subject", id: string, subject: import("../types/contract.js").ServedSubject, thread: null}} Stop
+ * @typedef {Stop & {key: string, noun: string}} QueueStop
+ * @typedef {QueueStop & {place: Element | null}} PlacedStop
+ * @typedef {"place" | "kind" | "plan"} Grouping
+ * @typedef {ReturnType<typeof import("./anchor-travel.js").createAnchorTravel>} Travel
+ */
+
 const QUALIFIER = "waiting on me";
 const WITHIN = "waiting on me here";
 const NOUNS = Object.freeze({
@@ -109,12 +124,15 @@ const NOUNS = Object.freeze({
 // What a stop is called: an obligation by its widget's own word, else by where it is arrived
 // at, but the agent's to-do is a To-do rather than the Update a subject's stop otherwise
 // is.
+/** @param {QueueItem} item @param {Stop} stop */
 const nounOf = (item, stop) =>
   carriesObligation(item)
     ? obligationWord(item.obligation)
     : stop.kind === "subject" && itemNoun(item) === "todo"
       ? "To-do"
-      : NOUNS[stop.kind];
+      : stop.kind === "obligation"
+        ? obligationWord(stop.obligation)
+        : NOUNS[stop.kind];
 
 // Where an item of either list, or one that is done, is arrived at: an obligation by its
 // own id, but in a thread only a widget's answered by its controls, since a question
@@ -122,6 +140,7 @@ const nounOf = (item, stop) =>
 // thread it stands in; or else where its subject stands (`subjectPlace`), as an action
 // handed back is arrived at on the widget it was made on and the agent's to-do at its
 // element or the page's head.
+/** @param {QueueItem} item @returns {Stop} */
 const stopOf = (item) =>
   carriesObligation(item) && (item.thread === null || item.kind === "widget")
     ? {
@@ -139,23 +158,27 @@ const stopOf = (item) =>
         }
       : {
           kind: "subject",
-          id: item.subject.id ?? item.subject.kind,
+          id: item.subject.kind === "page" ? item.subject.kind : item.subject.id,
           subject: item.subject,
           thread: null,
         };
+/** @param {Stop} a @param {Stop} b */
 const sameStop = (a, b) => a.kind === b.kind && a.id === b.id;
 
 // An item as the walk reads it: where it is arrived at, the key the walk's position
 // names that stop by, and what the walk calls it. An On me card reads the same, so it
 // knows when the walk stands on it, and By kind groups by what the walk calls it.
+/** @param {QueueItem} item @returns {QueueStop} */
 export function queueStop(item) {
   const stop = stopOf(item);
   return { ...stop, key: `${stop.kind}:${stop.id}`, noun: nounOf(item, stop) };
 }
 
 // On me's groupings, in the order its chooser offers them, and the one the user chose.
+/** @type {readonly Grouping[]} */
 export const ON_ME_GROUPINGS = Object.freeze(["place", "kind", "plan"]);
 const chosenGrouping = userChoice("lf-on-me-grouping", ON_ME_GROUPINGS);
+/** @param {Grouping} grouping */
 export const groupingLabel = (grouping) =>
   grouping === "plan"
     ? `By ${agentName()}`
@@ -164,12 +187,22 @@ export const groupingLabel = (grouping) =>
       : "By place";
 // The ids of the items a plan step names, its own and its steps', in the plan's order;
 // and whether a step, or one under it, is the user's.
+/** @param {PlanStep} step @returns {string[]} */
 const namedIn = (step) => [
   ...(step.item ? [step.item.id] : []),
   ...step.steps.flatMap(namedIn),
 ];
+/** @param {PlanStep} step @returns {boolean} */
 const givesUser = (step) => step.owner === "user" || step.steps.some(givesUser);
 
+/** @param {{
+ * arriveAtRecord: ReturnType<typeof import("./obligations/view.js").createObligationView>["arriveAtRecord"],
+ * arriveAtThread: ReturnType<typeof import("./navigation.js").createNavigation>["arriveAtThread"],
+ * threadPlace: (id: string) => Element | null,
+ * prepareNavigationStep: Travel["prepareNavigationStep"], arrive: Travel["arrive"],
+ * readableDestination: Travel["readableDestination"], announce: typeof import("./notifications.js").announce,
+ * actions: ReturnType<typeof import("./queue-api.js").createQueueActions>
+ * }} dependencies */
 export function createQueueWalk({
   arriveAtRecord,
   arriveAtThread,
@@ -181,6 +214,7 @@ export function createQueueWalk({
   actions,
 }) {
   // The element a stop stands at on the page, if it has one.
+  /** @param {Stop} stop */
   const stopElement = (stop) =>
     stop.kind === "obligation"
       ? stop.thread !== null
@@ -191,6 +225,7 @@ export function createQueueWalk({
         : subjectPlace(stop.subject);
 
   // Where a stop stands on the page, if anywhere.
+  /** @param {Stop} stop */
   const pagePlace = (stop) => {
     const at = stopElement(stop);
     return at?.isConnected && !inChrome(at) ? at : null;
@@ -198,6 +233,7 @@ export function createQueueWalk({
 
   // Items of any list in the walk's order: by where each is arrived at on the page, and
   // those with no place there after, in the list's own order.
+  /** @template {QueueItem} T @param {readonly T[]} items */
   const inWalkOrder = (items) =>
     byRenderedOrder(items, (item) => pagePlace(queueStop(item)));
 
@@ -207,10 +243,12 @@ export function createQueueWalk({
     chosenGrouping.read() ??
     ((readPlan()?.steps ?? []).some(givesUser) ? "plan" : "place");
   // The heading of the part of the page an item stands in, and what it says.
+  /** @param {QueueItem} item */
   const itemHeading = (item) => {
     const at = pagePlace(queueStop(item));
     return at ? partOver(at) : null;
   };
+  /** @param {QueueItem} item */
   const itemPlace = (item) => {
     const heading = itemHeading(item);
     return heading ? addressableLabel(heading) : "";
@@ -238,6 +276,7 @@ export function createQueueWalk({
   // draws on another item's card (`carried`, record ids), so a question a decision's
   // card carries, standing on a row of its own once the decision is answered, moves no
   // group while the card holds it.
+  /** @param {readonly QueueItem[]} items @param {Grouping} by @param {Set<string>} carried */
   function onMeGroups(items, by = grouping(), carried = new Set()) {
     const keyed = new Map(
       [...heldOnMe().filter((item) => !carried.has(item.id)), ...items].map((item) => [
@@ -246,77 +285,90 @@ export function createQueueWalk({
       ]),
     );
     const basis = inWalkOrder([...keyed.values()]);
-    const goals = by === "plan" ? (readPlan()?.steps ?? []) : [];
-    const named = goals.map(namedIn);
-    const groupOf = (item) => {
-      if (by === "kind") return queueStop(item).noun;
-      if (by !== "plan") return itemHeading(item);
-      const at = named.findIndex((ids) => ids.includes(item.id));
-      return at < 0 ? goals.length : at;
-    };
-    // Group by group, the place it stands at: a goal by the plan, with those no goal
-    // names after it, else where the first item it holds comes.
-    const order = new Map();
-    if (by === "plan") for (let at = 0; at <= goals.length; at += 1) order.set(at, at);
-    for (const item of basis) {
-      const group = groupOf(item);
-      if (!order.has(group)) order.set(group, order.size);
+    /** @typedef {{key: string | Element, title: string, order: number, named: string[] | null,
+     * held: {rank: number, items: QueueItem[]}[]}} Group */
+    /** @type {Map<string | Element | null, Group>} */
+    const groups = new Map();
+    /** @param {string | Element | null} identity @param {string | Element} key
+     * @param {string} title @param {string[] | null} named */
+    function group(identity, key, title, named = null) {
+      const previous = groups.get(identity);
+      if (previous) return previous;
+      /** @type {Group} */
+      const created = { key, title, order: groups.size, named, held: [] };
+      groups.set(identity, created);
+      return created;
     }
+    const goals = by === "plan" ? (readPlan()?.steps ?? []) : [];
+    const planGroups = goals.map((goal, at) =>
+      group(`goal:${at}`, `goal:${at}`, goal.title ?? `Goal ${at + 1}`, namedIn(goal)),
+    );
+    const unplanned =
+      by === "plan"
+        ? group(`goal:${goals.length}`, `goal:${goals.length}`, "Not in the plan")
+        : null;
+    /** @param {QueueItem} item */
+    const groupOf = (item) => {
+      if (unplanned)
+        return planGroups.find((held) => held.named?.includes(item.id)) ?? unplanned;
+      if (by === "kind") {
+        const noun = queueStop(item).noun;
+        return group(noun, `kind:${noun}`, noun);
+      }
+      const heading = itemHeading(item);
+      return group(
+        heading,
+        heading ?? "place",
+        heading ? addressableLabel(heading) : "The whole page",
+      );
+    };
+    // The basis establishes group order before the visible items select their seats.
+    for (const item of basis) groupOf(item);
+    /** @type {Map<string, {at: number, items: QueueItem[]}>} */
     const stops = new Map();
     basis.forEach((item, at) => {
       const key = queueStop(item).key;
-      if (!stops.has(key)) stops.set(key, { at, items: [] });
-      stops.get(key).items.push(item);
+      const previous = stops.get(key);
+      if (previous) previous.items.push(item);
+      else stops.set(key, { at, items: [item] });
     });
     const shown = new Set(items.map(queueItemKey));
-    const groups = new Map();
-    // The first item a group lists of each stop, which alone wears the walk's ring.
+    /** @type {Set<QueueItem>} */
     const leads = new Set();
     for (const stop of stops.values()) {
       const listed = stop.items.filter((item) => shown.has(queueItemKey(item)));
-      if (!listed.length) continue;
-      leads.add(listed[0]);
-      const group = stop.items
+      const lead = listed[0];
+      if (!lead) continue;
+      leads.add(lead);
+      const seat = stop.items
         .map(groupOf)
-        .reduce((first, next) => (order.get(next) < order.get(first) ? next : first));
-      const rank =
-        by === "plan" && group < goals.length
-          ? Math.min(
-              ...stop.items
-                .map((item) => named[group].indexOf(item.id))
-                .filter((at) => at >= 0),
-            )
-          : stop.at;
-      if (!groups.has(group)) groups.set(group, []);
-      groups.get(group).push({ rank, items: listed });
+        .reduce(
+          (first, next) => (next.order < first.order ? next : first),
+          groupOf(lead),
+        );
+      const named = seat.named;
+      const rank = named
+        ? Math.min(
+            ...stop.items.map((item) => named.indexOf(item.id)).filter((at) => at >= 0),
+          )
+        : stop.at;
+      seat.held.push({ rank, items: listed });
     }
-    return [...groups.entries()]
-      .sort(([a], [b]) => order.get(a) - order.get(b))
-      .map(([group, held]) => ({
-        key:
-          by === "plan"
-            ? `goal:${group}`
-            : by === "kind"
-              ? `kind:${group}`
-              : (group ?? "place"),
-        title:
-          by === "plan"
-            ? group < goals.length
-              ? (goals[group].title ?? `Goal ${group + 1}`)
-              : "Not in the plan"
-            : by === "kind"
-              ? group
-              : group
-                ? addressableLabel(group)
-                : "The whole page",
-        items: held.sort((a, b) => a.rank - b.rank).flatMap((stop) => stop.items),
+    return [...groups.values()]
+      .filter((group) => group.held.length)
+      .map((group) => ({
+        key: group.key,
+        title: group.title,
+        items: group.held.sort((a, b) => a.rank - b.rank).flatMap((stop) => stop.items),
         leads,
       }));
   }
 
   // The walk's stops among `items`, in their order: an item's stop, once, where its
   // first item stands.
+  /** @param {readonly QueueItem[]} items */
   function stopsAmong(items) {
+    /** @type {PlacedStop[]} */
     const list = [];
     const listed = new Set();
     for (const item of items) {
@@ -338,12 +390,14 @@ export function createQueueWalk({
 
   // The stops of a walk within `region`: the obligations waiting on the user it holds,
   // in page order whatever On me's grouping, as the region is read on the page.
+  /** @param {Element} region */
   function stopsWithin(region) {
     const held = new Set(obligationsIn(region).map((item) => item.id));
     return stopsAmong(inWalkOrder(readQueues().on_user)).filter(
       (stop) => stop.kind === "obligation" && held.has(stop.id),
     );
   }
+  /** @param {Element | null | undefined} region */
   const stopsOf = (region) => (region ? stopsWithin(region) : stops());
 
   // The item the user is on, if any: the thread holding them, else the innermost of the
@@ -357,6 +411,7 @@ export function createQueueWalk({
   // obligation. `origin` names the user's place unless a walk supplies its own starting
   // point; only a current location can be on a stop, so a place they let go of or a
   // reading in the viewport starts a walk but selects no task to finish or count.
+  /** @param {readonly PlacedStop[]} list @param {Origin | null} origin */
   function currentLocationStop(list, origin = currentLocationOrigin()) {
     if (origin?.kind !== "current-location") return null;
     const thread = drawnThreadId(threadIn(origin.node));
@@ -370,6 +425,7 @@ export function createQueueWalk({
   }
 
   // The obligation or subject stop holding the user's place, if any.
+  /** @param {readonly PlacedStop[]} list @param {Origin} origin */
   function placeStop(list, { place: here }) {
     const listed = list.filter((stop) => stop.kind === "obligation");
     const item = obligationHolding(
@@ -392,6 +448,7 @@ export function createQueueWalk({
   // current-target.js). Within a region, a place outside it enters at the end the step
   // faces. `enter` starts inside a selected tab's panel; `at` starts at a visible obligation
   // without stepping off it.
+  /** @param {readonly PlacedStop[]} list @param {Step} dir @param {Element | null} region @param {Origin} origin */
   function step(list, dir, region, origin) {
     // Outside the region nothing the user is on is one of its stops, even where the
     // press sits inside the lf-ask around an obligation.
@@ -403,6 +460,7 @@ export function createQueueWalk({
 
   // What no owner arrives at, such as a page widget action handed back to the user,
   // travel arrives at where its subject stands.
+  /** @param {() => Element | null} find */
   function arriveAtElement(find) {
     const intent = retainUserIntent({ available: () => Boolean(find()) });
     const where = find();
@@ -426,10 +484,13 @@ export function createQueueWalk({
 
   // An answered obligation is arrived at the same way, which is how On me's Done
   // rows return the user to one to review or revise it.
+  /** @param {Stop} stop */
   function arriveAt(stop) {
     if (stop.kind === "obligation") {
       const record = readObligations().all.find((item) => item.id === stop.id);
-      return record ? arriveAtRecord(record) : Promise.resolve(false);
+      return record && !hasObligationSource(record, "update")
+        ? arriveAtRecord(record)
+        : Promise.resolve(false);
     }
     if (stop.kind === "thread") return arriveAtThread(stop.id, stop.message);
     return arriveAtElement(() => stopElement(stop));
@@ -437,18 +498,23 @@ export function createQueueWalk({
 
   // Where the walk stands in the whole list, and the kind of item it stands on: the
   // count is of every kind, so the kind follows it rather than naming the list.
+  /** @param {Element | null} region */
   function position(region) {
     const list = stopsOf(region);
     const here = currentLocationStop(list);
     const at = listWalkPosition(list, here, { identity: (stop) => stop.key });
-    return at && { ...at, qualifier: `${region ? WITHIN : QUALIFIER} · ${here.noun}` };
+    return at && here
+      ? { ...at, qualifier: `${region ? WITHIN : QUALIFIER} · ${here.noun}` }
+      : null;
   }
 
   // Resolves whether it arrived.
+  /** @param {Step} dir @param {Element | null} region @param {Origin} origin */
   function walk(dir, region = null, origin = walkOrigin()) {
     const list = stopsOf(region);
     if (!list.length) return Promise.resolve(false);
     const next = step(list, dir, region, origin);
+    if (!next) return Promise.resolve(false);
     // The walk reads the current destination, so begin it once the arrival has moved
     // focus. A failed arrival has not arrived and must not register the prior item as
     // this walk's destination.
@@ -470,6 +536,7 @@ export function createQueueWalk({
   }
 
   // The to-do Done ends where the user is on `stop`.
+  /** @param {Stop | null | undefined} stop */
   const doneAt = (stop) =>
     stop
       ? (readQueues().on_user.find(
@@ -482,6 +549,7 @@ export function createQueueWalk({
 
   // The user's Done on a to-do on them: their `todo_end`, through the one append door.
   // The to-do leaves On me in the turn they press it (`framework/application.js`).
+  /** @param {string} id */
   function endTodo(id) {
     return actions.done(queueItemKey({ kind: "todo", id }));
   }
@@ -494,6 +562,7 @@ export function createQueueWalk({
       .join(" ");
   let wasOffered = false;
   let wasDoneable = "";
+  /** @type {(() => void) | null} */
   let watching = null;
   // The m/M row stands on On me, and Done on the to-dos it holds, so the surfaces
   // reading them are repainted where the list empties or fills or those to-dos change.
@@ -532,7 +601,7 @@ export function createQueueWalk({
     // down a level, so the current scope lets go of whichever one they end on. An item
     // reached through the panel leaves the panel a level of its own on the way out,
     // whether this walk opened it or the user already had it.
-    run: (binding) => walk(binding === "m" ? 1 : -1),
+    runKey: (binding) => walk(binding === "m" ? 1 : -1),
   });
 
   // Standing on a to-do the user ends with Done, wherever Show, `m`, a click or Tab put
@@ -540,7 +609,7 @@ export function createQueueWalk({
   // of the panel's row, whose field names the to-do (touch-controls.js).
   pageScope("todo", {
     title: "On a to-do waiting on me",
-    says: () => `To-do · ${doneTodo()?.obligation.prompt.text ?? ""}`,
+    says: () => `To-do · ${doneTodo()?.obligation?.prompt.text ?? ""}`,
     ready: savedReadingSettled,
     at: () => Boolean(doneTodo()),
     rows: [
@@ -560,22 +629,25 @@ export function createQueueWalk({
   });
 
   // An On me row arrives where the walk would, whichever list its obligation is on.
+  /** @param {QueueItem} item */
   const arriveAtItem = (item) => arriveAt(stopOf(item));
   // Whether the walk takes the user somewhere for an item that its card does not already
   // offer: its place on the page, or a widget in a thread the page draws no passage for,
   // which the panel opens with the user on the widget. A question can also arrive at
   // its exact message, including in an unanchored thread.
+  /** @param {QueueItem} item */
   const arrivesAt = (item) => {
     const stop = stopOf(item);
     return (
       Boolean(pagePlace(stop)) ||
-      Boolean(stop.message) ||
+      (stop.kind === "thread" && Boolean(stop.message)) ||
       (stop.kind === "obligation" && stop.thread !== null)
     );
   };
 
   // The id of the obligation the user last went to, for a walk within a region pressed from
   // outside it. Sequential navigation passes over what it crosses, so it keeps the obligation.
+  /** @type {string | null} */
   let wentTo = null;
   onCurrentLocation((node, cause) => {
     if (cause === "step") return;
@@ -584,6 +656,7 @@ export function createQueueWalk({
   });
 
   // The public walk within a region (`obligationActions.next`).
+  /** @param {{within: Element, dir?: number}} options */
   function nextWithin({ within, dir = 1 }) {
     if (!(within instanceof Element))
       throw new TypeError("leaf: obligationActions.next needs an element `within`");
@@ -617,9 +690,9 @@ export function createQueueWalk({
   const onMe = Object.freeze({
     groups: onMeGroups,
     grouping,
-    choose: (value) => chosenGrouping.write(value),
+    choose: (/** @type {Grouping | null} */ value) => chosenGrouping.write(value),
     place: itemPlace,
-    lists: (node) =>
+    lists: (/** @type {Element | null} */ node) =>
       Boolean(
         node &&
         currentLocationStop(stops(), {

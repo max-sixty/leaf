@@ -12,7 +12,7 @@
    declares the same scope as data on its element, `lfCommands`, which this module reads
    when the widget says it changed (`commandsChanged`, widget-upgrade.js). A module
    loaded on a page with no instance must contribute no scope or reference section. Runtime
-   scopes live in `SCOPES`; `merge` is the only function that gathers scope sections.
+   scopes live in `SCOPES`; the command reference gathers their section presentations.
    A scope may declare `ready` for incomplete inputs shared by its rows; a row or
    route may override that reading. Decision commands queue until the first saved read
    answers; their owning actions supply availability, including after a failed read.
@@ -39,6 +39,7 @@ import {
   checked,
   commandAvailable,
   commandBinding,
+  commandRun,
   controlAvailabilityOutput,
   declaredCommandAvailable,
   contextualRoute,
@@ -47,6 +48,7 @@ import {
   declaredBindings,
   titleOf,
   descriptionOf,
+  declaresCommandHandler,
   live,
   parsed,
   spokenBinding,
@@ -59,11 +61,23 @@ import { repaint } from "../repaint.js";
 import { keeps } from "../keeps.js";
 import { COMMANDS, commandsChangedOn, refuseCommands } from "../widget-upgrade.js";
 
+/** @typedef {import("./bindings.js").Command} Command
+ * @typedef {import("./bindings.js").CommandRoute} CommandRoute
+ * @typedef {import("./bindings.js").Scope} Scope
+ * @typedef {Scope & {el: Element, validated: boolean}} AttachedScope
+ * @typedef {{source: Element, scope: Scope, rows?: readonly Command[]}} Declaration
+ * @typedef {{source: Element, scope: Scope, row: Command, run: () => unknown, entry: CommandRoute}} ButtonCommand
+ * @typedef {[ButtonCommand, ...ButtonCommand[]]} ButtonCandidates
+ * @typedef {{when?: () => boolean, ready?: () => boolean, escape?: "inner", claims?: (binding: string) => boolean}} ScopeOptions
+ * @typedef {{scope: Scope}} CommandCapability
+ */
+
 // The scopes still owed a first paint. A declaration joins here and `reflectFirstScopes`
 // takes it out again, so one reading is owed per declaration whether that reading stands
 // or refuses it. Transient by construction: `attachScope` schedules the frame that drains
 // the set in the same breath as it adds to it.
-const unpainted = new Set();
+/** @type {Map<Element, AttachedScope>} */
+const unpainted = new Map();
 // Whether native button availability is owed a reflection (`reflectButtonsTracked`).
 let buttonsDirty = true;
 
@@ -72,11 +86,16 @@ let buttonsDirty = true;
 // replaced command or invoke a control its owner no longer declares. The weak set
 // prevents duplicate listeners when one capability is attached in several places.
 const wiredButtons = new WeakSet();
+/** @type {WeakMap<Element, ButtonCommand>} */
 const buttonReadings = new WeakMap();
+/** @param {Element} control */
 export const buttonCommand = (control) => buttonReadings.get(control);
+/** @type {WeakMap<Element, {disabled: boolean, ariaDisabled: string | null}>} */
 const buttonBaselines = new WeakMap();
 const BUTTON_AVAILABILITY = Symbol("native command availability");
+/** @type {Set<() => void>} */
 const commandAvailabilityReaders = new Set();
+/** @param {() => void} read */
 export function watchCommandAvailability(read) {
   commandAvailabilityReaders.add(read);
   buttonsDirty = true;
@@ -85,7 +104,9 @@ export function watchCommandAvailability(read) {
 const reflectCommandAvailability = () => {
   for (const read of commandAvailabilityReaders) read();
 };
+/** @type {Set<() => Iterable<Scope>>} */
 const commandScopeReaders = new Set();
+/** @param {() => Iterable<Scope>} read */
 export function watchCommandScopes(read) {
   commandScopeReaders.add(read);
   buttonsDirty = true;
@@ -105,29 +126,38 @@ function* nativeCommandScopes() {
 // Contribution controls have a native activation adapter that retains the projected
 // surface and gesture intent. Its registration is also the row's semantic callback, so
 // a scope projected onto its own control adds no second activation.
+/** @param {Element} control @param {Scope} scope */
 const projectedOnto = (control, scope) =>
   [...(projectedScopes.get(control)?.values() ?? [])].some(
     (projected) => scopeIdentity(projected) === scopeIdentity(scope),
   );
 function buttonDeclarations() {
+  /** @type {Map<HTMLButtonElement, ButtonCandidates>} */
   const declarations = new Map();
   for (const { source, scope } of nativeCommandScopes()) {
     if (scope.contextual || scope.sequence) continue;
     for (const row of scope.rows) {
-      if (!row.run) continue;
+      if (!row.run && !row.runKey) continue;
       const routes = commandRoutes(row);
       for (const entry of routes.length ? routes : [row]) {
         const control = word(entry.control ?? row.control);
         if (!(control instanceof HTMLButtonElement) || !control.isConnected) continue;
         if (projectedOnto(control, scope)) continue;
-        if (!declarations.has(control)) declarations.set(control, []);
+        const run = commandRun(
+          row,
+          commandBinding(row, entry === row ? null : entry),
+          null,
+        );
+        if (!run) continue;
+        const candidate = { source, scope, row, run, entry };
         const candidates = declarations.get(control);
-        if (
+        if (!candidates) declarations.set(control, [candidate]);
+        else if (
           !candidates.some(
             (candidate) => candidate.row === row && candidate.entry.id === entry.id,
           )
         )
-          candidates.push({ source, scope, row, entry });
+          candidates.push(candidate);
       }
     }
   }
@@ -135,17 +165,19 @@ function buttonDeclarations() {
 }
 // The one command a button answers now: the available declaration, or the first where
 // none is. Two available at once is an ambiguous button.
+/** @param {ButtonCandidates} candidates */
 function chosenCommand(candidates) {
   const available = candidates.filter(
     ({ scope, row, entry }) =>
       (!scope.when || scope.when()) &&
       declaredCommandAvailable(row, entry === row ? null : entry),
   );
-  if (available.length > 1)
+  const [first, second] = available;
+  if (first && second)
     throw new TypeError(
-      `leaf: ${available[1].entry.id} shares a button with ${available[0].entry.id}`,
+      `leaf: ${second.entry.id} shares a button with ${first.entry.id}`,
     );
-  return available[0] ?? candidates[0];
+  return first ?? candidates[0];
 }
 function buttonCommands() {
   return new Map(
@@ -156,15 +188,17 @@ function buttonCommands() {
   );
 }
 // A button no declaration names any more gets its own attributes back.
+/** @param {Map<HTMLButtonElement, ButtonCandidates>} declarations */
 function releaseButtons(declarations) {
   for (const ref of scopeRefs) {
     const control = ref.deref();
-    if (!control || !buttonBaselines.has(control) || declarations.has(control))
-      continue;
+    if (!(control instanceof HTMLButtonElement) || declarations.has(control)) continue;
+    const baseline = buttonBaselines.get(control);
+    if (!baseline) continue;
     buttonReadings.delete(control);
     buttonAvailability.get(control)?.();
     buttonAvailability.delete(control);
-    const { disabled, ariaDisabled } = buttonBaselines.get(control);
+    const { disabled, ariaDisabled } = baseline;
     if (control.disabled !== disabled) control.disabled = disabled;
     keeps(control, "aria-disabled", ariaDisabled);
     buttonBaselines.delete(control);
@@ -177,23 +211,28 @@ function releaseButtons(declarations) {
 // moving marks this button alone for the next frame. The effect stays subscribed to
 // those signals, so it holds the button and its declarations only while it first reads
 // them, and a later run that finds the button gone disposes it.
+/** @type {WeakMap<Element, () => void>} */
 const buttonAvailability = new WeakMap();
 // The declarations each button's availability was last read from, so a pass reads a
 // button again when what names it changed.
+/** @type {WeakMap<Element, ButtonCandidates>} */
 const buttonCandidates = new WeakMap();
+/** @param {ButtonCandidates | undefined} left @param {ButtonCandidates} right */
 const sameCandidates = (left, right) =>
   left?.length === right.length &&
   right.every(
     (candidate, index) =>
-      candidate.scope === left[index].scope &&
-      candidate.row === left[index].row &&
-      candidate.entry === left[index].entry,
+      candidate.scope === left?.[index]?.scope &&
+      candidate.row === left?.[index]?.row &&
+      candidate.entry === left?.[index]?.entry,
   );
+/** @param {HTMLButtonElement} control @param {ButtonCandidates} candidates */
 function reflectButton(control, candidates) {
   buttonAvailability.get(control)?.();
   buttonCandidates.set(control, candidates);
   const ref = new WeakRef(control);
-  let reading = candidates;
+  /** @type {{control: HTMLButtonElement, candidates: ButtonCandidates} | null} */
+  let reading = { control, candidates };
   let failure = null;
   const dispose = effect(() => {
     if (reading) {
@@ -201,14 +240,14 @@ function reflectButton(control, candidates) {
       reading = null;
       try {
         focusRevision();
-        const command = chosenCommand(read);
+        const command = chosenCommand(read.candidates);
         const { scope, row, entry } = command;
         const disabled = Boolean(
           (scope.when && !scope.when()) ||
           !commandAvailable(row, entry === row ? null : entry),
         );
-        keeps(ref.deref(), "aria-disabled", disabled ? "true" : null);
-        buttonReadings.set(ref.deref(), command);
+        keeps(read.control, "aria-disabled", disabled ? "true" : null);
+        buttonReadings.set(read.control, command);
       } catch (error) {
         failure = error;
       }
@@ -223,6 +262,7 @@ function reflectButton(control, candidates) {
   buttonAvailability.set(control, dispose);
   if (failure) throw failure;
 }
+/** @param {HTMLButtonElement} control */
 function claimButton(control) {
   if (!buttonBaselines.has(control))
     buttonBaselines.set(control, {
@@ -238,11 +278,13 @@ function claimButton(control) {
 }
 // Run a row's result and put the user where it says they land (`lands`, bindings.js),
 // given the element the press came from.
+/** @param {Command} row @param {() => unknown} run @param {Element | null} from */
 export function runLanding(row, run, from) {
   run();
   const to = row.lands?.(from);
   if (to) focusDestination(to, "move");
 }
+/** @param {HTMLButtonElement} control */
 function wireButton(control) {
   claimButton(control);
   if (wiredButtons.has(control)) return;
@@ -260,17 +302,7 @@ function wireButton(control) {
       )
     )
       return;
-    runLanding(
-      command.row,
-      () =>
-        command.row.run(
-          commandBinding(
-            command.row,
-            command.entry === command.row ? null : command.entry,
-          ),
-        ),
-      control,
-    );
+    runLanding(command.row, command.run, control);
   });
 }
 // A button is pressed as soon as it can be reached, which can be before the frame that
@@ -279,10 +311,15 @@ function wireButton(control) {
 // wires the buttons it names as elements when it is made. A control named by a getter
 // may not exist yet, and is wired at paint as before; the listener resolves its command
 // at the press either way.
+/** @param {Scope} scope */
 function wireDeclaredButtons(scope) {
   if (scope.contextual || scope.sequence) return;
   for (const row of scope.rows) {
-    if (!row.run || typeof row.routes === "function") continue;
+    if (
+      (!declaresCommandHandler(row, "run") && !declaresCommandHandler(row, "runKey")) ||
+      typeof row.routes === "function"
+    )
+      continue;
     for (const entry of row.routes?.length ? row.routes : [row]) {
       const control = entry.control ?? row.control;
       if (control instanceof HTMLButtonElement && !projectedOnto(control, scope))
@@ -293,25 +330,26 @@ function wireDeclaredButtons(scope) {
 
 // The scopes declared against an element — a WeakMap, so a scope leaves with the element
 // that owns it — and, for the command reference dialog, their rows gathered under each title. A section is
-// its sentences: the tenth grip on a page says what the first one says, so it is one
-// section, while a widget whose keys are declared in two places (a draft's way in, and the
-// editor it opens) contributes to one section from both.
-// Two contributors to one section are live where either is, and the user is in it where
-// either says so — a `when` or an `at` nobody wrote means always, which is what makes the
-// first contributor's silence carry rather than the second's answer.
-const either = (a, b) => (a && b ? () => a() || b() : undefined);
+/** @type {WeakMap<Element, AttachedScope>} */
 const elementScopes = new WeakMap();
 // The scopes other owners project onto an element, keyed by the owner, so one control can
 // carry several: a margin entry holds its widget's scope and an obligation's digit route at once.
+/** @type {WeakMap<Element, Map<object | symbol, Scope>>} */
 const projectedScopes = new WeakMap();
 const commandScopeCapabilities = new WeakSet();
+/** @param {Scope} scope */
 export const scopeIdentity = (scope) => scope.identity ?? scope;
+/** @param {unknown} capability @returns {capability is CommandCapability} */
 export const isCommandScope = (capability) =>
-  capability != null && commandScopeCapabilities.has(capability);
+  capability != null &&
+  (typeof capability === "object" || typeof capability === "function") &&
+  commandScopeCapabilities.has(capability);
 // Context aliases are their own scope so native text entry always precedes them,
 // even when the original declaration is attached to the exact editor. They remain
 // references to that attachment, not copied handlers or a second command inventory.
+/** @type {WeakMap<Element, WeakMap<Scope, Scope>>} */
 const localContexts = new WeakMap();
+/** @param {Element} source @param {Scope} scope @returns {Scope} */
 function localContext(source, scope) {
   let contexts = localContexts.get(source);
   if (!contexts) localContexts.set(source, (contexts = new WeakMap()));
@@ -332,11 +370,12 @@ function localContext(source, scope) {
   }
   return contextual;
 }
+/** @param {Element} element @returns {Scope[]} */
 export const scopesAt = (element) => {
   const original = [
     elementScopes.get(element),
     ...(projectedScopes.get(element)?.values() ?? []),
-  ].filter(Boolean);
+  ].filter((scope) => scope !== undefined);
   return original.flatMap((scope) =>
     scope.contextual ? [scope] : [scope, localContext(element, scope)],
   );
@@ -346,7 +385,9 @@ export const scopesAt = (element) => {
 // owner, so a disabled action keeps its keys reserved; removing/replacing an attachment
 // withdraws its old commands at invocation and at the next reading. Both a local widget
 // and a question representative use this same compiler.
+/** @type {WeakMap<Element, WeakMap<Scope, WeakMap<Command, Command>>>} */
 const contextRowsBySource = new WeakMap();
+/** @param {readonly Declaration[]} declarations @returns {Command[]} */
 function contextRows(declarations) {
   return declarations.flatMap(({ source, scope, rows = scope.rows }) => {
     let scopes = contextRowsBySource.get(source);
@@ -354,6 +395,7 @@ function contextRows(declarations) {
     let rowsBySource = scopes.get(scope);
     if (!rowsBySource) scopes.set(scope, (rowsBySource = new WeakMap()));
     return rows.flatMap((row) => {
+      /** @returns {readonly CommandRoute[]} */
       const contributions = () =>
         commandRoutes(row).length ? commandRoutes(row) : [row];
       if (!contributions().some((contribution) => contextBindings(contribution).length))
@@ -365,7 +407,9 @@ function contextRows(declarations) {
           title: () => titleOf(row),
           description: () => descriptionOf(row),
           get keys() {
-            return this.routes.map(({ binding }) => binding);
+            return commandRoutes(this).flatMap(({ binding }) =>
+              binding === undefined ? [] : [binding],
+            );
           },
           get routes() {
             return contributions().flatMap((contribution) => {
@@ -375,10 +419,9 @@ function contextRows(declarations) {
                 source,
                 scope,
                 row,
-                binding: commandBinding(
-                  row,
-                  contribution === row ? null : contribution,
-                ),
+                binding:
+                  commandBinding(row, contribution === row ? null : contribution) ??
+                  null,
                 get control() {
                   return word(contribution.control ?? row.control);
                 },
@@ -424,9 +467,12 @@ function contextRows(declarations) {
 // A contextual owner relates the current focus to an original command region.
 // Resolve that relation as part of the scope reading, never as a paint effect:
 // restoring focus and invoking a command in the same turn sees the same routes.
+/** @type {Set<(origin: Element | null) => Scope | null>} */
 const contextScopeReaders = new Set();
+/** @param {string} title @param {(origin: Element | null) => {root: Element, declarations: import("./bindings.js").Cell<readonly Declaration[]>} | null} resolve */
 export function contextScopes(title, resolve) {
   const identity = Object.freeze({});
+  /** @param {Element | null} origin */
   const read = (origin) => {
     const projection = resolve(origin);
     if (!projection) return null;
@@ -449,11 +495,14 @@ export function contextScopes(title, resolve) {
 // can then be collected, while an element temporarily moved out of the document keeps
 // its declaration when it reconnects. Holding the elements or merged closures here
 // retained an entire prior version.
+/** @type {Set<WeakRef<Element>>} */
 export const scopeRefs = new Set();
+/** @type {WeakMap<Element, WeakRef<Element>>} */
 const scopeRefFor = new WeakMap();
 export const pruneScopedElements = () => {
   for (const ref of scopeRefs) if (!ref.deref()) scopeRefs.delete(ref);
 };
+/** @param {Element} el */
 function rememberScopedElement(el) {
   if (scopeRefFor.has(el)) return;
   const ref = new WeakRef(el);
@@ -462,6 +511,7 @@ function rememberScopedElement(el) {
 }
 // The reference stops enumerating an element once nothing stands on it: no local
 // declaration, no projected one, and no native button ownership still owed a handback.
+/** @param {Element} el */
 function forgetScopedElement(el) {
   if (elementScopes.has(el) || projectedScopes.has(el) || buttonBaselines.has(el))
     return;
@@ -469,43 +519,6 @@ function forgetScopedElement(el) {
   if (ref) scopeRefs.delete(ref);
   scopeRefFor.delete(el);
 }
-// One section per title, gathered from every contributor. Written once because the gathering
-// happens twice and used to be spelled three times: here at declaration, where a widget's
-// contributors arrive an upgraded element at a time, and at each open of the reference, where
-// core's scopes and the widgets' are gathered into one list of sections. The rules above are
-// this function — rows keyed by command id, `when` and `at` joined by or — and a near-copy of a
-// merge is a merge that drifts on the day one of the three learns something.
-export function merge(sections, { title, when, at, liveInCommandReference, rows }) {
-  // A contributor the page hasn't got brings nothing. A section's `when` is the OR of its
-  // contributors, so a live one otherwise carried a dead one's keys into the reference
-  // under the shared title — the versions menu named a walk on a page with one version,
-  // where the only key it really has is the way out. That is the same "a key on screen is
-  // a key that works" the row `when` keeps for the press, asked one level up, and it is
-  // what lets two capabilities of different liveness share a heading: the walk states
-  // "somewhere to step" and the mode carrying the Escape states "there is a menu", which
-  // is what a layer's way out has to hold wherever the layer does.
-  //
-  // Asked here rather than at the user, because the section is built once per open —
-  // declaredStack has one caller, showCommandReference — where a `when` may be the whole event log
-  // folded.
-  if (when && !when()) return;
-  const seen = sections.get(title);
-  if (!seen) {
-    sections.set(title, {
-      title,
-      when,
-      at,
-      liveInCommandReference,
-      rows: new Map(rows),
-    });
-    return;
-  }
-  for (const [key, row] of rows) seen.rows.set(key, row);
-  seen.when = either(seen.when, when);
-  seen.at = either(seen.at, at);
-  seen.liveInCommandReference ||= liveInCommandReference;
-}
-
 /** Declare a scope's keys where the code implementing them is.
  *
  * `where` is the element focus must be inside, `title` names the scope in the command reference dialog
@@ -558,11 +571,12 @@ export function merge(sections, { title, when, at, liveInCommandReference, rows 
 // Stand a declaration on `where` in place of whatever stood there, owed its first
 // reading. A scope is never changed once it stands: its contextual aliases are built
 // from it once (`localContext`), so a new reading is a new scope.
+/** @param {Element} where @param {Scope} declaration */
 function attachScope(where, declaration) {
   const scope = { ...declaration, el: where, validated: false };
-  unpainted.delete(elementScopes.get(where));
+  unpainted.delete(where);
   elementScopes.set(where, scope);
-  unpainted.add(scope);
+  unpainted.set(where, scope);
   wireDeclaredButtons(scope);
   rememberScopedElement(where);
   buttonsDirty = true;
@@ -574,9 +588,10 @@ function attachScope(where, declaration) {
 // and re-read the element's shortcuts from what remains: projected scopes on it stand,
 // and an element the reference forgets is never read again. Returns whether anything
 // was withdrawn.
+/** @param {Element} element @param {Scope | null | undefined} scope */
 function detachScope(element, scope) {
   if (elementScopes.get(element) !== scope) return false;
-  unpainted.delete(scope);
+  unpainted.delete(element);
   elementScopes.delete(element);
   forgetScopedElement(element);
   buttonsDirty = true;
@@ -586,6 +601,7 @@ function detachScope(element, scope) {
 
 // Both element-bound keys and a reusable command capability declare the same scope.
 // Attachment decides when its scene is validated, not what a declaration may contain.
+/** @param {string | null} title @param {readonly Command[]} rows @param {ScopeOptions | (() => boolean) | undefined} options */
 function declaredScope(title, rows, options) {
   const { when, escape, ready, claims } =
     typeof options === "function" ? { when: options } : (options ?? {});
@@ -605,12 +621,13 @@ function declaredScope(title, rows, options) {
   };
 }
 
-export function keys(where, title, rows, options) {
-  if (rows === undefined && isCommandScope(title))
-    return attachScope(where, title.scope).rows;
-  // A declaration this one replaces before its first paint is owed nothing: read at
-  // the frame, a stale scope that refused would retract the element's currentLocation
-  // declaration along with itself.
+/** @overload @param {Element} where @param {CommandCapability} title @returns {readonly Command[]} */
+/** @overload @param {Element} where @param {string | null} title @param {readonly Command[]} rows @param {ScopeOptions | (() => boolean)} [options] @returns {readonly Command[]} */
+/** @param {Element} where @param {[capability: CommandCapability, rows?: undefined, options?: undefined] | [title: string | null, rows: readonly Command[], options?: ScopeOptions | (() => boolean) | undefined]} declaration */
+export function keys(where, ...declaration) {
+  if (declaration[1] === undefined)
+    return attachScope(where, declaration[0].scope).rows;
+  const [title, rows, options] = declaration;
   return attachScope(where, declaredScope(title, rows, options)).rows;
 }
 
@@ -623,36 +640,48 @@ export function keys(where, title, rows, options) {
 // of it, called on each render, since the template declaring them renders that element.
 export const commandsOn = directive(
   class extends AsyncDirective {
-    #element;
-    #declaration;
-    #scope = null;
+    #reconnect = () => {};
+    #disconnect = () => {};
+    /** @param {import("lit/directive.js").PartInfo} part */
     constructor(part) {
       super(part);
       if (part.type !== PartType.ELEMENT)
         throw new TypeError("commandsOn belongs in a template's element part");
     }
-    // The values the template passes, which `update` reads.
-    render(title, rows, options) {
+    /** @param {string | null | CommandCapability} _title
+     * @param {readonly Command[] | ((element: Element) => readonly Command[])} [_rows]
+     * @param {ScopeOptions | (() => boolean)} [_options] */
+    render(_title, _rows, _options) {
       return nothing;
     }
-    update(part, [title, rows, options]) {
-      this.#element = part.element;
-      this.#declaration =
-        rows === undefined && isCommandScope(title)
-          ? title.scope
+    /** @param {import("lit/directive.js").ElementPart} part
+     * @param {[CommandCapability, undefined?, undefined?] | [string | null, readonly Command[] | ((element: Element) => readonly Command[]), (ScopeOptions | (() => boolean))?]} values */
+    update(part, values) {
+      const element = part.element;
+      const declaration =
+        values[1] === undefined
+          ? values[0].scope
           : declaredScope(
-              title,
-              typeof rows === "function" ? rows(part.element) : rows,
-              options,
+              values[0],
+              typeof values[1] === "function" ? values[1](element) : values[1],
+              values[2],
             );
+      /** @type {AttachedScope | null} */
+      let scope = null;
+      this.#reconnect = () => {
+        scope = attachScope(element, declaration);
+      };
+      this.#disconnect = () => {
+        if (detachScope(element, scope)) repaint();
+      };
       if (this.isConnected) this.reconnected();
       return nothing;
     }
     reconnected() {
-      this.#scope = attachScope(this.#element, this.#declaration);
+      this.#reconnect();
     }
     disconnected() {
-      if (detachScope(this.#element, this.#scope)) repaint();
+      this.#disconnect();
     }
   },
 );
@@ -699,6 +728,7 @@ addEventListener(COMMANDS, (event) => {
  * may attach the same capability to independent controls while each active reading is
  * rooted at the visible control in its own native layer.
  */
+/** @param {string | null} title @param {readonly Command[]} rows @param {ScopeOptions | (() => boolean)} [options] */
 export function commandScope(title, rows, options) {
   const scope = {
     ...declaredScope(title, rows, options),
@@ -713,6 +743,7 @@ export function commandScope(title, rows, options) {
 // `projector` is whatever the projecting owner keys its projection by; projecting again
 // under the same key replaces that owner's scope and leaves every other owner's scope in place,
 // and a null capability withdraws it.
+/** @param {Element} control @param {object | symbol} projector @param {CommandCapability | null} [capability] */
 export function projectCommandScope(control, projector, capability = null) {
   dirtyButtons.add(control);
   const projections = projectedScopes.get(control) ?? new Map();
@@ -739,15 +770,19 @@ export function projectCommandScope(control, projector, capability = null) {
 // the same rows directly, while projections such as On me select the role they need.
 // A scope may sit on a nested control rather than the widget itself, so containment
 // follows the runtime's cross-shadow parent walk instead of a light-DOM selector.
+/** @param {Element} root @param {boolean} activeOnly */
 function scopesWithin(root, activeOnly) {
   pruneScopedElements();
+  /** @type {Declaration[]} */
   const found = [];
   const seen = new Set();
   for (const ref of scopeRefs) {
     const scoped = ref.deref();
     if (!scoped?.isConnected) continue;
     let inside = false;
-    for (let node = scoped; node; node = renderedParent(node))
+    /** @type {Element | null} */
+    let node = scoped;
+    for (; node; node = renderedParent(node))
       if (node === root) {
         inside = true;
         break;
@@ -764,7 +799,9 @@ function scopesWithin(root, activeOnly) {
   }
   return found;
 }
+/** @param {Element} root */
 export const commandDeclarationsWithin = (root) => scopesWithin(root, false);
+/** @param {Element} root */
 export function commandsWithin(root) {
   return scopesWithin(root, true).flatMap(({ source, scope }) =>
     scope.rows.filter(live).map((row) => ({ source, scope, row })),
@@ -775,6 +812,7 @@ export function commandsWithin(root) {
 // bindings. Each scope's live rows are read and refused on their own; the attribute is
 // their union, since two scopes on one control may name one press: an obligation's route names
 // the intrinsic key of the command it routes to, which that command's own scope names.
+/** @param {Element} element */
 function reflectElementShortcuts(element) {
   const available = scopesAt(element).filter((scope) => !scope.when || scope.when());
   for (const scope of available) {
@@ -825,8 +863,8 @@ function reflectElementShortcuts(element) {
 // rather than under whichever surface reads its rows first.
 export function reflectFirstScopes() {
   reflectButtonsTracked();
-  for (const scope of [...unpainted]) {
-    unpainted.delete(scope);
+  for (const [element, scope] of unpainted) {
+    unpainted.delete(element);
     reflectTracked(scope.el);
   }
 }
@@ -846,7 +884,9 @@ export function reflectFirstScopes() {
 // nothing an element read, and no renderer whose output it reads, leaves its
 // reflection as it is.
 let keysDirty = true;
+/** @type {Set<Element>} */
 const dirtyElements = new Set();
+/** @type {WeakMap<Element, () => void>} */
 const tracked = new WeakMap();
 // Native buttons read the same predicates for their availability. Which button a
 // command names is gathered across every scope on each pass, since a command may name a
@@ -856,7 +896,9 @@ const tracked = new WeakMap();
 // button is read again when a declaration is attached or withdrawn, a command reader
 // registers, and on `paintKeys()`. Contribution projections read the same predicates,
 // as one tracked reader beside them.
+/** @type {Set<Element>} */
 const dirtyButtons = new Set();
+/** @type {(() => void) | null} */
 let availabilityTracking = null;
 let availabilityDirty = true;
 function reflectAvailabilityReaders() {
@@ -923,17 +965,20 @@ function reflectButtonsTracked() {
   }
   for (const failure of failures) reportError(failure);
 }
+/** @param {Element} element */
 function reflectTracked(element) {
   tracked.get(element)?.();
   const ref = new WeakRef(element);
-  let first = true;
+  /** @type {Element | null} */
+  let initial = element;
   let failure = null;
   const dispose = effect(() => {
-    if (first) {
-      first = false;
+    if (initial) {
+      const current = initial;
+      initial = null;
       try {
         focusRevision();
-        reflectElementShortcuts(ref.deref());
+        reflectElementShortcuts(current);
       } catch (error) {
         failure = error;
       }
@@ -974,6 +1019,7 @@ export const paintKeys = () => {
 /** Mark for reflection the scoped elements inside `root`, as a renderer that has just
  * rewritten that part of the document does, and repaint the frame whose shared surfaces,
  * the hints among them, read the same rows. */
+/** @param {Node} root */
 export const paintKeysWithin = (root) => {
   for (const ref of scopeRefs) {
     const scoped = ref.deref();
@@ -988,6 +1034,7 @@ export const paintKeysWithin = (root) => {
  * the chips the eye reads, since a screen reader renders "esc" literally. Off the register,
  * so an announcement cannot name a key the rows stopped binding.
  */
+/** @param {readonly Command[]} rows */
 export const saying = (rows) =>
   activeRows(rows, "an announced scope")
     .map((row) => `${spoken(row)} ${titleOf(row)}`)
@@ -998,6 +1045,7 @@ export const saying = (rows) =>
 // announce two ways by accident: an option group's digits are spelled "1–3" because its label
 // happens to be a string, while the sequence's were read out as "1 or 2 or 3" because its label
 // counts what the page holds and so has to be a function.
+/** @param {Command} row */
 const spoken = (row) => {
   const active = bindings(row);
   if (active.some((binding) => parsed(binding).mods.length))
@@ -1009,10 +1057,15 @@ const spoken = (row) => {
 // boundary the way `closest` climbs inside one, so a widget staging its controls in a
 // shadow tree declares them the same way. Generated margin controls own their visible
 // position directly; they no longer borrow scopes from hidden source controls.
+/** @param {Element | null} node */
 export function scopesFor(node) {
-  const contexts = [...contextScopeReaders].map((read) => read(node)).filter(Boolean);
+  const contexts = [...contextScopeReaders]
+    .map((read) => read(node))
+    .filter((scope) => scope !== null);
+  /** @type {Scope[]} */
   const found = [];
   const seen = new Set();
+  /** @param {Element | null} start */
   const collect = (start) => {
     for (let a = start; a; a = renderedParent(a)) {
       for (const scope of [...scopesAt(a), ...contexts.filter(({ el }) => el === a)]) {
@@ -1033,6 +1086,7 @@ export function scopesFor(node) {
 // disarms it. Every panel and mode in the runtime carries a rung of some kind, so a
 // question asked of the whole stack would answer yes almost everywhere and the sequence would
 // never arm at all.
+/** @param {Element | null} node */
 export const claimsEsc = (node) =>
   scopesFor(node).some((scope) =>
     scope.rows.some((row) => live(row) && bindings(row).includes("Escape")),

@@ -15,26 +15,59 @@
 import { externalMark as externalLinkMark, opensElsewhere } from "../declared-words.js";
 
 import { leafEditorView } from "../editor-view.js";
-import { loadMarkdown, markdownReady, placedMarkdownTokens } from "../markdown.js";
+import {
+  loadMarkdown,
+  markdownReady,
+  placedMarkdownTokens,
+  isBlockPlacement,
+} from "../markdown.js";
 import { isCanonicalMediaUrl, scopedMediaUrl } from "../media.js";
+
+/** @typedef {import("@codemirror/state").EditorState} EditorState
+ * @typedef {import("@codemirror/view").EditorView} EditorView
+ * @typedef {import("@codemirror/view").Decoration} Decoration
+ * @typedef {ReturnType<typeof placedMarkdownTokens>} PlacedTokens
+ * @typedef {{type: string, start: number, end: number, padStart: number, padEnd: number, inset: string, indent: string}} BlockFace
+ * @typedef {{base: string, text: string, anchor: number, head: number, steps: readonly (readonly [() => void, () => void])[]}} FieldWords
+ * @typedef {{typed: (native: boolean, insert: () => void) => void, returned: () => boolean,
+ * oneLine: () => boolean, revealed: (view: EditorView, pos: number) => void,
+ * focused: () => void, readOnly: boolean, attributes: Record<string, string>}} FieldConfiguration
+ */
+
+/** @param {string} text */
+const indentation = (text) => text.length - text.replace(/^[ \t]*/, "").length;
 
 // Whether the selection touches [from, to], ends included: the caret standing just
 // after a closing backtick still reveals it, so the user can delete what they see.
+/** @param {EditorState} state @param {number} from @param {number} to */
 const touches = (state, from, to) =>
   state.selection.ranges.some((range) => range.from <= to && range.to >= from);
 
 // The draft as the renderer reads it, placed. Empty until the renderer has loaded.
+/** @param {EditorState} state */
 const read = (state) => {
   return placedMarkdownTokens(state.doc.toString());
 };
 
 // The elements the renderer sends each block as, in an order that stands each one
 // between others, as a block inside a body stands.
-const FACE_PROBE =
-  "<div></div><p></p><h1></h1><h2></h2><h3></h3><h4></h4><h5></h5><h6></h6><pre></pre>" +
-  "<blockquote></blockquote><ul><li></li><li></li></ul><ol></ol><div></div>";
+const FACE_ELEMENTS = {
+  p: () => document.createElement("p"),
+  h1: () => document.createElement("h1"),
+  h2: () => document.createElement("h2"),
+  h3: () => document.createElement("h3"),
+  h4: () => document.createElement("h4"),
+  h5: () => document.createElement("h5"),
+  h6: () => document.createElement("h6"),
+  pre: () => document.createElement("pre"),
+  blockquote: () => document.createElement("blockquote"),
+  ul: () => document.createElement("ul"),
+  ol: () => document.createElement("ol"),
+  li: () => document.createElement("li"),
+};
 // The gap two blocks' margins leave between them, collapsed as the platform collapses
 // adjoining margins, in px or as CSS over the two a gap line names (`standBlocks`).
+/** @param {number} a @param {number} b */
 const collapsed = (a, b) => Math.max(a, b, 0) + Math.min(a, b, 0);
 const GAP =
   "calc(max(var(--lf-gap-end), var(--lf-gap-start), 0px) + " +
@@ -45,40 +78,76 @@ const GAP =
 // element standing beside the field, in its place among its siblings, so the page's own
 // rules, which skip Leaf's interface, and its density reach the probe's blocks as they
 // reach the display's. A list's outer margins collapse with its first and last items'.
+/** @param {HTMLElement} field @param {HTMLElement} display */
 export function readFaces(field, display) {
-  const probe = /** @type {HTMLElement} */ (display.cloneNode(false));
+  const probe = display.cloneNode(false);
   probe.removeAttribute("id");
   probe.setAttribute("aria-hidden", "true");
   probe.style.cssText =
     "position: absolute; visibility: hidden; inline-size: 0; display: block";
-  probe.innerHTML = FACE_PROBE;
+  const preNode = FACE_ELEMENTS.pre();
+  const quoteNode = FACE_ELEMENTS.blockquote();
+  const liNode = FACE_ELEMENTS.li();
+  const ulNode = FACE_ELEMENTS.ul();
+  ulNode.append(FACE_ELEMENTS.li(), liNode);
+  /** @type {[string, HTMLElement][]} */
+  const nodes = [];
+  probe.append(document.createElement("div"));
+  for (const [tag, create] of Object.entries(FACE_ELEMENTS)) {
+    if (tag === "li") continue;
+    const node =
+      tag === "pre"
+        ? preNode
+        : tag === "blockquote"
+          ? quoteNode
+          : tag === "ul"
+            ? ulNode
+            : create();
+    nodes.push([tag, node]);
+    if (tag === "ul") nodes.push(["li", liNode]);
+    probe.append(node);
+  }
+  probe.append(document.createElement("div"));
   field.after(probe);
-  const face = {};
-  // Type the field already inherits stays inherited: a line height restated in pixels
-  // can round otherwise than the one it resolves from.
+  // Type the field already inherits stays inherited.
   const own = getComputedStyle(field);
   const TYPE = ["font-size", "line-height", "font-weight", "letter-spacing"];
-  for (const node of probe.querySelectorAll(":scope > :not(div), li + li")) {
-    const s = getComputedStyle(node);
+  /** @param {HTMLElement} node @returns {BlockFace} */
+  const readFace = (node) => {
+    const style = getComputedStyle(node);
+    /** @param {string} value */
     const px = (value) => Number.parseFloat(value) || 0;
-    face[node.localName] = {
+    return {
       type: TYPE.filter(
-        (name) => s.getPropertyValue(name) !== own.getPropertyValue(name),
+        (name) => style.getPropertyValue(name) !== own.getPropertyValue(name),
       )
-        .map((name) => `${name}: ${s.getPropertyValue(name)}`)
+        .map((name) => `${name}: ${style.getPropertyValue(name)}`)
         .join("; "),
-      start: px(s.marginTop),
-      end: px(s.marginBottom),
-      padStart: px(s.paddingTop),
-      padEnd: px(s.paddingBottom),
-      inset: s.paddingInlineStart,
-      indent: s.marginInlineStart,
+      start: px(style.marginTop),
+      end: px(style.marginBottom),
+      padStart: px(style.paddingTop),
+      padEnd: px(style.paddingBottom),
+      inset: style.paddingInlineStart,
+      indent: style.marginInlineStart,
     };
-  }
+  };
+  const li = readFace(liNode),
+    pre = readFace(preNode),
+    quote = readFace(quoteNode);
+  /** @type {[string, BlockFace][]} */
+  const faces = nodes.map(([tag, node]) => [
+    tag,
+    tag === "li"
+      ? li
+      : tag === "pre"
+        ? pre
+        : tag === "blockquote"
+          ? quote
+          : readFace(node),
+  ]);
   probe.remove();
-  const { li, pre, blockquote: quote } = face;
   const rules = [];
-  for (const [tag, { type, start, end }] of Object.entries(face)) {
+  for (const [tag, { type, start, end }] of faces) {
     const list = tag === "ul" || tag === "ol";
     rules.push(
       `.lf-face-${tag} { ${type} }`,
@@ -113,9 +182,12 @@ export function readFaces(field, display) {
 // block's padding while the caret is away, and an item after the first in a list stands
 // its gap above it. The display trims the outer margins of its first and last blocks,
 // so the field leaves none there, but a list's first and last items keep theirs.
+/** @param {import("markdown-it").Token} token */
 const blockTag = (token) =>
   token.type === "fence" || token.type === "code_block" ? "pre" : token.tag;
+/** @param {EditorState} state @param {PlacedTokens} placed @param {import("@codemirror/state").Range<Decoration>[]} out @param {(name: string) => Decoration} line */
 function standBlocks(state, placed, out, line) {
+  /** @param {number} from @param {number} to @param {(line: import("@codemirror/state").Line) => void} each */
   const lines = (from, to, each) => {
     for (let at = from; at < to;) {
       const current = state.doc.lineAt(at);
@@ -123,43 +195,58 @@ function standBlocks(state, placed, out, line) {
       at = current.to + 1;
     }
   };
+  /** @param {number} from @param {string} cls */
   const named = (from, cls) => out.push(line(cls).range(from));
   // A run of blank lines stands as one gap, shared among them.
+  /** @param {number} from @param {number} to @param {string} gap */
   const gapLines = (from, to, gap) => {
     const runs = state.doc.lineAt(to).number - state.doc.lineAt(from).number;
     const share = runs > 1 ? ` lf-face-share-${Math.min(runs, 3)}` : "";
     lines(from, to, (each) => named(each.from, `lf-face-gap${share} ${gap}`));
   };
+  /** @param {number} at */
   const lineTouched = (at) => {
     const { from, to } = state.doc.lineAt(at);
     return touches(state, from, to);
   };
   // The block before the one being read in each container still open, by level: the
   // draft itself and each quote. A list's items stand apart by their own gap.
+  /** @type {({tag: string, to: number} | null)[]} */
   const before = [];
+  /** @type {{type: string, to: number, level: number}[]} */
   const open = [];
+  /** @type {{to: number} | null} */
   let item = null;
+  /** @param {number} at */
   const blank = (at) => /^[\s>]*$/.test(state.doc.lineAt(at).text);
-  for (const { token, from, to, markers, contentLines } of placed) {
+  for (const placement of placed) {
+    const { token, from, to } = placement;
     if (!token.block) continue;
     const tag = blockTag(token);
     // A heading and a fence wear their faces wherever they stand.
-    if (token.type === "heading_open") {
-      lines(...contentLines, (each) => named(each.from, `lf-face-${tag}`));
+    if (isBlockPlacement(placement, "heading_open")) {
+      lines(...placement.contentLines, (each) => named(each.from, `lf-face-${tag}`));
       if (!token.markup.startsWith("#"))
-        for (const [at] of markers)
+        for (const [at] of placement.markers)
           if (!lineTouched(at)) named(state.doc.lineAt(at).from, "lf-face-rule");
     } else if (token.type === "fence" || token.type === "code_block") {
       lines(from, to, (each) => named(each.from, "lf-face-code"));
       const opener = state.doc.lineAt(from).number;
-      for (const [at] of token.type === "fence" ? markers : []) {
+      for (const [at] of isBlockPlacement(placement, "fence")
+        ? placement.markers
+        : []) {
         const fence = state.doc.lineAt(at);
         if (lineTouched(at)) continue;
         const side = fence.number === opener ? "open" : "close";
         named(fence.from, `lf-face-fence-${side}`);
       }
     }
-    while (open.at(-1)?.to <= from) before.length = open.pop().level + 1;
+    let enclosing = open.at(-1);
+    while (enclosing && enclosing.to <= from) {
+      open.pop();
+      before.length = enclosing.level + 1;
+      enclosing = open.at(-1);
+    }
     const within = open.at(-1)?.type;
     if (token.type === "list_item_open" && within !== "list_item_open") {
       if (item?.to === from) named(from, "lf-face-item");
@@ -171,7 +258,7 @@ function standBlocks(state, placed, out, line) {
     if (container) open.push({ type: token.type, to, level: token.level });
     if (token.type === "list_item_open" || within === "list_item_open") continue;
     const level = token.level;
-    if (!FACE_PROBE.includes(`<${tag}>`)) {
+    if (!Object.hasOwn(FACE_ELEMENTS, tag)) {
       before[level] = null;
       continue;
     }
@@ -213,6 +300,7 @@ export const loadFieldEditor = () =>
   ));
 
 /** What a field's editor needs CodeMirror for, built from the loaded module. */
+/** @param {typeof import("/vendor/codemirror.esm.js")} codemirror @param {ReturnType<typeof leafEditorView>} LeafEditorView */
 function fieldEditor(
   {
     EditorView,
@@ -231,13 +319,13 @@ function fieldEditor(
     invertedEffects,
     markdownLanguage,
     insertNewlineContinueMarkup,
+    insertNewline,
   },
   LeafEditorView,
 ) {
-  const insertNewline = standardKeymap.find(({ key }) => key === "Enter").run;
-
   // A step an owner recorded in the words' history (`record`): `run` makes it happen when
   // the history reaches it, and `back` is the step the other way.
+  /** @type {import("@codemirror/state").StateEffectType<{run: () => void, back: () => void}>} */
   const ownerStep = StateEffect.define();
 
   const hide = Decoration.replace({});
@@ -252,11 +340,15 @@ function fieldEditor(
     attributes: { "aria-hidden": "true" },
   });
   const shownMarker = Decoration.mark({ class: "lf-md-marker lf-md-mark" });
+  /** @param {string} cls */
   const line = (cls) => Decoration.line({ class: cls });
   // A list item's line at its depth, wearing the marker a message's list draws there: the
   // bullet the platform's style sheet nests, or the item's number in its list. An item's
   // later line, and one whose source marker shows, wear none.
-  const BULLETS = ["lf-md-disc", "lf-md-circle", "lf-md-square"];
+  /** @param {number} depth */
+  const bullet = (depth) =>
+    depth === 1 ? "lf-md-disc" : depth === 2 ? "lf-md-circle" : "lf-md-square";
+  /** @param {number} depth @param {string | null | undefined} kind @param {number | null | undefined} number */
   const itemLine = (depth, kind, number) =>
     Decoration.line({
       class: kind ? `lf-md-item lf-md-listed ${kind}` : "lf-md-item",
@@ -267,6 +359,7 @@ function fieldEditor(
 
   // The inline constructs the preview draws, by the renderer's token type: each as the
   // element the renderer sends it as.
+  /** @type {Readonly<Partial<Record<string, Decoration>>>} */
   const INLINE = {
     code_inline: Decoration.mark({ tagName: "code" }),
     em_open: Decoration.mark({ tagName: "em" }),
@@ -278,14 +371,17 @@ function fieldEditor(
   // from the source the parser resolved, a reference's included, at the address the
   // renderer gives page media (markdown.js). A press on it puts the caret in its source.
   class Picture extends WidgetType {
+    /** @param {string} src @param {string} alt */
     constructor(src, alt) {
       super();
       this.src = isCanonicalMediaUrl(src) ? scopedMediaUrl(src) : src;
       this.alt = alt;
     }
+    /** @param {Picture} other */
     eq(other) {
       return other.src === this.src && other.alt === this.alt;
     }
+    /** @param {EditorView} view */
     toDOM(view) {
       const img = document.createElement("img");
       img.className = "lf-md-picture";
@@ -309,19 +405,26 @@ function fieldEditor(
   }
   const externalMark = Decoration.widget({ widget: new ExternalMark(), side: -1 });
 
+  /** @param {EditorState} state @param {PlacedTokens} placed */
   function decorate(state, placed) {
+    /** @type {import("@codemirror/state").Range<Decoration>[]} */
     const out = [];
     // The ends of the lists open at the token being read, each list line's item, and the
     // code blocks, whose lines their own reading indents.
+    /** @type {{to: number, next: number | null}[]} */
     const lists = [];
+    /** @type {Map<number, {depth: number, kind?: string | null | undefined, number?: number | null, continued?: boolean}>} */
     const items = new Map();
+    /** @type {[number, number][]} */
     const code = [];
+    /** @param {number} from @param {number} to @param {Decoration} deco */
     const add = (from, to, deco) => {
       if (from >= to) return;
       // A hidden range may not hold a line break; such syntax stays drawn.
       if (deco === hide && state.doc.sliceString(from, to).includes("\n")) deco = dim;
       out.push(deco.range(from, to));
     };
+    /** @param {number} from @param {number} to @param {(line: import("@codemirror/state").Line) => void} each */
     const lines = (from, to, each) => {
       for (let at = from; at < to;) {
         const current = state.doc.lineAt(at);
@@ -329,28 +432,24 @@ function fieldEditor(
         at = current.to + 1;
       }
     };
-    for (const {
-      token,
-      from,
-      to,
-      contentFrom,
-      contentTo,
-      escapes,
-      markers,
-      contentLines,
-      words: said,
-    } of placed) {
+    for (const placement of placed) {
+      const { token, from, to, content, escapes, markers, words: said } = placement;
       const syntax = touches(state, from, to) ? dim : hide;
-      if (token.type === "code_inline" || contentFrom !== undefined) {
-        const words =
-          token.type === "code_inline"
-            ? [from + token.markup.length, to - token.markup.length]
-            : [contentFrom, contentTo];
+      /** @type {[number, number] | undefined} */
+      const words =
+        token.type === "code_inline"
+          ? [from + token.markup.length, to - token.markup.length]
+          : content;
+      if (words) {
         if (words[0] > words[1]) continue;
-        if (INLINE[token.type]) add(from, to, INLINE[token.type]);
-        else if (token.type === "link_open" && token.meta.linked) {
+        const inline = INLINE[token.type];
+        if (inline) add(from, to, inline);
+        else if (
+          token.type === "link_open" &&
+          typeof token.lfSource?.url === "string"
+        ) {
           add(words[0], words[1], link);
-          if (opensElsewhere(token.attrGet("href")))
+          if (opensElsewhere(token.lfSource.url))
             out.push(externalMark.range(words[1]));
         }
         add(from, words[0], syntax);
@@ -361,7 +460,7 @@ function fieldEditor(
         // stays drawn after it, so reaching the source adds its line and takes no
         // picture away from the page.
         if (said !== "" || state.doc.sliceString(from, to).includes("\n")) continue;
-        const widget = new Picture(token.attrGet("src"), token.content);
+        const widget = new Picture(String(token.attrGet("src")), token.content);
         out.push(
           touches(state, from, to)
             ? Decoration.widget({ widget, side: 1 }).range(to)
@@ -370,13 +469,13 @@ function fieldEditor(
       } else if (token.type === "text") {
         for (const at of escapes ?? [])
           add(at, at + 1, touches(state, at, at + 2) ? dim : hide);
-      } else if (token.type === "heading_open") {
-        lines(...contentLines, (each) => {
+      } else if (isBlockPlacement(placement, "heading_open")) {
+        lines(...placement.contentLines, (each) => {
           out.push(line("lf-md-heading").range(each.from));
         });
         // A Setext heading's rule is a line of its own, which keeps its room unseen while
         // the caret is away, as a fence's does.
-        for (const [a, b] of markers) {
+        for (const [a, b] of placement.markers) {
           const rule = state.doc.lineAt(a);
           const shown = touches(state, rule.from, rule.to) ? dim : unseen;
           add(a, b, token.markup.startsWith("#") ? syntax : shown);
@@ -396,8 +495,8 @@ function fieldEditor(
           out.push(line(`lf-md-code-block${ends}`).range(each.from));
           const kept = body[each.number - opened];
           if (kept === undefined || each.number - opened >= body.length - 1) return;
-          const lead = each.text.match(/^[ \t]*/)[0].length;
-          add(each.from, each.from + lead - kept.match(/^[ \t]*/)[0].length, hide);
+          const lead = indentation(each.text);
+          add(each.from, each.from + lead - indentation(kept), hide);
         });
         // A fence's lines stand for the message's code padding (`standBlocks`), and each
         // shows its marks, at a line's height, while the caret is on it.
@@ -405,34 +504,43 @@ function fieldEditor(
           const fence = state.doc.lineAt(a);
           add(a, b, touches(state, fence.from, fence.to) ? dim : unseen);
         }
-      } else if (token.type === "blockquote_open") {
+      } else if (isBlockPlacement(placement, "blockquote_open")) {
         lines(from, to, (each) => {
           out.push(line("lf-md-quote").range(each.from));
         });
-        for (const [a, b] of markers)
+        for (const [a, b] of placement.markers)
           add(a, b, touches(state, a, b) ? shownMarker : marker);
       } else if (
         token.type === "bullet_list_open" ||
         token.type === "ordered_list_open"
       ) {
-        while (lists.at(-1)?.to <= from) lists.pop();
+        let enclosing = lists.at(-1);
+        while (enclosing && enclosing.to <= from) {
+          lists.pop();
+          enclosing = lists.at(-1);
+        }
         const ordered = token.type === "ordered_list_open";
         lists.push({ to, next: ordered ? Number(token.attrGet("start") ?? 1) : null });
-      } else if (token.type === "list_item_open") {
-        while (lists.at(-1)?.to <= from) lists.pop();
+      } else if (isBlockPlacement(placement, "list_item_open")) {
+        let enclosing = lists.at(-1);
+        while (enclosing && enclosing.to <= from) {
+          lists.pop();
+          enclosing = lists.at(-1);
+        }
         const list = lists.at(-1);
+        if (!list) throw new Error("leaf: Markdown list item has no containing list");
         const depth = lists.length;
         // An item's later lines stand under its words, their indent hidden as the
         // message drops it, and never revealed, so the words don't jump as the caret
         // arrives: a paragraph's whole indent, and in code what the code's reading drops
         // (above). A nested item, read after its parent, takes its own lines.
         const head = state.doc.lineAt(from);
-        const [at, end] = markers[0];
+        const [at, end] = placement.markers[0];
         // The marker's own indent stands in the inset with it. A quote's line keeps the
         // quote's rule and prefix at its start, where the platform's marker can't stand,
         // so an item there keeps its source marker, drawn as the prefix is.
         const start =
-          at - head.text.slice(0, at - head.from).match(/[ \t]*$/)[0].length;
+          head.from + head.text.slice(0, at - head.from).replace(/[ \t]*$/, "").length;
         if (head.text.slice(0, start - head.from).trim()) {
           add(start, end, dim);
           continue;
@@ -440,10 +548,7 @@ function fieldEditor(
         lines(head.to + 1, Math.min(to, state.doc.length), (each) => {
           items.set(each.from, { depth, continued: true });
         });
-        const kind =
-          list.next === null
-            ? BULLETS[Math.min(depth, BULLETS.length) - 1]
-            : "lf-md-number";
+        const kind = list.next === null ? bullet(depth) : "lf-md-number";
         const shown = state.selection.ranges.some(
           (range) => range.from < end && range.to >= start,
         );
@@ -455,7 +560,7 @@ function fieldEditor(
     for (const [from, { depth, kind, number, continued }] of items) {
       out.push(itemLine(depth, kind, number).range(from));
       if (!continued || code.some(([a, b]) => from >= a && from < b)) continue;
-      add(from, from + state.doc.lineAt(from).text.match(/^[ \t]*/)[0].length, hide);
+      add(from, from + indentation(state.doc.lineAt(from).text), hide);
     }
     standBlocks(state, placed, out, line);
     return Decoration.set(out, true);
@@ -467,6 +572,7 @@ function fieldEditor(
   // until it has, the words stand plain, and its arrival draws every open field.
   const livePreview = ViewPlugin.fromClass(
     class {
+      /** @param {EditorView} view */
       constructor(view) {
         this.live = true;
         this.placed = read(view.state);
@@ -481,6 +587,7 @@ function fieldEditor(
       destroy() {
         this.live = false;
       }
+      /** @param {import("@codemirror/view").ViewUpdate} update */
       update(update) {
         const judged = markdownReady();
         if (update.docChanged || judged !== this.judged) {
@@ -506,6 +613,7 @@ function fieldEditor(
    * whether Return may insert a line, `field.oneLine()` whether the field holds one
    * line, `field.revealed(view, pos)` shows the row holding `pos` in the field's
    * host, and `field.focused()` hears the editor take or lose focus. */
+  /** @param {FieldWords} words @param {FieldConfiguration} field */
   function fieldState(words, field) {
     // The run of words that differs between `base` and `text`: where the user typed.
     const { base, text } = words;
@@ -544,6 +652,7 @@ function fieldEditor(
         // platform, as Android's editing does, becomes a space.
         EditorState.transactionFilter.of((tr) => {
           if (!tr.docChanged || !field.oneLine()) return tr;
+          /** @type {import("@codemirror/state").ChangeSpec[]} */
           const breaks = [];
           tr.changes.iterChanges((_fromA, _toA, fromB, _toB, inserted) => {
             const text = inserted.toString();
@@ -609,14 +718,17 @@ function fieldEditor(
     return state;
   }
 
+  /** @param {boolean} on */
   const readOnly = (on) => ({
     effects: editable.reconfigure(EditorState.readOnly.of(on)),
   });
+  /** @param {Record<string, string>} wanted */
   const contentAttributes = (wanted) => ({
     effects: attributes.reconfigure(EditorView.contentAttributes.of(wanted)),
   });
   // A step in the history that changes no words, standing alone: taking it back calls
   // `undo`, redoing it calls `redo`.
+  /** @param {() => void} undo @param {() => void} redo */
   const record = (undo, redo) => ({
     effects: ownerStep.of({ run: redo, back: undo }),
     annotations: isolateHistory.of("full"),
@@ -627,6 +739,7 @@ function fieldEditor(
   const startHistory = () => ({ effects: histories.reconfigure(history()) });
 
   /** Run the owner's steps an undo or redo reached. */
+  /** @param {readonly import("@codemirror/state").Transaction[]} transactions */
   function runOwnerSteps(transactions) {
     for (const tr of transactions)
       if (tr.isUserEvent("undo") || tr.isUserEvent("redo"))

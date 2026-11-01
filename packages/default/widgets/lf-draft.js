@@ -99,6 +99,7 @@ import {
 } from "/runtime/widget-api.js";
 
 // Each control's key and the action whose mark it shows.
+/** @type {[string, string][]} */
 const TOOLS = [
   ["edit", "edit"],
   ["save", "save"],
@@ -110,12 +111,17 @@ const TOOLS = [
 // Presence and content are different for this widget, because deleting every character is
 // an unsent edit — and that is the shared store's own rule, so the text goes in bare and
 // the store's null is "nothing pending".
+/** @param {string} id */
 const ctx = (id) => "edit:" + id;
+/** @param {string} id @param {string} text */
 const saveEdit = (id, text) => saveDraft(ctx(id), text);
+/** @param {string} id */
 const clearEdit = (id) => clearDraft(ctx(id));
-const loadEdit = (id) => loadDraft(ctx(id));
+/** @param {string} id */
+const loadEdit = (id) => loadDraft(ctx(id))?.text ?? null;
 
 // Carry a rendered caret into source; a padding press has no caret to transfer.
+/** @param {HTMLElement} body @param {number} x @param {number} y @returns {[number, number] | null} */
 function caretAt(body, x, y) {
   const pos = document.caretPositionFromPoint(x, y);
   if (!pos) return null;
@@ -127,25 +133,51 @@ customElements.define(
   "lf-draft",
   class extends LeafElement {
     // What the obligation was answered with: the current words.
+    /** @param {unknown} value */
     static answerWords(value) {
+      if (typeof value !== "string")
+        throw new Error("A draft answer must be Markdown text");
       return markdownWords(value).trim() || "Empty";
     }
 
-    #body;
+    get #savedText() {
+      const value = this.controller.read().state.edit?.value;
+      if (typeof value !== "string")
+        throw new Error("A draft reading must contain its Markdown text");
+      return value;
+    }
+
+    /** @type {HTMLElement | undefined} */
+    #preparedBody;
+
+    get #body() {
+      if (this.#preparedBody) return this.#preparedBody;
+      /** @type {HTMLElement | null} */
+      const body = this.querySelector(":scope > .lf-markdown-body");
+      if (!body) throw new Error("draft needs its prepared Markdown body");
+      return (this.#preparedBody = body);
+    }
+    /** @type {HTMLElementTagNameMap[typeof TEXT_FIELD] | null} */
     #editor = null;
     #sending = false;
     #failed = false;
+    /** @type {HTMLDivElement | null} */
     #tools = null;
+    /** @type {ReturnType<typeof copyBlock> | null} */
     #copy = null;
+    /** @type {ReturnType<typeof commandScope> | null} */
     #commandScope = null;
+    /** @type {(() => void) | null} */
     #resumeProjection = null;
     #recovered = false;
+    /** @type {ReturnType<typeof motion> | null} */
     #returnMotion = null;
+    /** @type {number | null} */
     #cancelSize = null;
+    /** @type {ReturnType<typeof onPressAway> | null} */
     #stopPressAway = null;
 
     setup() {
-      this.#body = this.querySelector(":scope > .lf-markdown-body");
       if (this.childNodes.length !== 1 || this.firstChild !== this.#body)
         this.replaceChildren(this.#body);
       this.#body.className = "lf-draft-body lf-markdown-body"; // NOT .lf-ui: anchoring and Δ must see this
@@ -166,9 +198,8 @@ customElements.define(
             event.button !== 0 ||
             pressIsKeyboardActivation(event) ||
             !(
-              /** @type {Element} */ (event.target).closest(
-                '[data-lf-draft-action="cancel"]',
-              )
+              event.target instanceof Element &&
+              event.target.closest('[data-lf-draft-action="cancel"]')
             ) ||
             !this.#editor ||
             !CSS.supports("block-size", "calc-size(auto, size)")
@@ -188,7 +219,7 @@ customElements.define(
         if (
           pressIsKeyboardActivation(ev) ||
           ev.button !== 0 ||
-          /** @type {Element} */ (ev.target).closest(`${PRESSABLE}, a, button`)
+          (ev.target instanceof Element && ev.target.closest(`${PRESSABLE}, a, button`))
         )
           return;
         if (reachedForWords(this)) return;
@@ -208,7 +239,7 @@ customElements.define(
         if (
           this.#editor &&
           !this.#resumeProjection &&
-          this.controller.read().actions.edit.available
+          this.controller.read().actions.edit?.available
         )
           this.#resumeProjection = this.controller.defer();
         return () => {
@@ -276,7 +307,7 @@ customElements.define(
       // Copy is the toolbar's last mark, so Tab from the editor reaches Save first.
       this.#copy = copyBlock(
         this,
-        () => this.#editor?.value ?? this.controller.read().state.edit.value,
+        () => this.#editor?.value ?? this.#savedText,
         "Markdown",
       );
       this.#paintTools();
@@ -321,6 +352,7 @@ customElements.define(
       commandsChanged(this);
     }
 
+    /** @param {string} key @returns {HTMLButtonElement | null} */
     #control(key) {
       return this.#tools?.querySelector(`[data-lf-draft-action="${key}"]`) ?? null;
     }
@@ -363,6 +395,7 @@ customElements.define(
       return label ? `“${label}”` : `the ${addressableWord(this)}`;
     }
 
+    /** @param {string} text @param {string | undefined} attempt */
     #dispatch(text, attempt) {
       return this.controller.dispatch({
         kind: "action",
@@ -373,6 +406,7 @@ customElements.define(
       });
     }
 
+    /** @param {string} [seed] @param {[number, number] | null} [at] @param {boolean} [arrive] */
     #open(seed, at, arrive = true) {
       this.#returnMotion?.cancel();
       this.#returnMotion = null;
@@ -388,7 +422,7 @@ customElements.define(
       editor.facesOf = this.#body;
       // Words another tab's open editor holds outrank the current text: they are the
       // same unsent edit.
-      const effective = this.controller.read().state.edit.value;
+      const effective = this.#savedText;
       editor.value = seed ?? loadEdit(this.id) ?? effective;
       editor.setAttribute("aria-label", `Edit ${this.#named()}`);
       editor.addEventListener("input", () => {
@@ -407,7 +441,7 @@ customElements.define(
       this.#body.after(editor);
       // Its toolbar stands inside the draft, so Discard and Copy are no press away.
       this.#stopPressAway = onPressAway(
-        (path) => !path.includes(this),
+        (/** @type {EventTarget[]} */ path) => !path.includes(this),
         () => void this.#commit(),
       );
       this.#paintTools();
@@ -425,6 +459,7 @@ customElements.define(
       }
     }
 
+    /** @param {boolean} discard */
     #close(discard) {
       if (!this.#editor) return;
       const before = this.#cancelSize;
@@ -457,8 +492,9 @@ customElements.define(
           nextRender(() => {
             // Command availability is painted before this callback. A new gesture
             // elsewhere wins over handing back the editor's vacated focus.
-            if (this.isConnected && !this.#editor && mayReturn())
-              focusDestination(this.#control("edit"), "return");
+            const edit = this.#control("edit");
+            if (this.isConnected && !this.#editor && mayReturn() && edit)
+              focusDestination(edit, "return");
           });
       }
       // Replay may have been held by this editor. Its close is the generic projection
@@ -471,7 +507,7 @@ customElements.define(
       if (!this.#editor || this.#sending) return;
       if (!this.#available()) return;
       const text = this.#editor.value;
-      if (text === this.controller.read().state.edit.value) {
+      if (text === this.#savedText) {
         this.#close(true);
         return;
       }
@@ -511,14 +547,14 @@ customElements.define(
 
     // A live editor owns its transient text; the complete state waits for it.
     render() {
-      const { state, actions } = this.reading;
-      paintMarkdown(this.#body, state.edit.value);
+      const { actions } = this.controller.read();
+      paintMarkdown(this.#body, this.#savedText);
       if (quoted(this)) return nothing;
       // Recovery chooses the first action face: an unsent editor opens with Save
       // and Discard, without briefly publishing the resting Edit control.
       this.#recoverEdit();
       this.#paintTools();
-      if (this.#editor && !this.#resumeProjection && actions.edit.available)
+      if (this.#editor && !this.#resumeProjection && actions.edit?.available)
         this.#resumeProjection = this.controller.defer();
       return nothing;
     }

@@ -32,39 +32,46 @@ registerPageControl({
 // predates the fixes since. A payload read from Git carries its commit's date; a harness's
 // plugin cache, which drops `.git`, carries the time it copied the commit, one update
 // sweep after it landed (`layer.payload_provenance`).
+/** @param {import("../types/contract.js").ServedProvenance} provenance */
 const payloadAge = (provenance) => ago(provenance.committed ?? provenance.installed);
+/** @param {import("../types/contract.js").ServedProvenance} provenance */
 const payloadDateLines = (provenance) =>
-  ["committed", "installed"]
-    .filter((kind) => provenance[kind])
-    .map((kind) => `${kind}: ${provenance[kind]}`);
+  Object.entries({ committed: provenance.committed, installed: provenance.installed })
+    .filter(([, value]) => value)
+    .map(([kind, value]) => `${kind}: ${value}`);
 // A payload's commit as a row names it, `+` marking uncommitted changes.
+/** @param {import("../types/contract.js").ServedProvenance} provenance */
 const shortCommit = (provenance) =>
   provenance.commit
     ? `${provenance.commit.slice(0, 8)}${provenance.dirty ? "+" : ""}`
     : "unknown";
 
-if (SHARE_ROOT)
+if (SHARE_ROOT) {
+  const root = SHARE_ROOT;
   registerPageControl({
     key: "share",
     rank: PAGE_CONTROL_RANK.share,
     label: "link",
     value: "Grants access to all Leaf pages on this machine.",
-    copies: shareUrl,
+    copies: () => shareUrl(root),
     group: "page",
   });
+}
 
 // The agent session that holds the page, which the user's comments reach: by the name
 // its harness gives it, or the start of its id where it gives none, and the directory
 // it works in, so a user with several sessions open can tell which one to turn to
 // (`presence.page_list` lists the same for every page). A session that ended still
 // holds the page until another claims it, so the row says so rather than going.
+/** @param {import("../types/contract.js").ServedReading} state */
 export function claimantValue(state) {
   const { session_name: name, claim_session: id, session_cwd: cwd } = state;
   const where = cwd ? cwd.split("/").findLast(Boolean) : null;
-  return [name || id.slice(0, 8), where, state.session_alive === false && "ended"]
+  return [name || id?.slice(0, 8), where, state.session_alive === false && "ended"]
     .filter(Boolean)
     .join(" · ");
 }
+/** @param {import("../types/contract.js").ServedReading} state */
 export function claimantDiagnostics(state) {
   return [
     "Agent session",
@@ -75,34 +82,44 @@ export function claimantDiagnostics(state) {
     `running: ${state.session_alive !== false}`,
   ].join("\n");
 }
-const claimed = () => Boolean(/** @type {any} */ (runtime.state)?.claim_session);
+const claimed = () => {
+  const state = runtime.state;
+  return state?.claim_session ? state : null;
+};
 registerPageControl({
   key: "claimant",
   rank: PAGE_CONTROL_RANK.claimant,
   label: "agent session",
-  value: () => (claimed() ? claimantValue(/** @type {any} */ (runtime.state)) : ""),
-  copies: () =>
-    claimed() ? claimantDiagnostics(/** @type {any} */ (runtime.state)) : "",
-  offered: claimed,
+  value: () => {
+    const state = claimed();
+    return state ? claimantValue(state) : "";
+  },
+  copies: () => {
+    const state = claimed();
+    return state ? claimantDiagnostics(state) : "";
+  },
+  offered: () => !!claimed(),
   group: "page",
 });
 
 // The developer preview's identity: which checkout is serving this page. A user preview
 // claims the page, so every press on it, the agent's own screenshots included, comes
 // back to the session as user input; that is the mode worth marking.
-const preview = () => /** @type {any} */ (runtime.state)?.preview ?? null;
-function previewLabel() {
+const preview = () => runtime.state?.preview ?? null;
+/** @param {NonNullable<import("../types/contract.js").ServedReading["preview"]>} preview */
+function previewLabel(preview) {
   const identity = pageIdentity();
-  const producer = identity.layer.producer ?? {};
-  const kind = preview().interaction === "user" ? "User" : "Preview";
-  const stem = `${kind} · ${preview().checkout}${producer.commit ? `@${producer.commit}` : ""}`;
+  const producer = identity.layer?.producer ?? {};
+  const kind = preview.interaction === "user" ? "User" : "Preview";
+  const stem = `${kind} · ${preview.checkout}${producer.commit ? `@${producer.commit}` : ""}`;
   const age = payloadAge(producer);
   return `${producer.commit && producer.dirty ? `${stem}+` : stem}${age ? ` · ${age}` : ""}`;
 }
-function previewDiagnostics() {
+/** @param {NonNullable<import("../types/contract.js").ServedReading["preview"]>} preview */
+function previewDiagnostics(preview) {
   const identity = pageIdentity();
-  const producer = identity.layer.producer ?? {};
-  const { example, checkout, interaction, started } = identity.preview;
+  const producer = identity.layer?.producer ?? {};
+  const { example, checkout, interaction, started } = preview;
   return [
     "Leaf preview",
     `example: ${example}`,
@@ -113,9 +130,9 @@ function previewDiagnostics() {
     ...payloadDateLines(producer),
     `started: ${started}`,
     ...runtimeLines(),
-    `layer generation: ${identity.layer.generation}`,
-    ...(identity.layer.fingerprint
-      ? [`layer fingerprint: ${identity.layer.fingerprint}`]
+    `layer generation: ${identity.layer?.generation}`,
+    ...(identity.layer?.fingerprint
+      ? [`layer fingerprint: ${identity.layer?.fingerprint}`]
       : []),
     ...(runtime.currentRevision ? [`revision: ${runtime.currentRevision}`] : []),
     `event sequence: ${runtime.lastEventSeq ?? 0}`,
@@ -126,8 +143,14 @@ registerPageControl({
   key: "preview",
   rank: PAGE_CONTROL_RANK.preview,
   label: "preview diagnostics",
-  value: () => (preview() ? previewLabel() : ""),
-  copies: () => (preview() ? previewDiagnostics() : ""),
+  value: () => {
+    const reading = preview();
+    return reading ? previewLabel(reading) : "";
+  },
+  copies: () => {
+    const reading = preview();
+    return reading ? previewDiagnostics(reading) : "";
+  },
   offered: () => Boolean(preview()),
   group: "page",
 });
@@ -144,9 +167,10 @@ function runtimeLines() {
 // (`registry.storage.served_layer`). It can be older than the plugin now installed in
 // the harness, since a server keeps the code it started with. Pages built outside Git retain a stable identity through
 // the composed layer fingerprint.
+/** @param {ReturnType<typeof pageIdentity>} identity */
 function layerIdentity(identity) {
-  const producer = identity.layer.producer ?? {};
-  const fingerprint = identity.layer.fingerprint;
+  const producer = identity.layer?.producer ?? {};
+  const fingerprint = identity.layer?.fingerprint;
   if (producer.commit) return shortCommit(producer);
   return fingerprint
     ? `sha256:${fingerprint.replace(/^sha256:/, "").slice(0, 12)}`
@@ -158,20 +182,20 @@ const layerShown = () => {
 };
 function layerNamed() {
   const identity = pageIdentity();
-  const age = payloadAge(identity.layer.producer ?? {});
+  const age = payloadAge(identity.layer?.producer ?? {});
   return `Leaf ${layerIdentity(identity)}${age ? ` · ${age}` : ""}`;
 }
 function layerDiagnostics() {
   const identity = pageIdentity();
-  const producer = identity.layer.producer ?? {};
-  const fingerprint = identity.layer.fingerprint;
+  const producer = identity.layer?.producer ?? {};
+  const fingerprint = identity.layer?.fingerprint;
   return [
     "Leaf layer",
     ...(producer.commit ? [`commit: ${producer.commit}`] : []),
     ...(producer.dirty !== undefined ? [`dirty: ${producer.dirty}`] : []),
     ...payloadDateLines(producer),
     ...(fingerprint ? [`fingerprint: ${fingerprint}`] : []),
-    `generation: ${identity.layer.generation}`,
+    `generation: ${identity.layer?.generation}`,
     ...runtimeLines(),
     ...(runtime.currentRevision ? [`revision: ${runtime.currentRevision}`] : []),
     `url: ${identity.url}`,

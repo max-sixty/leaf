@@ -171,10 +171,10 @@ test("editor tokens retain native constructs and exact source syntax after parse
     ({ token }) => token.nesting === 1 && token.type !== "paragraph_open",
   );
   assert.deepEqual(
-    constructs.map(({ token, from, to, contentFrom, contentTo }) => [
+    constructs.map(({ token, from, to, content }) => [
       token.type,
       source.slice(from, to),
-      source.slice(contentFrom, contentTo),
+      source.slice(...content),
     ]),
     [
       ["em_open", "***nested***", "**nested**"],
@@ -195,10 +195,7 @@ test("editor tokens retain native constructs and exact source syntax after parse
     const link = placedMarkdownTokens(automatic).find(
       ({ token }) => token.type === "link_open",
     );
-    assert.equal(
-      automatic.slice(link.contentFrom, link.contentTo),
-      automatic.trim().split(" ").at(-1),
-    );
+    assert.equal(automatic.slice(...link.content), automatic.trim().split(" ").at(-1));
     assert.equal(link.to, automatic.length);
   }
   for (const automatic of ["**one** and reader@example.com foo@example.com"]) {
@@ -206,10 +203,10 @@ test("editor tokens retain native constructs and exact source syntax after parse
       ({ token }) => token.type === "link_open",
     );
     for (const link of links) {
-      const words = automatic.slice(link.contentFrom, link.contentTo);
+      const words = automatic.slice(...link.content);
       assert.match(words, /^(?:reader@example\.com|foo@example\.com)$/);
-      assert.equal(link.contentFrom, automatic.indexOf(words));
-      assert.equal(link.contentTo, link.contentFrom + words.length);
+      assert.equal(link.content[0], automatic.indexOf(words));
+      assert.equal(link.content[1], link.content[0] + words.length);
     }
     assert.equal(links.length, automatic.includes("foo@example.com") ? 2 : 1);
   }
@@ -223,9 +220,9 @@ test("editor tokens retain native constructs and exact source syntax after parse
     const link = placedMarkdownTokens(automatic).find(
       ({ token }) => token.type === "link_open",
     );
-    assert.equal(automatic.slice(link.contentFrom, link.contentTo), expected);
-    assert.equal(link.contentFrom, automatic.indexOf(expected));
-    assert.equal(link.contentTo, automatic.indexOf(expected) + expected.length);
+    assert.equal(automatic.slice(...link.content), expected);
+    assert.equal(link.content[0], automatic.indexOf(expected));
+    assert.equal(link.content[1], automatic.indexOf(expected) + expected.length);
   }
   const escaped = placedMarkdownTokens(source).flatMap(({ escapes = [] }) => escapes);
   assert.deepEqual(

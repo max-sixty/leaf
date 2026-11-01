@@ -81,7 +81,10 @@ row's keys mean different things, `routes` lists subcommands, each with its own 
 `title`, `binding` or `contextKeys`, and optional `when`; the command reference lists
 and runs each route.
 
-`run(binding, context)` performs the command; a row without `run` names a press the
+`run()` performs a command whose meaning is independent of its key. Use
+`runKey(binding)` instead when the binding determines the action; Leaf supplies the
+actual binding that invoked it, including when the command reference selects a route.
+A row declares at most one of these handlers. A row without either names a press the
 browser or an outer handler makes, and one that names a `control` is pressed by a
 click on it. `control` is the visible element that activates it. `lands(from)` says
 where the user stands after Leaf runs the row for a key, a command-reference pick or
@@ -323,7 +326,8 @@ Drafts survive a reload, a new version and a closed tab, and every tab of the pa
 shares them. Keep each under a context string unique on the page, such as `option:` and
 its id:
 
-- `loadDraft(ctx)` returns the words to seed the box, or `null`.
+- `loadDraft(ctx)` returns the stored draft record, or `null`. Seed the box with
+  `loadDraft(ctx)?.text ?? ""`; its `payload` holds the saved send data.
 - `saveDraft(ctx, text, payload)` records an edit, from `save`, with any `payload` the
   send needs.
 - `watchDraft(ctx, callback, {input: box})` calls `callback(text, payload)` when the

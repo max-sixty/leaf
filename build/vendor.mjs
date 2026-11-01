@@ -8,9 +8,9 @@
  * layer: Pele and Pierre reach a page only when it selects `diagram` or `diff`.
  *
  * Each row of `bundles` bundles only what its consumer needs, from the installed
- * packages and the registry's declarations; a directory under `build/` named after a
- * row holds that row's inputs, and a `.patch` beside this file starts with the name of
- * the row that applies it. Every version a bundle carries is the one
+ * packages and the registry's declarations; a directory under `build/entries/` named
+ * after a row holds that row's inputs. A `.patch` beside this file starts with the
+ * name of the row that applies it. Every version a bundle carries is the one
  * `pnpm-lock.yaml` resolved: `package.json` names each package an entry imports, and
  * the lock settles the rest of the closure. An upstream module a bundle adapts is
  * edited as esbuild loads it, through `adapt`: a `seam` replaces text that must occur
@@ -23,7 +23,7 @@
  * export cannot load, and each bundle's `<name>.LICENSES.txt` states the packages that
  * reached it. `build/browser/build.mjs` writes and checks these outputs with its own.
  */
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -141,7 +141,7 @@ const bundles = {
   // Compare with the document's origin, `self.origin`, instead (SnapDOM 3.3.7).
   snapdom: () => ({
     out: `${assets}/vendor/snapdom.esm.js`,
-    entry: 'export { snapdom } from "@zumer/snapdom";\n',
+    entryPoints: [input("entries/snapdom/entry.mjs")],
     adapt: [
       {
         file: /@zumer\/snapdom\/dist\/snapdom\.mjs$/,
@@ -170,9 +170,8 @@ const bundles = {
   // presentation, so the write is scheduled only when transitions are on.
   "trace-images": () => ({
     out: `${packageVendor("playwright")}/images.esm.js`,
-    entry:
-      'export { default as Viewer } from "viewerjs/dist/viewer.esm.js";\n' +
-      'export { default as css } from "viewerjs/dist/viewer.css";\n',
+    entryPoints: [input("entries/trace-images/entry.mjs")],
+    mainFields: ["module", "main"],
     loader: { ".css": "text" },
     adapt: [
       {
@@ -197,9 +196,7 @@ const bundles = {
   // One lazy Markdown parser bundle, including its task-list extension.
   markdown: () => ({
     out: `${assets}/vendor/markdown-it.esm.js`,
-    entry:
-      'export { default as MarkdownIt } from "markdown-it";\n' +
-      'export { default as taskLists } from "markdown-it-task-lists";\n',
+    entryPoints: [input("entries/markdown/entry.mjs")],
     // Record block syntax where native rules consume it. Public maps expose only
     // lines; guessing delimiters again disagrees with containers and code content.
     adapt: [
@@ -218,17 +215,17 @@ const bundles = {
             [
               'const token = state.push("fence", "code", 0);',
               `const token = state.push("fence", "code", 0);
-          token.meta = { markers: [sourceSpan(state, startLine, state.bMarks[startLine] + state.tShift[startLine], state.eMarks[startLine])] };
-          if (haveEndMarker) token.meta.markers.push(sourceSpan(state, nextLine, state.bMarks[nextLine] + state.tShift[nextLine], state.eMarks[nextLine]));`,
+          token.lfSource = { markers: [sourceSpan(state, startLine, state.bMarks[startLine] + state.tShift[startLine], state.eMarks[startLine])] };
+          if (haveEndMarker) token.lfSource.markers.push(sourceSpan(state, nextLine, state.bMarks[nextLine] + state.tShift[nextLine], state.eMarks[nextLine]));`,
             ],
             [
               'token_o.markup = "########".slice(0, level);',
-              `token_o.meta = { markers: [sourceSpan(state, startLine, state.bMarks[startLine] + state.tShift[startLine], state.skipSpaces(pos)), sourceSpan(state, startLine, max, state.eMarks[startLine])] };
+              `token_o.lfSource = { markers: [sourceSpan(state, startLine, state.bMarks[startLine] + state.tShift[startLine], state.skipSpaces(pos)), sourceSpan(state, startLine, max, state.eMarks[startLine])] };
           token_o.markup = "########".slice(0, level);`,
             ],
             [
               "token_o.markup = String.fromCharCode(marker);",
-              `token_o.meta = { markers: [sourceSpan(state, nextLine, state.bMarks[nextLine] + state.tShift[nextLine], state.eMarks[nextLine])] };
+              `token_o.lfSource = { markers: [sourceSpan(state, nextLine, state.bMarks[nextLine] + state.tShift[nextLine], state.eMarks[nextLine])] };
           token_o.markup = String.fromCharCode(marker);`,
             ],
             ["const oldBMarks = [];", "const markers = []; const oldBMarks = [];"],
@@ -238,12 +235,12 @@ const bundles = {
             ],
             [
               'token_o.markup = ">";',
-              'token_o.meta = { markers }; token_o.markup = ">";',
+              'token_o.lfSource = { markers }; token_o.markup = ">";',
             ],
             [
               'token = state.push("list_item_open", "li", 1);',
               `token = state.push("list_item_open", "li", 1);
-          token.meta = { markers: [sourceSpan(state, nextLine, state.bMarks[nextLine] + state.tShift[nextLine], Math.min(posAfterMarker + 1, contentStart))] };`,
+          token.lfSource = { markers: [sourceSpan(state, nextLine, state.bMarks[nextLine] + state.tShift[nextLine], Math.min(posAfterMarker + 1, contentStart))] };`,
             ],
           ].reduce(
             (text, [original, replacement]) =>
@@ -257,9 +254,7 @@ const bundles = {
   // Load the viewer with its own styles in one optional, exportable module.
   photoswipe: () => ({
     out: `${assets}/vendor/photoswipe.esm.js`,
-    entry:
-      'export { default } from "photoswipe";\n' +
-      'export { default as styles } from "photoswipe/style.css";\n',
+    entryPoints: [input("entries/photoswipe/entry.mjs")],
     loader: { ".css": "text" },
     banner: { js: `/*! PhotoSwipe ${version("photoswipe")} — MIT — photoswipe.com */` },
   }),
@@ -277,6 +272,7 @@ const bundles = {
   sortable: () => ({
     out: `${packageVendor("default")}/sortable.esm.js`,
     copy: "sortablejs/modular/sortable.esm.js",
+    typeEntry: input("entries/sortable/entry.mjs"),
     finish: (source) =>
       'import {move as leafMove} from "/runtime/widget-api.js";\n' +
       /** @satisfies {[string, string, number?][]} */ ([
@@ -321,7 +317,7 @@ const bundles = {
   // without fetching per-family chunks. The widget imports it only when it draws.
   pele: () => ({
     out: `${packageVendor("diagram")}/pele.esm.js`,
-    entry: 'export { parse, render } from "pele";\n',
+    entryPoints: [input("entries/pele/entry.mjs")],
     adapt: [
       {
         file: /pele\/dist\/pele\.js$/,
@@ -356,20 +352,10 @@ const bundles = {
   // syntax a comment never highlights.
   codemirror: () => ({
     out: `${assets}/vendor/codemirror.esm.js`,
-    entry:
-      `/*! CodeMirror ${version("@codemirror/view")} — MIT — https://codemirror.net */\n` +
-      'export { EditorView, keymap, Decoration, ViewPlugin } from "@codemirror/view";\n' +
-      'export { EditorState, StateEffect, Compartment } from "@codemirror/state";\n' +
-      "export { history, standardKeymap, historyKeymap, isolateHistory, invertedEffects }" +
-      ' from "@codemirror/commands";\n' +
-      'export { LanguageSupport } from "@codemirror/language";\n' +
-      "export { markdownLanguage, insertNewlineContinueMarkup }" +
-      ' from "@codemirror/lang-markdown";\n' +
-      'export { ChangeSet, EditorSelection, Prec, Transaction, Annotation, Facet, RangeSet, RangeSetBuilder, StateField, Text, codePointAt, codePointSize, fromCodePoint, combineConfig, MapMode, RangeValue, CharCategory } from "@codemirror/state";\n' +
-      'export { drawSelection, lineNumbers, highlightActiveLineGutter, highlightActiveLine, dropCursor, rectangularSelection, crosshairCursor, GutterMarker, gutter, WidgetType, logException, Direction, showTooltip, getTooltip, placeholder } from "@codemirror/view";\n' +
-      'export { defaultKeymap } from "@codemirror/commands";\n' +
-      'export { HighlightStyle, syntaxHighlighting, indentOnInput, bracketMatching, syntaxTree, indentUnit, language, highlightingFor } from "@codemirror/language";\n' +
-      'export { tags, highlightTree } from "@lezer/highlight";\n',
+    entryPoints: [input("entries/codemirror/entry.mjs")],
+    banner: {
+      js: `/*! CodeMirror ${version("@codemirror/view")} — MIT — https://codemirror.net */`,
+    },
     adapt: [
       // The view's wrapping estimates must refresh when the content width changes.
       // CodeMirror 6.43.13 overwrites its previous width before comparing the two,
@@ -416,9 +402,7 @@ const bundles = {
   // CodeMirror identities.
   "file-editor": () => ({
     out: `${packageVendor("file-editor")}/extensions.esm.js`,
-    entry:
-      'export { diff, unifiedMergeView, getOriginalDoc, originalDocChangeEffect } from "@codemirror/merge";\n' +
-      'export { autocompletion, closeBrackets, closeBracketsKeymap, completionKeymap } from "@codemirror/autocomplete";',
+    entryPoints: [input("entries/file-editor/entry.mjs")],
     platform: "browser",
     target: "es2022",
     plugins: [
@@ -441,9 +425,7 @@ const bundles = {
   // into viewport pixels with its scale.
   "floating-ui": () => ({
     out: `${assets}/vendor/floating-ui.esm.js`,
-    entry:
-      "export { autoUpdate, getOverflowAncestors, computePosition, flip, limitShift, offset, shift, size } " +
-      'from "@floating-ui/dom";\n',
+    entryPoints: [input("entries/floating-ui/entry.mjs")],
     platform: "browser",
     target: "chrome105",
     banner: {
@@ -460,7 +442,7 @@ const bundles = {
   syntax: () => ({
     out: `${assets}/vendor/syntax.esm.js`,
     entryPoints: {
-      "syntax.esm": input("syntax/entry.mjs"),
+      "syntax.esm": input("entries/syntax/entry.mjs"),
       ...Object.fromEntries(
         languages().map((name) => [`syntax/${name}`, `@shikijs/langs/${name}`]),
       ),
@@ -475,20 +457,21 @@ const bundles = {
   // Bundle only jsdiff's array comparison for the core browser runtime.
   jsdiff: () => ({
     out: `${assets}/vendor/jsdiff.esm.js`,
-    entry:
-      `/*! jsdiff ${version("diff")} — BSD-3-Clause — https://github.com/kpdecker/jsdiff */\n` +
-      'export { diffArrays } from "diff/lib/diff/array.js";\n',
+    entryPoints: [input("entries/jsdiff/entry.mjs")],
+    banner: {
+      js: `/*! jsdiff ${version("diff")} — BSD-3-Clause — https://github.com/kpdecker/jsdiff */`,
+    },
   }),
 
   blazediff: () => ({
     out: `${packageVendor("default")}/blazediff.js`,
-    entry: 'export { default } from "@blazediff/core";\n',
+    entryPoints: [input("entries/blazediff/entry.mjs")],
   }),
 
   // DBSCAN groups screenshot fragments by their original neighborhoods.
   "density-clustering": () => ({
     out: `${packageVendor("default")}/density-clustering.esm.js`,
-    entry: 'export { default as DBSCAN } from "density-clustering/lib/DBSCAN.js";\n',
+    entryPoints: [input("entries/density-clustering/entry.mjs")],
   }),
 
   // Observable Plot, which lf-chart hands a page's author. Nothing published is
@@ -502,7 +485,7 @@ const bundles = {
   // Plot goes in, since an author writes the chart in Plot's own API.
   plot: () => ({
     out: `${packageVendor("default")}/plot.esm.js`,
-    entry: 'export * from "@observablehq/plot";\n',
+    entryPoints: [input("entries/plot/entry.mjs")],
     banner: {
       js:
         `/*! @observablehq/plot ${version("@observablehq/plot")} — ISC — https://observablehq.com/plot\n` +
@@ -520,8 +503,8 @@ const bundles = {
   pierre: () => ({
     out: `${packageVendor("default")}/pierre-diffs.esm.js`,
     entryPoints: {
-      "pierre-diffs.esm": input("pierre/entry.mjs"),
-      "pierre-parser.esm": input("pierre/parser.mjs"),
+      "pierre-diffs.esm": input("entries/pierre/entry.mjs"),
+      "pierre-parser.esm": input("entries/pierre/parser.mjs"),
     },
     outdir: packageVendor("default"),
     place: {
@@ -568,12 +551,15 @@ const bundles = {
       js: `/*! @pierre/diffs ${version("@pierre/diffs")} — Apache-2.0 — licenses: pierre-diffs.LICENSES.txt */`,
     },
     plugins: [
-      bindTo(/^shiki(?:\/(?:core|langs))?$/, "./syntax.esm.js"),
+      bindTo(
+        /^(?:shiki(?:\/(?:core|langs))?|\/vendor\/syntax\.esm\.js)$/,
+        "./syntax.esm.js",
+      ),
       {
         name: "leaf-pierre-shims",
         setup(builder) {
           builder.onResolve({ filter: /^@pierre\/theming\/themes$/ }, () => ({
-            path: input("pierre/themes-leaf.mjs"),
+            path: input("entries/pierre/themes-leaf.mjs"),
           }));
         },
       },
@@ -585,7 +571,7 @@ const bundles = {
   // external stylesheet, or consumer build reaches the page.
   trees: () => ({
     out: `${packageVendor("file-tree")}/pierre-trees.esm.js`,
-    entryPoints: [input("trees/entry.mjs")],
+    entryPoints: [input("entries/trees/entry.mjs")],
     platform: "browser",
     target: "chrome105",
     // Keep upstream's core/override ordering inside the page's vendor tier, so
@@ -637,8 +623,8 @@ const bundles = {
   webawesome: async () => ({
     out: `${packageVendor("default")}/webawesome.esm.js`,
     entryPoints: {
-      "webawesome.esm": input("webawesome/entry.mjs"),
-      "webawesome-chrome": input("webawesome/chrome.mjs"),
+      "webawesome.esm": input("entries/webawesome/entry.mjs"),
+      "webawesome-chrome": input("entries/webawesome/chrome.mjs"),
     },
     outdir: `${assets}/vendor`,
     place: {
@@ -702,6 +688,7 @@ async function bundle(spec) {
     out,
     entry,
     copy,
+    typeEntry: _typeEntry,
     finish = (source) => source,
     adapt: adaptations = [],
     place = {},
@@ -777,12 +764,13 @@ async function syntaxLoaders() {
   }
   return Buffer.from(
     "// Generated by build/vendor.mjs from registry.json's $languages.names.\n" +
+      '/** @type {Record<string, () => Promise<{default: import("@shikijs/core").LanguageRegistration[]}>>} */\n' +
       "// prettier-ignore\nexport const syntaxLanguages = {\n" +
       names
         .map((name) => `  "${name}": () => import("/vendor/syntax/${name}.js"),\n`)
         .join("") +
       "};\n" +
-      `// prettier-ignore\nexport const syntaxLanguageNames = ${JSON.stringify(labels)};\n`,
+      `/** @type {Record<string, string>} */\n// prettier-ignore\nexport const syntaxLanguageNames = ${JSON.stringify(labels)};\n`,
   );
 }
 
@@ -795,4 +783,40 @@ export async function vendorOutputs() {
     ...built.flatMap((outputs) => [...outputs]),
     [`${assets}/runtime/syntax-languages.js`, await syntaxLoaders()],
   ]);
+}
+
+/** Resolve a vendored public module to the entry that selects its native exports.
+ * The checker follows the installed dependency's declarations through that entry. */
+export async function vendorTypePaths() {
+  const paths = {};
+  for (const create of Object.values(bundles)) {
+    const spec = await create();
+    if ("typeEntry" in spec) {
+      paths[`/vendor/${path.basename(spec.out)}`] = [spec.typeEntry];
+      continue;
+    }
+    if (!("entryPoints" in spec)) continue;
+    if (Array.isArray(spec.entryPoints)) {
+      if (spec.entryPoints.length === 1)
+        paths[`/vendor/${path.basename(spec.out)}`] = spec.entryPoints;
+    } else {
+      for (const [name, entry] of Object.entries(spec.entryPoints)) {
+        if (path.isAbsolute(entry)) {
+          paths[`/vendor/${name}.js`] = [entry];
+          continue;
+        }
+        const resolved = fileURLToPath(import.meta.resolve(entry));
+        // A bare entry can ship its declaration beside the exported JavaScript.
+        // Keep that maintained contract instead of treating the dependency as JS.
+        const declaration = resolved.replace(
+          /\.(mjs|cjs|js)$/,
+          (_, extension) => ({ mjs: ".d.mts", cjs: ".d.cts", js: ".d.ts" })[extension],
+        );
+        paths[`/vendor/${name}.js`] = [
+          declaration !== resolved && existsSync(declaration) ? declaration : resolved,
+        ];
+      }
+    }
+  }
+  return paths;
 }

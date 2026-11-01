@@ -13,8 +13,8 @@ function copyableText(label, value) {
       ${guard([label, value], () => {
 		const copy = copyControl("", {
 			label: `Copy ${label}`,
-			success: `${label[0].toUpperCase()}${label.slice(1)} copied`,
-			error: `${label[0].toUpperCase()}${label.slice(1)} not copied · select the text to copy`,
+			success: `${label.charAt(0).toUpperCase()}${label.slice(1)} copied`,
+			error: `${label.charAt(0).toUpperCase()}${label.slice(1)} not copied · select the text to copy`,
 			role: "symbol"
 		});
 		copy.value = value;
@@ -62,12 +62,13 @@ for (const type of ["wa-copy", "wa-error"]) copy.addEventListener(type, () => {
 });
 function selectReport() {
 	const text = body.querySelector("pre[aria-label=\"Structured diagnostics\"]");
+	const selection = getSelection();
+	if (!text || !selection) return;
 	const intent = retainUserIntent();
 	reveal(text, intent);
 	focusDestination(text, "move");
 	const range = document.createRange();
 	range.selectNodeContents(text);
-	const selection = getSelection();
 	selection.removeAllRanges();
 	selection.addRange(range);
 	scrollIntoView(text, {
@@ -84,19 +85,19 @@ let destinations = /* @__PURE__ */ new WeakMap();
 let navigationError = null;
 const number = (value) => value.toLocaleString();
 const metrics = (values) => html`<dl class="lf-inspection-metrics">
-    ${[
-	["UTF-8 bytes", values.bytes],
-	["CSS rules", values.rules],
-	["Declarations", values.declarations],
-	["Inline styles", values.inline_styles],
-	["!important", values.important]
-].map(([label, value]) => html`<div>
+    ${Object.entries({
+	"UTF-8 bytes": values.bytes,
+	"CSS rules": values.rules,
+	Declarations: values.declarations,
+	"Inline styles": values.inline_styles,
+	"!important": values.important
+}).map(([label, value]) => html`<div>
           <dt>${label}</dt>
           <dd>${number(value)}</dd>
         </div>`)}
   </dl>`;
-const sourceRows = (owner) => html`<dl>
-    ${report.css.sources.filter((source) => source.owner === owner).map((source) => html`
+const sourceRows = (css, owner) => html`<dl>
+    ${css.sources.filter((source) => source.owner === owner).map((source) => html`
           <dt><code>${source.path}:${source.line}</code></dt>
           <dd>
             ${number(source.bytes)} bytes · ${number(source.rules)} rules ·
@@ -121,7 +122,8 @@ const observations = (label, rows, describe) => html` <dt>${label}</dt>
     </dd>`;
 async function showOnPage(row) {
 	const target = destinations.get(row)?.deref();
-	const view = report.current_view;
+	const view = report?.current_view;
+	if (!view) return;
 	if (runtime.currentRevision !== view.revision || !target?.isConnected) {
 		navigationError = "This location changed. Close and reopen diagnostics to inspect the current page.";
 		present();
@@ -138,7 +140,7 @@ async function showOnPage(row) {
 	});
 }
 function browserReading(view) {
-	if (!view.viewport) return html`<p>${view.unavailable}</p>`;
+	if (!("viewport" in view)) return html`<p>${view.unavailable}</p>`;
 	const checks = view.checks?.reading.checks;
 	return html` <p>
       Captured ${new Date(view.observed_at).toLocaleString()} ·
@@ -157,7 +159,7 @@ function browserReading(view) {
             ${observations("Overflowing regions", checks.overflowing_regions, (row) => `${row.over} px beyond its scrollport`)}
             ${observations("Scrollbar clearance", checks.scrollbar_clearance, (row) => `${row.clear} px available; ${row.required} px needed for ${row.content}`)}
             ${observations(`Scaled labels below ${checks.shrunk_labels.threshold_px} px (heuristic)`, checks.shrunk_labels.drawings, (row) => `${row.labels} labels; smallest ${row.drawn} px, authored ${row.set} px; “${row.words}”`)}
-            ${observations("Arrangement", view.checks.reading.layout.arrangement, (row) => `${row.rows} items by row · ${row.path}`)}
+            ${observations("Arrangement", view.checks?.reading.layout.arrangement ?? [], (row) => `${row.rows} items by row · ${row.path}`)}
           </dl>` : nothing}
     <details>
       <summary>Browser observations and locations</summary>
@@ -165,6 +167,7 @@ function browserReading(view) {
     </details>`;
 }
 function present() {
+	if (!report) return;
 	report.source_unavailable = sourceError;
 	report.source_pending = loading;
 	const serialized = JSON.stringify(report, null, 2);
@@ -194,10 +197,10 @@ function present() {
                 <p>Source captured for r${report.basis.revision}. Static CSS only.</p>
                 ${metrics(report.css.page)}
                 <h3>Page sources and locations</h3>
-                ${sourceRows("page")}
+                ${sourceRows(report.css, "page")}
                 <details>
                   <summary>Selected layer CSS</summary>
-                  ${metrics(report.css.layer)}${sourceRows("layer")}
+                  ${metrics(report.css.layer)}${sourceRows(report.css, "layer")}
                 </details>
                 ${report.css.coverage.map((line) => html`<p>${line}</p>`)}
               ` : nothing}
@@ -242,6 +245,8 @@ function present() {
     `, body);
 }
 async function loadSource() {
+	const current = report;
+	if (!current?.basis) return;
 	request?.abort();
 	const attempt = new AbortController();
 	request = attempt;
@@ -250,11 +255,11 @@ async function loadSource() {
 	if (currentLocationIn(body)) focusDestination(close, "move");
 	present();
 	try {
-		const source = await requestJson(pageUrl(`api/inspect?revision=${report.basis.revision}`), { signal: attempt.signal }, "Page diagnostics");
+		const source = await requestJson(pageUrl(`api/inspect?revision=${current.basis.revision}`), { signal: attempt.signal }, "Page diagnostics");
 		if (request !== attempt || !dialog.open) return;
 		report = {
 			...source,
-			current_view: report.current_view
+			current_view: current.current_view
 		};
 	} catch (error) {
 		if (request !== attempt || !dialog.open) return;
@@ -273,15 +278,20 @@ async function openPageInspection(intent) {
 	destinations = /* @__PURE__ */ new WeakMap();
 	navigationError = null;
 	if (!copyResult.hidden) copyResult.hidden = true;
-	const retain = (value) => {
-		if (!value || typeof value !== "object") return;
-		if (resolver && value.place && !Array.isArray(value.place)) {
-			const target = resolver.resolvePlace(value.place);
-			if (target) destinations.set(value, new WeakRef(target));
+	if (resolver && "checks" in current_view && current_view.checks) {
+		const { checks, layout } = current_view.checks.reading;
+		const observations = [
+			...checks.overflowing_regions,
+			...checks.scrollbar_clearance,
+			...checks.shrunk_labels.drawings,
+			...layout.arrangement
+		];
+		for (const observation of observations) {
+			if (!observation.place) continue;
+			const target = resolver.resolvePlace(observation.place);
+			if (target) destinations.set(observation, new WeakRef(target));
 		}
-		for (const child of Object.values(value)) retain(child);
-	};
-	if ("checks" in current_view) retain(current_view.checks);
+	}
 	const available = !offlineInteractive && sessionIsActive() && Number.isInteger(current_view.revision);
 	report = {
 		basis: available ? { revision: current_view.revision } : null,
@@ -291,7 +301,7 @@ async function openPageInspection(intent) {
 	sourceError = available ? null : "Source inspection is unavailable in this export or public preview. Browser context is shown below.";
 	loading = available;
 	render(html`<h2 class="lf-label">Page details</h2>
-      ${pageControls().filter((entry) => entry.copies).map((entry) => html`${copyableText(entry.label[0].toUpperCase() + entry.label.slice(1), entry.copies)}${entry.value ? html`<p>${entry.value}</p>` : nothing}`)}`, identity);
+      ${pageControls().filter((entry) => entry.copies).map((entry) => html`${copyableText(entry.label.charAt(0).toUpperCase() + entry.label.slice(1), entry.copies)}${entry.value ? html`<p>${entry.value}</p>` : nothing}`)}`, identity);
 	openLayer(dialog);
 	if (available) loadSource();
 	else present();

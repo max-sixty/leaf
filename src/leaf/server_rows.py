@@ -31,6 +31,7 @@ from collections.abc import Mapping
 from datetime import datetime
 from pathlib import Path
 
+from .files import read_json
 from .page_memory import memory_of
 from .presence import PRESENCE_CACHE_S, live_facts, nudge_interrupted
 from .served_state.reading import page_reading
@@ -39,19 +40,11 @@ from .server import exit_serving
 from .service import page_claim
 from .state import STRING, Record, described, object_schema, page_key, state_home
 
+# The neighbor row and the browser's state answer share this compact activity shape.
 ACTIVITY_FIELDS = frozenset(
-    {
-        "kind",
-        "held",
-        "dropped",
-        "detail",
-        "observed",
-        "observed_kind",
-        "awaiting",
-        "counts",
-        "ts",
-        "next_transition_at",
-    }
+    read_json(Path(__file__).with_name("served_state") / "state.schema.json")[
+        "properties"
+    ]["others"]["items"]["properties"]["activity"]["required"]
 )
 COUNT_FIELDS = frozenset(
     {"active", "handling", "queued", "picked_up", "pending", "overdue", "total"}

@@ -99,19 +99,54 @@ count("wrong");
   assert.equal(discovered.status, 0, discovered.stdout + discovered.stderr);
 });
 
-test("framework modules require their checking pragma", async (context) => {
-  const scratch = await mkdtemp(path.join(tmpdir(), "leaf-runtime-pragma-"));
+test("unimported browser and package modules are strict without a pragma", async (context) => {
+  const scratch = await mkdtemp(path.join(tmpdir(), "leaf-runtime-strict-"));
   context.after(() => rm(scratch, { recursive: true }));
-  const runtime = path.join(scratch, "browser/runtime");
-  await mkdir(path.join(runtime, "framework"), { recursive: true });
-  const file = path.join(runtime, "framework/unimported.js");
-  await writeFile(file, "export const value = 1;\n");
-  await assert.rejects(checkRuntimeModules(scratch), {
-    message:
-      "Start each framework module with `// @ts-check`, so the strict program checks it:\nbrowser/runtime/framework/unimported.js",
-  });
-  await writeFile(file, "// @ts-check\nexport const value = 1;\n");
-  await checkRuntimeModules(scratch);
+  const typeRoot = path.join(scratch, "browser/types");
+  await mkdir(typeRoot, { recursive: true });
+  await writeFile(
+    path.join(typeRoot, "tsconfig.json"),
+    await readFile(new URL("../../browser/types/tsconfig.json", import.meta.url)),
+  );
+  await writeFile(
+    path.join(typeRoot, "tsconfig.paths.json"),
+    JSON.stringify({ compilerOptions: { types: [] } }),
+  );
+  const files = [
+    "browser/runtime/unimported.js",
+    "packages/example/widgets/unimported.js",
+    "build/entries/example/unimported.mjs",
+  ];
+  for (const file of files) {
+    await mkdir(path.dirname(path.join(scratch, file)), { recursive: true });
+    await writeFile(
+      path.join(scratch, file),
+      "export const read = (value) => value;\n",
+    );
+  }
+  const check = () =>
+    spawnSync(
+      process.execPath,
+      [
+        path.join(root, "node_modules/typescript/bin/tsc"),
+        "--project",
+        path.join(typeRoot, "tsconfig.json"),
+        "--pretty",
+        "false",
+      ],
+      { encoding: "utf8" },
+    );
+  const untyped = check();
+  assert.equal(untyped.status, 1, untyped.stdout + untyped.stderr);
+  for (const file of files) assert.ok(untyped.stdout.includes(file));
+  assert.match(untyped.stdout, /Parameter 'value' implicitly has an 'any' type/);
+  for (const file of files)
+    await writeFile(
+      path.join(scratch, file),
+      "/** @param {string} value */\nexport const read = (value) => value;\n",
+    );
+  const typed = check();
+  assert.equal(typed.status, 0, typed.stdout + typed.stderr);
 });
 
 test("runtime TypeScript is refused by build and check, with declarations allowed", async (context) => {

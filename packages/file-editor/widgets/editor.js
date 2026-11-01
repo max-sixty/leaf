@@ -114,6 +114,7 @@ const highlighting = HighlightStyle.define([
   { tag: tags.comment, color: "var(--syn-comment)" },
   { tag: [tags.meta, tags.processingInstruction], color: "var(--syn-comment)" },
 ]);
+/** @param {string} filename */
 const isMarkdown = (filename) => langForPath(filename) === "markdown";
 
 /** Create a file editor. External text changes use CodeMirror transactions,
@@ -154,7 +155,7 @@ export function createEditor(
       ...(readonly ? { tabindex: "0" } : {}),
     }),
   ];
-  const state = (value) =>
+  const state = (/** @type {string} */ value) =>
     EditorState.create({
       doc: value,
       extensions: [
@@ -219,10 +220,13 @@ export function createEditor(
       ],
     });
   let retained = state(text);
+  /** @type {InstanceType<typeof LeafEditorView> | null} */
   let view = new LeafEditorView({ state: retained, parent });
   let scroll = { top: 0, left: 0 };
   const reading = () => view?.state ?? retained;
-  const dispatch = (spec) => {
+  const dispatch = (
+    /** @type {import("@codemirror/state").TransactionSpec} */ spec,
+  ) => {
     if (view) view.dispatch(spec);
     else retained = retained.update(spec).state;
   };
@@ -274,6 +278,7 @@ export function createEditor(
       return readonly;
     },
     // Words an empty editor shows in place of the file, such as why no file is there.
+    /** @param {string} text */
     set placeholder(text) {
       if (shownHint === text) return;
       shownHint = text;
@@ -285,8 +290,10 @@ export function createEditor(
       dispatch({ effects: editable.reconfigure(readonlyExtension()) });
     },
     get contentDOM() {
+      if (!view) throw new Error("A detached editor has no rendered content");
       return view.contentDOM;
     },
+    /** @param {string} label */
     setLabel(label) {
       const next = isMarkdown(label);
       if (next === markdown) return;
@@ -297,6 +304,7 @@ export function createEditor(
         ),
       });
     },
+    /** @param {string} value */
     setConflict(value) {
       if (conflict === value) return;
       conflict = value;

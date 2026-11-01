@@ -1793,7 +1793,7 @@ function commentPlacement({ makesRoom = false } = {}) {
 						width: Math.max(Math.min(minimumWidth, boundary.width) / scale.x, Math.min(state.availableWidth, lane / scale.x)),
 						height: below ?? (rises ? shown.height / scale.y : state.availableHeight),
 						room: shown,
-						stood,
+						stood: below === null ? stood : Math.min(stood, below),
 						scale,
 						measure: spanned ? Math.min(spanned, boundary.right - inlineStart) / scale.x : null
 					});

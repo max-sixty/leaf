@@ -354,6 +354,21 @@ def test_a_long_card_on_a_narrow_window_stands_under_its_words(browser, serve, s
     if size[0] < 400:
         assert card["left"] <= 8.5 and card["right"] >= stands["width"] - 8.5, stands
 
+    # A scroll that carries the words lower leaves the card less room under them, and
+    # it takes that room, scrolling its own content, rather than hanging past the
+    # window's foot.
+    page.mouse.move(words["left"] + 4, (words["top"] + words["bottom"]) / 2)
+    page.mouse.wheel(0, -size[1] / 4)
+    scroll_settled(page)
+    rendered(page)
+    lowered = page.evaluate(CARD_AND_WORDS)
+    assert lowered["words"]["top"] > words["top"] + size[1] / 8, (stands, lowered)
+    assert lowered["card"]["top"] >= lowered["words"]["bottom"], lowered
+    assert lowered["card"]["bottom"] <= lowered["height"], lowered
+    page.mouse.wheel(0, size[1] / 4)
+    scroll_settled(page)
+    rendered(page)
+
     page.evaluate(
         "() => { document.getElementById('asked').style.minHeight ="
         " `${innerHeight + 56}px`; }"

@@ -122,7 +122,8 @@
    lifts it as it outgrows the room below; its held top is the spot before that lift,
    so shrinking brings it back down to where it stood. A card under its words on a
    narrow window never rises, since that lift would carry it over them: it has only
-   the room below where it stands. Against
+   the room below where it stands, however tall it stood before a scroll carried it
+   lower. Against
    the window's foot the boundary keeps a card's foot, so content that shrinks it, a
    rewrite opening over long words, a fold, an edit, lowers its top, and growing back
    raises it again to where it stood. A scroll moves the line and keeps only the
@@ -741,7 +742,9 @@ export function commentPlacement({ makesRoom = false } = {}) {
                   : clear.left - boundary.left - COMMENT_GAP;
           // Under what it is about on a narrow window, it has the room below where it
           // stands, since it slides no higher (the shift's limiter, below), where
-          // Floating UI offers a sliding surface the whole boundary's height.
+          // Floating UI offers a sliding surface the whole boundary's height. That
+          // room caps the height it has stood at too, so a scroll that carries it
+          // lower makes it scroll its own content rather than hang past the window.
           const below =
             clearOf && side === "bottom"
               ? (shown.bottom -
@@ -756,7 +759,7 @@ export function commentPlacement({ makesRoom = false } = {}) {
             ),
             height: below ?? (rises ? shown.height / scale.y : state.availableHeight),
             room: shown,
-            stood,
+            stood: below === null ? stood : Math.min(stood, below),
             scale,
             measure: spanned
               ? Math.min(spanned, boundary.right - inlineStart) / scale.x

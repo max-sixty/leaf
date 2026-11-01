@@ -40,7 +40,9 @@ and the agent takes the user's answer or withdraws the ask. For each, give:
 ## Findings for the agent
 
 Leaf passes each of these to the agent as a message, for the agent to act on, and
-first makes a stale passage's fix itself where you give one. Name:
+first makes a stale passage's fix itself where you give one. Leaf's earlier messages
+from this check are in the conversation; leave out a finding one of them already
+passed on. Name:
 
 - `stale`: what a page, not a reply, still says that the work or the conversation
   has since changed, such as a result, a capture, a lede, a question it still asks,

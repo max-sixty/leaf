@@ -1,7 +1,7 @@
 {
   "lf-playground": {
     "description": "A preview with controls, where the user compares candidates, tunes a configuration, and sends it.",
-    "x-instructions": "Holds one `lf-playground-preview` and one `lf-playground-output`.",
+    "x-instructions": "Holds one `lf-playground-preview` and one `lf-playground-output`. With `actions=\"page\"`, the page's script draws the submission and Reset and hands them over with `registerActions`.",
     "type": "object",
     "properties": {
       "id": {
@@ -15,6 +15,9 @@
       "submit-label": {
         "type": "string",
         "minLength": 1
+      },
+      "actions": {
+        "const": "page"
       },
       "restated": {
         "type": "boolean"

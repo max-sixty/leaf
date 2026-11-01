@@ -4,6 +4,7 @@
 import { registry } from "./registry.js";
 import { keeps } from "./keeps.js";
 import { marks } from "./kernel-facts.js";
+import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 
 // ---------- which page the stores are scoped to ----------
 // Prepaint declares the page scope once; widget state and chrome use that same prefix.
@@ -35,7 +36,7 @@ export const PAGE_SCOPE = document.documentElement.dataset.lfPageScope;
 //
 // Values are the store's own vocabulary, strings and null, so nothing here has an
 // opinion about encoding: an absent key reads back as null, and writing null removes it.
-const { stored } = document.documentElement.lfStorage;
+const { stored } = window.lfStorage;
 // Two of the three are scoped to the page (PAGE_SCOPE), and the odd one out is the reason
 // there are three backings: what the user arranges is theirs wherever they are reading,
 // while what they typed here belongs to this page. tabStore is the only one on the helper
@@ -43,46 +44,44 @@ const { stored } = document.documentElement.lfStorage;
 // collapsed group) — a module reaches its drafts through saveDraft/watchDraft, the chrome
 // the user arranges is the runtime's own, and an export nothing imports is a promise
 // nobody asked for. tab-store.js owns the portable widget store.
-// Delivery marks authored views before modules load. A package can also construct
-// a view while rendering: resolve the same declaration at this capability boundary,
-// before prepaint's shared selection owner reads its marks.
+// Delivery carries the member selector into prepaint; generated holders use the
+// registry's same declaration. Only the browser evaluates it. Reading members or
+// the opening choice changes no DOM; keeping a choice owns its presentation.
+/** @param {Element} holder */
+const memberSelector = (holder) => registry[holder.localName]?.["x-views"]?.members;
+/** @param {Element} holder */
 export function viewMembers(holder) {
+  return window.lfViews.members(holder, memberSelector(holder));
+}
+/** @param {Element} holder @param {Element | null} [fallback] */
+export function openingView(holder, fallback = undefined) {
+  return window.lfViews.opening(holder, fallback, memberSelector(holder));
+}
+/** @param {Element} holder */
+export function markViews(holder) {
   const declaration = registry[holder.localName]?.["x-views"];
-  if (!declaration) return [];
+  if (!declaration) return;
   keeps(holder, marks["x-views"].paint, declaration.parts ? "parts" : "");
-  for (const child of holder.children) {
-    const member =
-      !child.hasAttribute("data-lf-gen") && child.matches(declaration.members);
-    if (
-      !member &&
-      child.hasAttribute("data-lf-view") &&
-      child.getAttribute("hidden") === "until-found"
-    )
-      child.removeAttribute("hidden");
-    child.toggleAttribute("data-lf-view", member);
-  }
-  return document.documentElement.lfViews.members(holder);
+  keeps(holder, PAGE_PAINT_ATTRIBUTE.viewMembers, declaration.members);
 }
-export function openingView(holder, ...fallback) {
-  viewMembers(holder);
-  return document.documentElement.lfViews.opening(holder, ...fallback);
-}
+/** @param {Element} holder @param {Element | null} member @param {Element | null} [leaving] */
 export function keepView(holder, member, leaving = null) {
-  viewMembers(holder);
-  return document.documentElement.lfViews.keep(holder, member, leaving);
+  markViews(holder);
+  return window.lfViews.keep(holder, member, leaving);
 }
 export const draftStore = stored(() => localStorage, "local", PAGE_SCOPE);
 // The delivery declares a child page's private user scope. Bootstrap reads the
 // same fact before this module loads; neither derives it from the viewed revision.
-export const userStore = document.documentElement.lfStorage.userStore;
+export const userStore = window.lfStorage.userStore;
 // Which of a view's arrangements the user chose, such as On me's grouping, kept for
 // every page as the chrome they arrange is: the stored value while it is one of
 // `values`, else null, as a store that refuses reads, so the caller's default stands.
+/** @template {string} T @param {string} key @param {readonly T[]} values */
 export const userChoice = (key, values) =>
   Object.freeze({
     read: () => {
       const value = userStore.get(key);
-      return values.includes(value) ? value : null;
+      return values.find((candidate) => candidate === value) ?? null;
     },
-    write: (value) => userStore.set(key, value),
+    write: (/** @type {T | null} */ value) => userStore.set(key, value),
   });

@@ -9,6 +9,9 @@ They use Promptfoo's assertions and viewer with automatic evidence-aware grading
 Their exception to the usual suite scope, retained cases and grading workflow are
 in [UI review detection](ui-review-detection/README.md).
 
+[Control legibility](control-legibility/README.md) asks a model what each control in
+a view does from its picture alone, and runs with `pnpm run eval:legibility`.
+
 ```sh
 pnpm install --frozen-lockfile
 uv run leaf-dev eval brief-document-needs-no-outline --harness claude-code
@@ -87,8 +90,9 @@ acceptance decisions, use the
 This section describes the commands that execute a selected experiment.
 
 `evals/workflows/eval.yaml` owns viewport presets and the default. Case definitions
-do not select resolutions. Use `--viewport short` or `--viewport phone` to choose
-an alternative; repeat the option to inspect several sizes within each sample.
+do not select resolutions. Use `--viewport large`, `--viewport short` or
+`--viewport phone` to choose an alternative; repeat the option to inspect several
+sizes within each sample.
 The first selected size drives the comment and decision journey. All selected
 sizes reach the author's window preference, report captures and final judge.
 Full workflows introduce that preference after the first draft; short authoring
@@ -582,6 +586,11 @@ arm's launcher first on `PATH`, and a fresh workspace, home, temporary directory
 Leaf state for every sample. Pinned files under `evals/<case>/` are copied into
 that workspace at the same relative paths. Cite those paths in the prompt; the
 agent can open, register, crop or mark the captures. Ask it to write the page.
+Declaring `html` in `metadata.conditions` adds the plain HTML control, which gets
+the same prompt without the Leaf skill prefix, an empty directory and the headless
+Chrome path; its `page-valid` means the page loaded without script errors. A
+case that declares more than one condition gives its judges each page on arrival
+at the run's windows; a Leaf-only case also gives them the render check's screens.
 Assertions grade the saved `index.html`, with additional `completed` and
 `page-valid` checks; the executor independently runs `page check`, plain and with
 `--render`, and keeps the page, native trace, reply, and check output under the

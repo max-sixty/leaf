@@ -2,6 +2,7 @@
 drafts, sending a choice, quoted playgrounds, and their layout in a workspace."""
 
 import io
+import itertools
 import re
 
 import pytest
@@ -735,55 +736,118 @@ def test_narrow_playground_keeps_complete_preset_labels_operable(browser, serve)
     expect(page.get_by_role("slider", name="Threshold")).to_have_value("5")
 
 
-def test_plain_choices_wrap_between_whole_labels_until_the_author_sets_columns(
-    browser, serve
-):
-    """Plain label choices run in a row that breaks between labels, and
-    `--playground-choice-columns` arranges them, and rich choices, in the author's
-    columns instead."""
-    choices = "".join(
-        f'<lf-playground-choice value="{value}" label="{label}"></lf-playground-choice>'
-        for value, label in (
-            ("page", "Page on-call (today)"),
-            ("ticket", "Open a ticket"),
-            ("mute", "Mute"),
+def test_plain_choices_stand_one_per_line_until_the_author_sets_columns(browser, serve):
+    """Plain label choices stand one per line with their marks on the label's edge, so
+    in a page's own row of controls each is as wide as its longest label and no empty
+    column opens beside one. `--playground-choice-columns` arranges them, and rich
+    choices, in the author's columns instead."""
+
+    def group(name, labels):
+        choices = "".join(
+            f'<lf-playground-choice value="{index}" label="{label}"></lf-playground-choice>'
+            for index, label in enumerate(labels)
         )
-    )
+        return (
+            f'<lf-playground-control name="{name}" label="{name.title()}" kind="choice"'
+            f' value="0">{choices}</lf-playground-control>'
+        )
+
     source = leaf_page(
         "Choice arrangements",
         f"""<style>
-  .card {{ inline-size: 28rem; }}
-  #columned {{ --playground-choice-columns: repeat(2, minmax(0, 1fr)); }}
-  #stacked {{ inline-size: 60rem; --playground-choice-columns: minmax(0, 1fr); }}
+  #row {{
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, auto));
+    justify-content: start;
+    gap: 8px 24px;
+  }}
+  #columned {{ inline-size: 28rem; --playground-choice-columns: repeat(2, minmax(0, 1fr)); }}
+  #rich {{ inline-size: 60rem; --playground-choice-columns: minmax(0, 1fr); }}
 </style>
-<h1>Route the alert</h1>
-<lf-playground id="routes">
+<h1>Which thread view?</h1>
+<lf-playground id="views" data-width="available">
   <lf-playground-preview>
-    <div class="card"><lf-playground-control name="row" label="Row"
-      kind="choice" value="page">{choices}</lf-playground-control></div>
-    <div class="card" id="columned"><lf-playground-control name="columns"
-      label="Columns" kind="choice" value="page">{choices}</lf-playground-control></div>
-    <div id="stacked"><lf-playground-control name="rich" label="Layout"
-      kind="choice" value="list">
+    <div id="row">
+      {
+            group(
+                "controls",
+                ["Today: a row at the foot", "Top right; the foot's row goes"],
+            )
+        }
+      {
+            group(
+                "leaf",
+                [
+                    "Today: in the reply's row, 32px of words past it",
+                    "Outside the card; reply and thread share an edge",
+                ],
+            )
+        }
+      {
+            group(
+                "back",
+                [
+                    "Today: ‹ Threads, first in the presses",
+                    "‹ before the title",
+                    "Threads › before the title",
+                    "‹ hanging off the card, above the leaf",
+                    "None",
+                ],
+            )
+        }
+    </div>
+    <div id="columned">{
+            group("columns", ["Page on-call (today)", "Open a ticket", "Mute"])
+        }</div>
+    <div id="rich"><lf-playground-control name="rich" label="Layout" kind="choice"
+      value="list">
       <lf-playground-choice value="list" label="List"><p>Rows</p></lf-playground-choice>
       <lf-playground-choice value="grid" label="Grid"><p>Tiles</p></lf-playground-choice>
     </lf-playground-control></div>
   </lf-playground-preview>
-  <lf-playground-output>Route the alert.</lf-playground-output>
+  <lf-playground-output>Build the thread view.</lf-playground-output>
 </lf-playground>""",
     )
     page = open_page(browser, serve(source))
-    read = """control => [...control.querySelectorAll('label.choice')].map(face => {
-      const words = document.createRange();
-      words.selectNodeContents(face.querySelector('.lf-playground-choice-label'));
-      const box = face.getBoundingClientRect();
-      return {left: Math.round(box.left), top: Math.round(box.top),
-              lines: words.getClientRects().length};
-    })"""
-    row = page.locator('lf-playground-control[name="row"]').evaluate(read)
-    assert {face["top"] for face in row} == {row[0]["top"]}
-    assert [face["lines"] for face in row] == [1, 1, 1]
-    columns = page.locator('lf-playground-control[name="columns"]').evaluate(read)
+    resized(page, 1700, 1000)
+    read = """control => {
+      const box = node => node.getBoundingClientRect();
+      const faces = [...control.querySelectorAll('label.choice')].map(face => {
+        const words = document.createRange();
+        words.selectNodeContents(face.querySelector('.lf-playground-choice-label'));
+        const edges = box(face);
+        return {left: Math.round(edges.left), top: Math.round(edges.top),
+                right: edges.right, lines: words.getClientRects().length};
+      });
+      return {
+        left: box(control).left, right: box(control).right, top: box(control).top,
+        faces,
+        labelLeft: box(control.querySelector('.lf-playground-control-label')).left,
+        markLeft: box(control.querySelector('label.choice > input')).left,
+      };
+    }"""
+    controls = [
+        page.locator(f'lf-playground-control[name="{name}"]').evaluate(read)
+        for name in ("controls", "leaf", "back")
+    ]
+    assert len({round(control["top"]) for control in controls}) == 1
+    for control in controls:
+        faces = control["faces"]
+        assert len({face["left"] for face in faces}) == 1
+        assert [face["top"] for face in faces] == sorted(
+            {face["top"] for face in faces}
+        )
+        assert all(face["lines"] == 1 for face in faces)
+        assert control["right"] - max(face["right"] for face in faces) <= 1
+        assert control["markLeft"] == pytest.approx(control["labelLeft"], abs=1)
+    gaps = {
+        round(after["left"] - before["right"])
+        for before, after in itertools.pairwise(controls)
+    }
+    assert gaps == {24}
+    columns = page.locator('lf-playground-control[name="columns"]').evaluate(read)[
+        "faces"
+    ]
     assert columns[0]["left"] == columns[2]["left"] < columns[1]["left"]
     assert columns[0]["top"] == columns[1]["top"] < columns[2]["top"]
     # Rich choices take the author's columns over their own responsive grid.
@@ -1702,6 +1766,151 @@ def test_undoing_a_playground_choice_leaves_the_controls_as_the_user_set_them(
 
     playground.get_by_role("button", name="Reset", exact=True).click()
     expect(budget).to_have_value("10")
+
+
+PAGE_ACTIONS_PAGE = leaf_page(
+    "page-drawn playground",
+    """
+<style>tile-tool button { font-size: 19px; }</style>
+<lf-ask id="tile-ask"><h1>Choose the tile size</h1>
+<lf-playground id="tile-config" submit-label="Keep this size" actions="page">
+  <lf-playground-preview><tile-tool></tile-tool></lf-playground-preview>
+  <lf-playground-output>Keep the tile size.</lf-playground-output>
+</lf-playground></lf-ask>
+<script type="module">
+import {generatedElement, once, whileInterfaceConnected} from "/runtime/widget-api.js";
+customElements.define("tile-tool", class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    const button = (text) => {
+      const node = document.createElement("button");
+      node.type = "button";
+      if (text) node.textContent = text;
+      return node;
+    };
+    const grow = button("Grow"), save = button(), reset = button("Reset");
+    save.className = "tile-save";
+    const tools = generatedElement(document.createElement("div"), {says: true});
+    tools.append(grow, save, reset);
+    this.append(tools);
+    const playground = this.closest("lf-playground");
+    whileInterfaceConnected(this, {
+      declare: () => {
+        const tile = playground.registerContributor("tile", {size: 2}, tools);
+        playground.registerActions({submit: save, reset});
+        playground.registerInstructionProvider(v => `Make tiles ${v.tile.size} units.`);
+        grow.addEventListener("click", () => tile.set({size: tile.get().size + 1}));
+      },
+      connect: () => playground.subscribe(() => {}),
+    });
+  }
+});
+</script>
+""",
+)
+
+
+def test_a_page_draws_the_actions_of_a_playground_without_controls(browser, serve):
+    """A preview's contributor and instruction make a whole playground. Under
+    `actions="page"` Leaf draws no rail or bar; the page's own buttons, which its CSS
+    styles, submit, undo and reset, by pointer and by the playground's keys."""
+    page = open_page(browser, serve(PAGE_ACTIONS_PAGE))
+    playground = page.locator("#tile-config")
+    save = playground.locator(".tile-save")
+    expect(save).to_have_text("Keep this size")
+    expect(
+        playground.locator(".lf-playground-rail, .lf-playground-actions")
+    ).to_have_count(0)
+    assert save.evaluate("button => getComputedStyle(button).fontSize") == "19px"
+
+    playground.get_by_role("button", name="Grow").click()
+    with sending(page, "the tile size"):
+        save.click()
+    choice = events_model.read_events(serve.page_dir)[-1]
+    assert choice["detail"] == {
+        "values": {"tile": {"size": 3}},
+        "instruction": "Make tiles 3 units.",
+    }
+    expect(save).to_have_text("Undo choice")
+
+    # The playground's digit presses the page's button: here it withdraws the choice.
+    save.focus()
+    with sending(page, "the withdrawal"):
+        page.keyboard.press("1")
+    assert events_model.read_events(serve.page_dir)[-1]["undoes"] == choice["id"]
+    expect(save).to_have_text("Keep this size")
+    assert playground.evaluate("root => root.values.tile.size") == 3
+
+    playground.get_by_role("button", name="Reset", exact=True).click()
+    assert playground.evaluate("root => root.values.tile.size") == 2
+    playground.get_by_role("button", name="Grow").click()
+    page.keyboard.press("Alt+0")
+    assert playground.evaluate("root => root.values.tile.size") == 2
+
+
+def test_a_playground_whose_page_never_hands_over_its_actions_fails(browser, serve):
+    """Under `actions="page"`, a page that never registers its buttons leaves the user
+    no way to answer, so the playground fails where `page check` reads failures."""
+    source = PAGE_ACTIONS_PAGE.replace(
+        "playground.registerActions({submit: save, reset});", ""
+    )
+    assert source != PAGE_ACTIONS_PAGE
+    page = open_page(browser, serve(source))
+    report = '<lf-playground id="tile-config"> failed: '
+    expect(page.locator("#tile-config .lf-error")).to_contain_text("registerActions")
+    round_trip(page)
+    assert any(
+        event["kind"] == "error" and event["text"].startswith(report)
+        for event in events_model.read_events(serve.page_dir)
+    )
+    consume_browser_errors(page, report)
+
+
+def test_a_page_drawn_preset_sets_its_whole_slice_as_one_gesture(browser, serve):
+    """The shadow scale's presets are the page's own buttons over its contributor
+    slice. A press, by pointer or key, sets all three elevations at once and shows
+    pressed; the playground records it as one gesture, so Undo restores the scale the
+    preset replaced."""
+    page = open_page(browser, serve(ROOT / "examples" / "shadow-scale.html"))
+    playground = page.locator("#shadow-playground")
+    presets = playground.get_by_role("group", name="Start from")
+    soft, deep, flat = (
+        presets.get_by_role("button", name=name, exact=True)
+        for name in ("Soft", "Deep", "Flat")
+    )
+    layers = playground.locator(".ws-row span")
+    expect(soft).to_have_attribute("aria-pressed", "true")
+    expect(layers).to_have_text("3 of 4")
+    soft_scale = playground.evaluate("root => root.values.scale")
+
+    def tunes():
+        return [
+            event["detail"]["values"]["scale"]
+            for event in events_model.read_events(serve.page_dir)
+            if event.get("action") == "tune"
+        ]
+
+    deep.click()
+    expect(deep).to_have_attribute("aria-pressed", "true")
+    expect(soft).to_have_attribute("aria-pressed", "false")
+    expect(layers).to_have_text("2 of 4")
+    deep_scale = playground.evaluate("root => root.values.scale")
+    assert len(deep_scale["overlay"]) == 4 and deep_scale != soft_scale
+    wait_for(tunes, lambda found: found == [deep_scale], failure="Deep never recorded")
+
+    flat.focus()
+    page.keyboard.press("Enter")
+    expect(flat).to_have_attribute("aria-pressed", "true")
+    expect(layers).to_have_text("1 of 4")
+    wait_for(tunes, lambda found: len(found) == 2, failure="Flat never recorded")
+
+    undo(page)
+    expect(deep).to_have_attribute("aria-pressed", "true")
+    assert playground.evaluate("root => root.values.scale") == deep_scale
+    undo(page)
+    expect(soft).to_have_attribute("aria-pressed", "true")
+    expect(layers).to_have_text("3 of 4")
+    assert playground.evaluate("root => root.values.scale") == soft_scale
 
 
 def test_a_playground_rail_stays_in_view_beside_a_tall_stage(browser, serve):

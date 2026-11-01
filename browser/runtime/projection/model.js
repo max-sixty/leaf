@@ -174,9 +174,9 @@ const authoredValue = (
 // that render widget state. One unit has at most one reading for each origin.
 /** @param {AuthoredMap} authoredSnapshots @param {Projection} projection */
 export function projectionOrigins(authoredSnapshots, projection) {
-  /** @type {Map<string, {origin: string, unit: string}>} */
+  /** @type {Map<string, {origin: "restated" | "user" | "reported", unit: string}>} */
   const origins = new Map();
-  /** @param {string} origin @param {string} unit */
+  /** @param {"restated" | "user" | "reported"} origin @param {string} unit */
   const add = (origin, unit) => {
     const key = `${origin}:${unit}`;
     if (!origins.has(key)) origins.set(key, { origin, unit });

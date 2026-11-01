@@ -48,6 +48,14 @@ import { raiseError } from "../errors.js";
 const MIN_SIZE = 8;
 const STEP = 10;
 
+/** @typedef {{x: number, y: number, width: number, height: number}} Region
+ * @typedef {NonNullable<import("../../types/contract.js").EventMap["comment"]["anchor"]>} Anchor
+ * @typedef {{parent: HTMLElement,
+ * visibleTargets: ReturnType<typeof import("./target-picker.js").createTargetPicker>["visibleTargets"],
+ * openComposerWithMedia: (anchor: Anchor | null, images: Blob[]) => unknown,
+ * returnTo?: Element | null}} RegionSelectorOptions
+ */
+/** @param {RegionSelectorOptions} options */
 export function createRegionSelector({
   parent,
   visibleTargets,
@@ -68,7 +76,9 @@ export function createRegionSelector({
   status.setAttribute("role", "status");
   overlay.append(selection, status);
   // No area until a drag draws one or an arrow key asks for the preset.
+  /** @type {Region | null} */
   let box = null;
+  /** @type {{id: number, x: number, y: number, from: Region | null} | null} */
   let drag = null;
   let busy = false;
   let attempt = 0;
@@ -100,6 +110,7 @@ export function createRegionSelector({
     paint();
   }
 
+  /** @param {(() => void) | null} [land] */
   function finish(land = null) {
     if (ended) return;
     ended = true;
@@ -118,6 +129,7 @@ export function createRegionSelector({
     fit();
   }
 
+  /** @param {string} binding */
   function move(binding) {
     if (!box) {
       const { right: width, bottom: height } = layoutWindow();
@@ -144,11 +156,12 @@ export function createRegionSelector({
     fit();
   }
 
-  function anchorForBox() {
+  /** @param {Region} selected */
+  function anchorForBox(selected) {
     // The passive paint leaves targets exposed to the ordinary visibility reading,
     // including revisions, widget updates and reflow made while the user selected.
-    const x = box.x + box.width / 2;
-    const y = box.y + box.height / 2;
+    const x = selected.x + selected.width / 2;
+    const y = selected.y + selected.height / 2;
     const winner = visibleTargets()
       .filter(({ rect }) => rect && rect.width && rect.height)
       .map((target) => ({
@@ -168,10 +181,10 @@ export function createRegionSelector({
   }
 
   async function capture() {
-    if (ended || busy || drag) return;
+    if (ended || busy || drag || !box) return;
     const ticket = ++attempt;
     const revision = runtime.currentRevision;
-    const anchor = anchorForBox();
+    const anchor = anchorForBox(box);
     const clip = { ...box, x: box.x + scrollX, y: box.y + scrollY };
     busy = true;
     keeps(overlay, "aria-busy", "true");
@@ -202,18 +215,20 @@ export function createRegionSelector({
     }
   }
 
-  function dragTo(event) {
+  /** @param {PointerEvent} event @param {{x: number, y: number}} origin */
+  function dragTo(event, origin) {
     box = {
-      x: Math.round(Math.min(drag.x, event.clientX)),
-      y: Math.round(Math.min(drag.y, event.clientY)),
-      width: Math.max(MIN_SIZE, Math.round(Math.abs(event.clientX - drag.x))),
-      height: Math.max(MIN_SIZE, Math.round(Math.abs(event.clientY - drag.y))),
+      x: Math.round(Math.min(origin.x, event.clientX)),
+      y: Math.round(Math.min(origin.y, event.clientY)),
+      width: Math.max(MIN_SIZE, Math.round(Math.abs(event.clientX - origin.x))),
+      height: Math.max(MIN_SIZE, Math.round(Math.abs(event.clientY - origin.y))),
     };
     fit();
   }
 
   // The command owner filters chrome and suppresses claimed events before authored
   // controls see them. Pointer capture, if needed, belongs to that input owner too.
+  /** @param {PointerEvent} event */
   function pointer(event) {
     if (ended) return false;
     if (event.type === "pointerdown") {
@@ -224,13 +239,13 @@ export function createRegionSelector({
       return true;
     }
     if (!drag || drag.id !== event.pointerId) return false;
-    if (event.type === "pointermove") dragTo(event);
+    if (event.type === "pointermove") dragTo(event, drag);
     else if (event.type === "pointerup" || event.type === "pointercancel") {
       const drew =
         event.type === "pointerup" &&
         (Math.abs(event.clientX - drag.x) >= MIN_SIZE ||
           Math.abs(event.clientY - drag.y) >= MIN_SIZE);
-      if (drew) dragTo(event);
+      if (drew) dragTo(event, drag);
       else box = drag.from;
       drag = null;
       if (drew) capture();
@@ -241,6 +256,7 @@ export function createRegionSelector({
 
   // A native editor taking focus ends selection without taking that focus back.
   const cancel = ({ restore = true } = {}) => finish(restore ? null : () => {});
+  /** @type {import("../keyboard/bindings.js").Command[]} */
   const rows = [
     {
       id: "capture.region.attach",
@@ -259,7 +275,7 @@ export function createRegionSelector({
       title: "move area",
       repeat: true,
       when: () => !ended && !busy && !drag,
-      run: move,
+      runKey: move,
     },
     {
       id: "capture.region.resize",
@@ -268,7 +284,7 @@ export function createRegionSelector({
       title: "resize area",
       repeat: true,
       when: () => !ended && !busy && !drag,
-      run: move,
+      runKey: move,
     },
     {
       id: "capture.region.cancel",

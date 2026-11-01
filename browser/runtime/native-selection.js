@@ -15,11 +15,13 @@ import { pageShadowRoots } from "./shadow.js";
 // what is passed. A selection that starts in one tree and ends in another is left to the
 // light-DOM range on purpose: a Range cannot hold ends in two roots, and a quote running
 // from the page's prose into a widget's shadow is exactly what the fences already refuse.
+/** @param {Selection} sel */
 export function pageRange(sel) {
   const plain = sel.getRangeAt(0);
   const shadowRoots = pageShadowRoots();
   if (!shadowRoots.length) return plain;
   const [composed] = sel.getComposedRanges({ shadowRoots });
+  if (!composed) return plain;
   const { startContainer, startOffset, endContainer, endOffset } = composed;
   if (startContainer.getRootNode() !== endContainer.getRootNode()) return plain;
   const range = document.createRange();
@@ -31,22 +33,24 @@ export function pageRange(sel) {
 // Native page selections share one endpoint writer, including their provenance.
 // Native selectionchange arrives asynchronously, so its endpoints say whether it is
 // still the programmatic write or a later user adjustment (including touch handles).
+/** @type {ReturnType<typeof selectionEnds> | null} */
 let writtenSelection = null;
 let writtenBackward = false;
 // Each end is a boundary point, `[node, offset]`.
+/** @typedef {[node: Node, offset: number]} SelectionEnd */
+/** @param {SelectionEnd} anchor @param {SelectionEnd} focus */
 export function selectEnds(anchor, focus) {
   const selection = getSelection();
+  if (!selection) return;
   const from = document.createRange(),
     to = document.createRange();
-  from.setStart(.../** @type {[Node, number]} */ (anchor));
-  to.setStart(.../** @type {[Node, number]} */ (focus));
+  from.setStart(...anchor);
+  to.setStart(...focus);
   writtenBackward = from.compareBoundaryPoints(Range.START_TO_START, to) > 0;
-  selection.setBaseAndExtent(
-    .../** @type {[Node, number]} */ (anchor),
-    .../** @type {[Node, number]} */ (focus),
-  );
+  selection.setBaseAndExtent(...anchor, ...focus);
   writtenSelection = selectionEnds(selection);
 }
+/** @param {Selection} selection */
 const selectionEnds = (selection) => {
   const range = selection.rangeCount ? pageRange(selection) : null;
   return [
@@ -60,10 +64,15 @@ const selectionEnds = (selection) => {
     range?.endOffset,
   ];
 };
+/** @param {Selection | null} selection */
 export function programmaticSelection(selection) {
-  if (!writtenSelection) return false;
-  if (selectionEnds(selection).every((end, i) => end === writtenSelection[i]))
-    return true;
+  if (!selection) {
+    writtenSelection = null;
+    return false;
+  }
+  const written = writtenSelection;
+  if (!written) return false;
+  if (selectionEnds(selection).every((end, i) => end === written[i])) return true;
   writtenSelection = null;
   return false;
 }
@@ -71,14 +80,15 @@ export function programmaticSelection(selection) {
 // Boundary points retain the working end even where the platform reports "none"
 // after setBaseAndExtent. A composed selection clamped in light DOM instead uses
 // the platform's direction for the range inside its declared shadow tree.
+/** @param {Selection} selection @param {Range} range */
 export function selectionBackward(selection, range = pageRange(selection)) {
-  if (
-    selection.anchorNode.getRootNode() !== range.commonAncestorContainer.getRootNode()
-  )
+  const anchor = selection.anchorNode;
+  if (!anchor) return false;
+  if (anchor.getRootNode() !== range.commonAncestorContainer.getRootNode())
     return programmaticSelection(selection)
       ? writtenBackward
       : selection.direction === "backward";
   const probe = document.createRange();
-  probe.setStart(selection.anchorNode, selection.anchorOffset);
+  probe.setStart(anchor, selection.anchorOffset);
   return probe.compareBoundaryPoints(Range.START_TO_START, range) > 0;
 }

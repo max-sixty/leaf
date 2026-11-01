@@ -1274,6 +1274,84 @@ def test_a_card_stays_in_a_pane_whose_rows_all_show(browser, serve):
     )
 
 
+def test_a_card_on_a_log_row_stands_beside_the_log_and_leaves_with_its_row(
+    browser, serve
+):
+    """A bounded log scrolls inside the page as a paragraph does, so a card on one of its
+    rows stands in the rail beside it, where the row's margin entry stands, and grows
+    past the log's foot. Rows arriving leave it where it stands: held to the log's room,
+    a card opened while the log was short moved into the log once the log filled. The
+    log cuts the card only once the row has crossed its top."""
+    rows = "".join(
+        f'<p id="row-{n}">The export wrote tenant {n} to its archive.</p>'
+        for n in range(2)
+    )
+    url = serve(
+        leaf_page(
+            "Export log",
+            "<p>The export copies each tenant into its own archive.</p>" * 3
+            # Last, so the rows arriving move nothing below it.
+            + f'<div id="log" data-bound="start" style="--lf-bound: 10rem">{rows}</div>',
+        ),
+        events=[
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": "Why did tenant 1 retry?",
+                "anchor": {"section": "row-1"},
+            }
+        ],
+    )
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    root = next(
+        event
+        for event in event_log.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    )["id"]
+    append_agent_reply(serve.page_dir, root, "Its first copy missed four rows. " * 14)
+    told(page)
+    log = page.locator("#log")
+    page.locator('[data-lf-margin-for="row-1"] .lf-margin-marker').click()
+    card = page.locator(".lf-margin-preview")
+    expect(card.locator(".lf-msg")).to_have_count(2)
+    rendered(page)
+    opened = card.bounding_box()
+    log.evaluate(
+        """log => { for (let n = 2; n < 30; n++) { const row = document.createElement('p');
+          row.textContent = `The export wrote tenant ${n} to its archive.`;
+          log.append(row); } }"""
+    )
+    rendered(page)
+    filled, box = card.bounding_box(), log.bounding_box()
+    assert filled["x"] >= box["x"] + box["width"] - 0.5, (filled, box)
+    assert filled["height"] > box["height"], (filled, box)
+    for axis in ["x", "y", "height"]:
+        assert filled[axis] == pytest.approx(opened[axis], abs=0.5), (opened, filled)
+    row = page.locator("#row-1")
+    log.evaluate(
+        "(log, row) => { log.scrollTop += row.getBoundingClientRect().bottom"
+        " - log.getBoundingClientRect().top + 10; }",
+        row.element_handle(),
+    )
+    scroll_settled(page, "#log")
+    rendered(page)
+    # Placement follows the scroll a frame or more behind it, more under load.
+    page.wait_for_function(
+        "() => document.querySelector('.lf-margin-preview')"
+        ".style.getPropertyValue('--lf-cut-top') !== ''"
+    )
+    cut = card.evaluate(
+        "card => card.getBoundingClientRect().top"
+        " + parseFloat(card.style.getPropertyValue('--lf-cut-top'))"
+    )
+    assert cut == pytest.approx(log.bounding_box()["y"], abs=0.5), (
+        cut,
+        log.bounding_box(),
+    )
+
+
 def test_a_sent_card_grows_inside_its_reading_region(browser, serve):
     """A card sent in a pane grows out of its box no further than the pane's edge
     cuts it at rest: the growth moves the card's surface inside the region's cut, so the

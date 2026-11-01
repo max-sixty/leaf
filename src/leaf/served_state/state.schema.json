@@ -15,7 +15,35 @@
           "url": { "type": "string" },
           "title": { "type": "string" },
           "session_cwd": { "type": ["string", "null"] },
-          "activity": { "type": "object" }
+          "activity": {
+            "type": "object",
+            "properties": {
+              "kind": { "$ref": "#/$defs/Activity/properties/kind" },
+              "held": { "$ref": "#/$defs/Activity/properties/held" },
+              "dropped": { "$ref": "#/$defs/Activity/properties/dropped" },
+              "detail": { "$ref": "#/$defs/Activity/properties/detail" },
+              "observed": { "$ref": "#/$defs/Activity/properties/observed" },
+              "observed_kind": { "$ref": "#/$defs/Activity/properties/observed_kind" },
+              "awaiting": { "$ref": "#/$defs/Activity/properties/awaiting" },
+              "counts": { "$ref": "#/$defs/Activity/properties/counts" },
+              "ts": { "$ref": "#/$defs/Activity/properties/ts" },
+              "next_transition_at": {
+                "$ref": "#/$defs/Activity/properties/next_transition_at"
+              }
+            },
+            "required": [
+              "kind",
+              "held",
+              "dropped",
+              "detail",
+              "observed",
+              "observed_kind",
+              "awaiting",
+              "counts",
+              "ts",
+              "next_transition_at"
+            ]
+          }
         },
         "required": ["page_key", "url", "title", "session_cwd", "activity"]
       }
@@ -113,7 +141,7 @@
             "sources": {
               "type": "object",
               "additionalProperties": {
-                "description": "One source (`data.read_source`): its contract and, once a value file exists, the publication's revision, run receipt and `updated` instant, and its `value` or `error`.",
+                "description": "One published source (`data.read_source`), with its publication metadata and value or validation error. Sources without a publication are omitted by `read_data`.",
                 "type": "object",
                 "properties": {
                   "contract": { "type": "string" },
@@ -123,7 +151,11 @@
                   "value": true,
                   "error": { "type": "string" }
                 },
-                "required": ["contract"],
+                "required": ["contract", "revision", "run", "updated"],
+                "oneOf": [
+                  { "required": ["value"], "not": { "required": ["error"] } },
+                  { "required": ["error"], "not": { "required": ["value"] } }
+                ],
                 "additionalProperties": false
               }
             }
@@ -490,7 +522,27 @@
       "required": ["state", "turn", "settles", "attempt"],
       "additionalProperties": false
     },
+    "WorkflowLine": {
+      "description": "A workflow's last explicit work line comes from a start record, so its text and log position arrive together (`workflows.workflow`); a failed delivery has neither.",
+      "type": "object",
+      "anyOf": [
+        {
+          "properties": {
+            "detail": { "type": "string" },
+            "detail_seq": { "type": "integer" }
+          }
+        },
+        {
+          "properties": {
+            "detail": { "type": "null" },
+            "detail_seq": { "type": "null" }
+          }
+        }
+      ],
+      "required": ["detail", "detail_seq"]
+    },
     "Workflow": {
+      "$ref": "#/$defs/WorkflowLine",
       "description": "One update the user handed over that has not settled (`workflows.py`).",
       "type": "object",
       "properties": {
@@ -615,7 +667,36 @@
         "at_work",
         "thread"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "anyOf": [
+        {
+          "properties": {
+            "subject": {
+              "type": "object",
+              "properties": {
+                "kind": { "const": "widget" },
+                "id": { "type": "string" }
+              },
+              "required": ["kind", "id"],
+              "additionalProperties": false
+            },
+            "revision": { "type": "integer" }
+          }
+        },
+        {
+          "properties": {
+            "subject": {
+              "type": "object",
+              "properties": {
+                "kind": { "const": "thread" },
+                "id": { "type": "string" }
+              },
+              "required": ["kind", "id"],
+              "additionalProperties": false
+            }
+          }
+        }
+      ]
     },
     "Start": {
       "description": "The start running on a to-do (`todos.running`).",
@@ -739,6 +820,13 @@
         "verb": { "type": "string" }
       },
       "required": ["form"],
+      "oneOf": [
+        { "properties": { "form": { "const": "choice" } }, "required": ["chosen"] },
+        { "properties": { "form": { "const": "move" } }, "required": ["unit", "to"] },
+        { "properties": { "form": { "const": "edit" } }, "required": [] },
+        { "properties": { "form": { "const": "add" } }, "required": ["words"] },
+        { "properties": { "form": { "const": "verb" } }, "required": ["verb"] }
+      ],
       "additionalProperties": false
     },
     "HistoryRow": {
@@ -795,6 +883,28 @@
         "version": { "type": "integer" }
       },
       "required": ["id", "ts", "kind", "author", "agent", "undone"],
+      "oneOf": [
+        {
+          "properties": { "kind": { "const": "comment" } },
+          "required": ["anchor", "about"]
+        },
+        { "properties": { "kind": { "const": "reply" } }, "required": ["thread"] },
+        { "properties": { "kind": { "const": "edit" } }, "required": ["thread"] },
+        { "properties": { "kind": { "const": "resolve" } }, "required": ["thread"] },
+        { "properties": { "kind": { "const": "unresolve" } }, "required": ["thread"] },
+        {
+          "properties": { "kind": { "const": "action" } },
+          "required": ["widget", "gesture"]
+        },
+        {
+          "properties": { "kind": { "const": "report" } },
+          "required": ["widget", "value", "excerpt"]
+        },
+        {
+          "properties": { "kind": { "const": "note" } },
+          "required": ["version", "excerpt"]
+        }
+      ],
       "additionalProperties": false
     },
     "Browser": {
@@ -1070,6 +1180,68 @@
       "required": ["entries", "actions", "reports", "desired"],
       "additionalProperties": false
     },
+    "ObligationAnswer": {
+      "type": "object",
+      "properties": {
+        "value": true,
+        "event": { "anyOf": [{ "$ref": "#/$defs/EventReference" }, { "type": "null" }] }
+      },
+      "required": ["value", "event"],
+      "additionalProperties": false
+    },
+    "WidgetObligationSource": {
+      "type": "object",
+      "properties": {
+        "kind": { "const": "widget" },
+        "id": { "type": "string" },
+        "tag": { "type": "string" },
+        "unit": {
+          "description": "A data record within the owning widget; its projected datum and action unit share this key.",
+          "type": "string"
+        }
+      },
+      "required": ["kind", "id", "tag"],
+      "additionalProperties": false
+    },
+    "UpdateObligationSource": {
+      "description": "An update the user handed over: `id` is the input's event, `subject` the thread or widget it stands on.",
+      "type": "object",
+      "properties": {
+        "kind": { "const": "update" },
+        "id": { "type": "string" },
+        "subject": { "$ref": "#/$defs/Subject" }
+      },
+      "required": ["kind", "id", "subject"],
+      "additionalProperties": false
+    },
+    "MessageObligationSource": {
+      "type": "object",
+      "properties": { "kind": { "const": "message" }, "id": { "type": "string" } },
+      "required": ["kind", "id"],
+      "additionalProperties": false
+    },
+    "TodoObligationSource": {
+      "type": "object",
+      "properties": {
+        "kind": { "const": "todo" },
+        "id": { "type": "string" },
+        "subject": { "$ref": "#/$defs/Subject" }
+      },
+      "required": ["kind", "id", "subject"],
+      "additionalProperties": false
+    },
+    "ObligationPrompt": {
+      "type": "object",
+      "properties": {
+        "text": { "type": ["string", "null"] },
+        "target": {
+          "description": "Where the user goes to answer: the id of a widget's prompt context, or of the thread or widget an update stands on; null for a message or page-wide task, whose source and thread supply navigation.",
+          "type": ["string", "null"]
+        }
+      },
+      "required": ["text", "target"],
+      "additionalProperties": false
+    },
     "Obligation": {
       "description": "One request and its contained answer (`obligations.py`, which owns the statuses): what a message, user task, or widget waits on the user for, or what a user update is owed (`workflows.handed_over`). The source owns the canonical value; identity includes its kind so authored ids and message ids cannot collide.",
       "type": "object",
@@ -1077,81 +1249,17 @@
         "id": { "type": "string" },
         "source": {
           "anyOf": [
-            {
-              "type": "object",
-              "properties": {
-                "kind": { "const": "widget" },
-                "id": { "type": "string" },
-                "tag": { "type": "string" },
-                "unit": {
-                  "description": "A data record within the owning widget; its projected datum and action unit share this key.",
-                  "type": "string"
-                }
-              },
-              "required": ["kind", "id", "tag"],
-              "additionalProperties": false
-            },
-            {
-              "description": "An update the user handed over: `id` is the input's event, `subject` the thread or widget it stands on.",
-              "type": "object",
-              "properties": {
-                "kind": { "const": "update" },
-                "id": { "type": "string" },
-                "subject": { "$ref": "#/$defs/Subject" }
-              },
-              "required": ["kind", "id", "subject"],
-              "additionalProperties": false
-            },
-            {
-              "type": "object",
-              "properties": {
-                "kind": { "const": "message" },
-                "id": { "type": "string" }
-              },
-              "required": ["kind", "id"],
-              "additionalProperties": false
-            },
-            {
-              "type": "object",
-              "properties": {
-                "kind": { "const": "todo" },
-                "id": { "type": "string" },
-                "subject": { "$ref": "#/$defs/Subject" }
-              },
-              "required": ["kind", "id", "subject"],
-              "additionalProperties": false
-            }
+            { "$ref": "#/$defs/WidgetObligationSource" },
+            { "$ref": "#/$defs/UpdateObligationSource" },
+            { "$ref": "#/$defs/MessageObligationSource" },
+            { "$ref": "#/$defs/TodoObligationSource" }
           ]
         },
         "thread": { "type": ["string", "null"] },
         "message": { "type": ["string", "null"] },
-        "prompt": {
-          "type": "object",
-          "properties": {
-            "text": { "type": ["string", "null"] },
-            "target": {
-              "description": "Where the user goes to answer: the id of a widget's prompt context, or of the thread or widget an update stands on; null for a message or page-wide task, whose source and thread supply navigation.",
-              "type": ["string", "null"]
-            }
-          },
-          "required": ["text", "target"],
-          "additionalProperties": false
-        },
+        "prompt": { "$ref": "#/$defs/ObligationPrompt" },
         "answer": {
-          "anyOf": [
-            {
-              "type": "object",
-              "properties": {
-                "value": true,
-                "event": {
-                  "anyOf": [{ "$ref": "#/$defs/EventReference" }, { "type": "null" }]
-                }
-              },
-              "required": ["value", "event"],
-              "additionalProperties": false
-            },
-            { "type": "null" }
-          ]
+          "anyOf": [{ "$ref": "#/$defs/ObligationAnswer" }, { "type": "null" }]
         },
         "status": { "enum": ["open", "answered", "answered_elsewhere", "withdrawn"] },
         "end": {
@@ -1193,7 +1301,100 @@
         "end",
         "next_actor"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "anyOf": [
+        {
+          "anyOf": [
+            {
+              "properties": {
+                "thread": { "type": "null" },
+                "message": { "type": "null" }
+              }
+            },
+            {
+              "properties": {
+                "thread": { "type": "string" },
+                "message": { "type": "string" }
+              }
+            }
+          ],
+          "properties": {
+            "source": { "$ref": "#/$defs/WidgetObligationSource" },
+            "answer": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ObligationAnswer",
+                  "properties": { "value": true },
+                  "required": ["value"]
+                },
+                { "type": "null" }
+              ]
+            }
+          }
+        },
+        {
+          "properties": {
+            "source": { "$ref": "#/$defs/UpdateObligationSource" },
+            "answer": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ObligationAnswer",
+                  "properties": { "value": { "type": "null" } },
+                  "required": ["value"]
+                },
+                { "type": "null" }
+              ]
+            }
+          }
+        },
+        {
+          "properties": {
+            "source": { "$ref": "#/$defs/MessageObligationSource" },
+            "thread": { "type": "string" },
+            "message": { "type": "string" },
+            "answer": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ObligationAnswer",
+                  "properties": {
+                    "value": {
+                      "type": "object",
+                      "properties": {
+                        "text": { "type": "string" },
+                        "token": { "type": "string" }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["value"]
+                },
+                { "type": "null" }
+              ]
+            }
+          }
+        },
+        {
+          "properties": {
+            "source": { "$ref": "#/$defs/TodoObligationSource" },
+            "message": { "type": "null" },
+            "prompt": {
+              "$ref": "#/$defs/ObligationPrompt",
+              "properties": { "text": { "type": "string" } },
+              "required": ["text"]
+            },
+            "answer": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ObligationAnswer",
+                  "properties": { "value": { "enum": ["done", "failed"] } },
+                  "required": ["value"]
+                },
+                { "type": "null" }
+              ]
+            }
+          }
+        }
+      ]
     },
     "QueueRow": {
       "description": "One row of On me or On <agent> (`served_state.queues`); `owner` names its list and `live` whether the agent has it in hand now. A record's row names its obligation by `id`, whose record is the view's `obligations` entry, and an agent to-do row names its record in the page's `todos` entry.",
@@ -1203,6 +1404,15 @@
       ]
     },
     "ObligationRow": {
+      "anyOf": [
+        {
+          "properties": {
+            "kind": { "enum": ["widget", "message", "todo"] },
+            "owner": { "const": "user" }
+          }
+        },
+        { "properties": { "kind": { "const": "update" } } }
+      ],
       "description": "An obligation record's row in On me or On <agent> (`served_state.queues`).",
       "type": "object",
       "properties": {

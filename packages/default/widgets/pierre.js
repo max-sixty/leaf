@@ -5,8 +5,9 @@ let renderer;
 export const pierre = () => (renderer ??= import("/vendor/pierre-diffs.esm.js"));
 
 // Keep Shiki styles intact; the marker lets the render gate inspect themed glyphs.
+/** @param {ParentNode} root @param {string} foreground */
 export function markSyntax(root, foreground) {
-  for (const token of root.querySelectorAll("span[style]"))
+  for (const token of root.querySelectorAll("span"))
     if (
       (token.style.color && token.style.color !== foreground) ||
       token.style.fontStyle ||

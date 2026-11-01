@@ -31,14 +31,18 @@ import {
   quoted,
   registerContribution,
   says,
-  currentLocationIn,
 } from "/runtime/widget-api.js";
 import { renderRetired, textNodesUnder } from "../runtime/passages.js";
 import { shownParts } from "../runtime/geometry.js";
 
+/** @typedef {"accept" | "reject"} Outcome */
+/** @typedef {{decide?: {detail?: {outcome?: Outcome}}}} SuggestionState */
+/** @typedef {ReturnType<typeof textNodesUnder>[number]} TextSegment */
 const WORDS = { accept: "Accept", reject: "Reject" };
 // The outcome of the decision in force, or null while the suggestion is undecided.
+/** @param {SuggestionState} state */
 const outcomeOf = (state) => state.decide?.detail?.outcome ?? null;
+/** @type {Record<Outcome, Pick<import("../runtime/contribution-model.js").EntryInput, "action" | "tone" | "rank">>} */
 const FACE = {
   accept: { action: "accept", tone: "positive", rank: "primary" },
   reject: { action: "reject", tone: "negative", rank: "secondary" },
@@ -52,17 +56,22 @@ const FACE = {
 // `movedWords` keeps alignment and the similarity threshold in one reading before
 // this module turns its offsets into highlight ranges.
 const EMPHASIS = { del: "lf-sug-del", ins: "lf-sug-ins" };
+/** @type {Map<Element, {del: Range[], ins: Range[]}>} */
 const emphasized = new Map(); // suggestion element → {del: Range[], ins: Range[]}
 
+/** @param {string} before @param {string} after */
 function movedWords(before, after) {
   const runs = alignText(before, after);
+  /** @param {string} text */
   const ink = (text) => text.replace(/\s+/g, "").length;
   const shared = runs
     .filter((run) => run.kind === "same")
     .reduce((total, run) => total + ink(run.text), 0);
   if (!shared || shared * 3 < Math.min(ink(before), ink(after))) return null;
 
+  /** @type {[number, number][]} */
   const del = [];
+  /** @type {[number, number][]} */
   const ins = [];
   let oldOffset = 0;
   let newOffset = 0;
@@ -83,7 +92,10 @@ function movedWords(before, after) {
 }
 
 function repaintEmphasis() {
-  for (const [kind, name] of Object.entries(EMPHASIS)) {
+  /** @type {(keyof typeof EMPHASIS)[]} */
+  const kinds = ["del", "ins"];
+  for (const kind of kinds) {
+    const name = EMPHASIS[kind];
     const ranges = [...emphasized.values()].flatMap((e) => e[kind]);
     // Under the comment marks (priority -1): a passage the user pointed at
     // outranks the widget's own emphasis wherever the two overlap.
@@ -94,6 +106,7 @@ function repaintEmphasis() {
 // [from, to) offsets in a slot's concatenated text → Ranges over its text nodes. One
 // range per segment keeps generated interface between authored segments out of the
 // paint: a DOM Range spanning both sides would include the excluded nodes between them.
+/** @param {readonly TextSegment[]} segments @param {readonly (readonly [number, number])[]} spans */
 function toRanges(segments, spans) {
   const ranges = [];
   for (const [from, to] of spans) {
@@ -119,12 +132,21 @@ customElements.define(
   "lf-suggestion",
   class extends LeafElement {
     // What the obligation was answered with: the decision.
+    /** @param {unknown} value */
     static answerWords(value) {
-      return value.outcome === "accept" ? "Accepted" : "Rejected";
+      return value !== null &&
+        typeof value === "object" &&
+        "outcome" in value &&
+        value.outcome === "accept"
+        ? "Accepted"
+        : "Rejected";
     }
 
+    /** @type {ReturnType<typeof registerContribution> | null} */
     #margin = null;
+    /** @type {ReturnType<typeof commandScope> | null} */
     #commandScope = null;
+    /** @type {Outcome | null} */
     #presentedOutcome = null;
 
     // Re-connection — a card dragged to another column, a replay moving one — must
@@ -168,7 +190,10 @@ customElements.define(
             : this.parentElement,
         source: () => this,
         read: () => this.#readMargin(),
-        activate: (activation, { focus }) => {
+        activate: (
+          /** @type {string} */ activation,
+          /** @type {{focus: (key: string) => boolean}} */ { focus },
+        ) => {
           if (activation === "accept" || activation === "reject")
             return this.#decide(activation, focus);
           if (activation === "undo") return this.#undoOutcome();
@@ -179,14 +204,18 @@ customElements.define(
     // Which controls the suggestion offers now, as keys: the question a command row's
     // `when` asks on every keyboard repaint, answered without building the entries, whose
     // labels read the suggestion's words.
+    /** @returns {(Outcome | "undo")[]} */
     #offered() {
       const outcome = this.#outcome();
       if (outcome) return this.#undoable(outcome) ? ["undo"] : [];
-      return Object.keys(WORDS);
+      /** @type {Outcome[]} */
+      const decisions = ["accept", "reject"];
+      return decisions;
     }
 
     #entries() {
       const outcome = this.#outcome();
+      /** @type {string | undefined} */
       let words;
       const change = () => (words ??= this.#label());
       const entry = {
@@ -201,6 +230,7 @@ customElements.define(
             scope: this.#commandScope,
           }),
       };
+      /** @param {Outcome} kind */
       const decision = (kind) =>
         contributionEntry({
           key: kind,
@@ -212,9 +242,12 @@ customElements.define(
           className: `lf-sug-${kind}`,
           scope: this.#commandScope,
         });
-      return this.#offered().map((key) => (entry[key] ?? decision)(key));
+      return this.#offered().map((key) =>
+        key === "undo" ? entry.undo() : decision(key),
+      );
     }
 
+    /** @returns {import("../runtime/contribution-model.js").ReadingOptions} */
     #readMargin() {
       const outcome = this.#outcome();
       const entries = this.#entries();
@@ -251,9 +284,10 @@ customElements.define(
       return this.#outcome() ? "undo" : "accept";
     }
 
+    /** @param {{immediate?: boolean, focus?: string | null}} [options] */
     #refreshMargin({ immediate = false, focus = null } = {}) {
       if (!this.#margin) return;
-      const held = currentLocationIn(this.#margin);
+      const held = this.#margin.hasCurrentLocation();
       this.#margin.update({
         immediate,
         focus: focus ?? (held ? this.#focusKey() : null),
@@ -263,20 +297,21 @@ customElements.define(
 
     #ensureCommands() {
       if (this.#commandScope) return;
-      const labels = {
-        accept: "Accept",
-        reject: "Reject",
-        undo: "Undo",
-      };
+      /** @type {[Outcome | "undo", string][]} */
+      const labels = [
+        ["accept", "Accept"],
+        ["reject", "Reject"],
+        ["undo", "Undo"],
+      ];
       this.#commandScope = commandScope(
         "On a suggested change",
-        Object.entries(labels).map(([key, label]) => ({
+        labels.map(([key, label]) => ({
           id: `suggestion.${key}`,
           contextKeys: () => {
             const position = this.#offered().indexOf(key);
             return position === -1 ? [] : [String(position + 1)];
           },
-          control: () => this.#margin?.control(key),
+          control: () => this.#margin?.control(key) ?? null,
           bindingBadge: null,
           decision: true,
           title: label,
@@ -308,6 +343,7 @@ customElements.define(
     }
 
     // The page's blanket answer (x-awaits.all) calls the deciding verb by name.
+    /** @param {Outcome} outcome */
     decide(outcome) {
       return this.#decide(outcome);
     }
@@ -315,6 +351,7 @@ customElements.define(
     // A press makes the reversible decision locally and the outbox carries that exact
     // projection until the log accounts for it. A refusal removes the local winner, and
     // the reading returns the pending suggestion with Accept and Reject.
+    /** @param {Outcome} outcome @param {((key: string) => void) | null} [focus] */
     #decide(outcome, focus = null) {
       if (this.#outcome()) return;
       if (!this.controller.read().actions.decide?.available) return;
@@ -346,19 +383,26 @@ customElements.define(
       focus?.("undo");
     }
 
+    /** @param {Outcome} outcome */
     #undoable(outcome) {
       return this.controller
         .read()
-        .actions.decide?.undo.find((event) => event.detail?.outcome === outcome);
+        .actions.decide?.undo.find(
+          (event) => event.kind === "action" && event.detail.outcome === outcome,
+        );
     }
 
     #undoOutcome() {
       const outcome = this.#outcome();
       const event = outcome && this.#undoable(outcome);
       if (!event) return;
-      this.controller.dispatch({ kind: "undo", target: event.attempt ?? event.id });
+      this.controller.dispatch({
+        kind: "undo",
+        target: ("attempt" in event ? event.attempt : null) ?? event.id,
+      });
     }
 
+    /** @param {Outcome} outcome */
     #settle(outcome) {
       // A settle that changes nothing does nothing, which is what makes the poll's
       // replay of this tab's own decision the no-op an absolute action promises to be.
@@ -400,9 +444,11 @@ customElements.define(
     // keeps the slot drawn over the rule that hides it for exactly as long as its
     // pixels fold, starts from its intrinsic size and releases every override when the
     // effect ends or Undo cancels it.
+    /** @param {Outcome} outcome */
     #fold(outcome) {
-      const going = /** @type {HTMLElement | null} */ (
-        this.querySelector(outcome === "accept" ? ":scope > lf-old" : ":scope > lf-new")
+      /** @type {HTMLElement | null} */
+      const going = this.querySelector(
+        outcome === "accept" ? ":scope > lf-old" : ":scope > lf-new",
       );
       if (!going) return null;
       const style = getComputedStyle(going);
@@ -448,7 +494,9 @@ customElements.define(
       const oldSlot = this.querySelector(":scope > lf-old");
       const newSlot = this.querySelector(":scope > lf-new");
       if (!oldSlot || !newSlot) return; // insert- or delete-only: the tint is the story
-      const [oldSegs, newSegs] = [oldSlot, newSlot].map((slot) => textNodesUnder(slot));
+      const oldSegs = textNodesUnder(oldSlot);
+      const newSegs = textNodesUnder(newSlot);
+      /** @param {readonly TextSegment[]} segs */
       const read = (segs) =>
         segs.map((s) => s.node.data.slice(s.start, s.end)).join("");
       const moved = movedWords(read(oldSegs), read(newSegs));
@@ -481,7 +529,7 @@ customElements.define(
     }
 
     render() {
-      const { state } = this.reading;
+      const { state } = this.controller.read();
       this.#draw(state);
       if (quoted(this) || !this.#margin) return nothing;
       // Signals publish before the projection adapter. Keep the currently focused entry
@@ -489,7 +537,7 @@ customElements.define(
       // focus directly to its semantic replacement instead of losing the user's place
       // when this draw removes it first.
       if (
-        currentLocationIn(this.#margin) &&
+        this.#margin.hasCurrentLocation() &&
         outcomeOf(state) !== this.#presentedOutcome
       )
         return nothing;
@@ -497,6 +545,7 @@ customElements.define(
       return nothing;
     }
 
+    /** @param {SuggestionState} state */
     #draw(state) {
       const outcome = outcomeOf(state);
       if (outcome) return this.#settle(outcome);

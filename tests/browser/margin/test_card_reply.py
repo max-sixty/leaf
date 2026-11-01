@@ -522,11 +522,11 @@ def test_a_press_on_a_moving_card_reaches_what_it_aims_at(browser, serve):
     expect(preview).to_be_visible()
     editor = preview.get_by_role("textbox", name="Reply", exact=True)
     editor.click()
-    write(editor, "A first line.")
+    write(editor, "A first line.\n")
     rendered(page)
     page.evaluate("() => {" + HOLD_MOTION + "}")
-    page.keyboard.press("Shift+Enter")
-    page.keyboard.type("A second line grows the card.")
+    # The line given up shrinks the card over the tween.
+    page.keyboard.press("Backspace")
     page.wait_for_function("() => window.__lfHeld.some(m => m.playState !== 'idle')")
     close = preview.locator(".lf-margin-preview-close").bounding_box()
     page.mouse.click(close["x"] + close["width"] / 2, close["y"] + close["height"] / 2)
@@ -536,10 +536,10 @@ def test_a_press_on_a_moving_card_reaches_what_it_aims_at(browser, serve):
 def test_a_growing_margin_reply_keeps_its_whole_ring_from_the_first_frame(
     browser, serve
 ):
-    """While the card grows with its reply field, the field's focus ring is drawn
-    whole where the field stood, from the motion's first frame. The field's own paper
-    already stood at its grown size, over the ring's lower edge, until the ring had
-    nearly reached its rest."""
+    """A line typed into a card's reply grows the field in the frame the key lands
+    (box-motion.js, "Whose change it is"), its focus ring drawn whole at its new size
+    in that frame. While the growth travelled, the field's own paper stood at its grown
+    size over the ring's lower edge until the ring had nearly reached its rest."""
     page = open_page(browser, serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT]))
     page.emulate_media(reduced_motion="no-preference")
     resized(page, 1440, 900)
@@ -552,14 +552,20 @@ def test_a_growing_margin_reply_keeps_its_whole_ring_from_the_first_frame(
     rendered(page)
     page.wait_for_function(CARD_AT_REST)
     field = preview.locator(".lf-thread-reply .lf-compose-field")
-    stood = field.bounding_box()
+    before = field.bounding_box()
     ring = field.evaluate(
         "node => getComputedStyle(node).outlineColor.match(/\\d+/g).map(Number)"
     )
     page.evaluate("() => {" + HOLD_MOTION + "}")
     page.keyboard.press("Shift+Enter")
-    page.wait_for_function("() => window.__lfHeld.some(m => m.playState !== 'idle')")
-    assert field.bounding_box()["height"] > stood["height"] + 10, "the field never grew"
+    page.wait_for_function(
+        "height => document.querySelector('.lf-margin-preview .lf-thread-reply"
+        " .lf-compose-field').getBoundingClientRect().height > height",
+        arg=before["height"] + 10,
+    )
+    page.evaluate("() => new Promise(r => requestAnimationFrame(() => r()))")
+    assert not page.evaluate("() => __lfHeld.some(m => m.playState !== 'idle')")
+    stood = field.bounding_box()
     pixels = Image.open(
         BytesIO(
             page.screenshot(
@@ -1236,15 +1242,16 @@ def test_scrolling_a_drafting_card_leaves_its_editor_s_height_alone(browser, ser
         ) == pytest.approx(height, abs=0.5), step
 
 
-def test_a_turn_arriving_leaves_the_card_being_read_where_it_stands(browser, serve):
-    """A card being read holds its top: a turn longer than the room below it scrolls in
-    inside the card rather than lifting the card's top over the words being read."""
+def test_a_turn_arriving_leaves_a_card_under_its_words_where_it_stands(browser, serve):
+    """A card under its words holds its top as a turn arrives: one longer than the room
+    below scrolls in inside the card, since rising would cover the words. Beside its
+    words a card rises instead (`test_an_answer_arriving_lifts_a_card_beside_its_words`)."""
     page = open_page(browser, serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT]))
     page.emulate_media(reduced_motion="reduce")
     resized(page, 1000, 600)
     page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
     preview = page.locator(".lf-margin-preview")
-    expect(preview).to_be_visible()
+    expect(preview).to_have_attribute("data-lf-thread-placement", "below")
     rendered(page)
     top = preview.evaluate("card => card.getBoundingClientRect().top")
     reply = append_carried_log_record(
@@ -1263,8 +1270,12 @@ def test_a_turn_arriving_leaves_the_card_being_read_where_it_stands(browser, ser
 
 
 @pytest.mark.parametrize("repeats", [2, 12])
-def test_a_thread_uses_room_the_page_gives_it(browser, serve, repeats):
-    """A scroll into room expands clipped turns, whether or not the whole thread fits."""
+def test_an_answer_arriving_lifts_a_card_beside_its_words(browser, serve, repeats):
+    """A card being read beside its words near the window's foot rises as an answer
+    arrives, the window's foot lifting it as it lifts a card being written in, so the
+    question stays in view above the answer. An answer the window can't hold fills the
+    window and scrolls inside the card. Held at its top, the card scrolled the answer in
+    under the question and hid it (the user's decision, 2026-10-31)."""
     source = leaf_page(
         "Room for a conversation",
         '<h1>Room for a conversation</h1><div style="height: 100vh"></div>'
@@ -1298,17 +1309,22 @@ def test_a_thread_uses_room_the_page_gives_it(browser, serve, repeats):
     told(page)
     expect(transcript.locator(f'[data-event="{answer["id"]}"]')).to_be_attached()
     rendered(page)
-    assert preview.bounding_box()["y"] == pytest.approx(top, abs=0.5)
-    assert transcript.evaluate("node => node.scrollHeight > node.clientHeight")
-    cramped = transcript.evaluate("node => node.clientHeight")
-    page.evaluate("scrollBy(0, 400)")
-    rendered(page)
-    assert transcript.evaluate("node => node.clientHeight") > cramped + (
-        150 if repeats == 2 else 300
+    risen = preview.bounding_box()
+    room = preview.evaluate(
+        """async card => {
+          const {left, right} = card.getBoundingClientRect();
+          const {top, bottom} = (await window.__lfWidgetApi())
+            .shownWindow({gap: 8, across: {left, right}});
+          return {top, bottom};
+        }"""
     )
+    assert risen["y"] < top - 20, (top, risen)
+    assert risen["y"] + risen["height"] == pytest.approx(room["bottom"], abs=1)
     if repeats == 2:
         assert transcript.evaluate("node => node.scrollHeight <= node.clientHeight + 1")
-    assert preview.bounding_box()["y"] == pytest.approx(top - 400, abs=0.5)
+    else:
+        assert risen["y"] == pytest.approx(room["top"], abs=1), (risen, room)
+        assert transcript.evaluate("node => node.scrollHeight > node.clientHeight")
 
 
 def test_an_agent_reply_leaves_the_reply_being_typed_where_it_stands(browser, serve):
@@ -1646,7 +1662,7 @@ def test_resizing_a_focused_editor_keeps_the_pane_the_reader_scrolled_away(
 
 @pytest.mark.parametrize("pending", [False, True], ids=["accepted", "pending"])
 def test_sending_during_a_stream_keeps_later_tokens_from_moving_the_reading(
-    browser, serve, request, pending
+    scrollbar_browser, serve, request, pending
 ):
     """An ongoing answer keeps its identity across the user's interjection. Its later
     tokens stay live, growing down from the reading whether Send has been accepted or
@@ -1657,7 +1673,9 @@ def test_sending_during_a_stream_keeps_later_tokens_from_moving_the_reading(
     root = LONG_THREAD_ROOT["id"]
     claim_for_codex(serve.page_dir, request)
     stream_reply(serve.page_dir, root, "The answer has started.")
-    page = open_page(browser, url)
+    # Exercise bars that take room on every host: their gutter can rewrap the answer
+    # while Send fits the card against the window's top.
+    page = open_page(scrollbar_browser, url, init_script=TRANSCRIPT_BAR_TAKES_ROOM)
     resized(page, 1440, 900)
     page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
     card = page.locator(".lf-margin-preview")
@@ -1666,6 +1684,15 @@ def test_sending_during_a_stream_keeps_later_tokens_from_moving_the_reading(
 
     read_positions = """card => ({
           card: card.getBoundingClientRect().top,
+          transcript: (() => {
+            const list = card.querySelector('.lf-thread-transcript');
+            return {
+              scroll: list.scrollTop,
+              height: list.clientHeight,
+              content: list.scrollHeight,
+              gutter: list.offsetWidth - list.clientWidth,
+            };
+          })(),
           messages: [...card.querySelectorAll('.lf-msg')]
             .map(node => node.getBoundingClientRect().top),
           reply: card.querySelector('.lf-thread-reply').getBoundingClientRect().bottom
@@ -1729,7 +1756,10 @@ def test_sending_during_a_stream_keeps_later_tokens_from_moving_the_reading(
         stream_tokens(repetitions)
         after = positions()
         assert after["card"] == pytest.approx(before["card"], abs=0.5)
-        assert after["messages"] == pytest.approx(before["messages"], abs=0.5)
+        assert after["messages"] == pytest.approx(before["messages"], abs=0.5), (
+            before,
+            after,
+        )
         assert after["reply"] > before["reply"] + 10, (before, after)
 
     before_stream = positions()

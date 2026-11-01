@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  SourcePairs,
   patchRetains,
   patchTree,
   setChildLists,
@@ -87,9 +88,9 @@ function patch(beforeMarkup, afterMarkup = beforeMarkup) {
   const after = main(afterMarkup);
   const live = before.cloneNode(true);
   document.body.replaceChildren(live);
-  const pairs = new Map();
+  const pairs = new SourcePairs();
   const pair = (source, node) => {
-    pairs.set(source, node);
+    pairs.pair(source, node);
     [...source.childNodes].forEach((child, i) => pair(child, node.childNodes[i]));
   };
   pair(before, live);

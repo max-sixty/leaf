@@ -16,8 +16,8 @@
 import { html } from "/runtime/framework.js";
 
 /** @typedef {"agent" | "leaf"} Voice */
-/** A word said, and who says it. A status part carries the agent's sentence's `source`.
- * @typedef {{ readonly text: string, readonly voice: Voice, readonly source?: unknown }} Said */
+/** A word said, and who says it.
+ * @typedef {{ readonly text: string, readonly voice: Voice }} Said */
 /** What a seat shows: the interface's own words, one part said, or a run of either.
  * @typedef {string | Said | readonly (string | Said)[]} Words */
 
@@ -30,10 +30,7 @@ export const leafSays = (text) => saidBy("leaf", text);
 
 /** @param {Words} words @returns {readonly (string | Said)[]} */
 const runOf = (words) =>
-  // `Array.isArray` narrows no readonly array, on either side.
-  Array.isArray(words)
-    ? /** @type {readonly (string | Said)[]} */ (words)
-    : [/** @type {string | Said} */ (words)];
+  typeof words === "string" || "voice" in words ? [words] : words;
 
 /** The words as one line reads them, for a title, the live region or a native
  * placeholder.

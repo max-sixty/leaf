@@ -182,9 +182,11 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     expect(widget.locator(".lf-call-toggle")).to_have_attribute(
         "aria-label", "Collapse all 1 call-tree root"
     )
-    file_row = page.locator("#patch .lf-diff-file").first
-    expect(file_row).to_have_attribute("data-lf-datum", '["gateway/limits.py","file"]')
-    expect(file_row).to_have_attribute(
+    file_header = page.locator("#patch .lf-diff-file summary").first
+    expect(file_header).to_have_attribute(
+        "data-lf-datum", '["gateway/limits.py","file"]'
+    )
+    expect(file_header).to_have_attribute(
         "data-lf-datum-label", "gateway/limits.py · file"
     )
     expect(lines.nth(1)).to_have_attribute("data-root", "")

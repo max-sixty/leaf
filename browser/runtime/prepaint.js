@@ -7,7 +7,10 @@
   const root = document.documentElement;
   // A document reports faults only until it departs. A navigation away aborts the
   // document's requests, and those failures are the navigation's, not the page's.
-  // Chrome fires `pageswap` and `pagehide` before it rejects the aborted requests.
+  // Navigation in Chrome fires `pageswap` and `pagehide` before it rejects the
+  // aborted requests. Iframe removal can reject them inside the native removal,
+  // before pagehide or window.closed records the departure. Reports read lifetime
+  // in the next task, once the native operation has finished.
   // Firefox has no `pageswap`, and it aborts the requests as soon as a `beforeunload`
   // lets the navigation start, while the document stays shown and running until the
   // destination answers. Neither engine says whether a navigation that has started
@@ -24,14 +27,19 @@
   // when the browser restores the same document from its page cache, the faults that
   // waited having gone with the `pagehide`.
   let swapped = false;
+  let departure = 0;
   let leaving = false;
   /** @type {Map<string, () => void>} */
   let waiting = new Map();
   window.lfDocumentLifetime = Object.freeze({
-    /** Run `report` of `fault` now, once the document is known to have stayed, or never. */
+    /** Report after the current native operation, once known to have stayed, or never. */
     whenActive(fault, report) {
-      if (!swapped && !leaving) report();
-      else if (!swapped && !waiting.has(fault)) waiting.set(fault, report);
+      const lifetime = departure;
+      setTimeout(() => {
+        if (window.closed || lifetime !== departure) return;
+        if (!swapped && !leaving) report();
+        else if (!swapped && !waiting.has(fault)) waiting.set(fault, report);
+      });
     },
   });
   const stayed = () => {
@@ -46,6 +54,7 @@
   });
   for (const type of ["pageswap", "pagehide"])
     window.addEventListener(type, () => {
+      departure++;
       swapped = true;
       waiting = new Map();
     });

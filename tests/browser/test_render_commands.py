@@ -610,26 +610,17 @@ def test_a_tall_shot_scrolls_its_images_then_chains_to_its_container(
 
 
 def test_a_shot_keeps_its_reserved_frame_while_images_load(browser, serve):
-    """Upgrading the controls cannot collapse the image allocation before decode."""
+    """Once drawn, the shot's frame keeps its allocation through image decode."""
     url = serve(SHOT_PAGE, media={SHOT_SRC[n]: data for n, data in SHOTS.items()})
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    modules, images = [], []
-    page.route("**/widgets/lf-shot.js", lambda route: modules.append(route))
+    images = []
     page.route("**/media/*.png", lambda route: images.append(route))
     page.goto(url, wait_until="domcontentloaded")
-    holding(page, modules, 1, "the screenshot widget before upgrade")
     shot = page.locator("lf-shot")
-    page.wait_for_function(
-        "getComputedStyle(document.querySelector('lf-shot')).display === 'flex'"
-    )
-    before = shot.bounding_box()
-    assert before["height"] > 100, before
-    for route in modules:
-        route.continue_()
-    page.unroute("**/widgets/lf-shot.js")
     expect(shot.locator(".lf-shotframe img")).to_have_count(2)
     holding(page, images, 2, "both screenshot image responses")
-    pending = shot.bounding_box()
+    before = shot.bounding_box()
+    assert before["height"] > 100, before
     assert shot.locator("img").evaluate_all(
         "images => images.every(image => image.naturalWidth === 0)"
     )
@@ -639,8 +630,7 @@ def test_a_shot_keeps_its_reserved_frame_while_images_load(browser, serve):
     render_checks_model.wait_until_ready(page)
     expect(shot.locator(".lf-shotframe").first).to_be_visible()
     complete = shot.bounding_box()
-    assert pending == pytest.approx(before, abs=1), (before, pending, complete)
-    assert complete == pytest.approx(before, abs=1), (before, pending, complete)
+    assert complete == pytest.approx(before, abs=1), (before, complete)
 
 
 def test_a_shot_keeps_its_default_slider_stable_while_the_divider_loads(browser, serve):

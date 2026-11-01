@@ -216,7 +216,7 @@ aside.note {
   line-height: 1.45;
   color: var(--muted);
 }
-/* A list of facts lays out in markup's reading face (reading.css, `dl.facts`). In the
+/* A list of facts takes Leaf's facts layout (reading.css, `dl.facts`). In the
    column it keeps the prose's rhythm, and its labels step down to the apparatus size,
    never above the size of the words around the list. */
 dl.facts {

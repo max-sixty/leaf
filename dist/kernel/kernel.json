@@ -79,7 +79,7 @@
     "runtime/design.js": "f77c9f844dbe108c1f7cfe9b9c306a7f90e156359b90e3188bbfaf9a037a780f",
     "runtime/details-shelf.js": "0c31971815c7c597c8c5e10c9a211703885b70db0cdd120bd69717d8af8a6828",
     "runtime/document-identity.js": "e55efc5db5e30033407623ca1178bd6edc57ca78840a0f77a6a87c8f3058ef22",
-    "runtime/dom-children.js": "f742d1786706b5f4ccd37254cc83213db26253fc474cf6aef98172e5bc6c0ac5",
+    "runtime/dom-children.js": "5db013ddb25fc7a9e412c52c0b684419beb6c2df54f6e7c54751c4d35ca6008a",
     "runtime/dom-move.js": "c28352139a6764df62769e8d1d1b20f2b185d7bc89e660e6beb062ed1335920d",
     "runtime/drafts.js": "838e673dbc1941ba4364f78850e648a6218f5051e9044ab9732fa160ce928354",
     "runtime/dress.js": "c5a6ef01bc078f90f4a35648cd5cff6075f5e5cb8f2090779a7fb6ad56329597",

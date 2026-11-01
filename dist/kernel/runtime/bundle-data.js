@@ -5558,7 +5558,7 @@ function restyle(live, held, next) {
 	const names = (declared) => Array.from({ length: declared.length }, (_, at) => declared.item(at));
 	const carried = parse(live.getAttribute("style") ?? "");
 	for (const property of [...names(parse(held)), ...names(parse(next))]) carried.removeProperty(property);
-	const text = [next.trim().replace(/;\s*$/, ""), carried.cssText].filter(Boolean).join("; ");
+	const text = [carried.cssText, next.trim()].filter(Boolean).join(" ");
 	if (text) live.setAttribute("style", text);
 	else live.removeAttribute("style");
 }

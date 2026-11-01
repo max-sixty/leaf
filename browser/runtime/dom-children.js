@@ -346,10 +346,13 @@ function patchAttributes(live, before, after, rules) {
 
 // The runtime and page scripts write properties of their own inline on authored
 // elements, `body`'s included (composing/aim.js, content-layout.js), so a revision
-// writes the author's new text and, after it, whatever the live element holds that
-// neither the old text nor the new one declares, in one write. The carried part goes as
-// serialized text: a shorthand written with `var()` reads back empty longhand by
-// longhand, so moving declarations by name drops it.
+// writes whatever the live element holds that neither the old text nor the new one
+// declares, then the author's new text, in one write. The carried part goes as
+// serialized text, since a shorthand written with `var()` reads back empty longhand by
+// longhand, so moving declarations by name drops it. The author's text comes last,
+// where it ends the attribute as it would alone: a `calc(` or quote it leaves open
+// still closes at the end, and its `margin-inline-start` beats a script's
+// `margin-left`, which the names alone don't match.
 /** @param {Element} live @param {string} held @param {string} next */
 function restyle(live, held, next) {
   const parse = (/** @type {string} */ text) => {
@@ -362,9 +365,7 @@ function restyle(live, held, next) {
   const carried = parse(live.getAttribute("style") ?? "");
   for (const property of [...names(parse(held)), ...names(parse(next))])
     carried.removeProperty(property);
-  const text = [next.trim().replace(/;\s*$/, ""), carried.cssText]
-    .filter(Boolean)
-    .join("; ");
+  const text = [carried.cssText, next.trim()].filter(Boolean).join(" ");
   if (text) live.setAttribute("style", text);
   else live.removeAttribute("style");
 }

@@ -32,7 +32,8 @@ def test_a_revision_leaves_root_attributes_it_does_not_change_untouched(browser,
     that changes only the page's words writes nothing to either root. An empty custom
     property reads back as "", and stays declared all the same. A shorthand written
     with `var()` reads back as "" longhand by longhand, and arrives whole all the same,
-    whether the author wrote it or a script wrote it beside the author's own."""
+    whether the author wrote it or a script wrote it beside the author's own; and the
+    author's text still ends the attribute, so a `calc(` it leaves open closes there."""
     empty = '<body class="live-second" data-live-body="second" style="--live-body: 2'
     page = open_page(
         browser, live_url(serve(LIVE_V2.replace(empty, f"{empty}; --live-empty: ")))
@@ -73,7 +74,8 @@ def test_a_revision_leaves_root_attributes_it_does_not_change_untouched(browser,
             "<title>Live second</title>", "<title>Live more</title>"
         ).replace(
             empty,
-            f"{empty}; --live-empty: ; --live-added: ; outline: 5px dashed var(--ink)",
+            f"{empty}; --live-empty: ; --live-added: ; outline: 5px dashed var(--ink);"
+            " min-width: calc(1px + 1px",
         )
     )
     told(page)
@@ -81,6 +83,7 @@ def test_a_revision_leaves_root_attributes_it_does_not_change_untouched(browser,
     assert page.evaluate("[...document.body.style].includes('--live-added')")
     assert page.evaluate("getComputedStyle(document.body).outlineWidth") == "5px"
     assert page.evaluate("getComputedStyle(document.body).borderTopWidth") == "2px"
+    assert page.evaluate("getComputedStyle(document.body).minWidth") == "2px"
 
 
 def test_a_revision_updates_body_siblings_and_keeps_the_users_header_editor(

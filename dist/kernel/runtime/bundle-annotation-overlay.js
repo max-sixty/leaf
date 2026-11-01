@@ -193,7 +193,7 @@ var CardAnchor = class {
 		const beside = seat.side === "left" || seat.side === "right";
 		return {
 			edge: seat.adopted ? attachment : press?.edge ?? ordinary,
-			rises: !seat.adopted && !press?.edge && writing && !this.#sent && beside,
+			rises: !seat.adopted && !press?.edge && !this.#sent && beside,
 			commit: () => {
 				if (this.#press === captured) this.#press = press;
 			}
@@ -487,13 +487,19 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 			floatingUi().then((ui) => stillCurrent() && watch(ui));
 			return false;
 		}
-		const boundary = commentBoundary({ scroller: place.scroller });
+		const boundary = commentBoundary({
+			scroller: place.scroller,
+			at: {
+				x: place.column ?? place.extent.left,
+				y: place.row
+			}
+		});
 		session.scroller = place.scroller;
 		if (!boundary.width || !boundary.height) {
 			floatingUi().then((ui) => stillCurrent() && watch(ui));
 			return false;
 		}
-		const scroller = place.scroller;
+		const { scroller } = boundary;
 		const seat = session.side.choose({
 			clear: place.clear,
 			row: place.row,
@@ -551,7 +557,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 			session.withheldFocus = null;
 			const card = placementDriver.clientBox(position);
 			session.away = card.bottom <= boundary.top || card.top >= boundary.bottom;
-			const region = boundary.inRegion;
+			const region = boundary.cut;
 			const cuts = region ? [
 				(region.top - card.top) / scale.y,
 				(card.right - region.right) / scale.x,
@@ -2704,7 +2710,7 @@ function createFloatingResponsePlacement({ bar: fabBar, input: fabInput, respons
 			column: place.column,
 			extent: place.extent,
 			boundary,
-			scroller: place.scroller,
+			scroller: boundary.scroller,
 			coarse: coarsePointer.matches
 		});
 		const epoch = fabPosition.begin();

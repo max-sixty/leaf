@@ -1778,6 +1778,7 @@ function commentPlacement() {
 						width: Math.max(Math.min(minimumWidth, boundary.width) / scale.x, Math.min(state.availableWidth, lane / scale.x)),
 						height: rises ? shown.height / scale.y : state.availableHeight,
 						room: shown,
+						stationary: Boolean(tallest && Math.abs(tallest.line - line) < .5),
 						stood,
 						scale
 					});

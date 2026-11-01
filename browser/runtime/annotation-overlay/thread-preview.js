@@ -40,6 +40,7 @@ import {
   moveScrollerBy,
   pageScroller,
   scrollToEnd,
+  scrollLimit,
 } from "../scrolling.js";
 import { cancelRender, nextRender, sizeObserver } from "../rendering.js";
 import { spokenSubject } from "../contribution-model.js";
@@ -426,6 +427,15 @@ export function createThreadPreview({
   // clipped contents receive newly available room without requiring a complete fit.
   function measureThreadCard(room, cap, reading) {
     preview.style.setProperty("--lf-thread-width", layoutPx(room));
+    const transcript = previewSession.transcript;
+    // Growing a top-held card may reveal new words below, but must not reveal lines
+    // the reader had already scrolled past. Leave that scroll travel in its transcript.
+    // Follow the tail only after this fit, when the available room is known.
+    if (reading?.keepTop && transcript)
+      cap = Math.min(
+        cap,
+        preview.offsetHeight + Math.max(0, scrollLimit(transcript) - reading.scroll),
+      );
     const worn = parseFloat(preview.style.getPropertyValue("--lf-thread-max-height"));
     const height = preview.offsetHeight;
     const overflow = [
@@ -555,13 +565,18 @@ export function createThreadPreview({
           column: place.column,
           margin: place.margin,
           boundary,
-          fit({ width, height, stood, scale }) {
+          fit({ width, height, stood, scale, stationary }) {
             if (!stillCurrent()) return;
             // Capture when fitting actually starts, after the module load and any
             // Send landing. Hold this reading through every middleware measurement:
             // an intermediate cap must not turn an earlier offset into end-following.
+            const priorReading =
+              session.reading?.input === inputCount() ? session.reading : null;
             reading ??= session.transcript && {
-              end: !fresh && atScrollEnd(session.transcript),
+              end: !fresh && (priorReading?.end ?? atScrollEnd(session.transcript)),
+              scroll: priorReading?.scroll ?? session.transcript.scrollTop,
+              keepTop:
+                stationary && !fresh && anchored.edge === "top" && !anchored.writing,
               latest: session.arriving,
             };
             if (fresh) session.width = null;
@@ -609,6 +624,7 @@ export function createThreadPreview({
       .then((position) => {
         if (!position || !stillCurrent()) return;
         session.arriving = false;
+        session.reading = null;
         // The spot the rule stood the card at before the boundary shifted it in, so a
         // card opened low in the window rises back to it once a scroll gives it room.
         const { scale } = session.side.landed(position);
@@ -723,6 +739,7 @@ export function createThreadPreview({
       withheldFocus: null,
       transcript: null,
       place: null,
+      reading: null,
       stopRegion: null,
       side: commentPlacement(),
       anchor: new CardAnchor(preview),
@@ -779,6 +796,11 @@ export function createThreadPreview({
       lastBox.bottom >= listBox.top &&
       lastBox.bottom <= (replyBox?.top ?? listBox.bottom) + 80 &&
       atScrollEnd(session.transcript);
+    session.reading = session.transcript && {
+      input: inputCount(),
+      scroll: session.transcript.scrollTop,
+      end: follow,
+    };
     const present = () => {
       const targetHeading =
         targetFor(entry)?.querySelector(":scope > strong")?.textContent;
@@ -822,7 +844,6 @@ export function createThreadPreview({
       if (session.arriving) showArrival(session);
     }
     session.latest = latest && { id: latest.id, text: latest.text };
-    if (follow) scrollToEnd(session.transcript);
   }
 
   function stepPreviewThread(step) {

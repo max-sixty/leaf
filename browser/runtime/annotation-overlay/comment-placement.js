@@ -401,10 +401,11 @@ export const cardMeasure = () => rootLength("--thread-card");
    that landing, an adopted frame's offsets are the ones held. `rises` offers a surface
    holding its top the boundary's whole height for `fit`, rather than the room below.
 
-   `fit({ side, width, height, room, stood, scale })` sizes the surface for the room its
+   `fit({ side, width, height, room, stood, scale, stationary })` sizes the surface for the room its
    side gives, in its positioning space; `room` is the client rectangle that room stands
    in, the boundary across the surface's columns (`commentBoundary`, `across`); `stood`
-   is the height a held surface caps no lower than, or 0. Its declared minimum is limited only by the boundary, never by
+   is the height a held surface caps no lower than, or 0. `stationary` says its
+   attachment line has not moved since its last landing. Its declared minimum is limited only by the boundary, never by
    its passage's column.
    The intended inline start caps growth, before a restored draft's own width can
    shift it. On the left, the surface instead holds its right edge clear of the
@@ -673,6 +674,7 @@ export function commentPlacement() {
             ),
             height: rises ? shown.height / scale.y : state.availableHeight,
             room: shown,
+            stationary: Boolean(tallest && Math.abs(tallest.line - line) < 0.5),
             stood,
             scale,
           });

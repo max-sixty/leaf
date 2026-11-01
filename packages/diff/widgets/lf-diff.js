@@ -35,7 +35,6 @@ import {
   HOLDS_WORD,
   announce,
   beginWalk,
-  dataBody,
   failSoft,
   ensureSyntaxLanguage,
   focusDestination,
@@ -877,8 +876,8 @@ customElements.define(
     #marked = new Set();
 
     // The patch text or file manifest, set by whoever hosts the widget: Leaf from the
-    // bound source (the registry's `x-data.document.property`), or null while that
-    // source has none.
+    // bound source (the registry's `x-data.document.property`), or from the written
+    // `<pre>`; null while a bound source has none.
     static properties = { value: { attribute: false } };
 
     constructor() {
@@ -892,8 +891,7 @@ customElements.define(
       if (!ready) return false;
       // Only new evidence or preparation interrupted by departure needs a draw;
       // a no-op update would clear a completed refusal.
-      const source = this.hasAttribute("source") ? this.value : this.inlineSource;
-      return this.#shown === undefined || source !== this.#shown;
+      return this.#shown === undefined || this.value !== this.#shown;
     }
 
     setup() {
@@ -990,11 +988,6 @@ customElements.define(
       commandsChanged(this);
       this.authorNotes = [...this.querySelectorAll(":scope > lf-diff-note")];
       this.unplacedNotes = document.createElement("div");
-      if (!this.hasAttribute("source")) {
-        // Not bodyText: a diff's trailing whitespace is content — a hunk's last line
-        // can be a lone space — so only the closing newline is the <pre>'s layout.
-        this.inlineSource = dataBody(this).replace(/^\n+/, "").replace(/\n$/, "");
-      }
       whileConnected(this, (signal) => {
         // A page diff's file header pins at `--lf-top`, the top of the page's box that
         // scrolls it; one an agent sent in a reply scrolls inside the panel's own list,
@@ -1016,7 +1009,7 @@ customElements.define(
     }
 
     render() {
-      this.#delivered = this.hasAttribute("source") ? this.value : this.inlineSource;
+      this.#delivered = this.value;
       return nothing;
     }
 

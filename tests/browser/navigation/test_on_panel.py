@@ -506,9 +506,9 @@ def test_a_todo_on_you_ends_at_its_done_where_m_lands_and_in_the_panel(
     browser, serve, idle_setup
 ):
     """A task the agent put on the user ends at their Done. Where `m` lands on it, `x`
-    is Done; its card in On me carries a Done button. Either leaves the user's queue
-    in the turn it is pressed, and writes the user's `todo_end`; the obligation beside them
-    has no Done, since its widget answers it."""
+    is Done, and On me opens on its card, which carries a Done button. Either leaves
+    the user's queue in the turn it is pressed, and writes the user's `todo_end`; the
+    obligation beside them has no Done, since its widget answers it."""
     url = serve(QUEUE_PAGE)
     d = serve.page_dir
 
@@ -563,6 +563,13 @@ def test_a_todo_on_you_ends_at_its_done_where_m_lands_and_in_the_panel(
         "an idle arrival paints in its first frame"
     )
     assert x_ends(page), "the page's head as current location selects the page task"
+    # The page's head holds nothing that answers the task, so On me opens on its card,
+    # leaving the user on the head.
+    panel_settled(page, view="queue")
+    expect(page.locator(".lf-fp-on-item[data-walked]")).to_contain_text(
+        "Read it through"
+    )
+    expect(page.locator("#h")).to_be_focused()
     page.keyboard.press("m")
     expect_walk_position(page, "2 of 3 waiting on me · Options")
     assert not x_ends(page)
@@ -598,8 +605,7 @@ def test_a_todo_on_you_ends_at_its_done_where_m_lands_and_in_the_panel(
         page.keyboard.press("x")
     expect_on_me(page, 2)
 
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    # On me stands open from `m`'s arrival at the task on the notes.
     panel_settled(page, view="queue")
     you = page.locator('.lf-fp-on-item[data-list="you"]')
     expect(you).to_have_count(2)
@@ -642,9 +648,10 @@ def row_done(page):
 
 def test_a_todo_on_you_says_its_words_where_you_land_on_it(browser, serve):
     """A to-do's subject carries an On me mark named by its title before anything takes
-    the user there, and wherever `m` or Show lands them on it, the panel's empty field
-    names it and the row's end offers its Done. A to-do on the page as a whole stands at
-    the page's heading, which its own words say nothing about."""
+    the user there. Where `m` lands them on it, On me opens on its card, its whole title
+    over its Done; where Show does, the panel's empty field names it and the row's end
+    offers its Done. A to-do on the page as a whole stands at the page's heading, which
+    its own words say nothing about."""
     url = serve(QUEUE_PAGE)
     whole = (
         "Review the change or name a reviewer, then merge it after checking the build"
@@ -665,10 +672,6 @@ def test_a_todo_on_you_says_its_words_where_you_land_on_it(browser, serve):
     page.locator("#cadence").click()
     page.keyboard.press("Shift+m")
     expect(page.locator("#h")).to_be_focused()
-    expect(todo_field(page)).to_have_attribute(
-        "placeholder", re.compile(f"^To-do · {re.escape(whole)}")
-    )
-    expect(row_done(page)).to_be_visible()
     title = page.locator(
         '[data-lf-margin-for="h"] .lf-margin-marker > .lf-margin-entry-label'
     )
@@ -677,10 +680,11 @@ def test_a_todo_on_you_says_its_words_where_you_land_on_it(browser, serve):
     assert title.locator(".lf-margin-entry-label-word").evaluate(
         "el => el.scrollWidth <= el.clientWidth && el.scrollHeight <= el.clientHeight"
     )
-
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
     panel_settled(page, view="queue")
+    walked = page.locator(".lf-fp-on-item[data-walked]")
+    expect(walked).to_contain_text(whole)
+    expect(walked.get_by_role("button", name="Done", exact=True)).to_be_visible()
+
     page.locator('.lf-fp-on-item[data-list="you"]').filter(has_text=notes).get_by_role(
         "button", name="Show"
     ).click()

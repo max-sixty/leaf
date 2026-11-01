@@ -38,9 +38,46 @@ import {
   whileConnected,
 } from "/runtime/portable-api.js";
 
+/** @param {HTMLElement} host */
+function drawingFor(host) {
+  const model = timelineModel(host);
+  const saved = Number(tabStore.get(`timeline:${host.id}`));
+  return {
+    model,
+    current: Math.max(
+      0,
+      model.steps.findIndex((step) => step.time === saved),
+    ),
+    get chart() {
+      return host.querySelector(".lf-timeline-chart");
+    },
+    get rows() {
+      /** @type {NodeListOf<HTMLElement>} */
+      const rows = host.querySelectorAll(".lf-timeline-step");
+      return [...rows];
+    },
+    get previous() {
+      return host.querySelector(".lf-timeline-previous");
+    },
+    get next() {
+      return host.querySelector(".lf-timeline-next");
+    },
+    /** @param {string} id @returns {HTMLElement | null} */
+    eventElement(id) {
+      return host.querySelector(`.lf-timeline-event[data-event="${CSS.escape(id)}"]`);
+    },
+  };
+}
+
 class Timeline extends HTMLElement {
-  #drawing;
+  /** @type {ReturnType<typeof drawingFor> | undefined} */
+  #reading;
+  get #drawing() {
+    return (this.#reading ??= drawingFor(this));
+  }
+  /** @type {ReturnType<typeof timelineLayout> | undefined} */
   #layout;
+  /** @type {ReturnType<typeof registerVisualParts> | undefined} */
   #parts;
   // Labels are laid out against the ruler's width, so they follow it in the same
   // frame: a timeline first shown in a closed tab places them before it paints.
@@ -86,29 +123,24 @@ class Timeline extends HTMLElement {
   }
 
   #setup() {
-    const model = timelineModel(this);
-    const saved = Number(tabStore.get(`timeline:${this.id}`));
-    const drawing = (this.#drawing = {
-      model,
-      current: Math.max(
-        0,
-        model.steps.findIndex((step) => step.time === saved),
-      ),
-    });
+    const drawing = this.#drawing;
+    const { model } = drawing;
     this.#draw();
-    drawing.chart = this.querySelector(".lf-timeline-chart");
-    drawing.rows = [...this.querySelectorAll(".lf-timeline-step")];
-    drawing.previous = this.querySelector(".lf-timeline-previous");
-    drawing.next = this.querySelector(".lf-timeline-next");
-    drawing.eventElement = (id) =>
-      this.querySelector(`.lf-timeline-event[data-event="${CSS.escape(id)}"]`);
+    const chart = drawing.chart,
+      previous = drawing.previous,
+      next = drawing.next;
+    const ruler = chart?.querySelector(".lf-timeline-ruler");
+    if (!chart || !previous || !next || !ruler)
+      throw new Error("Timeline did not draw its controls");
     for (const authored of this.querySelectorAll(":scope > :is(lf-lane, lf-run)"))
       authored.setAttribute("hidden", "");
     for (const problem of model.problems) reportFailure(this, new Error(problem));
     const steps = model.steps.length;
     // A key pressed on a row of the step list carries the user to the step's row.
-    const lands = (from) =>
-      drawing.rows.includes(from) ? drawing.rows[drawing.current] : null;
+    const lands = (/** @type {Element | null} */ from) =>
+      from !== null && drawing.rows.some((row) => row === from)
+        ? drawing.rows[drawing.current]
+        : null;
     // Previous and Next are the widget's own buttons: each row names the press its
     // button makes and has no run (keyboard/bindings.js), and the drawing marks a
     // button `aria-disabled` at its end, which is the availability Leaf reads.
@@ -120,7 +152,7 @@ class Timeline extends HTMLElement {
           title: "Previous step",
           keys: ["ArrowLeft"],
           repeat: true,
-          control: drawing.previous,
+          control: previous,
           lands,
         },
         {
@@ -128,7 +160,7 @@ class Timeline extends HTMLElement {
           title: "Next step",
           keys: ["ArrowRight"],
           repeat: true,
-          control: drawing.next,
+          control: next,
           lands,
         },
         {
@@ -150,18 +182,19 @@ class Timeline extends HTMLElement {
       ],
     };
     commandsChanged(this);
-    drawing.previous.addEventListener("click", () =>
-      this.#go(drawing.current - 1, true),
-    );
-    drawing.next.addEventListener("click", () => this.#go(drawing.current + 1, true));
+    previous.addEventListener("click", () => this.#go(drawing.current - 1, true));
+    next.addEventListener("click", () => this.#go(drawing.current + 1, true));
     const events = new Map(model.events.map((event) => [event.id, event]));
-    const describe = (event) => `${model.lanes[event.lane].name}: ${event.label}`;
+    const describe = (
+      /** @type {import("./timeline-view.js").TimelineEvent} */ event,
+    ) => `${event.lane.name}: ${event.label}`;
     this.#parts = registerVisualParts(
       this,
       () =>
         model.events.flatMap((event) => {
           const element = drawing.eventElement(event.id);
           if (!element) return [];
+          /** @type {HTMLElement | null} */
           const surface = element.querySelector(
             event.end === null ? ".lf-timeline-label" : ".lf-timeline-mark",
           );
@@ -170,30 +203,31 @@ class Timeline extends HTMLElement {
           ];
         }),
       {
-        label: (id) => {
+        label: (/** @type {string} */ id) => {
           const event = events.get(id.slice("event:".length));
           return event ? describe(event) : null;
         },
-        reveal: (id) => {
+        reveal: (/** @type {string} */ id) => {
           const event = events.get(id.slice("event:".length));
           if (event) this.#go(event.step, false);
         },
       },
     );
     whileConnected(this, (signal) => {
-      const pick = (event) => {
-        const target = event.target.closest?.("[data-step]");
+      const pick = (/** @type {Event} */ event) => {
+        if (!(event.target instanceof Element)) return;
+        const target = event.target.closest("[data-step]");
         if (target && this.contains(target))
-          this.#go(Number(target.dataset.step), false);
+          this.#go(Number(target.getAttribute("data-step")), false);
       };
       // The step list's rows are its buttons, which Enter and Space press as they do a
       // native button's (`selectableOffered`); a press on a mark is the pointer's
       // shortcut to the same step.
-      for (const region of [drawing.chart, ...drawing.rows])
+      for (const region of [chart, ...drawing.rows])
         region.addEventListener("click", pick, { signal });
       document.fonts.addEventListener("loadingdone", this.#relayout, { signal });
       const sizes = sizeObserver(this.#relayout);
-      sizes.observe(drawing.chart.querySelector(".lf-timeline-ruler"));
+      sizes.observe(ruler);
       // Chromium lays the page out for paper before it prints but runs no size
       // observer there; it does report the print media change, at the paper's width.
       matchMedia("print").addEventListener("change", this.#relayout, { signal });
@@ -202,6 +236,7 @@ class Timeline extends HTMLElement {
     });
   }
 
+  /** @param {number} index @param {boolean} keyed */
   #go(index, keyed) {
     const drawing = this.#drawing;
     const before = drawing.current;
@@ -209,13 +244,15 @@ class Timeline extends HTMLElement {
     const step = drawing.current;
     if (step === before) return;
     this.#draw();
-    tabStore.set(`timeline:${this.id}`, String(drawing.model.steps[step].time));
-    this.#parts.update();
+    const selected = drawing.model.steps[step];
+    if (!selected) throw new Error(`Timeline has no step ${step}`);
+    tabStore.set(`timeline:${this.id}`, String(selected.time));
+    this.#parts?.update();
     commandsChanged(this);
     if (!keyed) return;
     const { model } = drawing;
-    const events = model.steps[step].events
-      .map((event) => `${model.lanes[event.lane].name}: ${event.label}`)
+    const events = selected.events
+      .map((event) => `${event.lane.name}: ${event.label}`)
       .join("; ");
     announce(`Step ${step + 1} of ${model.steps.length}. ${events}`);
   }

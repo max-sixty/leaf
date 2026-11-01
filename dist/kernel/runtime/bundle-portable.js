@@ -53,8 +53,7 @@ let readingId = 0;
 function watchFrame(frame, callback) {
 	let intersecting = false;
 	const seen = new IntersectionObserver((entries) => {
-		const { width, height } = entries.at(-1).intersectionRect;
-		intersecting = width > 0 && height > 0;
+		for (const { intersectionRect: { width, height } } of entries) intersecting = width > 0 && height > 0;
 		callback();
 	}, { threshold: [
 		0,
@@ -86,7 +85,8 @@ function watchFrame(frame, callback) {
 	};
 }
 const owners$1 = [];
-if (!child) for (let view = window; view.frameElement; view = view.parent) owners$1.push(watchFrame(view.frameElement, publish));
+let containingView = window;
+if (!child) for (; containingView.frameElement; containingView = containingView.parent) owners$1.push(watchFrame(containingView.frameElement, publish));
 function frameVisibility() {
 	if (child) return { visible: admitted };
 	if (owners$1.length) return { visible: owners$1.every((owner) => owner.shown()) };
@@ -97,14 +97,15 @@ function onFrameVisibility(callback) {
 	return () => observers.delete(callback);
 }
 function readSampleVisibility() {
-	if (!child) return null;
+	const bridge = child;
+	if (!bridge) return null;
 	return new Promise((resolve, reject) => {
 		const id = ++readingId;
 		readings.set(id, {
 			resolve,
 			reject
 		});
-		child.send({
+		bridge.send({
 			type: "visibility-read",
 			detail: { id }
 		});
@@ -118,7 +119,7 @@ if (child) child.receive(({ type, detail }) => {
 	if (type === "visibility-reading") {
 		const reading = readings.get(detail.id);
 		readings.delete(detail.id);
-		if (detail.error) reading?.reject(Object.assign(new Error(detail.error.message), { stack: void 0 }, detail.error));
+		if ("error" in detail) reading?.reject(Object.assign(new Error(detail.error.message), { stack: void 0 }, detail.error));
 		else reading?.resolve(detail);
 		return;
 	}
@@ -178,6 +179,7 @@ const nextFrame = (callback) => request(running ? afterPaint : queued, callback)
 const nextAnimation = (callback) => requestAnimationFrame(callback);
 const cancelAnimation = (id) => cancelAnimationFrame(id);
 function cancelRender(id) {
+	if (id == null) return;
 	for (const queue of [
 		queued,
 		afterPaint,
@@ -320,7 +322,7 @@ function afterSettling(settled) {
 	nextFrame(owed);
 }
 onFrameVisibility((visibility) => {
-	if (visibility.visible) unsettle();
+	if (visibility?.visible) unsettle();
 });
 unsettle();
 
@@ -620,31 +622,21 @@ function q(t) {
 }
 
 //#endregion
-//#region runtime/keeps.js
-const keeps = (node, name, value) => {
-	const next = value == null ? null : String(value);
-	if (!node || node.getAttribute(name) === next) return;
-	if (next === null) node.removeAttribute(name);
-	else node.setAttribute(name, next);
-};
-function keepsHidden(node, hidden) {
-	if (node && node.hidden !== hidden) node.hidden = hidden;
-}
-function keepsText(node, text) {
-	const said = String(text ?? "");
-	if (node && node.textContent !== said) node.textContent = said;
-}
-const atLayoutPrecision = (length) => Math.round(length * 64) / 64;
-const layoutPx = (length) => `${atLayoutPrecision(length)}px`;
-const roomPx = (length) => `${Math.floor(length * 64) / 64}px`;
-
-//#endregion
 //#region runtime/shadow-tree.js
-const shadowHost = (root) => root?.nodeType === Node.DOCUMENT_FRAGMENT_NODE ? root.host ?? null : null;
+const isShadowRoot = (node) => node != null && node.nodeType === node.DOCUMENT_FRAGMENT_NODE && "host" in node;
+const isNode = (node) => typeof node === "object" && node !== null && "nodeType" in node && typeof node.nodeType === "number";
+const isElement = (node) => isNode(node) && node.nodeType === node.ELEMENT_NODE;
+const isText = (node) => node != null && node.nodeType === node.TEXT_NODE;
+function isHTML(node, tag) {
+	return isElement(node) && node.namespaceURI === "http://www.w3.org/1999/xhtml" && (tag === void 0 || node.localName === tag);
+}
+const isSlottable = (node) => isElement(node) || isText(node);
+const shadowHost = (root) => isShadowRoot(root) ? root.host : null;
 const upFrom = (node) => node?.parentElement ?? shadowHost(node?.getRootNode());
-const renderedParent = (node) => node?.assignedSlot ?? upFrom(node);
+const isStyledElement = (node) => node.namespaceURI === "http://www.w3.org/1999/xhtml" || node.namespaceURI === "http://www.w3.org/2000/svg" || node.namespaceURI === "http://www.w3.org/1998/Math/MathML";
+const renderedParent = (node) => (isSlottable(node) ? node.assignedSlot : null) ?? upFrom(node);
 const composedParentNode = (node) => node.parentNode ?? shadowHost(node);
-const renderedParentNode = (node) => node.assignedSlot ?? composedParentNode(node);
+const renderedParentNode = (node) => (isSlottable(node) ? node.assignedSlot : null) ?? composedParentNode(node);
 const under = (node, root) => {
 	for (let at = node; at; at = composedParentNode(at)) if (at === root) return true;
 	return false;
@@ -664,18 +656,26 @@ function renderedOrder(a, b) {
 	const right = renderedChain(b);
 	let index = 0;
 	while (index < left.length && index < right.length && left[index] === right[index]) index += 1;
-	if (index === left.length || index === right.length) return left.length - right.length;
-	return left[index].compareDocumentPosition(right[index]) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
+	const first = left[index];
+	const second = right[index];
+	if (!first || !second) return left.length - right.length;
+	return first.compareDocumentPosition(second) & first.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
 }
 const byRenderedOrder = (items, placeOfItem) => {
-	const placed = items.map((item) => ({
-		item,
-		place: placeOfItem(item)
-	}));
-	return [...placed.filter(({ place }) => place).sort((a, b) => renderedOrder(a.place, b.place)), ...placed.filter(({ place }) => !place)].map(({ item }) => item);
+	const placed = [];
+	const unplaced = [];
+	for (const item of items) {
+		const place = placeOfItem(item);
+		if (place) placed.push({
+			item,
+			place
+		});
+		else unplaced.push(item);
+	}
+	return [...placed.sort((a, b) => renderedOrder(a.place, b.place)).map(({ item }) => item), ...unplaced];
 };
 const nativeLayerKind = (node) => {
-	if (node?.nodeType !== Node.ELEMENT_NODE || !node.isConnected) return null;
+	if (!isElement(node) || !node.isConnected) return null;
 	if (node.matches("dialog:modal")) return "modal";
 	return node.matches(":popover-open") ? "popover" : null;
 };
@@ -686,10 +686,34 @@ function nativeLayerHolding(node) {
 }
 function excludedByInert(node) {
 	for (let owner = node; owner; owner = renderedParent(owner)) {
-		if (owner.inert) return true;
+		if (!isElement(owner)) continue;
+		if (isHTML(owner) && owner.inert) return true;
 		if (nativeLayerKind(owner) === "modal") break;
 	}
 	return false;
+}
+
+//#endregion
+//#region runtime/keeps.js
+const keeps = (node, name, value) => {
+	const next = value == null ? null : String(value);
+	if (!node || node.getAttribute(name) === next) return;
+	if (next === null) node.removeAttribute(name);
+	else node.setAttribute(name, next);
+};
+function keepsHidden(node, hidden) {
+	if (node && node.hidden !== hidden) node.hidden = hidden;
+}
+function keepsText(node, text) {
+	const said = String(text ?? "");
+	if (node && node.textContent !== said) node.textContent = said;
+}
+const atLayoutPrecision = (length) => Math.round(length * 64) / 64;
+const layoutPx = (length) => `${atLayoutPrecision(length)}px`;
+const roomPx = (length) => `${Math.floor(length * 64) / 64}px`;
+function inlineStyle(element) {
+	if (isStyledElement(element)) return element.style;
+	throw new TypeError("This element has no native inline style");
 }
 
 //#endregion
@@ -812,6 +836,8 @@ const owners = /* @__PURE__ */ new WeakMap();
 let offerOwner;
 function watchOwner(owner, lifecycle) {
 	let connected = false;
+	const subscriptions = owners.get(owner) ?? /* @__PURE__ */ new Set();
+	owners.set(owner, subscriptions);
 	const subscription = {
 		connect() {
 			if (connected || !owner.isConnected) return;
@@ -830,8 +856,6 @@ function watchOwner(owner, lifecycle) {
 			lifecycle.disconnect?.();
 		}
 	};
-	let subscriptions = owners.get(owner);
-	if (!subscriptions) owners.set(owner, subscriptions = /* @__PURE__ */ new Set());
 	if (!offerOwner) {
 		const notify = (element, method) => {
 			for (const subscription of owners.get(element) ?? []) try {
@@ -857,21 +881,19 @@ function watchOwner(owner, lifecycle) {
 	return stop;
 }
 function whileConnected(owner, start) {
-	let held;
+	let disconnect = () => {};
 	return watchOwner(owner, {
 		connect() {
 			const controller = new AbortController();
-			held = {
-				controller,
-				cleanup: null
+			let cleanup;
+			disconnect = () => {
+				controller.abort();
+				cleanup?.();
 			};
-			held.cleanup = start(controller.signal);
+			cleanup = start(controller.signal);
 		},
 		disconnect() {
-			const current = held;
-			held = null;
-			current.controller.abort();
-			current.cleanup?.();
+			disconnect();
 		}
 	});
 }
@@ -901,10 +923,10 @@ function liveStages() {
 const isStage = (root) => stages$1.has(root);
 const stands = (el) => {
 	const root = el.getRootNode();
-	return root === document ? document.body.contains(el) : stages$1.has(root) && root.host.isConnected;
+	return root === document ? document.body.contains(el) : isStage(root) && root.host.isConnected;
 };
 function* matching(node, selector) {
-	if (node?.nodeType !== Node.ELEMENT_NODE) return;
+	if (!isElement(node)) return;
 	if (node.matches(selector)) yield node;
 	yield* node.querySelectorAll(selector);
 	for (const stage of liveStages()) if (under(stage.host, node)) yield* stage.querySelectorAll(selector);
@@ -928,12 +950,12 @@ function watchArrivals(selector, attributes, { arrive, arriveBatch, leave }) {
 			else arrive(el);
 		} else if (arrived.delete(el)) leave(el);
 	};
-	const beside = (node) => node?.nodeType === Node.ELEMENT_NODE && (arrived.has(node) || node.matches(selector)) ? [node] : [];
+	const beside = (node) => isElement(node) && (arrived.has(node) || node.matches(selector)) ? [node] : [];
 	const read = (records) => {
 		const offered = /* @__PURE__ */ new Set();
 		for (const record of records) {
 			if (record.type === "attributes") {
-				offered.add(record.target);
+				if (isElement(record.target)) offered.add(record.target);
 				continue;
 			}
 			for (const el of [
@@ -994,8 +1016,10 @@ function setScroll(box, options) {
 	if (behavior === "instant" && (box.scrollTop !== scrollTop || box.scrollLeft !== scrollLeft)) announceScroll(box);
 }
 const heardIn = (stage) => (event) => {
-	if (event.target.getRootNode() !== stage) return;
-	announceScroll(event.target === document ? document.scrollingElement : event.target);
+	const target = event.target;
+	if (target === document) {
+		if (stage === document) announceScroll(document.scrollingElement);
+	} else if (isElement(target) && target.getRootNode() === stage) announceScroll(target);
 };
 document.addEventListener("scroll", heardIn(document), SCROLL);
 function watchScrolls(listener) {
@@ -1049,12 +1073,12 @@ let focusOwner = null;
 const installMoveFocus = (owner) => {
 	focusOwner = owner;
 };
-function move(parent, node, before) {
+function move(parent, node, before = null) {
 	if (node.parentNode === parent && (before === node || node.nextSibling === before)) return node;
 	if (parent.isConnected) focusOwner?.watch(parent.getRootNode());
 	if (parent.moveBefore && node.getRootNode({ composed: true }) === parent.getRootNode({ composed: true })) parent.moveBefore(node, before);
 	else {
-		const restore = node.nodeType === Node.ELEMENT_NODE ? focusOwner?.hold(node) : null;
+		const restore = isElement(node) ? focusOwner?.hold(node) : null;
 		parent.insertBefore(node, before);
 		restore?.();
 	}
@@ -1309,25 +1333,29 @@ const ACTIONS = {
 		icon: "subtract"
 	}
 };
-const actionIcon = (action) => {
+const namedAction = (action) => {
 	const named = ACTIONS[action];
 	if (!named) throw new TypeError(`Unknown Leaf action: ${action}`);
-	return named.icon;
+	return named;
 };
-const actionName = (action) => {
-	actionIcon(action);
-	return ACTIONS[action].name;
-};
+const actionIcon = (action) => namedAction(action).icon;
+const actionName = (action) => namedAction(action).name;
 const actionElement = (action, className) => iconElement(actionIcon(action), className);
 const SYMBOLIC = /* @__PURE__ */ new Set(["symbol", "mark"]);
 function actionFace(role, label, action) {
 	if (!SYMBOLIC.has(role)) {
 		if (action !== void 0) throw new TypeError(`A ${role} says its label and shows no action's symbol`);
-		return label;
+		return {
+			label,
+			action: void 0
+		};
 	}
 	if (action === void 0) throw new TypeError(`A ${role} names the action it shows`);
 	const name = actionName(action);
-	return label ?? name;
+	return {
+		label: label ?? name,
+		action
+	};
 }
 function showAction(control, action, className = "lf-action-icon") {
 	const icon = actionIcon(action);
@@ -1342,13 +1370,15 @@ function actionOffers(base) {
 	const titled = (title) => title === void 0 ? void 0 : { title };
 	return {
 		offerAction(role, className, label, { title, action } = {}) {
-			const node = base.offerAction(role, className, actionFace(role, label, action), titled(title));
-			if (SYMBOLIC.has(role)) drawAction(node, role, action);
+			const face = actionFace(role, label, action);
+			const node = base.offerAction(role, className, face.label, titled(title));
+			if (face.action !== void 0) drawAction(node, role, face.action);
 			return node;
 		},
 		offerActionElement(node, role, className, label, { title, action } = {}) {
-			base.offerActionElement(node, role, className, actionFace(role, label, action), titled(title));
-			if (SYMBOLIC.has(role)) drawAction(node, role, action);
+			const face = actionFace(role, label, action);
+			base.offerActionElement(node, role, className, face.label, titled(title));
+			if (face.action !== void 0) drawAction(node, role, face.action);
 			return node;
 		}
 	};
@@ -1386,7 +1416,7 @@ const offerElement = (node, cls, pressable = false) => {
 	const face = node.localName.includes("-") ? "" : " lf-ui-face";
 	keeps(node, "class", `${cls ? `${cls} ` : ""}lf-ui${face}`);
 	keeps(node, "data-lf-gen", "1");
-	keeps(node, "data-lf-offer", pressable ? node.localName : node instanceof HTMLButtonElement || node.localName === "summary" || node.localName === "input" && ["checkbox", "radio"].includes(node.type) ? node.type ?? node.localName : "");
+	keeps(node, "data-lf-offer", pressable ? node.localName : node instanceof HTMLButtonElement || node.localName === "summary" || node instanceof HTMLInputElement && ["checkbox", "radio"].includes(node.type) ? node instanceof HTMLInputElement || node instanceof HTMLButtonElement ? node.type : node.localName : "");
 	return node;
 };
 const generatedElement = (node, { says } = {}) => {
@@ -1396,16 +1426,16 @@ const generatedElement = (node, { says } = {}) => {
 	node.toggleAttribute("data-lf-echo", says === "echo");
 	return node;
 };
-const offer = (tag, cls, label, inputType, pressable = false) => {
+function offer(tag, cls, label, inputType, pressable = false) {
 	const node = document.createElement(tag);
 	if (inputType !== void 0) {
 		if (tag !== "input") throw new TypeError("only an input offer can declare an input type");
-		node.type = inputType;
+		node.setAttribute("type", inputType);
 	}
 	offerElement(node, cls, pressable);
 	if (label !== void 0) node.textContent = label;
 	return node;
-};
+}
 const roleElement = (node, role, cls, label, { title = label } = {}) => {
 	offerElement(node, actionClass(role, cls));
 	if (label !== void 0 && (role === "symbol" || role === "mark")) {
@@ -1469,7 +1499,11 @@ function once(el) {
 	if (!el.hasAttribute(PAGE_PAINT_ATTRIBUTE.done)) el.setAttribute(PAGE_PAINT_ATTRIBUTE.done, "1");
 	return true;
 }
-const dataBody = (el) => el.querySelector(":scope > pre").textContent;
+const dataBody = (el) => {
+	const body = el.querySelector(":scope > pre");
+	if (!body) throw new Error(`<${el.localName}> has no data body`);
+	return body.textContent;
+};
 const bodyText = (el) => dataBody(el).replace(/^\n+/, "").trimEnd();
 const PENDING_TASK = "pending-task";
 var PendingTaskEvent = class extends Event {
@@ -1492,11 +1526,10 @@ const COMMANDS = "lf-commands";
 const CHANGED = Symbol("element whose commands changed");
 const REFUSED$1 = Symbol("why Leaf refused the declaration");
 function commandsChanged(el) {
-	const event = new Event(COMMANDS, {
+	const event = Object.assign(new Event(COMMANDS, {
 		bubbles: true,
 		composed: true
-	});
-	event[CHANGED] = el;
+	}), { [CHANGED]: el });
 	(el.isConnected ? el : window).dispatchEvent(event);
 	if (event[REFUSED$1]) throw event[REFUSED$1];
 }
@@ -1511,16 +1544,15 @@ function failSoft(el, err, source) {
 	showFailure(el, `<${widgetOf(el).localName}> failed: ${describeFailure(err)}`, source);
 }
 function reportFailure(el, err) {
-	const event = new ErrorEvent("error", {
+	const event = Object.assign(new ErrorEvent("error", {
 		error: exceptionError(err),
 		message: describeFailure(err),
 		bubbles: true,
 		composed: true
-	});
-	event[FAILURE] = {
+	}), { [FAILURE]: {
 		element: el,
 		reason: err
-	};
+	} });
 	(el.isConnected ? el : window).dispatchEvent(event);
 }
 const FAILURE = Symbol("failure");
@@ -1584,6 +1616,27 @@ const actionTemplate = (action, className) => iconTemplate(actionIcon(action), c
 
 //#endregion
 //#region runtime/dom-children.js
+var SourcePairs = class extends WeakMap {
+	constructor() {
+		super();
+	}
+	get(source) {
+		return super.get(source);
+	}
+	set(source, live) {
+		return super.set(source, live);
+	}
+	require(source) {
+		const live = this.get(source);
+		if (!live) throw new Error("The authored source has no paired native node");
+		return live;
+	}
+	pair(source, live) {
+		if (source instanceof Element && live instanceof Element) return this.set(source, live);
+		if (source instanceof CharacterData && live instanceof CharacterData && source.nodeType === live.nodeType) return this.set(source, live);
+		throw new Error("An authored source and its live node must have the same native kind");
+	}
+};
 function setChildren(parent, nodes) {
 	setChildLists([[parent, nodes]]);
 }
@@ -1602,15 +1655,22 @@ function setRenderedChildren(parent, nodes) {
 	const after = document.createDocumentFragment();
 	after.append(...nodes);
 	patchChildren(parent, parent, after, {
-		pairs: new Map([...sourceNodes(parent)].map((node) => [node, node])),
+		pairs: selfPairs(parent),
 		arrive: (node) => node,
 		sameValue: (held, wanted) => held === wanted,
 		touched: () => {},
 		declared: () => false,
 		body: () => null,
 		same: (held, wanted) => held.isEqualNode(wanted),
-		generated: () => false
+		generated: () => false,
+		contains: (target, owner) => Boolean(owner?.contains(target)),
+		reaches: () => false
 	});
+}
+function selfPairs(parent) {
+	const pairs = new SourcePairs();
+	for (const node of sourceNodes(parent)) pairs.pair(node, node);
+	return pairs;
 }
 function order(parent, nodes, passed = () => false) {
 	const list = [...nodes];
@@ -1626,31 +1686,34 @@ function order(parent, nodes, passed = () => false) {
 function staying(parent, nodes) {
 	const places = new Map([...parent.childNodes].map((node, at) => [node, at + 1]));
 	const size = places.size;
-	const best = new Array(size + 1).fill(-1);
-	const weightAt = new Array(size + 1).fill(0);
-	const weights = [];
-	const previous = [];
-	let last = -1;
-	nodes.forEach((node, at) => {
+	const best = new Array(size + 1);
+	let last = null;
+	for (const node of nodes) {
 		const place = places.get(node);
-		if (!place) return;
-		let before = -1;
-		for (let i = place - 1; i > 0; i -= i & -i) if (best[i] >= 0 && (before < 0 || weightAt[i] >= weights[before])) before = best[i];
-		const weight = (node.nodeType === Node.ELEMENT_NODE ? nodes.length + 1 : 1) + (before < 0 ? 0 : weights[before]);
-		weights[at] = weight;
-		previous[at] = before;
-		for (let i = place; i <= size; i += i & -i) if (best[i] < 0 || weight >= weightAt[i]) {
-			best[i] = at;
-			weightAt[i] = weight;
+		if (!place) continue;
+		let before = null;
+		for (let i = place - 1; i > 0; i -= i & -i) {
+			const candidate = best[i];
+			if (candidate && (!before || candidate.weight >= before.weight)) before = candidate;
 		}
-		if (last < 0 || weight >= weights[last]) last = at;
-	});
+		const weight = (node.nodeType === Node.ELEMENT_NODE ? nodes.length + 1 : 1) + (before?.weight ?? 0);
+		const chain = {
+			node,
+			weight,
+			previous: before
+		};
+		for (let i = place; i <= size; i += i & -i) {
+			const held = best[i];
+			if (!held || weight >= held.weight) best[i] = chain;
+		}
+		if (!last || weight >= last.weight) last = chain;
+	}
 	const stay = /* @__PURE__ */ new Set();
-	for (let at = last; at >= 0; at = previous[at]) stay.add(nodes[at]);
+	for (let chain = last; chain; chain = chain.previous) stay.add(chain.node);
 	return stay;
 }
 function patchTree(before, after, rules) {
-	const live = rules.pairs.get(before);
+	const live = rules.pairs.require(before);
 	patchAttributes(live, before, after, rules);
 	patchChildren(holder(live, rules), tree(before), tree(after), rules);
 }
@@ -1670,19 +1733,29 @@ function retainedWithin(before, after, target, rules) {
 	if (!live || !sourceOwns(before, target, rules)) return false;
 	if (rules.same(before, after)) return true;
 	if (live === target) return false;
-	if (before.attributes.length !== after.attributes.length || [...before.attributes].some(({ name, value }) => !after.hasAttribute(name) || !rules.sameValue(value, after.getAttribute(name)))) return false;
+	if (before.attributes.length !== after.attributes.length || [...before.attributes].some(({ name, value }) => {
+		const attribute = after.getAttributeNode(name);
+		return !attribute || !rules.sameValue(value, attribute.value);
+	})) return false;
 	const children = [...tree(before).childNodes];
-	const matches = new Map([...matchNodes(children, [...tree(after).childNodes])].map(([wanted, held]) => [held, wanted]));
+	const arriving = [...tree(after).childNodes];
+	const forward = matchNodes(children, arriving);
+	const matches = new SourcePairs();
+	for (const wanted of arriving) {
+		const held = forward.get(wanted);
+		if (held) matches.pair(held, wanted);
+	}
 	for (const held of children) {
+		if (!(held instanceof Element)) continue;
 		const node = rules.pairs.get(held);
-		if (node?.nodeType !== Node.ELEMENT_NODE || !sourceOwns(held, target, rules)) continue;
+		if (!node || !sourceOwns(held, target, rules)) continue;
 		const wanted = matches.get(held);
 		if (!wanted) return false;
 		if (!(atomic(held, wanted, node, rules) ? rules.same(held, wanted) : retainedWithin(held, wanted, target, rules))) return false;
 	}
 	return true;
 }
-const tree = (node) => node.localName === "template" ? node.content : node;
+const tree = (node) => node instanceof HTMLTemplateElement ? node.content : node;
 const holder = (live, rules) => rules.body(live) ?? tree(live);
 function patchAttributes(live, before, after, rules) {
 	let changed = false;
@@ -1714,11 +1787,11 @@ function writeText(node, next) {
 	node.replaceData(prefix, held.length - prefix - suffix, next.slice(prefix, next.length - suffix));
 }
 function evict(before, live, rules) {
-	live.remove();
+	live.parentNode?.removeChild(live);
 	for (const inner of sourceNodes(before)) {
 		const stray = rules.pairs.get(inner);
 		if (!stray?.parentNode || live.contains(stray)) continue;
-		stray.remove();
+		stray.parentNode.removeChild(stray);
 	}
 }
 function* sourceNodes(node) {
@@ -1731,49 +1804,76 @@ function patchChildren(liveParent, beforeParent, afterParent, rules) {
 	const held = [...beforeParent.childNodes];
 	const wanted = [...afterParent.childNodes];
 	const matches = matchNodes(held, wanted);
-	const matched = new Set(matches.values());
-	for (const node of held) {
-		if (matched.has(node)) continue;
-		evict(node, rules.pairs.get(node), rules);
-	}
+	const matched = new Set(wanted.map((node) => matches.get(node)));
+	for (const node of held) if (!matched.has(node)) evict(node, rules.pairs.require(node), rules);
 	const placed = [];
 	for (const node of wanted) {
-		const before = matches.get(node);
-		const held = before && rules.pairs.get(before);
-		const live = held?.parentNode ? held : null;
-		if (!live) {
+		const pair = patchPair(node, matches, rules.pairs);
+		if (!pair || !pair.live.parentNode) {
 			placed.push(rules.arrive(node, liveParent));
 			continue;
 		}
-		if (node.nodeType !== Node.ELEMENT_NODE) writeText(live, node.data);
-		else if (!atomic(before, node, live, rules)) patchTree(before, node, rules);
-		else if (!rules.same(before, node)) {
-			evict(before, live, rules);
-			placed.push(rules.arrive(node, liveParent));
-			continue;
-		} else pairInterior(before, node, rules);
-		rules.pairs.set(node, live);
+		const { live } = pair;
+		if (pair.kind === "data") {
+			writeText(pair.live, pair.after.data);
+			rules.pairs.set(pair.after, pair.live);
+		} else {
+			const { before, after } = pair;
+			if (!atomic(before, after, pair.live, rules)) patchTree(before, after, rules);
+			else if (!rules.same(before, after)) {
+				evict(before, pair.live, rules);
+				placed.push(rules.arrive(after, liveParent));
+				continue;
+			} else pairInterior(before, after, rules);
+			rules.pairs.set(after, pair.live);
+		}
 		if (live.parentNode === liveParent) placed.push(live);
 	}
 	order(liveParent, placed, rules.generated);
+}
+function patchPair(after, matches, pairs) {
+	if (after instanceof Element) {
+		const before = matches.get(after);
+		const live = before && pairs.get(before);
+		return before && live ? {
+			kind: "element",
+			before,
+			after,
+			live
+		} : null;
+	}
+	if (after instanceof CharacterData) {
+		const before = matches.get(after);
+		const live = before && pairs.get(before);
+		return before && live ? {
+			kind: "data",
+			before,
+			after,
+			live
+		} : null;
+	}
+	throw new Error("Authored child nodes must be elements or character data");
 }
 function pairInterior(before, after, rules) {
 	const held = [...sourceNodes(before)];
 	const wanted = [...sourceNodes(after)];
 	if (held.length !== wanted.length) return;
-	wanted.forEach((node, at) => {
-		const live = rules.pairs.get(held[at]);
-		if (live) rules.pairs.set(node, live);
-	});
+	const originals = held[Symbol.iterator]();
+	for (const node of wanted) {
+		const original = originals.next().value;
+		if (!original) throw new Error("An unchanged source must retain its complete node sequence");
+		const live = rules.pairs.get(original);
+		if (live) rules.pairs.pair(node, live);
+	}
 }
 const atomic = (before, after, live, rules) => before.matches("style, link[rel~=\"stylesheet\" i]") || rules.declared(before) && !rules.reaches(before, after) || [...tree(before).childNodes].some((node) => rules.pairs.get(node)?.parentNode !== holder(live, rules));
 function matchNodes(held, wanted) {
-	const matches = /* @__PURE__ */ new Map();
+	const matches = new SourcePairs();
 	const matched = /* @__PURE__ */ new Set();
 	const byId = /* @__PURE__ */ new Map();
-	for (const node of held) if (node.nodeType === Node.ELEMENT_NODE && node.id && !byId.has(node.id)) byId.set(node.id, node);
+	for (const node of held) if (node instanceof Element && node.id && !byId.has(node.id)) byId.set(node.id, node);
 	for (const node of wanted) {
-		if (node.nodeType !== Node.ELEMENT_NODE || !node.id) continue;
+		if (!(node instanceof Element) || !node.id) continue;
 		const match = byId.get(node.id);
 		if (!match || match.localName !== node.localName || matched.has(match)) continue;
 		matches.set(node, match);
@@ -1782,10 +1882,16 @@ function matchNodes(held, wanted) {
 	alignRest(held.filter((node) => !matched.has(node)), wanted.filter((node) => !matches.has(node)), matches);
 	return matches;
 }
+function diffNode(nodes, index) {
+	const node = nodes[index];
+	if (!node) throw new Error("A child diff named a source position outside its input");
+	return node;
+}
 const COLLAPSE = /\s+/g;
 const signature = (node) => {
-	if (node.nodeType !== Node.ELEMENT_NODE) return `${node.nodeType}:${node.data}`;
-	const words = (node.localName === "template" ? node.content : node).textContent;
+	if (node instanceof CharacterData) return `${node.nodeType}:${node.data}`;
+	if (!(node instanceof Element)) throw new Error("Authored child nodes must be elements or character data");
+	const words = tree(node).textContent ?? "";
 	return `1:${node.localName}#${node.id}:${words.replace(COLLAPSE, " ").trim()}`;
 };
 function alignRest(held, wanted, matches) {
@@ -1804,7 +1910,7 @@ function alignRest(held, wanted, matches) {
 		else if (run.removed) gapHeld.push(...held.slice(heldAt, heldAt += count));
 		else {
 			closeGap();
-			for (let at = 0; at < count; at++) matches.set(wanted[wantedAt + at], held[heldAt + at]);
+			for (let at = 0; at < count; at++) matches.pair(diffNode(wanted, wantedAt + at), diffNode(held, heldAt + at));
 			heldAt += count;
 			wantedAt += count;
 		}
@@ -1819,13 +1925,13 @@ function pairInGap(held, wanted, matches) {
 		if (run.added) wantedAt += count;
 		else if (run.removed) heldAt += count;
 		else {
-			for (let at = 0; at < count; at++) matches.set(wanted[wantedAt + at], held[heldAt + at]);
+			for (let at = 0; at < count; at++) matches.pair(diffNode(wanted, wantedAt + at), diffNode(held, heldAt + at));
 			heldAt += count;
 			wantedAt += count;
 		}
 	}
 }
-const interchangeable = (held, wanted) => held.nodeType === wanted.nodeType && (held.nodeType !== Node.ELEMENT_NODE || held.localName === wanted.localName && !(held.id && wanted.id));
+const interchangeable = (held, wanted) => held.nodeType === wanted.nodeType && (!(held instanceof Element) || wanted instanceof Element && held.localName === wanted.localName && !(held.id && wanted.id));
 
 //#endregion
 //#region runtime/shadow-stage.js
@@ -1874,16 +1980,16 @@ var UpdateBoundary = class extends LitElement {
 	}
 };
 var LeafElement = class extends q(UpdateBoundary) {
-	#signalError = null;
+	#signalError = {};
 	#stopReadiness = null;
 	signalUpdateFailed(error) {
-		this.#signalError = { error };
+		this.#signalError.error = error;
 	}
 	requestUpdate(...args) {
 		const wasPending = this.isUpdatePending;
 		const result = super.requestUpdate(...args);
 		if (this.hasUpdated && this.isUpdatePending && (!wasPending || !this.#updating)) d(() => {
-			if (this.#connected && this.#region && !this.#ticket) this.#ticket = this.#claim();
+			if (this.#connected && this.#region && !this.#ticket) this.#ticket = this.#claim(this.#region);
 		});
 		return result;
 	}
@@ -1914,7 +2020,10 @@ var LeafElement = class extends q(UpdateBoundary) {
 	#scheduled = null;
 	#data = null;
 	createRenderRoot() {
-		return integration?.shadows(this) ? adoptShadowStage(super.createRenderRoot()) : this;
+		if (!integration?.shadows(this)) return this;
+		const root = super.createRenderRoot();
+		if (!(root instanceof ShadowRoot)) throw new Error("A shadow widget needs a shadow render root");
+		return adoptShadowStage(root);
 	}
 	scheduleUpdate() {
 		return this.#scheduled ?? this.#queueUpdate();
@@ -1924,12 +2033,12 @@ var LeafElement = class extends q(UpdateBoundary) {
 	}
 	#queueUpdate() {
 		if (!this.#descriptor) return super.scheduleUpdate();
-		const scheduled = integration.queueWidgetUpdate(this.#descriptor.id, () => {
+		const scheduled = integration?.queueWidgetUpdate(this.#descriptor.id, () => {
 			if (this.#scheduled !== scheduled) return;
 			this.#scheduled = null;
 			return super.scheduleUpdate();
 		}, () => this.#committed());
-		this.#scheduled = scheduled;
+		this.#scheduled = scheduled ?? null;
 		return scheduled;
 	}
 	connectedCallback() {
@@ -1937,17 +2046,17 @@ var LeafElement = class extends q(UpdateBoundary) {
 		super.connectedCallback();
 	}
 	#setup() {
-		this.#descriptor = integration?.widgetDescriptor(this);
+		this.#descriptor = integration?.widgetDescriptor(this) ?? null;
 		if (this.#descriptor) {
-			this.#controller = integration.widgetController(this);
-			integration.drawsItself(this, {
+			this.#controller = integration?.widgetController(this) ?? null;
+			integration?.drawsItself(this, {
 				hold: () => this.#hold(),
 				refresh: () => this.#refresh()
 			});
 			this.#verbs = Object.keys(this.#descriptor.declaration["x-state"] ?? {});
 		}
 		this.#regionName = this.#descriptor ? null : `element:${this.localName}#${this.id}:${++regions}`;
-		this.#data = integration?.data(this, () => this.#stage());
+		this.#data = integration?.data(this, () => this.#stage()) ?? null;
 		placesFailure(this, (box) => {
 			const root = this.renderRoot ?? this;
 			if (root === this && this.shadowRoot) return false;
@@ -1974,9 +2083,10 @@ var LeafElement = class extends q(UpdateBoundary) {
 		return this.#controller?.read() ?? null;
 	}
 	get state() {
-		return this.reading.state;
+		return this.controller.read().state;
 	}
 	get controller() {
+		if (!this.#controller) throw new Error(`${this.localName} has no authored widget controller`);
 		return this.#controller;
 	}
 	#hold() {
@@ -1994,7 +2104,7 @@ var LeafElement = class extends q(UpdateBoundary) {
 	shouldUpdate(changed) {
 		if (!this.#connected || !this.isConnected) return false;
 		if (this.#held) return false;
-		this.#drawing = this.#ticket ?? this.#claim();
+		this.#drawing = this.#ticket ?? this.#claim(this.#region);
 		this.#ticket = null;
 		if (!this.#draws()) return false;
 		this.#data?.deliver();
@@ -2014,13 +2124,10 @@ var LeafElement = class extends q(UpdateBoundary) {
 		this.#drawing = null;
 		this.#updating = true;
 		try {
-			this.#signalError = null;
+			const boundary = this.#signalError = {};
 			super.performUpdate();
-			if (this.#signalError) throw this.#signalError.error;
-			if (this.#drawing) this.#drawing.resolve(this.updateComplete.then(() => void 0, (error) => {
-				reportFailure(this, error);
-				throw error;
-			}));
+			if ("error" in boundary) throw boundary.error;
+			this.#settleDrawing();
 		} catch (error) {
 			if (outer && !this.#drawing) throw error;
 			this.#failed(error, this.#drawing);
@@ -2028,6 +2135,12 @@ var LeafElement = class extends q(UpdateBoundary) {
 			this.#drawing = outer;
 			this.#updating = updating;
 		}
+	}
+	#settleDrawing() {
+		this.#drawing?.resolve(this.updateComplete.then(() => void 0, (error) => {
+			reportFailure(this, error);
+			throw error;
+		}));
 	}
 	redraw() {
 		if (this.#draws()) render(this.render(), this.renderRoot, this.renderOptions);
@@ -2041,12 +2154,12 @@ var LeafElement = class extends q(UpdateBoundary) {
 		reportFailure(this, error);
 		ticket.reject(error);
 	}
-	#claim() {
-		return this.#region?.present((reason) => failSoftUnreported(this, reason));
+	#claim(region = this.#region) {
+		return region?.present((reason) => failSoftUnreported(this, reason)) ?? null;
 	}
 	#stage() {
-		if (!this.#connected || this.#ticket || !this.#region) return;
-		this.#ticket = this.#claim();
+		if (this.#ticket || !this.#region) return;
+		this.#ticket = this.#claim(this.#region);
 	}
 	#present({ now = false } = {}) {
 		this.#ticket = this.#claim();
@@ -2062,22 +2175,24 @@ var LeafElement = class extends q(UpdateBoundary) {
 	}
 	#connect() {
 		this.#connected = true;
-		this.#region = this.#descriptor ? integration.attachWidgetPresentation(this.#descriptor.id, "render") : integration?.attachApplicationPresentation(this.#regionName);
+		const name = this.#descriptor ? `widget:${this.#descriptor.id}:render` : this.#regionName ??= `element:${this.localName}#${this.id}:${++regions}`;
+		this.#region = this.#descriptor ? integration?.attachWidgetPresentation(this.#descriptor.id, "render") ?? null : integration?.attachApplicationPresentation(name) ?? null;
 		const parentChanged = this.#connectedParent !== this.parentElement;
 		this.#connectedParent = this.parentElement;
-		this.#leaveData = this.#data?.connect(this.#descriptor ? `widget:${this.#descriptor.id}:render` : this.#regionName);
+		this.#leaveData = this.#data?.connect(name) ?? null;
 		this.#present();
-		if (this.#descriptor) integration.widgetMounted(this, this.#descriptor, parentChanged);
+		if (this.#descriptor) integration?.widgetMounted(this, this.#descriptor, parentChanged);
 	}
 	#disconnect() {
 		this.#connected = false;
+		const region = this.#region;
+		this.#region = null;
 		this.#stopReadiness?.();
 		this.#stopReadiness = null;
 		this.#leaveData?.();
 		this.#leaveData = null;
 		this.#ticket = null;
-		this.#region?.disconnect();
-		this.#region = null;
+		region?.disconnect();
 	}
 };
 
@@ -2165,7 +2280,8 @@ function foldBlock(el, allocation = null) {
 		played.finished.then(release, release);
 	}
 	const size = parseFloat(getComputedStyle(el).blockSize) + adjustment;
-	played.effect.setKeyframes(frames(`${size}px`));
+	const effect = played.effect;
+	if (effect instanceof KeyframeEffect) effect.setKeyframes(frames(`${size}px`));
 	return played;
 }
 
@@ -2181,7 +2297,7 @@ const skipped = (element) => {
 		box = renderedParent(box);
 	}
 	if (!box) return false;
-	if (box.localName === "details") return !box.open && child.localName !== "summary";
+	if (box.localName === "details") return !box.hasAttribute("open") && child.localName !== "summary";
 	return getComputedStyle(box).contentVisibility === "hidden";
 };
 function elementBox(el) {
@@ -2202,7 +2318,8 @@ const unmeasured = sizeObserver((entries) => {
 	for (const { target } of entries) {
 		if (!drawn(target)) continue;
 		unmeasured.unobserve(target);
-		taking.push(measurements.get(target));
+		const take = measurements.get(target);
+		if (take) taking.push(take);
 		measurements.delete(target);
 	}
 	for (const take of taking) take();
@@ -2274,15 +2391,17 @@ const tokenizer = () => tokenizerReady ??= import("/vendor/syntax.esm.js");
 const languagesReady = /* @__PURE__ */ new Map();
 function ensureSyntaxLanguage(lang) {
 	if (!lang) return tokenizer();
-	if (!languagesReady.has(lang)) {
+	let ready = languagesReady.get(lang);
+	if (!ready) {
 		const load = syntaxLanguages[lang];
 		if (!load) throw new Error(`no ${lang} grammar — rebuild syntax from registry.json`);
-		languagesReady.set(lang, Promise.all([tokenizer(), load()]).then(async ([shared, grammar]) => {
+		ready = Promise.all([tokenizer(), load()]).then(async ([shared, grammar]) => {
 			await shared.registerLanguage(lang, grammar.default);
 			return shared;
-		}));
+		});
+		languagesReady.set(lang, ready);
 	}
-	return languagesReady.get(lang);
+	return ready;
 }
 async function syntax(source, lang) {
 	const tokens = await (await ensureSyntaxLanguage(lang)).tokenize(source, lang);
@@ -2298,10 +2417,14 @@ const synNodes = (tokens) => tokens.map(({ text, style }) => {
 	return span;
 });
 function tokenLines(tokens) {
-	const lines = [[]];
+	let line = [];
+	const lines = [line];
 	for (const { text, style } of tokens) text.split("\n").forEach((part, i) => {
-		if (i) lines.push([]);
-		if (part) lines.at(-1).push({
+		if (i) {
+			line = [];
+			lines.push(line);
+		}
+		if (part) line.push({
 			text: part,
 			style
 		});
@@ -2324,8 +2447,7 @@ function registerVisualParts(source, read, { reveal = null, label = null } = {})
 }
 function visualPartAdmission(visual, declaration) {
 	if (!declaration || typeof declaration !== "object") return null;
-	const { prefixes } = declaration;
-	if (prefixes) return (id) => prefixes.some((prefix) => id !== prefix && id.startsWith(prefix));
+	if ("prefixes" in declaration) return (id) => declaration.prefixes.some((prefix) => id !== prefix && id.startsWith(prefix));
 	return visual.hasAttribute(declaration.parts) ? () => true : null;
 }
 const revealsVisualParts = (source) => Boolean(registrations$1.get(source)?.reveal);
@@ -2339,7 +2461,7 @@ function visualPartProblems(source, declaration) {
 	if (!registrations$1.has(source)) return [{ kind: "unregistered" }];
 	const parts = registeredVisualParts(source);
 	const admission = visualPartAdmission(source, declaration);
-	const outside = declaration.prefixes ? parts.filter((part) => !admission(part.id)).map((part) => part.id) : [];
+	const outside = "prefixes" in declaration && admission ? parts.filter((part) => !admission(part.id)).map((part) => part.id) : [];
 	return outside.length ? [{
 		kind: "unadmitted-parts",
 		parts: outside
@@ -2392,6 +2514,14 @@ function registeredVisualPartAt(source, target, admits = () => true) {
 }
 
 //#endregion
+//#region runtime/canvas.js
+function canvas2D(canvas, options) {
+	const context = canvas.getContext("2d", options);
+	if (!context) throw new Error("The browser could not create a 2D canvas context");
+	return context;
+}
+
+//#endregion
 //#region runtime/time-axis.js
 const TICK_SPACING = 84;
 const STEPS = [
@@ -2438,7 +2568,7 @@ function assignRows(items, start, end) {
 }
 let measuring = null;
 function textWidth(text, font) {
-	measuring ??= document.createElement("canvas").getContext("2d");
+	measuring ??= canvas2D(document.createElement("canvas"));
 	measuring.font = font;
 	return measuring.measureText(text).width;
 }
@@ -2464,13 +2594,13 @@ const threadSurface = (owner) => Object.freeze({
 function releaseOutlets(node) {
 	for (const { outlets, composition } of registrations.values()) {
 		const outlet = composition.outlet();
-		if (outlets.has(outlet) && under(outlet, node)) composition.restore();
+		if (outlet && outlets.has(outlet) && under(outlet, node)) composition.restore();
 	}
 }
 
 //#endregion
 //#region runtime/tab-store.js
-const tabStore = document.documentElement.lfStorage?.tabStore ?? {
+const tabStore = window.lfStorage?.tabStore ?? {
 	read: () => ({
 		available: false,
 		value: null
@@ -2490,15 +2620,17 @@ const OUTPUT = "lf-output";
 const PRODUCER = Symbol("output producer");
 const REFUSED = Symbol("output refusal");
 function publishOutput(element, output, value) {
-	const event = new CustomEvent(OUTPUT, {
+	const event = Object.assign(new CustomEvent(OUTPUT, {
 		bubbles: true,
 		composed: true,
 		detail: {
 			output,
 			value
 		}
+	}), {
+		[PRODUCER]: element,
+		[REFUSED]: void 0
 	});
-	event[PRODUCER] = element;
 	(element.isConnected ? element : window).dispatchEvent(event);
 	if (event[REFUSED]) throw event[REFUSED];
 }
@@ -2520,4 +2652,4 @@ async function loadDeferred(value, key) {
 }
 
 //#endregion
-export { ANNOUNCE, COMMANDS, J, LAYOUT, LeafElement, OUTPUT, PAGE_PAINT_ATTRIBUTE, PENDING_TASK, PendingTaskEvent, ROLE_BUTTON_OFFER, RUNTIME_PAINT_ATTRIBUTE, W, Z, actionClass, actionElement, actionIcon, actionName, actionTemplate, afterScript, afterSettling, agentArrivalDuration, announce, assignRows, atLayoutPrecision, attachDeferredLoader, axisTicks, backgroundFlash, bindQueuedWork, bodyText, byRenderedOrder, cancelAnimation, cancelRender, commandsChanged, commandsChangedOn, composedParentNode, d, dataBody, describeFailure, elementBox, elementDirective, ensureSyntaxLanguage, exceptionRecord, exceptionText, excludedByInert, failSoft, failSoftUnreported, failureContext, failureOf, flashDuration, foldBlock, foldDuration, frameFor, frameVisibility, generated, generatedElement, holdRendering, iconElement, iconTemplate, inBaseLayer, installElementIntegration, installMoveFocus, installStageIntegration, isNativeLayer, isStage, keeps, keepsHidden, keepsText, layoutChanged, layoutPx, liveStages, loadDeferred, measure, motion, motionEasing, motionPlays, motionTime, move, nativeLayerHolding, nativeLayerKind, nextAnimation, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offerElement, offered, offeredAction, offeredActionElement, onFrameVisibility, onMotionPreferenceChange, once, orderChildren, outputProducer, pagePresented, pageUpgraded, patchRetains, patchTree, placesFailure, playMotion, publishOutput, q, readSampleVisibility, reducedMotion, refuseCommands, refuseOutput, registerVisualParts, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, registrations, releaseOutlets, renderedOrder, renderedParent, renderedUnder, renderingState, reportFailure, returnDuration, revealRegisteredVisualPart, revealsVisualParts, roomPx, scrollBehavior, scrollGlides, scrolling, selectableOffer, selectableOffered, setChildLists, setChildren, setRenderedChildren, setScroll, shadowHost, shadowStage, showAction, sizeObserver, skipped, synNodes, syntax, syntaxLanguageNames, tabStore, textWidth, threadSurface, tokenLines, under, upFrom, updateSurface, visualPartAdmission, visualPartProblems, watchArrivals, watchFrame, watchOwner, watchScrollEnds, watchScrolls, whileConnected, x };
+export { ANNOUNCE, COMMANDS, J, LAYOUT, LeafElement, OUTPUT, PAGE_PAINT_ATTRIBUTE, PENDING_TASK, PendingTaskEvent, ROLE_BUTTON_OFFER, RUNTIME_PAINT_ATTRIBUTE, SourcePairs, W, Z, actionClass, actionElement, actionIcon, actionName, actionTemplate, afterScript, afterSettling, agentArrivalDuration, announce, assignRows, atLayoutPrecision, attachDeferredLoader, axisTicks, backgroundFlash, bindQueuedWork, bodyText, byRenderedOrder, cancelAnimation, cancelRender, canvas2D, commandsChanged, commandsChangedOn, composedParentNode, d, dataBody, describeFailure, elementBox, elementDirective, ensureSyntaxLanguage, exceptionRecord, exceptionText, excludedByInert, failSoft, failSoftUnreported, failureContext, failureOf, flashDuration, foldBlock, foldDuration, frameFor, frameVisibility, generated, generatedElement, holdRendering, iconElement, iconTemplate, inBaseLayer, inlineStyle, installElementIntegration, installMoveFocus, installStageIntegration, isElement, isHTML, isNativeLayer, isNode, isStage, isText, keeps, keepsHidden, keepsText, layoutChanged, layoutPx, liveStages, loadDeferred, measure, motion, motionEasing, motionPlays, motionTime, move, nativeLayerHolding, nativeLayerKind, nextAnimation, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offerElement, offered, offeredAction, offeredActionElement, onFrameVisibility, onMotionPreferenceChange, once, orderChildren, outputProducer, pagePresented, pageUpgraded, patchRetains, patchTree, placesFailure, playMotion, publishOutput, q, readSampleVisibility, reducedMotion, refuseCommands, refuseOutput, registerVisualParts, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, registrations, releaseOutlets, renderedOrder, renderedParent, renderedUnder, renderingState, reportFailure, returnDuration, revealRegisteredVisualPart, revealsVisualParts, roomPx, scrollBehavior, scrollGlides, scrolling, selectableOffer, selectableOffered, setChildLists, setChildren, setRenderedChildren, setScroll, shadowHost, shadowStage, showAction, sizeObserver, skipped, synNodes, syntax, syntaxLanguageNames, tabStore, textWidth, threadSurface, tokenLines, under, upFrom, updateSurface, visualPartAdmission, visualPartProblems, watchArrivals, watchFrame, watchOwner, watchScrollEnds, watchScrolls, whileConnected, x };

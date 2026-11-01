@@ -11,16 +11,20 @@ import { setChildren } from "./dom-children.js";
 import { watchArrivalsIn } from "./arrivals.js";
 import { stagesFailure } from "./widget-upgrade.js";
 
+/** @type {((root: ShadowRoot) => Node[]) | null} */
 let integration = null;
+/** @param {(root: ShadowRoot) => Node[]} adopt */
 export const installStageIntegration = (adopt) => {
   integration = adopt;
 };
+/** @param {ShadowRoot} root */
 export function adoptShadowStage(root) {
   watchArrivalsIn(root);
   integration?.(root);
   return root;
 }
 
+/** @param {Element} host @param {Iterable<Node>} nodes */
 export function shadowStage(host, nodes) {
   const root = host.shadowRoot ?? stageFor(host);
   watchArrivalsIn(root);
@@ -33,6 +37,7 @@ export function shadowStage(host, nodes) {
 
 // An x-shadow widget shows only what its stage holds, so its failure box stands there,
 // and the widget's next stage replaces it.
+/** @param {Element} host */
 function stageFor(host) {
   stagesFailure(host, (box) => {
     shadowStage(host, [box]);

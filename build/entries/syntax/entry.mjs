@@ -74,10 +74,13 @@ export const leafTheme = {
 
 export const foreground = leafTheme.colors["editor.foreground"];
 
+/** @type {Record<string, () => Promise<{default: import("@shikijs/core").LanguageRegistration[]}>>} */
 export const bundledLanguages = {};
+/** @type {ReturnType<typeof createHighlighterCore> | undefined} */
 let highlighter;
 
 /** Ordinary code blocks share one highlighter and its loaded grammars. */
+/** @param {{langs?: (string | import("@shikijs/core").LanguageInput)[], themes?: (string | import("@shikijs/core").ThemeInput)[]}} [options] */
 export async function createHighlighter({ langs = [], themes = [] } = {}) {
   const instance = await (highlighter ??= createHighlighterCore({
     engine: createJavaScriptRegexEngine(),
@@ -102,6 +105,7 @@ export async function createHighlighter({ langs = [], themes = [] } = {}) {
   return instance;
 }
 
+/** @param {string} lang @param {import("@shikijs/core").LanguageRegistration[]} grammar */
 export async function registerLanguage(lang, grammar) {
   bundledLanguages[lang] = async () => ({ default: grammar });
   const instance = await createHighlighter();
@@ -109,14 +113,18 @@ export async function registerLanguage(lang, grammar) {
 }
 
 /** Offsets preserve original line endings even when Shiki normalizes its lines. */
+/** @param {string} source @param {string} lang */
 export async function tokenize(source, lang) {
   const instance = await createHighlighter({ langs: [lang] });
   const lines = instance.codeToTokensBase(source, { lang, theme: themeName });
+  /** @type {{text: string, style: import("@shikijs/core").TokenStyles}[]} */
   const tokens = [];
+  /** @param {string} text @param {import("@shikijs/core").TokenStyles} style */
   const append = (text, style) => {
     if (!text) return;
-    if (tokens.length && JSON.stringify(tokens.at(-1).style) === JSON.stringify(style))
-      tokens.at(-1).text += text;
+    const previous = tokens.at(-1);
+    if (previous && JSON.stringify(previous.style) === JSON.stringify(style))
+      previous.text += text;
     else tokens.push({ text, style });
   };
   let cursor = 0;
@@ -132,6 +140,7 @@ export async function tokenize(source, lang) {
   return tokens;
 }
 
+/** @param {string} source @param {import("@shikijs/core").CodeToHastOptions<string, string>} options */
 export async function codeToHtml(source, options) {
   const instance = await createHighlighter({ langs: [options.lang] });
   return instance.codeToHtml(source, options);

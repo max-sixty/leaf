@@ -43,11 +43,14 @@ import { projectMarked } from "./projection/data.js";
 export class ElementData {
   #element;
   #stage;
+  /** @type {{input: string, property: string, bound: boolean, read: ReturnType<typeof dataReader> | null}[]} */
   #inputs;
   // Each property's last supplied snapshot, and primitive values a later drawing
   // can still name. Object values carry their snapshot through suppliedSnapshot.
+  /** @type {Map<string, {snapshot: import("./data.js").DataSnapshot | null, primitives: Map<unknown, import("./data.js").DataSnapshot | null>}>} */
   #sent = new Map();
 
+  /** @param {Element} element @param {() => void} stage */
   constructor(element, stage) {
     this.#element = element;
     this.#stage = stage;
@@ -84,13 +87,15 @@ export class ElementData {
         bindsInput(element, input),
       )
     )
-      for (const { property } of this.#inputs) element[property] = dataBody(element);
+      for (const { property } of this.#inputs)
+        Object.assign(element, { [property]: dataBody(element) });
   }
 
   awaitsDelivery() {
     return awaitsData(this.#element);
   }
 
+  /** @param {string} region */
   connect(region) {
     return registry[this.#element.localName]?.["x-data"]
       ? joinDataDelivery(region)
@@ -112,23 +117,25 @@ export class ElementData {
         primitives.set(value, snapshot);
       }
       this.#sent.set(entry.property, { snapshot, primitives });
-      this.#element[entry.property] = value;
+      Object.assign(this.#element, { [entry.property]: value });
     }
   }
 
+  /** @param {Record<string, unknown>} detail */
   #drawn(detail) {
     const element = this.#element;
     try {
       const named = this.#inputs.filter(
         ({ property }) => detail && Object.hasOwn(detail, property),
       );
-      if (named.length !== 1 || Object.keys(detail).length !== 1)
+      const entry = named[0];
+      if (!entry || named.length !== 1 || Object.keys(detail).length !== 1)
         throw new Error(
           `<${element.localName}> drawn must name one bound property (${this.#inputs
             .map(({ property }) => property)
             .join(", ")}) with the value it drew`,
         );
-      const [{ property, bound }] = named;
+      const { property, bound } = entry;
       const value = detail[property];
       const snapshot =
         !bound || value === null
@@ -148,6 +155,7 @@ export class ElementData {
 
   // A drawing retires only primitives supplied before the value it names: a newer
   // delivery may already have arrived while that drawing was being prepared.
+  /** @param {string} property @param {unknown} value */
   #retire(property, value) {
     const primitives = this.#sent.get(property)?.primitives;
     if (!primitives?.has(value)) return undefined;

@@ -11,6 +11,7 @@ import { watchLayers } from "./keyboard/layer-stack.js";
 import { move } from "./dom-move.js";
 import { watchPassageRoot } from "./passages.js";
 
+/** @type {WeakMap<ShadowRoot, HTMLStyleElement>} */
 const styles = new WeakMap();
 installStageIntegration((root) => {
   root.adoptedStyleSheets = [

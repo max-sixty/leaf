@@ -362,7 +362,8 @@ function outputScene(draw) {
 const settleOutput = async () => new Promise((resolve) => setTimeout(resolve));
 
 test("typed output readers retain authored scope and producer instance identity", async () => {
-  const { publishOutput, dataReader } = await import("/runtime/data.js");
+  const { dataReader } = await import("/runtime/data.js");
+  const { publishOutput } = await import("/runtime/widget-output.js");
   const readings = new Map();
   const { producerTag, consumerTag } = outputScene((element, value) => {
     const history = readings.get(element.id) ?? [];
@@ -432,7 +433,7 @@ test("typed output readers retain authored scope and producer instance identity"
 });
 
 test("source readiness includes asynchronous LeafElement output consumers", async () => {
-  const { publishOutput } = await import("/runtime/data.js");
+  const { publishOutput } = await import("/runtime/widget-output.js");
   let release;
   let started;
   const begun = new Promise((resolve) => (started = resolve));

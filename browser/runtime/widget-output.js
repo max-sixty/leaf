@@ -8,18 +8,24 @@ export const OUTPUT = "lf-output";
 const PRODUCER = Symbol("output producer");
 const REFUSED = Symbol("output refusal");
 
+/** @typedef {CustomEvent<{output: string, value: unknown}> & {[PRODUCER]: Element, [REFUSED]?: unknown}} OutputEvent */
+/** @param {Element} element @param {string} output @param {unknown} value */
 export function publishOutput(element, output, value) {
-  const event = new CustomEvent(OUTPUT, {
-    bubbles: true,
-    composed: true,
-    detail: { output, value },
-  });
-  event[PRODUCER] = element;
+  const event = Object.assign(
+    new CustomEvent(OUTPUT, {
+      bubbles: true,
+      composed: true,
+      detail: { output, value },
+    }),
+    { [PRODUCER]: element, [REFUSED]: /** @type {unknown} */ (undefined) },
+  );
   (element.isConnected ? element : window).dispatchEvent(event);
   if (event[REFUSED]) throw event[REFUSED];
 }
 
-export const outputProducer = (event) => event[PRODUCER];
+/** @param {Event} event */
+export const outputProducer = (event) => /** @type {OutputEvent} */ (event)[PRODUCER];
+/** @param {Event} event @param {unknown} error */
 export const refuseOutput = (event, error) => {
-  event[REFUSED] = error;
+  /** @type {OutputEvent} */ (event)[REFUSED] = error;
 };

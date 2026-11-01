@@ -13,11 +13,15 @@ import { union } from "./rect.js";
 import { syncLayoutRegion } from "./reading-regions.js";
 
 let documentLayoutOpen = false;
+/** @type {((changed: boolean) => unknown) | null | undefined} */
 let readFinished = null;
 let pending = 0;
 let lastRead = -1;
+/** @type {ReturnType<typeof sizeObserver> | null} */
 let headSizes = null;
+/** @type {Element | null} */
 let watchedHead = null;
+/** @type {boolean | null} */
 let railAvailable = null;
 function readDocumentLayout() {
   const { changed } = readDocumentHeaders();
@@ -36,10 +40,12 @@ function readDocumentLayout() {
     pageControlsChanged();
   }
   if (changed) {
-    layoutChanged(pageDocument());
+    const main = pageDocument();
+    if (main) layoutChanged(main);
     repaintPage();
   }
 }
+/** @param {number} time */
 function readFrame(time) {
   pending = 0;
   if (time === lastRead) {
@@ -55,6 +61,7 @@ export function scheduleDocumentLayout() {
 export function settleDocumentLayout() {
   if (documentLayoutOpen) readDocumentLayout();
 }
+/** @param {{onRead?: (changed: boolean) => unknown}} options */
 export function openDocumentLayout({ onRead }) {
   readFinished = onRead;
   documentLayoutOpen = true;
@@ -68,6 +75,10 @@ export function openDocumentLayout({ onRead }) {
 // reading region. Named lines keep this independent of Layout classes. CSSOM
 // resolves standalone tracks to named lines and pixel sizes:
 // https://www.w3.org/TR/css-grid/#resolved-track-list
+/** @typedef {NonNullable<ReturnType<typeof union>>} ProseBox */
+/** @overload @param {Element} main @returns {ProseBox} */
+/** @overload @param {Element | null | undefined} [main] @returns {ProseBox | null} */
+/** @param {Element | null | undefined} [main] @returns {ProseBox | null} */
 export function proseRect(main = layoutBox()) {
   if (!main) return null;
   const grid = [main, ...main.children].find((node) =>
@@ -90,6 +101,10 @@ export function proseRect(main = layoutBox()) {
       if (names.includes("prose-end")) end = offset - gap;
     } else offset += Number(match[2]) + gap;
   }
+  // A single named edge does not declare a prose track; its grid's own box is
+  // still the native geometry, as where no named track or local frame exists.
+  if (start === undefined || end === undefined) return grid.getBoundingClientRect();
+  /** @param {"Left" | "Right"} side */
   const edge = (side) =>
     parseFloat(style[`border${side}Width`]) + parseFloat(style[`padding${side}`]);
   const left =
@@ -100,18 +115,19 @@ export function proseRect(main = layoutBox()) {
     style.direction === "rtl"
       ? frame.width - edge("Right") - start
       : edge("Left") + end;
-  return union(
-    [
-      [left, 0],
-      [right, 0],
-      [left, frame.height],
-      [right, frame.height],
-    ].map(([x, y]) => {
-      const point = frame.matrix.transformPoint({ x, y });
-      return { left: point.x, right: point.x, top: point.y, bottom: point.y };
-    }),
-  );
+  /** @param {number} x @param {number} y */
+  const corner = (x, y) => {
+    const point = frame.matrix.transformPoint({ x, y });
+    return { left: point.x, right: point.x, top: point.y, bottom: point.y };
+  };
+  return union([
+    corner(left, 0),
+    corner(right, 0),
+    corner(left, frame.height),
+    corner(right, frame.height),
+  ]);
 }
+/** @param {Element | null} [main] */
 export const railStands = (main = layoutBox()) => {
   if (
     !main ||

@@ -6,7 +6,7 @@ import "./runtime/element-integration.js";
 import "./runtime/interaction-log.js";
 // Restored panels and the first keyboard gesture share the ordinary synchronous
 // control routes, so their controls must be upgraded before those routes mount.
-import "./vendor/webawesome-chrome.js";
+import "/vendor/webawesome-chrome.js";
 import { offlineInteractive, runtime, annotationMode } from "./runtime/context.js";
 import { initializeServedDocument } from "./runtime/document-identity.js";
 import { chromeRoot, chromeForeground } from "./runtime/chrome.js";
@@ -168,8 +168,8 @@ async function boot() {
   // settled (`renderingState`), and which native layers expose reading and controls.
   // Job lifecycle tracing binds at enqueue without replacing any rendering callback, and
   // widget preparation tracing at each declaration and its settlement.
-  const validationEntry = /** @type {HTMLScriptElement | null} */ (
-    document.querySelector("script[data-lf-entry]")
+  const validationEntry = [...document.scripts].find((script) =>
+    script.hasAttribute("data-lf-entry"),
   );
   if (validationEntry) {
     validationEntry.lfReadiness = pageReadiness;
@@ -198,38 +198,52 @@ async function boot() {
     validationEntry.lfFloatingSelections = annotationRenderer.floatingSelections;
   annotationRenderer?.mountAnnotationControls();
 
+  /** @type {ReturnType<typeof mountApplication>} */
   let app;
+  /** @type {ReturnType<typeof createPageLayout>} */
   let layout;
+  /** @type {ReturnType<typeof createPageMapDialog>} */
   let pageMapDialog;
+  /** @type {ReturnType<typeof createObligationView>} */
   let items;
+  /** @type {ReturnType<typeof createResponseSurface>} */
   let responseSurface;
+  /** @type {ReturnType<typeof createDrawingController>} */
   let drawing;
+  /** @type {ReturnType<typeof createRegionCapture>} */
   let regionCapture;
   // A draft's drawing put in place, null taking it off, and the page's ink repainted.
+  /** @type {Parameters<typeof createDrawingController>[0]["replaceDrawing"]} */
   const replaceDrawing = (anchor, drawn) => {
     responseSurface.setDraftDrawing(anchor, drawn);
     drawingPaint.paint();
   };
   // A composer's own controls for the drawing its draft holds, which the drawing
   // controller answers, and its history's way of putting one back.
+  /** @type {Parameters<typeof createResponseSurface>[0]["drawingEdits"]} */
   const drawingEdits = {
     target: (anchor) => drawing.target(anchor),
     undoStroke: (anchor) => drawing.undoStroke(anchor),
     remove: (anchor) => drawing.removeDrawing(anchor),
     replace: replaceDrawing,
   };
+  /** @type {ReturnType<typeof createAim>} */
   let aim;
+  /** @type {ReturnType<typeof createTargetPicker>} */
   let targets;
+  /** @type {ReturnType<typeof createReactionController>} */
   let reactions;
+  /** @type {ReturnType<typeof createPageGeometry>} */
   let pageGeometry;
+  /** @type {ReturnType<typeof createGoToSequence>} */
   let goToSequence;
 
+  /** @type {ReturnType<typeof createFloatingPanel>} */
   let floatingPanel;
   const navigation = createNavigation({
     placedAt: (id) => anchorPlacement.placedAt(id),
     threadDestinations: {
       openPageThread: (...args) => app.threadDestinations.openPageThread(...args),
-      scrollToThread: (id, options) => anchorTravel.scrollToThread(id, options),
       threadAtCurrentLocation: (node) =>
         app.threadDestinations.threadAtCurrentLocation(node),
       threadPlace: (...args) => app.threadDestinations.threadPlace(...args),
@@ -240,16 +254,22 @@ async function boot() {
   // chrome (geometry.js). Both maps read the same boxes.
   const hintChrome = { barriers: windowChromeBoxes };
   const anchorPlacement = createAnchorPlacement();
-  const visualMarkPaint = annotationRenderer?.createVisualMarkPaint();
-  const anchorPaint = annotationRenderer?.createAnchorPaint({
-    targetPaint: visualMarkPaint,
-    pointer: pointerAt,
-    currentLocationThreadId,
-    currentLocationObligation: () => items.currentLocationIn(),
-    rowThread: () => floatingPanel?.hoveredThread() ?? null,
-    threadRow: (id) => floatingPanel?.threadRow(id) ?? null,
-    marginThread: () => app?.overlay?.pointedThread() ?? null,
-  });
+  /** @type {ReturnType<NonNullable<typeof annotationRenderer>["createVisualMarkPaint"]> | undefined} */
+  let visualMarkPaint;
+  /** @type {ReturnType<NonNullable<typeof annotationRenderer>["createAnchorPaint"]> | undefined} */
+  let anchorPaint;
+  if (annotationRenderer) {
+    visualMarkPaint = annotationRenderer.createVisualMarkPaint();
+    anchorPaint = annotationRenderer.createAnchorPaint({
+      targetPaint: visualMarkPaint,
+      pointer: pointerAt,
+      currentLocationThreadId,
+      currentLocationObligation: () => items.currentLocationIn(),
+      rowThread: () => floatingPanel?.hoveredThread() ?? null,
+      threadRow: (id) => floatingPanel?.threadRow(id) ?? null,
+      marginThread: () => app?.overlay?.pointedThread() ?? null,
+    });
+  }
   const drawingPaint = createDrawingInk({
     drawings: () => [
       ...(annotationRenderer?.postedDrawings(allThreads(), anchorPlacement) ?? []),
@@ -267,7 +287,7 @@ async function boot() {
       openComposer: (...args) => responseSurface.openComposer(...args),
     },
     closePreview: (...args) => app.overlay?.closePreview(...args),
-    marginTargetAt: (...args) => app.overlay?.marginTargetAt(...args),
+    marginTargetAt: (...args) => app.overlay?.marginTargetAt(...args) ?? null,
     closeDrawMode: () => drawing.setDrawMode(false, { spoken: false }),
     closeTargetPicker: () => targets.closeTargetPicker(),
     closeReactionMode: () => reactions.setReact(false),
@@ -275,7 +295,7 @@ async function boot() {
     repaint,
   });
   aim = createAim({
-    marginTargetAt: (...args) => app.overlay?.marginTargetAt(...args),
+    marginTargetAt: (...args) => app.overlay?.marginTargetAt(...args) ?? null,
     refreshAim: () => pageGeometry.refreshAim(),
     commentOnTarget: (...args) => responseSurface.commentOnTarget(...args),
     drawModeActive: () => drawing.drawModeActive(),
@@ -300,6 +320,7 @@ async function boot() {
   });
   // A placement through the margin where it is mounted, which reveals a hidden row first,
   // with `focusDestination`'s arguments.
+  /** @type {typeof focusDestination} */
   const focusForNavigation = (node, cause, options) =>
     app?.overlay?.focusForNavigation
       ? app.overlay.focusForNavigation(node, cause, options)
@@ -310,11 +331,12 @@ async function boot() {
     focusForNavigation,
     threadFocusTarget: (id, options) =>
       app.threadDestinations.threadFocusTarget(id, options),
-    clearFor: (destination, landed) => floatingPanel?.clearFor(destination, landed),
+    clearFor: (destination, landed) =>
+      floatingPanel?.clearFor(destination, landed) ?? null,
     announce,
   });
   const landing = createThreadLanding();
-  declareThreadKeys(landing.landIn, () => app.threadDestinations.threadHere());
+  declareThreadKeys(landing.landIn, () => app.threadDestinations.threadHere() ?? null);
   const anchorControls = createAnchorControls({
     commentOnTarget: (...args) => responseSurface.commentOnTarget(...args),
     openThread: (...args) => app.threadDestinations.openPageThread(...args),
@@ -366,7 +388,7 @@ async function boot() {
     targetPickerOpen: () => targets.targetPickerOpen(),
     wireInput: inputs.wireInput,
     anchorPlacement,
-    anchorPaint,
+    anchorPaint: anchorPaint ?? null,
     anchorControls,
     drawingPaint,
     pageGeometry,
@@ -379,10 +401,10 @@ async function boot() {
     }),
     activeActionAnchor: () => responseSurface.fabAnchorAt(),
     compositionSurface: {
-      active: () =>
-        composerOpen && responseSurface?.fabAnchorAt()
-          ? { anchor: responseSurface.fabAnchorAt() }
-          : null,
+      active: () => {
+        const anchor = composerOpen ? responseSurface?.fabAnchorAt() : null;
+        return anchor ? { anchor } : null;
+      },
       node: () => fabBar,
       open: (...args) => responseSurface.commentOnTarget(...args),
       outlet: () => responseSurface?.fabInlineOutlet() ?? null,
@@ -442,7 +464,7 @@ async function boot() {
   // The obligation view is constructed below by its owner factory; all accesses above are inert closures.
   items = createObligationView({
     focusForNavigation,
-    presentedControl: app.overlay?.presentedControl,
+    presentedControl: (control) => app.overlay?.presentedControl(control) ?? control,
     prepareNavigationStep: anchorTravel.prepareNavigationStep,
     arrive: anchorTravel.arrive,
     openPageThread: app.threadDestinations.openPageThread,
@@ -509,7 +531,8 @@ async function boot() {
     designTarget: designMode.target,
     openOnDesign: designMode.open,
     isReactArmed: () => reactions.isReactArmed(),
-    reactionContextContains: (...args) => reactions.reactionContextContains(...args),
+    reactionContextContains: (...args) =>
+      Boolean(reactions.reactionContextContains(...args)),
     reactionTokens,
     setReact: (...args) => reactions.setReact(...args),
     openPageThread: app.threadDestinations.openPageThread,
@@ -591,6 +614,7 @@ async function boot() {
   // The sample host binds to this child's owners, rather than importing another
   // window's runtime. This capability is ready before the child presents.
   if (document.documentElement.lfSample) {
+    /** @type {AbortController | undefined} */
     let viewOperation;
     onSampleNotice("cancel-view", () => viewOperation?.abort());
     registerSampleCommand("thread", async ({ id, surface }) => {
@@ -605,10 +629,11 @@ async function boot() {
       return afterPresentation(async () => {
         if (!intent()) return false;
         if (surface === "panel") {
+          /** @type {ReturnType<typeof floatingPanel.showForSample> | null} */
           let shown = null;
           const show = () => (shown = floatingPanel.showForSample({ thread: id }));
           if (!intent.handoff(show)) return false;
-          return (await shown) && intent.available();
+          return Boolean(await shown) && intent.available();
         }
         return Boolean(
           await app.threadDestinations.openPageThread(id, {
@@ -646,22 +671,20 @@ async function boot() {
     ],
     scrollToElement: anchorTravel.scrollToElement,
     leavesOffered,
-    activateMarginEntry: app.overlay?.activateMarginEntry,
-    marginEntryKind: app.overlay?.marginEntryKind,
-    visibleMarginEntries: app.overlay?.visibleMarginEntries,
+    marginEntries: app.overlay ?? null,
     glideTo,
     placeThreadEdge,
     stopGlide,
   });
   const currentLocationPainters = {
     markHere: items.markHere,
-    paintCurrentLocation: anchorPaint?.paintCurrentLocation,
+    paintCurrentLocation: () => anchorPaint?.paintCurrentLocation(),
     paintSelectedMarginEntries: () =>
       app.overlay?.paintSelectedMarginEntries([
         { kind: "on-me", target: items.currentLocationIn() },
         {
           kind: "comment",
-          target: anchorPlacement.placedAt(currentLocationThreadId())?.place,
+          target: anchorPlacement.placedAt(currentLocationThreadId())?.place ?? null,
         },
       ]),
     paintTouchControls,
@@ -790,6 +813,7 @@ async function boot() {
   // A thread address follows the same return rule as an authored fragment: keep the
   // entry's working place while its destination is still shown; reveal it again when
   // another view has hidden it. The browser owns the entry in either case.
+  /** @param {URL} url @param {boolean} [returning] */
   function threadRoute(url, returning = false) {
     const id = url.searchParams.get("thread");
     if (!id || fragmentTarget(url.hash)) return null;
@@ -858,7 +882,8 @@ async function boot() {
     const arrival = landArrival();
     document.dispatchEvent(new Event(PRESENTATION));
     await arrival;
-    if (savedView && savedView.revision < runtime.currentRevision)
+    const currentRevision = runtime.currentRevision;
+    if (savedView && currentRevision !== null && savedView.revision < currentRevision)
       notice(`Updated to ${runtime.currentLabel}`, { background: true });
   }
 
@@ -882,7 +907,9 @@ async function boot() {
     if (!upgraded) return;
     app.watchThreadSurfaces();
     // Read native document layout and subscribe annotations to its later changes.
-    openDocumentLayout({ onRead: annotationRenderer?.syncMarginContentLayout });
+    openDocumentLayout({
+      onRead: (changed) => annotationRenderer?.syncMarginContentLayout(changed),
+    });
     if (!offlineInteractive) {
       layout.syncLayout();
       items.buildBulkAnswers();
@@ -926,11 +953,11 @@ async function boot() {
 
 boot().catch((error) => {
   const reason = `page failed to start: ${error?.message ?? error}`;
-  document.documentElement.lfDocumentLifetime.whenActive(`start ${reason}`, () => {
+  window.lfDocumentLifetime.whenActive(`start ${reason}`, () => {
     window.dispatchEvent(
       new CustomEvent("lf-startup-failed", { detail: { reason, error } }),
     );
     reportPageError(error, "page failed to start");
-    applicationState.setReach("broken");
+    applicationState.setReach({ reach: "broken" });
   });
 });

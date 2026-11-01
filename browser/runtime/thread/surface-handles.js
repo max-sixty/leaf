@@ -8,8 +8,10 @@
 import { under } from "../shadow-tree.js";
 
 // The placement owner writes the registrations; accessors read this same directory.
+/** @type {Map<Element, import("./surfaces.js").Registration>} */
 export const registrations = new Map();
 
+/** @param {import("./surfaces.js").Registration} registration */
 export function updateSurface(registration) {
   if (registration.reconcileQueued) return;
   registration.reconcileQueued = true;
@@ -22,22 +24,25 @@ export function updateSurface(registration) {
 // The registered surface of a widget declaring `x-thread-surface`, as the widget reads
 // it: before the runtime has registered it, or after it left, there is nothing to update
 // and nothing it can open.
+/** @param {Element} owner */
 export const threadSurface = (owner) =>
   Object.freeze({
     update() {
       const registration = registrations.get(owner);
       if (registration) updateSurface(registration);
     },
-    open: (node) => registrations.get(owner)?.handle.open(node) ?? false,
+    open: (/** @type {Element} */ node) =>
+      registrations.get(owner)?.handle.open(node) ?? false,
   });
 
 // A widget removes a node that may hold an outlet only through its placement's
 // `onCommit`, or after this: core's composer, the one node it carries from outlet to
 // outlet, leaves every outlet under `node` now, for where the next commit would put
 // it once `node` is gone, so the removal cannot take the user's editor with it.
+/** @param {Node} node */
 export function releaseOutlets(node) {
   for (const { outlets, composition } of registrations.values()) {
     const outlet = composition.outlet();
-    if (outlets.has(outlet) && under(outlet, node)) composition.restore();
+    if (outlet && outlets.has(outlet) && under(outlet, node)) composition.restore();
   }
 }

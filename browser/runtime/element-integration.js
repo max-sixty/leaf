@@ -15,7 +15,7 @@ import { paintKeysWithin } from "./keyboard/scopes.js";
 import { ElementData } from "./element-data.js";
 import { registry } from "./registry.js";
 
-installElementIntegration({
+export const elementIntegration = {
   attachApplicationPresentation,
   attachWidgetPresentation,
   queueWidgetUpdate,
@@ -25,6 +25,9 @@ installElementIntegration({
   widgetController,
   widgetMounted,
   paintKeysWithin,
-  data: (element, stage) => new ElementData(element, stage),
-  shadows: (element) => registry[element.localName]?.["x-shadow"],
-});
+  data: (/** @type {Element} */ element, /** @type {() => void} */ stage) =>
+    new ElementData(element, stage),
+  shadows: (/** @type {Element} */ element) =>
+    registry[element.localName]?.["x-shadow"],
+};
+installElementIntegration(elementIntegration);

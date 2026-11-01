@@ -89,7 +89,7 @@ const candidates = (root) => {
 	if (!tags.length) return [];
 	const selector = tags.join(",");
 	const found = [...root.querySelectorAll(selector)];
-	if (root.nodeType === Node.ELEMENT_NODE && root.matches(selector)) found.unshift(root);
+	if (root instanceof Element && root.matches(selector)) found.unshift(root);
 	return found;
 };
 const parentOf = (element) => authoredParents.has(element) ? authoredParents.get(element) : element.parentElement;
@@ -114,7 +114,7 @@ function stageWidgetDescriptors(root = document, documentContext = {
 	for (const element of candidates(root)) {
 		if (!element.id) continue;
 		const existing = byElement.get(element);
-		if (existing && existing.document.kind === documentContext.kind && (documentContext.kind === "thread" || existing.document.revision === documentContext.revision)) {
+		if (existing && existing.document.kind === documentContext.kind && (documentContext.kind === "thread" || existing.document.kind === "page" && existing.document.revision === documentContext.revision)) {
 			captured.set(element.id, existing);
 			continue;
 		}

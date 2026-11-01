@@ -988,8 +988,8 @@ summary {
    it asks for none of the depth below the words. A seat that draws no thread shows it
    in its controls row's place, at the height the runtime measured that row at. It
    wears the inline face (controls.css) on the line of a message's head, and states
-   that line's size, at a weight above the face's, because its box stands beside the
-   head rather than in it. */
+   that line's size because its box stands beside the head rather than in it. Its
+   words are Leaf's, in Leaf's regular italic. */
 .lf-thread-news {
   flex: none;
   align-self: center;

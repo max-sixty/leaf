@@ -96,4 +96,4 @@ try {{
         assert page.evaluate("loadUnowned()") == (
             "loadDeferred(missing) needs a source value Leaf delivered"
         )
-        assert page.evaluate("!document.documentElement.lfRootState")
+        assert page.evaluate("!window.lfRootState")

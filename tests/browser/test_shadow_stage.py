@@ -50,4 +50,4 @@ try {{
             "authoredChildren": 0,
         }
         expect(page.locator("#host p")).to_have_text("Replacement content")
-        assert page.evaluate("!document.documentElement.lfRootState")
+        assert page.evaluate("!window.lfRootState")

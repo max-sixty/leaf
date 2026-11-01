@@ -1,5 +1,5 @@
-import { LAYOUT, LeafElement, PendingTaskEvent, Z, actionClass, actionName, actionTemplate, afterScript, announce, assignRows, atLayoutPrecision, axisTicks, backgroundFlash, bodyText, cancelAnimation, cancelRender, commandsChanged, dataBody, describeFailure, ensureSyntaxLanguage, failSoft, flashDuration, foldBlock, foldDuration, frameFor, generated, generatedElement, iconElement, iconTemplate, inBaseLayer, isNativeLayer, keeps, keepsHidden, keepsText, layoutChanged, layoutPx, loadDeferred, measure, motion, move, nextAnimation, nextFrame, nextRender, offer, offerAction, offerElement, offered, offeredAction, offeredActionElement, onMotionPreferenceChange, once, placesFailure, publishOutput, reducedMotion, registerVisualParts, releaseOutlets, reportFailure, returnDuration, scrollBehavior, selectableOffer, selectableOffered, setChildLists, setChildren, setRenderedChildren, setScroll, shadowStage, sizeObserver, synNodes, syntax, tabStore, textWidth, threadSurface, tokenLines, under, whileConnected } from "./bundle-portable.js";
-import { TEXT_BOX, TEXT_FIELD, agentName, applicationRegionsPresented, applicationState, closeLayer, closeNativeLayer, currentLocationIn, declarationFor, elementsDeclaring, focusDestination, focused, handBack, holdFocus, layerFact, matchesWhen, offlineInteractive, onCurrentLocation, onPress, onPressAway, onUserInput, openLayer, openerOf, pageUrl, plainPress, pressIsKeyboardActivation, projectionRegionsPresented, rankAt, readPart, registry, revisionLabel, rove, showNativeLayer, turns, whenLeft } from "./bundle-layer-stack.js";
+import { LAYOUT, LeafElement, PendingTaskEvent, Z, actionClass, actionName, actionTemplate, afterScript, announce, assignRows, atLayoutPrecision, axisTicks, backgroundFlash, bodyText, cancelAnimation, cancelRender, canvas2D, commandsChanged, dataBody, describeFailure, ensureSyntaxLanguage, failSoft, flashDuration, foldBlock, foldDuration, frameFor, generated, generatedElement, iconElement, iconTemplate, inBaseLayer, isNativeLayer, keeps, keepsHidden, keepsText, layoutChanged, layoutPx, loadDeferred, measure, motion, move, nextAnimation, nextFrame, nextRender, offer, offerAction, offerElement, offered, offeredAction, offeredActionElement, onMotionPreferenceChange, once, placesFailure, publishOutput, reducedMotion, registerVisualParts, releaseOutlets, reportFailure, returnDuration, scrollBehavior, selectableOffer, selectableOffered, setChildLists, setChildren, setRenderedChildren, setScroll, shadowStage, sizeObserver, synNodes, syntax, tabStore, textWidth, threadSurface, tokenLines, under, whileConnected } from "./bundle-portable.js";
+import { TEXT_BOX, TEXT_FIELD, agentName, applicationRegionsPresented, applicationState, closeLayer, closeNativeLayer, currentLocationIn, declarationFor, elementsDeclaring, focusDestination, focused, handBack, hasObligationSource, holdFocus, layerFact, matchesWhen, offlineInteractive, onCurrentLocation, onPress, onPressAway, onUserInput, openLayer, openerOf, pageUrl, plainPress, pressIsKeyboardActivation, projectionRegionsPresented, rankAt, readPart, registry, revisionLabel, rove, showNativeLayer, turns, whenLeft } from "./bundle-layer-stack.js";
 import { LayerRefused, PRESS, PRESSABLE, RequestError, commandScope, commandsOn, cycledRow, dragging, el, holdAuthoredBody, labelOf, motionPreview, nameAction, namedAction, notice, raiseError, reachedForWords, relabel, requestJson, rowArrows, saying, searchField, worksInside } from "./bundle-layer-client.js";
 import { PAGE_INTERFACE, PRESENTATION, addressableLabel, addressableName, addressableWord, afterPresentation, ago, atScrollEnd, clockValue, compoundReadingRegionId, deferredArrival, fragmentTarget, pageScroller, preserveReadingRegions, projectedDatum, quietSince, regionScrollBehavior, registerReadingRegion, scrollLimit, scrollerFor, shortAgo, showReadingSubject, watchReadingRegionTransitions, whileInterfaceConnected } from "./bundle-content-layout.js";
 import { alignText, authoredScope, closestAcross, elementById, excerptWords, inChrome, says, wrote } from "./bundle-passages.js";
@@ -14,17 +14,22 @@ import { wear } from "./bundle-dress.js";
 //#region runtime/shown-answer.js
 const namedValue = (answer, keyOf) => {
 	if (!keyOf) return typeof answer === "string" && answer ? answer : null;
-	const values = new Set((Array.isArray(answer) ? answer : []).map(keyOf));
-	return values.size === 1 && !values.has(null) ? [...values][0] : null;
+	const [only, other] = new Set((Array.isArray(answer) ? answer : []).map((member) => {
+		if (typeof member !== "string") throw new Error("A picked answer must name its members by id");
+		return keyOf(member);
+	}));
+	return only !== void 0 && other === void 0 ? only : null;
 };
 function shownAnswer(view) {
 	const shows = declarationFor(view, "x-shows");
 	const id = shows && view.getAttribute(shows.attr);
 	if (!id) return null;
 	const owner = elementById(id, authoredScope(view));
-	const awaits = owner && declarationFor(owner, "x-awaits");
+	if (!owner) return null;
+	const awaits = declarationFor(owner, "x-awaits");
 	const verb = awaits?.value;
-	const record = verb && declarationFor(owner, "x-state")?.[verb]?.record;
+	if (!verb || !awaits) return null;
+	const record = declarationFor(owner, "x-state")?.[verb]?.record;
 	if (record?.kind !== "value" && !(record?.kind === "attribute" && awaits.key)) return null;
 	if (!widgetDescriptor(owner)) return null;
 	const controller = widgetController(owner);
@@ -32,7 +37,8 @@ function shownAnswer(view) {
 	const state = reading.state?.[verb];
 	if (!state) return null;
 	const scope = authoredScope(owner);
-	const keyOf = record.kind === "attribute" ? (member) => elementById(member, scope)?.getAttribute(awaits.key) ?? null : null;
+	const memberKey = record.kind === "attribute" ? awaits.key : null;
+	const keyOf = memberKey ? (member) => elementById(member, scope)?.getAttribute(memberKey) ?? null : null;
 	const detailFor = (value) => {
 		if (!keyOf) return value === null ? null : { value };
 		if (value === null) return { value: [] };
@@ -65,7 +71,7 @@ function reportTarget(target) {
 			kind: "widget",
 			id: target.id
 		};
-	} else if (["widget", "thread"].includes(target?.kind) && typeof target.id === "string" && target.id) return {
+	} else if (target !== null && typeof target === "object" && "kind" in target && "id" in target && (target.kind === "widget" || target.kind === "thread") && typeof target.id === "string" && target.id) return {
 		kind: target.kind,
 		id: target.id
 	};
@@ -74,12 +80,18 @@ function reportTarget(target) {
 const targetKey = (target) => target ? JSON.stringify([target.kind, target.id]) : null;
 const reportsByTarget = /* @__PURE__ */ new Map();
 const reportsFor = (key) => {
-	if (!reportsByTarget.has(key)) reportsByTarget.set(key, readPart((root) => (root.effective.view?.reports ?? []).filter((report) => key === null || targetKey(report.target) === key)));
-	return reportsByTarget.get(key)();
+	let read = reportsByTarget.get(key);
+	if (!read) {
+		read = readPart((root) => (root.effective.view?.reports ?? []).filter((report) => key === null || targetKey(report.target) === key));
+		reportsByTarget.set(key, read);
+	}
+	return read();
 };
 const reportSequence = (target = null) => reportsFor(targetKey(reportTarget(target))).map((report) => structuredClone(report));
 const publishedAt = readPart((root) => root.effective.view?.published_at ?? null);
-const saidAt = (el) => closestAcross(el, ".lf-msg")?.querySelector(":scope > .lf-msg-head time")?.dateTime || publishedAt();
+const saidAt = (el) => {
+	return (closestAcross(el, ".lf-msg")?.querySelector(":scope > .lf-msg-head time"))?.dateTime || publishedAt();
+};
 const readHistory = readPart((root) => ({
 	phase: root.phase,
 	events: root.authoritative?.browser.history ?? []
@@ -106,54 +118,68 @@ const reportsReady = (target) => target.whenReady(() => applicationRegionsPresen
 //#endregion
 //#region runtime/work.js
 const widgets = () => layerFact("$work")?.widgets ?? {};
-function specs(role) {
-	return Object.entries(widgets()).filter(([, spec]) => spec?.role === role);
-}
 function workRole(element, role = null) {
-	const spec = widgets()[element?.localName];
+	const spec = element ? widgets()[element.localName] : void 0;
 	return spec && (!role || spec.role === role) ? spec : null;
 }
-function workElements(root, role, { direct = false } = {}) {
-	const tags = new Set(specs(role).map(([tag]) => tag));
-	const candidates = [...root.querySelectorAll("*")];
+const hasRole = (entry, role) => entry[1].role === role;
+function workEntries(root, role, { direct = false } = {}) {
+	const roles = new Map(Object.entries(widgets()).filter((entry) => hasRole(entry, role)));
 	const boundary = workAncestor(root, "scope");
-	return candidates.filter((element) => tags.has(element.localName) && workAncestor(element, "scope") === boundary && (!direct || workAncestor(element.parentElement) === root));
+	return [...root.querySelectorAll("*")].flatMap((element) => {
+		const declared = roles.get(element.localName);
+		return declared && workAncestor(element, "scope") === boundary && (!direct || workAncestor(element.parentElement) === root) ? [{
+			element,
+			role: declared
+		}] : [];
+	});
+}
+function workElements(root, role, options) {
+	return workEntries(root, role, options).map(({ element }) => element);
 }
 const directWorkElements = (root, role) => workElements(root, role, { direct: true });
 function workAncestor(element, role) {
 	for (let at = element; at; at = at.parentElement) if (workRole(at, role)) return at;
 	return null;
 }
-function stateReport(element, role) {
-	const verb = stateVerb(element, role);
-	const spec = declarationFor(element, "x-state")[verb];
-	return registry.$states[element.localName][verb].writer === "agent" ? [verb, spec] : [null, null];
-}
 function stateVerb(element, role) {
-	const attribute = workRole(element, role)?.state;
-	const matches = Object.entries(declarationFor(element, "x-state") ?? {}).filter(([, spec]) => spec.unit === "widget" && spec.record?.kind === "value" && spec.record.attr === attribute).map(([verb]) => verb);
-	if (matches.length !== 1) throw new Error(`leaf: $work ${role} <${element.localName}> state ${attribute} needs one recorded widget verb`);
-	return matches[0];
+	const stamped = registry.$states[element.localName];
+	const matches = Object.entries(declarationFor(element, "x-state") ?? {}).flatMap(([verb, spec]) => {
+		const state = stamped?.[verb];
+		return spec.unit === "widget" && spec.record?.kind === "value" && spec.record.attr === role.state && state ? [{
+			verb,
+			state
+		}] : [];
+	});
+	const match = matches[0];
+	if (!match || matches.length !== 1) throw new Error(`leaf: $work ${role.role} <${element.localName}> state ${role.state} needs one recorded widget verb`);
+	return match;
 }
-const roleState = (element, role, read) => read(element).state[stateVerb(element, role)]?.value ?? null;
+function stateReport(element, role) {
+	const { verb, state } = stateVerb(element, role);
+	return state.writer === "agent" ? verb : null;
+}
+const roleState = (element, role, read) => {
+	const state = read(element).state[stateVerb(element, role).verb];
+	return state && "value" in state ? state.value : null;
+};
 const actionReports = (element, action) => reportSequence(element).filter((report) => report.source === "report" && report.action === action);
-function workerView(worker, read) {
-	const role = workRole(worker, "worker");
-	const state = roleState(worker, "worker", read);
+function workerView({ element: worker, role }, read) {
+	const state = roleState(worker, role, read);
 	const focus = role.on && worker.getAttribute(role.on);
-	const [reportVerb] = stateReport(worker, "worker");
+	const reportVerb = stateReport(worker, role);
 	const heard = (reportVerb ? actionReports(worker, reportVerb) : []).at(-1)?.ts ?? saidAt(worker);
-	const running = role.running.includes(state);
+	const running = role.running.some((value) => value === state);
 	const scope = workAncestor(worker, "scope");
 	const goal = workAncestor(worker.parentElement, "goal");
 	const remit = goal && workAncestor(goal, "scope") === scope ? goal : scope;
 	const candidate = focus ? document.getElementById(focus) : null;
-	const assignment = candidate && workRole(candidate, "goal") && workAncestor(candidate, "scope") === scope && (remit === scope || remit.contains(candidate)) ? candidate : null;
+	const assignment = candidate && workRole(candidate, "goal") && workAncestor(candidate, "scope") === scope && (remit === scope || remit?.contains(candidate)) ? candidate : null;
 	return {
 		element: worker,
 		role,
 		state,
-		retired: role.retired.includes(state),
+		retired: role.retired.some((value) => value === state),
 		running,
 		quiet: running && quietSince(heard),
 		heard,
@@ -161,31 +187,31 @@ function workerView(worker, read) {
 		assignment
 	};
 }
-const done = (goal, read) => {
-	return workRole(goal, "goal").done.includes(roleState(goal, "goal", read));
+const done = ({ element: goal, role }, read) => {
+	return role.done.some((value) => value === roleState(goal, role, read));
 };
 function interventions(goal, open) {
 	const scope = workAncestor(goal, "scope");
-	return obligationsIn(goal, open).map((item) => elementById(item.source.id)).filter((item) => item !== goal && !workRole(item, "goal") && workAncestor(item, "scope") === scope && workAncestor(item.parentElement, "goal") === goal && !quoted(item));
+	return obligationsIn(goal, open).map((item) => item.source.kind === "widget" ? elementById(item.source.id) : null).filter((item) => item !== null).filter((item) => item !== goal && !workRole(item, "goal") && workAncestor(item, "scope") === scope && workAncestor(item.parentElement, "goal") === goal && !quoted(item));
 }
-function stopped(goal, open, nested, read) {
-	const role = workRole(goal, "goal");
+function stopped(entry, open, nested, read) {
+	const { element: goal, role } = entry;
 	if (read(goal).thread.heldBy) return true;
 	if (nested.length) return true;
-	if (!role.stopped.includes(roleState(goal, "goal", read))) return false;
+	if (!role.stopped.some((value) => value === roleState(goal, role, read))) return false;
 	if (open.some((item) => item.source.id === goal.id)) return true;
-	const children = directWorkElements(goal, "goal");
-	return children.length ? children.some((child) => stopped(child, open, interventions(child, open), read)) : true;
+	const children = workEntries(goal, "goal", { direct: true });
+	return children.length ? children.some((child) => stopped(child, open, interventions(child.element, open), read)) : true;
 }
-function goalView(goal, open, read) {
-	const leaves = workElements(goal, "goal").filter((item) => !directWorkElements(item, "goal").length);
-	const progressLeaves = leaves.length ? leaves : [goal];
-	const liveWorkers = directWorkElements(goal, "worker").map((worker) => workerView(worker, read)).filter((worker) => !worker.retired);
-	const role = workRole(goal, "goal");
-	const state = roleState(goal, "goal", read);
-	const [reportVerb] = stateReport(goal, "goal");
+function goalView(entry, open, read) {
+	const { element: goal, role } = entry;
+	const leaves = workEntries(goal, "goal").filter((item) => !directWorkElements(item.element, "goal").length);
+	const progressLeaves = leaves.length ? leaves : [entry];
+	const liveWorkers = workEntries(goal, "worker", { direct: true }).map((worker) => workerView(worker, read)).filter((worker) => !worker.retired);
+	const state = roleState(goal, role, read);
+	const reportVerb = stateReport(goal, role);
 	const latestReport = (reportVerb ? actionReports(goal, reportVerb) : []).at(-1);
-	const reportedStoppedAt = latestReport?.disposition === "effective" && role.stopped.includes(latestReport.detail.value) ? latestReport.ts : null;
+	const reportedStoppedAt = latestReport?.disposition === "effective" && role.stopped.some((value) => value === latestReport.detail.value) ? latestReport.ts : null;
 	const nested = interventions(goal, open);
 	const held = Boolean(read(goal).thread.heldBy);
 	return {
@@ -193,26 +219,30 @@ function goalView(goal, open, read) {
 		role,
 		state,
 		title: addressableName(goal) || goal.id,
-		done: done(goal, read),
-		stopped: stopped(goal, open, nested, read),
+		done: done(entry, read),
+		stopped: stopped(entry, open, nested, read),
 		held,
-		leaves: progressLeaves,
+		leaves: progressLeaves.map(({ element }) => element),
 		finished: progressLeaves.filter((leaf) => done(leaf, read)).length,
 		liveWorkers,
 		stoppedAt: reportedStoppedAt ?? (role.stoppedAt ? goal.getAttribute(role.stoppedAt) : null)
 	};
 }
-const openWidgetObligations = readPart((root) => root.effective.obligations.user.filter((item) => item.source.kind === "widget"));
+const openWidgetObligations = readPart((root) => root.effective.obligations.user.filter((item) => hasObligationSource(item, "widget")));
 function readWork(scope) {
 	const readings = /* @__PURE__ */ new Map();
 	const read = (element) => {
-		if (!readings.has(element)) readings.set(element, widgetController(element).read());
-		return readings.get(element);
+		let reading = readings.get(element);
+		if (!reading) {
+			reading = widgetController(element).read();
+			readings.set(element, reading);
+		}
+		return reading;
 	};
 	const open = openWidgetObligations();
-	const goals = workElements(scope, "goal").map((goal) => goalView(goal, open, read));
+	const goals = workEntries(scope, "goal").map((goal) => goalView(goal, open, read));
 	const byElement = new Map(goals.map((goal) => [goal.element, goal]));
-	const workers = workElements(scope, "worker").map((worker) => workerView(worker, read));
+	const workers = workEntries(scope, "worker").map((worker) => workerView(worker, read));
 	const liveWorkers = workers.filter((worker) => !worker.retired);
 	const leaves = goals.filter((goal) => !directWorkElements(goal.element, "goal").length);
 	const stoppedGoals = goals.filter((goal) => goal.stopped).sort((a, b) => {
@@ -238,7 +268,7 @@ function readWork(scope) {
 //#region runtime/file-api.js
 const live$3 = readPart((root) => root.document.live);
 function boundFile(binding) {
-	const writable = () => !offlineInteractive && live$3();
+	const writable = () => !offlineInteractive && Boolean(live$3());
 	async function request(options = {}) {
 		if (!writable()) throw new Error("File editing is available in live pages.");
 		try {
@@ -331,4 +361,4 @@ async function mountSample(frame, options) {
 }
 
 //#endregion
-export { CONTRIBUTION_ENTRY_SCHEMA, DISCLOSE, HOLDS_WORD, HeldReading, LAYOUT, LeafElement, PAGE_INTERFACE, PRESENTATION, PRESS, PRESSABLE, PendingTaskEvent, RequestError, TEXT_BOX, TEXT_FIELD, aborted, actionClass, actionName, actionTemplate, addressableLabel, addressableWord, afterPresentation, afterScript, agentName, ago, alignText, allButCommandReference, anchorLabel, announce, answerWords, answeredInWords, assignRows, atLayoutPrecision, atScrollEnd, authoredScope, axisTicks, backgroundFlash, beginWalk, bodyText, boundFile, cancelAnimation, cancelRender, capturePlace, claimTraversals, classMap, clearDraft, clockValue, closeLayer, closeNativeLayer, commandScope, commandsChanged, commandsOn, comparisonChanges, compoundReadingRegionId, connection, consumeAnnotations, contributionEntry, contributionItemKey, copyBlock, copyControl, createRef, currentLocationIn, cycledRow, dataBody, declarationFor, deferredArrival, describeFailure, directWorkElements, dragging, el, elementById, elementsDeclaring, ensureSyntaxLanguage, excerptWords, failSoft, fitsWhole, flashDuration, focusDestination, focused, foldBlock, foldDuration, fragmentTarget, frameFor, generate, generated, generatedElement, growthIsSeen, guard, handBack, heldGrowth, highlightBlocks, holdAuthoredBody, holdFocus, html, iconElement, iconTemplate, inBaseLayer, inChrome, inlineMarkdownFragment, isCanonicalMediaUrl, isNativeLayer, keepView, keeps, keepsHidden, keepsText, keyed, labelOf, landInThread, landingInsets, langForPath, layerFact, layoutChanged, layoutPx, leafEditorView, listWalkPosition, live, loadDeferred, loadDraft, loadMarkdown, markdownReady, markdownSourceOffset, markdownWords, matchesWhen, measure, motion, motionPreview, mountSample, move, nameAction, namedAction, navigateToDatum, nextAnimation, nextFrame, nextRender, noChange, nothing, notice, obligationActions, obligationsIn, offer, offerAction, offeredActionElement as offerActionElement, offerElement, offered, offeredAction, onCurrentLocation, onMotionPreferenceChange, onPress, onPressAway, onUserInput, once, openLayer, openerOf, openingView, pageScroller, paintMarkdown, placeKeeper, placeOf, placePageThreads, placesFailure, plainPress, presentContributionEntry, presentContributionReceipts, preserveReadingRegions, pressIsKeyboardActivation, projectedDatum, publishOutput, pushEntry, queueActions, queueItemKey, queueTitle, quietSince, quoted, raiseError, rankAt, reachedForWords, readHistory, readObligations, readQueues, readThreads, readWork, reducedMotion, ref, regionScrollBehavior, registerContribution, registerReadingRegion, registerRootHeader, registerThreadPresentation, registerVisualParts, relabel, releaseOutlets, render, renderMarkdown, repeat, replaceEntry, reportFailure, reportSequence, reportsPresented, reportsReady, restorePlace, retainUserIntent, returnDuration, revisionLabel, rove, rowArrows, rowWalk, saidAt, saveDraft, saying, says, scopedMediaUrl, scrollBehavior, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollerFor, searchField, selectableOffer, selectableOffered, sendDraft, setChildLists, setChildren, setRenderedChildren, setScroll, shadowStage, shortAgo, showNativeLayer, showReadingSubject, shownAnswer, shownWindow, Z as signal, sizeObserver, styleMap, synNodes, syntax, tabStore, tally, tallyWords, textWidth, threadActions, threadBox, threadInput, threadSummary, threadSurface, turns as threadTurns, tokenLines, under, unsafeHTML, viewMembers, watchDraft, watchReadingRegionTransitions, wear, whenLeft, whileConnected, whileInterfaceConnected, widgetController, wireInput, workAncestor, workElements, workRole, worksInside, wrote };
+export { CONTRIBUTION_ENTRY_SCHEMA, DISCLOSE, HOLDS_WORD, HeldReading, LAYOUT, LeafElement, PAGE_INTERFACE, PRESENTATION, PRESS, PRESSABLE, PendingTaskEvent, RequestError, TEXT_BOX, TEXT_FIELD, aborted, actionClass, actionName, actionTemplate, addressableLabel, addressableWord, afterPresentation, afterScript, agentName, ago, alignText, allButCommandReference, anchorLabel, announce, answerWords, answeredInWords, assignRows, atLayoutPrecision, atScrollEnd, authoredScope, axisTicks, backgroundFlash, beginWalk, bodyText, boundFile, cancelAnimation, cancelRender, canvas2D, capturePlace, claimTraversals, classMap, clearDraft, clockValue, closeLayer, closeNativeLayer, commandScope, commandsChanged, commandsOn, comparisonChanges, compoundReadingRegionId, connection, consumeAnnotations, contributionEntry, contributionItemKey, copyBlock, copyControl, createRef, currentLocationIn, cycledRow, dataBody, declarationFor, deferredArrival, describeFailure, directWorkElements, dragging, el, elementById, elementsDeclaring, ensureSyntaxLanguage, excerptWords, failSoft, fitsWhole, flashDuration, focusDestination, focused, foldBlock, foldDuration, fragmentTarget, frameFor, generate, generated, generatedElement, growthIsSeen, guard, handBack, heldGrowth, highlightBlocks, holdAuthoredBody, holdFocus, html, iconElement, iconTemplate, inBaseLayer, inChrome, inlineMarkdownFragment, isCanonicalMediaUrl, isNativeLayer, keepView, keeps, keepsHidden, keepsText, keyed, labelOf, landInThread, landingInsets, langForPath, layerFact, layoutChanged, layoutPx, leafEditorView, listWalkPosition, live, loadDeferred, loadDraft, loadMarkdown, markdownReady, markdownSourceOffset, markdownWords, matchesWhen, measure, motion, motionPreview, mountSample, move, nameAction, namedAction, navigateToDatum, nextAnimation, nextFrame, nextRender, noChange, nothing, notice, obligationActions, obligationsIn, offer, offerAction, offeredActionElement as offerActionElement, offerElement, offered, offeredAction, onCurrentLocation, onMotionPreferenceChange, onPress, onPressAway, onUserInput, once, openLayer, openerOf, openingView, pageScroller, paintMarkdown, placeKeeper, placeOf, placePageThreads, placesFailure, plainPress, presentContributionEntry, presentContributionReceipts, preserveReadingRegions, pressIsKeyboardActivation, projectedDatum, publishOutput, pushEntry, queueActions, queueItemKey, queueTitle, quietSince, quoted, raiseError, rankAt, reachedForWords, readHistory, readObligations, readQueues, readThreads, readWork, reducedMotion, ref, regionScrollBehavior, registerContribution, registerReadingRegion, registerRootHeader, registerThreadPresentation, registerVisualParts, relabel, releaseOutlets, render, renderMarkdown, repeat, replaceEntry, reportFailure, reportSequence, reportsPresented, reportsReady, restorePlace, retainUserIntent, returnDuration, revisionLabel, rove, rowArrows, rowWalk, saidAt, saveDraft, saying, says, scopedMediaUrl, scrollBehavior, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollerFor, searchField, selectableOffer, selectableOffered, sendDraft, setChildLists, setChildren, setRenderedChildren, setScroll, shadowStage, shortAgo, showNativeLayer, showReadingSubject, shownAnswer, shownWindow, Z as signal, sizeObserver, styleMap, synNodes, syntax, tabStore, tally, tallyWords, textWidth, threadActions, threadBox, threadInput, threadSummary, threadSurface, turns as threadTurns, tokenLines, under, unsafeHTML, viewMembers, watchDraft, watchReadingRegionTransitions, wear, whenLeft, whileConnected, whileInterfaceConnected, widgetController, wireInput, workAncestor, workElements, workRole, worksInside, wrote };

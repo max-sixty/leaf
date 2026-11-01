@@ -217,6 +217,9 @@ export { leafEditorView } from "./editor-view.js";
 
 // Render a declared template or a generated document as an isolated live Leaf page.
 // The returned host owns readiness, Reset and disposal (live-samples.md).
+/** @param {Parameters<typeof import("./sample.js").mountSample>[0]} frame
+ * @param {Parameters<typeof import("./sample.js").mountSample>[1]} options
+ * @returns {Promise<ReturnType<typeof import("./sample.js").mountSample>>} */
 export async function mountSample(frame, options) {
   const owner = await import("./sample.js");
   return owner.mountSample(frame, options);

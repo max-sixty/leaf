@@ -1,5 +1,5 @@
-import { J, LAYOUT, PAGE_PAINT_ATTRIBUTE, Z, afterScript, keeps, layoutChanged, layoutPx, move, nativeLayerHolding, nextFrame, nextRender, pagePresented, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, renderedParent, renderedUnder, renderingState, revealRegisteredVisualPart, revealsVisualParts, setScroll, shadowHost, sizeObserver, skipped, under, upFrom, visualPartAdmission, watchArrivals, watchOwner, watchScrolls, whileConnected } from "./bundle-portable.js";
-import { LENT_REACH_STOP, PRESSES, TEXT_BLOCK, TEXT_BOX, WORKS, anchorKey, applicationPresented, deepFocus, documentChanged, fragmentId, hostIn, inUi, isElementName, marks, onCurrentLocation, pressing, registry, shadowRootsIn, tabStops, tagsDeclaring, tick, uiInside, wearsLentStop } from "./bundle-layer-stack.js";
+import { J, LAYOUT, PAGE_PAINT_ATTRIBUTE, Z, afterScript, inlineStyle, isElement, isHTML, isText, keeps, layoutChanged, layoutPx, move, nativeLayerHolding, nextFrame, nextRender, pagePresented, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, renderedParent, renderedUnder, renderingState, revealRegisteredVisualPart, revealsVisualParts, setScroll, shadowHost, sizeObserver, skipped, under, upFrom, visualPartAdmission, watchArrivals, watchOwner, watchScrolls, whileConnected } from "./bundle-portable.js";
+import { LENT_REACH_STOP, PRESSES, TEXT_BLOCK, TEXT_BOX, WORKS, anchorKey, applicationPresented, deepFocus, documentChanged, eventSource, fragmentId, hostIn, inUi, isElementName, marks, onCurrentLocation, pressing, registry, shadowRootsIn, tabStops, tagsDeclaring, tick, uiInside, wearsLentStop } from "./bundle-layer-stack.js";
 import { PRESSABLE, removeRuntimeRootStyle, repaintPage, reportPageError, setRuntimeRootAttribute, setRuntimeRootStyle } from "./bundle-layer-client.js";
 import { DATUM, authoredScope, blockAt, closestAcross, contextAround, cut, elementById, elementReading, excerptWords, fileModelsPassage, findQuote, inChrome, layoutBox, leafSurface, neighbourhood, pageDocument, pageQueryAll, pageText, quoteFrom, rangeOf, readingFrom, segmentsIn, settledAway, spanIn, textNodesUnder } from "./bundle-passages.js";
 import { clamp, clippedContents, headerCuts, landingBand, nearObserver, nearWindow, overlaps, scrollContainer, scrollsBy, scrollsContent, shellRight, shownBox, shownParts, shownRect, union, userScrollport } from "./bundle-geometry.js";
@@ -36,8 +36,8 @@ let workingGrace = null;
 const observeWorkingGrace = (ms) => {
 	workingGrace = ms;
 };
-const quietSince = (ts) => clockValue((now) => workingGrace !== null && Boolean(ts) && now - new Date(ts).getTime() >= workingGrace);
-const activityTransitionAt = (state) => Math.min(...[state?.activity, ...(state?.others ?? []).map((entry) => entry?.activity)].filter((activity) => activity?.next_transition_at).map((activity) => Date.parse(activity.next_transition_at)));
+const quietSince = (ts) => clockValue((now) => workingGrace !== null && !!ts && now - new Date(ts).getTime() >= workingGrace);
+const activityTransitionAt = (state) => Math.min(...[state?.activity, ...(state?.others ?? []).map((entry) => entry?.activity)].flatMap((activity) => activity?.next_transition_at ? [Date.parse(activity.next_transition_at)] : []));
 const activityTransitionDue = (state) => serverNow() >= activityTransitionAt(state);
 
 //#endregion
@@ -76,7 +76,7 @@ const stamp = (name) => document.body.getAttribute(PAGE_PAINT_ATTRIBUTE[name]);
 const READINESS = [
 	["upgraded", () => stamp("upgraded") === "1"],
 	["log", () => stamp("applied") !== null],
-	["state", (held) => !held || appliedState?.taken >= held.taken || appliedState?.reading === held.reading && held.taken * 1e3 < appliedState.lapses],
+	["state", (held) => !held || appliedState !== null && (appliedState.taken >= held.taken || appliedState.reading === held.reading && held.taken * 1e3 < appliedState.lapses)],
 	["presented", () => pagePresented() && applicationPresented()],
 	["arrived", () => arriving.size === 0],
 	["rendering", () => Object.values(renderingState()).every(Boolean)]
@@ -123,7 +123,9 @@ function whileInterfaceConnected(element, { declare, connect }) {
 
 //#endregion
 //#region runtime/scrolling.js
-const pageScroller = document.scrollingElement;
+const nativeScroller = document.scrollingElement;
+if (!(nativeScroller instanceof HTMLElement)) throw new Error("Leaf requires an active HTML document scrollport");
+const pageScroller = nativeScroller;
 const moving = /* @__PURE__ */ new WeakMap();
 const ended = /* @__PURE__ */ new WeakMap();
 const scrollSteps = /* @__PURE__ */ new WeakMap();
@@ -184,15 +186,21 @@ function watchLayout(box) {
 watchLayout(pageScroller);
 ended.set(pageScroller, pageScroller.scrollTop);
 function stopScroll(boxes) {
-	const stopped = [...boxes].filter((box) => moving.has(box)).map((box) => [box, moving.get(box)]);
+	const stopped = [...boxes].flatMap((box) => {
+		const sequence = moving.get(box);
+		return sequence ? [{
+			box,
+			sequence
+		}] : [];
+	});
 	if (!stopped.length) return null;
-	for (const [box] of stopped) setScroll(box, {
+	for (const { box } of stopped) setScroll(box, {
 		left: box.scrollLeft,
 		top: box.scrollTop,
 		behavior: "instant"
 	});
 	return new Promise((resolve) => nextFrame(() => nextFrame(() => {
-		for (const [box, sequence] of stopped) if (moving.get(box) === sequence) moving.delete(box);
+		for (const { box, sequence } of stopped) if (moving.get(box) === sequence) moving.delete(box);
 		resolve(void 0);
 	})));
 }
@@ -213,9 +221,10 @@ document.addEventListener("beforematch", () => {
 		if (travel === mark) travel = null;
 	}));
 }, { capture: true });
-const eventScroller = (target) => target === document ? pageScroller : target;
+const eventScroller = (target) => target === document ? pageScroller : target instanceof Element ? target : null;
 document.addEventListener("scroll", ({ target }) => {
 	const box = eventScroller(target);
+	if (!box) return;
 	if (skipped(box)) return;
 	watchLayout(box);
 	scrollSteps.set(box, (scrollSteps.get(box) ?? 0) + 1);
@@ -234,6 +243,7 @@ function placeKept(...boxes) {
 }
 document.addEventListener("scrollend", ({ target }) => {
 	const box = eventScroller(target);
+	if (!box) return;
 	if (skipped(box)) {
 		moving.delete(box);
 		scrollSteps.delete(box);
@@ -261,7 +271,7 @@ function laidOutHeight(box) {
 	let end = 0;
 	for (const child of box.children) {
 		if (!child.checkVisibility()) continue;
-		if (child.offsetParent !== box) return box.scrollHeight;
+		if (!(child instanceof HTMLElement) || child.offsetParent !== box) return box.scrollHeight;
 		end = Math.max(end, child.offsetTop + child.offsetHeight + Number.parseFloat(getComputedStyle(child).marginBottom));
 	}
 	const padding = Number.parseFloat(getComputedStyle(box).paddingBottom);
@@ -306,11 +316,11 @@ const seenDeclarations = /* @__PURE__ */ new WeakMap();
 const scrollAncestors = /* @__PURE__ */ new WeakSet();
 const styleRoots = /* @__PURE__ */ new WeakSet();
 const ancestorStyles = new MutationObserver((records) => {
-	for (const { target } of records) if (scrollAncestors.has(target)) reread(target);
+	for (const { target } of records) if (isElement(target) && scrollAncestors.has(target)) reread(target);
 });
 function watchAncestorStyles(scope) {
 	const tree = scope.getRootNode();
-	const root = tree.nodeType === Node.DOCUMENT_NODE ? tree.documentElement : tree;
+	const root = "documentElement" in tree ? tree.documentElement : tree;
 	if (!root || styleRoots.has(root) || !root.isConnected) return;
 	styleRoots.add(root);
 	ancestorStyles.observe(root, {
@@ -334,7 +344,8 @@ function lendStop(el) {
 }
 function claimReachStop(el) {
 	if (claimedStops.has(el)) return;
-	if ((mayScroll.has(el) ? mayScroll.get(el) : el.getAttribute("tabindex")) !== null) return;
+	const prior = mayScroll.get(el);
+	if ((prior === void 0 ? el.getAttribute("tabindex") : prior) !== null) return;
 	claimedStops.add(el);
 	lendStop(el);
 }
@@ -355,6 +366,7 @@ function returnStop(el, authored) {
 const sideways = /* @__PURE__ */ new Map();
 const downwards = /* @__PURE__ */ new Map();
 watchScrolls((box) => {
+	if (!box) return;
 	if (downwards.has(box)) paintReadingReach(box);
 	if (sideways.has(box)) paintSidewaysReach(box, true);
 });
@@ -423,7 +435,7 @@ function sweep(root) {
 	const scopes = [root];
 	for (const scope of scopes) scopes.push(...shadowRootsIn(scope));
 	for (const scope of scopes) watchAncestorStyles(scope);
-	const surfaces = scopes.flatMap((scope) => [...scope.nodeType === Node.ELEMENT_NODE && scope.matches(SCROLL_SURFACE) ? [scope] : [], ...scope.querySelectorAll(SCROLL_SURFACE)]);
+	const surfaces = scopes.flatMap((scope) => [...isElement(scope) && scope.matches(SCROLL_SURFACE) ? [scope] : [], ...scope.querySelectorAll(SCROLL_SURFACE)]);
 	const read = [];
 	const containers = /* @__PURE__ */ new Set();
 	for (const el of surfaces) {
@@ -436,21 +448,28 @@ function sweep(root) {
 			continue;
 		}
 		const style = getComputedStyle(el);
-		read.push([el, {
-			overflowX: style.overflowX,
-			overflowY: style.overflowY,
-			position: style.position,
-			direction: style.direction
-		}]);
-		for (let node = el; node?.nodeType === Node.ELEMENT_NODE; node = upFrom(node)) {
+		read.push({
+			el,
+			style: {
+				overflowX: style.overflowX,
+				overflowY: style.overflowY,
+				position: style.position,
+				direction: style.direction
+			}
+		});
+		let node = el;
+		for (; node; node = upFrom(node)) {
 			scrollAncestors.add(node);
 			if (containers.has(node)) break;
 			containers.add(node);
 		}
 	}
-	const queriesRead = [...containers].map((el) => [el, { containerType: getComputedStyle(el).containerType }]);
-	for (const [el, style] of queriesRead) noteQueries(el, style);
-	for (const [el, style] of read) {
+	const queriesRead = [...containers].map((el) => ({
+		el,
+		containerType: getComputedStyle(el).containerType
+	}));
+	for (const reading of queriesRead) noteQueries(reading.el, reading);
+	for (const { el, style } of read) {
 		const waited = waiting.delete(el);
 		classify(el, style);
 		if (waited) release(el);
@@ -459,8 +478,8 @@ function sweep(root) {
 }
 function forgetSurface(el) {
 	seenDeclarations.delete(el);
-	if (mayScroll.has(el)) {
-		const authored = mayScroll.get(el);
+	const authored = mayScroll.get(el);
+	if (authored !== void 0) {
 		mayScroll.delete(el);
 		if (!claimedStops.has(el)) returnStop(el, authored);
 	}
@@ -487,8 +506,8 @@ function classify(el, style) {
 		keeps(el, PAGE_PAINT_ATTRIBUTE.moreAfter, null);
 	}
 	if (el.hasAttribute("hidden") || !userScrollport(style.overflowX) && !userScrollport(style.overflowY)) {
-		if (!mayScroll.has(el)) return;
 		const authored = mayScroll.get(el);
+		if (authored === void 0) return;
 		mayScroll.delete(el);
 		if (!claimedStops.has(el)) returnStop(el, authored);
 		if (!watched(el)) unwatchReach(el);
@@ -499,7 +518,7 @@ function classify(el, style) {
 		sideways.set(el, style.direction);
 	}
 	if (!mayScroll.has(el)) {
-		if (el.tabIndex >= 0 && !claimedStops.has(el)) return;
+		if ("tabIndex" in el && typeof el.tabIndex === "number" && el.tabIndex >= 0 && !claimedStops.has(el)) return;
 		mayScroll.set(el, wearsLentStop(el) || claimedStops.has(el) ? null : el.getAttribute("tabindex"));
 	}
 	watchReach(el);
@@ -508,8 +527,8 @@ const childrenWatched = /* @__PURE__ */ new WeakSet();
 const childLists = new MutationObserver((records) => {
 	for (const { target, addedNodes, removedNodes } of records) {
 		if (!childrenWatched.has(target)) continue;
-		for (const node of removedNodes) if (node.nodeType === Node.ELEMENT_NODE) release(node);
-		for (const node of addedNodes) if (node.nodeType === Node.ELEMENT_NODE) reachSizes.observe(node);
+		for (const node of removedNodes) if (isElement(node)) release(node);
+		for (const node of addedNodes) if (isElement(node)) reachSizes.observe(node);
 	}
 });
 function watchReach(el) {
@@ -525,19 +544,21 @@ function unwatchReach(el) {
 	if (heldChildren) for (const child of el.children) release(child);
 }
 function release(node) {
-	if (!watched(node) && !childrenWatched.has(node.parentElement)) reachSizes.unobserve(node);
+	if (!watched(node) && !(node.parentElement && childrenWatched.has(node.parentElement))) reachSizes.unobserve(node);
 }
 const depth = (el) => {
 	let levels = 0;
-	for (let node = el; node; node = upFrom(node)) levels++;
+	let node = el;
+	for (; node; node = upFrom(node)) levels++;
 	return levels;
 };
 const watched = (el) => mayScroll.has(el) || sideways.has(el) || downwards.has(el) || waiting.has(el);
 const reachSizes = sizeObserver(() => paintReach());
 function paintSidewaysReach(el, readStyle = false) {
 	afterScript(() => {
-		if (!sideways.has(el) || unpainted(el)) return;
-		const direction = readStyle ? getComputedStyle(el).direction : sideways.get(el);
+		const prior = sideways.get(el);
+		if (prior === void 0 || unpainted(el)) return;
+		const direction = readStyle ? getComputedStyle(el).direction : prior;
 		if (readStyle) sideways.set(el, direction);
 		const scrolling = el.scrollWidth > el.clientWidth + 1;
 		const maximum = Math.max(0, el.scrollWidth - el.clientWidth);
@@ -564,8 +585,12 @@ function paintReach() {
 }
 function paintReachNow() {
 	for (const el of waiting) if (!unpainted(el)) sweep(el);
-	const levels = new Map([...mayScroll.keys()].map((el) => [el, depth(el)]));
-	for (const [el, authored] of [...mayScroll].sort(([a], [b]) => levels.get(b) - levels.get(a))) {
+	const candidates = [...mayScroll].map(([el, authored]) => ({
+		el,
+		authored,
+		depth: depth(el)
+	}));
+	for (const { el, authored } of candidates.sort((a, b) => b.depth - a.depth)) {
 		if (unpainted(el)) continue;
 		if (claimedStops.has(el)) continue;
 		if (overflows(el) && !holdsOwnStop(el)) lendStop(el);
@@ -623,7 +648,9 @@ const queries = sizeObserver((entries) => {
 	for (const { target, contentBoxSize } of entries) {
 		const query = queried.get(target);
 		if (!query || gone(target)) continue;
-		const [{ inlineSize, blockSize }] = contentBoxSize;
+		const sizeReading = contentBoxSize[0];
+		if (!sizeReading) continue;
+		const { inlineSize, blockSize } = sizeReading;
 		const size = query.both ? `${inlineSize} ${blockSize}` : `${inlineSize}`;
 		if (query.size !== null && query.size !== size) reread(target);
 		query.size = size;
@@ -632,12 +659,13 @@ const queries = sizeObserver((entries) => {
 addEventListener("resize", () => reread(document.body));
 const asked = /* @__PURE__ */ new WeakSet();
 const reached = (el) => {
-	for (let node = el; node; node = upFrom(node)) if (asked.has(node)) return true;
+	let node = el;
+	for (; node; node = upFrom(node)) if (asked.has(node)) return true;
 	return false;
 };
 document.addEventListener(LAYOUT, (event) => {
-	const [changed] = event.composedPath();
-	if (changed?.nodeType === Node.ELEMENT_NODE && reached(changed)) reread(changed);
+	const changed = eventSource(event);
+	if (isElement(changed) && reached(changed)) reread(changed);
 	paintReach();
 });
 
@@ -647,11 +675,11 @@ const regions = /* @__PURE__ */ new Map();
 const transitionWatchers = /* @__PURE__ */ new Set();
 const depthOf = (node) => {
 	let depth = 0;
-	for (let current = node; current; current = renderedParent(current)) depth += 1;
+	for (let current = node instanceof Element ? node : node.parentElement; current; current = renderedParent(current)) depth += 1;
 	return depth;
 };
-const live = (region) => region?.host?.isConnected && region.body?.isConnected;
-const concealed = (region) => region.host.hidden || region.host.closest?.("[hidden], [aria-hidden='true']") !== null || region.body.matches("details:not([open])");
+const live = (region) => Boolean(region?.host.isConnected && region.body.isConnected);
+const concealed = (region) => region.host.closest?.("[hidden], [aria-hidden='true']") !== null || region.body.matches("details:not([open])");
 const hidden = (region) => !live(region) || concealed(region) || shownRect(region.host, /* @__PURE__ */ new Map()) === null;
 const regionRecord = (region) => ({
 	id: region.id,
@@ -733,7 +761,7 @@ function showReadingSubject(id, subject, render) {
 	return rendered;
 }
 const readingRegion = (id) => {
-	const region = regions.get(id);
+	const region = id == null ? void 0 : regions.get(id);
 	return live(region) ? regionRecord(region) : void 0;
 };
 const readingRegions = () => [...regions.values()].filter(live).map(regionRecord);
@@ -766,8 +794,9 @@ for (const type of [
 	"click"
 ]) addEventListener(type, (event) => {
 	const at = event.composedPath()[0];
+	if (!(at instanceof Node)) return;
 	if (type !== "click") actedAt(at, false);
-	else if (event.isTrusted && event.button === 0) readingInput(at);
+	else if (event.isTrusted && event instanceof MouseEvent && event.button === 0) readingInput(at);
 }, {
 	capture: true,
 	passive: true
@@ -796,7 +825,14 @@ const containingReadingRegionFor = (node) => {
 		region = regionAt(renderedParent(region.host));
 	}
 };
-const asRegion = (regionOrNode) => typeof regionOrNode === "string" ? regions.get(regionOrNode) : regions.get(regionOrNode?.id) ?? regions.get(readingRegionFor(regionOrNode)?.id);
+const asRegion = (regionOrNode) => {
+	if (typeof regionOrNode === "string") return regions.get(regionOrNode);
+	if (!regionOrNode) return void 0;
+	const named = regions.get(regionOrNode.id);
+	if (named || !(regionOrNode instanceof Element)) return named;
+	const containing = readingRegionFor(regionOrNode);
+	return containing ? regions.get(containing.id) : void 0;
+};
 const scrolls = (box) => userScrollport(getComputedStyle(box).overflowY);
 const regionScrollBehavior = (regionOrNode) => {
 	const region = asRegion(regionOrNode);
@@ -899,9 +935,10 @@ function measureRegions() {
 		region.away = away;
 	}
 	const now = pageGeometry();
-	if (pageMoved(now)) shifted.push({
+	const previousPage = pageSeen;
+	if (pageMoved(now) && previousPage) shifted.push({
 		region: null,
-		band: now.band - pageSeen.band
+		band: now.band - previousPage.band
 	});
 	pageSeen = now;
 	if (shifted.length) notify({
@@ -914,17 +951,23 @@ sizes.observe(pageScroller);
 addEventListener("resize", () => nextRender(measureRegions), { passive: true });
 
 //#endregion
-//#region runtime/element-frame.js
+//#region runtime/element-axes.js
 function elementAxes(source) {
 	let matrix = new window.DOMMatrix();
-	for (let node = source; node instanceof Element; node = renderedParent(node)) {
+	let node = source;
+	for (; isElement(node); node = renderedParent(node)) {
 		const style = getComputedStyle(node);
 		let local = new window.DOMMatrix();
 		if (style.rotate !== "none") {
-			const parts = style.rotate.split(" ");
-			const angle = parts.pop();
+			const split = style.rotate.lastIndexOf(" ");
+			const angle = style.rotate.slice(split + 1);
+			const parts = style.rotate.slice(0, split + 1).trim().split(" ");
 			const degrees = parseFloat(angle) * (angle.endsWith("turn") ? 360 : angle.endsWith("grad") ? .9 : angle.endsWith("rad") ? 180 / Math.PI : 1);
-			const axis = parts.length === 3 ? parts.map(Number) : parts[0] === "x" ? [
+			const axis = parts.length === 3 ? [
+				Number(parts[0]),
+				Number(parts[1]),
+				Number(parts[2])
+			] : parts[0] === "x" ? [
 				1,
 				0,
 				0
@@ -959,6 +1002,21 @@ function elementAxes(source) {
 		}
 	};
 }
+function scrollAxes(source) {
+	return source === source.ownerDocument.scrollingElement ? {
+		x: {
+			x: 1,
+			y: 0
+		},
+		y: {
+			x: 0,
+			y: 1
+		}
+	} : elementAxes(source);
+}
+
+//#endregion
+//#region runtime/element-frame.js
 const nativePositions = /* @__PURE__ */ new WeakMap();
 let positionProbe;
 function nativePosition(source, position, horizontal, vertical) {
@@ -969,18 +1027,18 @@ function nativePosition(source, position, horizontal, vertical) {
 	]);
 	const prior = nativePositions.get(source);
 	if (prior?.key === key) return prior.offset;
-	const components = [];
 	let depth = 0;
-	let start = 0;
-	for (let at = 0; at <= position.length; at++) {
+	let split = -1;
+	for (let at = 0; at < position.length; at++) {
 		const character = position[at];
 		if (character === "(") depth++;
 		if (character === ")") depth--;
-		if (at === position.length || character === " " && !depth) {
-			if (at > start) components.push(position.slice(start, at));
-			start = at + 1;
+		if (character === " " && !depth) {
+			split = at;
+			break;
 		}
 	}
+	if (split < 0) throw new TypeError(`Computed object-position has no second component: ${position}`);
 	const pixels = (value, space) => value.replace(/([-+]?(?:\d*\.)?\d+(?:e[-+]?\d+)?)%/gi, (_unit, percent) => `${Number(percent) * space / 100}px`);
 	if (!positionProbe) {
 		const measure = document.createElement("div");
@@ -997,11 +1055,14 @@ function nativePosition(source, position, horizontal, vertical) {
 		};
 	}
 	const { measure, point } = positionProbe;
-	point.style.left = pixels(components[0], horizontal);
-	point.style.top = pixels(components[1], vertical);
+	point.style.left = pixels(position.slice(0, split), horizontal);
+	point.style.top = pixels(position.slice(split + 1), vertical);
 	document.body.append(measure);
 	const resolved = getComputedStyle(point);
-	const offset = [Number.parseFloat(resolved.left), Number.parseFloat(resolved.top)];
+	const offset = {
+		x: Number.parseFloat(resolved.left),
+		y: Number.parseFloat(resolved.top)
+	};
 	measure.remove();
 	nativePositions.set(source, {
 		key,
@@ -1013,8 +1074,7 @@ function elementFrame(source) {
 	const box = shownBox(source);
 	if (!box?.width || !box?.height) return null;
 	if (source instanceof window.SVGGraphicsElement) {
-		const view = source instanceof window.SVGSVGElement && source.viewBox.baseVal;
-		const local = source instanceof window.SVGSVGElement ? view.width && view.height ? view : {
+		const local = source instanceof window.SVGSVGElement ? source.viewBox.baseVal.width && source.viewBox.baseVal.height ? source.viewBox.baseVal : {
 			x: 0,
 			y: 0,
 			width: Number.parseFloat(getComputedStyle(source).width),
@@ -1040,16 +1100,25 @@ function elementFrame(source) {
 	if (!layout) return null;
 	const { width, height, matrix } = layout;
 	const style = getComputedStyle(source);
-	const native = source instanceof window.HTMLImageElement ? [source.naturalWidth, source.naturalHeight] : source instanceof window.HTMLCanvasElement ? [source.width, source.height] : source instanceof window.HTMLVideoElement ? [source.videoWidth, source.videoHeight] : null;
+	const native = source instanceof window.HTMLImageElement ? {
+		width: source.naturalWidth,
+		height: source.naturalHeight
+	} : source instanceof window.HTMLCanvasElement ? {
+		width: source.width,
+		height: source.height
+	} : source instanceof window.HTMLVideoElement ? {
+		width: source.videoWidth,
+		height: source.videoHeight
+	} : null;
 	if (native) {
-		if (!native[0] || !native[1]) return null;
+		if (!native.width || !native.height) return null;
 		const edge = (side) => Number.parseFloat(style[`border${side}Width`]) + Number.parseFloat(style[`padding${side}`]);
 		const contentWidth = width - edge("Left") - edge("Right");
 		const contentHeight = height - edge("Top") - edge("Bottom");
-		let sx = contentWidth / native[0];
-		let sy = contentHeight / native[1];
+		let sx = contentWidth / native.width;
+		let sy = contentHeight / native.height;
 		if (style.objectFit !== "fill") sx = sy = style.objectFit === "cover" ? Math.max(sx, sy) : style.objectFit === "none" ? 1 : Math.min(sx, sy, style.objectFit === "scale-down" ? 1 : Infinity);
-		const [dx, dy] = nativePosition(source, style.objectPosition, contentWidth - native[0] * sx, contentHeight - native[1] * sy);
+		const { x: dx, y: dy } = nativePosition(source, style.objectPosition, contentWidth - native.width * sx, contentHeight - native.height * sy);
 		if (![
 			sx,
 			sy,
@@ -1058,8 +1127,8 @@ function elementFrame(source) {
 		].every(Number.isFinite) || !sx || !sy) return null;
 		return {
 			box,
-			width: native[0],
-			height: native[1],
+			width: native.width,
+			height: native.height,
 			matrix: matrix.translate(edge("Left") + dx, edge("Top") + dy).scale(sx, sy)
 		};
 	}
@@ -1085,8 +1154,9 @@ function elementBorderFrame(source) {
 		if (!Number.isFinite(size)) return fallback;
 		return style.boxSizing === "border-box" ? size : size + edges.reduce((sum, edge) => sum + Number.parseFloat(style[`padding${edge}`]) + Number.parseFloat(style[`border${edge}Width`]), 0);
 	};
-	const width = borderSize("width", ["Left", "Right"], source.offsetWidth);
-	const height = borderSize("height", ["Top", "Bottom"], source.offsetHeight);
+	const width = borderSize("width", ["Left", "Right"], isHTML(source) ? source.offsetWidth : void 0);
+	const height = borderSize("height", ["Top", "Bottom"], isHTML(source) ? source.offsetHeight : void 0);
+	if (width === void 0 || height === void 0) return null;
 	const { x, y } = elementAxes(source);
 	const left = box.left - Math.min(0, width * x.x, height * y.x, width * x.x + height * y.x);
 	const top = box.top - Math.min(0, width * x.y, height * y.y, width * x.y + height * y.y);
@@ -1103,18 +1173,6 @@ function elementBorderFrame(source) {
 			top
 		])
 	};
-}
-function scrollAxes(source) {
-	return source === source.ownerDocument.scrollingElement ? {
-		x: {
-			x: 1,
-			y: 0
-		},
-		y: {
-			x: 0,
-			y: 1
-		}
-	} : elementAxes(source);
 }
 function localScrollBy(source, { x, y }) {
 	const axes = scrollAxes(source);
@@ -1203,8 +1261,8 @@ function addressableSays(addressable) {
 const TITLES = "summary, h1, h2, h3, h4, h5, h6, strong";
 function leadingTitle(container) {
 	for (const node of container.childNodes) {
-		if (node.nodeType === Node.TEXT_NODE && node.data.trim()) return null;
-		if (node.nodeType !== Node.ELEMENT_NODE || uiInside(node, container)) continue;
+		if (node.nodeType === Node.TEXT_NODE && node.textContent?.trim()) return null;
+		if (!(node instanceof Element) || uiInside(node, container)) continue;
 		if (node.matches(TITLES)) return node;
 		if (["header", "hgroup"].includes(node.localName)) return leadingTitle(node);
 	}
@@ -1228,7 +1286,7 @@ const captionOf = (element) => {
 };
 const accessibleName = (element) => element.getAttribute("aria-label")?.trim() || (element.labels?.[0] ? elementReading(element.labels[0]) : "") || element.alt?.trim() || "";
 const ownName = (element) => addressableName(element) || captionOf(element) || accessibleName(element);
-const saysItself = (element) => element.matches("p,li,h1,h2,h3,h4,h5,h6,td,th,pre,blockquote,dd,dt,figcaption,summary") || registry[element.localName]?.["x-word"] === "module" && element.lfSays?.() || [...element.childNodes].some((node) => node.nodeType === Node.TEXT_NODE && node.data.trim());
+const saysItself = (element) => element.matches("p,li,h1,h2,h3,h4,h5,h6,td,th,pre,blockquote,dd,dt,figcaption,summary") || registry[element.localName]?.["x-word"] === "module" && element.lfSays?.() || [...element.childNodes].some((node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim());
 function addressableLabel(element) {
 	if (!element) return "";
 	const own = ownName(element);
@@ -1310,23 +1368,24 @@ function setAnchoringReady(ready) {
 const sectionOf = (anchor) => anchor?.section ? elementById(anchor.section) : null;
 function currentDatums(source, key, identity = null, dataSource = null) {
 	if (!source?.id) return [];
-	return pageQueryAll(DATUM).filter((datum) => under(datum, source) && datum.dataset.lfProjection === source.id && (dataSource === null || datum.dataset.lfSource === dataSource) && (identity === null ? datum.dataset.lfDatum === key : datum.dataset.lfIdentity === identity));
+	return pageQueryAll(DATUM).filter((datum) => under(datum, source) && datum.getAttribute("data-lf-projection") === source.id && (dataSource === null || datum.getAttribute("data-lf-source") === dataSource) && (identity === null ? datum.getAttribute("data-lf-datum") === key : datum.getAttribute("data-lf-identity") === identity));
 }
 const projectedDatum = (source, key) => {
 	const matches = currentDatums(source, key);
-	return matches.length === 1 ? matches[0] : null;
+	return matches.length === 1 ? matches[0] ?? null : null;
 };
 function datumLabel(anchor) {
 	if (!anchor?.datum) return "";
 	documentChanged();
 	const source = sectionOf(anchor);
 	const datums = currentDatums(source, anchor.datum, anchor.identity ?? null, anchor.source ?? null);
-	const label = datums.length ? datums.length === 1 && datums[0].dataset.lfDatumLabel : source?.lfDatumLabel?.(anchor.datum);
+	const [datum] = datums;
+	const label = datum ? datums.length === 1 && datum.getAttribute("data-lf-datum-label") : source?.lfDatumLabel?.(anchor.datum);
 	return typeof label === "string" ? label.trim() : "";
 }
 function suppliedDatum(source, key) {
 	const supplied = source?.lfDataDatum?.(key);
-	return supplied instanceof Element && under(supplied, source) && supplied.dataset.lfProjection === source.id ? supplied : null;
+	return supplied instanceof Element && under(supplied, source) && supplied.getAttribute("data-lf-projection") === source.id ? supplied : null;
 }
 function addressedElements(source, key) {
 	if (typeof source.lfElementsFor === "function") return [...source.lfElementsFor(key) ?? []].filter((element) => element instanceof Element && under(element, source));
@@ -1339,8 +1398,8 @@ function revealAddressed(source, key) {
 	if (revealVisualPart(source, key)) return null;
 	return source.lfRevealDatum?.(key) ?? null;
 }
-const visualAdmission = (visual) => visual ? visualPartAdmission(visual, registry[visual.localName]?.["x-visual"]) : null;
-const wholeVisualSurface = (element) => registry[element?.localName]?.["x-visual"] ? element : null;
+const visualAdmission = (visual) => visual ? visualPartAdmission(visual, registry[visual.localName]?.["x-visual"] ?? null) : null;
+const wholeVisualSurface = (element) => element && registry[element.localName]?.["x-visual"] ? element : null;
 function visualParts(visual) {
 	const admits = visualAdmission(visual);
 	if (!admits) return [];
@@ -1355,9 +1414,9 @@ function revealVisualPart(visual, part) {
 }
 function visualPartAt(visual, target) {
 	const admits = visualAdmission(visual);
-	return admits ? registeredVisualPartAt(visual, target, (part) => admits(part.id)) : null;
+	return admits ? registeredVisualPartAt(visual, target instanceof Element ? target : target?.parentElement ?? null, (part) => admits(part.id)) : null;
 }
-const visualPartLabel = (visual, part) => admitsVisualPart(visual, part) ? registeredVisualPartLabel(visual, part) : null;
+const visualPartLabel = (visual, part) => visual && admitsVisualPart(visual, part) ? registeredVisualPartLabel(visual, part) : null;
 const declaredVisualSelector = () => [...tagsDeclaring((entry) => entry["x-visual"])].join(",");
 const genericVisualSelector = "svg, img, figure";
 const visualSelector = () => [declaredVisualSelector(), genericVisualSelector].filter(Boolean).join(",");
@@ -1373,7 +1432,7 @@ const outermostAcross = (element, selector) => {
 const claimsVisualGesture = (element) => element.matches(`${PRESSES},${PRESSABLE}`);
 const unclaimedVisualGesture = (target) => {
 	if (inChrome(target) || inUi(target)) return false;
-	for (let element = target; element; element = upFrom(element)) if (claimsVisualGesture(element)) return false;
+	for (let element = target instanceof Element ? target : target?.parentElement; element; element = upFrom(element)) if (claimsVisualGesture(element)) return false;
 	return true;
 };
 function visualAt(target, { unclaimed = true } = {}) {
@@ -1389,6 +1448,7 @@ function visualAt(target, { unclaimed = true } = {}) {
 	const seat = closestAcross(element, ADDRESSABLE);
 	return seat ? {
 		element,
+		seat,
 		id: seat.id,
 		part: visualPartAt(element, target)
 	} : null;
@@ -1400,7 +1460,7 @@ const designCandidates = () => [
 	genericVisualSelector
 ].join(",");
 function designPressAt(target) {
-	const at = target?.nodeType === 1 ? target : target?.parentElement;
+	const at = target instanceof Element ? target : target?.parentElement;
 	const hit = at && closestAcross(at, designCandidates());
 	if (!hit || !hit.matches(genericVisualSelector)) return hit;
 	return closestAcross(hit, `${PRESSES},${"[data-lf-offer]:not([data-lf-offer=\"\"])"}`) || visualAt(at, { unclaimed: false })?.element || hit;
@@ -1412,7 +1472,7 @@ function isAddressable(at) {
 	return !(visual && at.parentElement && closestAcross(at.parentElement, visual));
 }
 function addressableAt(node) {
-	let at = node?.nodeType === 1 ? node : node?.parentElement;
+	let at = node instanceof Element ? node : node?.parentElement;
 	for (; at; at = upFrom(at)) if (isAddressable(at)) return at;
 	return null;
 }
@@ -1429,27 +1489,33 @@ const addressableAimTarget = (addressable) => ({
 	surface: wholeVisualSurface(addressable)
 });
 const anchorForDatum = (datum, fields = {}) => {
-	const sourceRevision = datum.dataset.lfSourceRevision;
+	const section = datum.getAttribute("data-lf-projection");
+	const key = datum.getAttribute("data-lf-datum");
+	if (section === null || key === null) return null;
+	const sourceRevision = datum.getAttribute("data-lf-source-revision");
+	const source = datum.getAttribute("data-lf-source");
+	const identity = datum.getAttribute("data-lf-identity");
 	return {
-		section: datum.dataset.lfProjection,
-		datum: datum.dataset.lfDatum,
+		section,
+		datum: key,
 		...fields,
-		...datum.dataset.lfSource && sourceRevision ? {
-			source: datum.dataset.lfSource,
+		...source && sourceRevision ? {
+			source,
 			source_revision: sourceRevision
 		} : {},
-		...datum.dataset.lfIdentity ? { identity: datum.dataset.lfIdentity } : {}
+		...identity ? { identity } : {}
 	};
 };
 function datumAimTarget(datum) {
 	if (!(datum instanceof Element) || !datum.matches("[data-lf-projection][data-lf-datum]")) return null;
 	const anchor = anchorForDatum(datum);
+	if (!anchor) return null;
 	const owner = sectionOf(anchor);
 	if (!owner || !under(datum, owner)) return null;
 	return {
 		anchor,
 		element: datum,
-		label: datum.dataset.lfDatumLabel?.trim() || aimLabel(datum)
+		label: datum.getAttribute("data-lf-datum-label")?.trim() || aimLabel(datum)
 	};
 }
 const anchorForRange = (range) => anchorForPassage(segmentsIn(range), range.commonAncestorContainer);
@@ -1459,9 +1525,12 @@ function anchorForPassage(segments, node) {
 	const dataNodes = new Set(segments.map((seg) => closestAcross(seg.node, DATUM)).filter(Boolean));
 	const [onlyDatum] = dataNodes;
 	const datum = dataNodes.size === 1 && segments.every((seg) => closestAcross(seg.node, "[data-lf-projection][data-lf-datum]") === onlyDatum) ? onlyDatum : null;
-	if (datum) return anchorForDatum(datum, quote ? { quote } : {});
+	if (datum) {
+		const anchor = anchorForDatum(datum, quote ? { quote } : {});
+		if (anchor) return anchor;
+	}
 	const section = closestAcross(holder, "[id]:not(.lf-ui):not([id^=\"lf-\"])")?.id ?? null;
-	if (!quote) return { section };
+	if (!quote) return section === null ? null : { section };
 	const reading = pageText();
 	const [start, stop] = spanIn(reading, segments);
 	for (let width = 24;; width *= 2) {
@@ -1473,13 +1542,13 @@ function anchorForPassage(segments, node) {
 			...prefix && { prefix },
 			...suffix && { suffix }
 		};
-		const resolved = quote && resolveAnchor(anchor);
+		const resolved = resolveAnchor(anchor);
 		if (resolved?.exact && resolved.kind === "passage") {
 			const first = resolved.segments[0];
 			const last = resolved.segments.at(-1);
-			const from = units[0].start;
-			const to = units.at(-1).end;
-			if (first.node === from.node && first.start === from.offset && last.node === to.node && last.end === to.offset) return anchor;
+			const from = units[0]?.start;
+			const to = units.at(-1)?.end;
+			if (first && last && from && to && first.node === from.node && first.start === from.offset && last.node === to.node && last.end === to.offset) return anchor;
 		}
 		if ([...prefix].length < width && [...suffix].length < width) return {
 			...anchor,
@@ -1487,8 +1556,9 @@ function anchorForPassage(segments, node) {
 		};
 	}
 }
-const controlName = (control) => control.isContentEditable ? accessibleName(control) : ownName(control) || (control.matches(PRESSES) ? control.innerText?.trim().replace(/\s+/g, " ") || addressableWord(control) : "");
-const controlIdentity = (control) => control.control ?? control;
+const controlName = (control) => control instanceof HTMLElement && control.isContentEditable ? accessibleName(control) : ownName(control) || (control.matches(PRESSES) ? (control instanceof HTMLElement ? control.innerText : "")?.trim().replace(/\s+/g, " ") || addressableWord(control) : "");
+const controlFaces = (control) => [control, ...control.labels ?? []];
+const controlIdentity = (control) => (control instanceof HTMLLabelElement ? control.control : null) ?? control;
 const namedParts = (owner, name) => [...new Set(pageQueryAll(WORKS).map(controlIdentity))].filter((control) => control !== owner && under(control, owner) && addressableAt(control) === owner && controlName(control) === name);
 function controlContext(control, contexts) {
 	const block = blockAt(control);
@@ -1520,7 +1590,7 @@ function visiblePassage(segments) {
 	const clips = /* @__PURE__ */ new Map();
 	return segments.every((segment) => {
 		const holder = segment.node.parentElement;
-		if (!holder.checkVisibility({
+		if (!holder || !holder.checkVisibility({
 			opacityProperty: true,
 			visibilityProperty: true
 		})) return false;
@@ -1532,14 +1602,14 @@ function designTargetAt(node, marginTargetAt, reading = {
 	contexts: /* @__PURE__ */ new Map()
 }) {
 	const { owners, contexts } = reading;
-	let at = node?.nodeType === 1 ? node : node?.parentElement;
+	let at = node instanceof Element ? node : node?.parentElement;
 	if (!at) return null;
 	const pressed = designPressAt(at);
-	const control = pressed?.matches(`${WORKS},${genericVisualSelector}`) && controlIdentity(pressed);
+	const control = pressed?.matches(`${WORKS},${genericVisualSelector}`) ? controlIdentity(pressed) : null;
 	const visual = visualAt(at, { unclaimed: false });
 	const declared = declaredVisualSelector();
 	if (declared && visual?.element.matches(declared)) at = visual.element;
-	else if (pressed?.control || visual && control?.matches(PRESSES) && under(visual.element, control)) at = control;
+	else if (control && (pressed instanceof HTMLLabelElement && pressed.control || visual && control.matches(PRESSES) && under(visual.element, control))) at = control;
 	const surface = leafSurface(at);
 	const margin = closestAcross(at, ".lf-margin-entry, [data-lf-margin-for]");
 	const marginTarget = marginTargetAt?.(at);
@@ -1554,13 +1624,13 @@ function designTargetAt(node, marginTargetAt, reading = {
 		target = addressableAimTarget(element);
 		owners.set(element, target);
 	}
-	if (!part) return control === element ? {
+	if (!partElement || !part) return control === element ? {
 		...target,
 		controlElement: control,
-		controlFaces: [control, ...control.labels ?? []]
+		controlFaces: controlFaces(control)
 	} : target;
-	const faces = [partElement, ...partElement.labels ?? []];
-	const detail = [.../* @__PURE__ */ new Set([controlContext(partElement, contexts), ...[...partElement.labels ?? []].map((label) => quoteFrom(textNodesUnder(label).filter(({ node }) => !under(node, partElement))))])].filter((text) => text && text !== part).join(" · ");
+	const faces = controlFaces(partElement);
+	const detail = [.../* @__PURE__ */ new Set([controlContext(partElement, contexts), ...faces.filter((face) => face !== partElement).map((label) => quoteFrom(textNodesUnder(label).filter(({ node }) => !under(node, partElement))))])].filter((text) => text && text !== part).join(" · ");
 	const named = {
 		...target,
 		anchor: {
@@ -1579,9 +1649,13 @@ function designTargetAt(node, marginTargetAt, reading = {
 			for (const face of faces) for (const passage of controlPassages(face, partElement)) {
 				if (!passage.length || !fileModelsPassage(passage)) continue;
 				const captured = anchorForRange(rangeOf(passage));
-				const resolved = captured.quote && resolveAnchor(captured);
+				if (!captured) continue;
+				const resolved = captured.quote ? resolveAnchor({
+					...captured,
+					quote: captured.quote
+				}) : null;
 				const attachment = resolved?.kind === "passage" && passageGeometry(resolved)?.attachment;
-				if (resolved?.exact && attachment && resolved.segments.every(({ node }) => under(node, face)) && overlaps(attachment, face.getBoundingClientRect()) && visiblePassage(resolved.segments)) {
+				if (resolved?.kind === "passage" && resolved.exact && attachment && resolved.segments.every(({ node }) => under(node, face)) && overlaps(attachment, face.getBoundingClientRect()) && visiblePassage(resolved.segments)) {
 					const context = contextAround(pageText(), resolved.segments, {
 						before: [...captured.prefix ?? ""].length,
 						after: [...captured.suffix ?? ""].length
@@ -1619,7 +1693,7 @@ function aimTargetAt(node, { design = false, marginTargetAt } = {}) {
 			visual: visual.part.id
 		},
 		element: visual.part.element,
-		label: aimLabel(sectionOf({ section: visual.id }), visual.part.label),
+		label: aimLabel(visual.seat, visual.part.label),
 		surface: visual.part.surface
 	};
 	const datum = closestAcross(node, DATUM);
@@ -1638,7 +1712,7 @@ function aimTargets(options = {}) {
 		owners: /* @__PURE__ */ new Map(),
 		contexts: /* @__PURE__ */ new Map()
 	};
-	const targets = candidates.map((node) => options.design ? designTargetAt(node, options.marginTargetAt, reading) : aimTargetAt(node, options)).filter(Boolean);
+	const targets = candidates.map((node) => options.design ? designTargetAt(node, options.marginTargetAt, reading) : aimTargetAt(node, options)).filter((target) => target !== null);
 	if (options.design) {
 		const seen = /* @__PURE__ */ new Set();
 		return targets.filter((target) => {
@@ -1663,7 +1737,7 @@ function resolveAnchor(anchor) {
 		const datums = currentDatums(source, anchor.datum, anchor.identity ?? null, anchor.source ?? null);
 		const anchoredToData = typeof anchor.source === "string" && typeof anchor.source_revision === "string";
 		const basis = datums[0] ?? source;
-		if (!(!anchoredToData || basis?.dataset.lfSource === anchor.source && (anchor.identity ? datums.length > 0 && basis.dataset.lfIdentity === anchor.identity : basis.dataset.lfSourceRevision === anchor.source_revision))) {
+		if (!(!anchoredToData || basis !== null && basis.getAttribute("data-lf-source") === anchor.source && (anchor.identity ? datums.length > 0 && basis.getAttribute("data-lf-identity") === anchor.identity : basis.getAttribute("data-lf-source-revision") === anchor.source_revision))) {
 			const contextual = source?.lfDataDatum?.(anchor.datum, { outdated: true });
 			const fallback = contextual instanceof Element && under(contextual, source) ? contextual : source;
 			if (!(fallback instanceof Element)) return null;
@@ -1675,7 +1749,8 @@ function resolveAnchor(anchor) {
 			};
 		}
 		if (datums.length > 1) return null;
-		if (!datums.length) {
+		const [datum] = datums;
+		if (!datum) {
 			const virtual = source?.lfDataDatum?.(anchor.datum);
 			if (!(virtual instanceof Element) || !under(virtual, source)) return null;
 			return {
@@ -1686,23 +1761,24 @@ function resolveAnchor(anchor) {
 			};
 		}
 		if (!anchor.quote) return {
-			...resolvedElement({ element: datums[0] }),
-			datumElement: datums[0],
+			...resolvedElement({ element: datum }),
+			datumElement: datum,
 			exact: true,
 			status: "exact"
 		};
-		const segments = findQuote(pageText(), anchor.quote, anchor, datums[0]);
-		return segments.length ? {
+		const segments = findQuote(pageText(), anchor.quote, anchor, datum);
+		const [first] = segments;
+		return first ? {
 			...resolvedPassage({
-				place: annotationAt(segments[0].node, () => datums[0]),
+				place: annotationAt(first.node, () => datum),
 				segments
 			}),
-			datumElement: datums[0],
+			datumElement: datum,
 			exact: true,
 			status: "exact"
 		} : {
-			...resolvedElement({ element: datums[0] }),
-			datumElement: datums[0],
+			...resolvedElement({ element: datum }),
+			datumElement: datum,
 			exact: false,
 			status: "fallback"
 		};
@@ -1739,11 +1815,12 @@ function resolveAnchor(anchor) {
 		} : target;
 	}
 	const segments = findQuote(pageText(), anchor.quote, anchor, sectionOf(anchor));
-	if (!segments.length) return null;
-	const face = anchor.part && closestAcross(segments[0].node, WORKS);
+	const [first] = segments;
+	if (!first) return null;
+	const face = anchor.part && closestAcross(first.node, WORKS);
 	const controlFace = face && segments.every(({ node }) => closestAcross(node, WORKS) === face);
 	return resolvedPassage({
-		place: controlFace ? face : annotationAt(segments[0].node),
+		place: controlFace ? face : annotationAt(first.node),
 		segments
 	});
 }
@@ -1764,12 +1841,16 @@ const anchorNames = /* @__PURE__ */ new WeakMap();
 let anchorOrdinal = 0;
 const nextName = () => `--lf-a${++anchorOrdinal}`;
 const partOf = (name) => name.slice(2);
-const partNamed = (el) => el.part.contains(partOf(anchorNames.get(el)));
+const partNamed = (el) => {
+	const name = anchorNames.get(el);
+	return name !== void 0 && el.part.contains(partOf(name));
+};
 let partRules = null;
 const declared = /* @__PURE__ */ new Set();
 const given = /* @__PURE__ */ new WeakMap();
 const watchedTrees = /* @__PURE__ */ new WeakSet();
 const restoreParts = (el) => {
+	if (!isElement(el)) return;
 	for (const part of given.get(el) ?? []) if (!el.part.contains(part)) el.part.add(part);
 };
 function keepParts(root) {
@@ -1797,12 +1878,9 @@ function namePart(el, name, pseudo = "") {
 	keepParts(el.getRootNode());
 	restoreParts(el);
 }
-function anchorReading(el, name = anchorNames.get(el) ?? nextName()) {
-	const start = contentStarts.get(el);
-	if (start) return {
-		el,
-		name: start.name
-	};
+function anchorReading(el, name) {
+	if (!isElement(el)) return { name: el.name };
+	name ??= anchorNames.get(el) ?? nextName();
 	anchorNames.set(el, name);
 	if (el.getRootNode() !== document) return partNamed(el) ? {
 		el,
@@ -1813,7 +1891,7 @@ function anchorReading(el, name = anchorNames.get(el) ?? nextName()) {
 		write: name,
 		part: true
 	};
-	const written = el.style.anchorName;
+	const written = inlineStyle(el).anchorName;
 	if (written.split(",").some((part) => part.trim() === name)) return {
 		el,
 		name
@@ -1828,7 +1906,7 @@ function anchorReading(el, name = anchorNames.get(el) ?? nextName()) {
 function nameAnchor({ el, name, write, part }) {
 	if (write && part) {
 		if (!partNamed(el)) namePart(el, name);
-	} else if (write) el.style.anchorName = write;
+	} else if (write) inlineStyle(el).anchorName = write;
 	return name;
 }
 function nameable(el) {
@@ -1841,7 +1919,8 @@ function nameable(el) {
 }
 function outsideScopes(target) {
 	let el = target;
-	for (let at = target; at instanceof Element; at = renderedParent(at)) if (at.getRootNode() === document && !at.contains(chromeRoot) && getComputedStyle(at).anchorScope === "all") el = renderedParent(at) ?? at;
+	let at = target;
+	for (; isElement(at); at = renderedParent(at)) if (at.getRootNode() === document && !at.contains(chromeRoot) && getComputedStyle(at).anchorScope === "all") el = renderedParent(at) ?? at;
 	return el;
 }
 function anchorElement(target) {
@@ -1854,67 +1933,69 @@ function anchorElement(target) {
 }
 function anchorReaches(anchor, box) {
 	const holder = anchorHolder(anchor);
+	const host = hostIn(holder, document);
+	if (!host) return false;
 	const layer = nativeLayerHolding(holder);
 	if (layer !== nativeLayerHolding(box)) return !layer;
-	const order = hostIn(holder, document).compareDocumentPosition(box);
+	const order = host.compareDocumentPosition(box);
 	return Boolean(order & Node.DOCUMENT_POSITION_FOLLOWING) && !(order & Node.DOCUMENT_POSITION_CONTAINED_BY);
 }
 function scrollsWith(node, box) {
-	for (let at = node; at !== box; at = renderedParent(at)) {
+	let at = node;
+	for (; at !== box; at = renderedParent(at)) {
 		if (!at) return false;
-		if (at instanceof Element && (!/^(static|relative)$/.test(getComputedStyle(at).position) || at !== node && scrollsContent(at))) return false;
+		if (isElement(at) && (!/^(static|relative)$/.test(getComputedStyle(at).position) || at !== node && scrollsContent(at))) return false;
 	}
 	return true;
 }
 function carriedAnchor(scroller, near = null) {
 	if (anchorElement(scroller) !== scroller || nativeLayerHolding(scroller)) return null;
-	const carried = (node) => node instanceof Element && !/^(br|wbr)$/.test(node.localName) && anchorElement(node) === node && node.getClientRects().length > 0 && /^(static|relative)$/.test(getComputedStyle(node).position);
+	const carried = (node) => isElement(node) && !/^(br|wbr)$/.test(node.localName) && anchorElement(node) === node && node.getClientRects().length > 0 && /^(static|relative)$/.test(getComputedStyle(node).position);
 	if (!near) {
 		for (const child of scroller.children) if (carried(child)) return child;
 		return contentStart(scroller);
 	}
-	for (let before = near.previousSibling, after = near.nextSibling; before || after; before = before?.previousSibling, after = after?.nextSibling) for (const node of [before, after]) if (carried(node)) return node;
+	for (let before = near.previousSibling, after = near.nextSibling; before || after; before = before?.previousSibling ?? null, after = after?.nextSibling ?? null) for (const node of [before, after]) if (carried(node)) return node;
 	return contentStart(scroller);
 }
 function anchorFor(context) {
-	const physical = context instanceof Element ? context : context?.parentElement;
+	const physical = isElement(context) ? context : context?.parentElement;
 	if (!physical) return null;
 	const anchor = anchorElement(physical);
 	if (context === physical || anchor !== physical || !scrollContainer(physical)) return anchor;
 	return carriedAnchor(physical, context) ?? anchor;
 }
-const contentStarts = /* @__PURE__ */ new WeakMap();
 const starts = /* @__PURE__ */ new WeakMap();
 const START = "data-lf-content-start";
 function contentStart(scroller) {
-	if (!scroller.firstChild || [...scroller.childNodes].some((node) => node.nodeType !== Node.TEXT_NODE && !(node instanceof Element && /^(br|wbr)$/.test(node.localName)))) return null;
+	if (!scroller.firstChild || [...scroller.childNodes].some((node) => node.nodeType !== Node.TEXT_NODE && !(isElement(node) && /^(br|wbr)$/.test(node.localName)))) return null;
 	let handle = starts.get(scroller);
 	if (!handle) {
 		if (!CSS.supports("anchor-name", "attr(data-lf-content-start type(<custom-ident>))") || !/^(block|inline-block|flow-root|list-item)$/.test(getComputedStyle(scroller).display) || !/^(none|normal)$/.test(getComputedStyle(scroller, "::before").content) || getComputedStyle(scroller, "::first-letter").float !== "none") return null;
-		handle = { getBoundingClientRect() {
-			const range = document.createRange();
-			for (const lead of scroller.childNodes) {
-				if (lead.nodeType === Node.TEXT_NODE) {
-					range.setStart(lead, 0);
-					range.setEnd(lead, Math.min(1, lead.length));
-				} else range.selectNode(lead);
-				const [rect] = range.getClientRects();
-				if (rect) return rect;
-			}
-			return range.getBoundingClientRect();
-		} };
-		starts.set(scroller, handle);
-		contentStarts.set(handle, {
+		handle = {
 			scroller,
-			name: nextName()
-		});
+			name: nextName(),
+			getBoundingClientRect() {
+				const range = document.createRange();
+				for (const lead of scroller.childNodes) {
+					if (isText(lead)) {
+						range.setStart(lead, 0);
+						range.setEnd(lead, Math.min(1, lead.length));
+					} else range.selectNode(lead);
+					const [rect] = range.getClientRects();
+					if (rect) return rect;
+				}
+				return range.getBoundingClientRect();
+			}
+		};
+		starts.set(scroller, handle);
 	}
-	const { name } = contentStarts.get(handle);
+	const { name } = handle;
 	if (scroller.getRootNode() === document) keeps(scroller, START, name);
 	else namePart(scroller, name, "::before");
 	return handle;
 }
-const anchorHolder = (anchor) => contentStarts.get(anchor)?.scroller ?? anchor;
+const anchorHolder = (anchor) => isElement(anchor) ? anchor : anchor.scroller;
 const anchorName = (el) => nameAnchor(anchorReading(el));
 let dropsTransforms;
 function anchorDropsTransforms() {
@@ -1949,7 +2030,7 @@ function laidOut(el) {
 		top += from.top + parent.clientTop - parent.scrollTop;
 	}
 	for (let box = renderedParent(el); box !== parent; box = renderedParent(box)) {
-		if (!(box instanceof Element)) return null;
+		if (!isElement(box)) return null;
 		left -= box.scrollLeft;
 		top -= box.scrollTop;
 	}
@@ -1968,10 +2049,11 @@ function movement(style) {
 function translationOf(el) {
 	let x = 0;
 	let y = 0;
-	for (let at = el; at instanceof Element; at = renderedParent(at)) {
+	let at = el;
+	for (; isElement(at); at = renderedParent(at)) {
 		const { moves, slides } = movement(getComputedStyle(at));
 		if (!moves) continue;
-		if (!slides || !(at instanceof HTMLElement) || at.currentCSSZoom !== 1) return null;
+		if (!slides || !isHTML(at) || at.currentCSSZoom !== 1) return null;
 		const layout = laidOut(at);
 		if (!layout) return null;
 		const shown = at.getBoundingClientRect();
@@ -2019,36 +2101,53 @@ const nowhere = {
 function headerLevels(item, clips = /* @__PURE__ */ new Map()) {
 	return headerCuts(item, clips).map(({ box, band }) => {
 		const anchor = box === box.ownerDocument.scrollingElement ? null : anchorElement(box);
-		return {
-			anchor,
-			reading: anchor && anchorReading(anchor),
-			at: anchor && anchorBox(anchor),
+		const cut = {
 			band: band ?? nowhere,
 			axes: {
 				x: false,
 				y: true
 			}
 		};
+		return anchor ? {
+			...cut,
+			anchor,
+			reading: anchorReading(anchor),
+			at: anchorBox(anchor)
+		} : {
+			...cut,
+			anchor: null,
+			reading: null,
+			at: null
+		};
 	});
 }
 function cutFrames(levels, frames, make) {
-	const kept = frames.slice(Math.max(0, frames.length - levels.length));
-	const chain = [...Array.from({ length: levels.length - kept.length }, make), ...kept];
+	const remaining = [...frames];
+	const placed = levels.toReversed().map((level) => ({
+		level,
+		frame: remaining.pop() ?? make()
+	})).reverse();
+	const chain = placed.map(({ frame }) => frame);
+	const first = chain[0];
 	const was = frames[0];
-	if (chain[0] && was && chain[0] !== was && was.parentNode) move(was.parentNode, chain[0], was);
-	for (let i = 1; i < chain.length; i++) if (chain[i].parentNode !== chain[i - 1]) move(chain[i - 1], chain[i], null);
-	for (const dropped of frames.slice(0, frames.length - kept.length)) dropped.remove();
-	levels.forEach(({ anchor, band, axes, at, reading }, i) => {
+	if (first && was && first !== was && was.parentNode) move(was.parentNode, first, was);
+	let parent = null;
+	for (const frame of chain) {
+		if (parent && frame.parentNode !== parent) move(parent, frame, null);
+		parent = frame;
+	}
+	for (const dropped of remaining) dropped.remove();
+	for (const { level: { anchor, band, axes, at, reading }, frame } of placed) {
 		if (reading) nameAnchor(reading);
-		anchorAt(chain[i], anchor, {
+		anchorAt(frame, anchor, {
 			left: band.left,
 			top: band.top,
 			right: band.left,
 			bottom: band.top
 		}, at);
-		chain[i].style.clipPath = cutPath(axes, band);
-	});
-	return chain;
+		frame.style.clipPath = cutPath(axes, band);
+	}
+	return placed;
 }
 const views = /* @__PURE__ */ new Map();
 const viewedNodes = /* @__PURE__ */ new WeakMap();
@@ -2073,7 +2172,7 @@ function releaseAnchorView(node) {
 	binding.view = null;
 	view.nodes.delete(node);
 	if (!view.nodes.size) {
-		viewObserver.unobserve(view.target);
+		view.observer.unobserve(view.target);
 		views.delete(view.target);
 	}
 }
@@ -2115,7 +2214,8 @@ function anchorView(node, target, changed) {
 		view = {
 			target,
 			near: nearWindow(target),
-			nodes: /* @__PURE__ */ new Map()
+			nodes: /* @__PURE__ */ new Map(),
+			observer: viewObserver
 		};
 		views.set(target, view);
 		viewObserver.observe(target);
@@ -2136,7 +2236,7 @@ const points = /* @__PURE__ */ new Map();
 const handed = /* @__PURE__ */ new Map();
 const WITHIN_A_LINE = /^(inline|contents$)/;
 function pointInto(target, node) {
-	let at = node?.nodeType === Node.ELEMENT_NODE ? node : node?.parentElement ?? null;
+	let at = isElement(node) ? node : node?.parentElement ?? null;
 	if (!target || target instanceof SVGElement || !at || !under(at, target)) return null;
 	let line = null;
 	for (; at && at !== target; at = upFrom(at)) {
@@ -2152,10 +2252,11 @@ function pointInto(target, node) {
 	return line && !opens(target, line) ? line : null;
 }
 function opens(target, line) {
-	for (let at = line; at && at !== target; at = upFrom(at)) for (let before = at.previousSibling; before; before = before.previousSibling) if (drawn(before)) return false;
+	let at = line;
+	for (; at && at !== target; at = upFrom(at)) for (let before = at.previousSibling; before; before = before.previousSibling) if (drawn(before)) return false;
 	return true;
 }
-const drawn = (node) => node.nodeType === Node.TEXT_NODE ? Boolean(node.data.trim()) && Boolean(node.parentElement?.checkVisibility()) : node.nodeType === Node.ELEMENT_NODE && !inChrome(node) && node.checkVisibility() && [...node.getClientRects()].some((box) => box.width && box.height);
+const drawn = (node) => isText(node) ? Boolean(node.data.trim()) && Boolean(node.parentElement?.checkVisibility()) : isElement(node) && !inChrome(node) && node.checkVisibility() && [...node.getClientRects()].some((box) => box.width && box.height);
 function livePoint(target, point) {
 	return target && point?.isConnected && point !== target && under(point, target) && point.getClientRects().length ? point : null;
 }
@@ -2232,14 +2333,14 @@ function scrollerOf(bounded) {
 	return bounded;
 }
 const regionId = (bounded) => bounded.id && authoredScope(bounded) === pageDocument() ? compoundReadingRegionId(bounded, "bound") : `${THIS_DOCUMENT}:${unnamed += 1}`;
-const following = (hold) => hold.bounded.matches(FOLLOWING) && !hold.left && !(hold.pinned !== null && hold.box.scrollTop < hold.pinned - 2 && !atScrollEnd(hold.box));
+const following = (hold, box) => hold.bounded.matches(FOLLOWING) && !hold.left && !(hold.pinned !== null && box.scrollTop < hold.pinned - 2 && !atScrollEnd(box));
 const heldBy = (box) => {
 	const hold = byBox.get(box);
 	return hold?.box === box && registered.has(hold) ? hold : null;
 };
 const followingItsEnd = (box) => {
 	const hold = heldBy(box);
-	return Boolean(hold && following(hold));
+	return Boolean(hold && following(hold, box));
 };
 const boundedBlockOf = (box) => heldBy(box)?.bounded ?? null;
 function holdBlock(bounded) {
@@ -2249,16 +2350,11 @@ function holdBlock(bounded) {
 		bound: null,
 		box: null,
 		pinned: null,
-		left: false
+		left: false,
+		sync: () => sync(false)
 	};
 	let stopRegion = null;
-	const onScroll = () => {
-		if (bounded.hasAttribute("hidden") || skipped(bounded)) return;
-		hold.left = !atScrollEnd(hold.box);
-		if (!hold.left) hold.pinned = hold.box.scrollTop;
-	};
 	const letGo = () => {
-		hold.box?.removeEventListener("scroll", onScroll);
 		if (hold.box && hold.box !== bounded) resize.unobserve(hold.box);
 		stopRegion?.();
 		stopRegion = null;
@@ -2268,17 +2364,26 @@ function holdBlock(bounded) {
 	const adopt = (box) => {
 		if (box === hold.box) return;
 		letGo();
+		const onScroll = () => {
+			if (bounded.hasAttribute("hidden") || skipped(bounded)) return;
+			hold.left = !atScrollEnd(box);
+			if (!hold.left) hold.pinned = box.scrollTop;
+		};
 		box.addEventListener("scroll", onScroll, { passive: true });
 		resize.observe(box);
 		byBox.set(box, hold);
 		hold.box = box;
 		hold.left = false;
 		hold.pinned = null;
-		stopRegion = registerReadingRegion({
+		const release = registerReadingRegion({
 			id: hold.id,
 			host: bounded,
 			body: box
 		});
+		stopRegion = () => {
+			box.removeEventListener("scroll", onScroll);
+			release();
+		};
 		registered.add(hold);
 	};
 	const sync = (observed) => {
@@ -2293,16 +2398,16 @@ function holdBlock(bounded) {
 			}
 			return;
 		}
-		adopt(scrollerOf(bounded));
+		const box = scrollerOf(bounded);
+		adopt(box);
 		if (!bounded.matches(FOLLOWING)) return;
-		if (!following(hold)) {
+		if (!following(hold, box)) {
 			hold.left = true;
 			return;
 		}
-		scrollToEnd(hold.box);
-		hold.pinned = hold.box.scrollTop;
+		scrollToEnd(box);
+		hold.pinned = box.scrollTop;
 	};
-	hold.sync = () => sync(false);
 	const resize = sizeObserver(() => sync(true));
 	resize.observe(bounded);
 	new MutationObserver((records) => {
@@ -2319,8 +2424,11 @@ function holdBlock(bounded) {
 function holdArrivingBounds() {
 	watchArrivals(BOUNDED, [BOUND], {
 		arrive: (el) => {
-			if (!holds.has(el)) holds.set(el, holdBlock(el));
-			const hold = holds.get(el);
+			let hold = holds.get(el);
+			if (!hold) {
+				hold = holdBlock(el);
+				holds.set(el, hold);
+			}
 			if (!registered.has(hold) || hold.bound !== el.getAttribute(BOUND)) hold.sync();
 		},
 		leave: (el) => holds.get(el)?.sync()
@@ -2346,12 +2454,6 @@ const PAGE_CONTROL_RANK = Object.freeze({
 	keyboard: 95,
 	exit: 120
 });
-const GROUPS = Object.freeze([
-	"page",
-	"navigate",
-	"annotate",
-	"keys"
-]);
 const rows = /* @__PURE__ */ new Map();
 let sequence = 0;
 const revision = Z(0);
@@ -2367,24 +2469,20 @@ function registerPageControl(row) {
 }
 function pageControls() {
 	revision.value;
-	return [...rows.values()].sort((a, b) => a.rank - b.rank || a.sequence - b.sequence).filter((row) => read(row.offered) ?? true).map((row) => {
-		const group = read(row.group);
-		if (!GROUPS.includes(group)) throw new TypeError(`Page control ${row.key} is in group ${group}, not one of ${GROUPS.join(", ")}`);
-		return Object.freeze({
-			key: row.key,
-			label: read(row.label),
-			value: read(row.value) ?? "",
-			title: read(row.title) ?? "",
-			shortcut: read(row.shortcut) ?? EMPTY,
-			group,
-			copies: read(row.copies) ?? "",
-			urgent: read(row.urgent) ?? null,
-			exit: Boolean(row.exit),
-			action: read(row.action) ?? null,
-			disabled: Boolean(read(row.disabled)),
-			press: row.press ?? null
-		});
-	});
+	return [...rows.values()].sort((a, b) => a.rank - b.rank || a.sequence - b.sequence).filter((row) => read(row.offered) ?? true).map((row) => Object.freeze({
+		key: row.key,
+		label: read(row.label),
+		value: read(row.value) ?? "",
+		title: read(row.title) ?? "",
+		shortcut: read(row.shortcut) ?? EMPTY,
+		group: read(row.group),
+		copies: read(row.copies) ?? "",
+		urgent: read(row.urgent) ?? null,
+		exit: Boolean(row.exit),
+		action: read(row.action) ?? null,
+		disabled: Boolean(read(row.disabled)),
+		press: row.press ?? null
+	}));
 }
 const pageControlsChanged = () => afterScript(tell);
 function tell() {
@@ -2417,7 +2515,8 @@ function readDocumentLayout() {
 		pageControlsChanged();
 	}
 	if (changed) {
-		layoutChanged(pageDocument());
+		const main = pageDocument();
+		if (main) layoutChanged(main);
 		repaintPage();
 	}
 }
@@ -2459,15 +2558,11 @@ function proseRect(main = layoutBox()) {
 		if (names.includes("prose-start")) start = offset;
 		if (names.includes("prose-end")) end = offset - gap;
 	} else offset += Number(match[2]) + gap;
+	if (start === void 0 || end === void 0) return grid.getBoundingClientRect();
 	const edge = (side) => parseFloat(style[`border${side}Width`]) + parseFloat(style[`padding${side}`]);
 	const left = style.direction === "rtl" ? frame.width - edge("Right") - end : edge("Left") + start;
 	const right = style.direction === "rtl" ? frame.width - edge("Right") - start : edge("Left") + end;
-	return union([
-		[left, 0],
-		[right, 0],
-		[left, frame.height],
-		[right, frame.height]
-	].map(([x, y]) => {
+	const corner = (x, y) => {
 		const point = frame.matrix.transformPoint({
 			x,
 			y
@@ -2478,7 +2573,13 @@ function proseRect(main = layoutBox()) {
 			top: point.y,
 			bottom: point.y
 		};
-	}));
+	};
+	return union([
+		corner(left, 0),
+		corner(right, 0),
+		corner(left, frame.height),
+		corner(right, frame.height)
+	]);
 }
 const railStands = (main = layoutBox()) => {
 	if (!main || (document.body.dataset.annotations ?? "overlay") !== "overlay" || document.body.dataset.rail === "none") return false;

@@ -205,7 +205,7 @@ def test_a_display_widget_draws_on_a_page_without_leaf(browser, subtests):
             "console", lambda message: console.append(f"{message.type}: {message.text}")
         )
         page.goto(url)
-        assert page.evaluate("() => !document.documentElement.lfRootState"), (
+        assert page.evaluate("() => !window.lfRootState"), (
             "the page must run none of Leaf's runtime"
         )
         for widget in PORTABLE:
@@ -342,4 +342,4 @@ try {{
         assert any("second value" in mark["text"] for mark in drawn["marks"])
         assert first_keys.isdisjoint(mark["key"] for mark in drawn["marks"])
         assert all("first value" not in mark["text"] for mark in drawn["marks"])
-        assert page.evaluate("!document.documentElement.lfRootState")
+        assert page.evaluate("!window.lfRootState")

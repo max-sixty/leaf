@@ -102,7 +102,7 @@ test("a folded cluster stands as its toggle and opens to every control", () => {
   assert.deepEqual(folded.direct, []);
   assert.equal(folded.options.hidden, true);
   // Its toggle wears the face of the kind its contribution declares, and says it.
-  assert.deepEqual(folded.toggle, { icon: "change", label: "Change" });
+  assert.equal(folded.toggle, KINDS.change);
   assert.equal(folded.moreLabel, "Change, Decision");
   // Opened, the primary leads its options.
   const open = clusterProjection(entry, { folded: true, expandedKey: entry.key });

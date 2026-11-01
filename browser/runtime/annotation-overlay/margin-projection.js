@@ -1618,22 +1618,29 @@ export function createMarginProjection({
   // cluster to reach the thread's own entry. Where the cluster shows but holds neither
   // on its face, as a suggestion's shows its Accept, the card unfolds it and folds it
   // again on closing; a cluster the page withholds shows no card.
+  /** @param {string} id */
+  const threadEntry = (id) => {
+    const itemId = marginThreadItem(threadNamed(id));
+    return pageInventory.find((candidate) =>
+      candidate.items.some((item) => item.id === itemId),
+    );
+  };
+  /** @param {Element | null | undefined} control */
+  const shown = (control) => (control?.checkVisibility() ? control : null);
+  // The margin control standing for a thread where the margin shows one: the thread's
+  // own entry, else the marker of the cluster folded over it.
+  /** @param {Entry} entry */
+  const shownEntryControl = (entry) =>
+    shown(threadMarginEntry(entry)) ?? shown(hosts.get(entry.key)?.marker);
   /** @param {string} id @param {Pick<Parameters<ShowPreview>[0], "origin"> & {unfold?: boolean}} [options] */
   function openInlineThread(id, { origin = null, unfold = true } = {}) {
     const itemId = marginThreadItem(threadNamed(id));
-    const entry = pageInventory.find((candidate) =>
-      candidate.items.some((item) => item.id === itemId),
-    );
+    const entry = threadEntry(id);
     if (!entry || designModeActive()) return null;
     const choice = threadReading(entry);
     if (!choice) return null;
-    const shown = (/** @type {Element | null | undefined} */ control) =>
-      control?.checkVisibility() ? control : null;
-    const host = hosts.get(entry.key);
-    const marker = unfold
-      ? null
-      : (shown(threadMarginEntry(entry)) ?? shown(host?.marker));
-    if (!unfold && !marker && !shown(host)) return null;
+    const marker = unfold ? null : shownEntryControl(entry);
+    if (!unfold && !marker && !shown(hosts.get(entry.key))) return null;
     const button = marker ?? threadMarginEntry(entry);
     const positioned = showPreview(entry, choice, button, itemId, {
       origin,
@@ -2092,6 +2099,10 @@ export function createMarginProjection({
       focusTarget: card.focusTarget,
       accompanied: accompaniedThreadHere,
       close: closePreview,
+      control: (/** @type {string} */ id) => {
+        const entry = threadEntry(id);
+        return entry ? shownEntryControl(entry) : null;
+      },
     },
     paintSelectedMarginEntries,
     marginEntryChoices,

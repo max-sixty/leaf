@@ -5490,12 +5490,16 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 				return shown;
 			}
 			if (!shown || !navigationStep || !placeDrawn(id)) return null;
-			return await scrollToThread(id, {
+			const control = focus ? preview?.control(id) ?? null : null;
+			if (!await scrollToThread(id, {
 				part: null,
-				focus,
+				focus: focus && !control,
 				intent,
 				history
-			}) ? threadTarget(id) : null;
+			})) return null;
+			if (!control) return threadTarget(id);
+			intent.handoff(() => focusDestination(control, "move"));
+			return control;
 		}
 		if (shown !== DECLINED) return shown;
 		if (!primary || first !== DECLINED) return null;

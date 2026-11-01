@@ -1996,16 +1996,20 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 		}
 		togglePinned(entry, choice, button);
 	}
+	const threadEntry = (id) => {
+		const itemId = marginThreadItem(threadNamed(id));
+		return pageInventory.find((candidate) => candidate.items.some((item) => item.id === itemId));
+	};
+	const shown = (control) => control?.checkVisibility() ? control : null;
+	const shownEntryControl = (entry) => shown(threadMarginEntry(entry)) ?? shown(hosts.get(entry.key)?.marker);
 	function openInlineThread(id, { origin = null, unfold = true } = {}) {
 		const itemId = marginThreadItem(threadNamed(id));
-		const entry = pageInventory.find((candidate) => candidate.items.some((item) => item.id === itemId));
+		const entry = threadEntry(id);
 		if (!entry || designModeActive()) return null;
 		const choice = threadReading(entry);
 		if (!choice) return null;
-		const shown = (control) => control?.checkVisibility() ? control : null;
-		const host = hosts.get(entry.key);
-		const marker = unfold ? null : shown(threadMarginEntry(entry)) ?? shown(host?.marker);
-		if (!unfold && !marker && !shown(host)) return null;
+		const marker = unfold ? null : shownEntryControl(entry);
+		if (!unfold && !marker && !shown(hosts.get(entry.key))) return null;
 		const positioned = showPreview(entry, choice, marker ?? threadMarginEntry(entry), itemId, {
 			origin,
 			accompanies: !unfold,
@@ -2256,7 +2260,11 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 			open: openInlineThread,
 			focusTarget: card.focusTarget,
 			accompanied: accompaniedThreadHere,
-			close: closePreview
+			close: closePreview,
+			control: (id) => {
+				const entry = threadEntry(id);
+				return entry ? shownEntryControl(entry) : null;
+			}
 		},
 		paintSelectedMarginEntries,
 		marginEntryChoices,

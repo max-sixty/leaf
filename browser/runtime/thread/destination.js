@@ -56,7 +56,7 @@
    placement, independently of whichever view draws a Thread. */
 import { aborted } from "../abort.js";
 import { threadDraft } from "../drafts.js";
-import { focused, onCurrentLocation } from "../focus.js";
+import { focusDestination, focused, onCurrentLocation } from "../focus.js";
 import { presented } from "../geometry.js";
 import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
 import { replyThreadKey } from "./replies.js";
@@ -426,9 +426,11 @@ export function createThreadDestinations({
     // the thread on the page first, and asks the primary only once the page shows it,
     // so it puts its view away as it declines, handing on the reply being written there.
     // Where the page shows the thread's place but draws no view of it, as a window with
-    // no room for the rail does (margin-projection.js), a route that travels lands on
-    // that place, its current target, from which its words, its marker or a thread key
-    // open the thread again.
+    // no room for the rail does (margin-projection.js), a route that travels brings that
+    // place into view and lands on the margin control standing for the thread, whose
+    // focus traces the place (`refreshHighlight`) after a pointer's press as after a
+    // key's, and from which a tap or Enter opens the thread again; with no margin, on the
+    // place itself, its current target.
     const asked = primary && !page ? inPrimary(primary, false) : DECLINED;
     const first = asked instanceof Promise ? await asked : asked;
     if (first !== DECLINED && first !== UNDRAWN) return first;
@@ -439,9 +441,17 @@ export function createThreadDestinations({
         return shown;
       }
       if (!shown || !navigationStep || !placeDrawn(id)) return null;
-      return (await scrollToThread(id, { part: null, focus, intent, history }))
-        ? threadTarget(id)
-        : null;
+      const control = focus ? (preview?.control(id) ?? null) : null;
+      const arrived = await scrollToThread(id, {
+        part: null,
+        focus: focus && !control,
+        intent,
+        history,
+      });
+      if (!arrived) return null;
+      if (!control) return threadTarget(id);
+      intent.handoff(() => focusDestination(control, "move"));
+      return control;
     }
     if (shown !== DECLINED) return shown;
     // Only a reader that declined is asked again; one that took the thread has shown it.

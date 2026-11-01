@@ -195,7 +195,7 @@ var CardAnchor = class {
 			}
 		}
 		const attachment = seat.side === "top" ? "foot" : "top";
-		const ordinary = this.#sent || seat.side === "top" && (!writing || this.#sentFrom) ? "foot" : "top";
+		const ordinary = this.#sent || seat.side === "top" ? "foot" : "top";
 		const beside = seat.side === "left" || seat.side === "right";
 		return {
 			writing,

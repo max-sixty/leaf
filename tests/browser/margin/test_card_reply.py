@@ -1182,15 +1182,11 @@ def test_open_reply_keeps_its_top_after_card_moves_to_right_rail(browser, serve)
         )
 
 
-@pytest.mark.parametrize("size", [(1000, 520), (1000, 600)])
-def test_a_growing_draft_holds_its_card_s_side_and_the_editor_s_top(
-    browser, serve, size
-):
-    """Each new line keeps the card on its side and the reply's first line where it was,
-    until the card's foot meets the window's; further lines scroll inside the editor.
-    No keystroke flips the card over its cluster (1000x520 stands over it) or carries
-    its first line along the boundary (1000x600 stands under it)."""
-    page, _preview, editor = drafting_in_a_short_card(browser, serve, *size)
+def test_a_growing_draft_under_its_words_holds_the_editor_s_top(browser, serve):
+    """Each new line keeps a card under its words on its side and the reply's first
+    line where it was, until the card's foot meets the window's; further lines scroll
+    inside the editor. No keystroke carries its first line along the boundary."""
+    page, _preview, editor = drafting_in_a_short_card(browser, serve, 1000, 600)
     held = page.evaluate(CARD_AND_REPLY)
     readings = [held]
     for _ in range(30):
@@ -1207,7 +1203,7 @@ def test_a_growing_draft_holds_its_card_s_side_and_the_editor_s_top(
     )
     assert cap is not None and cap > 0, readings
     for i, now in enumerate(readings):
-        assert now["placement"] == held["placement"], (held, now)
+        assert now["placement"] == held["placement"] == "below", (held, now)
         assert now["cardBottom"] <= now["foot"] + 0.5, now
         assert now["cardTop"] == pytest.approx(held["cardTop"], abs=0.5), (held, now)
         # At the first cap, the inner grid's fractional track can round by 1px.
@@ -1221,6 +1217,33 @@ def test_a_growing_draft_holds_its_card_s_side_and_the_editor_s_top(
             )
     last = readings[-1]
     assert last["cardBottom"] == pytest.approx(last["foot"], abs=0.5), last
+    assert editor.evaluate("box => box.scrollHeight > box.clientHeight"), (
+        "thirty lines never outgrew the editor's room"
+    )
+
+
+def test_a_growing_draft_over_its_words_holds_the_reply_s_foot(browser, serve):
+    """Over its words, a card being written in keeps its foot and the reply's, so each
+    new line rises over the transcript and the words the thread is about stay in view
+    below it; the card climbs to the window's head, then the transcript gives way,
+    then further lines scroll inside the editor (the user's decision, 2026-10-31).
+    Kept at its top, the draft grew down over those words."""
+    page, _preview, editor = drafting_in_a_short_card(browser, serve, 1000, 520)
+    held = page.evaluate(CARD_AND_REPLY)
+    readings = [held]
+    for _ in range(30):
+        editor.press("Shift+Enter")
+        rendered(page)
+        readings.append(page.evaluate(CARD_AND_REPLY))
+    for now in readings:
+        assert now["placement"] == held["placement"] == "above", (held, now)
+        assert now["cardTop"] >= now["head"] - 0.5, now
+        for edge in ("cardBottom", "editorBottom"):
+            assert now[edge] == pytest.approx(held[edge], abs=0.5), (edge, held, now)
+    first = readings[1]
+    assert first["editorTop"] < held["editorTop"] - 10, (held, first)
+    last = readings[-1]
+    assert last["cardTop"] == pytest.approx(last["head"], abs=0.5), last
     assert editor.evaluate("box => box.scrollHeight > box.clientHeight"), (
         "thirty lines never outgrew the editor's room"
     )

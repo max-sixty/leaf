@@ -199,6 +199,21 @@ def test_the_text_door_refuses_a_picture_the_page_directory_has_not_got(page_dir
         f"requires a file:\n{quoted.output}"
     )
 
+    indented = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "create",
+            str(page_dir),
+            "--text",
+            f"the panel now:\n\n    ![shot]({missing})",
+        ],
+    )
+    assert indented.exit_code == 1, (
+        f"a message reads a line's leading spaces as typed, not as code, so an "
+        f"indented picture still loads:\n{indented.output}"
+    )
+
     linked = CliRunner().invoke(
         cli_model.cli,
         [

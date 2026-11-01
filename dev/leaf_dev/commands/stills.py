@@ -1234,6 +1234,15 @@ LONG_DRAFT = (
 )
 
 
+def composer_send_focused(page: Page) -> None:
+    """The same comment with the keyboard on its Send."""
+    composer(page)
+    page.keyboard.press("Tab")
+    send = page.locator(".lf-composer .lf-compose-submit")
+    send.focus()
+    expect(send).to_have_attribute("data-lf-focus-visible", re.compile(".*"))
+
+
 def composer_long(page: Page) -> None:
     """A comment of two wrapped paragraphs being typed on a selected passage."""
     composer(page)
@@ -3038,6 +3047,21 @@ STATES = (
         region="#triage-counts",
     ),
     State("triage-composer", "triage-board", composer),
+    State("triage-composer-dark", "triage-board", composer, scheme="dark"),
+    State(
+        "triage-composer-phone",
+        "triage-board",
+        composer,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State("triage-composer-send-focused", "triage-board", composer_send_focused),
+    State(
+        "triage-composer-send-focused-dark",
+        "triage-board",
+        composer_send_focused,
+        scheme="dark",
+    ),
     State(
         "triage-composer-empty",
         "triage-board",

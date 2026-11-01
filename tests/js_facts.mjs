@@ -414,7 +414,7 @@ const CLASS_ARGUMENT = {
   selectableOffered: 1,
   copyControl: 0,
 };
-// The builders that give an element a role's face (prepaint.js, `ACTION_FACES`), and
+// The builders that give an element a role's face (control-faces.js, `ACTION_FACES`), and
 // the calls that make an element of the tag they are handed first.
 // `roleElement` is element-markers.js's own writer behind them, and `actionClass` the
 // role's face a pure template writes into its `class` (control-faces.js).
@@ -779,7 +779,9 @@ function templatePresses(node, parents, press) {
     const classValue = attrs.find((attr) => attr.name === "class")?.value ?? "";
     const classes = valueWords(classValue);
     // A pure template writes a role's face into its class (`actionClass`).
-    const facedClass = marked(classValue).some((part) => dressing(part, parents, 0).role);
+    const facedClass = marked(classValue).some(
+      (part) => dressing(part, parents, 0).role,
+    );
     // The element part: an expression standing in the tag as an attribute name.
     const parts = attrs.flatMap((attr) => marked(attr.name));
     const handed = parts.flatMap((part) => {

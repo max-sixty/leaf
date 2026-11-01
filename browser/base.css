@@ -1584,7 +1584,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
 lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   padding: 0;
 }
-/* The entry face (prepaint.js, `ACTION_FACES`): the pluggable RHS margin entry.
+/* The entry face (control-faces.js, `ACTION_FACES`): the pluggable RHS margin entry.
    Contributors choose glyph, label, tone, and behavior through contributionEntry(),
    whose host is built by the `entry` role; this declaration owns every visual and
    interactive constant that makes unlike verbs read as one family. The margin's

@@ -1697,7 +1697,7 @@ def test_every_press_is_built_by_role_or_family():
         "these presses draw a face of their own:\n"
         + "\n".join(unbuilt)
         + "\nBuild each by role with offerAction, offeredAction, offerActionElement or"
-        " copyControl's `role` (prepaint.js, `ACTION_FACES`), or, where no role serves"
+        " copyControl's `role` (control-faces.js, `ACTION_FACES`), or, where no role serves"
         " it, add its class to a family in PRESS_FAMILIES"
         " (tests/model/test_interact_layer.py) with the reason it keeps its own face,"
         " for a reviewer to weigh."

@@ -42,16 +42,12 @@ Preact Signals it exports `signal`, for private state a command's `when` reads
 
 ### A widget that also runs off Leaf
 
-A widget that must also run on a page without Leaf's runtime, such as a chart another
-app shows, imports only from `/runtime/portable-api.js`, the part of the helper
-surface any document can load; `widget-api.js` re-exports all of it.
-The control constructors and template directives under “Generated controls”
-are portable too: use the same offers and generated-word markers on either host. The host maps
-`/runtime/` and `/vendor/` to a Leaf install with an import map of its own, as a Leaf
-page does, and runs none of Leaf's runtime. Such a widget extends `HTMLElement` and
-draws into the box the page gives it. Leaf hears from it only through standard events
-it dispatches on itself and declarations it leaves on its elements, which a plain page
-ignores:
+A widget reused off Leaf imports `/runtime/portable-api.js`, re-exported by
+`widget-api.js`. Retained-node helpers, writes and generated controls work on both
+hosts. The host maps `/runtime/` and `/vendor/` to a Leaf install with its own import
+map and gives the element its drawing box. Use `LeafElement` ("Drawing what a widget
+reads") or extend `HTMLElement`. Leaf adds its services through events and element
+declarations that a plain host can ignore:
 
 - Drawing under way: `this.dispatchEvent(new PendingTaskEvent(promise))`, the Web
   Components Community Group's `pending-task` protocol. Leaf holds the page's
@@ -284,6 +280,18 @@ finishes later starts there and extends `getUpdateComplete`. `this.controller` i
 controller. Call `requestUpdate()` after a change Leaf can't see, such as revealing held
 news, and `performUpdate()` to draw at once.
 
+`LeafElement` is portable: a plain host supplies reactive properties and chooses
+`createRenderRoot()`. Lit schedules drawing; `setup()` runs once, drawing pauses
+while disconnected and resumes with current properties. Leaf adds page readings,
+controllers, presentation and bound-data delivery. `this.defer()` holds drawing
+through a synchronous rewrite; its idempotent release draws current properties.
+Use `PendingTaskEvent` for asynchronous preparation on either host.
+
+Portable focus, scrolling and controls use the document's native behavior; Leaf
+adds reading regions and chrome styling. `langForPath` reads shipped defaults on
+a plain host and its composed language map on Leaf. `beginWalk` declares navigation
+position; only Leaf supplies the status presentation.
+
 ### Retained nodes
 
 To place nodes the module keeps, use `setChildren(parent, nodes)`, which moves only what
@@ -315,6 +323,10 @@ the same styles and returns the root. Stage a retained container and render into
 container. This API clears authored light children and supplies no slots, so read what
 the renderer needs before staging. It removes children individually because clearing
 a shadow host with `replaceChildren()` unloads WebKit's shadow-tree frames.
+
+`shadowStage` also loads through `portable-api.js` on a plain host. There it stages
+only the renderer's content; a Leaf page supplies its theme, annotation support and
+page watches from outside the widget.
 
 Wrap stylesheet text the module writes itself in `inBaseLayer(css)`, so its rules sit in
 the theme's `lf-base` cascade layer, below Layouts, theme packages and the page's own
@@ -474,6 +486,10 @@ that measure what they hold, so they read again.
 `searchField(className, {name, label, placeholder})` builds a search or filter field
 with Leaf's frame, label, editor and Clear button; the widget owns the query and
 results, and can put a match count in its `end` slot.
+
+`relabel`, `nameAction`, `namedAction` and `searchField` also load through
+`portable-api.js` on a plain host. Load `/vendor/webawesome.esm.js` to upgrade a
+search field's editor.
 
 To fold content it may show again, set its `hidden` to `"until-found"`. Find-in-page,
 fragment links and Leaf's travel still reach it and fire `beforematch` on it, where the

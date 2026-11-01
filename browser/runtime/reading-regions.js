@@ -49,6 +49,8 @@
    It includes unfocusable words, which update the reading region without a focus
    arrival. Mechanical returns, programmatic arrivals and scrolling are not choices
    of another passage. Each consumer interprets that target in its own domain. */
+import { scrollersOf, installScrollerLookup } from "./scroll-containers.js";
+export { scrollersOf } from "./scroll-containers.js";
 import { nextRender, sizeObserver } from "./rendering.js";
 import { landingBand, shownRect, userScrollport } from "./geometry.js";
 import { skipped } from "./shown-box.js";
@@ -389,21 +391,7 @@ export const scrollerFor = (el) => {
   return region ? effectiveScroller(region) : pageScroller;
 };
 
-// Every box whose scroll moves a node, innermost first: its region's scroller, then the
-// box scrolling that one, out to the page. A move the inner box cannot take whole is
-// the next one's to finish: a bounded block not yet full grows in the page rather than
-// scrolling, and a region scrolled to its end moves no further. A fixed box between a
-// node and a scroller stands still while that scroller moves, so the walk ends there.
-/** @param {Element | null} node @returns {Generator<Element>} */
-export function* scrollersOf(node) {
-  for (let box = scrollerFor(node); ; box = scrollerFor(renderedParent(box))) {
-    for (let at = node; at !== box; at = renderedParent(at))
-      if (!at || getComputedStyle(at).position === "fixed") return;
-    yield box;
-    if (box === pageScroller) return;
-    node = box;
-  }
-}
+installScrollerLookup(scrollerFor);
 
 // The boxes a scroll passes to once each inner one is spent, as native input chains it
 // at a box whose overscroll-behavior lets it go: `scrollersOf`'s, then the page's. A

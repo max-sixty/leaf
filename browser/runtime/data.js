@@ -5,7 +5,7 @@
    differently. A `LeafElement` reads a bound input through `dataReader`, which yields
    one copy a delivery of `{source, contract, revision, run, updated, value, origin}`,
    or `null` while the bound source has no readable value, and hands the widget only its
-   `value` (leaf-element.js, "Bound values"). A widget-output binding yields
+   `value` (element-data.js, "Bound values"). A widget-output binding yields
    `{contract, value, origin}` with derived-widget provenance, without a fabricated
    source revision or run. Each object value names the snapshot that supplied it
    (`suppliedSnapshot`), so whoever holds the value can name its revision. Outputs join
@@ -25,6 +25,19 @@ import { watchOwner } from "./arrivals.js";
 import { referencedProjection, requireReference } from "./references.js";
 import { reportPageError, requestJson } from "./layer-client.js";
 import { tick } from "./version-signal.js";
+import { OUTPUT, outputProducer, refuseOutput } from "./widget-output.js";
+import { attachDeferredLoader } from "./deferred-value.js";
+
+window.addEventListener(OUTPUT, (event) => {
+  const element = outputProducer(event);
+  if (!element) return;
+  try {
+    const { output, value } = /** @type {CustomEvent} */ (event).detail;
+    acceptOutput(element, output, value);
+  } catch (error) {
+    refuseOutput(event, error);
+  }
+});
 
 /** A publication as `leaf.data.read_source` serves it, before widget delivery.
  * @typedef {NonNullable<import("../types/contract.js").ServedReading["data"]["sources"]>[string]} SourceReading
@@ -97,7 +110,7 @@ function outputKey(element) {
   return key;
 }
 /** @param {Element} element @param {string} output @param {unknown} value */
-export function publishOutput(element, output, value) {
+function acceptOutput(element, output, value) {
   const declaration = registry[element.localName]?.["x-output"]?.[output];
   if (!declaration)
     throw new Error(
@@ -231,7 +244,7 @@ export function awaitsData(element) {
   );
 }
 
-// A `LeafElement`'s reader of one bound input (leaf-element.js): the delivered source
+// An element's reader of one bound input (element-data.js): the delivered source
 // reading, read through a selection of that source, so a render that reads it is drawn
 // again when the source moves. Markup owns the binding, captured at the first read, so
 // module code cannot turn a live attribute mutation into an unvalidated rebind; a
@@ -291,8 +304,13 @@ export function dataReader(element, input, accepted) {
         value: structuredClone(sourceStore),
       };
       const { value } = copied.value;
-      if (value !== null && typeof value === "object")
+      if (value !== null && typeof value === "object") {
         supplied.set(value, copied.value);
+        if (copied.value.source) {
+          const manifest = copied.value;
+          attachDeferredLoader(value, (key) => readDeferred(manifest, key));
+        }
+      }
     }
     return copied.value;
   };
@@ -311,11 +329,8 @@ export function joinDataDelivery(region) {
 // by the value it drew. A replacement can be accepted before its subscriber renders;
 // loading through that older manifest must not fetch a same-key deferred value from the
 // replacement.
-/** @param {object} value @param {string} key */
-export async function loadDeferred(value, key) {
-  const manifest = supplied.get(value);
-  if (!manifest?.source)
-    throw new Error(`loadDeferred(${key}) needs a source value Leaf delivered`);
+/** @param {DataSnapshot & {source: string}} manifest @param {string} key */
+async function readDeferred(manifest, key) {
   const { source, revision } = manifest;
   const current = () => {
     const reading = runtime.data.sources[source];

@@ -439,14 +439,20 @@ def test_a_startup_failure_keeps_authored_page_readable(browser, serve):
         predicate=lambda message: "page failed to start" in message.text
     ):
         page.goto(url, wait_until="load")
-    expect(panel_field(page)).to_have_attribute("placeholder", re.compile("reload"))
+    expect(page.get_by_role("status")).to_contain_text("Leaf couldn't start")
+    expect(page.get_by_role("status")).to_be_visible()
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
     expect(page.locator("#sug lf-old")).to_be_visible()
     assert (
         page.evaluate("() => getComputedStyle(document.body, '::after').content")
         == "none"
     )
-    consume_browser_errors(page, "page failed to start")
+    # The deliberately empty registry has no $layer; unrelated startup failures
+    # must still reach the browser fixture.
+    reported_browser_errors(
+        page,
+        "page failed to start: Cannot read properties of undefined (reading 'generation')",
+    )
 
 
 def test_visual_comments_arrive_with_the_initialized_document(browser, serve):

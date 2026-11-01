@@ -69,7 +69,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import NamedTuple
 
-from .leases import lease_speaks_here, take_wait_lease
+from .leases import lease_speaks_here, release_lease, take_wait_lease
 from .registry.kernel import kinds_declaring
 from .service import PageTransaction, unacknowledged
 from .state import (
@@ -125,6 +125,16 @@ HANDED = Record(
     since=37,
 )
 
+LANE_START = Record(
+    "fork-lane-start",
+    described(
+        "The admission cutoff of a session's fork lane. Its live lease alone "
+        "proves that lane is running (`forks.take_lane`).",
+        object_schema({"since": {"type": "number"}}),
+    ),
+    since=37,
+)
+
 # The words that open the fork's question, which the transcript carries.
 OPENING = "<leaf-fork-reply>"
 
@@ -151,24 +161,43 @@ def lane_path(session_id: str) -> Path:
     return session_file(session_id, "fork-lane")
 
 
+def lane_lock_path(session_id: str) -> Path:
+    return session_file(session_id, "fork-lane.lock")
+
+
 def take_lane(session_id: str):
-    """Hold the session's lane, from any earlier holder, until this process exits."""
-    return take_wait_lease(lane_path(session_id), supersede=True)
+    """Hold the session's lane and record its cutoff after taking the name.
+
+    The lane lock serializes publication and readers' decisions, so an input is
+    never exposed to the session while waiting for a cutoff that would hold it.
+    It is innermost: neither this writer nor `lane_since` takes a page or session
+    lock while holding it. Filesystem timestamps cannot order the take against
+    the admission clock, since they may be coarser.
+    """
+    with flocked(lane_lock_path(session_id)):
+        lease = take_wait_lease(lane_path(session_id), supersede=True)
+        try:
+            LANE_START.write(
+                session_file(session_id, LANE_START.kind),
+                {"since": time.time()},
+            )
+        except BaseException:
+            release_lease(lease)
+            raise
+        return lease
 
 
 def lane_since(session_id: str) -> float | None:
-    """When the session's live lane was taken, to the millisecond event times keep
-    (POSIX seconds), or None with no lane live. Each take publishes a fresh lease
-    file by renaming it into place (`leases.supersede_lease`), and the rename sets
-    its status-change time, which nothing after it moves: so a message admitted
-    before the lane took the name was admitted before this time."""
-    path = lane_path(session_id)
-    if not lease_speaks_here(path):
-        return None
-    try:
-        return int(path.stat().st_ctime * 1000) / 1000
-    except FileNotFoundError:
-        return None
+    """The live lane's published admission cutoff, waiting for a take in progress.
+
+    Delivery can already hold the session lock, so publication has its own lock.
+    A crashed or ended writer's record is not live without its kernel lease.
+    """
+    with flocked(lane_lock_path(session_id)):
+        if not lease_speaks_here(lane_path(session_id)):
+            return None
+        start = LANE_START.read(session_file(session_id, LANE_START.kind))
+        return start["since"] if start is not None else None
 
 
 def _admitted(event: dict) -> float:

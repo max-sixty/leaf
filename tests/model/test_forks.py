@@ -5,14 +5,24 @@ session hears once a fork has answered or handed the thread over."""
 import json
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+from pathlib import Path
+from threading import Event
 from types import SimpleNamespace
 
 import pytest
-from interact_support import append_carried_log_record, serving
+from interact_support import (
+    STATED_TIMEOUT,
+    append_carried_log_record,
+    lock_contention,
+    serving,
+    stamp,
+)
 
 from leaf import clerk as clerk_model
 from leaf import delivery as delivery_model
+from leaf import event_endpoint as endpoint_model
 from leaf import event_log as events_model
 from leaf import file_changes as file_changes_model
 from leaf import forks as forks_model
@@ -434,9 +444,17 @@ def test_a_lane_counts_from_when_it_took_the_name(claimed, lane, monkeypatch):
     """A follower writes its lease before renaming it into place, and a message can
     arrive, and the earlier lane go down, in between: the new lane counts from the
     rename, so it leaves that message to the session and the earlier fork's reply
-    writes nothing."""
+    writes nothing, even when the filesystem clock trails the admission clock."""
     replace = os.replace
+    stat = Path.stat
+    lane_path = forks_model.lane_path("s1")
     asked = []
+
+    def coarse_clock(path, *args, **kwargs):
+        result = stat(path, *args, **kwargs)
+        if path == lane_path:
+            return os.stat_result((*result[:9], 0))
+        return result
 
     def publish(staged, path):
         monkeypatch.setattr(os, "replace", replace)
@@ -445,7 +463,8 @@ def test_a_lane_counts_from_when_it_took_the_name(claimed, lane, monkeypatch):
         replace(staged, path)
 
     monkeypatch.setattr(os, "replace", publish)
-    again = take_lane()
+    monkeypatch.setattr(Path, "stat", coarse_clock)
+    again = forks_model.take_lane("s1")
     try:
         assert held(claimed) == []
         assert deliverable(claimed) == [asked[0]["id"]]
@@ -460,3 +479,66 @@ def test_a_lane_counts_from_when_it_took_the_name(claimed, lane, monkeypatch):
         )
     finally:
         leases_model.release_lease(again)
+
+
+def test_admission_waits_for_the_lane_cutoff_to_be_published(claimed, monkeypatch):
+    """An event admitted after the cutoff waits for publication before deciding
+    whether to nudge the session. It cannot be deliverable now and held later."""
+    assert stamp(claimed).exit_code == 0
+    before = said(claimed, "Before the lane started")
+    write = forks_model.LANE_START.write
+    publishing, release = Event(), Event()
+    sampled = []
+    nudged = []
+
+    def publish(path, value):
+        sampled.append(value["since"])
+        publishing.set()
+        assert release.wait(STATED_TIMEOUT)
+        return write(path, value)
+
+    monkeypatch.setattr(forks_model.LANE_START, "write", publish)
+    monkeypatch.setattr(
+        endpoint_model, "nudge_unwatched", lambda page: nudged.append(page.page_dir)
+    )
+    monkeypatch.setattr(
+        endpoint_model,
+        "claim_harness",
+        lambda _claim: SimpleNamespace(title_generator=lambda: None),
+    )
+    blocked = lock_contention(monkeypatch, forks_model.lane_lock_path("s1"))
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        taking = executor.submit(forks_model.take_lane, "s1")
+        try:
+            assert publishing.wait(STATED_TIMEOUT)
+            after_cutoff = (
+                datetime.fromtimestamp(sampled[0] + 0.002)
+                .astimezone()
+                .isoformat(timespec="milliseconds")
+            )
+            monkeypatch.setattr(events_model, "now_iso", lambda: after_cutoff)
+            admitting = executor.submit(
+                endpoint_model.accept_event,
+                claimed,
+                {"kind": "comment", "revision": 1, "text": "During publication"},
+                dict,
+            )
+            assert blocked.wait(STATED_TIMEOUT), (
+                "admission did not wait for publication"
+            )
+        finally:
+            release.set()
+        lane = taking.result(timeout=STATED_TIMEOUT)
+        try:
+            status, answer = admitting.result(timeout=STATED_TIMEOUT)
+            assert status == 200, answer
+            [asked] = [
+                event
+                for event in events_model.read_events(claimed)
+                if event.get("text") == "During publication"
+            ]
+            assert nudged == []
+            assert held(claimed) == [(asked["id"], (asked["id"],))]
+            assert deliverable(claimed) == [before["id"]]
+        finally:
+            leases_model.release_lease(lane)

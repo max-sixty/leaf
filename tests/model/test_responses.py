@@ -120,6 +120,28 @@ def test_an_answer_that_declares_nothing_is_refused(page_dir, markup):
     assert events_model.read_events(page_dir) == before
 
 
+def test_an_undeclared_answer_names_what_lets_its_widget_ask(page_dir):
+    """Agents writing a choice from memory leave out the attribute that makes it
+    ask, and satisfying the refusal with `--obligation` would leave options nobody
+    can press. So the refusal names the attribute the widget's registry entry asks
+    with."""
+    asked = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "Which one?"}
+    )
+    shown = QUESTION.replace(" choose", "")
+    refused = CliRunner().invoke(
+        cli_model.cli,
+        ["thread", "reply", response_reference(page_dir, asked), "--text", "Which?"]
+        + ["--markup", shown],
+    )
+
+    assert refused_on(refused.stderr).values == {
+        "tag": "lf-options",
+        "id": "question",
+        "needs": "`choose`",
+    }
+
+
 def test_a_message_asks_by_its_widget_or_its_words_not_both(page_dir):
     """Only the user's words answer `--obligation`, so beside a widget that asks it
     would keep the message on On me after the user picks. Both writers refuse it."""

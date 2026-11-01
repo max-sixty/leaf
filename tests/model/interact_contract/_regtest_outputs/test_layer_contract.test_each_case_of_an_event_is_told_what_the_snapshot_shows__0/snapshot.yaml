@@ -99,11 +99,12 @@
 #              until they reply or resolve the thread, even where the decision itself
 #              is already there. Where your answer asks a question of its own whose
 #              answers you can list, such as which of two ways to proceed or whether
-#              to take an action, put them in `--markup` as an `lf-options` choice in
-#              place of `--obligation`: the user answers with a press, and the choice
-#              waits on them by itself (`references/threads.md`, "Ask for a pick").
-#              `--todo "<what you owe>"` when it is yours, promising work beyond this
-#              turn. `--done` when it leaves nobody a move.
+#              to take an action, put them in `--markup` in place of `--obligation`,
+#              as `<lf-options id="…" choose>` holding an `<lf-option id="…">` for
+#              each answer: the user answers with a press, and the choice waits on
+#              them by itself (`references/threads.md`, "Ask for a pick"). `--todo
+#              "<what you owe>"` when it is yours, promising work beyond this turn.
+#              `--done` when it leaves nobody a move.
 #      clause 8, does not apply:
 #        when: {"properties": {"answer": {"properties": {"writer": {"const": "turn"}}}}}
 #        text: Leaf posts your opening message in the thread as your progress line and
@@ -117,8 +118,9 @@
 #              puts the answer on their On me list even where the decision itself is
 #              already there. Where your answer asks a question of its own whose
 #              answers you can list, such as which of two ways to proceed or whether
-#              to take an action, reply with them in `--markup` as an `lf-options`
-#              choice in place of `--obligation`, so the user answers with a press
+#              to take an action, reply with them in `--markup` in place of
+#              `--obligation`, as `<lf-options id="…" choose>` holding an `<lf-option
+#              id="…">` for each answer, so the user answers with a press
 #              (`references/threads.md`, "Ask for a pick"). Reply explicitly too for
 #              other widgets, work promised beyond this turn (`--todo`), a title or
 #              moving the thread (`references/threads.md`); an explicit reply posts at
@@ -174,7 +176,7 @@
 #            ],
 #            "handling": {
 #              "h1": "The thread has no title yet. Name its subject with `--title \"<a few words>\"` on your reply.",
-#              "h2": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed, in a sentence or two, linking the section that shows it. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in `--markup` as an `lf-options` choice in place of `--obligation`: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn. `--done` when it leaves nobody a move.",
+#              "h2": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed, in a sentence or two, linking the section that shows it. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in `--markup` in place of `--obligation`, as `<lf-options id=\"\u2026\" choose>` holding an `<lf-option id=\"\u2026\">` for each answer: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn. `--done` when it leaves nobody a move.",
 #              "h3": "Your reply renders as Markdown in a narrow column: give each point its own short paragraph or list item, link a page section as `[its name](#section-id)`, and fence code or markup."
 #            },
 #            "events": [
@@ -275,8 +277,9 @@
 #              or resolve the thread, even where the decision itself is already there.
 #              Where your answer asks a question of its own whose answers you can list,
 #              such as which of two ways to proceed or whether to take an action, put them
-#              in `--markup` as an `lf-options` choice in place of `--obligation`: the
-#              user answers with a press, and the choice waits on them by itself (`references/threads.md`,
+#              in `--markup` in place of `--obligation`, as `<lf-options id="…" choose>`
+#              holding an `<lf-option id="…">` for each answer: the user answers with a
+#              press, and the choice waits on them by itself (`references/threads.md`,
 #              "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
 #              work beyond this turn. `--done` when it leaves nobody a move.
 #          - text: >-
@@ -318,8 +321,9 @@ comment:
         or resolve the thread, even where the decision itself is already there.
         Where your answer asks a question of its own whose answers you can list,
         such as which of two ways to proceed or whether to take an action, put them
-        in `--markup` as an `lf-options` choice in place of `--obligation`: the
-        user answers with a press, and the choice waits on them by itself (`references/threads.md`,
+        in `--markup` in place of `--obligation`, as `<lf-options id="…" choose>`
+        holding an `<lf-option id="…">` for each answer: the user answers with a
+        press, and the choice waits on them by itself (`references/threads.md`,
         "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
         work beyond this turn. `--done` when it leaves nobody a move.
     - text: >-
@@ -348,12 +352,12 @@ comment over App Server:
         <answer.ref> --obligation` instead: it puts the answer on their On me list
         even where the decision itself is already there. Where your answer asks
         a question of its own whose answers you can list, such as which of two ways
-        to proceed or whether to take an action, reply with them in `--markup` as
-        an `lf-options` choice in place of `--obligation`, so the user answers with
-        a press (`references/threads.md`, "Ask for a pick"). Reply explicitly too
-        for other widgets, work promised beyond this turn (`--todo`), a title or
-        moving the thread (`references/threads.md`); an explicit reply posts at
-        once, and your final message is then not posted.
+        to proceed or whether to take an action, reply with them in `--markup` in
+        place of `--obligation`, as `<lf-options id="…" choose>` holding an `<lf-option
+        id="…">` for each answer, so the user answers with a press (`references/threads.md`,
+        "Ask for a pick"). Reply explicitly too for other widgets, work promised
+        beyond this turn (`--todo`), a title or moving the thread (`references/threads.md`);
+        an explicit reply posts at once, and your final message is then not posted.
     - text: >-
         Your reply renders as Markdown in a narrow column: give each point its own
         short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -400,8 +404,9 @@ comment with a drawing:
         or resolve the thread, even where the decision itself is already there.
         Where your answer asks a question of its own whose answers you can list,
         such as which of two ways to proceed or whether to take an action, put them
-        in `--markup` as an `lf-options` choice in place of `--obligation`: the
-        user answers with a press, and the choice waits on them by itself (`references/threads.md`,
+        in `--markup` in place of `--obligation`, as `<lf-options id="…" choose>`
+        holding an `<lf-option id="…">` for each answer: the user answers with a
+        press, and the choice waits on them by itself (`references/threads.md`,
         "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
         work beyond this turn. `--done` when it leaves nobody a move.
     - text: >-
@@ -439,8 +444,9 @@ comment with a pasted image:
         or resolve the thread, even where the decision itself is already there.
         Where your answer asks a question of its own whose answers you can list,
         such as which of two ways to proceed or whether to take an action, put them
-        in `--markup` as an `lf-options` choice in place of `--obligation`: the
-        user answers with a press, and the choice waits on them by itself (`references/threads.md`,
+        in `--markup` in place of `--obligation`, as `<lf-options id="…" choose>`
+        holding an `<lf-option id="…">` for each answer: the user answers with a
+        press, and the choice waits on them by itself (`references/threads.md`,
         "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
         work beyond this turn. `--done` when it leaves nobody a move.
     - text: >-
@@ -482,8 +488,9 @@ suggestion:
         or resolve the thread, even where the decision itself is already there.
         Where your answer asks a question of its own whose answers you can list,
         such as which of two ways to proceed or whether to take an action, put them
-        in `--markup` as an `lf-options` choice in place of `--obligation`: the
-        user answers with a press, and the choice waits on them by itself (`references/threads.md`,
+        in `--markup` in place of `--obligation`, as `<lf-options id="…" choose>`
+        holding an `<lf-option id="…">` for each answer: the user answers with a
+        press, and the choice waits on them by itself (`references/threads.md`,
         "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
         work beyond this turn. `--done` when it leaves nobody a move.
     - text: >-
@@ -527,8 +534,9 @@ design comment:
         or resolve the thread, even where the decision itself is already there.
         Where your answer asks a question of its own whose answers you can list,
         such as which of two ways to proceed or whether to take an action, put them
-        in `--markup` as an `lf-options` choice in place of `--obligation`: the
-        user answers with a press, and the choice waits on them by itself (`references/threads.md`,
+        in `--markup` in place of `--obligation`, as `<lf-options id="…" choose>`
+        holding an `<lf-option id="…">` for each answer: the user answers with a
+        press, and the choice waits on them by itself (`references/threads.md`,
         "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
         work beyond this turn. `--done` when it leaves nobody a move.
     - text: >-
@@ -577,8 +585,9 @@ reply:
         or resolve the thread, even where the decision itself is already there.
         Where your answer asks a question of its own whose answers you can list,
         such as which of two ways to proceed or whether to take an action, put them
-        in `--markup` as an `lf-options` choice in place of `--obligation`: the
-        user answers with a press, and the choice waits on them by itself (`references/threads.md`,
+        in `--markup` in place of `--obligation`, as `<lf-options id="…" choose>`
+        holding an `<lf-option id="…">` for each answer: the user answers with a
+        press, and the choice waits on them by itself (`references/threads.md`,
         "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
         work beyond this turn. `--done` when it leaves nobody a move.
     - text: >-
@@ -620,8 +629,9 @@ reply in an untitled thread:
         or resolve the thread, even where the decision itself is already there.
         Where your answer asks a question of its own whose answers you can list,
         such as which of two ways to proceed or whether to take an action, put them
-        in `--markup` as an `lf-options` choice in place of `--obligation`: the
-        user answers with a press, and the choice waits on them by itself (`references/threads.md`,
+        in `--markup` in place of `--obligation`, as `<lf-options id="…" choose>`
+        holding an `<lf-option id="…">` for each answer: the user answers with a
+        press, and the choice waits on them by itself (`references/threads.md`,
         "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
         work beyond this turn. `--done` when it leaves nobody a move.
     - text: >-
@@ -663,8 +673,9 @@ reply with a pasted image:
         or resolve the thread, even where the decision itself is already there.
         Where your answer asks a question of its own whose answers you can list,
         such as which of two ways to proceed or whether to take an action, put them
-        in `--markup` as an `lf-options` choice in place of `--obligation`: the
-        user answers with a press, and the choice waits on them by itself (`references/threads.md`,
+        in `--markup` in place of `--obligation`, as `<lf-options id="…" choose>`
+        holding an `<lf-option id="…">` for each answer: the user answers with a
+        press, and the choice waits on them by itself (`references/threads.md`,
         "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
         work beyond this turn. `--done` when it leaves nobody a move.
     - text: >-
@@ -711,8 +722,9 @@ reply in a long thread:
         or resolve the thread, even where the decision itself is already there.
         Where your answer asks a question of its own whose answers you can list,
         such as which of two ways to proceed or whether to take an action, put them
-        in `--markup` as an `lf-options` choice in place of `--obligation`: the
-        user answers with a press, and the choice waits on them by itself (`references/threads.md`,
+        in `--markup` in place of `--obligation`, as `<lf-options id="…" choose>`
+        holding an `<lf-option id="…">` for each answer: the user answers with a
+        press, and the choice waits on them by itself (`references/threads.md`,
         "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
         work beyond this turn. `--done` when it leaves nobody a move.
     - text: >-
@@ -759,8 +771,9 @@ reply in words to a choice the agent sent:
         or resolve the thread, even where the decision itself is already there.
         Where your answer asks a question of its own whose answers you can list,
         such as which of two ways to proceed or whether to take an action, put them
-        in `--markup` as an `lf-options` choice in place of `--obligation`: the
-        user answers with a press, and the choice waits on them by itself (`references/threads.md`,
+        in `--markup` in place of `--obligation`, as `<lf-options id="…" choose>`
+        holding an `<lf-option id="…">` for each answer: the user answers with a
+        press, and the choice waits on them by itself (`references/threads.md`,
         "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
         work beyond this turn. `--done` when it leaves nobody a move.
     - text: >-
@@ -811,8 +824,9 @@ rewritten message:
         or resolve the thread, even where the decision itself is already there.
         Where your answer asks a question of its own whose answers you can list,
         such as which of two ways to proceed or whether to take an action, put them
-        in `--markup` as an `lf-options` choice in place of `--obligation`: the
-        user answers with a press, and the choice waits on them by itself (`references/threads.md`,
+        in `--markup` in place of `--obligation`, as `<lf-options id="…" choose>`
+        holding an `<lf-option id="…">` for each answer: the user answers with a
+        press, and the choice waits on them by itself (`references/threads.md`,
         "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
         work beyond this turn. `--done` when it leaves nobody a move.
     - text: >-
@@ -858,8 +872,9 @@ rewritten suggestion:
         or resolve the thread, even where the decision itself is already there.
         Where your answer asks a question of its own whose answers you can list,
         such as which of two ways to proceed or whether to take an action, put them
-        in `--markup` as an `lf-options` choice in place of `--obligation`: the
-        user answers with a press, and the choice waits on them by itself (`references/threads.md`,
+        in `--markup` in place of `--obligation`, as `<lf-options id="…" choose>`
+        holding an `<lf-option id="…">` for each answer: the user answers with a
+        press, and the choice waits on them by itself (`references/threads.md`,
         "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
         work beyond this turn. `--done` when it leaves nobody a move.
     - text: >-
@@ -1030,8 +1045,9 @@ pick inside a thread:
         or resolve the thread, even where the decision itself is already there.
         Where your answer asks a question of its own whose answers you can list,
         such as which of two ways to proceed or whether to take an action, put them
-        in `--markup` as an `lf-options` choice in place of `--obligation`: the
-        user answers with a press, and the choice waits on them by itself (`references/threads.md`,
+        in `--markup` in place of `--obligation`, as `<lf-options id="…" choose>`
+        holding an `<lf-option id="…">` for each answer: the user answers with a
+        press, and the choice waits on them by itself (`references/threads.md`,
         "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
         work beyond this turn. `--done` when it leaves nobody a move.
     - text: >-
@@ -1066,12 +1082,12 @@ pick inside a thread over App Server:
         <answer.ref> --obligation` instead: it puts the answer on their On me list
         even where the decision itself is already there. Where your answer asks
         a question of its own whose answers you can list, such as which of two ways
-        to proceed or whether to take an action, reply with them in `--markup` as
-        an `lf-options` choice in place of `--obligation`, so the user answers with
-        a press (`references/threads.md`, "Ask for a pick"). Reply explicitly too
-        for other widgets, work promised beyond this turn (`--todo`), a title or
-        moving the thread (`references/threads.md`); an explicit reply posts at
-        once, and your final message is then not posted.
+        to proceed or whether to take an action, reply with them in `--markup` in
+        place of `--obligation`, as `<lf-options id="…" choose>` holding an `<lf-option
+        id="…">` for each answer, so the user answers with a press (`references/threads.md`,
+        "Ask for a pick"). Reply explicitly too for other widgets, work promised
+        beyond this turn (`--todo`), a title or moving the thread (`references/threads.md`);
+        an explicit reply posts at once, and your final message is then not posted.
     - text: >-
         Your reply renders as Markdown in a narrow column: give each point its own
         short paragraph or list item, link a page section as `[its name](#section-id)`,

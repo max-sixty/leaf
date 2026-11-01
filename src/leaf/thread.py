@@ -69,6 +69,38 @@ def asking_widget(fragment, registry: dict) -> dict | None:
     )
 
 
+def unasked_widget(fragment, registry: dict) -> dict:
+    """The first widget in the markup that could wait on the user but whose
+    attributes keep it from asking, with the attributes it would ask with, so an
+    undeclared answer's refusal names what to add rather than only the flags."""
+    for rec in fragment.lf_elements:
+        entry = registry.get(rec["tag"]) or {}
+        if not local_obligation_entry(entry) or shown_in(rec, registry):
+            continue
+        when = entry["x-awaits"].get("when") or {}
+        needs = [
+            _attribute_written(attr, values)
+            for attr, values in when.items()
+            if not matches_when(rec["attrs"], {attr: values})
+        ]
+        return {
+            "tag": rec["tag"],
+            "id": rec["attrs"].get("id"),
+            "needs": " and ".join(needs),
+        }
+    return {}
+
+
+def _attribute_written(attr: str, values: list) -> str:
+    """How markup meets one `when` condition: a flag's presence or absence, or
+    the first value it allows."""
+    if True in values:
+        return f"`{attr}`"
+    if values == [False]:
+        return f"no `{attr}`"
+    return f'`{attr}="{values[0]}"`'
+
+
 def refuse_second_request(asking: dict | None) -> None:
     """A message asks once. `--obligation` beside a widget that asks would stay on
     On me after the user answers the widget, since only their words answer it."""
@@ -836,7 +868,8 @@ def _compose_and_append(
     # A markup-only answer must itself request input. Explicit obligations need
     # no widget: the message is their source.
     elif asks_back and asking is None:
-        raise Rejected([Finding("undeclared-answer")])
+        unasked = unasked_widget(fragment, publication.registry) if markup else {}
+        raise Rejected([Finding("undeclared-answer", values=unasked)])
     if ephemeral:
         event["ephemeral"] = True
     if in_hand is not None:

@@ -174,9 +174,9 @@ leaf thread reply <answer.ref> --text "Which store should own sessions? I'd keep
 If the user answers in words instead, end the question with
 `leaf task end <page> widget:<id> done --text "<where they answered>"`; the delivery
 of their reply lists it in `waiting`. Another widget that asks works the same way, such
-as an `lf-draft` marked `needed` for wording the user edits. A decision the page records, or one whose evidence needs the
-column, goes on the page beside its subject (`authoring-on-me.md`), linked from the
-reply.
+as an `lf-draft` marked `needed` for wording the user edits. A decision the page
+records, or one whose evidence needs the column, goes on the page beside its subject
+(`authoring-on-me.md`), linked from the reply.
 
 ### Progress messages
 

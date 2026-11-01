@@ -126,11 +126,11 @@ leaf wait:
             the thread, even where the decision itself is already there. Where your
             answer asks a question of its own whose answers you can list, such as
             which of two ways to proceed or whether to take an action, put them
-            in `--markup` as an `lf-options` choice in place of `--obligation`:
-            the user answers with a press, and the choice waits on them by itself
-            (`references/threads.md`, "Ask for a pick"). `--todo "<what you owe>"`
-            when it is yours, promising work beyond this turn. `--done` when it
-            leaves nobody a move.
+            in `--markup` in place of `--obligation`, as `<lf-options id="…" choose>`
+            holding an `<lf-option id="…">` for each answer: the user answers with
+            a press, and the choice waits on them by itself (`references/threads.md`,
+            "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
+            work beyond this turn. `--done` when it leaves nobody a move.
           h3: >-
             Your reply renders as Markdown in a narrow column: give each point its
             own short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -209,11 +209,12 @@ Claude Code hook:
               they reply or resolve the thread, even where the decision itself is
               already there. Where your answer asks a question of its own whose
               answers you can list, such as which of two ways to proceed or whether
-              to take an action, put them in `--markup` as an `lf-options` choice
-              in place of `--obligation`: the user answers with a press, and the
-              choice waits on them by itself (`references/threads.md`, "Ask for
-              a pick"). `--todo "<what you owe>"` when it is yours, promising work
-              beyond this turn. `--done` when it leaves nobody a move.
+              to take an action, put them in `--markup` in place of `--obligation`,
+              as `<lf-options id="…" choose>` holding an `<lf-option id="…">` for
+              each answer: the user answers with a press, and the choice waits on
+              them by itself (`references/threads.md`, "Ask for a pick"). `--todo
+              "<what you owe>"` when it is yours, promising work beyond this turn.
+              `--done` when it leaves nobody a move.
             h3: >-
               Your reply renders as Markdown in a narrow column: give each point
               its own short paragraph or list item, link a page section as `[its
@@ -295,11 +296,11 @@ Codex queue:
             the thread, even where the decision itself is already there. Where your
             answer asks a question of its own whose answers you can list, such as
             which of two ways to proceed or whether to take an action, put them
-            in `--markup` as an `lf-options` choice in place of `--obligation`:
-            the user answers with a press, and the choice waits on them by itself
-            (`references/threads.md`, "Ask for a pick"). `--todo "<what you owe>"`
-            when it is yours, promising work beyond this turn. `--done` when it
-            leaves nobody a move.
+            in `--markup` in place of `--obligation`, as `<lf-options id="…" choose>`
+            holding an `<lf-option id="…">` for each answer: the user answers with
+            a press, and the choice waits on them by itself (`references/threads.md`,
+            "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
+            work beyond this turn. `--done` when it leaves nobody a move.
           h3: >-
             Your reply renders as Markdown in a narrow column: give each point its
             own short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -371,13 +372,13 @@ Codex App Server:
                 instead: it puts the answer on their On me list even where the decision
                 itself is already there. Where your answer asks a question of its
                 own whose answers you can list, such as which of two ways to proceed
-                or whether to take an action, reply with them in `--markup` as an
-                `lf-options` choice in place of `--obligation`, so the user answers
-                with a press (`references/threads.md`, "Ask for a pick"). Reply
-                explicitly too for other widgets, work promised beyond this turn
-                (`--todo`), a title or moving the thread (`references/threads.md`);
-                an explicit reply posts at once, and your final message is then
-                not posted.
+                or whether to take an action, reply with them in `--markup` in place
+                of `--obligation`, as `<lf-options id="…" choose>` holding an `<lf-option
+                id="…">` for each answer, so the user answers with a press (`references/threads.md`,
+                "Ask for a pick"). Reply explicitly too for other widgets, work
+                promised beyond this turn (`--todo`), a title or moving the thread
+                (`references/threads.md`); an explicit reply posts at once, and
+                your final message is then not posted.
               h2: >-
                 Your reply renders as Markdown in a narrow column: give each point
                 its own short paragraph or list item, link a page section as `[its

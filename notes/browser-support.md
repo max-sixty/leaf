@@ -289,6 +289,30 @@ Recheck wrapper and row behavior, not just parser support, against
 `test_a_row_at_a_frame_edge_holds_the_trim_by_declaring_it` in
 `tests/browser/test_render_gate.py`.
 
+### Centring a block in block layout in Firefox
+
+Box Alignment lets `justify-self: center` centre a block-level box in a block
+container. On 2026-10-31 Playwright Chromium 156.0.8078.4 and WebKit 27.2 centred a
+200px block in a 600px container with it; Firefox 157 left the block at the start.
+So `browser/layouts.css` centres an `available` table on the column's axis with a
+relative offset and a translate instead. Recheck with that two-box fixture; once
+Firefox centres it, the table can take `justify-self: center` and lose the offset
+and the translate.
+
+### An inherited length after a container resize in WebKit
+
+A registered custom property that does not inherit, computed from `100cqi` on the
+column and passed to a child with `inherit`, kept the child's first value in
+Playwright WebKit 27.2 after the window resized: the column's own value followed
+the resize, but an `available` block sized from the child's copy stayed 1392px wide
+at 1200 and 900px wide windows (2026-10-31). Declared to inherit, the same
+property updates in every child. So the column's room (`--lf-free-start`,
+`--lf-free-end`, `browser/layouts.css`) inherits, and a box outside the column's
+flow sets it back to zero. Recheck with
+`test_a_breakout_grows_only_from_a_holder_that_spans_the_column` in
+`tests/browser/test_render_pages.py` under `webkit_browser`, after making the
+properties non-inheriting and passing them down with `inherit`.
+
 ### State-preserving content reordering
 
 `browser/runtime/dom-move.js` uses `moveBefore` for retained nodes within one

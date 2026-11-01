@@ -306,7 +306,9 @@
    * column's own shell can give (`100cqi`): the Layout's box (`--lf-layout-box`,
    * above) stands in a size container that is as wide as it, so it states the room
    * each side of its prose (`--lf-free-start`, `--lf-free-end`) and pads by it. Any
-   * other column, such as one in a tab's panel, centres its prose and gives none. */
+   * other column, such as one in a tab's panel, centres its prose and gives none. The
+   * lengths inherit, since WebKit left one passed down with `inherit` stale after a
+   * resize (notes/browser-support.md). */
   @property --lf-free-start {
     syntax: "<length>";
     inherits: true;
@@ -431,7 +433,8 @@
       }
     }
     /* An available table is as wide as its content and stands on the room's axis: its
-     * start at the axis, moved back by half its own width. */
+     * start at the axis, moved back by half its own width. Firefox lacks `justify-self`
+     * on a block, which would centre it (notes/browser-support.md). */
     > table[data-lf-space="available"] {
       max-inline-size: calc(100% + var(--lf-free-start) + var(--lf-free-end));
     }

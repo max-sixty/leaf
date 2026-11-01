@@ -90,7 +90,6 @@ const RUNG_LADDER = [
   "draw mode", // the drawing surface over the page
   "design mode", // the mode that comments on the layer
   "page", // whatever is left, in the chrome, and back onto the page
-  "changes", // the marks a version comparison stands on the page, once nothing nearer is
 ];
 
 const PAGE_COMMANDS = [
@@ -105,7 +104,6 @@ const PAGE_COMMANDS = [
   "thread.walk",
   "queue.walk",
   "change.walk",
-  "change.marks.stop",
   "page.move",
   "scroll.move",
   "reading.align.top",

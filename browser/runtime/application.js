@@ -38,8 +38,8 @@ import { createQueueActions, queueItemKey } from "./queue-api.js";
 import { createPrimaryReader } from "./thread/primary-reader.js";
 import { nextRender } from "./rendering.js";
 import { createReadTracking } from "./thread/read.js";
-import { createSinceSeen } from "./since-seen.js";
-import { createAtWork } from "./at-work.js";
+// import { createSinceSeen } from "./since-seen.js";
+import { createMarginBars } from "./margin-bars.js";
 import { renderMarginThread } from "./thread/inline.js";
 import { showHeld } from "./thread/held-news.js";
 import { threadBox as buildThreadBox } from "./thread/box.js";
@@ -249,14 +249,17 @@ function createApplication(dependencies) {
       applicationState.settleMarkRead(messages);
     }
   };
+  // Marking what changed since the user last saw the page is turned off: the user
+  // asked on 31 October to disable it while marks tied to Versions are considered. To
+  // restore it, uncomment this and its import above.
   // The revision a visible tab showed, through the same door as the user leaves, so
   // the send outlives the document. Nothing draws it ahead of the answer.
-  createSinceSeen({
-    markSeen: (revision) =>
-      deliverBookkeeping({ kind: "seen", revision }, receiveState, {
-        keepalive: true,
-      }),
-  });
+  // createSinceSeen({
+  //   markSeen: (revision) =>
+  //     deliverBookkeeping({ kind: "seen", revision }, receiveState, {
+  //       keepalive: true,
+  //     }),
+  // });
   const read = createReadTracking({
     markRead,
     openThread: openPageThread,
@@ -315,7 +318,7 @@ function createApplication(dependencies) {
     scrollToElement: dependencies.anchorTravel.scrollToElement,
   });
   const inlineContributions = createInlineContributions(annotations);
-  createAtWork(annotations);
+  createMarginBars(annotations);
   // Print hides contributed controls and cannot supply their visibility reading.
   // Refuse the annotation pass whole until the document returns to screen media.
   const onPaper = matchMedia("print");

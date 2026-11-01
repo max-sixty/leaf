@@ -111,6 +111,9 @@ const $ = {
   env: {
     get: async (name) => options.env?.[name],
   },
+  clock: {
+    now: async () => Date.now(),
+  },
   ui: {
     // A line for Claude Code's debug log prints as `{"debug": <text>}`.
     log: (text, options) =>

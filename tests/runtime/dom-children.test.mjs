@@ -116,15 +116,21 @@ function patch(beforeMarkup, afterMarkup = beforeMarkup) {
 
 test("a revision writes the author's inline style and keeps the runtime's", () => {
   const { live, install } = patch(
-    '<p style="color: red; margin: 0">Words</p>',
-    '<p style="color: blue">Words</p>',
+    '<p style="color: red; margin: 0">Words</p><p style="margin: 0">More</p>' +
+      '<p style="margin: 0">Last</p>',
+    '<p style="color: blue">Words</p><p style="margin: 0; color: blue">More</p>' +
+      "<p>Last</p>",
   );
-  const paragraph = live.querySelector("p");
-  paragraph.style.setProperty("--lf-runtime", "1px");
+  const [first, second, last] = live.querySelectorAll("p");
+  first.style.setProperty("--lf-runtime", "1px");
+  // A value a script wrote yields to one the author newly declares.
+  second.style.setProperty("color", "green");
   install();
-  assert.equal(paragraph.style.getPropertyValue("color"), "blue");
-  assert.equal(paragraph.style.getPropertyValue("margin-top"), "");
-  assert.equal(paragraph.style.getPropertyValue("--lf-runtime"), "1px");
+  assert.equal(first.style.getPropertyValue("color"), "blue");
+  assert.equal(first.style.getPropertyValue("margin-top"), "");
+  assert.equal(first.style.getPropertyValue("--lf-runtime"), "1px");
+  assert.equal(second.style.getPropertyValue("color"), "blue");
+  assert.equal(last.hasAttribute("style"), false);
 });
 
 test("runtime chrome outside the authored patch survives; detached fields do not", () => {

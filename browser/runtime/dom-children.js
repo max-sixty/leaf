@@ -344,31 +344,29 @@ function patchAttributes(live, before, after, rules) {
   if (changed) rules.touched(live);
 }
 
-// The runtime writes properties of its own inline on authored elements, `body`'s
-// included (composing/aim.js, content-layout.js), so a revision writes the author's new
-// text as given and carries over each property the old text didn't declare. Moving the
-// author's declarations one by one instead loses a shorthand written with `var()`, whose
-// longhands read back empty. An empty custom property (`--x: ;`) also reads back as "",
-// and `setProperty` with "" removes rather than declares, so it is written as the
-// single space that parses to it.
+// The runtime and page scripts write properties of their own inline on authored
+// elements, `body`'s included (composing/aim.js, content-layout.js), so a revision
+// writes the author's new text and, after it, whatever the live element holds that
+// neither the old text nor the new one declares, in one write. The carried part goes as
+// serialized text: a shorthand written with `var()` reads back empty longhand by
+// longhand, so moving declarations by name drops it.
 /** @param {Element} live @param {string} held @param {string} next */
 function restyle(live, held, next) {
-  const { style } = /** @type {HTMLElement} */ (live);
+  const parse = (/** @type {string} */ text) => {
+    const parsed = document.createElement("div").style;
+    parsed.cssText = text;
+    return parsed;
+  };
   const names = (/** @type {CSSStyleDeclaration} */ declared) =>
     Array.from({ length: declared.length }, (_, at) => declared.item(at));
-  const authored = document.createElement("div").style;
-  authored.cssText = held;
-  const declared = new Set(names(authored));
-  const kept = names(style)
-    .filter((property) => !declared.has(property))
-    .map((property) => ({
-      property,
-      value: style.getPropertyValue(property),
-      priority: style.getPropertyPriority(property),
-    }));
-  live.setAttribute("style", next);
-  for (const { property, value, priority } of kept)
-    style.setProperty(property, value || " ", priority);
+  const carried = parse(live.getAttribute("style") ?? "");
+  for (const property of [...names(parse(held)), ...names(parse(next))])
+    carried.removeProperty(property);
+  const text = [next.trim().replace(/;\s*$/, ""), carried.cssText]
+    .filter(Boolean)
+    .join("; ");
+  if (text) live.setAttribute("style", text);
+  else live.removeAttribute("style");
 }
 
 // Source text, so any run of whitespace separates two classes.

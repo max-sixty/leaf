@@ -5550,18 +5550,17 @@ function patchAttributes(live, before, after, rules) {
 	if (changed) rules.touched(live);
 }
 function restyle(live, held, next) {
-	const { style } = live;
+	const parse = (text) => {
+		const parsed = document.createElement("div").style;
+		parsed.cssText = text;
+		return parsed;
+	};
 	const names = (declared) => Array.from({ length: declared.length }, (_, at) => declared.item(at));
-	const authored = document.createElement("div").style;
-	authored.cssText = held;
-	const declared = new Set(names(authored));
-	const kept = names(style).filter((property) => !declared.has(property)).map((property) => ({
-		property,
-		value: style.getPropertyValue(property),
-		priority: style.getPropertyPriority(property)
-	}));
-	live.setAttribute("style", next);
-	for (const { property, value, priority } of kept) style.setProperty(property, value || " ", priority);
+	const carried = parse(live.getAttribute("style") ?? "");
+	for (const property of [...names(parse(held)), ...names(parse(next))]) carried.removeProperty(property);
+	const text = [next.trim().replace(/;\s*$/, ""), carried.cssText].filter(Boolean).join("; ");
+	if (text) live.setAttribute("style", text);
+	else live.removeAttribute("style");
 }
 const tokens$1 = (value) => value.split(/\s+/).filter(Boolean);
 function writeText(node, next) {

@@ -138,7 +138,8 @@ let discarded = null;
 // the message changed since. Words of the rewrite's own, open, sending or in another
 // tab, are newer, so the command stands dead over them.
 /** @param {{revealInThread: ReturnType<typeof import("./destination.js").createThreadDestinations>["openThreadDraft"],
- * holdsThreadDraft: (context: string) => boolean}} destinations */
+ * holdsThreadDraft: (context: string) => boolean}} destinations
+ * @returns {import("../keyboard/bindings.js").Command} */
 export function createRewriteRestore({ revealInThread, holdsThreadDraft }) {
   const restorable = () => {
     const candidate = discarded;

@@ -4,7 +4,7 @@ import "/runtime/framework.js";
 import "./runtime/interaction-log.js";
 // Restored panels and the first keyboard gesture share the ordinary synchronous
 // control routes, so their controls must be upgraded before those routes mount.
-import "./vendor/webawesome-chrome.js";
+import "/vendor/webawesome-chrome.js";
 import { offlineInteractive, runtime, annotationMode } from "./runtime/context.js";
 import { initializeServedDocument } from "./runtime/document-identity.js";
 import { chromeRoot, chromeForeground } from "./runtime/chrome.js";

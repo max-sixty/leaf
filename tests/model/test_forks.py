@@ -6,6 +6,7 @@ import json
 import os
 import time
 from datetime import datetime
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -434,9 +435,17 @@ def test_a_lane_counts_from_when_it_took_the_name(claimed, lane, monkeypatch):
     """A follower writes its lease before renaming it into place, and a message can
     arrive, and the earlier lane go down, in between: the new lane counts from the
     rename, so it leaves that message to the session and the earlier fork's reply
-    writes nothing."""
+    writes nothing, even when the filesystem clock trails the admission clock."""
     replace = os.replace
+    stat = Path.stat
+    lane_path = forks_model.lane_path("s1")
     asked = []
+
+    def coarse_clock(path, *args, **kwargs):
+        result = stat(path, *args, **kwargs)
+        if path == lane_path:
+            return os.stat_result((*result[:9], 0))
+        return result
 
     def publish(staged, path):
         monkeypatch.setattr(os, "replace", replace)
@@ -445,7 +454,8 @@ def test_a_lane_counts_from_when_it_took_the_name(claimed, lane, monkeypatch):
         replace(staged, path)
 
     monkeypatch.setattr(os, "replace", publish)
-    again = take_lane()
+    monkeypatch.setattr(Path, "stat", coarse_clock)
+    again = forks_model.take_lane("s1")
     try:
         assert held(claimed) == []
         assert deliverable(claimed) == [asked[0]["id"]]
@@ -460,3 +470,53 @@ def test_a_lane_counts_from_when_it_took_the_name(claimed, lane, monkeypatch):
         )
     finally:
         leases_model.release_lease(again)
+
+
+def test_a_lane_uses_only_the_cutoff_published_for_its_lease(
+    claimed, lane, monkeypatch
+):
+    """The new lease cannot borrow the old lane's cutoff while its own record is
+    being published. Once complete, later messages are held normally."""
+    write = forks_model.LANE_START.write
+    published = []
+
+    def publish(path, value):
+        assert forks_model.lane_since("s1") is None
+        published.append(value)
+        return write(path, value)
+
+    monkeypatch.setattr(forks_model.LANE_START, "write", publish)
+    again = forks_model.take_lane("s1")
+    try:
+        asked = append_carried_log_record(
+            claimed,
+            {
+                "kind": "comment",
+                "author": "user",
+                "text": "After the new lane started",
+                "ts": datetime.fromtimestamp(published[0]["since"] + 0.002)
+                .astimezone()
+                .isoformat(timespec="milliseconds"),
+            },
+        )
+        assert held(claimed) == [(asked["id"], (asked["id"],))]
+        assert deliverable(claimed) == []
+    finally:
+        leases_model.release_lease(again)
+
+
+def test_a_lane_read_cannot_borrow_a_displaced_holders_liveness(
+    claimed, lane, monkeypatch
+):
+    """A live probe of the old lease cannot make its already-ended successor live
+    by reading the successor's cutoff afterward."""
+    speaks_here = forks_model.lease_speaks_here
+
+    def superseded_and_ended(path):
+        was_live = speaks_here(path)
+        again = forks_model.take_lane("s1")
+        leases_model.release_lease(again)
+        return was_live
+
+    monkeypatch.setattr(forks_model, "lease_speaks_here", superseded_and_ended)
+    assert forks_model.lane_since("s1") is None

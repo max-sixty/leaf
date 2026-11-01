@@ -54,7 +54,7 @@ def test_a_conversation_keeps_its_face_and_sends_from_margin_and_panel(
     )
     context = browser.new_context(has_touch=touch, is_mobile=touch, color_scheme=scheme)
     page = open_page(browser, url, context=context)
-    resized(page, 390 if touch else 1440, 900)
+    resized(page, 1440, 900)
     page.locator('.lf-margin-marker[data-lf-kinds~="comment"]').click()
     margin = page.locator(".lf-margin-preview .lf-page-thread")
     expect(margin.get_by_role("textbox", name="Reply", exact=True)).to_be_visible()

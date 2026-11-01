@@ -8644,7 +8644,8 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 		return arrive(() => {
 			const where = threadDestination(id);
 			if (!where) return null;
-			const target = focus && part ? threadFocusTarget(id, { part }) : null;
+			const placement = anchors.placedAt(id);
+			const target = !focus ? null : part ? threadFocusTarget(id, { part }) : targetElement(placement) ?? targetPlace(placement);
 			const scroll = [];
 			if (target) scroll.push({
 				at: target,

@@ -396,7 +396,7 @@ customElements.define("leaf-floating-panel", FloatingPanel);
  * arrivesAt: QueueWalk["arrivesAt"], onMe: QueueWalk["onMe"],
  * placedAt: ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["placedAt"],
  * openThreadSubject: ReturnType<typeof import("./thread/destination.js").createThreadDestinations>["openThreadSubject"],
- * atLastResort: ReturnType<typeof import("./thread/destination.js").createThreadDestinations>["atLastResort"],
+ * showsOnPage: ReturnType<typeof import("./thread/destination.js").createThreadDestinations>["showsOnPage"],
  * annotationsHidden: () => boolean}} FloatingPanelOptions */
 /** @param {FloatingPanelOptions} dependencies */
 export function createFloatingPanel({
@@ -414,7 +414,7 @@ export function createFloatingPanel({
   settlement,
   placedAt,
   openThreadSubject,
-  atLastResort,
+  showsOnPage,
   annotationsHidden,
 }) {
   const host = new FloatingPanel();
@@ -4179,10 +4179,12 @@ export function createFloatingPanel({
     // message's thread here on that element (thread/destination.js,
     // `openThreadSubject`).
     const inMessage = Boolean(placedAt(thread.id)?.message);
-    // A thread the destinations handed the panel as their last resort, which the page
-    // drew nowhere, has no page to show (thread/destination.js, `atLastResort`).
+    // A thread the destinations handed the panel as their last resort, whose place the
+    // page draws nowhere, has no page to show (thread/destination.js, `showsOnPage`).
+    // One the page shows only the place of, as a window with no room for the rail does,
+    // goes there.
     opening.onPageSeat ||=
-      Boolean(thread.anchor) && (inMessage || !atLastResort(thread.key));
+      Boolean(thread.anchor) && (inMessage || showsOnPage(thread.key));
     // Next unread goes to the thread's first reply not yet read, which a fold or the
     // view's scroll may hide, as `g u` goes to the page's (thread/read.js).
     const aux = html`${
@@ -4224,9 +4226,11 @@ export function createFloatingPanel({
                 close();
                 // The reply box the field drew goes back to the thread's drawing on
                 // the page once the reader has drawn the view gone, and the route
-                // lands in it there.
+                // lands in it there; where the page draws no view of the thread, as a
+                // window with no room for the rail does, on its place
+                // (thread/destination.js, `page`).
                 void present({ release: true }).then(() =>
-                  threadActions.open(thread.key, { part: null, intent }),
+                  threadActions.open(thread.key, { part: null, intent, page: true }),
                 );
               }}
             ></button>`
@@ -5033,8 +5037,9 @@ export function createFloatingPanel({
       },
       // A thread about the whole page opens here; one about a passage opens beside it,
       // where the page draws it, widgets in its messages included, and here only where
-      // nothing on the page shows it, as on a page drawing no margin, the destination's
-      // last resort (`request.last`, thread/destination.js), or for one of its messages
+      // nothing on the page shows it, as on a page drawing no margin or a window with no
+      // room for the rail, the destination's last resort (`request.last`,
+      // thread/destination.js), or for one of its messages
       // while the view already shows it, so a walk to an ask in it leaves the user
       // where they read. Where the user lands in it is the route's (`request.part`),
       // which Leaf's destinations take them to once it is drawn: the reply, a message,

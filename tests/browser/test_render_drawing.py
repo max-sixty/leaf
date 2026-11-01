@@ -1402,16 +1402,12 @@ def test_drawing_ink_follows_pixels_inside_their_ancestor_viewport(browser, serv
 
 
 # Comment length and device are independent, so each length takes one device.
-@pytest.mark.parametrize(
-    "long, touch",
-    [(False, True), (True, False)],
-    ids=["short-phone", "scrolled-desktop"],
-)
+@pytest.mark.parametrize("long", [False, True], ids=["short", "scrolled"])
 def test_sent_drawing_keeps_its_reference_in_the_transcript_after_the_text(
-    browser, serve, long, touch
+    browser, serve, long
 ):
     """The transcript carries the editor's place and holds its drawing reference."""
-    context = browser.new_context(has_touch=touch, is_mobile=touch)
+    context = browser.new_context()
     page = open_page(
         browser,
         serve(
@@ -1422,8 +1418,6 @@ def test_sent_drawing_keeps_its_reference_in_the_transcript_after_the_text(
         ),
         context=context,
     )
-    if touch:
-        page.set_viewport_size({"width": 390, "height": 844})
     draw_over(page, page.locator("#target"))
     field = page.locator(".lf-fab-input")
     write(
@@ -1466,7 +1460,7 @@ def test_sent_drawing_keeps_its_reference_in_the_transcript_after_the_text(
         min(before["scroll"], after["limit"]), abs=1
     )
     if long:
-        resized(page, 390 if touch else 1280, 600)
+        resized(page, 1280, 600)
         rendered(page)
         reference = body.locator(".lf-drawing-reference").bounding_box()
         viewport = card.locator(".lf-thread-transcript").bounding_box()

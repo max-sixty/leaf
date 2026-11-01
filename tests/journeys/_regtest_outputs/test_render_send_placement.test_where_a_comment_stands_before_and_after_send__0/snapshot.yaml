@@ -48,18 +48,6 @@ beside-element:
     across: still
     down: still
 
-phone-touch-passage:
-  expected: below or above
-  comment box:
-    side: below or above
-    stands: clear or window-constrained
-  thread card:
-    side: below or above
-    stands: clear or window-constrained
-  moves:
-    across: still
-    down: still
-
 beside-tall-element-clipped:
   expected: below or above
   comment box:

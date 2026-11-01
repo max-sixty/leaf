@@ -942,14 +942,6 @@ def test_the_response_field_grows_across_its_bar(browser, serve):
     assert narrow_field["x"] + narrow_field["width"] == pytest.approx(
         content_right, abs=1
     ), narrow_field
-    page.keyboard.press("Enter")
-    card = page.locator(".lf-margin-preview")
-    expect(card).to_have_css("opacity", "1")
-    message = card.locator(".lf-msg-body").first.bounding_box()
-    reply = card.locator(".lf-compose-field").bounding_box()
-    assert message["x"] + message["width"] == pytest.approx(
-        reply["x"] + reply["width"], abs=1
-    ), (message, reply)
 
 
 def test_a_reaction_on_a_visual_part_names_that_part(browser, serve):

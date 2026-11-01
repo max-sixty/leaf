@@ -192,30 +192,27 @@ STEP = Element("#step-workspace")
 # The long paragraph as a whole, pointed at on its last line.
 TALL = Element("#long", from_foot=12)
 
-# name: (window size, under a finger, what the comment is on, the side both should
-# take, and optionally how the case differs: `top`, the fraction of the window's height
-# its block's top is scrolled to, 0.4 unless it says; `again`, a thread already there,
-# so its margin row stands before the box opens). One case per placement the solver
-# chooses between, with passages and elements both represented.
+# name: (window size, what the comment is on, the side both should take, and
+# optionally how the case differs: `top`, the fraction of the window's height its
+# block's top is scrolled to, 0.4 unless it says; `again`, a thread already there, so
+# its margin row stands before the box opens). One case per placement the solver
+# chooses between, with passages and elements both represented, each on a window with
+# room for the rail: on one without, Send opens the thread in the floating panel.
 CASES = {
-    "column-passage-first-line": ((1440, 900), False, FIRST_LINE, "right"),
-    "column-element": ((1440, 900), False, STEP, "right"),
+    "column-passage-first-line": ((1440, 900), FIRST_LINE, "right"),
+    "column-element": ((1440, 900), STEP, "right"),
     # Room right of the paragraph for the box's minimum but not the card's.
-    "laptop-passage": ((1300, 900), False, FIRST_LINE, "below or above"),
-    "beside-element": ((900, 900), False, STEP, "below or above"),
-    # Touch also uses the room already shown; font wrapping may leave either side clear.
-    "phone-touch-passage": ((390, 844), True, FIRST_LINE, "below or above"),
+    "laptop-passage": ((1300, 900), FIRST_LINE, "below or above"),
+    "beside-element": ((1024, 900), STEP, "below or above"),
     # A block whose top the window has scrolled past.
     "beside-tall-element-clipped": (
-        (900, 500),
-        False,
+        (1024, 500),
         TALL,
         "below or above",
         {"top": -0.3},
     ),
     "wide-passage-with-a-thread": (
         (1920, 1080),
-        False,
         FIRST_LINE,
         "right",
         {"again": True},
@@ -307,23 +304,20 @@ def send_one(page, on, touch):
 def sent(browser, serve, name, shots):
     """The case's reading: where the box stood with the comment typed, and where the
     card stands once the comment is sent, both in the page as it stood before Send."""
-    size, touch, on, expected, *rest = CASES[name]
+    size, on, expected, *rest = CASES[name]
     differs = rest[0] if rest else {}
     context = browser.new_context(
-        viewport={"width": size[0], "height": size[1]},
-        reduced_motion="reduce",
-        has_touch=touch,
-        is_mobile=touch,
+        viewport={"width": size[0], "height": size[1]}, reduced_motion="reduce"
     )
     page = open_page(browser, serve(PAGE), context=context)
     if differs.get("again"):
-        send_one(page, on, touch)
+        send_one(page, on, False)
     page.locator(on.block).evaluate(
         "(el, at) => scrollTo(0, el.getBoundingClientRect().top + scrollY - innerHeight * at)",
         differs.get("top", 0.4),
     )
     rendered(page)
-    on.open(page, touch)
+    on.open(page, False)
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_have_attribute("data-lf-placement", re.compile(".+"))
     page.keyboard.insert_text(COMMENT)
@@ -333,22 +327,10 @@ def sent(browser, serve, name, shots):
     # rows around the editor. The glyph test below measures the painted words.
     box = page.evaluate(RECT, ".lf-fab-bar")
     words, block = on.line(page), page.evaluate(RECT, on.block)
-    phone_room = None
-    if name == "phone-touch-passage":
-        phone_room = page.evaluate("""async () => {
-          const {commentBoundary, COMMENT_GAP} =
-            await window.__lfOverlayApi();
-          const {top, bottom, height} = commentBoundary();
-          return {top, bottom, height, gap: COMMENT_GAP};
-        }""")
     scrolled = page.evaluate("scrollY")
     before = page.screenshot()
 
-    # A phone's Return starts a new line, so a finger sends with the box's own button.
-    if touch:
-        bar.get_by_role("button", name="Comment", exact=True).tap()
-    else:
-        page.keyboard.press("Enter")
+    page.keyboard.press("Enter")
     card = page.locator(".lf-margin-preview")
     expect(card, f"{name}: the sent comment opens its card").to_have_attribute(
         "data-lf-thread-placement", re.compile(".+")
@@ -358,10 +340,6 @@ def sent(browser, serve, name, shots):
     card_side = card.get_attribute("data-lf-thread-placement")
     # A card that scrolled the page is read where it stands on the page the box stood on.
     carried = page.evaluate("scrollY") - scrolled
-    if phone_room is not None:
-        assert carried == 0, (
-            "The touch handoff must keep the page and its boundary still"
-        )
     placed = {
         edge: value + (carried if edge in ("top", "bottom") else 0)
         for edge, value in page.evaluate(RECT, ".lf-margin-preview").items()
@@ -379,35 +357,15 @@ def sent(browser, serve, name, shots):
     def allowed(side):
         return expected if side in expected.split(" or ") else side
 
-    def standing(side, rect):
-        if phone_room is None:
-            return stands(side, rect, words, block)
-        assert side in ("above", "below"), side
-        gap = (
-            block["top"] - rect["bottom"]
-            if side == "above"
-            else rect["top"] - block["bottom"]
-        )
-        if gap < 0:
-            # Typing never scrolls the page to make room, so a box that outgrew the
-            # room shown on its side slid over the block only as far as the window's
-            # edge required.
-            limits = (block, rect, phone_room)
-            edge = "top" if side == "above" else "bottom"
-            assert rect[edge] == pytest.approx(phone_room[edge], abs=0.75), limits
-        else:
-            assert gap <= NEAR, (block, rect)
-        return "clear or window-constrained"
-
     reading = {
         "expected": expected,
         "comment box": {
             "side": allowed(box_side),
-            "stands": standing(box_side, box),
+            "stands": stands(box_side, box, words, block),
         },
         "thread card": {
             "side": allowed(card_side),
-            "stands": standing(card_side, placed),
+            "stands": stands(card_side, placed, words, block),
         },
         "moves": movement(box, placed, card_side),
     }
@@ -496,7 +454,7 @@ def test_a_right_edge_passage_reopens_a_usable_card_without_moving_typing(
             )
         ),
     )
-    page.set_viewport_size({"width": 900, "height": 900})
+    page.set_viewport_size({"width": 1024, "height": 900})
     page.keyboard.press("/")
     page.keyboard.insert_text("Needle")
     page.keyboard.press("Enter")
@@ -1508,13 +1466,12 @@ def test_a_reply_written_in_a_card_keeps_its_line_breaks_once_sent(
     "size,at,long,touch,again,options,engine",
     [
         ((1440, 900), 0.4, False, False, False, False, "browser"),
-        ((900, 600), 0.75, False, False, False, False, "browser"),
-        ((390, 844), 0.12, False, False, False, False, "browser"),
-        ((900, 600), 0.4, True, False, False, False, "browser"),
-        ((900, 600), 0.4, "scrolled", False, False, False, "browser"),
+        ((1024, 600), 0.75, False, False, False, False, "browser"),
+        ((1024, 600), 0.4, True, False, False, False, "browser"),
+        ((1024, 600), 0.4, "scrolled", False, False, False, "browser"),
         ((1440, 900), 0.4, "paragraphs", False, False, False, "browser"),
         ((1440, 900), 0.4, False, False, True, False, "browser"),
-        ((390, 844), 0.4, "passage", True, False, False, "browser"),
+        ((1440, 900), 0.4, "passage", True, False, False, "browser"),
         # Firefox sized this one-line comment's card 13px wider than its box.
         pytest.param(
             (1728, 999),
@@ -1527,7 +1484,7 @@ def test_a_reply_written_in_a_card_keeps_its_line_breaks_once_sent(
             id="line-firefox",
         ),
         pytest.param(
-            (900, 600),
+            (1024, 600),
             0.75,
             False,
             False,
@@ -1703,7 +1660,7 @@ def test_send_grows_thread_around_the_words(
     if not long and not touch and not again:
         card.locator('leaf-text[name="reply"]').click()
         page.keyboard.insert_text("The same placement works for a reply.")
-        check_reply_growth = size == (900, 600) and not options
+        check_reply_growth = size == (1024, 600) and not options
         if check_reply_growth:
             rendered(page)
             # Read the card's border box, not Layout Instability's attribution:
@@ -1771,28 +1728,6 @@ def test_send_grows_thread_around_the_words(
         edges = reading_edges()
         assert len(edges) == 5, edges
         assert edges == pytest.approx([edges[0]] * len(edges), abs=0.75), edges
-        if size == (390, 844) and at == 0.12:
-            # Reopening at a wider measure removes a line. Spend only the travel
-            # that fitted height needs, keeping both the page's words and the card.
-            card.locator(".lf-margin-preview-close").click()
-            resized(page, 900, 600)
-            page.locator(on.block).evaluate(
-                "el => scrollTo(0, el.getBoundingClientRect().top + scrollY - innerHeight * .4)"
-            )
-            rendered(page)
-            page.keyboard.press("Enter")
-            rendered(page)
-            opening = card.evaluate("""async card => {
-              const {commentBoundary, COMMENT_GAP} =
-                await window.__lfOverlayApi();
-              const box = card.getBoundingClientRect();
-              return {top:box.top, bottom:box.bottom,
-                boundary:commentBoundary().top, gap:COMMENT_GAP};
-            }""")
-            assert opening["top"] == pytest.approx(opening["boundary"], abs=1), opening
-            assert on.line(page)["top"] - opening["bottom"] == pytest.approx(
-                opening["gap"], abs=1
-            ), opening
     judge_watches()
 
 

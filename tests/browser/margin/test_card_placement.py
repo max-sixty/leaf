@@ -10,7 +10,6 @@ from render_cases_interaction import OBLIGATION_PAGE, PANEL_PAGE, panel_comment
 from render_harness import (
     EXAMPLES,
     PANEL,
-    ROOT,
     holding,
     leaf_page,
     margins_laid_out,
@@ -321,22 +320,23 @@ NEWS_BESIDE_HEAD = """([notice, head]) => {
 }"""
 
 
-@pytest.mark.parametrize("phone", [False, True])
-def test_a_card_s_head_stands_whole_beside_news(browser, serve, phone):
+@pytest.mark.parametrize("finger", [False, True])
+def test_a_card_s_head_stands_whole_beside_news(browser, serve, finger):
     """A card holding news while the user writes: the notice takes only the room the
     head of the user's message leaves beside its name and time, and stands clear of
     it. On a desktop card, with Previous and Next for its target's two threads, the
-    head keeps "Me" and its time whole. On a phone's card, whose three controls, the
-    notice and the head's Edit each take a finger's width, the head keeps "Me" whole and
-    gives up its time, as any narrow head does before its name. The notice says one
-    count, "2 new", on either. Drawn whole, the notice stood over the head."""
+    head keeps "Me" and its time whole. On a card at its least width under a finger,
+    whose three controls, the notice and the head's Edit each take a finger's width,
+    the head keeps "Me" whole and gives up its time, as any narrow head does before its
+    name; a touch screen as wide as 1400 stands that card beside its words. The notice
+    says one count, "2 new", on either. Drawn whole, the notice stood over the head."""
     url = serve(PANEL_PAGE)
     root = panel_comment(
         serve.page_dir, "Keep the logo where it is", {"section": "h-how"}
     )
-    if phone:
+    if finger:
         context = browser.new_context(
-            viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+            viewport={"width": 1400, "height": 844}, has_touch=True, is_mobile=True
         )
         page = open_page(browser, url, context=context)
     else:
@@ -368,7 +368,7 @@ def test_a_card_s_head_stands_whole_beside_news(browser, serve, phone):
     assert stands["notice"] >= stands["head"] - 0.5, stands
     assert stands["time"] <= stands["edit"] + 0.5, stands
     times = card.evaluate(TIMES_WHOLE)
-    assert times and all(time["whole"] != phone for time in times), times
+    assert times and all(time["whole"] != finger for time in times), times
     name = head.locator("b")
     expect(name).to_have_text("Me")
     assert name.evaluate("node => node.scrollWidth <= node.clientWidth")
@@ -607,9 +607,13 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
         }""")
 
 
-def test_crossing_to_the_small_screen_keeps_the_card_by_its_pin(browser, serve):
-    """The rail falling changes where a marker stands, not whether it does: the marker
-    becomes a pin and the card it opened stays up beside it."""
+def test_crossing_to_the_small_screen_moves_the_card_s_thread_to_the_panel(
+    browser, serve
+):
+    """The rail falling takes the card's room, not its thread: the marker becomes a pin,
+    and the thread goes on in the floating panel, the reply being written in the card
+    with it, the same editor with its words and caret. The rail returning gives the
+    thread back to a card the same way."""
     page = open_page(
         browser,
         serve(OBLIGATION_PAGE, events=[ACTION_ON_OBLIGATION, COMMENT_ON_OBLIGATION]),
@@ -619,13 +623,31 @@ def test_crossing_to_the_small_screen_keeps_the_card_by_its_pin(browser, serve):
     marker.click()
     card = page.locator(".lf-margin-preview")
     expect(card).to_be_visible()
+    reply = card.get_by_role("textbox", name="Reply", exact=True)
+    reply.click()
+    page.keyboard.type("Keep the reaper")
+    page.keyboard.press("ArrowLeft")
+    reply.evaluate("el => { window.lfTypedIn = el; }")
 
     resized(page, 390, 760)
     margins_laid_out(page)
     row = marker.locator("xpath=ancestor::*[@data-lf-margin-for][1]")
     expect(row).to_have_attribute("data-lf-place", "pin")
     expect(marker).to_be_visible()
+    expect(card).to_be_hidden()
+    field = page.locator(".lf-fp-field leaf-text")
+    expect(field).to_be_focused()
+    assert field.evaluate("el => el === window.lfTypedIn")
+    expect(field).to_have_js_property("value", "Keep the reaper")
+    assert field.evaluate("el => el.selectionStart") == len("Keep the reape")
+
+    resized(page, 1440, 900)
     expect(card).to_be_visible()
+    expect(page.locator(".lf-fp-view:not([data-leaving])")).to_have_count(0)
+    typed = card.locator("leaf-text")
+    expect(typed).to_be_focused()
+    assert typed.evaluate("el => el === window.lfTypedIn")
+    expect(typed).to_have_js_property("value", "Keep the reaper")
 
 
 def test_a_reflow_that_moves_a_marker_carries_its_open_card(browser, serve):
@@ -735,44 +757,6 @@ QUOTED_ON_OBLIGATION = {
     **COMMENT_ON_OBLIGATION,
     "anchor": {"section": "sec-mounts", "quote": "one came down in January"},
 }
-
-
-def test_a_focused_thread_covers_the_pages_choice_hints(browser, serve):
-    """A fallback chip for a covered option stays behind the focused discussion."""
-    page = open_page(
-        browser, serve(ROOT / "tests/fixtures/pages/thread-choice-hints.html")
-    )
-    resized(page, 741, 838)
-    page.locator(".lf-margin-marker").first.focus()
-    page.keyboard.press("Enter")
-    card = page.locator(".lf-margin-preview .lf-page-thread")
-    expect(card).to_be_focused()
-    chip = page.locator(".lf-command-binding-badge").filter(has_text=re.compile("^2$"))
-    expect(chip).to_have_count(1)
-    rendered(page)
-    paint = chip.evaluate(
-        """chip => {
-          const card = document.querySelector('.lf-margin-preview');
-          const box = chip.getBoundingClientRect();
-          const x = box.left + box.width / 2, y = box.top + box.height / 2;
-          const frame = card.getBoundingClientRect();
-          // The hint is normally pointer-transparent. Include it in the browser's
-          // hit test to read its paint order against the thread without moving it.
-          chip.style.pointerEvents = 'auto';
-          const top = document.elementFromPoint(x, y);
-          chip.style.removeProperty('pointer-events');
-          return {
-            overlaps: x > frame.left && x < frame.right &&
-              y > frame.top && y < frame.bottom,
-            covered: card.contains(top),
-          };
-        }"""
-    )
-    assert paint == {"overlaps": True, "covered": True}, paint
-    # Reading the thread keeps the reply's own hint and keyboard route usable.
-    expect(card.locator(".lf-compose-placeholder > .lf-key-badge")).to_have_text("c")
-    page.keyboard.press("c")
-    expect(card.locator("leaf-text")).to_be_focused()
 
 
 def test_a_scroll_that_carries_the_card_only_updates_the_rail_tab_stop(browser, serve):

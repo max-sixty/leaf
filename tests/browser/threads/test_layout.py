@@ -79,7 +79,7 @@ def test_thread_actions_share_consistently_sized_message_headers(
         page.locator(".lf-margin-marker").first.click()
         card = page.locator(".lf-margin-preview .lf-page-thread")
         expect(card).to_be_visible()
-    for width in (1440, 390):
+    for width in (1440, 390) if surface == "panel" else (1440, 1024):
         resized(page, width, 900)
         rendered(page)
         geometry = card.evaluate(
@@ -1074,9 +1074,8 @@ def test_words_scrolled_past_a_card_head_show_nowhere_above_it(
         assert spread(band) < 40, (scroll, reading)
 
 
-@pytest.mark.parametrize(("width", "touch"), [(1200, False), (311, True)])
 def test_a_stuck_card_head_keeps_the_name_and_lets_its_annotations_scroll_out(
-    browser, serve, width, touch
+    browser, serve
 ):
     """Reading down a long reply keeps its writer and time at the top while the
     edited annotation leaves with the reply's first line."""
@@ -1108,10 +1107,7 @@ def test_a_stuck_card_head_keeps_the_name_and_lets_its_annotations_scroll_out(
                 "text": f"Turn {turn}. " + LANDING_WORDS * 4,
             },
         )
-    context = browser.new_context(
-        viewport={"width": width, "height": 900}, has_touch=touch, is_mobile=touch
-    )
-    page = open_page(browser, url, context=context)
+    page = open_page(browser, url)
     page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
     selector = (
         f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]'

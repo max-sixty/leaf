@@ -5293,6 +5293,10 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 		};
 	}
 	const threadTarget = (id) => placedAt(id)?.place ?? null;
+	const placeDrawn = (id) => {
+		const place = threadTarget(id);
+		return place !== null && visibleTargetParts(place).length > 0;
+	};
 	const threadPlace$1 = (id) => {
 		const thread = allThreads().find((candidate) => candidate.id === id);
 		return thread ? threadPlace(thread, placedAt) : null;
@@ -5331,7 +5335,7 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 	};
 	const DECLINED = Symbol("declined");
 	const UNDRAWN = Symbol("undrawn");
-	async function openPageThread(id, { part = null, focus = true, travel = true, history = true, scroll = true, intent = retainUserIntent(), origin = null, returning = false } = {}) {
+	async function openPageThread(id, { part = null, focus = true, travel = true, history = true, scroll = true, intent = retainUserIntent(), origin = null, page = false } = {}) {
 		if (!intent()) return null;
 		const navigationStep = travel && scroll;
 		const selected = presentation?.owner.isConnected ? presentation : null;
@@ -5434,13 +5438,12 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 			if (surfaceFocusTarget(id, { part: localPart })) return openSurface();
 			if (showHeldThread(id) && surfaceFocusTarget(id, { part: localPart })) return openSurface();
 			const place = preview && !navigationStep ? threadTarget(id) : null;
-			const placeDrawn = () => place !== null && visibleTargetParts(place).length > 0;
-			if (place && scroll && !placeDrawn()) {
+			if (place && scroll && !placeDrawn(id)) {
 				await reveal(place, intent).ready;
 				if (!mayPresent()) return null;
 			}
 			const invocation = { opened: null };
-			if (preview && (!place || placeDrawn())) intent.handoff(() => {
+			if (preview && (!place || placeDrawn(id))) intent.handoff(() => {
 				invocation.opened = preview.open(id, { origin });
 			});
 			const opened = invocation.opened;
@@ -5477,14 +5480,22 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 			if (surfaceFocusTarget(id, { part: localPart })) return openSurface();
 			return DECLINED;
 		}
-		const asked = primary && !returning ? inPrimary(primary, false) : DECLINED;
+		const asked = primary && !page ? inPrimary(primary, false) : DECLINED;
 		const first = asked instanceof Promise ? await asked : asked;
 		if (first !== DECLINED && first !== UNDRAWN) return first;
 		const shown = await onPage();
-		if (returning) {
-			if (!shown || shown === DECLINED) return null;
-			if (primary) await inPrimary(primary, false);
-			return shown;
+		if (page) {
+			if (shown && shown !== DECLINED) {
+				if (primary) await inPrimary(primary, false);
+				return shown;
+			}
+			if (!shown || !navigationStep || !placeDrawn(id)) return null;
+			return await scrollToThread(id, {
+				part: null,
+				focus,
+				intent,
+				history
+			}) ? threadTarget(id) : null;
 		}
 		if (shown !== DECLINED) return shown;
 		if (!primary || first !== DECLINED) return null;
@@ -5506,7 +5517,7 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 				focus: replyThreadKey(focused()) !== key && drawnThreadId(heldThread()) === thread.id,
 				travel: false,
 				scroll: false,
-				returning: true
+				page: true
 			});
 		}
 	}
@@ -5559,7 +5570,10 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 		openThreadSubject,
 		openThreadDraft,
 		returnToPage,
-		atLastResort: (key) => lastResort.has(key),
+		showsOnPage: (key) => {
+			const thread = lastResort.has(key) ? allThreads().find((each) => threadKey(each) === key) : null;
+			return !thread || placeDrawn(thread.id);
+		},
 		holdsThreadDraft: (context) => Boolean(threadHolding(context)),
 		threadFocusTarget,
 		threadHere,
@@ -7838,6 +7852,7 @@ function createApplication(dependencies) {
 		refreshInventory: refreshAnnotationInventory,
 		renderAnnotations,
 		openPageThread,
+		returnToPage: () => threadDestinations.returnToPage(),
 		designModeActive: dependencies.annotationCommands.designModeActive,
 		pointerModeActive: dependencies.annotationCommands.pointerModeActive,
 		leavePageMap: dependencies.annotationCommands.leavePageMap,

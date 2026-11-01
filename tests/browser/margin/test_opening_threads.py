@@ -398,9 +398,9 @@ def test_a_thread_whose_passage_stays_hidden_opens_in_the_panel(browser, serve):
         assert open_where_the_user_stands(page, section) is True, section
 
 
-def test_a_thread_in_view_opens_beside_it_and_leaves_the_tab_strip(browser, serve):
-    """A thread whose passage is in view opens its card beside it, and the tab strip the
-    user scrolled stays where they left it."""
+def test_a_thread_in_view_opens_and_leaves_the_tab_strip(browser, serve):
+    """A thread whose passage is in view opens without moving the tab strip the user
+    scrolled: on a phone, which has no room for the rail, in the floating panel."""
     page = open_page(
         browser, serve(LONG_STRIP_PAGE, events=[_comment_on("open-words")])
     )
@@ -409,7 +409,10 @@ def test_a_thread_in_view_opens_beside_it_and_leaves_the_tab_strip(browser, serv
     left = strip.evaluate("s => (s.scrollLeft = s.scrollWidth, s.scrollLeft)")
     assert left > 0, "the strip fits, so it proves nothing"
     assert open_where_the_user_stands(page, "open-words") is True
-    expect(page.locator(".lf-margin-preview")).to_be_visible()
+    expect(
+        page.locator(".lf-fp-view:not([data-leaving]) .lf-page-thread")
+    ).to_be_visible()
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
     assert strip.evaluate("s => s.scrollLeft") == left
 
 

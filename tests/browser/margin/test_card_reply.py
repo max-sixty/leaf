@@ -1182,13 +1182,13 @@ def test_open_reply_keeps_its_top_after_card_moves_to_right_rail(browser, serve)
         )
 
 
-@pytest.mark.parametrize("size", [(800, 520), (1000, 600)])
+@pytest.mark.parametrize("size", [(1000, 520), (1000, 600)])
 def test_a_growing_draft_holds_its_card_s_side_and_the_editor_s_top(
     browser, serve, size
 ):
     """Each new line keeps the card on its side and the reply's first line where it was,
     until the card's foot meets the window's; further lines scroll inside the editor.
-    No keystroke flips the card over its cluster (800x520 stands over it) or carries
+    No keystroke flips the card over its cluster (1000x520 stands over it) or carries
     its first line along the boundary (1000x600 stands under it)."""
     page, _preview, editor = drafting_in_a_short_card(browser, serve, *size)
     held = page.evaluate(CARD_AND_REPLY)
@@ -1330,7 +1330,7 @@ def test_an_answer_arriving_lifts_a_card_beside_its_words(browser, serve, repeat
 def test_an_agent_reply_leaves_the_reply_being_typed_where_it_stands(browser, serve):
     """An agent answer waits behind a notice while the user writes in the card."""
     # The short card, where an arrival has the least room to take.
-    size = (800, 520)
+    size = (1000, 520)
     page, preview, editor = drafting_in_a_short_card(browser, serve, *size)
     before = preview.evaluate(DRAFTING_CARD)
     append_carried_log_record(
@@ -1408,7 +1408,9 @@ def test_an_agent_reply_into_an_open_card_cues_only_its_own_words(browser, serve
     assert preview.evaluate(cued) == ["reply"]
 
 
-@pytest.mark.parametrize(("size", "how"), [((1200, 900), "key"), ((800, 520), "press")])
+@pytest.mark.parametrize(
+    ("size", "how"), [((1200, 900), "key"), ((1000, 520), "press")]
+)
 def test_a_sent_reply_leaves_the_reply_row_where_it_stands(browser, serve, size, how):
     """Sending keeps the reply's foot through admission, then releases it for news
     and, beside the words, for the next draft; over them the next draft typed in the
@@ -1558,19 +1560,7 @@ def test_a_sent_reply_leaves_the_reply_row_where_it_stands(browser, serve, size,
     expect(editor).to_be_focused()
 
 
-@pytest.mark.parametrize(
-    "window",
-    [
-        {"viewport": {"width": 1280, "height": 800}},
-        {
-            "viewport": {"width": 390, "height": 844},
-            "is_mobile": True,
-            "has_touch": True,
-        },
-    ],
-    ids=["desktop", "phone"],
-)
-def test_a_thread_card_reply_stays_in_the_visible_viewport(browser, serve, window):
+def test_a_thread_card_reply_stays_in_the_visible_viewport(browser, serve):
     """Zooming in, like a phone's software keyboard, shrinks the visible viewport without
     resizing the window, and a card whose reply the user is writing stands inside what
     is left, clear of the floating panel. The zoom stands in for the keyboard, which no
@@ -1583,7 +1573,7 @@ def test_a_thread_card_reply_stays_in_the_visible_viewport(browser, serve, windo
         f'<h1 id="t">Card</h1>{filler}<p id="low">The paragraph a thread is on.</p>'
         f"{after}",
     )
-    context = browser.new_context(**window)
+    context = browser.new_context(viewport={"width": 1280, "height": 800})
     page = open_page(
         browser, serve(source, events=[_comment_on("low")]), context=context
     )

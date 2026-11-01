@@ -787,10 +787,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
      surfaces.css), and no more than the heads leave beside each one's name and time
      (`--lf-news-room`, thread-card.js, `#fitMarginNews`), and it says one count of
      all that waits (held-news.js, `newsNotice`).
-     A desktop card's heads keep their names and times whole beside it. On a phone's
-     card, whose three controls, notice and Edit each take a finger's width, a head
-     still lacks room for both, and gives up its name first (above). Drawn whole, the
-     notice stood over the head of the user's message, which read "M51d ago".
+     A card's heads keep their names and times whole beside it under a fine pointer. A
+     touch screen's card near its least width, whose three controls, notice and Edit
+     each take a finger's width, can leave a head short of room for both, and it gives
+     up its time first (above). Drawn whole, the notice stood over the head of the
+     user's message on a phone's card, which read "M51d ago".
      Rejected: the notice wrapping beneath the actions, which would stand over the
      first message's words in the actions' track. */
   .lf-margin-thread .lf-margin-thread-controls .lf-thread-news {

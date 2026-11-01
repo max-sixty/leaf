@@ -29,6 +29,21 @@
    else an enclosing one's), never those of a target inside it: a thread on an obligation's
    options shows from the options, not from the obligation (`threadEntryAt`).
 
+   The card is a wide window's surface: it stands only on a window with room for the
+   rail (content-layout.js, `windowHoldsRail`), whether or not this page's Layout stands
+   one there. On a window with no room for it, as a phone's, no card opens
+   (`showPreview`) and nothing accompanies a target; every route to a thread, a press on
+   its marker included, opens it where a thread the page draws no view of opens
+   (thread/destination.js): the floating panel, which holds a whole thread full-width
+   from the window's foot, its passage quoted at its head and Show on page taking the
+   user to the passage itself. A card open as a narrowing window loses the rail goes
+   there too (`yieldPreview`), and a widening one gives the thread back to a card
+   (destination.js, `returnToPage`). The user chose this on 31 October 2026 over a card
+   placed for a narrow window, which stood under or over its words in from the window's
+   edge, over a strip of cut-off words and often over the passage itself, and needed
+   placement rules of its own. Its cost is that the panel covers most of a phone's
+   window, so the passage shows there only in the quote, until Show on page.
+
    Each frozen cluster model names controls by contribution and entry identity. The Lit view
    retains their native nodes, so a state refresh cannot cancel a held pointer or move focus.
    A print-media render is deferred until screen media returns because print removes the
@@ -39,6 +54,7 @@
    gestures request that same pass. Mount binds the overlay's mechanical lifecycle. */
 
 import { createThreadPreview } from "./thread-preview.js";
+import { windowHoldsRail } from "../content-layout.js";
 
 import { afterScript, cancelRender, nextRender } from "../rendering.js";
 import { spokenSubject } from "../contribution-model.js";
@@ -129,6 +145,7 @@ import { threadNamed } from "../thread/state.js";
 import { carryingThreadPlace, currentLocationThreadId } from "../thread/focus.js";
 
 import { claimed, revealHeld } from "../thread/surfaces.js";
+import { releaseReplies } from "../thread/replies.js";
 
 import { createMarginClusterViews } from "./margin-cluster-view.js";
 
@@ -158,6 +175,7 @@ import { retainUserIntent } from "../user-intent.js";
  * refreshInventory: ReturnType<typeof import("../annotation-inventory.js").createAnnotationInventory>["collect"],
  * renderAnnotations: (() => void) & {refresh: () => void},
  * openPageThread: ReturnType<typeof import("../thread/destination.js").createThreadDestinations>["openPageThread"],
+ * returnToPage: ReturnType<typeof import("../thread/destination.js").createThreadDestinations>["returnToPage"],
  * designModeActive: () => boolean, pointerModeActive: () => boolean,
  * leavePageMap: ReturnType<typeof import("../page-map-dialog.js").createPageMapDialog>["leavePageMap"],
  * openPageMap: ReturnType<typeof import("../page-map-dialog.js").createPageMapDialog>["openPageMap"],
@@ -168,6 +186,7 @@ export function createMarginProjection({
   refreshInventory,
   renderAnnotations,
   openPageThread,
+  returnToPage,
   designModeActive,
   pointerModeActive,
   leavePageMap,
@@ -1063,6 +1082,9 @@ export function createMarginProjection({
       document.dispatchEvent(new CustomEvent("lf-margin-entry-options-closed"));
   }
 
+  // Whether the window held the rail when the margin last rendered (`renderNow`).
+  /** @type {boolean | null} */
+  let railRoom = null;
   /** @param {readonly Entry[]} inventory */
   function renderNow(inventory) {
     const selected = card.selection();
@@ -1189,6 +1211,7 @@ export function createMarginProjection({
       const fresh = pageInventory.find((entry) => entry.key === selected.entry.key);
       const freshChoice = fresh && threadReading(fresh);
       if (!fresh || !freshChoice) closePreview();
+      else if (!windowHoldsRail()) yieldPreview();
       else {
         const owner = threadMarginEntry(fresh);
         if (
@@ -1213,6 +1236,12 @@ export function createMarginProjection({
         }
       }
     }
+    // The room for the rail coming back gives the floating panel the threads its going
+    // took (`yieldPreview`) back to cards (thread/destination.js, `returnToPage`), once
+    // this render has drawn the entries they hang from.
+    const room = windowHoldsRail();
+    if (room && railRoom === false) queueMicrotask(() => void returnToPage());
+    railRoom = room;
     refreshHighlight();
     scheduleMarginLayout();
     scheduleRoving();
@@ -1304,7 +1333,7 @@ export function createMarginProjection({
     threadItem = null,
     { origin = null, accompanies = false, forced = false } = {},
   ) {
-    if (designModeActive()) return null;
+    if (designModeActive() || !windowHoldsRail()) return null;
     const previous = card.selection();
     const disclosed =
       (previous?.disclosed && previous.entry.key === entry.key) ||
@@ -1330,6 +1359,9 @@ export function createMarginProjection({
     return positioned;
   }
 
+  // A press on a marker opens its card, or puts away the card it already shows. Where
+  // no card stands, as on a window with no room for the rail (header), the thread opens
+  // where every other route opens it (thread/destination.js): the floating panel.
   /** @param {Entry} entry @param {ThreadChoice} choice @param {Element} button */
   function togglePinned(entry, choice, button) {
     const selected = card.selection();
@@ -1337,7 +1369,9 @@ export function createMarginProjection({
       closePreview();
       return;
     }
-    card.focusThread(showPreview(entry, choice, button));
+    const positioned = showPreview(entry, choice, button);
+    if (positioned) card.focusThread(positioned);
+    else void openPageThread(threadIdOf(choice), { part: "thread", travel: false });
   }
 
   // Closing the card hands a user who was in it on (focus.js, `closeLayer`). A close
@@ -1355,6 +1389,27 @@ export function createMarginProjection({
     const heldInside = currentLocationIn(preview) && !carryingThreadPlace(at);
     closeLayer(() => card.close(), heldInside && (() => land(button)));
     paintKeys();
+  }
+  // A card a window narrowed past the room for the rail gives its thread to where every
+  // route now opens it (`showPreview`), the floating panel, and a user in it goes along:
+  // the reply they are writing, the row itself with its caret and undo history
+  // (thread/replies.js, `releaseReplies`), or the thread. A widened window gives it back
+  // (thread/destination.js, `returnToPage`).
+  function yieldPreview() {
+    const id = card.thread()?.getAttribute("data-thread");
+    const inCard = currentLocationIn(preview);
+    const replying = card.replying();
+    const intent = retainUserIntent();
+    releaseReplies(preview);
+    closePreview(() => {});
+    if (id)
+      void openPageThread(id, {
+        part: replying ? "reply" : "thread",
+        focus: inCard,
+        travel: false,
+        scroll: false,
+        intent,
+      });
   }
   /** @param {PreviewSelection} previous @param {Entry | null} [next] */
   function retirePreviewDisclosure(previous, next = null) {

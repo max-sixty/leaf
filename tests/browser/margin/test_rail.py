@@ -96,7 +96,9 @@ def test_the_rail_stands_where_the_room_beside_the_column_holds_it(
     everywhere else, so the column keeps its measure at every width. A finger's larger
     entries widen the rail, so each pointer flips at its own width: the column's box
     (720 and 2 x 24 of padding) and a rail on each side. The sweep walks down through
-    that width and reads where the markers stand."""
+    that width and reads where the markers stand. A margin card stands on a window with
+    that room and nowhere else (content-layout.js, `windowHoldsRail`), so a column
+    page's card and its rail come and go together."""
     context = browser.new_context(
         viewport={"width": 1200, "height": 900}, has_touch=touch
     )
@@ -114,12 +116,12 @@ def test_the_rail_stands_where_the_room_beside_the_column_holds_it(
         resized(page, width, 900)
         margins_laid_out(page)
         reading = page.evaluate(
-            """() => {
-              const main = document.querySelector('main');
-              const style = getComputedStyle(main);
+            """async () => {
+              const {windowHoldsRail} = await window.__lfCheckApi();
               const row = document.querySelector('[data-lf-margin-for="lede"]');
               return {
                 place: row.dataset.lfPlace,
+                card: windowHoldsRail(),
                 column: Math.round(document.querySelector('#lede').getBoundingClientRect().width),
                 shell: document.body.clientWidth,
               };
@@ -133,6 +135,7 @@ def test_the_rail_stands_where_the_room_beside_the_column_holds_it(
             f"at a {reading['shell']}px shell, with a {rail:g}px rail needing "
             f"{floor:g}px, the markers stood as {reading['place']}"
         )
+        assert reading["card"] == (expected == "rail"), reading
         places.add(reading["place"])
     assert places == {"rail", "pin"}, "the sweep never crossed the rail's width"
 

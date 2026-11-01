@@ -1,11 +1,11 @@
-import { PENDING_TASK, actionIcon, afterScript, agentArrivalDuration, bindQueuedWork, byRenderedOrder, composedParentNode, elementDirective, failSoft, failSoftUnreported, frameVisibility, generatedElement, holdRendering, iconTemplate, isNativeLayer, keeps, keepsHidden, keepsText, nextRender, offer, offerAction, onFrameVisibility, once, placesFailure, readSampleVisibility, reducedMotion, renderedOrder, renderedParent, renderedUnder, reportFailure, scrollBehavior, setScroll, shadowHost, sizeObserver, stagesFailure, under, upFrom, watchArrivalsIn, watchOwner, whileConnected } from "./bundle-portable.js";
-import { DRAFT_FORMAT, LitElement, PENDING, PRESENTATION_DOM, TEXT_FIELD, Z, actionForWidget, agentName, anchorKey, annotationMarkSheets, annotationMode, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, canPlaceFocus, closeLayer, closeNativeLayer, d, deepFocus, discussed, documentChanged, drawingSchema, drawn, editable, focusDestination, focused, handBack, holdFocus, html, inputCount, isMessageEvent, isThreadEvent, marksSheet, matchesWhen, move, moved, nothing, offlineInteractive, offlineState, onCurrentLocation, onUserInput, openLayer, openerOf, pageUrl, presentDocument, pressIsKeyboardActivation, projectionOrigins, q, queueWidgetUpdate, reactionsAt, readApplication, readPart, registry, render, runtime, setPresentationFailureReporter, shadowRootsIn, shadowRules, showNativeLayer, stateCoordinate, tagsDeclaring, takesLetters, threadKey, tokenChoices, turns, watchCurrentLocationIn, watchLayers, watchPresentation, whenApplicationRegionsPresented, whenDocumentPresented, whenLeft, whenWidgetsPresented, x } from "./bundle-layer-stack.js";
-import { PRESS, TEXT_ENTRY, admitResponse, announce, claimsEsc, commandAvailable, commandBinding, commandRoutes, completeData, controlAvailabilityOutput, countTraffic, cycledRow, dataHeaders, el, holdingError, isCommandScope, keys, layerHeaders, notice, paintKeys, paintKeysWithin, postEvent, projectCommandScope, raiseError, randomId, recordInteraction, removeRuntimeRootStyle, repaint, reportCarried, reportPageError, responseAction, reveal, rowArrows, sameLayer, savedReadingSettled, saying, sessionIsActive, setRuntimeRootStyle, watchCommandAvailability, watchPendingTraffic } from "./bundle-layer-client.js";
-import { activityTransitionDue, addressableLabel, addressableWord, afterPresentation, ago, anchorForRange, anchoringIsReady, commitPoint, declaredName, livePoint, markStateApplied, moveScrollerBy, observeServerNow, observeWorkingGrace, reachScrollers, readingRegionFor, saidNow, scheduleDocumentLayout, sectionOf, settlePageInterface, targetSegments, tickClock, visualPartLabel, widgetWord } from "./bundle-content-layout.js";
-import { HOLDS_WORD, HeldNews, MessageView, NOT_ANSWERED, SAYS_IN, THREAD, ThreadView, Transcript, aborted, allButCommandReference, allThreads, anchorLabel, answeredInWords, authoredHolder, authoredStates, awaitsData, beginThreadSeats, beginWalk, bindsInput, bringBackSurfaceOf, claimed, clearDraft, commitThreadSeats, commitWidgetDescriptors, comparisonBase, comparisonChanges, completeReadingReturn, createProjectionPresentation, createReplyView, dataReader, declareSide, descriptorStillMatches, dismissReplyAt, draftContexts, drawnThreadId, externalMark, focusThread, focusedThreadTarget, heldOut, heldThread, holdReplyCompositions, holdThreadPlace, inlineComparison, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, listWalkPosition, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, messageHolding, messageReading, messageText, mountFirstMessage, newsNotice, obligationHolding, obligationPlace, openMessageEditIn, opensElsewhere, orderChildren, pageCommand, pageScope, pageSelection, placeOf as placeOf$1, placePageThreads as placePageThreads$1, placedMarkdownTokens, prepareAuthoredMessage, progressFace, quoted as quoted$1, readObligations, readThreads, readingReturn, registerWritingDestination, rememberWriting, renderMarginThread, renderSeats, renderSurfaces, replyAvailable, replyDraftContext, replyThreadKey, retainThreadSeats, revealHeld, saveDraft, sendLanding, sendMessage, setChildren, settleAcceptedDrafts, showHeld, showHeldThread, strongestWorkflow, suppliedSnapshot, surfaceFocusTarget, threadAttention, threadDraft, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading as threadReading$1, threadReplyInput, threadRewrites, threadState, todoLabel, toggleInlineComparison, transferDraft, watchDraft, watchDrafts, watchThreadSurfaces, wholeThread, widgetDescriptor, workflowLabel, workflowVoice } from "./bundle-data.js";
-import { clamp, clippedContents, clipsPastSurfaces, growthIsSeen, hasArea, intersect, layoutWindow, placeBox, placeHolder, presented as presented$1, seenRect, shownWindow, union, watchRoom, whenNone } from "./bundle-geometry.js";
+import { LAYOUT, PENDING_TASK, actionIcon, afterScript, agentArrivalDuration, atLayoutPrecision, bindQueuedWork, byRenderedOrder, cancelRender, composedParentNode, dataBody, elementDirective, failSoft, failSoftUnreported, frameVisibility, generatedElement, holdRendering, iconTemplate, inlineStyle, isNativeLayer, keeps, keepsHidden, layoutPx, nextRender, offer, offerAction, onFrameVisibility, once, placesFailure, readSampleVisibility, reducedMotion, renderedOrder, renderedParent, renderedUnder, reportFailure, scrollBehavior, setScroll, shadowHost, sizeObserver, stagesFailure, tabStore, under, upFrom, watchArrivalsIn, watchOwner, whileConnected } from "./bundle-portable.js";
+import { DRAFT_FORMAT, LIVE_ROOT, LitElement, PENDING, PRESENTATION_DOM, PRESSES, TEXT_FIELD, Z, actionForWidget, agentName, agentSays, anchorKey, annotationMarkSheets, annotationMode, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, blurFocused, canPlaceFocus, closeLayer, closeNativeLayer, currentLocationIn, d, discussed, documentChanged, drawingSchema, drawn, editable, eventSource, focusDestination, focused, handBack, hasObligationSource, holdFocus, html, inputCount, isMessageEvent, isThreadEvent, leafSays, marksSheet, matchesWhen, move, moved, nativeFocusTarget, offlineInteractive, offlineState, onCurrentLocation, onUserInput, openLayer, openerOf, pageUrl, presentDocument, pressIsKeyboardActivation, projectionOrigins, q, queueWidgetUpdate, reactionsAt, readApplication, readPart, registry, render, runtime, saidBy, setPresentationFailureReporter, shadowRootsIn, shadowRules, showNativeLayer, tagsDeclaring, takesLetters, threadKey, tokenChoices, turns, voiced, watchCurrentLocationIn, watchLayers, watchPresentation, whenApplicationRegionsPresented, whenDocumentPresented, whenLeft, whenWidgetsPresented, wordsText, x } from "./bundle-layer-stack.js";
+import { PRESS, TEXT_ENTRY, admitResponse, announce, claimsEsc, commandAvailable, commandBinding, commandRoutes, commandRun, completeData, controlAvailabilityOutput, countTraffic, cycledRow, dataHeaders, el, hasRows, holdingError, isCommandScope, keys, layerHeaders, nativePress, notice, paintKeys, paintKeysWithin, postEvent, projectCommandScope, raiseError, randomId, recordInteraction, removeRuntimeRootStyle, repaint, reportCarried, reportPageError, responseAction, reveal, rowArrows, sameLayer, savedReadingSettled, saying, sessionIsActive, setRuntimeRootStyle, watchCommandAvailability, watchPendingTraffic } from "./bundle-layer-client.js";
+import { activityTransitionDue, addressableLabel, addressableWord, afterPresentation, ago, anchorAt, anchorBox, anchorElement, anchorForRange, anchorReaches, anchorReading, anchoringIsReady, commitPoint, cutFrames, declaredName, livePoint, markStateApplied, moveScrollerBy, nameAnchor, observeServerNow, observeWorkingGrace, reachScrollers, readingRegionFor, saidNow, scheduleDocumentLayout, scrollsWith, sectionOf, settlePageInterface, targetSegments, tickClock, visualPartLabel, widgetWord } from "./bundle-content-layout.js";
+import { HOLDS_WORD, HeldNews, MessageView, NOT_ANSWERED, SAYS_IN, THREAD, ThreadView, Transcript, aborted, allButCommandReference, allThreads, anchorLabel, answeredInWords, authoredHolder, authoredStates, awaitsData, beginThreadSeats, beginWalk, bindsInput, bringBackSurfaceOf, claimed, clearDraft, commitThreadSeats, commitWidgetDescriptors, comparisonBase, comparisonChanges, completeReadingReturn, createProjectionPresentation, createReplyView, dataReader, declareSide, descriptorStillMatches, dismissReplyAt, draftContexts, drawnThreadId, externalMark, focusThread, focusedThreadTarget, heldOut, heldThread, holdReplyCompositions, holdThreadPlace, inlineComparison, isBlockPlacement, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, listWalkPosition, loadDraft, loadMarkdown, loadMessageMarkdown, markdownReady, messageHolding, messageReading, messageText, mountFirstMessage, newsNotice, obligationHolding, obligationPlace, offerComparison, onReadingInterrupted, openMessageEditIn, opensElsewhere, orderChildren, pageCommand, pageScope, pageSelection, placeOf as placeOf$1, placePageThreads as placePageThreads$1, placedMarkdownTokens, prepareAuthoredMessage, progressFace, quoted as quoted$1, readObligations, readThreads, readingIsContinuous, readingReturn, registerWritingDestination, rememberWriting, renderMarginThread, renderSeats, renderSurfaces, replyDraftContext, replyIsEditing, replyThreadKey, retainThreadSeats, revealHeld, revisionBase, saveDraft, sendLanding, sendMessage, setChildren, settleAcceptedDrafts, showHeld, showHeldThread, stopComparison, strongestWorkflow, suppliedSnapshot, surfaceFocusTarget, threadAttention, threadDraft, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading as threadReading$1, threadReplyInput, threadRewrites, threadState, todoWord, toggleInlineComparison, transferDraft, watchDraft, watchDrafts, watchThreadSurfaces, wholeThread, widgetDescriptor, workflowWord } from "./bundle-data.js";
+import { clamp, clippedContents, clipsPastSurfaces, growthIsSeen, hasArea, headerCuts, intersect, layoutWindow, nearObserver, nearWindow, paintClips, placeBox, placeHolder, presented as presented$1, scrollsContent, seenRect, shownBox, shownWindow, union, watchRoom, whenNone } from "./bundle-geometry.js";
 import { closestAcross, elementById, excerptWords, inChrome, labelWords, leafSurface, pageParts, pageReadingVersion, quoteFrom, textNodesUnder, watchPassageRoot } from "./bundle-passages.js";
-import { alreadyShown, fitsWhole, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView } from "./bundle-copy-control.js";
+import { alreadyShown, copyTrigger, fitsWhole, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView } from "./bundle-copy-control.js";
 import { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
 import { visibleTargetParts } from "./bundle-visible-target-parts.js";
 
@@ -161,8 +161,8 @@ function createDelivery({ ledger, applyAcceptedState, settleRejected, settlement
 			if (entry.admitted) return { accepted: entry.admitted };
 			const held = runtime.data;
 			const sent = await Promise.race([postEvent(event, held).then((response) => ({ response }), (error) => ({ error })), entry.read.then((accepted) => ({ accepted }))]);
-			if (sent.accepted) return { accepted: sent.accepted };
-			if (sent.error) {
+			if ("accepted" in sent) return { accepted: sent.accepted };
+			if ("error" in sent) {
 				await retry(runtime.keyRefused ? "This tab lost access — open the link again in a new tab and this goes through" : "Lost the connection — keep this page open and this goes through");
 				continue;
 			}
@@ -172,8 +172,8 @@ function createDelivery({ ledger, applyAcceptedState, settleRejected, settlement
 				continue;
 			}
 			const decoded = await Promise.race([sent.response.json().then((answer) => ({ answer }), (error) => ({ error })), entry.read.then((accepted) => ({ accepted }))]);
-			if (decoded.accepted) return { accepted: decoded.accepted };
-			if (decoded.error) {
+			if ("accepted" in decoded) return { accepted: decoded.accepted };
+			if ("error" in decoded) {
 				await retry("Not through yet — trying again…");
 				continue;
 			}
@@ -187,7 +187,7 @@ function createDelivery({ ledger, applyAcceptedState, settleRejected, settlement
 			}
 			if (refusedAnswer(answer) && (!("attempt" in answer) || answer.attempt === event.attempt)) return {
 				accepted: null,
-				state: completeData(answer.state, held),
+				...answer.state ? { state: completeData(answer.state, held) } : {},
 				refusal: `Couldn't ${event.kind === "edit" ? "save the edit" : "take this"} — ${answer.error || "it was refused"}`
 			};
 			await retry("Not through yet — trying again…");
@@ -231,11 +231,11 @@ function createDelivery({ ledger, applyAcceptedState, settleRejected, settlement
 	}
 	return { drain };
 }
-async function deliverBookkeeping(event, applyState) {
+async function deliverBookkeeping(event, applyState, { keepalive = false } = {}) {
 	const held = runtime.data;
 	let response;
 	try {
-		response = await postEvent(event, held);
+		response = await postEvent(event, held, { keepalive });
 	} catch {
 		return "unreached";
 	}
@@ -246,58 +246,44 @@ async function deliverBookkeeping(event, applyState) {
 	} catch {
 		return "unreached";
 	}
-	if (answer && "state" in answer) await applyAnswerState(applyState, completeData(answer.state, held));
+	if (answer && answer.state) await applyAnswerState(applyState, completeData(answer.state, held));
 	return acceptedAnswer(response, answer) ? "accepted" : refusedAnswer(answer) ? "refused" : "unreached";
 }
 
 //#endregion
 //#region runtime/contribution-model.js
-const entryRecords = /* @__PURE__ */ new WeakSet();
-const isContributionEntry = (entry) => entryRecords.has(entry);
-const CONTRIBUTION_ENTRY_SCHEMA = Object.freeze({
-	tones: Object.freeze([
-		"neutral",
-		"positive",
-		"negative"
-	]),
-	behaviors: Object.freeze([
-		"action",
-		"disclosure",
-		"status"
-	]),
-	states: Object.freeze([
-		"idle",
-		"engaged",
-		"busy",
-		"failed"
-	]),
-	ranks: Object.freeze([
-		"complete",
-		"escape",
-		"primary",
-		"secondary",
-		"reading",
-		"overflow"
-	])
+const TONES = Object.freeze({
+	neutral: true,
+	positive: true,
+	negative: true
 });
-const TONES = new Set(CONTRIBUTION_ENTRY_SCHEMA.tones);
-const BEHAVIORS = new Set(CONTRIBUTION_ENTRY_SCHEMA.behaviors);
-const STATES = new Set(CONTRIBUTION_ENTRY_SCHEMA.states);
-const RANKS = new Set(CONTRIBUTION_ENTRY_SCHEMA.ranks);
-const STATE_PRIORITY = /* @__PURE__ */ new Map([
-	["failed", 0],
-	["busy", 1],
-	["engaged", 2],
-	["idle", 3]
-]);
-const RANK_PRIORITY = /* @__PURE__ */ new Map([
-	["complete", 0],
-	["escape", 1],
-	["primary", 2],
-	["secondary", 3],
-	["reading", 4],
-	["overflow", 5]
-]);
+const BEHAVIORS = Object.freeze({
+	action: true,
+	disclosure: true,
+	status: true
+});
+const RANK_PRIORITY = Object.freeze({
+	complete: 0,
+	escape: 1,
+	primary: 2,
+	secondary: 3,
+	reading: 4,
+	overflow: 5
+});
+const STATE_PRIORITY = Object.freeze({
+	idle: 3,
+	engaged: 2,
+	busy: 1,
+	failed: 0
+});
+const entryRecords = /* @__PURE__ */ new WeakSet();
+const isContributionEntry = (entry) => entry !== void 0 && entryRecords.has(entry);
+const CONTRIBUTION_ENTRY_SCHEMA = Object.freeze({
+	tones: Object.freeze(Object.keys(TONES)),
+	behaviors: Object.freeze(Object.keys(BEHAVIORS)),
+	states: Object.freeze(Object.keys(STATE_PRIORITY)),
+	ranks: Object.freeze(Object.keys(RANK_PRIORITY))
+});
 const ENTRY_OPTIONS = /* @__PURE__ */ new Set([
 	"key",
 	"glyph",
@@ -307,7 +293,6 @@ const ENTRY_OPTIONS = /* @__PURE__ */ new Set([
 	"voice",
 	"accessibleLabel",
 	"context",
-	"contextVoice",
 	"description",
 	"behavior",
 	"tone",
@@ -324,7 +309,7 @@ const ENTRY_OPTIONS = /* @__PURE__ */ new Set([
 	"className",
 	"scope"
 ]);
-const KINDS = Object.freeze(Object.fromEntries(Object.entries({
+const kinds = {
 	action: {
 		label: "Action",
 		icon: "dot",
@@ -396,7 +381,9 @@ const KINDS = Object.freeze(Object.fromEntries(Object.entries({
 		icon: "activity",
 		priority: 4
 	}
-}).map(([kind, face]) => [kind, Object.freeze(face)])));
+};
+for (const face of Object.values(kinds)) Object.freeze(face);
+const KINDS = Object.freeze(kinds);
 const READING_OPTIONS = /* @__PURE__ */ new Set([
 	"kind",
 	"subject",
@@ -413,7 +400,8 @@ const unknownOptions = (offered, allowed, kind) => {
 };
 const freezeRelation = (relation) => {
 	if (relation == null) return null;
-	if (relation.kind === "entries") {
+	const kind = relation.kind;
+	if (kind === "entries") {
 		const keys = relation.keys?.map(text$1).filter(Boolean) ?? [];
 		if (!keys.length) throw new TypeError("A contribution entry relation needs at least one entry key");
 		return Object.freeze({
@@ -422,7 +410,7 @@ const freezeRelation = (relation) => {
 			expanded: Boolean(relation.expanded)
 		});
 	}
-	if (relation.kind === "element") {
+	if (kind === "element") {
 		const id = text$1(relation.id);
 		if (!id) throw new TypeError("A margin element relation needs an id");
 		return Object.freeze({
@@ -432,11 +420,11 @@ const freezeRelation = (relation) => {
 			popup: relation.popup == null ? null : text$1(relation.popup)
 		});
 	}
-	throw new TypeError(`Unknown contribution entry relation: ${String(relation.kind)}`);
+	throw new TypeError(`Unknown contribution entry relation: ${String(kind)}`);
 };
 function contributionEntry$1(offered) {
 	unknownOptions(offered, ENTRY_OPTIONS, "entry");
-	const { key, glyph = null, action = null, icon: mark = null, label, voice = "agent", accessibleLabel = null, context = null, contextVoice = null, description = null, behavior = "action", tone = "neutral", rank = "primary", state = "idle", visible = true, disabled = false, count = 1, pressed = null, workflowReceipt = void 0, relation = null, activation = key, title = null, className = null, scope = null } = offered;
+	const { key, glyph = null, action = null, icon: mark = null, label, voice = null, accessibleLabel = null, context = null, description = null, behavior = "action", tone = "neutral", rank = "primary", state = "idle", visible = true, disabled = false, count = 1, pressed = null, workflowReceipt = void 0, relation = null, activation = key, title = null, className = null, scope = null } = offered;
 	if (!text$1(key)) throw new TypeError("A contribution entry needs a key");
 	if ([
 		text$1(glyph),
@@ -445,22 +433,21 @@ function contributionEntry$1(offered) {
 	].filter(Boolean).length !== 1) throw new TypeError("A contribution entry needs exactly one glyph, action or icon");
 	const icon = action ? actionIcon(action) : mark;
 	if (!text$1(label)) throw new TypeError("A contribution entry needs a label");
-	if (!TONES.has(tone)) throw new TypeError(`Unknown contribution entry tone: ${tone}`);
-	if (!BEHAVIORS.has(behavior)) throw new TypeError(`Unknown contribution entry behavior: ${behavior}`);
-	if (!RANKS.has(rank)) throw new TypeError(`Unknown contribution entry rank: ${rank}`);
-	if (!STATES.has(state)) throw new TypeError(`Unknown contribution entry state: ${state}`);
+	if (!Object.hasOwn(TONES, tone)) throw new TypeError(`Unknown contribution entry tone: ${tone}`);
+	if (!Object.hasOwn(BEHAVIORS, behavior)) throw new TypeError(`Unknown contribution entry behavior: ${behavior}`);
+	if (!Object.hasOwn(RANK_PRIORITY, rank)) throw new TypeError(`Unknown contribution entry rank: ${rank}`);
+	if (!Object.hasOwn(STATE_PRIORITY, state)) throw new TypeError(`Unknown contribution entry state: ${state}`);
 	if (!Number.isSafeInteger(count) || count < 0) throw new TypeError("A contribution entry count must be a non-negative integer");
 	if (behavior !== "status" && !text$1(activation)) throw new TypeError("An actionable contribution entry needs an activation");
 	if (behavior === "status" && scope != null) throw new TypeError("A status contribution entry cannot have a command scope");
-	const record = Object.freeze({
+	const fields = {
 		key: text$1(key),
 		glyph: glyph == null ? null : String(glyph),
 		icon,
 		label: text$1(label),
 		voice,
 		accessibleLabel: text$1(accessibleLabel) || text$1(label),
-		context: text$1(context) || null,
-		contextVoice,
+		context: typeof context === "string" || context == null ? text$1(context) || null : context,
 		description: text$1(description) || null,
 		behavior,
 		tone,
@@ -472,9 +459,17 @@ function contributionEntry$1(offered) {
 		pressed: pressed == null ? null : Boolean(pressed),
 		workflowReceipt,
 		relation: freezeRelation(relation),
-		activation: behavior === "status" ? null : text$1(activation),
 		title: text$1(title) || null,
 		className: text$1(className) || null
+	};
+	const record = behavior === "status" ? Object.freeze({
+		...fields,
+		behavior,
+		activation: null
+	}) : Object.freeze({
+		...fields,
+		behavior,
+		activation: text$1(activation)
 	});
 	entryRecords.add(record);
 	return record;
@@ -482,12 +477,12 @@ function contributionEntry$1(offered) {
 function normalizeContributionReading(reading, owner) {
 	unknownOptions(reading, READING_OPTIONS, "contribution");
 	const { kind = null, subject = null, state = "idle", side = "before", notice = null, entries = [], readings = [] } = reading;
-	if (!STATES.has(state)) throw new TypeError(`Unknown contribution state: ${state}`);
+	if (!Object.hasOwn(STATE_PRIORITY, state)) throw new TypeError(`Unknown contribution state: ${state}`);
 	if (kind != null && !Object.hasOwn(KINDS, kind)) throw new TypeError(`Unknown contribution kind "${kind}" in contribution "${owner}"`);
 	if (side !== "before" && side !== "after") throw new TypeError(`Unknown contribution side: ${side}`);
 	const keys = /* @__PURE__ */ new Set();
 	const normalizedEntries = entries.map((entry) => {
-		const normalized = entryRecords.has(entry) ? entry : contributionEntry$1(entry);
+		const normalized = isContributionEntry(entry) ? entry : contributionEntry$1(entry);
 		if (keys.has(normalized.key)) throw new TypeError(`Duplicate contribution entry key "${normalized.key}" in contribution "${owner}"`);
 		keys.add(normalized.key);
 		const owned = Object.freeze({
@@ -507,7 +502,7 @@ function normalizeContributionReading(reading, owner) {
 		tone: text$1(notice.tone) || "negative"
 	});
 	return Object.freeze({
-		kind: text$1(kind) || null,
+		kind,
 		subject: text$1(subject) || null,
 		state,
 		side,
@@ -516,15 +511,15 @@ function normalizeContributionReading(reading, owner) {
 		readings: Object.freeze(readings.map(({ activate, ...item }) => Object.freeze(item)))
 	});
 }
-const contributionEntryStateRank = (state) => STATE_PRIORITY.get(state);
+const contributionEntryStateRank = (state) => STATE_PRIORITY[state];
 const contributionState = (offered) => offered.reading.state;
 function compareContributions(left, right) {
-	return STATE_PRIORITY.get(left.reading.state) - STATE_PRIORITY.get(right.reading.state) || left.key.localeCompare(right.key);
+	return STATE_PRIORITY[left.reading.state] - STATE_PRIORITY[right.reading.state] || left.key.localeCompare(right.key);
 }
 function compareContributionEntryRecords(left, right) {
-	const state = STATE_PRIORITY.get(left.offered.reading.state) - STATE_PRIORITY.get(right.offered.reading.state);
+	const state = STATE_PRIORITY[left.offered.reading.state] - STATE_PRIORITY[right.offered.reading.state];
 	if (state) return state;
-	const rank = RANK_PRIORITY.get(left.record.rank) - RANK_PRIORITY.get(right.record.rank);
+	const rank = RANK_PRIORITY[left.record.rank] - RANK_PRIORITY[right.record.rank];
 	if (rank) return rank;
 	return left.offered.key.localeCompare(right.offered.key) || left.record.key.localeCompare(right.record.key);
 }
@@ -537,7 +532,7 @@ const spokenSubject = (value) => excerptWords(value, SPOKEN_SUBJECT_CAP);
 //#region runtime/contribution-controls.js
 const commandScopes = /* @__PURE__ */ new WeakMap();
 const commandEntries = /* @__PURE__ */ new WeakSet();
-const contributionOwnsCommand = (record) => commandEntries.has(record);
+const contributionOwnsCommand = (record) => record !== void 0 && commandEntries.has(record);
 const CONTRIBUTION_ENTRY = Symbol("contribution entry");
 function bindScope(record, declared) {
 	const scope = commandScopes.get(declared) ?? declared.scope;
@@ -552,30 +547,32 @@ function contributionEntry(offered) {
 	if (command) commandEntries.add(offered);
 	return bindScope(contributionEntry$1(contributionOwnsCommand(offered) ? {
 		...offered,
-		disabled: commandDisabled(scope, command)
+		disabled: commandDisabled(command)
 	} : offered), offered);
 }
 function contributionCommand(record) {
-	if (!contributionOwnsCommand(record)) return null;
+	if (!record || !contributionOwnsCommand(record)) return null;
 	return entryCommand(commandScopes.get(record), record.activation);
 }
 function contributionCommandDisabled(record) {
-	const scope = commandScopes.get(record);
 	const command = contributionCommand(record);
-	return contributionOwnsCommand(record) && commandDisabled(scope, command);
+	return contributionOwnsCommand(record) && commandDisabled(command);
 }
-const commandDisabled = (scope, command) => Boolean(!command || scope.scope.when && !scope.scope.when() || !commandAvailable(command.row, command.route));
+const commandDisabled = (command) => Boolean(!command || command.scope.scope.when && !command.scope.scope.when() || !commandAvailable(command.row, command.route));
 function entryCommand(scope, id) {
-	for (const row of scope?.scope.rows ?? []) {
-		if (!row.run) continue;
+	if (!scope) return null;
+	for (const row of scope.scope.rows) {
+		if (!row.run && !row.runKey) continue;
 		const routes = commandRoutes(row);
 		if (!routes.length && row.id === id) return {
+			scope,
 			row,
 			route: null,
 			binding: commandBinding(row)
 		};
 		const route = routes.find((route) => route.id === id);
 		if (route) return {
+			scope,
 			row,
 			route,
 			binding: commandBinding(row, route)
@@ -587,7 +584,7 @@ function normalizeReading(reading, owner, previous = null) {
 	const priorEntries = new Map((previous?.entries ?? []).map((entry) => [entry.key, entry]));
 	const entries = (reading.entries ?? []).map((entry) => {
 		const prior = priorEntries.get(entry.key);
-		if (contributionOwnsCommand(prior) && entry.activation === prior.activation && (commandScopes.get(entry) ?? entry.scope) === commandScopes.get(prior)) commandEntries.add(entry);
+		if (prior && contributionOwnsCommand(prior) && entry.activation === prior.activation && (commandScopes.get(entry) ?? entry.scope) === commandScopes.get(prior)) commandEntries.add(entry);
 		if (!isContributionEntry(entry)) return contributionEntry(entry);
 		if (!contributionOwnsCommand(entry)) return entry;
 		const { owner: _owner, ...fields } = entry;
@@ -602,7 +599,12 @@ function normalizeReading(reading, owner, previous = null) {
 		...reading,
 		entries
 	}, owner);
-	normalized.entries.forEach((entry, index) => bindScope(entry, entries[index]));
+	const declarations = entries[Symbol.iterator]();
+	for (const entry of normalized.entries) {
+		const declared = declarations.next();
+		if (declared.done) break;
+		bindScope(entry, declared.value);
+	}
 	return normalized;
 }
 const contributionControls = /* @__PURE__ */ new WeakMap();
@@ -646,17 +648,26 @@ function agentWorkflowDescription(control) {
 	}
 	return reading;
 }
-function syncAgentArrival(control, claim, stage) {
-	if (stage !== "working") {
+function syncAgentArrival(control, receipt) {
+	if (!receipt || progressFace(receipt) !== "working") {
 		control.removeAttribute("data-lf-agent-arrival");
 		return;
 	}
-	if (!claimArrivals.has(claim)) claimArrivals.set(claim, performance.now());
-	const elapsed = performance.now() - claimArrivals.get(claim);
+	const claim = JSON.stringify([
+		receipt.subject.kind,
+		receipt.subject.id,
+		receipt.id
+	]);
+	let began = claimArrivals.get(claim);
+	if (began === void 0) {
+		began = performance.now();
+		claimArrivals.set(claim, began);
+	}
+	const elapsed = performance.now() - began;
 	if (controlArrivals.get(control) === claim) return;
 	controlArrivals.set(control, claim);
 	if (elapsed >= agentArrivalDuration() || reducedMotion()) return;
-	control.style.setProperty("--lf-agent-arrival-delay", `${-elapsed}ms`);
+	inlineStyle(control).setProperty("--lf-agent-arrival-delay", `${-elapsed}ms`);
 	keeps(control, "data-lf-agent-arrival", "1");
 	control.addEventListener("animationend", () => control.removeAttribute("data-lf-agent-arrival"), { once: true });
 }
@@ -672,13 +683,16 @@ function paintAgentDescription(control) {
 	paintLabelMore(control, [
 		reading.title !== record?.label && reading.title,
 		reading.stage && reading.word,
-		reading.stage && reading.detail
-	].filter(Boolean).join(" · "));
+		reading.stage && reading.detail && agentSays(reading.detail)
+	].flatMap((part) => part ? [part] : []).flatMap((part, index) => index ? [" · ", part] : [part]));
 	if (!reading.stage) {
-		for (const [attribute, value] of [["aria-description", reading.description], ["title", reading.title]]) keeps(control, attribute, value);
+		for (const [attribute, value] of Object.entries({
+			"aria-description": reading.description,
+			title: reading.title
+		})) keeps(control, attribute, value);
 		return;
 	}
-	const work = [reading.word, reading.detail].filter(Boolean).join(" · ");
+	const work = [reading.word?.text, reading.detail].filter(Boolean).join(" · ");
 	keeps(control, "aria-description", [reading.description, work].filter(Boolean).join(" · "));
 	keeps(control, "title", [
 		record?.title ?? record?.label,
@@ -688,7 +702,7 @@ function paintAgentDescription(control) {
 }
 function paintLabelMore(control, more) {
 	const line = control.querySelector(":scope > .lf-margin-entry-label > .lf-margin-entry-more");
-	if (line) keepsText(line, more ?? "");
+	if (line) render(voiced(more ?? []), line);
 }
 function syncAgentDescriptionBase(control, description, title) {
 	Object.assign(agentWorkflowDescription(control), {
@@ -699,16 +713,12 @@ function syncAgentDescriptionBase(control, description, title) {
 }
 function syncContributionAgentWorkflow(control, receipt) {
 	const paintedStage = progressFace(receipt);
-	syncAgentArrival(control, receipt && JSON.stringify([
-		receipt.subject.kind,
-		receipt.subject.id,
-		receipt.id
-	]), paintedStage);
+	syncAgentArrival(control, receipt);
 	const reading = agentWorkflowDescription(control);
 	keeps(control, "data-lf-agent-workflow", paintedStage || null);
-	Object.assign(reading, paintedStage ? {
+	Object.assign(reading, receipt && paintedStage ? {
 		stage: paintedStage,
-		word: workflowLabel(receipt, agentName()),
+		word: workflowWord(receipt, agentName()),
 		detail: receipt.detail
 	} : {
 		stage: null,
@@ -764,14 +774,17 @@ function presentContributionHost(control, offered, { accessibleLabel = null, rel
 	} else {
 		keeps(control, "role", "button");
 		keeps(control, "aria-disabled", record.disabled);
-		if (writesSeat && control.tabIndex < 0) control.tabIndex = 0;
+		if (writesSeat) {
+			const target = nativeFocusTarget(control);
+			if (target.tabIndex < 0) target.tabIndex = 0;
+		}
 	}
 	keeps(control, "aria-label", accessibleLabel ?? record.accessibleLabel);
 	syncAgentDescriptionBase(control, record.description || null, record.title || null);
 	projectCommandScope(control, CONTRIBUTION_ENTRY, commandScopes.get(record));
 	return record;
 }
-const contributionHost = elementDirective("contributionHost", (control, source, surface, record, options) => {
+const contributionHost = elementDirective("contributionHost", (control, source, surface, record, options = void 0) => {
 	presentContributionHost(control, record, options);
 	trackContributionControl(source, surface, record.key, control);
 });
@@ -796,12 +809,10 @@ function presentContributionEntry(control, offered, options = {}) {
       >`;
 	render(html`${glyph}<span class="lf-margin-entry-space" aria-hidden="true"> </span
       ><span class="lf-margin-entry-label" aria-hidden="true"
-        ><span class="lf-margin-entry-label-word" data-voice=${record.voice}
-          >${visibleLabel}</span
-        >${record.context ? html`<span
-                class="lf-margin-entry-context"
-                data-voice=${record.contextVoice ?? nothing}
-                >${record.context}</span
+        ><span class="lf-margin-entry-label-word"
+          >${record.voice ? voiced(saidBy(record.voice, visibleLabel)) : visibleLabel}</span
+        >${record.context ? html`<span class="lf-margin-entry-context"
+                >${voiced(record.context)}</span
               >` : null}<span class="lf-margin-entry-more"></span></span
       >${record.count > 1 ? html`<span class="lf-margin-count" aria-hidden="true"
               >${record.count}</span
@@ -824,31 +835,34 @@ function trackContributionControl(offered, surface, key, control) {
 	controls.set(key, control);
 }
 function clearContributionControls(offered, surface, liveKeys) {
-	const controls = presented.get(offered)?.get(surface);
-	if (!controls) return;
+	const surfaces = presented.get(offered);
+	const controls = surfaces?.get(surface);
+	if (!surfaces || !controls) return;
 	for (const [key, control] of controls) {
 		if (liveKeys.has(key)) continue;
 		controls.delete(key);
-		if (![...presented.get(offered).values()].some((seats) => [...seats.values()].includes(control))) releaseContributionControl(control);
+		if (![...surfaces.values()].some((seats) => [...seats.values()].includes(control))) releaseContributionControl(control);
 	}
 }
 function contributionControl(offered, entryKey, surface = null, visible = false) {
 	const surfaces = presented.get(offered);
-	for (const name of surface ? [surface] : [
+	const names = surface ? [surface] : [
 		"margin",
 		"page",
 		"map",
 		"inline"
-	]) {
+	];
+	for (const name of names) {
 		const control = surfaces?.get(name)?.get(entryKey);
 		if (control?.isConnected && (!visible || control.checkVisibility())) return control;
 	}
 	return null;
 }
+const presentedControls = (offered) => [...presented.get(offered)?.values() ?? []].flatMap((controls) => [...controls.values()]);
 function contributionContains(offered, node) {
-	if (!(node instanceof Node)) return false;
-	return [...presented.get(offered)?.values() ?? []].some((controls) => [...controls.values()].some((control) => control === node || control.contains(node)));
+	return presentedControls(offered).some((control) => renderedUnder(node, control));
 }
+const contributionHasCurrentLocation = (offered) => presentedControls(offered).some(currentLocationIn);
 function releaseContributionControl(control) {
 	controlAvailabilityOutput(control, CONTRIBUTION_ENTRY);
 	projectCommandScope(control, CONTRIBUTION_ENTRY, null);
@@ -872,70 +886,97 @@ function activateContributionControl({ offered, entry, control, surface, event }
 		}
 	});
 }
-function materializeContributionControls(source, surface, activate) {
+function materializeContributionControls(offer, surface, activate) {
+	const source = offer.source();
 	let controls = contributionControls.get(source);
 	if (!controls) {
 		controls = /* @__PURE__ */ new Map();
 		contributionControls.set(source, controls);
 	}
-	const entries = source.reading.entries.filter((entry) => entry.visible);
+	const directory = controls;
+	const entries = offer.reading.entries.filter((entry) => entry.visible);
 	const liveKeys = new Set(entries.map((entry) => entry.key));
-	const changed = /* @__PURE__ */ new Set();
-	for (const key of controls.keys()) if (!liveKeys.has(key)) controls.delete(key);
-	for (const entry of entries) {
-		let control = controls.get(entry.key);
+	for (const key of directory.keys()) if (!liveKeys.has(key)) directory.delete(key);
+	const retain = (entry) => {
+		let control = directory.get(entry.key);
+		let changed;
 		if (!control || !contributionControlMatches(control, entry)) {
 			control = createContributionControl(entry);
-			controls.set(entry.key, control);
-			changed.add(control);
-		} else if (contributionEntryRecord(control) !== entry) changed.add(control);
-		control.onclick = (event) => activate({
+			directory.set(entry.key, control);
+			changed = true;
+		} else changed = contributionEntryRecord(control) !== entry;
+		const native = control;
+		native.onclick = (event) => activate({
 			offered: source,
 			entry,
-			control,
+			control: native,
 			surface,
 			event
 		});
-		trackContributionControl(source, surface, entry.key, control);
-	}
+		trackContributionControl(source, surface, entry.key, native);
+		return {
+			entry,
+			control: native,
+			changed
+		};
+	};
+	const drawn = entries.map(retain);
 	clearContributionControls(source, surface, liveKeys);
-	for (const entry of entries) {
-		const control = controls.get(entry.key);
-		const related = entry.relation?.kind === "entries" ? entry.relation.keys.map((key) => controls.get(key)).filter(Boolean) : [];
+	const paint = ({ entry, control, changed }) => {
+		const related = entry.relation?.kind === "entries" ? entry.relation.keys.flatMap((key) => directory.get(key) ?? []) : [];
 		related.forEach((node, index) => {
 			if (!node.id) node.id = `lf-margin-related-${++relationOrdinal}-${index + 1}`;
 		});
-		if (changed.has(control)) presentContributionEntry(control, entry, { relatedControlIds: related.map((node) => node.id) });
-	}
-	return controls;
+		if (changed) presentContributionEntry(control, entry, { relatedControlIds: related.map((node) => node.id) });
+	};
+	drawn.forEach(paint);
+	return (entry) => {
+		const view = retain(entry);
+		paint(view);
+		return view.control;
+	};
 }
 
 //#endregion
 //#region runtime/contributions.js
 const text = (value) => String(value ?? "").trim();
-const contributionSources = /* @__PURE__ */ new WeakMap();
 let publishing = 0;
-const contributionSource = (model) => contributionSources.get(model);
-function publishReading(offered) {
+function readPublication(offered, previous, source) {
 	publishing++;
 	try {
 		const declared = offered.read();
-		const normalized = normalizeReading(declared, offered.key, offered.reading);
-		if (!offered.activate && normalized.entries.some((entry) => entry.behavior !== "status" && !contributionOwnsCommand(entry))) throw new TypeError("An unscoped contribution action needs an activate function");
-		offered.readingActions = new Map((declared.readings ?? []).map(({ id, activate }) => [id, activate]));
-		offered.reading = normalized;
-		const { readings, ...reading } = offered.reading;
-		offered.model = Object.freeze({
-			key: offered.key,
-			reading: Object.freeze({
-				...reading,
-				hasReadings: readings.length > 0
+		const reading = normalizeReading(declared, offered.key, previous);
+		const unscoped = [];
+		for (const entry of reading.entries) {
+			if (entry.behavior === "status" || contributionOwnsCommand(entry)) continue;
+			const activate = offered.activate;
+			if (!activate) throw new TypeError("An unscoped contribution action needs an activate function");
+			unscoped.push({
+				entry,
+				activate
+			});
+		}
+		const readingActions = new Map((declared.readings ?? []).map(({ id, activate }) => [id, activate]));
+		const { readings, ...fields } = reading;
+		return {
+			reading,
+			readingActions,
+			unscoped,
+			model: Object.freeze({
+				key: offered.key,
+				reading: Object.freeze({
+					...fields,
+					hasReadings: readings.length > 0
+				}),
+				source
 			})
-		});
-		contributionSources.set(offered.model, offered);
+		};
 	} finally {
 		publishing--;
 	}
+}
+function publishReading(offered) {
+	Object.assign(offered, readPublication(offered, offered.reading, offered.model.source));
 }
 const contributions = /* @__PURE__ */ new Set();
 const listeners = /* @__PURE__ */ new Set();
@@ -964,17 +1005,13 @@ function registerContribution({ key, target, source = target, read, activate }) 
 	const owner = text(key);
 	if (!owner) throw new TypeError("A contribution needs a key");
 	const targetOf = typeof target === "function" ? target : () => target;
-	const offered = {
+	const sourceOf = source === target ? targetOf : typeof source === "function" ? source : () => source;
+	const sourceCapability = () => offered;
+	const publication = readPublication({
 		key: owner,
-		target: targetOf,
-		source: source === target ? targetOf : typeof source === "function" ? source : () => source,
 		read,
-		activate,
-		reading: null
-	};
-	publishReading(offered);
-	contributions.add(offered);
-	changed();
+		activate
+	}, null, sourceCapability);
 	const entry = (entryKey) => offered.reading.entries.find((candidate) => candidate.key === entryKey) ?? null;
 	const control = (entryKey, surface = null, visible = false) => {
 		settle();
@@ -1012,6 +1049,9 @@ function registerContribution({ key, target, source = target, read, activate }) 
 		contains(node) {
 			return contributionContains(offered, node);
 		},
+		hasCurrentLocation() {
+			return contributionHasCurrentLocation(offered);
+		},
 		activate(entryKey, context = {}) {
 			if (!contributions.has(offered)) return false;
 			const current = entry(text(entryKey));
@@ -1028,8 +1068,12 @@ function registerContribution({ key, target, source = target, read, activate }) 
 				focus: originOwnsFocus ? focusCurrentSurface : () => false
 			};
 			const command = contributionCommand(current);
-			if (command) command.row.run(command.binding, activationContext);
-			else offered.activate(current.activation, activationContext);
+			if (command) commandRun(command.row, command.binding)?.();
+			else {
+				const action = offered.unscoped.find(({ entry }) => entry === current);
+				if (!action) return false;
+				action.activate(action.entry.activation, activationContext);
+			}
 			return true;
 		},
 		activateReading(id) {
@@ -1063,7 +1107,18 @@ function registerContribution({ key, target, source = target, read, activate }) 
 			changed();
 		}
 	});
-	offered.registration = registration;
+	const offered = {
+		key: owner,
+		target: targetOf,
+		source: sourceOf,
+		read,
+		activate,
+		...publication,
+		registration,
+		focusRequest: null
+	};
+	contributions.add(offered);
+	changed();
 	return registration;
 }
 
@@ -1073,7 +1128,7 @@ const FIELDS = drawingSchema.properties;
 const MAX_DRAWING_STROKES = FIELDS.strokes.maxItems;
 const MAX_DRAWING_FRAME_DEPTH = FIELDS.frame.properties.path.maxItems;
 const MAX_DRAWING_POINTS = FIELDS.strokes.items.maxItems;
-const DRAWING_COORDINATE_LIMIT = FIELDS.strokes.items.items.prefixItems[0].maximum;
+const DRAWING_COORDINATE_LIMIT = Math.min(...FIELDS.strokes.items.items.prefixItems.map((axis) => axis.maximum));
 const MAX_DRAWING_SAYS_LENGTH = FIELDS.says.maxLength;
 function sentDrawing(drawing) {
 	const { at, ...sent } = drawing;
@@ -1114,6 +1169,7 @@ function editorViewOver({ Compartment, Direction, EditorState, EditorView, State
 			rectangle: caret.getBoundingClientRect()
 		};
 		const destination = position.node instanceof Element ? position.node : position.node.parentElement;
+		if (!destination) throw new Error("CodeMirror returned a caret outside its editor DOM");
 		const box = destination.getBoundingClientRect();
 		const x = view.textDirection === Direction.LTR ? box.left : box.right;
 		return {
@@ -1136,7 +1192,7 @@ function editorViewOver({ Compartment, Direction, EditorState, EditorView, State
 		};
 		for (const provider of view.state.facet(EditorView.scrollMargins)) {
 			const supplied = provider(view);
-			if (supplied) for (const edge of Object.keys(margins)) margins[edge] = Math.max(margins[edge], supplied[edge] ?? 0);
+			if (supplied) for (const edge of EDGES) margins[edge] = Math.max(margins[edge], supplied[edge] ?? 0);
 		}
 		const port = view.scrollDOM;
 		const box = port.getBoundingClientRect();
@@ -1157,6 +1213,12 @@ function editorViewOver({ Compartment, Direction, EditorState, EditorView, State
 			behavior: "instant"
 		});
 	}
+	const EDGES = [
+		"top",
+		"bottom",
+		"left",
+		"right"
+	];
 	const navigation = new Compartment();
 	const reveal = EditorView.scrollHandler.of((view, selection, options) => {
 		const { destination, rectangle } = caretAt(view, selection.head);
@@ -1180,8 +1242,8 @@ function editorViewOver({ Compartment, Direction, EditorState, EditorView, State
 				if (!this.#focusing) this.placeSelection();
 			});
 		}
-		caretAt(at) {
-			return caretAt(this, at);
+		static caretAt(view, at) {
+			return caretAt(view, at);
 		}
 		setState(state) {
 			super.setState(withNavigation(state));
@@ -1189,6 +1251,7 @@ function editorViewOver({ Compartment, Direction, EditorState, EditorView, State
 		focus() {
 			if (!canPlaceFocus()) return;
 			const selection = this.#selection();
+			if (!selection) return;
 			if (this.root.activeElement !== this.contentDOM && selection.getComposedRanges({ shadowRoots: this.root instanceof ShadowRoot ? [this.root] : [] }).some((range) => this.contentDOM.contains(range.startContainer) || this.contentDOM.contains(range.endContainer))) selection.removeAllRanges();
 			this.#focusing = true;
 			try {
@@ -1203,7 +1266,7 @@ function editorViewOver({ Compartment, Direction, EditorState, EditorView, State
 			const { anchor, head } = this.state.selection.main;
 			const from = this.domAtPos(anchor);
 			const to = this.domAtPos(head);
-			this.#selection().setBaseAndExtent(from.node, from.offset, to.node, to.offset);
+			this.#selection()?.setBaseAndExtent(from.node, from.offset, to.node, to.offset);
 		}
 		#selection() {
 			return this.root.getSelection?.() ?? this.dom.ownerDocument.getSelection();
@@ -1213,21 +1276,217 @@ function editorViewOver({ Compartment, Direction, EditorState, EditorView, State
 
 //#endregion
 //#region runtime/composing/field-editor.js
+const indentation = (text) => text.length - text.replace(/^[ \t]*/, "").length;
+const trailingIndentation = (text) => text.length - text.replace(/[ \t]*$/, "").length;
 const touches = (state, from, to) => state.selection.ranges.some((range) => range.from <= to && range.to >= from);
 const read = (state) => {
-	return placedMarkdownTokens(state.doc.toString());
+	const source = state.doc.toString();
+	const last = state.doc.line(state.doc.lines).text;
+	if (!/^(?:[\s>]|(?:[-+*]|\d{1,9}[.)])[ \t])*$/.test(last)) return placedMarkdownTokens(source);
+	return placedMarkdownTokens(`${source}x`).filter(({ token, to }) => token.block || to <= source.length);
 };
-const FACE_PROBE = "<div></div><p></p><h1></h1><h2></h2><h3></h3><h4></h4><h5></h5><h6></h6><pre></pre><blockquote></blockquote><ul><li></li><li></li></ul><ol></ol><div></div>";
+const columns = (text) => {
+	let col = 0;
+	for (const ch of text) col = ch === "	" ? col + 4 - col % 4 : col + 1;
+	return col;
+};
+const ITEM = "list_item_open";
+const LIST = /^(bullet|ordered)_list_open$/;
+function readLists(placed) {
+	const open = [];
+	const groups = [];
+	const items = [];
+	for (const placement of placed) {
+		for (let last = open.at(-1); last && last.placement.to <= placement.from; last = open.at(-1)) open.pop();
+		if (LIST.test(placement.token.type)) open.push({
+			placement,
+			reading: null,
+			depth: open.length + 1,
+			next: placement.token.type === "ordered_list_open" ? Number(placement.token.attrGet("start") ?? 1) : null
+		});
+		else if (isBlockPlacement(placement, "list_item_open")) {
+			const owner = open.at(-1);
+			if (owner) {
+				if (!owner.reading) {
+					owner.reading = {
+						placement: owner.placement,
+						items: [],
+						last: placement,
+						depth: owner.depth
+					};
+					groups.push(owner.reading);
+				}
+				const item = {
+					...placement,
+					source: placement,
+					list: owner.reading,
+					number: owner.next
+				};
+				owner.reading.items.push(item);
+				owner.reading.last = placement;
+				items.push(item);
+				if (owner.next !== null) owner.next++;
+			}
+		}
+	}
+	return {
+		groups,
+		items
+	};
+}
+const itemEnd = (placed, item) => Math.max(...placed.filter(({ token, from, to }) => token.block && !LIST.test(token.type) && from >= item.from && to <= item.to).map((b) => b.token.type === ITEM ? b.from + 1 : b.to));
+function nestItems(source, placed, from, to, deeper) {
+	const starts = [0];
+	for (let at = source.indexOf("\n"); at !== -1; at = source.indexOf("\n", at + 1)) starts.push(at + 1);
+	const lineStart = (pos) => source.slice(0, pos).lastIndexOf("\n") + 1;
+	const lineEnd = (start) => {
+		const at = source.indexOf("\n", start);
+		return at === -1 ? source.length : at;
+	};
+	const { groups, items } = readLists(placed);
+	const end = (item) => Math.min(source.length, itemEnd(placed, item));
+	const within = (c, at) => c.from <= at && at < c.to;
+	const first = lineStart(from);
+	const last = to > from && lineStart(to) === to ? lineStart(to - 1) : lineStart(to);
+	const holding = items.filter((i) => i.from <= first && first < end(i)).at(-1);
+	const chosen = items.filter((i) => i === holding || i.from >= first && i.from <= last);
+	if (!chosen.length) return null;
+	const above = (i) => i.list.items.findLast((s) => s.from < i.from);
+	const parent = (i) => {
+		const list = i.list.placement;
+		return items.findLast((c) => c.token.level === list.token.level - 1 && within(c, list.from));
+	};
+	const next = ({ token }) => `${token.info && Number(token.info) + 1}${token.markup}`;
+	const quotes = (i) => placed.filter((c) => isBlockPlacement(c, "blockquote_open")).filter((c) => c.token.level < i.token.level && within(c, i.from));
+	const base = (i, start) => Math.max(start, ...quotes(i).flatMap((q) => q.markers).filter(([a]) => a >= start && a <= lineEnd(start)).map(([, b]) => b));
+	const shape = (i) => {
+		const at = base(i, i.from);
+		const [a, b] = i.markers[0];
+		const mark = source.slice(a, b).trimEnd();
+		const rest = source.slice(a + mark.length, lineEnd(i.from));
+		const gap = rest.trim() ? columns(rest.slice(0, indentation(rest))) : 1;
+		const lead = source.slice(at, a);
+		return {
+			at,
+			lead,
+			marker: a,
+			col: columns(lead),
+			mark,
+			words: columns(lead) + mark.length + (gap > 4 ? 1 : gap)
+		};
+	};
+	const changes = [];
+	const moved = [];
+	for (const item of chosen) {
+		if (moved.some(({ item: m }) => m.from < item.from && item.from < end(m))) continue;
+		const own = shape(item);
+		if (/\S/.test(own.lead)) continue;
+		let col;
+		let mark = own.mark;
+		if (deeper) {
+			const before = above(item);
+			if (!before) continue;
+			const along = moved.find((m) => m.item === before);
+			if (along) col = own.col + along.shift;
+			else {
+				col = shape(before).words;
+				const inside = placed.filter((c) => c.token.block && c.token.level === before.token.level + 1 && within(before, c.from));
+				const list = groups.find((group) => group.placement === inside.at(-1));
+				if (list) mark = next(list.last);
+				else if (item.token.info) mark = `1${item.token.markup}`;
+			}
+		} else {
+			const outer = parent(item);
+			if (!outer) continue;
+			col = shape(outer).col;
+			mark = next(outer);
+		}
+		const shift = col - own.col;
+		const by = shift + mark.length - own.mark.length;
+		changes.push(mark === own.mark ? {
+			from: own.at,
+			to: own.marker,
+			insert: " ".repeat(col)
+		} : {
+			from: own.at,
+			to: own.marker + own.mark.length,
+			insert: " ".repeat(col) + mark
+		});
+		for (const start of starts) {
+			if (start <= item.from || start >= end(item)) continue;
+			const at = base(item, start);
+			const lead = source.slice(at, at + indentation(source.slice(at, lineEnd(start))));
+			if (at + lead.length === lineEnd(start)) continue;
+			changes.push({
+				from: at,
+				to: at + lead.length,
+				insert: " ".repeat(Math.max(0, columns(lead) + by))
+			});
+		}
+		moved.push({
+			item,
+			shift
+		});
+	}
+	return changes.filter(({ from, to, insert }) => source.slice(from, to) !== insert);
+}
+const DRAWN = /* @__PURE__ */ new Set([
+	"paragraph_open",
+	"heading_open",
+	"blockquote_open",
+	"bullet_list_open",
+	"ordered_list_open",
+	"list_item_open",
+	"fence",
+	"hr",
+	"text",
+	"hardbreak",
+	"code_inline",
+	"em_open",
+	"strong_open",
+	"s_open",
+	"link_open",
+	"image",
+	"html_inline"
+]);
+const FACE_ELEMENTS = {
+	p: () => document.createElement("p"),
+	h1: () => document.createElement("h1"),
+	h2: () => document.createElement("h2"),
+	h3: () => document.createElement("h3"),
+	h4: () => document.createElement("h4"),
+	h5: () => document.createElement("h5"),
+	h6: () => document.createElement("h6"),
+	pre: () => document.createElement("pre"),
+	blockquote: () => document.createElement("blockquote"),
+	hr: () => document.createElement("hr"),
+	ul: () => document.createElement("ul"),
+	ol: () => document.createElement("ol"),
+	li: () => document.createElement("li")
+};
 const collapsed = (a, b) => Math.max(a, b, 0) + Math.min(a, b, 0);
-const GAP = "calc(max(var(--lf-gap-end), var(--lf-gap-start), 0px) + min(var(--lf-gap-end), var(--lf-gap-start), 0px))";
+const GAP$1 = "calc(max(var(--lf-gap-end), var(--lf-gap-start), 0px) + min(var(--lf-gap-end), var(--lf-gap-start), 0px))";
 function readFaces(field, display) {
 	const probe = display.cloneNode(false);
 	probe.removeAttribute("id");
 	probe.setAttribute("aria-hidden", "true");
 	probe.style.cssText = "position: absolute; visibility: hidden; inline-size: 0; display: block";
-	probe.innerHTML = FACE_PROBE;
+	const preNode = FACE_ELEMENTS.pre();
+	const quoteNode = FACE_ELEMENTS.blockquote();
+	const liNode = FACE_ELEMENTS.li();
+	const ulNode = FACE_ELEMENTS.ul();
+	ulNode.append(FACE_ELEMENTS.li(), liNode);
+	const nodes = [];
+	probe.append(document.createElement("div"));
+	for (const [tag, create] of Object.entries(FACE_ELEMENTS)) {
+		if (tag === "li") continue;
+		const node = tag === "pre" ? preNode : tag === "blockquote" ? quoteNode : tag === "ul" ? ulNode : create();
+		nodes.push([tag, node]);
+		if (tag === "ul") nodes.push(["li", liNode]);
+		probe.append(node);
+	}
+	probe.append(document.createElement("div"));
 	field.after(probe);
-	const face = {};
 	const own = getComputedStyle(field);
 	const TYPE = [
 		"font-size",
@@ -1235,31 +1494,32 @@ function readFaces(field, display) {
 		"font-weight",
 		"letter-spacing"
 	];
-	for (const node of probe.querySelectorAll(":scope > :not(div), li + li")) {
-		const s = getComputedStyle(node);
+	const readFace = (node) => {
+		const style = getComputedStyle(node);
 		const px = (value) => Number.parseFloat(value) || 0;
-		face[node.localName] = {
-			type: TYPE.filter((name) => s.getPropertyValue(name) !== own.getPropertyValue(name)).map((name) => `${name}: ${s.getPropertyValue(name)}`).join("; "),
-			start: px(s.marginTop),
-			end: px(s.marginBottom),
-			padStart: px(s.paddingTop),
-			padEnd: px(s.paddingBottom),
-			inset: s.paddingInlineStart,
-			indent: s.marginInlineStart
+		return {
+			type: TYPE.filter((name) => style.getPropertyValue(name) !== own.getPropertyValue(name)).map((name) => `${name}: ${style.getPropertyValue(name)}`).join("; "),
+			start: px(style.marginTop),
+			end: px(style.marginBottom),
+			padStart: px(style.paddingTop),
+			padEnd: px(style.paddingBottom),
+			inset: style.paddingInlineStart,
+			indent: style.marginInlineStart
 		};
-	}
+	};
+	const li = readFace(liNode), pre = readFace(preNode), quote = readFace(quoteNode);
+	const faces = nodes.map(([tag, node]) => [tag, tag === "li" ? li : tag === "pre" ? pre : tag === "blockquote" ? quote : readFace(node)]);
 	probe.remove();
-	const { li, pre, blockquote: quote } = face;
 	const rules = [];
-	for (const [tag, { type, start, end }] of Object.entries(face)) {
+	for (const [tag, { type, start, end }] of faces) {
 		const list = tag === "ul" || tag === "ol";
 		rules.push(`.lf-face-${tag} { ${type} }`, `.lf-starts-${tag} { --lf-gap-start: ${list ? collapsed(start, li.start) : start}px }`, `.lf-ends-${tag} { --lf-gap-end: ${list ? collapsed(end, li.end) : end}px }`);
 	}
-	rules.push(`.lf-face-gap { line-height: ${GAP} }`, `.lf-face-gap.lf-face-share-2 { line-height: calc(${GAP} / 2) }`, `.lf-face-gap.lf-face-share-3 { line-height: calc(${GAP} / 3) }`, `.lf-face-rule { line-height: 0 }`, `.lf-face-gap-above { padding-block-start: ${GAP} }`, `.lf-face-fence-open { line-height: ${pre.padStart}px }`, `.lf-face-fence-close { line-height: ${pre.padEnd}px }`, `.lf-face-code { padding-inline: ${pre.inset} }`, `.lf-face-quote { margin-inline-start: ${quote.indent}; padding-inline-start: ${quote.inset}; --lf-marker-inset: ${quote.inset} }`, `.lf-face-quote-first { padding-block-start: ${quote.padStart}px }`, `.lf-face-gap-above.lf-face-quote-first { padding-block-start: calc(${GAP} + ${quote.padStart}px) }`, `.lf-face-quote-last { padding-block-end: ${quote.padEnd}px }`, `.lf-face-item { padding-block-start: ${collapsed(li.end, li.start)}px }`, `.lf-face-list-lead { padding-block-start: ${collapsed(0, li.start)}px }`, `.lf-face-list-tail { padding-block-end: ${collapsed(0, li.end)}px }`);
+	rules.push(`.lf-face-gap { line-height: ${GAP$1} }`, `.lf-face-gap.lf-face-share-2 { line-height: calc(${GAP$1} / 2) }`, `.lf-face-gap.lf-face-share-3 { line-height: calc(${GAP$1} / 3) }`, `.lf-face-gap-above { padding-block-start: ${GAP$1} }`, `.lf-face-code { padding-inline: ${pre.inset} }`, `.lf-face-quote { margin-inline-start: ${quote.indent}; --quote-inset: ${quote.inset} }`, `.lf-face-quote-first { padding-block-start: ${quote.padStart}px }`, `.lf-face-gap-above.lf-face-quote-first { padding-block-start: calc(${GAP$1} + ${quote.padStart}px) }`, `.lf-face-quote-last { padding-block-end: ${quote.padEnd}px }`, `.lf-face-item { padding-block-start: ${collapsed(li.end, li.start)}px }`, `.lf-face-list-lead { padding-block-start: ${collapsed(0, li.start)}px }`, `.lf-face-list-tail { padding-block-end: ${collapsed(0, li.end)}px }`);
 	return rules.join("\n");
 }
-const blockTag = (token) => token.type === "fence" || token.type === "code_block" ? "pre" : token.tag;
-function standBlocks(state, placed, out, line) {
+const blockTag = (token) => token.type === "fence" ? "pre" : token.tag;
+function standBlocks(state, blocks, out, line) {
 	const lines = (from, to, each) => {
 		for (let at = from; at < to;) {
 			const current = state.doc.lineAt(at);
@@ -1273,33 +1533,19 @@ function standBlocks(state, placed, out, line) {
 		const share = runs > 1 ? ` lf-face-share-${Math.min(runs, 3)}` : "";
 		lines(from, to, (each) => named(each.from, `lf-face-gap${share} ${gap}`));
 	};
-	const lineTouched = (at) => {
-		const { from, to } = state.doc.lineAt(at);
-		return touches(state, from, to);
-	};
 	const before = [];
 	const open = [];
 	let item = null;
 	const blank = (at) => /^[\s>]*$/.test(state.doc.lineAt(at).text);
-	for (const { token, from, to, markers, contentLines } of placed) {
+	for (const { token, from, to } of blocks) {
 		if (!token.block) continue;
 		const tag = blockTag(token);
-		if (token.type === "heading_open") {
-			lines(...contentLines, (each) => named(each.from, `lf-face-${tag}`));
-			if (!token.markup.startsWith("#")) {
-				for (const [at] of markers) if (!lineTouched(at)) named(state.doc.lineAt(at).from, "lf-face-rule");
-			}
-		} else if (token.type === "fence" || token.type === "code_block") {
-			lines(from, to, (each) => named(each.from, "lf-face-code"));
-			const opener = state.doc.lineAt(from).number;
-			for (const [at] of token.type === "fence" ? markers : []) {
-				const fence = state.doc.lineAt(at);
-				if (lineTouched(at)) continue;
-				const side = fence.number === opener ? "open" : "close";
-				named(fence.from, `lf-face-fence-${side}`);
-			}
+		if (token.type === "heading_open") lines(from, to, (each) => named(each.from, `lf-face-${tag}`));
+		else if (token.type === "fence") lines(from, to, (each) => named(each.from, "lf-face-code"));
+		for (let last = open.at(-1); last && last.to <= from; last = open.at(-1)) {
+			before.length = last.level + 1;
+			open.pop();
 		}
-		while (open.at(-1)?.to <= from) before.length = open.pop().level + 1;
 		const within = open.at(-1)?.type;
 		if (token.type === "list_item_open" && within !== "list_item_open") {
 			if (item?.to === from) named(from, "lf-face-item");
@@ -1312,7 +1558,7 @@ function standBlocks(state, placed, out, line) {
 		});
 		if (token.type === "list_item_open" || within === "list_item_open") continue;
 		const level = token.level;
-		if (!FACE_PROBE.includes(`<${tag}>`)) {
+		if (!Object.hasOwn(FACE_ELEMENTS, tag)) {
 			before[level] = null;
 			continue;
 		}
@@ -1332,19 +1578,14 @@ function standBlocks(state, placed, out, line) {
 		before.length = level + 1;
 		if (token.type === "paragraph_open" && level === 0) lines(from, to, (each) => named(each.from, "lf-face-p"));
 		else if (token.type === "blockquote_open" && level === 0) {
-			lines(from, end, (each) => named(each.from, "lf-face-quote"));
 			named(from, "lf-face-quote-first");
 			named(state.doc.lineAt(Math.max(from, end - 1)).from, "lf-face-quote-last");
 		}
 	}
-	const last = state.doc.line(state.doc.lines);
-	const final = before[0];
-	if (final && final.to < last.from) gapLines(final.to, last.from, `lf-ends-${final.tag} lf-starts-p`);
 }
 let loaded = null;
-const loadFieldEditor = () => loaded ??= import("/vendor/codemirror.esm.js").then((codemirror) => fieldEditor(codemirror, leafEditorView(codemirror)));
-function fieldEditor({ EditorView, EditorState, StateEffect, Compartment, WidgetType, Decoration, LanguageSupport, ViewPlugin, keymap, history, standardKeymap, historyKeymap, isolateHistory, invertedEffects, markdownLanguage, insertNewlineContinueMarkup }, LeafEditorView) {
-	const insertNewline = standardKeymap.find(({ key }) => key === "Enter").run;
+const loadFieldEditor = () => loaded ??= Promise.all([import("/vendor/codemirror.esm.js"), loadMarkdown()]).then(([codemirror]) => fieldEditor(codemirror, leafEditorView(codemirror)));
+function fieldEditor({ EditorView, EditorState, EditorSelection, Prec, StateEffect, StateField, Facet, Compartment, WidgetType, Decoration, BlockWrapper, ViewPlugin, keymap, history, standardKeymap, historyKeymap, isolateHistory, invertedEffects, insertNewline }, LeafEditorView) {
 	const ownerStep = StateEffect.define();
 	const hide = Decoration.replace({});
 	const dim = Decoration.mark({ class: "lf-md-mark" });
@@ -1353,21 +1594,60 @@ function fieldEditor({ EditorView, EditorState, StateEffect, Compartment, Widget
 		class: "lf-md-unseen",
 		attributes: { "aria-hidden": "true" }
 	});
-	const marker = Decoration.mark({
-		class: "lf-md-marker lf-md-unseen",
-		attributes: { "aria-hidden": "true" }
+	const markerFace = (kind) => ({
+		hidden: Decoration.mark({
+			class: `lf-md-marker lf-md-${kind}-marker lf-md-unseen`,
+			attributes: { "aria-hidden": "true" }
+		}),
+		shown: Decoration.mark({ class: `lf-md-marker lf-md-${kind}-marker lf-md-mark` })
 	});
-	const shownMarker = Decoration.mark({ class: "lf-md-marker lf-md-mark" });
+	const markerFaces = {
+		quote: markerFace("quote"),
+		item: markerFace("item")
+	};
+	const markerRun = Decoration.mark({
+		class: "lf-md-markers",
+		inclusiveEnd: true
+	});
+	class Inset extends WidgetType {
+		constructor(kind) {
+			super();
+			this.kind = kind;
+		}
+		eq(other) {
+			return other.kind === this.kind;
+		}
+		toDOM() {
+			const room = document.createElement("span");
+			room.className = `lf-md-marker lf-md-${this.kind}-marker`;
+			room.setAttribute("aria-hidden", "true");
+			return room;
+		}
+	}
+	const insets = {
+		quote: Decoration.widget({
+			widget: new Inset("quote"),
+			side: -1
+		}),
+		item: Decoration.widget({
+			widget: new Inset("item"),
+			side: -1
+		})
+	};
 	const line = (cls) => Decoration.line({ class: cls });
 	const BULLETS = [
 		"lf-md-disc",
 		"lf-md-circle",
 		"lf-md-square"
 	];
-	const itemLine = (depth, kind, number) => Decoration.line({
-		class: kind ? `lf-md-item lf-md-listed ${kind}` : "lf-md-item",
-		attributes: { style: `--lf-list-depth: ${depth}${kind === "lf-md-number" ? `; counter-set: list-item ${number}` : ""}` }
-	});
+	const box = (from, to, level, attributes) => BlockWrapper.create({
+		tagName: "div",
+		attributes: {
+			...attributes,
+			"data-level": String(level)
+		},
+		rank: 100 - level
+	}).range(from, Math.max(from, to - 1));
 	const INLINE = {
 		code_inline: Decoration.mark({ tagName: "code" }),
 		em_open: Decoration.mark({ tagName: "em" }),
@@ -1407,11 +1687,53 @@ function fieldEditor({ EditorView, EditorState, StateEffect, Compartment, Widget
 		widget: new ExternalMark(),
 		side: -1
 	});
+	class Spelled extends WidgetType {
+		constructor(shown) {
+			super();
+			this.shown = shown;
+		}
+		eq(other) {
+			return other.shown === this.shown;
+		}
+		toDOM() {
+			const words = document.createElement("span");
+			words.textContent = this.shown;
+			return words;
+		}
+		ignoreEvent() {
+			return false;
+		}
+	}
+	class TaskBox extends WidgetType {
+		constructor(checked) {
+			super();
+			this.checked = checked;
+		}
+		eq(other) {
+			return other.checked === this.checked;
+		}
+		toDOM() {
+			const box = document.createElement("input");
+			box.type = "checkbox";
+			box.className = "task-list-item-checkbox";
+			box.disabled = true;
+			box.checked = this.checked;
+			return box;
+		}
+		ignoreEvent() {
+			return false;
+		}
+	}
 	function decorate(state, placed) {
 		const out = [];
-		const lists = [];
-		const items = /* @__PURE__ */ new Map();
-		const code = [];
+		const runs = [];
+		const boxes = [];
+		const items = new Map(readLists(placed).items.map((item) => [item.source, item]));
+		const leads = [];
+		const whole = [];
+		const opening = [];
+		const held = [];
+		const after = (line, level) => Math.max(line, ...opening.filter((m) => m.line === line && m.level < level).map((m) => m.to));
 		const add = (from, to, deco) => {
 			if (from >= to) return;
 			if (deco === hide && state.doc.sliceString(from, to).includes("\n")) deco = dim;
@@ -1424,123 +1746,403 @@ function fieldEditor({ EditorView, EditorState, StateEffect, Compartment, Widget
 				at = current.to + 1;
 			}
 		};
-		for (const { token, from, to, contentFrom, contentTo, escapes, markers, contentLines, words: said } of placed) {
+		for (const placement of placed) {
+			const { token, from, to, content, spelled, words: said } = placement;
+			const item = items.get(placement);
+			if (!DRAWN.has(token.type)) continue;
 			const syntax = touches(state, from, to) ? dim : hide;
-			if (token.type === "code_inline" || contentFrom !== void 0) {
-				const words = token.type === "code_inline" ? [from + token.markup.length, to - token.markup.length] : [contentFrom, contentTo];
+			for (const [a, b, shown] of spelled ?? []) {
+				const touched = touches(state, a, b);
+				if (state.doc.sliceString(a, b).endsWith(shown)) add(a, b - shown.length, touched ? dim : hide);
+				else if (touched) add(a, b, dim);
+				else out.push(Decoration.replace({ widget: new Spelled(shown) }).range(a, b));
+			}
+			const words = token.type === "code_inline" ? [from + token.markup.length, to - token.markup.length] : content;
+			if (words) {
 				if (words[0] > words[1]) continue;
-				if (INLINE[token.type]) add(from, to, INLINE[token.type]);
-				else if (token.type === "link_open" && token.meta.linked) {
+				const inline = INLINE[token.type];
+				if (inline) add(from, to, inline);
+				else if (token.type === "link_open" && typeof token.lfSource?.url === "string") {
 					add(words[0], words[1], link);
-					if (opensElsewhere(token.attrGet("href"))) out.push(externalMark$1.range(words[1]));
+					if (opensElsewhere(token.lfSource.url)) out.push(externalMark$1.range(words[1]));
 				}
 				add(from, words[0], syntax);
 				add(words[1], to, syntax);
 			} else if (token.type === "image") {
 				if (said !== "" || state.doc.sliceString(from, to).includes("\n")) continue;
-				const widget = new Picture(token.attrGet("src"), token.content);
+				const widget = new Picture(String(token.attrGet("src")), token.content);
 				out.push(touches(state, from, to) ? Decoration.widget({
 					widget,
 					side: 1
 				}).range(to) : Decoration.replace({ widget }).range(from, to));
-			} else if (token.type === "text") for (const at of escapes ?? []) add(at, at + 1, touches(state, at, at + 2) ? dim : hide);
-			else if (token.type === "heading_open") {
-				lines(...contentLines, (each) => {
-					out.push(line("lf-md-heading").range(each.from));
-				});
-				for (const [a, b] of markers) {
-					const rule = state.doc.lineAt(a);
-					const shown = touches(state, rule.from, rule.to) ? dim : unseen;
-					add(a, b, token.markup.startsWith("#") ? syntax : shown);
-				}
-			} else if (token.type === "fence" || token.type === "code_block") {
-				code.push([from, to]);
-				const body = token.content.split("\n");
-				const opened = state.doc.lineAt(from).number + (token.type === "fence" ? 1 : 0);
+			} else if (token.type === "html_inline") {
+				if (touches(state, from, to)) add(from, to, dim);
+				else out.push(Decoration.replace({ widget: new TaskBox(token.content.includes("checked")) }).range(from, to));
+			} else if (token.type === "paragraph_open") lines(from, to, (each) => leads.push([each.from, token.level]));
+			else if (isBlockPlacement(placement, "heading_open")) {
 				lines(from, to, (each) => {
+					out.push(line("lf-md-heading").range(each.from));
+					leads.push([each.from, token.level]);
+				});
+				for (const [a, b] of placement.markers) add(a, b, syntax);
+			} else if (token.type === "hr") {
+				const rule = state.doc.lineAt(from);
+				whole.push([rule.from, rule.to + 1]);
+				out.push(line("lf-md-rule").range(rule.from));
+				const start = after(rule.from, token.level);
+				const marks = start + indentation(state.doc.sliceString(start, rule.to));
+				add(start, marks, hide);
+				add(marks, rule.to, touches(state, rule.from, rule.to) ? dim : unseen);
+			} else if (isBlockPlacement(placement, "fence")) {
+				whole.push([from, to]);
+				const body = token.content.split("\n");
+				if (body.at(-1) === "") body.pop();
+				const opened = state.doc.lineAt(from).number + 1;
+				lines(from, to, (each) => {
+					const first = each.from <= from;
+					const last = each.to + 1 >= to;
 					const ends = [
-						each.from <= from ? " lf-md-code-first" : "",
-						each.to + 1 >= to ? " lf-md-code-last" : "",
-						token.type === "code_block" ? " lf-md-code-bare" : ""
+						first ? " lf-md-code-first" : "",
+						last ? " lf-md-code-last" : "",
+						last && placement.markers.length < 2 ? " lf-md-code-pad-end" : ""
 					].join("");
 					out.push(line(`lf-md-code-block${ends}`).range(each.from));
 					const kept = body[each.number - opened];
-					if (kept === void 0 || each.number - opened >= body.length - 1) return;
-					const lead = each.text.match(/^[ \t]*/)[0].length;
-					add(each.from, each.from + lead - kept.match(/^[ \t]*/)[0].length, hide);
+					if (kept === void 0) return;
+					const start = after(each.from, token.level);
+					const lead = indentation(state.doc.sliceString(start, each.to));
+					add(start, start + lead - indentation(kept), hide);
 				});
-				for (const [a, b] of markers ?? []) {
+				for (const [a, b] of placement.markers) {
 					const fence = state.doc.lineAt(a);
 					add(a, b, touches(state, fence.from, fence.to) ? dim : unseen);
 				}
-			} else if (token.type === "blockquote_open") {
-				lines(from, to, (each) => {
-					out.push(line("lf-md-quote").range(each.from));
-				});
-				for (const [a, b] of markers) add(a, b, touches(state, a, b) ? shownMarker : marker);
-			} else if (token.type === "bullet_list_open" || token.type === "ordered_list_open") {
-				while (lists.at(-1)?.to <= from) lists.pop();
-				const ordered = token.type === "ordered_list_open";
-				lists.push({
+			} else if (isBlockPlacement(placement, "blockquote_open")) {
+				boxes.push(box(from, to, token.level, { class: "lf-md-quote lf-face-quote" }));
+				held.push({
+					from,
 					to,
-					next: ordered ? Number(token.attrGet("start") ?? 1) : null
+					level: token.level,
+					kind: "quote"
 				});
-			} else if (token.type === "list_item_open") {
-				while (lists.at(-1)?.to <= from) lists.pop();
-				const list = lists.at(-1);
-				const depth = lists.length;
-				const head = state.doc.lineAt(from);
-				const [at, end] = markers[0];
-				const start = at - head.text.slice(0, at - head.from).match(/[ \t]*$/)[0].length;
-				if (head.text.slice(0, start - head.from).trim()) {
-					add(start, end, dim);
-					continue;
-				}
-				lines(head.to + 1, Math.min(to, state.doc.length), (each) => {
-					items.set(each.from, {
-						depth,
-						continued: true
+				for (const [a, b] of placement.markers) {
+					const line = state.doc.lineAt(a).from;
+					opening.push({
+						from: a,
+						to: b,
+						kind: "quote",
+						level: token.level,
+						line
 					});
-				});
-				const kind = list.next === null ? BULLETS[Math.min(depth, BULLETS.length) - 1] : "lf-md-number";
+					leads.push([line, token.level]);
+				}
+			} else if (item) {
+				const depth = item.list.depth;
+				const head = state.doc.lineAt(from);
+				const [at, end] = item.markers[0];
+				const start = Math.max(at - trailingIndentation(head.text.slice(0, at - head.from)), after(head.from, token.level));
+				lines(head.to + 1, to, (each) => leads.push([each.from, token.level]));
+				const kind = item.number === null ? BULLETS[Math.min(depth, BULLETS.length) - 1] : "lf-md-number";
 				const shown = state.selection.ranges.some((range) => range.from < end && range.to >= start);
-				items.set(head.from, {
-					depth,
-					kind: shown ? null : kind,
-					number: list.next
+				boxes.push(box(head.from, to, token.level, shown ? { class: "lf-md-item" } : {
+					class: `lf-md-item lf-md-listed ${kind}`,
+					...item.number !== null && { style: `counter-set: list-item ${item.number}` }
+				}));
+				held.push({
+					from: head.from,
+					to,
+					level: token.level,
+					kind: "item"
 				});
-				if (list.next !== null) list.next++;
-				add(start, end, shown ? shownMarker : marker);
+				opening.push({
+					from: start,
+					to: end,
+					kind: "item",
+					shown,
+					level: token.level,
+					line: head.from
+				});
 			}
 		}
-		for (const [from, { depth, kind, number, continued }] of items) {
-			out.push(itemLine(depth, kind, number).range(from));
-			if (!continued || code.some(([a, b]) => from >= a && from < b)) continue;
-			add(from, from + state.doc.lineAt(from).text.match(/^[ \t]*/)[0].length, hide);
+		const indents = /* @__PURE__ */ new Set();
+		for (const [from, level] of leads) {
+			if (whole.some(([a, b]) => from >= a && from < b)) continue;
+			const start = after(from, level);
+			if (indents.has(start)) continue;
+			if (opening.some((m) => m.kind === "item" && m.line === from && m.from === start)) continue;
+			indents.add(start);
+			const { to } = state.doc.lineAt(from);
+			add(start, start + indentation(state.doc.sliceString(start, to)), hide);
+		}
+		opening.sort((a, b) => a.from - b.from);
+		const groups = [];
+		for (const marker of opening) {
+			const prior = groups.at(-1);
+			if (prior && marker.from === prior.last.to) {
+				prior.last = marker;
+				prior.markers.push(marker);
+			} else groups.push({
+				first: marker,
+				last: marker,
+				markers: [marker]
+			});
+		}
+		for (const { first, last, markers: run } of groups) {
+			runs.push(markerRun.range(first.from, last.to));
+			for (const { from, to, kind, shown } of run) {
+				const faces = markerFaces[kind];
+				out.push((shown ?? touches(state, from, to) ? faces.shown : faces.hidden).range(from, to));
+			}
+			const { line } = first;
+			for (const container of held.filter((c) => c.from <= line && line < c.to && !opening.some((m) => m.line === line && m.level === c.level)).sort((a, b) => a.level - b.level)) {
+				const outside = run.findLast((m) => m.level < container.level);
+				if (outside) out.push(insets[container.kind].range(outside.to));
+			}
 		}
 		standBlocks(state, placed, out, line);
-		return Decoration.set(out, true);
+		return {
+			decorations: Decoration.set(out, true),
+			runs: Decoration.set(runs),
+			boxes: BlockWrapper.set(boxes, true)
+		};
+	}
+	const lineStep = (forward, extend) => (view) => {
+		const { selection, doc } = view.state;
+		const moved = EditorSelection.create(selection.ranges.map((range) => {
+			if (!extend && !range.empty) return EditorSelection.cursor(forward ? range.to : range.from);
+			let step = view.moveVertically(range, forward);
+			const here = view.lineBlockAt(range.head);
+			const at = forward ? here.to + 1 : here.from - 1;
+			const beside = at >= 0 && at <= doc.length ? view.lineBlockAt(at) : null;
+			const passed = (block) => step.head < block.from || step.head > block.to;
+			if (beside && passed(here) && passed(beside) && step.goalColumn !== void 0) {
+				const head = view.posAtCoords({
+					x: view.contentDOM.getBoundingClientRect().left + step.goalColumn,
+					y: view.documentTop + beside.top + beside.height / 2
+				}, false);
+				step = EditorSelection.cursor(head, 0, void 0, step.goalColumn);
+			}
+			return extend ? EditorSelection.range(range.anchor, step.head, step.goalColumn) : step;
+		}), selection.mainIndex);
+		if (moved.eq(selection)) return false;
+		view.dispatch({
+			selection: moved,
+			scrollIntoView: true,
+			userEvent: "select"
+		});
+		return true;
+	};
+	const LINE_STEPS = [{
+		key: "ArrowUp",
+		run: lineStep(false, false),
+		shift: lineStep(false, true)
+	}, {
+		key: "ArrowDown",
+		run: lineStep(true, false),
+		shift: lineStep(true, true)
+	}];
+	const reading = StateField.define({
+		create: (state) => ({
+			placed: read(state),
+			judged: markdownReady()
+		}),
+		update(value, tr) {
+			const judged = markdownReady();
+			return tr.docChanged || judged !== value.judged ? {
+				placed: read(tr.state),
+				judged
+			} : value;
+		}
+	});
+	const container = (c) => isBlockPlacement(c, "blockquote_open") || isBlockPlacement(c, "list_item_open");
+	const item = (c) => c !== void 0 && isBlockPlacement(c, "list_item_open");
+	const holding = (placed, line) => (c) => c.from <= line.from && line.from < (item(c) ? itemEnd(placed, c) : c.to);
+	const markerOn = (c, l) => c.markers.find(([a]) => a >= l.from && a <= l.to);
+	const opened = (l, among) => Math.max(l.from, ...among.map((c) => markerOn(c, l)?.[1] ?? l.from));
+	const carried = (c) => isBlockPlacement(c, "blockquote_open") ? "> " : " ".repeat(c.token.lfSource.indent);
+	const joinsLines = Facet.define({ combine: (values) => values.some(Boolean) });
+	const joint = Decoration.replace({ widget: new Spelled(" ") });
+	const jointsOf = (state) => {
+		if (!state.facet(joinsLines)) return Decoration.none;
+		const { placed } = state.field(reading);
+		const inline = placed.filter(({ token }) => !token.block);
+		const hard = inline.filter(({ token }) => token.type === "hardbreak");
+		const containers = placed.filter(container);
+		const breaks = /* @__PURE__ */ new Set();
+		for (const { from, to } of inline) {
+			const text = state.sliceDoc(from, to);
+			for (let at = text.indexOf("\n"); at >= 0; at = text.indexOf("\n", at + 1)) breaks.add(from + at);
+		}
+		const out = [];
+		for (const at of [...breaks].sort((a, b) => a - b)) {
+			if (hard.some(({ from, to }) => from <= at && at < to)) continue;
+			const line = state.doc.lineAt(at);
+			const next = state.doc.line(line.number + 1);
+			const words = opened(next, containers);
+			out.push(joint.range(at - trailingIndentation(line.text), words + indentation(state.sliceDoc(words, next.to))));
+		}
+		return Decoration.set(out);
+	};
+	const joints = StateField.define({
+		create: jointsOf,
+		update: (set, tr) => tr.state.field(reading) === tr.startState.field(reading) && tr.state.facet(joinsLines) === tr.startState.facet(joinsLines) ? set : jointsOf(tr.state),
+		provide: (field) => [EditorView.decorations.from(field), EditorView.atomicRanges.of((view) => view.state.field(field))]
+	});
+	function newLine(view) {
+		const { state } = view;
+		if (!state.facet(joinsLines)) return insertNewline(view);
+		const { from, to } = state.selection.main;
+		const { placed } = state.field(reading);
+		const paragraph = placed.find(({ token, from: a, to: b }) => token.type === "paragraph_open" && a <= from && to <= b);
+		const words = paragraph ? placed.filter(({ token, from: a, to: b }) => !token.block && token.type !== "softbreak" && a >= paragraph.from && b <= paragraph.to) : [];
+		const before = words.some(({ from: a }) => a < from);
+		const after = words.some(({ to: b }) => b > to);
+		const line = state.doc.lineAt(from);
+		const holds = holding(placed, line);
+		const containers = placed.filter(container).filter(holds);
+		const inner = containers.at(-1);
+		if (inner && (!before || !after && item(inner)) && continueBlocks(view, true)) return true;
+		if (!before) return insertNewline(view);
+		const prefix = containers.map(carried).join("");
+		let spec;
+		if (after) {
+			let [a, b] = [from, to];
+			a -= trailingIndentation(state.sliceDoc(Math.min(a, opened(line, containers)), a));
+			b += indentation(state.sliceDoc(b, state.doc.lineAt(b).to));
+			state.field(joints).between(a, b, (jointFrom, jointTo) => {
+				a = Math.min(a, jointFrom);
+				b = Math.max(b, jointTo);
+			});
+			const breaks = placed.filter(({ token }) => token.type === "hardbreak").map(({ from: at, to: end }) => [at - trailingIndentation(state.sliceDoc(state.doc.lineAt(at).from, at)), end]);
+			a = breaks.find(([at, end]) => at < a && a < end)?.[0] ?? a;
+			const hard = breaks.find(([at, end]) => at <= b && b <= end);
+			const insert = `\\\n${prefix}`;
+			const changes = state.changes(hard ? [{
+				from: Math.min(a, hard[0]),
+				to: hard[0]
+			}, {
+				from: hard[1],
+				insert
+			}] : {
+				from: a,
+				to: b,
+				insert
+			});
+			spec = {
+				changes,
+				selection: { anchor: changes.mapPos(hard?.[1] ?? b, 1) }
+			};
+		} else spec = state.replaceSelection(`\n${prefix.trimEnd()}\n${prefix}`);
+		view.dispatch(state.update(spec, {
+			scrollIntoView: true,
+			userEvent: "input"
+		}));
+		return true;
 	}
 	const livePreview = ViewPlugin.fromClass(class {
 		constructor(view) {
 			this.live = true;
-			this.placed = read(view.state);
-			this.decorations = decorate(view.state, this.placed);
-			this.judged = markdownReady();
-			if (!this.judged) loadMarkdown().then(() => this.live && view.dispatch({}), () => {});
+			this.read = view.state.field(reading);
+			this.drawn = decorate(view.state, this.read.placed);
+			if (!this.read.judged) loadMarkdown().then(() => this.live && view.dispatch({}), () => {});
 		}
 		destroy() {
 			this.live = false;
 		}
 		update(update) {
-			const judged = markdownReady();
-			if (update.docChanged || judged !== this.judged) {
-				this.judged = judged;
-				this.placed = read(update.state);
-			} else if (!update.selectionSet) return;
-			this.decorations = decorate(update.state, this.placed);
+			const read = update.state.field(reading);
+			if (read === this.read && !update.selectionSet) return;
+			this.read = read;
+			this.drawn = decorate(update.state, read.placed);
 		}
-	}, { decorations: (plugin) => plugin.decorations });
+	}, {
+		decorations: (plugin) => plugin.drawn.decorations,
+		provide: (plugin) => [
+			EditorView.outerDecorations.of((view) => view.plugin(plugin)?.drawn.runs ?? Decoration.none),
+			EditorView.blockWrappers.of((view) => view.plugin(plugin)?.drawn.boxes ?? BlockWrapper.set([])),
+			EditorState.tabSize.of(8),
+			Prec.high(keymap.of(LINE_STEPS))
+		]
+	});
+	const CHECKBOX = "[ ] ";
+	function continueBlocks(view, nextItem = false) {
+		const { state } = view;
+		const { placed } = state.field(reading);
+		const { from, to } = state.selection.main;
+		const line = state.doc.lineAt(from);
+		const all = placed.filter(container);
+		const holds = holding(placed, line);
+		const containers = all.filter(holds);
+		const inner = containers.at(-1);
+		if (!inner) return false;
+		const code = placed.some((c) => c.token.type === "fence" && holds(c));
+		const bare = (l) => {
+			const rest = state.sliceDoc(opened(l, all), l.to).trim();
+			return !rest || `${rest} ` === CHECKBOX;
+		};
+		if (from < opened(line, containers)) return false;
+		const task = ({ token }) => String(token.attrGet("class")).split(" ").includes("task-list-item");
+		const next = (c) => `${c.token.info && Number(c.token.info) + 1}${c.token.markup} ${task(c) ? CHECKBOX : ""}`;
+		const outside = containers.slice(0, -1);
+		let change;
+		if (!code && to <= line.to && bare(line)) {
+			const parent = outside.at(-1);
+			const outdent = item(inner) && item(parent);
+			const around = outdent ? outside.slice(0, -1) : outside;
+			const kept = (l) => {
+				let text = "";
+				for (const c of around) {
+					const own = markerOn(c, l);
+					text = own ? state.sliceDoc(l.from, own[1]) : text + carried(c);
+				}
+				return text;
+			};
+			const above = line.number > 1 && state.doc.line(line.number - 1);
+			change = outdent ? {
+				from: line.from,
+				to: line.to,
+				insert: kept(line) + next(parent)
+			} : above && bare(above) ? {
+				from: above.from,
+				to: line.to,
+				insert: `${kept(above).trimEnd()}\n${kept(line)}`
+			} : {
+				from: line.from,
+				to: line.to,
+				insert: `${kept(line).trimEnd()}\n${around.map(carried).join("")}`
+			};
+		} else {
+			const marker = item(inner) && (nextItem || inner.from === line.from) && !code ? next(inner) : carried(inner);
+			change = {
+				from,
+				to,
+				insert: `\n${outside.map(carried).join("")}${marker}`
+			};
+		}
+		if (state.sliceDoc(change.from, change.to) === change.insert) return false;
+		view.dispatch(state.update({
+			changes: change,
+			selection: { anchor: change.from + change.insert.length },
+			scrollIntoView: true,
+			userEvent: "input"
+		}));
+		return true;
+	}
+	const nest = (deeper) => (view) => {
+		const { state } = view;
+		if (state.readOnly) return false;
+		const { from, to } = state.selection.main;
+		const { placed } = state.field(reading);
+		const changes = nestItems(state.doc.toString(), placed, from, to, deeper);
+		if (!changes?.length) return Boolean(changes) && deeper;
+		view.dispatch(state.update({
+			changes,
+			scrollIntoView: true,
+			userEvent: deeper ? "indent.more" : "indent.less",
+			annotations: isolateHistory.of("full")
+		}));
+		return true;
+	};
 	const editable = new Compartment();
 	const histories = new Compartment();
 	const attributes = new Compartment();
@@ -1558,6 +2160,16 @@ function fieldEditor({ EditorView, EditorState, StateEffect, Compartment, Widget
 					field.typed(!view.contentDOM.editContext, () => view.dispatch(insert()));
 					return true;
 				}),
+				EditorView.domEventHandlers({ beforeinput(event, view) {
+					const text = event.data;
+					if (event.inputType !== "insertText" || text === null || view.state.selection.main.empty || view.state.readOnly || view.composing) return false;
+					event.preventDefault();
+					field.typed(true, () => view.dispatch(view.state.update(view.state.replaceSelection(text), {
+						scrollIntoView: true,
+						userEvent: "input.type"
+					})));
+					return true;
+				} }),
 				EditorView.scrollHandler.of((view, range) => {
 					field.revealed(view, range.head);
 					return false;
@@ -1593,11 +2205,21 @@ function fieldEditor({ EditorView, EditorState, StateEffect, Compartment, Widget
 					},
 					{
 						key: "Enter",
-						run: (view) => field.returned() && insertNewline(view)
+						run: (view) => field.returned() && newLine(view)
 					},
 					{
 						key: "Shift-Enter",
-						run: insertNewlineContinueMarkup
+						run: (view) => view.state.facet(joinsLines) && newLine(view)
+					},
+					{
+						key: "Shift-Enter",
+						run: (view) => continueBlocks(view)
+					},
+					{
+						key: "Tab",
+						run: nest(true),
+						shift: nest(false),
+						stopPropagation: true
 					},
 					{
 						key: "Shift-Enter",
@@ -1609,7 +2231,9 @@ function fieldEditor({ EditorView, EditorState, StateEffect, Compartment, Widget
 					...standardKeymap.filter(({ key }) => key !== "Escape" && key !== "Enter" && key !== "Mod-Enter"),
 					...historyKeymap
 				]),
-				new LanguageSupport(markdownLanguage),
+				reading,
+				joinsLines.of(field.joined()),
+				joints,
 				livePreview,
 				EditorView.lineWrapping,
 				editable.of(EditorState.readOnly.of(field.readOnly)),
@@ -1730,10 +2354,10 @@ sheet.replaceSync(`
      rules stop at this root. A heading is bold, as the platform draws one, at the size
      of the words around it. A block is drawn line by line, so a code block's frame is
      each line's sides, closed above its first line and below its last. Syntax that holds
-     its room while the caret is away, as a code fence's line does, is there unseen and
-     unspoken. Its glyphs go unfilled while its colour stays the words', because the
-     caret can stand at the end of unseen text, as just past a new item's marker, and the
-     browser draws it in that text's colour. */
+     its room while the caret is away, as a rule's or a code fence's line does, is there
+     unseen and unspoken. Its glyphs go unfilled while its colour stays the words',
+     because the caret can stand at the end of unseen text, as just past a new item's
+     marker, and the browser draws it in that text's colour. */
   .lf-md-mark { color: var(--muted); }
   .lf-md-unseen { -webkit-text-fill-color: transparent; }
   code { font-family: var(--mono); font-size: var(--code-inline-size);
@@ -1742,19 +2366,25 @@ sheet.replaceSync(`
   .lf-md-heading { font-weight: bold; }
   .lf-md-link { color: var(--accent); text-decoration: underline var(--link-underline);
     text-underline-offset: var(--link-underline-offset); }
+  /* A quote and a list item are boxes around their lines (field-editor.js, \`box\`), as
+     the message's blockquote and li are, so their words stand where the message's do at
+     every level of nesting. An item stands one list inset in, under the platform's own
+     list marker, as in the message, so it is the same bullet or number at the same
+     place: the inset is the item's margin, as it is its list's padding in the message,
+     since the platform draws the marker outside the item's border. */
   .lf-md-quote { border-inline-start: var(--quote-rule); font-style: var(--quote-style);
-    padding-inline-start: var(--quote-inset); color: var(--muted);
-    --lf-marker-inset: var(--quote-inset); }
-  /* A quote's and a list item's words stand where the message's do, and the source's
-     marker stands in the inset before them, unseen while the caret is away, so
-     revealing it moves no word. A list item's lines stand one list inset in per level,
-     under the platform's own list marker, as in the message, so it is the same bullet
-     or number at the same place. */
-  .lf-md-item { margin-inline-start: calc(var(--lf-list-depth) * var(--list-inset));
-    --lf-marker-inset: var(--list-inset); }
-  .lf-md-marker { display: inline-flex; justify-content: flex-end; white-space: pre;
-    inline-size: var(--lf-marker-inset);
-    margin-inline-start: calc(-1 * var(--lf-marker-inset)); }
+    padding-inline-start: var(--quote-inset); color: var(--muted); }
+  .lf-md-item { margin-inline-start: var(--list-inset); }
+  /* The source's markers that open a line stand in the insets before its words, each as
+     wide as its container's rule and inset, so each stands beside the rule it draws,
+     unseen while the caret is away, and revealing one moves no word: their run takes no
+     room, and stands back from the words by its own width. */
+  .lf-md-markers { display: inline-flex; inline-size: 0; justify-content: flex-end; }
+  .lf-md-marker { display: inline-flex; flex: none; justify-content: flex-end;
+    white-space: pre; box-sizing: content-box; }
+  .lf-md-item-marker { inline-size: var(--list-inset); }
+  .lf-md-quote-marker { inline-size: var(--quote-inset);
+    border-inline-start: var(--quote-rule); border-inline-start-color: transparent; }
   .lf-md-listed { display: list-item; }
   .lf-md-disc { list-style-type: disc; }
   .lf-md-circle { list-style-type: circle; }
@@ -1766,25 +2396,31 @@ sheet.replaceSync(`
     padding-inline: var(--pre-inset); }
   .lf-md-code-first { border-block-start: 1px solid var(--code-border);
     border-start-start-radius: var(--r); border-start-end-radius: var(--r); }
-  /* A sent pre reserves 8px below its lines for a horizontal scrollbar. */
   .cm-line.lf-md-code-last { border-block-end: 1px solid var(--code-border);
-    border-end-start-radius: var(--r); border-end-end-radius: var(--r);
-    padding-block-end: 8px; }
+    border-end-start-radius: var(--r); border-end-end-radius: var(--r); }
   /* A picture fits the field as media fits its container on the page, centred on its
      line (base.css), and the mark after a link that leaves the page is the page's
      own (surfaces.css). */
   .lf-md-picture { max-width: 100%; height: auto; vertical-align: middle; }
+  /* A rule's line is the sent hr, a line tall with its stroke through the middle
+     (reading.css, \`.lf-msg-body hr\`), its source on that line under the caret, so
+     reaching it moves nothing (browser/AGENTS.md, "Stability"). */
+  .lf-md-rule {
+    background: linear-gradient(var(--rule), var(--rule)) center / 100% 1px no-repeat; }
+  /* A press on a task's box reaches the line, which puts the caret in its brackets, as a
+     press on any drawn source does; Chromium's disabled box would take it and do
+     nothing. */
+  .task-list-item-checkbox { pointer-events: none; }
   .lf-external-mark { display: inline-block; width: 0.75em; height: 0.75em;
     margin-inline-start: 0.24em; vertical-align: 0.03em; color: var(--accent);
     background: currentColor; mask: var(--lf-external-icon) center / contain no-repeat;
     user-select: none;
     -webkit-user-select: none; }
-  /* A fence's line, while the caret is away from it, stands for the sent pre's padding,
-     and code with no fence lines takes that padding at its ends instead. A field that
-     edits in place reads its display's padding over this (\`readFaces\`). */
-  .lf-face-fence-open, .lf-face-fence-close { line-height: var(--pre-pad-block); }
-  .lf-md-code-bare.lf-md-code-first { padding-block-start: var(--pre-pad-block); }
-  .lf-md-code-bare.lf-md-code-last { padding-block-end: calc(var(--pre-pad-block) + 8px); }
+  /* A fence's line is a line of the code box, the sent pre's padding of one code line
+     (reading.css, \`.lf-msg-body pre\`), and the end of a fence its container or the
+     draft ends, where no fence line stands, takes that padding on the code's own line
+     instead. */
+  .cm-line.lf-md-code-pad-end { padding-block-end: var(--code-line); }
 `);
 let editor = null;
 const loadEditor = () => loadFieldEditor().then((loaded) => editor = loaded);
@@ -1796,16 +2432,21 @@ var Draft = class {
 		this.anchor = this.head = text.length;
 	}
 };
-const placeWords = (node) => node.nodeType === Node.TEXT_NODE ? node.data : node.nodeName === "BR" ? "\n" : [...node.childNodes].map(placeWords).join("");
+const placeWords = (node) => node instanceof Text ? node.data : node.nodeName === "BR" ? "\n" : [...node.childNodes].map(placeWords).join("");
 var LeafText = class extends HTMLElement {
-	#model = new Draft("");
-	#view = null;
+	#content = {
+		kind: "draft",
+		draft: new Draft("")
+	};
+	get #view() {
+		return this.#content.kind === "view" ? this.#content.view : null;
+	}
 	#rest = document.createElement("div");
 	#waiting = null;
 	#composing = false;
 	#nativeInput = false;
 	#root;
-	#internals = null;
+	#internals = this.attachInternals();
 	facesOf = null;
 	#faces = new CSSStyleSheet();
 	#facesRead = "";
@@ -1822,15 +2463,15 @@ var LeafText = class extends HTMLElement {
 	#readOnly = false;
 	#sizes = sizeObserver(() => {
 		this.#readFaces();
-		const view = this.#view;
-		if (view?.hasFocus) view.requestMeasure({
+		const content = this.#content;
+		if (content.kind === "view" && content.view.hasFocus) content.view.requestMeasure({
 			key: this,
-			read: () => this.#rowTravel(view, view.state.selection.main.head),
+			read: () => this.#rowTravel(content.module, content.view, content.view.state.selection.main.head),
 			write: (travel) => moveScrollerBy(this, travel)
 		});
 	});
-	#rowTravel(view, pos) {
-		const { destination, rectangle: caret } = view.caretAt(pos);
+	#rowTravel(module, view, pos) {
+		const { destination, rectangle: caret } = module.LeafEditorView.caretAt(view, pos);
 		const node = destination instanceof Range ? destination.startContainer : destination;
 		const row = (node instanceof Element ? node : node.parentElement)?.closest(".cm-line") ?? this;
 		const { scaleY } = view;
@@ -1844,7 +2485,9 @@ var LeafText = class extends HTMLElement {
 	}
 	#overflow = sizeObserver(() => this.#measureOverflow());
 	#measureOverflow() {
-		this.#view?.requestMeasure({
+		const content = this.#content;
+		if (content.kind !== "view") return;
+		content.view.requestMeasure({
 			key: this.#overflow,
 			read: (view) => {
 				const style = getComputedStyle(this);
@@ -1852,16 +2495,17 @@ var LeafText = class extends HTMLElement {
 					scrolls: this.scrollHeight > this.clientHeight,
 					above: this.scrollTop > Number.parseFloat(style.paddingTop) + 1,
 					below: this.scrollTop + this.clientHeight < this.scrollHeight - Number.parseFloat(style.paddingBottom) - 1,
-					corner: this.#cornerTaken(view, style)
+					corner: this.#cornerTaken(content.module, view, style)
 				};
 			},
 			write: (reading) => {
 				if (this.hasAttribute("data-scrolls") !== reading.scrolls) this.toggleAttribute("data-scrolls", reading.scrolls);
-				for (const [state, on] of [
+				const states = [
 					["more-above", reading.scrolls && reading.above],
 					["more-below", reading.scrolls && reading.below],
 					["corner-taken", reading.corner]
-				]) {
+				];
+				for (const [state, on] of states) {
 					if (this.#internals.states.has(state) === on) continue;
 					if (on) this.#internals.states.add(state);
 					else this.#internals.states.delete(state);
@@ -1869,11 +2513,18 @@ var LeafText = class extends HTMLElement {
 			}
 		});
 	}
-	#cornerTaken(view, style) {
+	#cornerTaken(module, view, style) {
 		const size = Number.parseFloat(style.getPropertyValue("--lf-field-corner"));
 		if (!(size > 0)) return false;
 		const { scaleX, scaleY } = view;
-		const box = this.getBoundingClientRect();
+		const carry = style.getPropertyValue("--lf-field-carry").trim();
+		const [dx = 0, dy = 0] = carry === "none" ? [] : carry.split(/\s+/).map(Number.parseFloat);
+		const at = this.getBoundingClientRect();
+		const box = {
+			left: at.left + dx * scaleX,
+			right: at.right + dx * scaleX,
+			bottom: at.bottom + dy * scaleY
+		};
 		const rtl = style.direction === "rtl";
 		const left = rtl ? box.left : box.right - size * scaleX;
 		const right = rtl ? box.left + size * scaleX : box.right;
@@ -1889,7 +2540,7 @@ var LeafText = class extends HTMLElement {
 			for (const rect of words.getClientRects()) if (reaches(rect, Math.max(0, (height - rect.height) / 2) || 0)) return true;
 		}
 		if (!view.hasFocus) return false;
-		const { rectangle: caret } = view.caretAt(view.state.selection.main.head);
+		const { rectangle: caret } = module.LeafEditorView.caretAt(view, view.state.selection.main.head);
 		const { left: x, top: y, bottom: foot } = caret;
 		return reaches({
 			left: x,
@@ -1938,27 +2589,28 @@ var LeafText = class extends HTMLElement {
 		for (const type of ["input", "beforeinput"]) this.#root.addEventListener(type, (event) => event.stopPropagation());
 	}
 	#typeAtRest(event) {
-		if (this.#view || !(this.#model instanceof Draft)) return;
+		if (this.#content.kind !== "draft") return;
 		if (event.type === "compositionstart") {
 			this.#composing = true;
 			return;
 		}
-		if (event.type === "beforeinput") {
+		if (event instanceof InputEvent && event.type === "beforeinput") {
 			if (this.#readOnly || event.inputType === "insertParagraph" && !this.#returned() || event.inputType === "insertLineBreak" && this.#oneLine) event.preventDefault();
 			return;
 		}
 		if (event.type === "compositionend") this.#composing = false;
-		else if (this.#composing || event.isComposing) return;
-		this.#readRest();
+		else if (this.#composing || event instanceof InputEvent && event.isComposing) return;
+		this.#readRest(this.#content.draft);
 		this.#paintEmpty();
 		this.#emit("input");
 		if (event.type === "compositionend" && editor) this.#build();
 	}
-	#readRest() {
+	#readRest(draft) {
 		const words = placeWords(this.#rest);
 		const kept = this.#rest.lastChild?.nodeName === "BR" ? words.slice(0, -1) : words;
 		const text = this.#oneLine ? kept.replaceAll("\n", " ") : kept;
 		const selection = this.#selection();
+		if (!selection) return;
 		const [range] = selection.getComposedRanges({ shadowRoots: [this.#root] });
 		const at = (node, offset) => {
 			if (!this.#rest.contains(node)) return text.length;
@@ -1970,7 +2622,7 @@ var LeafText = class extends HTMLElement {
 		const from = range ? at(range.startContainer, range.startOffset) : text.length;
 		const to = range ? at(range.endContainer, range.endOffset) : text.length;
 		const backward = selection.direction === "backward";
-		Object.assign(this.#model, {
+		Object.assign(draft, {
 			text,
 			anchor: backward ? to : from,
 			head: backward ? from : to
@@ -1996,20 +2648,23 @@ var LeafText = class extends HTMLElement {
 		if (!here) return;
 		const { anchor, head } = this.#range;
 		const words = this.#rest.firstChild;
-		if (words.nodeType === Node.TEXT_NODE) this.#selection().setBaseAndExtent(words, anchor, words, head);
-		else this.#selection().setBaseAndExtent(this.#rest, 0, this.#rest, 0);
+		const selection = this.#selection();
+		if (!selection) return;
+		if (words instanceof Text) selection.setBaseAndExtent(words, anchor, words, head);
+		else selection.setBaseAndExtent(this.#rest, 0, this.#rest, 0);
 	}
 	#returned() {
 		return this.dispatchEvent(new Event("lf-edit-return", { cancelable: true }));
 	}
-	#hooks() {
+	#hooks(module) {
 		return {
 			readOnly: this.#readOnly,
 			attributes: this.#contentAttributes(),
 			returned: () => this.#returned(),
 			oneLine: () => this.#oneLine,
+			joined: () => this.facesOf !== null,
 			focused: () => this.#measureOverflow(),
-			revealed: (view, pos) => moveScrollerBy(this, this.#rowTravel(view, pos)),
+			revealed: (view, pos) => moveScrollerBy(this, this.#rowTravel(module, view, pos)),
 			typed: (native, insert) => {
 				this.#nativeInput = native;
 				try {
@@ -2021,7 +2676,8 @@ var LeafText = class extends HTMLElement {
 		};
 	}
 	get #state() {
-		return this.#view?.state ?? this.#model;
+		const content = this.#content;
+		return content.kind === "view" ? content.view.state : content.kind === "state" ? content.state : content.draft;
 	}
 	get #text() {
 		const state = this.#state;
@@ -2036,9 +2692,13 @@ var LeafText = class extends HTMLElement {
 		return state instanceof Draft ? state : state.selection.main;
 	}
 	#change(spec, draft = () => {}) {
-		if (this.#view) this.#view.dispatch(spec(editor));
-		else if (this.#model instanceof Draft) draft(this.#model);
-		else this.#model = this.#model.update(spec(editor)).state;
+		const content = this.#content;
+		if (content.kind === "view") content.view.dispatch(spec(content.module));
+		else if (content.kind === "draft") draft(content.draft);
+		else this.#content = {
+			...content,
+			state: content.state.update(spec(content.module)).state
+		};
 	}
 	attributeChangedCallback(name) {
 		if (name === "placeholder") this.#placeholderText.data = this.placeholder;
@@ -2055,7 +2715,6 @@ var LeafText = class extends HTMLElement {
 		if (!this.hasAttribute("role")) this.setAttribute("role", "textbox");
 		if (!this.hasAttribute("aria-multiline")) this.setAttribute("aria-multiline", "true");
 		if (!this.hasAttribute("tabindex")) this.tabIndex = 0;
-		this.#internals ??= this.attachInternals();
 		this.#root.adoptedStyleSheets = [sheet, this.#faces];
 		if (this.#length) this.#build();
 		else this.#describe();
@@ -2077,25 +2736,26 @@ var LeafText = class extends HTMLElement {
 		for (const [name, value] of Object.entries(wanted)) if (this.#rest.getAttribute(name) !== value) this.#rest.setAttribute(name, value);
 	}
 	#build() {
-		if (this.#view) return;
+		if (this.#content.kind === "view") return;
 		if (!editor) {
 			this.#paintRest();
 			if (this.#waiting) return;
-			this.#waiting = holdRendering();
+			const release = holdRendering();
+			this.#waiting = release;
 			loadEditor().then(() => this.isConnected && this.#build()).finally(() => {
-				this.#waiting();
+				release();
 				this.#waiting = null;
 			});
 			return;
 		}
 		if (this.#composing) return;
-		if (this.#model instanceof Draft && this.#root.activeElement === this.#rest) this.#readRest();
+		if (this.#content.kind === "draft" && this.#root.activeElement === this.#rest) this.#readRest(this.#content.draft);
 		this.#readFaces();
 		const module = editor;
-		this.#view = new module.LeafEditorView({
+		const view = new module.LeafEditorView({
 			root: this.#root,
 			parent: this.#frame,
-			state: this.#model instanceof Draft ? module.fieldState(this.#model, this.#hooks()) : this.#model,
+			state: this.#content.kind === "draft" ? module.fieldState(this.#content.draft, this.#hooks(module)) : this.#content.state,
 			dispatchTransactions: (transactions, view) => {
 				const edited = transactions.some((tr) => tr.docChanged);
 				if (edited && !this.#nativeInput) this.#beforeEdit();
@@ -2107,15 +2767,19 @@ var LeafText = class extends HTMLElement {
 				else if (transactions.some((tr) => tr.isUserEvent("select"))) this.dispatchEvent(new Event("lf-caret-move", { bubbles: true }));
 			}
 		});
-		this.#model = null;
+		this.#content = {
+			kind: "view",
+			view,
+			module
+		};
 		this.#sizes.observe(this);
 		this.#overflow.observe(this);
-		this.#overflow.observe(this.#view.contentDOM);
-		this.#view.scrollDOM.removeAttribute("tabindex");
+		this.#overflow.observe(view.contentDOM);
+		view.scrollDOM.removeAttribute("tabindex");
 		this.#describe();
 		if (this.#root.activeElement === this.#rest) {
-			this.#view.contentDOM.focus({ preventScroll: true });
-			this.#view.placeSelection();
+			view.contentDOM.focus({ preventScroll: true });
+			view.placeSelection();
 		}
 		this.#rest.hidden = true;
 		this.#paintRest();
@@ -2135,20 +2799,23 @@ var LeafText = class extends HTMLElement {
 			if (this.isConnected) return;
 			this.#internals.states.delete("ready");
 			this.#internals.states.delete("corner-taken");
-			if (!this.#view) return;
-			this.#model = this.#view.state;
+			const content = this.#content;
+			if (content.kind !== "view") return;
+			this.#content = {
+				kind: "state",
+				state: content.view.state,
+				module: content.module
+			};
 			this.#sizes.disconnect();
 			this.#overflow.disconnect();
-			this.#view.destroy();
-			this.#view = null;
+			content.view.destroy();
 			this.#rest.hidden = false;
 		});
 	}
 	#describe() {
 		if (!this.isConnected) return;
 		const content = this.#view?.contentDOM ?? this.#rest;
-		const root = this.getRootNode();
-		const described = (this.getAttribute("aria-describedby") ?? "").split(/\s+/).filter(Boolean).map((id) => root.getElementById(id)).filter(Boolean);
+		const described = this.ariaDescribedByElements ?? [];
 		const current = content.ariaDescribedByElements ?? [];
 		if (described.length !== current.length || described.some((element, at) => element !== current[at])) content.ariaDescribedByElements = described;
 	}
@@ -2244,27 +2911,32 @@ var LeafText = class extends HTMLElement {
 		text = String(text ?? "").replace(/\r\n?/g, "\n");
 		if (text === this.value) return;
 		if (!this.#view && this.isConnected) this.#build();
-		if (!this.#view) {
-			this.#model = new Draft(text);
+		const storage = this.#content;
+		if (storage.kind !== "view") {
+			this.#content = {
+				kind: "draft",
+				draft: new Draft(text)
+			};
 			if (!this.isConnected) return;
 			this.#paintRest();
 			this.#paintEmpty();
 			return;
 		}
-		const content = this.#view.contentDOM;
-		const composing = this.#view.composing && content.editContext;
+		const { module, view } = storage;
+		const content = view.contentDOM;
+		const composing = view.composing && content.editContext;
 		if (composing) content.editContext = null;
-		const reset = this.#view.state.update({
+		const reset = view.state.update({
 			changes: {
 				from: 0,
-				to: this.#view.state.doc.length,
+				to: view.state.doc.length,
 				insert: text
 			},
 			selection: { anchor: text.length },
-			...editor.forgetHistory
+			...module.forgetHistory
 		});
-		const fresh = reset.state.update(editor.startHistory());
-		this.#view.update([reset, fresh]);
+		const fresh = reset.state.update(module.startHistory());
+		view.update([reset, fresh]);
 		if (composing) content.editContext = composing;
 		this.#paintEmpty();
 		this.#measureOverflow();
@@ -2330,6 +3002,7 @@ const fabBar = el("div", "lf-ui lf-fab-bar lf-target-paint");
 fabBar.dataset.lfRuntime = "";
 fabBar.setAttribute("role", "group");
 fabBar.setAttribute("aria-label", "Respond");
+fabBar.setAttribute("part", "composer");
 const fabInput = textField();
 fabInput.className = "lf-ui lf-response-control lf-fab-input";
 fabInput.name = "comment";
@@ -2376,15 +3049,18 @@ function wordsOf(element) {
 	const range = document.createRange();
 	range.selectNodeContents(element);
 	const words = anchorForRange(range);
-	return words.quote?.trim() ? words : null;
+	return words?.quote?.trim() ? words : null;
 }
 let composerOpen = false;
-function createSelectionComposer({ setReact, reactionTokens, reactionAvailable, designModeActive, openPageThread, anchorTravelAt, bringForward, fabAnchorAt, fabPointAt, fabFrameAt, fabPositioned, beginFabFocus, endFabFocus, landFabFocus, showFab, letGoOfFab, createComment, landSent, refreshThread, wireInput, drawingEdits }) {
+function isComposerDraft(payload) {
+	return payload != null && "format" in payload && payload.format === "leaf-draft/17";
+}
+function createSelectionComposer({ setReact, reactionTokens, reactionAvailable, designModeActive, openPageThread, anchorTravelAt, fabAnchorAt, fabPointAt, fabFrameAt, fabPositioned, beginFabFocus, endFabFocus, landFabFocus, showFab, letGoOfFab, createComment, landSent, refreshThread, wireInput, drawingEdits }) {
 	const closeReactions = () => setReact(false);
 	const COMPOSER_KEY = "composer:";
 	const composerCtx = (anchor) => COMPOSER_KEY + anchorKey(anchor);
 	let syncComposer;
-	let pendingRevision = null;
+	let pendingRevision = applicationState.read().document.revision;
 	let suggestionMode = false;
 	const composerDraftPayload = () => ({
 		format: DRAFT_FORMAT,
@@ -2397,10 +3073,10 @@ function createSelectionComposer({ setReact, reactionTokens, reactionAvailable, 
 	});
 	const saveComposerDraft = (text = syncComposer.value()) => saveDraft(composerCtx(pendingAnchor), text, composerDraftPayload());
 	const composerRecord = (ctx) => {
-		const payload = loadDraftPayload(ctx);
-		return payload?.format === "leaf-draft/17" ? {
-			...payload,
-			text: loadDraft(ctx)
+		const draft = loadDraft(ctx);
+		return draft && isComposerDraft(draft.payload) ? {
+			...draft.payload,
+			text: draft.text
 		} : null;
 	};
 	const draftDrawing = (anchor) => {
@@ -2480,17 +3156,19 @@ function createSelectionComposer({ setReact, reactionTokens, reactionAvailable, 
 		focusDestination(composerInput, "return");
 	}
 	let responseOptionsOpen = false;
-	const availableResponseOptions = () => [...fabOptions.querySelectorAll(".lf-response-action:not([hidden])")];
+	const availableResponseOptions = () => {
+		return [...fabOptions.querySelectorAll(".lf-response-action:not([hidden])")];
+	};
 	const responseOptionsAreOpen = () => responseOptionsOpen;
 	const responseOptionsAvailable = () => availableResponseOptions().length > 0;
 	const responseOptionButtons = () => availableResponseOptions().filter((control) => control.checkVisibility());
-	const focusedResponseOption = () => responseOptionButtons().includes(focused());
+	const focusedResponseOption = () => responseOptionButtons().find((control) => control === focused()) ?? null;
 	const responseReactionButtons = () => responseOptionButtons().filter((control) => control.classList.contains("lf-react"));
 	function stepResponseOptions(binding) {
 		const choices = responseOptionButtons();
-		if (!choices.length) return;
+		if (!hasRows(choices)) return;
 		const backward = [rowArrows(choices[0])[0], "ArrowUp"].includes(binding);
-		focusDestination(cycledRow(choices, focused(), backward ? -1 : 1), "move");
+		focusDestination(cycledRow(choices, choices.find((control) => control === focused()), backward ? -1 : 1), "move");
 		beginWalk("response-option", "Response", () => listWalkPosition(responseOptionButtons(), focused()));
 	}
 	const focusResponseOption = (focus) => {
@@ -2584,16 +3262,15 @@ function createSelectionComposer({ setReact, reactionTokens, reactionAvailable, 
 		keeps(fabBar, "data-lf-paint-plane", target && inChrome(target) ? "chrome" : "page");
 		if (previousCtx !== ctx) syncComposer.arrive();
 		if (drawingSupplied) pendingDrawing = drawing ?? null;
-		let handoff = 0;
-		if (focus) handoff = beginFabFocus();
-		else endFabFocus();
+		const handoff = focus ? beginFabFocus() : null;
+		if (!focus) endFabFocus();
 		showComposer(true);
 		showFab(anchor, {
 			point,
 			reveal: true
 		});
 		syncSuggestMode();
-		if (focus) {
+		if (handoff) {
 			const focusEpoch = composerEpoch;
 			landFabFocus(handoff, pendingAnchor, () => focusEpoch === composerEpoch);
 		}
@@ -2709,16 +3386,17 @@ function createSelectionComposer({ setReact, reactionTokens, reactionAvailable, 
 				let flight = null;
 				const sent = sendMessage(ctx, () => composerCtx(pendingAnchor) === ctx && owns(), (attempt) => {
 					if (point) commitPoint(attempt, point, wordsOf(point));
-					const event = {
-						anchor,
+					return flight = createComment({
+						...drawing ? raw ? {
+							text: raw,
+							drawing
+						} : { drawing } : { text: raw },
 						revision,
-						attempt
-					};
-					if (raw) event.text = raw;
-					if (suggestion) event.suggestion = true;
-					if (about) event.about = about;
-					if (drawing) event.drawing = drawing;
-					return flight = createComment(event);
+						attempt,
+						...anchor && { anchor },
+						...suggestion && { suggestion: true },
+						...about && { about }
+					});
 				});
 				if (!sent) return;
 				Promise.resolve(flight).then((accepted) => {
@@ -2743,7 +3421,7 @@ function createSelectionComposer({ setReact, reactionTokens, reactionAvailable, 
 				}
 			}
 		});
-		composerInput.parentElement.append(fabOptionsTrigger);
+		syncComposer.composition().field.append(fabOptionsTrigger);
 		fabSuggest.onclick = () => {
 			setResponseOptions(false);
 			setSuggestionMode(!suggestionMode);
@@ -2772,7 +3450,7 @@ function createSelectionComposer({ setReact, reactionTokens, reactionAvailable, 
 		description: () => reactionTokens().slice(0, 9).map(([name, entry], index) => `${index + 1} ${entry.glyph} ${name}`).join(", "),
 		title: "react",
 		when: () => reactionAvailable() && !takesLetters(focused()) && responseReactionButtons().length > 0,
-		run: (binding) => responseReactionButtons()[+binding - 1]?.click()
+		runKey: (binding) => responseReactionButtons()[+binding - 1]?.click()
 	};
 	const RESPONSE_MOVE = {
 		id: "response.move",
@@ -2785,16 +3463,19 @@ function createSelectionComposer({ setReact, reactionTokens, reactionAvailable, 
 		],
 		title: "move",
 		repeat: true,
-		when: () => focusedResponseOption(),
-		run: stepResponseOptions
+		when: () => focusedResponseOption() !== null,
+		runKey: stepResponseOptions
 	};
 	const RESPONSE_ACTIVATE = {
 		id: "response.activate",
 		touch: false,
 		keys: PRESS,
 		title: "choose",
-		when: () => focusedResponseOption() && (!focused().classList.contains("lf-react") || reactionAvailable()),
-		run: () => focused()?.click()
+		when: () => {
+			const option = focusedResponseOption();
+			return option !== null && (!option.classList.contains("lf-react") || reactionAvailable());
+		},
+		run: () => focusedResponseOption()?.click()
 	};
 	const RESPONSE_CLOSE = {
 		id: "response.close",
@@ -2825,6 +3506,8 @@ function createSelectionComposer({ setReact, reactionTokens, reactionAvailable, 
 		});
 	}
 	return {
+		composition: () => syncComposer.composition(),
+		frame: composer,
 		pendingComposer,
 		draftDrawing,
 		heldDrawings,
@@ -2853,10 +3536,6 @@ const TOGGLE = Object.freeze({
 	action: "more",
 	label: "More options"
 });
-const FOLDED = Object.freeze(Object.fromEntries(Object.entries(KINDS).map(([kind, { icon, label }]) => [kind, Object.freeze({
-	icon,
-	label
-})])));
 const EXPANDED_MARGIN_ENTRY_BUDGET = 6;
 function annotationItems(entry) {
 	const represented = new Set(entry.offers.flatMap(({ reading }) => reading.entries.filter((record) => record.visible).map((record) => record.owner)));
@@ -2896,23 +3575,27 @@ const readingKey = (entry, choice) => JSON.stringify([entry.key, choice.key]);
 const deriveReadingChoices = (items) => {
 	const threadList = [];
 	const choices = [];
-	for (const item of items.filter((item) => item.marker !== false)) if (item.kind === "comment") threadList.push(item);
-	else choices.push({
-		key: contributionItemKey(item),
-		kind: item.kind,
-		items: [item],
-		text: item.text
-	});
-	if (threadList.length) choices.push({
+	for (const item of items) {
+		if (item.marker === false) continue;
+		if (item.kind === "comment") threadList.push(item);
+		else choices.push({
+			key: contributionItemKey(item),
+			kind: item.kind,
+			items: [item],
+			text: item.text
+		});
+	}
+	const [firstThread, ...otherThreads] = threadList;
+	if (firstThread) choices.push({
 		key: "threadList",
 		kind: "comment",
-		items: threadList,
-		text: threadList[0].text
+		items: [firstThread, ...otherThreads],
+		text: firstThread.text
 	});
-	return Object.freeze(choices.map((choice) => Object.freeze({
-		...choice,
-		items: Object.freeze(choice.items)
-	})).sort((left, right) => KINDS[left.kind].priority - KINDS[right.kind].priority || left.items[0].id.localeCompare(right.items[0].id) || left.key.localeCompare(right.key)));
+	return Object.freeze(choices.map((choice) => {
+		Object.freeze(choice.items);
+		return Object.freeze(choice);
+	}).sort((left, right) => KINDS[left.kind].priority - KINDS[right.kind].priority || left.items[0].id.localeCompare(right.items[0].id) || left.key.localeCompare(right.key)));
 };
 const readingChoices = (entry) => entry.choices;
 const primaryReading = (entry) => readingChoices(entry)[0] ?? null;
@@ -2939,7 +3622,7 @@ function markerFace(entry) {
 	};
 }
 function readingFace(choice) {
-	return choice?.items.length === 1 && choice.items[0].workflowFace || KINDS[choice?.kind] || KINDS.action;
+	return choice?.items.length === 1 && choice.items[0].workflowFace || choice && KINDS[choice.kind] || KINDS.action;
 }
 function readingState(choice) {
 	return (choice?.items ?? []).map((item) => item.state ?? item.workflowFace?.state ?? "idle").sort((left, right) => contributionEntryStateRank(left) - contributionEntryStateRank(right))[0] ?? "idle";
@@ -2962,40 +3645,29 @@ function threadMarks(thread, agent) {
 	const onUser = attention?.kind === "needs_user";
 	const receipt = attention?.kind === "waiting" ? attention.workflow : null;
 	const unread = thread.unread.length;
-	const line = attention && (!receipt || receipt.condition) && attention.label || (unread ? `${unread} unread` : null);
+	const line = attention && (!receipt || receipt.condition) && attention.word || (unread ? leafSays(`${unread} unread`) : null);
 	return {
 		userAttention: onUser ? {
-			label: attention.label,
-			reason: thread.attention?.reason ?? "workflow",
-			voice: attention.voice
+			word: attention.word,
+			reason: thread.attention?.reason ?? "workflow"
 		} : null,
 		unread,
 		context: line,
 		mapContext: line,
-		contextVoice: line && line === attention?.label ? attention.voice : null,
 		workflowReceipt: receipt
 	};
 }
 function readingContext(choice) {
 	const items = choice?.items ?? [];
 	const attention = userAttention(items);
-	if (attention) return {
-		text: attention.label,
-		voice: attention.voice ?? null
-	};
-	if (items.length === 1) return items[0].context ? {
-		text: items[0].context,
-		voice: items[0].contextVoice ?? null
-	} : null;
+	if (attention) return attention.word;
+	if (items.length === 1) return items[0].context ?? null;
 	const unread = unreadIn(items);
-	return unread ? {
-		text: `${unread} unread`,
-		voice: null
-	} : null;
+	return unread ? leafSays(`${unread} unread`) : null;
 }
 const spokenContext = (choice) => {
 	const items = choice?.items ?? [];
-	return choice?.kind === "comment" || awaitingUser(items) || unreadIn(items) ? readingContext(choice)?.text ?? null : null;
+	return choice?.kind === "comment" || awaitingUser(items) || unreadIn(items) ? wordsText(readingContext(choice) ?? "") || null : null;
 };
 function kindsIn(entry, { markerOnly = false } = {}) {
 	const counts = /* @__PURE__ */ new Map();
@@ -3033,7 +3705,7 @@ function optionGroupProjection(entry, primary, optionsOpen, focusedOffer = null,
 	const visibleCapacity = needsSpill ? peerCapacity - 1 : peerCapacity;
 	const hidden = Math.max(0, items.length - visibleCapacity);
 	const direct = items.slice(0, visibleCapacity);
-	const forcedThread = forcedInlineKey === entry.key ? items.find((item) => item.choice?.kind === "comment") : null;
+	const forcedThread = forcedInlineKey === entry.key ? items.find((item) => item.kind === "reading" && item.choice.kind === "comment") : null;
 	if (forcedThread && direct.length && !direct.includes(forcedThread)) direct[direct.length - 1] = forcedThread;
 	const firstSpilled = items.find((item) => !direct.includes(item));
 	return Object.freeze({
@@ -3068,7 +3740,7 @@ function clusterProjection(entry, { expandedKey = null, expandedOwner = null, fo
 	const secondaries = focusedOffer ? focusedOffer.reading.entries.filter((record) => record.visible).length : secondaryCount(entry, primary);
 	const hasOptions = folds || secondaries > (focusedOffer ? 0 : 1);
 	const optionsOpen = secondaries > 0 && (!hasOptions || expandedKey === entry.key || entryEngaged(entry));
-	const kind = folds ? primary.offered.reading.kind ?? "action" : null;
+	const kind = folds && primary ? primary.offered.reading.kind ?? "action" : null;
 	return Object.freeze({
 		primary,
 		hasOptions,
@@ -3080,7 +3752,7 @@ function clusterProjection(entry, { expandedKey = null, expandedOwner = null, fo
 		entry,
 		kind: "page",
 		label: `Page actions for ${subject}`,
-		toggle: kind ? FOLDED[kind] : TOGGLE,
+		toggle: kind ? KINDS[kind] : TOGGLE,
 		moreLabel: kind ? `${KINDS[kind].label}, ${subject}` : `More options for ${subject}`,
 		offers: entry.offers,
 		hasPrimary: Boolean(shown),
@@ -3193,8 +3865,9 @@ function createAnnotationInventory({ readObligations, placedAt, openThread, goTo
 		const steps = [];
 		let from = "path:";
 		for (let node = target; node;) {
-			if (node.dataset?.lfProjection && node.hasAttribute("data-lf-datum")) {
-				from = `datum:${node.dataset.lfProjection}/${node.dataset.lfDatum}:`;
+			const projection = node.getAttribute("data-lf-projection");
+			if (projection && node.hasAttribute("data-lf-datum")) {
+				from = `datum:${projection}/${node.getAttribute("data-lf-datum")}:`;
 				break;
 			}
 			const parent = node.parentElement ?? (node.parentNode instanceof ShadowRoot ? node.parentNode : null);
@@ -3228,15 +3901,14 @@ function createAnnotationInventory({ readObligations, placedAt, openThread, goTo
 	};
 	const sourceItem = (item) => itemSources.get(item);
 	function captureItem(item) {
-		const { activate, discloses, thread, ...data } = item;
+		const { activate, discloses, ...data } = item;
 		const snapshot = Object.freeze({
 			...data,
 			carriesWorkflow: Boolean(workflowReceipt([item]))
 		});
 		itemSources.set(snapshot, {
 			activate,
-			discloses,
-			thread
+			...discloses ? { discloses } : {}
 		});
 		return snapshot;
 	}
@@ -3267,14 +3939,13 @@ function createAnnotationInventory({ readObligations, placedAt, openThread, goTo
 		}
 		return group;
 	}
-	function passageRow(target, passage) {
-		const segments = targetSegments(passage);
+	function passageRow(target, segments) {
 		const page = textNodesUnder(target);
 		const at = page.findIndex(({ node }) => node === segments[0].node);
-		const before = at < 0 ? page : [...page.slice(0, at), {
-			...page[at],
+		const before = page.flatMap((segment, index) => index < at || at < 0 ? [segment] : index === at ? [{
+			...segment,
 			end: segments[0].start
-		}];
+		}] : []);
 		const words = quoteFrom(segments);
 		return JSON.stringify([words, quoteFrom(before).split(words).length - 1]);
 	}
@@ -3287,18 +3958,26 @@ function createAnnotationInventory({ readObligations, placedAt, openThread, goTo
 	}
 	function agentWorkflowFace(receipt) {
 		if (!receipt) return null;
-		const label = workflowLabel(receipt, agentName());
-		if (!label) return null;
+		const word = workflowWord(receipt, agentName());
+		if (!word) return null;
+		const when = receipt.ts ? ago(receipt.ts) : "";
+		const said = receipt.detail ? [agentSays(receipt.detail)] : [];
 		return {
 			kind: receipt.condition ? "waiting" : receipt.at_work ? "activity" : receipt.stage === "picked_up" ? "pickup" : receipt.stage === "queued" ? "queued" : "sent",
-			text: label,
-			context: [receipt.ts ? ago(receipt.ts) : "", receipt.detail].filter(Boolean).join(" · ")
+			word,
+			context: when || said.length ? [
+				...when ? [when] : [],
+				...when && said.length ? [" · "] : [],
+				...said
+			] : null
 		};
 	}
-	const marginThreadItem = (thread) => thread ? `comment:${threadKey(thread)}` : null;
+	function marginThreadItem(thread) {
+		return thread ? `comment:${threadKey(thread)}` : null;
+	}
 	let entries = Object.freeze([]);
 	const watchers = /* @__PURE__ */ new Set();
-	const threadHasDiscussion = (thread) => replyAvailable(thread) || heldOut(thread.id);
+	const threadHasDiscussion = (thread) => !thread.resolved || replyIsEditing(threadKey(thread)) || heldOut(thread.id);
 	function threadIdsAt(node) {
 		const place = placeOf$1(node);
 		let best = null;
@@ -3327,20 +4006,22 @@ function createAnnotationInventory({ readObligations, placedAt, openThread, goTo
 		const receiptByCoordinate = /* @__PURE__ */ new Map();
 		for (const receipt of visibleWidgetWorkflows()) {
 			const coordinate = receipt.coordinate;
-			receiptByCoordinate.set(stateCoordinate(...coordinate), receipt);
+			receiptByCoordinate.set(JSON.stringify(coordinate), receipt);
 		}
 		for (const thread of threadList()) {
 			if (!threadHasDiscussion(thread) || !thread.anchor || claimed(thread.id)) continue;
 			const id = thread.id;
-			const target = placedAt(id)?.place;
 			const placement = placedAt(id);
+			const target = placement?.place;
+			if (!target) continue;
+			const [firstSegment, ...otherSegments] = targetSegments(placement);
 			const point = livePoint(target, placement?.point);
-			const pointed = point ? {
+			const pointed = point && placement ? {
 				key: placement.pointRow,
 				element: point,
 				words: placement.pointWords
-			} : targetSegments(placement).length ? {
-				key: passageRow(target, placement),
+			} : firstSegment ? {
+				key: passageRow(target, [firstSegment, ...otherSegments]),
 				passage: placement,
 				words: thread.anchor.quote
 			} : null;
@@ -3353,7 +4034,8 @@ function createAnnotationInventory({ readObligations, placedAt, openThread, goTo
 				activate: () => openThread(id)
 			}, pointed);
 		}
-		const placed = () => readObligations().user.filter((item) => obligationPlace(item).node);
+		const hasPlace = (item) => Boolean(obligationPlace(item).node);
+		const placed = () => readObligations().user.filter(hasPlace);
 		for (const item of placed()) {
 			const id = item.id;
 			const target = obligationPlace(item).node;
@@ -3361,6 +4043,7 @@ function createAnnotationInventory({ readObligations, placedAt, openThread, goTo
 				kind: "on-me",
 				id: `on-me:${id}`,
 				text: "Waiting on me",
+				words: leafSays("Waiting on me"),
 				label: (item.source.kind === "todo" ? item.prompt.text : addressableLabel(target)) || null,
 				activate: () => {
 					const items = placed();
@@ -3390,15 +4073,16 @@ function createAnnotationInventory({ readObligations, placedAt, openThread, goTo
 			add(groups, target, {
 				kind: face.kind,
 				id: `acknowledgment:${receipt.id}`,
-				text: labelWords(`${face.text} · ${account}`),
+				text: labelWords(`${face.word.text} · ${account}`),
+				words: [face.word, ` · ${labelWords(account)}`],
 				workflowFace: Object.freeze({
 					...KINDS[face.kind],
-					label: face.text,
-					voice: workflowVoice(receipt)
+					label: face.word.text,
+					voice: face.word.voice
 				}),
 				workflowReceipt: receipt,
 				...face.context ? { context: face.context } : {},
-				activate: () => revealTarget(target, `${face.text}: ${account}`, scrollToElement)
+				activate: () => revealTarget(target, `${face.word.text}: ${account}`, scrollToElement)
 			});
 		}
 		for (const origin of projectionOrigins(authoredStates(), projection)) {
@@ -3420,13 +4104,14 @@ function createAnnotationInventory({ readObligations, placedAt, openThread, goTo
 		}
 		const base = comparisonBase();
 		comparisonChanges().forEach((target, index) => {
-			const account = `${addressableWord(target)} changed${base == null ? "" : ` since v${base}`}`;
+			const account = `${addressableWord(target)} changed${base == null ? "" : ` since ${base.name}`}`;
 			const inline = inlineComparison(target);
 			const mapAccount = inline ? `${addressableWord(target)} changed` : account;
 			add(groups, target, {
 				kind: "change",
 				id: `change:${targetPath(target)}:${index}`,
 				text: labelWords([mapAccount, addressableLabel(target)].filter(Boolean).join(" · ")),
+				words: [leafSays(mapAccount), ...addressableLabel(target) ? [` · ${addressableLabel(target)}`] : []],
 				...inline ? {
 					context: inline.offer,
 					mapContext: inline.offer
@@ -3439,22 +4124,24 @@ function createAnnotationInventory({ readObligations, placedAt, openThread, goTo
 			});
 		});
 		for (const todo of runtime.todos) {
-			if (todo.owner !== "agent" || todo.state !== "open" || todo.subject.kind !== "widget" && todo.subject.kind !== "element" || todo.revision > runtime.currentRevision) continue;
+			if (todo.owner !== "agent" || todo.state !== "open" || todo.subject.kind !== "widget" && todo.subject.kind !== "element" || Number(todo.revision) > Number(runtime.currentRevision)) continue;
 			if (activityAlreadyShown.has(`widget:${todo.subject.id}`)) continue;
 			const target = elementById(todo.subject.id);
 			const { running } = todo;
-			const label = todoLabel(running);
+			const word = todoWord(running);
 			const account = [todo.agent, running?.text ?? todo.title].filter(Boolean).join(" · ");
-			const age = running && ago(running.ts);
 			add(groups, target, {
 				kind: "activity",
 				id: `todo:${todo.id}`,
+				atWork: Boolean(running),
 				text: labelWords(account),
+				words: [...todo.agent ? [`${todo.agent} · `] : [], agentSays(labelWords(running?.text ?? todo.title))],
 				workflowFace: Object.freeze({
 					...KINDS.activity,
-					label
+					label: word.text,
+					voice: word.voice
 				}),
-				context: [age && `Checked in ${age}`, running && todo.title].filter(Boolean).join(" · "),
+				context: running ? [leafSays(`Checked in ${ago(running.ts)} · `), agentSays(todo.title)] : null,
 				activate: () => revealTarget(target, account, scrollToElement)
 			});
 		}
@@ -3503,7 +4190,8 @@ function createAnnotationInventory({ readObligations, placedAt, openThread, goTo
 				].filter(Boolean).join(" · ")),
 				offers: Object.freeze(group.offers.map((offered) => offered.model)),
 				items: Object.freeze(group.items.map(captureItem)),
-				workflowReceipt: workflowReceipt(group.items)
+				workflowReceipt: workflowReceipt(group.items),
+				atWork: progressFace(workflowReceipt(group.items)) === "working" || group.items.some((item) => item.atWork)
 			});
 		}));
 		for (const watcher of watchers) watcher(entries);
@@ -3570,7 +4258,7 @@ function reactionChip({ name, glyph, label }, pressed) {
 function paintBarReactions(anchor) {
 	const by = new Map(anchorChoices(anchor).map((choice) => [choice.name, choice]));
 	for (const chip of fabBar.querySelectorAll(".lf-react-palette > .lf-react")) {
-		const inForce = by.get(chip.dataset.token)?.inForce;
+		const inForce = by.get(chip.getAttribute("data-token") ?? "")?.inForce;
 		keeps(chip, "aria-pressed", String(Boolean(inForce)));
 	}
 }
@@ -3615,13 +4303,14 @@ function createReactionController({ marginEntryChoices, marginEntryContextContai
 		if (!choice) return;
 		const { inForce } = choice;
 		const returnTo = fabReturnPlaces();
-		if (!anchor) return;
+		const revision = runtime.currentRevision;
+		if (!anchor || revision === null) return;
 		let sent;
 		if (inForce) sent = commands.withdrawReaction(inForce);
 		else {
 			const event = {
 				kind: "comment",
-				revision: runtime.currentRevision,
+				revision,
 				token: name,
 				anchor: structuredClone(anchor)
 			};
@@ -3644,7 +4333,7 @@ function createReactionController({ marginEntryChoices, marginEntryContextContai
 	let reactSurface = null;
 	let reactDeparture = null;
 	const latestAgentStrip = (held) => held.querySelector(".lf-react-strip.lf-open");
-	const pickerFor = (surface) => surfaces.get(surface);
+	const pickerFor = (surface) => surface instanceof Element ? surfaces.get(surface) : void 0;
 	function reactionTarget() {
 		const said = currentLocationThread();
 		const strip = said && latestAgentStrip(said.held);
@@ -3664,7 +4353,8 @@ function createReactionController({ marginEntryChoices, marginEntryContextContai
 	function raiseMarginSurface() {
 		const anchor = fabAnchorAt();
 		const target = anchor && fabTargetAt();
-		if (!pageCommands || !target || !openMarginEntryOptions) return false;
+		const commands = pageCommands;
+		if (!commands || !target || !openMarginEntryOptions) return false;
 		fabBar.dataset.lfMarginRaised = "1";
 		marginAnchor = structuredClone(anchor);
 		marginOffer = registerContribution({
@@ -3683,7 +4373,7 @@ function createReactionController({ marginEntryChoices, marginEntryContextContai
 				})),
 				readings: []
 			}),
-			activate: (name) => reactHere(name, pageCommands, marginAnchor)
+			activate: (name) => reactHere(name, commands, marginAnchor)
 		});
 		marginTarget = target;
 		const release = openMarginEntryOptions(target, "responses");
@@ -3761,14 +4451,14 @@ function createReactionController({ marginEntryChoices, marginEntryContextContai
 					return;
 				}
 			}
-			if (reactSurface !== marginSurface && !pickerFor(reactSurface)) {
+			const picker = pickerFor(reactSurface);
+			if (reactSurface !== marginSurface && !picker) {
 				reactSurface = null;
 				openLayer(reactLayer, null);
 				return;
 			}
 			reactArmed = true;
-			if (reactSurface !== marginSurface) {
-				const picker = pickerFor(reactSurface);
+			if (picker) {
 				scrollIntoReadingBand(picker.trigger, picker.trigger, "nearest", "instant");
 				showNativeLayer(picker.palette, { source: picker.trigger });
 				const opened = reactSurface;
@@ -3807,12 +4497,12 @@ function createReactionController({ marginEntryChoices, marginEntryContextContai
 	}
 	function responseChoices(surface) {
 		if (!surface) return [];
-		if (surface === marginSurface) return marginEntryChoices(fabTargetAt());
+		if (surface === marginSurface) return marginEntryChoices?.(fabTargetAt()) ?? [];
 		return [...surface.querySelectorAll(".lf-react-palette > .lf-react")].filter((choice) => choice.checkVisibility());
 	}
 	function stepResponse(binding) {
 		const choices = responseChoices(reactSurface);
-		if (!choices.length) return;
+		if (!hasRows(choices)) return;
 		const backward = [
 			rowArrows(choices[0])[0],
 			"ArrowUp",
@@ -3842,7 +4532,7 @@ function createReactionController({ marginEntryChoices, marginEntryContextContai
 				description: () => reactionTokens().slice(0, 9).map(([name, entry], i) => `${i + 1} ${entry.glyph} ${name}`).join(", "),
 				title: "react",
 				when: reactionAvailable,
-				run: (binding) => {
+				runKey: (binding) => {
 					if (reactSurface === marginSurface) {
 						const ordinal = +binding - 1;
 						const token = reactionTokens()[ordinal]?.[0];
@@ -3853,7 +4543,8 @@ function createReactionController({ marginEntryChoices, marginEntryContextContai
 						});
 						return;
 					}
-					(pickerFor(reactSurface)?.palette.querySelectorAll(".lf-react"))?.[+binding - 1]?.click();
+					const buttons = pickerFor(reactSurface)?.palette.querySelectorAll(".lf-react");
+					nativePress(buttons?.[+binding - 1])?.();
 				}
 			},
 			{
@@ -3870,7 +4561,7 @@ function createReactionController({ marginEntryChoices, marginEntryContextContai
 				],
 				title: "move",
 				repeat: true,
-				run: stepResponse
+				runKey: stepResponse
 			},
 			{
 				id: "response.activate",
@@ -3878,8 +4569,8 @@ function createReactionController({ marginEntryChoices, marginEntryContextContai
 				runFromCommandReference: false,
 				keys: PRESS,
 				title: "choose",
-				when: () => responseChoices(reactSurface).includes(focused()),
-				run: () => focused()?.click()
+				when: () => responseChoices(reactSurface).some((choice) => choice === focused()),
+				run: () => nativePress(focused())?.()
 			},
 			{
 				id: "reaction.cancel",
@@ -3988,12 +4679,8 @@ function gestureWords(event, gesture) {
 	}
 }
 function placeOf(event) {
-	if ([
-		"resolve",
-		"unresolve",
-		"reply"
-	].includes(event.kind)) return {
-		thread: threadIdNamed(event.parent),
+	if (event.kind === "resolve" || event.kind === "unresolve" || event.kind === "reply") return {
+		thread: event.parent ? threadIdNamed(event.parent) : null,
 		nodes: []
 	};
 	const id = event.kind === "action" ? event.widget : event.anchor?.section;
@@ -4009,7 +4696,10 @@ function placeOf(event) {
 		nodes: [elementById(id)]
 	};
 }
-const seen = (where) => Boolean(where && seenRect(placeHolder(where), /* @__PURE__ */ new Map(), placeBox(where)));
+const seen = (where) => {
+	const holder = where && placeHolder(where);
+	return Boolean(where && holder && seenRect(holder, /* @__PURE__ */ new Map(), placeBox(where)));
+};
 const KEYS_HELD = /* @__PURE__ */ new Set([
 	"Shift",
 	"Control",
@@ -4034,13 +4724,14 @@ function createUndo({ post, stateApplying, unaccountedGesture, openThread, threa
 	}
 	const said = (event) => {
 		const gesture = runtime.undo.find((entry) => entry.event.id === event.id)?.gesture;
-		return gestures.get(event.attempt)?.says ?? gestureWords(event, gesture);
+		return (event.attempt ? gestures.get(event.attempt)?.says : void 0) ?? gestureWords(event, gesture);
 	};
 	const takes = (event) => [said(event), ago(event.ts)].filter(Boolean).join(" · ");
-	const head = () => {
+	const headEntry = () => {
 		const [first] = runtime.undo;
-		return first?.newest ? first.event : null;
+		return first?.newest ? first : null;
 	};
+	const head = () => headEntry()?.event ?? null;
 	function undoable() {
 		return stateApplying() ? null : head();
 	}
@@ -4060,7 +4751,7 @@ function createUndo({ post, stateApplying, unaccountedGesture, openThread, threa
 		}).then((accepted) => {
 			if (accepted) {
 				notice(`Undid: ${taken}`);
-				gestures.delete(event.attempt);
+				if (event.attempt) gestures.delete(event.attempt);
 			}
 			return accepted;
 		});
@@ -4073,12 +4764,12 @@ function createUndo({ post, stateApplying, unaccountedGesture, openThread, threa
 	onUserInput((event) => {
 		if (!armed || event.type === "blur") return;
 		if (event.type === "wheel" && !armed.returns) return;
-		if (event.type === "keydown" && (event.repeat || KEYS_HELD.has(event.key) || UNDO_KEYS.includes(event.key))) return;
-		if ((event.type === "pointerdown" || event.type === "touchstart") && inChrome(event.composedPath()[0])) return;
+		if (event instanceof KeyboardEvent && event.type === "keydown" && (event.repeat || KEYS_HELD.has(event.key) || UNDO_KEYS.includes(event.key))) return;
+		if ((event.type === "pointerdown" || event.type === "touchstart") && inChrome(eventSource(event))) return;
 		armed.inputs.push(inputCount());
 		if (armed.inputs.length > 1) disarm();
 	});
-	const armedFor = (event) => Boolean(armed?.is(event)) && armed.shown && armed.inputs.every((input) => input === inputCount());
+	const armedFor = (event) => armed?.is(event) && armed.shown && armed.inputs.every((input) => input === inputCount()) ? armed : null;
 	function landedAway(attempt) {
 		disarm();
 		armed = {
@@ -4094,7 +4785,7 @@ function createUndo({ post, stateApplying, unaccountedGesture, openThread, threa
 	function needsShowing(entry) {
 		if (entry.picked_up) return true;
 		const place = placeOf(entry.event);
-		return Boolean(place) && !inView(place);
+		return place !== null && !inView(place);
 	}
 	async function returnToThread(id, intent) {
 		const seated = drawingsOf(id).find((node) => node && !inChrome(node) && seen(node));
@@ -4111,13 +4802,14 @@ function createUndo({ post, stateApplying, unaccountedGesture, openThread, threa
 		if (place.message) return [await openThread(place.message, {
 			part: "message",
 			intent
-		}), ...place.nodes].filter(Boolean);
-		if (place.thread) return [await returnToThread(place.thread, intent)].filter(Boolean);
+		}), ...place.nodes].filter((node) => node !== null);
+		if (place.thread) return [await returnToThread(place.thread, intent)].filter((node) => node !== null);
 		const url = new URL(window.location.href);
+		if (place.fragment === void 0) return [];
 		url.hash = place.fragment;
 		if (window.navigation) await window.navigation.navigate(url.href).finished.catch(() => {});
 		else window.location.assign(url);
-		return place.nodes.filter(Boolean);
+		return place.nodes.filter((node) => node !== null);
 	}
 	function arm(event) {
 		disarm();
@@ -4151,15 +4843,16 @@ function createUndo({ post, stateApplying, unaccountedGesture, openThread, threa
 			raiseError(WAIT);
 			return null;
 		}
-		const event = undoable();
-		if (!event) return null;
-		const [entry] = runtime.undo;
-		const taking = armedFor(event) && !(armed.returns && entry.picked_up);
+		const entry = headEntry();
+		if (!entry) return null;
+		const event = entry.event;
+		const heldArm = armedFor(event);
+		const taking = heldArm && !(heldArm.returns && entry.picked_up);
 		if (!taking && needsShowing(entry)) {
 			arm(event);
 			return null;
 		}
-		const returning = taking && armed.returns && retainUserIntent();
+		const returning = taking && heldArm.returns && retainUserIntent();
 		const answer = withdraw(event);
 		if (!answer) return null;
 		disarm();
@@ -4170,10 +4863,19 @@ function createUndo({ post, stateApplying, unaccountedGesture, openThread, threa
 		id: "history.undo",
 		ready: savedReadingSettled,
 		keys: UNDO_KEYS,
-		description: () => head() ? `Undo: ${takes(head())}` : "Undo the latest update",
+		description: () => {
+			const event = head();
+			return event ? `Undo: ${takes(event)}` : "Undo the latest update";
+		},
 		title: "undo",
-		touch: () => head() ? `Undo: ${said(head())}` : "Undo",
-		touchValue: () => head() ? ago(head().ts) : "",
+		touch: () => {
+			const event = head();
+			return event ? `Undo: ${said(event)}` : "Undo";
+		},
+		touchValue: () => {
+			const event = head();
+			return event ? ago(event.ts) : "";
+		},
 		menu: "page",
 		when: () => !unaccountedGesture() && Boolean(undoable()),
 		run: (...args) => undoLast(...args)
@@ -4190,17 +4892,17 @@ function createUndo({ post, stateApplying, unaccountedGesture, openThread, threa
 
 //#endregion
 //#region runtime/projection/data.js
-const projectedDescendants = (root) => [root, ...shadowRootsIn(root)].flatMap((scope) => [...scope.querySelectorAll("[data-lf-projection]")]).filter((element) => element.dataset.lfProjection === root.id);
+const projectedDescendants = (root) => [root, ...shadowRootsIn(root)].flatMap((scope) => [...scope.querySelectorAll("[data-lf-projection]")]).filter((element) => element.getAttribute("data-lf-projection") === root.id);
 const markOwner = (node) => {
-	for (let at = composedParentNode(node); at; at = composedParentNode(at)) if (at.nodeType === Node.ELEMENT_NODE && registry[at.localName]?.["x-data"]) return at;
+	for (let at = composedParentNode(node); at; at = composedParentNode(at)) if (at instanceof Element && registry[at.localName]?.["x-data"]) return at;
 	return null;
 };
 const markedDatums = (root) => [root, ...shadowRootsIn(root)].flatMap((scope) => [...scope.querySelectorAll("[data-lf-datum]")]).filter((node) => markOwner(node) === root).map((node) => ({
 	node,
-	key: node.dataset.lfDatum,
-	label: node.dataset.lfDatumLabel,
-	identity: node.dataset.lfIdentity,
-	path: node.dataset.lfOriginPath
+	key: node.getAttribute("data-lf-datum") ?? void 0,
+	label: node.getAttribute("data-lf-datum-label") ?? void 0,
+	identity: node.getAttribute("data-lf-identity") ?? void 0,
+	path: node.getAttribute("data-lf-origin-path") ?? void 0
 }));
 const originPath = (who, key, text) => {
 	let path;
@@ -4209,7 +4911,7 @@ const originPath = (who, key, text) => {
 	} catch {
 		path = null;
 	}
-	if (!Array.isArray(path) || !path.every((step) => typeof step === "string" || Number.isInteger(step) && step >= 0)) throw new TypeError(`${who} datum ${key} data-lf-origin-path must be a JSON array of field names and indices`);
+	if (!Array.isArray(path) || !path.every((step) => typeof step === "string" || typeof step === "number" && Number.isInteger(step) && step >= 0)) throw new TypeError(`${who} datum ${key} data-lf-origin-path must be a JSON array of field names and indices`);
 	return path;
 };
 let constructed = null;
@@ -4271,11 +4973,11 @@ function createDataProjection({ invalidateDom }) {
 			keeps(node, "data-lf-origin", origin === null ? null : JSON.stringify(origin));
 		}
 		for (const node of projected) if (!nodes.has(node)) {
-			delete node.dataset.lfGen;
-			delete node.dataset.lfProjection;
-			delete node.dataset.lfSource;
-			delete node.dataset.lfSourceRevision;
-			delete node.dataset.lfOrigin;
+			node.removeAttribute("data-lf-gen");
+			node.removeAttribute("data-lf-projection");
+			node.removeAttribute("data-lf-source");
+			node.removeAttribute("data-lf-source-revision");
+			node.removeAttribute("data-lf-origin");
 			unmirror(node);
 		}
 		applyProjection(root);
@@ -4351,16 +5053,17 @@ function createThreadPresentation({ available = true, inlineView, surfaceView, a
 				drawingPaint.paint();
 			};
 			readTargets();
-			surfaces = renderSurfaces(collection, anchorPlacement, surfaceView);
-			surfaces.completion.catch(() => {});
+			const surface = renderSurfaces(collection, anchorPlacement, surfaceView);
+			surfaces = surface;
+			surface.completion.catch(() => {});
 			const primaryPreparation = primary?.owner.isConnected ? primary.prepare(collection, cancelled) : null;
 			const paintPrepared = (primaryCandidate) => {
 				if (!current()) return;
 				renderSeats(listed, inlineView);
-				return Promise.race([Promise.all([surfaces.completion, Promise.resolve().then(() => current() && primaryCandidate?.current() ? primaryCandidate.paint() : null)]).then(() => true), cancelled.then(() => false)]).then(resume((completed) => {
+				return Promise.race([Promise.all([surface.completion, Promise.resolve().then(() => current() && primaryCandidate?.current() ? primaryCandidate.paint() : null)]).then(() => true), cancelled.then(() => false)]).then(resume((completed) => {
 					if (!completed || !current()) return;
 					readTargets();
-					surfaces.commit();
+					surface.commit();
 					commitThreadSeats(batch);
 					surfaceView.composition.finishPlacement();
 					pageGeometry.pageShifted();
@@ -4368,7 +5071,7 @@ function createThreadPresentation({ available = true, inlineView, surfaceView, a
 					Promise.resolve().then(marginCommitted).then(() => continueReplies(restorePlace)).then(returnToPage).catch((error) => reportPageError(error, `Reply continuation failed`));
 				}));
 			};
-			await (primaryPreparation?.then ? primaryPreparation.then(resume(paintPrepared)) : paintPrepared(primaryPreparation));
+			await (primaryPreparation && "then" in primaryPreparation ? primaryPreparation.then(resume(paintPrepared)) : paintPrepared(primaryPreparation));
 		} catch (error) {
 			surfaces?.cancel();
 			if (!current()) throw error;
@@ -4421,14 +5124,14 @@ function createAnnotationView(owner, render, inventory, invalidate, retire) {
 			if (!painting || !allowed.has(entry)) throw new TypeError("Annotation capabilities belong to their current reading");
 		};
 		try {
-			if (render(entries, {
+			const result = render(entries, {
 				target: inventory.targetFor,
 				activate: inventory.activate,
 				items: annotationItems,
 				controlKey: contributionControlKey,
 				controlRecord: contributionEntryRecord,
 				arriving: entries.some((entry) => entry.offers.some((model) => {
-					const offered = contributionSource(model);
+					const offered = model.source();
 					const request = offered.focusRequest;
 					return request && (request.surface == null || request.surface === "page") && offered.reading.entries.some((item) => item.key === request.key && item.visible);
 				})),
@@ -4439,18 +5142,25 @@ function createAnnotationView(owner, render, inventory, invalidate, retire) {
 				},
 				controls(entry) {
 					admit(entry);
-					const retained = new Map(entry.offers.map((model) => {
-						const offered = contributionSource(model);
-						nextOffers.add(offered);
-						return [model, materializeContributionControls(offered, "page", activateContributionControl)];
-					}));
+					const retained = /* @__PURE__ */ new Map();
+					const materialize = (offer) => {
+						let controls = retained.get(offer);
+						if (!controls) {
+							controls = materializeContributionControls(offer, "page", activateContributionControl);
+							retained.set(offer, controls);
+							nextOffers.add(offer.source());
+						}
+						return controls;
+					};
+					for (const offer of entry.offers) materialize(offer);
 					return entryControls(entry).map(({ offered, record, receipt }) => {
-						const control = retained.get(offered).get(record.key);
+						const control = materialize(offered)(record);
 						presentContributionReceipts(control, receipt, false);
 						return control;
 					});
 				}
-			})?.then) throw new TypeError("Annotation paint must finish inside its inventory reading");
+			});
+			if (result && (typeof result === "object" || typeof result === "function") && "then" in result && result.then) throw new TypeError("Annotation paint must finish inside its inventory reading");
 			for (const offered of offers) if (!nextOffers.has(offered)) clearContributionControls(offered, "page", /* @__PURE__ */ new Set());
 			offers = nextOffers;
 			places = nextPlaces;
@@ -4522,10 +5232,10 @@ function createInlineContributions({ targetPath }) {
 			host.lfTarget = target;
 			keeps(host, "data-lf-margin-for", target.id || targetPath(target));
 			keeps(host, "aria-label", `Actions for ${spokenSubject(addressableWord(target))}`);
-			const controls = (side) => offers.filter((offered) => offered.reading.side === side).sort(compareContributions).flatMap((offered) => {
-				const materialized = materializeContributionControls(offered, "inline", activateContributionControl);
+			const controls = (side) => offers.filter((offered) => offered.reading.side === side).sort((left, right) => compareContributions(left.model, right.model)).flatMap((offered) => {
+				const materialized = materializeContributionControls(offered.model, "inline", activateContributionControl);
 				return offered.reading.entries.filter((entry) => entry.visible).map((entry) => {
-					const control = materialized.get(entry.key);
+					const control = materialized(entry);
 					presentContributionReceipts(control, entry.workflowReceipt, false);
 					return control;
 				});
@@ -4535,7 +5245,8 @@ function createInlineContributions({ targetPath }) {
 			const restoreFocus = holdFocus(host);
 			setChildren(host, nodes);
 			restoreFocus?.();
-			if (target.nextSibling !== host) move(target.parentNode, host, target.nextSibling);
+			const parent = target.parentNode;
+			if (parent && target.nextSibling !== host) move(parent, host, target.nextSibling);
 		}
 	}
 	return Object.freeze({ present });
@@ -4573,7 +5284,7 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 		const shown = preview?.accompanied() ?? null;
 		if (!active || active === document.body) return shown;
 		const ids = threadIdsAt(active);
-		const drawn = [shown, ...ids.map((id) => surfaceFocusTarget(id, { part: "thread" }))].filter((thread) => thread && ids.includes(drawnThreadId(thread)));
+		const drawn = [shown, ...ids.map((id) => surfaceFocusTarget(id, { part: "thread" }))].filter((thread) => thread !== null).filter((thread) => ids.some((id) => id === drawnThreadId(thread)));
 		return drawn.length === 1 ? drawn[0] : null;
 	};
 	let lastIn = null;
@@ -4584,12 +5295,7 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 		const here = drawnThreadId(threadHere(active));
 		if (here) return here;
 		const ids = active ? threadIdsAt(active) : [];
-		return (ids.includes(lastIn) ? lastIn : ids[0]) ?? null;
-	};
-	const replyThreadAtCurrentLocation = () => {
-		const id = threadAtCurrentLocation();
-		const thread = allThreads().find((candidate) => candidate.id === id);
-		return thread && replyAvailable(thread) ? id : null;
+		return (ids.some((id) => id === lastIn) ? lastIn : ids[0]) ?? null;
 	};
 	const addressedPart = (thread, id, part) => ({
 		part,
@@ -4601,7 +5307,7 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 			thread && presentation?.owner.isConnected ? presentation.reader.destination(thread.key, addressedPart(thread, id, part)) : null,
 			surfaceFocusTarget(id, { part }),
 			preview?.focusTarget(id, { part })
-		].filter(Boolean);
+		].filter((candidate) => candidate != null);
 		return candidates.find(presented$1) ?? candidates[0] ?? null;
 	};
 	const DECLINED = Symbol("declined");
@@ -4611,10 +5317,14 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 		const navigationStep = travel && scroll;
 		const selected = presentation?.owner.isConnected ? presentation : null;
 		const thread = threadNamed(id);
-		if (selected && (!thread || !discussed(thread))) return null;
+		const primary = selected && thread && discussed(thread) ? {
+			selected,
+			thread
+		} : null;
+		if (selected && !primary) return null;
 		const holder = part === "message" ? authoredHolder(id) : null;
 		const drawn = Boolean(selected && holder && renderedUnder(holder, selected.owner));
-		function inPrimary(last) {
+		function inPrimary({ selected, thread }, last) {
 			opening?.abort();
 			const abort = new AbortController();
 			opening = abort;
@@ -4641,7 +5351,7 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 			if (result !== false && preview) intent.handoff(preview.close);
 			return taken(result);
 			async function taken(result) {
-				const selectedLayout = result?.then ? await whileCurrent(result) : result;
+				const selectedLayout = result instanceof Promise ? await whileCurrent(result) : result;
 				if (!mayPresent()) return null;
 				if (selectedLayout === false && !drawn) return DECLINED;
 				await whileCurrent(selected.reader.update());
@@ -4675,7 +5385,8 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 			const localPart = part ?? "reply";
 			if (part === "message") showHeld(id);
 			const openSurface = async () => {
-				if (!scroll && !presented$1(surfaceFocusTarget(id, { part: localPart }))) return DECLINED;
+				const surface = surfaceFocusTarget(id, { part: localPart });
+				if (!scroll && (!surface || !presented$1(surface))) return DECLINED;
 				if (preview) intent.handoff(preview.close);
 				if (navigationStep) {
 					if (!await scrollToThread(id, {
@@ -4704,15 +5415,16 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 			if (surfaceFocusTarget(id, { part: localPart })) return openSurface();
 			if (showHeldThread(id) && surfaceFocusTarget(id, { part: localPart })) return openSurface();
 			const place = preview && !navigationStep ? threadTarget(id) : null;
-			const placeDrawn = () => visibleTargetParts(place).length > 0;
+			const placeDrawn = () => place !== null && visibleTargetParts(place).length > 0;
 			if (place && scroll && !placeDrawn()) {
 				await reveal(place, intent).ready;
 				if (!mayPresent()) return null;
 			}
-			let opened = null;
+			const invocation = { opened: null };
 			if (preview && (!place || placeDrawn())) intent.handoff(() => {
-				opened = preview.open(id, { origin });
+				invocation.opened = preview.open(id, { origin });
 			});
+			const opened = invocation.opened;
 			if (opened) {
 				if (navigationStep) {
 					if (!await scrollToThread(id, {
@@ -4746,18 +5458,18 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 			if (surfaceFocusTarget(id, { part: localPart })) return openSurface();
 			return DECLINED;
 		}
-		const asked = selected && !returning ? inPrimary(false) : DECLINED;
+		const asked = primary && !returning ? inPrimary(primary, false) : DECLINED;
 		const first = asked instanceof Promise ? await asked : asked;
 		if (first !== DECLINED && first !== UNDRAWN) return first;
 		const shown = await onPage();
 		if (returning) {
 			if (!shown || shown === DECLINED) return null;
-			if (selected) await inPrimary(false);
+			if (primary) await inPrimary(primary, false);
 			return shown;
 		}
 		if (shown !== DECLINED) return shown;
-		if (!selected || first !== DECLINED) return null;
-		const last = await inPrimary(true);
+		if (!primary || first !== DECLINED) return null;
+		const last = await inPrimary(primary, true);
 		return last === DECLINED || last === UNDRAWN ? null : last;
 	}
 	async function returnToPage() {
@@ -4780,28 +5492,30 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 		}
 	}
 	async function openThreadSubject(id, { intent = retainUserIntent() } = {}) {
-		const message = placedAt(id)?.message;
-		if (!message) return null;
-		const { element } = messageHolding(threadNamed(id).anchor.section);
+		const held = placedAt(id)?.messageTarget;
+		if (!held) return null;
+		const { message, element } = held;
 		if (!await openPageThread(message, {
 			part: "message",
 			focus: false,
 			travel: false,
 			intent
 		}) || !element.isConnected) return null;
-		return await arrive(() => element.isConnected && {
+		return await arrive(() => element.isConnected ? {
 			where: element,
 			focus: element,
 			scroll: [{
 				at: element,
 				block: "nearest"
 			}]
-		}, { intent }) ? element : null;
+		} : null, { intent }) ? element : null;
 	}
 	async function openThreadDraft(context, intent) {
-		const thread = threadHolding(context);
+		const route = threadDraft(context);
+		if (!route) return null;
+		const thread = threadHoldingRoute(route);
 		if (!thread) return null;
-		const { part, name } = threadDraft(context);
+		const { part, name } = route;
 		if (part === "reply") return openPageThread(thread.id, {
 			part: "reply",
 			intent
@@ -4814,7 +5528,10 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 		return card ? openMessageEditIn(card, name) : null;
 	}
 	function threadHolding(context) {
-		const { part, name } = threadDraft(context);
+		const route = threadDraft(context);
+		return route ? threadHoldingRoute(route) : null;
+	}
+	function threadHoldingRoute({ part, name }) {
 		return part === "reply" ? allThreads().find((each) => threadKey(each) === name) : allThreads().find((each) => each.msgs.some(({ id }) => id === name));
 	}
 	return {
@@ -4828,7 +5545,6 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 		threadFocusTarget,
 		threadHere,
 		threadAtCurrentLocation,
-		replyThreadAtCurrentLocation,
 		threadTarget,
 		threadPlace: threadPlace$1
 	};
@@ -4838,32 +5554,30 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 //#region runtime/thread/actions.js
 function createThreadActions({ post, withdraw, sendReaction, currentRevision, open }) {
 	const create = (command) => {
-		const { text, anchor, revision = currentRevision(), attempt = randomId(), holds, about, drawing, suggestion } = command;
-		if (!text && !drawing) return null;
+		if (!command.text && !command.drawing) return null;
+		const { revision = currentRevision(), attempt = randomId(), ...content } = command;
+		if (revision === null) return null;
 		const delivery = post({
+			...structuredClone(content),
 			kind: "comment",
 			revision,
-			...text !== void 0 && { text },
-			...anchor !== void 0 && { anchor: structuredClone(anchor) },
-			...attempt !== void 0 && { attempt },
-			...holds !== void 0 && { holds },
-			...about !== void 0 && { about },
-			...drawing !== void 0 && { drawing: structuredClone(drawing) },
-			...suggestion !== void 0 && { suggestion }
+			attempt
 		});
-		return delivery ? Object.freeze({
+		return Object.freeze({
 			key: attempt,
 			delivery
-		}) : null;
+		});
 	};
 	const find = (key) => readThreads().threads.find((thread) => thread.key === key);
 	const reply = (key, text, { attempt } = {}) => {
 		if (!text) return null;
 		const thread = find(key);
 		if (!thread) return null;
+		const revision = currentRevision();
+		if (revision === null) return null;
 		return post({
 			kind: "reply",
-			revision: currentRevision(),
+			revision,
 			parent: thread.root.id,
 			text,
 			...attempt && { attempt }
@@ -4878,7 +5592,7 @@ function createThreadActions({ post, withdraw, sendReaction, currentRevision, op
 			kind: "edit",
 			message: messageId,
 			text,
-			base,
+			...base !== void 0 && { base },
 			...attempt && { attempt }
 		});
 	};
@@ -4897,10 +5611,12 @@ function createThreadActions({ post, withdraw, sendReaction, currentRevision, op
 		const choice = message && message.reactions?.choices.find((item) => item.name === token);
 		if (!choice || active === Boolean(choice.inForce)) return null;
 		if (choice.inForce) return withdraw(choice.inForce);
+		const revision = currentRevision();
+		if (revision === null) return null;
 		return sendReaction({
 			kind: "reply",
 			parent: message.id,
-			revision: currentRevision(),
+			revision,
 			token
 		}, `${message.agent}'s reply`, post);
 	};
@@ -4968,22 +5684,33 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
 	const nativeMessages = /* @__PURE__ */ new Set();
 	const held = new HeldNews(owner, (key) => {
 		const parts = destinations.get(key);
-		if (!parts?.length) return null;
+		const last = parts?.at(-1);
+		if (!parts || !last) return null;
 		const whole = parts.find((part) => part instanceof ThreadView);
 		if (whole) return whole;
 		return {
-			node: drawingOf(parts) ?? parts.at(-1).node,
-			progressOpen: parts.some((part) => part.transcript?.progressOpen),
-			newsMoves: (held) => !(answersAtOnce && held.answers) && parts.some((part) => part.transcript ? part.transcript.newsMoves(held) : (held.news.appended || held.news.settled || held.changed.has(part.messageKey) || held.folds.messages.includes(part.messageKey) || held.folds.summaries.length) && growthIsSeen(part.node))
+			node: drawingOf(parts) ?? last.node,
+			progressOpen: parts.some((part) => part.kind === "transcript" && part.transcript.progressOpen),
+			newsMoves: (held) => !(answersAtOnce && held.answers) && parts.some((part) => part.kind === "transcript" ? part.transcript.newsMoves(held) : (held.news.appended || held.news.settled || part.kind === "message" && held.changed.has(part.messageKey) || part.kind === "message" && held.folds.messages.includes(part.messageKey) || Boolean(held.folds.summaries.length)) && growthIsSeen(part.node))
 		};
 	}, () => void update().catch(() => {}));
 	let shown = /* @__PURE__ */ new Map();
 	const drawingOf = (parts) => {
-		const whole = wholeThread(parts[0].node);
-		return whole === parts[0].node ? null : whole;
+		const first = parts[0];
+		if (!first) return null;
+		const whole = wholeThread(first.node);
+		return whole === first.node ? null : whole;
 	};
 	const rewrites = /* @__PURE__ */ new Map();
-	const partsOf = (key, kind) => selected.filter((item) => item.key === key && item.kind === kind).flatMap((item) => views.get(item.identity) ?? []);
+	const partsOf = (key, kind) => {
+		const parts = [];
+		for (const item of selected) {
+			const view = views.get(item.identity);
+			if (item.key === key && view && isKind(view, kind)) parts.push(view);
+		}
+		return parts;
+	};
+	const isKind = (view, kind) => view.kind === kind;
 	const replyOf = (key) => {
 		for (const view of destinations.get(key) ?? []) {
 			const input = !view.node.hidden && threadPart(view.node, "reply");
@@ -4992,26 +5719,32 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
 		return null;
 	};
 	const rewritesOf = (key) => {
-		if (!rewrites.has(key)) rewrites.set(key, threadRewrites({
-			thread: () => key,
-			views: () => {
-				const transcript = partsOf(key, "transcript")[0];
-				if (transcript) return transcript.transcript.views;
-				const order = shown.get(key)?.source.msgs.map((message) => message.key);
-				return partsOf(key, "message").toSorted((a, b) => (order?.indexOf(a.messageKey) ?? 0) - (order?.indexOf(b.messageKey) ?? 0)).map((view) => view.message);
-			},
-			send: (id, text, options) => commands.reply.actions.edit(key, id, text, options),
-			paint: (node) => [...partsOf(key, "transcript"), ...partsOf(key, "message")].find((view) => view.transcript || view.message.node === node)?.draw(),
-			box: () => replyOf(key),
-			home: (node) => node.closest(THREAD),
-			opening: (id) => {
-				shown.get(key)?.news?.open();
-				partsOf(key, "transcript")[0]?.transcript.expandAround(id);
-			},
-			landInThread: commands.reply.landInThread,
-			landSent: commands.reply.landSent
-		}));
-		return rewrites.get(key);
+		let rewrite = rewrites.get(key);
+		if (!rewrite) {
+			rewrite = threadRewrites({
+				views: () => {
+					const transcript = partsOf(key, "transcript")[0];
+					if (transcript) return transcript.transcript.views;
+					const order = shown.get(key)?.source.msgs.map((message) => message.key);
+					return partsOf(key, "message").toSorted((a, b) => (order?.indexOf(a.messageKey) ?? 0) - (order?.indexOf(b.messageKey) ?? 0)).map((view) => view.message);
+				},
+				paint: (node) => [...partsOf(key, "transcript"), ...partsOf(key, "message")].find((view) => view.kind === "transcript" || view.message.node === node)?.draw(),
+				box: () => replyOf(key),
+				home: (node) => {
+					const home = node?.closest(THREAD);
+					if (!home) throw new Error("A primary message must stand in its drawn thread");
+					return home;
+				},
+				opening: (id) => {
+					shown.get(key)?.news?.open();
+					partsOf(key, "transcript")[0]?.transcript.expandAround(id);
+				},
+				landInThread: commands.reply.landInThread,
+				landSent: commands.reply.landSent
+			});
+			rewrites.set(key, rewrite);
+		}
+		return rewrite;
 	};
 	const clear = () => {
 		for (const view of views.values()) {
@@ -5042,7 +5775,8 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
 		});
 		const nominations = [];
 		let accepting = true;
-		const nominate = (kind, key, message, outlet, options = {}) => {
+		const nominate = (request) => {
+			const { kind, key, message } = request;
 			if (!accepting || abort.signal.aborted) throw new Error("Thread nominations belong to their current render callback");
 			const thread = byKey.get(key);
 			if (!thread) throw new Error(`No Thread has key ${key}`);
@@ -5055,13 +5789,9 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
 			const covers = (a, b) => a === "thread" || a === "transcript" && b === "message";
 			if (nominations.some((item) => item.identity === identity || item.key === key && (covers(item.kind, kind) || covers(kind, item.kind)))) throw new Error("A primary reader may nominate each Thread part only once");
 			nominations.push({
+				...request,
 				identity,
-				kind,
-				key,
-				message,
-				outlet,
-				thread,
-				options
+				thread
 			});
 		};
 		const finish = () => {
@@ -5075,15 +5805,16 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
 			return {
 				paint: async () => {
 					try {
-						await paint(current);
+						await paint(current, () => {
+							if (!active || current !== generation || abort.signal.aborted) return;
+							candidate.commit();
+							for (const item of nominations) if (item.kind === "transcript") item.options.drawn?.(shown.get(item.key)?.change?.answers ?? null);
+						});
 					} catch (error) {
 						failing ||= current === generation;
 						throw error;
 					}
-					if (active && current === generation && !abort.signal.aborted) {
-						candidate.commit();
-						failed = false;
-					}
+					if (active && current === generation && !abort.signal.aborted) failed = false;
 				},
 				current: () => active && current === generation && !abort.signal.aborted
 			};
@@ -5091,13 +5822,43 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
 		try {
 			const rendering = render(shownCollection, Object.freeze({
 				signal: abort.signal,
-				thread: (key, outlet) => nominate("thread", key, null, outlet),
-				transcript: (key, outlet) => nominate("transcript", key, null, outlet),
-				message: (key, id, outlet) => nominate("message", key, id, outlet),
-				reply: (key, outlet, options) => nominate("reply", key, null, outlet, options),
-				news: (key, outlet) => nominate("news", key, null, outlet)
+				thread: (key, outlet) => nominate({
+					kind: "thread",
+					key,
+					message: null,
+					outlet,
+					options: {}
+				}),
+				transcript: (key, outlet, options) => nominate({
+					kind: "transcript",
+					key,
+					message: null,
+					outlet,
+					options: options ?? {}
+				}),
+				message: (key, id, outlet) => nominate({
+					kind: "message",
+					key,
+					message: id,
+					outlet,
+					options: {}
+				}),
+				reply: (key, outlet, options) => nominate({
+					kind: "reply",
+					key,
+					message: null,
+					outlet,
+					options: options ?? {}
+				}),
+				news: (key, outlet) => nominate({
+					kind: "news",
+					key,
+					message: null,
+					outlet,
+					options: {}
+				})
 			}));
-			if (rendering?.then) return Promise.race([rendering, aborted(abort.signal)]).then(finish).catch((error) => {
+			if (rendering != null && (typeof rendering === "object" || typeof rendering === "function") && "then" in rendering && typeof rendering.then === "function") return Promise.race([rendering, aborted(abort.signal)]).then(finish).catch((error) => {
 				failing ||= !abort.signal.aborted;
 				throw error;
 			}).finally(() => {
@@ -5110,7 +5871,20 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
 			throw error;
 		}
 	}
-	async function paint(current) {
+	const messageSource = (thread, key) => {
+		const message = thread.msgs.find((entry) => entry.key === key);
+		if (!message) throw new Error(`Thread ${thread.key} has no message ${key}`);
+		return message;
+	};
+	const messageModel = (thread, key) => {
+		const message = messageSource(thread, key);
+		return messageReading(message, {
+			authoredRank: 3,
+			reactions: message.reactions,
+			workflows: message.workflows
+		});
+	};
+	async function paint(current, drawn) {
 		if (!active || generation !== current) return;
 		for (const item of selected) if (!owner.isConnected || !item.outlet.isConnected || !under(item.outlet, owner)) throw new Error("A primary Thread outlet must remain inside its connected owner");
 		const wanted = new Set(selected.map((item) => item.identity));
@@ -5130,15 +5904,15 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
 			children.set(parent, nodes);
 		};
 		for (const item of selected) {
+			const reading = shown.get(item.key);
+			if (!reading) throw new Error(`No prepared Thread has key ${item.key}`);
 			let view = views.get(item.identity);
 			if (!view) {
-				if (item.kind === "thread") view = new ThreadView({
-					...commands,
-					authoredRank: 3
-				});
+				if (item.kind === "thread") view = Object.assign(new ThreadView(commands, reading), { kind: "thread" });
 				else if (item.kind === "news") {
 					const notice = newsNotice();
 					view = {
+						kind: "news",
 						node: notice.node,
 						notice,
 						dispose() {}
@@ -5151,6 +5925,8 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
 					node.dataset.lfRuntime = "";
 					generatedElement(node, { says: false });
 					node.dataset.lfOffer = "";
+					const notice = newsNotice();
+					notice.node.classList.add("lf-primary-news");
 					if (item.kind === "transcript") {
 						const transcript = new Transcript({
 							commands,
@@ -5162,15 +5938,17 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
 								},
 								edit: rewritesOf(item.key).edit
 							},
-							repaint: () => view.draw(),
+							repaint: () => part.draw(),
 							home: () => node
 						});
 						node.append(transcript.node);
 						node.dataset.lfAppendTail = "";
-						view = {
+						const part = {
+							kind: "transcript",
 							node,
+							notice,
 							transcript,
-							reading: null,
+							reading,
 							drawn: false,
 							headNotice: true,
 							draw() {
@@ -5178,12 +5956,13 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
 									arrived: this.drawn,
 									notice: this.headNotice ? this.notice.node : null
 								});
-								transcript.commit();
+								transcript.commit(this.reading);
 								this.drawn = true;
 								if (handedOn) focusDestination(handedOn, "return");
 							},
 							dispose: () => transcript.retire()
 						};
+						view = part;
 					} else if (item.kind === "message") {
 						const message = new MessageView({
 							...commands,
@@ -5195,53 +5974,49 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
 						});
 						node.append(message.node);
 						view = {
+							kind: "message",
 							node,
+							notice,
 							message,
 							messageKey: item.message,
-							reading: null,
+							reading: messageModel(item.thread, item.message),
 							headNotice: true,
 							draw() {
-								message.present(this.reading, { headerControls: this.headNotice ? this.notice.node : void 0 });
+								message.present(this.reading, { ...this.headNotice ? { headerControls: this.notice.node } : {} });
 								message.commit();
 							},
 							dispose: () => message.retire()
 						};
 					} else {
 						let joined = false;
-						const { hint, hintLead, accessibleName, busy, sending, sent } = item.options;
 						const redraw = () => {
 							for (const row of node.querySelectorAll(":scope > .lf-thread-reply")) if (row !== reply.node) row.remove();
 							move(node, reply.node, node.firstChild);
 						};
-						const reply = createReplyView(item.key, commands.reply, redraw, {
+						const reply = createReplyView(item.key, node, commands.reply, redraw, {
+							...item.options,
 							onChange: () => {
 								if (joined) update().catch(() => {});
 							},
-							editLast: rewritesOf(item.key).editLast,
-							hint,
-							hintLead,
-							accessibleName,
-							busy,
-							sending,
-							sent
+							editLast: rewritesOf(item.key).editLast
 						});
 						joined = true;
 						node.append(reply.node);
 						view = {
+							kind: "reply",
 							node,
+							notice,
 							reply,
 							dispose: reply.dispose
 						};
 					}
-					view.notice = newsNotice();
-					view.notice.node.classList.add("lf-primary-news");
 				}
 				views.set(item.identity, view);
 			}
-			if (item.kind === "thread") {
-				view.present(shown.get(item.key));
+			if (view.kind === "thread") {
+				view.present(reading);
 				view.commit();
-			} else if (item.kind === "news") {
+			} else if (view.kind === "news") {
 				const news = shown.get(item.key)?.news;
 				if (news) view.notice.set(news);
 				keepsHidden(view.node, !news);
@@ -5252,20 +6027,16 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
 				const nominated = selected.some((part) => part.key === item.key && part.kind === "news");
 				const first = selected.find((part) => part.key === item.key && (part.kind === "message" || part.kind === "transcript")) ?? selected.find((part) => part.key === item.key);
 				const notice = Boolean(news) && !nominated && first === item;
-				if (notice) view.notice.set(news);
+				if (notice && news) view.notice.set(news);
 				keepsHidden(view.notice.node, !notice);
-				if (item.kind === "transcript") {
+				if (view.kind === "transcript") {
 					view.headNotice = !nominated;
-					view.reading = shown.get(item.key);
+					view.reading = reading;
 					view.draw();
-				} else if (item.kind === "message") {
-					const message = item.thread.msgs.find((entry) => entry.key === item.message);
+				} else if (view.kind === "message") {
+					const message = messageSource(item.thread, view.messageKey);
 					view.headNotice = !nominated;
-					view.reading = messageReading(message, {
-						authoredRank: 3,
-						reactions: message.reactions,
-						workflows: message.workflows
-					});
+					view.reading = messageModel(item.thread, view.messageKey);
 					view.draw();
 					keeps(view.node, "data-lf-append-tail", message.provisional && message === item.thread.msgs.at(-1) ? "" : null);
 				} else if (nominated) view.notice.node.remove();
@@ -5291,13 +6062,14 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
 			for (const slot of slots.splice(depth)) slot.remove();
 			keeps(view.node, "slot", previous?.name ?? null);
 			place(destination, view.node);
-			if (item.kind === "news") continue;
+			if (view.kind === "news") continue;
 			const parts = destinations.get(item.key) ?? [];
 			parts.push(view);
 			destinations.set(item.key, parts);
 		}
 		for (const [parent, nodes] of children) orderChildren(parent, nodes);
-		for (const view of views.values()) view.reply?.claim(() => view.node.isConnected && !view.node.hidden);
+		for (const view of views.values()) if (view.kind === "reply") view.reply.claim(() => view.node.isConnected && !view.node.hidden);
+		drawn();
 		const widgets = [...readApplication().document.descriptors.values()].filter((descriptor) => descriptor.document.kind === "thread" && renderedUnder(elementById(descriptor.id), owner)).map((descriptor) => descriptor.id);
 		await whenWidgetsPresented(widgets);
 	}
@@ -5382,7 +6154,7 @@ function wordsAreVisible(body, clips, band) {
 	const text = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
 	const range = document.createRange();
 	for (let node = text.nextNode(); node; node = text.nextNode()) {
-		if (!node.textContent.trim()) continue;
+		if (!node.textContent?.trim()) continue;
 		const holder = node.parentElement;
 		if (!holder || !presented$1(holder) || !holder.checkVisibility({ opacityProperty: true })) continue;
 		range.selectNodeContents(node);
@@ -5417,17 +6189,23 @@ function createReadTracking({ markRead, openThread }) {
 		coverage = /* @__PURE__ */ new WeakMap();
 		refusedThisVisit.clear();
 	}
-	const unreadIn = (threads) => threads.flatMap((thread) => thread.unread.map((item) => ({
-		thread,
-		item,
-		message: thread.msgs.find((message) => message.id === item.message)
-	})));
+	const unreadIn = (threads) => threads.flatMap((thread) => {
+		const unread = new Map(thread.unread.map((item) => [item.message, item]));
+		return thread.msgs.flatMap((message) => {
+			const item = unread.get(message.id);
+			return item ? [{
+				thread,
+				item,
+				message
+			}] : [];
+		});
+	});
 	const actionableUnread = () => {
 		const live = new Set(unreadIn(readThreads().threads).map(({ item }) => keyOf(item)));
 		return unreadIn(committedThreads.value).filter(({ item }) => live.has(keyOf(item)));
 	};
 	function firstUnread(thread = null) {
-		const target = actionableUnread().filter((each) => thread === null || each.thread.key === thread).sort((a, b) => moved(a.message).seq - moved(b.message).seq)[0];
+		const target = actionableUnread().filter((each) => thread === null || each.thread.key === thread).sort((a, b) => Number(moved(a.message).seq) - Number(moved(b.message).seq))[0];
 		return target ? openThread(target.item.message, { part: "message" }) : Promise.resolve();
 	}
 	const firstUnreadCommand = {
@@ -5441,9 +6219,9 @@ function createReadTracking({ markRead, openThread }) {
 		run: () => void firstUnread()
 	};
 	function scan(sampleBand) {
-		if (document.visibilityState !== "visible") return;
+		if (document.visibilityState !== "visible" || sampleBand?.visible === false) return;
 		const band = sampleBand ?? layoutWindow();
-		if (!band || sampleBand?.visible === false) return;
+		if (!band) return;
 		const candidates = new Map((threadsPresented ? actionableUnread() : []).map(({ item }) => [item.message, item]));
 		const mayRead = threadsPresented && document.hasFocus() && sessionIsActive();
 		const clips = /* @__PURE__ */ new Map();
@@ -5465,9 +6243,10 @@ function createReadTracking({ markRead, openThread }) {
 					} else unseenWords.push(body);
 				}
 			}
-			const item = mayRead && candidates.get(id);
-			const key = item && keyOf(item);
-			if (!item || item.version !== version || completed.has(key) || refusedThisVisit.has(key)) continue;
+			const item = mayRead && id !== null ? candidates.get(id) : void 0;
+			if (!item || item.version !== version) continue;
+			const key = keyOf(item);
+			if (completed.has(key) || refusedThisVisit.has(key)) continue;
 			const visible = visibleInterval(body, clips, band);
 			if (!visible) continue;
 			let tracked = coverage.get(body);
@@ -5482,7 +6261,7 @@ function createReadTracking({ markRead, openThread }) {
 				coverage.set(body, tracked);
 			}
 			tracked.intervals = mergeIntervals([...tracked.intervals, visible.interval]);
-			if (tracked.intervals.length === 1 && tracked.intervals[0][0] <= EPSILON && tracked.intervals[0][1] >= visible.height - EPSILON) completed.set(key, item);
+			if (tracked.intervals.length === 1 && tracked.intervals.every(([start, end]) => start <= EPSILON && end >= visible.height - EPSILON)) completed.set(key, item);
 		}
 		if (unseenWords.length) passAfterFades(unseenWords);
 		if (completed.size) {
@@ -5542,7 +6321,7 @@ function createReadTracking({ markRead, openThread }) {
 		addEventListener("load", scheduleScan, true);
 		document.addEventListener("lf-session-active", scheduleScan);
 		frameWatches.push(onFrameVisibility((visibility) => {
-			if (visibility.visible) scheduleScan();
+			if (!visibility || visibility.visible) scheduleScan();
 			else resetExposure();
 		}));
 		addEventListener("pagehide", (event) => {
@@ -5554,7 +6333,6 @@ function createReadTracking({ markRead, openThread }) {
 		});
 	}
 	function observeBody(body, reading) {
-		if (!(body instanceof Element)) throw new TypeError("A message body must be an Element");
 		if (!renderedBodies.has(body)) sizes.observe(body);
 		const registration = {
 			body,
@@ -5627,19 +6405,645 @@ function createReadTracking({ markRead, openThread }) {
 }
 
 //#endregion
+//#region runtime/since-seen.js
+const HANDOFF_KEY = "lf-seen-handoff";
+function createSinceSeen({ markSeen }) {
+	let arriving = true;
+	let shown = null;
+	try {
+		shown = JSON.parse(tabStore.get(HANDOFF_KEY) || "null");
+	} catch {
+		shown = null;
+	}
+	tabStore.set(HANDOFF_KEY, null);
+	let offered = null;
+	let posted = 0;
+	const takesPart = () => window === window.top && LIVE_ROOT && sessionIsActive() && runtime.state !== null;
+	const attended = () => document.visibilityState === "visible" && document.hasFocus() && readingIsContinuous();
+	const newestSeen = () => {
+		const seen = runtime.seen;
+		return !shown || seen && seen.revision >= shown.revision ? seen : shown;
+	};
+	function present() {
+		const current = runtime.currentRevision;
+		if (!takesPart() || current === null || !runtime.showsActive) return;
+		const seen = runtime.seen;
+		if (offered !== null && seen && seen.revision > Math.max(offered, posted) && comparisonBase()?.revision === offered) {
+			stopComparison();
+			offered = seen.revision < current ? seen.revision : null;
+			if (offered !== null) offerComparison(revisionBase(seen));
+		}
+		if (!attended()) return;
+		const base = newestSeen();
+		if (arriving) {
+			arriving = false;
+			if (base && base.revision < current && comparisonBase() === null) {
+				const since = revisionBase(base);
+				offered = since.revision;
+				whenDocumentPresented().then(() => offerComparison(since));
+			}
+		}
+		if (runtime.active && (shown?.revision ?? 0) < current) shown = runtime.active;
+	}
+	function leave() {
+		arriving = true;
+		if (!shown || !takesPart()) return;
+		tabStore.set(HANDOFF_KEY, JSON.stringify(shown));
+		if (shown.revision > Math.max(runtime.seen?.revision ?? 0, posted)) {
+			posted = shown.revision;
+			markSeen(shown.revision);
+		}
+	}
+	onReadingInterrupted(() => {
+		arriving = true;
+	});
+	document.addEventListener("lf-reading-continuity", present);
+	addEventListener("focus", present);
+	addEventListener("blur", () => setTimeout(() => {
+		if (!document.hasFocus()) leave();
+	}));
+	document.addEventListener("visibilitychange", () => {
+		if (document.visibilityState === "hidden") leave();
+	});
+	addEventListener("pagehide", leave);
+	x(present);
+}
+
+//#endregion
+//#region runtime/target-paint-geometry.js
+const SVG_NS = "http://www.w3.org/2000/svg";
+const SHAPE_STROKE_ROOM = 2;
+const paints = (shape, property) => {
+	const style = getComputedStyle(shape);
+	return shape.checkVisibility({
+		opacityProperty: true,
+		visibilityProperty: true
+	}) && style[property] !== "none" && Number.parseFloat(style[`${property}Opacity`]) !== 0 && (property !== "stroke" || Number.parseFloat(style.strokeWidth) > 0);
+};
+function paintGeometry(surface) {
+	if (!(surface instanceof SVGElement) || !surface.ownerSVGElement) return null;
+	const geometry = [surface, ...surface.querySelectorAll("*")].filter((child) => child instanceof SVGGeometryElement);
+	const fill = geometry.filter((shape) => paints(shape, "fill"));
+	const paintedStroke = geometry.filter((shape) => paints(shape, "stroke"));
+	const outlined = /* @__PURE__ */ new Set([...fill, ...paintedStroke]);
+	const stroke = geometry.filter((shape) => outlined.has(shape));
+	return fill.length || stroke.length ? {
+		fill,
+		stroke
+	} : null;
+}
+function geometryClone(source, left, top, property) {
+	const matrix = source.getScreenCTM();
+	if (!matrix) return null;
+	const clone = source.cloneNode(false);
+	clone.removeAttribute("id");
+	clone.removeAttribute("class");
+	clone.removeAttribute("opacity");
+	clone.removeAttribute("fill-opacity");
+	clone.removeAttribute("stroke-opacity");
+	clone.style.removeProperty("transform");
+	clone.style.removeProperty("opacity");
+	clone.style.removeProperty("fill-opacity");
+	clone.style.removeProperty("stroke-opacity");
+	for (const attribute of [...clone.attributes]) {
+		const length = Reflect.get(source, attribute.localName);
+		if (attribute.value.includes("%") && length instanceof SVGAnimatedLength) clone.setAttribute(attribute.name, String(length.animVal.value));
+	}
+	clone.setAttribute("transform", `matrix(${matrix.a} ${matrix.b} ${matrix.c} ${matrix.d} ${atLayoutPrecision(matrix.e - left)} ${atLayoutPrecision(matrix.f - top)})`);
+	clone.style.setProperty("fill", property === "fill" ? "white" : "none", "important");
+	clone.style.setProperty("stroke", property === "stroke" ? "var(--lf-shape-ink)" : "none", "important");
+	clone.style.setProperty("stroke-width", "var(--lf-shape-stroke)", "important");
+	clone.style.setProperty("stroke-dasharray", "var(--lf-shape-dash, none)", "important");
+	clone.style.setProperty("stroke-linejoin", "round", "important");
+	clone.style.setProperty("stroke-linecap", "round", "important");
+	clone.style.setProperty("vector-effect", "non-scaling-stroke", "important");
+	return clone;
+}
+function paintShape(host, geometry, { left, top, right, bottom }, options = {}) {
+	if (!geometry) return false;
+	const { maskId = "", veil = false } = options;
+	const width = atLayoutPrecision(right - left);
+	const height = atLayoutPrecision(bottom - top);
+	const fill = [];
+	const stroke = [];
+	if (veil) for (const shape of geometry.fill) {
+		const clone = geometryClone(shape, left, top, "fill");
+		if (!clone) return false;
+		fill.push(clone);
+	}
+	for (const shape of geometry.stroke) {
+		const clone = geometryClone(shape, left, top, "stroke");
+		if (!clone) return false;
+		stroke.push(clone);
+	}
+	const paint = [];
+	if (veil && fill.length) {
+		const defs = document.createElementNS(SVG_NS, "defs");
+		const mask = document.createElementNS(SVG_NS, "mask");
+		mask.id = maskId;
+		mask.setAttribute("maskUnits", "userSpaceOnUse");
+		mask.setAttribute("x", "0");
+		mask.setAttribute("y", "0");
+		mask.setAttribute("width", String(width));
+		mask.setAttribute("height", String(height));
+		mask.style.maskType = "alpha";
+		mask.append(...fill);
+		defs.append(mask);
+		const wash = document.createElementNS(SVG_NS, "rect");
+		wash.setAttribute("width", String(width));
+		wash.setAttribute("height", String(height));
+		wash.setAttribute("fill", "var(--lf-shape-ink)");
+		wash.setAttribute("fill-opacity", "0.08");
+		wash.setAttribute("mask", `url(#${maskId})`);
+		paint.push(defs, wash);
+	}
+	const outline = document.createElementNS(SVG_NS, "g");
+	outline.append(...stroke);
+	paint.push(outline);
+	keeps(host, "viewBox", `0 0 ${width} ${height}`);
+	keeps(host, "width", width);
+	keeps(host, "height", height);
+	const held = host.children;
+	if (paint.length !== held.length || paint.some((node, index) => !node.isEqualNode(held.item(index)))) host.replaceChildren(...paint);
+	return true;
+}
+function paintStand(box = null) {
+	const root = document.createElement("div");
+	root.className = "lf-ui lf-target-paint lf-paint-stand";
+	root.setAttribute("aria-hidden", "true");
+	root.style.position = "fixed";
+	const carrier = document.createElement("div");
+	carrier.className = "lf-paint-carrier";
+	if (box) carrier.append(box);
+	root.append(carrier);
+	return {
+		root,
+		carrier,
+		box,
+		anchored: false,
+		frames: []
+	};
+}
+function anchoredBy(el, root) {
+	const anchor = anchorElement(el);
+	if (!anchorReaches(anchor, root)) return null;
+	return anchor === el || scrollsWith(el, anchor) && !scrollsContent(anchor) || scrollsWith(anchor, el) ? anchor : null;
+}
+const makeFrame = () => {
+	const frame = document.createElement("div");
+	frame.className = "lf-paint-frame";
+	return frame;
+};
+function standIn(stand, placed, anchored) {
+	const { levels } = placed;
+	const readings = levels.map((level) => ({
+		...level,
+		anchor: level.holder ? anchoredBy(level.holder, stand.root) : null
+	}));
+	anchored &&= readings.every(({ holder, anchor }) => !holder || anchor !== null);
+	stand.anchored = anchored;
+	stand.frames = cutFrames(readings.map(({ anchor, band, axes }) => ({
+		anchor: anchored ? anchor : null,
+		band,
+		axes
+	})), stand.frames.map(({ frame }) => frame), makeFrame);
+	const outer = stand.frames[0]?.frame;
+	if (outer && outer.parentNode !== stand.root) move(stand.root, outer, null);
+	const inner = stand.frames.at(-1)?.frame ?? stand.root;
+	if (stand.carrier.parentNode !== inner) move(inner, stand.carrier, null);
+	const band = levels.at(-1)?.band;
+	return anchored ? {
+		anchored: true,
+		origin: null
+	} : {
+		anchored: false,
+		origin: {
+			x: band?.left ?? 0,
+			y: band?.top ?? 0
+		}
+	};
+}
+function standBox(box, rect, stood, anchor = null, at = anchor && anchorBox(anchor)) {
+	if (stood.anchored) {
+		anchorAt(box, anchor, rect, at, stood.visibility ?? "always");
+		return;
+	}
+	Object.assign(box.style, {
+		position: "",
+		positionAnchor: "",
+		positionVisibility: "",
+		left: layoutPx(rect.left - stood.origin.x),
+		top: layoutPx(rect.top - stood.origin.y),
+		...rect.right === void 0 ? {} : {
+			width: layoutPx(rect.right - rect.left),
+			height: layoutPx(rect.bottom - rect.top)
+		}
+	});
+}
+function standOver(stand, placed, borderRadius) {
+	const anchor = anchoredBy(placed.surface, stand.root);
+	const at = anchor && anchorBox(anchor);
+	const stood = standIn(stand, placed, Boolean(anchor));
+	const style = stand.box.style;
+	standBox(stand.box, placed.rect, stood, anchor, at);
+	Object.assign(style, {
+		display: "block",
+		borderRadius
+	});
+	const band = token("--focus-ring-w");
+	const outside = markGap(placed.surface);
+	const gap = cramped(placed, band + outside) ? -band : outside;
+	style.setProperty("--lf-mark-offset", layoutPx(gap));
+	const room = Math.max(0, band + gap);
+	for (const side of [
+		"top",
+		"right",
+		"bottom",
+		"left"
+	]) stand.root.style.setProperty(`--lf-paint-outset-${side}`, layoutPx(cutsAt(placed, side) ? 0 : room));
+	return {
+		...stood,
+		anchor,
+		at,
+		room
+	};
+}
+const token = (name) => Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
+function markGap(surface) {
+	const stated = Number.parseFloat(getComputedStyle(surface).outlineOffset);
+	if (stated) return stated;
+	return token(surface.matches(PRESSES) ? "--focus-ring-gap" : "--focus-region-gap");
+}
+function cutsAt({ rect, levels }, side) {
+	const axis = side === "top" || side === "bottom" ? "y" : "x";
+	const low = side === "top" || side === "left";
+	return levels.some(({ band, axes }) => axes[axis] && (low ? rect[side] < band[side] : rect[side] > band[side]));
+}
+function cramped({ rect, levels }, room) {
+	const short = (band, low, high) => rect[low] >= band[low] && rect[low] - room < band[low] || rect[high] <= band[high] && rect[high] + room > band[high];
+	return levels.some(({ holder, band, axes }) => holder && (axes.x && short(band, "left", "right") || axes.y && short(band, "top", "bottom")));
+}
+function paintSet(root, { onNear = () => {} } = {}) {
+	const stands = /* @__PURE__ */ new Map();
+	const entries = /* @__PURE__ */ new Map();
+	const near = /* @__PURE__ */ new Set();
+	const watched = /* @__PURE__ */ new Map();
+	const watching = /* @__PURE__ */ new Map();
+	const nearBy = (target) => !target || near.has(target);
+	const view = nearObserver((records) => {
+		const moved = /* @__PURE__ */ new Set();
+		for (const { target: box, isIntersecting } of records) for (const target of watching.get(box) ?? []) {
+			if (isIntersecting) near.add(target);
+			else near.delete(target);
+			moved.add(target);
+		}
+		for (const stand of stands.values()) if (stand.members.some(({ target }) => moved.has(target))) seat(stand);
+		onNear();
+	});
+	const ids = /* @__PURE__ */ new WeakMap();
+	let idCount = 0;
+	const idOf = (node) => ids.get(node) ?? (ids.set(node, ++idCount), idCount);
+	const keyOf = ({ surface, levels }, anchor, plane, framed) => !surface ? `${plane}|window` : [
+		plane,
+		framed ? "cut" : "open",
+		anchor ? "anchored" : "window",
+		...levels.map(({ holder, band, from, axes }) => {
+			const edges = [
+				from.left,
+				from.top,
+				from.left + band.right - band.left
+			];
+			return `${holder ? idOf(holder) : "window"}:${[...edges, from.top + band.bottom - band.top]}:${axes.x}${axes.y}`;
+		})
+	].join("|");
+	function seat(stand, all = false) {
+		const { carrier, members } = stand;
+		const seating = new Set(members.filter(({ node, target }) => nearBy(target) && (all || node.parentElement !== carrier)));
+		const readings = [...seating].flatMap(({ entry }) => entry.anchor ? [anchorReading(entry.anchor)] : []);
+		for (const reading of readings) nameAnchor(reading);
+		let cursor = carrier.firstElementChild;
+		for (const member of members) {
+			const { node, target, entry } = member;
+			if (!nearBy(target)) {
+				if (node.parentElement !== carrier) continue;
+				if (cursor === node) cursor = node.nextElementSibling;
+				node.remove();
+				continue;
+			}
+			if (cursor === node) cursor = node.nextElementSibling;
+			else move(carrier, node, cursor);
+			if (seating.has(member)) standBox(node, entry.rect, entry.stood, entry.anchor, entry.at);
+		}
+	}
+	function place(items, clips = /* @__PURE__ */ new Map()) {
+		const holders = /* @__PURE__ */ new Map();
+		const targets = /* @__PURE__ */ new Set();
+		const read = items.map((item) => {
+			const { node, held = false, anchor, plane = "page" } = item;
+			const { cut: framed = true } = item;
+			if (!item.target) {
+				const placed = {
+					surface: null,
+					levels: []
+				};
+				return {
+					node,
+					target: null,
+					placed,
+					rect: item.rect,
+					plane,
+					framed,
+					anchor: null,
+					at: null,
+					key: keyOf(placed, null, plane, framed)
+				};
+			}
+			const target = item.target;
+			const rect = item.rect;
+			targets.add(target);
+			let placed = placement(target, false, false, clips, held);
+			const { left, top, right, bottom } = placed.rect;
+			if (!(right > left && bottom > top)) return {
+				node,
+				target,
+				placed: null
+			};
+			const box = typeof rect === "function" ? rect(placed) : rect ?? placed.rect;
+			if (!watched.has(target)) {
+				const box = anchorElement(target);
+				watched.set(target, box);
+				let observed = watching.get(box);
+				if (!observed) {
+					observed = /* @__PURE__ */ new Set();
+					watching.set(box, observed);
+					view.observe(box);
+				}
+				observed.add(target);
+				if (nearWindow(target, clips)) near.add(target);
+			}
+			const carriedBy = anchor === void 0 ? anchoredBy(target, root) : anchor && anchorReaches(anchor, root) ? anchor : null;
+			if (!framed) placed = {
+				...placed,
+				levels: headerCuts(target, clips).map(({ box, band }) => ({
+					holder: box === box.ownerDocument.scrollingElement ? null : box,
+					band: band ?? {
+						left: 0,
+						top: 0,
+						right: 0,
+						bottom: 0
+					},
+					axes: {
+						x: false,
+						y: true
+					}
+				}))
+			};
+			const levels = placed.levels.map((level) => {
+				let at;
+				if (level.holder) {
+					at = holders.get(level.holder);
+					if (!at) {
+						at = level.holder.getBoundingClientRect();
+						holders.set(level.holder, at);
+					}
+				} else at = {
+					left: 0,
+					top: 0
+				};
+				return {
+					...level,
+					from: {
+						left: level.band.left - at.left,
+						top: level.band.top - at.top
+					}
+				};
+			});
+			const placedLevels = {
+				...placed,
+				levels
+			};
+			return {
+				node,
+				target,
+				placed: placedLevels,
+				rect: box,
+				plane,
+				framed,
+				anchor: carriedBy,
+				at: carriedBy && anchorBox(carriedBy),
+				key: keyOf(placedLevels, carriedBy, plane, framed)
+			};
+		});
+		for (const [target, box] of watched) if (!targets.has(target)) {
+			watched.delete(target);
+			near.delete(target);
+			const observed = watching.get(box);
+			observed?.delete(target);
+			if (observed?.size) continue;
+			watching.delete(box);
+			view.unobserve(box);
+		}
+		const stood = /* @__PURE__ */ new Map();
+		let previous = null;
+		for (const item of read) {
+			if (!item.placed) continue;
+			const { placed, key, anchor, plane, framed } = item;
+			if (stood.has(key)) continue;
+			const stand = stands.get(key) ?? {
+				...paintStand(),
+				members: []
+			};
+			stands.set(key, stand);
+			keeps(stand.root, "data-lf-paint-plane", plane);
+			const next = previous ? previous.root.nextElementSibling : root.firstElementChild;
+			if (next !== stand.root) move(root, stand.root, next);
+			const how = standIn(stand, placed, Boolean(anchor));
+			stood.set(key, {
+				stand,
+				how: {
+					...how,
+					visibility: framed ? "always" : "anchors-visible"
+				}
+			});
+			previous = stand;
+		}
+		for (const [key, stand] of stands) if (!stood.has(key)) {
+			dropStand(stand);
+			stands.delete(key);
+		}
+		for (const stand of stands.values()) stand.members = [];
+		const placing = /* @__PURE__ */ new Set();
+		for (const item of read) {
+			const { node, target } = item;
+			placing.add(node);
+			const standing = item.placed ? stood.get(item.key) : null;
+			if (!item.placed || !standing) {
+				node.remove();
+				entries.set(node, null);
+				continue;
+			}
+			const { stand, how } = standing;
+			const { rect, anchor, at } = item;
+			if (entries.get(node)?.stand !== stand) node.remove();
+			const entry = {
+				stand,
+				stood: how,
+				rect,
+				anchor,
+				at
+			};
+			entries.set(node, entry);
+			stand.members.push({
+				node,
+				target,
+				entry
+			});
+		}
+		for (const node of entries.keys()) if (!placing.has(node)) {
+			node.remove();
+			entries.delete(node);
+		}
+		for (const stand of stands.values()) seat(stand, true);
+		return read.map(({ placed }) => placed);
+	}
+	function clear() {
+		for (const stand of stands.values()) dropStand(stand);
+		for (const node of entries.keys()) node.remove();
+		stands.clear();
+		entries.clear();
+		near.clear();
+		watched.clear();
+		watching.clear();
+		view.disconnect();
+	}
+	return {
+		place,
+		clear,
+		near: nearBy,
+		stands: (node) => Boolean(entries.get(node)?.stand)
+	};
+}
+function vacate(stand) {
+	if (!stand.frames.length && stand.carrier.parentElement === stand.root) return;
+	stand.frames = cutFrames([], stand.frames.map(({ frame }) => frame), makeFrame);
+	move(stand.root, stand.carrier, null);
+}
+function dropStand(stand) {
+	vacate(stand);
+	stand.root.remove();
+}
+function placement(surface, shaped, aboveSurfaces, clips = /* @__PURE__ */ new Map(), held = false) {
+	const box = shownBox(surface);
+	const pad = shaped ? SHAPE_STROKE_ROOM : 0;
+	const rect = {
+		left: box.left - pad,
+		top: box.top - pad,
+		right: box.right + pad,
+		bottom: box.bottom + pad
+	};
+	const cuts = paintClips(surface, rect, clips, aboveSurfaces, held);
+	const levels = [];
+	if (cuts.window) levels.push({
+		band: cuts.window,
+		axes: {
+			x: true,
+			y: true
+		},
+		holder: null
+	});
+	for (const { box: holder, band, axes } of cuts.bands) levels.push({
+		band,
+		axes,
+		holder
+	});
+	let shown = rect;
+	for (const { band, axes } of levels) shown = intersect(shown, band, axes);
+	return {
+		rect,
+		shown: hasArea(shown) ? shown : null,
+		shapeKey: `${rect.right - rect.left}:${rect.bottom - rect.top}`,
+		levels,
+		surface,
+		plane: cuts.plane
+	};
+}
+
+//#endregion
+//#region runtime/at-work.js
+const BAR = 3;
+const GAP = 10;
+const atWorkLayer = el("div", "lf-ui lf-at-work");
+function createAtWork(inventory) {
+	const bars = paintSet(atWorkLayer);
+	const drawn = /* @__PURE__ */ new Map();
+	let frame = 0;
+	function place() {
+		frame = 0;
+		bars.place([...drawn].map(([target, node]) => ({
+			node,
+			target,
+			cut: false,
+			rect: ({ rect }) => {
+				const edge = (target.closest("table") ?? target).getBoundingClientRect();
+				const left = target.matches(":dir(rtl)") ? Math.max(rect.right, edge.right) + GAP : Math.min(rect.left, edge.left) - GAP - BAR;
+				return {
+					left,
+					right: left + BAR,
+					top: rect.top,
+					bottom: rect.bottom
+				};
+			}
+		})));
+	}
+	const schedule = () => {
+		if (drawn.size && !frame) frame = nextRender(place);
+	};
+	const sizes = sizeObserver(schedule, { counted: false });
+	inventory.watch((entries) => {
+		const places = /* @__PURE__ */ new Set();
+		for (const entry of entries) {
+			const target = entry.atWork ? inventory.targetFor(entry) : null;
+			if (target?.isConnected) places.add(target);
+		}
+		let changed = false;
+		for (const target of drawn.keys()) if (!places.has(target)) {
+			drawn.delete(target);
+			sizes.unobserve(target);
+			changed = true;
+		}
+		for (const target of places) if (!drawn.has(target)) {
+			const node = el("span", "lf-at-work-bar");
+			keeps(node, "data-for", target.id || null);
+			drawn.set(target, node);
+			sizes.observe(target);
+			changed = true;
+		}
+		if (!changed) return;
+		if (drawn.size) schedule();
+		else {
+			cancelRender(frame);
+			frame = 0;
+			bars.clear();
+		}
+	});
+	document.addEventListener(LAYOUT, schedule);
+	addEventListener("resize", schedule, { passive: true });
+}
+
+//#endregion
 //#region runtime/thread/box.js
 const threadBox$1 = (el, hint, { createComment, onDraftChanged, wireInput }) => {
 	if (inChrome(el) || quoted$1(el)) return null;
 	const declaration = registry[el.localName]?.["x-thread-seat"];
 	if (!declaration || !matchesWhen(el, declaration.when)) throw new TypeError(`<${el.localName}> placed a thread outside its x-thread-seat predicate`);
-	const box = offer("div", "lf-thread-seat");
+	const box = Object.assign(offer("div", "lf-thread-seat"), { lfThreadSeatOwner: el });
 	box.dataset.lfRuntime = "";
 	box.dataset.lfThreadSeat = el.id;
 	const row = offer("div", "lf-say lf-comment-box");
 	const ta = offer(TEXT_FIELD);
 	ta.name = "comment";
 	const ctx = "say:" + el.id;
-	ta.value = loadDraft(ctx) ?? "";
+	ta.value = loadDraft(ctx)?.text ?? "";
 	ta.setAttribute("aria-label", hint);
 	row.append(ta);
 	const sendComment = (text, owns, holds = false) => {
@@ -5688,6 +7092,7 @@ function semanticNewsReading(root) {
 	const view = root.effective.view;
 	if (!view) throw new Error("The shown page has no browser reading");
 	const state = root.authoritative;
+	if (!state) throw new Error("The shown page has no accepted reading");
 	return {
 		obligations: view.obligations,
 		thread: view.thread,
@@ -5695,11 +7100,15 @@ function semanticNewsReading(root) {
 	};
 }
 function unreadContent(threadView) {
-	return threadView.threads.flatMap((thread) => thread.unread.map(({ message: id, version }) => ({
-		thread: thread.id,
-		message: thread.msgs.find((message) => message.id === id),
-		version
-	}))).filter(({ message }) => !message.failure).sort((a, b) => moved(a.message).seq - moved(b.message).seq);
+	return threadView.threads.flatMap((thread) => thread.unread.map(({ message: id, version }) => {
+		const message = thread.msgs.find((message) => message.id === id);
+		if (!message) throw new Error(`Unread version ${version} names missing message ${id}`);
+		return {
+			thread: thread.id,
+			message,
+			version
+		};
+	})).filter(({ message }) => !("failure" in message && message.failure)).sort((a, b) => Number(moved(a.message).seq) - Number(moved(b.message).seq));
 }
 function userObligations(items) {
 	const held = /* @__PURE__ */ new Map();
@@ -5721,18 +7130,18 @@ function userObligations(items) {
 function responseFailures(workflows) {
 	const failures = /* @__PURE__ */ new Map();
 	for (const workflow of workflows) {
-		if (workflow.condition?.operation !== "response" || !["failed", "interrupted"].includes(workflow.condition.kind)) continue;
+		if (workflow.condition?.operation !== "response" || workflow.condition.kind !== "failed" && workflow.condition.kind !== "interrupted") continue;
 		const source = workflow.response;
-		if (!source?.attempt && !source?.id) continue;
+		if (!source) continue;
 		const key = identity(source);
-		const failure = {
+		if (!key) continue;
+		failures.set(key, {
 			key,
 			kind: workflow.condition.kind,
 			input: workflow.input,
 			thread: workflow.thread,
 			seq: workflow.seq
-		};
-		failures.set(key, failure);
+		});
 	}
 	return failures;
 }
@@ -5789,18 +7198,15 @@ function currentSemanticNews(news, reading, observed) {
 	const obligations = userObligations(reading.obligations);
 	const failures = responseFailures(reading.workflows);
 	return news.flatMap((item) => {
-		switch (item.kind) {
-			case "agent_content": return versions.has(item.version) ? [item] : [];
-			case "response_failure": {
-				const current = failures.get(item.key.slice(9));
-				return current ? [{
-					...item,
-					condition: current.kind
-				}] : [];
-			}
-			case "user_obligation": return obligations.has(item.sourceKey) && item.episode === observed.obligationEpisodes.get(item.sourceKey) ? [item] : [];
-			default: throw new Error(`Unknown semantic news kind ${item.kind}`);
+		if (item.kind === "agent_content") return versions.has(item.version) ? [item] : [];
+		if (item.kind === "response_failure") {
+			const current = failures.get(item.key.slice(9));
+			return current ? [{
+				...item,
+				condition: current.kind
+			}] : [];
 		}
+		return obligations.has(item.sourceKey) && item.episode === observed.obligationEpisodes.get(item.sourceKey) ? [item] : [];
 	});
 }
 function combineSemanticNews(older, newer) {
@@ -5809,35 +7215,33 @@ function combineSemanticNews(older, newer) {
 const plural = (count, singular, pluralForm = `${singular}s`) => `${count} ${count === 1 ? singular : pluralForm}`;
 const MESSAGE_WORDS = 60;
 function semanticNewsNotice(news) {
-	if (!news.length) return "";
-	const byKind = (kind) => news.filter((item) => item.kind === kind);
-	const content = byKind("agent_content");
-	const failures = byKind("response_failure");
-	let obligations = byKind("user_obligation");
+	const content = news.filter((item) => item.kind === "agent_content");
+	const failures = news.filter((item) => item.kind === "response_failure");
+	let obligations = news.filter((item) => item.kind === "user_obligation");
 	const clauses = [];
-	if (content.length === 1) {
-		const { message } = content[0];
+	const single = content.length === 1 ? content[0] : null;
+	if (single) {
+		const { message } = single;
 		obligations = obligations.filter((item) => item.message !== message.id);
 		const words = excerptWords(message.text, MESSAGE_WORDS);
-		clauses.push(words ? message.edited ? `Edited: ${words}` : words : message.kind === "reply" ? "Replied" : "Commented");
+		clauses.push(words ? message.edited ? [agentSays(`Edited: ${words}`)] : [agentSays(words)] : [agentSays(message.kind === "reply" ? "Replied" : "Commented")]);
 	} else if (content.length) {
 		const replies = content.filter(({ message }) => message.kind === "reply");
 		const threads = new Set(content.map((item) => item.thread)).size;
-		clauses.push(replies.length === content.length ? `${plural(content.length, "reply", "replies")} in ${plural(threads, "thread")}` : `${plural(content.length, "agent message")} in ${plural(threads, "thread")}`);
+		clauses.push([leafSays(replies.length === content.length ? `${plural(content.length, "reply", "replies")} in ${plural(threads, "thread")}` : `${plural(content.length, "agent message")} in ${plural(threads, "thread")}`)]);
 	}
 	const failed = failures.filter((item) => item.condition === "failed").length;
 	const interrupted = failures.filter((item) => item.condition === "interrupted").length;
-	if (failed) clauses.push(failed === 1 ? NOT_ANSWERED : `${failed} not answered`);
-	if (interrupted) clauses.push(interrupted === 1 ? "Interrupted mid-answer" : `Interrupted on ${interrupted}`);
-	if (obligations.length) clauses.push(obligations.length === 1 ? "New on me" : `${obligations.length} new on me`);
-	return clauses.join(" · ");
+	if (failed) clauses.push([failed === 1 ? NOT_ANSWERED : leafSays(`${failed} not answered`)]);
+	if (interrupted) clauses.push([leafSays(interrupted === 1 ? "Interrupted mid-answer" : `Interrupted on ${interrupted}`)]);
+	if (obligations.length) clauses.push([leafSays(obligations.length === 1 ? "New on me" : `${obligations.length} new on me`)]);
+	return clauses.flatMap((clause, index) => index ? [leafSays(" · "), ...clause] : clause);
 }
 
 //#endregion
 //#region runtime/state-application.js
 function createStateApplication({ prepareActivation, acceptData, notifyDataSubscribers, accountPending }) {
-	let observedSemanticNews = null;
-	let presentedNewsReading = null;
+	let presentedNews = null;
 	let stateApplying = false;
 	let admission = Promise.resolve();
 	async function runSerialized(operation) {
@@ -5859,26 +7263,37 @@ function createStateApplication({ prepareActivation, acceptData, notifyDataSubsc
 			await notifyChangedData();
 			return;
 		}
-		const threads = state.browser.views[state.active.revision].thread.threads;
-		const preparations = [prepareActivation(state), threads.length ? loadMessageMarkdown() : null];
-		for (const thread of threads) for (const message of thread.msgs) if (message.markup) preparations.push(prepareAuthoredMessage(message, thread.id));
-		const [activation, , ...frozenDocuments] = await Promise.all(preparations);
-		const bodies = new Map(threads.flatMap((thread) => thread.msgs.map((message) => [message.id, { text: messageText(message) }])));
-		for (const frozen of frozenDocuments) bodies.set(frozen.message, {
+		const activeView = state.browser.views[state.active.revision];
+		if (!activeView) throw new Error(`State has no view for active revision ${state.active.revision}`);
+		const threads = activeView.thread.threads;
+		const messages = threads.flatMap((thread) => thread.msgs.map((message) => ({
+			message,
+			preparation: "markup" in message && message.markup ? prepareAuthoredMessage(message, thread.id) : null
+		})));
+		const [activation, , frozenDocuments] = await Promise.all([
+			prepareActivation(state),
+			threads.length ? loadMessageMarkdown() : null,
+			Promise.all(messages.map(async ({ message, preparation }) => ({
+				message,
+				frozen: await preparation
+			})))
+		]);
+		const bodies = new Map(frozenDocuments.map(({ message, frozen }) => [message.id, frozen ? {
 			...frozen.body,
-			text: [bodies.get(frozen.message).text, frozen.body.text].filter(Boolean).join("\n")
-		});
+			text: [messageText(message), frozen.body.text].filter(Boolean).join("\n")
+		} : { text: messageText(message) }]));
 		return runSerialized(async () => {
 			const following = activation?.activates() ? activation.revision : null;
 			if (!applicationState.canAdopt(state, following)) {
 				await notifyChangedData();
 				return;
 			}
-			const installed = following !== null ? await activation.install() : null;
+			const installed = following !== null && activation ? await activation.install() : null;
 			const prior = installed?.document ?? readApplication().document;
 			let authored = prior.authored;
 			let descriptors = prior.descriptors;
-			for (const frozen of frozenDocuments) {
+			for (const { frozen } of frozenDocuments) {
+				if (!frozen) continue;
 				for (const [id, baseline] of frozen.authored) {
 					if (authored.has(id)) continue;
 					if (authored === prior.authored) authored = new Map(authored);
@@ -5896,7 +7311,7 @@ function createStateApplication({ prepareActivation, acceptData, notifyDataSubsc
 				descriptors,
 				messageBodies: bodies
 			};
-			for (const frozen of frozenDocuments) commitWidgetDescriptors(frozen.descriptors);
+			for (const { frozen } of frozenDocuments) if (frozen) commitWidgetDescriptors(frozen.descriptors);
 			if (!applicationState.adopt(state, documentCapture)) {
 				await notifyChangedData();
 				return;
@@ -5912,13 +7327,22 @@ function createStateApplication({ prepareActivation, acceptData, notifyDataSubsc
 				await notifyDataSubscribers();
 				markStateApplied(state);
 				accountPending(state.browser.receipts);
-				presentedNewsReading = semanticNewsReading(readApplication());
-				const reading = observeSemanticNews(observedSemanticNews, presentedNewsReading);
-				observedSemanticNews = reading.observed;
+				const newsReading = semanticNewsReading(readApplication());
+				const reading = observeSemanticNews(presentedNews?.observed ?? null, newsReading);
+				if (presentedNews) {
+					presentedNews.reading = newsReading;
+					presentedNews.observed = reading.observed;
+				} else presentedNews = {
+					reading: newsReading,
+					observed: reading.observed
+				};
 				if (reading.news.length) announce(semanticNewsNotice(reading.news));
 				const shown = reading.news.filter((item) => item.kind !== "agent_content");
 				if (shown.length) {
-					const format = (value) => semanticNewsNotice(currentSemanticNews(value, presentedNewsReading, observedSemanticNews));
+					const current = presentedNews;
+					const format = (value) => {
+						return semanticNewsNotice(currentSemanticNews(value, current.reading, current.observed));
+					};
 					notice(format(shown), {
 						background: true,
 						announce: false,
@@ -5979,8 +7403,9 @@ async function readState(bound) {
 		} catch {
 			return NOTHING;
 		}
+		const state = JSON.parse(text);
 		return {
-			state: completeData(JSON.parse(text), held),
+			state: completeData(state, held),
 			fault: null
 		};
 	} finally {
@@ -5998,7 +7423,7 @@ function createStateFeed({ stateApplying, invalidateDom, receiveState, prepareAc
 	function failed(error) {
 		readAnswered = false;
 		reportCarried(error, `read failed`);
-		applicationState.setReach("broken");
+		applicationState.setReach({ reach: "broken" });
 	}
 	async function tick() {
 		if (stateApplying()) return;
@@ -6009,8 +7434,11 @@ function createStateFeed({ stateApplying, invalidateDom, receiveState, prepareAc
 	async function readNothing(fault = null) {
 		readAnswered = false;
 		if (runtime.statePhase === "waiting") applicationState.setPhase("offline");
-		if (fault !== null) applicationState.setReach("faulted", fault);
-		else applicationState.setReach(runtime.keyRefused ? "refused" : "unreachable");
+		if (fault !== null) applicationState.setReach({
+			reach: "faulted",
+			fault
+		});
+		else applicationState.setReach({ reach: runtime.keyRefused ? "refused" : "unreachable" });
 		await invalidateDom();
 		await tick();
 	}
@@ -6101,10 +7529,10 @@ function createStateFeed({ stateApplying, invalidateDom, receiveState, prepareAc
 		let feedStarted = false;
 		let listening = null;
 		let freshness = null;
-		let nextLook = null;
+		let nextLook;
 		const stopListening = () => {
 			clearTimeout(nextLook);
-			nextLook = null;
+			nextLook = void 0;
 			listening?.abort();
 			listening = null;
 			freshness = null;
@@ -6198,6 +7626,10 @@ const app = () => {
 };
 function mountApplication(dependencies) {
 	if (application) throw new Error("Leaf application mounted twice");
+	application = createApplication(dependencies);
+	return application;
+}
+function createApplication(dependencies) {
 	setPresentationFailureReporter(reportCarried);
 	const { ledger } = commandDispatch;
 	watchPendingTraffic(applicationState.select((root) => root.effective.sending));
@@ -6217,7 +7649,7 @@ function mountApplication(dependencies) {
 		if (!candidates.length) return false;
 		const attempts = new Set(candidates.map((entry) => entry.event.attempt));
 		const stillCurrent = () => ledger.releasable().some((entry) => attempts.has(entry.event.attempt));
-		await Promise.all([whenWidgetsPresented([...new Set(candidates.filter((entry) => entry.event.kind === "action").map((entry) => entry.event.widget))]), whenApplicationRegionsPresented([
+		await Promise.all([whenWidgetsPresented([...new Set(candidates.flatMap((entry) => entry.event.kind === "action" ? [entry.event.widget] : []))]), whenApplicationRegionsPresented([
 			"projection:chrome",
 			"thread",
 			"obligations"
@@ -6282,6 +7714,10 @@ function mountApplication(dependencies) {
 			applicationState.settleMarkRead(messages);
 		}
 	};
+	createSinceSeen({ markSeen: (revision) => deliverBookkeeping({
+		kind: "seen",
+		revision
+	}, receiveState, { keepalive: true }) });
 	const read = createReadTracking({
 		markRead,
 		openThread: openPageThread
@@ -6336,6 +7772,7 @@ function mountApplication(dependencies) {
 		scrollToElement: dependencies.anchorTravel.scrollToElement
 	});
 	const inlineContributions = createInlineContributions(annotations);
+	createAtWork(annotations);
 	const onPaper = matchMedia("print");
 	function refreshAnnotationInventory() {
 		if (onPaper.matches) return annotations.read();
@@ -6398,7 +7835,7 @@ function mountApplication(dependencies) {
 		scrollToThread: dependencies.anchorTravel.scrollToThread,
 		arrive: dependencies.anchorTravel.arrive,
 		prepareNavigationStep: dependencies.anchorTravel.prepareNavigationStep,
-		preview: overlay?.threadPreview
+		...overlay ? { preview: overlay.threadPreview } : {}
 	});
 	threadPresenter = createThreadPresentation({
 		available: dependencies.threadAvailable ?? true,
@@ -6424,7 +7861,7 @@ function mountApplication(dependencies) {
 			intent
 		}),
 		returnToPage: threadDestinations.returnToPage,
-		threadAt: (node) => overlay?.entryThread(node) ?? null,
+		threadAt: (node) => overlay?.entryThread(node ?? null) ?? null,
 		marginCommitted: () => marginPresentation?.committed() ?? Promise.resolve(),
 		read
 	});
@@ -6432,18 +7869,19 @@ function mountApplication(dependencies) {
 		ledger.present(receipts);
 		releasePendingSafely("receipt presentation");
 	};
-	stateApplication = createStateApplication({
+	const installedState = createStateApplication({
 		prepareActivation: dependencies.state.prepareActivation,
 		acceptData: dependencies.state.acceptData,
 		notifyDataSubscribers: dependencies.state.notifyDataSubscribers,
 		accountPending
 	});
+	stateApplication = installedState;
 	const flushQueuedInvalidation = () => {
 		if (!queuedInvalidation || stateApplying()) return Promise.resolve();
 		queuedInvalidation = false;
 		return invalidateDom();
 	};
-	const receiveState = (state) => stateApplication.receiveState(state).finally(() => flushQueuedInvalidation().catch(() => void 0));
+	const receiveState = (state) => installedState.receiveState(state).finally(() => flushQueuedInvalidation().catch(() => void 0));
 	delivery = createDelivery({
 		ledger,
 		applyAcceptedState: receiveState,
@@ -6451,7 +7889,7 @@ function mountApplication(dependencies) {
 		settleRejected: async (entry, state) => {
 			if (state) await receiveState(state).catch((error) => reportCarried(error, "state in refused event response"));
 			let dependents = [];
-			await stateApplication.runSerialized(async () => {
+			await installedState.runSerialized(async () => {
 				dependents = ledger.refuse(entry);
 				const prepared = invalidateDom();
 				releasePendingSafely("rejected event presentation");
@@ -6509,7 +7947,7 @@ function mountApplication(dependencies) {
 	const attachPresentation = (owner, { render, reveal, answersAtOnce = false }, onFailure = void 0) => {
 		const reader = createPrimaryReader(owner, render, inlineView, () => threadPresenter.present(), {
 			answersAtOnce,
-			onFailure
+			...onFailure ? { onFailure } : {}
 		});
 		const detachDestination = threadDestinations.register(owner, reveal, reader);
 		let detachPresentation;
@@ -6534,11 +7972,12 @@ function mountApplication(dependencies) {
 		if (yielding && !yielding.attached) yielding.attached = attachPresentation(yielding.owner, yielding.spec);
 	};
 	const takePlace = (entry) => {
-		const displaced = yielding?.attached;
-		const handOff = displaced ? yielding.spec.yielded() : null;
-		if (displaced) {
-			displaced.detach();
-			yielding.attached = null;
+		const previous = yielding;
+		const displaced = previous?.attached;
+		const handOff = previous?.attached ? previous.spec.yielded() : null;
+		if (previous?.attached) {
+			previous.attached.detach();
+			previous.attached = null;
 		}
 		try {
 			entry.attached = attachPresentation(entry.owner, entry.spec, () => nextRender(() => fallBack(entry)));
@@ -6557,17 +7996,13 @@ function mountApplication(dependencies) {
 		entry.attached = null;
 		restoreYielding();
 	};
-	const presentThreads = (owner, spec, yields) => {
+	const presentThreads = (owner, spec, install) => {
 		const entry = {
 			owner,
 			spec,
 			attached: null
 		};
-		if (yields) {
-			if (yielding) throw new Error("The page already has a yielding Thread presentation");
-			yielding = entry;
-			if (!authored) entry.attached = attachPresentation(owner, spec);
-		} else takePlace(entry);
+		install(entry);
 		let active = true;
 		return Object.freeze({
 			get primary() {
@@ -6591,7 +8026,7 @@ function mountApplication(dependencies) {
 			}
 		});
 	};
-	application = {
+	return {
 		withdraw: undo.withdraw,
 		midComposition: engagement.midComposition,
 		threadBox,
@@ -6605,8 +8040,12 @@ function mountApplication(dependencies) {
 		threadDestinations,
 		read,
 		mountRead: read.mount,
-		registerThreadPresentation: (owner, spec) => presentThreads(owner, spec, false),
-		registerChromeThreadPresentation: (owner, spec) => presentThreads(owner, spec, true),
+		registerThreadPresentation: (owner, spec) => presentThreads(owner, spec, takePlace),
+		registerChromeThreadPresentation: (owner, spec) => presentThreads(owner, spec, (entry) => {
+			if (yielding) throw new Error("The page already has a yielding Thread presentation");
+			yielding = entry;
+			if (!authored) entry.attached = attachPresentation(owner, spec);
+		}),
 		navigateToDatum: dependencies.anchorTravel.navigateToDatum,
 		post,
 		readAndApply: feed.readAndApply,
@@ -6621,7 +8060,7 @@ function mountApplication(dependencies) {
 		openObligation(id) {
 			const item = readObligations().all.find((item) => item.id === id);
 			if (!item) return Promise.resolve(false);
-			if (item.source.kind === "update" || item.source.kind === "todo") return queueActions.open(JSON.stringify([item.source.kind, item.id]));
+			if (hasObligationSource(item, "update") || hasObligationSource(item, "todo")) return queueActions.open(JSON.stringify([item.source.kind, item.id]));
 			if (item.thread !== null && answeredInWords(item)) {
 				showHeld(item.thread);
 				return threadDestinations.openPageThread(item.message, { part: "message" });
@@ -6632,7 +8071,6 @@ function mountApplication(dependencies) {
 		startFeed: feed.startFeed,
 		wireInput: dependencies.wireInput
 	};
-	return application;
 }
 const threadBox = (...args) => app().threadBox(...args);
 const dispatchWidget = commandDispatch.dispatchWidget;
@@ -6672,12 +8110,12 @@ const heldThreadOrSeat = () => focused() && closestAcross(focused(), ".lf-page-t
 const currentLocationThread = () => {
 	const held = heldThreadOrSeat();
 	const box = threadReplyInput(held);
-	return box ? {
+	return held && box ? {
 		held: wholeThread(held),
 		box
 	} : null;
 };
-const backFromThread = (box) => threadReturns.get(box) ?? null;
+const backFromThread = (box) => box ? threadReturns.get(box) ?? null : null;
 function backFromBox() {
 	const held = heldThreadOrSeat();
 	if (held?.matches(".lf-page-thread, [data-lf-thread-view]")) return {
@@ -6705,7 +8143,7 @@ pageScope("text entry", {
 		run: () => {
 			const back = backFromBox();
 			dismissReplyAt(focused());
-			deepFocus()?.blur();
+			blurFocused();
 			const target = back?.target;
 			if (!target) return;
 			if (!target.matches?.(".lf-page-thread, [data-lf-thread-view]")) {
@@ -6732,8 +8170,9 @@ const resolutionControl = (thread) => thread ? threadPart(thread, "settlement") 
 const messageAt = (node) => (node instanceof Element ? node : node?.parentElement)?.closest(".lf-msg") ?? null;
 function messageCopy(thread) {
 	if (!thread) return null;
-	const caret = getSelection().anchorNode;
-	return (messageAt(focused()) ?? (thread.contains(caret) ? messageAt(caret) : null) ?? [...thread.querySelectorAll(".lf-msg")].at(-1))?.querySelector(":scope > .lf-msg-head .lf-msg-copy") ?? null;
+	const caret = getSelection()?.anchorNode ?? null;
+	const copy = (messageAt(focused()) ?? (thread.contains(caret) ? messageAt(caret) : null) ?? [...thread.querySelectorAll(".lf-msg")].at(-1))?.querySelector(":scope > .lf-msg-head .lf-msg-copy");
+	return copyTrigger(copy);
 }
 function prepareLanding({ held = null, box, route = null }) {
 	if (!box) return false;
@@ -6782,15 +8221,15 @@ function declareThreadKeys(landIn, threadHere) {
 				touch: false,
 				keys: ["Enter"],
 				title: () => !threadInput(cardThread()) && resolutionControl(cardThread())?.matches(".lf-reopen") ? "reopen" : "reply",
-				when: () => Boolean(threadInput(cardThread())) || resolutionControl(cardThread())?.matches(".lf-reopen:not(:disabled, [aria-disabled=\"true\"])"),
-				run: () => {
+				get run() {
 					const thread = cardThread();
 					const box = threadInput(thread);
-					if (box) landIn({
+					if (box) return () => landIn({
 						held: thread,
 						box
 					});
-					else resolutionControl(thread).click();
+					const control = resolutionControl(thread);
+					return control?.matches(".lf-reopen:not(:disabled, [aria-disabled=\"true\"])") ? () => control.click() : void 0;
 				}
 			},
 			{
@@ -6798,16 +8237,20 @@ function declareThreadKeys(landIn, threadHere) {
 				touch: false,
 				keys: ["r"],
 				title: () => resolutionControl(threadHere())?.matches(".lf-reopen") ? "reopen" : "resolve",
-				when: () => resolutionControl(threadHere())?.matches(":not(:disabled, [aria-disabled=\"true\"])"),
-				run: () => resolutionControl(threadHere()).click()
+				get run() {
+					const control = resolutionControl(threadHere());
+					return control?.matches(":not(:disabled, [aria-disabled=\"true\"])") ? () => control.click() : void 0;
+				}
 			},
 			{
 				id: "message.copy",
 				touch: false,
 				keys: ["Mod+c"],
 				title: "copy message as Markdown",
-				when: () => Boolean(messageCopy(threadHere())) && getSelection().isCollapsed,
-				run: () => messageCopy(threadHere()).shadowRoot.querySelector("button").click()
+				get run() {
+					const trigger = messageCopy(threadHere());
+					return trigger && getSelection()?.isCollapsed ? () => trigger.click() : void 0;
+				}
 			}
 		]
 	});
@@ -6954,25 +8397,25 @@ function widgetController(owner) {
 	if (!controller) {
 		let implementation = null;
 		const resolve = () => implementation ??= createWidgetController(owner);
-		controller = Object.freeze(Object.fromEntries([
-			"read",
-			"dispatch",
-			"defer",
-			"present"
-		].map((method) => [method, (...args) => resolve()[method](...args)])));
+		controller = Object.freeze({
+			read: () => resolve().read(),
+			dispatch: (command) => resolve().dispatch(command),
+			defer: () => resolve().defer(),
+			present: (promise) => resolve().present(promise)
+		});
 		controllers.set(owner, controller);
 	}
 	return controller;
 }
 document.addEventListener(PENDING_TASK, (event) => {
-	const owner = event.composedPath().find((node) => node instanceof Element && widgetDescriptor(node));
+	const owner = event.composedPath().filter((node) => node instanceof Element).find((node) => widgetDescriptor(node));
 	if (owner) widgetController(owner).present(event.complete);
 });
 
 //#endregion
 //#region runtime/keyboard/disclosure.js
 const disclosureWatch = new MutationObserver((records) => {
-	for (const r of records) if (r.target.getAttribute(r.attributeName) !== r.oldValue) paintKeysWithin(r.target);
+	for (const r of records) if (r.target instanceof Element && r.attributeName !== null && r.target.getAttribute(r.attributeName) !== r.oldValue) paintKeysWithin(r.target);
 });
 const watchDisclosures = (root) => disclosureWatch.observe(root, {
 	subtree: true,
@@ -6980,25 +8423,38 @@ const watchDisclosures = (root) => disclosureWatch.observe(root, {
 	attributeOldValue: true
 });
 const DISCLOSE = (el) => {
-	const open = disclosed(el);
-	if (open === null) return [
+	const disclosure = disclosureAt(el);
+	if (!disclosure) return [
 		...PRESS,
 		"ArrowLeft",
 		"ArrowRight"
 	];
-	const [back, ahead] = rowArrows(el);
-	return inChrome(el) ? PRESS : [...PRESS, open ? back : ahead];
+	const { element, open } = disclosure;
+	const [back, ahead] = rowArrows(element);
+	return inChrome(element) ? PRESS : [...PRESS, open ? back : ahead];
 };
 const DISCLOSURE_SELECTOR = "details > summary, :is(button, [role=\"button\"])[aria-expanded]";
-function disclosed(el) {
-	return !el?.matches?.("details > summary, :is(button, [role=\"button\"])[aria-expanded]") ? null : el.matches("details > summary") ? el.parentElement.open : el.getAttribute("aria-expanded") === "true";
+function disclosureAt(el) {
+	if (!el?.matches("details > summary, :is(button, [role=\"button\"])[aria-expanded]")) return null;
+	return {
+		element: el,
+		open: el.matches("details > summary") ? el.matches("details[open] > summary") : el.getAttribute("aria-expanded") === "true"
+	};
 }
 
 //#endregion
 //#region runtime/shadow-stage.js
 const stageStyles = /* @__PURE__ */ new WeakMap();
+function stageStyle(root) {
+	let style = stageStyles.get(root);
+	if (!style) {
+		style = document.createElement("style");
+		style.setAttribute("data-lf-gen", "1");
+		stageStyles.set(root, style);
+	}
+	return style;
+}
 function adoptShadowStage(root) {
-	document.documentElement.lfStorage.keepDisclosures(root);
 	watchArrivalsIn(root);
 	root.adoptedStyleSheets = [.../* @__PURE__ */ new Set([
 		...root.adoptedStyleSheets,
@@ -7008,20 +8464,15 @@ function adoptShadowStage(root) {
 	watchDisclosures(root);
 	watchLayers(root);
 	watchCurrentLocationIn(root);
-	let style = stageStyles.get(root);
-	if (!style) {
-		style = document.createElement("style");
-		style.setAttribute("data-lf-gen", "1");
-	}
+	const style = stageStyle(root);
 	if (style.textContent !== shadowRules) style.textContent = shadowRules;
-	stageStyles.set(root, style);
 	if (style.parentNode !== root) move(root, style, root.firstChild);
 	watchPassageRoot(root);
 	return root;
 }
 function shadowStage(host, nodes) {
 	const root = adoptShadowStage(host.shadowRoot ?? stageFor(host));
-	const style = stageStyles.get(root);
+	const style = stageStyle(root);
 	setChildren(root, [style, ...nodes]);
 	for (const child of [...host.childNodes]) child.remove();
 	watchPassageRoot(root);
@@ -7051,16 +8502,16 @@ var UpdateBoundary = class extends LitElement {
 	}
 };
 var LeafElement = class extends q(UpdateBoundary) {
-	#signalError = null;
+	#signalError = {};
 	#stopReadiness = null;
 	signalUpdateFailed(error) {
-		this.#signalError = { error };
+		this.#signalError.error = error;
 	}
 	requestUpdate(...args) {
 		const wasPending = this.isUpdatePending;
 		const result = super.requestUpdate(...args);
 		if (this.hasUpdated && this.isUpdatePending && (!wasPending || !this.#updating)) d(() => {
-			if (this.#connected && this.#region && !this.#ticket) this.#ticket = this.#claim();
+			if (this.#connected && this.#region && !this.#ticket) this.#ticket = this.#claim(this.#region);
 		});
 		return result;
 	}
@@ -7079,7 +8530,9 @@ var LeafElement = class extends q(UpdateBoundary) {
 	#verbs = [];
 	#region = null;
 	#regionName = null;
-	#connected = false;
+	get #connected() {
+		return this.#region !== null;
+	}
 	#connectedParent = null;
 	#ticket = null;
 	#held = false;
@@ -7092,7 +8545,10 @@ var LeafElement = class extends q(UpdateBoundary) {
 	#inputs = [];
 	#sent = /* @__PURE__ */ new Map();
 	createRenderRoot() {
-		return registry[this.localName]?.["x-shadow"] ? adoptShadowStage(super.createRenderRoot()) : this;
+		if (!registry[this.localName]?.["x-shadow"]) return this;
+		const root = super.createRenderRoot();
+		if (!(root instanceof ShadowRoot)) throw new Error("A shadow widget needs a shadow render root");
+		return adoptShadowStage(root);
 	}
 	scheduleUpdate() {
 		return this.#scheduled ?? this.#queueUpdate();
@@ -7144,6 +8600,7 @@ var LeafElement = class extends q(UpdateBoundary) {
 			return true;
 		});
 		try {
+			if (this.#writesInput()) for (const { property } of this.#inputs) Object.assign(this, { [property]: dataBody(this) });
 			this.setup();
 		} catch (error) {
 			this.#broken = true;
@@ -7155,13 +8612,18 @@ var LeafElement = class extends q(UpdateBoundary) {
 		});
 	}
 	setup() {}
+	#writesInput() {
+		const declaration = registry[this.localName];
+		return Boolean(declaration?.["x-content"] === "data" && this.querySelector(":scope > pre") && !Object.values(declaration["x-data"] ?? {}).some((input) => bindsInput(this, input)));
+	}
 	get reading() {
 		return this.#controller?.read() ?? null;
 	}
 	get state() {
-		return this.reading.state;
+		return this.controller.read().state;
 	}
 	get controller() {
+		if (!this.#controller) throw new Error(`${this.localName} has no authored widget controller`);
 		return this.#controller;
 	}
 	#deliverInputs() {
@@ -7181,14 +8643,15 @@ var LeafElement = class extends q(UpdateBoundary) {
 				snapshot,
 				primitives
 			});
-			this[entry.property] = value;
+			Object.assign(this, { [entry.property]: value });
 		}
 	}
 	#drawn(detail) {
 		try {
 			const named = this.#inputs.filter(({ property }) => detail && Object.hasOwn(detail, property));
-			if (named.length !== 1 || Object.keys(detail).length !== 1) throw new Error(`<${this.localName}> drawn must name one bound property (${this.#inputs.map(({ property }) => property).join(", ")}) with the value it drew`);
-			const [{ property, bound }] = named;
+			const entry = named[0];
+			if (!entry || named.length !== 1 || Object.keys(detail).length !== 1) throw new Error(`<${this.localName}> drawn must name one bound property (${this.#inputs.map(({ property }) => property).join(", ")}) with the value it drew`);
+			const { property, bound } = entry;
 			const value = detail[property];
 			const snapshot = !bound || value === null ? null : typeof value === "object" ? suppliedSnapshot(value) : this.#retire(property, value);
 			if (snapshot === void 0) throw new Error(`<${this.localName} id=${this.id}> drew a ${property} Leaf did not set`);
@@ -7219,9 +8682,9 @@ var LeafElement = class extends q(UpdateBoundary) {
 		return this.#verbs.every((verb) => verb in state);
 	}
 	shouldUpdate(changed) {
-		if (!this.#connected || !this.isConnected) return false;
+		if (!this.#region || !this.isConnected) return false;
 		if (this.#held) return false;
-		this.#drawing = this.#ticket ?? this.#claim();
+		this.#drawing = this.#ticket ?? this.#claim(this.#region);
 		this.#ticket = null;
 		if (!this.#draws()) return false;
 		this.#deliverInputs();
@@ -7241,13 +8704,10 @@ var LeafElement = class extends q(UpdateBoundary) {
 		this.#drawing = null;
 		this.#updating = true;
 		try {
-			this.#signalError = null;
+			const boundary = this.#signalError = {};
 			super.performUpdate();
-			if (this.#signalError) throw this.#signalError.error;
-			if (this.#drawing) this.#drawing.resolve(this.updateComplete.then(() => void 0, (error) => {
-				reportFailure(this, error);
-				throw error;
-			}));
+			if ("error" in boundary) throw boundary.error;
+			this.#settleDrawing();
 		} catch (error) {
 			if (outer && !this.#drawing) throw error;
 			this.#failed(error, this.#drawing);
@@ -7255,6 +8715,12 @@ var LeafElement = class extends q(UpdateBoundary) {
 			this.#drawing = outer;
 			this.#updating = updating;
 		}
+	}
+	#settleDrawing() {
+		this.#drawing?.resolve(this.updateComplete.then(() => void 0, (error) => {
+			reportFailure(this, error);
+			throw error;
+		}));
 	}
 	redraw() {
 		if (this.#draws()) render(this.render(), this.renderRoot, this.renderOptions);
@@ -7268,16 +8734,16 @@ var LeafElement = class extends q(UpdateBoundary) {
 		reportFailure(this, error);
 		ticket.reject(error);
 	}
-	#claim() {
-		return this.#region.present((reason) => failSoftUnreported(this, reason));
+	#claim(region) {
+		return region.present((reason) => failSoftUnreported(this, reason));
 	}
 	#stage() {
-		if (!this.#connected || this.#ticket || !this.#region) return;
-		this.#ticket = this.#claim();
+		if (this.#ticket || !this.#region) return;
+		this.#ticket = this.#claim(this.#region);
 	}
 	#present({ now = false } = {}) {
 		if (!this.#region) return;
-		this.#ticket = this.#claim();
+		this.#ticket = this.#claim(this.#region);
 		if (this.#held) return;
 		this.requestUpdate();
 		if (now) {
@@ -7289,23 +8755,23 @@ var LeafElement = class extends q(UpdateBoundary) {
 		if (this.#connected) this.#present({ now: true });
 	}
 	#connect() {
-		this.#connected = true;
-		this.#region = this.#descriptor ? attachWidgetPresentation(this.#descriptor.id, "render") : attachApplicationPresentation(this.#regionName);
+		const name = this.#descriptor ? `widget:${this.#descriptor.id}:render` : this.#regionName ??= `element:${this.localName}#${this.id}:${++regions}`;
+		this.#region = this.#descriptor ? attachWidgetPresentation(this.#descriptor.id, "render") : attachApplicationPresentation(name);
 		const parentChanged = this.#connectedParent !== this.parentElement;
 		this.#connectedParent = this.parentElement;
-		if (registry[this.localName]?.["x-data"]) this.#leaveData = joinDataDelivery(this.#descriptor ? `widget:${this.#descriptor.id}:render` : this.#regionName);
+		if (registry[this.localName]?.["x-data"]) this.#leaveData = joinDataDelivery(name);
 		this.#present();
 		if (this.#descriptor) widgetMounted(this, this.#descriptor, parentChanged);
 	}
 	#disconnect() {
-		this.#connected = false;
+		const region = this.#region;
+		this.#region = null;
 		this.#stopReadiness?.();
 		this.#stopReadiness = null;
 		this.#leaveData?.();
 		this.#leaveData = null;
 		this.#ticket = null;
-		this.#region?.disconnect();
-		this.#region = null;
+		region?.disconnect();
 	}
 };
 
@@ -7313,7 +8779,6 @@ var LeafElement = class extends q(UpdateBoundary) {
 //#region runtime/queue-title.js
 function queueTitle(item) {
 	const thread = readThreads().threads.find((thread) => thread.id === item.thread);
-	const own = elementById(item.subject.id);
 	const topic = thread ? threadName(thread) : "";
 	const title = item.todo?.title ?? item.obligation?.prompt.text;
 	if (title) return title;
@@ -7321,6 +8786,7 @@ function queueTitle(item) {
 	const sent = reply && thread?.msgs.find((message) => message.id === reply);
 	if (sent) return sent.body.text.trim() || topic;
 	if (item.subject.kind === "widget") {
+		const own = elementById(item.subject.id);
 		const record = own && obligationHolding(readObligations().all, own);
 		return record && addressableLabel(obligationPlace(record).context) || addressableLabel(own) || topic || item.id;
 	}
@@ -7334,24 +8800,25 @@ function ownedObligationControl(source, commandSource) {
 	return !selector || closestAcross(commandSource, selector) === source;
 }
 function obligationWord(item) {
-	if (item.source.kind === "message") return "Reply";
-	if (item.source.kind === "todo") return "To-do";
+	if (answeredInWords(item)) return "Reply";
+	if (hasObligationSource(item, "todo")) return "To-do";
 	const word = widgetWord(item.source.tag, elementById(item.source.id));
 	return word.charAt(0).toUpperCase() + word.slice(1);
 }
 function answerWords(item) {
 	if (item.answer === null) return "";
 	if (answeredInWords(item)) return item.answer.value.text ?? item.answer.value.token ?? "";
+	if (!hasObligationSource(item, "widget")) return "";
 	const source = elementById(item.source.id);
 	const formatter = customElements.get(item.source.tag)?.answerWords;
 	return String(source && formatter ? formatter(item.answer.value, source) : "").replace(/\s+/g, " ").trim();
 }
 function obligationEnding(item) {
-	if (item.source.kind === "todo") return item.status === "withdrawn" ? "Dropped" : item.answer?.value === "failed" ? "Failed" : "Done";
-	if (item.status === "withdrawn") return "Withdrawn";
-	if (item.status === "answered_elsewhere") return "Answered elsewhere";
+	if (hasObligationSource(item, "todo")) return leafSays(item.status === "withdrawn" ? "Dropped" : item.answer?.value === "failed" ? "Failed" : "Done");
+	if (item.status === "withdrawn") return leafSays("Withdrawn");
+	if (item.status === "answered_elsewhere") return leafSays("Answered elsewhere");
 	const words = answerWords(item);
-	return words ? `Answered: ${words}` : "Answered";
+	return words ? [leafSays("Answered: "), words] : leafSays("Answered");
 }
 
 //#endregion
@@ -7386,13 +8853,15 @@ function createPageLayout({ scheduleThreadPreviewPosition, syncReactLayout, refr
 	}
 	let bodyContentWidth = 0;
 	let bodyContentHeight = 0;
-	const layoutSizes = sizeObserver(([{ contentRect }]) => {
-		const widthChanged = contentRect.width !== bodyContentWidth;
-		const moved = widthChanged || contentRect.height !== bodyContentHeight;
-		bodyContentWidth = contentRect.width;
-		bodyContentHeight = contentRect.height;
-		if (widthChanged) repaintPage();
-		else if (moved) pageShifted();
+	const layoutSizes = sizeObserver((entries) => {
+		for (const { contentRect } of entries) {
+			const widthChanged = contentRect.width !== bodyContentWidth;
+			const moved = widthChanged || contentRect.height !== bodyContentHeight;
+			bodyContentWidth = contentRect.width;
+			bodyContentHeight = contentRect.height;
+			if (widthChanged) repaintPage();
+			else if (moved) pageShifted();
+		}
 	});
 	function mountLayoutObservers() {
 		addEventListener("resize", syncLayout);
@@ -7405,4 +8874,4 @@ function createPageLayout({ scheduleThreadPreviewPosition, syncReactLayout, refr
 }
 
 //#endregion
-export { CONTRIBUTION_ENTRY_SCHEMA, DISCLOSE, DISCLOSURE_SELECTOR, DRAWING_COORDINATE_LIMIT, KINDS, LeafElement, MAX_DRAWING_FRAME_DEPTH, MAX_DRAWING_POINTS, MAX_DRAWING_SAYS_LENGTH, MAX_DRAWING_STROKES, activateContributionControl, annotationItems, answerWords, awaitingUser, beginRead, canFold, choosePrimary, clearContributionControls, clusterProjection, composerOpen, composerQuote, consumeAnnotations, contributionEntry, contributionEntryRecord, contributionEntrySource, contributionHost, contributionItemKey, contributionReceipts, contributionSource, createPageLayout, createReactionController, createSelectionComposer, createThreadLanding, currentLocationThread, currentProjection, declareThreadKeys, disclosed, entryControls, entryEngaged, entryHasMarginHost, fabBar, fabInput, fabOptionsTrigger, focusedOfferOf, inPageOrder, landInThread, leafEditorView, leavesBox, markerFace, materializeContributionControls, mountApplication, navigateToDatum, obligationActions, obligationEnding, obligationWord, optionsOffered, ownedObligationControl, paintBarReactions, partOver, pendingAbout, pendingAnchor, pendingDrawing, placePageThreads, presentContributionEntry, presentContributionReceipts, primaryReading, queueActions, queueItemKey, queueTitle, reactionAvailable, reactionTokens, readPlan, readQueues, readingBehavior, readingChoices, readingContext, readingFace, readingKey, readingLabel, readingState, registerContribution, registerRootHeader, registerThreadPresentation, sendReaction, shadowStage, spokenContext, spokenSubject, syncContributionSelection, syncContributionUnread, textField, threadActions, threadBox, threadInput, threadReading, unreadIn, visibleContributionEntryLabel, watchDisclosures, widgetController, wireInput };
+export { CONTRIBUTION_ENTRY_SCHEMA, DISCLOSE, DISCLOSURE_SELECTOR, DRAWING_COORDINATE_LIMIT, KINDS, LeafElement, MAX_DRAWING_FRAME_DEPTH, MAX_DRAWING_POINTS, MAX_DRAWING_SAYS_LENGTH, MAX_DRAWING_STROKES, SVG_NS, activateContributionControl, annotationItems, answerWords, atWorkLayer, awaitingUser, beginRead, canFold, choosePrimary, clearContributionControls, clusterProjection, composerOpen, composerQuote, consumeAnnotations, contributionEntry, contributionEntryRecord, contributionEntrySource, contributionHost, contributionItemKey, contributionReceipts, createPageLayout, createReactionController, createSelectionComposer, createThreadLanding, currentLocationThread, currentProjection, declareThreadKeys, disclosureAt, dropStand, entryControls, entryEngaged, entryHasMarginHost, fabBar, fabInput, fabOptionsTrigger, focusedOfferOf, inPageOrder, landInThread, leafEditorView, leavesBox, markerFace, materializeContributionControls, mountApplication, navigateToDatum, obligationActions, obligationEnding, obligationWord, optionsOffered, ownedObligationControl, paintBarReactions, paintGeometry, paintSet, paintShape, paintStand, partOver, pendingAbout, pendingAnchor, pendingDrawing, placePageThreads, placement, presentContributionEntry, presentContributionReceipts, primaryReading, queueActions, queueItemKey, queueTitle, reactionAvailable, reactionTokens, readPlan, readQueues, readingBehavior, readingChoices, readingContext, readingFace, readingKey, readingLabel, readingState, registerContribution, registerRootHeader, registerThreadPresentation, sendReaction, shadowStage, spokenContext, spokenSubject, standBox, standOver, syncContributionSelection, syncContributionUnread, textField, threadActions, threadBox, threadInput, threadReading, unreadIn, vacate, visibleContributionEntryLabel, watchDisclosures, widgetController, wireInput };

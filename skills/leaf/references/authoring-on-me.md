@@ -57,7 +57,10 @@ How to build an alternative waits for the user's pick.
 ## Asking and retiring
 
 Let the user answer in the form the answer takes: a widget wherever it is a choice or
-an edit, and a thread message with `--obligation` for a conversational answer.
+an edit, and a thread message with `--obligation` for a conversational answer. Put the
+widget where the question arises: a question a thread raises, such as which way to do
+what the user asked there, goes in your reply's markup (`threads.md`, "Ask for a
+pick"), and a decision the page records goes on the page.
 Each widget that asks puts one question on On me and records its answer. A choice can hold a
 partial answer before the user presses Done, and an empty selection can be a complete
 answer.
@@ -164,9 +167,14 @@ action and the evidence the user needs in the `lf-ask` heading and prose:
 Other unanswered questions do not block it. When permission depends on an earlier
 choice, resolve that choice first, then ask for the resulting action.
 
+Approval of an editable proposal applies to the submitted values, while later edits
+remain a working copy. A playground records its complete values together on submission
+([playground authoring](../../../packages/playground/instructions/author.md)); a draft
+edit and an options pick are independent answers. Choose a composition that keeps the
+approved wording or settings distinct from subsequent edits.
+
 The pick belongs to the group with that id. Unrelated edits and page stamps keep it.
 If the action or evidence changes enough to invalidate the permission, explain the
 change and mark the group `restated` before asking again (`authoring-revisions.md`,
-"Honor user state"). Distinguish approved wording from later edits to a draft. A new
-stamp neither requests nor renews permission, and recording it does not end the page
-or report that the permitted work has been done.
+"Honor user state"). A new stamp neither requests nor renews permission, and recording
+it does not end the page or report that the permitted work has been done.

@@ -13,7 +13,7 @@
    admission and later descriptor paints never replay the cue.
    The fragment is captured inertly before its first upgrade; presentation waits for
    preparation before capturing typed authored state. */
-import { html, keyed, render, nothing } from "/runtime/framework.js";
+import { html, keyed, render, nothing, ref } from "/runtime/framework.js";
 import { generatedElement, offeredAction } from "../widget-elements.js";
 import {
   loadMarkdown,
@@ -22,7 +22,7 @@ import {
   renderedWords,
 } from "../markdown.js";
 import { reportPageError } from "../layer-client.js";
-import { editable, isReaction, lastMovedAt, messageKey, moved } from "./model.js";
+import { editable, isReaction, lastMovedAt, messageKey } from "./model.js";
 import { labelWords } from "../words.js";
 import {
   MessageEditor,
@@ -43,10 +43,10 @@ import { stageWidgetDescriptors } from "../widget-descriptors.js";
 import {
   NOT_ANSWERED,
   strongestWorkflow,
-  workflowLabel,
   workflowTitle,
-  workflowVoice,
+  workflowWord,
 } from "./workflow.js";
+import { voiced } from "../voice.js";
 import { markDeclared, renderQuiet, renderSaid } from "../declared-words.js";
 import { highlightBlocks } from "../syntax.js";
 import { ago } from "../presence.js";
@@ -68,7 +68,12 @@ export const loadMessageMarkdown = () =>
 // Prose parsing is shared across descriptor passes and surfaces. Its value changes
 // with admission, edits, stream text, or the lazy Markdown renderer becoming ready;
 // clock and receipt paint reuse the same HTML without retaining generated DOM.
+/** @typedef {import("../framework/snapshot.js").Immutable<ReturnType<typeof import("./model.js").readThreadRecords>[number]["msgs"][number]>} MessageRecord */
+/** @typedef {{id: string | undefined, edited: string | null, text: string,
+ * markdown: boolean, html: string, mediaHtml: string, plainText: string}} ProseReading */
+/** @type {Map<string | undefined, ProseReading>} */
 const renderedProse = new Map();
+/** @param {Parameters<typeof messageText>[0]} message @returns {ProseReading} */
 function proseReading(message) {
   const key = message.attempt ?? message.id;
   const edited = message.edited?.id ?? null;
@@ -101,7 +106,7 @@ function proseReading(message) {
 
 // Authored messages hold the complete captured reading of prose and islands.
 // Other messages and summaries still need their prose rendered here.
-/** @param {{readonly id?: string, readonly attempt?: string, readonly text?: string, readonly token?: string, readonly suggestion?: boolean, readonly body?: {readonly kind: string, readonly text: string}, readonly edited?: {readonly id?: string} | null}} message @returns {string} */
+/** @param {{readonly id?: string, readonly attempt?: string, readonly text?: string | undefined, readonly token?: string, readonly suggestion?: boolean, readonly body?: {readonly kind: string, readonly text: string}, readonly edited?: {readonly id?: string} | null | undefined}} message @returns {string} */
 export function messageText(message) {
   if (message.body?.kind === "authored") return message.body.text;
   if (message.token) {
@@ -156,12 +161,24 @@ export const threadSummary = (thread) => ({
 
 // A rollback can withdraw an authored island, but neither retry nor a prose edit
 // may instantiate it twice. Its native identity is independent of the prose cache.
+/** @typedef {{
+ * message: string,
+ * body: {text: string, markup: string, document: {thread: string, message: string}},
+ * authored: ReturnType<typeof stageAuthoredStates>,
+ * descriptors: ReturnType<typeof stageWidgetDescriptors>,
+ * nodes: readonly ChildNode[], root: DocumentFragment,
+ * preparation: Promise<PreparedAuthoredMessage> | null,
+ * }} PreparedAuthoredMessage */
+/** @type {Map<string, PreparedAuthoredMessage>} */
 const authoredMessages = new Map();
+/** @param {{id: string, attempt?: string, markup?: string}} message @param {string} thread
+ * @returns {Promise<PreparedAuthoredMessage>} */
 export function prepareAuthoredMessage(message, thread) {
   const key = message.attempt ?? message.id;
   if (typeof thread !== "string" || !thread)
     throw new TypeError("an authored message needs its thread's id");
-  if (!authoredMessages.has(key)) {
+  let prepared = authoredMessages.get(key);
+  if (!prepared) {
     const template = document.createElement("template");
     template.innerHTML = message.markup ?? "";
     markDeclared(template.content);
@@ -175,10 +192,11 @@ export function prepareAuthoredMessage(message, thread) {
     rememberPassageParts(template.content, ["event", message.id]);
     const text = template.content.textContent;
     const nodes = Object.freeze([...template.content.childNodes]);
-    authoredMessages.set(key, {
+    prepared = {
       message: message.id,
       body: {
         text,
+        markup: message.markup ?? "",
         document: { thread, message: message.id },
       },
       authored,
@@ -186,11 +204,12 @@ export function prepareAuthoredMessage(message, thread) {
       nodes,
       root: template.content,
       preparation: null,
-    });
+    };
+    authoredMessages.set(key, prepared);
   }
-  const prepared = authoredMessages.get(key);
   for (const descriptor of prepared.descriptors.descriptors.values())
     if (
+      descriptor.document.kind !== "thread" ||
       descriptor.document.thread !== thread ||
       descriptor.document.message !== message.id
     )
@@ -198,14 +217,16 @@ export function prepareAuthoredMessage(message, thread) {
   // The captured document owns preparation for its entire lifetime. Concurrent
   // state reads join it, including after its nodes leave the inert fragment for a
   // drawing. A failed import remains a failed state read; the next read may retry.
-  return (prepared.preparation ??= importWidgets(prepared.root).then(
-    () => prepared,
+  const captured = prepared;
+  return (captured.preparation ??= importWidgets(captured.root).then(
+    () => captured,
     (error) => {
-      prepared.preparation = null;
+      captured.preparation = null;
       throw error;
     },
   ));
 }
+/** @param {{id: string, attempt?: string | null}} message */
 const authoredMessage = (message) => {
   const prepared = authoredMessages.get(message.attempt ?? message.id);
   if (!prepared)
@@ -225,11 +246,19 @@ const authoredMessage = (message) => {
 // nor hidden: it waits for that settling to take them, and keeps what it holds.
 // Whichever drawings gain or lose them draw again at once, as their own containers
 // would not.
+/** @typedef {{node: HTMLDivElement, model: ReturnType<typeof messageReading>,
+ * present: (model: ReturnType<typeof messageReading>) => HTMLDivElement}} PresentedMessage */
+/** @type {Map<string, Set<PresentedMessage>>} */
 const authoredDrawings = new Map();
+/** @type {Map<string, PresentedMessage>} */
 const authoredHolders = new Map();
+/** @param {PresentedMessage} view */
 const shown = (view) => view.node.isConnected && showsContents(view.node);
+/** @param {PresentedMessage} view */
 const hidden = (view) => view.node.isConnected && !showsContents(view.node);
+/** @param {PresentedMessage} a @param {PresentedMessage} b */
 const outranks = (a, b) => a.model.authoredRank > b.model.authoredRank;
+/** @param {string} key */
 function settleAuthored(key) {
   const drawings = authoredDrawings.get(key) ?? new Set();
   const holder = authoredHolders.get(key);
@@ -242,7 +271,9 @@ function settleAuthored(key) {
   best.present(best.model);
   if (holder && drawings.has(holder)) holder.present(holder.model);
 }
+/** @type {Set<string>} */
 const unsettled = new Set();
+/** @param {string} key */
 function settleAuthoredSoon(key) {
   if (unsettled.has(key)) return;
   unsettled.add(key);
@@ -251,28 +282,35 @@ function settleAuthoredSoon(key) {
     settleAuthored(key);
   });
 }
+/** @param {string} key @param {PresentedMessage} view */
 function releaseAuthored(key, view) {
   if (authoredHolders.get(key) !== view) return;
   authoredHolders.delete(key);
   settleAuthored(key);
 }
 // Lets go of the widgets the drawings under `root` hold, as a card closing does.
+/** @param {Element} root */
 export function releaseAuthoredUnder(root) {
   for (const [key, view] of [...authoredHolders])
     if (root.contains(view.node)) releaseAuthored(key, view);
 }
 // The drawn message holding the widgets of the message `id`, if a drawing holds them.
+/** @param {string} id */
 export function authoredHolder(id) {
   for (const view of authoredHolders.values())
     if (view.model.id === id && shown(view)) return view.node;
   return null;
 }
+/** @param {MessageRecord} message
+ * @param {{authoredRank?: number, reactions: MessageRecord["reactions"],
+ * workflows: readonly import("../framework/application.js").Workflow[],
+ * leaves?: import("../voice.js").Said | null}} options */
 export function messageReading(
   message,
   { authoredRank = 0, reactions, workflows, leaves = null },
 ) {
   const workflow = strongestWorkflow(workflows);
-  const token = isReaction(message) ? tokenEntry(message.token) : null;
+  const token = message.token ? tokenEntry(message.token) : null;
   const kind = isReaction(message)
     ? "reaction"
     : message.suggestion
@@ -282,17 +320,19 @@ export function messageReading(
   return Object.freeze({
     key: messageKey(message),
     id: message.id,
+    thread: message.thread,
     // A reply still streaming, which the answer it stands for completes in place.
     provisional: Boolean(message.provisional),
     // The agent's progress message (`ephemeral`): a step of work in hand, which the
     // thread shows as its run's face until an answer folds it (transcript.js).
     progress: Boolean(message.ephemeral),
-    // What an answer leaves standing, while it stands: "Waiting on me" for the question the
-    // user owes words to, Still to do (`todoLabel`) for work it promised and has not ended
-    // (thread-card.js).
+    // What an answer leaves standing, while it stands: Leaf's "Waiting on me" for the
+    // question the user owes words to, the agent's Still to do (`todoWord`) for work it
+    // promised and has not ended (thread-card.js).
     leaves,
     version: message.content_version,
-    seq: moved(message).seq,
+    // Original log order: edits move the words without moving where they were said.
+    sequence: message.seq ?? Infinity,
     unread: message.unread,
     attempt: message.attempt ?? null,
     author: message.author,
@@ -311,9 +351,8 @@ export function messageReading(
     // content version.
     base: message.content_version,
     workflow,
-    workflowLabel: workflowLabel(workflow, agentName()),
+    workflowWord: workflowWord(workflow, agentName()),
     workflowTitle: workflowTitle(workflow, agentName()),
-    workflowVoice: workflowVoice(workflow),
     body: Object.freeze({
       kind,
       text: message.text ?? "",
@@ -330,7 +369,9 @@ export function messageReading(
     markdown:
       kind === "reaction"
         ? null
-        : [message.text, message.markup].filter(Boolean).join("\n\n"),
+        : [message.text, message.body.kind === "authored" ? message.body.markup : null]
+            .filter(Boolean)
+            .join("\n\n"),
     // Where this drawing ranks among those that may hold the message's widgets
     // (`authoredHolders`); 0 for one that never does.
     authoredRank,
@@ -338,36 +379,59 @@ export function messageReading(
   });
 }
 
+/** @typedef {{read: Pick<ReturnType<typeof import("./read.js").createReadTracking>, "observeMessage">,
+ * reply: {wireInput: ReturnType<typeof import("../composing/input.js").createCompositionInputs>["wireInput"],
+ * actions: Pick<ReturnType<typeof import("./actions.js").createThreadActions>, "edit">},
+ * reaction: ConstructorParameters<typeof ReactionStripView>[0],
+ * edit: ReturnType<typeof import("./message-edit.js").threadRewrites>["edit"]}} MessageCommands */
+
 export class MessageView {
   #commands;
-  #model = null;
+  /** @type {PresentedMessage | null} */
+  #presentation = null;
+  get #model() {
+    return this.#presentation?.model ?? null;
+  }
+  /** @type {ReactionStripView | null} */
   #reaction = null;
+  /** @type {ReturnType<typeof copyControl> | null} */
   #copy = null;
-  #authored = null;
   // Bumped each time this view takes the message's widgets back from another drawing.
   #authoredTake = 0;
   #dressed = false;
+  /** @type {ReturnType<typeof motion> | null} */
   #arrivalMotion = null;
+  /** @type {(() => void) | null} */
   #stopRead = null;
+  /** @type {MessageEditor | null} */
   #editor = null;
   #kept = false;
+  /** @type {(() => void) | null} */
   #stopKept = null;
   // Whether the head says the message's age, which a transcript leaves out where the
   // message above already says it (transcript.js). A presentation that doesn't say,
   // as a drawing taking back its widgets doesn't, keeps the last answer.
   #dated = true;
 
+  /** @param {MessageCommands} commands */
   constructor(commands) {
     this.#commands = commands;
     this.node = document.createElement("div");
   }
 
+  /** @param {ReturnType<typeof messageReading>} model
+   * @param {{arrived?: boolean, dated?: boolean, headerControls?: unknown}} [options] */
   present(
     model,
     { arrived = false, dated = this.#dated, headerControls = nothing } = {},
   ) {
     const prior = this.#model;
-    this.#model = model;
+    const presentation = (this.#presentation ??= {
+      node: this.node,
+      model,
+      present: (reading) => this.present(reading),
+    });
+    presentation.model = model;
     this.#dated = dated;
     // A view presents messages of one surface for its whole life, so what the surface
     // makes of the node is written once, on the first presentation.
@@ -385,9 +449,8 @@ export class MessageView {
       // link keeps its own double click, and a control its own presses.
       this.node.addEventListener("dblclick", (event) => {
         if (
-          /** @type {Partial<Element>} */ (event.target).closest?.(
-            ".lf-msg-editor, .lf-msg-controls, a[href]",
-          )
+          event.target instanceof Element &&
+          event.target.closest(".lf-msg-editor, .lf-msg-controls, a[href]")
         )
           return;
         if (!this.#model?.editable) return;
@@ -399,29 +462,35 @@ export class MessageView {
     // The view the user opened the rewrite in draws its editor (`message-edit.js`); a
     // closed editor goes with its subscription and keys.
     const editing = model.editable && holdsMessageEdit(model.id, this);
-    if (editing && !this.#editor)
-      this.#editor = new MessageEditor(model.id, this, {
-        wireInput: this.#commands.reply.wireInput,
-        said: () => this.#model.body.text,
-        base: () => this.#model.base,
-        send: (text, options) =>
-          this.#commands.edit.send(this.#model.id, text, options),
-        land: () => this.#commands.edit.land(this.node),
-        paint: () => this.#commands.edit.paint(this.node),
-        previous: () => this.#commands.edit.previous(this.#model.id),
-        reveal: (caretLine) => this.#commands.edit.reveal(this.node, caretLine),
-      });
-    if (!editing && this.#editor) {
+    const editor = editing
+      ? (this.#editor ??= new MessageEditor(model.id, this, {
+          wireInput: this.#commands.reply.wireInput,
+          said: () => presentation.model.body.text,
+          base: () => presentation.model.base,
+          send: (text, options) =>
+            this.#commands.reply.actions.edit(
+              presentation.model.thread,
+              presentation.model.id,
+              text,
+              options,
+            ),
+          land: () => this.#commands.edit.land(this.node),
+          paint: () => this.#commands.edit.paint(this.node),
+          previous: () => this.#commands.edit.previous(presentation.model.id),
+          reveal: (caretLine) => this.#commands.edit.reveal(this.node, caretLine),
+        }))
+      : null;
+    if (!editor && this.#editor) {
       this.#editor.dispose();
       this.#editor = null;
     }
-    this.#editor?.follow();
+    editor?.follow();
     // Whether the message says it holds kept words follows the draft, which another tab
     // can change; a keystroke in the open editor changes no such answer.
-    this.#kept = model.editable && !editing && keptRewrite(model.id);
+    this.#kept = model.editable && !editor && keptRewrite(model.id);
     if (model.editable && !this.#stopKept)
       this.#stopKept = watchRewrite(model.id, () => {
-        if (keptRewrite(this.#model.id) !== this.#kept)
+        if (keptRewrite(presentation.model.id) !== this.#kept)
           this.#commands.edit.paint(this.node);
       });
     if (prior && prior.author !== model.author)
@@ -433,32 +502,29 @@ export class MessageView {
     keeps(this.node, "aria-busy", model.pending ? "true" : null);
     keeps(this.node, "data-failure", model.failure || null);
     const authoredKey = model.attempt ?? model.id;
+    const authored = model.body.authored ? authoredMessage(model).nodes : [];
     let displaced = null;
     if (model.authoredRank && model.body.authored) {
-      this.#authored ??= authoredMessage({
-        id: model.id,
-        attempt: model.attempt,
-      }).nodes;
-      if (!authoredDrawings.has(authoredKey))
-        authoredDrawings.set(authoredKey, new Set());
-      authoredDrawings.get(authoredKey).add(this);
+      let drawings = authoredDrawings.get(authoredKey);
+      if (!drawings) authoredDrawings.set(authoredKey, (drawings = new Set()));
+      drawings.add(presentation);
       const holder = authoredHolders.get(authoredKey);
-      const holding = holder && authoredDrawings.get(authoredKey).has(holder);
+      const holding = holder && drawings.has(holder);
       if (
-        holder !== this &&
+        holder !== presentation &&
         (holding
-          ? shown(this) && (hidden(holder) || outranks(this, holder))
-          : !hidden(this))
+          ? shown(presentation) && (hidden(holder) || outranks(presentation, holder))
+          : !hidden(presentation))
       ) {
-        authoredHolders.set(authoredKey, this);
+        authoredHolders.set(authoredKey, presentation);
         if (holding) displaced = holder;
       }
       settleAuthoredSoon(authoredKey);
     }
-    const holds = authoredHolders.get(authoredKey) === this;
+    const holds = authoredHolders.get(authoredKey) === presentation;
     // Lit keeps nodes it already placed, so where another drawing took them since this
     // one drew them, a new key puts them back here.
-    if (holds && this.#authored.some((node) => !this.node.contains(node)))
+    if (holds && authored.some((node) => !this.node.contains(node)))
       this.#authoredTake++;
     if (!model.reactions) this.#reaction?.retire();
     const strip = model.reactions
@@ -469,8 +535,8 @@ export class MessageView {
     // The message's own controls, one group at its head's end (controls.css): the user's
     // own words offer their rewrite, or, open, its Discard and Save; an agent's reply
     // its reactions; and every message with words its Copy, last.
-    const rewrite = editing
-      ? this.#editor.actions
+    const rewrite = editor
+      ? editor.actions
       : model.editable
         ? html`<button
             ${offeredAction("symbol", "lf-msg-control lf-msg-edit", "Edit message", {
@@ -480,15 +546,12 @@ export class MessageView {
             @click=${() => this.openEdit()}
           ></button>`
         : nothing;
-    const react = model.reactions ? this.#reaction.trigger : nothing;
+    const react = this.#reaction && model.reactions ? this.#reaction.trigger : nothing;
     const copy =
-      model.markdown && !editing ? this.#copyControl(model.markdown) : nothing;
-    const receipt = model.workflowLabel
-      ? html`<span
-          class="lf-msg-sending"
-          title=${model.workflowTitle}
-          data-voice=${model.workflowVoice}
-          >${model.workflowLabel}</span
+      model.markdown && !editor ? this.#copyControl(model.markdown) : nothing;
+    const receipt = model.workflowWord
+      ? html`<span class="lf-msg-sending" title=${model.workflowTitle}
+          >${voiced(model.workflowWord)}</span
         >`
       : nothing;
     const header = html`
@@ -509,14 +572,12 @@ export class MessageView {
           ${receipt}
           ${
             model.leaves
-              ? html`<span class="lf-msg-leaves">${model.leaves}</span>`
+              ? html`<span class="lf-msg-leaves">${voiced(model.leaves)}</span>`
               : nothing
           }
           ${
             model.failure
-              ? html`<span class="lf-msg-failure" data-voice="leaf"
-                  >${NOT_ANSWERED}</span
-                >`
+              ? html`<span class="lf-msg-failure">${voiced(NOT_ANSWERED)}</span>`
               : nothing
           }
           ${
@@ -549,20 +610,23 @@ export class MessageView {
         ${header}
         <div
           class=${`lf-msg-body${model.body.kind === "suggestion" ? " lf-suggest-body" : ""}`}
+          ${ref((body) => {
+            if (body) this.#stopRead = this.#commands.read.observeMessage(body, model);
+          })}
         >
-          ${editing ? this.#editor.node : this.#body(model.body)}
+          ${editor ? editor.node : this.#body(model.body)}
           ${
             model.body.drawing
               ? html`<span class="lf-drawing-reference">Drawing comment</span>`
               : nothing
           }
-          ${holds ? keyed(this.#authoredTake, this.#authored) : nothing}
+          ${holds ? keyed(this.#authoredTake, authored) : nothing}
         </div>
         ${strip}
       `,
       this.node,
     );
-    if (this.#authored && !this.#dressed) {
+    if (model.body.authored && !this.#dressed) {
       markDeclared(this.node);
       renderSaid(this.node);
       renderQuiet(this.node);
@@ -570,10 +634,6 @@ export class MessageView {
     }
     // Markdown is an opaque property part: tokenization never rewrites Lit markers.
     highlightBlocks(this.node);
-    this.#stopRead = this.#commands.read.observeMessage(
-      this.node.querySelector(":scope > .lf-msg-body"),
-      model,
-    );
     // The drawing these widgets left draws the way here instead.
     displaced?.present(displaced.model);
     if (!prior && (model.pending || arrived)) {
@@ -600,7 +660,7 @@ export class MessageView {
     const model = this.#model;
     if (!model?.editable) return false;
     if (!this.#editor) {
-      this.#commands.edit.opening(model.id, this);
+      this.#commands.edit.opening(model, this);
       this.#commands.edit.paint(this.node);
     }
     this.#editor?.enter();
@@ -632,6 +692,7 @@ export class MessageView {
   // copies the message whole as Markdown. Like Edit it is no Tab stop, which would add
   // one to every message between a thread's controls; the keyboard presses it with the
   // copy key in the thread (landing.js, `message.copy`).
+  /** @param {string} markdown */
   #copyControl(markdown) {
     if (!this.#copy) {
       this.#copy = copyControl("lf-msg-control lf-msg-copy", {
@@ -647,6 +708,7 @@ export class MessageView {
     return this.#copy;
   }
 
+  /** @param {ReturnType<typeof messageReading>["body"]} body */
   #body(body) {
     if (body.kind === "reaction")
       return html`<div class="lf-msg-text">
@@ -663,18 +725,19 @@ export class MessageView {
   }
 
   commit() {
-    if (!this.#model.reactions && this.#reaction) {
+    if (!this.#model?.reactions && this.#reaction) {
       this.#reaction.retire();
       this.#reaction = null;
     }
   }
 
   retire() {
-    if (this.#model) {
-      const key = this.#model.attempt ?? this.#model.id;
-      authoredDrawings.get(key)?.delete(this);
+    const presentation = this.#presentation;
+    if (presentation) {
+      const key = presentation.model.attempt ?? presentation.model.id;
+      authoredDrawings.get(key)?.delete(presentation);
       if (!authoredDrawings.get(key)?.size) authoredDrawings.delete(key);
-      releaseAuthored(key, this);
+      releaseAuthored(key, presentation);
     }
     this.#arrivalMotion?.cancel();
     this.#reaction?.retire();
@@ -692,11 +755,12 @@ export class MessageView {
 // stands on the page only while a drawing of that message does, as a margin card or the
 // floating panel's view of its thread, so a thread about it is named by its words, and
 // placed in its message (anchor-placement.js), while the message is put away.
+/** @param {string} id */
 export function messageHolding(id) {
   for (const { nodes, body } of authoredMessages.values())
     for (const node of nodes) {
-      if (node.nodeType !== Node.ELEMENT_NODE) continue;
-      const element = /** @type {Element} */ (node);
+      if (!(node instanceof Element)) continue;
+      const element = node;
       const kept =
         element.id === id ? element : element.querySelector(`[id="${CSS.escape(id)}"]`);
       if (kept) return { element: kept, ...body.document };
@@ -705,8 +769,10 @@ export function messageHolding(id) {
 }
 
 // The element a coordinate names: the page's, else one a message keeps.
+/** @param {string} id */
 const addressableAt = (id) => elementById(id) ?? messageHolding(id)?.element ?? null;
 
+/** @param {import("../../types/domain.js").Anchor | null | undefined} anchor @param {string | null | undefined} about */
 function coordinateLabel(anchor, about) {
   if (about === "design") {
     const addressable = anchor?.section ? addressableAt(anchor.section) : null;
@@ -726,6 +792,7 @@ function coordinateLabel(anchor, about) {
 }
 
 // A named control part belongs to the coordinate in every reading, not just Design.
+/** @param {import("../../types/domain.js").Anchor | null | undefined} anchor @param {string | null | undefined} [about] */
 export function anchorLabel(anchor, about) {
   const label = coordinateLabel(anchor, about);
   return [about === "design" && "design", anchor?.part, label]

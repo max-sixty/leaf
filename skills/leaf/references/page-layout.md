@@ -34,7 +34,9 @@ narrow its grid track or cap its blocks in the page's `<style>`, such as
 
 The page's own `<style>` comes after the Layout, so ordinary rules can change a track
 share, a gap or an order. Where a Layout fits, use it rather than rebuilding it; a page
-that no Layout fits writes its own grid or flex rules.
+that no Layout fits writes its own grid or flex rules. For a row of side-by-side blocks
+inside a card or a playground's preview, follow `package-themes.md`, "A theme change",
+so its items keep their top margins level.
 
 ## A page of parts
 
@@ -76,6 +78,10 @@ Direct children of `layout-column` and `layout-flow` are grid items: their verti
 margins add rather than collapse, and `float` does not place them beside prose.
 Automatic inline margins make an unsized item shrink to its content; give it
 `inline-size: 100%` when it should fill its track, up to any `max-inline-size`.
+An item that opens with a heading, or with an eyebrow over one, takes the heading's
+gap as its own top margin, so its box starts at the heading. Set that gap with the
+theme's `--h2-start` and `--h3-start` on `:root`. A top margin page CSS gives the item
+replaces the gap, and one it gives the heading adds to it.
 
 ```html
 <main class="layout-column">
@@ -281,15 +287,19 @@ what it means to style, such as a class on your own controls or a widget's id be
 its controls (`#triage button`). Leaf's panel and thread cards keep their own look
 against a page rule as light as one class (`button`, `.card`); a heavier selector such
 as `button:hover`, an `!important` declaration or a rule in the page's own `@layer`
-reaches them too, so name your own content in it. A token such as `--accent` on `:root` changes every surface that reads it. For
+reaches them too, so name your own content in it. A token such as `--accent` on `:root` changes every surface that reads it, and a token
+on one of the chrome's parts, such as `--paper` on `[part~="card"]`, changes only that
+surface (`package-themes.md`, "Leaf's chrome"). For
 a page-specific inset, use the frame declaration in `package-themes.md`, "A theme
 change".
 
-To make a control you write match Leaf's, give it `class="button"`,
-`class="button primary"` for the committing action, or `class="field"` for a text
-input or select. A native radio or checkbox uses
+A native control you write keeps the browser's default face until it takes Leaf's:
+`class="button"`, `class="button primary"` for the committing action, `class="field"`
+for a text input or select, and
 `<label class="choice"><input type="radio" name="view" value="summary">Summary</label>`
-(or `type="checkbox"`).
+(or `type="checkbox"`) for a radio or checkbox. A control drawn for the task, such as
+a stack of layer tiles or a curve's handles, is the page's own design
+(`page-authoring.md`, "Style the page").
 
 Leaf's panel, thread cards and markers draw over everything in `main`, whatever its
 `z-index`. Open a modal or menu of the page's own in the top layer: a `<dialog>` shown

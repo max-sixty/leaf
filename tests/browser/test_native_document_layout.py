@@ -107,7 +107,7 @@ def test_note_rows_fit_their_column_without_moving_other_columns(
           #nested, #inner {{grid-column:full}}</style>""",
     )
     page = open_page(browser, serve(source))
-    for width in (1600, 1200, 900, 390):
+    for width in (1600, 1200, 1152, 1151, 900, 390):
         with subtests.test(width=width):
             page.set_viewport_size({"width": width, "height": 900})
             boxes = page.evaluate("""() => Object.fromEntries(
@@ -127,7 +127,7 @@ def test_note_rows_fit_their_column_without_moving_other_columns(
                 24, (nested["width"] - 720) / 2
             )
             assert boxes["exhibit"]["top"] - note["bottom"] >= 24
-            if width >= 1200:
+            if width >= 1152:
                 assert note["top"] == passage["top"]
                 if direction == "ltr":
                     assert note["left"] - passage["right"] == 24

@@ -67,8 +67,10 @@ A row's `id` is a stable, lowercase dotted name such as `draft.save`; keep it wh
 or words change. `title` names the command and may be a function where state changes
 it, and `label` replaces the keycap. `description` is the command reference's tooltip
 for it and the line under its title where a touch menu or an On me card offers it. A
-`decision: true` row answers an obligation, and `recommended: true` marks the answer
-the page advises, which an On me card names.
+`decision: true` row answers an obligation, `recommended: true` marks the answer
+the page advises, which an On me card names, and `commits: true` marks the press that
+commits an answer the user composed, such as a group's Done, which an On me card draws
+as that commit rather than as one more answer.
 
 `keys` lists bindings in canonical spelling, such as `"a"`, `"Shift+a"` or
 `"Mod+Enter"`, or is a function returning them. `repeat: true` also runs on a held key's
@@ -81,7 +83,10 @@ row's keys mean different things, `routes` lists subcommands, each with its own 
 `title`, `binding` or `contextKeys`, and optional `when`; the command reference lists
 and runs each route.
 
-`run(binding, context)` performs the command; a row without `run` names a press the
+`run()` performs a command whose meaning is independent of its key. Use
+`runKey(binding)` instead when the binding determines the action; Leaf supplies the
+actual binding that invoked it, including when the command reference selects a route.
+A row declares at most one of these handlers. A row without either names a press the
 browser or an outer handler makes, and one that names a `control` is pressed by a
 click on it. `control` is the visible element that activates it. `lands(from)` says
 where the user stands after Leaf runs the row for a key, a command-reference pick or
@@ -218,6 +223,15 @@ elsewhere should save does, and calls `dismiss(path, from)` before the press's c
 ignores a touch scroll the browser cancels, and returns its unsubscribe function. A group
 the user moves through with arrow keys offers one Tab stop with `rove(items, stop)`.
 
+`onPress(begin)` follows the primary pointer's press through its native compatibility
+events. `begin(pointerdown, path)` may return `end(event, completed)`: release calls
+it with `completed: true`; cancellation, a native context menu, or leaving the document
+calls it with `false`. The function returned by `end` runs when that press is over,
+after any compatibility mouseup and click it owes. Keep press-local work in these
+callbacks. Register inside `whileConnected`; the returned unsubscribe stops new
+presses, and the connection's abort signal ends any work still running when the widget
+disconnects.
+
 `onCurrentLocation(read)` calls `read(node, cause, left)` synchronously when focus
 changes, including inside a declared shadow root, and returns its unsubscribe function;
 register it inside `whileConnected` and call that function in the cleanup. The causes
@@ -301,7 +315,7 @@ visible control sends. A box for one line, such as a name, carries
 `aria-multiline="false"` before it is wired: Enter then sends from every keyboard, a
 phone's included, Shift+Enter writes nothing, and a pasted line break becomes a space.
 The options are `sendClass`, placement classes for the generated send control (default
-empty); `sends`, its action in words; `hint`, the placeholder; `save(value)`, called with the whole draft on each
+empty); `sends`, its action in words; `hint`, the placeholder, after which a focused box on a physical keyboard names its send key and, where Enter sends a box that holds lines, the key for a new line; `save(value)`, called with the whole draft on each
 edit; `send(text, raw, owns)`, called on send with the trimmed and raw draft; `busy()`
 and `hasContent(raw)`, which hold sending back. Write `.value` only to seed the box
 before wiring it.
@@ -314,7 +328,8 @@ Drafts survive a reload, a new version and a closed tab, and every tab of the pa
 shares them. Keep each under a context string unique on the page, such as `option:` and
 its id:
 
-- `loadDraft(ctx)` returns the words to seed the box, or `null`.
+- `loadDraft(ctx)` returns the stored draft record, or `null`. Seed the box with
+  `loadDraft(ctx)?.text ?? ""`; its `payload` holds the saved send data.
 - `saveDraft(ctx, text, payload)` records an edit, from `save`, with any `payload` the
   send needs.
 - `watchDraft(ctx, callback, {input: box})` calls `callback(text, payload)` when the

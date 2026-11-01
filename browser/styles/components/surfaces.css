@@ -4,46 +4,26 @@
  * need is stated here, once: the stage copies the composed shadow.css into each declared
  * root, and the document reads the same rules at the head of this root's part of
  * /theme.css. A rule belongs here when a declared tree has to see it too. */
-/* The default face of native widget-injected controls. `offer()` writes `lf-ui-face` on each one it
- * builds, so this is the layer's answer for a control standing in the page's own prose:
- * the chrome's family, size and ink rather than the document's serif. The separate
- * lf-ui identity still marks custom-element apparatus, but its component owns its
- * face: an outer host declaration would outrank even its internal state rules.
+/* The default face of a native control: Leaf's ui font (base.css, `--font-ui`) and
+ * ink, rather than the document's serif or the browser's 13.33px Arial. `offer()` writes
+ * `lf-ui-face` on each native control it builds, and a page may write `.button` or
+ * `.field` on its own. A native control the page writes with neither class takes the
+ * font too, and keeps the browser's ink, which goes with the browser's ground for it.
+ * Apparatus marked only `lf-ui`, such as lf-diff's line numbers and a custom element's
+ * host, keeps its component's face.
  *
- * It is a default, and three things make it behave like one. It stands at this sheet's
- * head, which composes ahead of base.css and every package sheet, so each component rule
- * that names the same property wins on ordinary cascade order; stated in base.css, after
- * this sheet, it beat them, and .lf-compose-submit drew near-black on Send and on Add
- * option instead of the accent. It keeps a class's specificity, so the element rules of the
- * layered sheets lose to it; the page's own rules are unlayered and win over it, as they
- * win over every layer. It applies under both the document root and a declared shadow
- * host, so native controls share one face in either tree. It does not select the
- * general `lf-ui` apparatus: lf-diff's line numbers and hunk separators retain their
- * component's type and ink.
+ * It is a default, so it weighs nothing and stands at the head of the shared sheet
+ * (`lf-base` in the document, `lf-shadow` in a declared tree): any other rule that
+ * names one of these properties outranks it, a component's, a package's or the page's
+ * own. Markup's reading face stands in a layer below it (reading.css), so a control
+ * standing in prose takes this face rather than the prose's. Stated in
+ * runtime/chrome.css, which is adopted after every component sheet, it would outrank
+ * them all.
  *
- * It cannot live in runtime/chrome.css, which is adopted and so cascades after all of
- * them: the same declarations there beat every component's own rule, and .lf-ref drew
- * ink at 14px where it asked for muted at 11.5px while a widget
- * asking for mono drew sans. Nothing catches that, because
- * no test and no browser gate reads a rule that never applied.
- *
- * The rest of the face is stated too, at no weight at all. Inheritance reaches a control
- * that no page rule selects: a page that set its body bold, italic, small-capped, spaced
- * or in capitals set every control standing in it so too. The `font` shorthand resets
- * every font property it has, weight, slant, variants and stretch among them. Any declared value beats an inherited one,
- * so a rule that weighs nothing is enough to stop that, and it leaves every rule that
- * sets these on purpose winning: at a class's weight it took the pane header's 600 off
- * each playground's presets.
- *
- * A native control the page writes without either class takes the type from that
- * weightless rule too, so a page that styles it anywhere still wins. Left to the
- * browser it drew 13.33px Arial beside the page's own type (#2559). */
-:where(:root, :host) :is(.lf-ui-face, .button, .field) {
-  font-family: var(--sans);
-  font-size: var(--t-5);
-  line-height: var(--lf-ui-lh);
-  color: var(--ink);
-}
+ * The `font` shorthand states every font property, weight, slant, variants and stretch
+ * among them, and the properties it leaves out are stated beside it, since any declared
+ * value beats an inherited one: a page that sets its body bold, italic, small-capped,
+ * spaced or in capitals leaves its controls in that font. */
 :where(
   :is(:root, :host) .lf-ui-face,
   :is(:root, :host) .button,
@@ -51,12 +31,15 @@
   :root main :is(button, input, select, textarea),
   :host :is(button, input, select, textarea)
 ) {
-  font: var(--voice-ui);
+  font: var(--font-ui);
   font-feature-settings: normal;
   font-variation-settings: normal;
   letter-spacing: normal;
   word-spacing: normal;
   text-transform: none;
+}
+:where(.lf-ui-face, .button, .field) {
+  color: var(--ink);
 }
 /* Words for a user listening, silent on screen: real text, the one thing every
    screen reader announces in every mode, clipped to nothing where paint already says
@@ -142,7 +125,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   color: var(--danger-ink);
   border-radius: var(--r);
   padding: 8px 12px;
-  font: var(--voice-ui);
+  font: var(--font-ui);
   font-variant-numeric: tabular-nums;
   white-space: normal;
   --lf-block-frame: 1;
@@ -172,9 +155,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   border-radius: var(--r-s);
   background: var(--chip);
   color: var(--ink-2);
-  font: var(--voice-code);
-  /* The line box the size token is built from: the badge less its border. */
-  line-height: calc(var(--lf-key-badge-size) - 2px);
+  font: var(--font-code);
   text-align: center;
   white-space: nowrap;
   display: inline-flex;
@@ -482,7 +463,7 @@ summary {
   min-width: 0;
   position: relative;
   padding: var(--sp-1);
-  font: var(--voice-ui);
+  font: var(--font-ui);
   color: var(--ink);
   overflow-wrap: anywhere;
 }
@@ -650,7 +631,7 @@ summary {
   box-sizing: border-box;
   min-width: 0;
   white-space: nowrap;
-  font: var(--voice-small);
+  font: var(--font-small);
 }
 .lf-thread-working-head {
   overflow: hidden;
@@ -694,15 +675,37 @@ summary {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* Keep short authors intact while long names leave room for delivery metadata. */
+/* Keep short authors intact while long names leave room for delivery metadata.
+
+   Every word on a head's line stands on one baseline. The head centres each of its
+   boxes separately. The time, a receipt and a notice of news are each a line in the
+   head's face, but the name is set larger, and larger text centred on its own line
+   sits with its baseline lower, here by about a pixel. So the name's box takes its
+   line from a strut, a zero-width character in the head's face, rather than from the
+   name's own face (`line-height: 0`), and the name stands on the strut's baseline.
+   Each engine places a baseline alike in boxes of the same line and face, so the
+   name's meets the others' exactly. The strut opens only the first line, so the name
+   keeps to one line. Its box clips only sideways, since its line is shorter than the
+   name's face and clipping it would cut accents.
+
+   Rejected: aligning the head's boxes by baseline, which puts the words at the top of
+   the head, taller than their line, rather than centred on it; and a strut in the
+   metadata on the name's line, which left the notice of news, centred beside the
+   head, a pixel or more above the rest. */
 :is(.lf-msg-head, .lf-thread-working-head) b {
   flex: 0 0 auto;
   max-inline-size: 40%;
   min-width: 0;
-  overflow: hidden;
+  overflow: clip visible;
   text-overflow: ellipsis;
-  font: var(--voice-name);
+  white-space: nowrap;
+  font: var(--font-name);
+  line-height: 0;
   color: var(--ink);
+  &::before {
+    content: "\200b" / "";
+    font: var(--font-small);
+  }
 }
 /* A checkpoint is agent-written reading context, followed in the transcript by the
    messages it covers, which stand where they were said and are hidden while it is
@@ -754,13 +757,12 @@ summary {
 .lf-summary-label {
   min-width: 0;
   overflow-wrap: anywhere;
-  color: var(--muted-2);
-  font: var(--voice-small);
-  font-weight: 500;
+  color: var(--muted);
+  font: var(--font-status);
 }
 .lf-summary-text {
   color: var(--ink-2);
-  font: var(--voice-ui);
+  font: var(--font-ui);
   overflow-wrap: anywhere;
   user-select: text;
 }
@@ -800,7 +802,7 @@ summary {
 .lf-summary-required {
   margin-top: 6px;
   color: var(--turn-ink);
-  font: var(--voice-heading);
+  font: var(--font-heading);
 }
 /* A progress run's face, the working message among them: its latest step, where it
    was said (thread/transcript.js). It takes a message's head and body faces, but its
@@ -816,7 +818,7 @@ summary {
   margin-top: var(--lf-msg-body-gap);
   inline-size: fit-content;
   max-inline-size: 100%;
-  font: var(--voice-message);
+  font: var(--font-message);
   /* Ink at the sheen's default rest (`lf-sheen`), so the words keep their face when
      the work ends. */
   color: color-mix(in srgb, var(--ink) 50%, transparent);
@@ -833,7 +835,7 @@ summary {
   animation: lf-sheen 2s ease-in-out infinite alternate;
 }
 /* The one continuous animation, which marks work under way (browser/AGENTS.md,
-   "Motion"): a highlight passing across words, which are painted in ink and dimmed by
+   "Motion is brief and keeps the user oriented"): a highlight passing across words, which are painted in ink and dimmed by
    a mask to their rest face, ink at `--lf-sheen-rest`, but where the highlight
    passes. A box runs it by naming it, and sets `--lf-sheen-rest` where its own colour
    is not the default's; everything it paints lives in the keyframes, so where it stops
@@ -870,12 +872,13 @@ summary {
   }
 }
 /* Held news and header words spend separate retained allocations. A receipt may
-   change inside its metadata box, but cannot grow underneath the notice. */
+   change inside its metadata box, but cannot grow underneath the notice. The box
+   clips only sideways, so a name's accents above its line still show (above). */
 .lf-msg-head > .lf-held-header-item {
   flex: 0 0 var(--lf-held-header-width);
   max-inline-size: var(--lf-held-header-width);
   box-sizing: border-box;
-  overflow: hidden;
+  overflow: clip visible;
 }
 .lf-msg-meta.lf-held-header-item > time {
   flex-shrink: 0;
@@ -897,7 +900,7 @@ summary {
   block-size: var(--lf-thread-action-room);
   display: flex;
   align-items: center;
-  font: var(--voice-small);
+  font: var(--font-small);
 }
 .lf-thread-content:has(> .lf-thread-controls)
   > .lf-thread-transcript
@@ -985,15 +988,15 @@ summary {
    it asks for none of the depth below the words. A seat that draws no thread shows it
    in its controls row's place, at the height the runtime measured that row at. It
    wears the inline face (controls.css) on the line of a message's head, and states
-   that line's size, at a weight above the face's, because its box stands beside the
-   head rather than in it. */
+   that line's size because its box stands beside the head rather than in it. Its
+   words are Leaf's, in Leaf's regular italic. */
 .lf-thread-news {
   flex: none;
   align-self: center;
   white-space: nowrap;
 }
 button.lf-thread-news {
-  font: var(--voice-heading);
+  font: var(--font-heading);
 }
 /* Each fact of the news has a span of its own (held-news.js, `newsNotice`). Where the
    notice is narrower than all of them, as when its room holds the news it first said,
@@ -1085,20 +1088,19 @@ button.lf-primary-news {
   box-sizing: border-box;
 }
 .lf-msg-head time {
-  color: var(--muted-2);
+  color: var(--muted);
 }
 .lf-msg-head :is(.lf-edited, .lf-msg-kept) {
-  color: var(--muted-2);
+  color: var(--muted);
 }
-/* A thread projected inline uses the same receipt emphasis as the panel. */
+/* A thread projected inline uses the same receipt emphasis as the panel. Its words take
+   their speaker's face (controls.css), so the colour alone sets them apart. */
 .lf-msg-head .lf-msg-failure {
   color: var(--warn-ink);
-  font-weight: 600;
 }
 /* What an answer leaves standing reads beside its time like a receipt. */
 .lf-msg-head .lf-msg-leaves {
   color: var(--ink-2);
-  font-weight: 600;
 }
 /* A to-do on the user stands over the conversation about it: its title, then its Done
    (thread-card.js). */
@@ -1111,7 +1113,7 @@ button.lf-primary-news {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  font: var(--voice-small);
+  font: var(--font-small);
 }
 .lf-thread-todo-title {
   flex: 1 1 auto;

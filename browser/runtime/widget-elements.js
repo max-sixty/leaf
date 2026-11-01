@@ -34,9 +34,13 @@ export {
    A control is built so the browser does as much of it as it can. `offer` builds the
    corresponding native element, so activation, disabled state, focus, and
    accessibility stay the browser's. A page word that is also a control — a tab name, a
-   chosen option — has to stay selectable, which Chromium does not begin inside a form
-   control, so `selectableOffer` builds it as a span with the role, and its widget
-   supplies the complete keyboard pattern the native element would have.
+   chosen option — has to stay selectable, so `selectableOffer` builds it as a span with
+   the role. One with a button's role takes a button's Enter and Space from
+   role-button-press.js, on any page; for another role its widget supplies the keyboard
+   pattern the native element would have. A `<button>` would not do:
+   Chromium and Firefox begin a selection inside one styled `user-select: text`, but
+   WebKit, so Safari and every iOS browser, begins none inside a form control whatever
+   its style (notes/browser-support.md, "Selecting words inside a button in WebKit").
    Both constructors mark generated chrome consistently. The shared drag guard
    (`reachedForWords`) distinguishes a click from the mouseup ending an active text
    selection by comparing the selection's focus end with the release. It does not
@@ -92,6 +96,7 @@ import { html, render, signal } from "/runtime/framework.js";
 // which joins the `updateComplete` of each element holding what was revealed that has
 // one: a Lit widget whose view switch finishes after its listener extends its own
 // `updateComplete`, as Lit elements do.
+/** @param {Element | null} el @param {() => boolean} mayReveal */
 export function reveal(el, mayReveal) {
   const chain = [];
   const settling = new Set();
@@ -100,14 +105,17 @@ export function reveal(el, mayReveal) {
   chain.reverse();
   for (const [at, a] of chain.entries()) {
     if (!mayReveal()) break;
-    if (a.tagName === "DETAILS" && !a.open) a.open = true;
-    if (a.hasAttribute?.("popover") && !isNativeLayer(a))
+    if (a instanceof HTMLDetailsElement && !a.open) a.open = true;
+    if (a instanceof HTMLElement && a.hasAttribute("popover") && !isNativeLayer(a))
       showNativeLayer(a, { modal: false });
     if (a.getAttribute?.("hidden") !== "until-found") continue;
-    const shown = [...(a.parentNode?.children ?? [])].filter((s) => !s.hidden);
+    const shown = [...(a.parentNode?.children ?? [])].filter(
+      (s) => !("hidden" in s && s.hidden),
+    );
     a.dispatchEvent(new Event("beforematch", { bubbles: true }));
     a.removeAttribute("hidden");
-    if (shown.some((sibling) => sibling.hidden)) replacedView = true;
+    if (shown.some((sibling) => "hidden" in sibling && sibling.hidden))
+      replacedView = true;
     for (const owner of chain.slice(0, at + 1))
       if (owner.updateComplete?.then) settling.add(owner.updateComplete);
   }
@@ -121,6 +129,12 @@ export function reveal(el, mayReveal) {
 
 // The one way the layer makes an element: a tag, its classes, and the words it starts
 // with.
+/** @template {keyof HTMLElementTagNameMap} K
+ * @overload @param {K} tag @param {string} [cls] @param {string | null} [text]
+ * @returns {HTMLElementTagNameMap[K]} */
+/** @overload @param {string} tag @param {string} [cls] @param {string | null} [text]
+ * @returns {HTMLElement} */
+/** @param {string} tag @param {string} [cls] @param {string | null} [text] */
 export function el(tag, cls, text) {
   const node = document.createElement(tag);
   if (cls) node.className = cls;
@@ -143,10 +157,12 @@ export function el(tag, cls, text) {
 // signal, so that row's reflection, which reads them, hears them move (keyboard/scopes.js,
 // `reflectKeys`). The widget's own rows move with the grab too, even where it is a press
 // on an already-focused grip and no focus event fires, so its keys are painted here.
+/** @type {import("@preact/signals-core").Signal<Set<Element>>} */
 const hands = signal(new Set());
 
 export const dragHeld = () => hands.value.size > 0;
 
+/** @param {Element} el @param {boolean} on */
 export const dragging = (el, on) => {
   const held = new Set(hands.peek());
   if (on) held.add(el);
@@ -179,6 +195,7 @@ export const dragging = (el, on) => {
 // Tab and which used to cast a vote on the way into the thread. It catches the container's
 // own apparatus too, which no rule here could tell from the rest; a container excludes
 // its own, being the only thing that can name them.
+/** @param {Element} node @param {Element} container */
 export function worksInside(node, container) {
   // The closure, not one level: "what this container is made of" includes a
   // part's own parts — a column's cards are the board's, and one level deep a
@@ -220,6 +237,7 @@ export function worksInside(node, container) {
 // Runtime searches share the vendor's native editor, frame and focus band. Callers
 // own their query and results; an auxiliary reading, such as a match count, belongs
 // in the control's `end` slot so it stays inside that same frame.
+/** @param {string} cls @param {{name: string, label: string, placeholder?: string}} options */
 export function searchField(cls, { name, label, placeholder = label }) {
   const field = offer("wa-input", `lf-search-field lf-label-hidden ${cls}`);
   field.type = "search";
@@ -286,6 +304,7 @@ export const PRESSABLE = '[data-lf-offer]:not([data-lf-offer=""])';
 // which presses can be a drag is each caller's own question. A click carries the answer
 // in `detail`, and a `pointerup` is a pointer by construction and carries no detail to
 // read.
+/** @param {Element} el */
 export function reachedForWords(el) {
   const sel = getSelection();
   if (!sel?.rangeCount) return false;
@@ -306,14 +325,12 @@ document.addEventListener(
     // inside chrome a widget made, such as a fold's toggle in a thread card that wears
     // `data-lf-offer`, is its own press: asked of the card, a selection anywhere in the
     // card's words deadened every button in it.
-    const control = /** @type {Element | undefined} */ (
-      ev
-        .composedPath()
-        .find(
-          (node) =>
-            node instanceof Element && node.matches(`${PRESSES},[data-lf-offer]`),
-        )
-    );
+    const control = ev
+      .composedPath()
+      .find(
+        /** @returns {node is Element} */ (node) =>
+          node instanceof Element && node.matches(`${PRESSES},[data-lf-offer]`),
+      );
     if (control && reachedForWords(control)) {
       ev.stopPropagation();
       ev.preventDefault();
@@ -370,15 +387,17 @@ document.addEventListener(
 // unmarks authored nodes as their data comes and goes, markdown.js serializes its
 // media button as HTML, and revision_delivery.py writes prepaint faces on the server.
 
+/** @overload @param {Element} node @param {string} label @param {{says: boolean | "echo"}} options @returns {void} */
 /** @param {Element} node @param {string} label @param {{says?: boolean | "echo"}} [options] */
-export function relabel(node, label, { says } = {}) {
-  generatedElement(node, { says });
+export function relabel(node, label, options = {}) {
+  generatedElement(node, options);
   keepsText(node, label);
 }
 
 // Every surface that closes wears one control for it: the cross, named for what it
 // closes, since the glyph alone says only "close". `name` is the accessible name, such
 // as "Close threads"; `title` is the hover's, which says the key where one closes it too.
+/** @param {{name: string, title?: string, className?: string}} options */
 export const closeControl = ({ name, title = name, className = "" }) =>
   offerAction("symbol", className, name, { title, action: "close" });
 
@@ -388,6 +407,8 @@ export const closeControl = ({ name, title = name, className = "" }) =>
 // change vocabulary without each inventing a button shape. A reaction shows its glyph,
 // and Leaf's own actions their symbol (icon-paths.js, `ACTIONS`). Restating the anatomy
 // a control already wears writes nothing (keeps.js).
+/** @template {HTMLElement} T @param {T} control
+ * @param {{glyph?: string | null, action?: string | null, label: string, behavior?: string, collapse?: boolean}} options @returns {T} */
 export function responseAction(
   control,
   { glyph = null, action = null, label, behavior = "action", collapse = false },
@@ -418,6 +439,7 @@ export function responseAction(
 
 // Motion carries the card's label, never a second live widget tree. Native chrome
 // avoids copied form groups, widget lifetimes and iframe browsing contexts.
+/** @param {string} label */
 export function motionPreview(label) {
   const preview = offer("div", "lf-motion-preview", label);
   preview.inert = true;
@@ -427,8 +449,11 @@ export function motionPreview(label) {
 
 // A widget's generated wrapper holding the children the page authored. Revision
 // member patching edits this body, while the widget keeps the wrapper itself.
+/** @type {WeakMap<Element, HTMLElement>} */
 const authoredBodies = new WeakMap();
+/** @param {Element} host */
 export const authoredBody = (host) => authoredBodies.get(host) ?? null;
+/** @template {HTMLElement} T @param {Element} host @param {T} body @returns {T} */
 export function holdAuthoredBody(host, body) {
   for (const node of [...host.childNodes]) move(body, node, null);
   authoredBodies.set(host, body);

@@ -49,6 +49,24 @@ test("a carried fault no producer saw is reported by its consumer", () => {
   );
 });
 
+test("a syntax error keeps the browser's source location when its stack has no frames", () => {
+  const fault = new SyntaxError("Invalid or unexpected token");
+  // Chromium supplies only the message in a parse error's stack. Its ErrorEvent
+  // still carries the file, line and column that let an author find the bad code.
+  fault.stack = "SyntaxError: Invalid or unexpected token";
+  const event = Object.assign(new Event("error"), {
+    error: fault,
+    message: "Uncaught SyntaxError: Invalid or unexpected token",
+    filename: "https://leaf.test/page/tuner.js",
+    lineno: 63,
+    colno: 17,
+  });
+  assert.deepEqual(
+    reported(() => window.dispatchEvent(event)),
+    ["leaf: https://leaf.test/page/tuner.js:63:17: Invalid or unexpected token"],
+  );
+});
+
 test("owners sharing one exception each report it", () => {
   const fault = new Error("grammar failed to load");
   assert.deepEqual(

@@ -111,13 +111,13 @@ lf-sample {
 lf-sample > * {
   --lf-box-cap: 100%;
 }
-/* The sample's note takes the label voice (base.css, `.lf-label`), stated here since a
+/* The sample's note takes the label font (base.css, `.lf-label`), stated here since a
  * generated note can't wear the class. */
 lf-sample::before,
 lf-sample > [data-lf-said="label"] {
   display: table-caption;
   margin-bottom: var(--sp-1);
-  font: var(--voice-label);
+  font: var(--font-label);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted);
@@ -206,7 +206,7 @@ lf-sample:has(> template[data-sample]) {
   align-content: center;
   white-space: nowrap;
   color: var(--muted);
-  font: var(--t-6)/1.4 var(--sans);
+  font: var(--font-small);
 }
 .lf-sample-failure {
   margin: 0;

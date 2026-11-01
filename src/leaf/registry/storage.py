@@ -70,8 +70,17 @@ class _Candidate(Slot):
 
 
 def layer_record(page_dir: Path) -> dict | None:
-    """The page's layer record, or None before `page init`."""
-    return LAYER.read(page_dir / LAYER_FILE)
+    """The page's layer record, or None before `page init`. A newer Leaf's record,
+    at a later shape than this Leaf reads, refuses the page as `newer-layer`
+    (`IncompatibleLayer`) rather than reading as none, which would have `page init`
+    replace the page's selection under this Leaf."""
+    path = page_dir / LAYER_FILE
+    record = LAYER.read(path)
+    if record is None and LAYER.newer(path):
+        from leaf.layer import newer_layer
+
+        raise IncompatibleLayer([newer_layer(page_dir)])
+    return record
 
 
 def selected(record: dict, page_dir: Path):

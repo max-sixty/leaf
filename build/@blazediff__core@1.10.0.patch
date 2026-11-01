@@ -1,0 +1,11 @@
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index 17eff025795bd3be7000a63c4fae3ad5ffc91ccc..dcc5bbf5d92a0964bb663e1cf739d1b9af7185fc 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -1,5 +1,5 @@
+ interface Image {
+-    data: Buffer | Uint8Array | Uint8ClampedArray;
++    data: Uint8Array | Uint8ClampedArray;
+     width: number;
+     height: number;
+ }

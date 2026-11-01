@@ -453,7 +453,7 @@ def test_disabling_quick_shortcuts_discards_keys_already_held(browser, serve):
     # The queue has transferred to the controller, but its first frame has not run.
     page.add_init_script(
         """document.addEventListener('lf-upgraded', () => queueMicrotask(() =>
-          document.documentElement.lfKeyboard.setQuick(false)));"""
+          window.lfKeyboard.setQuick(false)));"""
     )
     held, release = _hold_startup(page, "module")
     page.goto(serve(HELD_KEYS_PAGE, events=[HELD_KEYS_THREAD]), wait_until="commit")

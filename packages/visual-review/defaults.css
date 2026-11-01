@@ -38,13 +38,13 @@ lf-visual-review {
 }
 .lf-vr-heading h2 {
   margin: 0;
-  font: 500 var(--t-5)/1.4 var(--sans);
+  font: var(--font-title);
 }
 .lf-vr-progress {
   display: flex;
   gap: 16px;
   color: var(--muted);
-  font-size: var(--t-working-label);
+  font: var(--font-compact);
   font-variant-numeric: tabular-nums;
 }
 .lf-vr-progress strong {
@@ -135,10 +135,10 @@ lf-visual-review {
   padding-block: 18px 10px;
   min-inline-size: 0;
 }
+/* The case's title is its heading, in markup's reading face, which the review wears
+   (above). */
 .lf-vr-caption h3 {
   margin: 0 0 8px;
-  font: 500 var(--t-2)/1.2 var(--serif);
-  letter-spacing: -0.015em;
 }
 .lf-vr-claim p {
   margin: 0;
@@ -146,7 +146,7 @@ lf-visual-review {
 }
 .lf-vr-claim .lf-vr-action {
   margin-block-start: 6px;
-  font-size: var(--t-working-label);
+  font: var(--font-compact);
   color: var(--muted);
 }
 .lf-vr-decision {
@@ -167,7 +167,7 @@ lf-visual-review {
   align-items: center;
   gap: 7px;
   min-block-size: var(--aim-floor);
-  font-size: var(--t-working-label);
+  font: var(--font-compact);
   cursor: pointer;
 }
 .lf-vr-approval input {
@@ -191,7 +191,7 @@ lf-visual-review {
   background: var(--paper);
   color: var(--ink);
   box-shadow: var(--raise-2);
-  font: var(--t-5)/1.5 var(--sans);
+  font: var(--font-ui);
 }
 @supports (position-area: bottom) {
   .lf-vr-details,
@@ -205,19 +205,6 @@ lf-visual-review {
 }
 .lf-vr-details::backdrop {
   background: transparent;
-}
-.lf-vr-provenance {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px 20px;
-  font-size: var(--t-working-label);
-}
-.lf-vr-provenance :is(dt, dd) {
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-.lf-vr-provenance dt {
-  color: var(--muted);
 }
 .lf-vr-sources {
   display: flex;
@@ -247,7 +234,7 @@ lf-visual-review {
   flex: 1 1 20rem;
   margin: 0;
   color: var(--muted);
-  font: var(--t-6)/1.4 var(--sans);
+  font: var(--font-small);
 }
 /* The capture takes the desk's spare height, but never less than its toolbar and a
    frame worth reading: in a short window, where the desk's other regions leave it
@@ -319,23 +306,21 @@ lf-visual-review {
   }
   .lf-vr-progress {
     gap: 10px;
-    font-size: var(--t-6);
+    font: var(--font-small);
+    font-variant-numeric: tabular-nums;
   }
   .lf-vr-case-button {
     padding-block: 8px;
-    font-size: var(--t-6);
+    font: var(--font-small);
   }
   .lf-vr-case-number {
     display: none;
   }
-  .lf-vr-caption h3 {
-    font-size: var(--t-3);
-  }
   .lf-vr-claim p {
-    font-size: var(--t-working-label);
+    font: var(--font-compact);
   }
   .lf-vr-claim .lf-vr-action {
-    font-size: var(--t-6);
+    font: var(--font-small);
   }
   .lf-vr-decision {
     gap: 8px;
@@ -374,7 +359,7 @@ lf-visual-review {
 }
 .lf-vr-inspection-heading h4 {
   margin: 0;
-  font: 600 15px/1.4 var(--sans);
+  font: var(--font-title);
 }
 
 .lf-vr-open-threads {

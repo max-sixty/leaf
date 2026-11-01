@@ -55,6 +55,7 @@ export {
   handBack,
   holdFocus,
   onCurrentLocation,
+  onPress,
   onPressAway,
   openLayer,
   openerOf,
@@ -95,7 +96,7 @@ export { releaseOutlets, threadSurface } from "./thread/surfaces.js";
 export { turns as threadTurns } from "./thread/model.js";
 export { threadSummary } from "./thread/messages.js";
 // Holding a region's rows the log or the clock decides while their growth would be seen
-// (browser/AGENTS.md, "Stability").
+// (browser/AGENTS.md, "The page holds still under the user's aim").
 export { HeldReading, heldGrowth } from "./thread/held-news.js";
 export { wireInput } from "./application.js";
 export { DISCLOSE } from "./keyboard/disclosure.js";
@@ -219,6 +220,9 @@ export { leafEditorView } from "./editor-view.js";
 
 // Render a declared template or a generated document as an isolated live Leaf page.
 // The returned host owns readiness, Reset and disposal (live-samples.md).
+/** @param {Parameters<typeof import("./sample.js").mountSample>[0]} frame
+ * @param {Parameters<typeof import("./sample.js").mountSample>[1]} options
+ * @returns {Promise<ReturnType<typeof import("./sample.js").mountSample>>} */
 export async function mountSample(frame, options) {
   const owner = await import("./sample.js");
   return owner.mountSample(frame, options);

@@ -688,11 +688,11 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
     expect(status).to_be_empty()
     assert search_field.bounding_box() == pytest.approx(search_box, abs=0.5)
     page.keyboard.type("b")
-    expect(status).to_have_text(re.compile(r"\d+/\d+"))
+    expect(status).to_have_text(re.compile(r"\d+ of \d+"))
     assert search_field.bounding_box() == pytest.approx(search_box, abs=0.5)
     expect(page.locator(".lf-page-search-match")).not_to_have_count(0)
     search.fill("button the key")
-    expect(status).to_have_text("1/1")
+    expect(status).to_have_text("1 of 1")
     assert search_field.bounding_box() == pytest.approx(search_box, abs=0.5)
     expect(page.locator(".lf-page-search-match")).not_to_have_count(0)
     page.keyboard.press("Tab")
@@ -728,7 +728,7 @@ def test_page_search_starts_with_the_first_match_at_the_reading_edge(browser, se
     page.keyboard.press("/")
     page.keyboard.type("Unified")
 
-    expect(page.locator(".lf-page-search-status")).to_have_text("1/2")
+    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 2")
     title = page.locator("#title").bounding_box()
     match = page.locator(".lf-page-search-match").first.bounding_box()
     assert title is not None and match is not None
@@ -745,7 +745,7 @@ def test_page_search_starts_with_the_first_match_at_the_reading_edge(browser, se
         }"""
     )
     page.get_by_role("searchbox", name="Search page text").press("Tab")
-    expect(page.locator(".lf-page-search-status")).to_have_text("2/2")
+    expect(page.locator(".lf-page-search-status")).to_have_text("2 of 2")
     expect(page.locator(".lf-live")).to_contain_text(
         "Match 2 of 2: …Unified title Unified body, rewritten."
     )
@@ -850,7 +850,7 @@ def test_n_repeats_the_last_page_search_in_either_direction(browser, serve):
     page.keyboard.press("/")
     search.fill("needle")
     search.press("Tab")
-    expect(page.locator(".lf-page-search-status")).to_have_text("2/2")
+    expect(page.locator(".lf-page-search-status")).to_have_text("2 of 2")
     rendered(page)
     match = page.locator(".lf-page-search-match").first.bounding_box()
     assert match is not None
@@ -874,7 +874,7 @@ def test_touch_search_keeps_its_match_position_and_comment_route(browser, serve)
     search = page.get_by_role("searchbox", name="Search page text")
     search.fill("needle")
     page.get_by_role("button", name="Next match", exact=True).tap()
-    expect(page.locator(".lf-page-search-status")).to_have_text("2/2")
+    expect(page.locator(".lf-page-search-status")).to_have_text("2 of 2")
     rendered(page)
     match = page.locator(".lf-page-search-match").first.bounding_box()
     assert match is not None
@@ -963,7 +963,7 @@ def test_selection_search_announces_context_across_inline_node_boundaries(
     page.keyboard.press("s")
     page.keyboard.press("/")
     page.keyboard.type("repeat")
-    expect(page.locator(".lf-page-search-status")).to_contain_text("/2")
+    expect(page.locator(".lf-page-search-status")).to_contain_text(" of 2")
 
     page.keyboard.press("Tab")
     live = page.locator(".lf-live")
@@ -1003,7 +1003,7 @@ def test_selection_search_brings_an_offscreen_match_into_view(browser, serve):
           return box.bottom > 42 && box.top < innerHeight;
         }"""
     )
-    expect(page.locator(".lf-page-search-status")).to_have_text("1/1")
+    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
     expect(page.locator(".lf-page-search-match")).not_to_have_count(0)
     expect(page.get_by_role("searchbox", name="Search page text")).to_be_focused()
 
@@ -1025,7 +1025,7 @@ def test_selection_search_scrolls_to_the_match_inside_a_tall_text_block(browser,
     page.keyboard.press("/")
     page.keyboard.type("copper needle")
 
-    expect(page.locator(".lf-page-search-status")).to_have_text("1/1")
+    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
     match = page.locator(".lf-page-search-match").first
     expect(match).to_be_visible()
     mark = page.evaluate(
@@ -1139,7 +1139,7 @@ def test_an_open_search_mark_follows_the_page_it_marks(browser, serve):
 
     page.keyboard.press("/")
     page.keyboard.type("copper needle")
-    expect(page.locator(".lf-page-search-status")).to_have_text("1/1")
+    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
     expect(page.locator(".lf-page-search-match")).to_have_count(1)
     seated = page.evaluate(gap)
     assert abs(seated) < 6, f"the mark did not land on its own words: {seated}"
@@ -1404,7 +1404,7 @@ def test_selection_search_opens_when_the_viewport_has_no_hint_targets(browser, s
     expect(page.locator(".lf-target-picker-hint")).to_have_count(0)
     page.keyboard.press("/")
     page.keyboard.type("phrase only appears")
-    expect(page.locator(".lf-page-search-status")).to_have_text("1/1")
+    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
     expect(page.locator(".lf-page-search-match")).not_to_have_count(0)
 
     page.keyboard.press("Enter")
@@ -1517,7 +1517,7 @@ def test_the_panel_only_hides_targets_in_the_lane_it_paints(browser, serve):
     # both the box and the row whatever the fonts' widths, as "crosses the edge" did
     # not on Linux, where they went under the box.
     page.keyboard.type("This target")
-    expect(page.locator(".lf-page-search-status")).to_have_text("1/1")
+    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
     expect(page.locator(".lf-page-search-match")).to_have_count(1)
     line, mark = page.evaluate(
         """() => ['.lf-fp-row', '.lf-page-search-match'].map(
@@ -1580,15 +1580,15 @@ def test_page_search_skips_hidden_words_but_reaches_disclosures(browser, serve):
     search = page.get_by_role("searchbox", name="Search page text")
     search.fill("needle")
     status = page.locator(".lf-page-search-status")
-    expect(status).to_have_text("1/4")
+    expect(status).to_have_text("1 of 4")
     search.press("Tab")
-    expect(status).to_have_text("2/4")
+    expect(status).to_have_text("2 of 4")
     search.press("Tab")
-    expect(status).to_have_text("3/4")
+    expect(status).to_have_text("3 of 4")
     expect(page.locator("#fold")).not_to_have_attribute("hidden")
     expect(page.locator(".lf-page-search-match")).not_to_have_count(0)
     search.press("Tab")
-    expect(status).to_have_text("4/4")
+    expect(status).to_have_text("4 of 4")
     expect(page.locator("#details")).to_have_attribute("open", "")
     search.fill("copper copper")
-    expect(status).to_have_text("1/1")
+    expect(status).to_have_text("1 of 1")

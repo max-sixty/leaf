@@ -236,41 +236,9 @@ flowchart TD
               An agent proposes queue policies for an importer. A choice or comment the
               user sends is an <strong>update</strong>. A comment opens a
               <strong>thread</strong>, the conversation about its passage, widget, or
-              the page as a whole.
+              the page as a whole. To make this choice yourself, try the
+              <a href="#practice-caption">queue policy practice</a> in Workflow.
             </p>
-            <p id="practice-caption">
-              Choose a policy, then open <strong>Show activity</strong> below it to see
-              the recorded choice. Open the page’s leaf menu and choose
-              <strong>Undo</strong>; press <strong>Activity changed</strong> in the feed
-              to see the choice marked undone. This example uses the page’s activity log
-              and Undo; its queue policy is fictional.
-            </p>
-            <lf-sample
-              id="queue-example"
-              label="Practice: choose a queue policy"
-              interactive
-            >
-              <h2>Importer queue policy</h2>
-              <p id="queue-premise">
-                The importer receives bursts of records faster than it can process them.
-                Its queue has room for 1,000 records.
-              </p>
-              <lf-ask id="queue-question">
-                <h3>When the queue fills, what should happen?</h3>
-                <lf-options id="queue-policy" choose>
-                  <lf-option id="block-producer"
-                    ><strong>Pause the producer</strong> Keep every queued record; wait
-                    for space before accepting more.</lf-option
-                  >
-                  <lf-option id="drop-oldest"
-                    ><strong>Drop the oldest record</strong> Accept the newest record
-                    immediately; discard the oldest queued one.</lf-option
-                  >
-                </lf-options>
-              </lf-ask>
-              <h3>Recorded actions</h3>
-              <lf-activity id="queue-activity"></lf-activity>
-            </lf-sample>
             <ol class="steps" id="exchange-steps">
               <li id="exchange-author">
                 <strong>The agent prepares the page.</strong> It writes the
@@ -357,6 +325,7 @@ flowchart TD
                 <li><a href="#you">Answer updates</a></li>
                 <li><a href="#agent">Change the live page</a></li>
                 <li><a href="#page-ending-flow">Wait for updates or finish</a></li>
+                <li><a href="#agent-guidance">Agent instructions and notices</a></li>
                 <li><a href="#communication-commands">Agent command inventory</a></li>
                 <li><a href="#delivery">Harness connections and receipt</a></li>
               </ul>
@@ -379,6 +348,8 @@ flowchart TD
                 authoring before writing, and its harness contract before handoff. These
                 instructions set goals for the user’s experience and leave wording and
                 presentation to the agent.
+                <a href="#agent-guidance">Agent instructions and notices</a> lists every
+                source of instructions and when the agent reads it.
               </p>
               <p id="handoff-reading">
                 The agent creates a page directory and writes
@@ -417,24 +388,7 @@ leaf server start ./review</code></pre>
                 validation.
               </p>
               <details id="handoff-packages">
-                <summary>Package instructions, evals, and an existing page</summary>
-                <p id="package-instructions">
-                  Each package adds instructions for its elements, written for an
-                  audience such as the page's author.
-                  <code>leaf page instructions ./review</code> prints the packages'
-                  shared instructions as JSON, keyed by audience;
-                  <code
-                    >leaf page instructions ./review --use lf-diagram | jq -er
-                    '.author'</code
-                  >
-                  prints how to author a diagram.
-                </p>
-                <p id="instructions-evals">
-                  The repository scores each change to these instructions with
-                  <a href="https://github.com/max-sixty/leaf/tree/main/evals">evals</a>:
-                  cases a headless agent completes in Claude Code and Codex, run on the
-                  old and the new instructions.
-                </p>
+                <summary>Resume an existing page</summary>
                 <p id="existing-page">
                   To resume an existing page, the agent reads its active HTML and
                   <code>leaf page state ./review</code>, which returns current state as
@@ -459,6 +413,39 @@ leaf server start ./review</code></pre>
                 supplies this JSON batch or an id to open with
                 <code>leaf delivery read</code>.
               </p>
+              <p id="practice-caption">
+                Choose a policy, then open <strong>Show activity</strong> below it to
+                see the recorded choice. Open the page’s leaf menu and choose
+                <strong>Undo</strong>; press <strong>Activity changed</strong> in the
+                feed to see the choice marked undone. This example uses the page’s
+                activity log and Undo; its queue policy is fictional.
+              </p>
+              <lf-sample
+                id="queue-example"
+                label="Practice: choose a queue policy"
+                interactive
+              >
+                <h2>Importer queue policy</h2>
+                <p id="queue-premise">
+                  The importer receives bursts of records faster than it can process
+                  them. Its queue has room for 1,000 records.
+                </p>
+                <lf-ask id="queue-question">
+                  <h3>When the queue fills, what should happen?</h3>
+                  <lf-options id="queue-policy" choose>
+                    <lf-option id="block-producer"
+                      ><strong>Pause the producer</strong> Keep every queued record;
+                      wait for space before accepting more.</lf-option
+                    >
+                    <lf-option id="drop-oldest"
+                      ><strong>Drop the oldest record</strong> Accept the newest record
+                      immediately; discard the oldest queued one.</lf-option
+                    >
+                  </lf-options>
+                </lf-ask>
+                <h3>Recorded actions</h3>
+                <lf-activity id="queue-activity"></lf-activity>
+              </lf-sample>
               <p id="answer-flow">
                 For a comment requesting a policy change, the agent follows the
                 delivery’s receipt instructions and first posts a progress message
@@ -780,6 +767,115 @@ flowchart TD
               </details>
             </section>
           </section>
+          <section id="agent-guidance" class="layout-flow">
+            <h2>Agent instructions and notices</h2>
+            <p id="guidance-placement">
+              The workflow, including what the agent records for the user, lives in the
+              skill, which the agent reads at the start and again after a compaction. A
+              rule for one element or one kind of update travels with it, so the agent
+              reads it when it acts. Problems the agent can't see for itself, such as an
+              update it hasn't answered, arrive from Leaf's hooks.
+            </p>
+            <table id="guidance-channels">
+              <thead>
+                <tr>
+                  <th>Source</th>
+                  <th>What it tells the agent</th>
+                  <th>When the agent reads it</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">Leaf skill</th>
+                  <td>
+                    The goals for the user's experience, and a reference for each step:
+                    authoring, handoff, answering updates, revisions.
+                  </td>
+                  <td>
+                    When a request or a delivery matches the skill's description, then
+                    each reference before its step. After a compaction, the
+                    session-start hook asks an agent holding a page to read the skill
+                    again.
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">Package instructions</th>
+                  <td>
+                    How to use a package's elements and data sources, written for an
+                    audience: the page's author, or one the package names, such as the
+                    monitoring package's coordinator.
+                  </td>
+                  <td>
+                    When the agent runs <code>leaf page instructions</code>, which
+                    prints each package's <code>instructions/</code> files by audience.
+                    Each <code>--use</code> adds that entry's
+                    <code>x-instructions</code> and its data contracts' instructions.
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">Delivery handling</th>
+                  <td>
+                    What each delivered update asks: the answer owed, where to write it,
+                    and the registry's clauses for that kind of update.
+                  </td>
+                  <td>
+                    In every delivery, which lists each clause once and has each event
+                    name the clauses that apply (<a href="#delivery-example"
+                      >Delivery fields and answer semantics</a
+                    >). A hook adds the delivery to a running turn, or a watch or
+                    message starts a turn with it (<a href="#delivery"
+                      >Harness connections and receipt</a
+                    >).
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">Hook notices</th>
+                  <td>
+                    An owed update not yet answered, input not yet picked up, a page
+                    holding input with nothing watching it, or a claim to reconnect.
+                  </td>
+                  <td>
+                    When the agent ends a turn (<a href="#turn-end">Stop hook checks</a
+                    >), as a session or prompt starts, and in Claude Code between tool
+                    calls.
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">Turn-end check (experimental)</th>
+                  <td>
+                    Each question it asked in a thread, and each step it put On me as a
+                    to-do, for something the agent left to the user in chat, with its
+                    words, its id and how to withdraw it.
+                  </td>
+                  <td>
+                    In Claude Code, at the next prompt or tool call after a turn ends
+                    (<a href="#turn-end-fork">Turn-end check in Claude Code</a>).
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">Command results</th>
+                  <td>
+                    A refused save, reply or event with the reason and the fix, a failed
+                    check, or current state.
+                  </td>
+                  <td>
+                    In the output of the command the agent ran. The check that owns a
+                    rule reports it.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <pre
+              id="instructions-command"
+            ><code class="language-bash">leaf page instructions ./review --use lf-diagram | jq -er '.author'</code></pre>
+            <p id="instructions-evals">
+              This prints how to author a diagram. The repository scores each change to
+              the skill and the packages' instructions with
+              <a href="https://github.com/max-sixty/leaf/tree/main/evals">evals</a>:
+              cases a headless agent completes in Claude Code and Codex, run on the old
+              and the new instructions.
+            </p>
+          </section>
           <section id="communication-commands" class="layout-flow">
             <h2>Agent command inventory</h2>
             <p id="command-syntax">
@@ -1035,6 +1131,57 @@ flowchart TD
                 the session through its socket, or resume a retired background session
                 with <code>claude --bg --resume</code>. The socket accepting a message
                 doesn't show that the agent read it.
+              </p>
+            </details>
+            <details id="turn-end-fork">
+              <summary>Turn-end check in Claude Code (experimental)</summary>
+              <p id="fork-purpose">
+                Late in a long session, an agent can leave something to the user in its
+                chat reply without putting it On me, so On me misses something the user
+                owes. In Claude Code, when the agent finishes a reply in a session
+                holding a page, Leaf's hooks module forks the conversation. The fork is
+                a copy of the conversation that answers one question without calling
+                tools, and the agent never sees the exchange. Leaf shows the fork each
+                page's On me and the questions and to-dos on the user already answered,
+                ended or withdrawn, and asks it to name each of the following that the
+                agent left to the user:
+              </p>
+              <ul id="fork-checks">
+                <li>a decision, such as which of two designs to keep</li>
+                <li>an answer to a question the agent asked</li>
+                <li>permission for an action the agent proposed, such as a push</li>
+                <li>
+                  a step the user is to take, such as signing in or trying a build
+                </li>
+              </ul>
+              <p id="fork-excludes">
+                The fork leaves out what an On me item already holds, what the user has
+                answered since, and what the agent will settle itself. For each ask it
+                says whether it is a question or a step the user takes and confirms with
+                Done, and gives the words of the passage it concerns, if one does. A
+                question gets a thread title and a message of a few sentences that the
+                user can answer without the chat; a step gets a title naming the action
+                whole. Leaf skips an ask whose title an ask the agent made already has.
+              </p>
+              <p id="fork-writes">
+                Leaf opens each remaining question as a thread, its message written as
+                the agent's with an obligation, as
+                <code>leaf thread create --obligation</code> writes one, and puts each
+                step On me as the agent's to-do on the user, as
+                <code>leaf task create --on user</code> does. Each stands on that
+                passage, or on the page as a whole where the fork named none or the page
+                doesn't show its words once. It stays On me until the user replies or
+                presses Done, and nothing on the page marks where it came from. At its
+                next prompt or tool call, the agent reads what Leaf wrote and its id,
+                and withdraws any of it with <code>leaf task end</code>.
+              </p>
+              <p id="fork-off-path">
+                The fork starts after the turn has ended, so neither the turn nor the
+                user's next message waits for it. It reads the conversation from the
+                session's prompt cache and answers in a few seconds. Leaf writes nothing
+                more once another turn has opened, since the fork's reading is then out
+                of date. When a fork fails or its answer isn't the JSON Leaf asked for,
+                Leaf writes nothing and records the failure in Claude Code's debug log.
               </p>
             </details>
             <details id="host-entry-points">
@@ -2281,9 +2428,10 @@ flowchart TD
               </li>
               <li id="updates-written-on-you">
                 <strong><code>leaf task create … --on user</code></strong> Puts a task
-                such as trying a build on On me. <kbd>m</kbd> reaches it; its
-                <em>Done</em> button, or <kbd>x</kbd>, ends it and tells the agent. A
-                thread question has no Done button: the user’s reply answers it.
+                such as trying a build on On me. <kbd>m</kbd> reaches it and opens On me
+                on it; its <em>Done</em> button, or <kbd>x</kbd>, ends it and tells the
+                agent. A thread question has no Done button: the user’s reply answers
+                it.
               </li>
               <li id="updates-written-comment">
                 <strong

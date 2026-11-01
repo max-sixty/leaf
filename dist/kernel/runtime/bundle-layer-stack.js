@@ -1,5 +1,5 @@
 import { __exportAll } from "./bundle-rolldown-runtime.js";
-import { afterScript, bindQueuedWork, excludedByInert, isNativeLayer, isStage, keeps, liveStages, nativeLayerHolding, nativeLayerKind, nextRender, renderedParent, renderedUnder, shadowHost, under, watchOwner } from "./bundle-portable.js";
+import { afterScript, bindQueuedWork, excludedByInert, isElement, isHTML, isNativeLayer, isNode, isStage, keeps, liveStages, nativeLayerHolding, nativeLayerKind, nextRender, renderedParent, renderedUnder, shadowHost, under, watchOwner } from "./bundle-portable.js";
 import { AsyncDirective, LitElement, PartType as PartType$1, directive as directive$1, guard, html as html$1, keyed, live, noChange, nothing as nothing$1, ref, render, repeat } from "/vendor/lit.js";
 
 //#region vendor/signals-core.js
@@ -298,7 +298,7 @@ function q(t) {
 
 //#endregion
 //#region runtime/control-selectors.js
-const TEXT_FIELD = document.documentElement.lfInputs.textField;
+const TEXT_FIELD = window.lfInputs.textField;
 const MODIFIER_KEYS = [
 	"Shift",
 	"Alt",
@@ -316,7 +316,7 @@ const CARET_KEYS = [
 	"PageDown"
 ];
 const selectsAll = (event) => event.key.toLowerCase() === "a" && (event.metaKey || event.ctrlKey);
-const TEXT_BOX = document.documentElement.lfInputs.textBox;
+const TEXT_BOX = window.lfInputs.textBox;
 const TAB_STOP = `a[href], button, input, select, ${TEXT_BOX}, summary, [contenteditable]:not([contenteditable="false"]), [tabindex]:not([tabindex="-1"])`;
 const PRESS_SELECTORS = [
 	"a[href]",
@@ -391,19 +391,21 @@ function restorePointer(point) {
 	x = point.x;
 	y = point.y;
 }
+const eventSource = (event) => event.composedPath().find((node) => isNode(node)) ?? null;
 
 //#endregion
 //#region runtime/focus.js
 function* renderedElements(node) {
-	const children = node.localName === "slot" ? node.assignedElements({ flatten: true }) : (node.shadowRoot ?? node).children;
+	const children = isHTML(node, "slot") ? node.assignedElements({ flatten: true }) : (isElement(node) && node.shadowRoot || node).children;
 	for (const child of children) {
 		yield child;
-		if (child.shadowRoot && parseInt(child.getAttribute("tabindex")) < 0) continue;
+		const tabIndex = child.getAttribute("tabindex");
+		if (child.shadowRoot && tabIndex !== null && parseInt(tabIndex) < 0) continue;
 		yield* renderedElements(child);
 	}
 }
 const SEQUENTIAL = `${TAB_STOP}, iframe, audio[controls], video[controls]`;
-const tabStops = (root) => [...renderedElements(root)].filter((node) => node.matches(SEQUENTIAL) && node.tabIndex >= 0 && !node.shadowRoot?.delegatesFocus && !node.matches(":disabled") && !node.inert && node.checkVisibility({ visibilityProperty: true }));
+const tabStops = (root) => [...renderedElements(root)].filter((node) => node.matches(SEQUENTIAL) && "tabIndex" in node && typeof node.tabIndex === "number" && node.tabIndex >= 0 && !node.shadowRoot?.delegatesFocus && !node.matches(":disabled") && !(isHTML(node) && node.inert) && node.checkVisibility({ visibilityProperty: true }));
 const canPlaceFocus = () => window === window.top || document.hasFocus();
 const CAUSES = /* @__PURE__ */ new Set([
 	"move",
@@ -418,10 +420,10 @@ function focusDestination(destination, cause, { caret = null, ...unknown } = {})
 	if (!canPlaceFocus()) return;
 	const options = {
 		preventScroll: true,
-		focusVisible: pressLed() ? void 0 : true
+		...!pressLed() && { focusVisible: true }
 	};
 	placed(cause, () => {
-		destination.focus(options);
+		nativeFocusTarget(destination).focus(options);
 		if (!landedOn(destination) && lendable(destination)) lendStop(destination, options);
 	});
 	if (caret && holdsCaret(destination)) destination.setSelectionRange(...caret);
@@ -436,13 +438,13 @@ const placed = (cause, move) => {
 		placing = was;
 	}
 };
-const landedOn = (node) => node === document.body ? node.matches(":focus") : node.getRootNode().activeElement === node || Boolean(node.shadowRoot?.activeElement);
+const landedOn = (node) => node === document.body ? node.matches(":focus") : activeIn(node.getRootNode()) === node || Boolean(node.shadowRoot?.activeElement);
 const lendable = (node) => drawn(node) && !node.matches(TAB_STOP);
 const lent = /* @__PURE__ */ new WeakSet();
 const wearsLentStop = (element) => lent.has(element);
 function whenLeft(element, leave) {
 	const blur = () => {
-		if (element.getRootNode().activeElement === element) return;
+		if (activeIn(element.getRootNode()) === element) return;
 		element.removeEventListener("blur", blur);
 		leave();
 	};
@@ -455,8 +457,8 @@ function lendStop(destination, options) {
 		if (destination.getAttribute("tabindex") === "-1") destination.removeAttribute("tabindex");
 	};
 	lent.add(destination);
-	destination.tabIndex = -1;
-	destination.focus(options);
+	destination.setAttribute("tabindex", "-1");
+	nativeFocusTarget(destination).focus(options);
 	if (!landedOn(destination)) {
 		giveBack();
 		return;
@@ -470,19 +472,34 @@ const CARETED = /* @__PURE__ */ new Set([
 	"tel",
 	"password"
 ]);
-const holdsCaret = (node) => node.matches(TEXT_BOX) || node.tagName === "INPUT" && CARETED.has(node.type);
+const holdsCaret = (node) => isHTML(node) && (node.matches(TEXT_BOX) || isHTML(node, "input") && CARETED.has(node.type));
 function readCaret(node) {
-	if (!node || !holdsCaret(node) || node.selectionStart === null) return null;
+	if (!node || !holdsCaret(node)) return null;
+	const { selectionStart, selectionEnd, selectionDirection } = node;
+	if (selectionStart === null || selectionEnd === null || selectionDirection === null) return null;
 	return [
-		node.selectionStart,
-		node.selectionEnd,
-		node.selectionDirection
+		selectionStart,
+		selectionEnd,
+		selectionDirection
 	];
 }
 const deepFocus = (at = document.activeElement) => {
 	while (at?.shadowRoot?.activeElement) at = at.shadowRoot.activeElement;
 	return at;
 };
+const focusRoot = (root) => root.nodeType === Node.DOCUMENT_NODE || root.nodeType === Node.DOCUMENT_FRAGMENT_NODE && "host" in root;
+const activeIn = (root) => focusRoot(root) ? root.activeElement : null;
+function hasNativeFocus(element) {
+	return "focus" in element && typeof element.focus === "function" && "blur" in element && typeof element.blur === "function" && "tabIndex" in element && typeof element.tabIndex === "number";
+}
+function nativeFocusTarget(element) {
+	if (!hasNativeFocus(element)) throw new TypeError(`Element ${element.localName} has no native focus capability`);
+	return element;
+}
+function blurFocused() {
+	const active = deepFocus();
+	if (active) nativeFocusTarget(active).blur();
+}
 let labelPress = null;
 const heldByLabel = () => labelPress?.held.isConnected ? labelPress.held : null;
 function finishLabelPress() {
@@ -512,8 +529,7 @@ const focused = (tree = null) => {
 };
 const selectionOf = (node) => {
 	const root = node.getRootNode();
-	const own = root;
-	return root instanceof ShadowRoot && own.getSelection?.() || getSelection();
+	return focusRoot(root) && root.nodeType === Node.DOCUMENT_FRAGMENT_NODE && root.getSelection?.() || getSelection();
 };
 function currentLocationNodes() {
 	const at = focused();
@@ -522,7 +538,7 @@ function currentLocationNodes() {
 		at && at !== document.body ? at : null,
 		selection?.focusNode ?? null,
 		selection?.anchorNode ?? null
-	].filter(Boolean);
+	].filter((node) => node !== null);
 }
 function currentLocationTouches(node) {
 	if (!node) return false;
@@ -630,7 +646,10 @@ function publish(node, cause) {
 	if (cause === "drop") departed = true;
 	else published = node && new WeakRef(node);
 	if (node) placeInput = "focus";
-	const was = [placing, restoring];
+	const was = {
+		placing,
+		restoring
+	};
 	[placing, restoring] = [null, false];
 	try {
 		for (const read of readers) {
@@ -642,23 +661,25 @@ function publish(node, cause) {
 			if (readings !== reading) return;
 		}
 	} finally {
-		[placing, restoring] = was;
+		placing = was.placing;
+		restoring = was.restoring;
 	}
 }
 let pressedPath = null;
-const pressedOn = (node) => Boolean(pressedPath) && pressedPath.some((ref) => {
+const pressedOn = (node) => pressedPath !== null && pressedPath.some((ref) => {
 	const at = ref.deref();
-	return at === node || at?.localName === "label" && at.control === node;
+	return at === node || isHTML(at, "label") && at.control === node;
 });
 const pressLed = () => pressedPath !== null;
 let stepping = null;
 const leftClosedLayer = (left) => {
-	const layer = left?.closest?.("dialog, [popover]");
-	return Boolean(layer) && !(layer.open === true || isNativeLayer(layer));
+	const layer = isElement(left) ? left.closest("dialog, [popover]") : null;
+	return layer !== null && !(isHTML(layer, "dialog") && layer.open || isNativeLayer(layer));
 };
 const cause = (node, left = null) => placing ?? (leftClosedLayer(left) ? "return" : pressedOn(node) ? "press" : stepping ? "step" : "move");
 const read = /* @__PURE__ */ new WeakSet();
 function readFocusEvent(event) {
+	if (!("relatedTarget" in event)) return;
 	if (read.has(event)) return;
 	read.add(event);
 	if (closing$1) return;
@@ -672,7 +693,10 @@ function readFocusEvent(event) {
 	publish(at, cause(at, event.relatedTarget));
 }
 function watchCurrentLocationAround(node) {
-	for (let at = node; at; at = renderedParent(at)) watchCurrentLocationIn(at.getRootNode());
+	for (let at = node; at; at = renderedParent(at)) {
+		const root = at.getRootNode();
+		if (focusRoot(root)) watchCurrentLocationIn(root);
+	}
 }
 function enter(event) {
 	if (read.has(event)) return;
@@ -688,7 +712,8 @@ watchCurrentLocationIn(document);
 watchCurrentLocationAround(deepFocus());
 document.addEventListener("focusout", (event) => {
 	if (event.relatedTarget !== null) departed = true;
-	const left = event.composedPath()[0];
+	const left = eventSource(event);
+	if (!isElement(left)) return;
 	lastLocation = new WeakRef(left);
 	if (restoring) return;
 	const departure = readings;
@@ -712,12 +737,16 @@ function reconcile(step, pressed) {
 	if (at === was || !at && was?.localName !== "iframe") return;
 	placements += 1;
 	lastLocation = at && new WeakRef(at);
-	const input = [stepping, pressedPath];
+	const input = {
+		stepping,
+		pressedPath
+	};
 	[stepping, pressedPath] = [step, pressed];
 	try {
 		publish(at, cause(at));
 	} finally {
-		[stepping, pressedPath] = input;
+		stepping = input.stepping;
+		pressedPath = input.pressedPath;
 	}
 }
 function inputInFrame(frame, type) {
@@ -737,7 +766,7 @@ addEventListener("click", () => {
 	capture: true,
 	passive: true
 });
-const inputs = document.documentElement.lfInputs;
+const inputs = window.lfInputs;
 const inputCount = () => inputs.count;
 const onUserInput = (read) => inputs.observe(read);
 let keyCarets = null;
@@ -745,7 +774,7 @@ onUserInput((event) => {
 	if (event.type !== "keydown") return;
 	const carets = /* @__PURE__ */ new Map();
 	for (const node of event.composedPath()) {
-		const caret = node instanceof Element && readCaret(node);
+		const caret = isElement(node) && readCaret(node);
 		if (caret) carets.set(node, caret);
 	}
 	keyCarets = carets;
@@ -769,7 +798,7 @@ for (const type of [
 	passive: true
 });
 addEventListener("click", (event) => {
-	if (event.isTrusted && event.button === 0) placeInput = focused()?.contains(event.composedPath()[0]) ? "focus" : "pointer";
+	if (event.isTrusted && event.button === 0) placeInput = focused()?.contains(eventSource(event)) ? "focus" : "pointer";
 }, {
 	capture: true,
 	passive: true
@@ -792,7 +821,7 @@ function pressRecords() {
 		kept: () => (press && records.get(press)) ?? null
 	};
 }
-const pressHolds = (event) => press?.pointerId === event.pointerId && (event.type !== "pointermove" || !press.released);
+const pressHolds = (event) => press !== null && press.pointerId === event.pointerId && (event.type !== "pointermove" || !press.released);
 function overPress(ended) {
 	if (press !== ended) return;
 	press = null;
@@ -843,9 +872,9 @@ addEventListener("pointerdown", (event) => {
 		if (end) begun.ends.push(end);
 	}
 	if (event.button !== 0 || labelPress) return;
-	const label = path.find((node) => node?.localName === "label" && node.control);
+	const label = path.find((node) => isHTML(node, "label") && node.control !== null);
 	const held = label && deepFocus();
-	if (!held || held === document.body) return;
+	if (!label || !held || held === document.body) return;
 	labelPress = {
 		held,
 		pointerId: event.pointerId,
@@ -886,12 +915,14 @@ addEventListener("click", landLabelPress, {
 	passive: true
 });
 const recoveredLabelKeys = /* @__PURE__ */ new WeakMap();
-const recoveredLabelFocus = (event) => recoveredLabelKeys.get(event);
+const recoveredLabelFocus = (event) => recoveredLabelKeys.get(event) ?? null;
 addEventListener("keydown", (event) => {
 	placeInput = "focus";
-	if (!labelPress || event.isComposing || MODIFIER_KEYS.includes(event.key)) return;
+	const recovering = labelPress;
+	if (!recovering || event.isComposing || MODIFIER_KEYS.includes(event.key)) return;
 	const active = deepFocus();
-	const { held } = finishLabelPress();
+	finishLabelPress();
+	const { held } = recovering;
 	if (active === held || !held.isConnected) return;
 	focusDestination(held, "return");
 	if (deepFocus() === held) recoveredLabelKeys.set(event, held);
@@ -906,7 +937,7 @@ for (const type of [
 	else if (type === "keydown") pressedPath = null;
 	stepping = null;
 	if (type === "keydown" || type === "pointerdown") {
-		const step = type === "keydown" && sequential(event) ? event : null;
+		const step = event instanceof KeyboardEvent && sequential(event) ? event : null;
 		const pressed = pressedPath;
 		stepping = step;
 		setTimeout(() => {
@@ -924,8 +955,8 @@ for (const type of [
 	passive: true
 });
 function ringBox(node) {
-	if (!node?.matches?.(":focus, [data-lf-focus]")) return node;
-	for (let box = renderedParent(node); box instanceof Element; box = renderedParent(box)) if (getComputedStyle(box).getPropertyValue("--lf-wears-ring") === "1") return box;
+	if (!isElement(node) || !node.matches(":focus, [data-lf-focus]")) return node;
+	for (let box = renderedParent(node); isElement(box); box = renderedParent(box)) if (getComputedStyle(box).getPropertyValue("--lf-wears-ring") === "1") return box;
 	return node;
 }
 const drawn = (node) => node?.isConnected && !excludedByInert(node) && node.checkVisibility({ visibilityProperty: true });
@@ -967,15 +998,19 @@ function holdFocus(scope, { key = null } = {}) {
 				byKey = /* @__PURE__ */ new Map();
 				for (const each of items()) {
 					const at = each.getAttribute(key);
-					if (!byKey.has(at)) byKey.set(at, []);
-					byKey.get(at).push(each);
+					let group = byKey.get(at);
+					if (!group) {
+						group = [];
+						byKey.set(at, group);
+					}
+					group.push(each);
 				}
 			}
 			return byKey.get(value) ?? [];
 		};
 		const matching = (root) => {
 			if (root.matches(like) && drawn(root)) return root;
-			const assigned = root.localName === "slot" ? root.assignedElements({ flatten: true }) : [];
+			const assigned = isHTML(root, "slot") ? root.assignedElements({ flatten: true }) : [];
 			for (const child of assigned.length ? assigned : root.children) {
 				const found = matching(child);
 				if (found) return found;
@@ -984,7 +1019,7 @@ function holdFocus(scope, { key = null } = {}) {
 		};
 		const find = (value) => {
 			const found = keyed(value).filter(drawn);
-			return (like && found.find((each) => each.matches(like))) ?? (like && found.map(matching).find(Boolean)) ?? found[0] ?? null;
+			return found.find((each) => each.matches(like)) ?? found.map(matching).find(Boolean) ?? found[0] ?? null;
 		};
 		const neighbour = (value) => () => {
 			const place = find(value);
@@ -998,7 +1033,7 @@ function holdFocus(scope, { key = null } = {}) {
 const heldIn = (scope) => {
 	const held = heldByLabel();
 	if (held) return renderedUnder(held, scope) ? held : null;
-	const currentLocation = deepFocus(scope.getRootNode().activeElement ?? scope.ownerDocument.activeElement);
+	const currentLocation = deepFocus(activeIn(scope.getRootNode()) ?? scope.ownerDocument.activeElement);
 	if (currentLocation && currentLocation !== document.body && renderedUnder(currentLocation, scope)) return currentLocation;
 	const node = lastLocation?.deref();
 	return node && renderedUnder(node, scope) ? dropped() : null;
@@ -1065,6 +1100,7 @@ function holdCurrentLocation() {
 }
 const carried = /* @__PURE__ */ new WeakMap();
 const carriedFrom = (node) => carried.get(node) ?? null;
+const isCompletion = (value) => value !== null && typeof value === "object" && "then" in value && typeof value.then === "function";
 function holdOn(held) {
 	const caret = readCaret(held);
 	const began = placements;
@@ -1073,15 +1109,15 @@ function holdOn(held) {
 		for (const standIn of [held, ...standIns]) {
 			if (placements !== began) return false;
 			const place = typeof standIn === "function" ? standIn() : standIn;
-			if (place?.then) return place.then((destination) => {
-				if (!(destination instanceof Element) || !drawn(destination) || deepFocus() !== destination) return false;
+			if (isCompletion(place)) return place.then((destination) => {
+				if (!isElement(destination) || !drawn(destination) || deepFocus() !== destination) return false;
 				return land(() => {
 					focusDestination(destination, "return", { caret });
 					return landedOn(destination);
 				});
 			});
 			if (place === true) return true;
-			if (!(place instanceof Element) || !drawn(place)) continue;
+			if (!isElement(place) || !drawn(place)) continue;
 			if (place === held && deepFocus() === held) return true;
 			if (land(() => {
 				focusDestination(place, "return", { caret });
@@ -1162,7 +1198,7 @@ function letGo(from = focused()) {
 	if (from && from !== document.body) for (const read of letGoReaders) read(from);
 }
 function handBack(...destinations) {
-	const places = destinations.filter((node) => node && node !== document.body);
+	const places = destinations.flatMap((node) => node && node !== document.body ? [node] : []);
 	const landed = () => {
 		const at = placements;
 		return places.some((node) => {
@@ -1189,18 +1225,22 @@ function handBack(...destinations) {
 
 //#endregion
 //#region runtime/dom-move.js
-function move(parent, node, before) {
+function move(parent, node, before = null) {
 	if (node.parentNode === parent && (before === node || node.nextSibling === before)) return node;
 	if (parent.isConnected) watchCurrentLocationIn(parent.getRootNode());
 	if (parent.moveBefore && node.getRootNode({ composed: true }) === parent.getRootNode({ composed: true })) parent.moveBefore(node, before);
 	else {
-		const restore = node.nodeType === Node.ELEMENT_NODE ? holdFocus(node) : null;
+		const restore = isElement(node) ? holdFocus(node) : null;
 		parent.insertBefore(node, before);
 		restore?.();
 	}
 	return node;
 }
 window.lfMove = move;
+
+//#endregion
+//#region runtime/obligations/source.js
+const hasObligationSource = (item, kind) => item?.source.kind === kind;
 
 //#endregion
 //#region runtime/framework/snapshot.js
@@ -1708,8 +1748,9 @@ function stampedState(registry, tag, event) {
 function sameStateDefinition(recorded, current) {
 	if (recorded === current) return true;
 	if (!recorded || !current || typeof recorded !== "object" || typeof current !== "object" || Array.isArray(recorded) !== Array.isArray(current)) return false;
-	const keys = Object.keys(recorded);
-	return keys.length === Object.keys(current).length && keys.every((key) => Object.hasOwn(current, key) && (typeof recorded[key] === "object" ? sameStateDefinition(recorded[key], current[key]) : recorded[key] === current[key]));
+	const fields = new Map(Object.entries(recorded));
+	const other = new Map(Object.entries(current));
+	return fields.size === other.size && [...fields].every(([key, value]) => other.has(key) && sameStateDefinition(value, other.get(key)));
 }
 const isElementName = (name) => WIDGET_NAME.test(name);
 
@@ -1778,7 +1819,7 @@ function threadNames(threads) {
 }
 const editable = (message) => message.author === "user" && !message.pending && !message.token && Boolean(message.text);
 const bareReaction = (thread) => thread.bare_reaction;
-const discussed = (thread) => !bareReaction(thread);
+const discussed = (thread) => !thread.bare_reaction;
 const hasUnread = (thread) => thread.unread.length > 0;
 const isNews = (thread) => !thread.resolved && hasUnread(thread);
 function threadCounts(threads) {
@@ -1859,7 +1900,7 @@ function foldThreads(threads, gestures) {
 	for (const thread of opened) thread.bare_reaction = isReaction(thread.root) && !spoken(thread).length;
 	return [...copies, ...opened];
 }
-const reactionsAt = (threads, anchor) => threads.filter((thread) => bareReaction(thread) && !thread.resolved && sameAnchor(thread.anchor, anchor)).map((thread) => thread.root);
+const reactionsAt = (threads, anchor) => threads.filter((thread) => !discussed(thread) && !thread.resolved && sameAnchor(thread.anchor, anchor)).map((thread) => thread.root);
 const seatRoot = (thread) => thread.seat;
 const moved = (message) => ({
 	seq: message.edited?.seq ?? message.seq ?? null,
@@ -1887,31 +1928,33 @@ function readThreadRecords(threads, document, widgets, workflows, todos = [], ob
 		});
 		unitsByMessage.set(descriptor.document.message, units);
 	}
+	const readMessage = (message, unreadMessages, thread) => {
+		const { markup, plainText, attention, session, publication, responds, start, title, ...record } = message;
+		const units = unitsByMessage.get(message.id) ?? [];
+		const authored = document.messageBodies?.get(message.id);
+		if (markup && !authored) throw new Error(`Authored message ${message.id} has no captured body`);
+		const body = markup && authored ? {
+			kind: "authored",
+			...authored,
+			units
+		} : {
+			kind: message.token ? "reaction" : message.suggestion ? "suggestion" : "prose",
+			text: authored?.text ?? plainText ?? message.text ?? message.token ?? ""
+		};
+		const unitIds = new Set(units.map((unit) => unit.id));
+		return {
+			...record,
+			thread,
+			unread: unreadMessages.has(message.id),
+			key: messageKey(message),
+			body,
+			workflows: workflows.filter((workflow) => workflow.message === message.id || workflow.subject.kind === "widget" && unitIds.has(workflow.subject.id))
+		};
+	};
 	return threads.map((thread) => {
 		const unread = thread.unread.filter((item) => !locallyRead.has(versionKey(item)));
 		const unreadMessages = new Set(unread.map((item) => item.message));
-		const msgs = thread.msgs.map((message) => {
-			const { markup, plainText, attention, session, publication, responds, start, title, ...record } = message;
-			const units = unitsByMessage.get(message.id) ?? [];
-			const authored = document.messageBodies?.get(message.id);
-			if (markup && !authored) throw new Error(`Authored message ${message.id} has no captured body`);
-			const body = markup && authored ? {
-				kind: "authored",
-				...authored,
-				units
-			} : {
-				kind: message.token ? "reaction" : message.suggestion ? "suggestion" : "prose",
-				text: authored?.text ?? plainText ?? message.text ?? message.token ?? ""
-			};
-			const unitIds = new Set(units.map((unit) => unit.id));
-			return {
-				...record,
-				unread: unreadMessages.has(message.id),
-				key: messageKey(message),
-				body,
-				workflows: workflows.filter((workflow) => workflow.message === message.id || workflow.subject.kind === "widget" && unitIds.has(workflow.subject.id))
-			};
-		});
+		const msgs = thread.msgs.map((message) => readMessage(message, unreadMessages, threadKey(thread)));
 		const reactions = {
 			key: threadKey(thread),
 			resolved: thread.resolved,
@@ -1998,6 +2041,23 @@ const actionForWidget = (descriptor, command, revision) => ({
 });
 
 //#endregion
+//#region runtime/voice.js
+const saidBy = (voice, text) => Object.freeze({
+	text,
+	voice
+});
+const agentSays = (text) => saidBy("agent", text);
+const leafSays = (text) => saidBy("leaf", text);
+const runOf = (words) => typeof words === "string" || "voice" in words ? [words] : words;
+const wordsText = (words) => runOf(words).map((part) => typeof part === "string" ? part : part.text).join("");
+function voiceOf(words) {
+	const voices = new Set(runOf(words).filter((part) => typeof part === "string" ? part : part.text).map((part) => typeof part === "string" ? null : part.voice));
+	const [voice = null] = voices;
+	return voices.size === 1 ? voice : null;
+}
+const voiced = (words) => runOf(words).map((part) => typeof part === "string" ? part : html$1`<span data-voice=${part.voice}>${part.text}</span>`);
+
+//#endregion
 //#region runtime/queues.js
 const queueOffers = (item, ready, onUser) => ({
 	open: ready,
@@ -2010,7 +2070,7 @@ const OUTCOMES = Object.freeze({
 	failed: "Failed",
 	dropped: "Dropped"
 });
-const itemOutcome = (item) => item.kind === "update" ? "Answered" : OUTCOMES[item.state] ?? item.state;
+const itemOutcome = (item) => item.kind === "update" ? agentSays("Answered") : saidBy(item.owner === "agent" ? "agent" : "leaf", OUTCOMES[item.state] ?? item.state);
 
 //#endregion
 //#region runtime/framework/application.js
@@ -2109,7 +2169,7 @@ const NO_OBLIGATIONS = {
 function normalizedObligations(view, widgets, document, projection, todos) {
 	const todoRecords = new Map([...todos.open, ...todos.ended].map((todo) => [todo.id, todo]));
 	const all = (view?.obligations ?? []).map((item) => {
-		if (item.source.kind === "todo") {
+		if (hasObligationSource(item, "todo")) {
 			const todo = todoRecords.get(item.source.id);
 			if (todo.state === "open" && item.status !== "open") return {
 				...item,
@@ -2118,7 +2178,7 @@ function normalizedObligations(view, widgets, document, projection, todos) {
 				next_actor: "user",
 				end: null
 			};
-			if (todo.state !== "open" && item.status === "open") return {
+			if ((todo.state === "done" || todo.state === "failed") && item.status === "open") return {
 				...item,
 				answer: {
 					value: todo.state,
@@ -2130,7 +2190,7 @@ function normalizedObligations(view, widgets, document, projection, todos) {
 			};
 			return item;
 		}
-		if (item.source.kind !== "widget") return item;
+		if (!hasObligationSource(item, "widget")) return item;
 		const sourceId = item.source.id;
 		const sourceUnit = item.source.unit;
 		const widget = widgets.get(sourceId);
@@ -2252,6 +2312,8 @@ function localQueues(served, workflows, todos, items, local) {
 		obligation: obligationOf(item)
 	} : {
 		...item,
+		kind: "todo",
+		owner: "agent",
 		todo: todoOf(item)
 	};
 	const asOpen = ({ state: _state, ended: _ended, detail: _detail, ...item }) => current(item);
@@ -2417,8 +2479,7 @@ function createSemanticApplication({ presentation } = {}) {
 		settled: [],
 		markingRead: [],
 		phase: "waiting",
-		reach: "waiting",
-		fault: null,
+		reach: { reach: "waiting" },
 		hostAvailable: true,
 		data: {
 			version: null,
@@ -2532,7 +2593,7 @@ function createSemanticApplication({ presentation } = {}) {
 		const localWorkflow = (entry, rejected) => {
 			const turn = isTurnEvent(entry.event) ? entry.thread : null;
 			const thread = threadOfEntry(entry);
-			const subject = turn ? thread === null ? null : {
+			const subject = turn && thread !== null ? {
 				kind: "thread",
 				id: thread
 			} : entry.event.kind === "action" ? {
@@ -2540,13 +2601,11 @@ function createSemanticApplication({ presentation } = {}) {
 				id: entry.event.widget
 			} : null;
 			if (!subject) return null;
-			return {
+			const common = {
 				id: `${rejected ? "rejected" : "pending"}:${entry.event.attempt}`,
-				revision: entry.event.revision ?? document.revision,
 				seq: entry.order,
 				input: turn?.id ?? entry.localId,
 				message: turn ? turnMessage(turn) : null,
-				subject,
 				thread,
 				at_work: false,
 				coordinate: turn ? ["thread", thread] : entry.projection ? coordinateOf(entry.projection.coordinate) : null,
@@ -2567,6 +2626,22 @@ function createSemanticApplication({ presentation } = {}) {
 					operation: "delivery"
 				} : null,
 				started_by: []
+			};
+			if (entry.event.kind === "action") return {
+				...common,
+				subject: {
+					kind: "widget",
+					id: entry.event.widget
+				},
+				revision: entry.event.revision
+			};
+			return {
+				...common,
+				subject: {
+					kind: "thread",
+					id: subject.id
+				},
+				revision: entry.event.revision ?? document.revision
 			};
 		};
 		const sends = localUpdates([
@@ -2736,13 +2811,10 @@ function createSemanticApplication({ presentation } = {}) {
 		setPhase(phase) {
 			return publish({ phase });
 		},
-		setReach(reach, fault = null) {
+		setReach(reach) {
 			const now = publisher.peek();
-			if (now.reach === reach && now.fault === fault) return now;
-			return publish({
-				reach,
-				fault
-			});
+			if (now.reach.reach === reach.reach && now.reach.fault === reach.fault) return now;
+			return publish({ reach });
 		},
 		publishOutput(widget, output, reading) {
 			const prior = publisher.peek();
@@ -2779,8 +2851,7 @@ function createSemanticApplication({ presentation } = {}) {
 				unresolved,
 				settled,
 				phase: "ready",
-				reach: "reached",
-				fault: null
+				reach: { reach: "reached" }
 			});
 			return true;
 		},
@@ -3342,10 +3413,12 @@ const DELIVERY = Object.freeze({
 	probe: served?.dataset.lfProbe
 });
 const WEBSITE_DELIVERY = DELIVERY.release !== void 0;
-const layerRoot = (doc) => doc.querySelector("script[data-lf-runtime][data-lf-entry]")?.dataset.lfEntry.replace(/leaf\.js$/, "") ?? "";
+const layerRoot = (doc) => {
+	return doc.querySelector("script[data-lf-runtime][data-lf-entry]")?.dataset.lfEntry?.replace(/leaf\.js$/, "") ?? "";
+};
 const SHARE_ROOT = served?.dataset.lfShareUrl;
-function shareUrl() {
-	const url = new URL(SHARE_ROOT);
+function shareUrl(root) {
+	const url = new URL(root);
 	url.pathname = location.pathname;
 	const access = [...url.searchParams];
 	url.search = location.search;
@@ -3353,7 +3426,7 @@ function shareUrl() {
 	url.hash = location.hash;
 	return url.href;
 }
-const pageUrl = (path) => new URL(path, PAGE_ROOT).href;
+const pageUrl = (path) => new URL(path, PAGE_ROOT ?? void 0).href;
 const offlinePayload = offlineMarker ? JSON.parse(offlineMarker.textContent || "null") : null;
 const allocation = (name) => document.body.getAttribute(name);
 const annotationMode = allocation("data-annotations") ?? "overlay";
@@ -3386,7 +3459,12 @@ const part = {
 	undo: readPart((root) => root.effective.view?.undo ?? []),
 	todos: readPart((root) => root.authoritative?.browser.todos ?? []),
 	receipts: readPart((root) => root.authoritative?.browser.receipts ?? []),
-	revisionLabels: readPart((root) => root.authoritative?.revision_labels)
+	revisionLabels: readPart((root) => root.authoritative?.revision_labels),
+	seen: readPart((root) => root.authoritative?.seen ?? null)
+};
+const shownActive = () => {
+	const active = part.active();
+	return active && part.revision() === active.revision ? active : null;
 };
 const runtime = {
 	get active() {
@@ -3396,16 +3474,18 @@ const runtime = {
 		return part.browser();
 	},
 	get showsActive() {
-		return runtime.active !== null && runtime.currentRevision === runtime.active.revision;
+		return shownActive() !== null;
 	},
 	get currentLabel() {
-		return part.live() && runtime.showsActive ? runtime.active.label : runtime.currentStamp === null ? null : `v${runtime.currentStamp}`;
+		const active = part.live() ? shownActive() : null;
+		return active ? active.label : runtime.currentStamp === null ? null : `v${runtime.currentStamp}`;
 	},
 	get currentRevision() {
 		return part.revision();
 	},
 	get currentStamp() {
-		return part.live() && runtime.showsActive ? runtime.active.version : part.stamp();
+		const active = part.live() ? shownActive() : null;
+		return active ? active.version : part.stamp();
 	},
 	get data() {
 		return part.data();
@@ -3428,6 +3508,9 @@ const runtime = {
 	get versions() {
 		return part.versions();
 	},
+	get seen() {
+		return part.seen();
+	},
 	get workflows() {
 		return part.workflows();
 	},
@@ -3444,12 +3527,12 @@ const runtime = {
 		return part.receipts();
 	}
 };
-const revisionLabel = (revision) => part.revisionLabels()[revision];
+const revisionLabel = (revision) => part.revisionLabels()?.[revision];
 
 //#endregion
 //#region runtime/registry.js
 const registry = runtime.registry;
-const tokenEntry = (name) => registry.$reactions.tokens[name];
+const tokenEntry = (name) => registry.$reactions?.tokens[name];
 const elementDeclarations = () => Object.entries(registry).filter(([tag]) => isElementName(tag));
 function adoptRegistry(declarations) {
 	for (const [name, value] of Object.entries(declarations)) if (name.startsWith("$")) freeze(value);
@@ -3490,7 +3573,7 @@ function indexedState() {
 const stateSpecs = () => indexedState().specs;
 const recordedWidgetSelector = (record) => indexedState().recordSelectors.get(recordSlot(record)) ?? "";
 const layerFact = (name) => registry[name];
-const declarationFor = (el, key) => registry[el?.localName]?.[key];
+const declarationFor = (el, key) => el ? registry[el.localName]?.[key] : void 0;
 const decisionFor = (tag) => registry.$decisions[tag] ?? null;
 const elementsDeclaring = (root, key, { direct = false } = {}) => {
 	return (direct ? [...root.children] : [...root.querySelectorAll("*")]).filter((el) => declarationFor(el, key) !== void 0);
@@ -3509,7 +3592,7 @@ const refuseShadowRoot = (root) => refusedRoots.add(root);
 const declaredRoot = (host) => host.shadowRoot && registry[host.localName]?.["x-shadow"] && isStage(host.shadowRoot) && !refusedRoots.has(host.shadowRoot) ? host.shadowRoot : null;
 const shadowRootsIn = (root) => liveStages().filter((stage) => root.contains(stage.host) && declaredRoot(stage.host) === stage);
 const pageShadowRoots = () => shadowRootsIn(document);
-const renderedChildren = (node) => node.localName === "slot" ? node.assignedNodes({ flatten: true }) : (node.shadowRoot ?? node).childNodes;
+const renderedChildren = (node) => isHTML(node, "slot") ? node.assignedNodes({ flatten: true }) : (isElement(node) ? node.shadowRoot ?? node : node).childNodes;
 const hostIn = (node, root) => {
 	let at = node;
 	while (at && at.getRootNode() !== root) at = shadowHost(at.getRootNode());
@@ -3523,9 +3606,9 @@ const SAID = "[data-lf-said]";
 const UI_MARKS = `.lf-ui, ${SAID}`;
 const uiInside = (el, within) => {
 	const near = el && overIn(el, ".lf-ui, [data-lf-said]", within);
-	return Boolean(near) && !near.matches("[data-lf-said]");
+	return !!near && !near.matches("[data-lf-said]");
 };
-const inUi = (node) => uiInside(node?.nodeType === 1 ? node : node?.parentElement, null);
+const inUi = (node) => uiInside(isElement(node) ? node : node?.parentElement, null);
 let shadowRules = "";
 let loading = null;
 function loadShadowRules() {
@@ -3541,7 +3624,9 @@ async function readShadowRules() {
 
 //#endregion
 //#region runtime/stylesheets.js
-const sheets = JSON.parse(document.querySelector("script[type=\"application/json\"][data-lf-runtime][data-lf-sheets]").textContent);
+const delivery = document.querySelector("script[type=\"application/json\"][data-lf-runtime][data-lf-sheets]");
+if (!delivery) throw new Error("The document has no runtime stylesheets");
+const sheets = JSON.parse(delivery.textContent);
 function constructSheet(text) {
 	const sheet = new CSSStyleSheet();
 	sheet.replaceSync(text);
@@ -3565,12 +3650,12 @@ const annotationSheets = sheets.annotations ? [constructSheet(sheets.annotations
 
 //#endregion
 //#region runtime/keyboard/layer-stack.js
-const entries = [];
+let entries = [];
 const watchedRoots = /* @__PURE__ */ new WeakSet();
 const nativeDialogShowModal = HTMLDialogElement.prototype.showModal;
 const nativePopoverShow = HTMLElement.prototype.showPopover;
 function prune() {
-	for (let index = entries.length - 1; index >= 0; index -= 1) if (!entries[index].active()) entries.splice(index, 1);
+	entries = entries.filter((entry) => entry.active());
 }
 function pushNativeLayer(node, source = null) {
 	const at = entries.findIndex((entry) => entry.root === node);
@@ -3602,9 +3687,9 @@ function closing(event) {
 	const entry = entries.find((candidate) => candidate.root === event.target);
 	if (entry) entry.opening = false;
 	if (entry?.kind === "popover") {
-		for (const layer of nativeLayers().toReversed()) if (layer.kind === "modal" && renderedUnder(layer.root, event.target)) closeNativeLayer(layer.root);
+		for (const layer of nativeLayers().toReversed()) if (layer.kind === "modal" && renderedUnder(layer.root, entry.root)) closeNativeLayer(layer.root);
 	}
-	if (entry?.kind === "popover" && entry.fromNowhere && !document.documentElement.inert && canPlaceFocus() && renderedUnder(focused(), event.target)) releaseFocus();
+	if (entry?.kind === "popover" && entry.fromNowhere && !document.documentElement.inert && canPlaceFocus() && renderedUnder(focused(), entry.root)) releaseFocus();
 }
 HTMLDialogElement.prototype.showModal = function() {
 	const entry = nativeLayerKind(this) !== "modal" ? pushNativeLayer(this) : null;
@@ -3632,7 +3717,10 @@ function showNativeLayer(layer, { source, modal = true } = {}) {
 				if (source) seatModal(layer, source);
 				layer.showModal();
 			} else layer.show();
-		} else layer.showPopover(source ? { source } : void 0);
+		} else {
+			if (source && !isHTML(source)) throw new TypeError("A popover source must be an HTML element");
+			layer.showPopover(source ? { source } : void 0);
+		}
 	} finally {
 		if (withholdFocus) layer.inert = false;
 	}
@@ -3641,28 +3729,31 @@ const modalHomes = /* @__PURE__ */ new WeakMap();
 function seatModal(dialog, source) {
 	let place = modalHomes.get(dialog);
 	if (!place) {
+		const parent = dialog.parentNode;
+		if (!parent) throw new Error("A modal dialog needs a connected home");
 		place = {
-			home: dialog.parentNode,
+			home: parent,
 			chrome: Boolean(dialog.closest(".lf-chrome")),
 			scope: null
 		};
 		modalHomes.set(dialog, place);
+		const home = place;
 		const restore = () => {
-			if (dialog.parentNode !== place.home) move(place.home, dialog);
-			place.scope?.remove();
+			if (dialog.parentNode !== home.home) move(home.home, dialog);
+			home.scope?.remove();
 		};
 		dialog.addEventListener("close", () => {
 			if (!dialog.open) restore();
 		});
 		watchOwner(dialog, { disconnect() {
-			if (dialog.parentNode === place.home) return;
+			if (dialog.parentNode === home.home) return;
 			closeNativeLayer(dialog);
 			restore();
 		} });
 	}
 	const holder = nativeLayerHolding(source);
 	let seat = place.home;
-	if (nativeLayerKind(holder) === "popover") {
+	if (holder && nativeLayerKind(holder) === "popover") {
 		if (renderedUnder(holder, place.home)) seat = holder;
 		else if (place.chrome) {
 			if (!place.scope) {
@@ -3704,14 +3795,14 @@ function watchLayerChanges(listener) {
 	return () => changeListeners.delete(listener);
 }
 const changed = (event) => {
-	if (!event.target?.matches?.("[popover], dialog")) return;
+	if (!(event.target instanceof HTMLElement) || !event.target.matches("[popover], dialog")) return;
 	for (const listener of changeListeners) listener(event);
 };
 function watchLayers(root) {
 	if (watchedRoots.has(root)) return;
 	watchedRoots.add(root);
 	const opened = (event) => {
-		if (event.newState === "open" && event.target?.matches?.("[popover], dialog")) pushNativeLayer(event.target, event.source);
+		if (event.newState === "open" && event.target instanceof HTMLElement && event.target.matches("[popover], dialog")) pushNativeLayer(event.target, event.source);
 	};
 	root.addEventListener("beforetoggle", opened, true);
 	root.addEventListener("beforetoggle", closing, true);
@@ -3739,4 +3830,4 @@ function dismissPopoversOutside(root) {
 }
 
 //#endregion
-export { AsyncDirective, CARET_KEYS, COLLAPSE, DELIVERY, DRAFT_FORMAT, J, LENT_REACH_STOP, LIVE_ROOT, LitElement, MODIFIER_KEYS, PAGE_ROOT, PENDING, PRESENTATION_DOM, PRESSES, PartType$1 as PartType, SAID, SHARE_ROOT, TAB_STOP, TEXT_BLOCK, TEXT_BOX, TEXT_FIELD, UI_MARKS, W, WEBSITE_DELIVERY, WORKS, Z, actionForWidget, adoptRegistry, agentName, anchorKey, annotationMarkSheets, annotationMode, annotationSheets, applicationPresented, applicationPresenter, applicationRegionsPresented, applicationState, attachApplicationPresentation, attachWidgetPresentation, authoredRank, bareReaction, canPlaceFocus, caretAtKey, carriedFrom, carriesObligation, chromeSharedClasses, chromeSheet, claimReleaseClick, closeLayer, closeNativeLayer, coarsePointer, controlNavigationKeys, createPresentationSchedule, currentLocationIn, currentLocationNodes, currentLocationTouches, d, decisionFor, declarationFor, declareReading, declareRelease, declaredRoot, deepFocus, directive$1 as directive, discussed, dismissPopoversOutside, documentChanged, drawingSchema, drawn, editable, elementDeclarations, elementsDeclaring, exhibits, focusDestination, focusRevision, focused, foldWidgetStates, fragmentId, guard, handBack, holdCurrentLocation, holdFocus, hostIn, hoveringPointer, html$1 as html, inUi, inputCount, inputInFrame, isElementName, isMessageEvent, isNews, isReaction, isThreadEvent, itemNoun, itemOutcome, keyed, lastMovedAt, layerFact, layerLanding, layerRoot, letGo, live, loadShadowRules, marks, marksSheet, matchesWhen, messageKey, move, moved, nativeLayers, nativeModalAdmits, noChange, nothing$1 as nothing, obligationValue, offlineData, offlineInteractive, offlineState, onCurrentLocation, onFocusVisibility, onLetGo, onPress, onPressAway, onUserInput, openLayer, openerOf, overIn, pageClaimed, pageShadowRoots, pageUrl, plainPress, pointerAt, presentDocument, pressHolds, pressIsKeyboardActivation, pressLed, pressRecords, pressing, projectView, projectionOrigins, projectionRegionsPresented, q, queueWidgetUpdate, rankAt, reactionsAt, readApplication, readApplicationPresentation, readCaret, readPart, recentPlaceInput, recordedWidgetSelector, recoveredLabelFocus, ref, refuseShadowRoot, registry, release, releaseFocus, render, renderedChildren, repeat, restorePointer, revisionLabel, ringBox, rove, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, selectWidgets, selectsAll, setPresentationFailureReporter, shadowRootsIn, shadowRules, share, shareUrl, showNativeLayer, stateCoordinate, stateSpecs, tabStops, tagsDeclaring, takesLetters, threadCounts, threadKey, threadNames, tick, tokenChoices, tokenEntry, turns, typesText, uiInside, visibleFocus, watchCurrentLocationIn, watchLayerChanges, watchLayers, watchPresentation, watchSemantic, wearsLentStop, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenLeft, whenWidgetsPresented, x$1 as x };
+export { AsyncDirective, CARET_KEYS, COLLAPSE, DELIVERY, DRAFT_FORMAT, J, LENT_REACH_STOP, LIVE_ROOT, LitElement, MODIFIER_KEYS, PAGE_ROOT, PENDING, PRESENTATION_DOM, PRESSES, PartType$1 as PartType, SAID, SHARE_ROOT, TAB_STOP, TEXT_BLOCK, TEXT_BOX, TEXT_FIELD, UI_MARKS, W, WEBSITE_DELIVERY, WORKS, Z, actionForWidget, adoptRegistry, agentName, agentSays, anchorKey, annotationMarkSheets, annotationMode, annotationSheets, applicationPresented, applicationPresenter, applicationRegionsPresented, applicationState, attachApplicationPresentation, attachWidgetPresentation, authoredRank, bareReaction, blurFocused, canPlaceFocus, caretAtKey, carriedFrom, carriesObligation, chromeSharedClasses, chromeSheet, claimReleaseClick, closeLayer, closeNativeLayer, coarsePointer, controlNavigationKeys, createPresentationSchedule, currentLocationIn, currentLocationNodes, currentLocationTouches, d, decisionFor, declarationFor, declareReading, declareRelease, declaredRoot, deepFocus, directive$1 as directive, discussed, dismissPopoversOutside, documentChanged, drawingSchema, drawn, editable, elementDeclarations, elementsDeclaring, eventSource, exhibits, focusDestination, focusRevision, focused, foldWidgetStates, fragmentId, guard, handBack, hasObligationSource, holdCurrentLocation, holdFocus, hostIn, hoveringPointer, html$1 as html, inUi, inputCount, inputInFrame, isElementName, isMessageEvent, isNews, isReaction, isThreadEvent, itemNoun, itemOutcome, keyed, lastMovedAt, layerFact, layerLanding, layerRoot, leafSays, letGo, live, loadShadowRules, marks, marksSheet, matchesWhen, messageKey, move, moved, nativeFocusTarget, nativeLayers, nativeModalAdmits, noChange, nothing$1 as nothing, obligationValue, offlineData, offlineInteractive, offlineState, onCurrentLocation, onFocusVisibility, onLetGo, onPress, onPressAway, onUserInput, openLayer, openerOf, overIn, pageClaimed, pageShadowRoots, pageUrl, plainPress, pointerAt, presentDocument, pressHolds, pressIsKeyboardActivation, pressLed, pressRecords, pressing, projectView, projectionOrigins, projectionRegionsPresented, q, queueWidgetUpdate, rankAt, reactionsAt, readApplication, readApplicationPresentation, readCaret, readPart, recentPlaceInput, recordedWidgetSelector, recoveredLabelFocus, ref, refuseShadowRoot, registry, release, releaseFocus, render, renderedChildren, repeat, restorePointer, revisionLabel, ringBox, rove, runtime, runtimeModule, runtimeResource, saidBy, sameAnchor, seatRoot, selectWidgets, selectsAll, setPresentationFailureReporter, shadowRootsIn, shadowRules, share, shareUrl, showNativeLayer, stateSpecs, tabStops, tagsDeclaring, takesLetters, threadCounts, threadKey, threadNames, tick, tokenChoices, tokenEntry, turns, typesText, uiInside, visibleFocus, voiceOf, voiced, watchCurrentLocationIn, watchLayerChanges, watchLayers, watchPresentation, watchSemantic, wearsLentStop, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenLeft, whenWidgetsPresented, wordsText, x$1 as x };

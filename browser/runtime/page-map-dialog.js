@@ -56,13 +56,23 @@ import {
   contributionHost,
   contributionReceipts,
 } from "./contribution-controls.js";
-import { contributionSource } from "./contributions.js";
 import { railStands } from "./content-layout.js";
 import { commandSteps } from "./keyboard/control-keys.js";
 
 import { contributionItemKey, KINDS } from "./contribution-model.js";
 import { marginMapGroups } from "./margin-map-model.js";
 import { threadHeading } from "./thread/messages.js";
+import { isHTML } from "./shadow-tree.js";
+import { voiced, wordsText } from "./voice.js";
+
+/** @typedef {import("./annotation-inventory.js").InventoryEntry} Entry
+ * @typedef {import("./annotation-inventory.js").AnnotationItem} Item
+ * @typedef {import("./contributions.js").ContributionOffer} Offer
+ * @typedef {ReturnType<typeof marginMapGroups<Offer>>[number]} Group
+ * @typedef {Group["actions"][number]} Action
+ * @typedef {Extract<Action, {kind: "control"}>} ControlAction
+ * @typedef {Extract<Action, {kind: "item"}>} ItemAction
+ */
 
 const dialog = document.createElement("dialog");
 dialog.className = "lf-ui lf-page-map-dialog";
@@ -85,7 +95,7 @@ const dialogList = el("div", "lf-page-map-list scroll");
 // their place in it (user-place.js), under the map key each row is rendered with.
 const place = placeKeeper(dialogList, {
   items: ".lf-page-map-action",
-  identity: (row) => row.dataset.lfMapKey,
+  identity: (row) => row.getAttribute("data-lf-map-key"),
   active: () => dialog.open,
 });
 const dialogEmpty = el(
@@ -100,10 +110,14 @@ dialog.append(dialogHead, dialogSearch, dialogList, dialogEmpty);
 // The rows a walk or the search's Enter can land on: every pressable entry the search
 // has not hidden. A status is words beside the rows, not a stop among them.
 const mapRows = () =>
-  [...dialogList.querySelectorAll("button.lf-page-map-action")].filter((row) =>
-    row.checkVisibility(),
-  );
+  [...dialogList.querySelectorAll("button.lf-page-map-action")]
+    .filter((row) => isHTML(row, "button"))
+    .filter((row) => row.checkVisibility());
 
+/** @param {{inventory: ReturnType<typeof import("./annotation-inventory.js").createAnnotationInventory>,
+ * activeInAnnotations?: (() => boolean) | undefined,
+ * releaseAnnotations?: ((entry: Entry) => void) | undefined,
+ * annotationFocus?: ((entry: Entry) => Element | null) | undefined}} options */
 export function createPageMapDialog({
   inventory,
   activeInAnnotations,
@@ -111,9 +125,13 @@ export function createPageMapDialog({
   annotationFocus,
 }) {
   const { targetFor } = inventory;
+  /** @type {readonly Entry[]} */
   let entries = [];
+  /** @type {readonly Group[]} */
   let groups = [];
+  /** @type {Element | null} */
   let target = null;
+  /** @type {Set<import("./contributions.js").ContributionSource>} */
   let trackedOffers = new Set();
   // The Map is a row of the page's controls while it has entries, which a keyboard
   // reaches by `g P` (keyboard/go-to-sequence.js). Beside the rail, whose markers show
@@ -133,31 +151,36 @@ export function createPageMapDialog({
 
   const pageMapIsActive = () => dialog.open || Boolean(activeInAnnotations?.());
 
+  /** @param {Item} item @param {Entry} entry */
   function activateItem(item, entry) {
     releaseAnnotations?.(entry);
     const destination = annotationFocus?.(entry);
+    const authoredTarget = targetFor(entry);
     // A location without a presented annotation lands on its exact authored target.
     // Commands that open a Thread or obligation retain their own navigation capability.
     closeLayer(leavePageMap, () =>
-      !destination && targetFor(entry)?.isConnected
-        ? focusDestination(targetFor(entry), "move")
+      !destination && authoredTarget?.isConnected
+        ? focusDestination(authoredTarget, "move")
         : handBack(destination, openerOf(dialog)),
     );
     inventory.activate(item);
   }
 
+  /** @param {Element | null} candidate @param {Node | null} node */
   function pageMapDialogContains(candidate, node) {
     return dialog.open && target === candidate && dialog.contains(node);
   }
 
   // A thread's row names it as Threads does (`threadHeading`).
-  const sheetName = (item, visibleLabel) => {
-    const thread = item && inventory.sourceItem(item)?.thread;
-    return thread ? threadHeading(thread) : visibleLabel;
+  /** @param {Item | undefined} item @param {import("./voice.js").Words} visibleWords */
+  const sheetName = (item, visibleWords) => {
+    const thread = item?.thread;
+    return thread ? threadHeading(thread) : voiced(visibleWords);
   };
   // A row's kind leads it, its name follows, and what it says of its state, such as
   // whose turn a thread is, ends it, where Threads says the same.
-  const sheetFace = ({ icon, glyph, item, visibleLabel, context, contextVoice }) =>
+  /** @param {Action} action */
+  const sheetFace = ({ icon, glyph, item, visibleLabel, visibleWords, context }) =>
     html`<span class="lf-row-lead"
         >${
           icon
@@ -165,28 +188,28 @@ export function createPageMapDialog({
             : html`<span class="lf-margin-kind">${glyph}</span>`
         }</span
       ><span class="lf-page-map-action-label-word lf-row-main"
-        >${sheetName(item, visibleLabel)}</span
+        >${sheetName(item, visibleWords ?? visibleLabel)}</span
       >${
         context
-          ? html`<span
-              class="lf-page-map-action-context lf-row-end"
-              data-voice=${contextVoice ?? nothing}
-              >${context}</span
+          ? html`<span class="lf-page-map-action-context lf-row-end"
+              >${voiced(context)}</span
             >`
           : nothing
       }`;
 
+  /** @param {MouseEvent} event @param {ControlAction} action */
   function activateSheetControl(event, action) {
     const { offered, record } = action;
     if (record.behavior === "status" || record.disabled) return;
     const control = event.currentTarget;
+    if (!(control instanceof Element)) return;
     const relation = record.relation;
     // A disclosure that owns another contributed control unfolds within the map.
     // The first press can then reveal the exact second action without closing the
     // only surface where a spilled contribution is reachable.
     if (relation?.kind === "entries") {
       const currentIntent = retainUserIntent({ available: () => dialog.open });
-      contributionSource(offered).registration.activate(record.key, {
+      offered.source().registration.activate(record.key, {
         origin: control,
         surface: "map",
         input: pressIsKeyboardActivation(event) ? "keyboard" : "pointer",
@@ -194,9 +217,7 @@ export function createPageMapDialog({
       nextRender(() => {
         if (!currentIntent()) return;
         const revealed = relation.keys
-          .map((key) =>
-            contributionSource(offered).registration.control(key, "map", true),
-          )
+          .map((key) => offered.source().registration.control(key, "map", true))
           .find((candidate) => candidate?.checkVisibility());
         focusDestination(revealed ?? control, "move");
       });
@@ -207,28 +228,33 @@ export function createPageMapDialog({
       () => closeNativeLayer(dialog),
       () => handBack(returnTo),
     );
-    contributionSource(offered).registration.activate(record.key, {
+    offered.source().registration.activate(record.key, {
       origin: control,
       surface: "map",
       input: pressIsKeyboardActivation(event) ? "keyboard" : "pointer",
     });
   }
 
+  /** @param {ControlAction} action @param {readonly Action[]} actions */
   const sheetHost = (action, actions) =>
-    contributionHost(contributionSource(action.offered), "map", action.record, {
-      accessibleLabel: [action.record.accessibleLabel, action.record.context]
+    contributionHost(action.offered.source(), "map", action.record, {
+      accessibleLabel: [
+        action.record.accessibleLabel,
+        wordsText(action.record.context ?? ""),
+      ]
         .filter(Boolean)
         .join(", "),
       relatedControlIds: relatedControlIds(action, actions),
     });
 
+  /** @param {ItemAction} action */
   const sheetItemTemplate = (action) => html`
     <button
       type="button"
       ${offeredAction("row", "lf-page-map-action")}
       data-lf-map-key=${action.key}
       data-lf-map-item=${action.item.id}
-      aria-label=${[action.label, action.context].filter(Boolean).join(", ")}
+      aria-label=${[action.label, wordsText(action.context ?? "")].filter(Boolean).join(", ")}
       ${contributionReceipts(action.receipt, action.awaitsUser)}
       @click=${() => activateItem(action.item, action.entry)}
     >
@@ -236,20 +262,21 @@ export function createPageMapDialog({
     </button>
   `;
 
+  /** @param {ControlAction} action @param {readonly Action[]} actions */
   function relatedControlIds(action, actions) {
     if (action.record.relation?.kind !== "entries") return [];
     const related = new Set(action.record.relation.keys);
-    const ids = actions
-      .filter(
-        (candidate) =>
-          candidate.kind === "control" &&
-          candidate.offered === action.offered &&
-          related.has(candidate.record.key),
-      )
-      .map(({ id }) => id);
+    const ids = actions.flatMap((candidate) =>
+      candidate.kind === "control" &&
+      candidate.offered === action.offered &&
+      related.has(candidate.record.key)
+        ? [candidate.id]
+        : [],
+    );
     return ids;
   }
 
+  /** @param {ControlAction} action @param {readonly Action[]} actions */
   const sheetControlTemplate = (action, actions) => {
     const body = sheetFace(action);
     if (action.record.behavior === "status")
@@ -270,12 +297,13 @@ export function createPageMapDialog({
       data-lf-map-margin-entry=${action.key}
       ${sheetHost(action, actions)}
       ${contributionReceipts(action.receipt, action.awaitsUser)}
-      @click=${(event) => activateSheetControl(event, action)}
+      @click=${(/** @type {MouseEvent} */ event) => activateSheetControl(event, action)}
     >
       ${body}
     </button>`;
   };
 
+  /** @param {Group} group @param {string} query */
   const sheetGroupTemplate = (group, query) => html`
     <section
       class="lf-page-map-group lf-rows-group"
@@ -306,7 +334,7 @@ export function createPageMapDialog({
   }
 
   function presentSheet() {
-    const query = dialogSearch.value.trim().toLocaleLowerCase();
+    const query = (dialogSearch.value ?? "").trim().toLocaleLowerCase();
     const searchTextByKey = new Map(
       entries.map((entry) => {
         const passage = blockAt(targetFor(entry));
@@ -323,7 +351,7 @@ export function createPageMapDialog({
       dialogList,
     );
     const liveOffers = new Set(
-      groups.flatMap(({ entry }) => entry.offers.map(contributionSource)),
+      groups.flatMap(({ entry }) => entry.offers.map((offer) => offer.source())),
     );
     for (const offered of trackedOffers)
       if (!liveOffers.has(offered))
@@ -331,7 +359,7 @@ export function createPageMapDialog({
     for (const group of groups) {
       for (const offered of group.entry.offers)
         clearContributionControls(
-          contributionSource(offered),
+          offered.source(),
           "map",
           new Set(
             group.controls
@@ -353,12 +381,14 @@ export function createPageMapDialog({
     keepsHidden(dialogEmpty, shown !== 0);
   }
 
+  /** @param {readonly Entry[]} nextEntries */
   function renderPageMapDialog(nextEntries) {
     if (nextEntries.length !== entries.length) pageControlsChanged();
     entries = nextEntries;
     if (dialog.open) renderSheet();
   }
 
+  /** @param {Entry | null} [entry] @param {{invoker?: Element | null, focusSpill?: boolean}} [options] */
   function openPageMap(entry = null, { invoker = null, focusSpill = false } = {}) {
     const openedFrom = invoker ?? focused();
     target = entry ? targetFor(entry) : null;
@@ -378,10 +408,12 @@ export function createPageMapDialog({
       ? groups[index]?.actions.find(
           (action) =>
             (action.kind === "control" &&
-              action.record.key === spilled?.record?.key &&
-              action.record.owner === spilled?.record?.owner) ||
+              spilled?.kind === "contribution" &&
+              action.record.key === spilled.record.key &&
+              action.record.owner === spilled.record.owner) ||
             (action.kind === "item" &&
-              spilled?.choice?.items.some(
+              spilled?.kind === "reading" &&
+              spilled.choice.items.some(
                 (item) =>
                   contributionItemKey(action.item) === contributionItemKey(item),
               )),
@@ -416,6 +448,7 @@ export function createPageMapDialog({
   // only from inside it, where focus puts the user.
   const mapHasEntries = () => entries.length > 0;
 
+  /** @param {Element} root */
   function mount(root) {
     dialogSearch.addEventListener("input", renderSheet);
     keys(
@@ -459,6 +492,7 @@ export function createPageMapDialog({
           when: hasRows,
           run: () => {
             const row = mapRows()[0];
+            if (!row) return;
             focusDestination(row, "move");
             scrollIntoView(row, { block: "nearest" });
           },
@@ -468,7 +502,7 @@ export function createPageMapDialog({
           keys: ["Enter"],
           title: "open first",
           when: hasRows,
-          run: () => mapRows()[0].click(),
+          run: () => mapRows()[0]?.click(),
         },
       ],
       mapHasEntries,

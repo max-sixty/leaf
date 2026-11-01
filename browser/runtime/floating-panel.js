@@ -193,7 +193,6 @@ import { el, namedAction, offeredAction, reveal } from "./widget-elements.js";
 import { actionTemplate, iconTemplate } from "./icons.js";
 import { actionName } from "./icon-paths.js";
 import { commandSteps } from "./keyboard/control-keys.js";
-import { executeCommand } from "./keyboard/dispatch.js";
 import { copyControl } from "./copy-control.js";
 import { keeps, keepsHidden, layoutPx } from "./keeps.js";
 import { setRuntimeRootStyle } from "./root-state.js";
@@ -4222,8 +4221,8 @@ export function createFloatingPanel({
   // its word and the keys that make it from anywhere on the page (`keys`).
   // A passing notice offering the press that takes back what it reports, as a Resolve's
   // offers Undo (notifications.js), stands in the seat its words would take, over the
-  // empty field's start, its press the page's own command, run and spelled as the
-  // command reference runs and spells it; else the older version's notice. It stands
+  // empty field's start, its press spelled with the key of the page command that makes
+  // it too, as the command reference spells it; else the older version's notice. It stands
   // over the field rather than beside it (floating-panel.css), so its coming and going
   // move nothing in the row, and it stands from the gesture's own paint to the
   // notice's end, whether or not the command can act yet.
@@ -4242,7 +4241,7 @@ export function createFloatingPanel({
       press: {
         label: actionName(press.action),
         keys: commandSteps(press.command),
-        run: () => executeCommand(press.command),
+        run: press.run,
       },
     };
   }

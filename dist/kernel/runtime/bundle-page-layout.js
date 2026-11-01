@@ -4416,12 +4416,16 @@ const KEYS_HELD = /* @__PURE__ */ new Set([
 ]);
 const UNDO_KEYS = ["z"];
 function createUndo({ post, stateApplying, unaccountedGesture, openThread, threadPlace }) {
+	function takeable() {
+		const { effective, unresolved } = readApplication();
+		if (!effective.view) return null;
+		return /* @__PURE__ */ new Set([...effective.view.undo.map(({ event }) => event.attempt), ...unresolved.flatMap((entry) => entry.state === "refused" ? [] : [entry.event.attempt])]);
+	}
 	const gestures = /* @__PURE__ */ new Map();
 	function retainGesture(attempt, facts) {
-		const { effective, unresolved } = readApplication();
-		if (effective.view) {
-			const liveAttempts = /* @__PURE__ */ new Set([...effective.view.undo.map(({ event }) => event.attempt), ...unresolved.map((entry) => entry.event.attempt)]);
-			for (const kept of gestures.keys()) if (!liveAttempts.has(kept)) gestures.delete(kept);
+		const live = takeable();
+		if (live) {
+			for (const kept of gestures.keys()) if (!live.has(kept)) gestures.delete(kept);
 		}
 		gestures.set(attempt, {
 			...gestures.get(attempt),
@@ -4541,14 +4545,13 @@ function createUndo({ post, stateApplying, unaccountedGesture, openThread, threa
 			});
 		});
 	}
-	function undoLast() {
-		if (stateApplying() || unaccountedGesture()) {
-			raiseError(WAIT);
-			return null;
-		}
-		const event = undoable();
-		if (!event) return null;
-		const [entry] = runtime.undo;
+	function settled() {
+		if (!stateApplying() && !unaccountedGesture()) return true;
+		raiseError(WAIT);
+		return false;
+	}
+	function walkTo(entry) {
+		const { event } = entry;
 		const taking = armedFor(event) && !(armed.returns && entry.picked_up);
 		if (!taking && needsShowing(entry)) {
 			arm(event);
@@ -4561,6 +4564,21 @@ function createUndo({ post, stateApplying, unaccountedGesture, openThread, threa
 		if (returning) whenDocumentPresented().then(() => show(event, returning)).catch(() => {});
 		return answer;
 	}
+	function undoLast() {
+		if (!settled()) return null;
+		const [entry] = runtime.undo;
+		return entry?.newest ? walkTo(entry) : null;
+	}
+	const offerUndo = (attempt) => ({
+		action: "undo",
+		command: "history.undo",
+		run() {
+			if (!settled()) return null;
+			const entry = runtime.undo.find(({ event }) => event.attempt === attempt);
+			return entry ? walkTo(entry) : null;
+		},
+		stands: () => takeable()?.has(attempt) ?? true
+	});
 	pageCommand({
 		id: "history.undo",
 		ready: savedReadingSettled,
@@ -4575,6 +4593,7 @@ function createUndo({ post, stateApplying, unaccountedGesture, openThread, threa
 	});
 	return {
 		landedAway,
+		offerUndo,
 		returnToThread,
 		retainGesture,
 		undoable,
@@ -7280,6 +7299,7 @@ function mountApplication(dependencies) {
 		pendingEntries: ledger.snapshot,
 		actions: threadActions,
 		landedAway: undo.landedAway,
+		offerUndo: undo.offerUndo,
 		returnToThread: undo.returnToThread
 	};
 	const inlineView = {

@@ -9,7 +9,9 @@
 
    A sent settlement says what it did in the notice seat, since its landing may carry the
    user away from the thread and leave nothing on screen to say it was resolved, and
-   offers the press that takes it back, `z` (undo.js), which says the reverse. It names
+   offers the press that takes that settlement back, as `z` would (undo.js,
+   `offerUndo`), which says the reverse; the notice goes when the log refuses the
+   settlement or it is taken back, so its press never takes back another. It names
    the thread by the words it is about, as the thread's head quotes them, else by its
    name: "Resolved the thread" stood under the next thread a panel's Resolve moved the
    user on to, and read as that thread's (the user's choice, 31 October). */
@@ -48,6 +50,7 @@ export async function settleThread({
   pendingEntries,
   actions,
   landedAway,
+  offerUndo,
   returnToThread,
 }) {
   const land = prepareLanding?.();
@@ -59,7 +62,7 @@ export async function settleThread({
     : actions.resolve(key, { attempt });
   if (!answer) return;
   notice(`${resolved ? "Reopened" : "Resolved"} ${named}`, {
-    press: { command: "history.undo", action: "undo" },
+    press: offerUndo(attempt),
   });
   if (land) landedAway(attempt);
   await landGesture({

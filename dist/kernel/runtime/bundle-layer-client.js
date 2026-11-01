@@ -1,5 +1,5 @@
 import { ANNOUNCE, COMMANDS, PAGE_PAINT_ATTRIBUTE, ROLE_BUTTON_OFFER, actionName, actionTemplate, commandsChangedOn, elementDirective, exceptionText, failureContext, failureOf, generatedElement, isNativeLayer, keeps, keepsText, nextRender, offer, offerAction, refuseCommands, renderedParent, renderedUnder, showAction, under } from "./bundle-portable.js";
-import { AsyncDirective, CARET_KEYS, DELIVERY, PAGE_ROOT, PRESSES, PartType, TEXT_BOX, WORKS, Z, coarsePointer, controlNavigationKeys, directive, focusDestination, focusRevision, focused, html, leafSays, move, nothing, offlineInteractive, onCurrentLocation, onFocusVisibility, onUserInput, pageShadowRoots, pageUrl, pressIsKeyboardActivation, render, runtime, showNativeLayer, tagsDeclaring, takesLetters, wordsText, x } from "./bundle-layer-stack.js";
+import { AsyncDirective, CARET_KEYS, DELIVERY, PAGE_ROOT, PRESSES, PartType, TEXT_BOX, WORKS, Z, coarsePointer, controlNavigationKeys, d, directive, focusDestination, focusRevision, focused, html, leafSays, move, nothing, offlineInteractive, onCurrentLocation, onFocusVisibility, onUserInput, pageShadowRoots, pageUrl, pressIsKeyboardActivation, render, runtime, showNativeLayer, tagsDeclaring, takesLetters, wordsText, x } from "./bundle-layer-stack.js";
 
 //#region runtime/root-state.js
 const setRuntimeRootAttribute = (...args) => document.documentElement.lfRootState.setRuntimeRootAttribute(...args);
@@ -1599,6 +1599,7 @@ const liveEl = el("div", "lf-ui lf-live");
 liveEl.setAttribute("aria-live", "polite");
 const NOTICE_MS = 4e3;
 let noticeTimer = 0;
+let stopWatchingPress = () => {};
 let showingBackground = null;
 const waitingBackground = [];
 let userContext = false;
@@ -1630,9 +1631,14 @@ function showNotice(msg, background = null, press = null) {
 	presentNotice(msg, true, press);
 	showingBackground = background;
 	clearTimeout(noticeTimer);
+	stopWatchingPress();
 	if (!press) noticeTimer = setTimeout(retireNotice, NOTICE_MS);
+	else stopWatchingPress = x(() => {
+		if (!press.stands() && noticePresentation.peek().press === press) d(retireNotice);
+	});
 }
 function retireNotice() {
+	stopWatchingPress();
 	if (!userContext && !userHoldTimer && showBackground(waitingBackground.shift())) return;
 	presentNotice(noticePresentation.peek().message, false);
 	showingBackground = null;
@@ -1685,6 +1691,7 @@ function notice(msg, { background = false, announce: speak = true, group = null,
 function yieldNotice() {
 	if (showingBackground) queueBackground(showingBackground, true);
 	clearTimeout(noticeTimer);
+	stopWatchingPress();
 	presentNotice(noticePresentation.peek().message, false);
 	showingBackground = null;
 }

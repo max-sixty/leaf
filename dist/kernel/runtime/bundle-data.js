@@ -5370,17 +5370,14 @@ function settledName(key) {
 		quote: excerptWords(passage.quote, NAMED)
 	} : passage, thread.root.about) || quotedWords(threadName(thread), NAMED);
 }
-async function settleThread({ parent, key, resolved, prepareLanding, pendingEntries, actions, landedAway, returnToThread }) {
+async function settleThread({ parent, key, resolved, prepareLanding, pendingEntries, actions, landedAway, offerUndo, returnToThread }) {
 	const land = prepareLanding?.();
 	const since = inputCount();
 	const attempt = randomId();
 	const named = settledName(key);
 	const answer = resolved ? actions.reopen(key, { attempt }) : actions.resolve(key, { attempt });
 	if (!answer) return;
-	notice(`${resolved ? "Reopened" : "Resolved"} ${named}`, { press: {
-		command: "history.undo",
-		action: "undo"
-	} });
+	notice(`${resolved ? "Reopened" : "Resolved"} ${named}`, { press: offerUndo(attempt) });
 	if (land) landedAway(attempt);
 	await landGesture({
 		land,

@@ -7170,7 +7170,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			press: {
 				label: actionName(press.action),
 				keys: commandSteps(press.command),
-				run: () => executeCommand(press.command)
+				run: press.run
 			}
 		};
 	}

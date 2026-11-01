@@ -509,6 +509,72 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
     expect(page.locator(".lf-fp-leaf")).not_to_be_focused()
 
 
+def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
+    """The row's "Resolved “…” · Undo" names one gesture. The log refusing that
+    Resolve takes the notice away with it, and its press takes back that Resolve
+    even once another gesture of the user's is the newest, the one `z` would take: a
+    press that ran `z` took back an earlier gesture once its own was refused."""
+    url = serve(LONG_PAGE)
+    roots = {
+        text: panel_comment(serve.page_dir, text)
+        for text in (
+            "Is the window long enough?",
+            "Should the mobile cohort wait?",
+            "Who signs off the rollout?",
+        )
+    }
+    page = floating(browser, url)
+    open_threads(page)
+    page.locator(f"{panel_view('threads')} .lf-fp-thread").first.click()
+    thread = page.locator(panel_view("thread"))
+    title = page.locator(".lf-fp-head .lf-fp-title")
+    expect(thread).to_be_visible()
+    first = title.inner_text()
+    notice = page.locator(".lf-fp-row-notice")
+
+    held = []
+    page.route(
+        "**/api/event",
+        lambda route: (
+            held.append(route)
+            if route.request.post_data_json.get("kind") == "resolve"
+            else route.continue_()
+        ),
+    )
+    thread.focus()
+    page.keyboard.press("r")
+    holding(page, held, 1, "the resolve")
+    expect(notice).to_contain_text(f"Resolved “{first}” · Undo")
+    held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
+    page.unroute("**/api/event")
+    expect(title).to_have_text(first)
+    expect(notice).to_be_hidden()
+
+    thread.focus()
+    with sending(page, "the resolve"):
+        page.keyboard.press("r")
+    expect(title).not_to_have_text(first)
+    expect(notice).to_contain_text(f"Resolved “{first}” · Undo")
+    # Another tab of the user's resolves the thread left over, so `z` would take that.
+    (other,) = set(roots) - {first, title.inner_text()}
+    append_carried_log_record(
+        serve.page_dir, {"kind": "resolve", "author": "user", "parent": roots[other]}
+    )
+    told(page)
+    with sending(page, "the undo"):
+        notice.get_by_role("button").click()
+    events = events_model.read_events(serve.page_dir)
+    (resolved,) = (
+        event["id"]
+        for event in events
+        if event["kind"] == "resolve" and event["parent"] == roots[first]
+    )
+    assert [event["undoes"] for event in events if event["kind"] == "undo"] == [
+        resolved
+    ]
+    expect(title).to_have_text(first)
+
+
 def test_the_field_is_the_thread_s_reply_box(browser, serve):
     """The field a thread opens with is that thread's reply box, as a card's is: a rewrite
     opened on a message is a rung below it, so Escape or Save hands the caret back to

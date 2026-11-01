@@ -6,16 +6,18 @@
    one seat: the floating panel's seat for passing words, in place of the current walk
    position, which returns when the notice's time is up (floating-panel.js, `passing`). The
    live region hears the same words. It is text, but for the one press a notice of the
-   user's own gesture may carry: the page command that takes it back (`press`), which
-   the floating panel draws beside the words with its key, as "Resolved “One reconnect in
-   about 40” · Undo z" (floating-panel.js, `rowNotice`). The user chose that on 31
-   October, after a Resolve that moved the panel on left nothing there offering to take
-   it back; until then a notice was text alone, and what it named the panel's own
+   user's own gesture may carry: the press that takes that gesture back (`press`,
+   undo.js's `offerUndo`), which the floating panel draws beside the words with the key
+   of the page command that makes it too, as "Resolved “One reconnect in about 40” ·
+   Undo z" (floating-panel.js, `rowNotice`). The notice stands no longer than its
+   gesture does, so its press never takes back anything else. The user chose that on
+   31 October, after a Resolve that moved the panel on left nothing there offering to
+   take it back; until then a notice was text alone, and what it named the panel's own
    controls reached. There is no second surface for news, so nothing floats in a corner
    to become a stale pointer target. A failure is no news: it goes through errors.js,
    which keeps it until the user has dealt with it. */
 import { el } from "./widget-elements.js";
-import { signal } from "/runtime/framework.js";
+import { effect, signal, untracked } from "/runtime/framework.js";
 import { ANNOUNCE } from "./widget-upgrade.js";
 import { leafSays, wordsText } from "./voice.js";
 import { onUserInput } from "./focus.js";
@@ -29,14 +31,16 @@ liveEl.setAttribute("aria-live", "polite");
 const NOTICE_MS = 4000;
 
 let noticeTimer = 0;
+// Ends the watch on the standing notice's press (`showNotice`).
+let stopWatchingPress = () => {};
 let showingBackground = null;
 const waitingBackground = [];
 let userContext = false;
 let userHoldTimer = 0;
-// What the seat says, whether it shows, and the press it offers, or null: the page
-// command that takes back what it reports and the action that command is, as
-// `{command, action}`. Errors are no notices: they go through errors.js, which keeps
-// them until they are dealt with.
+// What the seat says, whether it shows, and the press it offers, or null: the action
+// it is, the page command whose key makes the same press, what it does, and whether it
+// still can, as `{action, command, run, stands}`. Errors are no notices: they go
+// through errors.js, which keeps them until they are dealt with.
 const noticePresentation = signal(
   Object.freeze({ message: "", visible: false, press: null }),
 );
@@ -79,18 +83,28 @@ function showNotice(msg, background = null, press = null) {
   presentNotice(msg, true, press);
   showingBackground = background;
   clearTimeout(noticeTimer);
+  stopWatchingPress();
   if (!press) noticeTimer = setTimeout(retireNotice, NOTICE_MS);
+  // A notice another has replaced is no longer this watch's to retire.
+  else
+    stopWatchingPress = effect(() => {
+      if (!press.stands() && noticePresentation.peek().press === press)
+        untracked(retireNotice);
+    });
 }
 function retireNotice() {
+  stopWatchingPress();
   if (!userContext && !userHoldTimer && showBackground(waitingBackground.shift()))
     return;
   presentNotice(noticePresentation.peek().message, false);
   showingBackground = null;
 }
 // A notice offering a press stands until the user's next input rather than for its
-// time. The panel gives its press room beside the field (floating-panel.js,
-// `rowNotice`), so one leaving on a timer moved the field's controls under nobody's
-// hand. An input on the press itself, which carries `NOTICE_PRESS`, keeps it.
+// time, and no longer than its press can act: a gesture the log refused, or one taken
+// back by any route, takes its notice away. The panel gives its press room beside the
+// field (floating-panel.js, `rowNotice`), so one leaving on a timer moved the field's
+// controls under nobody's hand. An input on the press itself, which carries
+// `NOTICE_PRESS`, keeps it.
 const NOTICE_PRESS = "data-lf-notice-press";
 onUserInput((event) => {
   if (!noticePresentation.peek().press) return;
@@ -164,6 +178,7 @@ export function notice(
 function yieldNotice() {
   if (showingBackground) queueBackground(showingBackground, true);
   clearTimeout(noticeTimer);
+  stopWatchingPress();
   presentNotice(noticePresentation.peek().message, false);
   showingBackground = null;
 }

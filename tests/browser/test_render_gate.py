@@ -2610,8 +2610,11 @@ def test_a_row_at_a_frame_edge_holds_the_trim_by_declaring_it(browser, serve, su
                 "Split rows",
                 "<h1>Rows</h1>"
                 + "".join(rows(display, frame) for display, frame in cases)
+                # Column items declare their end edge; keep the unframed controls
+                # inside one item, followed by text that receives that edge.
+                + "<div>"
                 + deliberate
-                + "<p>Following text keeps the rows away from the page frame's edges.</p>",
+                + "<p>Following text keeps the rows away from the page frame's edges.</p></div>",
             )
         ),
     )

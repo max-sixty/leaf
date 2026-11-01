@@ -3332,12 +3332,10 @@ function constructSheet(text) {
 const chromeSheet = constructSheet(sheets.chrome);
 const chromeSharedClasses = Object.freeze([
 	"lf-aiming",
-	"lf-ins-block",
 	"lf-over-item",
 	"lf-react-mark",
 	"lf-mark-note",
 	"lf-ui",
-	"lf-version-inline",
 	"lf-version-inline-deletion",
 	"lf-visual-action"
 ]);

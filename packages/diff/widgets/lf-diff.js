@@ -1707,6 +1707,17 @@ customElements.define(
       return line ? projectedDatum(this, diffDatumKey(line)) : null;
     }
 
+    // A file navigation opens its evidence from the beginning. Its comment datum
+    // stays on the header, which can remain visible while stuck over later lines.
+    /** @param {string} key @returns {Element[]} */
+    lfElementsFor(key) {
+      const coordinate = readDiffCoordinate(key);
+      const node = coordinate?.file
+        ? findDiffFile(this.fileEntries, coordinate)?.node
+        : this.lfDataDatum(key);
+      return node ? [node] : [];
+    }
+
     // A datum's label is its coordinate's, so a thread on a line of a file not yet
     // loaded is named as the drawn line will be.
     /** @param {string} key */

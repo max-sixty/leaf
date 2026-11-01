@@ -95,7 +95,7 @@ import {
   createCommandHints,
 } from "./runtime/keyboard/command-hints.js";
 import { createDesignMode, inspectEl, legendRoot } from "./runtime/design.js";
-import { atWorkLayer } from "./runtime/at-work.js";
+import { marginBarLayer } from "./runtime/margin-bars.js";
 import { createPageLayout } from "./runtime/page-layout.js";
 import { restoreUserView } from "./runtime/restore-state.js";
 import { createVersionController, takeInitialDocument } from "./runtime/version.js";
@@ -716,7 +716,7 @@ async function boot() {
     );
     chromeRoot.append(
       legendRoot,
-      atWorkLayer,
+      marginBarLayer,
       ...(visualMarkPaint ? [visualMarkPaint.layer] : []),
       drawingPaint.layer,
       fabBar,

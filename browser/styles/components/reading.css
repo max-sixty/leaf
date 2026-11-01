@@ -184,7 +184,7 @@
 :where(:root, .lf-thread-transcript) caption {
   position: sticky;
   --lf-head-inset: 0px;
-  inset-inline-start: 0;
+  inset-inline: 0;
   max-inline-size: 100cqi;
 }
 /* A cell's marks, the ring of a cell the user is on, as a thread's target once its card
@@ -224,6 +224,42 @@
   .lf-media-frame {
     outline: 1px solid CanvasText;
   }
+}
+
+/* A list of facts, each label beside its value: a page's summary facts (`dl.facts`,
+ * the reading theme's) and every set of labelled values Leaf shows itself
+ * (`dl.lf-facts`), such as About's counts and a capture's details. One layout for
+ * all of them, so a reader learns where a value stands once. The labels take a
+ * column as wide as the longest of them, up to two fifths of the list, and wrap past
+ * that, so a long label never leaves its value a ribbon of a few words a line; the
+ * values take the rest and line up on one edge. A `div` may hold a label with its
+ * value, as HTML allows. It is a component rather than part of the face, so it holds
+ * on any page and in a widget's slotted content, which a declared shadow tree keeps
+ * out of the face (`:host`, above). */
+dl:is(.facts, .lf-facts) {
+  display: grid;
+  grid-template-columns: fit-content(40%) minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--sp-1) var(--sp-3);
+}
+dl:is(.facts, .lf-facts) > div {
+  display: contents;
+}
+dl:is(.facts, .lf-facts) dt {
+  color: var(--muted);
+  font-weight: 400;
+}
+/* A label stands a step below its value. Leaf's own lists sit among the interface's
+ * words, so their labels take its small font, as a field's label over its box does; a
+ * page's labels step down from its prose in its theme (the reading theme's
+ * `dl.facts dt`). */
+dl.lf-facts dt {
+  font: var(--font-small);
+}
+dl:is(.facts, .lf-facts) dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
 }
 
 @layer lf-reading-face {
@@ -523,7 +559,6 @@
     dd {
       margin: 0 0 8px 0;
     }
-
     /* The apparatus face, said once per layer. Every label, caption, chip, badge,
      * disclosure summary and column heading on the page is the page pointing at its own
      * content rather than saying something — so it takes the UI sans at a small size,

@@ -82,7 +82,7 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     metadata = thread.locator(".lf-msg").first.locator(":scope > .lf-msg-head")
     receipt = metadata.locator(".lf-msg-sending")
     expect(receipt).to_have_text("Replying")
-    news = page.locator(".lf-fp-controls .lf-thread-news")
+    news = page.locator(".lf-fp-head .lf-thread-news")
 
     def receipt_words():
         return receipt.evaluate("""node => {

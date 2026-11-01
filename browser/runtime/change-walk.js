@@ -2,8 +2,8 @@
 /* The change walk: `h` and Shift+`h` step through the blocks the version comparison
    marks (version.js, `comparisonChanges`), in the page's order, coming round at either
    end, whatever started the comparison: a Compare in Versions, or the page marking what
-   changed since the user was last shown it (since-seen.js). A diff reader's next and
-   previous hunk, which is what the letter stands for.
+   changed since the user was last shown it (since-seen.js, turned off for now). A diff
+   reader's next and previous hunk, which is what the letter stands for.
 
    A step starts from the user's place by the rule every page walk shares
    (current-target.js, `walkOrigin` and `stepFrom`), and lands on the changed block
@@ -11,17 +11,17 @@
    every walk says it (walk-position.js). The change's margin entry opens what the
    block said before (version.js, `toggleInlineComparison`).
 
-   The marks stand until the reader stops them, with Escape once nothing nearer is
-   open or with Stop marking changes in the leaf's menu. That is not a stance
-   (keyboard/touch-controls.js): marks can stand a whole visit, and a stance's ✕ would
-   hold the panel's On me chip for all of it. A finger needs no row for the walk
-   (keyboard/AGENTS.md, "Touch routes"): every change is marked where it stands, and
-   its margin entry and Page Map row reach it with a tap. */
-import { comparisonBase, comparisonChanges, stopComparison } from "./version.js";
+   The marks are annotations, so `o` hides them with the rest, and nothing here stops
+   them: an offered comparison gives way to the next one a return brings
+   (since-seen.js), and a chosen one ends with its Compare in Versions. The user decided
+   on 31 October against a stop of their own, an Escape step and a menu row, which no
+   other annotation has. A finger needs no row for the walk (keyboard/AGENTS.md, "Touch
+   routes"): every change is marked where it stands, and its margin entry and Page Map
+   row reach it with a tap. */
+import { comparisonBase, comparisonChanges } from "./version.js";
 import { effect, untracked } from "/runtime/framework.js";
-import { pageCommand, pageRung } from "./keyboard/register.js";
+import { pageCommand } from "./keyboard/register.js";
 import { paintKeys } from "./keyboard/scopes.js";
-import { nativeLayers } from "./keyboard/layer-stack.js";
 import { cycledRow } from "./keyboard/bindings.js";
 import { currentLocationOrigin, stepFrom, walkOrigin } from "./current-target.js";
 import { focusDestination } from "./focus.js";
@@ -72,22 +72,6 @@ export function createChangeWalk() {
   const offered = () => comparisonChanges().length > 0;
   let wasOffered = false;
   let watching = null;
-  // Marks stand until the reader stops them: Escape, once nothing nearer is open, and a
-  // row of the leaf's menu for a pointer or a finger. Under an open native layer, as
-  // under the page's own rung, Escape is that layer's.
-  pageRung("changes", () =>
-    offered() && !nativeLayers().length
-      ? { title: "stop marking changes", out: stopComparison }
-      : null,
-  );
-  pageCommand({
-    id: "change.marks.stop",
-    keys: [],
-    title: "stop marking changes",
-    touch: "Stop marking changes",
-    when: offered,
-    run: stopComparison,
-  });
   pageCommand({
     id: "change.walk",
     touch: false,

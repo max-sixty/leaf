@@ -1,8 +1,8 @@
 /* Code as tokens: the one tokenizing engine, its grammars, and the nodes and lines a
    caller builds from what it returns. It loads in any document (portable-api.js): it
    reads nothing Leaf composes into a page, and a failure is the caller's to report, as a
-   widget reports one through `failSoft`. The page's own code blocks and the language a
-   path means are syntax.js's, since both read Leaf's registry. */
+   widget reports one through `failSoft`. syntax.js highlights the page's own blocks;
+   language-paths.js reads the host's declared file-extension map. */
 import { syntaxLanguages } from "./syntax-languages.js";
 
 // Ordinary code and Pierre's diffs share one Shiki engine and theme. Colors

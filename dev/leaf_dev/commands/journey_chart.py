@@ -43,6 +43,7 @@ def chart_target(sample: dict) -> str:
     return (
         TARGET_NAMES.get(sample["target"], sample["target"])
         + (" through a preview" if sample.get("preview") else "")
+        + (" with forks" if sample.get("forks") else "")
         + (" over HTTP" if sample.get("userEnd") == "http" else "")
     )
 

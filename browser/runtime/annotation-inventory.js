@@ -559,7 +559,7 @@ export function createAnnotationInventory({
       add(groups, target, {
         kind: "activity",
         id: `todo:${todo.id}`,
-        // A start running on it is the agent at work there (at-work.js).
+        // A start running on it is the agent at work there (margin-bars.js).
         atWork: Boolean(running),
         text: labelWords(account),
         words: [

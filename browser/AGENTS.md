@@ -43,10 +43,11 @@ own (`../SOUL.md`, "Keep the foundation small and extensible").
   hover, focus or a key never moves its ancestors or siblings, and typing may grow a
   field but never moves it. Check: `tests/shift_watch.js`, whose header lists what it
   credits.
-- **A box's controls stand on an edge the box holds as its content changes.** The same
-  control may therefore stand at a thread card's head and at the floating panel's foot;
-  each box's header says which edge it holds (`floating-panel.js`, **Opened**;
-  `thread/card-anchor.js`).
+- **A box's controls stand on an edge the box holds as its content changes**, or the
+  box holds its size while they act. A thread card holds its head's edge; the floating
+  panel, standing on the window's foot, holds a list's foot, and a thread's height while
+  a press on its head line acts. Each box's header says how (`floating-panel.js`,
+  **Opened**; `thread/card-anchor.js`).
 - **News never moves what the reader is reading.** News from the server grows above the
   screen, where scroll anchoring absorbs it, or below it; anywhere else it waits behind a
   fixed-size control until the reader goes to it, and an editor in use stays still. An
@@ -283,7 +284,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Anchor placement, decoration and travel                                                                     | `anchor-placement.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `target-paint-geometry.js`, `visual-parts.js`   |
 | Page status and what a user copies about the page                                                           | `page-status.js`, `page-about.js`, `heading-links.js`                                                                                                      |
 | Neighboring pages                                                                                           | `live-leaves.js`                                                                                                                                           |
-| Activity and reports                                                                                        | `presence.js`, `activity-words.js`, `reports.js`, `at-work.js`                                                                                             |
+| Activity and reports                                                                                        | `presence.js`, `activity-words.js`, `reports.js`, `margin-bars.js`                                                                                         |
 | Notices, errors and announcements                                                                           | `semantic-news.js`, `notifications.js`, `errors.js`, `keyboard/status-context.js`                                                                          |
 | Reactions and design review                                                                                 | `reactions.js`, `design.js`, `design-readings.js`                                                                                                          |
 | Presentation and validation                                                                                 | `presentation.js`, `declared-words.js`, `validation.js`, `leaf-element.js`                                                                                 |

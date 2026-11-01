@@ -46,7 +46,10 @@ import { createPlayground } from "./playground-view.js";
  * The submit control withdraws the current choice while its values and instruction
  * match the working configuration; editing either makes it submit a replacement. Its
  * face derives from that comparison, never from delivery timing or a separate saved
- * flag.
+ * flag. Each draw resolves a provider's instruction once; the view, command availability,
+ * copying and submission consume that same text. An external input the element cannot
+ * observe requests an update, as other inputs outside its reading do. Command reads
+ * never call page code that prepares its next presentation.
  *
  * Under `actions="page"` the page draws the submission and Reset, and
  * `registerActions` hands this playground the two buttons. They become the controls of
@@ -186,6 +189,8 @@ customElements.define(
     #pause = 0;
     /** @type {((configuration: Configuration) => string) | null} */
     #instructionProvider = null;
+    /** @type {{value: string | null} | {error: unknown}} */
+    #renderedInstruction = { value: null };
     get #preview() {
       return this.#view.preview;
     }
@@ -678,8 +683,9 @@ customElements.define(
     }
 
     #instruction() {
-      const provided = this.#providedInstruction();
-      if (provided !== null) return provided;
+      if ("error" in this.#renderedInstruction) throw this.#renderedInstruction.error;
+      if (this.#renderedInstruction.value !== null)
+        return this.#renderedInstruction.value;
       return says(this.#view.output, { format: "lines" }).trim();
     }
 
@@ -742,9 +748,15 @@ customElements.define(
           ...Object.fromEntries(unsent),
         });
       }
+      try {
+        this.#renderedInstruction = { value: this.#providedInstruction() };
+      } catch (error) {
+        this.#renderedInstruction = { error };
+        throw error;
+      }
       const template = this.#view.render({
         values: this.#values,
-        instruction: this.#providedInstruction(),
+        instruction: this.#renderedInstruction.value,
         chosen: () => this.#chosen(),
       });
       this.#paint();

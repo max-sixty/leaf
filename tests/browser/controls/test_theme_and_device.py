@@ -11,6 +11,7 @@ from render_harness import (
     open_page,
     open_threads,
     page_comment,
+    panel_menu,
     panel_settled,
     resized,
     write,
@@ -228,8 +229,7 @@ def test_coarse_pointer_panel_lists_give_humane_aims(browser, serve):
     humane(page.locator(".lf-fp-thread:visible"), "Threads row")
     page.locator(".lf-fp-close").tap()
     panel_settled(page, open=False)
-    page.locator(".lf-fp-leaf").tap()
-    humane(page.locator(".lf-fp-menu .lf-fp-item:visible"), "menu row")
+    humane(panel_menu(page, touch=True).locator(".lf-fp-item:visible"), "menu row")
 
 
 def test_a_run_with_nothing_to_break_on_stays_inside_the_box_holding_it(browser, serve):

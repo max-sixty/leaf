@@ -18,6 +18,7 @@ from render_cases_navigation import (
     painted,
 )
 from render_harness import (
+    close_panel_menu,
     draft_control,
     expect_comment_notes,
     open_page,
@@ -107,7 +108,7 @@ def test_page_round_trip(browser, serve):
     expect(
         panel_menu(page).locator('.lf-fp-item[data-row="versions"]')
     ).to_contain_text("v2")
-    page.locator(".lf-fp-leaf").click()
+    close_panel_menu(page)
     assert "/versions/" not in page.url
     # The anchor pass runs at render: a mark now means the quote was re-found in
     # its new position; no mark within the wait means the anchor lost it.

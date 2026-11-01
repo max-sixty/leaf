@@ -192,9 +192,10 @@ export const nextAnimation = (callback) => requestAnimationFrame(callback);
 export const cancelAnimation = (id) => cancelAnimationFrame(id);
 
 /** Withdraw a callback `nextRender` or `nextFrame` queued.
- * @param {number} id
+ * @param {number | null | undefined} id
  */
 export function cancelRender(id) {
+  if (id == null) return;
   for (const queue of [queued, afterPaint, running]) {
     const job = queue?.get(id);
     if (!job) continue;
@@ -378,9 +379,7 @@ export function afterSettling(settled) {
 }
 
 // Nothing has been heard yet: the page is unsettled until its first quiet update.
-onFrameVisibility(
-  (/** @type {NonNullable<ReturnType<typeof frameVisibility>>} */ visibility) => {
-    if (visibility.visible) unsettle();
-  },
-);
+onFrameVisibility((visibility) => {
+  if (visibility?.visible) unsettle();
+});
 unsettle();

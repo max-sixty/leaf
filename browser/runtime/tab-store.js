@@ -5,8 +5,9 @@
    It loads in any document (portable-api.js). A document Leaf did not compose has no
    prepaint and so no store, and a widget there keeps nothing: each read answers null and
    each write is refused, as a store the browser has switched off answers. */
+
 /** @type {LeafStore} */
-export const tabStore = document.documentElement.lfStorage?.tabStore ?? {
+export const tabStore = window.lfStorage?.tabStore ?? {
   read: () => ({ available: false, value: null }),
   get: () => null,
   set: () => false,

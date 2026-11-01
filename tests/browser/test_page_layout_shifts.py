@@ -3,7 +3,7 @@
 import pytest
 from model_folds import leaf_page
 
-from leaf.render_checks import evaluate_probe, rendered, wait_until_ready
+from leaf.render_checks import evaluate_probe, observe_probe, rendered, wait_until_ready
 from leaf.render_gate import readings
 
 
@@ -77,21 +77,20 @@ def test_shift_observation_windows_do_not_share_movement(browser, serve):
         rendered(page)
         grow(140)
         before = page.locator("#below").bounding_box()["y"]
-        evaluate_probe(page, "startPassiveLayoutShifts")
-        grow(200)
-        # Attribution belongs to the painted movement even if a later revision
-        # removes its source before the gate asks for the interval's findings.
-        page.locator("#below").evaluate("el => el.remove()")
-        passive = evaluate_probe(page, "finishPassiveLayoutShifts")
+        with observe_probe(page, "passiveLayoutShifts") as passive:
+            grow(200)
+            # Attribution belongs to the painted movement even if a later revision
+            # removes its source before the gate asks for the interval's findings.
+            page.locator("#below").evaluate("el => el.remove()")
         movement = next(
             finding for finding in passive if finding["at"] == "<p id=below>"
         )
         assert movement["before"]["y"] == pytest.approx(before)
         assert movement["after"]["y"] == pytest.approx(before + 60)
         assert [finding["at"] for finding in passive] == ["<p id=below>"]
-        evaluate_probe(page, "startPassiveLayoutShifts")
-        rendered(page)
-        assert evaluate_probe(page, "finishPassiveLayoutShifts") == []
+        with observe_probe(page, "passiveLayoutShifts") as unchanged:
+            rendered(page)
+        assert unchanged == []
     finally:
         page.close()
 

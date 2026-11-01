@@ -27,6 +27,7 @@
 import { signal } from "/runtime/framework.js";
 import { afterScript } from "./rendering.js";
 
+/** @type {readonly string[]} */
 const EMPTY = Object.freeze([]);
 
 // Where each contributor's rows stand, among the others'.
@@ -57,16 +58,19 @@ export const PAGE_CONTROL_RANK = Object.freeze({
 // reads stays short and a finger keeps a way to each.
 const GROUPS = Object.freeze(["page", "navigate", "annotate", "keys"]);
 
+/** @type {Map<string, PageControl & {sequence: number}>} */
 const rows = new Map();
 let sequence = 0;
 const revision = signal(0);
 
+/** @template {string | boolean | readonly string[] | null | undefined} T
+ * @param {T | (() => T)} value @returns {T} */
 const read = (value) => (typeof value === "function" ? value() : value);
 
 /**
  * Register one row of the page's controls.
  *
- * @param {{
+ * @typedef {{
  *   key: string,
  *   rank: number,
  *   label: string | (() => string),
@@ -80,9 +84,10 @@ const read = (value) => (typeof value === "function" ? value() : value);
  *   disabled?: boolean | (() => boolean),
  *   exit?: boolean,
  *   action?: string | (() => string),
- *   press?: (held?: any) => void,
- * }} row
+ *   press?: (held: import("./history.js").WorkingPlace | null) => unknown,
+ * }} PageControl
  */
+/** @param {PageControl} row */
 export function registerPageControl(row) {
   if (!row.key || !Number.isFinite(row.rank) || !row.label || !row.group)
     throw new TypeError(

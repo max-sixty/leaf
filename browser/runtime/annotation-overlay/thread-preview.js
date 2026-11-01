@@ -40,6 +40,7 @@ import {
   moveScrollerBy,
   pageScroller,
   scrollToEnd,
+  scrollLimit,
 } from "../scrolling.js";
 import { cancelRender, nextRender, sizeObserver } from "../rendering.js";
 import { spokenSubject } from "../contribution-model.js";
@@ -80,7 +81,12 @@ import {
   makeRoom,
 } from "./comment-placement.js";
 import { passageGeometry } from "../resolved-target.js";
-import { floatingPlacement, floatingUi, heldEdges } from "./floating.js";
+import {
+  floatingPlacement,
+  floatingUi,
+  floatingGeometry,
+  heldEdges,
+} from "./floating.js";
 import { surfaceGrip } from "./surface-grip.js";
 import { placeKeeper } from "../user-place.js";
 import { renderedOrder, renderedUnder, under } from "../shadow.js";
@@ -92,6 +98,23 @@ import { releaseReplies } from "../thread/replies.js";
 import { keepThreadLanding, showReturnTurn } from "../thread/reply-landing.js";
 import { CardAnchor } from "../thread/card-anchor.js";
 
+/** @typedef {import("../annotation-inventory.js").InventoryEntry} Entry
+ * @typedef {import("../margin-model.js").ThreadItem} Item
+ * @typedef {import("../margin-model.js").ThreadChoice} Choice
+ * @typedef {import("../thread/workflow.js").ThreadRecord} ThreadRecord
+ * @typedef {NonNullable<ReturnType<ReturnType<typeof import("./composing/floating-response.js").createFloatingResponsePlacement>["frame"]>>} Origin
+ * @typedef {{entry: Entry, choice: Choice, threadItem: string, control: Element | null,
+ * accompanies: boolean, forced: boolean, disclosed: boolean}} Selection
+ * @typedef {Selection & {item: Item, preparing: boolean, latest: {id: string, text: string | undefined} | null,
+ * arriving: boolean, sent: Pick<Origin, "fromEnd" | "field"> | null, away: boolean,
+ * positionFrame: number, positionResult: PromiseWithResolvers<boolean> | null,
+ * focusPending: {holding: Element | null} | null, withheldFocus: ReturnType<typeof holdFocus>,
+ * transcript: HTMLElement | null, place: ReturnType<typeof placeKeeper> | null,
+ * stopRegion: (() => void) | null, side: ReturnType<typeof commentPlacement>, anchor: CardAnchor,
+ * reading: {input: number, scroll: number, end: boolean} | null, itemView: {node: HTMLElement, body: HTMLElement} | null, width: number | null, scroller: Element, followed: boolean}} Session
+ * @typedef {{latest: boolean, end: boolean, scroll: number, keepTop: boolean, transcript: HTMLElement}} Reading
+ */
+
 // A margin card's reply box.
 const REPLY_BOX = `.lf-thread-reply ${TEXT_FIELD}`;
 // Where a reading region cuts the card, inward from each of its edges.
@@ -102,6 +125,12 @@ const CUT_EDGES = [
   "--lf-cut-left",
 ];
 
+/** @param {{inventory: ReturnType<typeof import("../annotation-inventory.js").createAnnotationInventory>,
+ * renderMarginThread: (host: HTMLElement, thread: ThreadRecord, controls: import("../thread/thread-card.js").MarginControls) => ReturnType<typeof import("../thread/inline.js").renderMarginThread>,
+ * placedAt: ReturnType<typeof import("../anchor-placement.js").createAnchorPlacement>["placedAt"],
+ * scrollThreadIntoView: typeof import("../thread/reply-landing.js").scrollThreadIntoView,
+ * scrollToElement: ReturnType<typeof import("../anchor-travel.js").createAnchorTravel>["scrollToElement"],
+ * openInPanel: (id: string) => unknown, onClose: (selection: Selection | null) => void}} dependencies */
 export function createThreadPreview({
   inventory,
   renderMarginThread,
@@ -111,13 +140,17 @@ export function createThreadPreview({
   openInPanel,
   onClose,
 }) {
-  const { targetFor, entryPoint, entryPlace, sourceItem } = inventory;
+  /** @type {Session | null} */
+  let previewSession = null;
+  const { targetFor, entryPoint, entryPlace } = inventory;
   // The card is the margin's, as the cluster it hangs from is, rather than a layer over
   // the page: a top-layer popover made every press on the page a light dismissal and
   // tiered the keyboard over it, so being on the passage it discusses took it down.
   // It shows while the user is at its target (`followCurrentLocation`).
   const preview = el("aside", "lf-ui lf-margin-preview");
   preview.id = THREAD_CARD;
+  // A public part a theme restyles (`layer.chrome_restyle`), its ground inside it.
+  preview.setAttribute("part", "card");
   preview.hidden = true;
   preview.setAttribute("role", "dialog");
   const previewOpen = () => previewSession !== null;
@@ -212,6 +245,7 @@ export function createThreadPreview({
     previewSession?.control?.checkVisibility() ? previewSession.control : null;
   const onOpener = () => Boolean(opener()) && focused() === opener();
   // The stops in `root` before (-1) or after (1) `at`, in the browser's order.
+  /** @param {Element} root @param {Element} at @param {number} side */
   const stopsBeside = (root, at, side) =>
     tabStops(root).filter(
       (stop) =>
@@ -219,8 +253,13 @@ export function createThreadPreview({
         !renderedUnder(at, stop) &&
         Math.sign(renderedOrder(stop, at)) === side,
     );
-  const atCardEdge = (side) =>
-    Boolean(opener()) && stopsBeside(preview, focused(), side).length === 0;
+  /** @param {number} side */
+  const atCardEdge = (side) => {
+    const at = focused();
+    return (
+      at !== null && Boolean(opener()) && stopsBeside(preview, at, side).length === 0
+    );
+  };
   keys(preview, null, [
     {
       id: "margin.card.back",
@@ -229,7 +268,10 @@ export function createThreadPreview({
       repeat: true,
       runFromCommandReference: false,
       when: () => atCardEdge(-1),
-      run: () => focusDestination(opener(), "step"),
+      get run() {
+        const target = opener();
+        return target ? () => focusDestination(target, "step") : undefined;
+      },
     },
     {
       id: "margin.card.onward",
@@ -239,7 +281,10 @@ export function createThreadPreview({
       repeat: true,
       runFromCommandReference: false,
       when: () => atCardEdge(1),
-      run: () => focusDestination(opener(), "return"),
+      get run() {
+        const target = opener();
+        return target ? () => focusDestination(target, "return") : undefined;
+      },
     },
   ]);
   // The entry's half, which the margin declares on its rows.
@@ -251,7 +296,10 @@ export function createThreadPreview({
       repeat: true,
       runFromCommandReference: false,
       when: () => onOpener() && tabStops(preview).length > 0,
-      run: () => focusDestination(tabStops(preview)[0], "step"),
+      get run() {
+        const target = tabStops(preview)[0];
+        return target ? () => focusDestination(target, "step") : undefined;
+      },
     },
     {
       id: "margin.card.over",
@@ -260,8 +308,14 @@ export function createThreadPreview({
       native: true,
       repeat: true,
       runFromCommandReference: false,
-      when: () =>
-        onOpener() && under(stopsBeside(chromeRoot, opener(), -1).at(-1), preview),
+      when: () => {
+        const target = opener();
+        return (
+          target !== null &&
+          onOpener() &&
+          under(stopsBeside(chromeRoot, target, -1).at(-1), preview)
+        );
+      },
       run: () => focusDestination(preview, "return"),
     },
   ];
@@ -279,22 +333,22 @@ export function createThreadPreview({
   let previewRegionMounted = false;
   // The card's transcript is re-rendered on every reading of its thread; a message holds
   // the user's place in it under the event id it is rendered with (user-place.js).
-  function syncPreviewTranscript() {
-    const transcript = previewList.querySelector(".lf-thread-transcript");
-    if (transcript === previewSession.transcript) return;
-    previewSession.stopRegion?.();
-    previewSession.stopRegion = null;
-    previewSession.transcript = transcript;
-    previewSession.place = transcript
+  /** @param {Session} session @param {ReturnType<typeof import("../thread/inline.js").renderMarginThread>[number]} reading */
+  function syncPreviewTranscript(session, { thread: card, transcript }) {
+    if (transcript === session.transcript) return;
+    session.stopRegion?.();
+    session.stopRegion = null;
+    session.transcript = transcript;
+    session.place = transcript
       ? placeKeeper(transcript, {
           items: ".lf-msg[data-event]",
-          identity: (message) => message.dataset.event,
+          identity: (message) => message.getAttribute("data-event"),
         })
       : null;
     if (previewRegionMounted && transcript) {
       // The transcript's width and shown turns when its gutter was last decided.
       let decided = "";
-      previewSession.stopRegion = registerReadingRegion({
+      session.stopRegion = registerReadingRegion({
         id: THREAD_CARD,
         host: preview,
         body: transcript,
@@ -314,6 +368,7 @@ export function createThreadPreview({
           // next frame, and so on every frame. A transcript that stops overflowing
           // otherwise, as when the window grows taller or the reply box empties,
           // keeps its words the gutter's width narrower until then.
+          /** @type {NodeListOf<HTMLElement>} */
           const messages = transcript.querySelectorAll(":scope > .lf-msg");
           const overflows = transcript.scrollHeight > transcript.clientHeight;
           const shown = [...messages].filter((message) => !message.hidden).length;
@@ -348,7 +403,6 @@ export function createThreadPreview({
               }
             }
           }
-          const card = transcript.parentElement;
           card.style.setProperty("--lf-thread-fade-top", layoutPx(edge));
           card.style.setProperty("--lf-thread-fade-height", layoutPx(height));
           keeps(card, "data-lf-scrolled", above ? "" : null);
@@ -359,7 +413,6 @@ export function createThreadPreview({
       });
     }
   }
-  let previewSession = null;
   const placementDriver = floatingPlacement({
     floating: preview,
     update: () => scheduleThreadPreviewPosition(),
@@ -368,12 +421,13 @@ export function createThreadPreview({
   // A placement lands in the microtasks after it starts, before the frame paints. One
   // that cannot land yet — its owner not connected, no room — is answered by a later
   // placement, or by the close that abandons it.
-  const placedThreadPreview = () => {
-    previewSession.positionResult ??= Promise.withResolvers();
-    cancelRender(previewSession.positionFrame);
-    previewSession.positionFrame = 0;
+  /** @param {Session} session */
+  const placedThreadPreview = (session) => {
+    session.positionResult ??= Promise.withResolvers();
+    cancelRender(session.positionFrame);
+    session.positionFrame = 0;
     placeThreadPreview();
-    return previewSession.positionResult.promise;
+    return session.positionResult.promise;
   };
   // Floating UI follows what moves the card's target: its scroll containers, the window
   // and visual viewport, and the target and card changing size or moving.
@@ -381,13 +435,14 @@ export function createThreadPreview({
   // nothing it held: the edge it was held by, the frame queued, and any answer in flight
   // are dropped, and the placement rewrites only what moved. A card with no spot yet is
   // unplaced, and chrome.css keeps an unplaced card unseen and out of reach.
-  function forgetThreadPreviewPlacement() {
+  /** @param {Session} session */
+  function forgetThreadPreviewPlacement(session) {
     placementDriver.supersede();
-    cancelRender(previewSession.positionFrame);
-    previewSession.positionFrame = 0;
-    previewSession.side.forget();
-    previewSession.anchor.forget();
-    previewSession.away = false;
+    cancelRender(session.positionFrame);
+    session.positionFrame = 0;
+    session.side.forget();
+    session.anchor.forget();
+    session.away = false;
   }
   function retirePreviewSession() {
     carry.placed();
@@ -403,14 +458,14 @@ export function createThreadPreview({
   }
   // A card's focus waits for its placement; a newer input the user gave meanwhile, or
   // focus they took elsewhere, keeps them where they went.
-  function deferThreadPreviewFocus(positioned, focus) {
+  /** @param {Promise<boolean>} positioned @param {() => void} focus @param {Session} session */
+  function deferThreadPreviewFocus(positioned, focus, session) {
     const mayFocus = retainUserIntent();
-    const session = previewSession;
     const pending = { holding: focused() };
-    previewSession.focusPending = pending;
+    session.focusPending = pending;
     void positioned?.then((placed) => {
       if (previewSession !== session || session.focusPending !== pending) return;
-      previewSession.focusPending = null;
+      session.focusPending = null;
       const holdingGone =
         focused() === document.body &&
         (!pending.holding?.isConnected || !pending.holding?.checkVisibility());
@@ -422,18 +477,28 @@ export function createThreadPreview({
   // Placement supplies the outer bounds; the native tracks share them between
   // reading and writing. A scroll that only carries a fitting card writes nothing;
   // clipped contents receive newly available room without requiring a complete fit.
-  function measureThreadCard(room, cap, reading) {
+  /** @param {number} room @param {number} cap @param {Reading | null} reading @param {Session} session */
+  function measureThreadCard(room, cap, reading, session) {
     preview.style.setProperty("--lf-thread-width", layoutPx(room));
+    const transcript = session.transcript;
+    // Growing a top-held card may reveal new words below, but must not reveal lines
+    // the reader had already scrolled past. Leave that scroll travel in its transcript.
+    // Follow the tail only after this fit, when the available room is known.
+    if (reading?.keepTop && transcript)
+      cap = Math.min(
+        cap,
+        preview.offsetHeight + Math.max(0, scrollLimit(transcript) - reading.scroll),
+      );
     const worn = parseFloat(preview.style.getPropertyValue("--lf-thread-max-height"));
     const height = preview.offsetHeight;
     const overflow = [
-      previewSession.transcript,
+      session.transcript,
       ...previewList.querySelectorAll(REPLY_BOX),
     ].some((box) => box && box.scrollHeight > box.clientHeight + 0.5);
     if (!(worn >= 0) || cap < height - 0.5 || (overflow && cap > height + 0.5))
       preview.style.setProperty("--lf-thread-max-height", layoutPx(cap));
-    if (reading?.latest) showArrival(previewSession);
-    else if (reading?.end) scrollToEnd(previewSession.transcript);
+    if (reading?.latest) showArrival(session, reading.transcript);
+    else if (reading?.end) scrollToEnd(reading.transcript);
     return preview.getBoundingClientRect().height;
   }
   // A card opens on its first unread turn, else its latest, at that turn's start
@@ -441,50 +506,60 @@ export function createThreadPreview({
   // its words as far above its end as the box it replaces stood them, which shares
   // its text column and its foot, so the words the user was reading stay where they
   // were.
-  function showArrival(session) {
-    if (!session.sent)
-      return showReturnTurn(session.transcript, threadCardThread(session));
-    scrollToEnd(session.transcript);
-    moveScrollerBy(session.transcript, -session.sent.fromEnd);
+  /** @param {Session} session @param {HTMLElement} transcript */
+  function showArrival(session, transcript) {
+    if (!session.sent) return showReturnTurn(transcript, threadCardThread(session));
+    scrollToEnd(transcript);
+    moveScrollerBy(transcript, -session.sent.fromEnd);
   }
   // The row the card hangs from where its thread has no target to stand by. A row the
   // rail has no room for is withheld and has no box; it stands by the row's target
   // instead, at the row inside it the cluster would stand level with (pointed-place.js).
-  function threadCardCluster(session) {
-    const row = session.control.closest("[data-lf-margin-for]") ?? session.control;
+  /** @param {Session} session @param {Element} control */
+  function threadCardCluster(session, control) {
+    const row = control.closest("[data-lf-margin-for]") ?? control;
     if (row.checkVisibility()) return row;
     return entryPlace(session.entry) ?? row;
   }
   // The thread the card shows, and the first line of the words it quotes, if it does.
+  /** @param {Session} session */
   const threadCardThread = (session) => {
-    const item = session.entry?.items.find(
-      (candidate) => candidate.id === session.threadItem,
-    );
-    return item ? sourceItem(item)?.thread : null;
+    return session.item.thread;
   };
   // What the card stands by, read as the comment box reads it (comment-placement.js):
   // its target's shown box, or the row a pointing gesture named in it, and the line it
   // stands level with, a quoted passage's first. A thread with no target stands by its
   // cluster.
-  function threadCardPlace(session) {
+  /** @param {Session} session @param {Element} control */
+  function threadCardPlace(session, control) {
     const target = targetFor(session.entry);
     const point = entryPoint(session.entry);
     if (!target) {
-      const cluster = threadCardCluster(session);
+      const cluster = threadCardCluster(session, control);
       const box = cluster.getBoundingClientRect();
       return {
         element: cluster,
-        clear: box,
-        extent: box,
-        row: box.top,
-        margin: null,
-        scroller: scrollerFor(cluster),
+        place: {
+          element: cluster,
+          contextNode: cluster,
+          geometry: floatingGeometry([cluster]),
+          clear: box,
+          extent: box,
+          row: box.top,
+          lastRow: box.top,
+          column: null,
+          margin: null,
+          scroller: scrollerFor(cluster),
+        },
       };
     }
     const thread = threadCardThread(session);
     const words =
       !point && thread?.anchor?.quote ? passageGeometry(placedAt(thread.id)) : null;
-    return commentAttachment({ target, point, passage: words });
+    return {
+      element: target,
+      place: commentAttachment({ target, point, passage: words }),
+    };
   }
   const THREAD_SIDES = { right: "right", left: "left", bottom: "below", top: "above" };
   // Feed the shared placement policy the current conversation and native draft;
@@ -492,23 +567,29 @@ export function createThreadPreview({
   function placeThreadPreview() {
     const session = previewSession;
     if (!session || !session.control?.isConnected) return false;
+    const control = session.control;
     const placement = placementDriver.begin();
+    /** @type {Reading | null} */
     let reading = null;
     const stillCurrent = () =>
       previewSession === session &&
       placementDriver.current(placement) &&
       session.control?.isConnected;
-    const place = threadCardPlace(session);
+    const { element, place } = threadCardPlace(session, control);
     // Floating UI follows what moves what the card stands by, so a card with no room yet
     // is placed once something gives it some.
-    const element = place?.element ?? targetFor(session.entry);
+    /** @param {Awaited<ReturnType<typeof floatingUi>>} ui */
     const watch = (ui) =>
       placementDriver.watch(
         element,
         {
           contextElement: element,
-          getBoundingClientRect: () =>
-            threadCardPlace(session)?.clear ?? element.getBoundingClientRect(),
+          getBoundingClientRect: () => {
+            const box =
+              threadCardPlace(session, control).place?.clear ??
+              element.getBoundingClientRect();
+            return new DOMRect(box.left, box.top, box.width, box.height);
+          },
         },
         ui.autoUpdate,
       );
@@ -521,13 +602,16 @@ export function createThreadPreview({
       void floatingUi().then((ui) => stillCurrent() && watch(ui));
       return false;
     }
-    const boundary = commentBoundary({ scroller: place.scroller });
+    const boundary = commentBoundary({
+      scroller: place.scroller,
+      at: { x: place.column ?? place.extent.left, y: place.row },
+    });
     session.scroller = place.scroller;
     if (!boundary.width || !boundary.height) {
       void floatingUi().then((ui) => stillCurrent() && watch(ui));
       return false;
     }
-    const scroller = place.scroller;
+    const { scroller } = boundary;
     const seat = session.side.choose({
       clear: place.clear,
       row: place.row,
@@ -538,26 +622,31 @@ export function createThreadPreview({
       coarse: coarsePointer.matches,
     });
     const { side, fresh, opening } = seat;
-    let anchored;
     void floatingUi()
       .then((ui) => {
         if (!stillCurrent()) return null;
-        anchored = session.anchor.prepare(seat);
-        const { reference, placement, middleware, plane } = session.side.options(ui, {
+        const anchored = session.anchor.prepare(seat);
+        const { reference, placement, middleware, plane } = seat.options(ui, {
           clear: place.clear,
           row: place.row,
           lastRow: place.lastRow,
           column: place.column,
           margin: place.margin,
           boundary,
-          fit({ width, height, stood, scale }) {
+          fit({ width, height, stood, scale, stationary }) {
             if (!stillCurrent()) return;
             // Capture when fitting actually starts, after the module load and any
             // Send landing. Hold this reading through every middleware measurement:
             // an intermediate cap must not turn an earlier offset into end-following.
+            const priorReading =
+              session.reading?.input === inputCount() ? session.reading : null;
             reading ??= session.transcript && {
-              end: !fresh && atScrollEnd(session.transcript),
+              end: !fresh && (priorReading?.end ?? atScrollEnd(session.transcript)),
+              scroll: priorReading?.scroll ?? session.transcript.scrollTop,
+              keepTop:
+                stationary && !fresh && anchored.edge === "top" && !anchored.writing,
               latest: session.arriving,
+              transcript: session.transcript,
             };
             if (fresh) session.width = null;
             // A card that has stood keeps its width (`session.width`): its floor and
@@ -574,10 +663,15 @@ export function createThreadPreview({
             // Choosing its spot, the card is capped by the boundary alone, and slides
             // inside it rather than shrinking. Held, it has the room from its held edge
             // to the boundary's far edge, or the tallest it has stood since its line
-            // last moved where that is more. Written beside its subject, it has the
-            // boundary's whole height (`rises`): a growing editor lifts it from the
-            // window's foot, then scrolls internally.
-            const fitted = measureThreadCard(room, Math.max(stood, height), reading);
+            // last moved where that is more. Beside its subject, it has the
+            // boundary's whole height (`rises`): a growing editor or an arriving
+            // answer lifts it from the window's foot, then it scrolls internally.
+            const fitted = measureThreadCard(
+              room,
+              Math.max(stood, height),
+              reading,
+              session,
+            );
             // Fitting the width settles wrapping before opening the card spends
             // scroll travel. A scroll supersedes this answer's attachment geometry.
             if (
@@ -593,17 +687,21 @@ export function createThreadPreview({
           rises: anchored.rises,
         });
         watch(ui);
-        return placementDriver.position(
-          ui.computePosition,
-          commentReference(place, reference),
-          { placement, middleware },
-          plane,
-          place.element,
-        );
+        return placementDriver
+          .position(
+            ui.computePosition,
+            commentReference(place, reference),
+            { placement, middleware },
+            plane,
+            place.element,
+          )
+          .then((position) => ({ position, anchored }));
       })
-      .then((position) => {
-        if (!position || !stillCurrent()) return;
+      .then((answer) => {
+        if (!answer?.position || !stillCurrent()) return;
+        const { position, anchored } = answer;
         session.arriving = false;
+        session.reading = null;
         // The spot the rule stood the card at before the boundary shifted it in, so a
         // card opened low in the window rises back to it once a scroll gives it room.
         const { scale } = session.side.landed(position);
@@ -619,23 +717,25 @@ export function createThreadPreview({
         session.away = card.bottom <= boundary.top || card.top >= boundary.bottom;
         // Leaving with what it is about, the card passes under the chrome, which stacks
         // over it, and a reading region it stands in cuts it at the region's edge as it
-        // cuts the words. An edge further out than the card paints cuts nothing, and
-        // stands at that reach, so a scroll that moves it there writes nothing. Each
+        // cuts the words, as does the edge of a block its row has crossed (`cut`). An
+        // edge further out than the card paints cuts nothing, and stands at that reach,
+        // so a scroll that moves it there writes nothing. Each
         // edge's cut is its own property, which the card's clip and its growth out of
         // the comment box both read (annotation-chrome.css).
-        const region = boundary.inRegion;
-        const cuts = region
-          ? [
-              (region.top - card.top) / scale.y,
-              (card.right - region.right) / scale.x,
-              (card.bottom - region.bottom) / scale.y,
-              (region.left - card.left) / scale.x,
-            ].map((cut) => layoutPx(Math.max(cut, -following.shadowReach())))
-          : [];
-        CUT_EDGES.forEach((edge, i) => {
-          if (region) preview.style.setProperty(edge, cuts[i]);
-          else preview.style.removeProperty(edge);
-        });
+        const region = boundary.cut;
+        if (region) {
+          const cuts = {
+            "--lf-cut-top": (region.top - card.top) / scale.y,
+            "--lf-cut-right": (card.right - region.right) / scale.x,
+            "--lf-cut-bottom": (card.bottom - region.bottom) / scale.y,
+            "--lf-cut-left": (region.left - card.left) / scale.x,
+          };
+          for (const [edge, cut] of Object.entries(cuts))
+            preview.style.setProperty(
+              edge,
+              layoutPx(Math.max(cut, -following.shadowReach())),
+            );
+        } else for (const edge of CUT_EDGES) preview.style.removeProperty(edge);
         keeps(preview, "data-lf-thread-placement", THREAD_SIDES[side]);
         // The card's first spot is the first reading its motion follows from. A card
         // Send opened grows out of the field it replaces, as any box's outline travels
@@ -671,25 +771,21 @@ export function createThreadPreview({
   }
   // The card hangs from another entry, and a user on the entry it hung from goes
   // with it: the same place, the thread's own entry, under a new control.
+  /** @param {Element | null} button @param {boolean} [carry] */
   function transferThreadCard(button, carry = focused() === previewSession?.control) {
     if (previewSession?.control === button) return;
-    forgetThreadPreviewPlacement();
-    previewSession.control = button;
-    if (carry) focusDestination(button, "return");
+    const session = previewSession;
+    if (!session) return;
+    forgetThreadPreviewPlacement(session);
+    session.control = button;
+    if (carry && button) focusDestination(button, "return");
   }
 
-  /** @param {{
-   *   entry: any,
-   *   threadItem: string,
-   *   control: any,
-   *   origin?: any,
-   *   accompanies: any,
-   *   forced?: boolean,
-   *   disclosed?: boolean,
-   * }} chosen */
+  /** @param {Omit<Selection, "threadItem"> & {item: Item, origin?: Origin | null}} chosen @returns {Session} */
   function select({
     entry,
-    threadItem,
+    choice,
+    item,
     control,
     origin,
     accompanies,
@@ -697,9 +793,12 @@ export function createThreadPreview({
     disclosed = false,
   }) {
     retirePreviewSession();
-    previewSession = {
+    /** @type {Session} */
+    const session = {
       entry,
-      threadItem,
+      choice,
+      item,
+      threadItem: item.id,
       control,
       accompanies,
       forced,
@@ -709,7 +808,7 @@ export function createThreadPreview({
       arriving: true,
       // The box Send replaced, whose reading the card keeps (`showArrival`) and whose
       // field it grows out of (`followCard`).
-      sent: origin && { fromEnd: origin.fromEnd, field: origin.field },
+      sent: origin ? { fromEnd: origin.fromEnd, field: origin.field } : null,
       away: false,
       positionFrame: 0,
       positionResult: null,
@@ -717,6 +816,7 @@ export function createThreadPreview({
       withheldFocus: null,
       transcript: null,
       place: null,
+      reading: null,
       stopRegion: null,
       side: commentPlacement(),
       anchor: new CardAnchor(preview),
@@ -724,33 +824,38 @@ export function createThreadPreview({
       // Send replaced, so the two are one rectangle, else the one it first stood at, or
       // was carried at (`placeThreadPreview`). Sized by itself, Firefox stood a one-line
       // comment's card 13px wider than its box.
+      itemView: null,
       width: origin?.box.width ?? null,
       scroller: pageScroller,
       // Whether the card's motion has read the card at its first spot (`followCard`).
       followed: false,
     };
-    if (origin) previewSession.side.adopt(origin);
+    previewSession = session;
+    if (origin) session.side.adopt(origin);
     // A card Send opened stands at once where its box stood and grows out of the box's
     // field, rather than fade in (annotation-chrome.css).
     keeps(preview, "data-lf-grows", origin ? "" : null);
-    return previewSession;
+    return session;
   }
 
-  function buildThreadCard(entry, requestedItem = null) {
+  /** @param {Entry} entry @param {Choice} choice @param {Session} current @param {string | null} [requestedItem] */
+  function buildThreadCard(entry, choice, current, requestedItem = null) {
     const restoreFocus = holdFocus(preview);
     const focusedItem = restoreFocus
-      ? (focused(document)?.closest?.("[data-lf-margin-entry]")?.lfMarginItem ?? null)
+      ? (focused(document)
+          ?.closest?.("[data-lf-margin-entry]")
+          ?.getAttribute("data-lf-margin-entry") ?? null)
       : null;
-    const threadItems = entry.items.filter((item) => item.kind === "comment");
-    const wanted = requestedItem ?? previewSession.threadItem ?? focusedItem;
+    const threadItems = choice.items;
+    const wanted = requestedItem ?? current.threadItem ?? focusedItem;
     const selected = threadItems.find((item) => item.id === wanted) ?? threadItems[0];
-    const arriving =
-      previewSession.threadItem !== selected.id || !previewSession.transcript;
-    if (previewSession.threadItem !== selected.id)
-      select({ ...selection(), entry, threadItem: selected.id });
-    else previewSession.entry = entry;
-    const session = previewSession;
-    const latest = turns(sourceItem(selected).thread).at(-1);
+    const arriving = current.threadItem !== selected.id || !current.transcript;
+    const session =
+      arriving && current.threadItem !== selected.id
+        ? select({ ...current, entry, choice, item: selected })
+        : current;
+    Object.assign(session, { entry, choice, item: selected });
+    const latest = turns(selected.thread).at(-1);
     const messageSelector =
       ":scope > .lf-margin-thread > .lf-margin-thread-body > " +
       ".lf-page-thread > .lf-thread-transcript > .lf-msg";
@@ -761,7 +866,8 @@ export function createThreadPreview({
       (node) => showsContents(node),
     );
     const lastBox = lastShown?.getBoundingClientRect();
-    const listBox = session.transcript?.getBoundingClientRect();
+    const followTranscript = session.transcript;
+    const listBox = followTranscript?.getBoundingClientRect();
     const replyBox = previewList.querySelector(replySelector)?.getBoundingClientRect();
     const follow =
       !arriving &&
@@ -772,7 +878,15 @@ export function createThreadPreview({
       listBox &&
       lastBox.bottom >= listBox.top &&
       lastBox.bottom <= (replyBox?.top ?? listBox.bottom) + 80 &&
-      atScrollEnd(session.transcript);
+      followTranscript &&
+      atScrollEnd(followTranscript)
+        ? followTranscript
+        : null;
+    session.reading = session.transcript && {
+      input: inputCount(),
+      scroll: session.transcript.scrollTop,
+      end: Boolean(follow),
+    };
     const present = () => {
       const targetHeading =
         targetFor(entry)?.querySelector(":scope > strong")?.textContent;
@@ -780,11 +894,8 @@ export function createThreadPreview({
       // is headed by the passage the selected thread quotes, as the panel heads it: a card
       // headed "aside · The fallback cookie is read-only…" over a comment on the aside's
       // last sentence was a third name for one thread, and the least exact.
-      const quoted = sourceItem(selected)?.thread?.anchor
-        ? anchorLabel(
-            sourceItem(selected).thread.anchor,
-            sourceItem(selected).thread.root.about,
-          )
+      const quoted = selected.thread?.anchor
+        ? anchorLabel(selected.thread.anchor, selected.thread.root.about)
         : null;
       const title = labelWords(targetHeading || quoted || entry.title);
       keeps(preview, "aria-label", `Thread for ${spokenSubject(title)}`);
@@ -796,104 +907,104 @@ export function createThreadPreview({
       keepsText(previewPosition, `${selectedIndex + 1}/${threadItems.length}`);
       previewPrevious.toggleAttribute("disabled", selectedIndex === 0);
       previewNext.toggleAttribute("disabled", selectedIndex === threadItems.length - 1);
-      const item = selected ? previewItemNode(selected) : null;
-      setChildren(previewList, item ? [item] : []);
+      const item = previewItemNode(selected, session);
+      setChildren(previewList, [item.node]);
       // The thread renders before the card shows it, and takes the reply being written
       // in it once it stands in the document (thread/inline.js, `claimSeatReplies`).
-      if (item) claimSeatReplies(item.querySelector(":scope > .lf-margin-thread-body"));
-      syncPreviewTranscript();
+      claimSeatReplies(item.body);
       // The list holds the one thread the card shows, so a user whose place in a thread
       // the rebuild took lands on that thread; a step button it hid hands them to Close.
       restoreFocus?.(
-        focusedItem && previewList.querySelector(".lf-page-thread"),
+        focusedItem ? previewList.querySelector(".lf-page-thread") : null,
         previewClose,
       );
     };
     if (!arriving && session.place) session.place.around(present);
     else {
       present();
-      session.arriving = Boolean(session.transcript);
-      if (session.arriving) showArrival(session);
+      const transcript = session.transcript;
+      session.arriving = transcript !== null;
+      if (transcript) showArrival(session, transcript);
     }
-    session.latest = latest && { id: latest.id, text: latest.text };
-    if (follow) scrollToEnd(session.transcript);
+    session.latest = latest ? { id: latest.id, text: latest.text } : null;
   }
 
+  /** @param {number} step */
   function stepPreviewThread(step) {
     if (!previewSession) return;
-    const threadItems = previewSession.entry.items.filter(
-      (item) => item.kind === "comment",
-    );
-    const current = threadItems.findIndex(
-      (item) => item.id === previewSession.threadItem,
-    );
+    const session = previewSession;
+    if (!session) return;
+    const threadItems = session.choice.items;
+    const current = threadItems.findIndex((item) => item.id === session.threadItem);
     const next = Math.max(0, Math.min(threadItems.length - 1, current + step));
-    if (next === current || !threadItems[next]) return;
-    const positioned = show({ ...selection(), threadItem: threadItems[next].id });
+    const item = threadItems[next];
+    if (next === current || !item) return;
+    const positioned = show({ ...session, threadItem: item.id });
     focusThread(positioned);
   }
-  function previewItemNode(item) {
-    let node = [...previewList.children].find(
-      (candidate) => candidate.lfMarginItem === item.id,
-    );
-    if (!node?.classList.contains("lf-margin-thread")) {
-      node?.remove();
-      node = el("section", "lf-margin-thread");
+  /** @param {Item} item @param {Session} session */
+  function previewItemNode(item, session) {
+    let view = session.itemView;
+    if (!view) {
+      const node = el("section", "lf-margin-thread");
       const body = el("div", "lf-margin-thread-body");
       node.append(body);
+      view = { node, body };
+      session.itemView = view;
     }
-    const shownThread = sourceItem(item).thread;
+    const { node, body } = view;
+    const shownThread = item.thread;
     // The panel's view carries the reply being written along from the closed card
     // (thread/replies.js, `carry`).
     previewOpenInPanel.onclick = () => {
       dismiss();
       openInPanel(shownThread.id);
     };
-    renderMarginThread(
-      node.querySelector(":scope > .lf-margin-thread-body"),
-      shownThread,
-      {
-        nav: previewNav.hidden ? null : previewNav,
-        expand: previewOpenInPanel,
-        close: previewClose,
-        anchor: previewSession.anchor,
-        // A send from the card is the user's change joining the stream the card shows
-        // (box-motion.js, "send"), read before the send draws.
-        sending: following.stream,
-        // A resolved thread with no draft has no margin card, so resolving closes it and
-        // hands the user to its target.
-        prepareLanding: () => {
-          const target = targetFor(previewSession?.entry);
-          const mayLand = retainUserIntent({
-            source: focused(),
-            available: () => Boolean(target?.isConnected),
-          });
-          return () => {
-            if (previewOpen()) return false;
-            return mayLand.handoff(() => focusDestination(target, "return"));
-          };
-        },
+    const rendered = renderMarginThread(body, shownThread, {
+      nav: previewNav.hidden ? null : previewNav,
+      expand: previewOpenInPanel,
+      close: previewClose,
+      anchor: session.anchor,
+      // A send from the card is the user's change joining the stream the card shows
+      // (box-motion.js, "send"), read before the send draws.
+      sending: following.stream,
+      // A resolved thread with no draft has no margin card, so resolving closes it and
+      // hands the user to its target.
+      prepareLanding: () => {
+        const target = targetFor(previewSession?.entry);
+        if (!target) return () => false;
+        const mayLand = retainUserIntent({
+          source: focused(),
+          available: () => Boolean(target?.isConnected),
+        });
+        return () => {
+          if (previewOpen()) return false;
+          return mayLand.handoff(() => focusDestination(target, "return"));
+        };
       },
-    );
+    });
     keeps(node, "data-lf-margin-entry", item.id);
-    node.lfMarginItem = item.id;
-    return node;
+    for (const reading of rendered) syncPreviewTranscript(session, reading);
+    return view;
   }
 
   // The card's threads the margin no longer holds give up the reply being written in
   // them, whether the card is open or closed (thread/replies.js, `releaseReplies`). A
   // thread still in the margin keeps it, for the card to show again.
+  /** @param {Set<string>} items */
   function releaseLeft(items) {
     for (const node of previewList.children)
-      if (!items.has(node.lfMarginItem)) releaseReplies(node);
+      if (!items.has(node.getAttribute("data-lf-margin-entry") ?? ""))
+        releaseReplies(node);
   }
 
   function selection() {
     if (!previewSession) return null;
-    const { entry, threadItem, control, accompanies, forced, disclosed } =
+    const { entry, choice, threadItem, control, accompanies, forced, disclosed } =
       previewSession;
     return Object.freeze({
       entry,
+      choice,
       threadItem,
       control,
       accompanies,
@@ -902,8 +1013,10 @@ export function createThreadPreview({
     });
   }
 
+  /** @param {{entry: Entry, choice: Choice, threadItem?: string | null, control?: Element | null, origin?: Origin | null, accompanies?: boolean, forced?: boolean, disclosed?: boolean, prepare?: (() => Element | null) | null}} options */
   function show({
     entry,
+    choice,
     threadItem = null,
     control = null,
     origin = null,
@@ -912,22 +1025,22 @@ export function createThreadPreview({
     disclosed = false,
     prepare = null,
   }) {
-    const items = entry.items.filter((item) => item.kind === "comment");
+    const items = choice.items;
     const selected = items.find((item) => item.id === threadItem) ?? items[0];
-    const retained =
-      previewSession?.entry.key === entry.key &&
-      previewSession.threadItem === selected.id;
-    const session = retained
-      ? previewSession
-      : select({
-          entry,
-          threadItem: selected.id,
-          control,
-          origin,
-          accompanies,
-          forced,
-          disclosed,
-        });
+    const current = previewSession;
+    const session =
+      current && current.entry.key === entry.key && current.threadItem === selected.id
+        ? current
+        : select({
+            entry,
+            item: selected,
+            choice,
+            control,
+            origin,
+            accompanies,
+            forced,
+            disclosed,
+          });
     Object.assign(session, { entry, accompanies, forced, disclosed, preparing: true });
     let preparedControl;
     try {
@@ -943,16 +1056,22 @@ export function createThreadPreview({
     }
     keepsHidden(preview, false);
     keeps(preview, "inert", null);
-    buildThreadCard(entry, selected.id);
-    const positioned = placedThreadPreview();
+    buildThreadCard(entry, choice, session, selected.id);
+    const positioned = placedThreadPreview(session);
     paintKeysWithin(preview);
     return positioned;
   }
 
-  function refresh(entry, control, carry = focused() === previewSession?.control) {
+  /** @param {Entry} entry @param {Choice} choice @param {Element | null} control @param {boolean} [carry] */
+  function refresh(
+    entry,
+    choice,
+    control,
+    carry = focused() === previewSession?.control,
+  ) {
     if (!previewSession || previewSession.preparing) return;
     transferThreadCard(control, carry);
-    buildThreadCard(entry);
+    buildThreadCard(entry, choice, previewSession);
     placeThreadPreview();
   }
 
@@ -979,7 +1098,11 @@ export function createThreadPreview({
       ? null
       : preview
           .getAnimations()
-          .find((played) => played.transitionProperty === "opacity");
+          .find(
+            (played) =>
+              played instanceof CSSTransition &&
+              played.transitionProperty === "opacity",
+          );
     if (fade) {
       keeps(preview, "inert", "");
       fade.finished.then(hide, hide);
@@ -989,28 +1112,37 @@ export function createThreadPreview({
     onClose(closed);
   }
 
+  /** @param {Promise<boolean> | null} positioned @param {{closeControl?: boolean, cause?: import("../focus.js").PlacementCause}} [options] */
   function focusThread(positioned, { closeControl = false, cause = "move" } = {}) {
     if (!positioned) return;
-    deferThreadPreviewFocus(positioned, () => {
-      const target = closeControl
-        ? previewClose
-        : previewList.querySelector(".lf-page-thread");
-      if (!target) return;
-      focusDestination(target, cause);
-      if (!closeControl) scrollThreadIntoView(target, target);
-    });
+    const session = previewSession;
+    if (!session) return;
+    deferThreadPreviewFocus(
+      positioned,
+      () => {
+        const target = closeControl
+          ? previewClose
+          : previewList.querySelector(".lf-page-thread");
+        if (!target) return;
+        focusDestination(target, cause);
+        if (!closeControl) scrollThreadIntoView(target, target);
+      },
+      session,
+    );
   }
 
+  /** @param {string} name @param {{part?: import("../thread/destination.js").ThreadPart}} [options] */
   function focusTarget(name, { part = null } = {}) {
     const id = threadIdNamed(name);
     const thread = [...previewList.querySelectorAll(".lf-page-thread")].find(
-      (candidate) => candidate.dataset.thread === id,
+      (candidate) => candidate.getAttribute("data-thread") === id,
     );
     return thread
       ? threadFocusDestination(thread, { part: part ?? "thread", message: name })
       : null;
   }
 
+  /** @param {() => void} onDismiss */
   function mount(onDismiss) {
     dismiss = onDismiss;
     previewClose.onclick = onDismiss;
@@ -1029,20 +1161,22 @@ export function createThreadPreview({
       }
       const row =
         left && under(left, preview) && closestAcross(left, ".lf-thread-reply");
-      if (row && !(node && under(node, row)) && !row.querySelector(REPLY_BOX)?.value)
+      /** @type {HTMLTextAreaElement | null} */
+      const field = row ? row.querySelector(REPLY_BOX) : null;
+      if (row && !(node && under(node, row)) && !field?.value)
         scheduleThreadPreviewPosition();
     });
     declareOffFlowSurface(preview, {
       bringBack: (behavior) =>
         scrollToElement(
-          entryPlace(previewSession?.entry) ?? previewSession?.control,
+          entryPlace(previewSession?.entry) ?? previewSession?.control ?? null,
           behavior,
           "nearest",
         ),
     });
     move(chromeRoot, preview, chromeForeground);
     previewRegionMounted = true;
-    if (previewSession) syncPreviewTranscript();
+    if (previewSession?.itemView) previewItemNode(previewSession.item, previewSession);
   }
 
   return {
@@ -1066,7 +1200,12 @@ export function createThreadPreview({
     replying: () =>
       under(focused(), preview) && Boolean(closestAcross(focused(), REPLY_BOX)),
     // Whether the open card has a placement (`threadCardPlace`).
-    hasPlacement: () => Boolean(previewSession && threadCardPlace(previewSession)),
+    hasPlacement: () => {
+      const session = previewSession;
+      return Boolean(
+        session?.control && threadCardPlace(session, session.control).place,
+      );
+    },
     place: placeThreadPreview,
     schedulePosition: scheduleThreadPreviewPosition,
     mount,

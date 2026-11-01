@@ -11,10 +11,13 @@
  * smallest that greedy order allows.
  */
 
+import { canvas2D } from "./canvas.js";
+
 const TICK_SPACING = 84;
 const STEPS = [1, 2, 5];
 
 /** The major tick step, in milliseconds, for a scale of `pxPerMs`. */
+/** @param {number} pxPerMs */
 function tickStep(pxPerMs) {
   for (let power = 1; power < 1e9; power *= 10)
     for (const step of STEPS)
@@ -23,6 +26,7 @@ function tickStep(pxPerMs) {
 }
 
 /** A major tick's words: seconds, with as many decimals as the step needs. */
+/** @param {number} time @param {number} step */
 function tickLabel(time, step) {
   if (time === 0) return "0 s";
   const digits = step >= 1000 ? 0 : step >= 100 ? 1 : step >= 10 ? 2 : 3;
@@ -31,6 +35,7 @@ function tickLabel(time, step) {
 
 /** The ticks between `from` and `to`, clipped to `[0, duration]`: `{time, major,
  * label, step}`, where only a major tick has a label. */
+/** @param {number} from @param {number} to @param {number} duration @param {number} pxPerMs */
 export function axisTicks(from, to, duration, pxPerMs) {
   const step = tickStep(pxPerMs);
   const minor = step / (String(step)[0] === "2" ? 4 : 5);
@@ -50,7 +55,10 @@ export function axisTicks(from, to, duration, pxPerMs) {
 }
 
 /** Greedy rows for extents: a Map from each item's `id` to its row, from 0. */
+/** @template {{id: string}} T @param {readonly T[]} items
+ * @param {(item: T) => number} start @param {(item: T) => number} end */
 export function assignRows(items, start, end) {
+  /** @type {number[]} */
   const rows = [];
   const rowOf = new Map();
   for (const item of items.toSorted((a, b) => start(a) - start(b))) {
@@ -62,10 +70,12 @@ export function assignRows(items, start, end) {
   return rowOf;
 }
 
+/** @type {ReturnType<typeof canvas2D> | null} */
 let measuring = null;
 /** The advance width of `text` set in a CSS `font` shorthand. */
+/** @param {string} text @param {string} font */
 export function textWidth(text, font) {
-  measuring ??= document.createElement("canvas").getContext("2d");
+  measuring ??= canvas2D(document.createElement("canvas"));
   measuring.font = font;
   return measuring.measureText(text).width;
 }

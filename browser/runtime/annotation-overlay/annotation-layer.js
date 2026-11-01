@@ -25,10 +25,12 @@ import { coarsePointer } from "../pointer.js";
 import { ANNOTATIONS_KEY } from "../restore-state.js";
 
 const hidden = signal(false);
+/** @type {Set<(hidden: boolean) => void>} */
 const watchers = new Set();
 
 export const annotationsHidden = () => hidden.value;
 
+/** @param {(hidden: boolean) => void} watcher */
 export function watchAnnotations(watcher) {
   watchers.add(watcher);
 }
@@ -54,6 +56,7 @@ export function mountAnnotationControls() {
   });
 }
 
+/** @param {boolean} on */
 function setAnnotationsHidden(on) {
   if (on === hidden.value) return;
   hidden.value = on;

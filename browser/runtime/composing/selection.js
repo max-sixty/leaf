@@ -93,6 +93,8 @@ export const fabBar = el("div", "lf-ui lf-fab-bar lf-target-paint");
 fabBar.dataset.lfRuntime = ""; // Leaf's own when seated in a widget (passages.js, leafSurface)
 fabBar.setAttribute("role", "group");
 fabBar.setAttribute("aria-label", "Respond");
+// A public part a theme restyles (`layer.chrome_restyle`), its ground inside it.
+fabBar.setAttribute("part", "composer");
 export const fabInput = textField();
 fabInput.className = "lf-ui lf-response-control lf-fab-input";
 fabInput.name = "comment";

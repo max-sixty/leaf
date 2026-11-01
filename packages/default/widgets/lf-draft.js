@@ -35,6 +35,14 @@
  * drawing drafts in a sent message's face, which the editor already wore, since drafts
  * would lose their document type, chosen by the user on 2026-10-23.
  *
+ * A draft reads as a Markdown file: a line break inside a paragraph is a space
+ * (`paintMarkdown`), so a draft wrapped for a wider editor, as an agent copies a
+ * passage of a hard-wrapped file, wraps to the box, and the editor joins those lines
+ * as the prose does. Return in a paragraph writes a hard break, which both show as a
+ * line (the user's decision, 2026-10-31). Rejected: keeping each source line break as
+ * a hard one, as a message does, which drew a passage wrapped at 88 columns in a
+ * narrower box with a short line after each long one.
+ *
  * The editor reads as an ordinary text box: its words stand in the field until the user
  * leaves it, and the field's own undo walks them back. Two ways out throw its changes
  * away, Discard and Escape, as a message rewrite's do; every other way out saves them

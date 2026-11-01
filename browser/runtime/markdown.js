@@ -11,12 +11,13 @@ import { isElement } from "./shadow-tree.js";
 /** @typedef {import("markdown-it").Token} NativeToken
  * @typedef {import("markdown-it").MarkdownIt} MarkdownIt
  * @typedef {NonNullable<ReturnType<MarkdownIt["linkify"]["match"]>>[number]} LinkMatch
- * @typedef {{token: NativeToken, source: [number, number] | undefined, escaped: number[]}} TokenSnapshot
+ * @typedef {{token: NativeToken, source: [number, number] | undefined, spellings: [number, number, string][]}} TokenSnapshot
  * @typedef {{token: NativeToken, content: string, source: [number, number] | undefined, links: LinkMatch[]}} BeforeLink
  * @typedef {Object} TokenSource
  * @property {[number, number]} [source]
  * @property {number} [sourceAt]
- * @property {number[]} [escapes]
+ * @property {number} [indent]
+ * @property {[number, number, string][]} [spelled]
  * @property {[number, number, number][]} [markers]
  * @property {string} [sourceContent]
  * @property {string | null} [url]
@@ -39,10 +40,10 @@ let tokenize = null;
 /** @type {Promise<void> | undefined} */
 let ready;
 
-// `breaks` reads a soft line break as a hard one, since words written in Leaf, such as
-// a message or a draft, keep the breaks their writer typed. A Markdown file's soft
-// breaks are spaces, as CommonMark and GitHub render a file: its lines wrap for its
-// editor, not its reader.
+// `breaks` reads a soft line break as a hard one, since a message keeps the breaks its
+// writer typed. A Markdown file's soft breaks are spaces, as CommonMark and GitHub
+// render a file: its lines wrap for its editor, not its reader. A Markdown body
+// (`paintMarkdown`), such as a draft, reads as a file.
 /** @param {string} text @param {boolean} [breaks] */
 export const renderMarkdown = (text, breaks = true) => render(text, breaks);
 // The words a user sees in rendered Markdown, for a surface that shows them as plain
@@ -133,7 +134,10 @@ export function formatDeclaredMarkdown(scope) {
   }
 }
 // Keep the exact source on its reading surface. Passage capture reads the rendered
-// children; revision comparison reads source, so formatting never becomes state.
+// children; revision comparison reads source, so formatting never becomes state. The
+// body reads as a Markdown file, its soft line breaks spaces, as the server's prepaint
+// draws it (`leaf.passages.markdown_markup`) and the field editing it in place draws
+// them (composing/field-editor.js, `joints`).
 /** @param {Element} element @param {string} source */
 export function paintMarkdown(element, source) {
   if (
@@ -141,7 +145,7 @@ export function paintMarkdown(element, source) {
     !element.hasAttribute("data-lf-prepaint")
   )
     return;
-  const markup = renderMarkdown(source);
+  const markup = renderMarkdown(source, false);
   if (element.getAttribute("data-lf-source-words") !== source)
     element.setAttribute("data-lf-source-words", source);
   if (element.innerHTML !== markup) element.innerHTML = markup;
@@ -151,8 +155,12 @@ const characters = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 // Align within the parser's declared block span, rather than reimplement its block
 // normalization. That normalization can both remove prefixes and expand a tab into
 // spaces. The shared lossless aligner maps either transformation back to source.
-/** @param {string} source @param {string} raw @param {number} at @param {number} limit */
-function inlineSourcePositions(source, raw, at, limit) {
+/** @param {string} source @param {string} raw @param {number} at @param {number} limit @param {boolean} cell */
+function inlineSourcePositions(source, raw, at, limit, cell) {
+  // A verbatim block ends with its words, past the opening markers. A cell shares its line.
+  const start = at + source.slice(at, limit).trimEnd().length - raw.length;
+  if (!cell && start >= at && source.startsWith(raw, start))
+    return Array.from({ length: raw.length + 1 }, (_, i) => start + i);
   // Even an empty inline token has one boundary (for example, an empty table cell).
   const positions = [at];
   let sourceAt = at;
@@ -201,15 +209,15 @@ const isBeforeJoinedInline = (token) => token.type === "inline";
 // line-relative spans survive newline normalization when mapped onto the source.
 /** @typedef {{token: import("markdown-it").Token,
  * from: number, to: number, markers?: [number, number][] | undefined,
- * contentLines?: [number, number] | undefined, content?: [number, number],
- * words?: string | null, escapes?: number[]}} PlacedToken */
+ * content?: [number, number],
+ * words?: string | null, spelled?: [number, number, string][]}} PlacedToken */
 /** Source metadata supplied by the native block producers and the completed placement pass.
- * @typedef {{heading_open: {markers: [number, number][], contentLines: [number, number]},
+ * @typedef {{heading_open: {markers: [number, number][]},
  * fence: {markers: [number, number][]}, blockquote_open: {markers: [number, number][]},
- * list_item_open: {markers: [[number, number], ...[number, number][]]}}} BlockPlacement
+ * list_item_open: {markers: [[number, number], ...[number, number][]], token: NativeToken & {lfSource: TokenSource & {indent: number}}}}} BlockPlacement
  */
 /** @template {keyof BlockPlacement} K @param {PlacedToken} placed @param {K} type
- * @returns {placed is PlacedToken & BlockPlacement[K]} */
+ * @returns {placed is PlacedToken & BlockPlacement[K] & {token: NativeToken & {type: K}}} */
 export const isBlockPlacement = (placed, type) => placed.token.type === type;
 
 /** @param {string} source @returns {PlacedToken[]} */
@@ -225,16 +233,15 @@ export function placedMarkdownTokens(source) {
   /** @type {PlacedToken[]} */
   const found = [];
   let inlineAt = 0;
-  /** @type {PlacedToken | null} */
-  let heading = null;
+  /** @type {NativeToken | undefined} */
+  let previous;
   for (const token of tokens) {
+    const before = previous;
+    previous = token;
     const from = token.map ? parserItem(starts, token.map[0]) : 0;
     const to = token.map ? parserItem(starts, token.map[1]) : source.length;
     if (!isPositionedInline(token)) {
-      if (
-        token.map &&
-        (token.nesting === 1 || token.type === "fence" || token.type === "code_block")
-      ) {
+      if (token.map && (token.nesting === 1 || BLOCK_LEAVES.has(token.type))) {
         /** @type {PlacedToken} */
         const placed = {
           token,
@@ -247,19 +254,25 @@ export function placedMarkdownTokens(source) {
           words: token.nesting ? null : token.content,
         };
         found.push(placed);
-        if (token.type === "heading_open") heading = placed;
       }
       continue;
     }
-    if (heading) {
-      heading.contentLines = [from, to];
-      heading = null;
-    }
+    // Container prefixes precede the inline words; a list marker is not emphasis.
+    let wordsAt = Math.max(from, inlineAt);
+    for (const block of found)
+      if (
+        isBlockPlacement(block, "blockquote_open") ||
+        isBlockPlacement(block, "list_item_open")
+      )
+        for (const [a, b] of block.markers)
+          if (a >= wordsAt && a < parserItem(starts, token.map[0] + 1) && b > wordsAt)
+            wordsAt = b;
     const positions = inlineSourcePositions(
       source,
       token.lfSource.sourceContent,
-      Math.max(from, inlineAt),
+      wordsAt,
       to,
+      before?.type === "td_open" || before?.type === "th_open",
     );
     /** @type {(PlacedToken & {content: [number, number]})[]} */
     const stack = [];
@@ -285,7 +298,7 @@ export function placedMarkdownTokens(source) {
           b = a + child.markup.length;
         placed.to = parserItem(positions, b);
         placed.content[1] = parserItem(positions, a);
-      } else if (child.type !== "html_inline") {
+      } else {
         found.push({
           token: child,
           from: parserItem(positions, a),
@@ -304,10 +317,14 @@ export function placedMarkdownTokens(source) {
                         ),
                       ),
                     )
-                : child.content,
-          escapes: (child.lfSource.escapes ?? []).map((at) =>
-            parserItem(positions, at),
-          ),
+                : child.type === "html_inline"
+                  ? ""
+                  : child.content,
+          spelled: (child.lfSource.spelled ?? []).map(([from, to, shown]) => [
+            parserItem(positions, from),
+            parserItem(positions, to),
+            shown,
+          ]),
         });
       }
     }
@@ -464,12 +481,10 @@ function sourcePositions(markdown) {
             token.markup === "linkify" ||
             (emitted.some((item) => item.markup === "linkify") && token.type === "text")
           ) {
-            const matches = markdown.linkify.match(
-              state.src.slice(pendingFrom, state.pos),
-            );
-            if (!matches) throw new Error("leaf: Markdown autolink lost its source");
-            const matched = parserItem(matches, matches.length - 1);
-            const start = pendingFrom + matched.index;
+            const kept = state.tokens
+              .slice(count)
+              .find((item) => !emitted.some((emitted) => emitted === item));
+            const start = kept?.lfSource?.source?.[1] ?? pendingFrom;
             span =
               token.type === "link_open"
                 ? [start, start]
@@ -487,10 +502,12 @@ function sourcePositions(markdown) {
           token.lfSource = {
             ...token.lfSource,
             source: span,
-            escapes:
-              token.info === "escape" && token.content !== token.markup
-                ? [span[0]]
-                : [],
+            spelled:
+              token.type === "text_special" && token.content !== token.markup
+                ? [[...span, token.content]]
+                : token.type === "hardbreak" && state.src[span[0]] === "\\"
+                  ? [[span[0], span[0] + 1, ""]]
+                  : [],
           };
         }
         return ok;
@@ -505,19 +522,19 @@ function sourcePositions(markdown) {
     const alive = new Set(after);
     /** @type {[number, number] | null} */
     let first = null;
-    /** @type {number[]} */
-    let escapes = [];
-    for (const { token, source, escaped } of before) {
-      escapes.push(...escaped);
+    /** @type {[number, number, string][]} */
+    let spelled = [];
+    for (const { token, source, spellings } of before) {
+      spelled.push(...spellings);
       // Emphasis combines two delimiter tokens and erases the spare text token.
       // Its source delimiter must not become part of the following joined words.
       if (source && !first && (token.type !== "text" || token.content)) first = source;
       if (alive.has(token)) {
         if (source && first && token.type === "text")
           token.lfSource = { ...token.lfSource, source: [first[0], source[1]] };
-        if (token.lfSource) token.lfSource.escapes = escapes;
+        if (token.lfSource) token.lfSource.spelled = spelled;
         first = null;
-        escapes = [];
+        spelled = [];
       }
     }
   };
@@ -526,7 +543,7 @@ function sourcePositions(markdown) {
     tokens.map((token) => ({
       token,
       source: token.lfSource?.source,
-      escaped: token.lfSource?.escapes ?? [],
+      spellings: token.lfSource?.spelled ?? [],
     }));
   const secondRules = markdown.inline.ruler2.getRules.bind(markdown.inline.ruler2);
   markdown.inline.ruler2.getRules = (chain) =>
@@ -544,7 +561,7 @@ function sourcePositions(markdown) {
     for (const token of state.tokens)
       if (isPositionedInline(token)) {
         let inLink = 0;
-        token.lfSource.beforeLinks = token.children.map((child) => {
+        token.lfSource.beforeLinks = token.children.map((child, index) => {
           if (child.type === "link_open") inLink++;
           else if (child.type === "link_close") inLink--;
           let source = child.lfSource?.source;
@@ -554,6 +571,9 @@ function sourcePositions(markdown) {
             const raw = token.lfSource.sourceContent.slice(source[0], source[1]);
             const at = raw.indexOf(child.content);
             if (at < 0) throw new Error("leaf: Markdown text token lost its source");
+            const box = token.children[index - 1];
+            if (at && box?.type === "html_inline")
+              box.lfSource = { source: [source[0], source[0] + at] };
             source = [source[0] + at, source[0] + at + child.content.length];
             child.lfSource = { ...child.lfSource, source };
           }
@@ -642,14 +662,13 @@ function sourcePositions(markdown) {
 }
 
 // The blocks the parser emits whole, with no opening and closing pair.
-const BLOCK_LEAVES = new Set(["fence", "code_block", "hr"]);
+const BLOCK_LEAVES = new Set(["fence", "hr"]);
 
 /** @param {typeof import("/vendor/markdown-it.esm.js")} module @param {boolean} breaks */
-function makeMarkdown(module, breaks) {
-  const markdown = new module.MarkdownIt({ html: false, breaks, linkify: true }).use(
-    module.taskLists,
-    { enabled: false },
-  );
+export function makeMarkdown(module, breaks) {
+  const markdown = new module.MarkdownIt({ html: false, breaks, linkify: true })
+    .disable(["lheading", "code"])
+    .use(module.taskLists, { enabled: false });
   // A bare domain is indistinguishable from a file name such as setup.py. Require
   // an explicit URL or Markdown link instead of inventing an external destination.
   markdown.linkify.set({ fuzzyLink: false });

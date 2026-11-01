@@ -573,6 +573,7 @@ customElements.define(
             bindingBadge: null,
             control: this.#submit,
             decision: true,
+            commits: true,
             title: () => submit.textContent,
             when: () => (this.#chosen() ? Boolean(this.#undo()) : this.#available()),
             run: () => this.#choose(),

@@ -477,6 +477,7 @@ async function boot() {
     prepareNavigationStep: anchorTravel.prepareNavigationStep,
     arrive: anchorTravel.arrive,
     readableDestination: anchorTravel.readableDestination,
+    showOnMe: () => floatingPanel.showOnMe(),
     announce,
   });
   const changeWalk = createChangeWalk();

@@ -89,7 +89,8 @@ const nextMatchControl = matchStep("next-match");
 const pageSearchControls = [pageSearchStatus, previousMatchControl, nextMatchControl];
 const noMatches = "No matches";
 /** @param {number} position @param {number} total */
-const searchCount = (position, total) => `${position}/${total}`;
+// Where the user stands among the matches, as every walk says it.
+const searchCount = (position, total) => `${position} of ${total}`;
 
 // Target choosing and whole-page text search. `s` opens a viewport-local map of
 // the same stable addressables and visual parts Alt-click reaches, then opens Comment on the
@@ -369,7 +370,7 @@ export function createTargetPicker({
       ? nothing
       : matches.value.length
         ? searchCount(active + 1, matches.value.length)
-        : "0/0";
+        : searchCount(0, 0);
     const label = !query
       ? null
       : matches.value.length

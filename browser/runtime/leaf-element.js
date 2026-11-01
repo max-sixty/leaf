@@ -54,8 +54,12 @@
    declaration names (`property`): before each update that the input's delivery
    moves, this element sets `this[property]` to the delivered value, or null while the
    source has none, so the widget reads `this.value` as it would anywhere else a host
-   sets it. An input the markup doesn't bind, to a source or to another widget's
-   output, is left to the widget and whoever else hosts it.
+   sets it. A widget whose body is data (`x-content: data`) declares at most one input,
+   and where the markup binds it to nothing, to a source or to another widget's output,
+   the widget reads the text the page wrote in its `<pre>` the same way: this element
+   sets the input's property to that string once, at setup, since the widget's drawing
+   replaces the `<pre>`. Any other unbound input, and one a module hosts on an element
+   it made without a `<pre>`, is left to the widget and whoever else hosts it.
 
    The widget marks the items it drew with plain attributes (projection/data.js) and
    dispatches a non-bubbling `drawn` event whose detail names one bound property and
@@ -81,6 +85,7 @@ import {
 import { widgetDescriptor } from "./widget-descriptors.js";
 import { drawsItself, widgetController, widgetMounted } from "./widget-controller.js";
 import {
+  dataBody,
   failSoft,
   failSoftUnreported,
   once,
@@ -286,6 +291,9 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
       return true;
     });
     try {
+      if (this.#writesInput())
+        for (const { property } of this.#inputs)
+          Object.assign(this, { [property]: dataBody(this) });
       this.setup();
     } catch (error) {
       this.#broken = true;
@@ -301,6 +309,20 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
 
   /** The module's one-time build, on the first connection, before the first render. */
   setup() {}
+
+  // Whether the page wrote this data widget's input in its `<pre>`: one it holds while
+  // the markup binds no declared input. A module that makes the element without a
+  // `<pre>` hosts the input itself.
+  #writesInput() {
+    const declaration = registry[this.localName];
+    return Boolean(
+      declaration?.["x-content"] === "data" &&
+      this.querySelector(":scope > pre") &&
+      !Object.values(declaration["x-data"] ?? {}).some((input) =>
+        bindsInput(this, input),
+      ),
+    );
+  }
 
   /** The widget's complete reading (`widgetController(this).read()`), collected; null
    *  for an element the registry does not declare a widget, such as a quoted one. */
@@ -336,7 +358,7 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
         primitives.set(value, snapshot);
       }
       this.#sent.set(entry.property, { snapshot, primitives });
-      Reflect.set(this, entry.property, value);
+      Object.assign(this, { [entry.property]: value });
     }
   }
 

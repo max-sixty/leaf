@@ -133,22 +133,23 @@ const metrics = (values) =>
   </dl>`;
 
 /** @param {CssReport} css @param {string} owner */
+const sourcesOf = (css, owner) =>
+  css.sources.filter((source) => source.owner === owner);
+/** @param {CssReport} css @param {string} owner */
 const sourceRows = (css, owner) =>
   html`<dl>
-    ${css.sources
-      .filter((source) => source.owner === owner)
-      .map(
-        (source) => html`
-          <dt><code>${source.path}:${source.line}</code></dt>
-          <dd>
-            ${number(source.bytes)} bytes · ${number(source.rules)} rules ·
-            ${number(source.declarations)} declarations ·
-            ${number(source.inline_styles)} inline · ${number(source.important)}
-            !important <br />${[source.kind, ...source.documents].join(" · ")}
-            ${source.syntax_errors.map((finding) => html`<p>${finding.text}</p>`)}
-          </dd>
-        `,
-      )}
+    ${sourcesOf(css, owner).map(
+      (source) => html`
+        <dt><code>${source.path}:${source.line}</code></dt>
+        <dd>
+          ${number(source.bytes)} bytes · ${number(source.rules)} rules ·
+          ${number(source.declarations)} declarations · ${number(source.inline_styles)}
+          inline · ${number(source.important)} !important
+          <br />${[source.kind, ...source.documents].join(" · ")}
+          ${source.syntax_errors.map((finding) => html`<p>${finding.text}</p>`)}
+        </dd>
+      `,
+    )}
   </dl>`;
 
 /** @template {Observation} T @param {string} label @param {readonly T[]} rows @param {(row: T) => string} describe */
@@ -292,17 +293,27 @@ function present() {
             : nothing
         }
         ${
+          // What the counts cover stands over them, and the page's sources under them
+          // where it has any; its counts already say where it has none.
           report.css
             ? html`
-                <p>Source captured for r${report.basis.revision}. Static CSS only.</p>
+                <p>
+                  ${[
+                    `Source captured for r${report.basis.revision}.`,
+                    ...report.css.coverage,
+                  ].join(" ")}
+                </p>
                 ${metrics(report.css.page)}
-                <h3>Page sources and locations</h3>
-                ${sourceRows(report.css, "page")}
+                ${
+                  sourcesOf(report.css, "page").length
+                    ? html`<h3>Page sources and locations</h3>
+                        ${sourceRows(report.css, "page")}`
+                    : nothing
+                }
                 <details>
                   <summary>Selected layer CSS</summary>
                   ${metrics(report.css.layer)}${sourceRows(report.css, "layer")}
                 </details>
-                ${report.css.coverage.map((line) => html`<p>${line}</p>`)}
               `
             : nothing
         }
@@ -429,6 +440,9 @@ export async function openPageInspection(intent) {
     ? null
     : "Source inspection is unavailable in this export or public preview. Browser context is shown below.";
   loading = available;
+  // Each text the menu copies, under its name, then what it grants beyond what it says
+  // (page-controls.js, `title`). A row's terse `value` only shortens its text, so it
+  // stands in the menu alone.
   render(
     html`<h2 class="lf-label">Page details</h2>
       ${pageControls()
@@ -438,7 +452,7 @@ export async function openPageInspection(intent) {
             html`${copyableText(
               entry.label.charAt(0).toUpperCase() + entry.label.slice(1),
               entry.copies,
-            )}${entry.value ? html`<p>${entry.value}</p>` : nothing}`,
+            )}${entry.title ? html`<p>${entry.title}</p>` : nothing}`,
         )}`,
     identity,
   );

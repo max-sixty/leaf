@@ -2405,12 +2405,14 @@ function formatDeclaredMarkdown(scope) {
 }
 function paintMarkdown(element, source) {
 	if (element.getAttribute("data-lf-source-words") === source && !element.hasAttribute("data-lf-prepaint")) return;
-	const markup = renderMarkdown(source);
+	const markup = renderMarkdown(source, false);
 	if (element.getAttribute("data-lf-source-words") !== source) element.setAttribute("data-lf-source-words", source);
 	if (element.innerHTML !== markup) element.innerHTML = markup;
 }
 const characters = new Intl.Segmenter(void 0, { granularity: "grapheme" });
-function inlineSourcePositions(source, raw, at, limit) {
+function inlineSourcePositions(source, raw, at, limit, cell) {
+	const start = at + source.slice(at, limit).trimEnd().length - raw.length;
+	if (!cell && start >= at && source.startsWith(raw, start)) return Array.from({ length: raw.length + 1 }, (_, i) => start + i);
 	const positions = [at];
 	let sourceAt = at;
 	let inlineAt = 0;
@@ -2446,12 +2448,14 @@ function placedMarkdownTokens(source) {
 	starts.push(source.length);
 	const found = [];
 	let inlineAt = 0;
-	let heading = null;
+	let previous;
 	for (const token of tokens) {
+		const before = previous;
+		previous = token;
 		const from = token.map ? parserItem(starts, token.map[0]) : 0;
 		const to = token.map ? parserItem(starts, token.map[1]) : source.length;
 		if (!isPositionedInline(token)) {
-			if (token.map && (token.nesting === 1 || token.type === "fence" || token.type === "code_block")) {
+			if (token.map && (token.nesting === 1 || BLOCK_LEAVES.has(token.type))) {
 				const placed = {
 					token,
 					from,
@@ -2460,15 +2464,14 @@ function placedMarkdownTokens(source) {
 					words: token.nesting ? null : token.content
 				};
 				found.push(placed);
-				if (token.type === "heading_open") heading = placed;
 			}
 			continue;
 		}
-		if (heading) {
-			heading.contentLines = [from, to];
-			heading = null;
+		let wordsAt = Math.max(from, inlineAt);
+		for (const block of found) if (isBlockPlacement(block, "blockquote_open") || isBlockPlacement(block, "list_item_open")) {
+			for (const [a, b] of block.markers) if (a >= wordsAt && a < parserItem(starts, token.map[0] + 1) && b > wordsAt) wordsAt = b;
 		}
-		const positions = inlineSourcePositions(source, token.lfSource.sourceContent, Math.max(from, inlineAt), to);
+		const positions = inlineSourcePositions(source, token.lfSource.sourceContent, wordsAt, to, before?.type === "td_open" || before?.type === "th_open");
 		const stack = [];
 		for (const child of token.children) {
 			if (!hasSourceSpan(child)) continue;
@@ -2489,12 +2492,16 @@ function placedMarkdownTokens(source) {
 				if (child.markup && child.markup !== "linkify" && child.markup !== "autolink") b = a + child.markup.length;
 				placed.to = parserItem(positions, b);
 				placed.content[1] = parserItem(positions, a);
-			} else if (child.type !== "html_inline") found.push({
+			} else found.push({
 				token: child,
 				from: parserItem(positions, a),
 				to: parserItem(positions, b),
-				words: child.type === "softbreak" || child.type === "hardbreak" ? "\n" : child.type === "image" ? admittedUrl(child.attrGet("src")) !== null ? "" : renderedWords(renderInlineMarkdown(source.slice(parserItem(positions, a), parserItem(positions, b)))) : child.content,
-				escapes: (child.lfSource.escapes ?? []).map((at) => parserItem(positions, at))
+				words: child.type === "softbreak" || child.type === "hardbreak" ? "\n" : child.type === "image" ? admittedUrl(child.attrGet("src")) !== null ? "" : renderedWords(renderInlineMarkdown(source.slice(parserItem(positions, a), parserItem(positions, b)))) : child.type === "html_inline" ? "" : child.content,
+				spelled: (child.lfSource.spelled ?? []).map(([from, to, shown]) => [
+					parserItem(positions, from),
+					parserItem(positions, to),
+					shown
+				])
 			});
 		}
 		inlineAt = parserItem(positions, positions.length - 1);
@@ -2606,15 +2613,17 @@ function sourcePositions(markdown) {
 				} else if (token.type === "link_open") span = [from, token.lfSource.sourceAt];
 				else if (token.type === "link_close") span = [token.lfSource.sourceAt, state.pos];
 				if (token.markup === "linkify" || emitted.some((item) => item.markup === "linkify") && token.type === "text") {
-					const matches = markdown.linkify.match(state.src.slice(pendingFrom, state.pos));
-					if (!matches) throw new Error("leaf: Markdown autolink lost its source");
-					const start = pendingFrom + parserItem(matches, matches.length - 1).index;
+					const start = state.tokens.slice(count).find((item) => !emitted.some((emitted) => emitted === item))?.lfSource?.source?.[1] ?? pendingFrom;
 					span = token.type === "link_open" ? [start, start] : token.type === "link_close" ? [state.pos, state.pos] : [start, state.pos];
 				} else if (emitted.some((item) => item.markup === "autolink")) span = token.type === "link_open" ? [from, from + 1] : token.type === "link_close" ? [state.pos - 1, state.pos] : [from + 1, state.pos - 1];
 				token.lfSource = {
 					...token.lfSource,
 					source: span,
-					escapes: token.info === "escape" && token.content !== token.markup ? [span[0]] : []
+					spelled: token.type === "text_special" && token.content !== token.markup ? [[...span, token.content]] : token.type === "hardbreak" && state.src[span[0]] === "\\" ? [[
+						span[0],
+						span[0] + 1,
+						""
+					]] : []
 				};
 			}
 			return ok;
@@ -2625,25 +2634,25 @@ function sourcePositions(markdown) {
 	const keepJoined = (before, after) => {
 		const alive = new Set(after);
 		let first = null;
-		let escapes = [];
-		for (const { token, source, escaped } of before) {
-			escapes.push(...escaped);
+		let spelled = [];
+		for (const { token, source, spellings } of before) {
+			spelled.push(...spellings);
 			if (source && !first && (token.type !== "text" || token.content)) first = source;
 			if (alive.has(token)) {
 				if (source && first && token.type === "text") token.lfSource = {
 					...token.lfSource,
 					source: [first[0], source[1]]
 				};
-				if (token.lfSource) token.lfSource.escapes = escapes;
+				if (token.lfSource) token.lfSource.spelled = spelled;
 				first = null;
-				escapes = [];
+				spelled = [];
 			}
 		}
 	};
 	const snapshot = (tokens) => tokens.map((token) => ({
 		token,
 		source: token.lfSource?.source,
-		escaped: token.lfSource?.escapes ?? []
+		spellings: token.lfSource?.spelled ?? []
 	}));
 	const secondRules = markdown.inline.ruler2.getRules.bind(markdown.inline.ruler2);
 	markdown.inline.ruler2.getRules = (chain) => secondRules(chain).map((rule) => (state) => {
@@ -2660,13 +2669,15 @@ function sourcePositions(markdown) {
 	markdown.core.ruler.before("linkify", "source_before_linkify", (state) => {
 		for (const token of state.tokens) if (isPositionedInline(token)) {
 			let inLink = 0;
-			token.lfSource.beforeLinks = token.children.map((child) => {
+			token.lfSource.beforeLinks = token.children.map((child, index) => {
 				if (child.type === "link_open") inLink++;
 				else if (child.type === "link_close") inLink--;
 				let source = child.lfSource?.source;
 				if (!inLink && source && child.type === "text" && child.content) {
 					const at = token.lfSource.sourceContent.slice(source[0], source[1]).indexOf(child.content);
 					if (at < 0) throw new Error("leaf: Markdown text token lost its source");
+					const box = token.children[index - 1];
+					if (at && box?.type === "html_inline") box.lfSource = { source: [source[0], source[0] + at] };
 					source = [source[0] + at, source[0] + at + child.content.length];
 					child.lfSource = {
 						...child.lfSource,
@@ -2740,17 +2751,13 @@ function sourcePositions(markdown) {
 		}
 	});
 }
-const BLOCK_LEAVES = /* @__PURE__ */ new Set([
-	"fence",
-	"code_block",
-	"hr"
-]);
+const BLOCK_LEAVES = /* @__PURE__ */ new Set(["fence", "hr"]);
 function makeMarkdown(module, breaks) {
 	const markdown = new module.MarkdownIt({
 		html: false,
 		breaks,
 		linkify: true
-	}).use(module.taskLists, { enabled: false });
+	}).disable(["lheading", "code"]).use(module.taskLists, { enabled: false });
 	markdown.linkify.set({ fuzzyLink: false });
 	markdown.core.ruler.after("block", "blank_lines", (state) => {
 		const lines = state.src.split("\n");
@@ -6560,11 +6567,7 @@ function withPendingProgress(ranges) {
 		const run = gathered.at(-1);
 		if (range.kind === "message" && range.message.progress) {
 			if (run?.kind === "summary" && run.summary.pending) {
-				const messages = [
-					run.messages[0],
-					...run.messages.slice(1),
-					range.message
-				];
+				const messages = [...run.messages, range.message];
 				gathered[gathered.length - 1] = Object.freeze({
 					kind: "summary",
 					summary: Object.freeze({

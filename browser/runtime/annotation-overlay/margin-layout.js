@@ -327,15 +327,24 @@ function carrierAnchor(subject, sources, scroller) {
 // The margin follows `main` or, on a page without one, the body.
 export const marginColumn = () => layoutBox() || document.body;
 
-// The rail lies beside the column, so it stands beside the rows of what flows in the
-// column: the document's own, and a bounded block's, which scrolls inside the document
-// as a paragraph does. A pane is not in that flow, so its rows pin wherever it stands.
+// Where the rows `scroller` scrolls stand: the bounded blocks around them, innermost
+// first, each by the box that scrolls it (`blocks`), and the box whose flow holds the
+// outermost (`flow`). A bounded block scrolls inside the box around it as a paragraph
+// does, so the flow is the first box out that is not one: the page, or a pane.
 /** @param {Element} scroller */
-const railBeside = (scroller) => {
-  if (scroller === pageScroller) return true;
-  const block = boundedBlockOf(scroller);
-  return Boolean(block) && scrollerFor(upFrom(block)) === pageScroller;
+export const flowOf = (scroller) => {
+  const blocks = [];
+  for (let block; (block = boundedBlockOf(scroller));) {
+    blocks.push(scroller);
+    scroller = scrollerFor(upFrom(block));
+  }
+  return { blocks, flow: scroller };
 };
+// The rail lies beside the column, so it stands beside the rows of what flows in the
+// column: the document's own, and a bounded block's. A pane is not in that flow, so its
+// rows pin wherever it stands.
+/** @param {Element} scroller */
+const railBeside = (scroller) => flowOf(scroller).flow === pageScroller;
 // Prospective placement measures the same primitive a first contribution will draw.
 // The native cascade resolves the entry's aim floor and the row's focus clearance,
 // including package or author overrides. No existing entry, cached size, or parsed

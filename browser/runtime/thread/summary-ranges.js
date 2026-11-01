@@ -83,7 +83,7 @@ export function withPendingProgress(ranges) {
     if (range.kind === "message" && range.message.progress) {
       if (run?.kind === "summary" && run.summary.pending) {
         /** @type {[M, ...M[]]} */
-        const messages = [run.messages[0], ...run.messages.slice(1), range.message];
+        const messages = [...run.messages, range.message];
         gathered[gathered.length - 1] = Object.freeze({
           kind: "summary",
           summary: Object.freeze({

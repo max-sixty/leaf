@@ -1,7 +1,7 @@
 import { LAYOUT, afterScript, cancelAnimation, cancelRender, generatedElement, keeps, keepsHidden, keepsText, layoutPx, nativeLayerHolding, nextAnimation, nextFrame, nextRender, offer, offerAction, renderedOrder, renderedUnder, roomPx, setScroll, sizeObserver, skipped, tabStore, under } from "./bundle-portable.js";
 import { TEXT_FIELD, Z, bareReaction, closeLayer, coarsePointer, currentLocationIn, declareRelease, drawn, focusDestination, focused, handBack, holdFocus, hostIn, html, inputCount, layerLanding, letGo, move, onCurrentLocation, onPressAway, onUserInput, pressLed, render, ringBox, rove, sameAnchor, tabStops, turns, visibleFocus } from "./bundle-layer-stack.js";
 import { closeControl, cycledRow, el, keys, nativePress, notice, pageRange, paintKeys, paintKeysWithin, repaint, rowArrows, setRuntimeRootAttribute } from "./bundle-layer-client.js";
-import { atScrollEnd, chromeForeground, chromeRoot, exactTarget, moveScrollerBy, pageScroller, passageGeometry, placeKept, pointBand, rangeGeometry, readingRegionFor, registerReadingRegion, scrollToEnd, scrollerFor, targetElement, targetParts, targetRange, targetSegments, targetSurface, visualAt } from "./bundle-content-layout.js";
+import { atScrollEnd, chromeForeground, chromeRoot, exactTarget, moveScrollerBy, pageScroller, passageGeometry, placeKept, pointBand, rangeGeometry, readingRegionFor, registerReadingRegion, scrollLimit, scrollToEnd, scrollerFor, targetElement, targetParts, targetRange, targetSegments, targetSurface, visualAt } from "./bundle-content-layout.js";
 import { ANNOTATIONS_KEY } from "./bundle-restore-state.js";
 import { anchorLabel, arrivalOf, beginWalk, carryingThreadPlace, claimSeatReplies, claimed, currentLocationThreadId, declareOffFlowSurface, declareSide, keepThreadLanding, listWalkPosition, pageCommand, pageRung, pageScope, pageSelection, placeKeeper, releaseAuthoredUnder, releaseReplies, revealHeld, rowWalk, selectionAnchor, setChildLists, setChildren, showReturnTurn, threadFocusDestination, threadIdNamed, threadNamed } from "./bundle-data.js";
 import { clamp, rightCover, seenRect, shownBox, shownParts, shownWindow, showsContents, slotTop, union, watchRoom } from "./bundle-geometry.js";
@@ -192,8 +192,9 @@ var CardAnchor = class {
 		const ordinary = this.#sent || !writing && seat.side === "top" ? "foot" : "top";
 		const beside = seat.side === "left" || seat.side === "right";
 		return {
+			writing,
 			edge: seat.adopted ? attachment : press?.edge ?? ordinary,
-			rises: !seat.adopted && !press?.edge && writing && !this.#sent && beside,
+			rises: !seat.adopted && !press?.edge && !this.#sent && beside,
 			commit: () => {
 				if (this.#press === captured) this.#press = press;
 			}
@@ -223,6 +224,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 	const { targetFor, entryPoint, entryPlace } = inventory;
 	const preview = el("aside", "lf-ui lf-margin-preview");
 	preview.id = THREAD_CARD;
+	preview.setAttribute("part", "card");
 	preview.hidden = true;
 	preview.setAttribute("role", "dialog");
 	const previewOpen = () => previewSession !== null;
@@ -426,6 +428,8 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 	}
 	function measureThreadCard(room, cap, reading, session) {
 		preview.style.setProperty("--lf-thread-width", layoutPx(room));
+		const transcript = session.transcript;
+		if (reading?.keepTop && transcript) cap = Math.min(cap, preview.offsetHeight + Math.max(0, scrollLimit(transcript) - reading.scroll));
 		const worn = parseFloat(preview.style.getPropertyValue("--lf-thread-max-height"));
 		const height = preview.offsetHeight;
 		const overflow = [session.transcript, ...previewList.querySelectorAll(REPLY_BOX)].some((box) => box && box.scrollHeight > box.clientHeight + .5);
@@ -510,13 +514,19 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 			floatingUi().then((ui) => stillCurrent() && watch(ui));
 			return false;
 		}
-		const boundary = commentBoundary({ scroller: place.scroller });
+		const boundary = commentBoundary({
+			scroller: place.scroller,
+			at: {
+				x: place.column ?? place.extent.left,
+				y: place.row
+			}
+		});
 		session.scroller = place.scroller;
 		if (!boundary.width || !boundary.height) {
 			floatingUi().then((ui) => stillCurrent() && watch(ui));
 			return false;
 		}
-		const scroller = place.scroller;
+		const { scroller } = boundary;
 		const seat = session.side.choose({
 			clear: place.clear,
 			row: place.row,
@@ -537,10 +547,13 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 				column: place.column,
 				margin: place.margin,
 				boundary,
-				fit({ width, height, stood, scale }) {
+				fit({ width, height, stood, scale, stationary }) {
 					if (!stillCurrent()) return;
+					const priorReading = session.reading?.input === inputCount() ? session.reading : null;
 					reading ??= session.transcript && {
-						end: !fresh && atScrollEnd(session.transcript),
+						end: !fresh && (priorReading?.end ?? atScrollEnd(session.transcript)),
+						scroll: priorReading?.scroll ?? session.transcript.scrollTop,
+						keepTop: stationary && !fresh && anchored.edge === "top" && !anchored.writing,
 						latest: session.arriving,
 						transcript: session.transcript
 					};
@@ -568,6 +581,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 			if (!answer?.position || !stillCurrent()) return;
 			const { position, anchored } = answer;
 			session.arriving = false;
+			session.reading = null;
 			const { scale } = session.side.landed(position);
 			anchored.commit();
 			placementDriver.stand(position);
@@ -578,7 +592,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 			session.withheldFocus = null;
 			const card = placementDriver.clientBox(position);
 			session.away = card.bottom <= boundary.top || card.top >= boundary.bottom;
-			const region = boundary.inRegion;
+			const region = boundary.cut;
 			if (region) {
 				const cuts = {
 					"--lf-cut-top": (region.top - card.top) / scale.y,
@@ -644,6 +658,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 			withheldFocus: null,
 			transcript: null,
 			place: null,
+			reading: null,
 			stopRegion: null,
 			side: commentPlacement(),
 			anchor: new CardAnchor(preview),
@@ -683,6 +698,11 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 		const listBox = followTranscript?.getBoundingClientRect();
 		const replyBox = previewList.querySelector(replySelector)?.getBoundingClientRect();
 		const follow = !arriving && session.latest && latest?.author === "agent" && (latest.id !== session.latest.id || latest.text !== session.latest.text) && lastBox && listBox && lastBox.bottom >= listBox.top && lastBox.bottom <= (replyBox?.top ?? listBox.bottom) + 80 && followTranscript && atScrollEnd(followTranscript) ? followTranscript : null;
+		session.reading = session.transcript && {
+			input: inputCount(),
+			scroll: session.transcript.scrollTop,
+			end: Boolean(follow)
+		};
 		const present = () => {
 			const targetHeading = targetFor(entry)?.querySelector(":scope > strong")?.textContent;
 			const quoted = selected.thread?.anchor ? anchorLabel(selected.thread.anchor, selected.thread.root.about) : null;
@@ -709,7 +729,6 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 			id: latest.id,
 			text: latest.text
 		} : null;
-		if (follow) scrollToEnd(follow);
 	}
 	function stepPreviewThread(step) {
 		if (!previewSession) return;
@@ -2795,7 +2814,7 @@ function createFloatingResponsePlacement({ bar: fabBar, input: fabInput, respons
 			column: place.column,
 			extent: place.extent,
 			boundary,
-			scroller: place.scroller,
+			scroller: boundary.scroller,
 			coarse: coarsePointer.matches
 		});
 		const epoch = fabPosition.begin();

@@ -1,4 +1,10 @@
-export { EditorView, keymap, Decoration, ViewPlugin } from "@codemirror/view";
+export {
+  EditorView,
+  keymap,
+  Decoration,
+  ViewPlugin,
+  BlockWrapper,
+} from "@codemirror/view";
 export { EditorState, StateEffect, Compartment } from "@codemirror/state";
 export {
   history,
@@ -8,10 +14,7 @@ export {
   invertedEffects,
 } from "@codemirror/commands";
 export { LanguageSupport } from "@codemirror/language";
-export {
-  markdownLanguage,
-  insertNewlineContinueMarkup,
-} from "@codemirror/lang-markdown";
+export { markdownLanguage } from "@codemirror/lang-markdown";
 export {
   ChangeSet,
   EditorSelection,

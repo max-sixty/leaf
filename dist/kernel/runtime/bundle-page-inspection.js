@@ -96,17 +96,18 @@ const metrics = (values) => html`<dl class="lf-inspection-metrics">
           <dd>${number(value)}</dd>
         </div>`)}
   </dl>`;
+const sourcesOf = (css, owner) => css.sources.filter((source) => source.owner === owner);
 const sourceRows = (css, owner) => html`<dl>
-    ${css.sources.filter((source) => source.owner === owner).map((source) => html`
-          <dt><code>${source.path}:${source.line}</code></dt>
-          <dd>
-            ${number(source.bytes)} bytes · ${number(source.rules)} rules ·
-            ${number(source.declarations)} declarations ·
-            ${number(source.inline_styles)} inline · ${number(source.important)}
-            !important <br />${[source.kind, ...source.documents].join(" · ")}
-            ${source.syntax_errors.map((finding) => html`<p>${finding.text}</p>`)}
-          </dd>
-        `)}
+    ${sourcesOf(css, owner).map((source) => html`
+        <dt><code>${source.path}:${source.line}</code></dt>
+        <dd>
+          ${number(source.bytes)} bytes · ${number(source.rules)} rules ·
+          ${number(source.declarations)} declarations · ${number(source.inline_styles)}
+          inline · ${number(source.important)} !important
+          <br />${[source.kind, ...source.documents].join(" · ")}
+          ${source.syntax_errors.map((finding) => html`<p>${finding.text}</p>`)}
+        </dd>
+      `)}
   </dl>`;
 const observations = (label, rows, describe) => html` <dt>${label}</dt>
     <dd>
@@ -194,15 +195,16 @@ function present() {
                         @click=${loadSource}
                       ></button>` : nothing}` : nothing}
         ${report.css ? html`
-                <p>Source captured for r${report.basis.revision}. Static CSS only.</p>
+                <p>
+                  ${[`Source captured for r${report.basis.revision}.`, ...report.css.coverage].join(" ")}
+                </p>
                 ${metrics(report.css.page)}
-                <h3>Page sources and locations</h3>
-                ${sourceRows(report.css, "page")}
+                ${sourcesOf(report.css, "page").length ? html`<h3>Page sources and locations</h3>
+                        ${sourceRows(report.css, "page")}` : nothing}
                 <details>
                   <summary>Selected layer CSS</summary>
                   ${metrics(report.css.layer)}${sourceRows(report.css, "layer")}
                 </details>
-                ${report.css.coverage.map((line) => html`<p>${line}</p>`)}
               ` : nothing}
       </section>
       ${report.javascript ? html`<section aria-label="Authored JavaScript">
@@ -301,7 +303,7 @@ async function openPageInspection(intent) {
 	sourceError = available ? null : "Source inspection is unavailable in this export or public preview. Browser context is shown below.";
 	loading = available;
 	render(html`<h2 class="lf-label">Page details</h2>
-      ${pageControls().filter((entry) => entry.copies).map((entry) => html`${copyableText(entry.label.charAt(0).toUpperCase() + entry.label.slice(1), entry.copies)}${entry.value ? html`<p>${entry.value}</p>` : nothing}`)}`, identity);
+      ${pageControls().filter((entry) => entry.copies).map((entry) => html`${copyableText(entry.label.charAt(0).toUpperCase() + entry.label.slice(1), entry.copies)}${entry.title ? html`<p>${entry.title}</p>` : nothing}`)}`, identity);
 	openLayer(dialog);
 	if (available) loadSource();
 	else present();

@@ -52,7 +52,7 @@ const theme = EditorView.theme({
   "&": { color: "var(--ink)", backgroundColor: "var(--card)" },
   "&.cm-focused": { outline: "none" },
   ".cm-scroller": { fontFamily: "var(--mono)", lineHeight: "24px" },
-  ".cm-content": { padding: "1rem 0", caretColor: "var(--accent)" },
+  ".cm-content": { caretColor: "var(--accent)" },
   ".cm-line": { padding: "0 .85rem" },
   ".cm-gutters": {
     backgroundColor: "var(--paper)",

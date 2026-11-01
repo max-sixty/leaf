@@ -373,7 +373,7 @@ def test_contextual_messages_share_text_spacing_through_send_and_reopen(
         ),
         context=context,
     )
-    resized(page, 390 if touch else 1440, 900)
+    resized(page, 1440, 900)
     page.locator("#target").click(modifiers=["Alt"])
     box = page.locator(".lf-fab-input")
     box.click()

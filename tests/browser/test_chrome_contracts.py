@@ -385,7 +385,7 @@ def test_page_thread_dismiss_and_resolve_share_the_metadata_row(
     browser, serve, thread_count, touch
 ):
     context = browser.new_context(
-        viewport={"width": 900, "height": 844}, is_mobile=touch, has_touch=touch
+        viewport={"width": 1000, "height": 844}, is_mobile=touch, has_touch=touch
     )
     url = serve(LONG_PAGE)
     for index in range(thread_count):
@@ -441,7 +441,7 @@ def test_page_thread_dismiss_and_resolve_share_the_metadata_row(
         assert row["navRight"] < row["resolveLeft"], row
         assert row["overflow"] == 0, row
     dismiss.focus()
-    resized(page, 1000, 844)
+    resized(page, 1100, 844)
     expect(dismiss).to_be_focused()
     resolve.focus()
     page.keyboard.press("Tab")

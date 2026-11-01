@@ -410,11 +410,12 @@ def test_ephemeral_progress_hides_when_its_held_completion_is_revealed(
         ).to_be_visible()
 
 
-@pytest.mark.parametrize(("width", "touch"), [(390, False), (311, True)])
+@pytest.mark.parametrize(("width", "touch"), [(1400, False), (1400, True)])
 def test_progress_disclosure_keeps_its_words_visible_beside_margin_paging(
     browser, serve, width, touch
 ):
-    """A narrow floating card keeps the full disclosure beside shared-target controls."""
+    """A card at its least width, as a 1400px window stands one beside its words, keeps
+    the full disclosure beside shared-target controls."""
     url = serve(PANEL_PAGE)
     roots = [
         panel_comment(serve.page_dir, text, {"section": "lede"})
@@ -702,7 +703,7 @@ def test_a_summary_gathering_the_message_the_user_is_on_keeps_them_on_it(
 
 
 @pytest.mark.parametrize(
-    ("width", "touch", "count"), [(1440, False, 2), (320, True, 10)]
+    ("width", "touch", "count"), [(1440, False, 2), (1400, True, 10)]
 )
 def test_a_root_summary_keeps_thread_actions_outside_its_fold(
     browser, serve, width, touch, count

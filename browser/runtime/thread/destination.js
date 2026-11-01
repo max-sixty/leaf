@@ -9,11 +9,16 @@
    on its message there. Where none of
    those shows it, the primary is asked again with `request.last` set, which says
    nothing else will show the thread, so the floating panel takes any thread then; a
-   second refusal leaves the thread unopened. The primary holds such a thread only until
-   the page can draw it again, as when a wider window shows the passage a narrow one hid:
-   once a thread pass has drawn every surface, it goes back to the page, and the user in
-   it goes with it, a reply they are writing carried with its caret and undo history
-   (`returnToPage`). A thread about an element an agent sent
+   second refusal leaves the thread unopened. That is every thread about a passage on a
+   window with no room for the rail, where no margin card stands (margin-projection.js,
+   the user's choice of 31 October 2026). The primary holds such a thread only until
+   the page can draw it again, as when a wider window brings the rail, or shows the
+   passage a narrow one hid: once a thread pass has drawn every surface, it goes back to
+   the page, and the user in it goes with it, a reply they are writing carried with its
+   caret and undo history (`returnToPage`). A route to the page alone (`page`), Show on
+   page's and that return, asks the primary only to put its view away once the page
+   shows the thread; where the page shows the thread's place but no view of it, a route
+   that travels lands on the place. A thread about an element an agent sent
    in a message has no drawing beside its subject: `openThreadSubject` opens that
    message and lands on the element there.
    A route shows one thread at a time: the primary taking a thread closes the page's
@@ -51,7 +56,7 @@
    placement, independently of whichever view draws a Thread. */
 import { aborted } from "../abort.js";
 import { threadDraft } from "../drafts.js";
-import { focused, onCurrentLocation } from "../focus.js";
+import { focusDestination, focused, onCurrentLocation } from "../focus.js";
 import { presented } from "../geometry.js";
 import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
 import { replyThreadKey } from "./replies.js";
@@ -113,6 +118,12 @@ export function createThreadDestinations({
   }
   /** @param {string} id */
   const threadTarget = (id) => placedAt(id)?.place ?? null;
+  // Whether the page draws the place a thread is about.
+  /** @param {string} id */
+  const placeDrawn = (id) => {
+    const place = threadTarget(id);
+    return place !== null && visibleTargetParts(place).length > 0;
+  };
   // Where the thread stands in the page's order, as the list sorts it: its target, or
   // the section its anchor names where the passage no longer resolves.
   /** @param {string} id */
@@ -191,7 +202,7 @@ export function createThreadDestinations({
   /** @typedef {{part?: "thread" | "reply" | "message" | null,
    * focus?: boolean, travel?: boolean, history?: boolean, scroll?: boolean,
    * intent?: ReturnType<typeof retainUserIntent>, origin?: ReturnType<ReturnType<typeof import("../annotation-overlay/composing/floating-response.js").createFloatingResponsePlacement>["frame"]>,
-   * returning?: boolean}} OpenThreadOptions */
+   * page?: boolean}} OpenThreadOptions */
   /** @param {string} id @param {OpenThreadOptions} [options] */
   async function openPageThread(
     id,
@@ -203,7 +214,7 @@ export function createThreadDestinations({
       scroll = true,
       intent = retainUserIntent(),
       origin = null,
-      returning = false,
+      page = false,
     } = {},
   ) {
     if (!intent()) return null;
@@ -357,14 +368,13 @@ export function createThreadDestinations({
       // every scroller still, since a tab switch scrolls its strip. A passage that stays
       // hidden leaves the thread to the primary reader.
       const place = preview && !navigationStep ? threadTarget(id) : null;
-      const placeDrawn = () => place !== null && visibleTargetParts(place).length > 0;
-      if (place && scroll && !placeDrawn()) {
+      if (place && scroll && !placeDrawn(id)) {
         await reveal(place, intent).ready;
         if (!mayPresent()) return null;
       }
       /** @type {{opened: ReturnType<NonNullable<Parameters<typeof createThreadDestinations>[0]["preview"]>["open"]>}} */
       const invocation = { opened: null };
-      if (preview && (!place || placeDrawn()))
+      if (preview && (!place || placeDrawn(id)))
         intent.handoff(() => {
           invocation.opened = preview.open(id, { origin });
         });
@@ -412,17 +422,36 @@ export function createThreadDestinations({
       return DECLINED;
     }
 
-    // A thread coming back from the primary's last resort (`returnToPage`) is drawn on
-    // the page first, and the primary is asked only once the page shows it, so it puts
-    // its view away as it declines, handing on the reply being written there.
-    const asked = primary && !returning ? inPrimary(primary, false) : DECLINED;
+    // A route to the page alone (`page`), as Show on page and `returnToPage` are, draws
+    // the thread on the page first, and asks the primary only once the page shows it,
+    // so it puts its view away as it declines, handing on the reply being written there.
+    // Where the page shows the thread's place but draws no view of it, as a window with
+    // no room for the rail does (margin-projection.js), a route that travels brings that
+    // place into view and lands on the margin control standing for the thread, whose
+    // focus traces the place (`refreshHighlight`) after a pointer's press as after a
+    // key's, and from which a tap or Enter opens the thread again; with no margin, on the
+    // place itself, its current target.
+    const asked = primary && !page ? inPrimary(primary, false) : DECLINED;
     const first = asked instanceof Promise ? await asked : asked;
     if (first !== DECLINED && first !== UNDRAWN) return first;
     const shown = await onPage();
-    if (returning) {
-      if (!shown || shown === DECLINED) return null;
-      if (primary) await inPrimary(primary, false);
-      return shown;
+    if (page) {
+      if (shown && shown !== DECLINED) {
+        if (primary) await inPrimary(primary, false);
+        return shown;
+      }
+      if (!shown || !navigationStep || !placeDrawn(id)) return null;
+      const control = focus ? (preview?.control(id) ?? null) : null;
+      const arrived = await scrollToThread(id, {
+        part: null,
+        focus: focus && !control,
+        intent,
+        history,
+      });
+      if (!arrived) return null;
+      if (!control) return threadTarget(id);
+      intent.handoff(() => focusDestination(control, "move"));
+      return control;
     }
     if (shown !== DECLINED) return shown;
     // Only a reader that declined is asked again; one that took the thread has shown it.
@@ -457,7 +486,7 @@ export function createThreadDestinations({
           drawnThreadId(heldThread()) === thread.id,
         travel: false,
         scroll: false,
-        returning: true,
+        page: true,
       });
     }
   }
@@ -530,9 +559,15 @@ export function createThreadDestinations({
     openThreadSubject,
     openThreadDraft,
     returnToPage,
-    // Whether the primary holds the thread `key` names as the last resort, so the page
-    // drew it nowhere it could be shown.
-    atLastResort: (/** @type {string} */ key) => lastResort.has(key),
+    // Whether the page shows the thread `key` names, or at least its place, so a route
+    // to the page alone has somewhere to go: false only for a thread the primary holds
+    // as the last resort while the page draws its place nowhere.
+    showsOnPage: (/** @type {string} */ key) => {
+      const thread = lastResort.has(key)
+        ? allThreads().find((each) => threadKey(each) === key)
+        : null;
+      return !thread || placeDrawn(thread.id);
+    },
     holdsThreadDraft: (/** @type {string} */ context) =>
       Boolean(threadHolding(context)),
     threadFocusTarget,

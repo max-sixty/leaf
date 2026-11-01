@@ -505,7 +505,7 @@ async function boot() {
     placedAt: anchorPlacement.placedAt,
     openThreadSubject: (id, options) =>
       app.threadDestinations.openThreadSubject(id, options),
-    atLastResort: (key) => app.threadDestinations.atLastResort(key),
+    showsOnPage: (key) => app.threadDestinations.showsOnPage(key),
     annotationsHidden: () => annotationRenderer?.annotationsHidden() ?? false,
   });
   // The page's general comment box is the floating panel's field.

@@ -4927,7 +4927,7 @@ var FloatingPanel = class extends LeafElement {
 	}
 };
 customElements.define("leaf-floating-panel", FloatingPanel);
-function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPresentation, observeFeedback, firstUnread, afterReadingPass, obligations: obligationView, queueActions, arrivesAt, onMe, withdraw, settlement, placedAt, openThreadSubject, atLastResort, annotationsHidden }) {
+function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPresentation, observeFeedback, firstUnread, afterReadingPass, obligations: obligationView, queueActions, arrivesAt, onMe, withdraw, settlement, placedAt, openThreadSubject, showsOnPage, annotationsHidden }) {
 	const host = new FloatingPanel();
 	host.className = "lf-ui lf-floating-panel";
 	host.setAttribute("part", "panel");
@@ -7217,7 +7217,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const thread = threadOf(route);
 		if (!thread) return {};
 		const inMessage = Boolean(placedAt(thread.id)?.message);
-		opening.onPageSeat ||= Boolean(thread.anchor) && (inMessage || !atLastResort(thread.key));
+		opening.onPageSeat ||= Boolean(thread.anchor) && (inMessage || showsOnPage(thread.key));
 		const presses = html`${opening.unreadSeat ? html`<button
               type="button"
               ${offeredAction("inline", "lf-fp-next-unread")}
@@ -7242,7 +7242,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			close();
 			present({ release: true }).then(() => threadActions.open(thread.key, {
 				part: null,
-				intent
+				intent,
+				page: true
 			}));
 		}}
             ></button>` : nothing}<button
@@ -11090,7 +11091,7 @@ async function boot() {
 		settlement: app.settlement,
 		placedAt: anchorPlacement.placedAt,
 		openThreadSubject: (id, options) => app.threadDestinations.openThreadSubject(id, options),
-		atLastResort: (key) => app.threadDestinations.atLastResort(key),
+		showsOnPage: (key) => app.threadDestinations.showsOnPage(key),
 		annotationsHidden: () => annotationRenderer?.annotationsHidden() ?? false
 	});
 	const generalComment = floatingPanel.pageComment;

@@ -377,6 +377,7 @@ function createApplication(dependencies) {
     refreshInventory: refreshAnnotationInventory,
     renderAnnotations,
     openPageThread,
+    returnToPage: () => threadDestinations.returnToPage(),
     designModeActive: dependencies.annotationCommands.designModeActive,
     pointerModeActive: dependencies.annotationCommands.pointerModeActive,
     leavePageMap: dependencies.annotationCommands.leavePageMap,

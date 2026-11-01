@@ -1228,7 +1228,7 @@ def test_a_growing_draft_over_its_words_holds_the_reply_s_foot(browser, serve):
     below it; the card climbs to the window's head, then the transcript gives way,
     then further lines scroll inside the editor (the user's decision, 2026-10-31).
     Kept at its top, the draft grew down over those words."""
-    page, _preview, editor = drafting_in_a_short_card(browser, serve, 800, 520)
+    page, _preview, editor = drafting_in_a_short_card(browser, serve, 1000, 520)
     held = page.evaluate(CARD_AND_REPLY)
     readings = [held]
     for _ in range(30):
@@ -1353,7 +1353,7 @@ def test_an_answer_arriving_lifts_a_card_beside_its_words(browser, serve, repeat
 def test_an_agent_reply_leaves_the_reply_being_typed_where_it_stands(browser, serve):
     """An agent answer waits behind a notice while the user writes in the card."""
     # The short card, where an arrival has the least room to take.
-    size = (800, 520)
+    size = (1000, 520)
     page, preview, editor = drafting_in_a_short_card(browser, serve, *size)
     before = preview.evaluate(DRAFTING_CARD)
     append_carried_log_record(
@@ -1431,7 +1431,9 @@ def test_an_agent_reply_into_an_open_card_cues_only_its_own_words(browser, serve
     assert preview.evaluate(cued) == ["reply"]
 
 
-@pytest.mark.parametrize(("size", "how"), [((1200, 900), "key"), ((800, 520), "press")])
+@pytest.mark.parametrize(
+    ("size", "how"), [((1200, 900), "key"), ((1000, 520), "press")]
+)
 def test_a_sent_reply_leaves_the_reply_row_where_it_stands(browser, serve, size, how):
     """Sending keeps the reply's foot through admission, then releases it for news
     and, beside the words, for the next draft; over them the next draft typed in the
@@ -1586,12 +1588,12 @@ def test_a_sent_reply_leaves_the_reply_row_where_it_stands(browser, serve, size,
     [
         {"viewport": {"width": 1280, "height": 800}},
         {
-            "viewport": {"width": 390, "height": 844},
+            "viewport": {"width": 1024, "height": 768},
             "is_mobile": True,
             "has_touch": True,
         },
     ],
-    ids=["desktop", "phone"],
+    ids=["desktop", "tablet"],
 )
 def test_a_thread_card_reply_stays_in_the_visible_viewport(browser, serve, window):
     """Zooming in, like a phone's software keyboard, shrinks the visible viewport without

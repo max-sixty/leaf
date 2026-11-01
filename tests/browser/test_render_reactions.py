@@ -942,6 +942,10 @@ def test_the_response_field_grows_across_its_bar(browser, serve):
     assert narrow_field["x"] + narrow_field["width"] == pytest.approx(
         content_right, abs=1
     ), narrow_field
+    # A phone has no room for a card, so the draft is sent on a window that has.
+    resized(page, 1200, 900)
+    rendered(page)
+    expect(field).to_be_focused()
     page.keyboard.press("Enter")
     card = page.locator(".lf-margin-preview")
     expect(card).to_have_css("opacity", "1")

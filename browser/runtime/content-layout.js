@@ -138,6 +138,19 @@ export const railStands = (main = layoutBox()) => {
   const width = parseFloat(getComputedStyle(main).getPropertyValue("--rail")) || 0;
   return shellRight() - proseRect(main).right >= width;
 };
+// Whether the window has room for the rail: as wide as the column with a rail on either
+// side (`--col`, `--rail`), the width at which a column page's rail stands
+// (`railStands`), whatever this page's own Layout does with the room. A workspace keeps
+// no rail at any width, and still has this room on a desktop's window.
+export const windowHoldsRail = (main = layoutBox() ?? document.body) => {
+  const style = getComputedStyle(main);
+  /** @param {string} name */
+  const length = (name) => parseFloat(style.getPropertyValue(name)) || 0;
+  return (
+    document.body.getBoundingClientRect().width >=
+    length("--col") + 2 * length("--rail")
+  );
+};
 
 // A page of parts' title scrolls within its fixed column. Declare that
 // surface alongside the layout, so reach need not discover it by scanning content.

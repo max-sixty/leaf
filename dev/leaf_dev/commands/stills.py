@@ -581,6 +581,19 @@ def open_card(page: Page, marker: Locator) -> None:
     page.wait_for_function(OPEN_CARD)
 
 
+def thread_by_marker(page: Page) -> None:
+    """The plan's stop thread, opened by a press on its marker: a margin card on a
+    window with room for the rail, the floating panel's view of it on a phone."""
+    marker = page.locator('[data-lf-margin-for="plan-stop"] .lf-margin-marker')
+    marker.evaluate("m => scrollBy(0, m.getBoundingClientRect().top - innerHeight / 3)")
+    settle(page)
+    marker.click()
+    page.wait_for_function(
+        "() => document.activeElement?.closest('.lf-margin-preview, .lf-fp-view')"
+    )
+    page.mouse.move(0, 0)
+
+
 def card_by_keyboard(page: Page) -> None:
     """The first margin card, opened by `t`, the keyboard's way to the next thread, so
     its thread holds a visible focus."""
@@ -2736,11 +2749,13 @@ STATES = (
     ),
     State("plan-card-keyboard", "review-a-plan", card_by_keyboard),
     State("plan-card-keyboard-dark", "review-a-plan", card_by_keyboard, scheme="dark"),
+    # A window with room for the rail but none beside the ask, so the card stands over
+    # its options and covers a choice's hint.
     State(
         "thread-choice-hints",
         "../tests/fixtures/pages/thread-choice-hints",
         card_by_keyboard,
-        viewport=(741, 838),
+        viewport=(1000, 838),
         region=".lf-margin-preview",
     ),
     State("plan-card-reply", "review-a-plan", card_reply),
@@ -2776,11 +2791,13 @@ STATES = (
         scheme="dark",
         region=".lf-margin-preview",
     ),
+    # A finger's card at its least width: a 1400px touch window stands it beside its
+    # words, where a phone opens the thread in the floating panel.
     State(
-        "plan-card-held-news-phone",
+        "plan-card-held-news-touch",
         "review-a-plan",
         card_held_news,
-        viewport=(390, 844),
+        viewport=(1400, 844),
         touch=True,
         region=".lf-margin-preview",
     ),
@@ -2812,6 +2829,13 @@ STATES = (
     State("plan-go-to", "review-a-plan", go_to, viewport=(1024, 768)),
     State("plan-narrow", "review-a-plan", at_rest, viewport=(360, 740)),
     State("plan-touch", "review-a-plan", at_rest, viewport=(390, 844), touch=True),
+    State(
+        "plan-thread-phone",
+        "review-a-plan",
+        thread_by_marker,
+        viewport=(390, 844),
+        touch=True,
+    ),
     State("plan-more", "review-a-plan", more_menu),
     State("plan-capture", "review-a-plan", capture_area),
     State(
@@ -2847,7 +2871,7 @@ STATES = (
         "plan-card-reply-long-touch",
         "review-a-plan",
         card_reply_long,
-        viewport=(390, 844),
+        viewport=(1400, 844),
         touch=True,
     ),
     State("plan-panel-reply-long", "review-a-plan", panel_reply_long),
@@ -3270,7 +3294,7 @@ STATES = (
         "ship-card-touch",
         "ship-review",
         card_by_pointer,
-        viewport=(390, 500),
+        viewport=(1024, 500),
         touch=True,
     ),
     State("on-me", "corpus", on_me),

@@ -51,6 +51,7 @@ import {
   scheduleMarginEntryLabels,
   scheduleMarginLayout,
   standsFolded,
+  standsWithheld,
   unregisterMarginRow,
 } from "./margin-layout.js";
 
@@ -452,7 +453,7 @@ export function createMarginProjection({
     return [...markerRows()].filter(
       (row) =>
         !row.hidden &&
-        !row.closest(".lf-withheld") &&
+        !standsWithheld(row) &&
         row.checkVisibility({ visibilityProperty: true }),
     );
   }
@@ -1191,8 +1192,12 @@ export function createMarginProjection({
       if (!fresh || !freshChoice) closePreview();
       else {
         const owner = threadMarginEntry(fresh);
+        // A withheld row is not gone: the card withholds itself with its target and
+        // comes back with it (thread-preview.js).
+        const away = owner && standsWithheld(owner);
         if (
           owner &&
+          !away &&
           !owner.checkVisibility() &&
           forcedKey !== fresh.key &&
           expandedOptionsKey !== fresh.key &&
@@ -1202,7 +1207,7 @@ export function createMarginProjection({
           unfoldOpenThreadOwner(fresh);
           return;
         }
-        if (!owner || (!owner.checkVisibility() && forcedKey !== fresh.key))
+        if (!owner || (!away && !owner.checkVisibility() && forcedKey !== fresh.key))
           closePreview();
         else {
           card.refresh(fresh, freshChoice, owner, threadOwnerHeld);

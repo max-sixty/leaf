@@ -350,7 +350,7 @@ def runs(pid: int, command: str) -> bool:
         try:
             if command in " ".join(child.cmdline()):
                 return True
-        except psutil.NoSuchProcess:
+        except psutil.Error:
             continue
     return False
 

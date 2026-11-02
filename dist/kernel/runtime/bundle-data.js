@@ -1,7 +1,7 @@
-import { CARET_KEYS, HOLDS_WORD, J, OUTPUT, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSES, RUNTIME_PAINT_ATTRIBUTE, SourcePairs, TEXT_BOX, TEXT_FIELD, W, WALK, Z, actionElement, actionTemplate, afterScript, aimedTop, alreadyShown, atScrollEnd, attachDeferredLoader, backgroundFlash, beginWalk, bindQueuedWork, blurFocused, byRenderedOrder, cancelRender, caretAtKey, chosenSince, clippedContents, clippedPlace, closestAcross, currentLocationIn, currentLocationNodes, currentLocationTouches, d, dataBody, deepFocus, describeFailure, drawn as drawn$2, eventSource, fitsWhole, flashDuration, focusDestination, focused, foldBlock, frameFor, generatedElement, growthAfterIsSeen, growthIsSeen, headerInset, holdCurrentLocation, holdFocus, iconElement, inChrome, inUi, inWindowChrome, inlineStyle, inputCount, isElement, isHTML, keeps, keepsHidden, keepsText, landedBox, landingBand, layoutChanged, layoutPx, listWalkPosition, measure, motion, motionPlays, move, moveScrollerBy, nativeLayerHolding, nextAnimation, nextFrame, nextRender, offer, offerAction, offered, offeredAction, offeredActionElement, onCurrentLocation, onLetGo, onPress, onPressAway, onUserInput, outputProducer, pagePresented, pageScroller, passOn, patchRetains, patchTree, placeBox, placeHolder, placeKept, plainPress, pointerAt, presented, readCaret, recentPlaceInput, refuseOutput, registrations, renderedOrder, renderedParent, renderedUnder, renderingState, restorePointer, restrictUserIntent, retainUserIntent, roomPx, scrollBehavior, scrollChoices, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollToEnd, scrollersOf, seenRect, selectsAll, setChildren, setRegistration, setScroll, shownBox, shownRect, shownWindow, showsContents, sizeObserver, skipped, slotTop, stopScroll, stuckBox, synNodes, syntax, syntaxLanguageNames, tabStore, takesLetters, tick, typesText, under, union, upFrom, updateSurface, userScrollport, visibleBand, watchArrivals, watchOwner, whenNone, x } from "./bundle-portable.js";
-import { COLLAPSE, LIVE_ROOT, PENDING, PRESENTATION_DOM, PRESSABLE, TEXT_BLOCK, adoptRegistry, agentName, agentSays, announce, applicationPresenter, applicationState, ariaShortcuts, attachApplicationPresentation, authoredBody, bindings, buttonCommand, checked, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, decisionFor, declarationFor, declareCommandReadiness, declaresCommandHandler, deleted, descriptionOf, editable, el, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, hasObligationSource, holdStatus, holdingError, html, isElementName, isReaction, keyed, keys, labelOf, lastMovedAt, layerRoot, leafSays, live as live$1, live$1 as live, loadShadowRules, marks, messageKey, nothing, notice, obligationValue, offlineDeferred, offlineInteractive, pageClaimed, pageRange, pageUrl, paintKeys, passErrorsAt, projectCommandScope, projectView, projectionOrigins, projectionRegionsPresented, pruneScopedElements, raiseError, readApplication, readPart, ref, registry, render as render$1, repaint, repeat, reveal, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, savedReadingSettled, seatRoot, selectEnds, selectionBackward, share, spell, tagsDeclaring, threadKey, threadNames, titleOf, tokenEntry, touchPresses as touchPresses$1, turns, voiced, watchCommandScopes, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented, word } from "./bundle-errors.js";
+import { CARET_KEYS, HOLDS_WORD, J, OUTPUT, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSES, RUNTIME_PAINT_ATTRIBUTE, SourcePairs, TEXT_BOX, TEXT_FIELD, W, WALK, Z, actionElement, actionTemplate, afterScript, aimedTop, alreadyShown, atScrollEnd, attachDeferredLoader, backgroundFlash, beginWalk, bindQueuedWork, blurFocused, byRenderedOrder, cancelRender, caretAtKey, chosenSince, clippedContents, clippedPlace, closestAcross, currentLocationIn, currentLocationNodes, currentLocationTouches, d, dataBody, deepFocus, describeFailure, drawn as drawn$2, eventSource, fitsWhole, flashDuration, focusDestination, focused, foldBlock, frameFor, generatedElement, growthAfterIsSeen, growthIsSeen, headerInset, holdCurrentLocation, holdFocus, iconElement, inChrome, inUi, inWindowChrome, inlineStyle, inputCount, isElement, isHTML, keeps, keepsHidden, keepsText, landedBox, landingBand, layoutChanged, layoutPx, listWalkPosition, measure, motion, motionPlays, move, moveScrollerBy, nativeLayerHolding, nextAnimation, nextFrame, nextRender, offer, offerAction, offered, offeredAction, offeredActionElement, onCurrentLocation, onLetGo, onPress, onPressAway, onUserInput, outputProducer, pagePresented, pageScroller, passOn, patchRetains, patchTree, placeBox, placeHolder, placeKept, plainPress, pointerAt, presented, readCaret, recentPlaceInput, refuseOutput, registrations, renderedOrder, renderedParent, renderedUnder, renderingState, restorePointer, restrictUserIntent, retainUserIntent, roomPx, scrollBehavior, scrollChoices, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollToEnd, scrollersOf, seenRect, selectsAll, setChildren, setRegistration, setScroll, shownBox, shownRect, shownWindow, showsContents, sizeObserver, skipped, skipper, slotTop, stopScroll, stuckBox, synNodes, syntax, syntaxLanguageNames, tabStore, takesLetters, tick, typesText, under, union, upFrom, updateSurface, userScrollport, visibleBand, watchArrivals, watchOwner, whenNone, x } from "./bundle-portable.js";
+import { COLLAPSE, LIVE_ROOT, PENDING, PRESENTATION_DOM, PRESSABLE, TEXT_BLOCK, adoptRegistry, agentName, agentSays, announce, applicationPresenter, applicationState, ariaShortcuts, attachApplicationPresentation, authoredBody, bindings, buttonCommand, checked, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, decisionFor, declarationFor, declareCommandReadiness, declaresCommandHandler, deleted, descriptionOf, editable, el, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, fragmentUrl, hasObligationSource, holdStatus, holdingError, html, isElementName, isReaction, keyed, keys, labelOf, lastMovedAt, layerRoot, leafSays, live as live$1, live$1 as live, loadShadowRules, marks, messageKey, nothing, notice, obligationValue, offlineDeferred, offlineInteractive, pageClaimed, pageRange, pageUrl, paintKeys, passErrorsAt, projectCommandScope, projectView, projectionOrigins, projectionRegionsPresented, pruneScopedElements, raiseError, readApplication, readPart, ref, registry, render as render$1, repaint, repeat, reveal, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, savedReadingSettled, seatRoot, selectEnds, selectionBackward, share, spell, tagsDeclaring, threadKey, threadNames, titleOf, tokenEntry, touchPresses as touchPresses$1, turns, voiced, watchCommandScopes, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented, word } from "./bundle-errors.js";
 import { LayerRefused, admitReading, admitResponse, randomId, reportPageError, requestJson, revealLayer, runtimeRootState, sameLayer, setRuntimeRootAttribute } from "./bundle-layer-client.js";
-import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableWord, addressedElements, ago, aimTargetAt, anchorBox, anchorForPassage, anchorForRange, anchorReading, anchorView, anchoringIsReady, chromeForeground, chromeRoot, claimReachStop, containingReadingRegionFor, cutFrames, datumAimTarget, datumLabel, effectiveScroller, followingItsEnd, fragmentTarget, headerLevels, isAddressable, leadingTitle, livePoint, nameAnchor, nameable, onReadingInput, pageReadingRegion, projectedDatum, reachScrollers, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, releaseReachStop, resolveAnchor, revealAddressed, scrollChainOf, scrollerFor, sectionLabel, sectionOf, settleDocumentLayout, shortAgo, shownRegionBounds, targetElement, targetPlace, targetSegments, unconcealedReadingRegions, visualPartLabel, watchReadingRegionTransitions } from "./bundle-content-layout.js";
+import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableWord, addressedElements, ago, aimControl, aimTargetAt, anchorControl, anchorForPassage, anchorForRange, anchoringIsReady, chromeForeground, chromeRoot, claimReachStop, containingReadingRegionFor, datumAimTarget, datumLabel, deferredArrival, effectiveScroller, followingItsEnd, fragmentAddress, fragmentTarget, headerLevels, isAddressable, leadingTitle, livePoint, nameable, onReadingInput, pageReadingRegion, pressedElsewhere, projectedDatum, reachScrollers, readInsets, readingRegionFor, readingRegions, recentReadingRegion, regionScrollBehavior, regionsSettled, registerPageControl, releaseControl, releaseReachStop, resolveAnchor, revealAddressed, revealControl, scrollChainOf, scrollerFor, sectionLabel, sectionOf, settleDocumentLayout, shortAgo, shownRegionBounds, standInChrome, tabFromBlock, targetElement, targetPlace, targetSegments, unconcealedReadingRegions, visualPartLabel, watchReadingRegionTransitions, writeInsets } from "./bundle-content-layout.js";
 import { alignInlineText, alignText, authored, authoredScope, blockAt, elementById, excerptWords, fencePassageParts, labelWords, leafSurface, pageBlocks, pageDocument, pageQueryAll, pageText, pageWords, pointAt as pointAt$1, quoteFrom, quotedWords, rangeOf, readingFrom, renderRetired, segmentBlock, segmentsIn, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
 import { aborted, authoredStates, commitWidgetDescriptors, quoted, rememberAuthoredParents, stageAuthoredStates, stageWidgetDescriptors, widgetElement } from "./bundle-abort.js";
 import { isCanonicalMediaUrl, readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "./media.js";
@@ -2239,127 +2239,6 @@ function copyTrigger(copy) {
 }
 
 //#endregion
-//#region runtime/block-controls.js
-const home = document.createElement("div");
-home.className = "lf-block-controls";
-const cuts = /* @__PURE__ */ new WeakMap();
-const makeCut = () => {
-	const frame = document.createElement("div");
-	frame.className = "lf-block-control-cut";
-	return frame;
-};
-const placed = /* @__PURE__ */ new Map();
-const wired$1 = /* @__PURE__ */ new WeakSet();
-let hoveredControl = null;
-let focusedControl = null;
-const activeBlock = (control) => control ? placed.get(control) : void 0;
-const syncActive = (block) => {
-	if (block) block.toggleAttribute("data-lf-control-active", activeBlock(hoveredControl) === block || activeBlock(focusedControl) === block);
-};
-const setActiveControl = (kind, control) => {
-	const previous = kind === "hover" ? hoveredControl : focusedControl;
-	if (previous === control) return;
-	if (kind === "hover") hoveredControl = control;
-	else focusedControl = control;
-	syncActive(activeBlock(previous));
-	syncActive(activeBlock(control));
-};
-onCurrentLocation((node) => {
-	for (let at = node; at; at = upFrom(at)) if (at instanceof HTMLElement && placed.has(at)) return setActiveControl("focus", at);
-	setActiveControl("focus", null);
-});
-let resized = 0;
-addEventListener("resize", () => {
-	resized ||= nextRender(() => {
-		resized = 0;
-		const read = [...placed].filter(([, block]) => !skipped(block)).map(([control, block]) => ({
-			control,
-			block,
-			levels: headerLevels(block)
-		}));
-		for (const { control, block, levels } of read) standInChrome(control, block, levels);
-	});
-});
-function standInChrome(control, block, levels) {
-	const previousBlock = placed.get(control);
-	const frames = cutFrames(levels, (cuts.get(control) ?? []).map(({ frame }) => frame), makeCut);
-	cuts.set(control, frames);
-	placed.set(control, block);
-	if (!wired$1.has(control)) {
-		wired$1.add(control);
-		control.addEventListener("pointerenter", () => setActiveControl("hover", control));
-		control.addEventListener("pointerleave", () => {
-			if (hoveredControl === control) setActiveControl("hover", null);
-		});
-	}
-	if (previousBlock !== block) {
-		syncActive(previousBlock);
-		syncActive(block);
-	}
-	if (home.parentNode !== chromeRoot) move(chromeRoot, home, null);
-	const outer = frames[0]?.frame;
-	if (outer && outer.parentNode !== home) move(home, outer, null);
-	const frame = frames.at(-1)?.frame ?? home;
-	if (control.parentNode !== frame) move(frame, control, null);
-}
-function anchorControl(control, block) {
-	const place = () => {
-		keepsHidden(control, !anchorView(control, block, place));
-	};
-	return {
-		control,
-		near: anchorView(control, block, place),
-		anchor: anchorReading(block)
-	};
-}
-function aimControl({ control, near, anchor }) {
-	keepsHidden(control, !near);
-	const name = nameAnchor(anchor);
-	if (control.style.positionAnchor !== name) control.style.positionAnchor = name;
-	return control;
-}
-function readInsets(block) {
-	const box = block.getBoundingClientRect();
-	const at = anchorBox(block);
-	return {
-		dx: box.left - at.left,
-		dy: box.top - at.top
-	};
-}
-function writeInsets(control, { dx, dy }) {
-	for (const [property, length] of Object.entries({
-		"--lf-block-control-dx": dx,
-		"--lf-block-control-dy": dy
-	})) {
-		const value = length ? layoutPx(length) : "";
-		if (control.style.getPropertyValue(property) !== value) control.style.setProperty(property, value);
-	}
-}
-function revealControl(control, block) {
-	if (cuts.has(control)) standInChrome(control, block, headerLevels(block));
-	writeInsets(control, readInsets(block));
-	refreshAnchorView(control);
-}
-function tabFromBlock(control, block, signal) {
-	control.addEventListener("keydown", (event) => {
-		if (event.key === "Tab") focusDestination(block, "step");
-	}, { signal });
-}
-let pressedPath = /* @__PURE__ */ new WeakSet();
-addEventListener("pointerdown", (event) => pressedPath = new WeakSet(event.composedPath()), { capture: true });
-const pressedElsewhere = (event, control) => event.detail > 0 && !pressedPath.has(control);
-function releaseControl(control) {
-	const block = placed.get(control);
-	if (hoveredControl === control) hoveredControl = null;
-	if (focusedControl === control) focusedControl = null;
-	control.remove();
-	cuts.get(control)?.[0]?.frame.remove();
-	cuts.delete(control);
-	placed.delete(control);
-	syncActive(block);
-}
-
-//#endregion
 //#region runtime/code-copy.js
 const controls = /* @__PURE__ */ new WeakMap();
 const wired = /* @__PURE__ */ new WeakMap();
@@ -2737,7 +2616,6 @@ function headingOn(node) {
 	const title = leadingTitle(node);
 	return title && headingAt(title) === title && headingAddress(title) === node ? title : null;
 }
-const linkUrl = (address) => new URL(`#${encodeURIComponent(address.id)}`, location.href).href;
 function makeLink(heading) {
 	const control = copyControl("lf-heading-link", {
 		label: "Copy link to section",
@@ -2757,7 +2635,7 @@ function makeLink(heading) {
 	control.addEventListener("click", (event) => {
 		const address = headingAddress(heading);
 		if (address && !pressedElsewhere(event, control)) {
-			control.value = linkUrl(address);
+			control.value = fragmentUrl(address);
 			return;
 		}
 		event.preventDefault();
@@ -2773,7 +2651,7 @@ function makeLink(heading) {
 	const line = firstLine(heading);
 	aimControl(reading);
 	writeInsets(control, insets);
-	standInChrome(control, heading, levels);
+	standInChrome(control, heading, levels, false);
 	writeLine(control, line);
 	return link;
 }
@@ -6576,11 +6454,17 @@ function* renderedBlocks(blocks, within = null) {
 		const boxes = [];
 		const runs = [];
 		let run = null;
+		let hidden = null;
 		for (const segment of segments) {
 			const { node, start, end } = segment;
+			if (hidden?.contains(node)) {
+				run = null;
+				continue;
+			}
 			const parent = renderedParent(node);
 			if (!drawn.has(parent)) drawn.set(parent, drawsLandmark(parent));
 			if (!drawn.get(parent)) {
+				hidden = parent && skipper(parent);
 				run = null;
 				continue;
 			}
@@ -7675,7 +7559,7 @@ function mountHistory({ followFragment, returnToFragment }) {
 			if (key) places.set(key, readPlace());
 		}
 		if (event.navigationType === "traverse") {
-			const handler = claimed(url) ?? returnToFragment(url);
+			const claim = claimed(url);
 			const place = places.get(event.destination.key);
 			const mayReturn = retainUserIntent({ available: () => !event.signal.aborted });
 			event.intercept({
@@ -7688,11 +7572,17 @@ function mountHistory({ followFragment, returnToFragment }) {
 					if (!mayReturn()) return;
 					let work;
 					mayReturn.handoff(() => {
-						work = handler?.();
+						work = claim?.();
 					});
-					const placed = await work;
+					let placed = Boolean(claim) && await work !== false;
 					if (!mayReturn()) return;
-					if (!handler || placed === false) {
+					work = void 0;
+					mayReturn.handoff(() => {
+						work = returnToFragment(url)?.();
+					});
+					if (work !== void 0) placed = await work !== false || placed;
+					if (!mayReturn()) return;
+					if (!placed) {
 						if (place) setScroll(pageScroller, {
 							left: place.offset[0],
 							top: place.offset[1],
@@ -7733,6 +7623,7 @@ function scrollToFragment(element) {
 		block: "start"
 	});
 }
+const fragmentShown = (address) => Boolean(address?.place && showsContents(address.place));
 function createAnchorTravel({ anchors, refreshThread, focusForNavigation, threadFocusTarget, clearFor, announce }) {
 	let travelIntent = 0;
 	const retainTravel = (retained = retainUserIntent()) => {
@@ -7895,6 +7786,7 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 				if (moving === void 0) return;
 				if (!moving) {
 					if (continuing && arrival) Object.assign(continuing, arrival);
+					if (url) replaceEntry(url);
 					return;
 				}
 				navigationGroup = arrival && {
@@ -7909,22 +7801,29 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 		return fragmentTarget(url.hash) && fragmentNavigationStep(url, true);
 	}
 	function returnToFragment(url) {
-		const where = fragmentTarget(url.hash);
-		return where && !showsContents(where) ? fragmentNavigationStep(url, false) : null;
+		const address = fragmentAddress(url.hash);
+		if (!address) return null;
+		return fragmentShown(address) ? null : fragmentNavigationStep(url, false);
 	}
 	function fragmentNavigationStep(url, focus) {
 		const mayArrive = retainTravel();
-		return () => arrive(() => {
-			const where = fragmentTarget(url.hash);
-			return where && {
-				where,
-				focus: focus ? where : null,
-				scroll: [{
-					at: where,
-					block: "fragment"
-				}]
-			};
-		}, { intent: mayArrive });
+		return async () => {
+			const address = fragmentAddress(url.hash);
+			const drawing = address?.key == null ? null : revealAddressed(address.element, address.key);
+			if (drawing?.then) await drawing;
+			if (!mayArrive()) return false;
+			return arrive(() => {
+				const where = fragmentTarget(url.hash);
+				return where && {
+					where,
+					focus: focus ? where : null,
+					scroll: [{
+						at: where,
+						block: "fragment"
+					}]
+				};
+			}, { intent: mayArrive });
+		};
 	}
 	async function navigateToDatum(owner, attribute, key, { success = "", missing = "", focus = true } = {}) {
 		const mayArrive = retainTravel();
@@ -7935,10 +7834,8 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 			if (missing) notice(missing);
 			return false;
 		}
-		const url = new URL(window.location.href);
-		url.hash = source.id;
 		const departure = prepareNavigationStep({
-			url,
+			url: new URL(fragmentUrl(source, key)),
 			intent: mayArrive
 		});
 		const hydration = revealAddressed(source, key);
@@ -7977,14 +7874,34 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 		}
 		return arrived;
 	}
+	const skippableBox = (at) => {
+		for (let box = placeHolder(at); box; box = renderedParent(box)) if (drawnForLanding.has(box) || getComputedStyle(box).contentVisibility === "auto") return box;
+		return null;
+	};
+	const drawnForLanding = /* @__PURE__ */ new Map();
+	function drawForLanding(box) {
+		if (!(box instanceof HTMLElement) || drawnForLanding.has(box)) return;
+		drawnForLanding.set(box, box.style.getPropertyValue("content-visibility"));
+		box.style.setProperty("content-visibility", "visible");
+		nextFrame(() => nextFrame(() => {
+			const before = drawnForLanding.get(box);
+			drawnForLanding.delete(box);
+			if (before) box.style.setProperty("content-visibility", before);
+			else box.style.removeProperty("content-visibility");
+		}));
+	}
 	function placeScroll({ at, align = at, block = "center", behavior = scrollBehavior(), when }, replacedView) {
 		if (when && !when()) return;
 		if (block === "fragment") scrollToFragment(at);
-		else scrollIntoView(at, {
-			alignment: align,
-			behavior: replacedView ? "instant" : behavior,
-			block
-		});
+		else {
+			const skippable = skippableBox(at);
+			if (skippable) drawForLanding(skippable);
+			scrollIntoView(at, {
+				alignment: align,
+				behavior: replacedView || skippable ? "instant" : behavior,
+				block
+			});
+		}
 	}
 	function scrollToElement(element, behavior = scrollBehavior(), block = "center") {
 		if (!element) return;
@@ -9609,11 +9526,22 @@ function createVersionController({ initialDocument, compositionInput, openThread
 		const fresh = performance.getEntriesByType("navigation")[0]?.type === "navigate";
 		const arrivedAt = location.hash;
 		const currentIntent = retainUserIntent({ since: 0 });
+		let drawing = null;
+		const land = () => {
+			const where = aimedAt && currentIntent() && fragmentTarget(arrivedAt);
+			if (!where) return;
+			reveal(where, currentIntent);
+			scrollToFragment(where);
+		};
 		return function landFragment() {
-			aimedAt ??= fresh && fragmentTarget(arrivedAt);
-			if (!aimedAt || !currentIntent()) return;
-			reveal(aimedAt, currentIntent);
-			scrollToFragment(aimedAt);
+			const address = fragmentAddress(arrivedAt);
+			aimedAt ??= fresh && (address?.element ?? null);
+			if (!currentIntent()) return;
+			if (address?.key != null && !fragmentShown(address) && !drawing) {
+				const asked = revealAddressed(address.element, address.key);
+				if (asked?.then) drawing = deferredArrival(Promise.resolve(asked).then(land, land));
+			}
+			land();
 		};
 	}
 	function mount() {

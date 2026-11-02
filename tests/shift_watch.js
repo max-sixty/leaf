@@ -2866,7 +2866,11 @@
       if (next === after) return true;
     return false;
   };
-  const sizeReaches = (target, element, from, to, axis, change) => {
+  const sizeReaches = (target, element, from, to, axis, change, proof) => {
+    const reject = (reason, node, readings = {}) => {
+      if (proof) proof.rejection = { reason, node, ...readings };
+      return false;
+    };
     const size = axis === "top" ? "height" : "width";
     // The source keeps its old layout path; the receiving box must still belong to
     // that flow in the new reading. Leaving flow cannot borrow the old fold's credit.
@@ -2875,30 +2879,35 @@
     const holding = new Set(path);
     let branch = target;
     while (boxParent(branch, from) && !holding.has(boxParent(branch, from))) {
-      if (!inFlow(branch, from)) return false;
+      if (!inFlow(branch, from)) return reject("source-out-of-flow", branch);
       branch = boxParent(branch, from);
       const before = boxAt(branch, from),
         after = boxAt(branch, to);
-      if (!before || !after || Math.abs(after[size] - before[size] - change) >= 1)
-        return false;
+      if (!before || !after)
+        return reject("missing-ancestor-box", branch, { before, after });
+      if (Math.abs(after[size] - before[size] - change) >= 1)
+        return reject("ancestor-size-mismatch", branch, { before, after });
     }
     const flow = boxParent(branch, from);
-    if (!inFlow(branch, from) || !flow) return false;
+    if (!inFlow(branch, from)) return reject("source-out-of-flow", branch);
+    if (!flow) return reject("missing-flow", branch);
     // An in-flow box moves with its parent, and an absolutely positioned one with its
     // containing block: its nearest positioned ancestor or a box nearer still, such as
     // a transformed one. So an absolute box is carried only where a positioned box
     // between it and the follower holds it, as a diff line holds its comment button.
     const reach = path.indexOf(flow);
-    if (reach < 1) return false;
+    if (reach < 1) return reject("receiver-outside-flow", flow);
     const follower = path[reach - 1];
     let placed = true;
     for (const box of path.slice(0, reach - 1)) {
       const style = paintAt(box, to);
-      if (style.position === "fixed" || style.float !== "none") return false;
+      if (style.position === "fixed" || style.float !== "none")
+        return reject("receiver-out-of-flow", box);
       if (style.position === "absolute") placed = false;
       else if (!placed && style.position !== "static") placed = true;
     }
-    if (!placed && paintAt(follower, to).position === "static") return false;
+    if (!placed && paintAt(follower, to).position === "static")
+      return reject("uncontained-absolute-receiver", follower);
     // Block-level children stack vertically in a horizontal-writing block flow.
     // A block container can also hold inline siblings, whose height does not carry
     // the next sibling down; flex, grid, and vertical writing have other axes.
@@ -2909,8 +2918,11 @@
       !["block", "flow-root"].includes(paintAt(branch, from).display) ||
       !["block", "flow-root"].includes(paintAt(follower, to).display)
     )
-      return false;
-    return inFlow(follower, to) && followsAt(branch, follower, from);
+      return reject("unsupported-block-flow", flow);
+    if (!inFlow(follower, to)) return reject("receiver-out-of-flow", follower);
+    if (!followsAt(branch, follower, from))
+      return reject("receiver-not-following", follower);
+    return true;
   };
   // A sticky box's inset is the line it sticks at, not an offset. While the box stands
   // at that line, a change of the inset moves it by that change within its containing
@@ -2969,7 +2981,7 @@
   };
   const animationMotion = (node, from, to, animations) => {
     const element = node.nodeType === Node.TEXT_NODE ? up(node) : node;
-    const motion = { left: 0, top: 0, terms: [] };
+    const motion = { left: 0, top: 0, terms: [], sizePropagation: [] };
     if (!element) return motion;
     for (const details of nativeClosures.keys()) {
       const before = boxAt(details, from),
@@ -3034,7 +3046,6 @@
           after = boxAt(target, to);
         const first = layoutAt(element, from),
           last = layoutAt(element, to);
-        if (!before || !after || !first || !last) continue;
         for (const axis of ["left", "top"]) {
           const size = axis === "top" ? "height" : "width";
           const logicalSize = axis === "top" ? "blockSize" : "inlineSize";
@@ -3044,13 +3055,24 @@
             )
           )
             continue;
-          const change = after[size] - before[size];
-          if (
-            Math.abs(change) < 1 ||
-            Math.abs(last[axis] - first[axis] - change) >= 1 ||
-            !sizeReaches(target, element, from, to, axis, change)
-          )
+          // Retain the exact rejected proof, including border boxes. Computed
+          // animation values alone cannot explain why native reflow lost credit.
+          const proof = { target, axis, before, after, first, last };
+          motion.sizePropagation.push(proof);
+          if (!before || !after || !first || !last) {
+            proof.rejection = { reason: "missing-endpoint" };
             continue;
+          }
+          const change = after[size] - before[size];
+          if (Math.abs(change) < 1) {
+            proof.rejection = { reason: "source-size-unchanged" };
+            continue;
+          }
+          if (Math.abs(last[axis] - first[axis] - change) >= 1) {
+            proof.rejection = { reason: "receiver-movement-mismatch" };
+            continue;
+          }
+          if (!sizeReaches(target, element, from, to, axis, change, proof)) continue;
           credit(motion, "animation_reflow", target, axis, change, {
             before,
             after,
@@ -3185,6 +3207,7 @@
       },
       scroll_terms: scroll.terms,
       animation_terms: motion.terms,
+      size_propagation: motion.sizePropagation,
       animations: motionEvidence(node, from, to, selected),
     };
   };

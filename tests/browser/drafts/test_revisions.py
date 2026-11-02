@@ -36,6 +36,7 @@ from browser.drafts import (
     replace_editing_document,
 )
 from browser.threads import open_panel_thread
+from leaf import event_endpoint as endpoint_model
 from leaf import event_log as events_model
 from leaf import hosting as hosting_model
 from leaf import revisioning as revisioning_model
@@ -350,6 +351,11 @@ def test_a_re_vendor_waits_for_the_reply_being_written(browser, serve):
         write(page.locator(".lf-composer leaf-text"), "An anchored root.")
         page.keyboard.press("Control+Enter")
         round_trip(page)
+        root = next(
+            event["id"]
+            for event in events_model.read_events(page_dir)
+            if event["kind"] == "comment"
+        )
         page.keyboard.press("c")
         editor = page.locator(".lf-margin-preview .lf-thread-reply leaf-text")
         words = "Half a thought the reload must not take"
@@ -393,7 +399,21 @@ def test_a_re_vendor_waits_for_the_reply_being_written(browser, serve):
     assert revised.revision is not None
     wait_for_revision(page, revised.revision)
     assert page.evaluate("performance.timeOrigin") != birth
-    assert events_model.read_events(page_dir)[-1]["text"] == words
+    # Bookkeeping may follow delivery; make that order deterministic.
+    accepted, _ = endpoint_model.accept_event(
+        page_dir,
+        {"kind": "seen", "revision": revised.revision},
+        dict,
+    )
+    assert accepted == 200
+    replies = [
+        event
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "reply" and event["parent"] == root
+    ]
+    assert len(replies) == 1
+    assert replies[0]["author"] == "user"
+    assert replies[0]["text"] == words
 
 
 @pytest.mark.parametrize("kind", ["edit", "first-message", "option"])

@@ -461,12 +461,14 @@ function laidOut(el, moved) {
 // Whether a scroll of `box` can carry what is anchored inside it away from what it marks:
 // where a layout pixel of `box` shows as more or less than a pixel on screen, as under a
 // scale on it or a box around it. A CSS zoom resizes layout itself, which anchors
-// follow, so its width counts the zoom. Offsets are whole pixels, so a pixel's difference
-// is rounding.
+// follow, so its width counts the zoom. WebKit's Linux build (27.2) has no
+// `currentCSSZoom`, so there a zoomed box reads as scaled: it costs one pass at the
+// scroll's end, which leaves the rows where they stood. Offsets are whole pixels, so a
+// pixel's difference is rounding.
 /** @param {Element} box */
 export function scrollMisplacesAnchors(box) {
   if (!isHTML(box) || !box.offsetWidth) return false;
-  const laid = box.offsetWidth * box.currentCSSZoom;
+  const laid = box.offsetWidth * (box.currentCSSZoom ?? 1);
   return Math.abs(box.getBoundingClientRect().width - laid) > 1;
 }
 /** @param {Anchor} anchor */

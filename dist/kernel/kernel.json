@@ -71,7 +71,7 @@
     "runtime/control-selectors.js": "1f8a7f80d1a3d33e1cef5e6f6af2fe3cda382a9c0af258c1ffc69d47db748d3e",
     "runtime/copy-control.js": "f166d4ebf15149209aecae5262e507641b1c2b1f91107a4ab764261547ff6dd4",
     "runtime/copyable-text.js": "b4252f63a205ebd26d5e158c5127b3da844e61b553527350b69564bc71be04ef",
-    "runtime/css-anchors.js": "899ad72129aa3bf7b76e2fdcf8f06c4cbec4aa254572e232659b66940669fbcb",
+    "runtime/css-anchors.js": "cb1bfea9b62f82401a398e147cc922b9332e26f865d6f6c176957b330cb30a7a",
     "runtime/current-target.js": "03c34f5d7934e859370c65b4466ff8a5a56fa9f259d5805ba2041077deab88fc",
     "runtime/data.js": "c80e810fbf3d964e4f20027b817256e0c5074f9c17aaa22dddac5b8e389d293d",
     "runtime/declared-words.js": "c07edbf911ae155486ef42651ab28dd7c12b2cd0b20abea516a1c56b4d0a6e2d",

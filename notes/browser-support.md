@@ -417,7 +417,9 @@ Nightly pref on. A CSS zoom drifts no anchor in any of the three. The margin
 now runs a pass at a box's `scrollend` where a row's carrier stands in the box
 and the box's on-screen width differs from its zoomed layout width
 (`scrollMisplacesAnchors`), so rows drift while the scroll runs and stand on
-their words a frame after it ends. Inside a rotated box, a mark anchored to an
+their words a frame after it ends. WebKit 27.2's Linux build (Playwright build
+2370, which CI runs) has no `currentCSSZoom`, unlike its macOS build of the same
+number, so there a zoomed box also gets the pass, which moves no row. Inside a rotated box, a mark anchored to an
 SVG drawing or to a scroller's first words stands off by the rotation, since
 its place is mapped through the nearest HTML box's bounding rectangle.
 

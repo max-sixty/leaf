@@ -1879,7 +1879,9 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
     assert reply["body"]["document"] == {"thread": "question", "message": "answer"}
     assert reply["body"]["kind"] == "authored"
     assert "North" in reply["body"]["text"]
-    assert '"markup"' not in json.dumps(record) and '"html"' not in json.dumps(record)
+    assert reply["body"]["markup"] == event["markup"]
+    assert "markup" not in root and "markup" not in reply
+    assert '"html"' not in json.dumps(record)
     open_threads(page)
     # The agent answered without naming the thread, so it reads its opening words.
     expect(page.locator(".lf-fp-thread")).to_contain_text("Decision")

@@ -226,7 +226,7 @@
 
     "runtime/inputs.js": "24b1c6f1470cec84bbef724fcf7dbd453c150cdf6f280b9db089869693c5cd11",
 
-    "runtime/interaction-log.js": "75078aef28095796090c7b68a5eb720466309f264b93487706466b135c5b7efc",
+    "runtime/interaction-log.js": "f101a06877393bcb48252440b7fdafd791fb78b368734d3fb9a7c0a99ff41c6b",
 
     "runtime/keeps.js": "a41c1d22007f1526897c158aded9856aac6285d1f2373a4243578fad9359c3a7",
 
@@ -278,7 +278,7 @@
 
     "runtime/language-paths.js": "038583c5c8c80b5f772323aa1f47b6d8d865e615d632014ac2c12cd92f90006f",
 
-    "runtime/layer-client.js": "9469e1387d5867ef6db27e3c0647b726a02e7e55b1d979be6c752ad2192deae2",
+    "runtime/layer-client.js": "245cdc7afbe0f463a95f657591d036639228ea54c45c6e453009a69a53c863f8",
 
     "runtime/leaf-element.js": "105e501f7c6db5fc476c6c97834599c95a376befb02958935985dff92cba9abb",
 

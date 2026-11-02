@@ -1,5 +1,5 @@
 /* The field's own Enter binding preserves code indentation and native editability,
-   whether its Markdown reads as a draft or joins lines like the displayed file. */
+   whether its Markdown reads as a message or as the Markdown file a body displays. */
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -9,7 +9,7 @@ import { keymap } from "/vendor/codemirror.esm.js";
 
 /** Press Enter with the caret after `code` in `source`, returning the press's result
  * and the words after it. */
-async function enterAfterCode(source, { joined, readOnly = false }) {
+async function enterAfterCode(source, { message, readOnly = false }) {
   const { fieldState } = await loadFieldEditor();
   const caret = source.indexOf("code") + "code".length;
   const state = fieldState(
@@ -18,7 +18,7 @@ async function enterAfterCode(source, { joined, readOnly = false }) {
       typed: (_native, insert) => insert(),
       returned: () => true,
       oneLine: () => false,
-      joined: () => joined,
+      message: () => message,
       revealed: () => {},
       focused: () => {},
       readOnly,
@@ -43,11 +43,11 @@ async function enterAfterCode(source, { joined, readOnly = false }) {
   return { handled, words: view.state.doc.toString() };
 }
 
-for (const joined of [false, true]) {
+for (const message of [true, false]) {
   for (const readOnly of [false, true]) {
-    test(`Enter ${readOnly ? "refuses a read-only" : "keeps indentation in an editable"} ${joined ? "file" : "draft"} code fence`, async () => {
+    test(`Enter ${readOnly ? "refuses a read-only" : "keeps indentation in an editable"} ${message ? "draft" : "file"} code fence`, async () => {
       const source = "```\n    code\n```";
-      const { handled, words } = await enterAfterCode(source, { joined, readOnly });
+      const { handled, words } = await enterAfterCode(source, { message, readOnly });
       assert.equal(handled, !readOnly);
       assert.equal(words, readOnly ? source : "```\n    code\n    \n```");
     });
@@ -59,7 +59,7 @@ test("Enter continues the indented code a Markdown body reads, as a file does", 
   // blank line open code, so Return writes the code's next line rather than a break.
   assert.equal(await loadMarkdown(), true);
   const source = "Run:\n\n    code";
-  assert.deepEqual(await enterAfterCode(source, { joined: true }), {
+  assert.deepEqual(await enterAfterCode(source, { message: false }), {
     handled: true,
     words: "Run:\n\n    code\n    ",
   });

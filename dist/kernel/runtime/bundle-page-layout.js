@@ -1944,9 +1944,9 @@ function fieldEditor({ EditorView, EditorState, EditorSelection, Prec, StateEffe
 		run: lineStep(true, false),
 		shift: lineStep(true, true)
 	}];
-	const joinsLines = Facet.define({ combine: (values) => values.some(Boolean) });
+	const message = Facet.define({ combine: (values) => values.every(Boolean) });
 	const readField = (state) => ({
-		placed: read(state, !state.facet(joinsLines)),
+		placed: read(state, state.facet(message)),
 		judged: markdownReady()
 	});
 	const reading = StateField.define({
@@ -1961,7 +1961,7 @@ function fieldEditor({ EditorView, EditorState, EditorSelection, Prec, StateEffe
 	const carried = (c) => isBlockPlacement(c, "blockquote_open") ? "> " : " ".repeat(c.token.lfSource.indent);
 	const joint = Decoration.replace({ widget: new Spelled(" ") });
 	const jointsOf = (state) => {
-		if (!state.facet(joinsLines)) return Decoration.none;
+		if (state.facet(message)) return Decoration.none;
 		const { placed } = state.field(reading);
 		const inline = placed.filter(({ token }) => !token.block);
 		const hard = inline.filter(({ token }) => token.type === "hardbreak");
@@ -1983,12 +1983,12 @@ function fieldEditor({ EditorView, EditorState, EditorSelection, Prec, StateEffe
 	};
 	const joints = StateField.define({
 		create: jointsOf,
-		update: (set, tr) => tr.state.field(reading) === tr.startState.field(reading) && tr.state.facet(joinsLines) === tr.startState.facet(joinsLines) ? set : jointsOf(tr.state),
+		update: (set, tr) => tr.state.field(reading) === tr.startState.field(reading) && tr.state.facet(message) === tr.startState.facet(message) ? set : jointsOf(tr.state),
 		provide: (field) => [EditorView.decorations.from(field), EditorView.atomicRanges.of((view) => view.state.field(field))]
 	});
 	function newLine(view) {
 		const { state } = view;
-		if (!state.facet(joinsLines)) return insertNewline(view);
+		if (state.facet(message)) return insertNewline(view);
 		const { from, to } = state.selection.main;
 		const { placed } = state.field(reading);
 		const paragraph = placed.find(({ token, from: a, to: b }) => token.type === "paragraph_open" && a <= from && to <= b);
@@ -2207,7 +2207,7 @@ function fieldEditor({ EditorView, EditorState, EditorSelection, Prec, StateEffe
 					},
 					{
 						key: "Shift-Enter",
-						run: (view) => view.state.facet(joinsLines) && newLine(view)
+						run: (view) => !view.state.facet(message) && newLine(view)
 					},
 					{
 						key: "Shift-Enter",
@@ -2230,7 +2230,7 @@ function fieldEditor({ EditorView, EditorState, EditorSelection, Prec, StateEffe
 					...historyKeymap
 				]),
 				reading,
-				joinsLines.of(field.joined()),
+				message.of(field.message()),
 				joints,
 				livePreview,
 				EditorView.lineWrapping,
@@ -2661,7 +2661,7 @@ var LeafText = class extends HTMLElement {
 			attributes: this.#contentAttributes(),
 			returned: () => this.#returned(),
 			oneLine: () => this.#oneLine,
-			joined: () => this.facesOf !== null,
+			message: () => this.facesOf === null,
 			focused: () => this.#measureOverflow(),
 			revealed: (view, pos) => moveScrollerBy(this, this.#rowTravel(module, view, pos)),
 			typed: (native, insert) => {

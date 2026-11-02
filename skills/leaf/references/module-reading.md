@@ -84,12 +84,12 @@ source.
 string for `unsafeHTML`, and `markdownWords(text)` the words Markdown renders to. They
 read text as a message a person typed: each line break stays a line, a line's leading
 spaces are dropped rather than starting code, and `---` under a line is a rule.
-`renderMarkdown(text, false)` renders a Markdown file as CommonMark does: its soft line
-breaks are spaces, so its paragraphs wrap to the box, a block indented four spaces is
-code, and a line of `=` or `-` underlines a heading. Until the renderer has loaded,
-they return the escaped source; `loadMarkdown()` resolves once it has, and
-`markdownReady()` says whether it has, so a widget showing changing prose repaints
-then.
+`renderMarkdown(text, false)` and `markdownWords(text, false)` read a Markdown file as
+CommonMark does: its soft line breaks are spaces, so its paragraphs wrap to the box, a
+block indented four spaces is code, and a line of `=` or `-` underlines a heading.
+Until the renderer has loaded, they return the escaped source; `loadMarkdown()`
+resolves once it has, and `markdownReady()` says whether it has, so a widget showing
+changing prose repaints then.
 
 ### Code
 

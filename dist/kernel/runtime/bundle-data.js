@@ -30,7 +30,7 @@ function fragmentWords(fragment, imageAlt = false) {
 	if (imageAlt) for (const image of fragment.querySelectorAll("img")) image.replaceWith(document.createTextNode(image.alt));
 	return fragment.textContent;
 }
-const markdownWords = (text) => renderedWords(renderMarkdown(text));
+const markdownWords = (text, message = true) => renderedWords(renderMarkdown(text, message));
 const renderInlineMarkdown = (text, message = true) => renderInline(text, message);
 function inlineMarkdownFragment(text, message = true) {
 	const parsed = document.createElement("template");

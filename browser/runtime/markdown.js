@@ -70,8 +70,9 @@ function fragmentWords(fragment, imageAlt = false) {
       image.replaceWith(document.createTextNode(image.alt));
   return fragment.textContent;
 }
-/** @param {string} text */
-export const markdownWords = (text) => renderedWords(renderMarkdown(text));
+/** @param {string} text @param {boolean} [message] the reading (`renderMarkdown`) */
+export const markdownWords = (text, message = true) =>
+  renderedWords(renderMarkdown(text, message));
 /** @param {string} text @param {boolean} [message] */
 export const renderInlineMarkdown = (text, message = true) =>
   renderInline(text, message);

@@ -30,7 +30,7 @@ import { isCanonicalMediaUrl, scopedMediaUrl } from "../media.js";
  * @typedef {{type: string, start: number, end: number, padStart: number, padEnd: number, inset: string, indent: string}} BlockFace
  * @typedef {{base: string, text: string, anchor: number, head: number, steps: readonly (readonly [() => void, () => void])[]}} FieldWords
  * @typedef {{typed: (native: boolean, insert: () => void) => void, returned: () => boolean,
- * oneLine: () => boolean, joined: () => boolean, revealed: (view: EditorView, pos: number) => void,
+ * oneLine: () => boolean, message: () => boolean, revealed: (view: EditorView, pos: number) => void,
  * focused: () => void, readOnly: boolean, attributes: Record<string, string>}} FieldConfiguration
  */
 
@@ -1053,16 +1053,16 @@ function fieldEditor(
     { key: "ArrowDown", run: lineStep(true, false), shift: lineStep(true, true) },
   ];
 
-  // Whether the field edits a Markdown body in place (`field.joined()`; text-field.js,
-  // `facesOf`), which reads as a file, rather than a message.
-  const joinsLines = Facet.define({ combine: (values) => values.some(Boolean) });
-  // The words as the renderer that will draw them reads them (`read`): a message's
-  // reading, or a file's in a field that joins lines. Taken again when the words change
-  // or the renderer arrives. The preview, Shift+Enter and the joints below read it from
-  // the state, where CodeMirror takes a replacement across a line break.
+  // Whether the field's words read as a message (`field.message()`), or as the Markdown
+  // file a field editing a body in place shows (text-field.js, `facesOf`).
+  const message = Facet.define({ combine: (values) => values.every(Boolean) });
+  // The words as the renderer that will draw them reads them (`read`), in the field's
+  // reading. Taken again when the words change or the renderer arrives. The preview,
+  // Shift+Enter and the joints below read it from the state, where CodeMirror takes a
+  // replacement across a line break.
   /** @param {EditorState} state */
   const readField = (state) => ({
-    placed: read(state, !state.facet(joinsLines)),
+    placed: read(state, state.facet(message)),
     judged: markdownReady(),
   });
   const reading = StateField.define({
@@ -1103,7 +1103,7 @@ function fieldEditor(
   const joint = Decoration.replace({ widget: new Spelled(" ") });
   /** @param {EditorState} state */
   const jointsOf = (state) => {
-    if (!state.facet(joinsLines)) return Decoration.none;
+    if (state.facet(message)) return Decoration.none;
     const { placed } = state.field(reading);
     const inline = placed.filter(({ token }) => !token.block);
     const hard = inline.filter(({ token }) => token.type === "hardbreak");
@@ -1133,7 +1133,7 @@ function fieldEditor(
     create: jointsOf,
     update: (set, tr) =>
       tr.state.field(reading) === tr.startState.field(reading) &&
-      tr.state.facet(joinsLines) === tr.startState.facet(joinsLines)
+      tr.state.facet(message) === tr.startState.facet(message)
         ? set
         : jointsOf(tr.state),
     provide: (field) => [
@@ -1142,8 +1142,8 @@ function fieldEditor(
     ],
   });
 
-  // Return in a field that joins lines begins a line the body shows too, carrying the
-  // markers of the containers the caret's line stands in. Among a paragraph's words it
+  // Return in a field that reads as a file begins a line the body shows too, carrying
+  // the markers of the containers the caret's line stands in. Among a paragraph's words it
   // writes a hard break, whose backslash the preview hides, in place of the spaces, and
   // any joint, the selection touches, and at a hard break it begins the line after it.
   // After a paragraph's last words, where a hard break would end its block and show its
@@ -1155,7 +1155,7 @@ function fieldEditor(
   /** @param {EditorView} view */
   function newLine(view) {
     const { state } = view;
-    if (!state.facet(joinsLines)) return insertNewline(view);
+    if (state.facet(message)) return insertNewline(view);
     const { from, to } = state.selection.main;
     const { placed } = state.field(reading);
     const paragraph = placed.find(
@@ -1388,7 +1388,8 @@ function fieldEditor(
    * `head` are its selection. `field.typed(native, insert)` runs text input the editor
    * takes, saying whether the DOM has already changed, `field.returned()` says
    * whether Return may insert a line, `field.oneLine()` whether the field holds one
-   * line, `field.joined()` whether it joins a paragraph's lines (`joints`),
+   * line, `field.message()` whether its words read as a message or, where it edits a
+   * Markdown body in place, as a file, which joins a paragraph's lines (`joints`),
    * `field.revealed(view, pos)` shows the row holding `pos` in the field's
    * host, and `field.focused()` hears the editor take or lose focus. */
   /** @param {FieldWords} words @param {FieldConfiguration} field */
@@ -1481,7 +1482,7 @@ function fieldEditor(
           { key: "Enter", run: (view) => field.returned() && newLine(view) },
           {
             key: "Shift-Enter",
-            run: (view) => view.state.facet(joinsLines) && newLine(view),
+            run: (view) => !view.state.facet(message) && newLine(view),
           },
           { key: "Shift-Enter", run: (view) => continueBlocks(view) },
           // Tab in a list item nests it (`nestItems`), and stays in the field where
@@ -1514,7 +1515,7 @@ function fieldEditor(
           ...historyKeymap,
         ]),
         reading,
-        joinsLines.of(field.joined()),
+        message.of(field.message()),
         joints,
         livePreview,
         EditorView.lineWrapping,

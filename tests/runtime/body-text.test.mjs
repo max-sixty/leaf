@@ -152,6 +152,21 @@ test("Markdown body readings share file dialect, safe destinations and native st
   }
 });
 
+test("a draft's answer reads its words as its body draws them, as a file", async () => {
+  const { loadMarkdown, paintMarkdown } = await import("/runtime/markdown.js");
+  assert.equal(await loadMarkdown(), true);
+  await import("../../packages/default/widgets/lf-draft.js");
+  const source = "Title\n=====\n\nRun:\n\n    make";
+  const body = document.createElement("div");
+  paintMarkdown(body, source);
+  const collapsed = (text) => text.replace(/\s+/g, " ").trim();
+  assert.equal(collapsed(body.textContent), "Title Run: make");
+  assert.equal(
+    collapsed(customElements.get("lf-draft").answerWords(source)),
+    collapsed(body.textContent),
+  );
+});
+
 test("bare file names in Markdown stay text while explicit links remain links", async () => {
   const { loadMarkdown, renderMarkdown, renderInlineMarkdown } =
     await import("/runtime/markdown.js");

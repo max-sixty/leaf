@@ -1,4 +1,12 @@
-"""Layer input resolution, composition, and content identity."""
+"""Layer input resolution, composition, and content identity.
+
+A selection has two compositions, each held for the process by the inputs it
+resolves to. Its vocabulary (`selected_vocabulary`, `LayerVocabulary`) is all a
+reader of the page needs. The full composition (`selected_layer`,
+`LayerComposition`) is built over that vocabulary and reads and validates every
+sheet and module the layer serves; `validation.command.cmd_check` and
+`http.page_endpoint` compose it so that `page check` and `server start` refuse a
+package that no longer composes (`layer-registry.md`)."""
 
 import hashlib
 import json
@@ -520,16 +528,19 @@ def kernel_runtime_paths() -> set[str]:
 
 @dataclass(frozen=True, eq=False)
 class LayerVocabulary:
-    """The part of a layer a page's documents are read in: the merged registry, and
-    the paths of the files the layer's `widgets/` directory serves.
+    """The part of a layer a reader of a page needs: the merged registry, the paths
+    of the files the layer's `widgets/` directory serves, and the packages'
+    instructions by audience file (`composed_instructions`).
 
-    Reading a page needs only this (`registry.storage.page_vocabulary`), so it is
-    composed apart from the layer's files (`LayerComposition`). A Leaf composes
-    those, parsing every package sheet and module and refusing one that doesn't
-    compose, only to serve, export or check a page."""
+    Reading a page's documents, state or instructions needs only this
+    (`registry.storage.page_vocabulary`, `page.page_instructions`), so it is composed
+    apart from the layer's files (`LayerComposition`), which Leaf parses only to
+    serve, export, check or inspect a page, or to capture a revision whose markup
+    names one of them."""
 
     registry: dict
     widgets: frozenset[str]
+    instructions: dict[str, bytes]
     # What readers derive from this vocabulary, such as a revision's
     # (`registry.storage.revision_vocabulary`), held for as long as it is.
     readings: dict = field(default_factory=dict, repr=False)
@@ -553,7 +564,6 @@ class LayerComposition:
             **{
                 f"/{directory}/{name}": data
                 for directory, entries in self.directory_files.items()
-                if directory != INSTRUCTIONS_DIR
                 for name, data in entries.items()
             },
         }
@@ -636,6 +646,10 @@ def layer_fingerprint(composition: LayerComposition) -> str:
                 f"{directory}/{name}": data
                 for directory, entries in composition.directory_files.items()
                 for name, data in entries.items()
+            },
+            **{
+                f"{INSTRUCTIONS_DIR}/{name}": data
+                for name, data in composition.vocabulary.instructions.items()
             },
         }
     )
@@ -851,7 +865,7 @@ def compose_vocabulary(roots: list[Path]) -> LayerVocabulary:
             "are missing:\n"
             + "\n".join(f"  - widgets/{tag}.js" for tag in missing_modules)
         )
-    return LayerVocabulary(incoming, widgets)
+    return LayerVocabulary(incoming, widgets, composed_instructions(roots))
 
 
 def compose_layer(roots: list[Path]) -> LayerComposition:
@@ -867,7 +881,7 @@ def compose_layer(roots: list[Path]) -> LayerComposition:
 
 def _composition(roots: list[Path], vocabulary: LayerVocabulary) -> LayerComposition:
     """The layer `roots` produce, over the `vocabulary` they compose: its modules
-    checked for private kernel imports, and its sheets and files read."""
+    checked for private kernel imports, and its sheets and browser files read."""
     from .revision_artifact import (
         PUBLIC_MODULES,
         dependency_reference,
@@ -934,5 +948,4 @@ def _composition(roots: list[Path], vocabulary: LayerVocabulary) -> LayerComposi
         }
         for sub in BROWSER_DIRS
     }
-    directory_files[INSTRUCTIONS_DIR] = composed_instructions(roots)
     return LayerComposition(vocabulary, top_files, directory_files)

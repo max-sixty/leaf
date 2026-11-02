@@ -1473,9 +1473,9 @@ def page_endpoint(
     is whether this Leaf can serve that page at all: every one-page server, durable
     or temporary, passes here before it binds, and refuses, naming `page init`, when
     the page's layer is one this Leaf cannot serve (`incompatible_layer`) or cannot
-    compose. Readers of the page compose only its vocabulary
-    (`layer.LayerVocabulary`), so this is where `server start` refuses a package
-    sheet or module the document's first request would fail on. A snapshot serves
+    compose. Reading the page needs only its vocabulary (`layer.LayerVocabulary`),
+    so this is where `server start` refuses a package sheet or module the
+    document's first request would fail on. A snapshot serves
     the revision it froze, which its capture already judged
     (`page_snapshot.capture_page_snapshot`).
     The key has no default: every server over a page directory is reachable by

@@ -23,12 +23,13 @@ layer. Each admitted state gesture records its operation and detail domain in
 `meaning.state`, so a decision the current domain still accepts keeps painting, and
 one outside it, or whose sender is gone, stays in history only.
 
-Reading a page needs only its layer's vocabulary, the merged registry and the names
-of the widget modules (`layer.selected_vocabulary`), so every hook and command that
-reads a page, `leaf page state` among them, parses none of the layer's sheets or
-modules. A package that stops composing after `page init`, as a copy edited in place
-or a sheet a stricter Leaf refuses, is refused where the layer's files are composed:
-by `page check`, by a server before it binds (`http.page_endpoint`), and by export.
+Reading a page's documents, state or instructions needs only its layer's
+vocabulary: the merged registry, the paths of the widget modules and the packages'
+instructions. Leaf parses the layer's sheets and modules only to serve, export, check
+or inspect the page, or to capture a revision whose markup names a file the layer
+serves. A package that stops composing after `page init`, as a copy edited in place
+or a sheet a stricter Leaf refuses, is refused there: `page check` and `server start`
+refuse it, naming the repair, while hooks and reads of the page go on.
 
 The layer record holds the selection and two identities:
 

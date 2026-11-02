@@ -37,8 +37,8 @@ def cmd_check(page_dir: Path, render: bool = False) -> dict:
         if refusal := write_refusal(page_dir):
             return reported(1, [refusal])
         # Nor does one whose layer can't be composed to serve it. The check composes
-        # it here because reading the page parses none of the layer's sheets or
-        # modules (`layer.LayerVocabulary`).
+        # it here because reading the page needs only its vocabulary
+        # (`layer.LayerVocabulary`).
         if (record := layer_record(page_dir)) is not None:
             try:
                 selected(record, page_dir)

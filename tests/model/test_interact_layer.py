@@ -104,7 +104,7 @@ def layer_instructions(page: Path) -> dict[str, bytes]:
     """The instructions the layer `page` selects composes, by file name."""
     record = registry_storage.layer_record(page)
     assert record is not None
-    return registry_storage.selected(record, page).directory_files["instructions"]
+    return registry_storage.selected_vocabulary(record, page).instructions
 
 
 def test_cli_help_groups_commands_with_complete_summaries(regtest):
@@ -2143,11 +2143,12 @@ def test_the_layer_composer_is_the_browser_module_population():
 def test_reading_a_page_composes_only_its_layers_vocabulary(
     claimed, interactive, monkeypatch
 ):
-    """Every prompt and Stop hook, and every command that reads a page, reads it in its
-    layer's vocabulary: the registry and the names of the widget modules. Composing the
-    layer's sheets and modules besides, which only serving, export and check read,
-    was most of each hook's time. The prompt reads the page's candidate, and the Stop,
-    after `page state` activated it, its revision."""
+    """Every prompt and Stop hook, and each command that reads a page's documents,
+    state or instructions, reads it in its layer's vocabulary: the registry, the
+    widget modules' paths and the packages' instructions. Composing the layer's sheets
+    and modules besides, which serving, export and check read, was most of each
+    hook's time. The prompt reads the page's candidate, and the Stop, after `page
+    state` activated it, its revision."""
     composed = []
     composition = layer_model._composition
     monkeypatch.setattr(
@@ -2161,6 +2162,9 @@ def test_reading_a_page_composes_only_its_layers_vocabulary(
     assert state.exit_code == 0, state.output
     assert json.loads(state.output)["active"]["revision"] == 1
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
+    for command in ("vocabulary", "instructions"):
+        read = CliRunner().invoke(cli_model.cli, ["page", command, str(claimed)])
+        assert read.exit_code == 0, read.output
 
     assert composed == []
 
@@ -2181,10 +2185,10 @@ def test_a_package_that_stops_composing_is_refused_where_the_page_is_served(
     tmp_path, monkeypatch, path, contents, named
 ):
     """`page init` refuses a package that doesn't compose, but its copy in the page can
-    stop composing later, edited in place or read by a stricter Leaf. A reading of the
-    page parses no package sheet or module, so the page reads on, and `page check` and
-    a server about to bind (`http.page_endpoint`, which `server start` runs) refuse
-    it, naming the repair."""
+    stop composing later, edited in place or read by a stricter Leaf. Reading the
+    page's state needs no package sheet or module, so the page reads on, and `page
+    check` and a server about to bind (`http.page_endpoint`, which `server start`
+    runs) refuse it, naming the repair."""
     from leaf.http import page_endpoint
 
     monkeypatch.chdir(tmp_path)

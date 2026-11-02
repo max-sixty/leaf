@@ -838,7 +838,7 @@ def test_package_is_the_unit_that_init_creates_checks_and_vendors(
     assert load_registry(page)["lf-callout"] == entry
     assert (
         "Use them for short notices."
-        in layer.directory_files["instructions"]["author.md"].decode()
+        in layer.vocabulary.instructions["author.md"].decode()
     )
     widgets = layer.directory_files["widgets"]
     assert "lf-callout.js" in widgets

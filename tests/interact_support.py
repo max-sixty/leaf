@@ -1744,11 +1744,12 @@ def _no_page_outlives_its_test(tmp_path, isolated_session):
 def _each_test_composes_its_own_layers():
     """Each test composes the layers its pages select afresh, as a new process does.
 
-    A process holds each selection's composition for its life
-    (`layer.selected_layer`), and a test may rewrite a package at a path an
-    earlier test's package held."""
+    A process holds each selection's composition and vocabulary for its life
+    (`layer.selected_layer`, `layer.selected_vocabulary`), and a test may rewrite
+    a package at a path an earlier test's package held."""
     yield
     layer_model._composed.cache_clear()
+    layer_model._vocabulary.cache_clear()
 
 
 def retire_bridge(lock):

@@ -35,8 +35,8 @@ variants:
     # 14 of 14 runs and change-beside-effect in 11 of 11; with the experiment sentence
     # in page-authoring.md, "Composing a page", 4 of 4 passed both. Asked plainly,
     # with the grid and no earlier turns, base failed effect-against-baseline in 15 of
-    # 15 and the sentence passed 4 of 4, but base already quoted the added sentences
-    # beside its table in 10 of 12, so that form was dropped.
+    # 15 and passed it in 4 of 4 with the sentence, but base already quoted the added
+    # sentences beside its table in 10 of 12, so that form was dropped.
     metadata:
       purpose: "Experiment results: each variant's effect reads against its baseline, beside what the variant changed."
       tags:

@@ -8,12 +8,13 @@
    acted on through that change's fitting, until another input or unrelated change.
    These lifetimes belong to the conversation, not the physical placement solver.
    Above its subject, reading keeps the foot. Writing keeps the top. Beside its
-   subject, a card also rises as it grows (`rises`), read or written in: it may
-   outgrow the room below its top, and the window's foot lifts it, as a chat's
-   composer grows, so the line being typed, or the answer arriving, stays in view with
-   the turn it answers (the user's decisions, 2026-10-21 for writing and 2026-10-31
-   for reading). Its top stays where it stood, so a shorter thread brings it back
-   down. A press and a send's hold still keep their edge. Rejected: holding the foot
+   subject, a card also rises as it grows (`rises`; `size-rises` in
+   annotation-overlay/placement-rules.json), read or written in: it may outgrow the
+   room below its top, and the window's foot lifts it, as a chat's composer grows, so
+   the line being typed, or the answer arriving, stays in view with the turn it
+   answers (the user's decisions, 2026-10-21 for writing and 2026-10-31 for reading).
+   Its top stays where it stood, so a shorter thread brings it back down. A press and
+   a send's hold still keep their edge. Rejected: holding the foot
    once a landing met the window's foot, which kept a shrinking draft's card lifted,
    detached from where it stood; and keeping a read card's top as an answer arrived,
    which scrolled its transcript once it met the window's foot and hid the question

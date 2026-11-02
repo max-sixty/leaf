@@ -3270,18 +3270,14 @@ def test_an_aim_follows_a_scroll_inside_a_widgets_shadow_stage(browser, serve):
     part.hover()
     page.keyboard.down("Alt")
     expect(page.locator(".lf-aim")).to_be_visible()
-    # The aim's box reaches past the part on each side by as much as the port leaves
-    # room for there (target-paint-geometry.js, `standOver`). The scroll below takes
-    # away the room above the part and leaves the room below it, so the box's left edge
-    # and foot keep their places on the part.
     offset = """() => {
       const part = document.querySelector('#shadow-scroller').shadowRoot
         .querySelector('.part').getBoundingClientRect();
       const aim = document.querySelector('.lf-aim').getBoundingClientRect();
-      return [aim.left - part.left, aim.bottom - part.bottom];
+      return [aim.left - part.left, aim.top - part.top];
     }"""
     at = page.evaluate(offset)
-    assert -9 <= at[0] <= 1 and -1 <= at[1] <= 9, f"the aim stood off its part: {at}"
+    assert at == pytest.approx([0, 0], abs=1), "the aim stood off its part"
     host.evaluate(
         "host => { host.shadowRoot.querySelector('.content').style.height = '600px'; }"
     )
@@ -3778,6 +3774,44 @@ def test_the_aim_and_a_comment_stand_inside_a_cell_their_frame_leaves_no_room(
     pending = page.locator('.lf-visual-mark-pending[data-for="ship-thursday"]')
     expect(pending).to_be_visible()
     assert pending.evaluate(inner) == "-2px"
+
+
+def test_the_aim_on_a_row_a_clip_packs_stays_inside_the_row(browser, serve):
+    """A box that clips its rows holds them edge to edge, so the aim on a row whose
+    sides the box meets stands inside the row on every side. Standing outside above
+    and below, where the box leaves room, it ran over the neighbouring rows' words."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Packed rows",
+                """<h1 id="h">Packed rows</h1>
+<div id="rows" style="overflow: clip">
+  <p id="row-1" style="margin: 0">First row</p>
+  <p id="row-2" style="margin: 0">Second row</p>
+  <p id="row-3" style="margin: 0">Third row</p>
+</div>""",
+            )
+        ),
+    )
+    row = page.locator("#row-2")
+    row.hover(position={"x": 20, "y": 5})
+    page.keyboard.down("Alt")
+    aim = page.locator(".lf-aim")
+    expect(aim).to_have_attribute("data-for", "row-2")
+    drawn = aim.evaluate(
+        """node => {
+          const ring = getComputedStyle(node, '::before');
+          const out = parseFloat(ring.outlineOffset) + parseFloat(ring.outlineWidth);
+          const box = node.getBoundingClientRect();
+          return {top: box.top - out, bottom: box.bottom + out};
+        }"""
+    )
+    box = row.bounding_box()
+    assert box is not None
+    assert drawn["top"] >= box["y"] - 0.5, (drawn, box)
+    assert drawn["bottom"] <= box["y"] + box["height"] + 0.5, (drawn, box)
+    page.keyboard.up("Alt")
 
 
 def test_the_aim_round_a_field_stands_on_its_edge_where_its_ring_does(browser, serve):

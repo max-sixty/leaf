@@ -544,9 +544,9 @@
        a reaction beside others: on its edge, at 0. A field's ring replaces its border.
      - A box packed edge to edge with others, such as a list's row or a table's cell, a
        box padded inside a frame it fills, or one whose clip leaves no room outside it:
-       one band inside its edge, at --focus-ring-inset. An overlay mark stands each side
-       as far toward its box's place as that side's clip leaves room, and there where it
-       leaves none.
+       one band inside its edge, at --focus-ring-inset. An overlay mark stands there too:
+       on every side once a box clipping its target leaves it no room on one, and on any
+       side the window leaves no room (target-paint-geometry.js, `sideGaps`).
 
      The width is a token of its own because the ring is drawn outside the box it
      names, so a scroll region has to reserve room for it: a shorthand cannot be

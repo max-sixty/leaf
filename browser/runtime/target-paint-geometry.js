@@ -378,34 +378,43 @@ function cutsAt({ rect, levels }, side) {
 }
 
 // How far outside the target each side of a mark stands: at `gap`, the target's own
-// (`markGap`), or where a box that clips the target shows its edge but not the band
-// beyond it, as far out as the clip leaves room for the band, and at most one band
-// inside the edge. Outside, the clip cut the band away; standing inside, it ran over
-// the first letter of each line of a question whose heading starts at its edge, so
-// each side takes all the room its own clip leaves, as a full-height workspace's
-// question keeps its ring clear of its heading and stands it inside only along the
-// window's foot. An edge the clip already cuts asks for no room; one within a pixel of
-// the clip is flush with it, since a clip's band is measured in whole pixels
-// (geometry.js, `shownBand`). The window clips the same way where no scroll of the
-// page brings the room into view (`pageExtent`).
+// (`markGap`), or one band inside its edge where a clip shows the edge but not the
+// band beyond it. Outside, the clip cut the band away.
+//
+// A box that clips the target holds it among whatever else it holds, as a list in a
+// scroller holds its rows edge to edge, so where such a box leaves any side short, the
+// mark stands inside on every side, clear of the neighbours on the others. The window
+// holds the page, which a mark stands over as it does anywhere, so where only the
+// window leaves a side short, as at the foot of a question filling a full-height
+// workspace, that side alone stands inside, as far out as the window leaves room:
+// inside on every side, the question's ring ran over its heading's first letter. The
+// window counts where no scroll of the page brings the room into view (`pageExtent`).
+//
+// An edge a clip already cuts asks for no room; one within a pixel of the clip is
+// flush with it, since a clip's band is measured in whole pixels (geometry.js,
+// `shownBand`).
 /** @param {Placement} placed @param {number} band @param {number} gap @returns {Box} */
 function sideGaps({ rect, levels, plane }, band, gap) {
-  const clips = [
-    { band: pageExtent(plane), axes: { x: true, y: true } },
-    ...levels.filter(({ holder }) => holder),
-  ];
-  /** @param {keyof Box} side */
-  const stands = (side) => {
-    const x = side === "left" || side === "right";
-    const low = side === "left" || side === "top";
-    const rooms = clips
-      .filter(({ axes }) => (x ? axes.x : axes.y))
-      .map(({ band: edge }) =>
-        low ? rect[side] - edge[side] : edge[side] - rect[side],
-      )
-      .filter((room) => room > -1);
-    return Math.max(-band, Math.min(gap, ...rooms.map((room) => room - band)));
+  /** @type {(keyof Box)[]} */
+  const sides = ["top", "right", "bottom", "left"];
+  /** @param {Box} edge @param {keyof Box} side */
+  const room = (edge, side) => {
+    const beyond =
+      side === "left" || side === "top"
+        ? rect[side] - edge[side]
+        : edge[side] - rect[side];
+    return beyond > -1 ? beyond : Infinity;
   };
+  /** @param {keyof Box} side */
+  const axis = (side) => (side === "left" || side === "right" ? "x" : "y");
+  const packed = levels.some(
+    ({ holder, band: edge, axes }) =>
+      holder && sides.some((side) => axes[axis(side)] && room(edge, side) < band + gap),
+  );
+  const page = pageExtent(plane);
+  /** @param {keyof Box} side */
+  const stands = (side) =>
+    packed ? -band : Math.max(-band, Math.min(gap, room(page, side) - band));
   return {
     top: stands("top"),
     right: stands("right"),

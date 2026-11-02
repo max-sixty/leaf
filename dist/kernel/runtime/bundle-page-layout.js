@@ -6630,19 +6630,20 @@ function cutsAt({ rect, levels }, side) {
 	return levels.some(({ band, axes }) => axes[axis] && (low ? rect[side] < band[side] : rect[side] > band[side]));
 }
 function sideGaps({ rect, levels, plane }, band, gap) {
-	const clips = [{
-		band: pageExtent(plane),
-		axes: {
-			x: true,
-			y: true
-		}
-	}, ...levels.filter(({ holder }) => holder)];
-	const stands = (side) => {
-		const x = side === "left" || side === "right";
-		const low = side === "left" || side === "top";
-		const rooms = clips.filter(({ axes }) => x ? axes.x : axes.y).map(({ band: edge }) => low ? rect[side] - edge[side] : edge[side] - rect[side]).filter((room) => room > -1);
-		return Math.max(-band, Math.min(gap, ...rooms.map((room) => room - band)));
+	const sides = [
+		"top",
+		"right",
+		"bottom",
+		"left"
+	];
+	const room = (edge, side) => {
+		const beyond = side === "left" || side === "top" ? rect[side] - edge[side] : edge[side] - rect[side];
+		return beyond > -1 ? beyond : Infinity;
 	};
+	const axis = (side) => side === "left" || side === "right" ? "x" : "y";
+	const packed = levels.some(({ holder, band: edge, axes }) => holder && sides.some((side) => axes[axis(side)] && room(edge, side) < band + gap));
+	const page = pageExtent(plane);
+	const stands = (side) => packed ? -band : Math.max(-band, Math.min(gap, room(page, side) - band));
 	return {
 		top: stands("top"),
 		right: stands("right"),

@@ -1302,8 +1302,8 @@ def test_the_ring_round_a_clipped_question_stands_inside_it(browser, serve):
     """A box that clips a question and leaves no room round it, such as a frame with
     no padding, cuts a ring standing outside the question: drawn as the question's
     outline, it lost its sides and kept a line across the top. There the ring stands
-    inside the question, as every mark does on a side its clip leaves no room
-    beyond."""
+    inside the question, as every mark does round a box its clip leaves no room
+    around."""
     ask = (
         '<div id="frame" style="overflow: clip">'
         '<lf-ask id="rollout"><h2>Include self-hosted runners?</h2>'

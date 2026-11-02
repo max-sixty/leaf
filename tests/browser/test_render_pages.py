@@ -1565,13 +1565,24 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
     # An obligation inside a breakout takes its holder's room, as any block
     # there does, however much room its own block asks for.
     assert at["wrapped"] == at["wrapper"], at
-    # A box the page pulls out of the column by its margins, an inline one, or one it
-    # grows round its block by margins and padding of its own, stands in the margin. A
-    # fixed box across the column's edges answers for itself, as it hangs off the window.
+    # The column's room beside its prose is the page's: negative margins can leave the
+    # prose without leaving that room, the shell less a gutter each side. Only the
+    # padded box exceeds it.
+    boxes = column.evaluate("""() => {
+      const shell = document.body.getBoundingClientRect();
+      const gutter = parseFloat(getComputedStyle(document.querySelector('main'))
+        .getPropertyValue('--col-pad'));
+      return {room: {left: shell.left + gutter, right: shell.right - gutter},
+        ...Object.fromEntries(['#pulled', '#spilled'].map(selector => {
+          const box = document.querySelector(selector).getBoundingClientRect();
+          return [selector, {left: box.left, right: box.right}];
+        }))};
+    }""")
+    for selector in ("#pulled", "#spilled"):
+        assert boxes[selector]["left"] >= boxes["room"]["left"], boxes
+        assert boxes[selector]["right"] <= boxes["room"]["right"], boxes
     misplaced = evaluate_probe(column, "misplacedBoxes")
     assert [(m["code"], m["at"]) for m in misplaced] == [
-        ("past-column", "<div id=pulled>"),
-        ("past-column", "<span id=spilled>"),
         ("past-column", "<div id=padded>"),
         ("clipped-out", "<div id=padded>"),
     ], misplaced

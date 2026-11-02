@@ -19,9 +19,8 @@ import { coveredWords, shrunkLabelReading } from "./words.js";
 export const rootOverflow = () => pageScroller.scrollWidth - pageScroller.clientWidth;
 /** @param {Element} el */
 const at = (el) => (el === pageScroller ? "<root scrollport>" : element(el));
-// A block in the column's flow granted the room past the prose (`--lf-breakout`,
-// layouts.css): one declaring a wider space, a note row, or a sidebar Layout. Holders
-// request their own width; a wide child alone stays inside its holder.
+// A direct document child granted a wider track by its own declared width.
+// Holders request their own width; a wide child alone stays inside its holder.
 /** @param {Element} el */
 const breaksOut = (el) =>
   getComputedStyle(el).getPropertyValue("--lf-breakout").trim() === "1";
@@ -245,8 +244,23 @@ export function overflowingRegions() {
 function marginReading(main) {
   const style = getComputedStyle(main);
   const box = main.getBoundingClientRect();
-  const left = box.left + parseFloat(style.paddingLeft);
-  const right = box.right - parseFloat(style.paddingRight);
+  // The column, its content box, sets what stands in the margin. What a block may
+  // reach before it spills is the page's room: where the column has room beside its
+  // prose (`--lf-shell-width`, layouts.css), its shell less a gutter each side.
+  const colLeft = box.left + parseFloat(style.paddingLeft);
+  const colRight = box.right - parseFloat(style.paddingRight);
+  const gutter =
+    (parseFloat(style.getPropertyValue("--lf-shell-width")) || 0) > 0
+      ? parseFloat(style.getPropertyValue("--col-pad")) || 0
+      : null;
+  const left =
+    gutter === null
+      ? colLeft
+      : Math.min(colLeft, box.left - parseFloat(style.marginLeft) + gutter);
+  const right =
+    gutter === null
+      ? colRight
+      : Math.max(colRight, box.right + parseFloat(style.marginRight) - gutter);
   // Logical floats compute to whichever physical or logical token was written, so
   // resolve them against the element's own direction.
   /** @param {CSSStyleDeclaration} s */
@@ -263,11 +277,11 @@ function marginReading(main) {
     b = el.getBoundingClientRect(),
   ) => {
     // An overlay at rest belongs to the margin it starts in.
-    if (restsOverPage(s)) return b.left < left - 1 || b.right > right + 1;
+    if (restsOverPage(s)) return b.left < colLeft - 1 || b.right > colRight + 1;
     if (s.position === "absolute" || s.position === "fixed")
-      return b.right <= left + 1 || b.left >= right - 1;
+      return b.right <= colLeft + 1 || b.left >= colRight - 1;
     if (s.float === "none") return false;
-    return floatSide(s) === "left" ? b.right <= left + 1 : b.left >= right - 1;
+    return floatSide(s) === "left" ? b.right <= colLeft + 1 : b.left >= colRight - 1;
   };
   const marginElements = [...main.querySelectorAll("*")].filter((el) => {
     // A map's labels have boxes while its spine is at rest, but opacity and
@@ -318,11 +332,7 @@ export function misplacedBoxes() {
     el.checkVisibility({ opacityProperty: true, visibilityProperty: true });
   const { isMarginContent, left, marginElements, right } = marginReading(main);
   const wides = new Set(
-    [
-      ...main.querySelectorAll(
-        "[data-lf-space], :is(.layout-column, .layout-flow) > *",
-      ),
-    ].filter(breaksOut),
+    [...main.querySelectorAll("[data-lf-space]")].filter(breaksOut),
   );
   // A widget the registry declares wide is answered for out here, the way
   // absolutely-positioned margin content is: standing past the column is what it was

@@ -356,8 +356,9 @@ def publish(page: PageTransaction) -> None:
     """Publish under the caller's append lease; failure remains a failed commit."""
     if not os.environ.get("LEAF_PAGE_STORE_URL"):
         return
-    from leaf_website import SITE_MANIFEST
+    from leaf_website import SITE_MANIFEST, log_agent
 
+    log_agent("diagnostic_publication_started")
     site_root = Path(os.environ["LEAF_SITE_ROOT"]).resolve()
     manifest = json.loads((site_root / SITE_MANIFEST).read_text())
     root = next(
@@ -371,6 +372,7 @@ def publish(page: PageTransaction) -> None:
     if root is None:
         return
     activation = activate_source(page.page_dir, transaction=page)
+    log_agent("diagnostic_activation_completed")
     fingerprint = record_reading(page.page_dir)
     token = state_home() / "website-publications" / f"{page_key(page.page_dir)}.json"
     if (published := PUBLISHED.read(token)) and published["fingerprint"] == fingerprint:
@@ -381,7 +383,9 @@ def publish(page: PageTransaction) -> None:
     with TemporaryFile() as buffer:
         blobs = _BlobSet(buffer)
         record = _record(page.page_dir, files, blobs)
+        log_agent("diagnostic_record_completed")
         responses = _responses(page, site_root, manifest, root, activation.error, blobs)
+        log_agent("diagnostic_responses_completed")
         publication = {
             "root": root,
             "release": manifest["release"],
@@ -390,10 +394,13 @@ def publish(page: PageTransaction) -> None:
         }
         with _request("/prepare", publication) as response:
             prepared = json.load(response)
+        log_agent("diagnostic_prepare_completed", missing=len(prepared["missing"]))
         for digest in prepared["missing"]:
             with _request(f"/blobs/{digest}", blobs.body(digest)):
                 pass
+        log_agent("diagnostic_blobs_completed")
         with _request("/publication", {"root": root, "identity": prepared["identity"]}):
             pass
+    log_agent("diagnostic_publication_completed")
     token.parent.mkdir(parents=True, exist_ok=True)
     PUBLISHED.write(token, {"fingerprint": fingerprint})

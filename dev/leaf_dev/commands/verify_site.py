@@ -1266,7 +1266,9 @@ def run_verification(
             browser, origin=origin, settle_after_activation=settle_after_activation
         )
         if worker is not None:
-            recalled = verify_saved_state(browser, worker)
+            for attempt in range(5):
+                print(f"Saved-state diagnostic attempt {attempt + 1}/5", flush=True)
+                recalled = verify_saved_state(browser, worker)
             for phase, profile in recalled.items():
                 profiles[f"saved-state-{phase}"] = startup_profile(profile)
                 print(

@@ -179,7 +179,9 @@ export class LeafWebsiteSession extends Container<Env> {
   }
 
   private async forward(request: Request): Promise<Response> {
+    console.log({ component: "leaf-container", event: "diagnostic_forward_started", method: request.method });
     const response = await super.fetch(request);
+    console.log({ component: "leaf-container", event: "diagnostic_forward_completed", method: request.method, status: response.status });
     if (response.status >= 500) {
       // The Containers SDK converts connection loss into an ordinary 500 without
       // logging an exception. Python stamps its own answers and logs page_fault;

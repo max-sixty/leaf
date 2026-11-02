@@ -1424,6 +1424,12 @@ class WebsitePageEndpoint(PageEndpoint):
         self.pages = pages
         self.agent_harness = agent_harness
 
+    def _read_uploaded_media(self) -> tuple[bytes, str | None]:
+        log_agent("diagnostic_media_read_started")
+        result = super()._read_uploaded_media()
+        log_agent("diagnostic_media_read_completed", bytes=len(result[0]))
+        return result
+
     def page_state(self, view_revision: int | None = None) -> dict:
         state = super().page_state(view_revision)
         state["release"] = self.release

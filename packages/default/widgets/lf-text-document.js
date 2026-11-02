@@ -30,9 +30,9 @@ import {
   renderMarkdown,
   sizeObserver,
   textWidth,
-  keptLines,
   nextFrame,
 } from "/runtime/widget-api.js";
+import { diffArrays } from "/vendor/jsdiff.esm.js";
 import { pierre, markSyntax } from "./pierre.js";
 
 // Writing the same key again would still be a mutation the page's observers see.
@@ -130,6 +130,36 @@ function inRuns(code) {
     runs.push(run);
   }
   code.replaceChildren(...runs);
+}
+
+// Which line of `before` each line of `after` stands for, or -1 for a line it adds,
+// from a walk over whole lines capped as the runtime's text alignment is; null where a
+// rewrite runs past the cap. A run of lines replaced by as many others stands for them
+// one for one, so an edited line keeps the row of the line it replaced. Exported for
+// its test.
+/** @param {readonly string[]} before @param {readonly string[]} after @param {number} [maxEditLength] @returns {number[] | null} */
+export function keptLines(before, after, maxEditLength = 1_000) {
+  const changes = diffArrays([...before], [...after], { maxEditLength });
+  if (!changes) return null;
+  const kept = after.map(() => -1);
+  let from = 0;
+  let to = 0;
+  // jsdiff puts a removed run before the added run that replaces it.
+  let removed = 0;
+  for (const { count = 0, added, removed: gone } of changes) {
+    if (gone) {
+      removed = count;
+      from += count;
+      continue;
+    }
+    if (added) {
+      if (count === removed)
+        for (let line = 0; line < count; line++) kept[to + line] = from - count + line;
+      to += count;
+    } else for (const end = to + count; to < end;) kept[to++] = from++;
+    removed = 0;
+  }
+  return kept;
 }
 
 // Reconciles a new text's runs (`drawn`) into the runs on the page (`code`), as a

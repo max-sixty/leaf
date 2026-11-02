@@ -23,27 +23,6 @@ function alignText(before, after, units = textUnits, maxEditLength = MAX_EDIT_LE
 		text: change.value.join("")
 	})).filter((run) => run.text);
 }
-function keptLines(before, after, maxEditLength = MAX_EDIT_LENGTH) {
-	const changes = diffArrays([...before], [...after], { maxEditLength });
-	if (!changes) return null;
-	const kept = after.map(() => -1);
-	let from = 0;
-	let to = 0;
-	let removed = 0;
-	for (const { count = 0, added, removed: gone } of changes) {
-		if (gone) {
-			removed = count;
-			from += count;
-			continue;
-		}
-		if (added) {
-			if (count === removed) for (let line = 0; line < count; line++) kept[to + line] = from - count + line;
-			to += count;
-		} else for (const end = to + count; to < end;) kept[to++] = from++;
-		removed = 0;
-	}
-	return kept;
-}
 function alignInlineText(before, after) {
 	const coarse = alignText(before, after, sentenceUnits)[Symbol.iterator]();
 	const runs = [];
@@ -829,4 +808,4 @@ function pageParts(sel) {
 }
 
 //#endregion
-export { DATUM, LEAF_SURFACE, alignInlineText, alignText, authored, authoredScope, blockAt, contextAround, cut, elementById, elementFromPointAcross, elementOver, elementReading, excerptWords, fencePassageParts, fileModelsPassage, findQuote, findText, keptLines, labelWords, layoutBox, leafSurface, neighbourhood, pageBlocks, pageDocument, pageParts, pageQueryAll, pageReadingVersion, pageText, pageWords, pointAt, quoteFrom, quotedWords, rangeOf, readingFrom, renderRetired, says, segmentBlock, segmentsIn, sentenceUnits, settledAway, showsWords, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity, watchPassageRoot, wrote };
+export { DATUM, LEAF_SURFACE, alignInlineText, alignText, authored, authoredScope, blockAt, contextAround, cut, elementById, elementFromPointAcross, elementOver, elementReading, excerptWords, fencePassageParts, fileModelsPassage, findQuote, findText, labelWords, layoutBox, leafSurface, neighbourhood, pageBlocks, pageDocument, pageParts, pageQueryAll, pageReadingVersion, pageText, pageWords, pointAt, quoteFrom, quotedWords, rangeOf, readingFrom, renderRetired, says, segmentBlock, segmentsIn, sentenceUnits, settledAway, showsWords, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity, watchPassageRoot, wrote };

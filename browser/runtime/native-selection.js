@@ -1,7 +1,6 @@
 /* Native selection endpoints and the provenance of programmatic writes. Passage
  * capture, view restoration and control activation share the same composed range;
  * none reads Chromium's retargeted light-DOM endpoints as the selected words. */
-import { installMoveSelection } from "./dom-move.js";
 import { pageShadowRoots } from "./shadow.js";
 
 // The range the user actually drew. Chrome keeps the legacy Range in the light DOM: a
@@ -101,7 +100,6 @@ export function holdSelection(placed) {
     selectEnds([anchorNode, anchorOffset], [focusNode, focusOffset]);
   };
 }
-installMoveSelection(holdSelection);
 
 /** @param {Selection | null} selection */
 export function programmaticSelection(selection) {

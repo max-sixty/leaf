@@ -26,8 +26,8 @@ let focusOwner = null;
 export const installMoveFocus = (owner) => {
   focusOwner = owner;
 };
-// Leaf's selection writer installs itself (native-selection.js); off Leaf a move
-// leaves a selection inside a moved node reset, as the browser does.
+// Leaf installs its selection writer (native-selection.js) at boot (leaf.js); off
+// Leaf a move leaves a selection inside a moved node reset, as the browser does.
 /** @type {typeof import("./native-selection.js").holdSelection | null} */
 let selectionOwner = null;
 /** @param {typeof import("./native-selection.js").holdSelection} owner */

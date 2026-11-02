@@ -1534,3 +1534,6 @@ def test_evidence_close_folds_room_but_retires_controls_immediately(
     )
     details.evaluate("d => d.open = true")
     assert height() == pytest.approx(full, abs=1)
+
+
+import pytest

@@ -503,6 +503,48 @@ test("a contribution owns current focus across its controls' shadow roots", asyn
   }
 });
 
+test("a batched contribution focus uses the completed render without publishing again", async () => {
+  const { registerContribution, contributionEntries, watchContributions } =
+    await import("../../browser/runtime/contributions.js");
+  const { trackContributionControl } =
+    await import("../../browser/runtime/contribution-controls.js");
+  const owner = document.createElement("section");
+  const first = document.createElement("button");
+  const second = document.createElement("button");
+  owner.append(first, second);
+  document.body.append(owner);
+  const registration = registerContribution({
+    key: "batched-focus",
+    target: owner,
+    read: () => ({
+      entries: ["first", "second"].map((key) => ({
+        key,
+        label: key,
+        icon: "check",
+        activation: key,
+      })),
+    }),
+    activate() {},
+  });
+  const offered = [...contributionEntries()].find((item) => item.target() === owner);
+  trackContributionControl(offered, "margin", "first", first);
+  trackContributionControl(offered, "margin", "second", second);
+  const arrivals = [];
+  const stop = watchContributions(() => arrivals.push(offered.focusRequest?.key));
+  try {
+    registration.update({ focus: "first" });
+    registration.update({ focus: "second" });
+    await Promise.resolve();
+    assert.equal(document.activeElement, second);
+    assert.deepEqual(arrivals, ["second"]);
+    assert.equal(offered.focusRequest, null);
+  } finally {
+    stop();
+    registration.unregister();
+    owner.remove();
+  }
+});
+
 // A projected entry invokes the same keyed command as the keyboard route.
 test("a contribution invokes its declared command and derives refusal from it", async () => {
   const { registerContribution } =

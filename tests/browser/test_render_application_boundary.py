@@ -2490,3 +2490,6 @@ def test_primary_parts_keep_identity_and_nomination_order_through_admission(
     assert page.evaluate("""() => pendingPart.isConnected &&
       document.querySelector('.lf-msg[data-attempt="' + created.key + '"]') === pendingPart &&
       !pendingPart.dataset.event.startsWith('pending:')""")
+
+
+import pytest

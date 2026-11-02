@@ -1903,6 +1903,36 @@ def draft_edit(page: Page) -> None:
     page.locator("#rn-cli .lf-draft-edit").focus()
 
 
+def draft_long_edit(page: Page) -> None:
+    """Open a visible word after scrolling through a long Markdown draft."""
+    page.locator("#rn-cli .lf-draft-body").click()
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.insert_text(
+        "\n".join(
+            f"Line {i}: The **release note** remains `editable`." for i in range(60)
+        )
+    )
+    page.keyboard.press("ControlOrMeta+Enter")
+    expect(page.locator("#rn-cli .lf-draft-edit")).to_have_count(0)
+    body = page.locator("#rn-cli .lf-draft-body")
+    expect(body).to_contain_text("Line 59:")
+    word = """el => {
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      let node;
+      while ((node = walker.nextNode()) && !node.data.includes('Line 30:')) {}
+      const at = node.data.indexOf('Line 30:');
+      const range = document.createRange();
+      range.setStart(node, at + 3); range.setEnd(node, at + 4);
+      const box = range.getBoundingClientRect();
+      return [box.x + box.width / 2, box.y + box.height / 2];
+    }"""
+    point = body.evaluate(word)
+    page.evaluate("y => window.scrollBy(0, y - 350)", point[1])
+    scroll_settled(page)
+    page.mouse.click(*body.evaluate(word))
+    expect(page.locator("#rn-cli .lf-draft-edit")).to_be_focused()
+
+
 def draft_hover(page: Page) -> None:
     """A draft under the pointer, which shows its toolbar of marks on its border."""
     page.locator("#rn-cli .lf-draft-body").hover()
@@ -2709,6 +2739,7 @@ STATES = (
         touch=True,
     ),
     State("release-draft", "release-notes", draft_edit),
+    State("release-draft-long", "release-notes", draft_long_edit),
     State("release-draft-hover", "release-notes", draft_hover, region="#rn-cli"),
     State(
         "release-draft-phone",

@@ -403,8 +403,7 @@ def page_state(
         page_dir, active["revision"] if active is not None else None
     )
     # The newest revision a tab showed the user, recorded as they left it
-    # (`read_state.seen_revision`). No tab posts one while the browser's marking of
-    # changes since then (since-seen.js) is turned off.
+    # (`read_state.seen_revision`). The browser posts none at present.
     seen = served["seen"]
     state["seen"] = (
         {"revision": seen["revision"], "label": seen["label"]} if seen else None

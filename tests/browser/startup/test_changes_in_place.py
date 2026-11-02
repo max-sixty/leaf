@@ -4,6 +4,7 @@ marked with a bar and walked with `h`, and where the agent is at work while it w
 
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from interact_support import append_command
 from model_folds import leaf_page
 from playwright.sync_api import expect
@@ -98,6 +99,70 @@ def test_a_comparison_marks_each_change_with_a_bar_and_h_walks_them(browser, ser
         }"""
     )
     assert lanes, "the change bar and the at-work bar don't stand in lanes of their own"
+
+
+SECTION = "<h2>Routes</h2>\n<p>The old rule.</p>\n<p>The old reason.</p>"
+REWRITTEN = (
+    "<h2>Who acts</h2>\n<p>The new rule.</p>\n<table>"
+    "<tr><th>Finding</th><td>Leaf</td></tr><tr><th>Behind</th><td>The agent</td></tr>"
+    "</table>\n<p>The new reason.</p>"
+)
+KEPT_TABLE = '<table id="owners"><tr><th>Owner</th><td>Leaf</td></tr></table>'
+
+
+def test_a_section_rewritten_whole_is_one_change(browser, serve):
+    """Rewriting a section changes every block in it, and the reader sees one edit, as
+    a diff shows one hunk: each block keeps its bar, but the run has one margin entry
+    and one stop of the walk. A block the revision left alone separates two changes.
+
+    The comparison lines the two versions' blocks up in order, so the new table's
+    "Leaf" cell is new, though the untouched table below holds the same word, and
+    that table stays unmarked."""
+    sectioned = PAGE.replace('<p id="b">Beta reads one way.</p>', SECTION).replace(
+        '<p id="d">', f'{KEPT_TABLE}\n<p id="d">'
+    )
+    url = live_url(serve(sectioned))
+    d = serve.page_dir
+    # The page opens on the revision, so a rewrite that grows moves nothing on screen.
+    revise(d, (SECTION, REWRITTEN), DELTA)
+    page = open_page(browser, url)
+    compare_with(page, 1)
+    page.keyboard.press("Escape")
+    # The heading, two paragraphs and four cells, and the paragraph after the gap.
+    expect(page.locator("main .lf-ins-block")).to_have_count(8)
+    expect(page.locator("#owners .lf-ins-block")).to_have_count(0)
+    expect(page.locator('.lf-margin-marker[data-lf-kinds~="change"]')).to_have_count(2)
+    for expected in ("main h2", "#d", "main h2"):
+        page.keyboard.press("h")
+        expect(page.locator(expected)).to_be_focused()
+
+
+@pytest.mark.parametrize(
+    "fold",
+    [
+        '<details><summary>Gamma</summary><p id="c">Gamma reads one way.</p></details>',
+        # A widget's own disclosure: the settled group's row controls its options.
+        '<lf-ask id="ask"><h2 id="q">Gamma?</h2><lf-options id="pick" choose settled>'
+        '<lf-option id="keep" chosen>Keep it.</lf-option>'
+        '<lf-option id="c">Gamma reads one way.</lf-option></lf-options></lf-ask>',
+    ],
+    ids=["details", "settled-options"],
+)
+def test_a_change_ends_where_a_disclosure_does(browser, serve, fold):
+    """A change hidden in a closed disclosure and one just after it are two changes,
+    so the one the reader can see keeps a margin entry of its own."""
+    folded = PAGE.replace('<p id="c">Gamma stays as it was.</p>', fold)
+    url = live_url(serve(folded))
+    d = serve.page_dir
+    # The page opens on the revision, so a rewrite that grows moves nothing on screen.
+    revise(d, ("Gamma reads one way.", "Gamma reads another way."), DELTA)
+    page = open_page(browser, url)
+    compare_with(page, 1)
+    page.keyboard.press("Escape")
+    expect(page.locator("main .lf-ins-block")).to_have_count(2)
+    expect(
+        page.locator('[data-lf-margin-for="d"] [data-lf-kinds~="change"]')
+    ).to_be_visible()
 
 
 def _comment_on(d, section, words, revision=1):

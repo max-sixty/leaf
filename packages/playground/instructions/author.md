@@ -242,13 +242,11 @@ working values and instruction match the saved choice. Editing either restores t
 submit action; Undo withdraws the choice and keeps the working values.
 
 The page keeps the working values before the user submits them, as the playground's
-`tune` actions, which ask nothing of you. When a comment is about what the preview
-shows, the configuration the user was looking at is the `tune` in force at the
-comment's `seq` in `leaf page events <page>`: the newest one before it that no earlier
-`undo` withdrew and no earlier version restated, or the authored defaults without one.
-A value the controls of the comment's `revision` can't hold, such as a radius past a
-lowered `max`, showed as that control's authored value. `leaf page state` holds the
-current one.
+`tune` actions, which ask nothing of you. A message in a thread on the playground
+arrives with the `tune` the user was looking at as its `unsent`
+(`references/event-batches.md`), or without one where the controls showed their
+authored values. A value the controls of the message's `revision` can't hold, such as
+a radius past a lowered `max`, showed as that control's authored value.
 
 ## Stateful previews
 

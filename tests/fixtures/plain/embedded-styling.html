@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Embedded content</title>
+    <meta
+      name="description"
+      content="A page with its own table layout and code highlighting."
+    />
+    <style>
+      html {
+        background: #f4f0e8;
+        color: #242424;
+        font: 16px/1.5 system-ui;
+      }
+      body {
+        margin: 0;
+      }
+      main {
+        width: min(90%, 720px);
+        margin: 40px auto;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      td {
+        border: 1px solid #aaa;
+        padding: 6px;
+      }
+      pre {
+        margin: 16px 0;
+        font: 14px/1.5 monospace;
+      }
+      .key {
+        color: #a01450;
+      }
+    </style>
+  </head>
+  <body>
+    <main data-style="own">
+      <h1>Garden route</h1>
+      <table id="route">
+        <tr>
+          <td>Route</td>
+          <td>Garden</td>
+        </tr>
+      </table>
+      <pre
+        id="config"
+      ><code class="language-yaml"><span class="key">destination</span>: garden</code></pre>
+      <p id="next">Continue through the garden.</p>
+    </main>
+  </body>
+</html>

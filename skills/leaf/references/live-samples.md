@@ -112,8 +112,9 @@ The child-page API applies only to samples with a template. A direct template se
 this isolated mode even when `interactive` is present.
 
 An ordinary served Leaf page can also appear in a plain `<iframe src="…">`, with its own
-lasting history, but only inside a page of the same origin: the same scheme, hostname
-and port.
+lasting history, inside a page of the same origin or inside another Leaf page this
+machine serves. Give the frame the page's address from `leaf page list` without its
+`?t=` key, which the framing page's own address already carried.
 
 ## Generated samples
 

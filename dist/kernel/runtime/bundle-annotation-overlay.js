@@ -217,7 +217,7 @@ const CUT_EDGES = [
 	"--lf-cut-bottom",
 	"--lf-cut-left"
 ];
-function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollThreadIntoView, scrollToElement, openInPanel, onClose }) {
+function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollThreadIntoView, scrollToElement, openPageThread, openInPanel, onClose }) {
 	let previewSession = null;
 	const { targetFor, entryPoint, entryPlace } = inventory;
 	const preview = el("aside", "lf-ui lf-margin-preview");
@@ -737,10 +737,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 		const next = Math.max(0, Math.min(threadItems.length - 1, current + step));
 		const item = threadItems[next];
 		if (next === current || !item) return;
-		focusThread(show({
-			...session,
-			threadItem: item.id
-		}));
+		openPageThread(item.thread.id, { part: "thread" });
 	}
 	function previewItemNode(item, session) {
 		let view = session.itemView;
@@ -1171,7 +1168,7 @@ function createMarginClusterViews(dependencies) {
 
 //#endregion
 //#region runtime/annotation-overlay/margin-projection.js
-function createMarginProjection({ inventory, refreshInventory, renderAnnotations, openPageThread, designModeActive, pointerModeActive, leavePageMap, openPageMap, pageMapDialogContains, scrollThreadIntoView, renderMarginThread, placedAt, marksFor, scrollToElement, openInPanel }) {
+function createMarginProjection({ inventory, refreshInventory, renderAnnotations, openPageThread, designModeActive, pointerModeActive, leavePageMap, openPageMap, pageMapDialogContains, scrollThreadIntoView, renderMarginThread, placedAt, marksFor, currentLocationObligation, scrollToElement, openInPanel }) {
 	const { targetFor, entryPoint, entryPlace, entryPassage, sourceItem, workflowReceipt, threadIdsAt, threadItem: marginThreadItem } = inventory;
 	const nav = el("nav", "lf-ui lf-margin-projection");
 	generatedElement(nav, { says: false });
@@ -1186,6 +1183,7 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 		placedAt,
 		scrollThreadIntoView,
 		scrollToElement,
+		openPageThread,
 		openInPanel,
 		onClose: closedPreview
 	});
@@ -1818,7 +1816,9 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 		const drawingOnly = entry?.items.length && entry.items.every((item) => item.kind === "comment" && Boolean(item.thread?.root.drawing));
 		const currentLocation = currentLocationThreadId();
 		const currentLocationShown = !marker && entry && marksFor(currentLocation).length > 0 && threadReading(entry)?.items.some((item) => item.thread.id === currentLocation);
-		highlight(drawingOnly || currentLocationShown ? null : targetFor(entry) ?? null);
+		const target = targetFor(entry) ?? null;
+		const obligationShown = target && target === currentLocationObligation();
+		highlight(drawingOnly || currentLocationShown || obligationShown ? null : target);
 	}
 	function previewChanged() {
 		refreshHighlight();

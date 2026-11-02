@@ -7779,6 +7779,7 @@ function createApplication(dependencies) {
 		renderMarginThread: (host, thread, controls) => renderMarginThread(host, thread, inlineView, controls),
 		placedAt: dependencies.anchorPlacement.placedAt,
 		marksFor: (id) => dependencies.anchorPaint?.marksFor(id) ?? [],
+		currentLocationObligation: dependencies.annotationCommands.currentLocationObligation,
 		scrollToElement: dependencies.anchorTravel.scrollToElement,
 		openInPanel: dependencies.annotationCommands.openInPanel
 	});

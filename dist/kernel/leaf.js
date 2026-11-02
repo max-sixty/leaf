@@ -10973,6 +10973,7 @@ async function boot() {
 		sendReaction,
 		createMarginProjection: annotationRenderer?.createMarginProjection,
 		annotationCommands: {
+			currentLocationObligation: () => items.currentLocationIn(),
 			designModeActive: designMode.active,
 			pointerModeActive: () => designMode.active() || drawing.drawModeActive() || regionCapture.active(),
 			leavePageMap: (...args) => pageMapDialog.leavePageMap(...args),

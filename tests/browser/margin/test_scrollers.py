@@ -244,14 +244,21 @@ def test_marks_stand_on_a_widened_table_in_every_engine(request, serve, engine):
     after = page.evaluate(reading)
     assert after["header"][2] == pytest.approx(before["header"][2] - 120, abs=1), after
     assert after["pin"] == pytest.approx(before["pin"], abs=1), (before, after)
-    page.locator("#grid thead th").nth(2).hover()
+    _outline_and_copy_stand_on(page, page.locator("#grid thead th").nth(2), "#grid")
+
+
+def _outline_and_copy_stand_on(page, hovered, outlined):
+    """The outline Alt raises over `hovered` stands on `outlined`, and the Copy of the
+    `#command` code block, which CSS anchors alone, stands inside the block's top-right
+    corner."""
+    hovered.hover()
     page.keyboard.down("Alt")
     aim = page.locator(".lf-aim")
     expect(aim).to_be_visible()
-    table, outline = page.locator("#grid").bounding_box(), aim.bounding_box()
+    target, outline = page.locator(outlined).bounding_box(), aim.bounding_box()
     page.keyboard.up("Alt")
-    assert outline["x"] == pytest.approx(table["x"], abs=1), (outline, table)
-    assert outline["y"] == pytest.approx(table["y"], abs=1), (outline, table)
+    assert outline["x"] == pytest.approx(target["x"], abs=1), (outline, target)
+    assert outline["y"] == pytest.approx(target["y"], abs=1), (outline, target)
     code = page.locator("#command").bounding_box()
     page.mouse.move(code["x"] + 5, code["y"] + code["height"] / 2)
     copy = page.locator(".lf-code-copy")
@@ -260,6 +267,79 @@ def test_marks_stand_on_a_widened_table_in_every_engine(request, serve, engine):
     inset = code["x"] + code["width"] - corner["x"] - corner["width"]
     assert 0 <= inset <= 8, (corner, code)
     assert 0 <= corner["y"] - code["y"] <= 8, (corner, code)
+
+
+SCALED_DECK_PAGE = leaf_page(
+    "a scaled deck",
+    '<h1>Deck</h1><div style="position: relative; height: 480px">'
+    '<div style="position: absolute; left: 50%; top: 50%; width: 960px; height: 700px;'
+    ' padding: 40px; transform: translate(-50%, -50%) scale(0.6)">'
+    '<div id="words" style="height: 240px; overflow: auto">'
+    + "A line of the slide's notes.<br>" * 4
+    + "Words on a slide the deck has translated and scaled to fit its stage."
+    + "<br>A further line of the slide's notes." * 30
+    + '</div><pre id="command"><code>uv run pytest '
+    "tests/browser/margin/test_scrollers.py</code></pre></div></div>"
+    + "<p>Prose after the deck, so the page scrolls.</p>"
+    * 40,
+)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+def test_marks_stand_on_a_scaled_slide_in_every_engine(request, serve, engine):
+    """A deck such as reveal.js translates and scales its slides to fit its stage, and
+    Firefox leaves the anchor's transforms out of `anchor()` and `anchor-size()`, so a
+    comment's row stood 257px below the words it marked and Copy stood past the right
+    edge of its code block. A scroll inside the slide moves the words by less than the
+    scroll, and Firefox moved the row by all of it until something else placed the
+    rows again. In each engine the row stands level with its words and keeps that place
+    through a scroll of the page and, once it ends, through a scroll of the box holding
+    the words; the outline Alt raises stands on that box, and Copy stands inside its
+    block's top-right corner."""
+    browser = request.getfixturevalue(engine)
+    comment = _comment_on("words", quote="translated and scaled")
+    page = open_page(browser, serve(SCALED_DECK_PAGE, events=[comment]))
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    reading = """() => {
+      const text = [...document.getElementById('words').childNodes]
+        .find((node) => node.data?.includes('translated and scaled'));
+      const at = text.data.indexOf('translated and scaled');
+      const range = document.createRange();
+      range.setStart(text, at);
+      range.setEnd(text, at + 10);
+      const row = document.querySelector('[data-lf-margin-for="words"]');
+      const top = range.getClientRects()[0].top;
+      return {offset: row.getBoundingClientRect().top - top, words: top,
+              shown: !row.classList.contains('lf-withheld')};
+    }"""
+    before = page.evaluate(reading)
+    assert before["shown"] and abs(before["offset"]) <= 2, before
+    page.evaluate("() => document.scrollingElement.scrollBy(0, 120)")
+    margins_laid_out(page)
+    after = page.evaluate(reading)
+    assert after["words"] == pytest.approx(before["words"] - 120, abs=1), after
+    assert after["offset"] == pytest.approx(before["offset"], abs=1), (before, after)
+    # No layout announcement after this scroll: the margin's own reading of its end
+    # is what has to place the row.
+    page.evaluate(
+        """async () => {
+          const box = document.getElementById('words');
+          const ended = new Promise((done) =>
+            box.addEventListener('scrollend', done, {once: true}));
+          box.scrollTop = 60;
+          await ended;
+        }"""
+    )
+    rendered(page)
+    scrolled = page.evaluate(reading)
+    assert scrolled["words"] == pytest.approx(after["words"] - 36, abs=1), scrolled
+    assert scrolled["shown"], scrolled
+    assert scrolled["offset"] == pytest.approx(before["offset"], abs=1), (
+        before,
+        scrolled,
+    )
+    _outline_and_copy_stand_on(page, page.locator("#words"), "#words")
 
 
 def test_a_pin_in_a_pane_paints_in_the_frame_its_target_scrolls(browser, serve):

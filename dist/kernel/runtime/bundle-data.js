@@ -2323,13 +2323,17 @@ function readInsets(block) {
 	const at = anchorBox(block);
 	return {
 		dx: box.left - at.left,
-		dy: box.top - at.top
+		dy: box.top - at.top,
+		dw: box.width - at.width,
+		dh: box.height - at.height
 	};
 }
-function writeInsets(control, { dx, dy }) {
+function writeInsets(control, { dx, dy, dw, dh }) {
 	for (const [property, length] of Object.entries({
 		"--lf-block-control-dx": dx,
-		"--lf-block-control-dy": dy
+		"--lf-block-control-dy": dy,
+		"--lf-block-control-dw": dw,
+		"--lf-block-control-dh": dh
 	})) {
 		const value = length ? layoutPx(length) : "";
 		if (control.style.getPropertyValue(property) !== value) control.style.setProperty(property, value);

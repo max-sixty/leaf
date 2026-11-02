@@ -207,8 +207,8 @@ export function scrollThreadIntoView(
 }
 
 // Taken as the user sends, before the send draws anything; the step it returns is taken
-// once the send has left the user `currentLocation`: on the conversation's card or title
-// (`landSent`), or on the seat holding a persistent box. The box the user sent from is
+// once the send has left the user `currentLocation`: in a reply's box, which keeps the
+// caret (replies.js), or on the seat holding a persistent box. The box the user sent from is
 // under their aim, and Send and the caret stand at its foot. In flow, its new turn
 // grows the thread just above it, so the box goes down by what the turn adds, less what
 // the emptied box gives back, as an append region lets it (`browser/

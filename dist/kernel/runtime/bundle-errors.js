@@ -1,5 +1,5 @@
 import { __exportAll } from "./bundle-rolldown-runtime.js";
-import { ANNOUNCE, CARET_KEYS, COMMANDS, J, PRESS, PRESSES, ROLE_BUTTON_OFFER, W, WORKS, Z, actionTemplate, bindQueuedWork, coarsePointer, commandsChangedOn, controlNavigationKeys, d, focusDestination, focusRevision, holdFocus, installLanguagePaths, installMoveFocus, isElement, isHTML, isNativeLayer, isStage, keeps, liveStages, move, nextRender, offer, offerAction, onCurrentLocation, onFocusVisibility, pressIsKeyboardActivation, refuseCommands, renderedParent, renderedUnder, shadowHost, showNativeLayer, takesLetters, tick, under, watchCurrentLocationIn, x } from "./bundle-portable.js";
+import { ANNOUNCE, CARET_KEYS, COMMANDS, J, PRESS, PRESSES, ROLE_BUTTON_OFFER, W, WORKS, Z, actionTemplate, bindQueuedWork, coarsePointer, commandsChangedOn, controlNavigationKeys, d, focusDestination, focusRevision, holdFocus, installLanguagePaths, installMoveFocus, isElement, isHTML, isNativeLayer, isStage, keeps, liveStages, move, nextRender, offer, offerAction, onCurrentLocation, onFocusVisibility, onUserInput, pressIsKeyboardActivation, refuseCommands, renderedParent, renderedUnder, shadowHost, showNativeLayer, takesLetters, tick, under, watchCurrentLocationIn, x } from "./bundle-portable.js";
 import { AsyncDirective, LitElement as LitElement$1, PartType as PartType$1, directive as directive$1, guard, html as html$1, keyed, live as live$1, noChange, nothing as nothing$1, ref, render as render$1, repeat } from "/vendor/lit.js";
 
 //#region runtime/move-focus.js
@@ -3574,21 +3574,24 @@ const liveEl = el("div", "lf-ui lf-live");
 liveEl.setAttribute("aria-live", "polite");
 const NOTICE_MS = 4e3;
 let noticeTimer = 0;
+let stopWatchingPress = () => {};
 let showingBackground = null;
 const waitingBackground = [];
 let userContext = false;
 let userHoldTimer = 0;
 const noticePresentation = Z(Object.freeze({
 	message: "",
-	visible: false
+	visible: false,
+	press: null
 }));
 const noticeReading = () => noticePresentation.value;
 const noticeVisible = () => noticePresentation.peek().visible;
 const noticeWords = (message) => typeof message === "string" ? [leafSays(message)] : message;
-const presentNotice = (message, visible) => {
+const presentNotice = (message, visible, press = null) => {
 	noticePresentation.value = Object.freeze({
 		message,
-		visible
+		visible,
+		press
 	});
 };
 function announce(msg) {
@@ -3599,16 +3602,28 @@ function announce(msg) {
 	}, 30);
 }
 addEventListener(ANNOUNCE, (event) => announce(event.detail));
-function showNotice(msg, background = null) {
-	presentNotice(msg, true);
+function showNotice(msg, background = null, press = null) {
+	presentNotice(msg, true, press);
 	showingBackground = background;
 	clearTimeout(noticeTimer);
-	noticeTimer = setTimeout(() => {
-		if (!userContext && !userHoldTimer && showBackground(waitingBackground.shift())) return;
-		presentNotice(noticePresentation.peek().message, false);
-		showingBackground = null;
-	}, NOTICE_MS);
+	stopWatchingPress();
+	if (!press) noticeTimer = setTimeout(retireNotice, NOTICE_MS);
+	else stopWatchingPress = x(() => {
+		if (!press.stands() && noticePresentation.peek().press === press) d(retireNotice);
+	});
 }
+function retireNotice() {
+	stopWatchingPress();
+	if (!userContext && !userHoldTimer && showBackground(waitingBackground.shift())) return;
+	presentNotice(noticePresentation.peek().message, false);
+	showingBackground = null;
+}
+const NOTICE_PRESS = "data-lf-notice-press";
+onUserInput((event) => {
+	if (!noticePresentation.peek().press) return;
+	if ((event.composedPath?.() ?? []).some((node) => node instanceof Element && node.hasAttribute(NOTICE_PRESS))) return;
+	retireNotice();
+});
 function showBackground(entry) {
 	while (entry) {
 		const message = entry.key === "text" ? entry.value : entry.format(entry.value);
@@ -3637,7 +3652,7 @@ function queueBackground(entry, front = false) {
 	if (front) waitingBackground.unshift(entry);
 	else waitingBackground.push(entry);
 }
-function notice(msg, { background = false, announce: speak = true, group = null } = {}) {
+function notice(msg, { background = false, announce: speak = true, group = null, press = null } = {}) {
 	if (speak) announce(msg);
 	if (background) {
 		const entry = group ?? textBackground(msg);
@@ -3645,11 +3660,12 @@ function notice(msg, { background = false, announce: speak = true, group = null 
 		return showBackground(entry);
 	}
 	if (showingBackground) queueBackground(showingBackground, true);
-	showNotice(msg);
+	showNotice(msg, null, press);
 }
 function yieldNotice() {
 	if (showingBackground) queueBackground(showingBackground, true);
 	clearTimeout(noticeTimer);
+	stopWatchingPress();
 	presentNotice(noticePresentation.peek().message, false);
 	showingBackground = null;
 }

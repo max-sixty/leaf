@@ -38,7 +38,10 @@
  *   the ✕ standing before both marks, which kept them still but stood it between the
  *   field and the marks. Beside the seat stands at most one small notice for a state
  *   the user should not miss, such as reading an older version, tinted by its tone and
- *   with at most one press (`olderVersion`); the field gives it room, so the seat keeps
+ *   with at most one press (`olderVersion`), or, while it passes, a notice of the user's
+ *   own gesture with the press that takes it back, as a Resolve's Undo (`rowNotice`),
+ *   chosen on 31 October so a Resolve that moves the panel on says which thread it
+ *   resolved and offers its undo there; the field gives it room, so the seat keeps
  *   its place, but only while it holds no words, which a narrower field would rewrap
  *   under the reader; the notice waits while words stand there. The empty field says
  *   what the agent is doing or wants, in the status's words
@@ -200,6 +203,8 @@ import {
 } from "/runtime/framework.js";
 import { el, namedAction, offeredAction, reveal } from "./widget-elements.js";
 import { actionTemplate, iconTemplate } from "./icons.js";
+import { actionName } from "./icon-paths.js";
+import { commandSteps } from "./keyboard/control-keys.js";
 import { copyControl } from "./copy-control.js";
 import { keeps, keepsHidden, layoutPx } from "./keeps.js";
 import { setRuntimeRootStyle } from "./root-state.js";
@@ -298,7 +303,7 @@ import { excerptWords } from "./words.js";
 import { holdRendering, nextRender, sizeObserver } from "./rendering.js";
 import { boxMotion } from "./box-motion.js";
 import { landedBox, scrollIntoView } from "./landing-scroll.js";
-import { gesturedOn, newsNotice } from "./thread/held-news.js";
+import { gesturedOn, newsCount, newsNotice } from "./thread/held-news.js";
 import {
   atScrollEnd,
   moveScrollerBy,
@@ -360,9 +365,10 @@ const coarse = () => matchMedia("(pointer: coarse)").matches;
 // window.
 function passing() {
   const notice = noticeReading();
-  if (notice.visible) return { message: notice.message, visible: true };
+  if (notice.visible)
+    return { message: notice.message, visible: true, press: notice.press };
   const message = navigationWords();
-  return { message, visible: Boolean(message) };
+  return { message, visible: Boolean(message), press: null };
 }
 function navigationWords() {
   const { goTo, walk } = statusContextReading();
@@ -419,7 +425,7 @@ customElements.define("leaf-floating-panel", FloatingPanel);
  * arrivesAt: QueueWalk["arrivesAt"], onMe: QueueWalk["onMe"],
  * placedAt: ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["placedAt"],
  * openThreadSubject: ReturnType<typeof import("./thread/destination.js").createThreadDestinations>["openThreadSubject"],
- * atLastResort: ReturnType<typeof import("./thread/destination.js").createThreadDestinations>["atLastResort"],
+ * showsOnPage: ReturnType<typeof import("./thread/destination.js").createThreadDestinations>["showsOnPage"],
  * annotationsHidden: () => boolean}} FloatingPanelOptions */
 /** @param {FloatingPanelOptions} dependencies */
 export function createFloatingPanel({
@@ -437,7 +443,7 @@ export function createFloatingPanel({
   settlement,
   placedAt,
   openThreadSubject,
-  atLastResort,
+  showsOnPage,
   annotationsHidden,
 }) {
   const host = new FloatingPanel();
@@ -498,7 +504,7 @@ export function createFloatingPanel({
     // the task that put the menu away and showed it.
     const quickHidden =
       initial || (Boolean(top) && !exit) || (!exit && (writing || drafted));
-    const notice = initial || search ? null : olderVersion();
+    const notice = initial || search ? null : rowNotice();
     const peek = initial ? null : peekPresentation();
     const mode = search
       ? html`<span class="lf-fp-mode-word">Search </span>${iconTemplate(
@@ -668,7 +674,11 @@ export function createFloatingPanel({
               </div>
             </div>
             <div class="lf-fp-response"></div>
-            <div class="lf-fp-row-notice" ?hidden=${!notice}>
+            <div
+              class="lf-fp-row-notice"
+              ?hidden=${!notice}
+              ?data-passing=${Boolean(notice?.passing)}
+            >
               ${notice ? rowNoticeTemplate(notice) : nothing}
             </div>
             <div class="lf-fp-quick" ?hidden=${quickHidden}>${quick}</div>
@@ -983,14 +993,18 @@ export function createFloatingPanel({
           .filter(Boolean)
           .join(" · "),
       };
+    // A notice offering a press stands over the empty field with it, in the words'
+    // place (`rowNotice`), so the field says nothing under it.
     const notice = passing();
     if (notice.visible)
       return {
         says: "notice",
-        words: [
-          ...(stance ? [`${stance} · `] : []),
-          ...[noticeWords(notice.message)].flat(),
-        ],
+        words: notice.press
+          ? ""
+          : [
+              ...(stance ? [`${stance} · `] : []),
+              ...[noticeWords(notice.message)].flat(),
+            ],
       };
     if (stance)
       return {
@@ -2218,9 +2232,11 @@ export function createFloatingPanel({
     // reader has drawn the reply there; one taking no reply, as a resolved thread does,
     // holds focus itself, so the user is in it. A list stands on the row of the
     // thread the user was in, where it lists it, as `g T` from a thread does; else,
-    // opened by a key in the panel, on its first row, or its first control where it has
-    // none, or itself where it holds neither, as an empty Threads does; opened from
-    // anywhere else, as `g T` from the page or a pointer, it holds focus itself.
+    // opened by a key, in the panel or on the page as `g T` is, on its first row, or its
+    // first control where it has none, or itself where it holds neither, as an empty
+    // Threads does, so the key's landing wears a ring; opened by a pointer, it holds
+    // focus itself. The user chose this on 31 October, after `g T` from the page left
+    // focus on the list's view, where nothing showed it and Enter went nowhere seen.
     if (route.thread) {
       // A finger opening a thread reads it first, standing in the view, whose box
       // raises no keyboard; the keyboard rises when they tap in.
@@ -2243,14 +2259,12 @@ export function createFloatingPanel({
     if (target) focusDestination(target, "move");
   }
 
-  // Where the gesture now under way began: a key in a view stands on its first
-  // control, while a pointer in the panel leaves focus on the pressed control. A
-  // gesture outside the panel, `g T` from the page among them, is neither, whatever
-  // the panel last heard, so the view it opens holds focus itself.
+  // How the gesture now under way began: a key, wherever pressed, stands a view it
+  // opens on its first control, and a pointer leaves the view holding focus itself.
   let keyed = false;
   onUserInput((event) => {
     if (["keydown", "pointerdown"].includes(event.type))
-      keyed = event.type === "keydown" && event.composedPath().includes(host);
+      keyed = event.type === "keydown";
   });
 
   // ---------- the leaf's menu ----------
@@ -2834,10 +2848,11 @@ export function createFloatingPanel({
   // The notice while the list holds a row, else nothing.
   function joinedTemplate() {
     if (!showing({ view: "threads" })) return nothing;
-    const facts = joinedFacts(threadsListing().joined);
+    const { joined } = threadsListing();
+    const facts = joinedFacts(joined);
     if (!facts.length) return nothing;
     joinedNotice.set({
-      parts: facts.map((fact, index) => (index ? ` · ${fact}` : fact)),
+      text: newsCount(joined.length),
       label: facts.join(" · "),
       reopened: false,
       open: showJoined,
@@ -3625,12 +3640,17 @@ export function createFloatingPanel({
     // stands at the end of the answers' line, where an answer replacing the choices
     // before it moves it nowhere. The arrival may open a thread in this panel; keep
     // its current route until the destination decides, then close only for page travel.
+    // A card drawing the message it asks (`message`) holds that message's drawing ahead
+    // of the page's (thread/messages.js, `authoredRank`), so an arrival with On me
+    // standing landed in this card, and the user fell to the page as it closed. Where
+    // the thread stands on the page, On me goes first and the arrival lands in its card.
     const show = arrivesAt(item)
       ? html`<button
           type="button"
           ${offeredAction("symbol", "lf-fp-show", undefined, { action: "show" })}
           @click=${() => {
             const route = trail.value.at(-1);
+            if (message && placedAt(message.thread.id)?.place) close();
             void queueActions.open(queueItemKey(item)).then((arrived) => {
               if (arrived && trail.value.at(-1) === route) close();
             });
@@ -4346,10 +4366,12 @@ export function createFloatingPanel({
     // message's thread here on that element (thread/destination.js,
     // `openThreadSubject`).
     const inMessage = Boolean(placedAt(thread.id)?.message);
-    // A thread the destinations handed the panel as their last resort, which the page
-    // drew nowhere, has no page to show (thread/destination.js, `atLastResort`).
+    // A thread the destinations handed the panel as their last resort, whose place the
+    // page draws nowhere, has no page to show (thread/destination.js, `showsOnPage`).
+    // One the page shows only the place of, as a window with no room for the rail does,
+    // goes there.
     opening.onPageSeat ||=
-      Boolean(thread.anchor) && (inMessage || !atLastResort(thread.key));
+      Boolean(thread.anchor) && (inMessage || showsOnPage(thread.key));
     // Next unread goes to the thread's first reply not yet read, which a fold or the
     // view's scroll may hide, as `g u` goes to the page's (thread/read.js).
     const presses = html`${
@@ -4391,9 +4413,11 @@ export function createFloatingPanel({
                 close();
                 // The reply box the field drew goes back to the thread's drawing on
                 // the page once the reader has drawn the view gone, and the route
-                // lands in it there.
+                // lands in it there; where the page draws no view of the thread, as a
+                // window with no room for the rail does, on its place
+                // (thread/destination.js, `page`).
                 void present({ release: true }).then(() =>
-                  threadActions.open(thread.key, { part: null, intent }),
+                  threadActions.open(thread.key, { part: null, intent, page: true }),
                 );
               }}
             ></button>`
@@ -4617,7 +4641,38 @@ export function createFloatingPanel({
 
   // ---------- the row's notice ----------
   // One small notice beside the seat, for a state the user should not miss while they
-  // read: a few words (`says`), a `tone` that tints it, and at most one `press`.
+  // read: a few words (`says`), a `tone` that tints it, and at most one `press`, with
+  // its word and the keys that make it from anywhere on the page (`keys`).
+  // A passing notice offering the press that takes back what it reports, as a Resolve's
+  // offers Undo (notifications.js), stands in the seat its words would take, over the
+  // empty field's start, its press spelled with the key of the page command that makes
+  // it too, as the command reference spells it; else the older version's notice. It stands
+  // over the field rather than beside it (floating-panel.css), so its coming and going
+  // move nothing in the row, and it stands from the gesture's own paint to the
+  // notice's end, whether or not the command can act yet.
+  // Nothing that passes is said while the caret is in the field, this neither; and
+  // the gesture it reports stood the user outside the field, so it stands through the
+  // writing posture the field keeps until the user leaves the panel, though not over
+  // a draft (floating-panel.css).
+  /** @typedef {{says: string | ReturnType<typeof voiced>, tone: string | null,
+   * passing?: boolean, press: {label: string, run: () => unknown, title?: string | null,
+   * disabled?: boolean, keys?: readonly string[]} | null}} RowNotice */
+  /** @returns {RowNotice | null} */
+  function rowNotice() {
+    const { visible, message, press } = passing();
+    const input = fieldInput();
+    if (!visible || !press || (input && focused() === input)) return olderVersion();
+    return {
+      says: voiced(noticeWords(message)),
+      tone: null,
+      passing: true,
+      press: {
+        label: actionName(press.action),
+        keys: commandSteps(press.command),
+        run: press.run,
+      },
+    };
+  }
   // The page shows an older version than the latest: the menu's row that opens the
   // latest says so too, but only once the menu is open, while the count beside it
   // follows the version shown with no word of why.
@@ -4638,13 +4693,17 @@ export function createFloatingPanel({
       },
     };
   }
-  /** @param {ReturnType<typeof olderVersion> & {}} notice */
-  function rowNoticeTemplate({ says, tone, press }) {
-    const face = html`<span class="lf-fp-row-notice-face" data-tone=${tone}
-      >${says}${
+  /** @param {RowNotice} notice */
+  function rowNoticeTemplate({ says, tone, press = null, passing = false }) {
+    const face = html`<span class="lf-fp-row-notice-face" data-tone=${tone ?? nothing}
+      ><span class="lf-fp-row-notice-says">${says}</span>${
         press
-          ? html`<span class="lf-fp-row-notice-sep" aria-hidden="true">·</span
-              ><span class="lf-fp-row-notice-act">${press.label}</span>`
+          ? html` <span class="lf-fp-row-notice-sep" aria-hidden="true">·</span>
+              <span class="lf-fp-row-notice-act">${press.label}</span>${
+                press.keys?.length && advertisesKeys()
+                  ? html` ${keySequenceTemplate(keySequenceModel(neutralSteps(press.keys)))}`
+                  : nothing
+              }`
           : nothing
       }</span
     >`;
@@ -4654,6 +4713,7 @@ export function createFloatingPanel({
       class="lf-fp-face lf-fp-chip lf-fp-row-notice-press"
       title=${press.title ?? nothing}
       ?disabled=${press.disabled}
+      ?data-lf-notice-press=${Boolean(passing)}
       @click=${press.run}
     >
       ${face}
@@ -5112,8 +5172,9 @@ export function createFloatingPanel({
       },
       // A thread about the whole page opens here; one about a passage opens beside it,
       // where the page draws it, widgets in its messages included, and here only where
-      // nothing on the page shows it, as on a page drawing no margin, the destination's
-      // last resort (`request.last`, thread/destination.js), or for one of its messages
+      // nothing on the page shows it, as on a page drawing no margin or a window with no
+      // room for the rail, the destination's last resort (`request.last`,
+      // thread/destination.js), or for one of its messages
       // while the view already shows it, so a walk to an ask in it leaves the user
       // where they read. Where the user lands in it is the route's (`request.part`),
       // which Leaf's destinations take them to once it is drawn: the reply, a message,

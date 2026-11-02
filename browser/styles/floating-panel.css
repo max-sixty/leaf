@@ -772,8 +772,22 @@
      narrow rewrap, and the field grows up over its line under the reader. It stands
      aside with the mark while the user writes or the field holds a draft
      (floating-panel.js, `writing`). */
-  .lf-floating-panel:is([data-writing], [data-drafted]) .lf-fp-row-notice {
+  .lf-floating-panel[data-writing] .lf-fp-row-notice:not([data-passing]),
+  .lf-floating-panel[data-drafted] .lf-fp-row-notice {
     display: none;
+  }
+  /* A passing notice with its press (`rowNotice`) stands where the empty field's
+     words would, over its start on the panel's own ground, taking no room, so its
+     coming and its going move neither the field nor its controls. It stands through
+     the writing posture, which lasts while the user stays in the panel, since the
+     gesture it reports, such as a Resolve, stood them outside the field. */
+  .lf-fp-row-notice[data-passing] {
+    position: absolute;
+    left: anchor(--lf-fp-field left);
+    top: anchor(--lf-fp-field top);
+    bottom: anchor(--lf-fp-field bottom);
+    max-width: anchor-size(--lf-fp-field width);
+    background: var(--lf-fp-surface);
   }
   /* The press takes the row's whole line, as every mark does, so a finger finds it;
      the chip's face is drawn inside it. */
@@ -791,6 +805,9 @@
     min-height: 26px;
     padding: 0 9px;
     border-radius: var(--r);
+    /* A notice with no tone, as a passing one's, stands on the panel's own ground. */
+    --lf-fp-notice-tint: transparent;
+    --lf-fp-notice-ink: var(--ink);
     background: var(--lf-fp-notice-tint);
     color: var(--ink);
     font: var(--font-small);
@@ -809,6 +826,18 @@
       var(--lf-fp-notice-ink) 16%,
       var(--lf-fp-notice-tint)
     );
+  }
+  /* A passing notice says its words where the field's would, so it wears their face:
+     the message's type, and the dimmed ink of a notice the field says (above), in
+     Leaf's italic (voice.js); only its press reads as one, upright in ink with its
+     key. In a chip's small type and full ink it read as a different line from the
+     field's "Away" or the "Resolved the thread" it replaced. */
+  .lf-fp-row-notice[data-passing] .lf-fp-row-notice-face {
+    font: var(--font-message);
+    color: var(--muted);
+  }
+  .lf-fp-row-notice[data-passing] .lf-fp-row-notice-act {
+    color: var(--ink);
   }
   .lf-fp-row-notice-sep {
     color: var(--lf-fp-quiet);
@@ -1182,11 +1211,22 @@
     box-sizing: border-box;
     scrollbar-width: thin;
   }
-  /* A view a pointer opened holds focus so keys act there, and wears no ring: nothing
-     in it was chosen yet. */
-  .lf-fp-view:is(:focus, [data-lf-focus-visible]) {
+  /* A view holding focus is where keys act. One a pointer opened wears no ring, since
+     nothing in it was chosen yet; one a key came back to, as Escape does from a
+     thread's reply to its thread, wears it as a card's thread does, on the stage the
+     view fills, since a thread's view fades out its own top edge (below). The stage
+     runs to the panel's edges, so its ring stands a gap inside them, in the view's
+     padding, rounded as the panel's other rings are: drawn on the stage's edge, it
+     ran along the panel's border and was cut square above the crumb. */
+  .lf-fp-view:focus {
     outline: none;
     box-shadow: none;
+  }
+  .lf-fp-stage:has(> .lf-fp-view[data-lf-focus-visible]:not([data-leaving])) {
+    --lf-fp-stage-ring-gap: 4px;
+    outline: var(--focus-ring);
+    outline-offset: calc(var(--focus-ring-inset) - var(--lf-fp-stage-ring-gap));
+    border-radius: calc(var(--r) + var(--lf-fp-stage-ring-gap));
   }
   .lf-fp-view[data-leaving] {
     pointer-events: none;

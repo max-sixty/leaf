@@ -116,13 +116,13 @@ def test_page_map_qualifies_only_duplicate_subjects_with_their_reading_region(
         "button", name="Open thread: Check this subject.", exact=True
     ).click()
     expect(dialog).to_be_hidden()
-    thread = page.locator(
-        '.lf-margin-preview .lf-page-thread[data-thread="comment-proposed-deployment"]'
-    )
-    expect(thread).to_be_focused()
-    expect(thread).to_contain_text("Check this subject.")
-    page.keyboard.press("c")
-    expect(thread.locator("leaf-text")).to_be_focused()
+    # A phone has no room for the rail, so the thread opens in the floating panel, the
+    # user in its reply as in any thread the panel opens for a route naming no part.
+    view = page.locator(".lf-fp-view:not([data-leaving])")
+    expect(
+        view.locator('.lf-page-thread[data-thread="comment-proposed-deployment"]')
+    ).to_contain_text("Check this subject.")
+    expect(page.locator(".lf-fp-field leaf-text")).to_be_focused()
 
 
 PAGE_MAP_PAGE = leaf_page(

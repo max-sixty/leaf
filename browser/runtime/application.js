@@ -274,6 +274,7 @@ function createApplication(dependencies) {
     pendingEntries: ledger.snapshot,
     actions: threadActions,
     landedAway: undo.landedAway,
+    offerUndo: undo.offerUndo,
     returnToThread: undo.returnToThread,
   };
   const reactionView = {
@@ -364,6 +365,7 @@ function createApplication(dependencies) {
     refreshInventory: refreshAnnotationInventory,
     renderAnnotations,
     openPageThread,
+    returnToPage: () => threadDestinations.returnToPage(),
     designModeActive: dependencies.annotationCommands.designModeActive,
     pointerModeActive: dependencies.annotationCommands.pointerModeActive,
     leavePageMap: dependencies.annotationCommands.leavePageMap,

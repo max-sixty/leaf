@@ -1470,11 +1470,14 @@ def test_comments_pointed_within_one_line_share_its_row(browser, serve, case):
         assert "“Row 30 first cell Row 30" in name, name
 
 
-def test_a_reflow_keeps_a_pointed_comment_in_its_row_and_its_card_open(browser, serve):
+def test_a_reflow_keeps_a_pointed_comment_in_its_row_and_its_reply_going(
+    browser, serve
+):
     """Which margin row a pointed comment stands in is the document's to say, so a
     reflow that moves its line further from the target's top moves the row with it and
-    changes nothing else: the row is the same element, and the card the user is
-    writing in stays up with the words and the focus in it."""
+    changes nothing else: the row is the same element, and the reply the user is
+    writing keeps its words and the focus, in the floating panel once a phone's window
+    leaves no room for the card."""
     page = open_page(
         browser,
         serve(
@@ -1507,6 +1510,7 @@ def test_a_reflow_keeps_a_pointed_comment_in_its_row_and_its_card_open(browser, 
     page.keyboard.press("c")
     expect(reply).to_be_focused()
     page.keyboard.type("Still writing")
+    reply.evaluate("el => { window.lfTypedIn = el; }")
 
     # A phone's column is narrower than the opening line in any font; at 560px whether
     # it wraps depends on the font's width (Linux's did not).
@@ -1519,8 +1523,10 @@ def test_a_reflow_keeps_a_pointed_comment_in_its_row_and_its_card_open(browser, 
     assert [index for index, _ in after] == [index for index, _ in rows], (
         f"the reflow moved the comment to another margin row: {rows} then {after}"
     )
-    expect(reply).to_be_focused()
-    expect(reply).to_have_js_property("value", "Still writing")
+    typed = page.locator(".lf-fp-field leaf-text")
+    expect(typed).to_be_focused()
+    assert typed.evaluate("el => el === window.lfTypedIn")
+    expect(typed).to_have_js_property("value", "Still writing")
 
 
 def test_undoing_a_settle_brings_a_pointed_comment_back_to_its_row(browser, serve):

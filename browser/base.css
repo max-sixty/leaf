@@ -332,6 +332,10 @@
   /* The document Layouts' prose measure and outer gutter. */
   --col: 720px;
   --col-pad: 24px;
+  /* The window width that holds the column with a rail on either side, the width at
+     which a column page's rail stands; narrower, a thread opens in the floating panel
+     rather than a margin card (content-layout.js, `windowHoldsRail`). */
+  --lf-rail-room: calc(var(--col) + 2 * var(--rail));
   /* The room a page Layout leaves above its first block and below its last. A phone's
      and a block sample's are smaller (below). */
   --page-pad-start: 72px;
@@ -1220,6 +1224,15 @@ main {
 /* Registered so native layout and annotation placement read widths in pixels,
  * whatever unit a page uses. */
 @property --rail {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+/* Read in pixels by the runtime (`windowHoldsRail`), while `--col` itself stays
+ * unregistered, so a page states its column in any unit and it resolves where the
+ * Layout applies it. A column stated as a percentage has no window width of its own,
+ * so the room falls back to 0px and cards open at every width. */
+@property --lf-rail-room {
   syntax: "<length>";
   inherits: true;
   initial-value: 0px;

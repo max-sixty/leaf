@@ -1,7 +1,7 @@
 import { LAYOUT, TEXT_FIELD, Z, afterScript, atScrollEnd, beginWalk, cancelAnimation, cancelRender, clamp, closeLayer, closestAcross, coarsePointer, currentLocationIn, declareRelease, drawn, focusDestination, focused, generatedElement, handBack, holdFocus, inChrome, inputCount, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, listWalkPosition, move, moveScrollerBy, nativeLayerHolding, nextAnimation, nextRender, offer, offerAction, onCurrentLocation, onPressAway, onUserInput, pageScroller, pressLed, renderedOrder, renderedUnder, retainUserIntent, rightCover, ringBox, roomPx, rove, rowArrows, scrollLimit, scrollToEnd, seenRect, setChildLists, setChildren, shownBox, shownParts, shownWindow, showsContents, sizeObserver, skipped, slotTop, tabStops, tabStore, under, union, visibleFocus, watchRoom } from "./bundle-portable.js";
 import { bareReaction, closeControl, cycledRow, el, hostIn, html, keys, nativePress, notice, pageRange, paintKeys, paintKeysWithin, render, repaint, sameAnchor, turns } from "./bundle-errors.js";
 import { setRuntimeRootAttribute } from "./bundle-layer-client.js";
-import { chromeForeground, chromeRoot, exactTarget, passageGeometry, pointBand, rangeGeometry, readingRegionFor, registerReadingRegion, scrollerFor, targetElement, targetParts, targetRange, targetSegments, targetSurface, visualAt } from "./bundle-content-layout.js";
+import { chromeForeground, chromeRoot, exactTarget, passageGeometry, pointBand, rangeGeometry, readingRegionFor, registerReadingRegion, scrollerFor, targetElement, targetParts, targetRange, targetSegments, targetSurface, visualAt, windowHoldsRail } from "./bundle-content-layout.js";
 import { ANNOTATIONS_KEY } from "./bundle-restore-state.js";
 import { blockAt, elementFromPointAcross, labelWords, pageWords, quoteFrom, rangeOf, segmentsIn } from "./bundle-passages.js";
 import { anchorLabel, arrivalOf, carryingThreadPlace, claimSeatReplies, claimed, currentLocationThreadId, declareOffFlowSurface, declareSide, keepThreadLanding, pageCommand, pageRung, pageScope, pageSelection, placeKeeper, releaseAuthoredUnder, releaseReplies, revealHeld, rowWalk, selectionAnchor, showReturnTurn, threadFocusDestination, threadIdNamed, threadNamed } from "./bundle-data.js";
@@ -119,14 +119,20 @@ var CardAnchor = class {
 	#sent = null;
 	#press = null;
 	#side = null;
+	#sentFrom = null;
 	constructor(surface) {
 		this.#surface = surface;
 	}
 	sending(attempt) {
 		this.#sent = attempt;
+		this.#sentFrom = "untyped";
 	}
 	writing() {
 		this.#sent = null;
+		if (this.#sentFrom) this.#sentFrom = "typed";
+	}
+	leftReply() {
+		this.#sentFrom = null;
 	}
 	#keepsSend(joined) {
 		return this.#sent !== null && (!joined?.size || joined.has(this.#sent));
@@ -158,7 +164,7 @@ var CardAnchor = class {
 	}
 	#writing() {
 		const field = this.#field();
-		return Boolean(field?.checkVisibility() && (currentLocationIn(field.closest(".lf-thread-reply")) || field.value !== ""));
+		return Boolean(field?.checkVisibility() && (field.value !== "" || this.#sentFrom !== "untyped" && currentLocationIn(field.closest(".lf-thread-reply"))));
 	}
 	#extent() {
 		const transcript = this.#surface.querySelector(".lf-thread-transcript");
@@ -187,7 +193,7 @@ var CardAnchor = class {
 			}
 		}
 		const attachment = seat.side === "top" ? "foot" : "top";
-		const ordinary = this.#sent || !writing && seat.side === "top" ? "foot" : "top";
+		const ordinary = this.#sent || seat.side === "top" ? "foot" : "top";
 		const beside = seat.side === "left" || seat.side === "right";
 		return {
 			writing,
@@ -205,6 +211,7 @@ var CardAnchor = class {
 		this.#sent = null;
 		this.#press = null;
 		this.#side = null;
+		this.#sentFrom = null;
 	}
 };
 
@@ -897,8 +904,10 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 				scheduleThreadPreviewPosition();
 			}
 			const row = left && under(left, preview) && closestAcross(left, ".lf-thread-reply");
-			const field = row ? row.querySelector(REPLY_BOX) : null;
-			if (row && !(node && under(node, row)) && !field?.value) scheduleThreadPreviewPosition();
+			if (row && !(node && under(node, row))) {
+				previewSession?.anchor.leftReply();
+				if (!row.querySelector(REPLY_BOX)?.value) scheduleThreadPreviewPosition();
+			}
 		});
 		declareOffFlowSurface(preview, { bringBack: (behavior) => scrollToElement(entryPlace(previewSession?.entry) ?? previewSession?.control ?? null, behavior, "nearest") });
 		move(chromeRoot, preview, chromeForeground);
@@ -1171,7 +1180,7 @@ function createMarginClusterViews(dependencies) {
 
 //#endregion
 //#region runtime/annotation-overlay/margin-projection.js
-function createMarginProjection({ inventory, refreshInventory, renderAnnotations, openPageThread, designModeActive, pointerModeActive, leavePageMap, openPageMap, pageMapDialogContains, scrollThreadIntoView, renderMarginThread, placedAt, marksFor, scrollToElement, openInPanel }) {
+function createMarginProjection({ inventory, refreshInventory, renderAnnotations, openPageThread, returnToPage, designModeActive, pointerModeActive, leavePageMap, openPageMap, pageMapDialogContains, scrollThreadIntoView, renderMarginThread, placedAt, marksFor, scrollToElement, openInPanel }) {
 	const { targetFor, entryPoint, entryPlace, entryPassage, sourceItem, workflowReceipt, threadIdsAt, threadItem: marginThreadItem } = inventory;
 	const nav = el("nav", "lf-ui lf-margin-projection");
 	generatedElement(nav, { says: false });
@@ -1689,7 +1698,9 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 		renderAnnotations.refresh();
 		if (previousOwner === "responses") document.dispatchEvent(new CustomEvent("lf-margin-entry-options-closed"));
 	}
+	let railRoom = null;
 	function renderNow(inventory) {
+		const room = windowHoldsRail();
 		const selected = card.selection();
 		const forcedKey = selected?.forced ? selected.entry.key : null;
 		const threadOwnerHeld = transferThreadFocus || focused() === selected?.control;
@@ -1772,6 +1783,7 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 			const fresh = pageInventory.find((entry) => entry.key === selected.entry.key);
 			const freshChoice = fresh && threadReading(fresh);
 			if (!fresh || !freshChoice) closePreview();
+			else if (!room) yieldPreview();
 			else {
 				const owner = threadMarginEntry(fresh);
 				if (owner && !owner.checkVisibility() && forcedKey !== fresh.key && expandedOptionsKey !== fresh.key && !hosts.get(fresh.key)?.more?.hidden) {
@@ -1787,6 +1799,8 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 				}
 			}
 		}
+		if (room && railRoom === false) queueMicrotask(() => void returnToPage());
+		railRoom = room;
 		refreshHighlight();
 		scheduleMarginLayout();
 		scheduleRoving();
@@ -1826,7 +1840,7 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 		paintKeys();
 	}
 	function showPreview(entry, choice, control, threadItem = null, { origin = null, accompanies = false, forced = false } = {}) {
-		if (designModeActive()) return null;
+		if (designModeActive() || !windowHoldsRail()) return null;
 		const previous = card.selection();
 		const disclosed = previous?.disclosed && previous.entry.key === entry.key || forced && !control?.checkVisibility() && expandedOptionsKey !== entry.key;
 		const positioned = card.show({
@@ -1854,7 +1868,12 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 			closePreview();
 			return;
 		}
-		card.focusThread(showPreview(entry, choice, button));
+		const positioned = showPreview(entry, choice, button);
+		if (positioned) card.focusThread(positioned);
+		else openPageThread(threadIdOf(choice), {
+			part: "thread",
+			travel: false
+		});
 	}
 	const landOnEntry = layerLanding((button) => handBack(button, ...button?.lfEntry ? mapControlPlaces(button.lfEntry) : []));
 	function closePreview(land = () => letGo()) {
@@ -1863,6 +1882,21 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 		const heldInside = currentLocationIn(preview) && !carryingThreadPlace(at);
 		closeLayer(() => card.close(), heldInside && (() => land(button)));
 		paintKeys();
+	}
+	function yieldPreview() {
+		const id = card.thread()?.getAttribute("data-thread");
+		const inCard = currentLocationIn(preview);
+		const replying = card.replying();
+		const intent = retainUserIntent();
+		releaseReplies(preview);
+		closePreview(() => {});
+		if (id) openPageThread(id, {
+			part: replying ? "reply" : "thread",
+			focus: inCard,
+			travel: false,
+			scroll: false,
+			intent
+		});
 	}
 	function retirePreviewDisclosure(previous, next = null) {
 		if (previous?.disclosed && previous.entry.key !== next?.key && expandedOptionsKey === previous.entry.key) setOptionsOpen(null, false, { preservePreview: true });
@@ -1960,16 +1994,20 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 		}
 		togglePinned(entry, choice, button);
 	}
+	const threadEntry = (id) => {
+		const itemId = marginThreadItem(threadNamed(id));
+		return pageInventory.find((candidate) => candidate.items.some((item) => item.id === itemId));
+	};
+	const shown = (control) => control?.checkVisibility() ? control : null;
+	const shownEntryControl = (entry) => shown(threadMarginEntry(entry)) ?? shown(hosts.get(entry.key)?.marker);
 	function openInlineThread(id, { origin = null, unfold = true } = {}) {
 		const itemId = marginThreadItem(threadNamed(id));
-		const entry = pageInventory.find((candidate) => candidate.items.some((item) => item.id === itemId));
+		const entry = threadEntry(id);
 		if (!entry || designModeActive()) return null;
 		const choice = threadReading(entry);
 		if (!choice) return null;
-		const shown = (control) => control?.checkVisibility() ? control : null;
-		const host = hosts.get(entry.key);
-		const marker = unfold ? null : shown(threadMarginEntry(entry)) ?? shown(host?.marker);
-		if (!unfold && !marker && !shown(host)) return null;
+		const marker = unfold ? null : shownEntryControl(entry);
+		if (!unfold && !marker && !shown(hosts.get(entry.key))) return null;
 		const positioned = showPreview(entry, choice, marker ?? threadMarginEntry(entry), itemId, {
 			origin,
 			accompanies: !unfold,
@@ -2221,7 +2259,11 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 			open: openInlineThread,
 			focusTarget: card.focusTarget,
 			accompanied: accompaniedThreadHere,
-			close: closePreview
+			close: closePreview,
+			control: (id) => {
+				const entry = threadEntry(id);
+				return entry ? shownEntryControl(entry) : null;
+			}
 		},
 		paintSelectedMarginEntries,
 		marginEntryChoices,

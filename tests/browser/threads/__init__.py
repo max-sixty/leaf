@@ -527,6 +527,14 @@ def pressed_send_surface(browser, serve, surface):
             if surface == "pause"
             else seat.locator(":scope > .lf-page-thread > .lf-thread-reply leaf-text")
         )
+    elif surface == "diff-reply":
+        url, root = long_diff_thread(serve)
+        page = open_page(browser, url)
+        thread = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+        box = thread.locator(".lf-thread-reply leaf-text")
+        box.click()
+        send = thread.locator(".lf-thread-reply .lf-compose-submit")
+        after = reply = box
     elif surface == "composer-widget":
         url = serve(
             leaf_page(
@@ -577,12 +585,12 @@ def pressed_send_surface(browser, serve, surface):
             box = field.locator('leaf-text[name="reply"]')
             box.click()
         send = holder.locator(".lf-compose-submit")
-        # Conversation sends land where the conversation goes on: a card's on its card,
-        # the panel's in its field, a page comment opening its thread there, which the
+        # Conversation sends land where the conversation goes on: a reply in its box, a
+        # card's as the panel's, a page comment opening its thread there, which the
         # field then replies in.
         reply_box = field.locator('leaf-text[name="reply"]')
         after = {
-            "card": holder.locator(".lf-page-thread"),
+            "card": box,
             "composer": page.locator(".lf-margin-preview .lf-page-thread"),
             "composer-panel": page.locator(".lf-margin-preview .lf-page-thread"),
             "panel": reply_box,
@@ -590,7 +598,9 @@ def pressed_send_surface(browser, serve, surface):
         }[surface]
         reply = (
             page.locator(".lf-margin-preview .lf-thread-reply leaf-text")
-            if surface.startswith("composer") or surface == "card"
+            if surface.startswith("composer")
+            else box
+            if surface == "card"
             else reply_box
         )
     write(box, "Sent from the box.")

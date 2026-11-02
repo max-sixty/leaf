@@ -79,7 +79,7 @@ def test_thread_actions_share_consistently_sized_message_headers(
         page.locator(".lf-margin-marker").first.click()
         card = page.locator(".lf-margin-preview .lf-page-thread")
         expect(card).to_be_visible()
-    for width in (1440, 390):
+    for width in (1440, 390) if surface == "panel" else (1440, 1024):
         resized(page, width, 900)
         rendered(page)
         geometry = card.evaluate(
@@ -1074,7 +1074,7 @@ def test_words_scrolled_past_a_card_head_show_nowhere_above_it(
         assert spread(band) < 40, (scroll, reading)
 
 
-@pytest.mark.parametrize(("width", "touch"), [(1200, False), (311, True)])
+@pytest.mark.parametrize(("width", "touch"), [(1200, False), (1400, True)])
 def test_a_stuck_card_head_keeps_the_name_and_lets_its_annotations_scroll_out(
     browser, serve, width, touch
 ):

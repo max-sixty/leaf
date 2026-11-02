@@ -791,6 +791,13 @@ function coordinateLabel(anchor, about) {
   return `§ ${addressable ? sectionLabel(addressable) : anchor.section}`;
 }
 
+// The words a thread is about, as its head quotes them: those a version's rewrite took
+// from it (`rewritten_from`, events.md), else those it was detached from, else its
+// anchor.
+/** @param {Pick<import("../../types/domain.js").Thread, "rewritten_from" | "detached_from" | "anchor">} thread */
+export const threadPassage = (thread) =>
+  thread.rewritten_from ?? thread.detached_from ?? thread.anchor;
+
 // A named control part belongs to the coordinate in every reading, not just Design.
 /** @param {import("../../types/domain.js").Anchor | null | undefined} anchor @param {string | null | undefined} [about] */
 export function anchorLabel(anchor, about) {

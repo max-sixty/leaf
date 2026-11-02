@@ -5210,66 +5210,6 @@ function beginWalk(key, noun, read) {
 }
 
 //#endregion
-//#region runtime/canvas.js
-function canvas2D(canvas, options) {
-	const context = canvas.getContext("2d", options);
-	if (!context) throw new Error("The browser could not create a 2D canvas context");
-	return context;
-}
-
-//#endregion
-//#region runtime/time-axis.js
-const TICK_SPACING = 84;
-const STEPS = [
-	1,
-	2,
-	5
-];
-function tickStep(pxPerMs) {
-	for (let power = 1; power < 1e9; power *= 10) for (const step of STEPS) if (step * power * pxPerMs >= TICK_SPACING) return step * power;
-	return 1e9;
-}
-function tickLabel(time, step) {
-	if (time === 0) return "0 s";
-	const digits = step >= 1e3 ? 0 : step >= 100 ? 1 : step >= 10 ? 2 : 3;
-	return `${(time / 1e3).toFixed(digits)} s`;
-}
-function axisTicks(from, to, duration, pxPerMs) {
-	const step = tickStep(pxPerMs);
-	const minor = step / (String(step)[0] === "2" ? 4 : 5);
-	const ticks = [];
-	for (let time = Math.floor(from / minor) * minor; time <= to; time += minor) {
-		const rounded = Math.round(time * 1e3) / 1e3;
-		if (rounded < 0 || rounded > duration) continue;
-		const major = Math.abs(rounded / step - Math.round(rounded / step)) < 1e-6;
-		ticks.push({
-			time: rounded,
-			major,
-			label: major ? tickLabel(rounded, step) : null,
-			step
-		});
-	}
-	return ticks;
-}
-function assignRows(items, start, end) {
-	const rows = [];
-	const rowOf = /* @__PURE__ */ new Map();
-	for (const item of items.toSorted((a, b) => start(a) - start(b))) {
-		let row = rows.findIndex((last) => last <= start(item));
-		if (row < 0) row = rows.push(-Infinity) - 1;
-		rows[row] = end(item);
-		rowOf.set(item.id, row);
-	}
-	return rowOf;
-}
-let measuring = null;
-function textWidth(text, font) {
-	measuring ??= canvas2D(document.createElement("canvas"));
-	measuring.font = font;
-	return measuring.measureText(text).width;
-}
-
-//#endregion
 //#region runtime/thread/surface-handles.js
 const registrations = /* @__PURE__ */ new Map();
 const registrationVersion = Z(0);
@@ -5354,6 +5294,66 @@ async function loadDeferred(value, key) {
 	const load = loaders.get(value);
 	if (!load) throw new Error(`loadDeferred(${key}) needs a source value Leaf delivered`);
 	return load(key);
+}
+
+//#endregion
+//#region runtime/canvas.js
+function canvas2D(canvas, options) {
+	const context = canvas.getContext("2d", options);
+	if (!context) throw new Error("The browser could not create a 2D canvas context");
+	return context;
+}
+
+//#endregion
+//#region runtime/time-axis.js
+const TICK_SPACING = 84;
+const STEPS = [
+	1,
+	2,
+	5
+];
+function tickStep(pxPerMs) {
+	for (let power = 1; power < 1e9; power *= 10) for (const step of STEPS) if (step * power * pxPerMs >= TICK_SPACING) return step * power;
+	return 1e9;
+}
+function tickLabel(time, step) {
+	if (time === 0) return "0 s";
+	const digits = step >= 1e3 ? 0 : step >= 100 ? 1 : step >= 10 ? 2 : 3;
+	return `${(time / 1e3).toFixed(digits)} s`;
+}
+function axisTicks(from, to, duration, pxPerMs) {
+	const step = tickStep(pxPerMs);
+	const minor = step / (String(step)[0] === "2" ? 4 : 5);
+	const ticks = [];
+	for (let time = Math.floor(from / minor) * minor; time <= to; time += minor) {
+		const rounded = Math.round(time * 1e3) / 1e3;
+		if (rounded < 0 || rounded > duration) continue;
+		const major = Math.abs(rounded / step - Math.round(rounded / step)) < 1e-6;
+		ticks.push({
+			time: rounded,
+			major,
+			label: major ? tickLabel(rounded, step) : null,
+			step
+		});
+	}
+	return ticks;
+}
+function assignRows(items, start, end) {
+	const rows = [];
+	const rowOf = /* @__PURE__ */ new Map();
+	for (const item of items.toSorted((a, b) => start(a) - start(b))) {
+		let row = rows.findIndex((last) => last <= start(item));
+		if (row < 0) row = rows.push(-Infinity) - 1;
+		rows[row] = end(item);
+		rowOf.set(item.id, row);
+	}
+	return rowOf;
+}
+let measuring = null;
+function textWidth(text, font) {
+	measuring ??= canvas2D(document.createElement("canvas"));
+	measuring.font = font;
+	return measuring.measureText(text).width;
 }
 
 //#endregion

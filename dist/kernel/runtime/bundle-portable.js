@@ -995,10 +995,10 @@ function currentLocationTouches(node) {
 let restoring = false;
 let placements = 0;
 let lastLocation = null;
-const readers = /* @__PURE__ */ new Set();
+const readers$1 = /* @__PURE__ */ new Set();
 const onCurrentLocation = (read) => {
-	readers.add(read);
-	return () => readers.delete(read);
+	readers$1.add(read);
+	return () => readers$1.delete(read);
 };
 let published = null;
 let departed = false;
@@ -1098,7 +1098,7 @@ function publish(node, cause) {
 	};
 	[placing, restoring] = [null, false];
 	try {
-		for (const read of readers) {
+		for (const read of readers$1) {
 			try {
 				read(node, cause, left);
 			} catch (error) {
@@ -2072,6 +2072,7 @@ const ICONS = {
 	comment: "<path d=\"M3 3.25h10v7H7.25L4 12.75v-2H3z\"/>",
 	copy: "<rect x=\"6\" y=\"6\" width=\"7\" height=\"7\" rx=\"1.25\"/><path d=\"M10 6V4.25C10 3.56 9.44 3 8.75 3h-4.5C3.56 3 3 3.56 3 4.25v4.5C3 9.44 3.56 10 4.25 10H6\"/>",
 	cross: "<path d=\"m4 4 8 8M12 4l-8 8\"/>",
+	delete: "<path d=\"M3 4.5h10M6.25 4.5V3h3.5v1.5M4.5 4.5l.6 7.85c.05.65.6 1.15 1.25 1.15h3.3c.65 0 1.2-.5 1.25-1.15l.6-7.85M6.75 7v4M9.25 7v4\"/>",
 	dot: "<circle cx=\"8\" cy=\"8\" r=\"1.5\" fill=\"currentColor\" stroke=\"none\"/>",
 	down: "<path d=\"m4 6.25 4 4 4-4\"/>",
 	edit: "<path d=\"m3.25 10.75-.5 2.5 2.5-.5 6.9-6.9-2-2zM9.25 4.75l2 2\"/>",
@@ -2161,6 +2162,10 @@ const ACTIONS = {
 	"copy-link": {
 		name: "Copy link",
 		icon: "link"
+	},
+	delete: {
+		name: "Delete",
+		icon: "delete"
 	},
 	dictate: {
 		name: "Dictate",
@@ -2453,6 +2458,21 @@ const selectableOffered = elementDirective("selectableOffered", selectableOfferE
 const generated = elementDirective("generated", generatedElement);
 
 //#endregion
+//#region runtime/field-keys.js
+const readers = /* @__PURE__ */ new Set();
+const readLeavingKeys = (read) => void readers.add(read);
+function keepFieldKeys(host) {
+	for (const type of [
+		"keydown",
+		"keypress",
+		"keyup"
+	]) host.addEventListener(type, (event) => {
+		for (const read of readers) read(event);
+		event.stopPropagation();
+	});
+}
+
+//#endregion
 //#region runtime/control-labels.js
 function searchField(cls, { name, label, placeholder = label }) {
 	const field = offer("wa-input", `lf-search-field lf-label-hidden ${cls}`);
@@ -2466,6 +2486,7 @@ function searchField(cls, { name, label, placeholder = label }) {
 	field.placeholder = placeholder;
 	field.autocomplete = "off";
 	field.spellcheck = false;
+	keepFieldKeys(field);
 	return field;
 }
 function nameAction(control, action, { label, title, className } = {}) {
@@ -4487,6 +4508,41 @@ const aimedTop = (box) => {
 	return kept?.at === box.scrollTop ? kept.aim : box.scrollTop;
 };
 const reachable = (box, top) => Math.max(-box.scrollTop, Math.min(scrollLimit(box) - box.scrollTop, top));
+function keepFoot(box, { atEnd = false, kept } = {}) {
+	let foot = null;
+	const observer = sizeObserver((entries) => {
+		const room = box.clientHeight;
+		if (foot && room !== foot.room && (!atEnd || foot.end) && entries.every(({ target }) => target === box)) {
+			moveScrollerBy(box, foot.top + foot.room - room - box.scrollTop);
+			kept?.();
+		}
+		foot = {
+			room,
+			top: box.scrollTop,
+			end: atScrollEnd(box)
+		};
+	});
+	observer.observe(box);
+	for (const child of box.children) observer.observe(child);
+	const children = new MutationObserver((records) => {
+		for (const { addedNodes, removedNodes } of records) {
+			for (const node of addedNodes) if (node instanceof Element) observer.observe(node);
+			for (const node of removedNodes) if (node instanceof Element) observer.unobserve(node);
+		}
+	});
+	children.observe(box, { childList: true });
+	const scrolled = () => {
+		if (!foot || box.clientHeight > foot.room && box.scrollTop < foot.top && atScrollEnd(box)) return;
+		foot.top = box.scrollTop;
+		foot.end = atScrollEnd(box);
+	};
+	box.addEventListener("scroll", scrolled, { passive: true });
+	return () => {
+		observer.disconnect();
+		children.disconnect();
+		box.removeEventListener("scroll", scrolled);
+	};
+}
 
 //#endregion
 //#region runtime/scroll-containers.js
@@ -5210,66 +5266,6 @@ function beginWalk(key, noun, read) {
 }
 
 //#endregion
-//#region runtime/canvas.js
-function canvas2D(canvas, options) {
-	const context = canvas.getContext("2d", options);
-	if (!context) throw new Error("The browser could not create a 2D canvas context");
-	return context;
-}
-
-//#endregion
-//#region runtime/time-axis.js
-const TICK_SPACING = 84;
-const STEPS = [
-	1,
-	2,
-	5
-];
-function tickStep(pxPerMs) {
-	for (let power = 1; power < 1e9; power *= 10) for (const step of STEPS) if (step * power * pxPerMs >= TICK_SPACING) return step * power;
-	return 1e9;
-}
-function tickLabel(time, step) {
-	if (time === 0) return "0 s";
-	const digits = step >= 1e3 ? 0 : step >= 100 ? 1 : step >= 10 ? 2 : 3;
-	return `${(time / 1e3).toFixed(digits)} s`;
-}
-function axisTicks(from, to, duration, pxPerMs) {
-	const step = tickStep(pxPerMs);
-	const minor = step / (String(step)[0] === "2" ? 4 : 5);
-	const ticks = [];
-	for (let time = Math.floor(from / minor) * minor; time <= to; time += minor) {
-		const rounded = Math.round(time * 1e3) / 1e3;
-		if (rounded < 0 || rounded > duration) continue;
-		const major = Math.abs(rounded / step - Math.round(rounded / step)) < 1e-6;
-		ticks.push({
-			time: rounded,
-			major,
-			label: major ? tickLabel(rounded, step) : null,
-			step
-		});
-	}
-	return ticks;
-}
-function assignRows(items, start, end) {
-	const rows = [];
-	const rowOf = /* @__PURE__ */ new Map();
-	for (const item of items.toSorted((a, b) => start(a) - start(b))) {
-		let row = rows.findIndex((last) => last <= start(item));
-		if (row < 0) row = rows.push(-Infinity) - 1;
-		rows[row] = end(item);
-		rowOf.set(item.id, row);
-	}
-	return rowOf;
-}
-let measuring = null;
-function textWidth(text, font) {
-	measuring ??= canvas2D(document.createElement("canvas"));
-	measuring.font = font;
-	return measuring.measureText(text).width;
-}
-
-//#endregion
 //#region runtime/thread/surface-handles.js
 const registrations = /* @__PURE__ */ new Map();
 const registrationVersion = Z(0);
@@ -5357,4 +5353,64 @@ async function loadDeferred(value, key) {
 }
 
 //#endregion
-export { ANNOUNCE, CARET_KEYS, COMMANDS, DISCLOSE, DISCLOSURE_SELECTOR, HOLDS_WORD, J, LAYOUT, LENT_REACH_STOP, LeafElement, MODIFIER_KEYS, OUTPUT, PAGE_PAINT_ATTRIBUTE, PENDING_TASK, PRESS, PRESSES, PendingTaskEvent, ROLE_BUTTON_OFFER, RUNTIME_PAINT_ATTRIBUTE, SAID, SourcePairs, TAB_STOP, TEXT_BOX, TEXT_FIELD, UI_MARKS, W, WALK, WORKS, Z, actionClass, actionElement, actionIcon, actionName, actionTemplate, afterScript, afterSettling, agentArrivalDuration, aimedTop, alreadyShown, announce, assignRows, atLayoutPrecision, atScrollEnd, attachDeferredLoader, axisTicks, backgroundFlash, beginWalk, bindQueuedWork, blurFocused, bodyText, byRenderedOrder, canPlaceFocus, cancelAnimation, cancelRender, canvas2D, caretAtKey, chosenSince, claimReleaseClick, clamp, clippedContents, clippedPlace, clippedRect, clippingAxes, clipsPastSurfaces, closeLayer, closeNativeLayer, closestAcross, coarsePointer, commandsChanged, commandsChangedOn, composedParentNode, contentRides, controlNavigationKeys, coveredShare, currentLocationIn, currentLocationNodes, currentLocationTouches, d, dataBody, declareOccluder, declareReading, declareRelease, declareWindowChrome, deepFocus, describeFailure, disclosureAt, dismissPopoversOutside, drawn$1 as drawn, elementDirective, elementFrame, ensureSyntaxLanguage, eventSource, exceptionRecord, exceptionText, excludedByInert, failSoft, failSoftUnreported, failureContext, failureOf, fitsWhole, flashDuration, focusDestination, focusRevision, focused, foldBlock, foldDuration, frameFor, frameView, frameVisibility, generated, generatedElement, growthAfterIsSeen, growthIsSeen, handBack, hasArea, headerCuts, headerInset, holdCurrentLocation, holdFocus, holdRendering, holdToRead, hoveringPointer, iconElement, iconTemplate, inBaseLayer, inChrome, inUi, inWindowChrome, inlineStyle, inputCount, inputInFrame, installElementIntegration, installLanguagePaths, installLayerStyleIntegration, installMoveFocus, installScrollerLookup, installStageIntegration, intersect, isElement, isHTML, isNativeLayer, isNode, isStage, isText, keeps, keepsHidden, keepsText, landedBox, landingBand, landingInsets, landingRoom, langForPath, layerLanding, layoutChanged, layoutPx, layoutWindow, letGo, listWalkPosition, liveStages, loadDeferred, measure, motion, motionEasing, motionPlays, motionTime, move, moveScrollerBy, nameAction, namedAction, nativeFocusTarget, nativeLayerHolding, nativeLayers, nativeModalAdmits, nearObserver, nearWindow, nextAnimation, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offerElement, offered, offeredAction, offeredActionElement, onCurrentLocation, onFocusVisibility, onFrameVisibility, onLetGo, onMotionPreferenceChange, onPress, onPressAway, onUserInput, once, openLayer, openerOf, orderChildren, outputProducer, overIn, overlaps, overlapsAcross, pagePresented, pageScroller, pageUpgraded, paintClips, passOn, patchRetains, patchTree, placeBox, placeHolder, placeKept, placesFailure, plainPress, playMotion, pointerAt, presented, pressHolds, pressIsKeyboardActivation, pressLed, pressRecords, pressing, publishOutput, q, readCaret, readSampleVisibility, recentPlaceInput, recoveredLabelFocus, reducedMotion, refuseCommands, refuseOutput, registerVisualParts, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, registrations, relabel, release, releaseFocus, releaseOutlets, renderedOrder, renderedParent, renderedUnder, renderingState, reportFailure, restorePointer, restrictUserIntent, retainUserIntent, returnDuration, revealRegisteredVisualPart, revealsVisualParts, rightCover, ringBox, roomPx, rove, rowArrows, scrollAxes, scrollBehavior, scrollChoices, scrollContainer, scrollGlides, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollToEnd, scrollersOf, scrolling, scrollsBy, scrollsContent, searchField, seenRect, selectableOffer, selectableOffered, selectsAll, setChildLists, setChildren, setRegistration, setRenderedChildren, setScroll, shadowHost, shadowStage, shellRight, showNativeLayer, shownBand, shownBox, shownExtent, shownParts, shownRect, shownWindow, showsContents, sizeObserver, skipped, slotTop, stackLevel, startsAt, stopScroll, stuckBox, synNodes, syntax, syntaxLanguageNames, tabStops, tabStore, takesLetters, textWidth, threadSurface, tick, tokenLines, typesText, uiInside, under, underOccluder, union, upFrom, updateSurface, userScrollport, visibleBand, visibleFocus, visualPartAdmission, visualPartProblems, visualViewport, walkPosition, walkPositionLabel, watchArrivals, watchCurrentLocationIn, watchFrame, watchLayerChanges, watchOwner, watchRoom, watchScrollEnds, watchScrolls, wearsLentStop, whenLeft, whenNone, whileConnected, windowChromeBoxes, x$1 as x };
+//#region runtime/canvas.js
+function canvas2D(canvas, options) {
+	const context = canvas.getContext("2d", options);
+	if (!context) throw new Error("The browser could not create a 2D canvas context");
+	return context;
+}
+
+//#endregion
+//#region runtime/time-axis.js
+const TICK_SPACING = 84;
+const STEPS = [
+	1,
+	2,
+	5
+];
+function tickStep(pxPerMs) {
+	for (let power = 1; power < 1e9; power *= 10) for (const step of STEPS) if (step * power * pxPerMs >= TICK_SPACING) return step * power;
+	return 1e9;
+}
+function tickLabel(time, step) {
+	if (time === 0) return "0 s";
+	const digits = step >= 1e3 ? 0 : step >= 100 ? 1 : step >= 10 ? 2 : 3;
+	return `${(time / 1e3).toFixed(digits)} s`;
+}
+function axisTicks(from, to, duration, pxPerMs) {
+	const step = tickStep(pxPerMs);
+	const minor = step / (String(step)[0] === "2" ? 4 : 5);
+	const ticks = [];
+	for (let time = Math.floor(from / minor) * minor; time <= to; time += minor) {
+		const rounded = Math.round(time * 1e3) / 1e3;
+		if (rounded < 0 || rounded > duration) continue;
+		const major = Math.abs(rounded / step - Math.round(rounded / step)) < 1e-6;
+		ticks.push({
+			time: rounded,
+			major,
+			label: major ? tickLabel(rounded, step) : null,
+			step
+		});
+	}
+	return ticks;
+}
+function assignRows(items, start, end) {
+	const rows = [];
+	const rowOf = /* @__PURE__ */ new Map();
+	for (const item of items.toSorted((a, b) => start(a) - start(b))) {
+		let row = rows.findIndex((last) => last <= start(item));
+		if (row < 0) row = rows.push(-Infinity) - 1;
+		rows[row] = end(item);
+		rowOf.set(item.id, row);
+	}
+	return rowOf;
+}
+let measuring = null;
+function textWidth(text, font) {
+	measuring ??= canvas2D(document.createElement("canvas"));
+	measuring.font = font;
+	return measuring.measureText(text).width;
+}
+
+//#endregion
+export { ANNOUNCE, CARET_KEYS, COMMANDS, DISCLOSE, DISCLOSURE_SELECTOR, HOLDS_WORD, J, LAYOUT, LENT_REACH_STOP, LeafElement, MODIFIER_KEYS, OUTPUT, PAGE_PAINT_ATTRIBUTE, PENDING_TASK, PRESS, PRESSES, PendingTaskEvent, ROLE_BUTTON_OFFER, RUNTIME_PAINT_ATTRIBUTE, SAID, SourcePairs, TAB_STOP, TEXT_BOX, TEXT_FIELD, UI_MARKS, W, WALK, WORKS, Z, actionClass, actionElement, actionIcon, actionName, actionTemplate, afterScript, afterSettling, agentArrivalDuration, aimedTop, alreadyShown, announce, assignRows, atLayoutPrecision, atScrollEnd, attachDeferredLoader, axisTicks, backgroundFlash, beginWalk, bindQueuedWork, blurFocused, bodyText, byRenderedOrder, canPlaceFocus, cancelAnimation, cancelRender, canvas2D, caretAtKey, chosenSince, claimReleaseClick, clamp, clippedContents, clippedPlace, clippedRect, clippingAxes, clipsPastSurfaces, closeLayer, closeNativeLayer, closestAcross, coarsePointer, commandsChanged, commandsChangedOn, composedParentNode, contentRides, controlNavigationKeys, coveredShare, currentLocationIn, currentLocationNodes, currentLocationTouches, d, dataBody, declareOccluder, declareReading, declareRelease, declareWindowChrome, deepFocus, describeFailure, disclosureAt, dismissPopoversOutside, drawn$1 as drawn, elementDirective, elementFrame, ensureSyntaxLanguage, eventSource, exceptionRecord, exceptionText, excludedByInert, failSoft, failSoftUnreported, failureContext, failureOf, fitsWhole, flashDuration, focusDestination, focusRevision, focused, foldBlock, foldDuration, frameFor, frameView, frameVisibility, generated, generatedElement, growthAfterIsSeen, growthIsSeen, handBack, hasArea, headerCuts, headerInset, holdCurrentLocation, holdFocus, holdRendering, holdToRead, hoveringPointer, iconElement, iconTemplate, inBaseLayer, inChrome, inUi, inWindowChrome, inlineStyle, inputCount, inputInFrame, installElementIntegration, installLanguagePaths, installLayerStyleIntegration, installMoveFocus, installScrollerLookup, installStageIntegration, intersect, isElement, isHTML, isNativeLayer, isNode, isStage, isText, keepFieldKeys, keepFoot, keeps, keepsHidden, keepsText, landedBox, landingBand, landingInsets, landingRoom, langForPath, layerLanding, layoutChanged, layoutPx, layoutWindow, letGo, listWalkPosition, liveStages, loadDeferred, measure, motion, motionEasing, motionPlays, motionTime, move, moveScrollerBy, nameAction, namedAction, nativeFocusTarget, nativeLayerHolding, nativeLayers, nativeModalAdmits, nearObserver, nearWindow, nextAnimation, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offerElement, offered, offeredAction, offeredActionElement, onCurrentLocation, onFocusVisibility, onFrameVisibility, onLetGo, onMotionPreferenceChange, onPress, onPressAway, onUserInput, once, openLayer, openerOf, orderChildren, outputProducer, overIn, overlaps, overlapsAcross, pagePresented, pageScroller, pageUpgraded, paintClips, passOn, patchRetains, patchTree, placeBox, placeHolder, placeKept, placesFailure, plainPress, playMotion, pointerAt, presented, pressHolds, pressIsKeyboardActivation, pressLed, pressRecords, pressing, publishOutput, q, readCaret, readLeavingKeys, readSampleVisibility, recentPlaceInput, recoveredLabelFocus, reducedMotion, refuseCommands, refuseOutput, registerVisualParts, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, registrations, relabel, release, releaseFocus, releaseOutlets, renderedOrder, renderedParent, renderedUnder, renderingState, reportFailure, restorePointer, restrictUserIntent, retainUserIntent, returnDuration, revealRegisteredVisualPart, revealsVisualParts, rightCover, ringBox, roomPx, rove, rowArrows, scrollAxes, scrollBehavior, scrollChoices, scrollContainer, scrollGlides, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollToEnd, scrollersOf, scrolling, scrollsBy, scrollsContent, searchField, seenRect, selectableOffer, selectableOffered, selectsAll, setChildLists, setChildren, setRegistration, setRenderedChildren, setScroll, shadowHost, shadowStage, shellRight, showNativeLayer, shownBand, shownBox, shownExtent, shownParts, shownRect, shownWindow, showsContents, sizeObserver, skipped, slotTop, stackLevel, startsAt, stopScroll, stuckBox, synNodes, syntax, syntaxLanguageNames, tabStops, tabStore, takesLetters, textWidth, threadSurface, tick, tokenLines, typesText, uiInside, under, underOccluder, union, upFrom, updateSurface, userScrollport, visibleBand, visibleFocus, visualPartAdmission, visualPartProblems, visualViewport, walkPosition, walkPositionLabel, watchArrivals, watchCurrentLocationIn, watchFrame, watchLayerChanges, watchOwner, watchRoom, watchScrollEnds, watchScrolls, wearsLentStop, whenLeft, whenNone, whileConnected, windowChromeBoxes, x$1 as x };

@@ -450,12 +450,19 @@ function hearTargetChanges(root) {
 	root.addEventListener("scroll", (event) => {
 		const source = event.target === document ? pageScroller : event.target;
 		if (!(source instanceof Element)) return;
-		scrolled.add(source);
-		scheduleScrollReading();
+		stirred.add(source);
+		scheduleStirReading();
 	}, {
 		capture: true,
 		passive: true
 	});
+	const settled = ({ target }) => {
+		if (!(target instanceof Element) || inChrome(target)) return;
+		stirred.add(target);
+		scheduleStirReading();
+	};
+	root.addEventListener("transitionend", settled);
+	root.addEventListener("animationend", settled);
 }
 const laneFrames = /* @__PURE__ */ new Map();
 const makeLaneFrame = () => {
@@ -591,6 +598,7 @@ function contentBox(scroller) {
 const seats = /* @__PURE__ */ new WeakMap();
 const folded = /* @__PURE__ */ new WeakSet();
 const standsFolded = (row) => folded.has(row);
+const standsWithheld = (node) => Boolean(node.closest(".lf-withheld"));
 function paintedBox(part, row) {
 	const box = part.getBoundingClientRect();
 	if (!row) return box;
@@ -750,7 +758,7 @@ function setStyle(row, property, value) {
 	else inlineStyle(row).setProperty(property, value);
 }
 function targetShown(target, extent, stands, bands) {
-	const shown = (part) => part.checkVisibility() && clippedRect(part.getBoundingClientRect(), part, bands, pageScroller);
+	const shown = (part) => clippedRect(part.getBoundingClientRect(), part, bands, pageScroller);
 	if (!visibleTargetParts(target).some(shown)) return false;
 	const view = clippedRect(EVERYWHERE, target, bands, pageScroller);
 	if (!extent || !view || !overlaps(extent, view)) return false;
@@ -760,14 +768,14 @@ function targetShown(target, extent, stands, bands) {
 const pushes = /* @__PURE__ */ new Map();
 let pass = 0;
 let came = /* @__PURE__ */ new Map();
-const scrolled = /* @__PURE__ */ new Set();
-let scrollReading = 0;
-function scheduleScrollReading() {
-	if (scrollReading) return;
-	scrollReading = nextRender(() => {
-		scrollReading = 0;
-		const boxes = [...scrolled];
-		scrolled.clear();
+const stirred = /* @__PURE__ */ new Set();
+let stirReading = 0;
+function scheduleStirReading() {
+	if (stirReading) return;
+	stirReading = nextRender(() => {
+		stirReading = 0;
+		const boxes = [...stirred];
+		stirred.clear();
 		if (boxes.includes(pageScroller) && scrollX !== laidOutScrollX && [...carriers.values()].some((byAnchor) => [...byAnchor.values()].some((held) => held.y.length))) {
 			scheduleMarginLayout();
 			return;
@@ -1328,10 +1336,12 @@ const INSETS = [
 const stood = /* @__PURE__ */ new Map();
 const floatingSelections = () => [...stood.values()];
 const heldEdges = (floating) => {
-	const edges = stood.get(floating)?.edges;
-	return edges ? {
-		x: edges.left,
-		y: edges.top
+	const placed = stood.get(floating);
+	return placed ? {
+		x: placed.edges.left,
+		y: placed.edges.top,
+		by: placed.anchor,
+		plane: placed.frame
 	} : null;
 };
 const physicalContext = (context) => context instanceof Element ? context : context?.parentElement;
@@ -1385,6 +1395,11 @@ function floatingPlacement({ floating, update }) {
 	let stand = placedAt;
 	let placementProof = null;
 	let stopScrollInvalidation = null;
+	function clientBox(answer) {
+		const { offset, scale } = answer.middlewareData.anchorAt;
+		const { width, height } = answer.middlewareData.held;
+		return offset ? new DOMRect((answer.x - offset.x) * scale.x, (answer.y - offset.y) * scale.y, width * scale.x, height * scale.y) : floating.getBoundingClientRect();
+	}
 	return {
 		watch(element, reference, autoUpdate) {
 			if (element === watched && autoUpdate === observer) return;
@@ -1477,11 +1492,17 @@ function floatingPlacement({ floating, update }) {
 			return answer;
 		},
 		stand(answer) {
+			const from = floating.getBoundingClientRect();
 			stand(answer);
+			const to = clientBox(answer);
+			const moved = {
+				x: to.left - from.left,
+				y: to.top - from.top
+			};
 			if (!placementProof) {
 				stood.delete(floating);
 				tenure = Object.freeze({});
-				return;
+				return moved;
 			}
 			const { edges, width, height, block } = answer.middlewareData.held;
 			const { offset, scale } = answer.middlewareData.anchorAt;
@@ -1512,12 +1533,9 @@ function floatingPlacement({ floating, update }) {
 					height: height * scale.y
 				})
 			}));
+			return moved;
 		},
-		clientBox(answer) {
-			const { offset, scale } = answer.middlewareData.anchorAt;
-			const { width, height } = answer.middlewareData.held;
-			return offset ? new DOMRect((answer.x - offset.x) * scale.x, (answer.y - offset.y) * scale.y, width * scale.x, height * scale.y) : floating.getBoundingClientRect();
-		},
+		clientBox,
 		supersede() {
 			epoch += 1;
 		},
@@ -1954,4 +1972,4 @@ function commentPlacement() {
 }
 
 //#endregion
-export { COMMENT_GAP, THREAD_CARD, cardMeasure, cardMinimum, commentAttachment, commentBoundary, commentPlacement, commentReference, floatingGeometry, floatingPlacement, floatingSelections, floatingUi, heldEdges, layoutMarginRows, makeRoom, marginColumn, marginSpot, mountMarginLayer, paintedBox, registerMarginRow, scheduleMarginEntryLabels, scheduleMarginLayout, standsFolded, syncMarginContentLayout, unregisterMarginRow };
+export { COMMENT_GAP, THREAD_CARD, cardMeasure, cardMinimum, commentAttachment, commentBoundary, commentPlacement, commentReference, floatingGeometry, floatingPlacement, floatingSelections, floatingUi, heldEdges, layoutMarginRows, makeRoom, marginColumn, marginSpot, mountMarginLayer, paintedBox, registerMarginRow, scheduleMarginEntryLabels, scheduleMarginLayout, standsFolded, standsWithheld, syncMarginContentLayout, unregisterMarginRow };

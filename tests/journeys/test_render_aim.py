@@ -530,6 +530,15 @@ def test_open_draft_retains_words_when_responsive_layout_hides_its_target(
         for width in (480, 1200):
             resized(page, width, 900)
             rendered(page)
+            if reply and width == 480:
+                # A window with no room for the rail shows the thread in the floating
+                # panel, whether or not the page draws its target, and the user goes
+                # on there in the editor they typed in.
+                panel_field = page.locator(".lf-fp-field leaf-text")
+                expect(page.locator(".lf-fp-view:not([data-leaving])")).to_have_count(1)
+                assert panel_field.evaluate("el => el === window.lfTypedIn")
+                assert _draft_in_view(page, words, panel_field)
+                continue
             expect(field).to_have_js_property("value", words)
             if target == "#bg-contents a" and width == 480:
                 # Authored CSS hides the sidebar at this width. The editor retains
@@ -543,10 +552,9 @@ def test_open_draft_retains_words_when_responsive_layout_hides_its_target(
                         "data-lf-plane", "page"
                     )
                 else:
-                    # The thread shows once: the floating panel, which took it while the
-                    # page drew its target nowhere, gives it back to the card, and the
-                    # user goes on in the editor they typed in, with its caret and undo
-                    # history.
+                    # The thread shows once: the floating panel, which took it on the
+                    # narrow window, gives it back to the card, and the user goes on in
+                    # the editor they typed in, with its caret and undo history.
                     expect(
                         page.locator(".lf-fp-view:not([data-leaving])")
                     ).to_have_count(0)

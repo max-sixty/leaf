@@ -1,24 +1,20 @@
-export { nameAction, namedAction, relabel, searchField } from "./control-labels.js";
+export { namedAction, searchField } from "./control-labels.js";
 import { offer, offerAction } from "./element-markers.js";
 export {
-  offerElement,
   generatedElement,
   offer,
   offerAction,
   offerActionElement,
-  selectableOffer,
   elementDirective,
   offered,
   offeredAction,
-  selectableOffered,
-  generated,
 } from "./element-markers.js";
 /* The chrome a widget injects and the words it labels.
 
    A behavior module builds injected controls with `offer`, a press wearing one of
    Leaf's control faces with `offerAction` by its role, marks words it writes that
    should stand apart from the author's with `generatedElement`, and uses `relabel`
-   when a control's label is also one of the page's words. A Lit template reaches the
+   (control-labels.js) when a control's label is also one of the page's words. A Lit template reaches the
    same writers through element directives built by `elementDirective`. A behavior module
    reads a box from inside `measure` (shown-box.js). A label
    whose words change holds one room for all of them with `data-room`, which the
@@ -29,8 +25,8 @@ export {
    A control is built so the browser does as much of it as it can. `offer` builds the
    corresponding native element, so activation, disabled state, focus, and
    accessibility stay the browser's. A page word that is also a control — a tab name, a
-   chosen option — has to stay selectable, so `selectableOffer` builds it as a span with
-   the role. One with a button's role takes a button's Enter and Space from
+   chosen option — has to stay selectable, so `selectableOffer` (element-markers.js)
+   builds it as a span with the role. One with a button's role takes a button's Enter and Space from
    role-button-press.js, on any page; for another role its widget supplies the keyboard
    pattern the native element would have. A `<button>` would not do:
    Chromium and Firefox begin a selection inside one styled `user-select: text`, but

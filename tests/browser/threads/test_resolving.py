@@ -685,7 +685,7 @@ def test_a_late_reply_reopens_its_resolved_thread(browser, serve):
     told(page)
     expect_open_threads(page, 1)
     view = open_panel_thread(page, root["id"])
-    expect(view.locator(".lf-msg.agent")).to_be_visible()
+    expect(view.locator(".lf-msg[data-lf-author=agent]")).to_be_visible()
     expect(page.locator(".lf-fp-settle")).to_have_accessible_name("Resolve thread")
     page.reload()
     told(page)

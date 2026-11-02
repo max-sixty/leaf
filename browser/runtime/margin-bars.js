@@ -16,11 +16,12 @@
    the whole page or a turn the agent spends on its own, draws nothing here and stays in
    the floating panel's status. The bar leaves once the work is answered or stalls.
 
-   The version comparison (version.js, `comparisonChanges`) names the blocks changed since
-   its base, and this owner draws each as a green bar beside it, nearer the block than the
-   work's, so a block being reworked that has already changed shows both. A change's
-   mark is an annotation, so hiding annotations (`o`) hides its bar. The bar marks the
-   block, not its words: the block's Change entry opens which words went and came. The
+   The version comparison (version.js, `comparisonChanges`) names the changes since its
+   base, each a run of changed blocks, and this owner draws each block as a green bar
+   beside it, nearer the block than the work's, so a block being reworked that has
+   already changed shows both. A change's mark is an annotation, so hiding annotations
+   (`o`) hides its bar. The bar marks the block, not its words: its change's Change entry
+   opens which words went and came. The
    user chose the bar on 31 October over a wash of the block's own background, which hid
    whatever the block shades itself, an option's card and the chosen option's green among
    them, and over leaving the Change entry in the right margin as the only mark, which
@@ -132,7 +133,7 @@ export function createMarginBars(inventory) {
     }
     show("work", places);
   });
-  effect(() => show("change", new Set(comparisonChanges())));
+  effect(() => show("change", new Set(comparisonChanges().flat())));
   document.addEventListener(LAYOUT, schedule);
   addEventListener("resize", schedule, { passive: true });
 }

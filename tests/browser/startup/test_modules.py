@@ -121,7 +121,7 @@ Two classic models.</pre></lf-code>
     rows.filter(has_text="Still anchored?").click()
     quote = page.locator(f"{PANEL_THREAD} .lf-fp-quote")
     expect(quote).to_be_visible()
-    expect(quote).not_to_have_class(re.compile(r"\bdetached\b"))
+    expect(quote).not_to_have_attribute("data-lf-detached", "")
 
 
 def _asked(context):

@@ -247,7 +247,8 @@ page server from `_no_page_outlives_its_test`, a preview from `preview_slot` and
 A test of a persistent server stops it explicitly.
 
 A dead worker runs no teardown, so a process that could outlive it watches the worker: a
-page server watches the worker's session claim, and a held process blocks
+page server watches the worker's session claim, a temporary server the process that
+ran it, and a held process blocks
 reading a pipe the worker holds, as `session_process` does. The test releases it by
 closing the pipe, which also closes when the worker dies; don't make a process wait
 for a file the test has yet to write, or poll in a loop. End a process by closing its

@@ -1588,7 +1588,7 @@ def test_a_diff_hunk_landing_preserves_sideways_reading_outside_its_shadow_tree(
         '<lf-diff id="patch" source="review-patch"></lf-diff>'
         "</div>",
         head="<style>#sideways { width: 500px; overflow: auto; }"
-        "#patch { width: 1000px; }</style>",
+        "#patch { width: 1000px; max-inline-size: none; }</style>",
     )
     url = serve(source)
     data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)

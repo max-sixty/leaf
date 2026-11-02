@@ -307,9 +307,9 @@ customElements.define('lf-item-link', class extends HTMLElement {
 
 def test_a_url_naming_a_widget_key_reaches_its_part(browser, serve):
     """A URL fragment names a part of a widget by the widget's id and a key, which the
-    widget draws before the page lands on it, however the URL is reached: a fresh load,
-    a followed link, Back and Forward to an entry whose item the user has since left,
-    and the reload of the URL `navigateToDatum` writes."""
+    widget draws however the URL is reached. A fresh load, a followed link, and Back and
+    Forward to an entry whose item the user has since left land on the part; a reload of
+    the URL `navigateToDatum` writes draws its item under the restored offset."""
     url = live_url(
         serve(
             leaf_page(
@@ -358,7 +358,7 @@ def test_a_url_naming_a_widget_key_reaches_its_part(browser, serve):
     page.locator("#jump button").click()
     page.wait_for_url(re.compile(r"#items:b/1$"))
     expect(part("b", 1)).to_be_focused()
-    page.evaluate("() => document.scrollingElement.scrollTo({top: 0})")
+    # A reload keeps the browser's restored offset, over the item the URL names.
     page.reload()
     expect(part("b", 1)).to_be_in_viewport()
 

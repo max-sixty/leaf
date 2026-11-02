@@ -2707,16 +2707,15 @@ export function createVersionController({
   // so a target nothing moved stays where it is. The fragment is read before widgets
   // upgrade, since a widget may write its own view into the URL (a root tab set names
   // its open panel), and that is display state, not a destination. A reload or history
-  // traversal keeps the browser's restored offset instead, since the browser read it
-  // over the same page, and input during the arrival ends it. A widget's key whose part
-  // the widget does not draw once it upgrades makes that offset one read over another
-  // of the widget's states, so the arrival lands the key whichever way the page
-  // arrived: it asks the widget to draw the part (`revealAddressed`), counts the answer
-  // as a deferred arrival, and lands on the part once it is drawn, or on the widget
-  // where it draws none. A fragment followed once the page is here is travel's
-  // (anchor-travel.js, `followFragment`), as is Back or Forward to one the page has
-  // hidden since (`returnToFragment`); both read the same destination and reveal it the
-  // same way.
+  // traversal keeps the browser's restored offset instead, and input during the arrival
+  // ends it. However the page arrived, a URL naming a widget's key asks the widget to
+  // draw the key's part (`revealAddressed`) where it has not drawn it once it upgrades,
+  // so the widget shows the state the URL names: the one a reload's restored offset was
+  // read over. The answer counts as a deferred arrival, and a fresh URL lands on the
+  // part once it is drawn, or on the widget where it draws none. A fragment followed
+  // once the page is here is travel's (anchor-travel.js, `followFragment`), as is Back
+  // or Forward to one the page has hidden since (`returnToFragment`); both read the
+  // same destination and reveal it the same way.
   /** @type {Element | false | null} */
   let aimedAt = null;
   function aimArrival() {
@@ -2736,10 +2735,8 @@ export function createVersionController({
     };
     return function landFragment() {
       const address = fragmentAddress(arrivedAt);
-      aimedAt ??= address
-        ? (fresh || !address.place) && address.element
-        : fresh && null;
-      if (!aimedAt || !currentIntent()) return;
+      aimedAt ??= fresh && (address?.element ?? null);
+      if (!currentIntent()) return;
       if (address?.key != null && !address.place && !drawing) {
         const asked = revealAddressed(address.element, address.key);
         if (asked?.then)

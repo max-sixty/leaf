@@ -9568,8 +9568,8 @@ function createVersionController({ initialDocument, compositionInput, openThread
 		};
 		return function landFragment() {
 			const address = fragmentAddress(arrivedAt);
-			aimedAt ??= address ? (fresh || !address.place) && address.element : fresh && null;
-			if (!aimedAt || !currentIntent()) return;
+			aimedAt ??= fresh && (address?.element ?? null);
+			if (!currentIntent()) return;
 			if (address?.key != null && !address.place && !drawing) {
 				const asked = revealAddressed(address.element, address.key);
 				if (asked?.then) drawing = deferredArrival(Promise.resolve(asked).then(land, land));

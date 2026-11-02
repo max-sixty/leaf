@@ -10,6 +10,7 @@ import { nextFrame } from "../rendering.js";
 import { pageUpgraded } from "../page-paint.js";
 import { runtime } from "../context.js";
 import { UPGRADE, PRESENTATION } from "../presentation.js";
+import { readLeavingKeys } from "../composing/text-field.js";
 /** @param {{goToSequenceActive: () => boolean, setGoToSequence: (on: boolean) => void, reactArmed: () => boolean, setReact: (on: boolean) => void}} options */
 export function mountKeyboard({
   goToSequenceActive,
@@ -52,8 +53,15 @@ export function mountKeyboard({
     },
     { capture: true },
   );
-  document.addEventListener("keydown", (ev) => {
+  /** @param {KeyboardEvent} ev */
+  const afterControl = (ev) => {
     if (ev.key.length !== 1) press(ev);
+  };
+  document.addEventListener("keydown", afterControl);
+  // A key typed in a Leaf field stops at the field (composing/text-field.js), so this
+  // pass reads it there.
+  readLeavingKeys((ev) => {
+    if (ev.type === "keydown") afterControl(ev);
   });
   document.addEventListener("lf-keyboard-preference", () => {
     paintKeys();

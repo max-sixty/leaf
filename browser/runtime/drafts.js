@@ -793,11 +793,16 @@ document.addEventListener("input", (event) => {
   });
   if (editor) rememberWriting(editorInput(editor));
 });
-document.addEventListener("keyup", (event) => {
-  // The gesture's end, not `selectionchange`, which fires on every typed character and
-  // every step of a drag: the place is stored once per gesture.
-  if (CARET_KEYS.includes(event.key) || selectsAll(event)) keepWritingCaret();
-});
+// In capture, since a key typed in the editor stops at it (composing/text-field.js).
+document.addEventListener(
+  "keyup",
+  (event) => {
+    // The gesture's end, not `selectionchange`, which fires on every typed character and
+    // every step of a drag: the place is stored once per gesture.
+    if (CARET_KEYS.includes(event.key) || selectsAll(event)) keepWritingCaret();
+  },
+  true,
+);
 document.addEventListener("pointerup", keepWritingCaret);
 
 /** @param {string} prefix @param {(ctx: string) => EditorDestination | null} reveal */

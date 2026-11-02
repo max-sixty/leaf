@@ -86,7 +86,7 @@ import { namedAction, offered, offeredAction } from "../widget-elements.js";
  * @property {Sender} send
  * @property {string} [sendClass]
  * @property {import("../keyboard/bindings.js").Cell<string>} sends
- * @property {string} [action]
+ * @property {import("../keyboard/bindings.js").Cell<string>} [action]
  * @property {string | null} [altLabel]
  * @property {Sender | null} [altSend]
  * @property {() => true | string} [allowsMedia]
@@ -269,8 +269,10 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     hintedBox.value = hint?.box ?? null;
     hintLabel.value = hint?.label ?? "";
   };
-  // `sends` states the box's own submit action. Composers send by default; a caller whose
-  // action differs, such as adding an option, names that action.
+  // `sends` states the box's own submit action, and `action` the symbol its control
+  // shows. Composers send by default; a caller whose action differs, such as adding an
+  // option, names that action, and one whose action turns on what the box holds, as an
+  // emptied rewrite deletes its message, answers both as it stands.
   /** @param {WiredInput} ta @param {InputOptions} options */
   function wireInput(
     ta,
@@ -339,8 +341,10 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     let composing = false;
     // Firefox lacks speech recognition; WebKit has it only under its prefix.
     const Recognition = window.SpeechRecognition ?? window.webkitSpeechRecognition;
+    const actionWord = () =>
+      typeof submitAction === "function" ? submitAction() : submitAction;
     const offersDictation = Boolean(
-      Recognition && submitAction === "send" && !submitIn,
+      Recognition && actionWord() === "send" && !submitIn,
     );
     /** @type {ReturnType<typeof import("./dictation.js").createDictation> | null} */
     let dictation = null;
@@ -576,7 +580,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const submitControl = html`<button
         type="button"
         ${offered(`${sendClass} lf-compose-submit`)}
-        ${namedAction(submitAction, {
+        ${namedAction(actionWord(), {
           label: action,
           title: sendKeys ? `${action} (${sendKeys})${newline}` : action,
         })}

@@ -136,6 +136,9 @@
  * for what its draft holds beside them (`record`), such as a composer's drawing, each
  * taken back or redone in the order it was made.
  *
+ * A key typed in the field stops at the host once the editor and Leaf's key dispatcher
+ * have handled it, so the page's listeners never hear it bubble (field-keys.js).
+ *
  * The host is the textarea's scrollport. CodeMirror's content-sized inner scroller
  * never clips the words; the page sizes the host. The field reveals the caret's whole
  * row, its leading as well as the caret, inside the host's padding, so typing on the
@@ -155,6 +158,7 @@ import { TEXT_FIELD } from "../control-selectors.js";
 import { afterPresentation } from "../presentation.js";
 import { loadFieldEditor, readFaces } from "./field-editor.js";
 import { holdRendering, sizeObserver } from "../rendering.js";
+import { keepFieldKeys } from "../field-keys.js";
 
 const sheet = new CSSStyleSheet();
 sheet.replaceSync(`
@@ -572,6 +576,7 @@ class LeafText extends HTMLElement {
     // announce every edit twice. The host's is the one the page hears.
     for (const type of ["input", "beforeinput"])
       this.#root.addEventListener(type, (event) => event.stopPropagation());
+    keepFieldKeys(this);
   }
 
   // What the user types before the editor has loaded lands natively in the empty line's

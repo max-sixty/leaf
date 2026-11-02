@@ -518,6 +518,13 @@ def test_questions_settle_one_by_one_and_an_end_outlasts_a_later_reply():
     assert [item["id"] for item in served_obligations(state)["user"]] == [
         "message:third"
     ]
+    # A deleted message has no words, so the question it answered waits again.
+    state = add("reply", "size", "user", parent="first", text="Medium")
+    assert served_obligations(state)["user"] == []
+    state = add("edit", "unsaid", "user", message="size", text="")
+    assert [item["id"] for item in served_obligations(state)["user"]] == [
+        "message:third"
+    ]
 
 
 def test_frozen_obligation_attention_comes_from_its_widget_without_a_prose_task():

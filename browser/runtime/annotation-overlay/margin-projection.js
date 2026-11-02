@@ -211,6 +211,7 @@ export function createMarginProjection({
     placedAt,
     scrollThreadIntoView,
     scrollToElement,
+    openPageThread,
     openInPanel,
     onClose: closedPreview,
   });

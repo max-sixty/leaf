@@ -217,7 +217,7 @@ const CUT_EDGES = [
 	"--lf-cut-bottom",
 	"--lf-cut-left"
 ];
-function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollThreadIntoView, scrollToElement, openInPanel, onClose }) {
+function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollThreadIntoView, scrollToElement, openPageThread, openInPanel, onClose }) {
 	let previewSession = null;
 	const { targetFor, entryPoint, entryPlace } = inventory;
 	const preview = el("aside", "lf-ui lf-margin-preview");
@@ -737,10 +737,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 		const next = Math.max(0, Math.min(threadItems.length - 1, current + step));
 		const item = threadItems[next];
 		if (next === current || !item) return;
-		focusThread(show({
-			...session,
-			threadItem: item.id
-		}));
+		openPageThread(item.thread.id, { part: "thread" });
 	}
 	function previewItemNode(item, session) {
 		let view = session.itemView;
@@ -1186,6 +1183,7 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 		placedAt,
 		scrollThreadIntoView,
 		scrollToElement,
+		openPageThread,
 		openInPanel,
 		onClose: closedPreview
 	});

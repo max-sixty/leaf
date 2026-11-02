@@ -217,9 +217,6 @@ importers:
       typescript:
         specifier: 7.0.2
         version: 7.0.2
-      uuid:
-        specifier: 14.0.3
-        version: 14.0.3
       viewerjs:
         specifier: 1.15.2
         version: 1.15.2
@@ -4778,10 +4775,6 @@ packages:
 
   uuid@13.0.2:
     resolution: {integrity: sha512-vzi9uRZ926x4XV73S/4qQaTwPXM2JBj6/6lI/byHH1jOpCzb0zDbfytgA9LcN/hzb2l7WQSQnxITOVx5un/wGw==}
-    hasBin: true
-
-  uuid@14.0.3:
-    resolution: {integrity: sha512-Sc5u1VVln93y1Xnz4R+CunOZc7R9LUcTmhj7Rc7Eg3HVcf7rVn2FOoa812fe0W8p3jD7xeoGSYbfqCGGH2B6xw==}
     hasBin: true
 
   vary@1.1.2:
@@ -9879,8 +9872,6 @@ snapshots:
 
   uuid@13.0.2:
     optional: true
-
-  uuid@14.0.3: {}
 
   vary@1.1.2: {}
 

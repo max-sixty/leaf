@@ -14,7 +14,7 @@ from render_cases_interaction import (
     executable_revision,
     live_url,
 )
-from render_cases_layout import current_location_ring
+from render_cases_layout import current_location_ring, rings_drawn
 from render_harness import (
     PANEL,
     PANEL_THREAD,
@@ -1320,10 +1320,17 @@ def test_an_open_thread_refresh_keeps_the_current_margin_entry_target_highlighte
     suggestion.locator('.lf-margin-reading-option[data-lf-kinds="comment"]').click()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     page.locator('[data-lf-margin-for="sug-thistle"] .lf-sug-accept').focus()
-    trace = page.locator('.lf-target-trace[data-for="sug-thistle"]')
-    expect(trace).to_be_visible()
+    # This suggestion is the current obligation, so its ring identifies the target
+    # instead of the duplicate margin trace, even while another card stays open.
+    drawn = rings_drawn(page)
+    assert any(
+        ring["here"] and "proposed insertionSwitch" in ring["who"] for ring in drawn
+    ), drawn
     ticked(page)
-    expect(trace).to_be_visible()
+    drawn = rings_drawn(page)
+    assert any(
+        ring["here"] and "proposed insertionSwitch" in ring["who"] for ring in drawn
+    ), drawn
 
 
 def test_focusing_a_thread_margin_entry_does_not_open_its_card(browser, serve):

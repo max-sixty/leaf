@@ -614,7 +614,9 @@ class PageEndpoint:
         the state home's key, read at each framed document so a server started
         after this one can frame it. That reading costs each live server a lease
         and record read, so a top-level navigation, which has no ancestors to
-        admit, skips it; the browser alone sets `Sec-Fetch-Dest`. Any other server
+        admit, skips it; the browser alone sets `Sec-Fetch-Dest`. A server at a bare
+        IPv6 address is left out, since CSP's source grammar has no IPv6 literal and
+        Chromium logs one as an error on every framed document. Any other server
         over the page, such as a temporary one with a key of its own, and leaf.page
         admit only their own origin."""
         if self.headers.get("Sec-Fetch-Dest") == "document":
@@ -626,7 +628,7 @@ class PageEndpoint:
         origins = {
             page_origin(service["host"], service["port"])
             for candidate, _row, service in live_servers()
-            if candidate != page
+            if candidate != page and ":" not in service["host"]
         }
         return " ".join([FRAME_ANCESTORS_CSP, *sorted(origins)])
 

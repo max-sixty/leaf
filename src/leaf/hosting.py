@@ -44,6 +44,7 @@ from .server import (
     host_key,
     loopback_only,
     page_access,
+    page_origin,
     page_url,
     read_service,
     running_server,
@@ -332,7 +333,7 @@ class TemporaryPageServer:
 
     @property
     def origin(self) -> str:
-        return f"http://127.0.0.1:{self.httpd.server_address[1]}"
+        return page_origin("127.0.0.1", self.port)
 
     @property
     def port(self) -> int:

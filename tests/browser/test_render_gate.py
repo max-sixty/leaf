@@ -568,6 +568,32 @@ def test_a_refused_document_reports_its_status_with_the_gate_failure(browser, se
     assert "401 (Unauthorized)" in str(failure)
 
 
+def test_a_frame_of_another_live_leaf_page_is_checked_on_its_own(
+    browser, serve, live_leaf
+):
+    """The gate's browser holds no key for another live Leaf page, whose server
+    refuses the gate as a framer, so its frame would fail the page framing it with a
+    fault that page's author can't fix. The gate shows a stand-in there, and a frame
+    of any other server still reports."""
+    framed, _ = live_leaf("framed", "Framed")
+    other = urlsplit(serve(leaf_page("Other", "<h1>Other</h1>"), packages=()))
+    other = f"{other.scheme}://{other.netloc}"
+    frames = "".join(
+        f'<iframe src="{src}/" title="{title}" '
+        'style="display:block;width:100%;height:200px;border:0"></iframe>'
+        for src, title in ((framed, "Another Leaf page"), (other, "Another server"))
+    )
+    failures = render_gate_model.render_version(
+        browser.unwatched,
+        serve(leaf_page("Framing", f"<h1>Framing</h1>{frames}"), packages=()),
+    ).failures
+    assert failures and all(
+        failure.code == "console-error"
+        and other in failure.values["text"] + failure.values["url"]
+        for failure in failures
+    ), failures
+
+
 RECURSIVE_ROWS_PAGE = leaf_page(
     "recursive rows",
     """

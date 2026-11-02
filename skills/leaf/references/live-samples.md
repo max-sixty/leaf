@@ -114,7 +114,8 @@ this isolated mode even when `interactive` is present.
 An ordinary served Leaf page can also appear in a plain `<iframe src="…">`, with its own
 lasting history, inside a page of the same origin or inside another Leaf page this
 machine serves. Give the frame the page's address from `leaf page list` without its
-`?t=` key, which the framing page's own address already carried.
+`?t=` key, which the framing page's own address already carried. `page check --render`
+shows a stand-in in a frame of another live Leaf page, which is checked on its own.
 
 ## Generated samples
 

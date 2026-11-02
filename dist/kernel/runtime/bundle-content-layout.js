@@ -1551,66 +1551,51 @@ function anchorDropsTransforms() {
 	anchored.remove();
 	return dropsTransforms;
 }
-function laidOut(el) {
+const moves = (style) => style.transform !== "none" || style.translate !== "none" || style.rotate !== "none" || style.scale !== "none" || style.offsetPath !== "none";
+function laidOut(el, moved) {
+	if (!moved.has(el)) return el.getBoundingClientRect();
+	if (!isHTML(el) || el.currentCSSZoom !== 1) return null;
 	const parent = el.offsetParent;
 	let left = el.offsetLeft;
 	let top = el.offsetTop;
-	if (!parent) {
-		if (getComputedStyle(el).position !== "fixed") return null;
-		return {
-			left,
-			top
-		};
-	}
+	const box = () => new DOMRect(left, top, el.offsetWidth, el.offsetHeight);
+	if (!parent) return getComputedStyle(el).position === "fixed" ? box() : null;
 	if (parent === document.body && getComputedStyle(parent).position === "static") {
 		left -= scrollX;
 		top -= scrollY;
 	} else {
-		const from = parent.getBoundingClientRect();
+		const from = laidOut(parent, moved);
+		if (!from) return null;
 		left += from.left + parent.clientLeft - parent.scrollLeft;
 		top += from.top + parent.clientTop - parent.scrollTop;
 	}
-	for (let box = renderedParent(el); box !== parent; box = renderedParent(box)) {
-		if (!isElement(box)) return null;
-		left -= box.scrollLeft;
-		top -= box.scrollTop;
+	for (let at = renderedParent(el); at !== parent; at = renderedParent(at)) {
+		if (!isElement(at)) return null;
+		left -= at.scrollLeft;
+		top -= at.scrollTop;
 	}
-	return {
-		left,
-		top
-	};
-}
-function movement(style) {
-	const matrix = style.transform === "none" ? null : new window.DOMMatrixReadOnly(style.transform);
-	return {
-		moves: Boolean(matrix) || style.translate !== "none" || style.rotate !== "none" || style.scale !== "none" || style.offsetPath !== "none",
-		slides: style.rotate === "none" && style.scale === "none" && (style.offsetPath === "none" || style.offsetRotate === "0deg") && (!matrix || matrix.is2D && matrix.a === 1 && matrix.b === 0 && matrix.c === 0 && matrix.d === 1)
-	};
-}
-function translationOf(el) {
-	let x = 0;
-	let y = 0;
-	let at = el;
-	for (; isElement(at); at = renderedParent(at)) {
-		const { moves, slides } = movement(getComputedStyle(at));
-		if (!moves) continue;
-		if (!slides || !isHTML(at) || at.currentCSSZoom !== 1) return null;
-		const layout = laidOut(at);
-		if (!layout) return null;
-		const shown = at.getBoundingClientRect();
-		x += shown.left - layout.left;
-		y += shown.top - layout.top;
-	}
-	return {
-		x,
-		y
-	};
+	return box();
 }
 function anchorBox(anchor) {
 	const box = anchor.getBoundingClientRect();
 	if (!anchorDropsTransforms()) return box;
-	const shift = translationOf(anchorHolder(anchor));
-	return shift && (shift.x || shift.y) ? new DOMRect(box.left - shift.x, box.top - shift.y, box.width, box.height) : box;
+	const around = [];
+	let under = 0;
+	let at = anchorHolder(anchor);
+	for (; isElement(at); at = renderedParent(at)) {
+		around.push(at);
+		if (moves(getComputedStyle(at))) under = around.length;
+	}
+	if (!under) return box;
+	const html = around.find((el) => isHTML(el));
+	const laid = html && laidOut(html, new Set(around.slice(0, under)));
+	if (!laid) return box;
+	if (html === anchor) return laid;
+	const shown = html.getBoundingClientRect();
+	const ratio = (to, from) => to && from ? to / from : 1;
+	const x = ratio(laid.width, shown.width);
+	const y = ratio(laid.height, shown.height);
+	return new DOMRect(laid.left + (box.left - shown.left) * x, laid.top + (box.top - shown.top) * y, box.width * x, box.height * y);
 }
 function anchorAt(node, anchor, box, at = anchor && anchorBox(anchor), visibility = "always") {
 	const from = (side, length) => anchor ? `calc(anchor(${side}, -9999px) + ${layoutPx(length)})` : layoutPx(length);

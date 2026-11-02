@@ -389,12 +389,27 @@ fixed scrolling panel while scrolling both the document and panel.
 
 ### An anchor's transforms in Firefox
 
-Playwright Firefox 155 resolved anchors before transforms on 2026-10-16.
-`anchorBox` in `browser/runtime/css-anchors.js` compensates for translations,
-including wide tables; scale, rotation and CSS zoom remain unsupported by that
-correction. Chromium 153 and WebKit 26.6 included transforms.
-Recheck a fixed box anchored to a translated target by comparing their left
-edges before removing the compensation; test other transforms separately.
+Playwright Firefox 157 (build 1555) resolved `anchor()` and `anchor-size()`
+against the box layout gave the anchor, leaving out every transform on it and
+its ancestors (translate, scale, rotate, nested), on 2026-11-01; it kept CSS
+zoom. Chromium 156 (build 1248) and WebKit 27.2 (build 2370) read the
+transformed bounding box. `anchorBox` in `browser/runtime/css-anchors.js`
+measures that laid-out box from offsets wherever this engine drops transforms,
+so pins, rows, key chips, the Alt outline and floating cards stand on a widened
+table (translated) and on a reveal.js slide (translated and scaled), and the
+block controls (`readInsets` in `browser/runtime/block-controls.js`) add the
+size difference to their far edges. Offsets are whole pixels, so a mark can
+stand up to a pixel off.
+
+Two effects remain, both accepted. A scroll inside a scaled box moves its marks
+at the unscaled rate until the next margin pass: scrolling 60px in a pane scaled
+to 0.6 left a row 24px off its words. Inside a rotated box, a mark anchored to
+an SVG drawing or to a scroller's first words stands off by the rotation, since
+its place is mapped through the nearest HTML box's bounding rectangle.
+`test_marks_stand_on_a_widened_table_in_every_engine` and
+`test_marks_stand_on_a_scaled_slide_in_every_engine` fail in Firefox without
+the correction. Recheck a fixed box anchored to a scaled target by comparing
+the two rectangles before removing it.
 
 ### A `left`-inset anchored control after a resize in Firefox
 

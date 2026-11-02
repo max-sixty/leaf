@@ -4,7 +4,9 @@
 // loads, and resolves a root-absolute specifier the way a served page answers it: the
 // composed `/runtime/`, `/vendor/` and `/widgets/` directories (tests/served-paths.mjs)
 // and the render gate's probes at `/checks/`. An entry's own exports count as read,
-// since its loader reads them by name, so an unused one there goes unreported.
+// since its loader reads them by name, so an unused one there goes unreported. A
+// namespace import that its module both reads members of and passes whole counts as
+// reading only those members (knip 6.44.1), so hand the receiver what it calls.
 //
 // It replaced a check of Leaf's own that counted an export read wherever a Python,
 // HTML or Markdown file named it as a word, which kept every facade re-export whose

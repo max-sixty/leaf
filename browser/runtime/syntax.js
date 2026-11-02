@@ -1,29 +1,10 @@
-/* The page's own code blocks, coloured by syntax-tokens.js, and the language a file path
-   means: the parts of highlighting that read Leaf's registry and report to the page. */
-import { runtime } from "./context.js";
+/* The page's own code blocks, coloured by syntax-tokens.js, with failures reported
+   to the page. Portable language-paths.js owns a filename's language reading. */
 import { reportPageError } from "./layer-client.js";
 import { syntaxLanguageNames } from "./syntax-languages.js";
 import { synNodes, syntax } from "./syntax-tokens.js";
 
-const registry = runtime.registry;
-
-// What a filename says it holds, or undefined where the registry's table has no answer
-// and the block stays the colour of its own ink. The only place a language is derived
-// rather than declared: a unified diff spans files and a file editor names one, so neither
-// has a `language` to read, and a file's path is its own statement about what it is.
-// lf-diff colours by this, and the file editor chooses its Markdown mode by it, so a
-// filename means the same language in both. Still a declaration —
-// the rule that nothing is inferred is about source *text*, which no path is. The table
-// is the registry's ($languages), beside the enum it has to agree with, rather than a
-// second list here.
-/** @param {string} path */
-export const langForPath = (path) => {
-  const filename = path.slice(path.lastIndexOf("/") + 1);
-  const dot = filename.lastIndexOf(".");
-  return dot < 0
-    ? undefined
-    : registry.$languages.paths[filename.slice(dot + 1).toLowerCase()];
-};
+export { langForPath } from "./language-paths.js";
 
 // The page's own code blocks: <pre><code class="language-python">. The class is the
 // universal one — what every Markdown renderer emits — so a block Claude wrote anywhere
@@ -36,13 +17,15 @@ export const langForPath = (path) => {
 // The spans change no text: a <span> is no text block, so the anchor pass reads exactly
 // the run of characters it read before. That is what lets this run over the document
 // without the file's reading of the same page needing to know it happened.
+// An authored styling boundary owns token spans and colours as well as CSS.
+// Check on every reading, including after an asynchronous grammar load.
 const LANGUAGE_CLASS = /(?:^|\s)language-([\w+.#-]+)(?=\s|$)/;
 const BLOCK = "pre > code[class]";
 // A block's declared language where the registry colours it.
 /** @param {Element} code */
 const languageOf = (code) => {
   const lang = code.getAttribute("class")?.match(LANGUAGE_CLASS)?.[1];
-  if (!lang) return undefined;
+  if (!lang || code.closest('[data-style="own"]')) return undefined;
   return Object.hasOwn(syntaxLanguageNames, lang)
     ? syntaxLanguageNames[lang]
     : undefined;

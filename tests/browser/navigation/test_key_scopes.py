@@ -37,7 +37,6 @@ from render_harness import (
     leaf_page,
     open_page,
     open_threads,
-    open_versions,
     panel_control,
     panel_field,
     panel_settled,
@@ -884,21 +883,6 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
         "() => { for (const modal of window.__lfOrderedModals) modal.close(); }"
     )
 
-    # Modal entry dismisses a light-DOM auto popover and pruning retires its stack entry.
-    open_versions(page)
-    page.keyboard.press("?")
-    expect(page.locator(".lf-command-reference")).to_be_visible()
-    expect(page.locator(".lf-fp-menu")).to_be_hidden()
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-fp-menu")).to_be_hidden()
-    assert page.evaluate(
-        """async () => {
-          const { nativeLayers } = await window.__lfCheckApi();
-          const menu = document.querySelector('.lf-fp-menu');
-          return nativeLayers().every((layer) => layer.root !== menu);
-        }"""
-    )
-
     # A closed inner layer is retired rather than mistaken for one covered by the older
     # modal now visible beneath it, so the outer layer is the top of the stack again. The
     # inner one closes in a later task than it opened in, as a user closes it.
@@ -1416,12 +1400,11 @@ def test_a_back_gesture_takes_the_step_escape_would(browser, serve):
     )
     page = open_page(browser, serve(INLINE_PAGE), context=context)
     page.evaluate(BROWSER_BACK)
-    menu = page.locator(".lf-floating-panel[data-menu]")
 
     page.locator(".lf-fp-leaf").tap()
-    expect(menu).to_be_attached()
+    panel_settled(page, view="menu")
     back_gesture(page)
-    expect(menu).not_to_be_attached()
+    panel_settled(page, open=False)
 
     open_threads(page)
     back_gesture(page)

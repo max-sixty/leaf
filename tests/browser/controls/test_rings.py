@@ -1324,3 +1324,39 @@ def test_a_quiet_toggle_still_shows_its_chosen_mode(browser, serve):
     other = page.locator("#mode-off").evaluate(face)
     assert other == page.locator("#plain-back").evaluate(face)
     assert chosen[0] != other[0] and chosen[1] != other[1], (chosen, other)
+
+
+def test_an_obligations_margin_marker_keeps_its_location_ring_whole(browser, serve):
+    """A marker's quiet target trace cannot paint over the current obligation's ring."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Decision",
+                """
+      <lf-ask id="decision"><h2>Ready?</h2>
+        <p>Review the evidence before choosing.</p>
+        <lf-options id="answer" choose>
+          <lf-option id="yes">Approve</lf-option>
+          <lf-option id="no">Hold</lf-option>
+        </lf-options>
+      </lf-ask>
+    """,
+            )
+        ),
+    )
+    marker = page.locator('.lf-margin-entry[data-lf-kinds="on-me"]')
+    marker.hover()
+    expect(page.locator('.lf-target-trace[data-for="decision"]')).to_be_visible()
+    page.mouse.move(0, 0)
+    for _ in range(40):
+        page.keyboard.press("Tab")
+        if marker.evaluate("node => node === document.activeElement"):
+            break
+    else:
+        pytest.fail("Tab did not reach the obligation's margin marker")
+    rendered(page)
+    expect(page.locator(".lf-target-trace")).to_be_hidden()
+    drawn = rings_drawn(page)
+    assert any(ring["who"].startswith("lf-ask") for ring in drawn), drawn
+    assert not ring_faults(drawn, "on the obligation's margin marker")

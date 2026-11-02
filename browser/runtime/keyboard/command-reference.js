@@ -964,8 +964,8 @@ commandReferenceDialog.addEventListener("cancel", (event) => {
 /** @type {Element | null} */
 let commandReferenceReturn = null;
 
-/** @param {boolean} open @param {boolean} restoreFocus @param {InvokeCommand | null} invokeCommand @param {Element | null} returnTo */
-function showCommandReference(open, restoreFocus, invokeCommand, returnTo) {
+/** @param {boolean} open @param {boolean} restoreFocus @param {InvokeCommand | null} invokeCommand @param {Element | null} returnTo @param {string} [query] */
+function showCommandReference(open, restoreFocus, invokeCommand, returnTo, query) {
   const fresh = open && !commandReferenceDialog.open;
   // Focusing a text input replaces the document selection. Keep a passage the user has
   // in hand and focus Close instead; an ordinary opening lands directly in search.
@@ -994,14 +994,14 @@ function showCommandReference(open, restoreFocus, invokeCommand, returnTo) {
   if (fresh) {
     commandReferenceCatalog = captureCommandReferenceCatalog();
     commandReferenceState = {
-      query: "",
+      query: query ?? "",
       selectedCommandId: null,
       metaOverride: null,
     };
     const results = presentCommandReference();
     // Native editing and scrolling values begin fresh and remain untouched by local Lit
     // renders.
-    commandReferenceSearch.value = "";
+    commandReferenceSearch.value = query ?? "";
     setScroll(results, { top: 0, behavior: "instant" });
     stopReferenceReading = registerReadingRegion({
       id: "lf-region:command-reference",
@@ -1106,11 +1106,11 @@ function activateSelectedCommand() {
 
 // The opening command supplies the action chosen from this particular reference. The
 // rendered catalog retains only ids and sends one back through that injected authority.
-/** @param {InvokeCommand | null} invokeCommand @param {Element | null} [returnTo] */
-const openCommandReference = (invokeCommand, returnTo = null) =>
-  showCommandReference(true, true, invokeCommand, returnTo);
+/** @param {InvokeCommand | null} invokeCommand @param {Element | null} [returnTo] @param {string} [query] */
+const openCommandReference = (invokeCommand, returnTo = null, query = "") =>
+  showCommandReference(true, true, invokeCommand, returnTo, query);
 const closeCommandReference = (restoreFocus = true) =>
-  showCommandReference(false, restoreFocus, null, null);
+  showCommandReference(false, restoreFocus, null, null, "");
 
 // The dialog's own keys. It is a modal search context and claims the whole keyboard while
 // it stands, so its rows are the only ones the user can reach; the boundary's one route
@@ -1178,11 +1178,15 @@ let closeInteractions = () => {};
 export function mountCommandReference({ beforeOpening }) {
   closeInteractions = beforeOpening;
 }
-/** @param {Element | null} [returnTo] */
-const openReference = (returnTo = null) => {
+/** @param {Element | null} [returnTo] @param {string} [query] */
+const openReference = (returnTo = null, query = "") => {
   closeInteractions();
-  openCommandReference((id) => executeCommand(id), returnTo);
+  openCommandReference((id) => executeCommand(id), returnTo, query);
 };
+// The reference opened on words already typed, as the leaf's menu passes on those its
+// own search holds, so one catalog answers every search for a command.
+/** @param {string} query @param {Element | null} [returnTo] */
+export const findCommands = (query, returnTo = null) => openReference(returnTo, query);
 
 // `?`, from wherever a key reaches.
 pageCommand({

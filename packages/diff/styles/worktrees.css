@@ -288,7 +288,8 @@ html[data-lf-interactive] lf-worktree[open]:not(:defined) {
 }
 html[data-lf-interactive] lf-worktree[open]:not(:defined)::before {
   /* The path adds its line and top gap after the fixed summary. */
-  block-size: calc(max(4rem, var(--aim-floor)) + var(--sp-3) + 1.5 * var(--t-6));
+  font: var(--font-small);
+  block-size: calc(max(4rem, var(--aim-floor)) + var(--sp-3) + 1lh);
 }
 html[data-lf-interactive] lf-worktree:not([open]):not(:defined) > * {
   display: none;
@@ -296,5 +297,6 @@ html[data-lf-interactive] lf-worktree:not([open]):not(:defined) > * {
 html[data-lf-interactive] lf-worktree-diffs:not(:defined)::before {
   content: "";
   grid-column: 1 / -1;
-  block-size: calc(1.5 * var(--t-5) + var(--sp-3));
+  font: var(--font-title);
+  block-size: calc(1lh + var(--sp-3));
 }

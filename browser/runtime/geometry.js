@@ -1,7 +1,7 @@
 /* This module owns the shared readings of visible boxes and clipping, how much of the
  * window the page shows, and the one conversion from viewport boxes to
  * document-positioned chrome. */
-import { excludedByInert, renderedParent, uiInside, under } from "./shadow.js";
+import { excludedByInert, renderedParent, uiInside, under } from "./shadow-tree.js";
 import { nativeModalAdmits, watchLayerChanges } from "./keyboard/layer-stack.js";
 import { isNativeLayer } from "./shadow-tree.js";
 import {

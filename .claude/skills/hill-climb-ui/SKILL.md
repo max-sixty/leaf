@@ -5,23 +5,27 @@ description: Runs iterative improvements to Leaf UI and authoring instructions t
 
 # Hill-climb UI
 
-Improve Leaf through repeated comparisons with plain HTML, within the user's requested
-scope or duration. Load `/developing-leaf` for repository work.
+Improve Leaf's runtime, packages and shipped authoring instructions within the user's
+requested scope or duration. Compare with plain HTML to find and validate changes
+whose benefits reach future authors. Load `/developing-leaf` for repository work.
 [`evals/README.md`](../../../evals/README.md) owns running, pairing and reporting
 evals, and [`notes/agent-usability-evals.md`](../../../notes/agent-usability-evals.md)
 holds previous runs and findings.
 
 ## Run the improvement loop
 
-- **Compare.** Choose the task and inputs from what previous experiments suggest is
-  worth learning next, and pick a consequential weakness in Leaf or its authoring
-  instructions from the pages and interaction evidence. Saved HTML pages stay the
+- **Compare.** Choose a consequential weakness in the user's experience from the pages
+  and interaction evidence. Use previous experiments to choose the improvement to attempt
+  next and the inputs that can expose whether it works. Saved HTML pages stay the
   control while they still answer the question and still exist; changing Leaf alone
   needs no new HTML author, so author HTML once per task in a campaign. Before
   blaming Leaf for a weakness, check that the eval reproduces real use: a fixture or
-  harness setting the user wouldn't impose can be the cause.
+  harness setting the user wouldn't impose can be the cause. Repair an evaluation
+  blocker far enough to continue that product experiment, then return to it.
 - **Change.** Trace the weakness to its owner and implement a candidate repair, keeping
-  the starting version for comparison.
+  the starting version for comparison. A saved-page redesign can prove a useful
+  behavior; carry that behavior into the maintained runtime, package or authoring
+  instructions so another author can produce it.
 - **Test.** Compare base and candidate on the affected task: saved Leaf sources against
   both runtimes for a runtime change, fresh Leaf authors for authoring guidance. Compare
   with the HTML control too, and vary inputs or tasks to test the repair's reach.
@@ -30,11 +34,11 @@ holds previous runs and findings.
   or judge, and layout guidance shows in the first version's height and first screen,
   which pair judges reading later phases miss. Validate a retained repair on the full
   workflow.
-- **Decide.** Keep, revise or undo the candidate by its rendered result, working
-  interactions and authoring effort, with a judge's score as one input. For a recurring
-  failure, compare its occurrences in author traces and use a regression test where
-  code decides the outcome. Small author samples can expose recurring failures but
-  rarely establish a timing difference.
+- **Decide.** Keep the change in Leaf, revise it or undo it by its rendered result,
+  working interactions and authoring effort, with a judge's score as one input. For a
+  recurring failure, compare its occurrences in author traces and use a regression
+  test where code decides the outcome. Small author samples can expose recurring
+  failures but rarely establish a timing difference.
 - **Continue** from the result: a rejected candidate can suggest another repair, and a
   successful one can expose the next weakness.
 
@@ -44,9 +48,10 @@ its scope to leave time for a change and its confirmation: saved-page probes and
 focused fresh-author tasks give faster feedback on a local hypothesis, while full
 multi-turn workflows test the whole exchange.
 
-For longer runs, keep the standard eval report current. Lead with the latest run's
-scope, the changes tested, matched before/after outputs and the keep, revise or reject
-judgment, including unsuccessful experiments. A current-state pass without a baseline
+For longer runs, keep the standard eval report current. Lead with what changed in
+Leaf and the matched before/after outputs supporting each retained change. Include
+revised and rejected candidates, and distinguish supporting tooling and experiments
+from improvements authors now receive. A current-state pass without a baseline
 doesn't establish improvement. Keep earlier experiments as supporting history and
 exploration distinct from scored comparisons; `evals/README.md`, "Render a report",
 owns the format and commands. At handoff, review each page the user can open, including
@@ -75,18 +80,19 @@ without expanding the original authoring task.
 
 ## Depth and breadth
 
-Run one experiment at a time by default, so each result informs the next. A cycle
-with fresh authors and judges takes about an hour, so start the next batch of authors
-while the previous pairs are judged. For breadth,
-subagents can run independent loops on different tasks or competing hypotheses, each
-with isolated candidate changes; check retained changes together. Size concurrent
-authoring and browser work to the shared machine.
+Run one improvement loop at a time by default, taking a promising candidate through
+implementation and a keep, revise or reject decision before expanding the search.
+Independent authoring and judging can overlap. For breadth, subagents can own loops
+on different tasks or competing hypotheses, each responsible for its candidate
+implementation and validation. Integrate retained changes and check them together.
+Size concurrent authoring and browser work to the shared machine.
 
 ## Reading the evidence
 
 Read each author's tool timeline as well as its page: time per call, check rounds,
-each refusal and the call after it, and reads of Leaf's own source or theme. A
-refusal or source read that recurs across authors is usually the cheapest repair.
+each refusal and the call after it, and reads of Leaf's own source or theme. Weigh
+recurring authoring friction alongside the quality of the resulting page when choosing
+which weakness to repair.
 
 Pair judgments compare content and exclude Leaf's panel and threads, which need their
 own observation. The pair judge carries most of the layout signal; the live judge

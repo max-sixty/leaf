@@ -235,7 +235,8 @@ without claiming a live alert configuration change. Execution and page checks
 completed for all four. The first HTML's final judge reported a threshold-keyboard
 defect; the other three final judges passed. Replaying the same keys on the first
 HTML and on a bare, script-free native select produced the same non-response in
-headless Chromium and Firefox. That test does not isolate an authored defect, so
+headless Chromium and Firefox; [Browser support gaps](browser-support.md#native-select-keyboard-input-in-the-test-engine)
+owns the current recheck. That test does not isolate an authored defect, so
 the attribution remains unconfirmed. The original verdict is retained; the browser
 users and pair judges completed the offered selection and copying routes.
 

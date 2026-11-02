@@ -951,9 +951,12 @@ summary {
   min-height: var(--lf-thread-action-room);
 }
 /* The notice's start and the visible end of the header's line are the runtime's
-   readings, in the header's own coordinates (thread-card.js, `#retainHeaderSlot`). */
+   readings, in the header's own coordinates (thread-card.js, `#retainHeaderSlot`).
+   Its own stacking context paints after the earlier header's clip-path context;
+   the transparent header must not cover the notice's words. */
 .lf-thread-content > .lf-thread-news {
   position: absolute;
+  isolation: isolate;
   position-anchor: --lf-thread-headline;
   inset-inline-start: calc(
     anchor(left) + var(--lf-thread-news-start, 0px) + var(--sp-2)

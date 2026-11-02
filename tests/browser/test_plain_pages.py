@@ -28,9 +28,9 @@ every box the author wrote inside `body` keeps its size, since a rule of Leaf's 
 lay a box out otherwise while every property the author declared computes the same,
 as a table made a block holds its rows to their content inside the width the author
 gave it; a box the author positions (sticky, fixed or absolute) stands in the same
-place at rest and after the page scrolls; where `body` ends short of the window, what shows
-past it, the canvas or the body itself, keeps the author's root background; an open
-`dialog` keeps its look; and the root keeps the
+place at rest and after the page scrolls; where `body` ends short of the window, what
+shows past it, the canvas or the body itself, keeps the author's root background; an
+open `dialog` keeps its look; and the root keeps the
 colour scheme the author left it at, since that decides every system colour under the
 page. Leaf's chrome and what it generates (`.lf-ui`, `[data-lf-gen]`) are not the
 page's; an element of the author's missing from the Leaf page, or one Leaf adds among
@@ -430,9 +430,10 @@ def differences(alone: Arm, leaf: Arm) -> list[tuple[str, str, str]]:
     """Each way the Leaf page's look departs from the author's, as (kind, pin, words).
     The kinds: a property the author declared on the element (`overridden`) or that
     reached it from an ancestor (`inherited`), the `canvas`, a positioned box's
-    `position`, an element `missing` from the Leaf page or `added` to it, and the root's
-    `color-scheme`, where the author left it alone and Leaf's differs. A property that
-    differs on several elements is one finding. Its pin names the reading, the
+    `position`, the `size` of boxes at rest, an element `missing` from the Leaf page or
+    `added` to it, and the root's `color-scheme`, where the author left it alone and
+    Leaf's differs. A property that differs on several elements is one finding, as the
+    boxes that change size are. Its pin names the reading, the
     property, and the complete set of elements by a digest, with the first and a count
     to read it by, and not the values, so `KNOWN` holds still while a theme's colours
     change but not while an override reaches any other element or property. The words

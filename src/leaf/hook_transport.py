@@ -64,16 +64,22 @@ after the ack. Stop and a prompt that opens the turn again hand unconfirmed inpu
 over again, as they do input Escape dropped.
 
 Claude Code waits for its tool-boundary hook before every model call, and nearly
-every boundary has nothing to carry. Folding the session's pages to find that out
-took about 350 ms of the hook's 500 (measured on macOS, 1 November 2026), so a
-boundary first reads each page's log, and folds its pages only for input past a
-cursor (`new_input`), a status check coming due or a line the clerk queued. This
-module imports the page model only where a hook folds a page. An update the cursor
-has passed that its owner holds no usable reference for (`delivery.unreferenced`)
-then reaches a boundary only beside new input, and otherwise the next prompt, as
-at Codex's tool hook. A page at an older page protocol offers no input
-(`delivery.deliverable`), so an empty boundary leaves its renewal to the next
-prompt or Stop hook (`vendoring.renew_layer`).
+every boundary has nothing to carry. So a boundary first reads each page's log, and
+folds its pages only for input past a cursor (`new_input`), a status check coming
+due or a line the clerk queued. This module imports the page model only where a
+hook folds a page. An update the cursor has passed that its owner holds no usable
+reference for (`delivery.unreferenced`) reaches the turn only where a hook folds
+the pages:
+
+- a boundary with new input or a clerk line beside it;
+- a boundary whose status check is due, every `STATUS_RENEWAL` and at a session's
+  first boundary;
+- Stop under plain `--print`, where no watch follows the turn;
+- otherwise the prompt of the turn the watch wakes once this one ends.
+
+A page at an older page protocol offers no input (`delivery.deliverable`), so an
+empty boundary leaves its renewal to the next prompt or Stop hook
+(`vendoring.renew_layer`).
 
 Pi has the context once the hook returns, so its hook records the receipt with the
 pickup. Claude Code reads it only once every hook of the event has exited, and

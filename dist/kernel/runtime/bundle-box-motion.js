@@ -1,4 +1,4 @@
-import { TEXT_FIELD, afterSettling, cancelRender, contentRides, inChrome, inlineStyle, keeps, motionEasing, motionPlays, motionTime, move, nextRender, onUserInput, playMotion } from "./bundle-portable.js";
+import { TEXT_FIELD, afterSettling, cancelRender, contentRides, inChrome, inlineStyle, keeps, motionEasing, motionPlays, motionTime, move, nextRender, onUserInput, playMotion, sizeObserver } from "./bundle-portable.js";
 import { el } from "./bundle-errors.js";
 import "./bundle-passages.js";
 import { SVG_NS, paintGeometry, paintShape, paintStand, placement, standBox, standOver, vacate } from "./bundle-page-layout.js";
@@ -193,6 +193,10 @@ function listen() {
 		passive: true
 	});
 }
+const readers = /* @__PURE__ */ new WeakMap();
+const placedParts = sizeObserver((entries) => {
+	for (const read of new Set(entries.map(({ target }) => readers.get(target)))) read?.();
+});
 const liftReach = (element, level) => {
 	const lift = getComputedStyle(element);
 	return Number.parseFloat(lift.getPropertyValue(`--raise-${level}-drop`)) + 2 * Number.parseFloat(lift.getPropertyValue(`--raise-${level}-blur`));
@@ -226,6 +230,7 @@ const clipFrame = (sides, radius = 0) => ({
 });
 const connected = (anchor) => "scroller" in anchor ? anchor.scroller.isConnected : anchor.isConnected;
 const planeShare = (moved, limit) => moved * limit > 0 ? Math.sign(limit) * Math.min(Math.abs(moved), Math.abs(limit)) : 0;
+const inside = (from, to, side) => side === "top" || side === "left" ? Math.max(0, to[side] - from[side]) : Math.min(0, to[side] - from[side]);
 const radiusOf = (style) => Number.parseFloat(style.borderTopLeftRadius) || 0;
 const seeThrough = (color) => /^(transparent|rgba\(.*,\s*0\))$/.test(color);
 const paints = (style) => !seeThrough(style.backgroundColor) || style.backgroundImage !== "none" || style.boxShadow !== "none" || [
@@ -235,7 +240,12 @@ const paints = (style) => !seeThrough(style.backgroundColor) || style.background
 	"left"
 ].some((side) => Number.parseFloat(style.getPropertyValue(`border-${side}-width`)) > 0);
 const rings = (style) => style.outlineStyle !== "none" && Number.parseFloat(style.outlineWidth) > 0;
-function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, held = () => null }) {
+function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer: given, placement }) {
+	const held = () => placement?.held() ?? null;
+	const observer = given ?? placedParts;
+	const changed = () => {
+		if (!placement?.place()) follow();
+	};
 	listen();
 	const layer = (name) => {
 		const node = document.createElement("div");
@@ -272,6 +282,7 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 	let rests = null;
 	let frame = null;
 	let besideAt = null;
+	let drawnFrom = null;
 	let timing = null;
 	let motions = /* @__PURE__ */ new Map();
 	let running = [];
@@ -290,6 +301,7 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 	root.addEventListener("lf-before-edit", noteFieldScrolls, { passive: true });
 	const forget = () => {
 		rests = null;
+		besideAt = null;
 	};
 	addEventListener("resize", forget);
 	function carryReadings(dx, dy) {
@@ -433,7 +445,10 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 			]);
 			arrived.clear();
 			for (const element of observed) if (!parts.has(element)) observer.unobserve(element);
-			for (const element of parts) if (!observed.has(element)) observer.observe(element);
+			for (const element of parts) {
+				readers.set(element, changed);
+				if (!observed.has(element)) observer.observe(element);
+			}
 			observed = parts;
 		});
 	};
@@ -446,11 +461,17 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 		attributeFilter: ["hidden"]
 	});
 	function follow({ duration = motionTime("--lf-motion-box-resize", box), easing = motionEasing("--lf-motion-box-ease", box) } = {}, compact = false) {
+		if (placement && !held()) return forget();
 		timing = {
 			duration,
 			easing
 		};
 		rebase();
+		if (drawnFrom) {
+			rests = /* @__PURE__ */ new Map([[box, drawnFrom]]);
+			motions = /* @__PURE__ */ new Map();
+			drawnFrom = null;
+		}
 		const progress = running[0]?.effect?.getComputedTiming().progress ?? 1;
 		const carried = carriedBy(progress);
 		const parts = [];
@@ -859,14 +880,24 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 			}
 		},
 		placed(place) {
+			if (!held()) forget();
 			const { at, past } = rebase();
 			const read = rests?.get(root);
-			const resized = !read || !near(width(read), width(at)) || !near(height(read), height(at));
 			const moved = place();
-			besideAt = beside(held());
-			if (!resized) return;
-			carryReadings(planeShare(moved.x, past.x), planeShare(moved.y, past.y));
-			frame = shifted(at, moved.x, moved.y);
+			const edges = held();
+			besideAt = beside(edges);
+			if (read && !(near(width(read), width(at)) && near(height(read), height(at)))) {
+				const to = shifted(at, moved.x, moved.y);
+				let dx = planeShare(moved.x, past.x);
+				let dy = planeShare(moved.y, past.y);
+				const from = shifted(read, dx, dy);
+				const side = edges?.against;
+				if (side === "top" || side === "bottom") dy += inside(from, to, side);
+				else if (side) dx += inside(from, to, side);
+				carryReadings(dx, dy);
+				frame = to;
+			}
+			follow();
 		},
 		outline() {
 			const moving = motions.get(box);
@@ -875,11 +906,8 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 			return boxOf(box.getBoundingClientRect());
 		},
 		drawnAt(rect) {
-			frame = boxOf(root.getBoundingClientRect());
-			motions = /* @__PURE__ */ new Map();
-			rests = /* @__PURE__ */ new Map([[box, boxOf(rect)]]);
-		},
-		forget
+			drawnFrom = boxOf(rect);
+		}
 	};
 }
 

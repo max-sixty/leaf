@@ -604,6 +604,71 @@ def test_a_line_that_changes_the_edge_holding_a_card_moves_it_from_where_it_stoo
     assert drawn == pytest.approx(held_up, abs=1), f"{held_up} -> {drawn}"
 
 
+# The card's outline as its surface's ring is cut (box-motion.js): its top and its foot.
+CARD_OUTLINE = """card => {
+  const ring = card.querySelector('.lf-margin-preview-ground > .lf-box-ring');
+  const ground = card.querySelector('.lf-margin-preview-ground').getBoundingClientRect();
+  const [top, , bottom = top] = getComputedStyle(ring).clipPath
+    .match(/inset\\(([^)]*)\\)/)[1].split(' round')[0].trim().split(/\\s+/)
+    .map(Number.parseFloat);
+  return [ground.top + top, ground.bottom - bottom];
+}"""
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_scroll_that_takes_a_shrinking_card_past_the_windows_foot_draws_it_there(
+    engine, request, serve
+):
+    """A card beside its passage that a scroll carries past the window's foot, in the
+    frame it shrinks, is held by that foot, and only its shrinking travels: at the
+    motion's first frame its outline already stands at that foot. Moved by the scroll
+    and then travelling the whole way its placement moved it, the card was drawn below
+    the window's foot for a frame and rose back to it."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(LOW_PASSAGE_PAGE, events=[LONG_THREAD_ROOT]),
+    )
+    page.emulate_media(reduced_motion="no-preference")
+    resized(page, 1440, 900)
+    page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_be_visible()
+    editor = preview.get_by_role("textbox", name="Reply", exact=True)
+    editor.click()
+    write(editor, "A first line.")
+    transcript = preview.locator(".lf-thread-transcript")
+
+    def foot_after_scrolling(by):
+        page.evaluate("by => document.scrollingElement.scrollBy(0, by)", by)
+        scroll_settled(page)
+        rendered(page)
+        page.wait_for_function(CARD_AT_REST)
+        return preview.evaluate(CARD_OUTLINE)[1]
+
+    # The passage at the window's foot stands the card against it; a scroll up, with
+    # the card a little taller, stands it beside its passage.
+    page.locator("#open").evaluate("node => node.scrollIntoView({block: 'end'})")
+    held = foot_after_scrolling(0)
+    transcript.evaluate("node => { node.style.paddingBottom = '20px'; }")
+    assert foot_after_scrolling(200) < held - 20
+    page.evaluate("() => {" + HOLD_MOTION + "}")
+    transcript.evaluate(
+        """node => new Promise(done => requestAnimationFrame(() => {
+          document.scrollingElement.scrollBy(0, -200);
+          node.style.paddingBottom = '0px';
+          done();
+        }))"""
+    )
+    page.wait_for_function(
+        "() => window.__lfHeld.some(motion => motion.playState !== 'idle')"
+    )
+    drawn = preview.evaluate(CARD_OUTLINE)
+    page.wait_for_function(CARD_RELEASED)
+    rest = preview.evaluate(CARD_OUTLINE)
+    assert rest[1] == pytest.approx(held, abs=1), f"held nowhere: {rest}, {held}"
+    assert drawn[1] == pytest.approx(held, abs=1), f"{drawn} -> {rest}"
+
+
 def test_a_growing_margin_reply_keeps_its_whole_ring_from_the_first_frame(
     browser, serve
 ):

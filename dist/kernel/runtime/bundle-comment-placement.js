@@ -1328,15 +1328,6 @@ const INSETS = [
 ];
 const stood = /* @__PURE__ */ new Map();
 const floatingSelections = () => [...stood.values()];
-const heldEdges = (floating) => {
-	const placed = stood.get(floating);
-	return placed ? {
-		x: placed.edges.left,
-		y: placed.edges.top,
-		by: placed.anchor,
-		plane: placed.frame
-	} : null;
-};
 const physicalContext = (context) => context instanceof Element ? context : context?.parentElement;
 function floatingGeometry(contexts) {
 	const anchors = /* @__PURE__ */ new Map();
@@ -1387,6 +1378,7 @@ function floatingPlacement({ floating, update }) {
 	};
 	let stand = placedAt;
 	let placementProof = null;
+	let holding = null;
 	let stopScrollInvalidation = null;
 	function clientBox(answer) {
 		const { offset, scale } = answer.middlewareData.anchorAt;
@@ -1480,7 +1472,8 @@ function floatingPlacement({ floating, update }) {
 				anchor,
 				frame: frameAnchor,
 				plane,
-				at
+				at,
+				against: typeof wanted === "object" ? wanted.edge : null
 			} : null;
 			return answer;
 		},
@@ -1491,6 +1484,12 @@ function floatingPlacement({ floating, update }) {
 			const moved = {
 				x: to.left - from.left,
 				y: to.top - from.top
+			};
+			holding = {
+				...answer.middlewareData.held.edges,
+				by: placementProof?.anchor ?? null,
+				plane: placementProof?.frame ?? null,
+				against: placementProof?.against ?? null
 			};
 			if (!placementProof) {
 				stood.delete(floating);
@@ -1529,6 +1528,7 @@ function floatingPlacement({ floating, update }) {
 			return moved;
 		},
 		clientBox,
+		held: () => holding,
 		supersede() {
 			epoch += 1;
 		},
@@ -1543,6 +1543,7 @@ function floatingPlacement({ floating, update }) {
 			observer = null;
 			tenure = Object.freeze({});
 			placementProof = null;
+			holding = null;
 			stood.delete(floating);
 			delete floating.dataset.lfPlane;
 			for (const property of ["position-anchor", ...INSETS]) floating.style.removeProperty(property);
@@ -1965,4 +1966,4 @@ function commentPlacement() {
 }
 
 //#endregion
-export { COMMENT_GAP, THREAD_CARD, cardMeasure, cardMinimum, commentAttachment, commentBoundary, commentPlacement, commentReference, floatingGeometry, floatingPlacement, floatingSelections, floatingUi, heldEdges, layoutMarginRows, makeRoom, marginColumn, marginSpot, mountMarginLayer, paintedBox, registerMarginRow, scheduleMarginEntryLabels, scheduleMarginLayout, standsFolded, standsWithheld, syncMarginContentLayout, unregisterMarginRow };
+export { COMMENT_GAP, THREAD_CARD, cardMeasure, cardMinimum, commentAttachment, commentBoundary, commentPlacement, commentReference, floatingGeometry, floatingPlacement, floatingSelections, floatingUi, layoutMarginRows, makeRoom, marginColumn, marginSpot, mountMarginLayer, paintedBox, registerMarginRow, scheduleMarginEntryLabels, scheduleMarginLayout, standsFolded, standsWithheld, syncMarginContentLayout, unregisterMarginRow };

@@ -1,9 +1,9 @@
 /* How a floating box follows a change of its layout, whatever made the change, a line
  * the field gained, more room, a view opening, the box folding to its leaf: the one model
  * of motion for the floating panel (floating-panel.js, `followBox`), the margin thread
- * card (thread-preview.js, `followCard`) and the comment box beside a passage
- * (composing/floating-response.js, `followFab`), whose Send grows the card out of its
- * field (`drawnAt`). The user asked on 25 October for one canonical animation, after a
+ * card (annotation-overlay/thread-preview.js) and the comment box beside a passage
+ * (annotation-overlay/composing/floating-response.js), whose Send grows the card out of
+ * its field (`drawnAt`). The user asked on 25 October for one canonical animation, after a
  * card's send jumped to its new turn's head while a second mechanism slid its words by
  * scrolling, and on 26 October for the comment box to move the same way, which grew a
  * line in one frame and grew its card by a clip of its own on another clock.
@@ -90,7 +90,11 @@
  *
  * Every reading is taken in the box's own plane: a box the page's scroll or its
  * placement carries whole is read from the edges that hold it (`held`), so only a change
- * of its layout moves anything.
+ * of its layout moves anything. A box a placement stands (`placement`) is read once that
+ * placement has stood it, since a change of the box's size can move it too, as a line
+ * taking it past the window's foot holds it by that foot: the change asks the placement
+ * first, and the placement's landing reads it (`placed`). Read first, the box set out
+ * for where its old placement stood it and turned back a frame later.
  *
  * A send is the user's change joining a stream ("send" from `theirs()`, read where
  * the stream starts from with `stream`). What the box shows above its field then
@@ -120,7 +124,7 @@ import { inlineStyle, keeps } from "./keeps.js";
 import { motionEasing, motionPlays, motionTime, playMotion } from "./motion.js";
 import { TEXT_FIELD } from "./control-selectors.js";
 import { onUserInput } from "./focus.js";
-import { afterSettling, nextRender } from "./rendering.js";
+import { afterSettling, nextRender, sizeObserver } from "./rendering.js";
 import { contentRides } from "./scrolling.js";
 
 /** @typedef {import('./rect.js').Box} Box
@@ -135,7 +139,11 @@ import { contentRides } from "./scrolling.js";
  * @typedef {{child: Element, top: number}} StreamStart
  * @typedef {{child: Element, from: number, to: number}} Stream
  * @typedef {(element: Element | null) => Offset} Carried
- * @typedef {{duration: number, easing: string}} Timing */
+ * @typedef {{duration: number, easing: string}} Timing
+ * @typedef {"top" | "right" | "bottom" | "left"} Side
+ * @typedef {{x: "left" | "right", y: "top" | "bottom", by: Anchor | null,
+ * plane: Anchor | null, against: Side | null}} Held
+ * @typedef {{held: () => Held | null, place: () => boolean}} Placement */
 
 // Whose change it is, one clock for every box, since an input anywhere is the user's:
 // their key, press or typing owns what it sets going until that rendering settles
@@ -164,6 +172,19 @@ function listen() {
   onUserInput(beginGesture);
   window.addEventListener("click", beginGesture, { capture: true, passive: true });
 }
+
+// The parts of every box a placement stands are observed by one observer, made as this
+// module loads, which asks each box's placement first (`placed`). A placement landing in
+// its delivery can resize the placed box, which the placement's own observer, made when
+// it first watches the box, observes too. Delivered after this one, that observer reads
+// the box's new size; delivered before it, as a motion's own observer made when the box
+// first stood was, it read the old size and heard the new one only as a loop.
+/** @type {WeakMap<Element, () => void>} */
+const readers = new WeakMap();
+const placedParts = sizeObserver((entries) => {
+  for (const read of new Set(entries.map(({ target }) => readers.get(target))))
+    read?.();
+});
 
 // How far a lift of the theme's (`--raise-N`, base.css) paints past the box it raises,
 // cast as a filter's drop shadow: its drop, and twice its blur, which a filter takes as
@@ -229,6 +250,12 @@ const connected = (anchor) =>
 /** @param {number} moved @param {number} limit */
 const planeShare = (moved, limit) =>
   moved * limit > 0 ? Math.sign(limit) * Math.min(Math.abs(moved), Math.abs(limit)) : 0;
+// How far `from` moves to stand no farther out on `side` than `to` does.
+/** @param {Box} from @param {Box} to @param {Edge} side */
+const inside = (from, to, side) =>
+  side === "top" || side === "left"
+    ? Math.max(0, to[side] - from[side])
+    : Math.min(0, to[side] - from[side]);
 /** @param {CSSStyleDeclaration} style */
 const radiusOf = (style) => Number.parseFloat(style.borderTopLeftRadius) || 0;
 /** @param {string} color */
@@ -254,16 +281,18 @@ const rings = (style) =>
 // measured, and colours its ring and fill (`--lf-box-ring`, `--lf-box-fill`,
 // chrome.css). lift: the theme's lift (`--raise-N`) whose shadow the surface casts.
 // outset: how far the surface's ring stands outside the box, 1 for a ring around it, 0
-// for one drawn inside its edge as a border is. observer: reads the box again when any
-// part changes size. held(): the root's edges that hold it in its plane, the anchor of
-// what it stands by, and the element the plane moves with (`plane`), null for the
-// window's; or null for a box fixed in the window.
+// for one drawn inside its edge as a border is. A box fixed in the window, as the panel
+// is, gives its owner's `observer`, which reads the box again (`follow`) when any part
+// changes size. A box a placement stands gives that `placement` instead (floating.js,
+// `floatingPlacement`), and the motion observes its parts itself. held(): the root's
+// edges that hold it in its plane, the anchor of what it stands by, the element the
+// plane moves with (`plane`), null for the window's, and the edge of its room the
+// placement holds it against (`against`); or null while no placement stands it.
+// place(): asks for the placement the box's size now asks for, true where one will
+// land, whose landing stands the box through `placed` and then reads it.
 /** @param {{
  * root: HTMLElement, box: HTMLElement, surface: string, lift: number, outset: number,
- * observer: ResizeObserver,
- * held?: () => {
- *   x: "left" | "right", y: "top" | "bottom", by?: Anchor | null, plane?: Anchor | null,
- * } | null,
+ * observer?: ResizeObserver, placement?: Placement,
  * }} options */
 export function boxMotion({
   root,
@@ -271,9 +300,15 @@ export function boxMotion({
   surface: surfaceClass,
   lift,
   outset,
-  observer,
-  held = () => null,
+  observer: given,
+  placement,
 }) {
+  const held = () => placement?.held() ?? null;
+  const observer = given ?? placedParts;
+  // A change the placement answers is read in its landing (`placed`).
+  const changed = () => {
+    if (!placement?.place()) follow();
+  };
   listen();
   // The surface: a ring and a fill inside it, cut to the box's outline, under one
   // shadow, and a ring a part of the box wears, drawn here only while the box moves,
@@ -316,6 +351,10 @@ export function boxMotion({
   // or placement, or null for a box that stands by nothing (`beside`).
   /** @type {{by: Anchor, plane: Anchor | null, x: number, y: number} | null} */
   let besideAt = null;
+  // Where the box was drawn a moment ago, which the next reading draws it from
+  // (`drawnAt`).
+  /** @type {Box | null} */
+  let drawnFrom = null;
   // The timing of the last reading, which a send's scroll reads again with (`stream`).
   /** @type {Timing | null} */
   let timing = null;
@@ -352,8 +391,11 @@ export function boxMotion({
     if (event.type !== "input") noteFieldScrolls();
   });
   root.addEventListener("lf-before-edit", noteFieldScrolls, { passive: true });
+  // Nothing stands the box where the next reading could move it from, such as a box
+  // no placement stands yet: that reading takes it as it stands.
   const forget = () => {
     rests = null;
+    besideAt = null;
   };
   // The window changed size: the next reading takes the box as it stands, rather than
   // trail the window's edge by a tween.
@@ -382,7 +424,7 @@ export function boxMotion({
   // frame after a placement takes it into its anchor's plane: a reading of the box then
   // is off by the same amount in every part, and carried whole, but a move of the box
   // against its anchor would read as one.
-  /** @param {ReturnType<typeof held>} edges */
+  /** @param {Held | null} edges */
   function beside(edges) {
     const by = edges?.by;
     const plane = edges?.plane ?? null;
@@ -547,8 +589,10 @@ export function boxMotion({
       arrived.clear();
       for (const element of observed)
         if (!parts.has(element)) observer.unobserve(element);
-      for (const element of parts)
+      for (const element of parts) {
+        readers.set(element, changed);
         if (!observed.has(element)) observer.observe(element);
+      }
       observed = parts;
     });
   };
@@ -571,8 +615,15 @@ export function boxMotion({
     } = {},
     compact = false,
   ) {
+    // A box no placement stands has nothing to move from.
+    if (placement && !held()) return forget();
     timing = { duration, easing };
     rebase();
+    if (drawnFrom) {
+      rests = new Map([[box, drawnFrom]]);
+      motions = new Map();
+      drawnFrom = null;
+    }
     const progress = running[0]?.effect?.getComputedTiming().progress ?? 1;
     const carried = carriedBy(progress);
     /** @type {Part[]} */
@@ -1111,31 +1162,44 @@ export function boxMotion({
           });
       }
     },
-    // The box's placement stands it (`place`): once the box has a motion, its owner
-    // stands every placement through here, and reads a change of the box's size only
-    // once the placement that change asks for has stood it. A placement can change the
-    // edges that hold the box, as a line taking it past the window's foot holds it by
-    // that foot, so the plane's carry is read first, by the edges that held it until
-    // then. What the placement moves then is the plane's or the box's own. At the size
-    // last read it is the plane's, as when a scroll re-solves a box held at the window's
-    // edge: the next reading carries the box by the edges that hold it now. At a new
-    // size it is the box's own and travels from where the box was drawn, but for as far
+    // The box's placement lands (`place` stands it), and the box is read where it now
+    // stands: its owner stands every placement through here, as the box's whole
+    // landing, what it writes for the box to be drawn included. A box its placement
+    // stood nowhere until now is taken as it stands. A placement can change the edges
+    // that hold the box, as a line taking it past the window's foot holds it by that
+    // foot, so the plane's carry is read first, by the edges that held it until then.
+    // What the placement moves then is the plane's or the box's own. At the size last
+    // read it is the plane's, as when a scroll re-solves a box held at the window's edge:
+    // the reading carries the box by the edges that hold it now. At a new size, the
+    // plane's is where the placement would have stood the box at its old size: as far
     // as what the box stands by moved past it meanwhile, as a scroll moves a passage
-    // past a box the window's edge holds: the plane carries that much. `place` says how
-    // far it moved the box by its own answer: in Chromium, a box it just took into its
-    // anchor's plane lays out off its spot until the browser next places it, by
-    // hundreds of pixels (floating.js, `clientBox`).
+    // past a box the window's edge holds, and then back inside the edge of its room the
+    // placement now holds it against, as a scroll that carried the box past the
+    // window's foot leaves it held at that foot. The rest is the box's own and travels
+    // from where the box was drawn. `place` says how far it moved the box by its own
+    // answer: in Chromium, a box it just took into its anchor's plane lays out off its
+    // spot until the browser next places it, by hundreds of pixels (floating.js,
+    // `clientBox`).
     /** @param {() => {x: number, y: number}} place */
     placed(place) {
+      if (!held()) forget();
       const { at, past } = rebase();
       const read = rests?.get(root);
-      const resized =
-        !read || !near(width(read), width(at)) || !near(height(read), height(at));
       const moved = place();
-      besideAt = beside(held());
-      if (!resized) return;
-      carryReadings(planeShare(moved.x, past.x), planeShare(moved.y, past.y));
-      frame = shifted(at, moved.x, moved.y);
+      const edges = held();
+      besideAt = beside(edges);
+      if (read && !(near(width(read), width(at)) && near(height(read), height(at)))) {
+        const to = shifted(at, moved.x, moved.y);
+        let dx = planeShare(moved.x, past.x);
+        let dy = planeShare(moved.y, past.y);
+        const from = shifted(read, dx, dy);
+        const side = edges?.against;
+        if (side === "top" || side === "bottom") dy += inside(from, to, side);
+        else if (side) dx += inside(from, to, side);
+        carryReadings(dx, dy);
+        frame = to;
+      }
+      follow();
     },
     // The box's outline where it is drawn now, in the window: where its motion has
     // carried it, or its rest.
@@ -1150,12 +1214,7 @@ export function boxMotion({
     // from there, and reveals each part as that outline's edges reach it.
     /** @param {Box} rect */
     drawnAt(rect) {
-      frame = boxOf(root.getBoundingClientRect());
-      motions = new Map();
-      rests = new Map([[box, boxOf(rect)]]);
+      drawnFrom = boxOf(rect);
     },
-    // Nothing stands the box where the next reading could move it from, such as a box
-    // no placement stands yet: that reading takes it as it stands.
-    forget,
   };
 }

@@ -72,7 +72,9 @@ import { upFrom, renderedParent } from "../shadow.js";
  * contextNode?: Node | null, geometry?: ReturnType<typeof floatingGeometry>
  * }} FloatingReference */
 /** @typedef {{subject: Element | null, anchor: ReturnType<typeof anchorFor>,
- * frame: ReturnType<typeof anchorFor>, plane: Plane, at: Point}} PlacementProof */
+ * frame: ReturnType<typeof anchorFor>, plane: Plane, at: Point,
+ * against: Side | null}} PlacementProof */
+/** @typedef {import("../box-motion.js").Held} Held */
 /** @typedef {{floating: HTMLElement, subject: Element | null,
  * anchor: ReturnType<typeof anchorFor>, frame: ReturnType<typeof anchorFor>,
  * plane: Plane, tenure: object, edges: {left: "left" | "right", top: "top" | "bottom"},
@@ -205,21 +207,6 @@ const INSETS = ["left", "right", "top", "bottom"];
 /** @type {Map<HTMLElement, FloatingSelection>} */
 const stood = new Map();
 export const floatingSelections = () => [...stood.values()];
-// The edges that hold a placed box where its placement stood it, the anchor of what it
-// stands by, and the element its plane moves with, as box-motion.js reads them
-// (`held`), or null for a box no placement stands.
-/** @param {HTMLElement} floating */
-export const heldEdges = (floating) => {
-  const placed = stood.get(floating);
-  return placed
-    ? {
-        x: placed.edges.left,
-        y: placed.edges.top,
-        by: placed.anchor,
-        plane: placed.frame,
-      }
-    : null;
-};
 
 /** @param {Node | null | undefined} context */
 const physicalContext = (context) =>
@@ -319,6 +306,9 @@ export function floatingPlacement({ floating, update }) {
   let stand = placedAt;
   /** @type {PlacementProof | null} */
   let placementProof = null;
+  // What holds the box where its last placement stood it (`held`).
+  /** @type {Held | null} */
+  let holding = null;
   /** @type {(() => void) | null} */
   let stopScrollInvalidation = null;
   // Where an answer stands the box, in client coordinates, from the measurement it was
@@ -468,6 +458,7 @@ export function floatingPlacement({ floating, update }) {
             frame: frameAnchor,
             plane,
             at,
+            against: typeof wanted === "object" ? wanted.edge : null,
           }
         : null;
       return answer;
@@ -480,6 +471,12 @@ export function floatingPlacement({ floating, update }) {
       stand(answer);
       const to = clientBox(answer);
       const moved = { x: to.left - from.left, y: to.top - from.top };
+      holding = {
+        ...answer.middlewareData.held.edges,
+        by: placementProof?.anchor ?? null,
+        plane: placementProof?.frame ?? null,
+        against: placementProof?.against ?? null,
+      };
       if (!placementProof) {
         stood.delete(floating);
         tenure = Object.freeze({});
@@ -523,6 +520,11 @@ export function floatingPlacement({ floating, update }) {
       return moved;
     },
     clientBox,
+    // What holds the box where its last placement stood it, as box-motion.js reads it:
+    // the edges its spot is written from, the anchor of what it stands by, the element
+    // its plane moves with (null for the window's), and the edge of its room the
+    // boundary shifted it against, if any; null while no placement stands it.
+    held: () => holding,
     // Discards any placement in flight, leaving the box where it stands.
     supersede() {
       epoch += 1;
@@ -538,6 +540,7 @@ export function floatingPlacement({ floating, update }) {
       observer = null;
       tenure = Object.freeze({});
       placementProof = null;
+      holding = null;
       stood.delete(floating);
       delete floating.dataset.lfPlane;
       for (const property of ["position-anchor", ...INSETS])

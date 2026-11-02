@@ -79,7 +79,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   /* Placement fits the finished thread before typing: the frame reserves the card's
      header and reply rows around the editor, and is at least as wide as the card
      (`--thread-card-min`), so the card Send opens stands in the frame and grows out of
-     the field (thread-preview.js, `followCard`). Only the field paints; the
+     the field (box-motion.js, `drawnAt`). Only the field paints; the
      transparent rows neither take document flow nor intercept presses. Its tracks
      shrink into that frame, and attached images hang outside it. */
   .lf-fab-bar:not([data-lf-target-only], [data-lf-presentation="inline"]) {

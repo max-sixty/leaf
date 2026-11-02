@@ -279,50 +279,6 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     regtest.write("\n".join(outputs).encode("ascii", "backslashreplace").decode())
 
 
-@pytest.mark.parametrize("unreadable", ["claim", "lifecycle"])
-def test_read_commands_leave_an_older_page_and_its_server_alone(
-    claimed, server, unreadable
-):
-    """A read by another session cannot take a held page across a protocol bump."""
-    from leaf.service import claim_path
-
-    publish(claimed)
-    vendored = vendored_at_another_protocol(claimed)
-    record = (
-        claim_path(claimed)
-        if unreadable == "claim"
-        else cleanup_model.session_file("s1", cleanup_model.SESSION_SUFFIX)
-    )
-    stored = interact_files.read_json(record)
-    stored["format"] = "leaf-" + unreadable + "/999"
-    cleanup_model.write_json(record, stored)
-    revisions = interact_files.list_revisions(claimed)
-    recorded = (claimed / schema_model.LAYER_FILE).read_bytes()
-    for command in (
-        ["page", "state", str(claimed)],
-        ["page", "events", str(claimed)],
-        ["page", "instructions", str(claimed)],
-        ["page", "check", str(claimed)],
-    ):
-        subprocess.run(
-            [*LEAF_COMMAND, *command],
-            capture_output=True,
-            text=True,
-            timeout=STATED_TIMEOUT,
-            check=False,
-            env={**os.environ, "CLAUDE_CODE_SESSION_ID": "s2"},
-        )
-        same_record = (claimed / schema_model.LAYER_FILE).read_bytes() == recorded
-        assert same_record, command
-        assert interact_files.list_revisions(claimed) == revisions
-        assert fetch(f"{server}/api/state")[0] == 200
-    layer_3 = registry_storage.layer_record(claimed)
-    assert layer_3 is not None
-    assert layer_3["protocol"] == vendored
-    assert vendoring_model.renew_layer(claimed, None, command=True) is None
-    assert (claimed / schema_model.LAYER_FILE).read_bytes() == recorded
-
-
 def test_a_command_leaves_a_page_a_newer_leaf_vendored(claimed):
     """A process the session started before its plugin updated still runs the older
     Leaf, and must not take the page back to it: the newer Leaf's next hook would

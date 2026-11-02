@@ -1,7 +1,7 @@
 import { CARET_KEYS, HOLDS_WORD, J, OUTPUT, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSES, RUNTIME_PAINT_ATTRIBUTE, SourcePairs, TEXT_BOX, TEXT_FIELD, W, WALK, Z, actionElement, actionTemplate, afterScript, aimedTop, alreadyShown, atScrollEnd, attachDeferredLoader, backgroundFlash, beginWalk, bindQueuedWork, blurFocused, byRenderedOrder, cancelRender, caretAtKey, chosenSince, clippedContents, clippedPlace, closestAcross, currentLocationIn, currentLocationNodes, currentLocationTouches, d, dataBody, deepFocus, describeFailure, drawn as drawn$2, eventSource, fitsWhole, flashDuration, focusDestination, focused, foldBlock, frameFor, generatedElement, growthAfterIsSeen, growthIsSeen, headerInset, holdCurrentLocation, holdFocus, iconElement, inChrome, inUi, inWindowChrome, inlineStyle, inputCount, isElement, isHTML, keeps, keepsHidden, keepsText, landedBox, landingBand, layoutChanged, layoutPx, listWalkPosition, measure, motion, motionPlays, move, moveScrollerBy, nativeLayerHolding, nextAnimation, nextFrame, nextRender, offer, offerAction, offered, offeredAction, offeredActionElement, onCurrentLocation, onLetGo, onPress, onPressAway, onUserInput, outputProducer, pagePresented, pageScroller, passOn, patchRetains, patchTree, placeBox, placeHolder, placeKept, plainPress, pointerAt, presented, readCaret, recentPlaceInput, refuseOutput, registrations, renderedOrder, renderedParent, renderedUnder, renderingState, restorePointer, restrictUserIntent, retainUserIntent, roomPx, scrollBehavior, scrollChoices, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollToEnd, scrollersOf, seenRect, selectsAll, setChildren, setRegistration, setScroll, shownBox, shownRect, shownWindow, showsContents, sizeObserver, skipped, slotTop, stopScroll, stuckBox, synNodes, syntax, syntaxLanguageNames, tabStore, takesLetters, tick, typesText, under, union, upFrom, updateSurface, userScrollport, visibleBand, watchArrivals, watchOwner, whenNone, x } from "./bundle-portable.js";
 import { COLLAPSE, LIVE_ROOT, PENDING, PRESENTATION_DOM, PRESSABLE, TEXT_BLOCK, adoptRegistry, agentName, agentSays, announce, applicationPresenter, applicationState, ariaShortcuts, attachApplicationPresentation, authoredBody, bindings, buttonCommand, checked, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, decisionFor, declarationFor, declareCommandReadiness, declaresCommandHandler, deleted, descriptionOf, editable, el, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, fragmentUrl, hasObligationSource, holdStatus, holdingError, html, isElementName, isReaction, keyed, keys, labelOf, lastMovedAt, layerRoot, leafSays, live as live$1, live$1 as live, loadShadowRules, marks, messageKey, nothing, notice, obligationValue, offlineDeferred, offlineInteractive, pageClaimed, pageRange, pageUrl, paintKeys, passErrorsAt, projectCommandScope, projectView, projectionOrigins, projectionRegionsPresented, pruneScopedElements, raiseError, readApplication, readPart, ref, registry, render as render$1, repaint, repeat, reveal, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, savedReadingSettled, seatRoot, selectEnds, selectionBackward, share, spell, tagsDeclaring, threadKey, threadNames, titleOf, tokenEntry, touchPresses as touchPresses$1, turns, voiced, watchCommandScopes, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented, word } from "./bundle-errors.js";
 import { LayerRefused, admitReading, admitResponse, randomId, reportPageError, requestJson, revealLayer, runtimeRootState, sameLayer, setRuntimeRootAttribute } from "./bundle-layer-client.js";
-import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableWord, addressedElements, ago, aimTargetAt, anchorBox, anchorForPassage, anchorForRange, anchorReading, anchorView, anchoringIsReady, chromeForeground, chromeRoot, claimReachStop, containingReadingRegionFor, cutFrames, datumAimTarget, datumLabel, deferredArrival, effectiveScroller, followingItsEnd, fragmentAddress, fragmentTarget, headerLevels, isAddressable, leadingTitle, livePoint, nameAnchor, nameable, onReadingInput, pageReadingRegion, projectedDatum, reachScrollers, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, releaseReachStop, resolveAnchor, revealAddressed, scrollChainOf, scrollerFor, sectionLabel, sectionOf, settleDocumentLayout, shortAgo, shownRegionBounds, targetElement, targetPlace, targetSegments, unconcealedReadingRegions, visualPartLabel, watchReadingRegionTransitions } from "./bundle-content-layout.js";
+import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableWord, addressedElements, ago, aimControl, aimTargetAt, anchorControl, anchorForPassage, anchorForRange, anchoringIsReady, chromeForeground, chromeRoot, claimReachStop, containingReadingRegionFor, datumAimTarget, datumLabel, deferredArrival, effectiveScroller, followingItsEnd, fragmentAddress, fragmentTarget, headerLevels, isAddressable, leadingTitle, livePoint, nameable, onReadingInput, pageReadingRegion, pressedElsewhere, projectedDatum, reachScrollers, readInsets, readingRegionFor, readingRegions, recentReadingRegion, regionScrollBehavior, regionsSettled, registerPageControl, releaseControl, releaseReachStop, resolveAnchor, revealAddressed, revealControl, scrollChainOf, scrollerFor, sectionLabel, sectionOf, settleDocumentLayout, shortAgo, shownRegionBounds, standInChrome, tabFromBlock, targetElement, targetPlace, targetSegments, unconcealedReadingRegions, visualPartLabel, watchReadingRegionTransitions, writeInsets } from "./bundle-content-layout.js";
 import { alignInlineText, alignText, authored, authoredScope, blockAt, elementById, excerptWords, fencePassageParts, labelWords, leafSurface, pageBlocks, pageDocument, pageQueryAll, pageText, pageWords, pointAt as pointAt$1, quoteFrom, quotedWords, rangeOf, readingFrom, renderRetired, segmentBlock, segmentsIn, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
 import { aborted, authoredStates, commitWidgetDescriptors, quoted, rememberAuthoredParents, stageAuthoredStates, stageWidgetDescriptors, widgetElement } from "./bundle-abort.js";
 import { isCanonicalMediaUrl, readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "./media.js";
@@ -2239,131 +2239,6 @@ function copyTrigger(copy) {
 }
 
 //#endregion
-//#region runtime/block-controls.js
-const home = document.createElement("div");
-home.className = "lf-block-controls";
-const cuts = /* @__PURE__ */ new WeakMap();
-const makeCut = () => {
-	const frame = document.createElement("div");
-	frame.className = "lf-block-control-cut";
-	return frame;
-};
-const placed = /* @__PURE__ */ new Map();
-const wired$1 = /* @__PURE__ */ new WeakSet();
-let hoveredControl = null;
-let focusedControl = null;
-const activeBlock = (control) => control ? placed.get(control) : void 0;
-const syncActive = (block) => {
-	if (block) block.toggleAttribute("data-lf-control-active", activeBlock(hoveredControl) === block || activeBlock(focusedControl) === block);
-};
-const setActiveControl = (kind, control) => {
-	const previous = kind === "hover" ? hoveredControl : focusedControl;
-	if (previous === control) return;
-	if (kind === "hover") hoveredControl = control;
-	else focusedControl = control;
-	syncActive(activeBlock(previous));
-	syncActive(activeBlock(control));
-};
-onCurrentLocation((node) => {
-	for (let at = node; at; at = upFrom(at)) if (at instanceof HTMLElement && placed.has(at)) return setActiveControl("focus", at);
-	setActiveControl("focus", null);
-});
-let resized = 0;
-addEventListener("resize", () => {
-	resized ||= nextRender(() => {
-		resized = 0;
-		const read = [...placed].filter(([, block]) => !skipped(block)).map(([control, block]) => ({
-			control,
-			block,
-			levels: headerLevels(block)
-		}));
-		for (const { control, block, levels } of read) standInChrome(control, block, levels);
-	});
-});
-function standInChrome(control, block, levels) {
-	const previousBlock = placed.get(control);
-	const frames = cutFrames(levels, (cuts.get(control) ?? []).map(({ frame }) => frame), makeCut);
-	cuts.set(control, frames);
-	placed.set(control, block);
-	if (!wired$1.has(control)) {
-		wired$1.add(control);
-		control.addEventListener("pointerenter", () => setActiveControl("hover", control));
-		control.addEventListener("pointerleave", () => {
-			if (hoveredControl === control) setActiveControl("hover", null);
-		});
-	}
-	if (previousBlock !== block) {
-		syncActive(previousBlock);
-		syncActive(block);
-	}
-	if (home.parentNode !== chromeRoot) move(chromeRoot, home, null);
-	const outer = frames[0]?.frame;
-	if (outer && outer.parentNode !== home) move(home, outer, null);
-	const frame = frames.at(-1)?.frame ?? home;
-	if (control.parentNode !== frame) move(frame, control, null);
-}
-function anchorControl(control, block) {
-	const place = () => {
-		keepsHidden(control, !anchorView(control, block, place));
-	};
-	return {
-		control,
-		near: anchorView(control, block, place),
-		anchor: anchorReading(block)
-	};
-}
-function aimControl({ control, near, anchor }) {
-	keepsHidden(control, !near);
-	const name = nameAnchor(anchor);
-	if (control.style.positionAnchor !== name) control.style.positionAnchor = name;
-	return control;
-}
-function readInsets(block) {
-	const box = block.getBoundingClientRect();
-	const at = anchorBox(block);
-	return {
-		dx: box.left - at.left,
-		dy: box.top - at.top,
-		dw: box.width - at.width,
-		dh: box.height - at.height
-	};
-}
-function writeInsets(control, { dx, dy, dw, dh }) {
-	for (const [property, length] of Object.entries({
-		"--lf-block-control-dx": dx,
-		"--lf-block-control-dy": dy,
-		"--lf-block-control-dw": dw,
-		"--lf-block-control-dh": dh
-	})) {
-		const value = length ? layoutPx(length) : "";
-		if (control.style.getPropertyValue(property) !== value) control.style.setProperty(property, value);
-	}
-}
-function revealControl(control, block) {
-	if (cuts.has(control)) standInChrome(control, block, headerLevels(block));
-	writeInsets(control, readInsets(block));
-	refreshAnchorView(control);
-}
-function tabFromBlock(control, block, signal) {
-	control.addEventListener("keydown", (event) => {
-		if (event.key === "Tab") focusDestination(block, "step");
-	}, { signal });
-}
-let pressedPath = /* @__PURE__ */ new WeakSet();
-addEventListener("pointerdown", (event) => pressedPath = new WeakSet(event.composedPath()), { capture: true });
-const pressedElsewhere = (event, control) => event.detail > 0 && !pressedPath.has(control);
-function releaseControl(control) {
-	const block = placed.get(control);
-	if (hoveredControl === control) hoveredControl = null;
-	if (focusedControl === control) focusedControl = null;
-	control.remove();
-	cuts.get(control)?.[0]?.frame.remove();
-	cuts.delete(control);
-	placed.delete(control);
-	syncActive(block);
-}
-
-//#endregion
 //#region runtime/code-copy.js
 const controls = /* @__PURE__ */ new WeakMap();
 const wired = /* @__PURE__ */ new WeakMap();
@@ -2473,14 +2348,18 @@ function watchCodeBlocks() {
 				if (!code) throw new Error("The code block no longer holds its source");
 				return code.textContent;
 			}, "code"),
-			levels: headerLevels(pre)
+			levels: headerLevels(pre),
+			insets: readInsets(pre)
 		}));
-		for (const { pre, pending, levels } of prepared) {
+		for (const { pre, pending, levels, insets } of prepared) {
 			const copy = aimControl(pending);
 			const parent = pre.parentNode;
 			if (!parent) continue;
 			if (leafSurface(pre)) move(parent, copy, pre.nextSibling);
-			else standInChrome(copy, pre, levels);
+			else {
+				writeInsets(copy, insets);
+				standInChrome(copy, pre, levels);
+			}
 			copy.tabIndex = -1;
 			claimReachStop(pre);
 			if (!wired.has(pre)) {
@@ -2776,7 +2655,7 @@ function makeLink(heading) {
 	const line = firstLine(heading);
 	aimControl(reading);
 	writeInsets(control, insets);
-	standInChrome(control, heading, levels);
+	standInChrome(control, heading, levels, false);
 	writeLine(control, line);
 	return link;
 }

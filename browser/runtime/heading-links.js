@@ -131,7 +131,7 @@ function makeLink(heading) {
   const line = firstLine(heading);
   aimControl(reading);
   writeInsets(control, insets);
-  standInChrome(control, heading, levels);
+  standInChrome(control, heading, levels, false);
   writeLine(control, line);
   return link;
 }

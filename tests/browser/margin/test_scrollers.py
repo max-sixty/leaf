@@ -342,55 +342,84 @@ def test_marks_stand_on_a_scaled_slide_in_every_engine(request, serve, engine):
     _outline_and_copy_stand_on(page, page.locator("#words"), "#words")
 
 
-CODE_SCROLLER_PAGE = leaf_page(
-    "a code block that scrolls",
-    "<div><h1>Listing</h1><p>A paragraph above the block, long enough to fill the "
-    'column it stands in from one edge to the other.</p><pre id="listing"><code>'
-    + "\n".join(
-        "    total = sum(weights)  # the commented line"
-        if i == 8
-        else f"def step_{i}(x):"
-        if i % 2
-        else f"    return x + {i}"
-        for i in range(1, 41)
+def _listing(lines, layout="workspace"):
+    """A page holding `lines` in a code block that scrolls inside its `pre`, as
+    reveal.js's theme makes every long one."""
+    return leaf_page(
+        "a code block that scrolls",
+        "<div><h1>Listing</h1><p>A paragraph above the block, long enough to fill the "
+        'column it stands in from one edge to the other.</p><pre id="listing"><code>'
+        + "\n".join(lines)
+        + "</code></pre></div>",
+        head="<style>pre code { display: block; overflow: auto; max-height: 400px; }"
+        "</style>",
+        layout=layout,
     )
-    + "</code></pre></div>",
-    head="<style>pre code { display: block; overflow: auto; max-height: 400px; }</style>",
-    layout="workspace",
-)
+
+
+# Short lines around the commented one, and lines as long as it is, the shape of a
+# reveal.js deck's code; at a phone's width those lines reach past the code's edge.
+SHORT_NEIGHBOURS = [
+    "    total = sum(weights)  # the commented line"
+    if i == 8
+    else f"def step_{i}(x):"
+    if i % 2
+    else f"    return x + {i}"
+    for i in range(1, 41)
+]
+LONG_NEIGHBOURS = [
+    f"    total += step_{i:02d}(sample_values, weight={i})" for i in range(1, 41)
+]
+# Where a row's pin stands against its quoted words' first line and the code box.
+PIN_ON_LINE = """quote => {
+  const code = document.querySelector('#listing code');
+  const text = code.firstChild;
+  const at = text.data.indexOf(quote);
+  const range = document.createRange();
+  range.setStart(text, at);
+  range.setEnd(text, at + quote.length);
+  const line = range.getClientRects()[0];
+  const box = code.getBoundingClientRect();
+  const row = document.querySelector('[data-lf-margin-for="listing"]');
+  const pin = row.getBoundingClientRect();
+  const middle = (pin.top + pin.bottom) / 2;
+  return {offset: [pin.left - box.left, pin.top - line.top],
+          onLine: middle >= line.top && middle <= line.bottom,
+          inBox: pin.left >= box.left && pin.right <= box.right,
+          pin: pin.toJSON(), line: line.toJSON(), box: box.toJSON(),
+          shown: !row.classList.contains('lf-withheld')};
+}"""
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+@pytest.mark.parametrize(
+    ("lines", "quote", "width", "layout"),
+    [
+        (SHORT_NEIGHBOURS, "total = sum(weights)", 1280, "workspace"),
+        (LONG_NEIGHBOURS, "step_09(sample_values, weight=9)", 1280, "workspace"),
+        (LONG_NEIGHBOURS, "step_09(sample_values, weight=9)", 390, "column"),
+    ],
+    ids=["short-neighbours", "long-neighbours", "phone"],
+)
 def test_a_pin_on_a_line_of_a_scrolling_code_block_marks_that_line(
-    request, serve, engine
+    request, serve, engine, lines, quote, width, layout
 ):
     """reveal.js's theme scrolls every long code block inside its `pre` (`pre code {
     overflow: auto; max-height: 400px }`). A comment on one of its lines stood its pin
     above the block's corner after a layout pass, and a scroll of the code then carried
     the pin away with the lines, so where it stood depended on what moved it last; it
-    also kept standing while its line was scrolled out of the code's view. The pin stands
-    by its line, in the same place after a scroll of the code as after a fresh pass, and
-    is withheld while the line is out of the code's view."""
+    also kept standing while its line was scrolled out of the code's view. Seated as
+    prose, it then hung off the end of the line above, and at a phone's width it slid to
+    the window's edge. The pin stands level with its line inside the code box, in the
+    same place after a scroll of the code as after a fresh pass, and is withheld while
+    the line is out of the code's view."""
     browser = request.getfixturevalue(engine)
-    comment = _comment_on("listing", quote="total = sum(weights)")
-    page = open_page(browser, serve(CODE_SCROLLER_PAGE, events=[comment]))
-    resized(page, 1280, 800)
+    comment = _comment_on("listing", quote=quote)
+    page = open_page(browser, serve(_listing(lines, layout), events=[comment]))
+    resized(page, width, 800)
     margins_laid_out(page)
-    reading = """() => {
-      const text = document.querySelector('#listing code').firstChild;
-      const at = text.data.indexOf('total = sum(weights)');
-      const range = document.createRange();
-      range.setStart(text, at);
-      range.setEnd(text, at + 20);
-      const line = range.getClientRects()[0];
-      const row = document.querySelector('[data-lf-margin-for="listing"]');
-      const pin = row.getBoundingClientRect();
-      return {offset: [pin.left - line.right, pin.top - line.top],
-              byLine: pin.bottom >= line.top - 8 && pin.top <= line.bottom + 8,
-              shown: !row.classList.contains('lf-withheld')};
-    }"""
-    before = page.evaluate(reading)
-    assert before["shown"] and before["byLine"], before
+    before = page.evaluate(PIN_ON_LINE, quote)
+    assert before["shown"] and before["onLine"] and before["inBox"], before
     laid_out = page.evaluate(
         """async () => {
           let laidOut = 0;
@@ -405,11 +434,11 @@ def test_a_pin_on_a_line_of_a_scrolling_code_block_marks_that_line(
           return laidOut;
         }"""
     )
-    carried = page.evaluate(reading)
+    carried = page.evaluate(PIN_ON_LINE, quote)
     # The scroll alone moved the pin; the pass that follows has to agree with it.
     assert laid_out == 0, carried
     margins_laid_out(page)
-    placed = page.evaluate(reading)
+    placed = page.evaluate(PIN_ON_LINE, quote)
     assert carried["offset"] == pytest.approx(before["offset"], abs=1), (
         before,
         carried,
@@ -424,6 +453,41 @@ def test_a_pin_on_a_line_of_a_scrolling_code_block_marks_that_line(
     expect(row).to_have_class(re.compile(r"\blf-withheld\b"))
     code.evaluate("code => { code.scrollTop = 0; }")
     expect(row).not_to_have_class(re.compile(r"\blf-withheld\b"))
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+def test_a_pin_on_a_code_block_s_first_line_leaves_copy_pressable(
+    request, serve, engine
+):
+    """Copy stands just inside a code block's top-right corner, over the first line's
+    last words. A pin on that line stands level with it and clear of Copy, so a press on
+    Copy reaches Copy."""
+    browser = request.getfixturevalue(engine)
+    first = (
+        "configuration = load_settings(path, defaults, overrides, environment, "
+        "profile_name)"
+    )
+    source = _listing([first, "short_second = 1", "third = 2"], layout="column")
+    comment = _comment_on("listing", quote="profile_name)")
+    page = open_page(browser, serve(source, events=[comment]))
+    resized(page, 760, 800)
+    margins_laid_out(page)
+    reading = page.evaluate(PIN_ON_LINE, "profile_name)")
+    assert reading["shown"] and reading["onLine"], reading
+    copy = page.locator(".lf-code-copy")
+    clear = page.evaluate(
+        """() => {
+          const pin = document.querySelector('[data-lf-margin-for="listing"]')
+            .getBoundingClientRect();
+          const copy = document.querySelector('.lf-code-copy').getBoundingClientRect();
+          return pin.right <= copy.left || pin.left >= copy.right
+            || pin.bottom <= copy.top || pin.top >= copy.bottom;
+        }"""
+    )
+    assert clear, (reading, copy.bounding_box())
+    page.locator("#listing code").hover()
+    expect(copy).to_have_css("opacity", "1")
+    copy.click(timeout=5000)
 
 
 def test_a_pin_in_a_pane_paints_in_the_frame_its_target_scrolls(browser, serve):

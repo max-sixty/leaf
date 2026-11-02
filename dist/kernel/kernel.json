@@ -40,9 +40,9 @@
 
     "runtime/annotation-overlay/margin-cluster-view.js": "bd9224a3f08a2eba5a1c17f3e82b3392d4dd9119379bf553d7c406d3b29cd2c0",
 
-    "runtime/annotation-overlay/margin-layout.js": "a96aa4828122eecd1b0070beba1d69ae70fd8617cd511702e6e9ef4f2121b48d",
+    "runtime/annotation-overlay/margin-layout.js": "1dad2b2b42a109ff71c56d352a98ac9422807a87d3a1a7763cd5143619542b88",
 
-    "runtime/annotation-overlay/margin-placement.js": "d1bb17880a91b4beeef9c79dc7d1dd41b477be2b826a4997030ab423323d3d02",
+    "runtime/annotation-overlay/margin-placement.js": "d800ff04b3aef82e6481737d0695e84bac1f765050c88bfa2fd5f2c79c3722aa",
 
     "runtime/annotation-overlay/margin-projection.js": "027902586b0df98ab1262562de7fc386cb5ed5c340d9af5a45f386aa6a792342",
 
@@ -60,7 +60,7 @@
 
     "runtime/base-layer.js": "7254e7c6c7df56faea13460dbbedc193593826d4bb4b79ef91ee98dc8bd4bc6c",
 
-    "runtime/block-controls.js": "268431bfd9aeeb5706b75d7437ca7e2ceb76bd9bc589d70a3296f8488074fd85",
+    "runtime/block-controls.js": "46c10ce35bcd3c2214b3b89cc407593380bbc27c8f7c860ac744cade614e5b33",
 
     "runtime/bootstrap.js": "9e072378ef47b74da4cf95f11ef14c3174d35076d5078a3925235dc278766b79",
 
@@ -78,7 +78,7 @@
 
     "runtime/chrome.js": "9be28af4a639bf333748299dc0fa098af4be3949d7c63d181e034decbdfff64d",
 
-    "runtime/code-copy.js": "f1e079c4de9404069e6da7b2af9bb4ac4bd5879fd2bf7dec6440ede9ba769d1e",
+    "runtime/code-copy.js": "6312e3abcbf806a14a780370aa6979ee5095476921ad3355412dbefbfc7ac4a3",
 
     "runtime/color-scheme.js": "c90648b942064c9e33568e0314b36c1a784db88ecc5a53a346d0299ba419dfbb",
 
@@ -208,7 +208,7 @@
 
     "runtime/geometry.js": "cd448f6468693a45d43ec809e9817416b3e5dbea84dcb98865064398076724ea",
 
-    "runtime/heading-links.js": "056e3bb72da3573c04d80028d1a47012295e0d60e47a21fc01f84a97f5b93d1e",
+    "runtime/heading-links.js": "90bc9cde9e973a006ef7f8f09b8a3345e4957831a881af8872cfeffb5733ecaa",
 
     "runtime/held-word.js": "b19c912dfe1eb4ff99e52b5663e2f5a1bcbe069c507ca91adc2a385e40b60963",
 

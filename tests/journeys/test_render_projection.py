@@ -776,8 +776,8 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
     page = open_page(browser, url)
     expect(page.locator("#th-cache")).to_have_attribute("data-lf-state", "shelve")
     expect(page.locator("#th-cache lf-proposed")).to_be_hidden()
-    expect(first_thread_quote(page, serve.page_dir)).to_have_class(
-        re.compile(r"\bdetached\b")
+    expect(first_thread_quote(page, serve.page_dir)).to_have_attribute(
+        "data-lf-detached", ""
     )
     assert painted(page, "lf-mark") == "", (
         "the quote matched inside a slot the logged decision retired: nothing wrote "
@@ -809,8 +809,8 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
     page = open_page(browser, url)
     assert page.locator("#th-cache").get_attribute("data-lf-state") is None
     expect(page.locator("#th-cache lf-proposed")).to_be_visible()
-    expect(first_thread_quote(page, serve.page_dir)).not_to_have_class(
-        re.compile(r"\bdetached\b")
+    expect(first_thread_quote(page, serve.page_dir)).not_to_have_attribute(
+        "data-lf-detached", ""
     )
     assert painted(page, "lf-mark") != "", (
         "the displaced decision's slot is back on the page, so its quote must "

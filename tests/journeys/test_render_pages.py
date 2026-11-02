@@ -393,7 +393,9 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                 if event["kind"] == "reply" and event["author"] == "agent"
             )
             open_panel_thread(page, thread_of(answered))
-            expect(page.locator(f"{PANEL_THREAD} .lf-msg.agent")).not_to_have_count(0)
+            expect(
+                page.locator(f"{PANEL_THREAD} .lf-msg[data-lf-author=agent]")
+            ).not_to_have_count(0)
 
         # The other thing a log carries. A widget can arrive as a message's markup
         # rather than as authored page content, and it draws in the body the panel

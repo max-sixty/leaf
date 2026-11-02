@@ -257,7 +257,7 @@ def test_work_status_is_a_generated_browser_passage(browser, serve, owner):
     ):
         quote = open_panel_thread(page, comment["id"]).locator(".lf-quote")
         expect(quote).to_have_text(said)
-        assert ("detached" in quote.get_attribute("class").split()) is detached
+        assert (quote.get_attribute("data-lf-detached") is not None) is detached
     assert [
         event for event in read_events(serve.page_dir) if event["kind"] == "comment"
     ] == [blocked, active]

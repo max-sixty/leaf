@@ -26,6 +26,7 @@
    A control is made when its heading first shows it and released when the heading
    leaves, so a long page pays nothing for the headings nobody reaches. */
 import { leadingTitle } from "./addressable-names.js";
+import { fragmentUrl } from "./anchor-coordinate.js";
 import { isAddressable } from "./anchor-resolution.js";
 import { watchOwner } from "./arrivals.js";
 import {
@@ -87,10 +88,6 @@ function headingOn(node) {
     : null;
 }
 
-/** @param {Element} address */
-const linkUrl = (address) =>
-  new URL(`#${encodeURIComponent(address.id)}`, location.href).href;
-
 /** @param {Element} heading @returns {HeadingLink} */
 function makeLink(heading) {
   const control = copyControl("lf-heading-link", {
@@ -115,7 +112,7 @@ function makeLink(heading) {
     (event) => {
       const address = headingAddress(heading);
       if (address && !pressedElsewhere(event, control)) {
-        control.value = linkUrl(address);
+        control.value = fragmentUrl(address);
         return;
       }
       event.preventDefault();

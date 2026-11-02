@@ -1,5 +1,5 @@
 import { J, LAYOUT, LENT_REACH_STOP, PAGE_PAINT_ATTRIBUTE, PRESSES, TEXT_BOX, WORKS, Z, afterScript, atScrollEnd, clamp, clippedContents, closestAcross, deepFocus, elementFrame, eventSource, headerCuts, inChrome, inUi, inlineStyle, installScrollerLookup, isElement, isHTML, isText, keeps, landingBand, layoutChanged, layoutPx, layoutWindow, move, nativeLayerHolding, nearObserver, nearWindow, nextFrame, nextRender, onCurrentLocation, overlaps, pagePresented, pageScroller, pressing, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, renderedParent, renderedUnder, renderingState, revealRegisteredVisualPart, revealsVisualParts, scrollContainer, scrollToEnd, scrollersOf, scrollsBy, scrollsContent, shadowHost, shellRight, shownParts, shownRect, sizeObserver, skipped, tabStops, tick, uiInside, under, union, upFrom, userScrollport, visualPartAdmission, watchArrivals, watchScrolls, wearsLentStop, whileConnected } from "./bundle-portable.js";
-import { PRESSABLE, TEXT_BLOCK, anchorKey, applicationPresented, documentChanged, fragmentId, hostIn, isElementName, marks, registry, repaintPage, shadowRootsIn, tagsDeclaring } from "./bundle-errors.js";
+import { PRESSABLE, TEXT_BLOCK, anchorKey, applicationPresented, documentChanged, fragmentId, fragmentKey, hostIn, isElementName, marks, registry, repaintPage, shadowRootsIn, tagsDeclaring } from "./bundle-errors.js";
 import { removeRuntimeRootStyle, reportPageError, setRuntimeRootAttribute, setRuntimeRootStyle } from "./bundle-layer-client.js";
 import { DATUM, authoredScope, blockAt, contextAround, cut, elementById, elementReading, excerptWords, fileModelsPassage, findQuote, layoutBox, leafSurface, neighbourhood, pageDocument, pageQueryAll, pageText, quoteFrom, rangeOf, readingFrom, segmentsIn, settledAway, spanIn, textNodesUnder } from "./bundle-passages.js";
 
@@ -1365,7 +1365,28 @@ function resolveAnchor(anchor) {
 		segments
 	});
 }
-const fragmentTarget = (fragment) => fragment ? targetElement(resolveAnchor({ section: fragmentId(fragment) })) : null;
+const pageElement = (id) => targetElement(resolveAnchor({ section: id }));
+function fragmentAddress(fragment) {
+	if (!fragment) return null;
+	const named = pageElement(fragmentId(fragment));
+	if (named) return {
+		element: named,
+		key: null,
+		place: named
+	};
+	const keyed = fragmentKey(fragment);
+	const element = keyed && pageElement(keyed.id);
+	if (!keyed || !element) return null;
+	return {
+		element,
+		key: keyed.key,
+		place: addressedElements(element, keyed.key)[0] ?? null
+	};
+}
+function fragmentTarget(fragment) {
+	const address = fragmentAddress(fragment);
+	return address ? address.place ?? address.element : null;
+}
 
 //#endregion
 //#region runtime/chrome.js
@@ -1552,66 +1573,56 @@ function anchorDropsTransforms() {
 	anchored.remove();
 	return dropsTransforms;
 }
-function laidOut(el) {
+const moves = (style) => style.transform !== "none" || style.translate !== "none" || style.rotate !== "none" || style.scale !== "none" || style.offsetPath !== "none";
+function laidOut(el, moved) {
+	if (!moved.has(el)) return el.getBoundingClientRect();
+	if (!isHTML(el) || el.currentCSSZoom !== 1) return null;
 	const parent = el.offsetParent;
 	let left = el.offsetLeft;
 	let top = el.offsetTop;
-	if (!parent) {
-		if (getComputedStyle(el).position !== "fixed") return null;
-		return {
-			left,
-			top
-		};
-	}
+	const box = () => new DOMRect(left, top, el.offsetWidth, el.offsetHeight);
+	if (!parent) return getComputedStyle(el).position === "fixed" ? box() : null;
 	if (parent === document.body && getComputedStyle(parent).position === "static") {
 		left -= scrollX;
 		top -= scrollY;
 	} else {
-		const from = parent.getBoundingClientRect();
+		const from = laidOut(parent, moved);
+		if (!from) return null;
 		left += from.left + parent.clientLeft - parent.scrollLeft;
 		top += from.top + parent.clientTop - parent.scrollTop;
 	}
-	for (let box = renderedParent(el); box !== parent; box = renderedParent(box)) {
-		if (!isElement(box)) return null;
-		left -= box.scrollLeft;
-		top -= box.scrollTop;
+	for (let at = renderedParent(el); at !== parent; at = renderedParent(at)) {
+		if (!isElement(at)) return null;
+		left -= at.scrollLeft;
+		top -= at.scrollTop;
 	}
-	return {
-		left,
-		top
-	};
+	return box();
 }
-function movement(style) {
-	const matrix = style.transform === "none" ? null : new window.DOMMatrixReadOnly(style.transform);
-	return {
-		moves: Boolean(matrix) || style.translate !== "none" || style.rotate !== "none" || style.scale !== "none" || style.offsetPath !== "none",
-		slides: style.rotate === "none" && style.scale === "none" && (style.offsetPath === "none" || style.offsetRotate === "0deg") && (!matrix || matrix.is2D && matrix.a === 1 && matrix.b === 0 && matrix.c === 0 && matrix.d === 1)
-	};
-}
-function translationOf(el) {
-	let x = 0;
-	let y = 0;
-	let at = el;
-	for (; isElement(at); at = renderedParent(at)) {
-		const { moves, slides } = movement(getComputedStyle(at));
-		if (!moves) continue;
-		if (!slides || !isHTML(at) || at.currentCSSZoom !== 1) return null;
-		const layout = laidOut(at);
-		if (!layout) return null;
-		const shown = at.getBoundingClientRect();
-		x += shown.left - layout.left;
-		y += shown.top - layout.top;
-	}
-	return {
-		x,
-		y
-	};
+function scrollMisplacesAnchors(box) {
+	if (!isHTML(box) || !box.offsetWidth) return false;
+	const laid = box.offsetWidth * (box.currentCSSZoom ?? 1);
+	return Math.abs(box.getBoundingClientRect().width - laid) > 1;
 }
 function anchorBox(anchor) {
 	const box = anchor.getBoundingClientRect();
 	if (!anchorDropsTransforms()) return box;
-	const shift = translationOf(anchorHolder(anchor));
-	return shift && (shift.x || shift.y) ? new DOMRect(box.left - shift.x, box.top - shift.y, box.width, box.height) : box;
+	const around = [];
+	let under = 0;
+	let at = anchorHolder(anchor);
+	for (; isElement(at); at = renderedParent(at)) {
+		around.push(at);
+		if (moves(getComputedStyle(at))) under = around.length;
+	}
+	if (!under) return box;
+	const html = around.find((el) => isHTML(el));
+	const laid = html && laidOut(html, new Set(around.slice(0, under)));
+	if (!laid) return box;
+	if (html === anchor) return laid;
+	const shown = html.getBoundingClientRect();
+	const ratio = (to, from) => to && from ? to / from : 1;
+	const x = ratio(laid.width, shown.width);
+	const y = ratio(laid.height, shown.height);
+	return new DOMRect(laid.left + (box.left - shown.left) * x, laid.top + (box.top - shown.top) * y, box.width * x, box.height * y);
 }
 function anchorAt(node, anchor, box, at = anchor && anchorBox(anchor), visibility = "always") {
 	const from = (side, length) => anchor ? `calc(anchor(${side}, -9999px) + ${layoutPx(length)})` : layoutPx(length);
@@ -2157,4 +2168,4 @@ const readDocumentHeaders = () => {
 };
 
 //#endregion
-export { ADDRESSABLE, PAGE_CONTROL_RANK, PAGE_INTERFACE, PRESENTATION, UPGRADE, activityTransitionDue, addressableLabel, addressableName, addressableSays, addressableWord, addressedElements, afterPresentation, ago, aimTargetAt, aimTargets, anchorAt, anchorBox, anchorElement, anchorFor, anchorForPassage, anchorForRange, anchorName, anchorReaches, anchorReading, anchorView, anchoringIsReady, annotationAt, boundedBlockOf, carriedAnchor, chromeForeground, chromeRoot, claimReachStop, clockValue, commitPoint, compoundReadingRegionId, containingReadingRegionFor, cutFrames, datumAimTarget, datumLabel, declaredName, deferredArrival, designPressAt, effectiveScroller, exactTarget, followingItsEnd, fragmentTarget, headerLevels, holdArrivingBounds, isAddressable, leadingTitle, lightSeat, livePoint, markPagePresented, markPageUpgraded, markStateApplied, nameAnchor, nameable, observeServerNow, observeWorkingGrace, onReadingInput, openDocumentLayout, pageControls, pageControlsChanged, pageReadiness, pageReadingRegion, passageBoxes, passageGeometry, placePoints, pointBand, pointInto, preserveReadingRegions, projectedDatum, proseRect, quietSince, railStands, rangeGeometry, reachScrollers, readingRegion, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, registerReadingRegion, releaseReachStop, resolveAnchor, resolvedInMessage, revealAddressed, saidNow, scheduleDocumentLayout, scrollChainOf, scrollerFor, scrollsWith, sectionLabel, sectionOf, setAnchoringReady, settleDocumentLayout, settlePageInterface, shortAgo, showReadingSubject, shownRegionBounds, targetElement, targetParts, targetPlace, targetRange, targetSegments, targetSurface, tickClock, unclaimedVisualGesture, unconcealedReadingRegions, userReadingRegion, visualAt, visualPartLabel, visualParts, visualSelector, watchReadingRegionTransitions, whenArrived, whileInterfaceConnected, widgetWord, windowHoldsRail };
+export { ADDRESSABLE, PAGE_CONTROL_RANK, PAGE_INTERFACE, PRESENTATION, UPGRADE, activityTransitionDue, addressableLabel, addressableName, addressableSays, addressableWord, addressedElements, afterPresentation, ago, aimTargetAt, aimTargets, anchorAt, anchorBox, anchorElement, anchorFor, anchorForPassage, anchorForRange, anchorName, anchorReaches, anchorReading, anchorView, anchoringIsReady, annotationAt, boundedBlockOf, carriedAnchor, chromeForeground, chromeRoot, claimReachStop, clockValue, commitPoint, compoundReadingRegionId, containingReadingRegionFor, cutFrames, datumAimTarget, datumLabel, declaredName, deferredArrival, designPressAt, effectiveScroller, exactTarget, followingItsEnd, fragmentAddress, fragmentTarget, headerLevels, holdArrivingBounds, isAddressable, leadingTitle, lightSeat, livePoint, markPagePresented, markPageUpgraded, markStateApplied, nameAnchor, nameable, observeServerNow, observeWorkingGrace, onReadingInput, openDocumentLayout, pageControls, pageControlsChanged, pageReadiness, pageReadingRegion, passageBoxes, passageGeometry, placePoints, pointBand, pointInto, preserveReadingRegions, projectedDatum, proseRect, quietSince, railStands, rangeGeometry, reachScrollers, readingRegion, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, registerReadingRegion, releaseReachStop, resolveAnchor, resolvedInMessage, revealAddressed, saidNow, scheduleDocumentLayout, scrollChainOf, scrollMisplacesAnchors, scrollerFor, scrollsWith, sectionLabel, sectionOf, setAnchoringReady, settleDocumentLayout, settlePageInterface, shortAgo, showReadingSubject, shownRegionBounds, targetElement, targetParts, targetPlace, targetRange, targetSegments, targetSurface, tickClock, unclaimedVisualGesture, unconcealedReadingRegions, userReadingRegion, visualAt, visualPartLabel, visualParts, visualSelector, watchReadingRegionTransitions, whenArrived, whileInterfaceConnected, widgetWord, windowHoldsRail };

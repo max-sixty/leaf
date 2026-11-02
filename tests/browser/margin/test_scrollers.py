@@ -720,13 +720,26 @@ def test_a_row_for_a_slide_the_reader_cannot_see_is_withheld(browser, serve):
         expect(row[hidden]).to_have_class(withheld)
         expect(row[hidden]).to_be_hidden()
 
-    page.evaluate("""() => {
-      document.getElementById('slide-one').className = 'past';
-      document.getElementById('slide-two').className = 'present';
+    # Read two frames after the transitions end, not polled: some unrelated pass would
+    # place the rows eventually, which is the bug.
+    swapped = page.evaluate("""async () => {
+      const one = document.getElementById('slide-one');
+      const two = document.getElementById('slide-two');
+      const ended = (slide, property) => new Promise((resolve) =>
+        slide.addEventListener('transitionend', (event) => {
+          if (event.target === slide && event.propertyName === property) resolve();
+        }));
+      const both = Promise.all([ended(one, 'transform'), ended(two, 'opacity')]);
+      one.className = 'past';
+      two.className = 'present';
+      await both;
+      for (const _ of [1, 2]) await new Promise(requestAnimationFrame);
+      const held = (id) => document
+        .querySelector(`[data-lf-margin-for="${id}"]`).classList.contains('lf-withheld');
+      return {one: held('slide-one'), two: held('slide-two')};
     }""")
-    expect(row["slide-two"]).not_to_have_class(withheld)
+    assert swapped == {"one": True, "two": False}, swapped
     expect(row["slide-two"]).to_be_visible()
-    expect(row["slide-one"]).to_have_class(withheld)
 
     page.get_by_text("Notes", exact=True).click()
     expect(row["note"]).not_to_have_class(withheld)

@@ -1143,9 +1143,10 @@ function fieldEditor(
   });
 
   // Return in a field that reads as a file begins a line the body shows too, carrying
-  // the markers of the containers the caret's line stands in. Among a paragraph's words it
-  // writes a hard break, whose backslash the preview hides, in place of the spaces, and
-  // any joint, the selection touches, and at a hard break it begins the line after it.
+  // the markers of the containers the caret's line stands in. Among a paragraph's words
+  // it writes a hard break, whose backslash the preview hides, in place of the spaces,
+  // and any joint, the selection touches, and at a hard break it begins the line after
+  // it.
   // After a paragraph's last words, where a hard break would end its block and show its
   // backslash, it begins a new paragraph, and in a list item the next item
   // (`continueBlocks`). With none of a paragraph's words before the caret, in a

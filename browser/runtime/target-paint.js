@@ -14,6 +14,7 @@ import { move } from "./dom-move.js";
 import { inChrome } from "./passages.js";
 import { shownParts } from "./geometry.js";
 import { nativeLayerHolding } from "./shadow-tree.js";
+import { locationStandsDown } from "./page-paint.js";
 import {
   SVG_NS,
   paintGeometry,
@@ -248,7 +249,7 @@ export function geometryChanged() {
 // on it is, so it stands where the decision says (`standOver`), inside it where a clip
 // leaves no room outside, and above the decision's contents, which covered a ring drawn
 // inside it as an outline. A control inside the decision that carries the location
-// itself stands it down (`locationStandsDown`).
+// itself stands it down (page-paint.js, `locationStandsDown`).
 //
 // The ring is also the focus ring of a decision the user arrived on, so each box it is
 // drawn round wears `lf-projected-location`, and the focus floor draws none of its own
@@ -260,12 +261,6 @@ export function paintLocation(element) {
   locationElement = element;
   drawLocation();
 }
-
-// Whether a control inside the decision `element` carries the location, which it says
-// on the decision with `--lf-obligation-ring: none`.
-/** @param {Element} element */
-export const locationStandsDown = (element) =>
-  getComputedStyle(element).getPropertyValue("--lf-obligation-ring").trim() === "none";
 
 // Whether the location's stand paints over `element`: over the document from any layer,
 // and over a native layer only from inside it.

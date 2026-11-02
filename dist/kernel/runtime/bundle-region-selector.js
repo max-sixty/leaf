@@ -1,4 +1,5 @@
-import { clamp, closeLayer, describeFailure, el, focusDestination, focused, handBack, keeps, keepsHidden, keepsText, layoutWindow, nextRender, notice, paintKeys, raiseError, runtime } from "./bundle-portable.js";
+import { clamp, closeLayer, describeFailure, focusDestination, focused, handBack, keeps, keepsHidden, keepsText, layoutWindow, nextRender } from "./bundle-portable.js";
+import { el, notice, paintKeys, raiseError, runtime } from "./bundle-errors.js";
 import { pageImage } from "./bundle-page-image.js";
 
 //#region runtime/composing/region-selector.js

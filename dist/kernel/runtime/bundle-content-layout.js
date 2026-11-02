@@ -1,4 +1,7 @@
-import { DATUM, J, LAYOUT, LENT_REACH_STOP, PAGE_PAINT_ATTRIBUTE, PRESSABLE, PRESSES, TEXT_BLOCK, TEXT_BOX, WORKS, Z, afterScript, anchorKey, applicationPresented, atScrollEnd, authoredScope, blockAt, clamp, clippedContents, closestAcross, contextAround, cut, deepFocus, documentChanged, elementById, elementFrame, elementReading, eventSource, excerptWords, fileModelsPassage, findQuote, fragmentId, inChrome, inUi, installScrollerLookup, isElement, isElementName, isText, keeps, landingBand, layoutBox, layoutChanged, leafSurface, marks, neighbourhood, nextFrame, nextRender, onCurrentLocation, overlaps, pageDocument, pagePresented, pageQueryAll, pageScroller, pageText, pressing, quoteFrom, rangeOf, readingFrom, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, registry, removeRuntimeRootStyle, renderedParent, renderedUnder, renderingState, repaintPage, reportPageError, revealRegisteredVisualPart, revealsVisualParts, scrollToEnd, scrollersOf, scrollsBy, segmentsIn, setRuntimeRootAttribute, setRuntimeRootStyle, settledAway, shadowHost, shadowRootsIn, shellRight, shownParts, shownRect, sizeObserver, skipped, spanIn, tabStops, tagsDeclaring, textNodesUnder, tick, uiInside, under, union, upFrom, userScrollport, visualPartAdmission, watchArrivals, watchScrolls, wearsLentStop, whileConnected } from "./bundle-portable.js";
+import { J, LAYOUT, LENT_REACH_STOP, PAGE_PAINT_ATTRIBUTE, PRESSES, TEXT_BOX, WORKS, Z, afterScript, atScrollEnd, clamp, clippedContents, closestAcross, deepFocus, elementFrame, eventSource, headerCuts, inChrome, inUi, inlineStyle, installScrollerLookup, isElement, isHTML, isText, keeps, landingBand, layoutChanged, layoutPx, move, nativeLayerHolding, nearObserver, nearWindow, nextFrame, nextRender, onCurrentLocation, overlaps, pagePresented, pageScroller, pressing, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, renderedParent, renderedUnder, renderingState, revealRegisteredVisualPart, revealsVisualParts, scrollContainer, scrollToEnd, scrollersOf, scrollsBy, scrollsContent, shadowHost, shellRight, shownParts, shownRect, sizeObserver, skipped, tabStops, tick, uiInside, under, union, upFrom, userScrollport, visualPartAdmission, watchArrivals, watchScrolls, wearsLentStop, whileConnected } from "./bundle-portable.js";
+import { PRESSABLE, TEXT_BLOCK, anchorKey, applicationPresented, documentChanged, fragmentId, hostIn, isElementName, marks, registry, repaintPage, shadowRootsIn, tagsDeclaring } from "./bundle-errors.js";
+import { removeRuntimeRootStyle, reportPageError, setRuntimeRootAttribute, setRuntimeRootStyle } from "./bundle-layer-client.js";
+import { DATUM, authoredScope, blockAt, contextAround, cut, elementById, elementReading, excerptWords, fileModelsPassage, findQuote, layoutBox, leafSurface, neighbourhood, pageDocument, pageQueryAll, pageText, quoteFrom, rangeOf, readingFrom, segmentsIn, settledAway, spanIn, textNodesUnder } from "./bundle-passages.js";
 
 //#region runtime/presence.js
 let clockSkew = 0;
@@ -1365,6 +1368,410 @@ function resolveAnchor(anchor) {
 const fragmentTarget = (fragment) => fragment ? targetElement(resolveAnchor({ section: fragmentId(fragment) })) : null;
 
 //#endregion
+//#region runtime/chrome.js
+const chromeRoot = document.createElement("div");
+chromeRoot.className = "lf-chrome";
+const chromeForeground = document.createElement("dialog");
+chromeForeground.className = "lf-ui lf-foreground";
+chromeForeground.setAttribute("open", "");
+chromeForeground.setAttribute("role", "presentation");
+
+//#endregion
+//#region runtime/css-anchors.js
+const anchorNames = /* @__PURE__ */ new WeakMap();
+let anchorOrdinal = 0;
+const nextName = () => `--lf-a${++anchorOrdinal}`;
+const partOf = (name) => name.slice(2);
+const partNamed = (el) => {
+	const name = anchorNames.get(el);
+	return name !== void 0 && el.part.contains(partOf(name));
+};
+let partRules = null;
+const declared = /* @__PURE__ */ new Set();
+const given = /* @__PURE__ */ new WeakMap();
+const watchedTrees = /* @__PURE__ */ new WeakSet();
+const restoreParts = (el) => {
+	if (!isElement(el)) return;
+	for (const part of given.get(el) ?? []) if (!el.part.contains(part)) el.part.add(part);
+};
+function keepParts(root) {
+	if (watchedTrees.has(root)) return;
+	watchedTrees.add(root);
+	new MutationObserver((records) => {
+		for (const { target } of records) restoreParts(target);
+	}).observe(root, {
+		subtree: true,
+		attributes: true,
+		attributeFilter: ["part"]
+	});
+}
+function namePart(el, name, pseudo = "") {
+	if (!partRules) {
+		partRules = new CSSStyleSheet();
+		document.adoptedStyleSheets = [...document.adoptedStyleSheets, partRules];
+	}
+	if (!declared.has(name)) {
+		const content = pseudo ? "content: \"\";" : "";
+		partRules.insertRule(`::part(${partOf(name)})${pseudo} { ${content} anchor-name: ${name}; }`, partRules.cssRules.length);
+		declared.add(name);
+	}
+	given.set(el, /* @__PURE__ */ new Set([...given.get(el) ?? [], partOf(name)]));
+	keepParts(el.getRootNode());
+	restoreParts(el);
+}
+function anchorReading(el, name) {
+	if (!isElement(el)) return { name: el.name };
+	name ??= anchorNames.get(el) ?? nextName();
+	anchorNames.set(el, name);
+	if (el.getRootNode() !== document) return partNamed(el) ? {
+		el,
+		name
+	} : {
+		el,
+		name,
+		write: name,
+		part: true
+	};
+	const written = inlineStyle(el).anchorName;
+	if (written.split(",").some((part) => part.trim() === name)) return {
+		el,
+		name
+	};
+	const authored = written || getComputedStyle(el).anchorName;
+	return {
+		el,
+		name,
+		write: !authored || authored === "none" ? name : `${authored}, ${name}`
+	};
+}
+function nameAnchor({ el, name, write, part }) {
+	if (write && part) {
+		if (!partNamed(el)) namePart(el, name);
+	} else if (write) inlineStyle(el).anchorName = write;
+	return name;
+}
+function nameable(el) {
+	const root = el.getRootNode();
+	if (root === document) return true;
+	if (shadowHost(root)?.getRootNode() !== document) return false;
+	if (anchorNames.has(el) && partNamed(el)) return true;
+	const authored = getComputedStyle(el).anchorName;
+	return !authored || authored === "none";
+}
+function outsideScopes(target) {
+	let el = target;
+	let at = target;
+	for (; isElement(at); at = renderedParent(at)) if (at.getRootNode() === document && !at.contains(chromeRoot) && getComputedStyle(at).anchorScope === "all") el = renderedParent(at) ?? at;
+	return el;
+}
+function anchorElement(target) {
+	let el = outsideScopes(target);
+	for (let host; !nameable(el) && (host = shadowHost(el.getRootNode()));) el = host;
+	while (el instanceof SVGElement && el.ownerSVGElement) el = el.ownerSVGElement;
+	if (el !== target) return el;
+	const [part] = shownParts(target);
+	return part && part !== target ? part : target;
+}
+function anchorReaches(anchor, box) {
+	const holder = anchorHolder(anchor);
+	const host = hostIn(holder, document);
+	if (!host) return false;
+	const layer = nativeLayerHolding(holder);
+	if (layer !== nativeLayerHolding(box)) return !layer;
+	const order = host.compareDocumentPosition(box);
+	return Boolean(order & Node.DOCUMENT_POSITION_FOLLOWING) && !(order & Node.DOCUMENT_POSITION_CONTAINED_BY);
+}
+function scrollsWith(node, box) {
+	let at = node;
+	for (; at !== box; at = renderedParent(at)) {
+		if (!at) return false;
+		if (isElement(at) && (!/^(static|relative)$/.test(getComputedStyle(at).position) || at !== node && scrollsContent(at))) return false;
+	}
+	return true;
+}
+function carriedAnchor(scroller, near = null) {
+	if (anchorElement(scroller) !== scroller || nativeLayerHolding(scroller)) return null;
+	const carried = (node) => isElement(node) && !/^(br|wbr)$/.test(node.localName) && anchorElement(node) === node && node.getClientRects().length > 0 && /^(static|relative)$/.test(getComputedStyle(node).position);
+	if (!near) {
+		for (const child of scroller.children) if (carried(child)) return child;
+		return contentStart(scroller);
+	}
+	for (let before = near.previousSibling, after = near.nextSibling; before || after; before = before?.previousSibling ?? null, after = after?.nextSibling ?? null) for (const node of [before, after]) if (carried(node)) return node;
+	return contentStart(scroller);
+}
+function anchorFor(context) {
+	const physical = isElement(context) ? context : context?.parentElement;
+	if (!physical) return null;
+	const anchor = anchorElement(physical);
+	if (context === physical || anchor !== physical || !scrollContainer(physical)) return anchor;
+	return carriedAnchor(physical, context) ?? anchor;
+}
+const starts = /* @__PURE__ */ new WeakMap();
+const START = "data-lf-content-start";
+function contentStart(scroller) {
+	if (!scroller.firstChild || [...scroller.childNodes].some((node) => node.nodeType !== Node.TEXT_NODE && !(isElement(node) && /^(br|wbr)$/.test(node.localName)))) return null;
+	let handle = starts.get(scroller);
+	if (!handle) {
+		if (!CSS.supports("anchor-name", "attr(data-lf-content-start type(<custom-ident>))") || !/^(block|inline-block|flow-root|list-item)$/.test(getComputedStyle(scroller).display) || !/^(none|normal)$/.test(getComputedStyle(scroller, "::before").content) || getComputedStyle(scroller, "::first-letter").float !== "none") return null;
+		handle = {
+			scroller,
+			name: nextName(),
+			getBoundingClientRect() {
+				const range = document.createRange();
+				for (const lead of scroller.childNodes) {
+					if (isText(lead)) {
+						range.setStart(lead, 0);
+						range.setEnd(lead, Math.min(1, lead.length));
+					} else range.selectNode(lead);
+					const [rect] = range.getClientRects();
+					if (rect) return rect;
+				}
+				return range.getBoundingClientRect();
+			}
+		};
+		starts.set(scroller, handle);
+	}
+	const { name } = handle;
+	if (scroller.getRootNode() === document) keeps(scroller, START, name);
+	else namePart(scroller, name, "::before");
+	return handle;
+}
+const anchorHolder = (anchor) => isElement(anchor) ? anchor : anchor.scroller;
+const anchorName = (el) => nameAnchor(anchorReading(el));
+let dropsTransforms;
+function anchorDropsTransforms() {
+	if (dropsTransforms !== void 0) return dropsTransforms;
+	const moved = document.createElement("div");
+	const anchored = document.createElement("div");
+	moved.style.cssText = "position: fixed; left: 0; top: 0; translate: 8px 0; anchor-name: --lf-moved";
+	anchored.style.cssText = "position: fixed; top: 0; position-anchor: --lf-moved; left: anchor(left, 8px)";
+	chromeRoot.append(moved, anchored);
+	dropsTransforms = anchored.getBoundingClientRect().left < 4;
+	moved.remove();
+	anchored.remove();
+	return dropsTransforms;
+}
+function laidOut(el) {
+	const parent = el.offsetParent;
+	let left = el.offsetLeft;
+	let top = el.offsetTop;
+	if (!parent) {
+		if (getComputedStyle(el).position !== "fixed") return null;
+		return {
+			left,
+			top
+		};
+	}
+	if (parent === document.body && getComputedStyle(parent).position === "static") {
+		left -= scrollX;
+		top -= scrollY;
+	} else {
+		const from = parent.getBoundingClientRect();
+		left += from.left + parent.clientLeft - parent.scrollLeft;
+		top += from.top + parent.clientTop - parent.scrollTop;
+	}
+	for (let box = renderedParent(el); box !== parent; box = renderedParent(box)) {
+		if (!isElement(box)) return null;
+		left -= box.scrollLeft;
+		top -= box.scrollTop;
+	}
+	return {
+		left,
+		top
+	};
+}
+function movement(style) {
+	const matrix = style.transform === "none" ? null : new window.DOMMatrixReadOnly(style.transform);
+	return {
+		moves: Boolean(matrix) || style.translate !== "none" || style.rotate !== "none" || style.scale !== "none" || style.offsetPath !== "none",
+		slides: style.rotate === "none" && style.scale === "none" && (style.offsetPath === "none" || style.offsetRotate === "0deg") && (!matrix || matrix.is2D && matrix.a === 1 && matrix.b === 0 && matrix.c === 0 && matrix.d === 1)
+	};
+}
+function translationOf(el) {
+	let x = 0;
+	let y = 0;
+	let at = el;
+	for (; isElement(at); at = renderedParent(at)) {
+		const { moves, slides } = movement(getComputedStyle(at));
+		if (!moves) continue;
+		if (!slides || !isHTML(at) || at.currentCSSZoom !== 1) return null;
+		const layout = laidOut(at);
+		if (!layout) return null;
+		const shown = at.getBoundingClientRect();
+		x += shown.left - layout.left;
+		y += shown.top - layout.top;
+	}
+	return {
+		x,
+		y
+	};
+}
+function anchorBox(anchor) {
+	const box = anchor.getBoundingClientRect();
+	if (!anchorDropsTransforms()) return box;
+	const shift = translationOf(anchorHolder(anchor));
+	return shift && (shift.x || shift.y) ? new DOMRect(box.left - shift.x, box.top - shift.y, box.width, box.height) : box;
+}
+function anchorAt(node, anchor, box, at = anchor && anchorBox(anchor), visibility = "always") {
+	const from = (side, length) => anchor ? `calc(anchor(${side}, -9999px) + ${layoutPx(length)})` : layoutPx(length);
+	Object.assign(node.style, {
+		position: "fixed",
+		positionAnchor: anchor ? anchorName(anchor) : "",
+		positionVisibility: anchor ? visibility : "",
+		left: from("left", box.left - (at?.left ?? 0)),
+		top: from("top", box.top - (at?.top ?? 0)),
+		...box.right === void 0 ? {} : {
+			width: layoutPx(box.right - box.left),
+			height: layoutPx(box.bottom - box.top)
+		}
+	});
+}
+const cutPath = ({ x, y }, band) => {
+	const open = 1e5;
+	const width = band.right - band.left;
+	const height = band.bottom - band.top;
+	const edge = (value, side) => `calc(${layoutPx(value)} - var(--lf-paint-outset-${side}, 0px))`;
+	return `inset(${edge(y ? 0 : -1e5, "top")} ${edge(-width - (x ? 0 : open), "right")} ${edge(-height - (y ? 0 : open), "bottom")} ${edge(x ? 0 : -1e5, "left")})`;
+};
+const nowhere = {
+	left: 0,
+	top: 0,
+	right: 0,
+	bottom: 0
+};
+function headerLevels(item, clips = /* @__PURE__ */ new Map()) {
+	return headerCuts(item, clips).map(({ box, band }) => {
+		const anchor = box === box.ownerDocument.scrollingElement ? null : anchorElement(box);
+		const cut = {
+			band: band ?? nowhere,
+			axes: {
+				x: false,
+				y: true
+			}
+		};
+		return anchor ? {
+			...cut,
+			anchor,
+			reading: anchorReading(anchor),
+			at: anchorBox(anchor)
+		} : {
+			...cut,
+			anchor: null,
+			reading: null,
+			at: null
+		};
+	});
+}
+function cutFrames(levels, frames, make) {
+	const remaining = [...frames];
+	const placed = levels.toReversed().map((level) => ({
+		level,
+		frame: remaining.pop() ?? make()
+	})).reverse();
+	const chain = placed.map(({ frame }) => frame);
+	const first = chain[0];
+	const was = frames[0];
+	if (first && was && first !== was && was.parentNode) move(was.parentNode, first, was);
+	let parent = null;
+	for (const frame of chain) {
+		if (parent && frame.parentNode !== parent) move(parent, frame, null);
+		parent = frame;
+	}
+	for (const dropped of remaining) dropped.remove();
+	for (const { level: { anchor, band, axes, at, reading }, frame } of placed) {
+		if (reading) nameAnchor(reading);
+		anchorAt(frame, anchor, {
+			left: band.left,
+			top: band.top,
+			right: band.left,
+			bottom: band.top
+		}, at);
+		frame.style.clipPath = cutPath(axes, band);
+	}
+	return placed;
+}
+const views = /* @__PURE__ */ new Map();
+const viewedNodes = /* @__PURE__ */ new WeakMap();
+let viewObserver;
+function refreshAnchorView(node) {
+	const binding = viewedNodes.get(node);
+	if (!binding) return;
+	if (!binding.view) {
+		resumeAnchorView(node);
+		return;
+	}
+	const view = binding.view;
+	const near = nearWindow(view.target);
+	if (view.near === near) return;
+	view.near = near;
+	for (const notify of view.nodes.values()) notify();
+}
+function releaseAnchorView(node) {
+	const binding = viewedNodes.get(node);
+	const view = binding?.view;
+	if (!view) return;
+	binding.view = null;
+	view.nodes.delete(node);
+	if (!view.nodes.size) {
+		view.observer.unobserve(view.target);
+		views.delete(view.target);
+	}
+}
+function resumeAnchorView(node) {
+	const binding = viewedNodes.get(node);
+	if (!binding || binding.view || !node.isConnected || !binding.target.isConnected) return;
+	anchorView(node, binding.target, binding.changed);
+	binding.changed();
+}
+function anchorView(node, target, changed) {
+	let view = viewedNodes.get(node)?.view;
+	if (view?.target === target) return view.near;
+	releaseAnchorView(node);
+	if (!target) return false;
+	if (!viewObserver) {
+		watchArrivals(".lf-anchor-view", ["class"], {
+			arrive: resumeAnchorView,
+			leave: releaseAnchorView
+		});
+		viewObserver = nearObserver((entries) => {
+			for (const entry of entries) {
+				const view = views.get(entry.target);
+				if (!view) continue;
+				const near = entry.isIntersecting && entry.target.checkVisibility();
+				const changed = view.near !== near;
+				view.near = near;
+				for (const [node, notify] of view.nodes) {
+					if (!node.isConnected || !entry.target.isConnected) {
+						releaseAnchorView(node);
+						continue;
+					}
+					if (changed) notify();
+				}
+			}
+		});
+	}
+	view = views.get(target);
+	if (!view) {
+		view = {
+			target,
+			near: nearWindow(target),
+			nodes: /* @__PURE__ */ new Map(),
+			observer: viewObserver
+		};
+		views.set(target, view);
+		viewObserver.observe(target);
+	}
+	view.nodes.set(node, changed);
+	viewedNodes.set(node, {
+		target,
+		changed,
+		view
+	});
+	if (!node.classList.contains("lf-anchor-view")) node.classList.add("lf-anchor-view");
+	return view.near;
+}
+
+//#endregion
 //#region runtime/pointed-place.js
 const points = /* @__PURE__ */ new Map();
 const handed = /* @__PURE__ */ new Map();
@@ -1748,4 +2155,4 @@ const readDocumentHeaders = () => {
 };
 
 //#endregion
-export { ADDRESSABLE, PAGE_CONTROL_RANK, PAGE_INTERFACE, PRESENTATION, UPGRADE, activityTransitionDue, addressableLabel, addressableName, addressableSays, addressableWord, addressedElements, afterPresentation, ago, aimTargetAt, aimTargets, anchorForPassage, anchorForRange, anchoringIsReady, annotationAt, boundedBlockOf, claimReachStop, clockValue, commitPoint, compoundReadingRegionId, containingReadingRegionFor, datumAimTarget, datumLabel, declaredName, deferredArrival, designPressAt, effectiveScroller, exactTarget, followingItsEnd, fragmentTarget, holdArrivingBounds, isAddressable, leadingTitle, lightSeat, livePoint, markPagePresented, markPageUpgraded, markStateApplied, observeServerNow, observeWorkingGrace, onReadingInput, openDocumentLayout, pageControls, pageControlsChanged, pageReadiness, pageReadingRegion, passageBoxes, passageGeometry, placePoints, pointBand, pointInto, preserveReadingRegions, projectedDatum, proseRect, quietSince, railStands, rangeGeometry, reachScrollers, readingRegion, readingRegionFor, readingRegions, recentReadingRegion, regionScrollBehavior, regionsSettled, registerPageControl, registerReadingRegion, releaseReachStop, resolveAnchor, resolvedInMessage, revealAddressed, saidNow, scheduleDocumentLayout, scrollChainOf, scrollerFor, sectionLabel, sectionOf, setAnchoringReady, settleDocumentLayout, settlePageInterface, shortAgo, showReadingSubject, shownRegionBounds, targetElement, targetParts, targetPlace, targetRange, targetSegments, targetSurface, tickClock, unclaimedVisualGesture, unconcealedReadingRegions, userReadingRegion, visualAt, visualPartLabel, visualParts, visualSelector, watchReadingRegionTransitions, whenArrived, whileInterfaceConnected, widgetWord };
+export { ADDRESSABLE, PAGE_CONTROL_RANK, PAGE_INTERFACE, PRESENTATION, UPGRADE, activityTransitionDue, addressableLabel, addressableName, addressableSays, addressableWord, addressedElements, afterPresentation, ago, aimTargetAt, aimTargets, anchorAt, anchorBox, anchorElement, anchorFor, anchorForPassage, anchorForRange, anchorName, anchorReaches, anchorReading, anchorView, anchoringIsReady, annotationAt, boundedBlockOf, carriedAnchor, chromeForeground, chromeRoot, claimReachStop, clockValue, commitPoint, compoundReadingRegionId, containingReadingRegionFor, cutFrames, datumAimTarget, datumLabel, declaredName, deferredArrival, designPressAt, effectiveScroller, exactTarget, followingItsEnd, fragmentTarget, headerLevels, holdArrivingBounds, isAddressable, leadingTitle, lightSeat, livePoint, markPagePresented, markPageUpgraded, markStateApplied, nameAnchor, nameable, observeServerNow, observeWorkingGrace, onReadingInput, openDocumentLayout, pageControls, pageControlsChanged, pageReadiness, pageReadingRegion, passageBoxes, passageGeometry, placePoints, pointBand, pointInto, preserveReadingRegions, projectedDatum, proseRect, quietSince, railStands, rangeGeometry, reachScrollers, readingRegion, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, registerReadingRegion, releaseReachStop, resolveAnchor, resolvedInMessage, revealAddressed, saidNow, scheduleDocumentLayout, scrollChainOf, scrollerFor, scrollsWith, sectionLabel, sectionOf, setAnchoringReady, settleDocumentLayout, settlePageInterface, shortAgo, showReadingSubject, shownRegionBounds, targetElement, targetParts, targetPlace, targetRange, targetSegments, targetSurface, tickClock, unclaimedVisualGesture, unconcealedReadingRegions, userReadingRegion, visualAt, visualPartLabel, visualParts, visualSelector, watchReadingRegionTransitions, whenArrived, whileInterfaceConnected, widgetWord };

@@ -1,4 +1,6 @@
-import { authoredRank, dataBody, elementById, elementDeclarations, elementReading, exhibits, isElementName, readPart, recordedWidgetSelector, runtime, stateSpecs } from "./bundle-portable.js";
+import { dataBody } from "./bundle-portable.js";
+import { authoredRank, elementDeclarations, exhibits, isElementName, readPart, recordedWidgetSelector, runtime, stateSpecs } from "./bundle-errors.js";
+import { elementById, elementReading } from "./bundle-passages.js";
 
 //#region runtime/projection/authored.js
 const authoredStates = readPart((root) => root.document.authored);

@@ -496,6 +496,30 @@
         translate: 50%;
       }
     }
+    /* A flow's box stands round what it holds: it grows into the room on each side as
+     * far as the blocks in it break out, so its focus ring and every mark drawn round
+     * it enclose them. Padding grows the box and an equal negative margin keeps the
+     * content box at the prose, so the blocks in it resolve their room as before. A
+     * table's reach is its room, since its columns set its width. */
+    :is(.layout-column, .layout-flow) > .layout-flow {
+      --lf-reach-start: 0px;
+      --lf-reach-end: 0px;
+      &:has(.layout-note) {
+        --lf-reach-end: min(var(--col) + var(--note) - 100%, var(--lf-free-end));
+      }
+      &:has([data-lf-space="wide"]) {
+        --lf-reach-end: min(var(--wide) - 100%, var(--lf-free-end));
+      }
+      &:has(:is([data-lf-space="available"], .layout-sidebar)) {
+        --lf-reach-start: var(--lf-free-start);
+        --lf-reach-end: var(--lf-free-end);
+      }
+      &:has(:is([data-lf-space], .layout-note, .layout-sidebar)) {
+        margin-inline: calc(-1 * max(0px, var(--lf-reach-start)))
+          calc(-1 * max(0px, var(--lf-reach-end)));
+        padding-inline: max(0px, var(--lf-reach-start)) max(0px, var(--lf-reach-end));
+      }
+    }
   }
   :is(.layout-column, .layout-flow) {
     /* A failed upgrade draws prose in place of its exhibit, and a page whose runtime

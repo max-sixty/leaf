@@ -1,5 +1,6 @@
 """How a margin row follows its target through scrolling panes, shadow-tree scrollers,
-sticky and fixed boxes, hidden tabs and authored anchor scopes."""
+sticky and fixed boxes, hidden tabs, content laid out but not shown, and authored anchor
+scopes."""
 
 import re
 
@@ -660,6 +661,76 @@ def test_a_row_behind_an_inactive_tab_is_withheld(browser, serve):
     margins_laid_out(page)
     expect(row).not_to_have_class(re.compile(r"\blf-withheld\b"))
     expect(row).to_be_visible()
+
+
+# A deck as reveal.js lays one out: every slide stays laid out for its transition,
+# stacked in a box that clips, the next one transparent below the current one and the
+# one before moved out of the box. reveal.js also sets `hidden` on the slides not shown,
+# which Leaf's own rule draws as `display: none`; this deck's script uses classes alone.
+DECK_PAGE = leaf_page(
+    "a deck that keeps its other slides laid out",
+    """
+<header>
+  <h1>Deck</h1>
+  <details id="notes"><summary>Notes</summary><p id="note">A note for the speaker.</p></details>
+</header>
+<div id="deck">
+  <section id="slide-one" class="present"><h2>First</h2><p>The slide showing now.</p></section>
+  <section id="slide-two" class="future"><h2>Second</h2><p>Below it, transparent.</p></section>
+  <section id="slide-three" class="past"><h2>Third</h2><p>Above the deck's box.</p></section>
+</div>
+""",
+    head="""<style>
+  #deck { position: relative; overflow: hidden; height: 360px; }
+  #deck > section { position: absolute; top: 40px; width: 100%;
+                    transition: opacity 0.2s, transform 0.2s; }
+  #deck > .future { opacity: 0; transform: translateY(150%); }
+  #deck > .past { transform: translateY(-400px); }
+</style>""",
+    layout="workspace",
+)
+
+
+def test_a_row_for_a_slide_the_reader_cannot_see_is_withheld(browser, serve):
+    """A slide a deck keeps laid out, transparent or moved out of the box that clips it,
+    shows the reader nothing, so its comment's row is withheld as a closed disclosure's
+    is. When the deck shows it, by a transition that changes no box and no attribute of
+    the slide's own after it starts, its row stands without a reload, and the row of the
+    slide it replaced is withheld."""
+    page = open_page(
+        browser,
+        serve(
+            DECK_PAGE,
+            events=[
+                _comment_on(slide)
+                for slide in ("slide-one", "slide-two", "slide-three")
+            ]
+            + [_comment_on("note")],
+        ),
+    )
+    resized(page, 1280, 800)
+    margins_laid_out(page)
+    row = {
+        target: page.locator(f'.lf-margin-cluster[data-lf-margin-for="{target}"]')
+        for target in ("slide-one", "slide-two", "slide-three", "note")
+    }
+    withheld = re.compile(r"\blf-withheld\b")
+    expect(row["slide-one"]).to_be_visible()
+    for hidden in ("slide-two", "slide-three", "note"):
+        expect(row[hidden]).to_have_class(withheld)
+        expect(row[hidden]).to_be_hidden()
+
+    page.evaluate("""() => {
+      document.getElementById('slide-one').className = 'past';
+      document.getElementById('slide-two').className = 'present';
+    }""")
+    expect(row["slide-two"]).not_to_have_class(withheld)
+    expect(row["slide-two"]).to_be_visible()
+    expect(row["slide-one"]).to_have_class(withheld)
+
+    page.get_by_text("Notes", exact=True).click()
+    expect(row["note"]).not_to_have_class(withheld)
+    expect(row["note"]).to_be_visible()
 
 
 STRIP_FILL = "".join(

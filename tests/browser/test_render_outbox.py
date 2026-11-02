@@ -17,6 +17,7 @@ from render_cases_interaction import (
     HOLD_MOTION,
     SUGGESTION_PAGE,
     live_url,
+    panel_comment,
 )
 from render_cases_layout import (
     unfolded_button,
@@ -419,6 +420,30 @@ def test_z_shows_an_old_resolve_out_of_view_before_taking_it(browser, serve):
         page.keyboard.press("z")
     assert _undos(serve.page_dir) == [resolve]
     expect(page.locator(".lf-live")).to_have_text("Undid: resolved “Feeder” · 21d ago")
+
+
+def test_a_key_between_ends_what_the_shown_gesture_promised(browser, serve):
+    """The press that showed an old Resolve promises the next `z` that Resolve, even
+    over a newer gesture, but only while the user stays on it. Once another key comes
+    between, the next press starts again from the newest gesture, here another tab's
+    Resolve, and leaves the shown one alone, though it is still in view."""
+    url, thread, _resolve = _old_resolve_below_the_fold(serve)
+    page = open_page(browser, url)
+    undo_offered(page)
+    page.keyboard.press("z")
+    expect(page.locator(".lf-live")).to_have_text(ARMED)
+    _shown(page, thread)
+    newer = panel_comment(serve.page_dir, "Who signs off the rollout?")
+    append_carried_log_record(
+        serve.page_dir, {"kind": "resolve", "author": "user", "parent": newer}
+    )
+    told(page)
+    page.keyboard.press("ArrowRight")
+    _shown(page, thread)
+    page.keyboard.press("z")
+    expect(page.locator(".lf-live")).to_contain_text("Who signs off the rollout?")
+    told(page)
+    assert _undos(serve.page_dir) == []
 
 
 def test_a_quick_second_z_waits_for_the_first_to_show_its_gesture(browser, serve):

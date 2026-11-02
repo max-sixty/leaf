@@ -4249,7 +4249,7 @@ def _draft_in_view(page, words, field=None):
     return (
         field.is_visible()
         and field.evaluate("el => el.value") == words
-        and field.evaluate("el => el.matches(':focus-within')")
+        and field.evaluate("el => el.matches(':focus')")
         and (box is not None)
         and (
             box["x"] >= 0

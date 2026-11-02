@@ -778,12 +778,14 @@ QUOTED_ON_OBLIGATION = {
 
 def test_a_focused_thread_covers_the_pages_choice_hints(browser, serve):
     """A fallback chip for a covered option stays behind the focused discussion. At
-    1000x838 the window has room for the rail but the card none beside its ask, and it
-    stands over the ask's options."""
+    1100x900 the window has room for the rail but the card none beside its ask, and it
+    stands over the ask's options, below its marker in the Mac's faces and in Linux
+    CI's wider DejaVu alike: at 1000x838, DejaVu left the card no room below, and it
+    stood above the options."""
     page = open_page(
         browser, serve(ROOT / "tests/fixtures/pages/thread-choice-hints.html")
     )
-    resized(page, 1000, 838)
+    resized(page, 1100, 900)
     page.locator(".lf-margin-marker").first.focus()
     page.keyboard.press("Enter")
     card = page.locator(".lf-margin-preview .lf-page-thread")

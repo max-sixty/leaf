@@ -478,8 +478,10 @@ export function createUndo({
     if (!settled()) return null;
     // A press after one that showed a gesture, or after a settlement's landing, takes
     // that gesture, as its "Press again to undo" or its notice's Undo promised, even
-    // where another tab's gesture has since become the newest.
-    const promised = armed && runtime.undo.find(({ event }) => armed?.is(event));
+    // where another tab's gesture has since become the newest. The promise lasts as
+    // long as the arm does: once an input has come between, the press starts again
+    // from the list's head.
+    const promised = runtime.undo.find(({ event }) => armedFor(event));
     if (promised) return walkTo(promised);
     const entry = headEntry();
     return entry ? walkTo(entry) : null;

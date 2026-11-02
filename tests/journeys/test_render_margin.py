@@ -554,7 +554,7 @@ def test_margin_card_holds_its_top_as_a_turn_arrives_and_as_a_reply_wraps(
                 animation.playState === 'running' &&
                 animation.effect.getComputedTiming().iterations !== Infinity)"""
     )
-    pressed = send.evaluate("button => button.getBoundingClientRect().top")
+    pressed = page.evaluate(CARD_AND_REPLY)
     with sending(page, "the reply"):
         send.click()
     expect(preview).to_contain_text("Sent")
@@ -566,9 +566,12 @@ def test_margin_card_holds_its_top_as_a_turn_arrives_and_as_a_reply_wraps(
     expect(preview).to_be_visible()
     sent = page.evaluate(CARD_AND_REPLY)
     # The sent turn may need more room above the reply row than the window has.
-    # Hold Send's position unless the window's head clamps the card.
-    expected_send = max(pressed, sent["head"] + sent["send"] - sent["cardTop"])
-    assert sent["send"] == pytest.approx(expected_send, abs=0.5), sent
+    # Hold the reply box Send stood in unless the window's head clamps the card. The
+    # box is empty now, so Dictate stands in Send's corner, in a box of its own size.
+    expected_reply = max(
+        pressed["editorTop"], sent["head"] + sent["editorTop"] - sent["cardTop"]
+    )
+    assert sent["editorTop"] == pytest.approx(expected_reply, abs=0.5), (pressed, sent)
     append_carried_log_record(
         serve.page_dir,
         {

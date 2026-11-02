@@ -1215,18 +1215,22 @@
      nothing in it was chosen yet; one a key came back to, as Escape does from a
      thread's reply to its thread, wears it as a card's thread does, on the stage the
      view fills, since a thread's view fades out its own top edge (below). The stage
-     runs to the panel's edges, so its ring stands a gap inside them, in the view's
-     padding, rounded as the panel's other rings are: drawn on the stage's edge, it
-     ran along the panel's border and was cut square above the crumb. */
+     runs to the panel's edges, so the ring stands on a box of its own a gap inside
+     them, in the view's padding, one band inside that box's edge and rounded as the
+     panel's other rings are: drawn on the stage's edge, it ran along the panel's
+     border and was cut square above the crumb. */
   .lf-fp-view:focus {
     outline: none;
     box-shadow: none;
   }
-  .lf-fp-stage:has(> .lf-fp-view[data-lf-focus-visible]:not([data-leaving])) {
-    --lf-fp-stage-ring-gap: 4px;
+  .lf-fp-stage:has(> .lf-fp-view[data-lf-focus-visible]:not([data-leaving]))::after {
+    content: "";
+    position: absolute;
+    inset: 4px;
+    pointer-events: none;
+    border-radius: var(--r);
     outline: var(--focus-ring);
-    outline-offset: calc(var(--focus-ring-inset) - var(--lf-fp-stage-ring-gap));
-    border-radius: calc(var(--r) + var(--lf-fp-stage-ring-gap));
+    outline-offset: var(--focus-ring-inset);
   }
   .lf-fp-view[data-leaving] {
     pointer-events: none;

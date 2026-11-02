@@ -1252,6 +1252,9 @@ def test_a_boxless_target_is_read_where_it_paints(browser, serve):
   <p id="two">Second run of the split target.</p>
 </div>
 """,
+                # The split runs need ordinary block flow. In the column grid,
+                # they become separate items and the wrapper can sort before the heading.
+                layout=None,
                 head="""<style>
   #one, #two { margin: 0; }
   #two { margin-top: 14rem; }
@@ -1280,6 +1283,7 @@ def test_a_boxless_target_is_read_where_it_paints(browser, serve):
     # The heading, the wrapper, and each of its two runs.
     expect(hints).to_have_count(4)
     page.keyboard.press("Tab")
+    expect(page.locator(".lf-live")).to_contain_text("heading: Split")
     page.keyboard.press("Tab")
     # The one target whose words span both runs is the wrapper, not either run.
     expect(page.locator(".lf-live")).to_contain_text(

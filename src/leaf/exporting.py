@@ -11,12 +11,24 @@ scripts-off record: authored text, layout and alt text, with an explanation that
 embedded graphics, fonts and recordings require JavaScript. Media is
 embedded in full, including recordings: no size cap silently removes content, and
 the reported output byte count includes the base64 expansion.
+
+Data is embedded beside media, not in the reading the composed document carries:
+each source's value with its deferred fields left out, and each deferred field, is
+one gzipped JSON body, so each part of a value is in the file once. The bodies are
+spans of one embedded file, so a diff of thousands of files costs startup one object
+URL rather than one a record. The runtime decodes the values when it reads the
+page's state, as a served page's first state answer brings them, and a deferred field
+when a widget loads it (`runtime/context.js`). A value inside the composed document
+would cross the package's JSON, the HTML parser and the reading's JSON before any
+widget read it, escaped again at each JSON layer.
 """
 
 from __future__ import annotations
 
 import base64
+import gzip
 import hashlib
+import json
 import uuid
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterator, Mapping
@@ -24,6 +36,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
+from leaf.data import deferred_fields
 from leaf.files import (
     published_versions,
     version_name,
@@ -58,6 +71,27 @@ ResourceReader = Callable[[str], Resource]
 
 def _data_url(resource: Resource) -> str:
     return f"data:{resource.mime};base64,{base64.b64encode(resource.data).decode()}"
+
+
+class _DataFile:
+    """The one embedded file holding every data body (the module header), each a span
+    the runtime reads (`embeddedValue` in `runtime/context.js`): a value's JSON,
+    gzipped. Nothing compresses a file opened from disk or sent as an attachment, and
+    gzip puts prose and code in the file at about 40% of their size, base64 included,
+    where uncompressed base64 takes 133%. Level 6 packs within 1% of gzip's default 9
+    in a third to a half of the time."""
+
+    def __init__(self) -> None:
+        self.data = bytearray()
+
+    def span(self, value) -> list[int]:
+        """Append one value's body, and return its offset and length."""
+        body = gzip.compress(
+            json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode(),
+            compresslevel=6,
+        )
+        self.data.extend(body)
+        return [len(self.data) - len(body), len(body)]
 
 
 @dataclass
@@ -277,16 +311,34 @@ def export_document(
     The shared resource allocator gives each embedded module one object URL.
     The normal application publisher, widgets, and presentation coordinator boot
     against the embedded authoritative reading, so the file opens offline wherever the
-    page itself names no other server.
+    page itself names no other server. `data` is the page's stored data
+    (`data.read_data`), whose deferred fields the reading leaves out.
     """
-    state = {**state, "others": []}
+    # The reading names each value's body rather than holding it (the module header).
+    values = {
+        source: reading["value"]
+        for source, reading in state["data"]["sources"].items()
+        if "value" in reading
+    }
+    state = {
+        **state,
+        "others": [],
+        "data": {
+            **state["data"],
+            "sources": {
+                source: {key: item for key, item in reading.items() if key != "value"}
+                for source, reading in state["data"]["sources"].items()
+            },
+        },
+    }
     resources = {**artifact.resources, **data_resources}
     inliner = AssetInliner(resources.__getitem__)
-    # Replacement markers belong to delivery, never to authored prose, state, data or
-    # CSS strings. Reserve a fresh namespace absent from every text it will rewrite.
+    # Replacement markers belong to delivery, never to authored prose, state or CSS
+    # strings. Reserve a fresh namespace absent from every text it will rewrite. Data
+    # bodies are never rewritten, so their text may hold anything.
     authored_text = [
         artifact.html.decode(),
-        json_script({"state": state, "data": data}),
+        json_script(state),
         *(
             resource.data.decode()
             for resource in artifact.resources.values()
@@ -314,8 +366,27 @@ def export_document(
     }
     embedded_resources["/shadow.css"] = inliner.address("/shadow.css")
     embedded_resources["/registry.json"] = inliner.address("/registry.json")
+    data_file = _DataFile()
+    values = {source: data_file.span(value) for source, value in values.items()}
+    # Each record's deferred field, as the deferred door answers it.
+    deferred = {
+        source: {
+            key: data_file.span(field)
+            for key, field in deferred_fields(
+                reading["value"], reading["contract"], artifact.registry
+            ).items()
+        }
+        for source, reading in data["sources"].items()
+        if "value" in reading
+    }
     payload = json_script(
-        {"state": state, "data": data, "resources": embedded_resources}
+        {
+            "state": state,
+            "data": inliner.embed(Resource(bytes(data_file.data), "application/gzip")),
+            "values": values,
+            "deferred": deferred,
+            "resources": embedded_resources,
+        }
     )
 
     # An authored module is addressed at the same embedded URL the import map gives

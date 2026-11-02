@@ -1113,7 +1113,9 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
     told(page)
     # The seat holds arrivals that would move the diff on screen behind its notice:
     # the user's own two messages. The agent's reply, already read, is not among them.
-    thread.get_by_role("button", name="2 new messages").click()
+    notice = thread.get_by_role("button", name="2 new", exact=True)
+    expect(notice).to_have_accessible_description("2 new messages")
+    notice.click()
     line = ":scope > .lf-msg-head .lf-msg-sending"
     for view in (thread, panel_thread):
         if view == panel_thread:

@@ -1814,51 +1814,45 @@ def test_code_copy_releases_only_its_own_scroll_stop(browser, serve):
     expect(pre).to_have_attribute("tabindex", "0")
 
 
-@pytest.mark.parametrize("own_root", ["section", "table", "pre"])
-def test_own_styling_keeps_native_content_and_comments(browser, serve, own_root):
-    """An authored styling boundary leaves tables and code alone, not unaddressable."""
-    own = ' data-style="own"'
-    section = own if own_root == "section" else ""
-    table = own if own_root == "table" else ""
-    pre = own if own_root == "pre" else ""
+def test_a_box_off_the_reading_face_keeps_its_own_tables_code_and_comments(
+    browser, serve
+):
+    """Content with its own design inside a themed page sits in a box that turns the
+    reading face off (`package-themes.md`, "Personal themes"). Its full-width table
+    stays a native table, its code keeps the spans and colours its author gave it with
+    no clearance under the block, a plain block there stays uncoloured, and a comment
+    still anchors on a word inside it. The code block outside keeps the face."""
     page = open_page(
         browser,
         serve(
             leaf_page(
-                "Own styling",
-                f'<section id="embedded"{section}>'
-                f'<table id="own-table" style="width:100%"{table}>'
+                "Face off",
+                '<section id="embedded" style="--lf-reading-face: initial">'
+                '<table id="own-table" style="width:100%">'
                 "<tr><td>Short</td><td>Columns</td></tr></table>"
-                f'<pre id="own-pre"{pre}><code class="language-yaml">'
+                '<pre id="own-pre"><code class="language-yaml">'
                 '<span id="own-token" style="color:rgb(160, 20, 80)">key</span>: value'
-                "</code></pre></section>"
+                "</code></pre>"
+                '<pre id="plain-pre"><code class="language-yaml">key: value</code></pre>'
+                "</section>"
                 '<pre id="leaf-pre"><code class="language-yaml">key: value</code></pre>',
             ),
-            anchored=[("own-table", "Short")]
-            if own_root == "table"
-            else [("own-token", "key")],
+            anchored=[("own-token", "key")],
         ),
     )
     expect(page.locator("#leaf-pre code")).to_have_attribute("data-lf-syntax", "yaml")
-    if own_root != "pre":
-        assert (
-            page.locator("#own-table").evaluate("el => getComputedStyle(el).display")
-            == "table"
-        )
-    if own_root != "table":
-        assert page.locator("#own-token").count() == 1
-        assert (
-            page.locator("#own-token").evaluate("el => getComputedStyle(el).color")
-            == "rgb(160, 20, 80)"
-        )
-        assert (
-            page.locator("#own-pre").evaluate(
-                "el => getComputedStyle(el, '::after').content"
-            )
-            == "none"
-        )
-        assert page.locator("#own-pre code").get_attribute("data-lf-syntax") is None
-    assert page.evaluate("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
+    table = page.locator("#own-table")
+    assert table.evaluate("el => getComputedStyle(el).display") == "table"
+    token = page.locator("#own-token")
+    assert token.evaluate("el => getComputedStyle(el).color") == "rgb(160, 20, 80)"
+    own = page.locator("#own-pre")
+    assert own.evaluate("el => getComputedStyle(el, '::after').content") == "none"
+    assert page.locator("#own-pre code").get_attribute("data-lf-syntax") is None
+    assert page.locator("#plain-pre code").get_attribute("data-lf-syntax") is None
+    assert page.evaluate(
+        """() => [...(CSS.highlights.get('lf-mark') ?? [])].some((range) =>
+          range.intersectsNode(document.querySelector('#own-token').firstChild))"""
+    )
 
 
 def test_native_code_uses_the_bundled_grammars_language_aliases(browser, serve):
@@ -1882,6 +1876,26 @@ def test_native_code_uses_the_bundled_grammars_language_aliases(browser, serve):
         painted = short.evaluate(tokens)
         assert len({color for _, color in painted}) > 1
         assert painted == full.evaluate(tokens)
+
+
+def test_a_block_its_author_marked_up_keeps_its_markup(browser, serve):
+    """A code block that holds elements was marked up by its author, as a page that
+    highlights its own code marks up every token, and colouring it would delete what
+    they wrote. Leaf colours the block beside it, which holds only text."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Marked-up code",
+                '<pre id="own"><code class="language-python">'
+                '<span class="kw">def</span> f(): pass</code></pre>\n'
+                '<pre id="plain"><code class="language-python">def f(): pass</code></pre>',
+            )
+        ),
+    )
+    expect(page.locator("#plain [data-lf-syn]").first).to_be_attached()
+    expect(page.locator("#own .kw")).to_have_text("def")
+    assert page.locator("#own [data-lf-syn]").count() == 0
 
 
 def test_a_block_rewritten_while_it_is_colored_keeps_its_new_text(browser, serve):
@@ -4116,9 +4130,10 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
     ) == ["new-map", "route"]
 
 
-def clearance_page(browser, serve):
+def clearance_page(browser, serve, rail=True):
     """One commented passage between spacers, and a way to stand its bottom edge
-    `offset` pixels below the top of the panel's scroll padding at the foot."""
+    `offset` pixels below the top of the panel's scroll padding at the foot. Without
+    `rail`, the page gives its right margin to its own content (`data-rail="none"`)."""
     source = leaf_page(
         "Bottom clearance",
         """
@@ -4128,6 +4143,8 @@ def clearance_page(browser, serve):
 <div style="height: 900px" aria-hidden="true"></div>
 """,
     )
+    if not rail:
+        source = source.replace("<body>", '<body data-rail="none">')
     page = open_page(
         browser,
         serve(source, anchored=(("destination", "The passage remains readable"),)),
@@ -4212,17 +4229,18 @@ def test_a_press_on_a_passage_opens_its_thread_where_it_stands(browser, serve):
 
 
 def test_a_pinned_row_opens_its_card_clear_of_the_passage(browser, serve):
-    """Without room for a rail, the thread's margin row stands as a pin on its block.
-    The card stands under or over it, never over the very words the user pressed, and
-    leaves once the passage does."""
-    page, place_bottom = clearance_page(browser, serve)
-    resized(page, 820, 800)
+    """On a page that keeps no rail, the thread's margin row stands as a pin on its
+    block on a desktop's window too, and a card opens from it there. The card stands
+    under or over the block, never over the very words the user pressed, and leaves
+    once the passage does."""
+    page, place_bottom = clearance_page(browser, serve, rail=False)
+    resized(page, 1000, 800)
     expect(page.locator('[data-lf-margin-for="destination"]')).to_have_attribute(
         "data-lf-place", "pin"
     )
     place_bottom(-560)
     page.mouse.click(*mark_point(page, "lf-mark"))
-    expect(page.locator(".lf-page-thread")).to_be_focused()
+    expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
     boxes = page.evaluate(
         """() => {
           const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();

@@ -1501,7 +1501,6 @@ function sendLanding(input) {
 	};
 }
 const rowHeights = /* @__PURE__ */ new WeakMap();
-const transcriptPlaces = /* @__PURE__ */ new WeakMap();
 const covered = (reply) => (reply.previousElementSibling?.getBoundingClientRect().bottom ?? -Infinity) - reply.getBoundingClientRect().top;
 const revealWritingArea = (held, input, reply) => {
 	bringBackSurfaceOf(held, "instant");
@@ -1526,11 +1525,7 @@ function followBoxGrowth(input) {
 	if (!held) return;
 	const reply = replyRowOf(held, input);
 	if (!reply) return;
-	const transcript = separateTranscript(held);
-	if (transcript) {
-		const place = transcriptPlaces.get(input);
-		if (place?.transcript === transcript && place.atTail && transcript.clientHeight < place.height) scrollToEnd(transcript);
-		transcriptPlaces.delete(input);
+	if (separateTranscript(held)) {
 		if (!onScreen(reply)) revealWritingArea(held, input, reply);
 		return;
 	}
@@ -1550,12 +1545,6 @@ function readBoxPlace(input) {
 	const reply = held && replyRowOf(held, input);
 	if (!reply) return;
 	rowHeights.set(input, reply.getBoundingClientRect().height);
-	const transcript = separateTranscript(held);
-	if (transcript) transcriptPlaces.set(input, {
-		transcript,
-		height: transcript.clientHeight,
-		atTail: atScrollEnd(transcript)
-	});
 }
 const currentLocationAt = (node, edge) => {
 	let at = node.getBoundingClientRect()[edge];

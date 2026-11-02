@@ -11,8 +11,8 @@
  * while it shows only the count, which the name begins with.
  *
  * A keyboard reaches a block's threads from the block itself (`c`, `t`) and through its
- * margin row. The note is a stop: focus on it rings its block and brings the block into
- * view (details-shelf.js).
+ * margin row. The note is a proxy for its block (control-faces.js, `proxy`): focus on it
+ * rings the block and brings it into view (details-shelf.js).
  */
 import { aimTargetAt } from "./anchor-resolution.js";
 import { shelve, unshelve } from "./details-shelf.js";
@@ -33,7 +33,7 @@ export function createAnchorNoteProjection({ openThread, labelAnchor }) {
 
   /** @param {string} firstThreadId */
   function claim(firstThreadId) {
-    const note = offerAction("stop", "lf-mark-note");
+    const note = offerAction("proxy", "lf-mark-note");
     note.tabIndex = -1;
     const record = { note, firstThreadId };
     note.addEventListener(
@@ -51,11 +51,22 @@ export function createAnchorNoteProjection({ openThread, labelAnchor }) {
 
   /** @param {ReadonlyMap<Element, CommentThreads>} notes */
   function present(notes) {
+    // A block the page drew anew keeps its note, found by the thread it enters, so a
+    // user on the note stays on it (details-shelf.js, `shelve`).
+    /** @type {Map<string, [Element, ReturnType<typeof claim>]>} */
+    const left = new Map();
     for (const [holder, record] of claims)
-      if (!notes.has(holder) || !holder.isConnected) release(holder, record);
+      if (!notes.has(holder) || !holder.isConnected) {
+        claims.delete(holder);
+        left.set(record.firstThreadId, [holder, record]);
+      }
     for (const [holder, threadIds] of notes) {
       let record = claims.get(holder);
-      if (!record) claims.set(holder, (record = claim(threadIds[0])));
+      if (!record) {
+        record = left.get(threadIds[0])?.[1] ?? claim(threadIds[0]);
+        left.delete(threadIds[0]);
+        claims.set(holder, record);
+      }
       shelve(holder, record.note);
       record.firstThreadId = threadIds[0];
       const count = label(threadIds.length);
@@ -67,6 +78,7 @@ export function createAnchorNoteProjection({ openThread, labelAnchor }) {
         anchor ? `${count} on ${spokenSubject(labelAnchor(anchor))}` : count,
       );
     }
+    for (const [holder, record] of left.values()) release(holder, record);
   }
 
   function destroy() {

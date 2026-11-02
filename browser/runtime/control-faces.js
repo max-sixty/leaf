@@ -41,12 +41,17 @@
      the keys.
    - `picture`: a picture that opens larger in the media viewer, a message's or a
      draft's, whose face is the picture itself, unframed, under a magnifier.
-   - `stop`: the keyboard's or a screen reader's stop for something on the page the
-     pointer takes by itself, such as a gloss's phrase, a commented block (its comment
-     note) or a picture and its declared parts (their response proxies). Its face is an
-     invisible carrier, a pixel out of flow, since the thing it stands for is what the
-     user sees: its focus rings that thing, with the ring the thing would wear focused
-     itself, and brings it into view (details-shelf.js).
+   - `proxy`: a hidden stand-in, for the keyboard or a screen reader, for something on
+     the page the pointer takes by itself: a gloss's phrase, a commented block (its
+     comment note), a picture and its declared parts (their response proxies). Its face
+     is an invisible carrier, a pixel out of flow that takes no pointer, since what it
+     stands for is what the user sees. Its focus rings that thing with the ring the
+     thing would wear focused itself, and that thing is in view: a gloss's proxy stands
+     at its phrase, so the browser's own focus scroll shows it, and the phrase wears
+     the ring on visible focus, since a press on the phrase focuses it too (gloss.css);
+     a note or a picture's proxy stands on the details shelf, apart from the page,
+     which nothing but the keys or assistive technology reaches, so any focus on it
+     rings its target and brings the target into view (details-shelf.js).
 
    A difference that was only a past choice is not a role: a symbol once came bordered
    in some widgets and quiet in others, a word framed in some, quiet in others and a
@@ -66,7 +71,7 @@ const ACTION_FACES = {
   response: "lf-response-face",
   gutter: "lf-gutter",
   picture: "lf-picture",
-  stop: "lf-stop",
+  proxy: "lf-proxy",
 };
 
 /** @param {LeafActionRole} role */

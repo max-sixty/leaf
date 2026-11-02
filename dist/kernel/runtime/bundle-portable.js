@@ -786,7 +786,7 @@ const ACTION_FACES = {
 	response: "lf-response-face",
 	gutter: "lf-gutter",
 	picture: "lf-picture",
-	stop: "lf-stop"
+	proxy: "lf-proxy"
 };
 function actionClass(role, className = "") {
 	const face = ACTION_FACES[role];

@@ -299,9 +299,9 @@ RING_CASES = (
                 ),
                 (".lf-draft-edit", ".lf-draft-edit"),
             ),
-            # A picture's response proxy, a stop a screen reader reaches from the
+            # A picture's response proxy, which a screen reader reaches from the
             # picture, rings the picture (details-shelf.js).
-            "heat-loss": ((".lf-visual-action", ".lf-stop-ring"),),
+            "heat-loss": ((".lf-visual-action", ".lf-proxy-ring"),),
             # Working density, where a choice's gap is narrowest beside the next face.
             "notification-playground": (
                 ("lf-playground input[type=radio]", ".choice:has"),

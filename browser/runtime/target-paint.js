@@ -2,9 +2,9 @@
  *
  * Aim draws synchronously for the gesture that arms it. A trace retains its current
  * target and drawn geometry: the target trace, the quiet contour a margin control
- * draws round the content it concerns, and the stop ring, the focus ring a focused
- * stop draws round what it stands for (control-faces.js, `stop`), where neither the
- * stop nor that thing can wear it. Each box stands in a paint stand that the browser
+ * draws round the content it concerns, and the proxy ring, the focus ring a focused
+ * proxy draws round what it stands for (control-faces.js, `proxy`), where neither the
+ * proxy nor that thing can wear it. Each box stands in a paint stand that the browser
  * moves with every scroll around its target (target-paint-geometry.js), so a scroll
  * places it again without writing, while layout and resize rebuild its shape.
  * Persistent annotations have their own optional painter. */
@@ -158,8 +158,9 @@ function createTrace(className) {
     box.style.display = "none";
     box.classList.toggle("lf-shaped", false);
     shape.replaceChildren();
-    box.removeAttribute("data-for");
-    delete stand.root.dataset.lfPaintPlane;
+    // What the box was for and the plane it stood in stay until it stands again: a
+    // target the page draws anew is drawn round in the next pass, and writing them off
+    // and back would be two writes for no change.
   }
 
   function draw(element = traced, surface = tracedSurface, rebuildGeometry = true) {
@@ -238,26 +239,26 @@ function createTrace(className) {
 }
 
 const targetTrace = createTrace("lf-target-trace");
-const stopRing = createTrace("lf-stop-ring");
+const proxyRing = createTrace("lf-proxy-ring");
 // What leaf.js mounts in the chrome: each box in the stand that carries it.
 export const targetTraceLayer = targetTrace.layer;
-export const stopRingLayer = stopRing.layer;
+export const proxyRingLayer = proxyRing.layer;
 export const paintTrace = targetTrace.paint;
-export const paintStopRing = stopRing.paint;
+export const paintProxyRing = proxyRing.paint;
 
 export function shifted() {
   targetTrace.shifted();
-  stopRing.shifted();
+  proxyRing.shifted();
 }
 
 export function geometryChanged() {
   targetTrace.geometryChanged();
-  stopRing.geometryChanged();
+  proxyRing.geometryChanged();
 }
 
 // The transient shapes are mounted into their boxes from leaf.js.
 export function mountTargetPaint() {
   aimBox.append(aimShape);
   targetTrace.mount();
-  stopRing.mount();
+  proxyRing.mount();
 }

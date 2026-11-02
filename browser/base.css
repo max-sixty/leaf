@@ -440,11 +440,11 @@
      written: every elevation names one, adding a hairline or ring beside it where its
      edge needs one. --raise-1 lies on the page or stands just off it (an image, a pin,
      a pressable, a control's label, a card lifted under the pointer); --raise-2 opens
-     over the page (a menu, a popover, a focused chip at the window's head, a card in the
-     hand); --raise-3 stands over the page for a task of its own (a dialog, the thread
-     card). A surface takes the height its meaning has, never a new value. Each is one
-     layer with no spread, so `filter: drop-shadow(var(--raise-N))` reads it as it
-     stands, for a surface whose silhouette is not its box.
+     over the page (a menu, a popover, a card in the hand); --raise-3 stands over the
+     page for a task of its own (a dialog, the thread card). A surface takes the height
+     its meaning has, never a new value. Each is one layer with no spread, so
+     `filter: drop-shadow(var(--raise-N))` reads it as it stands, for a surface whose
+     silhouette is not its box.
 
      Each is written from its drop and its blur, because a box that clips has to leave
      a lifted thing room to show its shadow, and that room is read from them: with no

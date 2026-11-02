@@ -731,17 +731,17 @@ def comment_on(section: str) -> None:
         {
             "kind": "comment",
             "revision": client.state()["active"]["revision"],
-            "attempt": f"stills-stop-{section}",
+            "attempt": f"stills-proxy-{section}",
             "text": "Worth a second look.",
             "anchor": {"section": section},
         }
     )
 
 
-def focus_stop(page: Page, focus: str, *args: str) -> None:
-    """Focus the stop `focus` finds, with the keyboard's modality, as a screen reader
-    moving to it focuses it: a stop is no Tab stop of its own (control-faces.js,
-    `stop`)."""
+def focus_proxy(page: Page, focus: str, *args: str) -> None:
+    """Focus the proxy `focus` finds, with the keyboard's modality, as a screen reader
+    moving to it focuses it: a proxy on the details shelf is no Tab stop
+    (control-faces.js, `proxy`)."""
     page.keyboard.press("Tab")
     page.evaluate(f"([...args]) => ({focus})(...args)", list(args))
     page.wait_for_function(
@@ -767,50 +767,50 @@ PROXY_OF = """(label, whole) => {
 }"""
 
 
-def stop_note_paragraph(page: Page) -> None:
+def proxy_note_paragraph(page: Page) -> None:
     """A paragraph's comment note focused, which rings the paragraph."""
     comment_on("pr-approval-premise")
     page.wait_for_function(
         "() => document.getElementById('pr-approval-premise').ariaDetailsElements?.length"
     )
-    focus_stop(page, NOTE_OF, "pr-approval-premise")
+    focus_proxy(page, NOTE_OF, "pr-approval-premise")
 
 
-def stop_note_row(page: Page) -> None:
+def proxy_note_row(page: Page) -> None:
     """A table row's comment note focused, which rings the row."""
     comment_on("pr-focus-latency")
     page.wait_for_function(
         "() => document.getElementById('pr-focus-latency').ariaDetailsElements?.length"
     )
-    focus_stop(page, NOTE_OF, "pr-focus-latency")
+    focus_proxy(page, NOTE_OF, "pr-focus-latency")
 
 
-def stop_note_own_annotations(page: Page) -> None:
+def proxy_note_own_annotations(page: Page) -> None:
     """A paragraph's comment note focused on a page that presents its own annotations,
     where no annotation overlay is loaded, which still rings the paragraph."""
     comment_on("plan")
     page.wait_for_function(
         "() => document.getElementById('plan').ariaDetailsElements?.length"
     )
-    focus_stop(page, NOTE_OF, "plan")
+    focus_proxy(page, NOTE_OF, "plan")
 
 
-def stop_proxy_drawing(page: Page) -> None:
+def proxy_drawing(page: Page) -> None:
     """A diagram's own response proxy focused, which rings the diagram."""
     page.get_by_role("tab", name="Behavior diff").click()
-    focus_stop(page, PROXY_OF, "PreparedDiff", "whole")
+    focus_proxy(page, PROXY_OF, "PreparedDiff", "whole")
 
 
-def stop_proxy_part(page: Page) -> None:
+def proxy_part(page: Page) -> None:
     """The response proxy of one of a diagram's declared parts focused, which rings the
     part in its own contour."""
     page.get_by_role("tab", name="Behavior diff").click()
-    focus_stop(page, PROXY_OF, "PreparedDiff")
+    focus_proxy(page, PROXY_OF, "PreparedDiff")
 
 
-def stop_gloss(page: Page) -> None:
-    """A gloss's stop focused, which rings its phrase."""
-    focus_stop(
+def proxy_gloss(page: Page) -> None:
+    """A gloss's proxy focused, which rings its phrase."""
+    focus_proxy(
         page, "() => document.querySelector('#pr-focus-safety .lf-gloss-mark').focus()"
     )
 
@@ -3130,30 +3130,31 @@ STATES = (
     ),
     State("plan-option-empty", "review-a-plan", option_empty, region=".lf-another"),
     State(
-        "stop-note-own-annotations",
+        "proxy-note-own-annotations",
         "../tests/fixtures/pages/page-annotations",
-        stop_note_own_annotations,
+        proxy_note_own_annotations,
     ),
     State(
-        "stop-note-own-annotations-dark",
+        "proxy-note-own-annotations-dark",
         "../tests/fixtures/pages/page-annotations",
-        stop_note_own_annotations,
+        proxy_note_own_annotations,
         scheme="dark",
     ),
-    State("stop-note-paragraph", "pr-walkthrough", stop_note_paragraph),
+    State("proxy-note-paragraph", "pr-walkthrough", proxy_note_paragraph),
     State(
-        "stop-note-paragraph-dark", "pr-walkthrough", stop_note_paragraph, scheme="dark"
+        "proxy-note-paragraph-dark",
+        "pr-walkthrough",
+        proxy_note_paragraph,
+        scheme="dark",
     ),
-    State("stop-note-row", "pr-walkthrough", stop_note_row),
-    State("stop-note-row-dark", "pr-walkthrough", stop_note_row, scheme="dark"),
-    State("stop-proxy-drawing", "pr-walkthrough", stop_proxy_drawing),
-    State(
-        "stop-proxy-drawing-dark", "pr-walkthrough", stop_proxy_drawing, scheme="dark"
-    ),
-    State("stop-proxy-part", "pr-walkthrough", stop_proxy_part),
-    State("stop-proxy-part-dark", "pr-walkthrough", stop_proxy_part, scheme="dark"),
-    State("stop-gloss", "pr-walkthrough", stop_gloss),
-    State("stop-gloss-dark", "pr-walkthrough", stop_gloss, scheme="dark"),
+    State("proxy-note-row", "pr-walkthrough", proxy_note_row),
+    State("proxy-note-row-dark", "pr-walkthrough", proxy_note_row, scheme="dark"),
+    State("proxy-drawing", "pr-walkthrough", proxy_drawing),
+    State("proxy-drawing-dark", "pr-walkthrough", proxy_drawing, scheme="dark"),
+    State("proxy-part", "pr-walkthrough", proxy_part),
+    State("proxy-part-dark", "pr-walkthrough", proxy_part, scheme="dark"),
+    State("proxy-gloss", "pr-walkthrough", proxy_gloss),
+    State("proxy-gloss-dark", "pr-walkthrough", proxy_gloss, scheme="dark"),
     State("plan-card-reply-resolved", "review-a-plan", card_reply_resolved),
     State("section-ring-keyboard", "review-a-plan", section_ring_by_keyboard),
     State(

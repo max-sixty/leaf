@@ -14,10 +14,10 @@ var target_paint_exports = /* @__PURE__ */ __exportAll({
 	labelAim: () => labelAim,
 	mountTargetPaint: () => mountTargetPaint,
 	paintAim: () => paintAim,
-	paintStopRing: () => paintStopRing,
+	paintProxyRing: () => paintProxyRing,
 	paintTrace: () => paintTrace,
+	proxyRingLayer: () => proxyRingLayer,
 	shifted: () => shifted$1,
-	stopRingLayer: () => stopRingLayer,
 	targetTraceLayer: () => targetTraceLayer
 });
 const aimBox = el("div", "lf-ui lf-aim");
@@ -115,8 +115,6 @@ function createTrace(className) {
 		box.style.display = "none";
 		box.classList.toggle("lf-shaped", false);
 		shape.replaceChildren();
-		box.removeAttribute("data-for");
-		delete stand.root.dataset.lfPaintPlane;
 	}
 	function draw(element = traced, surface = tracedSurface, rebuildGeometry = true) {
 		if (!(element instanceof Element) || !(surface instanceof Element) || !element.isConnected || !surface.isConnected) {
@@ -184,23 +182,23 @@ function createTrace(className) {
 	};
 }
 const targetTrace = createTrace("lf-target-trace");
-const stopRing = createTrace("lf-stop-ring");
+const proxyRing = createTrace("lf-proxy-ring");
 const targetTraceLayer = targetTrace.layer;
-const stopRingLayer = stopRing.layer;
+const proxyRingLayer = proxyRing.layer;
 const paintTrace = targetTrace.paint;
-const paintStopRing = stopRing.paint;
+const paintProxyRing = proxyRing.paint;
 function shifted$1() {
 	targetTrace.shifted();
-	stopRing.shifted();
+	proxyRing.shifted();
 }
 function geometryChanged() {
 	targetTrace.geometryChanged();
-	stopRing.geometryChanged();
+	proxyRing.geometryChanged();
 }
 function mountTargetPaint() {
 	aimBox.append(aimShape);
 	targetTrace.mount();
-	stopRing.mount();
+	proxyRing.mount();
 }
 
 //#endregion
@@ -882,4 +880,4 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 }
 
 //#endregion
-export { aimLayer, boxMotion, mountTargetPaint, paintStopRing, paintTrace, stopRingLayer, targetTraceLayer, target_paint_exports };
+export { aimLayer, boxMotion, mountTargetPaint, paintProxyRing, paintTrace, proxyRingLayer, targetTraceLayer, target_paint_exports };

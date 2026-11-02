@@ -716,10 +716,10 @@
         mark: el.matches(".lf-mark-el"),
         pseudo: pseudo ? "after" : null,
         carrier: outlined ? "outline" : "box-shadow",
-        focused: el === focused || el.matches(".lf-visual-mark-focus, .lf-stop-ring"),
+        focused: el === focused || el.matches(".lf-visual-mark-focus, .lf-proxy-ring"),
         sample:
           el === focused ||
-          el.matches(".lf-visual-mark-focus, .lf-stop-ring") ||
+          el.matches(".lf-visual-mark-focus, .lf-proxy-ring") ||
           holds(el, focused) ||
           holds(focused, el) ||
           el.hasAttribute("data-lf-ring-sample"),
@@ -821,7 +821,7 @@
     // when its source has no id, and so does a focused stop's ring round what it
     // stands for. The painter's other states are reference brackets.
     const projected = e.ownerDocument.querySelector(
-      ".lf-visual-mark-focus, .lf-stop-ring",
+      ".lf-visual-mark-focus, .lf-proxy-ring",
     );
     if (projected?.checkVisibility({ visibilityProperty: true })) overlaid(projected);
     // Tabs draw focus on their label inside the larger hit target.

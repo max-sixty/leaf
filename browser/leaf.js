@@ -706,7 +706,7 @@ async function boot() {
     // reparented.
     chromeForeground.append(
       targetPaint.targetTraceLayer,
-      targetPaint.stopRingLayer,
+      targetPaint.proxyRingLayer,
       targetPaint.aimLayer,
       liveEl,
       mediaViewer,

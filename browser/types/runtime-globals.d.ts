@@ -41,7 +41,7 @@ type LeafActionRole =
   | "response"
   | "gutter"
   | "picture"
-  | "stop";
+  | "proxy";
 
 /** Root-state writers required by bootstrap before runtime modules load. */
 interface LeafRootState {

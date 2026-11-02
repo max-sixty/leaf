@@ -628,7 +628,7 @@ def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
     expect(note).to_be_focused()
     assert note.evaluate("el => getComputedStyle(el).opacity") == "0"
     expect(page.locator("#p1")).to_be_in_viewport()
-    ring = page.locator(".lf-stop-ring")
+    ring = page.locator(".lf-proxy-ring")
     expect(ring).to_have_count(1)
     held, block = ring.bounding_box(), page.locator("#p1").bounding_box()
     assert all(abs(held[side] - block[side]) < 1 for side in held), (held, block)
@@ -716,6 +716,58 @@ def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
     assert accessible_details(page, "#p2")[0].startswith("1 comment on ")
 
 
+def _ring_round(page, selector):
+    """Whether the proxy ring stands round the element `selector` names, at its gap."""
+    held = page.locator(".lf-proxy-ring").bounding_box()
+    block = page.locator(selector).bounding_box()
+    gaps = (
+        block["x"] - held["x"],
+        block["y"] - held["y"],
+        held["x"] + held["width"] - block["x"] - block["width"],
+        held["y"] + held["height"] - block["y"] - block["height"],
+    )
+    return all(0 <= gap <= 4 for gap in gaps)
+
+
+def test_any_focus_on_a_note_rings_its_block_and_follows_it_redrawn(browser, serve):
+    """A note takes no pointer, so only the keys or a screen reader reach it, and any
+    focus on it rings its block: after a click on the page, where the browser counts a
+    scripted focus as no keyboard focus, too. A block the page draws anew while the note
+    keeps focus takes the ring with it."""
+    url = serve(NOTED_PAGE)
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Sharpen this.",
+            "anchor": {"section": "p1"},
+        },
+    )
+    page = open_page(browser, url)
+    expect_comment_notes(page, "#p1", 1)
+    page.locator("#p2").click()
+    note = comment_note(page, "#p1")
+    note.evaluate("note => note.focus()")
+    expect(note).to_be_focused()
+    assert not note.evaluate("note => note.matches(':focus-visible')")
+    ring = page.locator(".lf-proxy-ring")
+    expect(ring).to_be_visible()
+    assert _ring_round(page, "#p1")
+
+    page.locator("#p1").evaluate(
+        "p => { const copy = p.cloneNode(true); copy.dataset.redrawn = ''; p.replaceWith(copy); }"
+    )
+    expect_comment_notes(page, "#p1[data-redrawn]", 1)
+    expect(note).to_be_focused()
+    expect(ring).to_be_visible()
+    page.wait_for_function(
+        "() => document.querySelector('.lf-proxy-ring')?.getBoundingClientRect().height > 0"
+    )
+    assert _ring_round(page, "#p1[data-redrawn]")
+
+
 def test_a_focused_note_rings_its_block_where_the_page_draws_its_own_annotations(
     browser, serve
 ):
@@ -739,16 +791,9 @@ def test_a_focused_note_rings_its_block_where_the_page_draws_its_own_annotations
     page.keyboard.press("Tab")
     note.focus()
     expect(note).to_be_focused()
-    ring = page.locator(".lf-stop-ring")
+    ring = page.locator(".lf-proxy-ring")
     expect(ring).to_be_visible()
-    held, block = ring.bounding_box(), page.locator("#p1").bounding_box()
-    gaps = (
-        block["x"] - held["x"],
-        block["y"] - held["y"],
-        held["x"] + held["width"] - block["x"] - block["width"],
-        held["y"] + held["height"] - block["y"] - block["height"],
-    )
-    assert all(0 <= gap <= 4 for gap in gaps), (held, block)
+    assert _ring_round(page, "#p1")
     # Leaving the note takes its ring down.
     note.evaluate("note => note.blur()")
     expect(ring).to_be_hidden()

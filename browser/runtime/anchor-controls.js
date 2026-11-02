@@ -200,7 +200,7 @@ export function createAnchorControls({
   /** @param {VisualAction} target */
   const visualActionTemplate = ({ anchor, label }) => html`
     <button
-      ${offeredAction("stop", "lf-visual-action")}
+      ${offeredAction("proxy", "lf-visual-action")}
       tabindex="-1"
       .lfAnchor=${anchor}
       .textContent=${`Respond to ${label}`}

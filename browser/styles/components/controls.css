@@ -901,13 +901,13 @@ wa-copy-button.lf-icon-action {
 .lf-picture:hover {
   box-shadow: none;
 }
-/* The stop face: a pixel out of flow, out of the selection and transparent, taking no
+/* The proxy face: a pixel out of flow, out of the selection and transparent, taking no
    pointer, since what it stands for takes the pointer and is what the user sees. Its
-   focus draws nothing on it: the ring stands on that thing (control-faces.js, `stop`).
+   focus draws nothing on it: the ring stands on that thing (control-faces.js, `proxy`).
    Transparent rather than clipped, as the on-screen readings (control sweeps, covered
    words, paper) ask opacity, and off the floor, which sizes what a pointer aims at
    (surfaces.css). */
-.lf-stop {
+.lf-proxy {
   position: absolute;
   box-sizing: border-box;
   width: 1px;

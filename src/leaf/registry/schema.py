@@ -104,7 +104,9 @@ def is_ecma_regex(value) -> bool:
 def leaf_resources() -> dict[str, dict]:
     """The schemas Leaf's own schemas name by a `leaf:` reference, by that name:
     `leaf:event/<kind>` is one kernel event record (`$events.kinds`), `leaf:event`
-    any of them, and `leaf:verb` an x-state verb (`schema.VERB_SCHEMA`). A reference
+    any of them, `leaf:message/<kind>` a message kind's record as a thread holds it,
+    whose `text` is its latest edit's and empty once an edit deleted it (`events.md`,
+    "Messages"), and `leaf:verb` an x-state verb (`schema.VERB_SCHEMA`). A reference
     may point into one, as `leaf:event/comment#/properties/anchor` does.
 
     Each event record is left open, so that a schema adding fields to one, as a
@@ -115,6 +117,7 @@ def leaf_resources() -> dict[str, dict]:
     from leaf.registry.kernel import kernel_event_kinds
     from leaf.schema import VERB_SCHEMA
 
+    kinds = kernel_event_kinds()
     events = {
         f"leaf:event/{kind}": {
             "$id": f"leaf:event/{kind}",
@@ -124,10 +127,23 @@ def leaf_resources() -> dict[str, dict]:
                 if key != "additionalProperties"
             },
         }
-        for kind, contract in kernel_event_kinds().items()
+        for kind, contract in kinds.items()
+    }
+    messages = {
+        f"leaf:message/{kind}": {
+            **events[f"leaf:event/{kind}"],
+            "$id": f"leaf:message/{kind}",
+            "properties": {
+                **contract["record"]["properties"],
+                "text": {"type": "string"},
+            },
+        }
+        for kind, contract in kinds.items()
+        if contract.get("message")
     }
     return {
         **events,
+        **messages,
         "leaf:event": {
             "$id": "leaf:event",
             "anyOf": [{"$ref": identity} for identity in sorted(events)],

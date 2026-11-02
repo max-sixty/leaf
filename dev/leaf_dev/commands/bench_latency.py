@@ -319,7 +319,7 @@ class Session:
         until(
             self.page,
             "words => [...document.querySelectorAll("
-            "'.lf-fp-view[data-view=thread] .lf-msg.user')]"
+            "'.lf-fp-view[data-view=thread] .lf-msg')]"
             ".some(node => node.textContent.includes(words) && node.checkVisibility())",
             "the user's turn never showed",
             question,

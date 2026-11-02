@@ -680,7 +680,7 @@ leaf-text.lf-fab-input,
    as the field they were typed in does, so a line broke where it broke as they wrote
    it; every message the user sent then ran up to 86px narrower than the reply under
    it. */
-.lf-msg:where(.user) {
+.lf-msg:where([data-lf-author="user"]) {
   --lf-msg-text-end: var(--lf-thread-text-inset);
 }
 .lf-msg-text {

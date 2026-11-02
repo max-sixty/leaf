@@ -73,7 +73,9 @@ Arrange the material so the reader can do the task with little navigation or mem
 Put alternatives at a comparable scale, controls beside the results they change, and
 an explanation beside the evidence it interprets. Use the registry's semantic HTML,
 widgets and class idioms for those roles, including the theme's `.metric` entry
-for a metric.
+for a metric. Arrange an experiment's results so each variant's effect against its
+baseline reads without arithmetic, and show what each variant changed beside its
+effect.
 
 Choose the Layout after the content: `layout-column` supports a sequence of views,
 including wide diagrams and comparisons; `layout-sidebar` keeps context beside a

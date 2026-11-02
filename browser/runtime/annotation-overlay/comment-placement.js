@@ -1,9 +1,11 @@
 /* Where a comment's surfaces stand: the comment box the user types in
    (composing/surface.js) and the thread card the sent comment becomes
    (thread-preview.js). They are one comment at two moments, so one rule places
-   both, and Send changes the surface without moving the place. Floating UI does the
-   placing (floating.js): this module chooses the side and names the boxes, and
-   Floating UI's offset, size and shift do the rest.
+   both, and Send changes the surface without moving the place. What a reader sees
+   them do is stated rule by rule in `placement-rules.json`, beside this module; this
+   header says how the code keeps each rule, by its id, and which designs it rejected.
+   Floating UI does the placing (floating.js): this module chooses the side and names
+   the boxes, and Floating UI's offset, size and shift do the rest.
 
    A comment stands by what it is about. `clear` is the box it keeps
    clear of, as the page shows it: the paragraph holding a passage, the element, or the
@@ -27,18 +29,18 @@
    The editing surface uses this solver for its initial attachment, then retains
    browser-owned following (`composing/floating-response.js`).
 
-   Both stand in one boundary (`commentBoundary`): the part of the window the page
-   shows, within the region whose flow holds the pointed row, else the target, where
-   that region holds a card, else within the page shell. That region is the box that
-   scrolls the row (`scrollerFor`), unless the row is in a bounded block, which scrolls
-   inside the box around it as a paragraph does; then it is the box that scrolls the
-   block (margin-layout.js, `flowOf`), so a comment on a log row stands in the rail
-   beside the log, where its margin row stands. The region's edges cut the row as it
-   scrolls, so they cut the card too. A block's edges cut the card only once its row has
-   crossed one, and never move it, so the card leaves with its row as the row's words
-   leave the log. A region in flow scrolls nothing itself, so a surface on words in a
-   pane the page scrolls stands in the page, or in whatever box scrolls that pane;
-   which boxes scroll is the stylesheet's to say (reading-regions.js). Rejected: the
+   Both stand in one boundary (`commentBoundary`), the room the rules' `room-*` rows
+   give: the part of the window the page shows, within the region whose flow holds the
+   pointed row, else the target, where that region holds a card, else within the page
+   shell. That region is the box that scrolls the row (`scrollerFor`), unless the row
+   is in a bounded block; then it is the box that scrolls the block (margin-layout.js,
+   `flowOf`), which also decides where the row's margin row stands, so the card and the
+   row follow one rule. The boundary's `cut` holds the region's edges and each edge of
+   a block around the row that the row has crossed (`scroll-cut`). The cut never bounds
+   the room, so a crossed edge never moves the card (`scroll-with-text`). A region in
+   flow scrolls nothing itself, so a surface on words in a pane the page scrolls stands
+   in the page, or in whatever box scrolls that pane; which boxes scroll is the
+   stylesheet's to say (reading-regions.js). Rejected: the
    block that scrolls the row, which capped a card on a log row at the log's height and,
    once a short log filled, moved its card from the rail into the log. Also rejected:
    the innermost reading region around the row, whether or not it scrolled, which
@@ -48,43 +50,35 @@
    scrolls the target, which stood a comment pointed at a row deep in a pane that is
    itself the target over the pane beside it.
 
-   The side is chosen once, for the thread's footprint rather than the box's, so the box
-   stands where its card can: right of `clear` where that room holds the card's minimum
-   width (`--thread-card-min`), else left of it where that room does, else under or over
-   it, preferring a side that already shows the least room a surface stands in
-   (`LEAST_HEIGHT`). Among those sides, the one the page can make more room on wins:
-   what shows there plus what the reading region can still scroll there. A touch
-   screen prefers under among sides with room, since the platform's selection menu
-   stands over the words and Leaf cannot read where. The side is held until the boundary or `extent`'s width
-   changes (a resize, a pane that narrows, a reflow), which chooses afresh; a scroll
-   clipping `clear` does not.
+   `commentSide` chooses the side (`side-order`, `side-under-or-over`) for the thread's
+   footprint rather than the box's, so the box stands where its card can, and counts
+   what the reading region can still scroll toward a side's room. A touch screen
+   prefers under because Leaf cannot read where the platform's selection menu stands.
+   `commentPlacement` holds the side (`side-held`) until the boundary's `key` or
+   `extent`'s width changes.
 
-   Beside, the surface's top stands level with `row`, and past its margin row where that
-   reaches past `clear` and the room beyond it holds the card's full preferred measure
-   (`--thread-card`). Message width takes priority over keeping the margin row clear:
-   where clearing it would narrow the message, the surface stands over the row. The
-   card carries its own close and step controls, and the row shows again once it closes.
-   Neither choice reads the surface's own width or height, so the box
-   and the card make the same one. Under or over, its inline start follows `column`,
-   independently of the block it keeps clear, and it keeps that start as it widens.
-   That clearance chooses the initial seat. Once seated, quoted words carry both
-   coordinates through scrolling, including out of view, even when the containing
-   scrollport stays still. Held offsets use the passage's line and column, so renewing
-   the seat cannot put it back beside a stationary scrollport.
+   Beside (`place-beside`), message width takes priority over keeping the margin row
+   clear: where clearing it would narrow the message, the surface stands over the row,
+   and the card carries its own close and step controls, so the row shows again once
+   it closes. Neither choice reads the surface's own width or height, so the box and
+   the card make the same one. Under or over (`place-under-or-over`), its inline start
+   follows `column`, independently of the block it keeps clear, and it keeps that
+   start as it widens. That clearance chooses the initial seat. Once seated, quoted
+   words carry both coordinates through scrolling, including out of view, even when the
+   containing scrollport stays still (`scroll-with-text`). Held offsets use the
+   passage's line and column, so renewing the seat cannot put it back beside a
+   stationary scrollport.
 
-   It grows away from what it is about, down beside or under and up over it (floating.js,
-   `held`), and the boundary holds it in only while what it stands by is in the window:
-   Floating UI's shift keeps it inside, and its limiter lets it leave beside with
-   `row` or `lastRow`, whichever the scroll carries away, or with `clear` under or
-   over. Beside an element whose top has scrolled away, the card therefore waits at the
-   window's top, in the window's plane, until the element's foot passes it. Arrival
-   and departure use this same attachment limit, including the first placement:
-   an offscreen target carries its surface into view as scrolling approaches it.
-   Growing never scrolls the page. A surface that outgrows the room on its side slides
+   It grows away from what it is about (`size-grows-away`; floating.js, `held`).
+   Floating UI's shift keeps it inside the boundary (`scroll-held-in`), and its limiter
+   lets it leave beside with `row` or `lastRow`, whichever the scroll carries away, or
+   with `clear` under or over; held in beside an element whose top has scrolled away,
+   it stands in the window's plane. Arrival and departure use this same attachment
+   limit, including the first placement: an offscreen target carries its surface into
+   view as scrolling approaches it. A surface that outgrows the room on its side slides
    inside the boundary, over its passage or element if it must, and once it fills the
-   boundary scrolls its own content. Only a card opening under or over its target
-   scrolls the reading region, as far as it can, to make the room it needs (`makeRoom`),
-   so it opens clear of that target.
+   boundary scrolls its own content. Only `makeRoom` scrolls, for a card opening under
+   or over its target (`size-page-still`).
 
    A surface may choose which edge of its last rectangle to hold (`edge`), in client
    pixels from its line: `row` beside, and under or over the edge of `clear` it stands
@@ -92,8 +86,9 @@
    still that way while a turn joins the transcript above it.
 
    A held surface grows no taller than the room from its held edge, or than the tallest
-   it has stood since its line last moved (`fit`'s `stood`), whichever is more. One
-   that `rises` holds its top but has the boundary's whole height, so the boundary
+   it has stood since its line last moved (`fit`'s `stood`), whichever is more
+   (`size-room`). One that `rises` (`size-rises`, decided in thread/card-anchor.js)
+   holds its top but has the boundary's whole height, so the boundary
    lifts it as it outgrows the room below; its held top is the spot before that lift,
    so shrinking brings it back down to where it stood. Against
    the window's foot the boundary keeps a card's foot, so content that shrinks it, a
@@ -120,7 +115,7 @@
    block offsets for the card to hold. The attachment is then the card's current one:
    scrolling retains it, while a boundary or target-width change chooses afresh.
    A surface the user carries by its grip (surface-grip.js) adopts its own dropped frame
-   the same way, marked `moved`. A moved surface carries its inline offset on every
+   the same way, marked `moved` (`place-carried`). A moved surface carries its inline offset on every
    side, the left included, and its attachment limit stretches to take in the spot it
    was dropped at, so it stands there and still leaves with what it is about.
 

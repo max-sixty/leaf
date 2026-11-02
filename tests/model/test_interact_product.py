@@ -1710,6 +1710,29 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
     assert thread["attention"]["kind"] == "needs_user", thread["attention"]
     assert [item[0] for item in owed_answers()] == [typo["id"]]
 
+    # No words at all delete the message. It keeps its place, beneath the answers
+    # given to it, the agent owes the deletion an answer, and it is told what the
+    # message said and nothing about rewritten words.
+    gone = append_command(
+        page_dir,
+        {"kind": "edit", "author": "user", "message": asked["id"], "text": ""},
+    )
+    assert [item[0] for item in owed_answers()] == [gone["id"]]
+    with service_model.PageTransaction(page_dir) as page:
+        stored = next(event for event in page.events if event["id"] == gone["id"])
+        delivered = delivery_model.freeze_delivery(
+            [delivery_model.batch_data(page_dir, page, [stored])]
+        )
+    [batch] = delivered["batches"]
+    [event] = batch["events"]
+    assert (event["text"], event["was"]) == ("", "Chart both!")
+    told = [batch["handling"][ref] for ref in event["handling"]]
+    assert any("deleted" in clause for clause in told), told
+    assert not any("rewrote" in clause for clause in told), told
+    [thread] = batch["threads"]
+    assert thread["messages"][0]["id"] == asked["id"]
+    assert thread["messages"][0]["text"] == ""
+
     reaction = append_command(
         page_dir,
         {"kind": "reply", "author": "user", "parent": answer["id"], "token": "keep"},

@@ -151,8 +151,14 @@ export function createFloatingResponsePlacement({
   });
   function fabMotion() {
     const box = fabField();
+    // The composer holding the composition is the root, since the composition's frame is
+    // a wrapper with no box of its own (`display: contents`), whose empty rectangle
+    // carries nothing with the plane.
+    const composer = /** @type {HTMLElement} */ (
+      response.composition().frame.parentElement
+    );
     const motion = boxMotion({
-      root: response.composition().frame,
+      root: composer,
       box,
       surface: "lf-fab-ground",
       lift: 1,
@@ -161,7 +167,7 @@ export function createFloatingResponsePlacement({
       held: () => heldEdges(fabBar),
     });
     fabBar.prepend(motion.ground);
-    followed.observe(response.composition().frame);
+    followed.observe(composer);
     return motion;
   }
   // The browser's selected Range is a mechanical place even when its durable quote
@@ -544,16 +550,18 @@ export function createFloatingResponsePlacement({
         if (!position || !stillCurrent()) return;
         fabPlacement.landed(position);
         editingAttachment = response.open ? attachment : null;
-        // An open box's placement moves it only for a change of layout, as a line
-        // taking it past the window's edge shifts it, and never for a scroll, which
-        // carries it by CSS anchors (`watchFabPosition`), so what it moves travels.
+        // A scroll carries the box by CSS anchors (`watchFabPosition`); what a placement
+        // moves travels when it follows a change of the box's size (box-motion.js,
+        // `placed`).
+        // A drag the grip carried ends where the placement stands the box.
         const stand = () => {
           keeps(fabBar, "data-lf-placement", position.placement);
-          fabPosition.stand(position);
+          const moved = fabPosition.stand(position);
+          carry.placed();
+          return moved;
         };
         if (following) following.placed(stand);
         else stand();
-        carry.placed();
         nativeAttachment = response.open && fabPosition.follows();
         positioned(true);
         stoodAgain();

@@ -822,14 +822,16 @@ def card_after_interjection(page: Page) -> None:
     card_held_step(page)
     card = page.locator(".lf-margin-preview")
     card.get_by_role("textbox", name="Reply", exact=True).press("Enter")
-    expect(card.locator(".lf-msg.user").last).to_contain_text(
-        "Drafting a reply while the agent works"
-    )
-    expect(card.locator(".lf-msg.user").last).not_to_have_attribute("aria-busy", "true")
+    # Messages are picked by their words, which every arm's runtime draws alike.
+    reply = card.locator(
+        ".lf-msg", has_text="Drafting a reply while the agent works"
+    ).last
+    expect(reply).to_be_visible()
+    expect(reply).not_to_have_attribute("aria-busy", "true")
     settle(page)
     served = served_page.get()
     delivery = json.loads(served.leaf("wait", str(served.directory), timeout=15).stdout)
-    sent = card.locator(".lf-msg.user").last.get_attribute("data-event")
+    sent = reply.get_attribute("data-event")
     reference = next(
         event["answer"]["ref"]
         for batch in delivery["batches"]
@@ -845,7 +847,9 @@ def card_after_interjection(page: Page) -> None:
         "--text",
         "The answer continues with the detail requested in the interjection. " * 5,
     )
-    expect(card.locator(".lf-msg.agent").last).to_contain_text("The answer continues")
+    expect(
+        card.locator(".lf-msg", has_text="The answer continues").last
+    ).to_be_visible()
 
 
 def seat_held_news(page: Page) -> None:

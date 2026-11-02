@@ -130,6 +130,7 @@ const CUT_EDGES = [
  * placedAt: ReturnType<typeof import("../anchor-placement.js").createAnchorPlacement>["placedAt"],
  * scrollThreadIntoView: typeof import("../thread/reply-landing.js").scrollThreadIntoView,
  * scrollToElement: ReturnType<typeof import("../anchor-travel.js").createAnchorTravel>["scrollToElement"],
+ * openPageThread: ReturnType<typeof import("../thread/destination.js").createThreadDestinations>["openPageThread"],
  * openInPanel: (id: string) => unknown, onClose: (selection: Selection | null) => void}} dependencies */
 export function createThreadPreview({
   inventory,
@@ -137,6 +138,7 @@ export function createThreadPreview({
   placedAt,
   scrollThreadIntoView,
   scrollToElement,
+  openPageThread,
   openInPanel,
   onClose,
 }) {
@@ -939,8 +941,7 @@ export function createThreadPreview({
     const next = Math.max(0, Math.min(threadItems.length - 1, current + step));
     const item = threadItems[next];
     if (next === current || !item) return;
-    const positioned = show({ ...session, threadItem: item.id });
-    focusThread(positioned);
+    void openPageThread(item.thread.id, { part: "thread" });
   }
   /** @param {Item} item @param {Session} session */
   function previewItemNode(item, session) {

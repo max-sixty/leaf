@@ -349,6 +349,15 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     # first thread; the next walk step returns to the frame comment.
     user.keyboard.press("t")
     expect(widget.locator(f'[data-lf-datum="{target}"]')).to_be_visible()
+    card = user.locator(".lf-margin-preview")
+    card.get_by_role("button", name="Next thread").click()
+    expect(card).to_contain_text("This exact captured frame.")
+    expect(widget.locator(f'[data-lf-datum="{captured}"]')).to_be_visible()
+    expect(card.locator(".lf-page-thread")).to_be_focused()
+    card.get_by_role("button", name="Previous thread").click()
+    expect(widget.locator(f'[data-lf-datum="{target}"]')).to_be_visible()
+    expect(widget.locator(".lf-trace-phase")).to_have_text("After checkpoint")
+    expect(card.locator(".lf-page-thread")).to_be_focused()
     user.keyboard.press("t")
     expect(widget.locator(f'[data-lf-datum="{captured}"]')).to_be_visible()
 

@@ -150,9 +150,31 @@ def _registered_hook_command(harness, event):
         hook
         for registration in _registrations(harness)[event]
         for hook in registration["hooks"]
-        if not hook.get("asyncRewake")
+        if not hook.get("asyncRewake") and not hook.get("async")
     ]
     return hook["command"]
+
+
+def test_claude_code_waits_for_the_start_hook_only_after_a_compaction():
+    """Claude Code holds a resumed session's first reply until a synchronous
+    SessionStart hook ends, and Leaf's start hook adds only a reconnect notice the
+    prompt hook repeats, so it runs in the background. After a compaction it tells
+    the agent to read the leaf skill again (`hooks.reload_skill`), which must reach
+    the agent before it replies, and Claude Code adds a background hook's context
+    only at the next turn."""
+    waits = {
+        source: not hook.get("async")
+        for registration in _registrations("claude-code")["SessionStart"]
+        for source in registration["matcher"].split("|")
+        for hook in registration["hooks"]
+    }
+    assert waits == {
+        "startup": False,
+        "resume": False,
+        "clear": False,
+        "fork": False,
+        "compact": True,
+    }
 
 
 def _registered_hook_arguments(harness, event):

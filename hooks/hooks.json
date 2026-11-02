@@ -39,11 +39,22 @@
     ],
     "SessionStart": [
       {
+        "matcher": "compact",
         "hooks": [
           {
             "type": "command",
             "command": "\"$CLAUDE_PLUGIN_ROOT/bin/leaf\" hook --harness claude-code --if-claimed || exit 1",
             "timeout": 20
+          }
+        ]
+      },
+      {
+        "matcher": "startup|resume|clear|fork",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PLUGIN_ROOT/bin/leaf\" hook --harness claude-code --if-claimed || exit 1",
+            "async": true
           }
         ]
       }

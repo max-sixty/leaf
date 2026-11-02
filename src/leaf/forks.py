@@ -60,8 +60,10 @@ line saying a fork wrote it, for the session to correct where what it knows show
 reply wrong: replayed on real messages, about one fork reply in eight or more was.
 Every outcome goes to the page's diagnostics
 (`interaction_log`, type `fork_reply`), with the fork's tokens and time and the
-request it resent, as the clerk's `turn_end_check` notes have it, which is what a
-later replay or audit scores.
+request it resent (`request` in `hooks/claude-code.ts`, which says where a replay
+cuts the conversation: to `sent` while `running` lists a call, else to `row`), as
+the clerk's `turn_end_check` notes have it, which is what a later replay or audit
+scores.
 """
 
 import json

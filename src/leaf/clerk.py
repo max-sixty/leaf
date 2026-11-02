@@ -129,13 +129,12 @@ for input, would close that gap.
 Each fork's outcome goes to the diagnostics of every page the session holds
 (`interaction_log`, type `turn_end_check`), as a fork reply's does (`forks.py`): what
 the fork named on that page, verbatim, what Leaf wrote, changed and told for it, or
-why it wrote no records, with the fork's tokens and time and the request it resent:
-the model and effort it named, how many messages it carried, and the newest
-transcript rows stored as that request went out and by the fork's time, which say
-where a replay cuts the conversation. A fork that failed, or gave an answer `ANSWER` refuses, is noted with
-its reason. Claude Code keeps no copy of a `$.model.fork` exchange, only its token
-counts in the debug log, so this record is what a later replay or audit scores
-against what the agent did next.
+why it wrote no records, with the fork's tokens and time and the request it resent
+(`request` in `hooks/claude-code.ts`, which says where a replay cuts the
+conversation; a turn-end fork reads it to `row`). A fork that failed, or gave an
+answer `ANSWER` refuses, is noted with its reason. Claude Code keeps no copy of a
+`$.model.fork` exchange, only its token counts in the debug log, so this record is
+what a later replay or audit scores against what the agent did next.
 
 Measured on 2026-10-29 by replaying 21 recorded turn ends three times each on Opus
 5.5 (`~/.tmp/leaf.agent-channels/replay/`, `fork3.py` and `score3.py`), with the asks

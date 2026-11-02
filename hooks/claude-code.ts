@@ -357,10 +357,12 @@ async function clerk($: EngineInterface, session: string) {
 // The main thread's last request, which `$.model.fork` resends: the model and effort
 // it named, how many messages it carried and the newest row stored as it went out
 // (`turn.step`, `sent`), with the newest row stored by the time of the fork (`row`),
-// each the transcript's id from `session.append`. A turn-end fork reads the turn's
-// final reply, stored after its request went out: in the claude-code journey on
-// 2026-11-01, an ask's words stood only in that reply. Each fork hands this to Leaf,
-// so a fork's diagnostics name the conversation it read.
+// each the transcript's id from `session.append`. The fork reads the conversation as
+// it would next go out: with a tool call running, to `sent`, since the call's
+// tool_use can't go out before its result; otherwise to `row`, a turn's final reply
+// included (`notes/fork-replies.md`, under the fork probes, and a turn-end ask in the
+// claude-code journey on 2026-11-01 that quoted only that reply). Each fork hands
+// this to Leaf, so a fork's diagnostics say where a replay cuts the conversation.
 let lastStep:
   | { model: string; effort?: string | number; messages: number; sent?: string }
   | undefined;

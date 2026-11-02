@@ -75,18 +75,21 @@ element or `null`.
 A widget whose entry declares `x-text-format: inline-markdown` has its direct authored
 text formatted as inline Markdown. With `markdown`, its data body arrives rendered as
 block Markdown while the recorded body stays the source. It reads as a Markdown file,
-whose soft line breaks are spaces. Adopt the rendered `.lf-markdown-body` and repaint
-changing prose with `paintMarkdown(body, source)`.
+as `renderMarkdown(text, false)` does (below). Adopt the rendered `.lf-markdown-body`
+and repaint changing prose with `paintMarkdown(body, source)`.
 `markdownSourceOffset(body, node, offset)` maps a caret in the rendered body back to the
 source.
 
 `inlineMarkdownFragment(text)` returns a fragment, `renderMarkdown(text)` a safe HTML
 string for `unsafeHTML`, and `markdownWords(text)` the words Markdown renders to. They
-keep each line break as typed words do; `renderMarkdown(text, false)` renders a Markdown
-file, whose soft line breaks are spaces, so its paragraphs wrap to the box. Until
-the renderer has loaded, they return the escaped source; `loadMarkdown()` resolves once
-it has, and `markdownReady()` says whether it has, so a widget showing changing prose
-repaints then.
+read text as a message a person typed: each line break stays a line, a line's leading
+spaces are dropped rather than starting code, and `---` under a line is a rule.
+`renderMarkdown(text, false)` and `markdownWords(text, false)` read a Markdown file as
+CommonMark does: its soft line breaks are spaces, so its paragraphs wrap to the box, a
+block indented four spaces is code, and a line of `=` or `-` underlines a heading.
+Until the renderer has loaded, they return the escaped source; `loadMarkdown()`
+resolves once it has, and `markdownReady()` says whether it has, so a widget showing
+changing prose repaints then.
 
 ### Code
 
@@ -263,10 +266,14 @@ published, for showing how long a worker has been quiet.
 
 ### Reading version changes
 
-`comparisonChanges(owner)` returns the changed elements inside `owner` in the current
-version comparison, or every changed element with no owner, and an empty array with no
-comparison active. Reading it during a `LeafElement` render subscribes that render
-to comparison changes.
+`comparisonChanges(owner)` returns the changes inside `owner` in the current version
+comparison, or every change with no owner, and an empty array with no comparison
+active. A change is a run of changed elements in one view, such as a tab, a
+`details`, or the content a disclosure control (`aria-expanded`) names in
+`aria-controls`, with no unchanged block between them, as a rewritten section is. Each
+change is an array of its elements inside `owner`, in page order, so the result's
+length counts changes as the reader does. Reading it during a `LeafElement` render
+subscribes that render to comparison changes.
 
 `revisionLabel(event.revision)` is the page's name for the version an event was
 recorded in.

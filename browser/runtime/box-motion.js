@@ -392,8 +392,9 @@ export function boxMotion({
     return { by, plane, x: at.left - origin.left, y: at.top - origin.top };
   }
   // Carries every reading kept as far as the edges holding the root moved since
-  // (`frame`), and returns the root's box and how far what the box stands by moved in the box's plane
-  // meanwhile, as a scroll moves a passage past a box the window's edge holds.
+  // (`frame`), and returns the root's box and how far what the box stands by moved in
+  // the box's plane meanwhile, as a scroll moves a passage past a box the window's edge
+  // holds.
   function rebase() {
     const at = boxOf(root.getBoundingClientRect());
     const edges = held();

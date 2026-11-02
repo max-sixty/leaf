@@ -208,8 +208,6 @@ export const floatingSelections = () => [...stood.values()];
 // The edges that hold a placed box where its placement stood it, the anchor of what it
 // stands by, and the element its plane moves with, as box-motion.js reads them
 // (`held`), or null for a box no placement stands.
-// The edges that hold a placed box where its placement stood it, as box-motion.js reads
-// them (`held`), or null for a box no placement stands.
 /** @param {HTMLElement} floating */
 export const heldEdges = (floating) => {
   const placed = stood.get(floating);

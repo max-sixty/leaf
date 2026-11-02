@@ -77,8 +77,8 @@ def _data_body(value) -> Resource:
     `runtime/context.js`): its JSON, gzipped. Nothing compresses a file opened from
     disk or sent as an attachment, and gzip puts prose and code in the file at about
     40% of their size, base64 included, where uncompressed base64 takes 133%. Level 6
-    packs as small as gzip's default 9 in half the time, and a fixed mtime lets equal
-    values share one body."""
+    packs within 1% of gzip's default 9 in a third to a half of the time, and a fixed
+    mtime lets equal values share one body."""
     return Resource(
         gzip.compress(
             json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode(),

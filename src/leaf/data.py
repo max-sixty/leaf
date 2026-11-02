@@ -279,8 +279,10 @@ def data_manifest(value, contract: str, registry: dict):
 
 def deferred_fields(value, contract: str, registry: dict) -> dict:
     """Each record's deferred field by the record's key: what `data_manifest` leaves at
-    the source, and what `deferred_value` answers for each key that has one. An export
-    embeds these in place of the deferred door."""
+    the source. The deferred door answers one of these, and an export embeds them all.
+
+    `read_source` judged the value by its contract (`payload_error`): every record is
+    an object with a unique key. Its item schema decides which fields it carries."""
     spec = deferred_records(value, contract, registry)
     if spec is None:
         return {}
@@ -326,29 +328,15 @@ def deferred_value(
         raise StaleDataError(
             f"data source {source!r} no longer holds revision {revision!r}"
         )
-    value = reading.get("value")
-    spec = deferred_records(value, reading["contract"], registry)
-    if spec is None:
-        raise DataError(f"data source {source!r} defers no record field")
-    # `read_source` judged the value by its contract (`payload_error`): every record
-    # is an object with a unique key. Its item schema decides which fields it carries.
-    assert value is not None
-    item = next(
-        (item for item in value[spec["items"]] if item[spec["key"]] == key), None
-    )
-    if item is None:
-        raise DataError(f"unknown record key {key!r} in data source {source!r}")
-    if spec["deferred"] not in item:
-        raise DataError(
-            f"record {key!r} in data source {source!r} has no deferred field "
-            f"{spec['deferred']!r}"
-        )
+    fields = deferred_fields(reading.get("value"), reading["contract"], registry)
+    if key not in fields:
+        raise DataError(f"data source {source!r} defers no field of record {key!r}")
     return {
         "source": source,
         "contract": reading["contract"],
         "revision": revision,
         "key": key,
-        "value": item[spec["deferred"]],
+        "value": fields[key],
     }
 
 

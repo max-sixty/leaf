@@ -1,5 +1,7 @@
 """Preview and offline export tests."""
 
+import base64
+import gzip
 import json
 
 from click.testing import CliRunner
@@ -9,8 +11,12 @@ from render_harness import (
 )
 
 from leaf import cli as cli_model
+from leaf import data as data_model
+from leaf import exporting as exporting_model
 from leaf.event_log import read_events
 from leaf.files import published_versions
+from leaf.structure import SourceDocument
+from leaf_dev.example_data import patch_manifest
 
 
 def test_export_refuses_an_unstamped_version_without_replacing_the_destination(
@@ -103,3 +109,37 @@ def test_export_draft_refuses_invalid_source_and_version_selection(page_dir, tmp
     assert result.exit_code != 0
     assert "lf-no-such-widget" in result.output
     assert output.read_text() == "Keep the existing export"
+
+
+def test_an_export_holds_each_data_value_once_outside_its_documents(serve, tmp_path):
+    """A source's value and each deferred field are one body apiece, so no value rides
+    the composed document through its parsers or reaches the file twice."""
+    serve(
+        leaf_page(
+            "Data once",
+            '<lf-text-document id="notes" source="notes" label="notes.md">'
+            '</lf-text-document><lf-diff id="patch" source="review-patch"></lf-diff>',
+        )
+    )
+    data_model.cmd_data_set(serve.page_dir, "notes", "NOTES_SENTINEL\n")
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "review-patch",
+        patch_manifest(
+            "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
+            "@@ -1 +1 @@\n-PATCH_SENTINEL_OLD\n+PATCH_SENTINEL_NEW\n"
+        ),
+    )
+    out = tmp_path / "data.html"
+    exporting_model.cmd_export(serve.page_dir, out, None)
+    exported = out.read_text(encoding="utf-8")
+    package = SourceDocument(exported).tree.select_one("script[data-lf-export]")
+    assert package is not None
+    bodies = [
+        gzip.decompress(base64.b64decode(resource["base64"])).decode()
+        for resource in json.loads(package.text)["resources"].values()
+        if resource["mime"] == "application/gzip"
+    ]
+    for sentinel in ("NOTES_SENTINEL", "PATCH_SENTINEL_NEW"):
+        # Counted, so a failure doesn't make pytest diff a file of megabytes.
+        assert (exported.count(sentinel), sum(sentinel in b for b in bodies)) == (0, 1)

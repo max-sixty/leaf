@@ -947,7 +947,7 @@ document.addEventListener("input", (event) => {
 });
 document.addEventListener("keyup", (event) => {
 	if (CARET_KEYS.includes(event.key) || selectsAll(event)) keepWritingCaret();
-});
+}, true);
 document.addEventListener("pointerup", keepWritingCaret);
 function registerWritingDestination(prefix, reveal) {
 	writingRoutes.set(prefix, reveal);

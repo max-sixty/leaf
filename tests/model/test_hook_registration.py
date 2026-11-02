@@ -155,6 +155,18 @@ def _registered_hook_command(harness, event):
     return hook["command"]
 
 
+def test_claude_code_runs_the_start_hook_only_after_a_compaction():
+    """Outside a compaction, Leaf's start hook adds only a reconnect notice, which
+    the prompt hook hands the same first turn, while Claude Code holds a resumed
+    session's first reply until its start hooks end. After a compaction it tells
+    the agent to read the leaf skill again (`hooks.reload_skill`) before it
+    replies, which nothing else does."""
+    [registration] = _registrations("claude-code")["SessionStart"]
+    assert registration["matcher"] == "compact"
+    [hook] = registration["hooks"]
+    assert not hook.get("async")
+
+
 def _registered_hook_arguments(harness, event):
     """The `leaf` arguments the synchronous registration for this event passes."""
     words = shlex.split(_registered_hook_command(harness, event))

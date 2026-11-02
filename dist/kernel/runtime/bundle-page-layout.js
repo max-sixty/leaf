@@ -7387,7 +7387,7 @@ async function readState(bound) {
 	countTraffic("asked");
 	try {
 		if (offlineInteractive) return {
-			state: offlineState(),
+			state: await offlineState(),
 			fault: null
 		};
 		const signal = globalThis.AbortSignal.timeout(bound);

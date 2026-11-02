@@ -197,13 +197,23 @@ def test_a_head_s_words_take_its_controls_room_while_they_hide(browser, serve):
     the receipt's end, which neither moves nor changes its size."""
     url = serve(PANEL_PAGE)
     panel_comment(serve.page_dir, "Can it wait?", {"section": "lede"})
-    # The margin at this width caps the card short of the head's words and controls.
     context = browser.new_context(viewport={"width": 1440, "height": 900})
     page = open_page(browser, url, context=context)
     page.locator(".lf-margin-marker").first.click()
     message = page.locator(".lf-margin-preview .lf-msg[data-lf-author=user]").first
     expect(message.locator(".lf-msg-sending")).to_contain_text("Queued")
     page.mouse.move(0, 0)
+    rendered(page)
+    # A card's head line leaves each message's head the card's whole width, so narrow
+    # this head until its words fill it, as a narrower card or a longer receipt would.
+    message.locator(".lf-msg-head").evaluate(
+        """head => {
+          const end = head.querySelector('.lf-msg-sending').getBoundingClientRect().right;
+          const words = end - head.getBoundingClientRect().left
+            + parseFloat(getComputedStyle(head).paddingInlineEnd);
+          head.style.inlineSize = `${Math.ceil(words) + 2}px`;
+        }"""
+    )
     rendered(page)
     rest = message.evaluate(RECEIPT_BESIDE_CONTROLS)
     assert rest["whole"] and rest["controls"] is None, rest

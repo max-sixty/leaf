@@ -301,8 +301,8 @@ def test_a_card_s_news_stands_on_its_head_line_over_whole_heads(browser, serve, 
     width. The notice once shared the head's line and took its room, which cut the
     phone's time."""
     url = serve(PANEL_PAGE)
-    # Written 51 days ago, so the time reads "51d ago" however slowly the test runs:
-    # "just now" turned "1m ago", narrow enough to stand whole on the phone.
+    # Written 51 days ago, so the time reads "51d ago", wider than "just now", however
+    # slowly the test runs.
     root = append_carried_log_record(
         serve.page_dir,
         {

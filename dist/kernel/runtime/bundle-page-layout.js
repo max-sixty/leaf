@@ -6589,27 +6589,33 @@ function standOver(stand, placed, borderRadius) {
 	const at = anchor && anchorBox(anchor);
 	const stood = standIn(stand, placed, Boolean(anchor));
 	const style = stand.box.style;
-	standBox(stand.box, placed.rect, stood, anchor, at);
+	const band = token("--focus-ring-w");
+	const gaps = sideGaps(placed, band, markGap(placed.surface));
+	const gap = Math.min(gaps.top, gaps.right, gaps.bottom, gaps.left);
+	const { rect } = placed;
+	const box = borderRadius === null ? rect : {
+		left: rect.left - gaps.left + gap,
+		top: rect.top - gaps.top + gap,
+		right: rect.right + gaps.right - gap,
+		bottom: rect.bottom + gaps.bottom - gap
+	};
+	standBox(stand.box, box, stood, anchor, at);
 	Object.assign(style, {
 		display: "block",
-		borderRadius
+		borderRadius: borderRadius ?? "0"
 	});
-	const band = token("--focus-ring-w");
-	const outside = markGap(placed.surface);
-	const gap = cramped(placed, band + outside) ? -band : outside;
 	style.setProperty("--lf-mark-offset", layoutPx(gap));
-	const room = Math.max(0, band + gap);
 	for (const side of [
 		"top",
 		"right",
 		"bottom",
 		"left"
-	]) stand.root.style.setProperty(`--lf-paint-outset-${side}`, layoutPx(cutsAt(placed, side) ? 0 : room));
+	]) stand.root.style.setProperty(`--lf-paint-outset-${side}`, layoutPx(cutsAt(placed, side) ? 0 : Math.max(0, band + gaps[side])));
 	return {
 		...stood,
 		anchor,
 		at,
-		room
+		room: Math.max(0, band + gaps.top)
 	};
 }
 const token = (name) => Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
@@ -6623,10 +6629,26 @@ function cutsAt({ rect, levels }, side) {
 	const low = side === "top" || side === "left";
 	return levels.some(({ band, axes }) => axes[axis] && (low ? rect[side] < band[side] : rect[side] > band[side]));
 }
-function cramped({ rect, levels, plane }, room) {
-	const short = (band, low, high) => rect[low] >= band[low] && rect[low] - room < band[low] || rect[high] <= band[high] && rect[high] + room > band[high];
-	const page = pageExtent(plane);
-	return short(page, "left", "right") || short(page, "top", "bottom") || levels.some(({ holder, band, axes }) => holder && (axes.x && short(band, "left", "right") || axes.y && short(band, "top", "bottom")));
+function sideGaps({ rect, levels, plane }, band, gap) {
+	const clips = [{
+		band: pageExtent(plane),
+		axes: {
+			x: true,
+			y: true
+		}
+	}, ...levels.filter(({ holder }) => holder)];
+	const stands = (side) => {
+		const x = side === "left" || side === "right";
+		const low = side === "left" || side === "top";
+		const rooms = clips.filter(({ axes }) => x ? axes.x : axes.y).map(({ band: edge }) => low ? rect[side] - edge[side] : edge[side] - rect[side]).filter((room) => room > -1);
+		return Math.max(-band, Math.min(gap, ...rooms.map((room) => room - band)));
+	};
+	return {
+		top: stands("top"),
+		right: stands("right"),
+		bottom: stands("bottom"),
+		left: stands("left")
+	};
 }
 function pageExtent(plane) {
 	const shown = layoutWindow();

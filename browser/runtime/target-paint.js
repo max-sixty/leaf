@@ -102,7 +102,7 @@ export function paintAim(element, surface) {
   const stood = standOver(
     aimStand,
     placed,
-    shaped ? "0" : getComputedStyle(surface).borderRadius,
+    shaped ? null : getComputedStyle(surface).borderRadius,
   );
   aimed = { placed: { ...placed, shown: placed.shown }, stood };
   return placed.shown;
@@ -202,7 +202,7 @@ function drawTrace(
   targetTraceBox.classList.toggle("lf-shaped", shaped);
   keeps(targetTraceBox, "data-for", element.id || null);
   keeps(traceStand.root, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
-  standOver(traceStand, placed, shaped ? "0" : getComputedStyle(surface).borderRadius);
+  standOver(traceStand, placed, shaped ? null : getComputedStyle(surface).borderRadius);
 }
 
 /** @param {Element | null} element @param {Element | null} [surface] */
@@ -246,9 +246,9 @@ export function geometryChanged() {
 
 // The location ring round `element`, the decision the user stands in, or none
 // (obligations/view.js, `markHere`). It is drawn over the decision as every other mark
-// on it is, so it stands where the decision says (`standOver`), inside it where a clip
-// leaves no room outside, and above the decision's contents, which covered a ring drawn
-// inside it as an outline. A control inside the decision that carries the location
+// on it is, so it stands where the decision says (`standOver`), inside it on a side a
+// clip leaves no room outside, and above the decision's contents, which covered a ring
+// drawn inside it as an outline. A control inside the decision that carries the location
 // itself stands it down (page-paint.js, `locationStandsDown`).
 //
 // The ring is also the focus ring of a decision the user arrived on, so each box it is

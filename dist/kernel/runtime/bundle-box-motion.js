@@ -75,7 +75,7 @@ function paintAim(element, surface) {
 	if (!shaped) aimShape.replaceChildren();
 	keeps(aimBox, "data-for", element.id);
 	keeps(aimStand.root, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
-	const stood = standOver(aimStand, placed, shaped ? "0" : getComputedStyle(surface).borderRadius);
+	const stood = standOver(aimStand, placed, shaped ? null : getComputedStyle(surface).borderRadius);
 	aimed = {
 		placed: {
 			...placed,
@@ -146,7 +146,7 @@ function drawTrace(element = traceElement, surface = traceSurface, rebuildGeomet
 	targetTraceBox.classList.toggle("lf-shaped", shaped);
 	keeps(targetTraceBox, "data-for", element.id || null);
 	keeps(traceStand.root, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
-	standOver(traceStand, placed, shaped ? "0" : getComputedStyle(surface).borderRadius);
+	standOver(traceStand, placed, shaped ? null : getComputedStyle(surface).borderRadius);
 }
 function paintTrace(element, surface = element) {
 	if (!element) {

@@ -3270,14 +3270,18 @@ def test_an_aim_follows_a_scroll_inside_a_widgets_shadow_stage(browser, serve):
     part.hover()
     page.keyboard.down("Alt")
     expect(page.locator(".lf-aim")).to_be_visible()
+    # The aim's box reaches past the part on each side by as much as the port leaves
+    # room for there (target-paint-geometry.js, `standOver`). The scroll below takes
+    # away the room above the part and leaves the room below it, so the box's left edge
+    # and foot keep their places on the part.
     offset = """() => {
       const part = document.querySelector('#shadow-scroller').shadowRoot
         .querySelector('.part').getBoundingClientRect();
       const aim = document.querySelector('.lf-aim').getBoundingClientRect();
-      return [aim.left - part.left, aim.top - part.top];
+      return [aim.left - part.left, aim.bottom - part.bottom];
     }"""
     at = page.evaluate(offset)
-    assert at == pytest.approx([0, 0], abs=1), "the aim stood off its part"
+    assert -9 <= at[0] <= 1 and -1 <= at[1] <= 9, f"the aim stood off its part: {at}"
     host.evaluate(
         "host => { host.shadowRoot.querySelector('.content').style.height = '600px'; }"
     )

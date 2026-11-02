@@ -1302,8 +1302,8 @@ def test_the_ring_round_a_clipped_question_stands_inside_it(browser, serve):
     """A box that clips a question and leaves no room round it, such as a frame with
     no padding, cuts a ring standing outside the question: drawn as the question's
     outline, it lost its sides and kept a line across the top. There the ring stands
-    inside the question, as every mark does round a box its clip leaves no room
-    around."""
+    inside the question, as every mark does on a side its clip leaves no room
+    beyond."""
     ask = (
         '<div id="frame" style="overflow: clip">'
         '<lf-ask id="rollout"><h2>Include self-hosted runners?</h2>'
@@ -1327,9 +1327,11 @@ def test_the_ring_round_a_clipped_question_stands_inside_it(browser, serve):
 
 def test_the_ring_round_a_question_stands_clear_of_its_words(browser, serve):
     """The ring the user stands in goes round a question outside its box, as every
-    obligation's does, so it does not run over the first letter of each line. Only a
-    question that fills a full-height workspace, which can meet the window's foot with
-    no scroll left to show a ring outside it, draws the ring inside its box."""
+    obligation's does, so it does not run over the first letter of each line. A
+    question that fills a full-height workspace meets the window's foot with no scroll
+    left to show a ring outside it, so the ring stands inside along the foot, and stays
+    clear of the words on the sides the window leaves room beside: standing inside on
+    every side, it ran over the heading's first letter."""
     ask = (
         '<lf-ask id="rollout"><h2>Include self-hosted runners?</h2>'
         "<p>They need administrator-configured namespaces.</p>"
@@ -1351,3 +1353,4 @@ def test_the_ring_round_a_question_stands_clear_of_its_words(browser, serve):
     expect(page.locator(".lf-location[data-for='rollout']")).to_be_visible()
     ring, workspace = page.evaluate(LOCATION_RING), page.evaluate(ASK_WORDS)
     assert ring["outer"]["bottom"] <= workspace["foot"], (ring, workspace)
+    assert ring["inner"]["left"] < workspace["words"], (ring, workspace)

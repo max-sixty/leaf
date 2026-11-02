@@ -309,31 +309,44 @@ export function standBox(
 // the cut: percentage radii retain their shape, and the browser carries the paint
 // with scrolling.
 // SVG targets retain their drawn contour, whose stroke straddles the path, rather
-// than acquiring rectangular brackets. Answers the stand and anchor for its label.
-/** @param {PaintStand<Element & ElementCSSInlineStyle>} stand @param {Placement} placed @param {string} borderRadius */
+// than acquiring rectangular brackets; their `borderRadius` is null. Answers the stand
+// and anchor for its label, and the room the mark takes above the target.
+/** @param {PaintStand<Element & ElementCSSInlineStyle>} stand @param {Placement} placed @param {string | null} borderRadius */
 export function standOver(stand, placed, borderRadius) {
   const anchor = anchoredBy(placed.surface, stand.root);
   const at = anchor && anchorBox(anchor);
   const stood = standIn(stand, placed, Boolean(anchor));
   const style = stand.box.style;
-  standBox(stand.box, placed.rect, stood, anchor, at);
-  Object.assign(style, { display: "block", borderRadius });
   const band = token("--focus-ring-w");
-  const outside = markGap(placed.surface);
-  const gap = cramped(placed, band + outside) ? -band : outside;
+  const gaps = sideGaps(placed, band, markGap(placed.surface));
+  const gap = Math.min(gaps.top, gaps.right, gaps.bottom, gaps.left);
+  // One outline at the nearest side's gap draws every side where it stands, round a
+  // box that reaches past the target by how much farther out each side stands. A
+  // shaped mark's stroke is drawn on the target's own box.
+  const { rect } = placed;
+  const box =
+    borderRadius === null
+      ? rect
+      : {
+          left: rect.left - gaps.left + gap,
+          top: rect.top - gaps.top + gap,
+          right: rect.right + gaps.right - gap,
+          bottom: rect.bottom + gaps.bottom - gap,
+        };
+  standBox(stand.box, box, stood, anchor, at);
+  Object.assign(style, { display: "block", borderRadius: borderRadius ?? "0" });
   style.setProperty("--lf-mark-offset", layoutPx(gap));
   // The frames let the band survive outside the target where it stands outside, and
   // cut it exactly on an edge they already cut the target at, where it would otherwise
   // stand over what the scroller has scrolled past (css-anchors.js, `cutPath`).
-  const room = Math.max(0, band + gap);
   /** @type {(keyof Box)[]} */
   const sides = ["top", "right", "bottom", "left"];
   for (const side of sides)
     stand.root.style.setProperty(
       `--lf-paint-outset-${side}`,
-      layoutPx(cutsAt(placed, side) ? 0 : room),
+      layoutPx(cutsAt(placed, side) ? 0 : Math.max(0, band + gaps[side])),
     );
-  return { ...stood, anchor, at, room };
+  return { ...stood, anchor, at, room: Math.max(0, band + gaps.top) };
 }
 
 /** @param {string} name */
@@ -364,30 +377,41 @@ function cutsAt({ rect, levels }, side) {
   );
 }
 
-// Where a box that clips the target, as a joined lf-options frame clips its cells,
-// shows the target's edge but not `room` beyond it, the mark stands just inside the
-// edge instead, as a control packed into a list insets its own ring (base.css).
-// Outside, the clip cut away its sides and left stubs across the neighbours. An edge
-// the clip already cuts asks for no room. The window clips the same way where no
-// scroll of the page brings the room into view (`pageExtent`), as at the foot of a
-// question filling a full-height workspace.
-/** @param {Placement} placed @param {number} room */
-function cramped({ rect, levels, plane }, room) {
-  /** @param {Box} band @param {keyof Box} low @param {keyof Box} high */
-  const short = (band, low, high) =>
-    (rect[low] >= band[low] && rect[low] - room < band[low]) ||
-    (rect[high] <= band[high] && rect[high] + room > band[high]);
-  const page = pageExtent(plane);
-  return (
-    short(page, "left", "right") ||
-    short(page, "top", "bottom") ||
-    levels.some(
-      ({ holder, band, axes }) =>
-        holder &&
-        ((axes.x && short(band, "left", "right")) ||
-          (axes.y && short(band, "top", "bottom"))),
-    )
-  );
+// How far outside the target each side of a mark stands: at `gap`, the target's own
+// (`markGap`), or where a box that clips the target shows its edge but not the band
+// beyond it, as far out as the clip leaves room for the band, and at most one band
+// inside the edge. Outside, the clip cut the band away; standing inside, it ran over
+// the first letter of each line of a question whose heading starts at its edge, so
+// each side takes all the room its own clip leaves, as a full-height workspace's
+// question keeps its ring clear of its heading and stands it inside only along the
+// window's foot. An edge the clip already cuts asks for no room; one within a pixel of
+// the clip is flush with it, since a clip's band is measured in whole pixels
+// (geometry.js, `shownBand`). The window clips the same way where no scroll of the
+// page brings the room into view (`pageExtent`).
+/** @param {Placement} placed @param {number} band @param {number} gap @returns {Box} */
+function sideGaps({ rect, levels, plane }, band, gap) {
+  const clips = [
+    { band: pageExtent(plane), axes: { x: true, y: true } },
+    ...levels.filter(({ holder }) => holder),
+  ];
+  /** @param {keyof Box} side */
+  const stands = (side) => {
+    const x = side === "left" || side === "right";
+    const low = side === "left" || side === "top";
+    const rooms = clips
+      .filter(({ axes }) => (x ? axes.x : axes.y))
+      .map(({ band: edge }) =>
+        low ? rect[side] - edge[side] : edge[side] - rect[side],
+      )
+      .filter((room) => room > -1);
+    return Math.max(-band, Math.min(gap, ...rooms.map((room) => room - band)));
+  };
+  return {
+    top: stands("top"),
+    right: stands("right"),
+    bottom: stands("bottom"),
+    left: stands("left"),
+  };
 }
 
 // What a scroll of the page can bring into the window, in client coordinates: the

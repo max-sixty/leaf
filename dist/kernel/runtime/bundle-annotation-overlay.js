@@ -2503,7 +2503,7 @@ function createVisualMarkPaint() {
 				record.shapeKey = shapeKey;
 			}
 			keeps(stand.root, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
-			standOver(stand, placed, geometry ? "0" : getComputedStyle(target.surface).borderRadius);
+			standOver(stand, placed, geometry ? null : getComputedStyle(target.surface).borderRadius);
 		}
 		syncStates();
 	}

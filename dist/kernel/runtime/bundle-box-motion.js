@@ -1,21 +1,9 @@
-import { __exportAll } from "./bundle-rolldown-runtime.js";
 import { TEXT_FIELD, afterSettling, cancelRender, contentRides, inChrome, inlineStyle, keeps, motionEasing, motionPlays, motionTime, move, nextRender, onUserInput, playMotion } from "./bundle-portable.js";
 import { el } from "./bundle-errors.js";
 import "./bundle-passages.js";
 import { SVG_NS, paintGeometry, paintShape, paintStand, placement, standBox, standOver, vacate } from "./bundle-page-layout.js";
 
 //#region runtime/target-paint.js
-var target_paint_exports = /* @__PURE__ */ __exportAll({
-	aimLayer: () => aimLayer,
-	clearAim: () => clearAim,
-	geometryChanged: () => geometryChanged,
-	labelAim: () => labelAim,
-	mountTargetPaint: () => mountTargetPaint,
-	paintAim: () => paintAim,
-	paintTrace: () => paintTrace,
-	shifted: () => shifted$1,
-	targetTraceLayer: () => targetTraceLayer
-});
 const targetTraceBox = el("div", "lf-ui lf-target-trace");
 const aimBox = el("div", "lf-ui lf-aim");
 const traceStand = paintStand(targetTraceBox);
@@ -856,4 +844,4 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 }
 
 //#endregion
-export { aimLayer, boxMotion, mountTargetPaint, paintTrace, targetTraceLayer, target_paint_exports };
+export { aimLayer, boxMotion, clearAim, geometryChanged, labelAim, mountTargetPaint, paintAim, paintTrace, shifted$1 as shifted, targetTraceLayer };

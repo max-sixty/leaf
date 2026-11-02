@@ -331,9 +331,12 @@ def test_a_url_naming_a_widget_key_reaches_its_part(browser, serve):
         return page.locator(f'#items [data-item="{item}"][data-part="{number}"]')
 
     def landed(item, number):
-        # The part, not the top of its widget: the part before it has left the window.
-        expect(part(item, number)).to_be_in_viewport()
-        expect(part(item, number - 1)).not_to_be_in_viewport()
+        # At the window's top, where the fragment rule lands a target, rather than a
+        # 400px part or more below it, where landing on the widget's top leaves it.
+        target = part(item, number)
+        expect(target).to_be_in_viewport()
+        scroll_settled(page)
+        assert 0 <= target.bounding_box()["y"] < 200
 
     page = open_page(browser, url + "#items:b/3")
     landed("b", 3)

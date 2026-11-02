@@ -190,8 +190,12 @@ container above it.
 ## Travel and history
 
 Link to a place on the page with an ordinary fragment link; Leaf clears any panel
-covering the page and opens whatever holds the element. A widget that opens the part a
-fragment names reads it with `fragmentTarget(hash)`, which returns nothing for an id in
+covering the page and opens whatever holds the element. A fragment can also name a
+part of a widget by the widget's id and a key, which `fragmentUrl` builds
+([module-reading.md, "Following a reference"](module-reading.md#following-a-reference)).
+A widget that opens the part a
+fragment names reads it with `fragmentTarget(hash)`: the element, or for a key the part
+the widget has drawn for it, else the widget. It returns nothing for an id in
 Leaf's chrome, in a message's markup, or on content a revision removed.
 
 Before Leaf travels to a target, such as a comment's anchor, it reveals the target as

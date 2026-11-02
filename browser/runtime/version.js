@@ -155,8 +155,15 @@ import { LayerRefused, admitReading, reportPageError } from "./layer-client.js";
 import { projectView, readApplication } from "./semantic-state.js";
 import { batch, effect, signal } from "/runtime/framework.js";
 
-import { ADDRESSABLE, anchoringIsReady, fragmentTarget } from "./anchor-resolution.js";
+import {
+  ADDRESSABLE,
+  anchoringIsReady,
+  fragmentAddress,
+  fragmentTarget,
+  revealAddressed,
+} from "./anchor-resolution.js";
 import { scrollToFragment } from "./anchor-travel.js";
+import { deferredArrival } from "./presentation.js";
 import { rememberAuthoredParents, stageAuthoredStates } from "./projection/authored.js";
 import { foldWidgetStates, obligationValue } from "./projection/model.js";
 import { runtimeRootState } from "./root-state.js";
@@ -2700,10 +2707,16 @@ export function createVersionController({
   // so a target nothing moved stays where it is. The fragment is read before widgets
   // upgrade, since a widget may write its own view into the URL (a root tab set names
   // its open panel), and that is display state, not a destination. A reload or history
-  // traversal keeps the browser's restored offset instead, and input during the arrival
-  // ends it. A fragment followed once the page is here is travel's (anchor-travel.js,
-  // `followFragment`), as is Back or Forward to one the page has hidden since
-  // (`returnToFragment`); both read the same destination and reveal it the same way.
+  // traversal keeps the browser's restored offset instead, since the browser read it
+  // over the same page, and input during the arrival ends it. A widget's key whose part
+  // the widget does not draw once it upgrades makes that offset one read over another
+  // of the widget's states, so the arrival lands the key whichever way the page
+  // arrived: it asks the widget to draw the part (`revealAddressed`), counts the answer
+  // as a deferred arrival, and lands on the part once it is drawn, or on the widget
+  // where it draws none. A fragment followed once the page is here is travel's
+  // (anchor-travel.js, `followFragment`), as is Back or Forward to one the page has
+  // hidden since (`returnToFragment`); both read the same destination and reveal it the
+  // same way.
   /** @type {Element | false | null} */
   let aimedAt = null;
   function aimArrival() {
@@ -2713,11 +2726,26 @@ export function createVersionController({
       )?.type === "navigate";
     const arrivedAt = location.hash;
     const currentIntent = retainUserIntent({ since: 0 });
+    /** @type {PromiseLike<unknown> | null} */
+    let drawing = null;
+    const land = () => {
+      const where = aimedAt && currentIntent() && fragmentTarget(arrivedAt);
+      if (!where) return;
+      reveal(where, currentIntent);
+      scrollToFragment(where);
+    };
     return function landFragment() {
-      aimedAt ??= fresh && fragmentTarget(arrivedAt);
+      const address = fragmentAddress(arrivedAt);
+      aimedAt ??= address
+        ? (fresh || !address.place) && address.element
+        : fresh && null;
       if (!aimedAt || !currentIntent()) return;
-      reveal(aimedAt, currentIntent);
-      scrollToFragment(aimedAt);
+      if (address?.key != null && !address.place && !drawing) {
+        const asked = revealAddressed(address.element, address.key);
+        if (asked?.then)
+          drawing = deferredArrival(Promise.resolve(asked).then(land, land));
+      }
+      land();
     };
   }
 

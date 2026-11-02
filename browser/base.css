@@ -1114,9 +1114,12 @@ main {
  * box that scrolls starts it again from its own top. A box the theme makes scroll
  * states that beside its overflow, so it holds from the first paint, before the runtime
  * runs (a bounded block, a table, a board; a workspace pane's body from minus its top
- * padding, layouts.css). The runtime marks every box it finds scrolling, whoever made
- * it scroll (reach.js, `paintSlot`), and the mark restarts the slot ([data-lf-scrolls],
- * state.css), so a box the page or a package makes scroll restarts too. The mark sits
+ * padding, layouts.css). The runtime marks each declared scroll surface it finds
+ * scrolling, whoever made it scroll: a box with the `scroll` class, which a reading
+ * region's body takes when it registers (reach.js, `paintSlot`). The mark restarts the
+ * slot ([data-lf-scrolls], state.css). The runtime reads no other box's overflow, so a
+ * box CSS makes scroll without stating a restart or carrying the class keeps the slot
+ * it met, and a header inside it sticks that far below the box's top. The mark sits
  * above packages and Layouts, so it outranks a value stacked onto a box that scrolls (a
  * page tab's panel the page makes scroll), and it restarts at `--lf-top-start`, which a
  * box that starts its slot other than at 0 states beside its `--lf-top` (a workspace

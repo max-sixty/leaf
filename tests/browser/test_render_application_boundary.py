@@ -784,14 +784,27 @@ def test_a_returning_widget_repaints_to_restore_subscriptions(browser, serve):
     assert page.evaluate(leave_and_return) == {"drawn": 1, "failed": 0, "pending": []}
 
     # Resuming a deferral draws the same reading again, and this draw fails.
-    page.evaluate(
-        "globalThis.__failLocalRender = true; "
-        "document.querySelector('#page-local').controller.defer()(); true"
-    )
+    # Fault reporting waits until after the native operation; presentation completion
+    # alone does not mean the console has received the report.
+    failure = 'leaf: <lf-local id="page-local"> failed: deliberate render failure'
+    with page.expect_console_message(
+        predicate=lambda message: message.text.startswith(failure)
+    ):
+        page.evaluate(
+            "globalThis.__failLocalRender = true; "
+            "document.querySelector('#page-local').controller.defer()(); true"
+        )
     expect(page.locator("#page-local .lf-error")).to_have_text(
         "<lf-local> failed: deliberate render failure"
     )
-    assert page.evaluate(leave_and_return) == {"drawn": 0, "failed": 2, "pending": []}
+    with page.expect_console_message(
+        predicate=lambda message: message.text.startswith(failure)
+    ):
+        assert page.evaluate(leave_and_return) == {
+            "drawn": 0,
+            "failed": 2,
+            "pending": [],
+        }
     errors = take_browser_errors(page)
     assert [said(error) for error in errors] == [
         'leaf: <lf-local id="page-local"> failed: deliberate render failure'

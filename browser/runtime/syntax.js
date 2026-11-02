@@ -18,9 +18,8 @@ import { synNodes, syntax } from "./syntax-tokens.js";
 const LANGUAGE_CLASS = /(?:^|\s)language-([\w+.#-]+)(?=\s|$)/;
 const BLOCK = "pre > code[class]";
 // The language Leaf colours a block in, or none, read again when its tokens land. A
-// block is coloured when its declared language is one the registry colours, it stands
-// outside a `data-style="own"` subtree, whose author keeps its tokens and colours
-// (reading.css), it holds only text, and it wears the reading face.
+// block is coloured when its declared language is one the registry colours, it holds
+// only text, and it wears the reading face.
 //
 // A block holding elements was marked up by its author, as a page that highlights its
 // own code marks up every token, and replacing its children would delete what they
@@ -35,7 +34,6 @@ const BLOCK = "pre > code[class]";
 const colouredAs = (code) => {
   const lang = code.getAttribute("class")?.match(LANGUAGE_CLASS)?.[1];
   if (!lang || !Object.hasOwn(syntaxLanguageNames, lang)) return undefined;
-  if (code.closest('[data-style="own"]')) return undefined;
   if (code.querySelector(":not([data-lf-syn])")) return undefined;
   if (
     code.isConnected &&

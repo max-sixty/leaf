@@ -20,7 +20,9 @@ them whatever its weight. A new page takes it unless the user names another defa
 A page that takes none (`--no-theme`) starts from the browser's defaults and Leaf's
 tokens: nothing of the look reaches it, its tables and code blocks included, while
 Leaf's widgets, threads and panel keep their own faces. A page or a theme may still
-set `--lf-reading-face: 1` on any box to give the markup in it that face.
+set `--lf-reading-face: 1` on any box to give the markup in it that face, and
+`--lf-reading-face: initial` on a box takes the face from the markup in it, as for
+content with its own design inside a themed page; comments still anchor there.
 
 A user can also keep several named themes and choose one default. Each is an ordinary
 installed package; its `instructions/author.md` describes the tasks it suits. Install

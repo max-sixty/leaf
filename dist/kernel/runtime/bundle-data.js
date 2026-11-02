@@ -1914,7 +1914,6 @@ const BLOCK = "pre > code[class]";
 const colouredAs = (code) => {
 	const lang = code.getAttribute("class")?.match(LANGUAGE_CLASS)?.[1];
 	if (!lang || !Object.hasOwn(syntaxLanguageNames, lang)) return void 0;
-	if (code.closest("[data-style=\"own\"]")) return void 0;
 	if (code.querySelector(":not([data-lf-syn])")) return void 0;
 	if (code.isConnected && getComputedStyle(code).getPropertyValue("--lf-reading-face").trim() !== "1") return void 0;
 	return syntaxLanguageNames[lang];

@@ -3,10 +3,12 @@
 import { offer, generatedElement, elementDirective } from "./element-markers.js";
 import { actionName, showAction } from "./icon-paths.js";
 import { keeps, keepsText } from "./keeps.js";
+import { keepFieldKeys } from "./field-keys.js";
 
 // Runtime searches share the vendor's native editor, frame and focus band. Callers
 // own their query and results; an auxiliary reading, such as a match count, belongs
-// in the control's `end` slot so it stays inside that same frame.
+// in the control's `end` slot so it stays inside that same frame. Keys typed into it
+// stop at it (field-keys.js).
 /** @param {string} cls @param {{name: string, label: string, placeholder?: string}} options */
 export function searchField(cls, { name, label, placeholder = label }) {
   const field = offer("wa-input", `lf-search-field lf-label-hidden ${cls}`);
@@ -22,6 +24,7 @@ export function searchField(cls, { name, label, placeholder = label }) {
   field.placeholder = placeholder;
   field.autocomplete = "off";
   field.spellcheck = false;
+  keepFieldKeys(field);
   return field;
 }
 

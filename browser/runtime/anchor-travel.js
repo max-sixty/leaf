@@ -616,11 +616,18 @@ export function createAnchorTravel({
     // written by the thread pass. Wait for it: a claim is synchronous but its
     // paint is not, so reading the destination in this turn would find the page as the
     // press left it.
+    // A route naming no part of the thread lands on the place it is about, where the
+    // page shows that place but no view of the thread (thread/destination.js, `page`).
     return arrive(
       () => {
         const where = threadDestination(id);
         if (!where) return null;
-        const target = focus && part ? threadFocusTarget(id, { part }) : null;
+        const placement = anchors.placedAt(id);
+        const target = !focus
+          ? null
+          : part
+            ? threadFocusTarget(id, { part })
+            : (targetElement(placement) ?? targetPlace(placement));
         /** @type {ScrollPlacement[]} */
         const scroll = [];
         if (target) scroll.push({ at: target, block: "nearest" });

@@ -1,5 +1,6 @@
 """How a margin row follows its target through scrolling panes, shadow-tree scrollers,
-sticky and fixed boxes, hidden tabs and authored anchor scopes."""
+sticky and fixed boxes, hidden tabs, content laid out but not shown, and authored anchor
+scopes."""
 
 import re
 
@@ -660,6 +661,89 @@ def test_a_row_behind_an_inactive_tab_is_withheld(browser, serve):
     margins_laid_out(page)
     expect(row).not_to_have_class(re.compile(r"\blf-withheld\b"))
     expect(row).to_be_visible()
+
+
+# A deck whose script moves its slides with transitions: the next slide hidden below the
+# current one by `visibility`, as reveal.js hides a fragment still to come, and the one
+# before moved out of the box that clips the deck. (reveal.js hides whole slides with
+# `hidden`, which Leaf's own rule draws as `display: none`.)
+DECK_PAGE = leaf_page(
+    "a deck that moves its slides with transitions",
+    """
+<header>
+  <h1>Deck</h1>
+  <details id="notes"><summary>Notes</summary><p id="note">A note for the speaker.</p></details>
+</header>
+<div id="deck">
+  <section id="slide-one" class="present"><h2>First</h2><p>The slide showing now.</p></section>
+  <section id="slide-two" class="future"><h2>Second</h2><p>Below it, still hidden.</p></section>
+  <section id="slide-three" class="past"><h2>Third</h2><p>Above the deck's box.</p></section>
+</div>
+""",
+    head="""<style>
+  #deck { position: relative; overflow: hidden; height: 360px; }
+  #deck > section { position: absolute; top: 40px; width: 100%;
+                    transition: visibility 0.2s, transform 0.2s; }
+  #deck > .future { visibility: hidden; transform: translateY(150%); }
+  #deck > .past { transform: translateY(-400px); }
+</style>""",
+    layout="workspace",
+)
+
+
+def test_rows_follow_slides_a_transition_shows_and_hides(browser, serve):
+    """A slide hidden by `visibility`, or moved out of the box that clips it, withholds
+    its comment's row, as a closed disclosure does. When the deck swaps slides by a
+    transition, the class change that starts it is read while the transition still holds
+    the old values, and nothing after it resizes or mutates; the rows follow once the
+    transitions end, without a reload."""
+    page = open_page(
+        browser,
+        serve(
+            DECK_PAGE,
+            events=[
+                _comment_on(slide)
+                for slide in ("slide-one", "slide-two", "slide-three")
+            ]
+            + [_comment_on("note")],
+        ),
+    )
+    resized(page, 1280, 800)
+    margins_laid_out(page)
+    row = {
+        target: page.locator(f'.lf-margin-cluster[data-lf-margin-for="{target}"]')
+        for target in ("slide-one", "slide-two", "slide-three", "note")
+    }
+    withheld = re.compile(r"\blf-withheld\b")
+    expect(row["slide-one"]).to_be_visible()
+    for hidden in ("slide-two", "slide-three", "note"):
+        expect(row[hidden]).to_have_class(withheld)
+        expect(row[hidden]).to_be_hidden()
+
+    # Read two frames after the transitions end, not polled: some unrelated pass would
+    # place the rows eventually, which is the bug.
+    swapped = page.evaluate("""async () => {
+      const one = document.getElementById('slide-one');
+      const two = document.getElementById('slide-two');
+      const ended = (slide, property) => new Promise((resolve) =>
+        slide.addEventListener('transitionend', (event) => {
+          if (event.target === slide && event.propertyName === property) resolve();
+        }));
+      const both = Promise.all([ended(one, 'transform'), ended(two, 'visibility')]);
+      one.className = 'past';
+      two.className = 'present';
+      await both;
+      for (const _ of [1, 2]) await new Promise(requestAnimationFrame);
+      const held = (id) => document
+        .querySelector(`[data-lf-margin-for="${id}"]`).classList.contains('lf-withheld');
+      return {one: held('slide-one'), two: held('slide-two')};
+    }""")
+    assert swapped == {"one": True, "two": False}, swapped
+    expect(row["slide-two"]).to_be_visible()
+
+    page.get_by_text("Notes", exact=True).click()
+    expect(row["note"]).not_to_have_class(withheld)
+    expect(row["note"]).to_be_visible()
 
 
 STRIP_FILL = "".join(

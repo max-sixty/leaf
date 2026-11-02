@@ -289,7 +289,9 @@ def test_a_thread_walk_card_leaves_and_returns_with_its_anchor(browser, serve):
 
 
 def test_thread_navigation_lands_after_resizing_an_open_reply(browser, serve):
-    """A fixed card cannot reveal itself by scrolling its already-visible passage away."""
+    """A reply open in a card goes on in the floating panel once the window narrows to a
+    phone's, and the walk back lands in the panel's view of the previous thread, with
+    its reply in view."""
     page = open_page(
         browser,
         live_url(serve(WORKSHOP_THREADS_PAGE, events=WORKSHOP_THREAD_EVENTS)),
@@ -313,13 +315,15 @@ def test_thread_navigation_lands_after_resizing_an_open_reply(browser, serve):
     expect(page.get_by_role("textbox", name="Reply", exact=True)).to_be_focused()
     resized(page, 390, 844)
     scroll_settled(page)
+    expect(card).to_be_hidden()
+    reply = page.locator(".lf-fp-field leaf-text")
+    expect(reply).to_be_focused()
     page.keyboard.press("Escape")
     page.keyboard.press("Shift+t")
-    expect(thread).to_be_focused()
-    scroll_settled(page)
-    expect(thread).to_be_in_viewport(ratio=1)
+    view = page.locator(".lf-fp-view:not([data-leaving])")
+    expect(view).to_be_focused()
+    expect(view).to_contain_text("Is lunch provided")
     page.keyboard.press("c")
-    reply = page.get_by_role("textbox", name="Reply", exact=True)
     expect(reply).to_be_focused()
     scroll_settled(page)
     expect(reply).to_be_in_viewport(ratio=1)

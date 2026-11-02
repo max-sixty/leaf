@@ -383,20 +383,28 @@ def test_a_follower_terminated_from_outside_stays_out_of_the_conversation(
     driven.quit()
 
 
-# The main thread's last request as a fork's diagnostics name it.
-RESENT = {"model": "claude-opus-5-5", "effort": "xhigh", "messages": 12, "row": "r2"}
+# The main thread's last request as a fork's diagnostics name it: the newest row
+# stored as it went out, and the newest by the time of the fork, such as its reply.
+RESENT = {
+    "model": "claude-opus-5-5",
+    "effort": "xhigh",
+    "messages": 12,
+    "sent": "r1",
+    "row": "r2",
+}
 
 
 def main_thread_request(driven) -> None:
     """The main thread's request and the rows it stored, which a fork resends, with a
     subagent's after them, which it doesn't."""
-    step = {"turnId": "t1", "index": 0, "model": "claude-opus-5-5", "effort": "xhigh"}
-    driven.emit("turn.step", {**step, "messageCount": 12})
     row = {
         "message": {"type": "assistant", "role": "assistant", "content": []},
         "door": "model",
         "origin": {"kind": "model", "model": "claude-opus-5-5"},
     }
+    driven.emit("session.append", {**row, "uuid": "r1"})
+    step = {"turnId": "t1", "index": 0, "model": "claude-opus-5-5", "effort": "xhigh"}
+    driven.emit("turn.step", {**step, "messageCount": 12})
     driven.emit("session.append", {**row, "uuid": "r2"})
     driven.emit(
         "turn.step",

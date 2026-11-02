@@ -355,10 +355,15 @@ async function clerk($: EngineInterface, session: string) {
 }
 
 // The main thread's last request, which `$.model.fork` resends: the model and effort
-// it named and how many messages it carried (`turn.step`), and the newest row the
-// main thread stored (`session.append`), the transcript's id for it. Each fork hands
-// it to Leaf, so a fork's diagnostics name the conversation it read.
-let lastStep: { model: string; effort?: string | number; messages: number } | undefined;
+// it named, how many messages it carried and the newest row stored as it went out
+// (`turn.step`, `sent`), with the newest row stored by the time of the fork (`row`),
+// each the transcript's id from `session.append`. A turn-end fork reads the turn's
+// final reply, stored after its request went out: in the claude-code journey on
+// 2026-11-01, an ask's words stood only in that reply. Each fork hands this to Leaf,
+// so a fork's diagnostics name the conversation it read.
+let lastStep:
+  | { model: string; effort?: string | number; messages: number; sent?: string }
+  | undefined;
 let lastRow: string | undefined;
 
 function request() {
@@ -469,6 +474,7 @@ export const register: Register = (on) => {
         model: e.model,
         messages: e.messageCount,
         ...(e.effort === undefined ? {} : { effort: e.effort }),
+        ...(lastRow === undefined ? {} : { sent: lastRow }),
       };
     return yield* next(e);
   });

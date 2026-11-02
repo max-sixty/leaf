@@ -242,7 +242,7 @@ html[data-lf-draw-mode] main {
   margin: 0;
   accent-color: var(--accent);
 }
-.lf-msg-body a.detached {
+.lf-msg-body a[data-lf-detached] {
   color: var(--muted);
   text-decoration: underline dashed;
   cursor: default;

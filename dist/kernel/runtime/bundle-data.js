@@ -20,7 +20,7 @@ let render = escapedSource;
 let renderInline = escapedSource;
 let tokenize = null;
 let ready;
-const renderMarkdown = (text, breaks = true) => render(text, breaks);
+const renderMarkdown = (text, message = true) => render(text, message);
 function renderedWords(html, imageAlt = false) {
 	const parsed = document.createElement("template");
 	parsed.innerHTML = html;
@@ -31,11 +31,11 @@ function fragmentWords(fragment, imageAlt = false) {
 	if (imageAlt) for (const image of fragment.querySelectorAll("img")) image.replaceWith(document.createTextNode(image.alt));
 	return fragment.textContent;
 }
-const markdownWords = (text) => renderedWords(renderMarkdown(text));
-const renderInlineMarkdown = (text, breaks = true) => renderInline(text, breaks);
-function inlineMarkdownFragment(text, breaks = true) {
+const markdownWords = (text, message = true) => renderedWords(renderMarkdown(text, message));
+const renderInlineMarkdown = (text, message = true) => renderInline(text, message);
+function inlineMarkdownFragment(text, message = true) {
 	const parsed = document.createElement("template");
-	parsed.innerHTML = renderInlineMarkdown(text, breaks);
+	parsed.innerHTML = renderInlineMarkdown(text, message);
 	return parsed.content;
 }
 async function loadDeclaredMarkdown(scope) {
@@ -107,8 +107,8 @@ const hasSourceSpan = (token) => token.lfSource?.source !== void 0;
 const isBeforeLinkifiedInline = (token) => token.type === "inline";
 const isBeforeJoinedInline = (token) => token.type === "inline";
 const isBlockPlacement = (placed, type) => placed.token.type === type;
-function placedMarkdownTokens(source) {
-	const tokens = markdownTokens(source);
+function placedMarkdownTokens(source, message = true) {
+	const tokens = markdownTokens(source, message);
 	if (!tokens) return [];
 	const starts = [0];
 	for (let at = 0; at < source.length; at++) {
@@ -189,7 +189,7 @@ function markdownSourceOffset(body, node, offset) {
 	if (source === void 0) return null;
 	let shownAt = 0;
 	let sourceEnd = 0;
-	for (const placed of placedMarkdownTokens(source)) {
+	for (const placed of placedMarkdownTokens(source, false)) {
 		const { token, from, to } = placed;
 		if (token.nesting) continue;
 		const words = placed.words;
@@ -236,7 +236,7 @@ function renderedElement(markup, tag) {
 	if (!element || element.localName !== tag) throw new Error(`leaf: Markdown renderer did not produce its ${tag} element`);
 	return element;
 }
-const markdownTokens = (text) => tokenize?.(text) ?? null;
+const markdownTokens = (text, message) => tokenize?.(text, message) ?? null;
 function sourcePositions(markdown) {
 	const NativeState = markdown.inline.State;
 	markdown.inline.State = class extends NativeState {
@@ -421,13 +421,18 @@ function sourcePositions(markdown) {
 		}
 	});
 }
-const BLOCK_LEAVES = /* @__PURE__ */ new Set(["fence", "hr"]);
-function makeMarkdown(module, breaks) {
+const BLOCK_LEAVES = /* @__PURE__ */ new Set([
+	"fence",
+	"code_block",
+	"hr"
+]);
+function makeMarkdown(module, message) {
 	const markdown = new module.MarkdownIt({
 		html: false,
-		breaks,
+		breaks: message,
 		linkify: true
-	}).disable(["lheading", "code"]).use(module.taskLists, { enabled: false });
+	}).use(module.taskLists, { enabled: false });
+	if (message) markdown.disable(["lheading", "code"]);
 	markdown.linkify.set({ fuzzyLink: false });
 	markdown.core.ruler.after("block", "blank_lines", (state) => {
 		const lines = state.src.split("\n");
@@ -507,17 +512,19 @@ function makeMarkdown(module, breaks) {
 function loadMarkdown(onError = null) {
 	const attempt = ready ??= import("/vendor/markdown-it.esm.js").then((module) => {
 		const markdown = makeMarkdown(module, true);
-		let softBreaks;
-		let positioned;
-		const dialect = (breaks) => breaks ? markdown : softBreaks ??= makeMarkdown(module, false);
-		render = (text, breaks) => dialect(breaks).render(text);
-		renderInline = (text, breaks) => dialect(breaks).renderInline(text);
-		tokenize = (text) => {
-			if (!positioned) {
-				positioned = makeMarkdown(module, true);
-				sourcePositions(positioned);
+		let file;
+		const dialect = (message) => message ? markdown : file ??= makeMarkdown(module, false);
+		render = (text, message) => dialect(message).render(text);
+		renderInline = (text, message) => dialect(message).renderInline(text);
+		const positioned = /* @__PURE__ */ new Map();
+		tokenize = (text, message) => {
+			let parser = positioned.get(message);
+			if (!parser) {
+				parser = makeMarkdown(module, message);
+				sourcePositions(parser);
+				positioned.set(message, parser);
 			}
-			return positioned.parse(text, {});
+			return parser.parse(text, {});
 		};
 	});
 	return attempt.then(() => true).catch((error) => {
@@ -1502,7 +1509,6 @@ function sendLanding(input) {
 	};
 }
 const rowHeights = /* @__PURE__ */ new WeakMap();
-const transcriptPlaces = /* @__PURE__ */ new WeakMap();
 const covered = (reply) => (reply.previousElementSibling?.getBoundingClientRect().bottom ?? -Infinity) - reply.getBoundingClientRect().top;
 const revealWritingArea = (held, input, reply) => {
 	bringBackSurfaceOf(held, "instant");
@@ -1527,11 +1533,7 @@ function followBoxGrowth(input) {
 	if (!held) return;
 	const reply = replyRowOf(held, input);
 	if (!reply) return;
-	const transcript = separateTranscript(held);
-	if (transcript) {
-		const place = transcriptPlaces.get(input);
-		if (place?.transcript === transcript && place.atTail && transcript.clientHeight < place.height) scrollToEnd(transcript);
-		transcriptPlaces.delete(input);
+	if (separateTranscript(held)) {
 		if (!onScreen(reply)) revealWritingArea(held, input, reply);
 		return;
 	}
@@ -1551,12 +1553,6 @@ function readBoxPlace(input) {
 	const reply = held && replyRowOf(held, input);
 	if (!reply) return;
 	rowHeights.set(input, reply.getBoundingClientRect().height);
-	const transcript = separateTranscript(held);
-	if (transcript) transcriptPlaces.set(input, {
-		transcript,
-		height: transcript.clientHeight,
-		atTail: atScrollEnd(transcript)
-	});
 }
 const currentLocationAt = (node, edge) => {
 	let at = node.getBoundingClientRect()[edge];
@@ -3524,8 +3520,7 @@ var MessageView = class {
 		if (model.editable && !this.#stopKept) this.#stopKept = watchRewrite(model.id, () => {
 			if (keptRewrite(presentation.model.id) !== this.#kept) this.#commands.edit.paint(this.node);
 		});
-		if (prior && prior.author !== model.author) this.node.classList.toggle(prior.author, false);
-		this.node.classList.toggle(model.author, true);
+		keeps(this.node, "data-lf-author", model.author);
 		keeps(this.node, "data-event", model.id);
 		this.node.classList.toggle("lf-unread", Boolean(model.unread));
 		keeps(this.node, "data-attempt", model.attempt || null);
@@ -5281,8 +5276,7 @@ function workingView(working, controls = nothing, observe = null) {
 	return html`<div class="lf-thread-working-head">
       ${working.who ? html`<b>${working.who}</b>` : nothing}
       ${working.timestamp || working.condition ? html`<span class="lf-msg-meta"
-              >${working.timestamp ? html`<time datetime=${working.timestamp}>${working.age}</time>` : nothing}
-              ${working.condition ? voiced(working.condition) : nothing}</span
+              >${working.timestamp ? html`<time datetime=${working.timestamp}>${working.age}</time>` : nothing}${working.condition ? html`<span>${voiced(working.condition)}</span>` : nothing}</span
             >` : nothing}
       ${controls}
     </div>
@@ -5973,15 +5967,11 @@ var ThreadView = class {
 			const style = getComputedStyle(head);
 			const name = head.querySelector(":scope > b");
 			const time = head.querySelector(":scope > .lf-msg-meta > time");
-			const room = head.querySelector(":scope > .lf-msg-control-room");
-			const controls = room?.querySelector(":scope > .lf-msg-controls")?.getBoundingClientRect().width ?? 0;
-			const held = room && getComputedStyle(room).minInlineSize !== "0px" ? controls : 0;
+			const controls = head.querySelector(":scope > .lf-msg-control-room > .lf-msg-controls")?.getBoundingClientRect().width ?? 0;
 			const need = parseFloat(style.paddingInlineStart) + parseFloat(style.paddingInlineEnd) + controls + wordsWidth(name) + (name && time ? parseFloat(style.columnGap) : 0) + wordsWidth(time);
 			heads.push({
 				name,
-				need,
-				spare: head.getBoundingClientRect().width - need,
-				yields: controls - held + wordsWidth(time)
+				spare: head.getBoundingClientRect().width - need
 			});
 		}
 		if (!heads.length || !notice.isConnected) {
@@ -5991,12 +5981,10 @@ var ThreadView = class {
 		const width = notice.getBoundingClientRect().width;
 		const spare = Math.min(...heads.map((head) => head.spare));
 		notice.style.setProperty("--lf-news-room", roomPx(Math.max(0, width + spare)));
-		const taken = notice.getBoundingClientRect().width - width;
-		for (const { name, spare, yields } of heads) {
-			if (!name) continue;
-			const shown = wordsWidth(name) + Math.min(0, spare - taken + yields);
-			keeps(name, "data-lf-nameless", shown < parseFloat(getComputedStyle(name).fontSize) ? "" : null);
-		}
+		const nameless = heads.map(({ name }) => !!name && name.scrollWidth > name.clientWidth && name.clientWidth < parseFloat(getComputedStyle(name).fontSize));
+		heads.forEach(({ name }, at) => {
+			if (name) keeps(name, "data-lf-nameless", nameless[at] ? "" : null);
+		});
 	}
 	#watchMarginNews() {
 		this.#marginNews.disconnect();

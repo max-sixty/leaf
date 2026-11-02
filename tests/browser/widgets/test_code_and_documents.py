@@ -764,7 +764,7 @@ only
         """rs => rs.map(r => r.classList.contains('lf-code-elided')
                    ? ['elided', r.dataset.elided, r.textContent]
                    : r.localName === 'lf-note' ? ['note']
-                   : [getComputedStyle(r, '::before').content, r.classList.contains('hi')])"""
+                   : [getComputedStyle(r, '::before').content, r.hasAttribute('data-lf-hi')])"""
     ) == [
         ['"1505"', False],
         ['"1506"', False],

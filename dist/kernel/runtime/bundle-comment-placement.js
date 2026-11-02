@@ -1,6 +1,6 @@
 import { LAYOUT, TAB_STOP, afterScript, atLayoutPrecision, cancelRender, clamp, clippedContents, clippedRect, clippingAxes, coarsePointer, hoveringPointer, inChrome, inlineStyle, keeps, layoutPx, move, moveScrollerBy, nextRender, overlaps, overlapsAcross, pageScroller, renderedParent, renderedUnder, scrollAxes, scrollLimit, scrollsContent, shellRight, shownBand, shownExtent, shownParts, shownRect, shownWindow, sizeObserver, skipped, under, union, upFrom, visualViewport } from "./bundle-portable.js";
 import { renderedChildren } from "./bundle-errors.js";
-import { afterPresentation, anchorBox, anchorElement, anchorFor, anchorName, anchorReading, boundedBlockOf, carriedAnchor, containingReadingRegionFor, cutFrames, headerLevels, nameAnchor, passageBoxes, pointBand, proseRect, railStands, scrollerFor, scrollsWith, targetRange, targetSegments } from "./bundle-content-layout.js";
+import { afterPresentation, anchorBox, anchorElement, anchorFor, anchorName, anchorReading, boundedBlockOf, carriedAnchor, containingReadingRegionFor, cutFrames, headerLevels, nameAnchor, passageBoxes, pointBand, proseRect, railStands, scrollMisplacesAnchors, scrollerFor, scrollsWith, targetRange, targetSegments } from "./bundle-content-layout.js";
 import { layoutBox } from "./bundle-passages.js";
 import { visibleTargetParts } from "./bundle-visible-target-parts.js";
 
@@ -452,6 +452,13 @@ function hearTargetChanges(root) {
 		if (!(source instanceof Element)) return;
 		scrolled.add(source);
 		scheduleScrollReading();
+	}, {
+		capture: true,
+		passive: true
+	});
+	root.addEventListener("scrollend", (event) => {
+		const source = event.target === document ? pageScroller : event.target;
+		if (source instanceof Element && scrollMisplacesAnchors(source)) scheduleMarginLayout();
 	}, {
 		capture: true,
 		passive: true

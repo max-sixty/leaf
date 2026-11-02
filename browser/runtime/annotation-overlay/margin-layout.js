@@ -106,6 +106,7 @@ import {
   cutFrames,
   headerLevels,
   nameAnchor,
+  scrollMisplacesAnchors,
   scrollsWith,
 } from "../css-anchors.js";
 
@@ -637,6 +638,18 @@ function hearTargetChanges(root) {
       if (!(source instanceof Element)) return;
       scrolled.add(source);
       scheduleScrollReading();
+    },
+    { capture: true, passive: true },
+  );
+  // A scroll inside a scaled box carried its rows away from their words in some engines
+  // (css-anchors.js, `scrollMisplacesAnchors`), so the pass places them again once it
+  // ends.
+  root.addEventListener(
+    "scrollend",
+    (event) => {
+      const source = event.target === document ? pageScroller : event.target;
+      if (source instanceof Element && scrollMisplacesAnchors(source))
+        scheduleMarginLayout();
     },
     { capture: true, passive: true },
   );

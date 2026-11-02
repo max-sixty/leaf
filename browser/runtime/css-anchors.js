@@ -33,8 +33,15 @@
  * than answered by either (notes/browser-support.md, "A stuck sticky anchor in
  * Firefox" and "An anchor under a fixed box in WebKit"): Firefox ignores a sticky
  * anchor's stuck offset, and WebKit adds the root scroll to a box anchored under a
- * fixed ancestor. A third is answered once, where every inset is measured
- * (`anchorBox`): Firefox leaves an anchor's transforms out.
+ * fixed ancestor. A third is answered where every inset is measured (`anchorBox`):
+ * Firefox leaves an anchor's transforms out. A fourth gets the measuring script rejected
+ * above, once per scroll: inside a scaled box, Firefox 157 and WebKit 27.2 carry an
+ * anchored box by the scroll's layout pixels, not the smaller or larger distance the
+ * words move on screen (Firefox bug 2055371, which its own transform support still has).
+ * So the margin measures and places its rows again at that box's `scrollend`
+ * (`scrollMisplacesAnchors`, margin-layout.js): they drift while the scroll runs and
+ * stand on their words a frame after it ends. Chromium 156 follows the words, and the
+ * pass changes nothing there.
  *
  * A source keeps one name across those uses. Retained controls can observe whether its
  * source renders near the viewport before entering layout. That reading starts
@@ -448,6 +455,15 @@ function laidOut(el, moved) {
     top -= at.scrollTop;
   }
   return box();
+}
+// Whether a scroll of `box` can carry what is anchored inside it away from what it marks:
+// where a layout pixel of `box` shows as more or less than a pixel on screen, as under a
+// scale on it or a box around it. Offsets are whole pixels, so a pixel's difference is
+// rounding.
+/** @param {Element} box */
+export function scrollMisplacesAnchors(box) {
+  if (!isHTML(box) || !box.offsetWidth) return false;
+  return Math.abs(box.getBoundingClientRect().width - box.offsetWidth) > 1;
 }
 /** @param {Anchor} anchor */
 export function anchorBox(anchor) {

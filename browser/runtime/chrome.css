@@ -495,8 +495,11 @@ html[data-lf-region-capture] main * {
     --lf-comment-inset: 12px;
     --lf-comment-frame-inline: calc(var(--lf-comment-inset) + 1px);
     --lf-comment-foot-gap: var(--sp-3);
+    /* The comment box stands its field where the card Send opens stands the words sent
+       from it: under the card's head line and the head of its message. */
     --lf-comment-frame-top: calc(
-      1px + var(--lf-comment-inset) + var(--lf-msg-head-height) + var(--lf-msg-body-gap)
+      1px + var(--lf-comment-inset) + var(--thread-card-head) +
+        var(--lf-msg-head-height) + var(--lf-msg-body-gap)
     );
     /* The card's reply row at rest, which the editor's frame reserves beneath the words,
        so a box that fills the window becomes a card of the same height. */

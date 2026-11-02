@@ -59,7 +59,10 @@
    changes (a resize, a pane that narrows, a reflow), which chooses afresh; a scroll
    clipping `clear` does not.
 
-   Beside, the surface's top stands level with `row`, and past its margin row where that
+   Beside, the surface stands its head line (`--thread-card-head`, base.css) over
+   `row`, so the card's first message stands level with `row` and the comment box's
+   field where that message's words will stand; under or over, the head line stands
+   next to what it is about. It stands past its margin row where that
    reaches past `clear` and the room beyond it holds the card's full preferred measure
    (`--thread-card`). Message width takes priority over keeping the margin row clear:
    where clearing it would narrow the message, the surface stands over the row. The
@@ -427,6 +430,7 @@ const rootLength = (name) =>
   parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
 export const cardMinimum = () => rootLength("--thread-card-min");
 export const cardMeasure = () => rootLength("--thread-card");
+const cardHead = () => rootLength("--thread-card-head");
 
 /* One surface's placement: the side it holds and its inline attachment.
 
@@ -719,7 +723,7 @@ export function commentPlacement() {
           mainAxis,
           crossAxis: across
             ? measure(state).column - state.rects.reference.x + (inline ?? 0)
-            : (row - COMMENT_GAP - box.top) / scale.y,
+            : (row - COMMENT_GAP - box.top) / scale.y - cardHead(),
         };
       }),
       holding,

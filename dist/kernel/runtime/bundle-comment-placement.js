@@ -1688,6 +1688,7 @@ function commentSide({ clear, extent, boundary, width, scroller, coarse }) {
 const rootLength = (name) => parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
 const cardMinimum = () => rootLength("--thread-card-min");
 const cardMeasure = () => rootLength("--thread-card");
+const cardHead = () => rootLength("--thread-card-head");
 function commentPlacement() {
 	let side = null;
 	let inline = null;
@@ -1825,7 +1826,7 @@ function commentPlacement() {
 				}
 				return {
 					mainAxis,
-					crossAxis: across ? measure(state).column - state.rects.reference.x + (inline ?? 0) : (row - 8 - box.top) / scale.y
+					crossAxis: across ? measure(state).column - state.rects.reference.x + (inline ?? 0) : (row - 8 - box.top) / scale.y - cardHead()
 				};
 			}),
 			holding,

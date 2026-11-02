@@ -14,9 +14,11 @@ import {
 } from "/runtime/annotation-overlay/comment-placement.js";
 import { floatingPlacement } from "/runtime/annotation-overlay/floating.js";
 
-// The card's widths as base.css declares them, which the placement reads off the root.
+// The card's widths and head line as base.css declares them, which the placement reads
+// off the root.
 document.documentElement.style.setProperty("--thread-card-min", "320px");
 document.documentElement.style.setProperty("--thread-card", "592px");
+document.documentElement.style.setProperty("--thread-card-head", "36px");
 
 // A window boundary, keyed by its edges as commentBoundary keys one, with no chrome
 // beside any columns, so its room across them is itself.
@@ -442,13 +444,13 @@ test("held in at the window's foot, a card may grow back to the tallest it stood
   };
   // Too tall for the room under its line, it stands against the boundary's foot.
   assert.equal(await place(), boundary.bottom - 300);
-  // Shrunk, as a rewrite opening over long words shrinks it, it falls back level with
-  // its line, and may still grow back to the height it stood at.
+  // Shrunk, as a rewrite opening over long words shrinks it, it falls back to its head
+  // line over its line, and may still grow back to the height it stood at.
   height = 150;
-  assert.equal(await place(), 700 - 8);
+  assert.equal(await place(), 700 - 8 - 36);
   assert.equal(stood, 300);
   // Repeated fitting at the smaller size must not ratchet the growth room down.
-  assert.equal(await place(), 700 - 8);
+  assert.equal(await place(), 700 - 8 - 36);
   assert.equal(stood, 300);
   height = 300;
   assert.equal(await place(), boundary.bottom - 300);
@@ -500,15 +502,15 @@ test("a rising card has the window's height and keeps the top it stood at", asyn
   await place();
   // Holding its top, a card is offered the room below it.
   height = 150;
-  assert.equal(await place(), 692);
-  assert.equal(room, boundary.bottom - 692);
+  assert.equal(await place(), 700 - 8 - 36);
+  assert.equal(room, boundary.bottom - (700 - 8 - 36));
   // Rising, it is offered the window's height, and the boundary lifts it.
   height = 400;
   assert.equal(await place(true), boundary.bottom - 400);
   assert.equal(room, boundary.height);
   // Shorter again, it comes back down to the top it held.
   height = 150;
-  assert.equal(await place(true), 692);
+  assert.equal(await place(true), 700 - 8 - 36);
 });
 
 test("chrome beside a card's columns leaves it the window's height", async () => {

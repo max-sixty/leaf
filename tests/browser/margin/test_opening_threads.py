@@ -559,8 +559,8 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     geometry = preview.evaluate(
         """preview => {
           const thread = preview.querySelector('.lf-page-thread');
-          // The controls stand over the transcript's top, beside each message's head.
-          const metaRow = thread.querySelector(':scope > .lf-margin-thread-controls');
+          // The controls stand on the card's head line, over its messages.
+          const metaRow = thread.querySelector(':scope > .lf-margin-thread-head');
           const close = preview.querySelector('.lf-margin-preview-close');
           const resolve = thread.querySelector('.lf-resolve');
           const mr = metaRow.getBoundingClientRect();
@@ -582,7 +582,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
         geometry["close"]["bottom"], abs=1
     )
     assert geometry["resolve"]["right"] <= geometry["close"]["left"] - 3, geometry
-    # The card opens on the row containing Dismiss and Resolve.
+    # The card opens on the head line containing Dismiss and Resolve.
     assert geometry["metaRow"]["top"] <= geometry["close"]["top"]
     assert geometry["metaRow"]["bottom"] >= geometry["close"]["bottom"]
     reply.click()

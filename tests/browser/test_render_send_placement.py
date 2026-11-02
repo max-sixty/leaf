@@ -747,10 +747,15 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
         page.locator(".lf-fab-bar").get_attribute("data-lf-placement")
         == f"{side}-start"
     )
+    # Beside its words, the box stands the card's head line over their line.
+    head = page.evaluate(
+        "parseFloat(getComputedStyle(document.documentElement)"
+        ".getPropertyValue('--thread-card-head'))"
+    )
     expected_top = (
         before_target["y"] - 8 - before_box["height"]
         if side == "top"
-        else before_target["y"] - 8
+        else before_target["y"] - 8 - head
         if side == "right"
         else content_box["y"] + content_box["height"] + 8
     )

@@ -972,14 +972,11 @@ def test_a_cards_message_controls_cover_its_head(browser, serve):
 
 
 @pytest.mark.parametrize("phone", [False, True])
-def test_a_rewrite_keeps_its_pair_while_its_head_sticks_beside_the_actions(
-    browser, serve, phone
-):
-    """A later message's controls stand aside while its head sticks on the line of the
-    card's actions, and that once hid an open rewrite's Discard and Save too, though the
-    rewrite stood open below them. On a narrow phone card beside Previous and Next, the
-    pair, two fingers wide, then ran past the head into the actions, and a tap on Save
-    pressed Previous. The pair stays, over the head's words."""
+def test_a_rewrite_keeps_its_pair_while_its_head_sticks(browser, serve, phone):
+    """A later message's head sticks at the top of the card's transcript, under its head
+    line, while the message is read. An open rewrite's Discard and Save stay in it,
+    each pressable where it stands, on a narrow phone card with Previous and Next too,
+    whose pair once ran into the card's presses, so a tap on Save pressed Previous."""
     url = serve(PANEL_PAGE)
     section = {"section": "how-store"}
     root = panel_comment(serve.page_dir, "Fit the north bracket.", section)
@@ -1020,7 +1017,6 @@ def test_a_rewrite_keeps_its_pair_while_its_head_sticks_beside_the_actions(
         later,
     )
     rendered(page)
-    expect(message).to_have_attribute("data-lf-beside-actions", "")
     for name in ("Discard", "Save"):
         control = message.get_by_role("button", name=name, exact=True)
         expect(control).to_be_visible()

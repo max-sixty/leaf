@@ -460,7 +460,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   .lf-margin-preview-step:last-child > .lf-action-icon {
     inset-inline-end: 4px;
   }
-  /* Only the turns scroll, each with its head: the actions and reply keep their own
+  /* Only the turns scroll, each with its head: the head line and reply keep their own
      places, so the scrollbar describes the content it moves. The card grows to its
      content until placement exhausts the room; every intervening holder can then
      shrink. */
@@ -475,67 +475,62 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   /* Natural transcript, passive-space and editor tracks shrink into the outer bound. */
   .lf-margin-thread .lf-page-thread {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) max-content;
+    grid-template-columns: minmax(0, 1fr);
     grid-template-rows:
-      auto minmax(auto, max-content) minmax(0, max-content)
+      auto auto minmax(auto, max-content) minmax(0, max-content)
       minmax(auto, max-content);
     min-height: 0;
     min-width: 0;
   }
-  .lf-margin-thread .lf-page-thread > * {
-    grid-column: 1 / -1;
-  }
   .lf-margin-thread .lf-thread-transcript {
-    grid-row: 2;
+    grid-row: 3;
     display: grid;
-    grid-template-columns: subgrid;
+    grid-template-columns: minmax(0, 1fr);
     grid-auto-rows: max-content;
     align-content: start;
   }
-  /* The action track crosses the transcript and its retained message groups.
-     Bodies keep both tracks; the head beside the actions stops at them without
-     copying their measured width into every message. */
-  .lf-margin-thread .lf-thread-transcript > *,
-  .lf-margin-thread :is(.lf-thread-checkpoint, .lf-summary-checkpoint) > * {
-    grid-column: 1 / -1;
+  /* The card's head line, as the floating panel's view of a thread stands it
+     (floating-panel.css, `.lf-fp-head`): the thread's name, the notice of what it
+     holds, then its presses, ending in Close in the card's top-right corner
+     (thread-card.js). The name gives way first, and the notice takes its short form
+     once the name is gone ("1 new", "+1"; held-news.js, `newsNotice`). An untitled
+     thread's name repeats its opening message, so the line holds only its presses
+     (`headingRepeatsOpening`, thread/messages.js). */
+  .lf-margin-thread .lf-margin-thread-head {
+    grid-row: 1;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 2px;
+    min-width: 0;
+    box-sizing: border-box;
+    block-size: var(--thread-card-head);
+    padding-block-end: calc(var(--thread-card-head) - var(--lf-icon-action-face));
+    /* The name starts on the messages' words' edge. */
+    padding-inline-start: var(--lf-thread-text-inset);
   }
-  .lf-margin-thread
-    :is(.lf-msg, .lf-thread-checkpoint, .lf-summary-checkpoint):not([hidden]) {
-    display: grid;
-    grid-template-columns: subgrid;
+  .lf-margin-thread-title {
+    flex: 0 1000 auto;
+    min-width: 0;
+    margin: 0;
+    margin-inline-end: auto;
+    font: inherit;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
-  /* A summary's head is a head too: one opening the transcript stands under the
-     actions, which would otherwise cover its disclosure on a narrow card. */
-  .lf-margin-thread :is(.lf-msg-head, .lf-summary-header) {
-    grid-column: 1;
+  /* The notice stands just before the presses, further from them than they stand from
+     each other, so news arriving moves no press and reads as a fact about the thread.
+     The room it keeps at its end for the count of facts it drops (surfaces.css,
+     `--lf-news-count-room`) is that distance. */
+  .lf-margin-thread-head > .lf-thread-news {
+    flex: 0 1 auto;
+    min-width: 0;
+    padding-inline-end: var(--lf-news-count-room);
   }
-  /* A later message's head shares the actions' line only once it sticks there, so it
-     takes both tracks, and its controls stand at the card's edge rather than mid-card
-     at the first track's end. On the actions' line it keeps to the first track, as the
-     first message's head does, cutting there what it can't fit, and its controls
-     give up their room (`data-lf-beside-actions`, thread-preview.js): a narrow card's
-     actions leave too little room for even its name and time. They stand aside, but
-     an open rewrite's Discard and Save stay, since the rewrite is still open below,
-     standing over the head's words, as far past the head's start as the track is
-     short of them. */
-  .lf-margin-thread
-    .lf-thread-transcript
-    > .lf-msg:not(:nth-child(1 of .lf-msg, .lf-thread-checkpoint)) {
-    & > .lf-msg-head {
-      grid-column: 1 / -1;
-    }
-    &[data-lf-beside-actions] > .lf-msg-head {
-      grid-column: 1;
-      & > .lf-msg-control-room {
-        min-inline-size: 0;
-        &:not(:has(> .lf-msg-controls > .lf-msg-edit-actions)) {
-          visibility: hidden;
-        }
-      }
-    }
-  }
-  .lf-margin-thread .lf-msg-body {
-    grid-column: 1 / -1;
+  .lf-margin-thread-head > .lf-thread-meta-actions {
+    margin-inline-start: 0;
   }
   /* Grid margins do not collapse. Keep the conversation's single inter-group
      gap and a fold's single inter-message gap instead of adding both edges. */
@@ -544,15 +539,16 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     > :is(.lf-thread-checkpoint, .lf-msg[data-lf-summary]) {
     margin-block-end: 0;
   }
-  /* A to-do on the user heads the card, over its transcript (thread-card.js). */
+  /* A to-do on the user stands under the head line, over the transcript
+     (thread-card.js). */
   .lf-margin-thread .lf-thread-todos {
-    grid-row: 1;
+    grid-row: 2;
   }
   .lf-margin-thread .lf-reply-space {
-    grid-row: 3;
+    grid-row: 4;
   }
   .lf-margin-thread .lf-thread-reply {
-    grid-row: 4;
+    grid-row: 5;
   }
   /* The card accompanies a live page: scrolling continues there at either edge,
      including when all turns fit and the transcript has no scroll travel. */
@@ -571,10 +567,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     overflow-y: auto;
     scroll-padding-block: var(--focus-ring-room);
     /* The room above the heads is where their slot starts (`--lf-top-start`,
-       base.css), held open by a row before the first message, not padding: Firefox
-       (155 and 158, 2026-10-25) sticks a box in a subgrid scroller at the scroller's
-       edge, ignoring its padding, which stood the stuck head that room above the
-       actions' line. */
+       base.css), held open by a row before the first message (below). */
     --lf-top-start: var(--lf-transcript-room);
     --lf-top: var(--lf-top-start);
     padding-inline: calc(var(--lf-thread-text-inset) + var(--lf-transcript-room))
@@ -584,45 +577,19 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     margin-block-start: calc(-1 * var(--lf-transcript-room));
     margin-block-end: calc(-1 * var(--lf-transcript-room));
   }
-  /* The transcript is a subgrid. Chromium (153 and 156) and Firefox (155) lay out a
-     subgrid's items on its parent's tracks without subtracting the room an `auto`
-     scrollbar takes (2026-10-30), so on a platform whose scrollbars take room (Linux,
-     Windows, macOS with a mouse) the words would run under the bar and the
-     transcript could scroll sideways by the bar's width. Both subtract a
-     `scrollbar-gutter: stable` gutter, so the transcript holds one once its turns
-     overflow, when the bar takes that room anyway (thread-preview.js says until
-     when). Rejected:
-     holding the gutter always, which on such a platform would wrap a short thread's
-     words narrower than the draft they were sent from. */
-  .lf-margin-thread .lf-thread-transcript[data-lf-overflows] {
-    scrollbar-gutter: stable;
-  }
-  /* The row holds paper in the actions' track that sticks on the heads' line, so
-     words pass beneath the actions only where a message's head row paints over it
-     (below). The transcript's mask makes it a stacking context, so paper on the
-     actions themselves would cover that row too. Its margin leaves the row the
-     room's height, and once anything is scrolled away it reaches up over the room. */
+  /* The row before the first message holds the room above the heads open, the room
+     `--lf-top` counts from the transcript's edge to where a head sticks. */
   .lf-margin-thread .lf-thread-transcript::before {
     content: "";
-    grid-column: 2;
-    position: sticky;
-    z-index: 1;
-    inset-block-start: calc(var(--lf-top) - var(--lf-thread-room-cover, 0px));
-    block-size: calc(var(--lf-thread-room-cover, 0px) + var(--lf-msg-head-height));
-    margin-block-end: calc(
-      var(--lf-transcript-room) - var(--lf-thread-room-cover, 0px) -
-        var(--lf-msg-head-height)
-    );
-    background: var(--paper);
+    block-size: var(--lf-transcript-room);
   }
   /* The field stands at the card's inset; words stand one inset inside it. The
      transcript keeps room past its edges for what is drawn beyond a box: a focus ring,
      which a rewrite reaching the reply box's edges draws outside itself as the reply
      box does, and an open progress group's border. It is taken from the card's inset,
      so the words keep their width and place and nothing scrolls sideways. Once
-     anything is scrolled away, what stands on the heads' line covers the room above
-     it, the stuck head row across both tracks (`data-lf-scrolled`,
-     thread-preview.js); at the top a ring still has it.
+     anything is scrolled away, the stuck head covers the room above it
+     (`data-lf-scrolled`, thread-preview.js); at the top a ring still has it.
      The card's face is the thread's ground (above), so the thread paints none, not
      even the quiet one a thread holding focus wears (surfaces.css). */
   .lf-margin-thread .lf-page-thread {
@@ -639,16 +606,15 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     content: "";
     position: absolute;
     inset: var(--lf-thread-fade-top, 0px) 0 auto;
-    grid-column: 1 / -1;
-    grid-row: 2;
+    grid-row: 3;
     align-self: start;
     height: var(--lf-thread-fade-height, 0px);
     border-radius: 0;
     outline: none;
     background: linear-gradient(var(--paper), transparent);
     pointer-events: none;
-    /* Keep the action strip above the fade without putting its ground above
-       a focused message control's ring. */
+    /* Keep the stuck heads above the fade without putting its ground above a
+       focused message control's ring. */
     z-index: 0;
   }
   .lf-margin-thread
@@ -691,32 +657,27 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     min-width: 0;
     max-height: 100%;
   }
-  /* The card's actions stand over the top of its transcript, where each message's head
-     sticks while that message is read, so the row always names who wrote the words
+  /* Each message's head sticks at the top of the transcript while that message is
+     read, so the line under the card's head line always names who wrote the words
      beneath it and a scrolled card never labels an agent's words with the user's name.
-     Every head uses the shared message row's height and alignment, so the actions
-     neither change the opening message's gap nor cover the next line. The head beside
-     the actions occupies the shared track before them, and a later one both tracks;
-     bodies span both without adding to the card's width. A head sticks at the slot (`--lf-top`) and covers only its own
-     message, so the words under it take the slot past its height as their `--lf-top`,
-     and its height as their `scroll-margin` below the landing band (base.css, at
-     `--lf-top`): a reveal lands them below it and the runtime's reading counts what it
-     covers as hidden, while a whole message lands flush with its own head. */
+     A head sticks at the slot (`--lf-top`) and covers only its own message, so the
+     words under it take the slot past its height as their `--lf-top`, and its height
+     as their `scroll-margin` below the landing band (base.css, at `--lf-top`): a
+     reveal lands them below it and the runtime's reading counts what it covers as
+     hidden, while a whole message lands flush with its own head. */
   .lf-margin-thread .lf-thread-transcript .lf-msg-body {
     --lf-top: calc(var(--lf-transcript-room) + var(--lf-msg-head-height));
   }
   .lf-margin-thread .lf-thread-transcript .lf-msg-body * {
     scroll-margin-top: calc(var(--lf-msg-head-height) + var(--focus-ring-landing));
   }
-  /* A head row narrower than its words, as when the actions row holds a notice of
-     news (thread-card.js), gives up room in one order: first the annotations after the
-     time, then the time, each cut with an ellipsis, then the author's name, with an
-     ellipsis, so a short name stands whole while any time is left to give (the user's
-     choice, 28 October 2026; #3104 had cut the name and never the time). The
-     metadata's shrink weight, a million to the name's one, spends its room before any
-     of the name's, and inside it each annotation's, a million to the time's one, before
-     the time's. The heads' track narrows while the actions row holds a notice of news,
-     the card keeping its width (thread-preview.js). */
+  /* A head row narrower than its words, as on a narrow card, gives up room in one
+     order: first the annotations after the time, then the time, each cut with an
+     ellipsis, then the author's name, with an ellipsis, so a short name stands whole
+     while any time is left to give (the user's choice, 28 October 2026; #3104 had cut
+     the name and never the time). The metadata's shrink weight, a million to the
+     name's one, spends its room before any of the name's, and inside it each
+     annotation's, a million to the time's one, before the time's. */
   .lf-margin-thread .lf-thread-transcript .lf-msg-meta {
     display: flex;
     gap: 0;
@@ -754,48 +715,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  /* The actions draw no ground: the transcript covers their track on the heads'
-     line (above), with the ground of the message whose head holds it, tinted while
-     it arrives. Their padding keeps the head's own controls short of them, so a
-     focused control's ring stays whole. A notice of held news stands first in the
-     row (thread-card.js); the card keeps its width while it holds news
-     (thread-preview.js), so the notice takes its room from the heads' track, and the
-     actions after it keep their places. */
-  /* The row is a message head's line, so Reopen taking Resolve's place is as tall as
-     Resolve was. */
-  .lf-margin-thread .lf-page-thread > .lf-margin-thread-controls {
-    --lf-line: var(--lf-msg-head-height);
-    grid-column: 2;
-    grid-row: 2;
-    align-self: start;
-    z-index: 1;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    min-height: var(--lf-msg-head-height);
-    padding-inline-start: var(--sp-2);
-  }
-  /* The notice takes at most a notice's room beside a head's words (`--lf-news-width`,
-     surfaces.css), and no more than the heads leave beside each one's name and time
-     (`--lf-news-room`, thread-card.js, `#fitMarginNews`). It drops whole the facts
-     past it and counts them in the room it keeps at its end, and where even its first
-     fact doesn't fit it says one count of all that waits (held-news.js, `newsNotice`).
-     A desktop card's heads keep their names and times whole beside it. On a phone's
-     card, whose three controls, notice and Edit each take a finger's width, a head
-     still lacks room for both, and gives up its name first (above). Drawn whole, the
-     notice stood over the head of the user's message, which read "M51d ago".
-     Rejected: the notice wrapping beneath the actions, which would stand over the
-     first message's words in the actions' track. */
-  .lf-margin-thread .lf-margin-thread-controls .lf-thread-news {
-    max-inline-size: min(
-      var(--lf-news-width),
-      var(--lf-news-room, var(--lf-news-width))
-    );
-    padding-inline-end: var(--lf-news-count-room);
-  }
   /* A sticky head and its words paint the message's one animated ground.
      Shared message rules own wrapping, including progress disclosures below the
-     capped metadata when the card's actions leave too little inline room. */
+     capped metadata when a narrow card leaves too little inline room. */
   .lf-margin-thread .lf-thread-transcript .lf-msg {
     --lf-msg-rest-ground: var(--paper);
   }
@@ -810,25 +732,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
        arriving message tints. */
     box-shadow: 0 calc(-1 * var(--lf-thread-room-cover, 0px)) var(--paper);
   }
-  /* The head row's cell in the actions' track, beside a head that keeps to the first
-     track (the first message's, and a later one on the actions' line), sticks with
-     the head in the message's ground, over the transcript's paper; elsewhere a later
-     head spans that track itself. It comes before the head, whose focused control's
-     ring paints over it. */
-  .lf-margin-thread
-    .lf-thread-transcript
-    > .lf-msg:is(
-      :nth-child(1 of .lf-msg, .lf-thread-checkpoint),
-      [data-lf-beside-actions]
-    )::before {
-    content: "";
-    grid-column: 2;
-    grid-row: 1;
-    position: sticky;
-    inset-block-start: var(--lf-top);
-    z-index: 1;
-    background-color: var(--lf-msg-ground);
-  }
   /* A message holding visible focus wears no ring of its own: the card wears it
      (above). The message's own outline also painted under its sticky head, which cut
      its top away. */
@@ -841,13 +744,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   .lf-margin-thread .lf-thread-transcript .lf-msg-head > b {
     flex-shrink: 1;
     max-inline-size: max(40%, 5em);
-  }
-  /* A name left less than an em beside a notice of news shows none of itself
-     (thread-card.js, `#fitMarginNews`), rather than a sliver of its first letter. */
-  .lf-margin-thread .lf-thread-transcript .lf-msg-head > b[data-lf-nameless] {
-    flex-basis: 0;
-    min-inline-size: 0;
-    max-inline-size: 0;
   }
   /* Only the writer's name and the time stick. The head's annotations (a progress
      disclosure, a delivery receipt, a failure, a suggestion or edited label) belong

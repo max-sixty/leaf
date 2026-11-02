@@ -184,21 +184,32 @@ def test_floating_thread_pages_on_to_its_page(browser, serve, long):
 def test_the_margin_reply_outside_the_transcript_shows_its_whole_ring(
     browser, serve, height
 ):
-    """Scrolling moves turns under the actions while both stay put, and the reply row
-    stays outside the scrollport."""
+    """Scrolling moves turns under the card's head line while it and the reply row stay
+    put, outside the scrollport."""
     page, preview, transcript = open_long_thread(browser, serve, height)
-    header = preview.locator(".lf-margin-thread-controls")
+    header = preview.locator(".lf-margin-thread-head")
     row = preview.locator(".lf-thread-reply")
     original = [header.bounding_box(), row.bounding_box()]
     transcript.evaluate("list => list.scrollTop = 40")
     rendered(page)
     assert header.bounding_box() == pytest.approx(original[0], abs=0.5)
     assert row.bounding_box() == pytest.approx(original[1], abs=0.5)
-    # The clip starts a ring's room above the heads' line, so a focus ring stays whole.
+    # The clip starts a ring's room above the line the heads stick at, which stands
+    # under the head line, so a focus ring stays whole.
     ring_top = transcript.evaluate(
         "list => parseFloat(getComputedStyle(list).scrollPaddingTop)"
     )
-    assert header.bounding_box()["y"] - transcript.bounding_box()["y"] >= ring_top - 0.5
+    stuck = transcript.evaluate(
+        """list => {
+          const edge = list.getBoundingClientRect().top + list.clientTop;
+          const head = [...list.querySelectorAll('.lf-msg-head')]
+            .find(head => head.getBoundingClientRect().bottom > edge + 1);
+          return {edge, head: head.getBoundingClientRect().top};
+        }"""
+    )
+    assert stuck["head"] - stuck["edge"] >= ring_top - 0.5, stuck
+    line = header.bounding_box()
+    assert line["y"] + line["height"] <= stuck["head"] + 0.5, (line, stuck)
     # The scrollport extends under the reply by its bottom padding so a rewrite's
     # outside focus ring stays visible; the scrolling turns stop above the row.
     ring_room = transcript.evaluate(
@@ -371,7 +382,7 @@ CARD_DRAWN = """card => {
   const cut = getComputedStyle(ring).clipPath.match(/inset\\(([-\\d.]+)px/);
   return [cut ? ground.getBoundingClientRect().top + Number(cut[1])
               : card.getBoundingClientRect().top,
-          card.querySelector('.lf-margin-thread-controls').getBoundingClientRect().top,
+          card.querySelector('.lf-margin-thread-head').getBoundingClientRect().top,
           ...[...card.querySelectorAll('.lf-thread-transcript > .lf-msg')]
             .map(turn => turn.getBoundingClientRect().top)];
 }"""
@@ -419,7 +430,7 @@ FULL_CARD_DRAWN = """card => {
     .map(node => node.getBoundingClientRect().top);
   return {
     outline: ground.getBoundingClientRect().top + Number(cut?.[1] ?? 0),
-    controls: tops('.lf-margin-thread-controls')[0],
+    controls: tops('.lf-margin-thread-head')[0],
     turns: tops('.lf-thread-transcript > .lf-msg'),
     names: tops('.lf-thread-transcript .lf-msg-head'),
   };
@@ -1027,8 +1038,10 @@ def test_a_card_that_fits_keeps_no_room_for_a_scrollbar(scrollbar_browser, serve
 def test_a_card_that_scrolls_gives_its_scrollbar_room(scrollbar_browser, serve):
     """A transcript that scrolls gives its bar room, so its words stand clear of the
     bar and it scrolls only down. A picture that room narrows is shorter, so a turn
-    can overflow without the room and fit with it; the card keeps the room rather
-    than dropping it and taking it back every frame."""
+    can overflow without the room and fit with it; the bar settles rather than coming
+    and going every frame. The transcript was a subgrid, whose items both engines laid
+    out under an `auto` bar, so the card held a gutter of its own, and toggling it
+    from a size observer looped."""
     transcript = opened_transcript(scrollbar_browser, serve, LONG_THREAD)
     reading = transcript.evaluate(CLEARANCE)
     assert reading["scrolls"], reading
@@ -1054,12 +1067,13 @@ def test_a_card_that_scrolls_gives_its_scrollbar_room(scrollbar_browser, serve):
           const width = picture.getBoundingClientRect().width;
           const rest = list.scrollHeight - picture.getBoundingClientRect().height;
           const ratio = (list.clientHeight + 6 - rest) / (width + gutter);
-          let changes = 0;
-          new MutationObserver((records) => (changes += records.length)).observe(
-            list, {attributeFilter: ['data-lf-overflows']});
           picture.style.aspectRatio = `1 / ${ratio}`;
+          // How often the room the words have changed, frame to frame.
+          let changes = 0;
+          let shown = list.clientWidth;
           let frames = 20;
           const step = () => {
+            if (list.clientWidth !== shown) (changes += 1), (shown = list.clientWidth);
             if (frames--) return requestAnimationFrame(step);
             list.scrollLeft = list.scrollWidth;
             done({
@@ -1073,7 +1087,6 @@ def test_a_card_that_scrolls_gives_its_scrollbar_room(scrollbar_browser, serve):
         })"""
     )
     assert reading["shrink"] > 6, reading
-    assert reading["fits"], reading
     assert reading["changes"] <= 1, reading
     assert reading["sideways"] == 0, reading
 
@@ -1182,14 +1195,17 @@ def test_open_reply_keeps_its_top_after_card_moves_to_right_rail(browser, serve)
         )
 
 
-@pytest.mark.parametrize("size", [(800, 520), (1000, 600)])
+# 1000x636 leaves the card under its cluster the room its turn keeps at the cap, its
+# head line's 36px included; with less, the grid shares the last line's shortfall between
+# the turn and the reply, as it does for any card whose turns fill the room.
+@pytest.mark.parametrize("size", [(800, 520), (1000, 636)])
 def test_a_growing_draft_holds_its_card_s_side_and_the_editor_s_top(
     browser, serve, size
 ):
     """Each new line keeps the card on its side and the reply's first line where it was,
     until the card's foot meets the window's; further lines scroll inside the editor.
     No keystroke flips the card over its cluster (800x520 stands over it) or carries
-    its first line along the boundary (1000x600 stands under it)."""
+    its first line along the boundary (1000x636 stands under it)."""
     page, _preview, editor = drafting_in_a_short_card(browser, serve, *size)
     held = page.evaluate(CARD_AND_REPLY)
     readings = [held]

@@ -13,8 +13,8 @@
    floating panel's menu row and the notice its undo leaves ("Undo: resolved “Rollout
    safety” · 3d ago", then "Undid: resolved “Rollout safety” · 3d ago"), in
    every tab and after a reload. A thread goes by its name as it stands now, a rewrite
-   by the thread of the message it changed, a to-do by its title and a reaction by where
-   it stands, all of which the page already holds. An action's ids are words only in
+   by the words it replaced, a to-do by its title and a reaction by where it stands, all
+   of which the page already holds. An action's ids are words only in
    the document it was made in, so the server serves what the head did in that
    document's words (`gesture`, `GestureWords.gesture`), and the widget goes by its
    name on this page.
@@ -149,9 +149,12 @@ function gestureWords(event, gesture) {
       return `${event.kind === "resolve" ? "resolved" : "reopened"} ${name}`;
     }
     case "edit": {
-      const thread = threadNamed(event.message);
-      const name = thread ? quoted(threadName(thread), 48) : "a thread";
-      return `${event.text ? "edited" : "deleted"} a message in ${name}`;
+      // By the words taking it back gives the message again, which the user wrote.
+      const message = threadNamed(event.message)?.msgs.find(
+        ({ id }) => id === event.message,
+      );
+      const was = message?.edited?.id === event.id ? message.edited.was : null;
+      return `${event.text ? "edited" : "deleted"} ${was ? quoted(was, 48) : "a message"}`;
     }
     case "todo_end": {
       const todo = runtime.todos.find(({ id }) => id === event.todo);

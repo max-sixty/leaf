@@ -4681,9 +4681,9 @@ function gestureWords(event, gesture) {
 			return `${event.kind === "resolve" ? "resolved" : "reopened"} ${name}`;
 		}
 		case "edit": {
-			const thread = threadNamed(event.message);
-			const name = thread ? quotedWords(threadName(thread), 48) : "a thread";
-			return `${event.text ? "edited" : "deleted"} a message in ${name}`;
+			const message = threadNamed(event.message)?.msgs.find(({ id }) => id === event.message);
+			const was = message?.edited?.id === event.id ? message.edited.was : null;
+			return `${event.text ? "edited" : "deleted"} ${was ? quotedWords(was, 48) : "a message"}`;
 		}
 		case "todo_end": {
 			const todo = runtime.todos.find(({ id }) => id === event.todo);

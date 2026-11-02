@@ -1813,7 +1813,8 @@ def test_a_rewrite_lands_only_on_the_words_it_was_written_over(page_dir):
     revision it was written over, and the door refuses it once that revision is not the
     message's latest, telling the user to edit again. Words the message already says are
     no rewrite. Undoing a rewrite gives the message back the words it replaced, and the
-    rewrite before it is the one the next lands on."""
+    rewrite before it is the one the next lands on. Once the agent has answered a
+    rewrite, its answer stands on those words, and the door refuses to take it back."""
     publish(page_dir)
     said = append_command(
         page_dir,
@@ -1858,7 +1859,23 @@ def test_a_rewrite_lands_only_on_the_words_it_was_written_over(page_dir):
     }
     with pytest.raises(events_model.EventRefused):
         rewrite("East.", west["id"])
-    rewrite("East.", south["id"])
+    east = rewrite("East.", south["id"])
+    append_command(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": said["id"],
+            "responds": east["id"],
+            "text": "Heading east.",
+        },
+    )
+    with pytest.raises(events_model.EventRefused) as answered:
+        append_command(
+            page_dir, {"kind": "undo", "author": "user", "undoes": east["id"]}
+        )
+    assert [finding.code for finding in answered.value.findings] == ["answered-edit"]
 
 
 def test_edit_uses_the_captured_contract_when_the_candidate_registry_is_invalid(

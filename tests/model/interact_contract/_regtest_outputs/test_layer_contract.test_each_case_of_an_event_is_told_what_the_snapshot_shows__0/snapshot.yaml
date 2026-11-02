@@ -1221,8 +1221,8 @@ undo:
     - text: >-
         The user took back the gesture `undoes` names. Treat the two as cancelled:
         don't answer or record the withdrawn gesture. Undoing an action that answered
-        or closed a thread reopens that thread, and undoing an `edit` gives its
-        message back the words it replaced.
+        or closed a thread reopens that thread, and undoing an `edit` takes that
+        rewrite of its message back.
 
 report:
   event:

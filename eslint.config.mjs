@@ -1353,6 +1353,9 @@ export default [
       "no-new-wrappers": "error",
       "no-unreachable-loop": "error",
       "no-unsafe-negation": ["error", { enforceForOrderingRelations: true }],
+      // A `let` declared ahead of the closures that read it, and assigned once after
+      // them, stays a `let`: as a `const` it would move below its readers.
+      "prefer-const": ["error", { ignoreReadBeforeAssign: true }],
     },
   },
   {

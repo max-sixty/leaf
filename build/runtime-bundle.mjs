@@ -42,8 +42,10 @@ import { fileURLToPath } from "node:url";
 import { build } from "rolldown";
 import { parse } from "acorn";
 
-import { signalsPath } from "./browser/build.mjs";
 import kernel from "../browser/runtime/kernel-registry.json" with { type: "json" };
+
+/** The layer path of the framework's signals, which the kernel compiles in. */
+export const signalsPath = "vendor/signals-core.js";
 
 export const runtimeEntries = [
   "leaf.js",

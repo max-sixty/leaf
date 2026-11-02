@@ -3,7 +3,6 @@ background-job and desktop-app lifetimes, the reaper that retires a server, and 
 re-vendor."""
 
 import http.client
-import http.cookiejar
 import json
 import os
 import shutil

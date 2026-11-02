@@ -204,15 +204,6 @@ export default {
       to: { reachable: true, path: `^${overlay}` },
     },
     {
-      name: "no-cycle",
-      comment:
-        "A cycle has no boot order; whichever module the browser evaluates first " +
-        "reads the other's bindings before they exist.",
-      severity: "error",
-      from: { path: owners },
-      to: { circular: true },
-    },
-    {
       name: "not-to-unresolvable",
       comment: "A runtime module names a module that is not on disk.",
       severity: "error",

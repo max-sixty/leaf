@@ -640,10 +640,11 @@ function hearTargetChanges(root) {
     },
     { capture: true, passive: true },
   );
-  // A transition or animation can take a target from the reader without a resize, or
-  // any mutation after the one that started it, which was read at the old value: a
-  // slide fading out, or moved out of the box that clips it. So the rows under a box
-  // whose transition or animation ends are read again as a scroll's are.
+  // A transition or animation can show a target to the reader, or take it away, with
+  // no resize and no mutation after the one that started it, which was read at the old
+  // value: a reveal.js fragment, whose `visibility` turns visible only after the
+  // transition's first frame, or a slide moved out of the box that clips it. So the rows
+  // under a box whose transition or animation ends are read again as a scroll's are.
   /** @param {Event} event */
   const settled = ({ target }) => {
     if (!(target instanceof Element) || inChrome(target)) return;

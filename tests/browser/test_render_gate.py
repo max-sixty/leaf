@@ -4464,6 +4464,40 @@ def test_a_table_keeps_its_columns_natural_width_wherever_it_stands(browser, ser
     assert root_overflow(page) == 0
 
 
+def test_a_breakout_table_without_the_reading_face_keeps_its_columns_width(
+    browser, serve
+):
+    """On a page that takes no theme, a table marked `data-width="wide"` keeps the
+    browser's table and is as wide as its columns need, standing where the prose
+    starts. The breakout's 100% spread two one-word columns across the whole wide
+    track."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Breakout tables",
+                '<p id="prose">The prose column.</p>'
+                '<table id="short" data-width="wide">'
+                "<tr><th>Key</th><th>Value</th></tr><tr><td>name</td><td>leaf</td></tr>"
+                "</table>",
+            ),
+            theme=False,
+        ),
+    )
+    measured = page.evaluate(
+        """() => {
+        const prose = document.querySelector('#prose').getBoundingClientRect();
+        const table = document.querySelector('#short');
+        const row = table.querySelector('tr').getBoundingClientRect();
+        return {display: getComputedStyle(table).display, row: row.width,
+                column: prose.width, start: row.left - prose.left};
+    }"""
+    )
+    assert measured["display"] == "table", measured
+    assert measured["row"] < measured["column"] / 2, measured
+    assert 0 <= measured["start"] <= 4, measured
+
+
 def test_an_identifier_in_a_cell_breaks_rather_than_holding_its_column(browser, serve):
     """The theme's second case, reached by a table that used to fall through to the
     third: a column of test names beside a column of prose. A name is one word to

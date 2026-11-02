@@ -12,14 +12,19 @@ Leaf's own defaults; rules meant to win over widget defaults and Layouts belong 
 Leaf bundles one theme, `reading`: the reading look, which styles the body's type and
 colour and the idioms such as `.callout`, and turns on the reading face markup wears
 in Leaf's own surfaces (headings, prose, lists, tables, code, quotes, figures,
-disclosures, definitions, rules and pictures) by setting `--lf-reading-face: 1` on the
-root. The face's rules rank below every other rule of `lf-base`, so a theme's or
-package's rule for one of those elements outranks them whatever its weight. A new page
-takes it unless the user names another default. A page that takes none
-(`--no-theme`) starts from the browser's defaults and Leaf's tokens: nothing of the
-look reaches it, while Leaf's widgets, threads and panel keep their own faces. A page
-or a theme may still set `--lf-reading-face: 1` on any box to give the markup in it
-that face.
+disclosures, definitions, rules and pictures, with a wide table or code block
+scrolling inside itself and a `language-…` code block coloured by its tokens) by
+setting `--lf-reading-face: 1` on the root. The face's rules rank below every other
+rule of `lf-base`, so a theme's or package's rule for one of those elements outranks
+them whatever its weight. A new page takes it unless the user names another default.
+A page that takes none (`--no-theme`) starts from the browser's defaults and Leaf's
+tokens: nothing of the look reaches it, its tables and code blocks included, while
+Leaf's widgets, threads and panel keep their own faces. A page or a theme may still
+set `--lf-reading-face: 1` on any box to give the markup in it that face, and
+`--lf-reading-face: initial` on a box takes the face from the markup in it, as for
+content with its own design inside a themed page; comments still anchor there.
+Each of the face's rules reads the element's parent, so the box itself still wears
+the face: set the input on a wrapper around the table or code block, not on it.
 
 A user can also keep several named themes and choose one default. Each is an ordinary
 installed package; its `instructions/author.md` describes the tasks it suits. Install

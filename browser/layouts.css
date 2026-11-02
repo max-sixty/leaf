@@ -404,19 +404,28 @@
    * wider than its holder stands at the holder's start edge whatever its own direction,
    * so the offset follows the holder's. A sheet has no window margin to borrow, so on
    * paper every block keeps the prose's measure. */
+  /* A table with a breakout is only as wide as its columns need, up to its room, where
+   * a breakout's width would spread two short columns across the whole room. */
   :is(.layout-column, .layout-flow) > table[data-lf-space] {
     contain: none;
-    container-type: normal;
-    container-type: scroll-state;
     inline-size: max-content;
-    min-inline-size: min(100%, var(--col));
-    /* A native caption joins the anonymous table grid, whose width is the
-     * columns' full scrollable width. An inline block belongs to this scrollport
-     * instead, so its percentage limit and sticky position use the same box. */
-    > caption {
-      display: inline-block;
-      vertical-align: top;
-      max-inline-size: 100%;
+  }
+  /* The reading face's table is a block that scrolls its columns (reading.css), and a
+   * breakout sizes that block. A page without the face keeps the browser's table,
+   * whose caption these rules would turn out of its caption box. */
+  @container style(--lf-reading-face: 1) {
+    :is(.layout-column, .layout-flow) > table[data-lf-space] {
+      container-type: normal;
+      container-type: scroll-state;
+      min-inline-size: min(100%, var(--col));
+      /* A native caption joins the anonymous table grid, whose width is the
+       * columns' full scrollable width. An inline block belongs to this scrollport
+       * instead, so its percentage limit and sticky position use the same box. */
+      > caption {
+        display: inline-block;
+        vertical-align: top;
+        max-inline-size: 100%;
+      }
     }
   }
   @media screen {

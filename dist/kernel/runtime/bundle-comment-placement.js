@@ -1,6 +1,6 @@
 import { LAYOUT, TAB_STOP, afterScript, atLayoutPrecision, cancelRender, clamp, clippedContents, clippedRect, clippingAxes, coarsePointer, hoveringPointer, inChrome, inlineStyle, keeps, layoutPx, move, moveScrollerBy, nextRender, overlaps, overlapsAcross, pageScroller, renderedParent, renderedUnder, scrollAxes, scrollLimit, scrollsContent, shellRight, shownBand, shownExtent, shownParts, shownRect, shownWindow, sizeObserver, skipped, under, union, upFrom, visualViewport } from "./bundle-portable.js";
 import { renderedChildren } from "./bundle-errors.js";
-import { afterPresentation, anchorBox, anchorElement, anchorFor, anchorName, anchorReading, boundedBlockOf, carriedAnchor, containingReadingRegionFor, cutFrames, headerLevels, nameAnchor, passageBoxes, pointBand, proseMeasure, proseRect, railStands, scrollerFor, scrollsWith, targetRange, targetSegments } from "./bundle-content-layout.js";
+import { afterPresentation, anchorBox, anchorElement, anchorFor, anchorName, anchorReading, boundedBlockOf, carriedAnchor, containingReadingRegionFor, cutFrames, headerLevels, nameAnchor, passageBoxes, pointBand, proseMeasure, proseRect, railStands, scrollMisplacesAnchors, scrollerFor, scrollsWith, targetRange, targetSegments } from "./bundle-content-layout.js";
 import { layoutBox } from "./bundle-passages.js";
 import { visibleTargetParts } from "./bundle-visible-target-parts.js";
 
@@ -450,12 +450,27 @@ function hearTargetChanges(root) {
 	root.addEventListener("scroll", (event) => {
 		const source = event.target === document ? pageScroller : event.target;
 		if (!(source instanceof Element)) return;
-		scrolled.add(source);
-		scheduleScrollReading();
+		stirred.add(source);
+		scheduleStirReading();
 	}, {
 		capture: true,
 		passive: true
 	});
+	const carries = (box) => [...carriers.values()].some((byAnchor) => [...byAnchor.keys()].some((anchor) => renderedUnder("scroller" in anchor ? anchor.scroller : anchor, box)));
+	root.addEventListener("scrollend", (event) => {
+		const source = event.target === document ? pageScroller : event.target;
+		if (source instanceof Element && carries(source) && scrollMisplacesAnchors(source)) scheduleMarginLayout();
+	}, {
+		capture: true,
+		passive: true
+	});
+	const settled = ({ target }) => {
+		if (!(target instanceof Element) || inChrome(target)) return;
+		stirred.add(target);
+		scheduleStirReading();
+	};
+	root.addEventListener("transitionend", settled);
+	root.addEventListener("animationend", settled);
 }
 const laneFrames = /* @__PURE__ */ new Map();
 const makeLaneFrame = () => {
@@ -751,7 +766,7 @@ function setStyle(row, property, value) {
 	else inlineStyle(row).setProperty(property, value);
 }
 function targetShown(target, extent, stands, bands) {
-	const shown = (part) => part.checkVisibility() && clippedRect(part.getBoundingClientRect(), part, bands, pageScroller);
+	const shown = (part) => clippedRect(part.getBoundingClientRect(), part, bands, pageScroller);
 	if (!visibleTargetParts(target).some(shown)) return false;
 	const view = clippedRect(EVERYWHERE, target, bands, pageScroller);
 	if (!extent || !view || !overlaps(extent, view)) return false;
@@ -761,14 +776,14 @@ function targetShown(target, extent, stands, bands) {
 const pushes = /* @__PURE__ */ new Map();
 let pass = 0;
 let came = /* @__PURE__ */ new Map();
-const scrolled = /* @__PURE__ */ new Set();
-let scrollReading = 0;
-function scheduleScrollReading() {
-	if (scrollReading) return;
-	scrollReading = nextRender(() => {
-		scrollReading = 0;
-		const boxes = [...scrolled];
-		scrolled.clear();
+const stirred = /* @__PURE__ */ new Set();
+let stirReading = 0;
+function scheduleStirReading() {
+	if (stirReading) return;
+	stirReading = nextRender(() => {
+		stirReading = 0;
+		const boxes = [...stirred];
+		stirred.clear();
 		if (boxes.includes(pageScroller) && scrollX !== laidOutScrollX && [...carriers.values()].some((byAnchor) => [...byAnchor.values()].some((held) => held.y.length))) {
 			scheduleMarginLayout();
 			return;
@@ -1329,10 +1344,12 @@ const INSETS = [
 const stood = /* @__PURE__ */ new Map();
 const floatingSelections = () => [...stood.values()];
 const heldEdges = (floating) => {
-	const edges = stood.get(floating)?.edges;
-	return edges ? {
-		x: edges.left,
-		y: edges.top
+	const placed = stood.get(floating);
+	return placed ? {
+		x: placed.edges.left,
+		y: placed.edges.top,
+		by: placed.anchor,
+		plane: placed.frame
 	} : null;
 };
 const physicalContext = (context) => context instanceof Element ? context : context?.parentElement;
@@ -1386,6 +1403,11 @@ function floatingPlacement({ floating, update }) {
 	let stand = placedAt;
 	let placementProof = null;
 	let stopScrollInvalidation = null;
+	function clientBox(answer) {
+		const { offset, scale } = answer.middlewareData.anchorAt;
+		const { width, height } = answer.middlewareData.held;
+		return offset ? new DOMRect((answer.x - offset.x) * scale.x, (answer.y - offset.y) * scale.y, width * scale.x, height * scale.y) : floating.getBoundingClientRect();
+	}
 	return {
 		watch(element, reference, autoUpdate) {
 			if (element === watched && autoUpdate === observer) return;
@@ -1478,11 +1500,17 @@ function floatingPlacement({ floating, update }) {
 			return answer;
 		},
 		stand(answer) {
+			const from = floating.getBoundingClientRect();
 			stand(answer);
+			const to = clientBox(answer);
+			const moved = {
+				x: to.left - from.left,
+				y: to.top - from.top
+			};
 			if (!placementProof) {
 				stood.delete(floating);
 				tenure = Object.freeze({});
-				return;
+				return moved;
 			}
 			const { edges, width, height, block } = answer.middlewareData.held;
 			const { offset, scale } = answer.middlewareData.anchorAt;
@@ -1513,12 +1541,9 @@ function floatingPlacement({ floating, update }) {
 					height: height * scale.y
 				})
 			}));
+			return moved;
 		},
-		clientBox(answer) {
-			const { offset, scale } = answer.middlewareData.anchorAt;
-			const { width, height } = answer.middlewareData.held;
-			return offset ? new DOMRect((answer.x - offset.x) * scale.x, (answer.y - offset.y) * scale.y, width * scale.x, height * scale.y) : floating.getBoundingClientRect();
-		},
+		clientBox,
 		supersede() {
 			epoch += 1;
 		},

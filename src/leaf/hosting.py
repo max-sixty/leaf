@@ -36,6 +36,7 @@ from .leases import (
     release_lease,
     take_lease,
 )
+from .machine import caller_exited
 from .refusals import Refused
 from .schema import SERVER_LOCK, SERVICE_FILE
 from .server import (
@@ -388,11 +389,24 @@ class TemporaryPageServer:
 
 def cmd_serve_temporary(page_dir: Path, host: str | None = None) -> None:
     """Run the process-owned page server used by browser automation, which binds
-    loopback only and so refuses a `host`."""
+    loopback only and so refuses a `host`.
+
+    No record names this server, so `server stop` can't reach it. It serves until
+    it is interrupted or the process that ran it exits (`machine.caller_exited`),
+    so a caller killed before it could stop the server, such as a timed-out test,
+    leaves nothing serving. It checks that process once a second."""
     if host:
         raise Refused("a temporary server is loopback-only; omit --host")
+    exited = caller_exited()
     server = TemporaryPageServer(page_dir)
     print(json.dumps({"url": server.url, "lifetime": "temporary"}), flush=True)
+
+    def stop_with_caller() -> None:
+        while not exited():
+            time.sleep(1.0)
+        server.httpd.shutdown()
+
+    threading.Thread(target=stop_with_caller, daemon=True).start()
     server.run()
 
 

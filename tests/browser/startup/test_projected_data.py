@@ -129,7 +129,7 @@ def test_a_comment_on_external_data_stays_with_the_revision_the_user_saw(
     quote = open_panel_thread(page, comment["id"]).locator(".lf-fp-quote")
     expect(quote).to_contain_text("Ready")
     expect(quote.locator(".lf-anchor-status")).to_have_text("Earlier data")
-    expect(quote).not_to_have_class(re.compile(r"\bdetached\b"))
+    expect(quote).not_to_have_attribute("data-lf-detached", "")
 
 
 def test_a_comment_on_an_identified_datum_follows_the_subject_across_replacements(

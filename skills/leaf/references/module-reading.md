@@ -75,18 +75,21 @@ element or `null`.
 A widget whose entry declares `x-text-format: inline-markdown` has its direct authored
 text formatted as inline Markdown. With `markdown`, its data body arrives rendered as
 block Markdown while the recorded body stays the source. It reads as a Markdown file,
-whose soft line breaks are spaces. Adopt the rendered `.lf-markdown-body` and repaint
-changing prose with `paintMarkdown(body, source)`.
+as `renderMarkdown(text, false)` does (below). Adopt the rendered `.lf-markdown-body`
+and repaint changing prose with `paintMarkdown(body, source)`.
 `markdownSourceOffset(body, node, offset)` maps a caret in the rendered body back to the
 source.
 
 `inlineMarkdownFragment(text)` returns a fragment, `renderMarkdown(text)` a safe HTML
 string for `unsafeHTML`, and `markdownWords(text)` the words Markdown renders to. They
-keep each line break as typed words do; `renderMarkdown(text, false)` renders a Markdown
-file, whose soft line breaks are spaces, so its paragraphs wrap to the box. Until
-the renderer has loaded, they return the escaped source; `loadMarkdown()` resolves once
-it has, and `markdownReady()` says whether it has, so a widget showing changing prose
-repaints then.
+read text as a message a person typed: each line break stays a line, a line's leading
+spaces are dropped rather than starting code, and `---` under a line is a rule.
+`renderMarkdown(text, false)` and `markdownWords(text, false)` read a Markdown file as
+CommonMark does: its soft line breaks are spaces, so its paragraphs wrap to the box, a
+block indented four spaces is code, and a line of `=` or `-` underlines a heading.
+Until the renderer has loaded, they return the escaped source; `loadMarkdown()`
+resolves once it has, and `markdownReady()` says whether it has, so a widget showing
+changing prose repaints then.
 
 ### Code
 
@@ -95,7 +98,9 @@ page's syntax theme. `synNodes(tokens)` turns them into nodes, and `tokenLines(t
 splits them by line. `lang` is a registry `$languages` name; `langForPath(path)` derives
 one from a file name, and `ensureSyntaxLanguage(lang)` loads one ahead of time.
 `highlightBlocks(root)` colours each `pre > code` in `root` whose `language-…` class
-names a language.
+names a language, that holds only text, and that wears the reading face
+(`package-themes.md`, "Personal themes"); a block in a shadow tree wears it where the
+widget sets `--lf-reading-face: 1` on a box around it.
 
 Leaf adds a Copy button to each `pre > code` in the page. A widget block holding other
 source text, such as numbered code lines, declares its own: give the block

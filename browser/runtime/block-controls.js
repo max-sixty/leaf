@@ -153,25 +153,33 @@ export function aimControl({ control, near, anchor }) {
   return control;
 }
 
-// The control's anchor insets carry how far `anchor()` reads the block from where it
-// shows, which only an engine that leaves transforms out makes other than nothing
-// (css-anchors.js, `anchorBox`), such as Firefox on a block in a table granted room.
-// Read whenever the control is about to show, since only a shown control needs it; a
-// control shown as it arrives reads them with the batch's other readings.
+// The control's anchor insets carry how far `anchor()` reads the block's corner from
+// where it shows, and `anchor-size()` its size, which only an engine that leaves
+// transforms out makes other than nothing (css-anchors.js, `anchorBox`), such as Firefox
+// on a block in a table granted room or a scaled slide. Read whenever the control is
+// about to show, since only a shown control needs it; a control shown as it arrives
+// reads them with the batch's other readings.
 /** @param {Element} block */
 export function readInsets(block) {
   const box = block.getBoundingClientRect();
   const at = anchorBox(block);
-  return { dx: box.left - at.left, dy: box.top - at.top };
+  return {
+    dx: box.left - at.left,
+    dy: box.top - at.top,
+    dw: box.width - at.width,
+    dh: box.height - at.height,
+  };
 }
 /**
  * @param {HTMLElement} control
  * @param {ReturnType<typeof readInsets>} insets
  */
-export function writeInsets(control, { dx, dy }) {
+export function writeInsets(control, { dx, dy, dw, dh }) {
   for (const [property, length] of Object.entries({
     "--lf-block-control-dx": dx,
     "--lf-block-control-dy": dy,
+    "--lf-block-control-dw": dw,
+    "--lf-block-control-dh": dh,
   })) {
     const value = length ? layoutPx(length) : "";
     if (control.style.getPropertyValue(property) !== value)

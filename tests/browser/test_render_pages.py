@@ -348,8 +348,10 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
     expect_open_threads(page, 1)
     [root] = [e["id"] for e in events_model.read_events(d) if e["kind"] == "comment"]
     thread = open_panel_thread(page, root)
-    expect(thread.locator(".lf-msg.agent")).to_have_count(1)
-    expect(thread.locator(".lf-msg.agent > .lf-msg-head b")).to_have_text("Codex")
+    expect(thread.locator(".lf-msg[data-lf-author=agent]")).to_have_count(1)
+    expect(
+        thread.locator(".lf-msg[data-lf-author=agent] > .lf-msg-head b")
+    ).to_have_text("Codex")
     expect(thread.locator(".lf-fp-quote")).to_contain_text(
         "“Retries are capped at three”"
     )
@@ -357,7 +359,7 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
     write(panel_field(page), "three is the retry budget, not a guess")
     with sending(page, "the reply"):
         page.keyboard.press("ControlOrMeta+Enter")
-    expect(thread.locator(".lf-msg.user")).to_have_count(1)
+    expect(thread.locator(".lf-msg[data-lf-author=user]")).to_have_count(1)
     with sending(page, "the resolve"):
         page.locator(".lf-fp-settle").click()
 
@@ -3464,8 +3466,8 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
     page.lf_errors.remove(console_finding(fault.value))
 
     view = open_panel_thread(page, root["id"])
-    expect(view.locator(".lf-msg.agent .lf-msg-body")).to_have_count(0)
-    expect(view.locator(".lf-msg.user .lf-msg-body")).to_have_text(
+    expect(view.locator(".lf-msg[data-lf-author=agent] .lf-msg-body")).to_have_count(0)
+    expect(view.locator(".lf-msg[data-lf-author=user] .lf-msg-body")).to_have_text(
         "which host answers?"
     )
     expect(panel_field(page)).to_have_js_property("value", "keep this unfinished reply")
@@ -3486,4 +3488,6 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
     expect(page.locator(".lf-live")).to_have_text("this one does")
     expect(field).not_to_have_attribute("placeholder", re.compile("this one does"))
     view = open_panel_thread(page, root["id"])
-    expect(view.locator(".lf-msg.agent .lf-msg-body")).to_have_text("this one does")
+    expect(view.locator(".lf-msg[data-lf-author=agent] .lf-msg-body")).to_have_text(
+        "this one does"
+    )

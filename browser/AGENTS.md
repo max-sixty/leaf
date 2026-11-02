@@ -484,7 +484,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Which native layers are open, in opening order, and whether a modal admits a node                     | `keyboard/layer-stack.js` `nativeLayers`, `nativeModalAdmits`                      |
 | The element a URL fragment names                                                                      | `anchor-resolution.js` `fragmentTarget`                                            |
 | The address a heading's link names                                                                    | `heading-links.js` `headingAddress`                                                |
-| The language a file path means                                                                        | `syntax.js` `langForPath`, from the registry's `$languages`                        |
+| The language a file path means                                                                        | `language-paths.js` `langForPath`, from the registry's `$languages`                |
 | Paint on the next frame, or watch a size                                                              | `rendering.js` `nextRender`, `nextFrame`, `sizeObserver` (_lint_)                  |
 | Write a DOM value only when it changed                                                                | `keeps.js` `keeps`                                                                 |
 | Threads, workflow, attention, obligations, and whether they are answered                              | the server's state, under "One writer for each fact"                               |

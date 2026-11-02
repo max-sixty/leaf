@@ -4712,7 +4712,12 @@ def test_markdown_body_file_words_match_the_shared_browser_dialect(case):
         }
     }
     assert passages_model.page_passages(document, registry).text == case["words"]
-    rendered = turbohtml.parse(passages_model.markdown_markup(case["source"]))
+    markup = passages_model.markdown_markup(case["source"])
+    blocks = turbohtml.parse_fragment(markup, context="div", positions=False).children
+    assert [
+        block.tag for block in blocks if isinstance(block, turbohtml.Element)
+    ] == case["blocks"]
+    rendered = turbohtml.parse(markup)
     assert [
         {"text": link.text, "href": link.attrs["href"]} for link in rendered.select("a")
     ] == case["links"]

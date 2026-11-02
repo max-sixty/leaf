@@ -58,13 +58,15 @@ repos:
         entry: depcruise --output-type err browser/runtime
         pass_filenames: false
         files: ^(browser/(leaf\.js|runtime/.*\.js)|\.dependency-cruiser\.mjs)$
-      # JavaScript's vulture; whole-tree, woken by the file kinds that export or read.
-      - id: unused-exports
-        name: unused JavaScript exports
-        language: system
-        entry: uv run leaf-dev unused-exports
+      # JavaScript's vulture: the modules, exports and types nothing reads
+      # (`knip.config.js`). Whole-tree; files only wakes it.
+      - id: knip
+        name: knip
+        language: node
+        additional_dependencies: [knip@6.44.1]
+        entry: knip --no-progress
         pass_filenames: false
-        files: '\.(js|mjs|ts|py|html|md)$|^worker/wrangler\.toml$'
+        files: '\.(js|mjs|cjs|ts)$'
   - repo: https://github.com/adhtruong/mirrors-typos
     rev: v1.48.0
     hooks:

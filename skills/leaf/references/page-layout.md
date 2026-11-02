@@ -237,8 +237,10 @@ works on column and sidebar pages:
 A `table` with either value is only as wide as its columns need, up to that width.
 A block widens when it is a child of `layout-column` or `layout-flow`.
 A framed holder, such as an `lf-ask` or callout, needs its own `data-width` to widen;
-its children use the room inside it. A wide child alone does not widen its holder,
-and a table scrolls sideways when needed. Use `layout-flow` on unframed section
+its children use the room inside it. A wide child alone does not widen its holder.
+Under the reading face a table scrolls sideways when needed; a page without the face
+gives a table that can outgrow its width a box of its own that scrolls sideways
+(`page-authoring.md`, "Markup"). Use `layout-flow` on unframed section
 wrappers that should share the document's space, not on boxes that arrange their
 own contents.
 

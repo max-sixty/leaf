@@ -1,5 +1,6 @@
 """How a margin row follows its target through scrolling panes, shadow-tree scrollers,
-sticky and fixed boxes, hidden tabs and authored anchor scopes."""
+sticky and fixed boxes, hidden tabs, content laid out but not shown, and authored anchor
+scopes."""
 
 import re
 
@@ -243,14 +244,21 @@ def test_marks_stand_on_a_widened_table_in_every_engine(request, serve, engine):
     after = page.evaluate(reading)
     assert after["header"][2] == pytest.approx(before["header"][2] - 120, abs=1), after
     assert after["pin"] == pytest.approx(before["pin"], abs=1), (before, after)
-    page.locator("#grid thead th").nth(2).hover()
+    _outline_and_copy_stand_on(page, page.locator("#grid thead th").nth(2), "#grid")
+
+
+def _outline_and_copy_stand_on(page, hovered, outlined):
+    """The outline Alt raises over `hovered` stands on `outlined`, and the Copy of the
+    `#command` code block, which CSS anchors alone, stands inside the block's top-right
+    corner."""
+    hovered.hover()
     page.keyboard.down("Alt")
     aim = page.locator(".lf-aim")
     expect(aim).to_be_visible()
-    table, outline = page.locator("#grid").bounding_box(), aim.bounding_box()
+    target, outline = page.locator(outlined).bounding_box(), aim.bounding_box()
     page.keyboard.up("Alt")
-    assert outline["x"] == pytest.approx(table["x"], abs=1), (outline, table)
-    assert outline["y"] == pytest.approx(table["y"], abs=1), (outline, table)
+    assert outline["x"] == pytest.approx(target["x"], abs=1), (outline, target)
+    assert outline["y"] == pytest.approx(target["y"], abs=1), (outline, target)
     code = page.locator("#command").bounding_box()
     page.mouse.move(code["x"] + 5, code["y"] + code["height"] / 2)
     copy = page.locator(".lf-code-copy")
@@ -259,6 +267,79 @@ def test_marks_stand_on_a_widened_table_in_every_engine(request, serve, engine):
     inset = code["x"] + code["width"] - corner["x"] - corner["width"]
     assert 0 <= inset <= 8, (corner, code)
     assert 0 <= corner["y"] - code["y"] <= 8, (corner, code)
+
+
+SCALED_DECK_PAGE = leaf_page(
+    "a scaled deck",
+    '<h1>Deck</h1><div style="position: relative; height: 480px">'
+    '<div style="position: absolute; left: 50%; top: 50%; width: 960px; height: 700px;'
+    ' padding: 40px; transform: translate(-50%, -50%) scale(0.6)">'
+    '<div id="words" style="height: 240px; overflow: auto">'
+    + "A line of the slide's notes.<br>" * 4
+    + "Words on a slide the deck has translated and scaled to fit its stage."
+    + "<br>A further line of the slide's notes." * 30
+    + '</div><pre id="command"><code>uv run pytest '
+    "tests/browser/margin/test_scrollers.py</code></pre></div></div>"
+    + "<p>Prose after the deck, so the page scrolls.</p>"
+    * 40,
+)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+def test_marks_stand_on_a_scaled_slide_in_every_engine(request, serve, engine):
+    """A deck such as reveal.js translates and scales its slides to fit its stage, and
+    Firefox leaves the anchor's transforms out of `anchor()` and `anchor-size()`, so a
+    comment's row stood 257px below the words it marked and Copy stood past the right
+    edge of its code block. A scroll inside the slide moves the words by less than the
+    scroll, and Firefox moved the row by all of it until something else placed the
+    rows again. In each engine the row stands level with its words and keeps that place
+    through a scroll of the page and, once it ends, through a scroll of the box holding
+    the words; the outline Alt raises stands on that box, and Copy stands inside its
+    block's top-right corner."""
+    browser = request.getfixturevalue(engine)
+    comment = _comment_on("words", quote="translated and scaled")
+    page = open_page(browser, serve(SCALED_DECK_PAGE, events=[comment]))
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    reading = """() => {
+      const text = [...document.getElementById('words').childNodes]
+        .find((node) => node.data?.includes('translated and scaled'));
+      const at = text.data.indexOf('translated and scaled');
+      const range = document.createRange();
+      range.setStart(text, at);
+      range.setEnd(text, at + 10);
+      const row = document.querySelector('[data-lf-margin-for="words"]');
+      const top = range.getClientRects()[0].top;
+      return {offset: row.getBoundingClientRect().top - top, words: top,
+              shown: !row.classList.contains('lf-withheld')};
+    }"""
+    before = page.evaluate(reading)
+    assert before["shown"] and abs(before["offset"]) <= 2, before
+    page.evaluate("() => document.scrollingElement.scrollBy(0, 120)")
+    margins_laid_out(page)
+    after = page.evaluate(reading)
+    assert after["words"] == pytest.approx(before["words"] - 120, abs=1), after
+    assert after["offset"] == pytest.approx(before["offset"], abs=1), (before, after)
+    # No layout announcement after this scroll: the margin's own reading of its end
+    # is what has to place the row.
+    page.evaluate(
+        """async () => {
+          const box = document.getElementById('words');
+          const ended = new Promise((done) =>
+            box.addEventListener('scrollend', done, {once: true}));
+          box.scrollTop = 60;
+          await ended;
+        }"""
+    )
+    rendered(page)
+    scrolled = page.evaluate(reading)
+    assert scrolled["words"] == pytest.approx(after["words"] - 36, abs=1), scrolled
+    assert scrolled["shown"], scrolled
+    assert scrolled["offset"] == pytest.approx(before["offset"], abs=1), (
+        before,
+        scrolled,
+    )
+    _outline_and_copy_stand_on(page, page.locator("#words"), "#words")
 
 
 def test_a_pin_in_a_pane_paints_in_the_frame_its_target_scrolls(browser, serve):
@@ -660,6 +741,89 @@ def test_a_row_behind_an_inactive_tab_is_withheld(browser, serve):
     margins_laid_out(page)
     expect(row).not_to_have_class(re.compile(r"\blf-withheld\b"))
     expect(row).to_be_visible()
+
+
+# A deck whose script moves its slides with transitions: the next slide hidden below the
+# current one by `visibility`, as reveal.js hides a fragment still to come, and the one
+# before moved out of the box that clips the deck. (reveal.js hides whole slides with
+# `hidden`, which Leaf's own rule draws as `display: none`.)
+DECK_PAGE = leaf_page(
+    "a deck that moves its slides with transitions",
+    """
+<header>
+  <h1>Deck</h1>
+  <details id="notes"><summary>Notes</summary><p id="note">A note for the speaker.</p></details>
+</header>
+<div id="deck">
+  <section id="slide-one" class="present"><h2>First</h2><p>The slide showing now.</p></section>
+  <section id="slide-two" class="future"><h2>Second</h2><p>Below it, still hidden.</p></section>
+  <section id="slide-three" class="past"><h2>Third</h2><p>Above the deck's box.</p></section>
+</div>
+""",
+    head="""<style>
+  #deck { position: relative; overflow: hidden; height: 360px; }
+  #deck > section { position: absolute; top: 40px; width: 100%;
+                    transition: visibility 0.2s, transform 0.2s; }
+  #deck > .future { visibility: hidden; transform: translateY(150%); }
+  #deck > .past { transform: translateY(-400px); }
+</style>""",
+    layout="workspace",
+)
+
+
+def test_rows_follow_slides_a_transition_shows_and_hides(browser, serve):
+    """A slide hidden by `visibility`, or moved out of the box that clips it, withholds
+    its comment's row, as a closed disclosure does. When the deck swaps slides by a
+    transition, the class change that starts it is read while the transition still holds
+    the old values, and nothing after it resizes or mutates; the rows follow once the
+    transitions end, without a reload."""
+    page = open_page(
+        browser,
+        serve(
+            DECK_PAGE,
+            events=[
+                _comment_on(slide)
+                for slide in ("slide-one", "slide-two", "slide-three")
+            ]
+            + [_comment_on("note")],
+        ),
+    )
+    resized(page, 1280, 800)
+    margins_laid_out(page)
+    row = {
+        target: page.locator(f'.lf-margin-cluster[data-lf-margin-for="{target}"]')
+        for target in ("slide-one", "slide-two", "slide-three", "note")
+    }
+    withheld = re.compile(r"\blf-withheld\b")
+    expect(row["slide-one"]).to_be_visible()
+    for hidden in ("slide-two", "slide-three", "note"):
+        expect(row[hidden]).to_have_class(withheld)
+        expect(row[hidden]).to_be_hidden()
+
+    # Read two frames after the transitions end, not polled: some unrelated pass would
+    # place the rows eventually, which is the bug.
+    swapped = page.evaluate("""async () => {
+      const one = document.getElementById('slide-one');
+      const two = document.getElementById('slide-two');
+      const ended = (slide, property) => new Promise((resolve) =>
+        slide.addEventListener('transitionend', (event) => {
+          if (event.target === slide && event.propertyName === property) resolve();
+        }));
+      const both = Promise.all([ended(one, 'transform'), ended(two, 'visibility')]);
+      one.className = 'past';
+      two.className = 'present';
+      await both;
+      for (const _ of [1, 2]) await new Promise(requestAnimationFrame);
+      const held = (id) => document
+        .querySelector(`[data-lf-margin-for="${id}"]`).classList.contains('lf-withheld');
+      return {one: held('slide-one'), two: held('slide-two')};
+    }""")
+    assert swapped == {"one": True, "two": False}, swapped
+    expect(row["slide-two"]).to_be_visible()
+
+    page.get_by_text("Notes", exact=True).click()
+    expect(row["note"]).not_to_have_class(withheld)
+    expect(row["note"]).to_be_visible()
 
 
 STRIP_FILL = "".join(

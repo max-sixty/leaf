@@ -959,7 +959,7 @@ diff --git a/README.md b/README.md
     for comment in comments:
         view = open_panel_thread(page, comment["id"])
         expect(view.locator(".lf-anchor-status")).to_have_text("Earlier data")
-        assert "detached" not in view.locator(".lf-fp-quote").get_attribute("class")
+        assert view.locator(".lf-fp-quote").get_attribute("data-lf-detached") is None
 
 
 def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serve):
@@ -1113,7 +1113,9 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
     told(page)
     # The seat holds arrivals that would move the diff on screen behind its notice:
     # the user's own two messages. The agent's reply, already read, is not among them.
-    thread.get_by_role("button", name="2 new messages").click()
+    notice = thread.get_by_role("button", name="2 new", exact=True)
+    expect(notice).to_have_accessible_description("2 new messages")
+    notice.click()
     line = ":scope > .lf-msg-head .lf-msg-sending"
     for view in (thread, panel_thread):
         if view == panel_thread:

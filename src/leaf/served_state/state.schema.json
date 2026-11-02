@@ -1492,8 +1492,11 @@
       "description": "A message as a served thread holds it.",
       "anyOf": [
         {
-          "description": "A logged comment or reply, with its current content version (`read_state.content_version`), which the browser marks read once its words have been shown. An agent's message carries the name it is shown under as `agent` (`schema.agent_name`). An input's first answer carries `key`, the name a provisional reply and the answer that retires it share.",
-          "anyOf": [{ "$ref": "leaf:event/comment" }, { "$ref": "leaf:event/reply" }],
+          "description": "A logged comment or reply, with its latest edit's words, and its current content version (`read_state.content_version`), which the browser marks read once its words have been shown. An agent's message carries the name it is shown under as `agent` (`schema.agent_name`). An input's first answer carries `key`, the name a provisional reply and the answer that retires it share.",
+          "anyOf": [
+            { "$ref": "leaf:message/comment" },
+            { "$ref": "leaf:message/reply" }
+          ],
           "properties": {
             "agent": { "type": "string" },
             "key": { "type": "string" },

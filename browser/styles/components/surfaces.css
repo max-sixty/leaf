@@ -1120,6 +1120,10 @@ button.lf-primary-news {
 .lf-msg-head :is(.lf-edited, .lf-msg-kept) {
   color: var(--muted);
 }
+/* A deleted message keeps its place, saying so in Leaf's voice (messages.js). */
+.lf-msg-deleted {
+  color: var(--muted);
+}
 /* A thread projected inline uses the same receipt emphasis as the panel. Its words take
    their speaker's face (controls.css), so the colour alone sets them apart. */
 .lf-msg-head .lf-msg-failure {

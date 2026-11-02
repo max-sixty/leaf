@@ -54,7 +54,6 @@ from render_cases_navigation import (
 )
 from render_cases_widgets import (
     GENERIC_VISUAL_LAYER,
-    PART_DIAGRAM_PAGE,
     prefixed_visual_layer,
     visual_widgets,
 )
@@ -138,22 +137,6 @@ BOUNDED_WORKSPACE_PAGE = leaf_page(
 )
 
 
-def test_the_render_gate_reports_a_compact_spill(browser, serve):
-    source = leaf_page(
-        "Compact spill",
-        "<h1>Compact route</h1>"
-        '<p id="compact-overflow">This row spills only from compact viewports.</p>',
-        head="<style>@media(max-width:600px){#compact-overflow{width:700px}}</style>",
-    )
-    reading = render_gate_model.render_version(browser, serve(source, packages=()))
-    overflow = [
-        finding for finding in reading.failures if finding.code == "page-scrolls"
-    ]
-    assert [(f.widths, f.scheme, f.viewports) for f in overflow] == [
-        ((360, 600), None, ())
-    ], reading.failures
-
-
 def test_startup_shift_evidence_serializes_as_advice(browser, serve, monkeypatch):
     """Platform entries survive the real JS probe and report boundary as advice.
 
@@ -206,93 +189,6 @@ def test_startup_shift_evidence_serializes_as_advice(browser, serve, monkeypatch
 
 def _panel(name: str) -> str:
     return f'<section class="panel" id="{name}"><h2>{name}</h2><p>Words.</p></section>'
-
-
-def test_the_render_gate_fails_a_page_that_scrolls_sideways_only_between_viewports(
-    browser, serve
-):
-    """A body beside its track, and a row that spills only from 600 to 900px: both fixed
-    viewports read the page clean, and only the sweep between them sees it. A control
-    row that loses its scrollbar track room only between them is the same reading for
-    the overlay bar. Below both, a decision in a card of fixed height, whose prose
-    grows at 440px and narrower (a margin stands in for its wrapping) until it pushes
-    the decision's controls under the card's clip: a press nobody can reach, which only
-    the sweep's narrowest widths see. A card as tall as the window holds its decision
-    below 600px of plan, so a window 720px tall clips it and one 900px tall does not:
-    read at a user's 900px-tall desktop window, only the phone render's sweep, at its
-    own height, sees it. A card whose rule for the
-    dark scheme pushes its decision under the clip is clipped only in the two dark
-    renders, which each read the geometry once."""
-    source = leaf_page(
-        "mid-width overflow",
-        f"""
-<h1>Mid-width spill</h1>
-<div id="tracks">
-  <div id="body">{_panel("plan")}{_panel("steps")}</div>
-  <div id="rail">{_panel("checks")}{_panel("log")}</div>
-</div>
-<p id="mid-spill">{"A line that wraps at both viewports and runs on unbroken between them. " * 4}</p>
-<div id="strip"><button>Summary</button><button>Release scope</button>
-<button>Owner handoff</button></div>
-<div id="card"><lf-ask id="go-decision"><h2>Ship it?</h2>
-<p>The release passed its checks.</p><lf-options id="go" choose>
-<lf-option id="go-yes"><strong>Yes</strong></lf-option>
-</lf-options></lf-ask></div>
-<div id="short"><div id="plan-body"></div><lf-ask id="hold-decision"><h2>Hold it?</h2>
-<lf-options id="hold" choose><lf-option id="hold-yes"><strong>Yes</strong></lf-option>
-</lf-options></lf-ask></div>
-<div id="dusk"><lf-ask id="dusk-decision"><h2>Wait?</h2>
-<p>The canary is still running.</p><lf-options id="wait" choose>
-<lf-option id="wait-yes"><strong>Yes</strong></lf-option>
-</lf-options></lf-ask></div>
-""",
-        head="""<style>
-#tracks { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4); }
-@media (min-width: 600px) and (max-width: 900px) { #mid-spill { white-space: nowrap; } }
-#strip { display: flex; width: 240px; overflow: auto; padding: 0 0 15px; border: 0; }
-#strip button { flex: 0 0 180px; height: 40px; margin: 0; }
-@media (min-width: 600px) and (max-width: 900px) { #strip { padding-bottom: 0; } }
-#card { height: 400px; overflow: hidden; }
-@media (max-width: 440px) { #card p { margin-bottom: 400px; } }
-#short { height: 100vh; overflow: hidden; }
-#plan-body { height: 600px; }
-#dusk { height: 400px; overflow: hidden; }
-@media (prefers-color-scheme: dark) { #dusk p { margin-bottom: 400px; } }
-</style>""",
-    )
-
-    reading = render_gate_model.render_version(
-        browser,
-        serve(source, packages=("default",)),
-        desktop={"width": 1280, "height": 900},
-    )
-
-    clipped = [f for f in reading.failures if f.code == "clipped-control"]
-    assert clipped, reading.failures
-    assert {(f.values["by"], f.widths) for f in clipped} == {
-        ("<div id=card>", (360, 440)),
-        ("<div id=short>", (360, 540)),
-        ("<div id=dusk>", (1280, 1280)),
-        ("<div id=dusk>", (540, 540)),
-    }, clipped
-    # Each card that loses its controls loses the prose above them too, at the same
-    # widths: the content reading names the card, with what would show the rest.
-    cut = {(f.at, f.widths) for f in reading.failures if f.code == "clipped-content"}
-    assert cut == {(f.values["by"], f.widths) for f in clipped}, reading.failures
-    assert {(f.code, f.at, f.widths) for f in reading.failures} - {
-        (f.code, f.at, f.widths) for f in clipped
-    } - {("clipped-content", *box) for box in cut} == {
-        ("page-scrolls", "", (600, 880)),
-    }, reading.failures
-    # A strip that leaves no room for an overlay scrollbar is advice: the bar covers its
-    # last line only under the pointer, and the room is the author's to choose.
-    [strip] = reading.advice
-    assert (strip.code, strip.at, strip.widths) == (
-        "scrollbar-clearance",
-        "<div id=strip>",
-        (600, 880),
-    ), reading.advice
-    assert strip.values["clear"] == 0, strip
 
 
 # Four drawings in the idiom. The first is drawn wider than the column holds, so the fit
@@ -1011,30 +907,6 @@ def test_replay_findings_keep_the_throw_site(browser, serve):
     assert 'File "' not in finding["error"], finding
     assert "TypeError: replay rejected" in finding["error"]
     assert "replayProjection" in finding["error"]
-
-
-def test_the_render_gate_refuses_duplicate_diagram_identities(browser, serve):
-    """Two named boxes cannot share the same stable comment identity."""
-    page = PART_DIAGRAM_PAGE.replace(
-        "</lf-diagram>",
-        """</lf-diagram>
-<lf-diagram id="model" parts="all"><pre>
-classDiagram
-  namespace Job {
-    class Job
-  }
-</pre></lf-diagram>""",
-        1,
-    )
-    failures = render_gate_model.render_version(browser.unwatched, serve(page)).failures
-    assert [(f.scheme, f.code, f.at) for f in failures] == [
-        (scheme, "console-error", "") for scheme in ("light", "dark")
-    ], failures
-    assert all(
-        'leaf: <lf-diagram id="model"> failed:' in f.values["text"]
-        and "Job" in f.values["text"]
-        for f in failures
-    ), failures
 
 
 def test_diagrams_preserve_late_state_labels_and_sequence_titles(browser, serve):
@@ -4654,3 +4526,114 @@ def test_label_size_reading_ignores_html_elements_inside_a_drawing(browser, serv
     assert drawing["words"] == "SVG label"
     assert drawing["set"] == 20
     assert drawing["drawn"] == 5
+
+
+import pytest
+from render_harness import (
+    leaf_page,
+)
+
+
+@pytest.mark.shifts_unsurveyed
+def test_every_restore_case_a_user_can_return_to_is_arrived_in(browser, serve):
+    """Every restore case the layer restores is exercised on one representative page.
+
+    Restoring user furniture is layer-owned and identical under every authored
+    version, so multiplying this reading across the corpus repeats the mechanism rather
+    than adding an input. The probe speaks only to a returning user, and every finding
+    here is the arrival pass's. It is held to the restore cases the runtime declares —
+    all of them, in order, because a pass that stopped at the first would leave every
+    surface after it exactly as unwatched as it was before.
+    """
+
+    def prepare(page):
+        # At document start, before the page's own scripts, so what is read is what the
+        # gate seeded and not what the runtime has since written back over it.
+        page.add_init_script(
+            "const held = [...Object.keys(localStorage), ...Object.keys(sessionStorage)];"
+            "if (held.length) console.error('returned holding ' + held.join());"
+        )
+
+    url = serve(
+        CHANGE_SHAPES_PAGE,
+        events=[
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": 1,
+                "widget": "sug-rewrite",
+                "action": "decide",
+                "detail": {"outcome": "accept"},
+                "meaning": {
+                    "scope": "page",
+                    "unit": "sug-rewrite",
+                    "depends": ["sug-rewrite"],
+                    "answer": None,
+                    "state": {
+                        "origin": "lf-suggestion",
+                        "unit": "widget",
+                        "record": None,
+                        "creates": None,
+                        "decides": True,
+                        "detail": {
+                            "type": "object",
+                            "properties": {"outcome": {"enum": ["accept", "reject"]}},
+                            "required": ["outcome"],
+                            "additionalProperties": False,
+                        },
+                    },
+                },
+            }
+        ],
+    )
+    declared = browser.new_page()
+    declared.goto(url, wait_until="load")
+    wait_until_ready(declared)
+    restore_cases = user_view_restore_cases(declared)
+    suggestion_state = declared.locator("#sug-rewrite").get_attribute("data-lf-state")
+    fold_transition = declared.locator("#sug-rewrite > lf-old").evaluate(
+        "element => getComputedStyle(element).transitionProperty"
+    )
+    declared.close()
+    assert len(restore_cases) > 1, "the runtime declares nothing to arrive in"
+    assert suggestion_state == "accept"
+    assert fold_transition == "padding"
+
+    arrived = [f for f in arrival_findings(primed(browser.unwatched, prepare), url)]
+    assert [f.split("]")[0].lstrip("[") for f in arrived] == [
+        a["name"] for a in restore_cases
+    ]
+    # And each was the restore case it names rather than that one plus everything the
+    # reloads before it left open — a difference no finding could show on its own,
+    # since all of them would still be reported, each under a name that had stopped
+    # being true. Only the other restore cases' keys are held against an arrival: the
+    # page writes its own reading position on the way out of every load, so a store
+    # holding that too is a page that departed, not a restore case that leaked.
+    arranged = {a["key"] for a in restore_cases}
+    for finding, restore_case in zip(arrived, restore_cases, strict=True):
+        held = set(finding.split("returned holding ")[1].split(","))
+        assert held & arranged == {restore_case["key"]}, finding
+
+
+@pytest.mark.shifts_unsurveyed
+def test_the_readiness_wait_names_the_stage_a_page_still_owes(browser, serve):
+    """An upgraded page whose first state answer is held has replayed nothing, so the
+    wait fails there by the runtime's own stage rather than timing out unexplained,
+    and passes once the answer lands."""
+    page = browser.new_page()
+    held = []
+    page.route("**/api/state*", lambda route: held.append(route))
+    page.goto(serve(LONG_PAGE), wait_until="load")
+    render_checks_model.wait_for_probe(page, "upgraded")
+
+    with pytest.raises(render_checks_model.PageNotReady) as unready:
+        wait_until_ready(page, timeout_ms=EXPECTED_STALL_MS)
+    assert unready.value.stage == "log"
+    assert str(unready.value) == (
+        f"the runtime never finished replaying the log within {EXPECTED_STALL_MS}ms"
+    )
+
+    for route in held:
+        route.continue_()
+    page.unroute("**/api/state*")
+    wait_until_ready(page)

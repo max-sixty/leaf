@@ -987,3 +987,55 @@ def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(
         assert "re-initialized" not in ran.stderr
         assert "older page protocol" not in ran.stderr
     assert fetch(f"{server}/api/state")[0] == 200
+
+
+import pytest
+
+from leaf import schema as schema_model
+from leaf import state as cleanup_model
+from leaf import vendoring as vendoring_model
+from leaf.registry import storage as registry_storage
+
+
+@pytest.mark.parametrize("unreadable", ["claim", "lifecycle"])
+def test_read_commands_leave_an_older_page_and_its_server_alone(
+    claimed, server, unreadable
+):
+    """A read by another session cannot take a held page across a protocol bump."""
+    from leaf.service import claim_path
+
+    publish(claimed)
+    vendored = vendored_at_another_protocol(claimed)
+    record = (
+        claim_path(claimed)
+        if unreadable == "claim"
+        else cleanup_model.session_file("s1", cleanup_model.SESSION_SUFFIX)
+    )
+    stored = interact_files.read_json(record)
+    stored["format"] = "leaf-" + unreadable + "/999"
+    cleanup_model.write_json(record, stored)
+    revisions = interact_files.list_revisions(claimed)
+    recorded = (claimed / schema_model.LAYER_FILE).read_bytes()
+    for command in (
+        ["page", "state", str(claimed)],
+        ["page", "events", str(claimed)],
+        ["page", "instructions", str(claimed)],
+        ["page", "check", str(claimed)],
+    ):
+        subprocess.run(
+            [*LEAF_COMMAND, *command],
+            capture_output=True,
+            text=True,
+            timeout=STATED_TIMEOUT,
+            check=False,
+            env={**os.environ, "CLAUDE_CODE_SESSION_ID": "s2"},
+        )
+        same_record = (claimed / schema_model.LAYER_FILE).read_bytes() == recorded
+        assert same_record, command
+        assert interact_files.list_revisions(claimed) == revisions
+        assert fetch(f"{server}/api/state")[0] == 200
+    layer_3 = registry_storage.layer_record(claimed)
+    assert layer_3 is not None
+    assert layer_3["protocol"] == vendored
+    assert vendoring_model.renew_layer(claimed, None, command=True) is None
+    assert (claimed / schema_model.LAYER_FILE).read_bytes() == recorded

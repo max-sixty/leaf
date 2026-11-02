@@ -1534,3 +1534,80 @@ def test_evidence_close_folds_room_but_retires_controls_immediately(
     )
     details.evaluate("d => d.open = true")
     assert height() == pytest.approx(full, abs=1)
+
+
+import pytest
+
+
+@pytest.mark.parametrize("width,scheme", [(1280, "light"), (390, "dark")])
+def test_diff_filter_has_one_frame_and_clears_with_its_count_inside(
+    browser, serve, width, scheme
+):
+    """The canonical search owns the frame, count, and Clear; filtering owns the rows,
+    and narrows them without pulling what follows the diff up into the window."""
+    patch = "".join(
+        f"diff --git a/src/file-{index}.py b/src/file-{index}.py\n"
+        f"--- a/src/file-{index}.py\n+++ b/src/file-{index}.py\n"
+        "@@ -1 +1 @@\n-old\n+new\n"
+        for index in range(12)
+    )
+    context = browser.new_context(
+        viewport={"width": width, "height": 844}, color_scheme=scheme
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Changed files",
+                f'<h1>Changed files</h1><lf-diff id="patch"><pre>{escape(patch)}</pre></lf-diff>'
+                '<p id="after">After the diff.</p>',
+            )
+        ),
+        context=context,
+    )
+    diff = page.locator("#patch")
+    field = diff.locator(".lf-diff-search")
+    editor = field.locator("input")
+    count = diff.locator(".lf-diff-progress")
+    rows = diff.locator(".lf-diff-file:not([hidden])")
+    expect(editor).to_have_accessible_name("Filter diff files")
+    page.get_by_role("heading", name="Changed files").click()
+    for _ in range(8):
+        page.keyboard.press("Tab")
+        if editor.evaluate("node => node === node.getRootNode().activeElement"):
+            break
+    expect(editor).to_be_focused()
+    assert editor.evaluate("node => node.matches(':focus-visible')")
+    field.scroll_into_view_if_needed()
+    rendered(page)
+    frame = field.bounding_box()
+    assert diff.locator(".lf-diff-tools").bounding_box() == frame
+    count_box = count.bounding_box()
+    after = page.locator("#after")
+    below = after.bounding_box()
+    assert (
+        frame["x"]
+        <= count_box["x"]
+        < count_box["x"] + count_box["width"]
+        <= frame["x"] + frame["width"]
+    )
+    for query, matches in (("file-0", 1), ("no-match", 0)):
+        editor.fill(query)
+        expect(rows).to_have_count(matches)
+        expect(count).to_have_text(f"{matches} of 12")
+        expect(field.get_by_role("button", name="Clear")).to_be_visible()
+        assert field.bounding_box() == frame
+        assert after.bounding_box()["y"] >= min(below["y"], 844)
+    field.get_by_role("button", name="Clear").click()
+    expect(editor).to_have_value("")
+    expect(editor).to_be_focused()
+    expect(rows).to_have_count(12)
+    expect(count).to_have_text("12 files")
+    assert field.bounding_box() == frame
+    assert after.bounding_box() == below
+    editor.fill("file-0")
+    expect(rows).to_have_count(1)
+    editor.press("ControlOrMeta+A")
+    editor.press("Backspace")
+    expect(rows).to_have_count(12)
+    expect(count).to_have_text("12 files")

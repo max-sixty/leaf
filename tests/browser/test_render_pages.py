@@ -3488,3 +3488,49 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
     expect(view.locator(".lf-msg[data-lf-author=agent] .lf-msg-body")).to_have_text(
         "this one does"
     )
+
+
+import pytest
+from render_harness import (
+    leaf_page,
+)
+
+
+@pytest.mark.shifts_unsurveyed
+@pytest.mark.watch_shifts
+def test_sort_film_playback_keeps_the_stage_and_controls_still(browser, serve):
+    """Each trace step paints inside a fixed layout at both wide pane widths."""
+    example = next(path for path in EXAMPLES if path.stem == "rust-sort")
+    context = browser.new_context(
+        reduced_motion="reduce", viewport={"width": 1715, "height": 1046}
+    )
+    page = open_page(browser, serve(example), context=context)
+
+    for width in (1715, 1200):
+        page.set_viewport_size({"width": width, "height": 1046})
+        page.locator("#sort-film .sort-play").focus()
+        page.keyboard.press("Home")
+        layouts = page.evaluate(
+            """async () => {
+              const film = document.querySelector('#sort-film');
+              const stage = film.querySelector('.sort-stage');
+              const moment = film.querySelector('.sort-moment');
+              const bar = film.querySelector('.sort-bar');
+              const play = film.querySelector('.sort-play');
+              const samples = new Set();
+              play.click();
+              const until = performance.now() + 900;
+              while (performance.now() < until) {
+                await new Promise(requestAnimationFrame);
+                const top = stage.getBoundingClientRect().top;
+                samples.add(JSON.stringify([
+                  Math.round(stage.getBoundingClientRect().height),
+                  Math.round(moment.getBoundingClientRect().top - top),
+                  Math.round(bar.getBoundingClientRect().top - top),
+                ]));
+              }
+              play.click();
+              return [...samples];
+            }"""
+        )
+        assert len(layouts) == 1, (width, layouts)

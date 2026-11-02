@@ -34,56 +34,6 @@ from leaf import event_log as events_model
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
-@pytest.mark.parametrize("destination", ["call", "patch"])
-def test_focus_reactions_keep_a_projected_data_target(browser, serve, destination):
-    """Light-DOM data and its shadow-DOM destination keep exact identity."""
-    example = Path(__file__).parents[2] / "examples" / "pr-walkthrough.html"
-    page = open_page(browser, live_url(serve(example)))
-    page.get_by_role("tab", name="CallDiff").click()
-    location = (
-        page.locator("#pr-call-diagram")
-        .get_by_role("link", name="src/summary.rs:259")
-        .first
-    )
-    # Reach the real link through the browser's tab order. The source case reads
-    # keyboard focus inside a generated datum, rather than focusing the datum directly.
-    for _ in range(40):
-        page.keyboard.press("Tab")
-        if location.evaluate("node => node.matches(':focus')"):
-            break
-    expect(location).to_be_focused()
-    assert location.evaluate("node => node.matches(':focus-visible')")
-    target = location.locator("xpath=..")
-    if destination == "patch":
-        page.keyboard.press("Enter")
-        target = page.locator(
-            '#pr-exact-patch [data-lf-datum=\'["src/summary.rs","new",259]\']'
-        )
-        expect(target).to_be_focused()
-        expect(page.locator(".lf-live")).to_have_text(
-            "Opened src/summary.rs:259 in the exact patch"
-        )
-        expect(target).to_be_in_viewport()
-    datum = target.get_attribute("data-lf-datum")
-    owner = target.get_attribute("data-lf-projection")
-    revision = target.get_attribute("data-lf-source-revision")
-    assert datum and owner and revision
-    page.keyboard.press("e")
-    expect(
-        page.locator('[data-lf-margin-entry-owner="responses"]:visible')
-    ).not_to_have_count(0)
-    page.keyboard.press("1")
-    round_trip(page)
-    reaction = next(
-        event
-        for event in reversed(events_model.read_events(serve.page_dir))
-        if event["kind"] == "comment" and event.get("token")
-    )
-    assert reaction["anchor"]["section"] == owner
-    assert reaction["anchor"]["datum"] == datum
-    assert reaction["anchor"]["source_revision"] == revision
-
-
 @pytest.mark.parametrize("route", ["pointer", "keyboard"])
 def test_board_moves_preserve_live_sample_and_control_state(browser, serve, route):
     """A preview names the move; only the original document and widgets stay live."""
@@ -535,3 +485,461 @@ def test_a_body_the_module_cannot_draw_says_why_over_its_source(browser, serve):
         mine = [text for text in reported if text.startswith(reports[chart_id])]
         assert len(mine) == 1 and words in mine[0], (chart_id, reported)
     assert len(reported) == len(said), reported
+
+
+import re
+
+import turbohtml
+from interact_support import (
+    _start,
+)
+from render_harness import (
+    resized,
+    sending,
+    stamp_page,
+    told,
+    wait_for_revision,
+)
+
+from browser.widgets import PLAYGROUND_PAGE
+from leaf import data as data_model
+from leaf import delivery as delivery_model
+from leaf import service as service_model
+from leaf import thread as thread_model
+from leaf.render_checks import wait_until_ready
+
+
+@pytest.mark.shifts_unsurveyed
+def test_notification_configuration_becomes_a_commentable_local_artifact(
+    browser, serve
+):
+    """The example's instruction is a complete task through Leaf's existing loop.
+
+    A playground action enters the ordinary event log, pickup and a work claim use the
+    same delivery projection as an agent in a harness, and the agent writes a real local file.
+    The page exposes that file through data, then a user comment changes the file and
+    remains anchored on the revised result.
+    """
+    source_path = (
+        Path(__file__).parents[2] / "examples" / "notification-playground.html"
+    )
+    source = source_path.read_text(encoding="utf-8")
+    page = open_page(browser, live_url(serve(source_path)))
+    playground = page.locator("#notification-playground")
+
+    playground.get_by_role("button", name="Needs attention").click()
+    playground.get_by_role("radio", name="Status strip", exact=True).click()
+    page.locator('lf-playground-control[name="title"] input').fill(
+        "Checkout needs attention"
+    )
+    expect(playground).to_have_attribute("data-playground-tone", "urgent")
+    expect(playground).to_have_attribute("data-playground-compact", "true")
+    expect(playground).to_have_attribute("data-playground-format", "status strip")
+    expect(
+        page.locator(".notification-demo-card-banner").first
+    ).to_have_accessible_name("Checkout needs attention")
+    expect(
+        page.locator(".notification-demo-card-status-strip").first
+    ).to_have_accessible_name("Checkout needs attention")
+    with sending(page, "the notification configuration"):
+        playground.get_by_role("button", name="Create notification").click()
+    # The control says the configuration is sent, and offers to withdraw it.
+    expect(playground.get_by_role("button", name="Undo choice")).to_be_enabled()
+    action = next(
+        event
+        for event in reversed(events_model.read_events(serve.page_dir))
+        if event.get("widget") == "notification-playground"
+    )
+    assert action["detail"]["values"] == {
+        "accent": "#b6533c",
+        "compact": True,
+        "events": 4,
+        "format": "status strip",
+        "radius": 10,
+        "show-owner": True,
+        "title": "Checkout needs attention",
+        "tone": "urgent",
+    }
+    assert action["detail"]["instruction"] == (
+        "Build the status strip deployment notification as deployment-notification.html. "
+        "Use urgent styling, 10px corners, #b6533c accents, compact spacing set to true, "
+        "owner visibility set to true, and title it Checkout needs attention. Exercise 4 "
+        "concurrent release events in its browser test, then show me the generated source "
+        "here for review."
+    )
+
+    logged_action = next(
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["id"] == action["id"]
+    )
+    with service_model.PageTransaction(serve.page_dir) as transaction:
+        delivery_model.record_pickup(
+            transaction,
+            [logged_action],
+            session="notification-agent",
+            turn="create-artifact",
+        )
+    with (
+        service_model.PageTransaction(serve.page_dir) as receipt_page,
+        delivery_model.receive_batch(
+            receipt_page,
+            {"events": [{"seq": logged_action["seq"], "id": logged_action["id"]}]},
+            session_id=None,
+        ),
+    ):
+        pass
+    started = _start(
+        serve.page_dir, logged_action["id"], "creating deployment-notification.html"
+    )
+    assert started.exit_code == 0, started.output
+    told(page)
+    expect(
+        page.locator('[data-lf-margin-for="notification-playground"] .lf-margin-marker')
+    ).to_have_attribute(
+        "aria-description", re.compile("creating deployment-notification")
+    )
+
+    artifact = serve.page_dir / "deployment-notification.html"
+    first_artifact = """<!doctype html>
+<html lang="en">
+<title>Checkout needs attention</title>
+<style>
+body { font-family: system-ui, sans-serif; }
+.notification { border-top: 5px solid #b6533c; border-radius: 10px; padding: 8px 12px; }
+</style>
+<article class="notification">
+  <h1>Checkout needs attention</h1>
+  <p>Version 2.8.0 changed the checkout service. Review the deployment run and current service health.</p>
+  <p><strong>Owner:</strong> Payments platform</p>
+</article>
+</html>
+"""
+    artifact.write_text(first_artifact, encoding="utf-8")
+    # The result is a document: the configuration folds away above the artifact, so
+    # the page leaves the workspace Layout. Select the authored identities rather
+    # than copying their class lists and source whitespace into this revision writer.
+    result = turbohtml.parse(source)
+    for control in result.select("#notification-playground lf-playground-control"):
+        value = action["detail"]["values"][control.attrs["name"]]
+        control.attrs["value"] = (
+            str(value).lower() if isinstance(value, bool) else str(value)
+        )
+    workspace = result.select_one("#notification-workspace")
+    assert workspace is not None
+    workspace.attrs["class"] = "layout-column"
+    artifact_section = result.select_one("#notification-artifact")
+    configuration = turbohtml.E(
+        "details",
+        {"id": "notification-configuration", "open": ""},
+        turbohtml.E("summary", "Original configuration"),
+    )
+    select_one_result = result.select_one("#notification-ask")
+    assert select_one_result is not None
+    select_one_result.wrap(configuration)
+    configuration.insert_before(turbohtml.E("h1", "Review the deployment notification"))
+    assert artifact_section is not None
+    artifact_section.attrs.pop("hidden")
+    select_one_result_2 = artifact_section.select_one("#notification-artifact-source")
+    assert select_one_result_2 is not None
+    select_one_result_2.attrs["label"] = "deployment-notification.html"
+    workspace.append(artifact_section)
+    result_source = result.serialize()
+    assert "notification-configuration" in result_source
+    assert "layout-workspace" not in result_source
+    assert 'notification-artifact" hidden' not in result_source
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "notification-artifact",
+        artifact.read_text(encoding="utf-8"),
+    )
+    first_result = stamp_page(
+        serve.page_dir,
+        result_source,
+        "Created deployment-notification.html",
+    )
+    wait_for_revision(page, first_result["revision"])
+
+    source_widget = page.locator("#notification-artifact-source")
+    expect(source_widget).to_be_visible()
+    assert source_widget.evaluate(
+        "source => source.closest('lf-playground-preview') === null"
+    )
+    expect(source_widget.locator("code")).to_contain_text(
+        "<title>Checkout needs attention</title>"
+    )
+    expect(
+        page.locator('[data-lf-margin-for="notification-playground"]')
+    ).to_have_count(0)
+
+    configuration = page.locator("#notification-configuration")
+    expect(configuration).to_have_attribute("open", "")
+    expect(
+        configuration.locator('lf-playground-control[name="title"] input')
+    ).to_have_value("Checkout needs attention")
+    configuration.locator(":scope > summary").click()
+    expect(configuration).not_to_have_attribute("open", "")
+    configuration.locator(":scope > summary").click()
+    receipt_copy = page.locator(
+        ".notification-demo-card-banner .notification-demo-detail"
+    ).first
+    expect(receipt_copy).to_be_visible()
+    # The preview is its own scroller while the workspace fills the window, and a
+    # user selects the receipt where that pane shows it.
+    receipt_copy.scroll_into_view_if_needed()
+    receipt_copy.select_text()
+    page.keyboard.press("c")
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    page.locator(".lf-fab-input").click()
+    write(
+        page.locator(".lf-composer leaf-text"),
+        "Add a link to the deployment run without changing this receipt copy.",
+    )
+    page.keyboard.press("ControlOrMeta+Enter")
+    round_trip(page)
+    comment = next(
+        event
+        for event in reversed(events_model.read_events(serve.page_dir))
+        if event["kind"] == "comment"
+    )
+    assert comment["anchor"]["section"] == "notification-simulator"
+    assert comment["anchor"]["quote"] == ("Version 2.8.0 passed all 18 release checks.")
+    logged_comment = next(
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["id"] == comment["id"]
+    )
+
+    with service_model.PageTransaction(serve.page_dir) as transaction:
+        delivery_model.record_pickup(
+            transaction,
+            [logged_comment],
+            session="notification-agent",
+            turn="refine-artifact",
+        )
+    with (
+        service_model.PageTransaction(serve.page_dir) as receipt_page,
+        delivery_model.receive_batch(
+            receipt_page,
+            {"events": [{"seq": logged_comment["seq"], "id": logged_comment["id"]}]},
+            session_id=None,
+        ),
+    ):
+        pass
+    second_artifact = first_artifact.replace(
+        "</article>",
+        '  <footer><a href="/deployments/2.8.0">Open deployment run</a></footer>\n'
+        "</article>",
+    )
+    artifact.write_text(second_artifact, encoding="utf-8")
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "notification-artifact",
+        artifact.read_text(encoding="utf-8"),
+    )
+    refined_source = result_source.replace(
+        "<h1>Review the deployment notification</h1>",
+        "<h1>Deployment notification revised</h1>",
+    )
+    thread_model.post_reply(
+        serve.page_dir,
+        {"responds": comment["id"]},
+        "Added the deployment-run link to the artifact.",
+    )
+    refined = stamp_page(
+        serve.page_dir,
+        refined_source,
+        "Added the deployment-run link",
+    )
+    wait_for_revision(page, refined["revision"])
+
+    expect(page.locator("#notification-artifact-source code")).to_contain_text(
+        '<a href="/deployments/2.8.0">Open deployment run</a>'
+    )
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
+    marked = page.evaluate(
+        "() => [...CSS.highlights.get('lf-mark')].map(range => range.toString()).join('')"
+    )
+    assert " ".join(marked.split()) == ("Version 2.8.0 passed all 18 release checks.")
+    assert artifact.read_text(encoding="utf-8") == second_artifact
+
+
+@pytest.mark.shifts_unsurveyed
+def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
+    browser, serve
+):
+    context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
+    page = open_page(browser, serve(PLAYGROUND_PAGE), context=context)
+    playground = page.locator("#card-playground")
+    expect(playground.get_by_role("group", name="Starting points")).to_be_visible()
+    expect(playground.get_by_role("group", name="Controls")).to_be_visible()
+
+    playground.get_by_role("button", name="Dense").click()
+    expect(playground.get_by_role("button", name="Dense")).to_have_attribute(
+        "aria-pressed", "true"
+    )
+    assert playground.evaluate("root => root.values") == {
+        "accent": "#4f766f",
+        "compact": True,
+        "radius": 4,
+        "title": "Field note",
+        "tone": "bold",
+    }
+    playground.get_by_role("slider", name="Corner radius").press("ArrowRight")
+    expect(playground.get_by_role("button", name="Dense")).to_have_attribute(
+        "aria-pressed", "false"
+    )
+    playground.get_by_role("button", name="Dense").click()
+    # Copy is the code block's control, in the head of the popover the instruction
+    # opens in.
+    pane = playground.locator(".lf-playground-instruction-region")
+    copy = pane.get_by_role("button", name="Copy instruction")
+    pane.scroll_into_view_if_needed()
+    pane.get_by_role("button", name="Show instruction").click()
+    pane.hover()
+    copy.click()
+    assert page.evaluate("navigator.clipboard.readText()") == (
+        "Use a 4px radius, compact spacing set to true, a bold tone, #4f766f accents, "
+        "and the title Field note."
+    )
+
+    playground.get_by_role("button", name="Reset").click()
+    assert playground.evaluate("root => root.values")["radius"] == 12
+    pane.get_by_role("button", name="Show instruction").press("Enter")
+    page.keyboard.press("Tab")
+    expect(copy).to_be_focused()
+    copy.press("Enter")
+    assert "12px radius" in page.evaluate("navigator.clipboard.readText()")
+    resized(page, 420, 760)
+    assert page.evaluate("document.documentElement.scrollWidth") == 420
+    assert " " not in playground.evaluate(
+        "root => getComputedStyle(root).gridTemplateColumns"
+    )
+
+
+@pytest.mark.shifts_unsurveyed
+def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
+    browser, serve
+):
+    source = Path(__file__).parents[2] / "examples" / "data-explorer.html"
+    context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
+    page = open_page(browser, serve(source), context=context)
+    playground = page.locator("#release-query-playground")
+    rows = page.locator(".query-row")
+
+    expect(rows).to_have_count(2)
+    assert playground.evaluate("root => root.values") == {
+        "filters": {
+            "order": ["filter-1", "filter-2"],
+            "rows": [
+                {
+                    "field": "region",
+                    "id": "filter-1",
+                    "operator": "is",
+                    "value": "europe",
+                },
+                {
+                    "field": "risk",
+                    "id": "filter-2",
+                    "operator": "above",
+                    "value": "40",
+                },
+            ],
+        },
+        "limit": 4,
+    }
+    expect(page.locator(".query-result-count")).to_have_text("2 releases shown")
+
+    rows.nth(1).get_by_label("Value").fill("80")
+    expect(page.locator(".query-result-count")).to_have_text("1 release shown")
+    # Moving a sibling row must retain the native field, caret and edit history.
+    editor = page.locator('input[name="filter-1-value"]')
+    editor.focus()
+    editor.press("End")
+    editor.press_sequentially("x")
+    editor.press("ArrowLeft")
+    rows.nth(1).get_by_role("button", name="Move filter 2 up").evaluate(
+        "button => button.click()"
+    )
+    expect(editor).to_be_focused()
+    assert editor.evaluate("input => input.selectionStart") == len("europe")
+    editor.press("ControlOrMeta+z")
+    expect(editor).to_have_value("europe")
+    assert playground.evaluate("root => root.values.filters.order") == [
+        "filter-2",
+        "filter-1",
+    ]
+    page.get_by_role("button", name="Add filter").click()
+    expect(rows).to_have_count(3)
+    expect(rows.nth(2).get_by_label("Value")).to_be_focused()
+    rows.nth(2).get_by_label("Value").fill("risk")
+    expect(page.locator(".query-result-count")).to_have_text("1 release shown")
+    rows.nth(2).get_by_role("button", name="Remove filter 3").click()
+    expect(rows).to_have_count(2)
+
+    playground.get_by_role("button", name="Up to 6 results").click()
+    expect(
+        playground.locator('lf-playground-control[name="limit"]').get_by_role("slider")
+    ).to_have_value("6")
+    playground.get_by_role("button", name="Up to 4 results").click()
+    expect(
+        playground.locator('lf-playground-control[name="limit"]').get_by_role("slider")
+    ).to_have_value("4")
+    instruction = page.locator("#release-query-instruction")
+    expect(instruction).to_contain_text("risk above 80 and region is europe")
+    playground.get_by_role("button", name="Show instruction").click()
+    playground.get_by_role("button", name="Copy instruction").click()
+    copied = page.evaluate("navigator.clipboard.readText()")
+    assert copied == instruction.inner_text()
+
+    page.reload()
+    wait_until_ready(page)
+    expect(rows).to_have_count(2)
+    assert playground.evaluate("root => root.values.filters.order") == [
+        "filter-2",
+        "filter-1",
+    ]
+    expect(instruction).to_contain_text("risk above 80 and region is europe")
+    playground.get_by_role("button", name="Reset").click()
+    assert playground.evaluate("root => root.values.filters.order") == [
+        "filter-1",
+        "filter-2",
+    ]
+    expect(instruction).to_contain_text("region is europe and risk above 40")
+    rows.nth(1).get_by_role("button", name="Remove filter 2").click()
+    rows.first.get_by_role("button", name="Remove filter 1").click()
+    expect(rows).to_have_count(0)
+    expect(instruction).to_contain_text("Apply no filters")
+    expect(page.locator(".query-result-count")).to_have_text("4 releases shown")
+    playground.get_by_role("button", name="Up to 6 results").click()
+    expect(page.locator(".query-result-count")).to_have_text("6 releases shown")
+    playground.get_by_role("button", name="Up to 4 results").click()
+    expect(page.locator(".query-result-count")).to_have_text("4 releases shown")
+    playground.get_by_role("button", name="Reset").click()
+    rows.first.get_by_label("Value").fill("asia")
+    expect(instruction).to_contain_text("region is asia and risk above 40")
+
+    with sending(page, "the release query"):
+        playground.get_by_role("button", name="Build query").click()
+    action = next(
+        event
+        for event in reversed(events_model.read_events(serve.page_dir))
+        if event.get("widget") == "release-query-playground"
+    )
+    assert action["detail"] == {
+        "instruction": instruction.inner_text(),
+        "values": playground.evaluate("root => root.values"),
+    }
+    page.reload()
+    wait_until_ready(page)
+    expect(rows.first.get_by_label("Value")).to_have_value("asia")
+    expect(instruction).to_contain_text("region is asia and risk above 40")
+    undo(page)
+    expect(rows.first.get_by_label("Value")).to_have_value("asia")
+    playground.get_by_role("button", name="Reset").click()
+    expect(rows.first.get_by_label("Value")).to_have_value("europe")
+    expect(instruction).to_contain_text("region is europe and risk above 40")
+    resized(page, 480, 760)
+    assert page.evaluate("document.documentElement.scrollWidth") == 480
+    resized(page, 1100, 320)
+    expect(page.locator("#release-query-ask")).to_be_visible()

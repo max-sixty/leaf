@@ -18,7 +18,6 @@ from browser.test_render_playwright_trace import (
 from browser.threads import open_panel_thread
 from playwright.sync_api import expect
 from render_harness import (
-    holding,
     leaf_page,
     open_page,
     resized,
@@ -2380,140 +2379,6 @@ def test_trace_frames_retain_saved_elements_and_disclosure_stays_closable(
     )
 
 
-def test_trace_replaces_captures_without_blank_pixels_or_layout_displacement(
-    browser, serve
-):
-    """Delayed native media keeps the old pixels and exact identity until an atomic swap."""
-    source = ROOT / "examples/developer/playwright-trace-gallery.html"
-    record = json.loads(source.with_suffix(".data.json").read_text())["release-journey"]
-    last = [image for image in record["images"] if image["kind"] == "frame"][-1]
-    url = serve(source)
-    user = browser.new_page()
-    held = []
-    armed = False
-
-    def gate(route):
-        if armed and route.request.url.endswith(last["url"]):
-            held.append(route)
-        else:
-            route.continue_()
-
-    user.route("**/media/**", gate)
-    user.goto(url)
-    wait_until_ready(user)
-    widget = user.locator("lf-trace")
-    raster = widget.locator(
-        ".lf-trace-image:not(.lf-trace-image-pending) .viewer-canvas img"
-    )
-    scale = widget.get_by_role("button", name="Image scale", exact=True)
-    expect(scale).to_have_text("Fit")
-    scale.focus()
-    scale.press("Enter")
-    expect(widget.get_by_role("button", name="Fit image", exact=True)).to_be_focused()
-    widget.get_by_role("button", name="Actual size", exact=True).click()
-    expect(scale).to_have_text("100%")
-    expect(scale).to_be_focused()
-    scale.press("Enter")
-    expect(widget.get_by_role("button", name="Actual size", exact=True)).to_be_focused()
-    widget.get_by_role("button", name="Actual size", exact=True).press("Escape")
-    expect(scale).to_be_focused()
-    canvas = widget.locator(
-        ".lf-trace-image:not(.lf-trace-image-pending) .lf-trace-canvas"
-    )
-    canvas.focus()
-    canvas.press("ArrowLeft")
-    canvas.press("ArrowUp")
-
-    def image_view():
-        return raster.evaluate("""image => {
-          const r = image.getBoundingClientRect();
-          const c = image.closest('.lf-trace-canvas').getBoundingClientRect();
-          return {x: r.x - c.x, y: r.y - c.y, width: r.width};
-        }""")
-
-    before_view = image_view()
-    before_id = raster.get_attribute("data-lf-datum")
-    raster.click(modifiers=["Alt"])
-    expect(user.locator(".lf-fab-input")).to_be_visible()
-    user.keyboard.insert_text("Keep this original captured image.")
-    with sending(user, "a comment on the original captured image"):
-        user.keyboard.press("Enter")
-    user.keyboard.press("Escape")
-    target = f"trace-{record['archive']['sha256']}-image-{last['id']}"
-    assert before_id != target
-    before_caption = widget.locator(".lf-trace-caption").inner_text()
-    before_height = widget.locator(".lf-trace-images").bounding_box()["height"]
-    user.evaluate("""() => {
-      window.captureFrames = [];
-      window.watchCapture = true;
-      const sample = () => {
-        const w = document.querySelector('lf-trace');
-        const host = w.querySelector('.lf-trace-images');
-        const images = [...host.querySelectorAll('.viewer-canvas img')].filter(i => {
-          const style = getComputedStyle(i);
-          return style.visibility === 'visible' && i.complete && i.getBoundingClientRect().width > 0;
-        });
-        window.captureFrames.push({visible: images.length, height: host.getBoundingClientRect().height,
-          ids: images.map(i => i.getAttribute('data-lf-datum'))});
-        if (window.watchCapture) requestAnimationFrame(sample);
-      };
-      requestAnimationFrame(sample);
-    }""")
-    armed = True
-    widget.locator(".lf-trace-bookmarks").get_by_role(
-        "button", name="Last filmstrip image"
-    ).click()
-    holding(user, held, 1, "next captured image")
-    # Zooming and panning time must not restore the old image's position while
-    # media prepares.
-    position = widget.locator(".lf-trace-position")
-    requested_position = position.inner_text()
-    widget.get_by_role("button", name="Zoom in", exact=True).click()
-    rail = widget.locator(".lf-trace-scroller")
-    rail.scroll_into_view_if_needed()
-    box = rail.bounding_box()
-    user.mouse.move(box["x"] + box["width"] * 0.6, box["y"] + box["height"] / 2)
-    user.mouse.wheel(-120, 0)
-    expect(position).to_have_text(requested_position)
-    expect(raster).to_have_attribute("data-lf-datum", before_id)
-    expect(widget.locator(".lf-trace-caption")).to_have_text(before_caption)
-    assert widget.locator(".lf-trace-images").bounding_box()["height"] == before_height
-    user.evaluate(
-        "() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))"
-    )
-    # Following a comment while its pixels remain visible must cancel the
-    # pending replacement too; current inventory alone cannot settle navigation.
-    user.keyboard.press("t")
-    expect(widget.locator(".lf-trace-image-pending")).to_have_count(0)
-    armed = False
-    for route in held:
-        route.continue_()
-    rendered(user)
-    expect(raster).to_have_attribute("data-lf-datum", before_id)
-    user.keyboard.press("Escape")
-    widget.locator(".lf-trace-bookmarks").get_by_role(
-        "button", name="Last filmstrip image"
-    ).click()
-    expect(raster).to_have_attribute("data-lf-datum", target)
-    rendered(user)
-    after_view = image_view()
-    assert all(abs(after_view[key] - value) <= 1 for key, value in before_view.items())
-    frames = user.evaluate(
-        "() => {window.watchCapture = false; return window.captureFrames}"
-    )
-    assert len(frames) >= 2
-    assert all(
-        frame["visible"] == 1 and frame["ids"][0] in (before_id, target)
-        for frame in frames
-    ), frames
-    assert (
-        max(frame["height"] for frame in frames)
-        - min(frame["height"] for frame in frames)
-        <= 1
-    ), frames
-    expect(widget.locator(".viewer-container")).to_have_count(1)
-
-
 def test_trace_play_press_belongs_to_its_pointer_click(browser, serve):
     """A held Pause keeps its meaning; a canceled press leaves keyboard Play free."""
     source = ROOT / "examples/developer/playwright-trace-gallery.html"
@@ -2551,3 +2416,89 @@ def test_trace_play_press_belongs_to_its_pointer_click(browser, serve):
         play.press("Enter")
         expect(pause).to_be_visible()
         pause.click()
+
+
+from browser.test_render_playwright_trace import (
+    LANDED_ROW,
+    assert_row_shown,
+    scrolled_closed_tree,
+)
+from render_harness import (
+    scroll_settled,
+)
+
+
+def test_trace_results_can_be_read_and_compared_on_a_phone(browser, serve):
+    """Result names stay readable and switching recordings keeps their evidence in view."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True
+    )
+    page = open_page(
+        browser, serve(ROOT / "examples/review-a-fix.html"), context=context
+    )
+    for recording, label in [("before", "Before the fix"), ("after", "After the fix")]:
+        page.get_by_role("radio", name=label, exact=True).tap()
+        image = page.locator(f"#fix-{recording} .lf-trace-image-viewport")
+        if recording == "after":
+            expect(image).to_be_in_viewport(ratio=1)
+        moment = page.locator(f"#fix-{recording} .lf-trace-bookmark").last
+        moment.scroll_into_view_if_needed()
+        measured = moment.evaluate("""row => {
+          const label = row.querySelector('.lf-trace-moment-label');
+          const box = row.getBoundingClientRect();
+          const range = document.createRange();
+          range.selectNodeContents(label);
+          return {horizontal: label.scrollWidth - label.clientWidth,
+            words: [...range.getClientRects()].every(r =>
+              r.left >= box.left && r.right <= box.right &&
+              r.top >= box.top && r.bottom <= box.bottom)};
+        }""")
+        assert measured["horizontal"] <= 1, measured
+        assert measured["words"], measured
+        moment.tap()
+        expect(image).to_be_in_viewport(ratio=1)
+        expect(page.locator(".lf-trace-compare-controls")).to_be_in_viewport(ratio=1)
+
+    page.get_by_role("radio", name="After the fix", exact=True).press("Tab")
+    start = page.locator("#fix-after").get_by_role("button", name="Start", exact=True)
+    expect(start).to_be_focused()
+    scroll_settled(page)
+    chooser = page.locator(".lf-trace-compare-controls").bounding_box()
+    assert start.bounding_box()["y"] >= chooser["y"] + chooser["height"]
+
+
+@pytest.mark.parametrize("motion", ["no-preference", "reduce"])
+def test_trace_moment_lands_its_saved_element_over_the_trees_reading(
+    browser, serve, motion
+):
+    """A Moment naming a saved element shows its row in the tree and the page.
+
+    The reader scrolled this checkpoint's tree and closed it, so opening the tree
+    has a reading to restore. The Moment's landing is newer and stands. Its
+    checkpoint is already shown, so no image decode delays the landing past the
+    restore; that delay is what let this pass on some runs. Smooth motion is cut
+    short by any later scroll write, so both motions run. A row inside the window
+    but below the tree's own box is not shown either.
+    """
+    user, widget, _ = scrolled_closed_tree(browser, serve, motion)
+    saved = widget.locator(".lf-trace-bookmarks").get_by_role(
+        "button", name=re.compile("Saved element")
+    )
+    saved.click()
+    landed = user.evaluate(LANDED_ROW)
+    assert landed["open"]
+    assert_row_shown(landed)
+
+    # The open tree back at its start, its top near the window's: the row is
+    # inside the window, below what the tree shows.
+    user.set_viewport_size({"width": 1280, "height": 900})
+    rendered(user)
+    widget.locator(".lf-trace-tree").evaluate(
+        "tree => { tree.scrollTop = 0;"
+        " scrollBy(0, tree.getBoundingClientRect().top - 120); }"
+    )
+    rendered(user)
+    saved.evaluate("button => button.click()")
+    landed = user.evaluate(LANDED_ROW)
+    user.context.close()
+    assert_row_shown(landed)

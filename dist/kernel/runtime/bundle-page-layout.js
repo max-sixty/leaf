@@ -230,11 +230,11 @@ function createDelivery({ ledger, applyAcceptedState, settleRejected, settlement
 	}
 	return { drain };
 }
-async function deliverBookkeeping(event, applyState, { keepalive = false } = {}) {
+async function deliverBookkeeping(event, applyState) {
 	const held = runtime.data;
 	let response;
 	try {
-		response = await postEvent(event, held, { keepalive });
+		response = await postEvent(event, held);
 	} catch {
 		return "unreached";
 	}
@@ -4102,10 +4102,20 @@ function createAnnotationInventory({ readObligations, placedAt, openThread, goTo
 			});
 		}
 		const base = comparisonBase();
-		comparisonChanges().forEach((target, index) => {
-			const account = `${addressableWord(target)} changed${base == null ? "" : ` since ${base.name}`}`;
-			const inline = inlineComparison(target);
-			const mapAccount = inline ? `${addressableWord(target)} changed` : account;
+		comparisonChanges().forEach((change, index) => {
+			const [target] = change;
+			let holder = target.parentElement;
+			while (holder && !change.every((block) => holder?.contains(block))) holder = holder.parentElement;
+			const childOf = (block) => {
+				let at = block;
+				while (at.parentElement && at.parentElement !== holder) at = at.parentElement;
+				return at;
+			};
+			const more = new Set(change.map(childOf)).size - 1;
+			const what = more ? `${addressableWord(target)} and ${more} more` : addressableWord(target);
+			const account = `${what} changed${base == null ? "" : ` since ${base.name}`}`;
+			const inline = inlineComparison(change);
+			const mapAccount = inline ? `${what} changed` : account;
 			add(groups, target, {
 				kind: "change",
 				id: `change:${targetPath(target)}:${index}`,
@@ -4115,9 +4125,9 @@ function createAnnotationInventory({ readObligations, placedAt, openThread, goTo
 					context: inline.offer,
 					mapContext: inline.offer
 				} : {},
-				discloses: () => inlineComparison(target),
+				discloses: () => inlineComparison(change),
 				activate: () => {
-					const said = toggleInlineComparison(target);
+					const said = toggleInlineComparison(change);
 					revealTarget(target, said ? `${account} · ${said}` : account, scrollToElement);
 				}
 			});
@@ -6982,7 +6992,7 @@ function createMarginBars(inventory) {
 		}
 		show("work", places);
 	});
-	x(() => show("change", new Set(comparisonChanges())));
+	x(() => show("change", new Set(comparisonChanges().flat())));
 	document.addEventListener(LAYOUT, schedule);
 	addEventListener("resize", schedule, { passive: true });
 }
@@ -7779,6 +7789,7 @@ function createApplication(dependencies) {
 		renderMarginThread: (host, thread, controls) => renderMarginThread(host, thread, inlineView, controls),
 		placedAt: dependencies.anchorPlacement.placedAt,
 		marksFor: (id) => dependencies.anchorPaint?.marksFor(id) ?? [],
+		currentLocationObligation: dependencies.annotationCommands.currentLocationObligation,
 		scrollToElement: dependencies.anchorTravel.scrollToElement,
 		openInPanel: dependencies.annotationCommands.openInPanel
 	});

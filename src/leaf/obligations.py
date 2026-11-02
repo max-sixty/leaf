@@ -1065,7 +1065,8 @@ def thread_obligation_readings(
                     and (
                         settles(message, record["message"], tokens)
                         if is_reaction(message)
-                        else not message.get("ephemeral")
+                        # A message the user deleted has no words left to answer.
+                        else bool(message.get("text")) and not message.get("ephemeral")
                     )
                 ),
                 None,

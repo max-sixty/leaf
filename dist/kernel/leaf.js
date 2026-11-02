@@ -1,4 +1,4 @@
-import { CARET_KEYS, DISCLOSE, DISCLOSURE_SELECTOR, J, LAYOUT, LeafElement, MODIFIER_KEYS, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSES, TEXT_BOX, TEXT_FIELD, WORKS, Z, actionTemplate, alreadyShown, atScrollEnd, beginWalk, bindQueuedWork, blurFocused, byRenderedOrder, cancelRender, canvas2D, claimReleaseClick, clamp, clippedContents, closeLayer, closeNativeLayer, closestAcross, coarsePointer, coveredShare, currentLocationIn, d, declareOccluder, declareReading, declareWindowChrome, describeFailure, disclosureAt, dismissPopoversOutside, drawn, elementFrame, eventSource, focusDestination, focusRevision, focused, handBack, holdFocus, holdRendering, holdToRead, iconTemplate, inChrome, inUi, inlineStyle, installLayerStyleIntegration, installStageIntegration, intersect, isElement, isHTML, keeps, keepsHidden, keepsText, landedBox, landingBand, landingRoom, layerLanding, layoutPx, layoutWindow, letGo, listWalkPosition, motionEasing, motionPlays, motionTime, move, moveScrollerBy, namedAction, nativeLayers, nativeModalAdmits, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offered, offeredAction, onCurrentLocation, onPress, onPressAway, onUserInput, openLayer, openerOf, overlaps, overlapsAcross, pagePresented, pageScroller, pageUpgraded, placeHolder, playMotion, pointerAt, presented, pressHolds, pressIsKeyboardActivation, pressRecords, q, reducedMotion, release, releaseFocus, renderedOrder, renderedUnder, renderingState, restrictUserIntent, retainUserIntent, rove, scrollBehavior, scrollGlides, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollToEnd, scrollersOf, scrolling, searchField, seenRect, selectsAll, setScroll, shadowHost, showNativeLayer, shownBox, shownParts, shownRect, sizeObserver, skipped, stackLevel, startsAt, tabStore, takesLetters, tick, typesText, under as under$1, underOccluder, union, upFrom, walkPosition, walkPositionLabel, watchCurrentLocationIn, watchLayerChanges, watchScrollEnds, watchScrolls, whileConnected, windowChromeBoxes, x } from "./runtime/bundle-portable.js";
+import { CARET_KEYS, DISCLOSE, DISCLOSURE_SELECTOR, J, LAYOUT, LeafElement, MODIFIER_KEYS, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSES, TEXT_BOX, TEXT_FIELD, WORKS, Z, actionTemplate, alreadyShown, atScrollEnd, beginWalk, bindQueuedWork, blurFocused, byRenderedOrder, cancelRender, canvas2D, claimReleaseClick, clamp, clippedContents, closeLayer, closeNativeLayer, closestAcross, coarsePointer, coveredShare, currentLocationIn, d, declareOccluder, declareReading, declareWindowChrome, describeFailure, disclosureAt, dismissPopoversOutside, drawn, elementFrame, eventSource, focusDestination, focusRevision, focused, handBack, holdFocus, holdRendering, holdToRead, iconTemplate, inChrome, inUi, inlineStyle, installLayerStyleIntegration, installStageIntegration, intersect, isElement, isHTML, keepFieldKeys, keepFoot, keeps, keepsHidden, keepsText, landedBox, landingBand, landingRoom, layerLanding, layoutPx, layoutWindow, letGo, listWalkPosition, motionEasing, motionPlays, motionTime, move, moveScrollerBy, namedAction, nativeLayers, nativeModalAdmits, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offered, offeredAction, onCurrentLocation, onPress, onPressAway, onUserInput, openLayer, openerOf, overlaps, overlapsAcross, pagePresented, pageScroller, pageUpgraded, placeHolder, playMotion, pointerAt, presented, pressHolds, pressIsKeyboardActivation, pressRecords, q, readLeavingKeys, reducedMotion, release, releaseFocus, renderedOrder, renderedUnder, renderingState, restrictUserIntent, retainUserIntent, rove, scrollBehavior, scrollGlides, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollToEnd, scrollersOf, scrolling, searchField, seenRect, selectsAll, setScroll, shadowHost, showNativeLayer, shownBox, shownParts, shownRect, sizeObserver, skipped, stackLevel, startsAt, tabStore, takesLetters, tick, typesText, under as under$1, underOccluder, union, upFrom, walkPosition, walkPositionLabel, watchCurrentLocationIn, watchLayerChanges, watchScrollEnds, watchScrolls, whileConnected, windowChromeBoxes, x } from "./runtime/bundle-portable.js";
 import { COLLAPSE, EVERYTHING, LINK, LitElement, PRESENTATION_DOM, PRESSABLE, SHARE_ROOT, TEXT_BLOCK, WEBSITE_DELIVERY, advertisesKeys, agentName, agentSays, allBindings, annotationMode, announce, applicationPresenter, applicationState, bareReaction, bindingEnabled, bindings, buttonCommand, carriesObligation, claimsEsc, clampedRow, closeControl, commandBinding, commandDeclarationsWithin, commandPresentations, commandRoutes, commandRun, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, decisionFor, declaredBindings, descriptionOf, dismissError, dismissErrors, documentChanged, dragHeld, el, errorsReading, fragmentId, guard, hasObligationSource, hasRows, holdingError, hostIn, html, isNews, itemNoun, itemOutcome, keyed, keys, labelOf, leafSays, live, live$1, liveEl, mountRepaint, nativePress, noChange, nothing, notice, noticeReading, noticeWords, offlineInteractive, pageRange, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, programmaticSelection, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, readPart, ref, reflectFirstScopes, reflectKeys, registry, render, repaint, repaintPage, repeat, reveal, routedCommand, runtime, runtimeResource, saidBy, sameAnchor, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, seeErrors, selectEnds, selectionBackward, setNoticeContext, setQuickShortcuts, shadowRules, shareUrl, spell, spokenBinding, submitBindings, tagsDeclaring, threadCounts, threadKey, threadNames, titleOf, tokenEntry, voiceOf, voiced, watchCommandAvailability, whenApplicationPresented, word, wordsText } from "./runtime/bundle-errors.js";
 import { reportPageError, setRuntimeRootStyle, uploadMedia } from "./runtime/bundle-layer-client.js";
 import { ADDRESSABLE, PAGE_CONTROL_RANK, PRESENTATION, UPGRADE, addressableLabel, addressableSays, addressableWord, afterPresentation, ago, aimTargetAt, aimTargets, anchorFor, anchoringIsReady, annotationAt, chromeForeground, chromeRoot, designPressAt, effectiveScroller, exactTarget, fragmentTarget, holdArrivingBounds, isAddressable, lightSeat, livePoint, markPagePresented, markPageUpgraded, openDocumentLayout, pageControls, pageControlsChanged, pageReadiness, placePoints, pointInto, railStands, reachScrollers, readingRegionFor, registerPageControl, registerReadingRegion, resolveAnchor, resolvedInMessage, revealAddressed, scrollChainOf, scrollerFor, sectionLabel, sectionOf, setAnchoringReady, settlePageInterface, shortAgo, targetElement, targetParts, targetPlace, targetRange, targetSegments, unclaimedVisualGesture, userReadingRegion, visualAt, visualParts, visualSelector, whenArrived } from "./runtime/bundle-content-layout.js";
@@ -10,7 +10,7 @@ import { mediaViewer, readAttachedMedia, scopedMediaUrl, writeAttachedMedia } fr
 import { visibleTargetParts } from "./runtime/bundle-visible-target-parts.js";
 import { pageImage, pageRenderer } from "./runtime/bundle-page-image.js";
 import { pageIdentity, shownScheme } from "./runtime/bundle-page-identity.js";
-import { aimLayer, boxMotion, mountTargetPaint, targetTraceLayer, target_paint_exports } from "./runtime/bundle-box-motion.js";
+import { aimLayer, boxMotion, clearAim, geometryChanged, labelAim, mountTargetPaint, paintAim, shifted, targetTraceLayer } from "./runtime/bundle-box-motion.js";
 import "/vendor/webawesome-chrome.js";
 
 //#region runtime/keyboard/disclosure.js
@@ -318,7 +318,8 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 		let mic = null;
 		let composing = false;
 		const Recognition = window.SpeechRecognition ?? window.webkitSpeechRecognition;
-		const offersDictation = Boolean(Recognition && submitAction === "send" && !submitIn);
+		const actionWord = () => typeof submitAction === "function" ? submitAction() : submitAction;
+		const offersDictation = Boolean(Recognition && actionWord() === "send" && !submitIn);
 		let dictation = null;
 		let loadingDictation = false;
 		let dictationGeneration = 0;
@@ -474,7 +475,7 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 			const submitControl = html`<button
         type="button"
         ${offered(`${sendClass} lf-compose-submit`)}
-        ${namedAction(submitAction, {
+        ${namedAction(actionWord(), {
 				label: action,
 				title: sendKeys ? `${action} (${sendKeys})${newline}` : action
 			})}
@@ -2305,15 +2306,15 @@ function createAim({ marginTargetAt, refreshAim, commentOnTarget, drawModeActive
 		else if (claimedPress.designMode) designMode.open(claimedPress.designMode);
 	}
 	function mount() {
-		addEventListener("keydown", keyDown);
-		addEventListener("keyup", keyUp);
+		addEventListener("keydown", keyDown, true);
+		addEventListener("keyup", keyUp, true);
 		addEventListener("blur", blur);
 		document.addEventListener("pointermove", pointerMove);
 		for (const type of PRESS_EVENTS) document.addEventListener(type, claimPress, true);
 	}
 	function destroy() {
-		globalThis.removeEventListener("keydown", keyDown);
-		globalThis.removeEventListener("keyup", keyUp);
+		globalThis.removeEventListener("keydown", keyDown, true);
+		globalThis.removeEventListener("keyup", keyUp, true);
 		globalThis.removeEventListener("blur", blur);
 		document.removeEventListener("pointermove", pointerMove);
 		for (const type of PRESS_EVENTS) document.removeEventListener(type, claimPress, true);
@@ -3910,7 +3911,7 @@ function createAnchorControls({ commentOnTarget, openThread, withdrawReaction, l
 			if (href === null) throw new Error("A message fragment reference has no href");
 			const id = fragmentId(href);
 			const alive = Boolean(fragmentTarget(href));
-			anchor.classList.toggle("detached", !alive);
+			anchor.toggleAttribute("data-lf-detached", !alive);
 			keeps(anchor, "aria-disabled", alive ? null : "true");
 			keeps(anchor, "title", alive ? `Jump to § ${id}` : missingReference(id));
 		}
@@ -4469,7 +4470,7 @@ async function loadIcon() {
 let tone = "";
 function paintTab() {
 	if (!iconMark || !toneProbe.isConnected) return;
-	keeps(toneProbe, "class", tone ? `lf-dot ${tone}` : "lf-dot");
+	keeps(toneProbe, "data-lf-tone", tone || null);
 	keeps(tabLink, "href", iconUrl(iconMark, getComputedStyle(toneProbe).backgroundColor));
 }
 let saidKind;
@@ -5778,7 +5779,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
                           ${ref(declareView)}
                           style=${route === top && opening.room !== null ? `height: ${opening.room}px` : nothing}
                           ?data-leaving=${route === leaving}
-                          @scroll=${viewScrolled}
+                          @scroll=${sawAnswer}
                         >
                           ${viewOf(route).draw(route)}
                         </div>`)}
@@ -5810,9 +5811,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
               @focus=${() => showPeek(leaf.matches(":focus-visible"))}
               @blur=${() => showPeek(false)}
             >
-              <span
-                class=${`lf-dot${statusModel.tone ? ` ${statusModel.tone}` : ""}`}
-              ></span>
+              <span class="lf-dot" data-lf-tone=${statusModel.tone || nothing}></span>
               <span
                 class="lf-fp-error-dot"
                 aria-hidden="true"
@@ -5982,6 +5981,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	const threadSearchInput = (() => {
 		const input = host.querySelector("input.lf-fp-search");
 		if (!(input instanceof HTMLInputElement)) throw new Error("Floating panel template is missing its search input");
+		keepFieldKeys(input);
 		return input;
 	})();
 	const threadSearch = {
@@ -6347,7 +6347,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		drawnSections: null,
 		waiting: null,
 		placed: null,
-		foot: null,
 		onPageSeat: false,
 		unreadSeat: null,
 		quoteExpanded: false,
@@ -6465,9 +6464,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		run();
 	}
 	let viewMovingUntil = 0;
-	const fit = sizeObserver((entries) => {
+	const fit = sizeObserver(() => {
 		stood = openView()?.offsetHeight ?? null;
-		keepFoot(entries);
 		followBox();
 	});
 	const follow = sizeObserver(() => {
@@ -6675,31 +6673,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		if (node.getBoundingClientRect().top >= press.getBoundingClientRect().top) return;
 		opening.waiting = null;
 		paint();
-	}
-	function keepFoot(entries) {
-		const view = openView();
-		if (!view) {
-			opening.foot = null;
-			return;
-		}
-		const before = opening.foot;
-		const room = view.clientHeight;
-		if (before?.view === view && room !== before.room && entries.every(({ target }) => target === view)) {
-			moveScrollerBy(view, before.top + before.room - room - view.scrollTop);
-			opening.placed = view.scrollTop;
-		}
-		opening.foot = {
-			view,
-			room,
-			top: view.scrollTop
-		};
-	}
-	function viewScrolled(event) {
-		const view = event.currentTarget;
-		const { foot } = opening;
-		if (!foot || foot.view !== view) return sawAnswer(event);
-		if (!(view.clientHeight > foot.room && view.scrollTop < foot.top && atScrollEnd(view))) foot.top = view.scrollTop;
-		sawAnswer(event);
 	}
 	function transition(before, { focus = true, handedOn = false } = {}) {
 		const after = trail.value.at(-1);
@@ -7215,11 +7188,20 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			stop();
 			viewRegions.delete(view);
 		}
-		for (const view of stage.querySelectorAll(".lf-fp-view")) if (!viewRegions.has(view)) viewRegions.set(view, registerReadingRegion({
-			id: `floating-panel-view-${++regionCount}`,
-			host: view,
-			body: view
-		}));
+		for (const view of stage.querySelectorAll(".lf-fp-view")) if (!viewRegions.has(view)) {
+			const stopRegion = registerReadingRegion({
+				id: `floating-panel-view-${++regionCount}`,
+				host: view,
+				body: view
+			});
+			const stopFoot = view.hasAttribute("data-lf-thread-view") ? keepFoot(view, { kept: () => {
+				if (view === openView()) opening.placed = view.scrollTop;
+			} }) : null;
+			viewRegions.set(view, () => {
+				stopRegion();
+				stopFoot?.();
+			});
+		}
 	}
 	declareView(head);
 	declareView(replyOutlet);
@@ -7256,7 +7238,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
       <blockquote
         ${ref(watchQuote)}
         id="lf-fp-quote"
-        class=${`lf-quote lf-fp-quote${quote.anchored && !quote.found ? " detached" : ""}`}
+        class="lf-quote lf-fp-quote"
+        ?data-lf-detached=${quote.anchored && !quote.found}
         data-expanded=${String(expanded)}
         title=${quote.anchored && !quote.found && quote.title || nothing}
       >
@@ -7846,7 +7829,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		return html`<div class="lf-fp-list">
       ${repeat(rows, (row) => row.key, (row) => {
 			const face = html`<span
-              class=${`lf-dot${row.tone ? ` ${row.tone}` : ""}`}
+              class="lf-dot"
+              data-lf-tone=${row.tone || nothing}
               aria-hidden="true"
             ></span
             ><span class="lf-fp-label">${row.title}</span
@@ -10369,8 +10353,12 @@ function mountKeyboard({ goToSequenceActive, setGoToSequence, reactArmed, setRea
 	document.addEventListener("keydown", (ev) => {
 		if (ev.key.length === 1) press(ev);
 	}, { capture: true });
-	document.addEventListener("keydown", (ev) => {
+	const afterControl = (ev) => {
 		if (ev.key.length !== 1) press(ev);
+	};
+	document.addEventListener("keydown", afterControl);
+	readLeavingKeys((ev) => {
+		if (ev.type === "keydown") afterControl(ev);
 	});
 	document.addEventListener("lf-keyboard-preference", () => {
 		paintKeys();
@@ -10880,7 +10868,13 @@ async function boot() {
 		},
 		pointer: pointerAt,
 		designMode,
-		targetPaint: target_paint_exports,
+		targetPaint: {
+			clearAim,
+			geometryChanged,
+			labelAim,
+			paintAim,
+			shifted
+		},
 		visualMarkPaint,
 		shiftDrawings: drawingPaint.shifted,
 		queueLegend: designMode.queueLegend,

@@ -22,7 +22,7 @@ const LABEL_CHROME = 12;
 /** @param {string | null} value */
 const time = (value) => (value == null || value === "" ? null : Number(value));
 /** @param {number} ms */
-export const clock = (ms) => `${Number((ms / 1000).toFixed(3))} s`;
+const clock = (ms) => `${Number((ms / 1000).toFixed(3))} s`;
 /** @param {number} value */
 const fraction = (value) => Math.round(value * 1e5) / 1e5;
 

@@ -313,7 +313,7 @@ def test_a_durable_answer_retires_the_placeholder_its_attempt_reserved(
     expect(drafted).to_have_text("Checking the deployment.")
     notice.click()
     answered = thread.locator(f'.lf-msg[data-attempt="{STREAM_ATTEMPT}"]')
-    expect(thread.locator(".lf-msg.agent")).to_have_count(1)
+    expect(thread.locator(".lf-msg[data-lf-author=agent]")).to_have_count(1)
     expect(answered).to_have_attribute("data-event", reply["id"])
     expect(answered.locator(".lf-msg-text")).to_have_text("deployment verified")
 
@@ -420,11 +420,11 @@ def test_a_codex_reply_streams_into_an_open_card_and_its_answer_completes_it(
     expect(thread_row(page, root).locator(".lf-row-end")).to_have_text("Replying")
     open_margin_card(page, "h-how")
     thread = page.locator(card_of(root))
-    expect(thread.locator(".lf-msg.agent")).to_have_count(0)
+    expect(thread.locator(".lf-msg[data-lf-author=agent]")).to_have_count(0)
 
     stream_reply(serve.page_dir, root, "I'll")
     told(page)
-    streamed = thread.locator(".lf-msg.agent")
+    streamed = thread.locator(".lf-msg[data-lf-author=agent]")
     expect(streamed.locator(".lf-msg-text")).to_have_text("I'll")
     streamed.evaluate("node => { window.__streamMessage = node; }")
     stream_reply(serve.page_dir, root, "I'll record it on the board now.")
@@ -473,7 +473,7 @@ def test_a_held_card_counts_a_streaming_reply_once_and_names_the_users_own_messa
     page = open_page(browser, url)
     open_margin_card(page, "h-how")
     thread = page.locator(card_of(root))
-    drawn = thread.locator(".lf-msg.agent .lf-msg-text")
+    drawn = thread.locator(".lf-msg[data-lf-author=agent] .lf-msg-text")
     expect(drawn).to_have_text("First words")
     write(thread.locator(":scope > .lf-thread-reply leaf-text"), "Also note the date")
 
@@ -504,7 +504,7 @@ def test_a_held_card_counts_a_streaming_reply_once_and_names_the_users_own_messa
     expect(notice).to_have_text("1 new reply · 1 new message")
     notice.click()
     expect(drawn).to_have_text("Recorded the release on the board.")
-    expect(thread.locator(".lf-msg.user")).to_have_count(2)
+    expect(thread.locator(".lf-msg[data-lf-author=user]")).to_have_count(2)
 
 
 def test_an_answer_completing_its_stream_with_the_same_words_keeps_progress_hidden(
@@ -527,7 +527,7 @@ def test_an_answer_completing_its_stream_with_the_same_words_keeps_progress_hidd
     page = open_page(browser, url)
     open_margin_card(page, "h-how")
     thread = page.locator(card_of(root))
-    expect(thread.locator(".lf-msg.agent:visible")).to_have_count(1)
+    expect(thread.locator(".lf-msg[data-lf-author=agent]:visible")).to_have_count(1)
     write(thread.locator(":scope > .lf-thread-reply leaf-text"), "Also note the date")
 
     answer = thread_model.post_reply(
@@ -544,7 +544,7 @@ def test_an_answer_completing_its_stream_with_the_same_words_keeps_progress_hidd
     message = thread.locator(f'.lf-msg[data-event="{answer["id"]}"]')
     expect(message.locator(".lf-msg-text")).to_have_text("Recorded the release.")
     expect(thread.locator(".lf-thread-working")).to_have_count(0)
-    expect(thread.locator(".lf-msg.agent:visible")).to_have_count(1)
+    expect(thread.locator(".lf-msg[data-lf-author=agent]:visible")).to_have_count(1)
     expect(thread.locator(":scope > .lf-thread-reply leaf-text")).to_have_js_property(
         "value", "Also note the date"
     )
@@ -571,11 +571,11 @@ def test_an_idle_card_replaces_progress_with_the_answer(
     page = open_page(browser, url)
     open_margin_card(page, "h-how")
     thread = page.locator(card_of(root))
-    expect(thread.locator(".lf-msg.agent")).to_have_count(1)
+    expect(thread.locator(".lf-msg[data-lf-author=agent]")).to_have_count(1)
     if streamed:
         stream_reply(serve.page_dir, root, "Recording the release now.")
         told(page)
-        expect(thread.locator(".lf-msg.agent:visible")).to_have_count(1)
+        expect(thread.locator(".lf-msg[data-lf-author=agent]:visible")).to_have_count(1)
     opening = thread.locator(".lf-msg").first
     resting = opening.bounding_box()
 
@@ -589,7 +589,7 @@ def test_an_idle_card_replaces_progress_with_the_answer(
     with service_model.PageTransaction(serve.page_dir) as transaction:
         transaction.clear_stream_reply("codex-thread", "leaf-turn")
     told(page)
-    answer = thread.locator(".lf-msg.agent:visible")
+    answer = thread.locator(".lf-msg[data-lf-author=agent]:visible")
     expect(answer.locator(".lf-msg-text")).to_have_text(
         "Recorded the release on the board."
     )
@@ -913,7 +913,7 @@ def test_a_streaming_answer_hides_the_working_message_and_its_progress(
     stream_reply(serve.page_dir, root, "Recording the release now.")
     told(page)
     expect(thread.locator(".lf-thread-working")).to_have_count(0)
-    streamed = thread.locator(".lf-msg.agent").last
+    streamed = thread.locator(".lf-msg[data-lf-author=agent]").last
     expect(streamed.locator(".lf-msg-text")).to_have_text("Recording the release now.")
     expect(thread.locator(f'.lf-msg[data-event="{step["id"]}"]')).to_be_hidden()
     expect(
@@ -1256,7 +1256,7 @@ def test_canceling_a_long_stream_keeps_the_panel_reading(browser, serve, request
 
 # The open thread view's user messages and working message in the order they stand, each
 # user message by its words.
-TRANSCRIPT_ORDER = """view => [...view.querySelectorAll('.lf-msg.user, .lf-thread-working')]
+TRANSCRIPT_ORDER = """view => [...view.querySelectorAll('.lf-msg[data-lf-author=user], .lf-thread-working')]
     .filter((node) => node.checkVisibility())
     .map((node) => node.matches('.lf-thread-working')
         ? 'working'
@@ -1287,7 +1287,9 @@ def test_a_reply_sent_after_progress_stands_below_it(browser, serve, request):
     page.keyboard.type("And the changelog?")
     with sending(page, "the reply"):
         page.keyboard.press("ControlOrMeta+Enter")
-    expect(view.locator(".lf-msg.user", has_text="And the changelog?")).to_be_visible()
+    expect(
+        view.locator(".lf-msg[data-lf-author=user]", has_text="And the changelog?")
+    ).to_be_visible()
     assert view.evaluate(TRANSCRIPT_ORDER)[-2:] == ["working", "And the changelog?"]
     told(page)
     assert view.evaluate(TRANSCRIPT_ORDER)[-2:] == ["working", "And the changelog?"]
@@ -1371,7 +1373,7 @@ def test_progress_the_user_spoke_after_keeps_its_steps_and_its_place(browser, se
     )
     expect(first).to_be_hidden()
 
-    message = thread.locator(".lf-msg.user", has_text="And the camera?")
+    message = thread.locator(".lf-msg[data-lf-author=user]", has_text="And the camera?")
     rendered(page)
     box = message.bounding_box()
     append_carried_log_record(

@@ -36,7 +36,7 @@ def detached_threads(page, thread_ids):
     for thread_id in thread_ids:
         view = open_panel_thread(page, thread_id)
         expect(view).to_be_visible()
-        if view.locator(".lf-fp-quote.detached").count():
+        if view.locator(".lf-fp-quote[data-lf-detached]").count():
             detached.add(thread_id)
     if page.locator(PANEL).get_attribute("data-open") is not None:
         page.locator(".lf-fp-close").click()

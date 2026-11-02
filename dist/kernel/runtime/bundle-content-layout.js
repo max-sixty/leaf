@@ -1579,7 +1579,8 @@ function laidOut(el, moved) {
 }
 function scrollMisplacesAnchors(box) {
 	if (!isHTML(box) || !box.offsetWidth) return false;
-	return Math.abs(box.getBoundingClientRect().width - box.offsetWidth) > 1;
+	const laid = box.offsetWidth * box.currentCSSZoom;
+	return Math.abs(box.getBoundingClientRect().width - laid) > 1;
 }
 function anchorBox(anchor) {
 	const box = anchor.getBoundingClientRect();

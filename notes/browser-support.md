@@ -413,7 +413,9 @@ carry an anchored box by the scroll's layout pixels, not the smaller or larger
 distance the words move on screen; Chromium 156 follows the words. Scrolling 60px
 in a box scaled to 0.6 left a row 24px off its words in both, until something
 else ran a margin pass. Bug 2055371 is Firefox's, and it remains with the
-Nightly pref on. The margin now runs a pass at that box's `scrollend`
+Nightly pref on. A CSS zoom drifts no anchor in any of the three. The margin
+now runs a pass at a box's `scrollend` where a row's carrier stands in the box
+and the box's on-screen width differs from its zoomed layout width
 (`scrollMisplacesAnchors`), so rows drift while the scroll runs and stand on
 their words a frame after it ends. Inside a rotated box, a mark anchored to an
 SVG drawing or to a scroller's first words stands off by the rotation, since
@@ -423,9 +425,12 @@ its place is mapped through the nearest HTML box's bounding rectangle.
 `test_marks_stand_on_a_scaled_slide_in_every_engine` fail in Firefox without
 the correction, and the second fails in Firefox and WebKit without the
 `scrollend` pass. Once bug 2059841 ships in release, delete the offset walk and
-the `--lf-block-control-dw`/`dh` pair; delete the `scrollend` pass once release
+the `--lf-block-control-dw`/`dh` pair. Delete the `scrollend` pass once release
 Firefox and WebKit both keep a row on its words through a scroll inside a scaled
-box, which that test's last scroll checks.
+box. The test passes whatever the engines do while the pass is in place, so
+recheck with the `scrollend` listener removed, which left the row 24.1px off in
+Firefox 157 and 24.0px off in WebKit 27.2, or by reading the row in the frame
+after the scroll, before `scrollend`.
 
 ### A `left`-inset anchored control after a resize in Firefox
 

@@ -641,14 +641,25 @@ function hearTargetChanges(root) {
     },
     { capture: true, passive: true },
   );
-  // A scroll inside a scaled box carried its rows away from their words in some engines
-  // (css-anchors.js, `scrollMisplacesAnchors`), so the pass places them again once it
-  // ends.
+  // A scroll inside a scaled box carried the rows whose carriers it moves away from their
+  // words in some engines (css-anchors.js, `scrollMisplacesAnchors`), so the pass places
+  // them again once it ends.
+  /** @param {Element} box */
+  const carries = (box) =>
+    [...carriers.values()].some((byAnchor) =>
+      [...byAnchor.keys()].some((anchor) =>
+        renderedUnder("scroller" in anchor ? anchor.scroller : anchor, box),
+      ),
+    );
   root.addEventListener(
     "scrollend",
     (event) => {
       const source = event.target === document ? pageScroller : event.target;
-      if (source instanceof Element && scrollMisplacesAnchors(source))
+      if (
+        source instanceof Element &&
+        carries(source) &&
+        scrollMisplacesAnchors(source)
+      )
         scheduleMarginLayout();
     },
     { capture: true, passive: true },

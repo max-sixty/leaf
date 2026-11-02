@@ -456,9 +456,10 @@ function hearTargetChanges(root) {
 		capture: true,
 		passive: true
 	});
+	const carries = (box) => [...carriers.values()].some((byAnchor) => [...byAnchor.keys()].some((anchor) => renderedUnder("scroller" in anchor ? anchor.scroller : anchor, box)));
 	root.addEventListener("scrollend", (event) => {
 		const source = event.target === document ? pageScroller : event.target;
-		if (source instanceof Element && scrollMisplacesAnchors(source)) scheduleMarginLayout();
+		if (source instanceof Element && carries(source) && scrollMisplacesAnchors(source)) scheduleMarginLayout();
 	}, {
 		capture: true,
 		passive: true

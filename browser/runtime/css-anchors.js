@@ -38,10 +38,12 @@
  * above, once per scroll: inside a scaled box, Firefox 157 and WebKit 27.2 carry an
  * anchored box by the scroll's layout pixels, not the smaller or larger distance the
  * words move on screen (Firefox bug 2055371, which its own transform support still has).
- * So the margin measures and places its rows again at that box's `scrollend`
- * (`scrollMisplacesAnchors`, margin-layout.js): they drift while the scroll runs and
- * stand on their words a frame after it ends. Chromium 156 follows the words, and the
- * pass changes nothing there.
+ * So the margin measures and places the rows that scroll carried again at that box's
+ * `scrollend` (`scrollMisplacesAnchors`, margin-layout.js): they drift while the scroll
+ * runs and stand on their words a frame after it ends. Chromium 156 follows the words, so
+ * there the pass moves only a row whose carrier scrolls with something its target
+ * doesn't, such as a pin on a `pre` whose `code` scrolled, back to where a fresh pass
+ * puts it.
  *
  * A source keeps one name across those uses. Retained controls can observe whether its
  * source renders near the viewport before entering layout. That reading starts
@@ -458,12 +460,14 @@ function laidOut(el, moved) {
 }
 // Whether a scroll of `box` can carry what is anchored inside it away from what it marks:
 // where a layout pixel of `box` shows as more or less than a pixel on screen, as under a
-// scale on it or a box around it. Offsets are whole pixels, so a pixel's difference is
-// rounding.
+// scale on it or a box around it. A CSS zoom resizes layout itself, which anchors
+// follow, so its width counts the zoom. Offsets are whole pixels, so a pixel's difference
+// is rounding.
 /** @param {Element} box */
 export function scrollMisplacesAnchors(box) {
   if (!isHTML(box) || !box.offsetWidth) return false;
-  return Math.abs(box.getBoundingClientRect().width - box.offsetWidth) > 1;
+  const laid = box.offsetWidth * box.currentCSSZoom;
+  return Math.abs(box.getBoundingClientRect().width - laid) > 1;
 }
 /** @param {Anchor} anchor */
 export function anchorBox(anchor) {

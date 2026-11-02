@@ -1,5 +1,5 @@
 import { CARET_KEYS, HOLDS_WORD, J, OUTPUT, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSES, RUNTIME_PAINT_ATTRIBUTE, SourcePairs, TEXT_BOX, TEXT_FIELD, W, WALK, Z, actionElement, actionTemplate, afterScript, aimedTop, alreadyShown, atScrollEnd, attachDeferredLoader, backgroundFlash, beginWalk, bindQueuedWork, blurFocused, byRenderedOrder, cancelRender, caretAtKey, chosenSince, clippedContents, clippedPlace, closestAcross, currentLocationIn, currentLocationNodes, currentLocationTouches, d, dataBody, deepFocus, describeFailure, drawn as drawn$2, eventSource, fitsWhole, flashDuration, focusDestination, focused, foldBlock, frameFor, generatedElement, growthAfterIsSeen, growthIsSeen, headerInset, holdCurrentLocation, holdFocus, iconElement, inChrome, inUi, inWindowChrome, inlineStyle, inputCount, isElement, isHTML, keeps, keepsHidden, landedBox, landingBand, layoutChanged, layoutPx, listWalkPosition, measure, motion, motionPlays, move, moveScrollerBy, nativeLayerHolding, nextAnimation, nextFrame, nextRender, offer, offerAction, offered, offeredAction, offeredActionElement, onCurrentLocation, onLetGo, onPress, onPressAway, onUserInput, outputProducer, pagePresented, pageScroller, passOn, patchRetains, patchTree, placeBox, placeHolder, placeKept, plainPress, pointerAt, presented, readCaret, recentPlaceInput, refuseOutput, registrations, renderedOrder, renderedParent, renderedUnder, renderingState, restorePointer, restrictUserIntent, retainUserIntent, roomPx, scrollBehavior, scrollChoices, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollToEnd, scrollersOf, seenRect, selectsAll, setChildren, setRegistration, setScroll, shownBox, shownRect, shownWindow, showsContents, sizeObserver, skipped, slotTop, stopScroll, stuckBox, synNodes, syntax, syntaxLanguageNames, tabStore, takesLetters, textWidth, tick, typesText, under, union, upFrom, updateSurface, userScrollport, visibleBand, watchArrivals, watchOwner, whenNone, x } from "./bundle-portable.js";
-import { COLLAPSE, LIVE_ROOT, PENDING, PRESENTATION_DOM, PRESSABLE, TEXT_BLOCK, adoptRegistry, agentName, agentSays, announce, applicationPresenter, applicationState, ariaShortcuts, attachApplicationPresentation, authoredBody, bindings, buttonCommand, checked, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, decisionFor, declarationFor, declareCommandReadiness, declaresCommandHandler, descriptionOf, editable, el, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, hasObligationSource, holdStatus, holdingError, html, isElementName, isReaction, keyed, keys, labelOf, lastMovedAt, layerRoot, leafSays, live as live$1, live$1 as live, loadShadowRules, marks, messageKey, nothing, notice, obligationValue, offlineData, offlineInteractive, pageClaimed, pageRange, pageUrl, paintKeys, passErrorsAt, projectCommandScope, projectView, projectionOrigins, projectionRegionsPresented, pruneScopedElements, raiseError, readApplication, readPart, ref, registry, render as render$1, repaint, repeat, reveal, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, savedReadingSettled, seatRoot, selectEnds, selectionBackward, share, spell, tagsDeclaring, threadKey, threadNames, titleOf, tokenEntry, touchPresses as touchPresses$1, turns, voiced, watchCommandScopes, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented, word } from "./bundle-errors.js";
+import { COLLAPSE, LIVE_ROOT, PENDING, PRESENTATION_DOM, PRESSABLE, TEXT_BLOCK, adoptRegistry, agentName, agentSays, announce, applicationPresenter, applicationState, ariaShortcuts, attachApplicationPresentation, authoredBody, bindings, buttonCommand, checked, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, decisionFor, declarationFor, declareCommandReadiness, declaresCommandHandler, deleted, descriptionOf, editable, el, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, hasObligationSource, holdStatus, holdingError, html, isElementName, isReaction, keyed, keys, labelOf, lastMovedAt, layerRoot, leafSays, live as live$1, live$1 as live, loadShadowRules, marks, messageKey, nothing, notice, obligationValue, offlineData, offlineInteractive, pageClaimed, pageRange, pageUrl, paintKeys, passErrorsAt, projectCommandScope, projectView, projectionOrigins, projectionRegionsPresented, pruneScopedElements, raiseError, readApplication, readPart, ref, registry, render as render$1, repaint, repeat, reveal, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, savedReadingSettled, seatRoot, selectEnds, selectionBackward, share, spell, tagsDeclaring, threadKey, threadNames, titleOf, tokenEntry, touchPresses as touchPresses$1, turns, voiced, watchCommandScopes, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented, word } from "./bundle-errors.js";
 import { LayerRefused, admitReading, admitResponse, randomId, reportPageError, requestJson, revealLayer, runtimeRootState, sameLayer, setRuntimeRootAttribute } from "./bundle-layer-client.js";
 import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableWord, addressedElements, ago, aimTargetAt, anchorBox, anchorForPassage, anchorForRange, anchorReading, anchorView, anchoringIsReady, chromeForeground, chromeRoot, claimReachStop, containingReadingRegionFor, cutFrames, datumAimTarget, datumLabel, effectiveScroller, followingItsEnd, fragmentTarget, headerLevels, isAddressable, leadingTitle, livePoint, nameAnchor, nameable, onReadingInput, pageReadingRegion, projectedDatum, reachScrollers, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, releaseReachStop, resolveAnchor, revealAddressed, scrollChainOf, scrollerFor, sectionLabel, sectionOf, settleDocumentLayout, shortAgo, shownRegionBounds, targetElement, targetPlace, targetSegments, unconcealedReadingRegions, visualPartLabel, watchReadingRegionTransitions } from "./bundle-content-layout.js";
 import { alignInlineText, alignText, authored, authoredScope, blockAt, elementById, fencePassageParts, labelWords, leafSurface, pageBlocks, pageDocument, pageQueryAll, pageText, pageWords, pointAt as pointAt$1, quoteFrom, rangeOf, readingFrom, renderRetired, segmentBlock, segmentsIn, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
@@ -1717,17 +1717,16 @@ var MessageEditor = class {
 		this.foot.className = "lf-msg-edit-foot";
 		this.node.append(this.input);
 		this.input.value = kept?.text || said();
-		const whole = () => sync.value();
+		let sync = null;
+		const whole = () => sync?.value() ?? this.input.value;
 		let opened = null;
 		this.#follow = () => {
 			if (base === currentBase() || draftHasContent(ctx) || whole() !== opened) return;
 			base = currentBase();
-			sync.load(opened = said());
+			sync?.load(opened = said());
 		};
-		const unchanged = () => {
-			const now = whole();
-			return !now.trim() || now === said();
-		};
+		const emptied = () => !whole().trim();
+		const unchanged = () => emptied() || whole() === said();
 		const leave = (discard, { landing = true, says = null, painting = true } = {}) => {
 			if (landing) land();
 			this.#stop();
@@ -1762,12 +1761,13 @@ var MessageEditor = class {
 			afterScript(paint);
 		};
 		this.#putAside = putAside;
-		const sync = wireInput(this.input, {
-			hint: "Edit message",
+		const wired = wireInput(this.input, {
+			hint: "Delete message",
 			accessibleName: () => `Edit message: ${said().slice(0, 60)}`,
-			sends: "save",
+			sends: () => emptied() ? "delete" : "save",
 			sendClass: "lf-msg-control lf-msg-edit-save",
-			action: "save",
+			action: () => emptied() ? "delete" : "save",
+			hasContent: () => true,
 			submitIn: actions,
 			sentMedia: true,
 			save: (value) => {
@@ -1775,13 +1775,17 @@ var MessageEditor = class {
 				tellDraft(ctx, value, { over: base });
 			},
 			send: async (_text, raw, owns) => {
-				if (unchanged()) return leave(true, { says: "No change to save" });
+				if (whole() === said()) return leave(true, { says: "No change to save" });
+				const deleting = emptied();
 				sending.add(id);
-				const flight = sendDraft(ctx, owns, (attempt) => send(raw, {
+				const flight = sendDraft(ctx, owns, (attempt) => send(deleting ? "" : raw, {
 					attempt,
 					base
 				}));
-				leave(false, { painting: false });
+				leave(false, {
+					painting: false,
+					says: deleting ? "Message deleted" : null
+				});
 				let sent;
 				try {
 					sent = await flight;
@@ -1809,6 +1813,7 @@ var MessageEditor = class {
 				}
 			}]
 		});
+		sync = wired;
 		opened = whole();
 		this.input.after(this.foot);
 		for (const where of [this.node, actions]) keys(where, "Editing a message", [{
@@ -1820,7 +1825,7 @@ var MessageEditor = class {
 		}], { escape: "inner" });
 		cancel.addEventListener("mousedown", (event) => event.preventDefault());
 		cancel.addEventListener("click", () => close());
-		this.#stop = mirrorDraft(this.input, sync, ctx, {
+		this.#stop = mirrorDraft(this.input, wired, ctx, {
 			retained: true,
 			blank: said
 		});
@@ -3307,6 +3312,7 @@ function proseReading(message) {
 	}
 	return reading;
 }
+const DELETED = leafSays("Deleted");
 function messageText(message) {
 	if (message.body?.kind === "authored") return message.body.text;
 	if (message.token) return `${tokenEntry(message.token)?.glyph ?? ""} ${message.token}`.trim();
@@ -3315,7 +3321,7 @@ function messageText(message) {
 function threadName(thread) {
 	if (thread.title != null) return thread.title;
 	const { root } = thread;
-	return labelWords(messageText(root)) || (root.drawing ? "Drawing" : "");
+	return labelWords(messageText(root)) || (root.drawing ? "Drawing" : deleted(root) ? "Deleted message" : "");
 }
 const titlePending = (thread) => thread.title == null && thread.attention?.kind === "waiting" && thread.attention.reason === "workflow" && pageClaimed();
 const threadHeading = (thread) => titlePending(thread) ? html`<span class="lf-thread-name-pending">Generating thread name…</span
@@ -3413,7 +3419,7 @@ function authoredHolder(id) {
 function messageReading(message, { authoredRank = 0, reactions, workflows, leaves = null }) {
 	const workflow = strongestWorkflow(workflows);
 	const token = message.token ? tokenEntry(message.token) : null;
-	const kind = isReaction(message) ? "reaction" : message.suggestion ? "suggestion" : "prose";
+	const kind = isReaction(message) ? "reaction" : deleted(message) ? "deleted" : message.suggestion ? "suggestion" : "prose";
 	const prose = kind === "prose" ? proseReading(message) : null;
 	return Object.freeze({
 		key: messageKey(message),
@@ -3430,7 +3436,7 @@ function messageReading(message, { authoredRank = 0, reactions, workflows, leave
 		by: message.author === "agent" ? message.agent : "Me",
 		timestamp: message.ts,
 		age: ago(message.ts),
-		edited: message.edited ? `Edited ${ago(message.edited.ts)}. Before, it said: “${message.edited.was}”` : null,
+		edited: message.edited ? `${kind === "deleted" ? "Deleted" : "Edited"} ${ago(message.edited.ts)}. Before, it said: “${message.edited.was}”` : null,
 		editable: editable(message),
 		failure: message.failure ?? null,
 		pending: workflow?.stage === "sending",
@@ -3562,7 +3568,7 @@ var MessageView = class {
           ${model.leaves ? html`<span class="lf-msg-leaves">${voiced(model.leaves)}</span>` : nothing}
           ${model.failure ? html`<span class="lf-msg-failure">${voiced(NOT_ANSWERED)}</span>` : nothing}
           ${model.body.kind === "suggestion" ? html`<span class="lf-suggest-label">Suggestion</span>` : nothing}
-          ${model.edited ? html`<span class="lf-edited" title=${model.edited}>edited</span>` : nothing}
+          ${model.edited && model.body.kind !== "deleted" ? html`<span class="lf-edited" title=${model.edited}>edited</span>` : nothing}
           ${this.#kept ? html`<span
                   class="lf-msg-kept"
                   title="The edit is kept; open it to save or discard"
@@ -3582,7 +3588,7 @@ var MessageView = class {
 			if (body) this.#stopRead = this.#commands.read.observeMessage(body, model);
 		})}
         >
-          ${editor ? editor.node : this.#body(model.body)}
+          ${editor ? editor.node : this.#body(model.body, model.edited)}
           ${model.body.drawing ? html`<span class="lf-drawing-reference">Drawing comment</span>` : nothing}
           ${holds ? keyed(this.#authoredTake, authored) : nothing}
         </div>
@@ -3639,7 +3645,10 @@ var MessageView = class {
 		if (this.#copy.value !== markdown) this.#copy.value = markdown;
 		return this.#copy;
 	}
-	#body(body) {
+	#body(body, edited) {
+		if (body.kind === "deleted") return html`<div class="lf-msg-text lf-msg-deleted" title=${edited ?? ""}>
+        ${voiced(DELETED)}
+      </div>`;
 		if (body.kind === "reaction") return html`<div class="lf-msg-text">
         <span class="lf-react-said">${`${body.glyph} ${body.token}`.trim()}</span>
       </div>`;

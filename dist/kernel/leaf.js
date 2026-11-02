@@ -318,7 +318,8 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 		let mic = null;
 		let composing = false;
 		const Recognition = window.SpeechRecognition ?? window.webkitSpeechRecognition;
-		const offersDictation = Boolean(Recognition && submitAction === "send" && !submitIn);
+		const actionWord = () => typeof submitAction === "function" ? submitAction() : submitAction;
+		const offersDictation = Boolean(Recognition && actionWord() === "send" && !submitIn);
 		let dictation = null;
 		let loadingDictation = false;
 		let dictationGeneration = 0;
@@ -474,7 +475,7 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 			const submitControl = html`<button
         type="button"
         ${offered(`${sendClass} lf-compose-submit`)}
-        ${namedAction(submitAction, {
+        ${namedAction(actionWord(), {
 				label: action,
 				title: sendKeys ? `${action} (${sendKeys})${newline}` : action
 			})}

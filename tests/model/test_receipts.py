@@ -173,18 +173,16 @@ def test_concurrent_receipts_observe_one_session_without_nesting_page_locks(
             page, {"kind": "comment", "author": "user", "text": "Please answer"}
         )
         deliveries.append(freeze_events(page, [comment]))
-    release = tmp_path / "release-sibling-sweeps"
     arrivals = [tmp_path / f"sweep-{number}" for number in range(2)]
     probe = """\
-import time
+import sys
 from leaf import delivery
 
 original_lock = delivery.flocked
 def synchronized_lock(*args, **kwargs):
     Path(os.environ["ARRIVAL"]).write_text("ready", encoding="utf-8")
-    release = Path(os.environ["RELEASE"])
-    while not release.exists():
-        time.sleep(0.01)
+    if not sys.stdin.readline():
+        raise SystemExit(0)
     return original_lock(*args, **kwargs)
 
 delivery.flocked = synchronized_lock
@@ -197,7 +195,7 @@ delivery.receive_delivery(os.environ["DELIVERY"])
             probe,
             DELIVERY=payload["id"],
             ARRIVAL=arrival,
-            RELEASE=release,
+            stdin=subprocess.PIPE,
         )
         for page, payload, arrival in zip(pages[:2], deliveries, arrivals, strict=True)
     ]
@@ -206,7 +204,9 @@ delivery.receive_delivery(os.environ["DELIVERY"])
         bool,
         failure="both receipts did not reach their shared session observation",
     )
-    release.write_text("continue", encoding="utf-8")
+    for consumer in consumers:
+        consumer.stdin.write("continue\n")
+        consumer.stdin.flush()
     for consumer in consumers:
         out, err = consumer.communicate(timeout=STATED_TIMEOUT)
         assert consumer.returncode == 0, out + err

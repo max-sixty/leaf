@@ -271,7 +271,11 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 		if (!preview.hasAttribute("data-lf-thread-placement")) return following.forget();
 		following.follow();
 	};
-	const followed = sizeObserver(followCard);
+	const followed = sizeObserver(() => {
+		const session = previewSession;
+		if (session && preview.hasAttribute("data-lf-thread-placement") && !preview.hasAttribute("data-lf-carried")) placedThreadPreview(session).then((stands) => stands && followCard());
+		else followCard();
+	});
 	const following = boxMotion({
 		root: face,
 		box: face,
@@ -592,9 +596,12 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 			session.reading = null;
 			const { scale } = session.side.landed(position);
 			anchored.commit();
-			placementDriver.stand(position);
+			following.placed(() => {
+				const moved = placementDriver.stand(position);
+				carry.placed();
+				return moved;
+			});
 			session.width ??= preview.getBoundingClientRect().width;
-			carry.placed();
 			preview.style.removeProperty("visibility");
 			session.withheldFocus?.();
 			session.withheldFocus = null;
@@ -2645,8 +2652,9 @@ function createFloatingResponsePlacement({ bar: fabBar, input: fabInput, respons
 	});
 	function fabMotion() {
 		const box = fabField();
+		const composer = response.composition().frame.parentElement;
 		const motion = boxMotion({
-			root: response.composition().frame,
+			root: composer,
 			box,
 			surface: "lf-fab-ground",
 			lift: 1,
@@ -2655,7 +2663,7 @@ function createFloatingResponsePlacement({ bar: fabBar, input: fabInput, respons
 			held: () => heldEdges(fabBar)
 		});
 		fabBar.prepend(motion.ground);
-		followed.observe(response.composition().frame);
+		followed.observe(composer);
 		return motion;
 	}
 	let selectedPassage = null;
@@ -2893,11 +2901,12 @@ function createFloatingResponsePlacement({ bar: fabBar, input: fabInput, respons
 			editingAttachment = response.open ? attachment : null;
 			const stand = () => {
 				keeps(fabBar, "data-lf-placement", position.placement);
-				fabPosition.stand(position);
+				const moved = fabPosition.stand(position);
+				carry.placed();
+				return moved;
 			};
 			if (following) following.placed(stand);
 			else stand();
-			carry.placed();
 			nativeAttachment = response.open && fabPosition.follows();
 			positioned(true);
 			stoodAgain();

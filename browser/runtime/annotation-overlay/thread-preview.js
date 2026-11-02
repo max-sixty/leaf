@@ -218,7 +218,20 @@ export function createThreadPreview({
     if (!preview.hasAttribute("data-lf-thread-placement")) return following.forget();
     following.follow();
   };
-  const followed = sizeObserver(followCard);
+  // A change of the card's size can move its placement too, as a line taking it past
+  // the window's foot holds it there, so the reading waits for the placement it asks
+  // for, which lands before this frame paints (box-motion.js, `placed`). A card being
+  // carried stands where the pointer holds it.
+  const followed = sizeObserver(() => {
+    const session = previewSession;
+    if (
+      session &&
+      preview.hasAttribute("data-lf-thread-placement") &&
+      !preview.hasAttribute("data-lf-carried")
+    )
+      void placedThreadPreview(session).then((stands) => stands && followCard());
+    else followCard();
+  });
   const following = boxMotion({
     // The face is the root, so the grip beside it, whose clip opens its middle to
     // the card's own presses, is never cut by the motion.
@@ -721,9 +734,13 @@ export function createThreadPreview({
         const { scale } = session.side.landed(position);
         anchored.commit();
         // An unchanged declaration is the browser's own no-op, and `keeps` is the rest's.
-        placementDriver.stand(position);
+        // A drag the grip carried ends where the placement stands the card.
+        following.placed(() => {
+          const moved = placementDriver.stand(position);
+          carry.placed();
+          return moved;
+        });
         session.width ??= preview.getBoundingClientRect().width;
-        carry.placed();
         preview.style.removeProperty("visibility");
         session.withheldFocus?.();
         session.withheldFocus = null;

@@ -618,9 +618,7 @@ export function createFloatingPanel({
               @focus=${() => showPeek(leaf.matches(":focus-visible"))}
               @blur=${() => showPeek(false)}
             >
-              <span
-                class=${`lf-dot${statusModel.tone ? ` ${statusModel.tone}` : ""}`}
-              ></span>
+              <span class="lf-dot" data-lf-tone=${statusModel.tone || nothing}></span>
               <span
                 class="lf-fp-error-dot"
                 aria-hidden="true"
@@ -3143,7 +3141,8 @@ export function createFloatingPanel({
       <blockquote
         ${ref(watchQuote)}
         id="lf-fp-quote"
-        class=${`lf-quote lf-fp-quote${quote.anchored && !quote.found ? " detached" : ""}`}
+        class="lf-quote lf-fp-quote"
+        ?data-lf-detached=${quote.anchored && !quote.found}
         data-expanded=${String(expanded)}
         title=${(quote.anchored && !quote.found && quote.title) || nothing}
       >
@@ -4142,7 +4141,8 @@ export function createFloatingPanel({
         (row) => row.key,
         (row) => {
           const face = html`<span
-              class=${`lf-dot${row.tone ? ` ${row.tone}` : ""}`}
+              class="lf-dot"
+              data-lf-tone=${row.tone || nothing}
               aria-hidden="true"
             ></span
             ><span class="lf-fp-label">${row.title}</span

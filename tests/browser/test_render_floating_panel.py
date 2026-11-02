@@ -395,7 +395,7 @@ def test_a_thread_s_keys_answer_in_its_view(browser, serve):
     message.click()
     expect(message).to_be_focused()
     page.keyboard.press("e")
-    strip = thread.locator(".lf-msg.agent > .lf-react-strip")
+    strip = thread.locator(".lf-msg[data-lf-author=agent] > .lf-react-strip")
     expect(strip.locator(".lf-react-palette:popover-open")).to_have_count(1)
     page.keyboard.press("Escape")
     expect(strip.locator(".lf-react-palette:popover-open")).to_have_count(0)
@@ -442,7 +442,7 @@ def test_a_reaction_in_the_view_stands_as_its_chip_alone(browser, serve):
     page.locator("body").focus()
     page.keyboard.press("t")
     thread = page.locator(panel_view("thread"))
-    reply = thread.locator(".lf-msg.agent")
+    reply = thread.locator(".lf-msg[data-lf-author=agent]")
     reply.click()
     page.keyboard.press("e")
     held = []
@@ -4153,7 +4153,9 @@ def test_a_website_copy_says_who_revises_it_and_where_leaf_comes_from(browser, s
     expect(field(page)).to_have_attribute(
         "placeholder", re.compile("^Ready — comment to revise this copy")
     )
-    expect(page.locator(".lf-fp-leaf .lf-dot")).to_have_class("lf-dot listening")
+    expect(page.locator(".lf-fp-leaf .lf-dot")).to_have_attribute(
+        "data-lf-tone", "listening"
+    )
     expect(page.locator(".lf-fp-row-notice")).to_be_hidden()
     links = panel_menu(page).locator(".lf-fp-state a")
     expect(links).to_have_count(2)
@@ -5077,7 +5079,7 @@ def test_a_thread_whose_words_are_gone_keeps_its_quotation_in_the_panel(browser,
     expect(view.locator(".lf-msg")).to_contain_text("Does this still apply?")
     quote = view.locator(".lf-quote")
     expect(quote).to_contain_text("FINAL WORDS")
-    expect(quote).to_have_class(re.compile(r"\bdetached\b"))
+    expect(quote).to_have_attribute("data-lf-detached", "")
     assert quote.evaluate("el => el.scrollHeight > el.clientHeight")
     disclosure = view.get_by_role("button", name="Full quote", exact=True)
     expect(disclosure).to_be_visible()

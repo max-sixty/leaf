@@ -1484,7 +1484,7 @@ def test_a_reply_written_in_a_card_keeps_its_line_breaks_once_sent(
         page.keyboard.press("Enter")
     card = page.locator(".lf-margin-preview")
     expect(card).to_have_attribute("data-lf-thread-placement", re.compile(".+"))
-    messages = card.locator(".lf-msg.user")
+    messages = card.locator(".lf-msg[data-lf-author=user]")
     rendered(page)
     assert len(commented) > 1, "the comment never wrapped"
     assert messages.first.locator(".lf-msg-text").evaluate(WORD_LINES) == commented

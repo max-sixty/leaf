@@ -3910,7 +3910,7 @@ function createAnchorControls({ commentOnTarget, openThread, withdrawReaction, l
 			if (href === null) throw new Error("A message fragment reference has no href");
 			const id = fragmentId(href);
 			const alive = Boolean(fragmentTarget(href));
-			anchor.classList.toggle("detached", !alive);
+			anchor.toggleAttribute("data-lf-detached", !alive);
 			keeps(anchor, "aria-disabled", alive ? null : "true");
 			keeps(anchor, "title", alive ? `Jump to § ${id}` : missingReference(id));
 		}
@@ -4469,7 +4469,7 @@ async function loadIcon() {
 let tone = "";
 function paintTab() {
 	if (!iconMark || !toneProbe.isConnected) return;
-	keeps(toneProbe, "class", tone ? `lf-dot ${tone}` : "lf-dot");
+	keeps(toneProbe, "data-lf-tone", tone || null);
 	keeps(tabLink, "href", iconUrl(iconMark, getComputedStyle(toneProbe).backgroundColor));
 }
 let saidKind;
@@ -5812,9 +5812,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
               @focus=${() => showPeek(leaf.matches(":focus-visible"))}
               @blur=${() => showPeek(false)}
             >
-              <span
-                class=${`lf-dot${statusModel.tone ? ` ${statusModel.tone}` : ""}`}
-              ></span>
+              <span class="lf-dot" data-lf-tone=${statusModel.tone || nothing}></span>
               <span
                 class="lf-fp-error-dot"
                 aria-hidden="true"
@@ -7245,7 +7243,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
       <blockquote
         ${ref(watchQuote)}
         id="lf-fp-quote"
-        class=${`lf-quote lf-fp-quote${quote.anchored && !quote.found ? " detached" : ""}`}
+        class="lf-quote lf-fp-quote"
+        ?data-lf-detached=${quote.anchored && !quote.found}
         data-expanded=${String(expanded)}
         title=${quote.anchored && !quote.found && quote.title || nothing}
       >
@@ -7836,7 +7835,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		return html`<div class="lf-fp-list">
       ${repeat(rows, (row) => row.key, (row) => {
 			const face = html`<span
-              class=${`lf-dot${row.tone ? ` ${row.tone}` : ""}`}
+              class="lf-dot"
+              data-lf-tone=${row.tone || nothing}
               aria-hidden="true"
             ></span
             ><span class="lf-fp-label">${row.title}</span

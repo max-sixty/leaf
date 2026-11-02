@@ -250,7 +250,7 @@ def test_reply_timing_records_send_and_words_when_the_panel_opens(browser, serve
     }""")
     with page.expect_response(lambda response: trace_has(response, "reply_visible")):
         view = open_panel_thread(page, question["id"])
-        expect(view.locator(".lf-msg.agent .lf-msg-text")).to_have_text(
+        expect(view.locator(".lf-msg[data-lf-author=agent] .lf-msg-text")).to_have_text(
             "The roof comes first."
         )
     assert page.evaluate("""async () => (await window.__lfCheckApi())

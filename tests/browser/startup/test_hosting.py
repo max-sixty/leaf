@@ -264,18 +264,28 @@ def test_a_website_example_shows_its_public_session_reference(browser, serve):
     page.route("**/api/state*", identify)
     page.goto(url, wait_until="load")
     wait_until_ready(page)
-    # The reference is no part of the status the panel's field says, and one press in
-    # the leaf's menu copies it.
+    # The reference is no part of the status the panel's field says; About this page
+    # shows it and copies it in one press.
     expect(panel_field(page)).not_to_have_attribute(
         "placeholder", re.compile("239383829012")
     )
-    reference = panel_control(page, "session")
-    expect(reference).to_have_text("Copy session reference")
-    reference.click()
-    expect(panel_field(page)).to_have_attribute(
-        "placeholder", re.compile("^Session reference copied")
+    about = about_this_page(page)
+    expect(about.get_by_label("Session reference", exact=True)).to_have_text(
+        "239383829012"
     )
-    assert page.evaluate("() => navigator.clipboard.readText()") == "239383829012"
+    about.get_by_role("button", name="Copy Session reference", exact=True).click()
+    page.wait_for_function(
+        "navigator.clipboard.readText().then(text => text === '239383829012')"
+    )
+
+
+def about_this_page(page):
+    """Open About this page from the leaf's menu and return the dialog; it alone shows
+    the session reference (page-about.js, the `about` group)."""
+    panel_control(page, "inspection").click()
+    about = page.get_by_role("dialog", name="About this page", exact=True)
+    expect(about).to_be_visible()
+    return about
 
 
 @pytest.mark.parametrize(
@@ -310,7 +320,9 @@ def test_a_website_session_reference_survives_a_failed_first_read(
         expect(panel_field(page)).to_have_attribute(
             "placeholder", re.compile(status_words)
         )
-        expect(panel_control(page, "session")).to_have_text("Copy session reference")
+        expect(
+            about_this_page(page).get_by_label("Session reference", exact=True)
+        ).to_have_text("239383829012")
     finally:
         page.close()
     # The route stands for the whole test and the page asks again every two seconds,
@@ -434,8 +446,8 @@ def test_a_sample_reached_while_loading_holds_growth_the_reader_did_not_cause(
     inside it, its growth is theirs: a disclosure they open, and growth the child makes
     of its own accord afterwards, apply at once.
 
-    The inner window sample's document is held throughout, so the child is still
-    arriving at every step."""
+    The inner window sample keeps the child arriving until the final step, which
+    checks that completing arrival does not release later unsolicited growth."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     watched(page)
     held = []
@@ -546,6 +558,10 @@ def test_a_sample_reached_while_loading_holds_growth_the_reader_did_not_cause(
     # The reading resumes once the returning page's first refreshed reading lands.
     page.wait_for_function("continuity.readingReturn() === null")
 
+    page.unroute(SAMPLE_DOCUMENT)
+    for each in held:
+        each.continue_()
+    wait_until_ready(page)
     child_grows_unseen(1800)
     child.locator("#more > summary").click()
     expect(child.locator("#more")).to_have_attribute("open", "")

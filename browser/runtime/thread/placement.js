@@ -43,6 +43,8 @@ import { byRenderedOrder, renderedOrder, upFrom } from "../shadow.js";
 // (`renderedOrder`, shadow-tree.js), so threads inside one widget keep their order among
 // themselves. A place in no tree at all — an element a version activation has replaced —
 // is no place, which is the same answer an anchor that resolves nowhere gets.
+/** @typedef {(id: string) => {place: Element | null} | null | undefined} PlacedAt */
+/** @param {Pick<import("../../types/domain.js").Thread, "id" | "anchor">} t @param {PlacedAt} placedAt */
 export const threadPlace = (t, placedAt) => {
   const place = placedAt(t.id)?.place ?? (t.anchor ? sectionOf(t.anchor) : null);
   return place?.isConnected && !leafSurface(place) ? place : null;
@@ -50,8 +52,10 @@ export const threadPlace = (t, placedAt) => {
 
 // The log's order is the tiebreak, so two threads on one paragraph read in the order they
 // were opened, and a page that gave nothing an id keeps exactly the list it had.
+/** @template {Pick<import("../../types/domain.js").Thread, "id" | "anchor">} T
+ * @param {readonly T[]} threads @param {PlacedAt} placedAt */
 export const inPageOrder = (threads, placedAt) =>
-  byRenderedOrder(threads, (t) => threadPlace(t, placedAt));
+  byRenderedOrder(threads, /** @param {T} t */ (t) => threadPlace(t, placedAt));
 
 // The page's own outline, in the order it renders, widgets' shadow trees included. Read off the headings the author wrote
 // rather than off <section> nesting, because both shapes are in the corpus and a heading
@@ -63,13 +67,18 @@ export const inPageOrder = (threads, placedAt) =>
 // It is a reading of the page's own nodes, so it stands until the page reading moves
 // (passages.js, `pageReadingVersion`) or a caller says the document changed
 // (`presentDocument`): a thread pass over an unchanged page reads the outline it read.
+/** @type {{key: readonly [ReturnType<typeof pageReadingVersion>, ReturnType<typeof documentChanged>], outline: readonly Element[]} | null} */
 let outlined = null;
 export function pageOutline() {
+  /** @type {[ReturnType<typeof pageReadingVersion>, ReturnType<typeof documentChanged>]} */
   const key = [pageReadingVersion(), documentChanged()];
   if (outlined?.key.every((part, index) => part === key[index]))
     return outlined.outline;
   const outline = Object.freeze(
-    byRenderedOrder(pageParts("h1, h2, h3, h4, h5, h6"), (heading) => heading),
+    byRenderedOrder(
+      pageParts("h1, h2, h3, h4, h5, h6"),
+      /** @param {Element} heading */ (heading) => heading,
+    ),
   );
   outlined = { key, outline };
   return outline;
@@ -94,11 +103,14 @@ export function pageOutline() {
 // corpus page, whose pages stand in tabs with their titles in headers and their last
 // sections untitled, the container alone sent every item to the corpus's own title.
 const HEADERS = "header, hgroup";
+/** @param {Element} heading */
 const headed = (heading) => {
   const at = upFrom(heading);
   return at?.matches(HEADERS) ? upFrom(at) : at;
 };
+/** @param {Element} node @param {readonly Element[]} [outline] */
 export function partOver(node, outline = pageOutline()) {
+  /** @type {Map<Element | null, Element>} */
   const heads = new Map();
   for (const heading of outline)
     if (renderedOrder(heading, node) < 0) heads.set(headed(heading), heading);
@@ -110,12 +122,14 @@ export function partOver(node, outline = pageOutline()) {
   return null;
 }
 
+/** @param {Element} target */
 const subjectLabel = (target) => addressableLabel(target) || addressableWord(target);
 
 // A repeated outline subject needs the nearest named reading region to remain
 // distinguishable after a route leaves the page. Unique subjects keep the author's own
 // concise name. Page Map consumes this reading so navigation cannot add context that its
 // destination drops.
+/** @param {Element} target @param {readonly Element[]} [peers] @param {readonly Element[]} [outline] */
 export function outlineSubjectFor(target, peers = [target], outline = pageOutline()) {
   const label = subjectLabel(target);
   const repeated =
@@ -131,6 +145,7 @@ export function outlineSubjectFor(target, peers = [target], outline = pageOutlin
 
 // The name of the nearest region around a node that has one: a bounded block inside a
 // labelled pane is read as part of that pane.
+/** @param {Element} node */
 function regionLabel(node) {
   for (
     let region = readingRegionFor(node);

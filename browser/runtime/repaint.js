@@ -25,10 +25,16 @@
 import { onCurrentLocation, onFocusVisibility } from "./focus.js";
 import { nextRender } from "./rendering.js";
 
+/** @typedef {Partial<Record<"reflectFirstScopes" | "markHere" | "paintCurrentLocation" | "paintSelectedMarginEntries"
+ * | "paintTouchControls" | "paintCloseRequests" | "paintStatusContext" | "syncLayout" | "pageShifted"
+ * | "publishInputHint" | "paintGoToHints" | "paintTargetPickerHints" | "paintCommandHints" | "paintCoreControls"
+ * | "paintVersionShortcuts" | "reflectKeys", () => unknown>>} Painters */
+/** @type {Painters | null} */
 let painters = null;
 let frame = 0;
 let movePage = false;
 
+/** @param {Painters} slots */
 export function mountRepaint(slots) {
   painters = slots;
   onCurrentLocation(requestFrame);
@@ -40,12 +46,12 @@ function requestFrame() {
   // A capability can invalidate while its importing application is still being
   // constructed. Mount owns the first frame; until then only the page-shift bit is
   // recorded. The initial full paint reads the latest current location when it can run.
-  if (!painters || frame) return;
+  const p = painters;
+  if (!p || frame) return;
   frame = nextRender(() => {
     frame = 0;
     const shiftPage = movePage;
     movePage = false;
-    const p = painters;
     p.reflectFirstScopes?.();
     // Content whose resulting boxes chrome layout must measure.
     p.markHere?.();

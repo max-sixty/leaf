@@ -15,8 +15,15 @@ const EDGE = 12;
 const LABEL_GAP = 8;
 const LABEL_CHROME = 12;
 
+/** @typedef {{label: string, row: number}} TimelineRun */
+/** @typedef {{id: string, label: string, lane: TimelineLane, at: number, end: number | null, step: number}} TimelineEvent */
+/** @typedef {{index: number, label: string, run: TimelineRun | null, name: string, row: number, events: TimelineEvent[]}} TimelineLane */
+/** @typedef {{time: number, events: TimelineEvent[]}} TimelineStep */
+/** @param {string | null} value */
 const time = (value) => (value == null || value === "" ? null : Number(value));
+/** @param {number} ms */
 export const clock = (ms) => `${Number((ms / 1000).toFixed(3))} s`;
+/** @param {number} value */
 const fraction = (value) => Math.round(value * 1e5) / 1e5;
 
 /** Authored runs, lanes and events become the timeline's one ordered reading. Every
@@ -28,42 +35,48 @@ const fraction = (value) => Math.round(value * 1e5) / 1e5;
  * shared axis: one widget shares the axis and the playhead by construction, where
  * linked widgets would need code to agree on an axis as each appeared or changed,
  * and would each keep a playhead of their own. */
+/** @param {HTMLElement} host */
 export function timelineModel(host) {
+  /** @type {string[]} */
   const problems = [];
+  /** @type {TimelineRun[]} */
   const runs = [];
+  /** @type {TimelineLane[]} */
   const lanes = [];
   // Grid row 1 holds the ruler; a run's name takes the row above its lanes.
   let row = 1;
+  /** @param {Element} lane @param {TimelineRun | null} run */
   const readLane = (lane, run) => {
     const index = lanes.length;
     const label = lane.getAttribute("label") ?? "";
-    lanes.push({
+    /** @type {TimelineLane} */
+    const reading = {
       index,
       label,
       run,
       name: run ? `${run.label} · ${label}` : label,
       row: ++row,
-      events: [...lane.children]
-        .filter((child) => child.localName === "lf-event")
-        .map((event) => {
-          const at = time(event.getAttribute("at")) ?? 0;
-          let end = time(event.getAttribute("end"));
-          if (end !== null && end < at) {
-            problems.push(
-              `lf-event #${event.id} ends (${end}) before it starts (${at})`,
-            );
-            end = null;
-          }
-          return {
-            id: event.id,
-            label: event.getAttribute("label") ?? "",
-            lane: index,
-            at,
-            end: end === at ? null : end,
-            step: 0,
-          };
-        }),
-    });
+      events: [],
+    };
+    reading.events = [...lane.children]
+      .filter((child) => child.localName === "lf-event")
+      .map((event) => {
+        const at = time(event.getAttribute("at")) ?? 0;
+        let end = time(event.getAttribute("end"));
+        if (end !== null && end < at) {
+          problems.push(`lf-event #${event.id} ends (${end}) before it starts (${at})`);
+          end = null;
+        }
+        return {
+          id: event.id,
+          label: event.getAttribute("label") ?? "",
+          lane: reading,
+          at,
+          end: end === at ? null : end,
+          step: 0,
+        };
+      });
+    lanes.push(reading);
   };
   let bare = null;
   for (const child of host.children) {
@@ -82,9 +95,13 @@ export function timelineModel(host) {
       `lf-lane "${bare.getAttribute("label")}" stands beside lf-run elements; put it in a run`,
     );
   const events = lanes.flatMap((lane) => lane.events);
+  /** @type {TimelineStep[]} */
   const steps = [];
-  for (const event of events.toSorted((a, b) => a.at - b.at || a.lane - b.lane)) {
-    if (steps.at(-1)?.time === event.at) steps.at(-1).events.push(event);
+  for (const event of events.toSorted(
+    (a, b) => a.at - b.at || a.lane.index - b.lane.index,
+  )) {
+    const previous = steps.at(-1);
+    if (previous?.time === event.at) previous.events.push(event);
     else steps.push({ time: event.at, events: [event] });
   }
   steps.forEach((step, index) => {
@@ -103,6 +120,7 @@ export function timelineModel(host) {
 
 /** The ruler's width and the labels' widest font determine geometry, independently
  * of the selected step. End labels read back from their mark when they fit. */
+/** @param {ReturnType<typeof timelineModel>} model @param {number} width @param {string} font */
 export function timelineLayout(model, width, font) {
   const span = Math.max(1, width - 2 * EDGE);
   const placed = new Map();
@@ -129,6 +147,7 @@ export function timelineLayout(model, width, font) {
   return { rows, placed, ticks, span };
 }
 
+/** @param {TimelineEvent} event @param {number} now */
 function stateAt(event, now) {
   if (event.at > now) return { state: "future", done: 0 };
   if (event.at === now) return { state: "current", done: 0 };
@@ -137,6 +156,7 @@ function stateAt(event, now) {
   return { state: done < 1 ? "running" : "past", done };
 }
 
+/** @param {string} action @param {boolean} available */
 const stepButton = (action, available) =>
   html`<button
     ${offeredAction("symbol", `lf-timeline-${action}`, undefined, { action })}
@@ -144,10 +164,12 @@ const stepButton = (action, available) =>
   ></button>`;
 
 /** One retained template for connection, revision, resizing and stepping. */
+/** @param {HTMLElement} host @param {number} current
+ * @param {ReturnType<typeof timelineModel>} model @param {ReturnType<typeof timelineLayout> | null | undefined} layout */
 export function render(host, current, model, layout) {
   current = Math.max(0, Math.min(model.steps.length - 1, current));
   const now = model.steps[current]?.time ?? 0;
-  const along = (ms) => fraction(ms / model.duration);
+  const along = (/** @type {number} */ ms) => fraction(ms / model.duration);
   const position = model.steps.length
     ? `Step ${current + 1} of ${model.steps.length} · ${clock(now)}`
     : "No events";
@@ -182,18 +204,21 @@ export function render(host, current, model, layout) {
           >`,
       )}
       <div class="lf-timeline-ruler">
-        ${repeat(
-          layout?.ticks ?? [],
-          (tick) => `${tick.step}:${tick.time}`,
-          (tick) =>
-            html`<span
-              class="lf-timeline-tick"
-              ?data-major=${tick.major}
-              ?data-flip=${tick.major && (tick.time / model.duration) * layout.span > layout.span - 36}
-              style="--lf-timeline-at: ${along(tick.time)}"
-              >${tick.label ?? nothing}</span
-            >`,
-        )}
+        ${
+          layout &&
+          repeat(
+            layout.ticks,
+            (tick) => `${tick.step}:${tick.time}`,
+            (tick) =>
+              html`<span
+                class="lf-timeline-tick"
+                ?data-major=${tick.major}
+                ?data-flip=${tick.major && (tick.time / model.duration) * layout.span > layout.span - 36}
+                style="--lf-timeline-at: ${along(tick.time)}"
+                >${tick.label ?? nothing}</span
+              >`,
+          )
+        }
       </div>
       <div class="lf-timeline-grid">
         ${repeat(
@@ -268,8 +293,8 @@ export function render(host, current, model, layout) {
               <span class="lf-timeline-step-time lf-row-lead">${clock(step.time)}</span>
               ${step.events.map((event, order) => {
                 // A row names each run once, before the first of its events.
-                const lane = model.lanes[event.lane];
-                const before = model.lanes[step.events[order - 1]?.lane];
+                const lane = event.lane;
+                const before = step.events[order - 1]?.lane;
                 const who =
                   lane.run && lane.run !== before?.run ? lane.name : lane.label;
                 return html`<span class="lf-timeline-step-event lf-row-main"

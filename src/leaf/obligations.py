@@ -24,12 +24,14 @@ answer. The message owns identity and prompt; its thread only locates it. A user
 instead ends explicitly, so discussing the task never claims the work is complete.
 
 A record's `status` is one of four, and this module is their one producer: `open`;
-`answered`, its typed answer in the record; `answered_elsewhere`, a message
-obligation the agent ended `done` because the user answered on another surface, with no
-answer value; and `withdrawn`, an obligation the document no longer makes or a message
-obligation the agent ended `dropped`. A state-answered obligation never takes
-`answered_elsewhere`: an answer given elsewhere goes into the widget's declared
-state in a revision, which records the value itself."""
+`answered`, its typed answer in the record; `answered_elsewhere`, a question an agent
+message asks that the agent ended `done` because the user answered on another surface,
+with no answer value; and `withdrawn`, an obligation the document no longer makes or a
+question an agent message asks that the agent ended `dropped`. A page widget's
+obligation never takes `answered_elsewhere`: an answer given elsewhere goes into the
+widget's declared state in a revision, which records the value itself. No revision
+can write the state of a widget frozen in a message, so the agent ends its question
+as it ends one asked in words (`asked_in_a_message`)."""
 
 import hashlib
 import json
@@ -76,6 +78,17 @@ def encloses(entry: dict) -> bool:
     return bool(entry.get("x-encloses"))
 
 
+def end_question(record: dict, ending: dict) -> None:
+    """Retire a question asked in a thread message that the agent ended with
+    `todo_end`: `done` where the user answered it on another surface, `dropped`
+    where it no longer applies. An end records no answer value."""
+    record["status"] = (
+        "answered_elsewhere" if ending["state"] == "done" else "withdrawn"
+    )
+    record["end"] = {"detail": ending["detail"], "event": event_reference(ending)}
+    record["next_actor"] = None
+
+
 def settle_by_words(record: dict, answer: dict | None, ending: dict | None) -> None:
     """Settle a message obligation from the user's message that answers it and the
     agent's `todo_end` on its id, whichever came first. An end records no answer,
@@ -84,11 +97,7 @@ def settle_by_words(record: dict, answer: dict | None, ending: dict | None) -> N
     if ending is not None and answer is not None and answer["seq"] < ending["seq"]:
         ending = None
     if ending is not None:
-        record["status"] = (
-            "answered_elsewhere" if ending["state"] == "done" else "withdrawn"
-        )
-        record["end"] = {"detail": ending["detail"], "event": event_reference(ending)}
-        record["next_actor"] = None
+        end_question(record, ending)
     elif answer is not None:
         record["status"] = "answered"
         record["answer"] = {
@@ -1062,6 +1071,10 @@ def thread_obligation_readings(
                 None,
             )
             settle_by_words(record, answer, log.ends.get(record["id"]))
+        # No revision can write a frozen widget's state, so an answer in words
+        # retires its question through the agent's end, as for a question in words.
+        elif record["status"] == "open" and (ending := log.ends.get(record["id"])):
+            end_question(record, ending)
         if record["next_actor"] is None:
             continue
         owed = unanswered_agent_turn(thread)
@@ -1085,6 +1098,37 @@ def answered_in_words(record: dict) -> bool:
     """Whether a conversational answer, or agent ending, can settle this source: an
     agent message's obligation."""
     return record["source"]["kind"] == "message"
+
+
+def asked_in_a_message(record: dict) -> bool:
+    """Whether the agent ends this obligation with `todo_end` when the user answers
+    it elsewhere: a question an agent message asks, in words or by a widget frozen
+    in it. A page widget's answer goes into its state in a revision instead."""
+    return (
+        record["source"]["kind"] in {"message", "widget"}
+        and record["message"] is not None
+    )
+
+
+def waiting_in_thread(
+    thread: str, before: int, records: list[dict], threads: dict
+) -> list[dict]:
+    """The agent's questions frozen as widgets in `thread`, asked before seq
+    `before`, that still wait on the user's pick: the user's words there may or may
+    not answer them. Each is its `id` and the words that asked it: the widget's
+    framing heading, else the message holding it."""
+    messages = {message["id"]: message for message in threads[thread]["msgs"]}
+    return [
+        {
+            "id": record["id"],
+            "text": record["prompt"]["text"] or messages[record["message"]]["text"],
+        }
+        for record in records
+        if record["thread"] == thread
+        and record["source"]["kind"] == "widget"
+        and record["status"] == "open"
+        and messages[record["message"]]["seq"] < before
+    ]
 
 
 def user_task_obligations(

@@ -68,6 +68,11 @@ draws its own control as an entry with
 working on it with `presentContributionReceipts(control, receipt, awaitsUser)`, where
 `receipt` is a workflow's `{id, subject, stage, detail}` or `null`.
 
+The returned registration's `hasCurrentLocation()` says whether the user's focus is
+inside any control presenting that contribution, across shadow roots and presentation
+surfaces. Its `contains(node)` answers the same ownership question for an arbitrary
+node. Use the focus query when retaining a focused entry while updating its reading.
+
 ## Visual parts
 
 A visual whose drawn parts carry ids, such as `commit:3f2a`, lets users comment on each
@@ -231,8 +236,14 @@ node holding outlets at another time, such as when its data goes, first calls
 `releaseOutlets(node)`, before any `holdFocus`. If `threadOutlets` throws, Leaf returns
 the widget's threads to the margin until the next pass.
 
-`threadSurface(this).open(datum)` opens the comment box on one of the widget's data
-items, in its outlet; Leaf keeps the draft and the sending.
+`threadSurface(this).open` is the reactive opener for the comment box on one of the
+widget's data items, or `null` while no surface is registered. Read it while rendering
+and offer comment controls only when it exists; call it with the datum to open its
+outlet. Leaf keeps the draft and the sending. Registration can follow the widget's
+first drawing, and departure retires the opener until the widget returns.
+
+`threadSurface` and `releaseOutlets` also load through `portable-api.js`. Without a
+registered Leaf surface, there is nothing to update or release, and `open` is `null`.
 
 ### Page annotation presentation
 

@@ -15,6 +15,7 @@ import {
 import { shrunkLabelReading } from "./words.js";
 import { scrollbarClearance } from "./scrollbars.js";
 
+/** @param {string[]} open */
 export function readViewChecks(open) {
   return {
     layout: {

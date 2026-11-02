@@ -18,6 +18,18 @@ import { coarsePointer } from "./pointer.js";
 import { LAYOUT } from "./widget-upgrade.js";
 import { keepsText } from "./keeps.js";
 
+/** @typedef {ReturnType<typeof import("./design.js").createDesignMode>} DesignMode */
+/** @param {{refreshAnchorHover?: (() => unknown) | undefined,
+ * aim: {isOn: ReturnType<typeof import("./composing/aim.js").createAim>["aimIsOn"],
+ * target: ReturnType<typeof import("./composing/aim.js").createAim>["aimedTarget"]},
+ * pointer: typeof import("./pointer.js").pointerAt,
+ * designMode: Pick<DesignMode, "active" | "target" | "inspectElement" | "name">,
+ * targetPaint: typeof import("./target-paint.js"),
+ * visualMarkPaint: ReturnType<typeof import("./annotation-overlay/visual-mark-paint.js").createVisualMarkPaint> | null | undefined,
+ * shiftDrawings: () => unknown, queueLegend: DesignMode["queueLegend"],
+ * legendScrolled: DesignMode["legendScrolled"],
+ * activeActionAnchor: () => import("../types/domain.js").Anchor | null,
+ * refreshActionBar: () => unknown}} dependencies */
 export function createPageGeometry({
   refreshAnchorHover,
   aim,
@@ -32,8 +44,8 @@ export function createPageGeometry({
   refreshActionBar,
 }) {
   let actionFrame = 0;
-  let mounted = false;
-  let stopScrolls = null;
+  /** @type {ReturnType<typeof watchScrolls> | null} */
+  let mounted = null;
 
   function aimTarget() {
     if (aim.isOn()) return aim.target();
@@ -51,7 +63,7 @@ export function createPageGeometry({
     const target = aimTarget();
     const aimed = target?.element ?? null;
     document.body.classList.toggle("lf-over-item", Boolean(aimed));
-    const shown = aimed && targetPaint.paintAim(aimed, target.surface);
+    const shown = target && targetPaint.paintAim(target.element, target.surface);
     if (!shown) {
       targetPaint.clearAim();
       paintInspect(null);
@@ -62,6 +74,7 @@ export function createPageGeometry({
 
   // The design name stands at the aim box's corner, in its planes (target-paint.js,
   // `labelAim`).
+  /** @param {ReturnType<typeof aimTarget>} target */
   function paintInspect(target) {
     const inspect = designMode.inspectElement;
     inspect.classList.toggle("lf-shown", Boolean(target));
@@ -111,18 +124,17 @@ export function createPageGeometry({
 
   function mount() {
     if (mounted) return;
-    mounted = true;
     // Scroll does not bubble: one door hears the root, nested page scrollers such as
     // boards and code blocks, and scrollers inside a widget's shadow stage.
-    stopScrolls = watchScrolls(pageScrolled);
+    mounted = watchScrolls(pageScrolled);
     document.addEventListener(LAYOUT, pageShifted);
     addEventListener("resize", onResize, { passive: true });
   }
 
   function destroy() {
     if (!mounted) return;
-    mounted = false;
-    stopScrolls();
+    mounted();
+    mounted = null;
     document.removeEventListener(LAYOUT, pageShifted);
     globalThis.removeEventListener("resize", onResize);
     if (actionFrame) cancelRender(actionFrame);

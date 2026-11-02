@@ -20,6 +20,7 @@ from render_cases_navigation import (
 )
 from render_harness import (
     RELEASE_FOCUS,
+    close_panel_menu,
     compare_with,
     draft_control,
     leaf_page,
@@ -169,7 +170,7 @@ def test_user_overrides_identify_state_that_differs_from_authored_inputs(
     expect(
         panel_menu(page, "versions").locator('.lf-fp-compare[aria-pressed="true"]')
     ).to_have_count(1)
-    page.locator(".lf-fp-leaf").click()
+    close_panel_menu(page)
     assert not page.evaluate(
         "document.getElementById('card-x').classList.contains('lf-ins-block')"
     ), "the user's own honored drag marked as a change"
@@ -314,8 +315,10 @@ def test_the_diff_marks_what_the_author_changed_and_no_word_a_script_wrote(
     The author rewrote the readout's placeholder too, so it is marked. On the fresh
     load the words it shows are the script's, so it offers no inline diff, which would
     paint the source's words over the script's, while the rewritten closing paragraph
-    offers one. A paragraph holding a gloss is one block, so rewording the words around
-    the gloss marks it; a paragraph the script swapped for a copy is found by its id."""
+    offers one, through the change it ends: the three reworded paragraphs stand
+    together, so they are one change with one margin entry. A paragraph holding a gloss
+    is one block, so rewording the words around the gloss marks it; a paragraph the
+    script swapped for a copy is found by its id."""
     source = SCRIPTED[script]
     url = live_url(serve(source))
     page = open_page(browser, url)
@@ -360,7 +363,11 @@ def test_the_diff_marks_what_the_author_changed_and_no_word_a_script_wrote(
         )
 
     expect(fresh.locator("#readout")).to_have_text("42 items counted by the script.")
-    expect(change("outro")).to_have_attribute("aria-expanded", "false")
+    expect(change("glossed")).to_have_attribute("aria-expanded", "false")
+    expect(change("glossed")).to_have_attribute(
+        "aria-controls", re.compile(r"\blf-version-inline-outro\b")
+    )
+    expect(change("outro")).to_have_count(0)
     expect(change("readout")).not_to_have_attribute("aria-expanded", re.compile(".*"))
 
 
@@ -430,15 +437,15 @@ def test_a_comparison_reads_nothing_from_a_server_running_another_runtime(
     page.route("**/api/view*", another_runtime)
     page.route("**/registry.json", source)
     compare_with(page)
-    # Compare starts an asynchronous read. Wait for its refusal before opening the
-    # menu, whose rows deliberately stay as they were when it opened.
+    # Compare starts an asynchronous read. Wait for its refusal, which Errors lists.
     expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
         "placeholder", re.compile("Couldn't load v1")
     )
-    menu = panel_menu(page)
-    menu.locator('.lf-fp-item[data-row="errors"]').click()
+    panel_menu(page).locator('.lf-fp-item[data-row="errors"]').click()
     expect(
-        menu.locator(".lf-fp-error-words b").filter(has_text="Couldn't load v1")
+        page.locator(panel_view("errors"))
+        .locator(".lf-fp-error-words b")
+        .filter(has_text="Couldn't load v1")
     ).to_have_count(1)
     expect(page.locator("main .lf-ins-block")).to_have_count(0)
     assert asked, "the refused reading asked no source whether it moved"

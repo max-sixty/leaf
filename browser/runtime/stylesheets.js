@@ -7,12 +7,14 @@
    request and no await. A CSS module import read the same way and WebKit has none; a
    fetch awaited here would work everywhere and make every page module that imports the
    widget API evaluate after DOMContentLoaded instead. */
-const sheets = JSON.parse(
-  document.querySelector(
-    'script[type="application/json"][data-lf-runtime][data-lf-sheets]',
-  ).textContent,
+const delivery = document.querySelector(
+  'script[type="application/json"][data-lf-runtime][data-lf-sheets]',
 );
+if (!delivery) throw new Error("The document has no runtime stylesheets");
+/** @type {{chrome: string, marks: string, annotations?: {chrome: string, marks: string}}} */
+const sheets = JSON.parse(delivery.textContent);
 
+/** @param {string} text */
 function constructSheet(text) {
   const sheet = new CSSStyleSheet();
   sheet.replaceSync(text);
@@ -29,12 +31,10 @@ export const chromeSheet = constructSheet(sheets.chrome);
 // (test_a_coined_class_cannot_reach_the_chromes_rules) holds the sheet to it both ways.
 export const chromeSharedClasses = Object.freeze([
   "lf-aiming",
-  "lf-ins-block",
   "lf-over-item",
   "lf-react-mark",
   "lf-mark-note",
   "lf-ui",
-  "lf-version-inline",
   "lf-version-inline-deletion",
   "lf-visual-action",
 ]);

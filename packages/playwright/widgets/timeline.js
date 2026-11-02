@@ -36,6 +36,19 @@ import {
   textWidth as measure,
 } from "/runtime/widget-api.js";
 
+/** @typedef {{id: string, label: string, title: string, current: boolean}} NamedMark */
+/** @typedef {NamedMark & {start: number, end: number, active: boolean}} CallMark */
+/** @typedef {CallMark & ({send: number} | {send: null})} InputMark */
+/** @typedef {CallMark & {error: boolean}} OtherCallMark */
+/** @typedef {{id: string, number: number, time: number, title: string, current: boolean}} MomentMark */
+/** @typedef {{id: string, time: number, image: boolean, current: boolean}} CaptureMark */
+/** @typedef {{signature: string, duration: number, time: number, moments: MomentMark[], inputs: InputMark[], calls: OtherCallMark[], captures: CaptureMark[]}} TimelineModel */
+/** @typedef {NamedMark & {at: number}} LabelItem */
+/** @typedef {{x: number, items: [LabelItem, ...LabelItem[]], from: number, to: number, compact: boolean, text: string, width: number, flip: boolean, spread: boolean}} LabelCluster */
+/** @typedef {{onSeek: (time: number, final: boolean) => void, onPick: (lane: "input" | "moments" | "calls", id: string, time: number) => void, onUserPan?: () => void, onZoom?: () => void, quoted: boolean}} TimelineOptions */
+/** @typedef {{zoom: number, start: number}} TimelineView */
+/** @typedef {{target: Element, clientX: number}} MarkPoint */
+
 const LABEL_GAP = 6;
 const LABEL_CHROME = 12;
 const TICK_SPACING = 84;
@@ -43,6 +56,7 @@ const EDGE = 12;
 const CLUSTER_WIDTH = 168;
 
 // Style writes the page did not change are still mutations; skip them.
+/** @param {HTMLElement | null} node @param {string} name @param {string} value */
 function keepVar(node, name, value) {
   if (node && node.style.getPropertyValue(name) !== value)
     node.style.setProperty(name, value);
@@ -51,11 +65,19 @@ function keepVar(node, name, value) {
 export class RecordingTimeline {
   #host;
   #options;
+  /** @type {TimelineModel | null} */
   #model = null;
+  get #recording() {
+    if (!this.#model) throw new Error("Recording timeline has no model");
+    return this.#model;
+  }
   #zoom = 1;
   #time = 0;
+  /** @type {number | null} */
   #scrubbing = null;
+  /** @type {MarkPoint | null} */
   #touched = null;
+  /** @type {number | null} */
   #expectedScroll = null;
   #queueRuler;
   #queueOverview;
@@ -64,9 +86,12 @@ export class RecordingTimeline {
   // The time at the window's left edge. Width changes rescale the track; this
   // time, not the pixel offset, is the reader's place.
   #start = 0;
+  /** @type {{input: LabelCluster[], moments: LabelCluster[]}} */
   #labels = { input: [], moments: [] };
   #callRows = 1;
+  /** @type {Map<string, number>} */
   #callRowOf = new Map();
+  /** @type {Element | null} */
   #tipAnchor = null;
 
   /**
@@ -74,6 +99,7 @@ export class RecordingTimeline {
    * id, time)`, `onUserPan()`, `onZoom()`, and `quoted` (a frozen copy takes no
    * input).
    */
+  /** @param {HTMLElement} host @param {TimelineOptions} options */
   constructor(host, options) {
     this.#host = host;
     this.#options = options;
@@ -87,8 +113,17 @@ export class RecordingTimeline {
     });
   }
 
+  /** @param {string} selector @returns {HTMLElement | null} */
+  #part(selector) {
+    return this.#host.querySelector(selector);
+  }
   get scroller() {
-    return this.#host.querySelector(".lf-trace-scroller");
+    return this.#part(".lf-trace-scroller");
+  }
+  get #drawnScroller() {
+    const scroller = this.scroller;
+    if (!scroller) throw new Error("Recording timeline did not draw its scroller");
+    return scroller;
   }
 
   get zoom() {
@@ -107,12 +142,14 @@ export class RecordingTimeline {
     return { zoom: this.#zoom, start: this.#start };
   }
 
+  /** @param {TimelineView | null} view */
   set view(view) {
     this.#zoom = view?.zoom ?? 1;
     this.#applyZoom();
     if (view) this.#scrollTo(this.#timeToPx(view.start));
   }
 
+  /** @param {TimelineModel} model */
   update(model) {
     const changed = model.signature !== this.#model?.signature;
     this.#model = model;
@@ -128,25 +165,27 @@ export class RecordingTimeline {
       this.#zoom = Math.min(this.#zoom, this.#maxZoom());
     }
     // Labels carry each mark's selection state, so they follow every update.
-    if (!this.#host.querySelector(".lf-trace-track")) this.#draw();
+    if (!this.#part(".lf-trace-track")) this.#draw();
     this.#layoutLabels();
     if (changed) this.#observeScroller();
     this.setTime(model.time);
   }
 
+  /** @param {number} time */
   setTime(time) {
     this.#time = time;
-    const track = this.#host.querySelector(".lf-trace-track");
+    const track = this.#part(".lf-trace-track");
     if (!track || !this.#model) return;
     keepVar(track, "--lf-trace-time", String(this.#fraction(time)));
     keepVar(
-      this.#host.querySelector(".lf-trace-overview"),
+      this.#part(".lf-trace-overview"),
       "--lf-trace-time",
       String(this.#fraction(time)),
     );
   }
 
   /** Bring `time` into view: `center` for navigation, `page` for playback. */
+  /** @param {number} time @param {string} [mode] */
   reveal(time, mode = "center") {
     const scroller = this.scroller;
     if (!scroller || this.#zoom === 1) return;
@@ -159,6 +198,7 @@ export class RecordingTimeline {
       this.#scrollTo(x - width / 2);
   }
 
+  /** @param {number} factor @param {number | null} [anchor] @param {[number, number] | null} [fit] */
   zoomBy(factor, anchor = null, fit = null) {
     const scroller = this.scroller;
     if (!scroller) return;
@@ -168,7 +208,7 @@ export class RecordingTimeline {
       const range = Math.max(10, to - from);
       this.#zoom = Math.max(
         1,
-        Math.min(this.#maxZoom(), (this.#model.duration * 0.6) / range),
+        Math.min(this.#maxZoom(), (this.#recording.duration * 0.6) / range),
       );
       this.#applyZoom();
       this.#scrollTo(this.#timeToPx((from + to) / 2) - scroller.clientWidth / 2);
@@ -217,31 +257,36 @@ export class RecordingTimeline {
   #span() {
     return Math.max(1, this.#trackWidth() - 2 * EDGE);
   }
+  /** @param {number} time */
   #fraction(time) {
-    return Math.max(0, Math.min(1, time / Math.max(1, this.#model.duration)));
+    return Math.max(0, Math.min(1, time / Math.max(1, this.#recording.duration)));
   }
+  /** @param {number} time */
   #timeToPx(time) {
     return EDGE + this.#fraction(time) * this.#span();
   }
+  /** @param {number} px */
   #pxToTime(px) {
     return Math.max(
       0,
       Math.min(
-        this.#model.duration,
-        ((px - EDGE) / this.#span()) * this.#model.duration,
+        this.#recording.duration,
+        ((px - EDGE) / this.#span()) * this.#recording.duration,
       ),
     );
   }
   #pxPerMs() {
-    return this.#span() / Math.max(1, this.#model.duration);
+    return this.#span() / Math.max(1, this.#recording.duration);
   }
+  /** @param {number} time */
   #visible(time) {
-    const scroller = this.scroller;
+    const scroller = this.#drawnScroller;
     const x = this.#timeToPx(time) - scroller.scrollLeft;
     return x >= 0 && x <= scroller.clientWidth;
   }
+  /** @param {number} left */
   #scrollTo(left) {
-    const scroller = this.scroller;
+    const scroller = this.#drawnScroller;
     const max = scroller.scrollWidth - scroller.clientWidth;
     const target = Math.round(Math.max(0, Math.min(max, left)));
     this.#start = this.#pxToTime(target);
@@ -250,7 +295,7 @@ export class RecordingTimeline {
     setScroll(scroller, { left: target });
   }
   #applyZoom() {
-    const track = this.#host.querySelector(".lf-trace-track");
+    const track = this.#part(".lf-trace-track");
     if (!track) return;
     keepVar(track, "--lf-trace-zoom", String(this.#zoom));
     this.#layoutLabels();
@@ -277,8 +322,8 @@ export class RecordingTimeline {
   // the calls' keeps one row, so a label never changes a lane's height.
   #layoutLabels() {
     if (!this.#model) return;
-    const track = this.#host.querySelector(".lf-trace-track");
-    if (!track || !this.scroller.clientWidth) return this.#draw();
+    const track = this.#part(".lf-trace-track");
+    if (!track || !this.scroller?.clientWidth) return this.#draw();
     // Labels are set in the track's family at the labels' weight; their box adds
     // padding, a border and the 2px staff.
     const style = getComputedStyle(track);
@@ -288,6 +333,7 @@ export class RecordingTimeline {
     // first and lists them in time order; each keeps its own mark.
     const end = this.#span();
     // A crowded label lists its first mark and a count of the rest.
+    /** @param {LabelCluster} current @param {boolean} [compact] */
     const fit = (current, compact = false) => {
       const full = current.items.map((item) => item.label).join(" ");
       current.compact =
@@ -297,16 +343,32 @@ export class RecordingTimeline {
         : full;
       current.width = measure(current.text, font) + LABEL_CHROME;
       current.flip = current.x + current.width > end;
-      current.spread = current.items.at(-1).at > current.items[0].at;
+      current.spread = current.to > current.from;
     };
+    /** @param {LabelItem[]} items */
     const cluster = (items) => {
+      /** @type {LabelCluster[]} */
       const clusters = [];
       for (const item of items) {
         const x = item.at * pxPerMs;
         let current = clusters.at(-1);
-        if (current && x < current.x + current.width + LABEL_GAP)
+        if (current && x < current.x + current.width + LABEL_GAP) {
           current.items.push(item);
-        else clusters.push((current = { x, items: [item] }));
+          current.to = item.at;
+        } else
+          clusters.push(
+            (current = {
+              x,
+              items: [item],
+              from: item.at,
+              to: item.at,
+              compact: false,
+              text: "",
+              width: 0,
+              flip: false,
+              spread: false,
+            }),
+          );
         fit(current);
       }
       // A label that would run past the end of the time scale points back:
@@ -314,8 +376,8 @@ export class RecordingTimeline {
       // would then meet its neighbour joins that neighbour's label instead.
       // A label near the end first shortens to its first mark and a count.
       clusters.forEach((current) => fit(current));
-      for (let index = clusters.length - 1; index >= 0; index--) {
-        const current = clusters[index];
+      for (const current of [...clusters].reverse()) {
+        const index = clusters.indexOf(current);
         if (current.flip && current.items.length > 1) {
           const full = current.width;
           fit(current, true);
@@ -326,6 +388,7 @@ export class RecordingTimeline {
         const previousEnd = previous.flip ? previous.x : previous.x + previous.width;
         if (current.x - current.width >= previousEnd + LABEL_GAP) continue;
         previous.items.push(...current.items);
+        previous.to = current.to;
         clusters.splice(index, 1);
         fit(previous);
       }
@@ -342,8 +405,8 @@ export class RecordingTimeline {
     this.#draw();
   }
   // A label may run until the next label in its lane begins.
-  #labelRoom(clusters, index) {
-    const cluster = clusters[index];
+  /** @param {LabelCluster[]} clusters @param {number} index @param {LabelCluster} cluster */
+  #labelRoom(clusters, index, cluster) {
     if (cluster.flip) {
       const previous = clusters[index - 1];
       if (!previous) return "none";
@@ -356,8 +419,9 @@ export class RecordingTimeline {
     return layoutPx(Math.max(12, nextStart - cluster.x - LABEL_GAP));
   }
   // Each name in a label is its own mark's target; a count zooms to its marks.
+  /** @param {LabelCluster} cluster @param {string} lane */
   #labelWords(cluster, lane) {
-    const word = (item) =>
+    const word = (/** @type {LabelItem} */ item) =>
       html`<span
         class="lf-trace-word"
         data-word=${item.id}
@@ -387,8 +451,8 @@ export class RecordingTimeline {
   #draw() {
     const model = this.#model;
     if (!model) return;
-    const fraction = (time) => String(this.#fraction(time));
-    const length = (start, end) =>
+    const fraction = (/** @type {number} */ time) => String(this.#fraction(time));
+    const length = (/** @type {number} */ start, /** @type {number | null} */ end) =>
       String(Math.max(0, this.#fraction(end ?? start) - this.#fraction(start)));
     const quoted = this.#options.quoted;
     const lanes = [
@@ -429,7 +493,7 @@ export class RecordingTimeline {
         <div
           class="lf-trace-scroller scroll"
           @scroll=${() => this.#scrolled()}
-          @wheel=${(event) => this.#wheel(event)}
+          @wheel=${(/** @type {WheelEvent} */ event) => this.#wheel(event)}
         >
           ${keyed(
             // A different recording, scope or time scale is a new drawing: its
@@ -438,13 +502,13 @@ export class RecordingTimeline {
             html`<div
               class="lf-trace-track"
               @touchstart=${{
-                handleEvent: (event) => this.#landed(event),
+                handleEvent: (/** @type {TouchEvent} */ event) => this.#landed(event),
                 passive: true,
               }}
-              @pointerdown=${(event) => this.#press(event)}
-              @click=${(event) => this.#tap(event)}
-              @pointerover=${(event) => this.#hover(event)}
-              @pointerout=${(event) => this.#hover(event, true)}
+              @pointerdown=${(/** @type {PointerEvent} */ event) => this.#press(event)}
+              @click=${(/** @type {PointerEvent} */ event) => this.#tap(event)}
+              @pointerover=${(/** @type {PointerEvent} */ event) => this.#hover(event)}
+              @pointerout=${(/** @type {PointerEvent} */ event) => this.#hover(event, true)}
             >
               <div class="lf-trace-ruler"></div>
               ${
@@ -463,6 +527,7 @@ export class RecordingTimeline {
                             style="--t: ${fraction(cluster.items[0].at)}; max-inline-size: ${this.#labelRoom(
                               this.#labels.moments,
                               index,
+                              cluster,
                             )}"
                             ><span class="lf-trace-moment-flag"
                               >${this.#labelWords(cluster, "moments")}</span
@@ -487,6 +552,7 @@ export class RecordingTimeline {
                             style="--t: ${fraction(cluster.items[0].at)}; max-inline-size: ${this.#labelRoom(
                               this.#labels.input,
                               index,
+                              cluster,
                             )}"
                             >${this.#labelWords(cluster, "input")}</span
                           >`,
@@ -577,7 +643,7 @@ export class RecordingTimeline {
         <div
           class="lf-trace-overview"
           title="Whole recording; drag to move the zoomed window"
-          @pointerdown=${(event) => this.#overviewPress(event)}
+          @pointerdown=${(/** @type {PointerEvent} */ event) => this.#overviewPress(event)}
         >
           <span class="lf-trace-overview-window"></span>
           <span class="lf-trace-overview-time"></span>
@@ -585,7 +651,7 @@ export class RecordingTimeline {
         <div class="lf-trace-tip" role="tooltip" hidden></div>`,
       this.#host,
     );
-    const track = this.#host.querySelector(".lf-trace-track");
+    const track = this.#part(".lf-trace-track");
     keepVar(track, "--lf-trace-zoom", String(this.#zoom));
     keepVar(track, "--lf-trace-edge", `${EDGE}px`);
     keepVar(track, "--lf-trace-time", String(this.#fraction(this.#time)));
@@ -598,7 +664,7 @@ export class RecordingTimeline {
   // overview's end and scrolled the page under the user's press.
   #drawOverview() {
     const scroller = this.scroller;
-    const overview = this.#host.querySelector(".lf-trace-overview");
+    const overview = this.#part(".lf-trace-overview");
     if (!scroller?.scrollWidth || !overview) return;
     const { scrollLeft, scrollWidth, clientWidth } = scroller;
     keepVar(overview, "--lf-trace-window-start", String(scrollLeft / scrollWidth));
@@ -606,14 +672,16 @@ export class RecordingTimeline {
     keeps(overview, "data-zoomed", this.#zoom > 1 ? "" : null);
   }
 
+  /** @param {PointerEvent} event */
   #overviewPress(event) {
     if (event.button !== 0 || this.#zoom === 1) return;
     event.preventDefault();
     const overview = event.currentTarget;
+    if (!(overview instanceof HTMLElement)) return;
     overview.setPointerCapture(event.pointerId);
-    const pan = (moved) => {
+    const pan = (/** @type {PointerEvent} */ moved) => {
       const box = overview.getBoundingClientRect();
-      const scroller = this.scroller;
+      const scroller = this.#drawnScroller;
       const fraction = (moved.clientX - box.left) / box.width;
       this.#options.onUserPan?.();
       this.#scrollTo(fraction * scroller.scrollWidth - scroller.clientWidth / 2);
@@ -633,14 +701,14 @@ export class RecordingTimeline {
   // The ruler draws only ticks near the visible window, so deep zoom stays cheap.
   #drawRuler() {
     this.#queueOverview();
-    const ruler = this.#host.querySelector(".lf-trace-ruler");
+    const ruler = this.#part(".lf-trace-ruler");
     const scroller = this.scroller;
     if (!ruler || !scroller?.clientWidth || !this.#model) return;
     const pxPerMs = this.#pxPerMs();
     const ticks = axisTicks(
       this.#pxToTime(scroller.scrollLeft - TICK_SPACING),
       this.#pxToTime(scroller.scrollLeft + scroller.clientWidth + TICK_SPACING),
-      this.#model.duration,
+      this.#recording.duration,
       pxPerMs,
     );
     render(
@@ -650,7 +718,7 @@ export class RecordingTimeline {
         (tick) =>
           html`<span
             class="lf-trace-tick ${tick.major ? "lf-trace-tick-major" : ""}"
-            ?data-flip=${tick.major && (this.#model.duration - tick.time) * pxPerMs < 44}
+            ?data-flip=${tick.major && (this.#recording.duration - tick.time) * pxPerMs < 44}
             style="--t: ${this.#fraction(tick.time)}"
             >${tick.label ?? nothing}</span
           >`,
@@ -662,7 +730,7 @@ export class RecordingTimeline {
   // Gestures -------------------------------------------------------------------------
 
   #scrolled() {
-    const scroller = this.scroller;
+    const scroller = this.#drawnScroller;
     // A clamp from a width change waits for the resize to restore the place.
     if (scroller.clientWidth !== this.#width) return;
     if (this.#expectedScroll !== null) {
@@ -678,11 +746,12 @@ export class RecordingTimeline {
     this.#queueRuler();
   }
 
+  /** @param {WheelEvent} event */
   #wheel(event) {
     // Pinch arrives as Ctrl+wheel; Cmd+wheel is the macOS mouse equivalent.
     if (!(event.ctrlKey || event.metaKey) || this.#options.quoted) return;
     event.preventDefault();
-    const scroller = this.scroller;
+    const scroller = this.#drawnScroller;
     const x =
       event.clientX - scroller.getBoundingClientRect().left + scroller.scrollLeft;
     this.zoomBy(Math.exp(-event.deltaY / 200), this.#pxToTime(x));
@@ -691,14 +760,21 @@ export class RecordingTimeline {
   }
 
   // Zoom until neighbouring marks stand at least a label apart, then center them.
-  #separate(items) {
-    const scroller = this.scroller;
-    const gaps = items.slice(1).map((item, index) => item.at - items[index].at);
+  /** @param {LabelCluster} cluster */
+  #separate(cluster) {
+    const { items, from, to } = cluster;
+    const scroller = this.#drawnScroller;
+    let previous = from;
+    const gaps = items.slice(1).map((item) => {
+      const gap = item.at - previous;
+      previous = item.at;
+      return gap;
+    });
     const gap = Math.max(1, Math.min(...gaps.filter((value) => value > 0)));
-    const perMs = this.#span() / this.#zoom / Math.max(1, this.#model.duration);
+    const perMs = this.#span() / this.#zoom / Math.max(1, this.#recording.duration);
     // Enough to set them a label apart, but never so far that the cluster no
     // longer fits the window; a second press zooms further.
-    const range = Math.max(1, items.at(-1).at - items[0].at);
+    const range = Math.max(1, to - from);
     const whole = (0.8 * scroller.clientWidth) / (range * perMs);
     const apart = 48 / (gap * perMs);
     this.#zoom = Math.max(
@@ -709,13 +785,14 @@ export class RecordingTimeline {
       ),
     );
     this.#applyZoom();
-    const middle = (items[0].at + items.at(-1).at) / 2;
+    const middle = (from + to) / 2;
     this.#scrollTo(this.#timeToPx(middle) - scroller.clientWidth / 2);
   }
 
   // Chrome adjusts a tap's target, and its pointer and click events, toward a
   // nearby larger target such as the label above a thin bar. The touch point is
   // where the finger landed, so the tap acts on the element under it.
+  /** @param {TouchEvent} event */
   #landed(event) {
     const touch = event.touches[0];
     if (!touch || event.touches.length > 1) return (this.#touched = null);
@@ -724,33 +801,42 @@ export class RecordingTimeline {
       target && this.#host.contains(target) ? { target, clientX: touch.clientX } : null;
   }
 
+  /** @param {{clientX: number}} event */
   #eventTime(event) {
-    const scroller = this.scroller;
+    const scroller = this.#drawnScroller;
     return this.#pxToTime(
       event.clientX - scroller.getBoundingClientRect().left + scroller.scrollLeft,
     );
   }
 
+  /** @param {PointerEvent} event */
   #press(event) {
     if (this.#options.quoted || event.button !== 0) return;
-    const handle = event.target.closest(".lf-trace-playhead-handle");
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const handle = target.closest(".lf-trace-playhead-handle");
     // A finger pans the track natively; only the handle scrubs under touch.
     // Chrome adjusts a tap's click toward a nearby larger target, so the tap
     // keeps the element its finger landed on.
     if (event.pointerType === "touch" && !handle) return;
-    if (!handle && (event.target.closest("[data-pick]") || this.#nearMark(event)))
+    if (
+      !handle &&
+      (target.closest("[data-pick]") ||
+        this.#nearMark({ target, clientX: event.clientX }))
+    )
       return;
     event.preventDefault();
     const track = event.currentTarget;
+    if (!(track instanceof HTMLElement)) return;
     track.setPointerCapture(event.pointerId);
     this.#scrubbing = event.pointerId;
     this.#hideTip();
     this.#options.onSeek(this.#eventTime(event), false);
-    const move = (moved) => {
+    const move = (/** @type {PointerEvent} */ moved) => {
       if (moved.pointerId === this.#scrubbing)
         this.#options.onSeek(this.#eventTime(moved), false);
     };
-    const end = (ended) => {
+    const end = (/** @type {PointerEvent} */ ended) => {
       if (ended.pointerId !== this.#scrubbing) return;
       this.#scrubbing = null;
       track.removeEventListener("pointermove", move);
@@ -763,28 +849,32 @@ export class RecordingTimeline {
     track.addEventListener("pointercancel", end);
   }
 
+  /** @param {PointerEvent} event */
   #tap(event) {
     if (this.#options.quoted) return;
     const touched = event.pointerType === "touch" ? this.#touched : null;
     this.#touched = null;
     const target = touched?.target ?? event.target;
+    if (!(target instanceof Element)) return;
     const at = touched ?? { target, clientX: event.clientX };
     const time = this.#eventTime(at);
     const pick = target.closest("[data-pick]") ?? this.#nearMark(at);
     if (pick) {
-      const cluster =
-        pick.dataset.cluster === undefined
-          ? null
-          : this.#labels[pick.dataset.pick][Number(pick.dataset.cluster)];
+      const lane = pick.getAttribute("data-pick");
+      if (lane !== "input" && lane !== "moments" && lane !== "calls") return;
+      const labels = lane === "calls" ? null : this.#labels[lane];
+      const index = pick.getAttribute("data-cluster");
+      const cluster = index === null ? null : labels?.[Number(index)];
       if (cluster && target.closest("[data-more]") && cluster.spread) {
-        this.#separate(cluster.items);
+        this.#separate(cluster);
         this.#options.onUserPan?.();
         this.#options.onZoom?.();
         return;
       }
-      // A name in a shared label is its own mark; elsewhere the label is its first.
-      const id = target.closest("[data-word]")?.dataset.word ?? pick.dataset.id;
-      this.#options.onPick(pick.dataset.pick, id, time);
+      const id =
+        target.closest("[data-word]")?.getAttribute("data-word") ??
+        pick.getAttribute("data-id");
+      if (id !== null) this.#options.onPick(lane, id, time);
       return;
     }
     // A mouse press already scrubbed; a tap seeks once.
@@ -793,8 +883,9 @@ export class RecordingTimeline {
   }
 
   // A press beside a thin mark in its lane still takes that mark.
+  /** @param {MarkPoint} event */
   #nearMark(event) {
-    const lane = event.target.closest?.(".lf-trace-lane-input, .lf-trace-lane-calls");
+    const lane = event.target.closest(".lf-trace-lane-input, .lf-trace-lane-calls");
     if (!lane) return null;
     let best = null;
     let distance = 8;
@@ -806,15 +897,22 @@ export class RecordingTimeline {
     return best;
   }
 
+  /** @param {PointerEvent} event @param {boolean} [leaving] */
   #hover(event, leaving = false) {
-    const pick = event.target.closest?.("[data-tip]");
-    if (leaving || !pick || this.#scrubbing !== null) {
-      if (!leaving || !pick?.contains(event.relatedTarget)) this.#hideTip();
+    const target = event.target;
+    const pick = target instanceof Element ? target.closest("[data-tip]") : null;
+    const text = pick?.getAttribute("data-tip");
+    if (leaving || !pick || text == null || this.#scrubbing !== null) {
+      if (
+        !leaving ||
+        !(event.relatedTarget instanceof Node && pick?.contains(event.relatedTarget))
+      )
+        this.#hideTip();
       return;
     }
-    const tip = this.#host.querySelector(".lf-trace-tip");
+    const tip = this.#part(".lf-trace-tip");
     // A time keeps its unit on its line.
-    keepsText(tip, pick.dataset.tip.replace(/(\d) s\b/g, "$1\u00a0s"));
+    keepsText(tip, text.replace(/(\d) s\b/g, "$1\u00a0s"));
     if (this.#tipAnchor !== pick) {
       if (this.#tipAnchor) keeps(this.#tipAnchor, "data-lf-trace-tip-anchor", null);
       this.#tipAnchor = pick;
@@ -825,7 +923,7 @@ export class RecordingTimeline {
   #hideTip() {
     if (this.#tipAnchor) keeps(this.#tipAnchor, "data-lf-trace-tip-anchor", null);
     this.#tipAnchor = null;
-    const tip = this.#host.querySelector(".lf-trace-tip");
+    const tip = this.#part(".lf-trace-tip");
     if (tip) keepsHidden(tip, true);
   }
 }

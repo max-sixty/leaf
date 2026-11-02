@@ -27,11 +27,10 @@
  * that reached
  * them, as it does for every vendored bundle.
  */
-import { readFileSync } from "node:fs";
 import { cp, mkdtemp, readFile, readdir, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { build } from "../esbuild.mjs";
 import { contractTypes, protocolSchemas } from "./contract-types.mjs";
@@ -39,7 +38,7 @@ import { baselineSchemas, protocolBreaks } from "./protocol.mjs";
 import { litNamespace, litPath } from "../lit.mjs";
 import { styleOutputs } from "../styles.mjs";
 import { kernelOutputs } from "../runtime-bundle.mjs";
-import { adapt, seam, vendorOutputs } from "../vendor.mjs";
+import { adapt, seam, vendorOutputs, vendorTypePaths } from "../vendor.mjs";
 import { bundledPackages, checkModule, licenseNotices } from "./shipped.mjs";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
@@ -73,6 +72,12 @@ export async function compilerPaths(directory = root) {
   const paths = {
     [`/${litPath}`]: ["./lit.d.ts"],
     [`/${signalsPath}`]: ["./signals-core.d.ts"],
+    ...Object.fromEntries(
+      Object.entries(await vendorTypePaths()).map(([name, entries]) => [
+        name,
+        entries.map((entry) => path.relative(path.join(root, typeRoot), entry)),
+      ]),
+    ),
     ...Object.fromEntries(
       ["vendor", "widgets"].map((kind) => [
         `/${kind}/*`,
@@ -193,34 +198,7 @@ async function protocolOutputs() {
   };
 }
 
-// Two programs type-check the browser code, and each file has one checker.
-// `tsconfig.json` holds the runtime modules that opt in with a leading `// @ts-check`
-// to strict mode; it includes every runtime module so that each one opting in is
-// checked there. Every framework module must opt in (`checkRuntimeModules`).
-// `tsconfig.runtime.json` checks without it the rest of the runtime's modules,
-// `leaf.js`, the kernel's and packages' widget modules, and the render checks pages
-// import from `/checks/`. The `paths` both share
-// resolve the rooted paths a page serves, a package's `vendor/` and `widgets/` among
-// them, and map the framework's bundles, `/vendor/lit.js` and `/vendor/signals-core.js`,
-// to declarations of the packages they bundle, so no declaration file ships in the
-// layer. A relative path to one reaches the minified bundle, which carries no types.
-// `runtime-globals.d.ts` declares what the classic scripts hang on `<html>` and
-// `window`, the events the runtime dispatches with a detail, and the runtime's own
-// elements by tag. tsc checks a JavaScript file wherever an import reaches it,
-// with the options of the program it is in, and has no per-file opt-out, so the
-// runtime program also reaches the strict program's files and the vendored
-// third-party bundles. A diagnostic there is not the runtime program's to report, and
-// the build drops it.
-const strict = (file) =>
-  readFileSync(path.join(root, file), "utf8").startsWith("// @ts-check");
-const runtimeChecks = (file) =>
-  file.endsWith(".js") &&
-  !/^(?:browser|packages\/[^/]+)\/vendor\//.test(file) &&
-  !strict(file);
-
-/** Refuse TypeScript under the runtime, whose modules a page runs as written, and a
- * framework module that doesn't opt into the strict program, since the framework's
- * types are strict wherever it puts a module. */
+/** Refuse TypeScript under the runtime, whose modules a page runs as written. */
 export async function checkRuntimeModules(directory = root) {
   const runtime = `${assets}/runtime`;
   const files = (await readdir(path.join(directory, runtime), { recursive: true })).map(
@@ -233,43 +211,23 @@ export async function checkRuntimeModules(directory = root) {
     throw new Error(
       `Runtime modules are JavaScript with JSDoc so an edit reaches pages and tests without a build (#4112):\n${typescript.join("\n")}`,
     );
-  const lax = files.filter(
-    (file) =>
-      (file === `${runtime}/framework.js` ||
-        (file.startsWith(`${runtime}/framework/`) && file.endsWith(".js"))) &&
-      !readFileSync(path.join(directory, file), "utf8").startsWith("// @ts-check"),
-  );
-  if (lax.length)
-    throw new Error(
-      `Start each framework module with \`// @ts-check\`, so the strict program checks it:\n${lax.join("\n")}`,
-    );
 }
 
-function typecheck(config, reports = (_file) => true) {
-  const result = spawnSync(
+// One strict program checks all maintained browser modules, including modules no
+// entry point imports yet. Public bundle paths resolve through their source entries
+// to the installed dependencies' declarations.
+function typecheck() {
+  execFileSync(
     process.execPath,
     [
       path.join(root, "node_modules/typescript/bin/tsc"),
       "--project",
-      `${typeRoot}/${config}`,
+      `${typeRoot}/tsconfig.json`,
       "--pretty",
       "false",
     ],
-    { cwd: root, encoding: "utf8" },
+    { cwd: root, stdio: "inherit" },
   );
-  if (result.error) throw result.error;
-  if (result.signal) throw new Error(`${config}: tsc ended on ${result.signal}`);
-  if (result.status === 0) return;
-  // Each diagnostic starts unindented, with its file where it has one; its
-  // continuation lines indent.
-  const diagnostics = (result.stdout + result.stderr)
-    .split(/\n(?=\S)/)
-    .filter((diagnostic) => {
-      if (!diagnostic.trim()) return false;
-      const file = /^(\S+)\(\d+,\d+\): /.exec(diagnostic)?.[1];
-      return file === undefined || reports(file);
-    });
-  if (diagnostics.length) throw new Error(`${config}:\n${diagnostics.join("\n")}`);
 }
 
 export async function buildOutputs() {
@@ -284,8 +242,7 @@ export async function buildOutputs() {
   if ((await readFile(contractPath, "utf8")) !== protocol.contract)
     throw new Error("Stale protocol types; run pnpm run build:browser");
   await checkRuntimeModules();
-  typecheck("tsconfig.json");
-  typecheck("tsconfig.runtime.json", runtimeChecks);
+  typecheck();
 
   const outputs = new Map([
     [compilerPathsFile, paths],

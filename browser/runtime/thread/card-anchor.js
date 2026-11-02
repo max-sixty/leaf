@@ -154,6 +154,7 @@ export class CardAnchor {
     const ordinary = this.#sent || (!writing && seat.side === "top") ? "foot" : "top";
     const beside = seat.side === "left" || seat.side === "right";
     return {
+      writing,
       edge: seat.adopted ? attachment : (press?.edge ?? ordinary),
       rises: !seat.adopted && !press?.edge && !this.#sent && beside,
       commit: () => {

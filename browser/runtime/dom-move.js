@@ -13,21 +13,31 @@
  * already placed node is left alone. Text, comments and fragments, which Lit inserts
  * for every new row, hold no one. An iframe still reloads there. The return value
  * matches insertBefore, including when inserting a fragment. */
-import { holdFocus, watchCurrentLocationIn } from "./focus.js";
+import { isElement } from "./shadow-tree.js";
 
-export function move(parent, node, before) {
+// Leaf installs its focus accounting; native placement also works without a runtime.
+/** @typedef {{hold: typeof import("./focus.js").holdFocus, watch: typeof import("./focus.js").watchCurrentLocationIn}} MoveFocus */
+/** @type {MoveFocus | null} */
+let focusOwner = null;
+/** @param {MoveFocus} owner */
+export const installMoveFocus = (owner) => {
+  focusOwner = owner;
+};
+
+/** @template {Node} T @param {Node & ParentNode} parent @param {T} node @param {Node | null} [before] */
+export function move(parent, node, before = null) {
   if (node.parentNode === parent && (before === node || node.nextSibling === before))
     return node;
   // A retained move can enter another shadow root without a focus event. Subscribe
   // before placement, so connectedMoveCallback and the caller's next move are heard.
-  if (parent.isConnected) watchCurrentLocationIn(parent.getRootNode());
+  if (parent.isConnected) focusOwner?.watch(parent.getRootNode());
   if (
     parent.moveBefore &&
     node.getRootNode({ composed: true }) === parent.getRootNode({ composed: true })
   )
     parent.moveBefore(node, before);
   else {
-    const restore = node.nodeType === Node.ELEMENT_NODE ? holdFocus(node) : null;
+    const restore = isElement(node) ? focusOwner?.hold(node) : null;
     parent.insertBefore(node, before);
     restore?.();
   }

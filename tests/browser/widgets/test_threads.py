@@ -348,7 +348,7 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
     )
     told(page)
     # Revealing the edit in either view settles the thread's shared unread state.
-    page.locator(".lf-fp-controls").get_by_role(
+    page.locator(".lf-fp-head").get_by_role(
         "button", name="1 message edited", exact=True
     ).click()
 

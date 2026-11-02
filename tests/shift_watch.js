@@ -1873,7 +1873,7 @@
       aim.event.type === "keydown" &&
       (!aim.event.defaultPrevented ||
         (caretKeys.includes(aim.event.key) &&
-          document.documentElement.lfInputs?.typesText(aim.node)))
+          Reflect.get(window, Symbol.for("leaf.inputs"))?.typesText(aim.node)))
     ) {
       rendering.aim = null;
       return;

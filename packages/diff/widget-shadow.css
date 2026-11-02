@@ -356,7 +356,7 @@
   content: "-";
   color: var(--danger-ink);
 }
-.lf-diff-line-comment {
+.lf-diff-line-number {
   position: absolute;
   z-index: 2;
   inset-block: 0;
@@ -377,6 +377,8 @@
   justify-content: end;
   text-align: right;
   user-select: none;
+}
+.lf-diff-line-comment {
   cursor: pointer;
 }
 .lf-diff-line-comment::before {

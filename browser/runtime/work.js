@@ -4,6 +4,7 @@
  * of how a dashboard composes those facts. */
 import { declarationFor, layerFact, registry } from "./registry.js";
 import { readPart } from "./semantic-state.js";
+import { hasObligationSource } from "./obligations/source.js";
 import { obligationsIn } from "./obligations/place.js";
 import { elementById } from "./passages.js";
 import { quietSince } from "./presence.js";
@@ -12,79 +13,108 @@ import { saidAt, reportSequence } from "./reports.js";
 import { widgetController } from "./widget-controller.js";
 import { addressableName } from "./addressable-names.js";
 
+/** @typedef {{role: "scope" | "evidence"}} ContainerRole
+ * @typedef {{role: "goal", state: string, done: readonly string[], stopped: readonly string[], stoppedAt?: string}} GoalRole
+ * @typedef {{role: "worker", state: string, running: readonly string[], retired: readonly string[], on?: string}} WorkerRole
+ * @typedef {ContainerRole | GoalRole | WorkerRole} WorkRole
+ * @typedef {WorkRole["role"]} Role
+ * @typedef {ReturnType<ReturnType<typeof widgetController>["read"]>} WidgetReading
+ * @typedef {(element: Element) => WidgetReading} ReadWidget
+ * @typedef {Extract<import("./framework/application.js").ObligationRecord, {source: {kind: "widget"}}>} WidgetObligation
+ */
+/** @returns {Record<string, WorkRole>} */
 const widgets = () => layerFact("$work")?.widgets ?? {};
 
-function specs(role) {
-  return Object.entries(widgets()).filter(([, spec]) => spec?.role === role);
-}
-
+/** @overload @param {Element | null | undefined} element @param {"goal"} role @returns {GoalRole | null} */
+/** @overload @param {Element | null | undefined} element @param {"worker"} role @returns {WorkerRole | null} */
+/** @overload @param {Element | null | undefined} element @param {Role | null} [role] @returns {WorkRole | null} */
+/** @param {Element | null | undefined} element @param {Role | null} [role] */
 export function workRole(element, role = null) {
-  const spec = widgets()[element?.localName];
+  const spec = element ? widgets()[element.localName] : undefined;
   return spec && (!role || spec.role === role) ? spec : null;
 }
 
-export function workElements(root, role, { direct = false } = {}) {
-  const tags = new Set(specs(role).map(([tag]) => tag));
-  const candidates = [...root.querySelectorAll("*")];
-  const boundary = workAncestor(root, "scope");
-  return candidates.filter(
-    (element) =>
-      tags.has(element.localName) &&
-      workAncestor(element, "scope") === boundary &&
-      (!direct || workAncestor(element.parentElement) === root),
+/** @template {Role} R @typedef {{element: Element, role: Extract<WorkRole, {role: R}>}} WorkEntry */
+/** @template {Role} R @param {[string, WorkRole]} entry @param {R} role
+ * @returns {entry is [string, Extract<WorkRole, {role: R}>]} */
+const hasRole = (entry, role) => entry[1].role === role;
+/** @template {Role} R @param {Element} root @param {R} role @param {{direct?: boolean}} [options]
+ * @returns {WorkEntry<R>[]} */
+function workEntries(root, role, { direct = false } = {}) {
+  const roles = new Map(
+    Object.entries(widgets()).filter((entry) => hasRole(entry, role)),
   );
+  const boundary = workAncestor(root, "scope");
+  return [...root.querySelectorAll("*")].flatMap((element) => {
+    const declared = roles.get(element.localName);
+    return declared &&
+      workAncestor(element, "scope") === boundary &&
+      (!direct || workAncestor(element.parentElement) === root)
+      ? [{ element, role: declared }]
+      : [];
+  });
 }
-
+/** @param {Element} root @param {Role} role @param {{direct?: boolean}} [options] */
+export function workElements(root, role, options) {
+  return workEntries(root, role, options).map(({ element }) => element);
+}
+/** @param {Element} root @param {Role} role */
 export const directWorkElements = (root, role) =>
   workElements(root, role, { direct: true });
 
+/** @param {Element | null | undefined} element @param {Role | null} [role] */
 export function workAncestor(element, role) {
   for (let at = element; at; at = at.parentElement) if (workRole(at, role)) return at;
   return null;
 }
 
 // The role's state verb is also its report verb when the agent writes it.
-function stateReport(element, role) {
-  const verb = stateVerb(element, role);
-  const spec = declarationFor(element, "x-state")[verb];
-  return registry.$states[element.localName][verb].writer === "agent"
-    ? [verb, spec]
-    : [null, null];
-}
-
+/** @param {Element} element @param {GoalRole | WorkerRole} role */
 function stateVerb(element, role) {
-  const attribute = workRole(element, role)?.state;
-  const matches = Object.entries(declarationFor(element, "x-state") ?? {})
-    .filter(
-      ([, spec]) =>
-        spec.unit === "widget" &&
+  const stamped = registry.$states[element.localName];
+  const matches = Object.entries(declarationFor(element, "x-state") ?? {}).flatMap(
+    ([verb, spec]) => {
+      const state = stamped?.[verb];
+      return spec.unit === "widget" &&
         spec.record?.kind === "value" &&
-        spec.record.attr === attribute,
-    )
-    .map(([verb]) => verb);
-  if (matches.length !== 1)
+        spec.record.attr === role.state &&
+        state
+        ? [{ verb, state }]
+        : [];
+    },
+  );
+  const match = matches[0];
+  if (!match || matches.length !== 1)
     throw new Error(
-      `leaf: $work ${role} <${element.localName}> state ${attribute} needs one recorded widget verb`,
+      `leaf: $work ${role.role} <${element.localName}> state ${role.state} needs one recorded widget verb`,
     );
-  return matches[0];
+  return match;
 }
+/** @param {Element} element @param {GoalRole | WorkerRole} role */
+function stateReport(element, role) {
+  const { verb, state } = stateVerb(element, role);
+  return state.writer === "agent" ? verb : null;
+}
+/** @param {Element} element @param {GoalRole | WorkerRole} role @param {ReadWidget} read */
+const roleState = (element, role, read) => {
+  const state = read(element).state[stateVerb(element, role).verb];
+  return state && "value" in state ? state.value : null;
+};
 
-const roleState = (element, role, read) =>
-  read(element).state[stateVerb(element, role)]?.value ?? null;
-
+/** @param {Element} element @param {string} action */
 const actionReports = (element, action) =>
   reportSequence(element).filter(
     (report) => report.source === "report" && report.action === action,
   );
 
-function workerView(worker, read) {
-  const role = workRole(worker, "worker");
-  const state = roleState(worker, "worker", read);
+/** @param {WorkEntry<"worker">} entry @param {ReadWidget} read */
+function workerView({ element: worker, role }, read) {
+  const state = roleState(worker, role, read);
   const focus = role.on && worker.getAttribute(role.on);
-  const [reportVerb] = stateReport(worker, "worker");
+  const reportVerb = stateReport(worker, role);
   const reports = reportVerb ? actionReports(worker, reportVerb) : [];
   const heard = reports.at(-1)?.ts ?? saidAt(worker);
-  const running = role.running.includes(state);
+  const running = role.running.some((value) => value === state);
   const scope = workAncestor(worker, "scope");
   const goal = workAncestor(worker.parentElement, "goal");
   const remit = goal && workAncestor(goal, "scope") === scope ? goal : scope;
@@ -93,14 +123,14 @@ function workerView(worker, read) {
     candidate &&
     workRole(candidate, "goal") &&
     workAncestor(candidate, "scope") === scope &&
-    (remit === scope || remit.contains(candidate))
+    (remit === scope || remit?.contains(candidate))
       ? candidate
       : null;
   return {
     element: worker,
     role,
     state,
-    retired: role.retired.includes(state),
+    retired: role.retired.some((value) => value === state),
     running,
     quiet: running && quietSince(heard),
     heard,
@@ -109,19 +139,23 @@ function workerView(worker, read) {
   };
 }
 
-const done = (goal, read) => {
-  const role = workRole(goal, "goal");
-  return role.done.includes(roleState(goal, "goal", read));
+/** @param {WorkEntry<"goal">} entry @param {ReadWidget} read */
+const done = ({ element: goal, role }, read) => {
+  return role.done.some((value) => value === roleState(goal, role, read));
 };
 
 // The elements of the obligations waiting on the user that `goal` holds (`obligationsIn`) and owns
 // itself: in its scope, under no nearer goal, and not a goal.
+/** @param {Element} goal @param {readonly WidgetObligation[]} open */
 function interventions(goal, open) {
   const scope = workAncestor(goal, "scope");
   return (
     obligationsIn(goal, open)
       // `obligationsIn` holds widgets' obligations, which each name their widget.
-      .map((item) => elementById(/** @type {{id: string}} */ (item.source).id))
+      .map((item) =>
+        item.source.kind === "widget" ? elementById(item.source.id) : null,
+      )
+      .filter((item) => item !== null)
       .filter(
         (item) =>
           item !== goal &&
@@ -133,33 +167,40 @@ function interventions(goal, open) {
   );
 }
 
-function stopped(goal, open, nested, read) {
-  const role = workRole(goal, "goal");
+/** @param {WorkEntry<"goal">} entry @param {readonly WidgetObligation[]} open @param {Element[]} nested @param {ReadWidget} read @returns {boolean} */
+function stopped(entry, open, nested, read) {
+  const { element: goal, role } = entry;
   if (read(goal).thread.heldBy) return true;
   if (nested.length) return true;
-  if (!role.stopped.includes(roleState(goal, "goal", read))) return false;
+  if (!role.stopped.some((value) => value === roleState(goal, role, read)))
+    return false;
   if (open.some((item) => item.source.id === goal.id)) return true;
-  const children = directWorkElements(goal, "goal");
+  const children = workEntries(goal, "goal", { direct: true });
   return children.length
-    ? children.some((child) => stopped(child, open, interventions(child, open), read))
+    ? children.some((child) =>
+        stopped(child, open, interventions(child.element, open), read),
+      )
     : true;
 }
 
-function goalView(goal, open, read) {
-  const descendants = workElements(goal, "goal");
-  const leaves = descendants.filter((item) => !directWorkElements(item, "goal").length);
-  const progressLeaves = leaves.length ? leaves : [goal];
-  const liveWorkers = directWorkElements(goal, "worker")
+/** @param {WorkEntry<"goal">} entry @param {readonly WidgetObligation[]} open @param {ReadWidget} read */
+function goalView(entry, open, read) {
+  const { element: goal, role } = entry;
+  const descendants = workEntries(goal, "goal");
+  const leaves = descendants.filter(
+    (item) => !directWorkElements(item.element, "goal").length,
+  );
+  const progressLeaves = leaves.length ? leaves : [entry];
+  const liveWorkers = workEntries(goal, "worker", { direct: true })
     .map((worker) => workerView(worker, read))
     .filter((worker) => !worker.retired);
-  const role = workRole(goal, "goal");
-  const state = roleState(goal, "goal", read);
-  const [reportVerb] = stateReport(goal, "goal");
+  const state = roleState(goal, role, read);
+  const reportVerb = stateReport(goal, role);
   const reports = reportVerb ? actionReports(goal, reportVerb) : [];
   const latestReport = reports.at(-1);
   const reportedStoppedAt =
     latestReport?.disposition === "effective" &&
-    role.stopped.includes(latestReport.detail.value)
+    role.stopped.some((value) => value === latestReport.detail.value)
       ? latestReport.ts
       : null;
   const nested = interventions(goal, open);
@@ -169,10 +210,10 @@ function goalView(goal, open, read) {
     role,
     state,
     title: addressableName(goal) || goal.id,
-    done: done(goal, read),
-    stopped: stopped(goal, open, nested, read),
+    done: done(entry, read),
+    stopped: stopped(entry, open, nested, read),
     held,
-    leaves: progressLeaves,
+    leaves: progressLeaves.map(({ element }) => element),
     finished: progressLeaves.filter((leaf) => done(leaf, read)).length,
     liveWorkers,
     stoppedAt:
@@ -185,19 +226,26 @@ function goalView(goal, open, read) {
 // that reads work repaints only when one of these moves, not on every change to the
 // inventory, which a comment makes.
 const openWidgetObligations = readPart((root) =>
-  root.effective.obligations.user.filter((item) => item.source.kind === "widget"),
+  root.effective.obligations.user.filter((item) => hasObligationSource(item, "widget")),
 );
 
+/** @param {Element} scope */
 export function readWork(scope) {
+  /** @type {Map<Element, WidgetReading>} */
   const readings = new Map();
+  /** @param {Element} element */
   const read = (element) => {
-    if (!readings.has(element)) readings.set(element, widgetController(element).read());
-    return readings.get(element);
+    let reading = readings.get(element);
+    if (!reading) {
+      reading = widgetController(element).read();
+      readings.set(element, reading);
+    }
+    return reading;
   };
   const open = openWidgetObligations();
-  const goals = workElements(scope, "goal").map((goal) => goalView(goal, open, read));
+  const goals = workEntries(scope, "goal").map((goal) => goalView(goal, open, read));
   const byElement = new Map(goals.map((goal) => [goal.element, goal]));
-  const workers = workElements(scope, "worker").map((worker) =>
+  const workers = workEntries(scope, "worker").map((worker) =>
     workerView(worker, read),
   );
   const liveWorkers = workers.filter((worker) => !worker.retired);

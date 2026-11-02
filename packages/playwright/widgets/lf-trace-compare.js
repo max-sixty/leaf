@@ -27,40 +27,44 @@ import {
 } from "/runtime/widget-api.js";
 import "./lf-trace.js";
 
+/** @typedef {{index: number, view: Element, recording: import("./lf-trace.js").Trace}} TraceMember */
+
 customElements.define(
   "lf-trace-compare",
   class extends HTMLElement {
-    #views = [];
-    #recordings = [];
-    #selected = 0;
+    /** @type {TraceMember[]} */
+    #members = [];
+    /** @type {TraceMember | null} */
+    #selected = null;
+    /** @type {string | null} */
     #moment = null;
 
     connectedCallback() {
       if (!once(this)) return;
+      const recordings = [...this.querySelectorAll("lf-trace")];
       for (const child of viewMembers(this)) {
-        const recording = child.matches("lf-trace")
-          ? child
-          : child.querySelector("lf-trace");
+        const recording = recordings.find(
+          (trace) => trace === child || child.contains(trace),
+        );
         if (!recording)
           throw new Error(
             "Each lf-trace-compare child must be an lf-trace or contain one; put shared introductory text outside the comparison.",
           );
-        this.#views.push(child);
-        this.#recordings.push(recording);
+        this.#members.push({ index: this.#members.length, view: child, recording });
       }
-      this.#selected = this.#views.indexOf(openingView(this));
+      const opening = openingView(this);
+      this.#selected = this.#members.find((member) => member.view === opening) ?? null;
       const header = el("div", "lf-trace-compare-controls");
       generatedElement(header, { says: false });
-      /** @type {any} Web Awesome's radio group exposes form properties. */
       const choices = offer("wa-radio-group", "lf-trace-sources lf-label-hidden");
       choices.label = "Recording";
       choices.name = `${this.id}-recording`;
       choices.size = "s";
       choices.orientation = "horizontal";
-      for (const [index, recording] of this.#recordings.entries()) {
-        const view = this.#views[index];
+      for (const member of this.#members) {
+        const { index, recording, view } = member;
         view.addEventListener("beforematch", () => {
-          this.#selected = index;
+          this.#selected = member;
           choices.value = String(index);
           this.#draw();
         });
@@ -69,8 +73,8 @@ customElements.define(
         });
         recording.addEventListener("lf-trace-moment", (event) => {
           this.#moment = event.detail.key;
-          for (const peer of this.#recordings)
-            if (peer !== recording) peer.selectMoment(this.#moment);
+          for (const peer of this.#members)
+            if (peer.recording !== recording) peer.recording.selectMoment(this.#moment);
         });
         const choice = offer(
           "wa-radio",
@@ -82,25 +86,30 @@ customElements.define(
         choice.disabled = quoted(this);
         choices.append(choice);
       }
-      choices.value = String(this.#selected);
+      choices.value = String(this.#selected?.index ?? -1);
       choices.addEventListener("change", () => {
-        const view = this.#recordings[this.#selected].inspectionView;
-        this.#selected = Number(choices.value);
+        const selected = this.#members.find(
+          (member) => String(member.index) === choices.value,
+        );
+        if (!selected) return;
+        const view = this.#selected?.recording.inspectionView ?? null;
+        this.#selected = selected;
         this.#draw();
-        this.#recordings[this.#selected].inspectionView = view;
+        selected.recording.inspectionView = view;
       });
       header.append(choices);
       this.prepend(header);
       whileConnected(this, () => {
-        const paintHeight = (height) =>
+        const paintHeight = (/** @type {number} */ height) =>
           this.style.setProperty("--lf-trace-compare-head-h", layoutPx(height));
         paintHeight(header.getBoundingClientRect().height);
-        let paint;
-        const size = sizeObserver(([entry]) => {
+        let paint = 0;
+        const size = sizeObserver((entries) => {
           cancelRender(paint);
           // Clearance resizes the stage; publish outside size delivery.
           paint = nextRender(() => {
-            paintHeight(entry.borderBoxSize[0].blockSize);
+            for (const entry of entries)
+              for (const box of entry.borderBoxSize) paintHeight(box.blockSize);
           });
         });
         size.observe(header, { box: "border-box" });
@@ -115,9 +124,10 @@ customElements.define(
     #draw() {
       // Reveal first, so a synchronous layout read never observes an empty
       // workspace and clamps the document's scroll position to its shorter end.
-      keepView(this, this.#views[this.#selected]);
-      for (const [index, recording] of this.#recordings.entries()) {
-        if (index !== this.#selected) recording.pause();
+      keepView(this, this.#selected?.view ?? null);
+      for (const member of this.#members) {
+        const { recording } = member;
+        if (member !== this.#selected) recording.pause();
         keeps(recording, "aria-label", recording.getAttribute("label"));
       }
       layoutChanged(this);

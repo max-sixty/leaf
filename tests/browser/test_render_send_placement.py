@@ -1337,6 +1337,11 @@ def test_a_card_on_a_log_row_stands_beside_the_log_and_leaves_with_its_row(
     )
     scroll_settled(page, "#log")
     rendered(page)
+    # Placement follows the scroll a frame or more behind it, more under load.
+    page.wait_for_function(
+        "() => document.querySelector('.lf-margin-preview')"
+        ".style.getPropertyValue('--lf-cut-top') !== ''"
+    )
     cut = card.evaluate(
         "card => card.getBoundingClientRect().top"
         " + parseFloat(card.style.getPropertyValue('--lf-cut-top'))"

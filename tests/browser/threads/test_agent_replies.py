@@ -225,7 +225,7 @@ def test_a_thread_task_stays_on_me_until_done(browser, serve):
     with sending(page, "the device clarification"):
         page.keyboard.press("ControlOrMeta+Enter")
     expect_on_me(page, 1)
-    page.locator(".lf-fp-controls .lf-fp-back", has_text="On me").click()
+    page.get_by_role("button", name="Back to On me").click()
     with sending(page, "the completed phone check"):
         row.get_by_role("button", name="Done", exact=True).click()
     expect_on_me(page, 0)

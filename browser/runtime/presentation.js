@@ -77,9 +77,11 @@ export function markPagePresented() {
 // presentation for anything a page starts with — so the page never reads as arrived in
 // the window between presenting and its first deferred upgrade taking hold. A
 // rejection lands the arrival like a resolution; its owner draws the failure.
+/** @type {Set<PromiseLike<unknown>>} */
 const arriving = new Set();
 
-/** Declare work this page finishes after presenting, and hand back its promise. */
+/** Declare work this page finishes after presenting, and hand back its promise.
+ * @template {PromiseLike<unknown>} T @param {T} work */
 export function deferredArrival(work) {
   arriving.add(work);
   const landed = () => arriving.delete(work);
@@ -92,17 +94,20 @@ export async function whenArrived() {
   while (arriving.size) await Promise.allSettled(arriving);
 }
 
-/** Run `work` once the page has presented, as an arrival the page answers for. */
+/** Run `work` once the page has presented, as an arrival the page answers for.
+ * @template T @param {() => T | PromiseLike<T>} work @returns {Promise<T>} */
 export const afterPresentation = (work) => deferredArrival(presented.then(work));
 
 // The `/api/state` answer this page last applied: the reading that names it, the moment
 // the server took it, and the moment its activity could next change with no file
 // moving (`activityTransitionAt`), all on the server's clock. The `state` stage below
 // compares these with the answer a reader holds.
+/** @type {{reading: string, taken: number, lapses: number} | null} */
 let appliedState = null;
 
 /** Record `state` as applied. Called once per answer, after its document's presentation
-    pass and every data subscriber it told have finished. */
+    pass and every data subscriber it told have finished.
+ * @param {import("../types/contract.js").ServedState} state */
 export function markStateApplied(state) {
   setRuntimeRootAttribute(document.body, PAGE_PAINT_ATTRIBUTE.reading, state.reading);
   appliedState = {
@@ -112,6 +117,7 @@ export function markStateApplied(state) {
   };
 }
 
+/** @param {keyof typeof PAGE_PAINT_ATTRIBUTE} name */
 const stamp = (name) => document.body.getAttribute(PAGE_PAINT_ATTRIBUTE[name]);
 // In the order a page reaches them. `held` is the `/api/state` answer a reader holds
 // (`{reading, taken}`), or null for a reader holding none, which skips `state`.
@@ -123,9 +129,10 @@ const READINESS = [
     "state",
     (held) =>
       !held ||
-      appliedState?.taken >= held.taken ||
-      (appliedState?.reading === held.reading &&
-        held.taken * 1000 < appliedState.lapses),
+      (appliedState !== null &&
+        (appliedState.taken >= held.taken ||
+          (appliedState.reading === held.reading &&
+            held.taken * 1000 < appliedState.lapses))),
   ],
   ["presented", () => pagePresented() && applicationPresented()],
   ["arrived", () => arriving.size === 0],
@@ -153,6 +160,7 @@ const READINESS_STAGES = new Set(READINESS.map(([stage]) => stage));
 
     Finite animation is not a stage: the render gate's `pageSettled` asks that
     separately. */
+/** @param {{taken: number, reading: string} | null} held @param {string} through */
 export function pageReadiness(held = null, through = "rendering") {
   if (!READINESS_STAGES.has(through))
     throw new TypeError(`no readiness stage named ${through}`);
@@ -178,7 +186,9 @@ export const PAGE_INTERFACE = "lf-page-interface";
 // Prepare interface owners over the current DOM. This joins their reconciliation,
 // separately from the semantic document's canonical presentation proof.
 export async function settlePageInterface() {
+  /** @type {PromiseLike<unknown>[]} */
   const pending = [];
+  /** @template {PromiseLike<unknown>} T @param {T} promise */
   const present = (promise) => {
     if (!promise?.then)
       throw new TypeError("Page interface presentation must be a promise");
@@ -201,10 +211,12 @@ export async function settlePageInterface() {
 // lifetime; `connect(signal)` runs on each connection, and its returned cleanup runs as
 // the element leaves. A later PAGE_INTERFACE, from a revision applied in place, finds
 // the view already connected.
+/** @param {Element} element @param {{declare?: () => void, connect: (signal: AbortSignal) => (() => void) | void}} callbacks */
 export function whileInterfaceConnected(element, { declare, connect }) {
   let declared = false;
   return whileConnected(element, (signal) => {
     let connected = false;
+    /** @type {(() => void) | void} */
     let cleanup;
     const start = () => {
       if (signal.aborted || connected) return;
@@ -217,10 +229,7 @@ export function whileInterfaceConnected(element, { declare, connect }) {
     };
     document.addEventListener(
       PAGE_INTERFACE,
-      (event) =>
-        /** @type {CustomEvent} */ (event).detail.present(
-          Promise.resolve().then(start),
-        ),
+      (event) => event.detail.present(Promise.resolve().then(start)),
       { signal },
     );
     if (declared) start();

@@ -1115,7 +1115,7 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, ope
     else:
         assert page.evaluate("() => document.activeElement === document.body")
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before
-    expect(page.locator(PANEL)).not_to_have_attribute("data-menu", "")
+    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
 
 
 def test_the_complete_page_map_survives_a_crossing_to_the_wide_screen(browser, serve):
@@ -1150,21 +1150,27 @@ def test_the_complete_page_map_survives_a_crossing_to_the_wide_screen(browser, s
 
 def test_an_open_small_screen_map_reconciles_arriving_meanings(browser, serve):
     """The open dialog is a live projection, not a snapshot from its opening press."""
-    height = 480
+    # Fill the list with meanings rather than relying on four rows
+    # wrapping to a particular height in the current row layout.
+    comments = [
+        {**COMMENT_ON_OBLIGATION, "text": f"Existing reading {n}."} for n in range(8)
+    ]
     page = open_page(
         browser,
-        serve(OBLIGATION_PAGE, events=[ACTION_ON_OBLIGATION, COMMENT_ON_OBLIGATION]),
+        serve(
+            OBLIGATION_PAGE,
+            events=[ACTION_ON_OBLIGATION, COMMENT_ON_OBLIGATION, *comments],
+        ),
     )
-    resized(page, 390, height)
+    resized(page, 390, 480)
     page.keyboard.press("g")
     page.keyboard.press("Shift+p")
     dialog = page.locator(".lf-page-map-dialog")
     actions = dialog.locator(".lf-page-map-action")
-    expect(actions).to_have_count(4)
-    if height == 480:
-        assert dialog.locator(".lf-page-map-list").evaluate(
-            "list => list.scrollHeight > list.clientHeight"
-        ), "the short dialog must exercise focus through an overflowing list"
+    expect(actions).to_have_count(12)
+    assert dialog.locator(".lf-page-map-list").evaluate(
+        "list => list.scrollHeight > list.clientHeight"
+    ), "the short dialog must exercise focus through an overflowing list"
     page.keyboard.press("Tab")
     expect(actions.first).to_be_focused()
 
@@ -1184,8 +1190,8 @@ def test_an_open_small_screen_map_reconciles_arriving_meanings(browser, serve):
         page.locator('.lf-margin-marker[data-lf-kinds~="comment"]').locator(
             ".lf-margin-count"
         )
-    ).to_have_text("2")
-    expect(actions).to_have_count(5)
+    ).to_have_text("10")
+    expect(actions).to_have_count(13)
     expect(actions.first).to_be_focused()
 
 

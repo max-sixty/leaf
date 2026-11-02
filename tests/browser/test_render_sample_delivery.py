@@ -13,6 +13,7 @@ from render_harness import (
     http_error_console,
     leaf_page,
     open_page,
+    reported_browser_errors,
     said,
     take_browser_errors,
 )
@@ -163,7 +164,11 @@ def test_canceled_native_departure_keeps_fault_reporting(browser, serve):
     assert dialog.value.type == "beforeunload"
     expect(page.get_by_role("heading", name="Still here")).to_be_visible()
     page.locator("#fail").click()
-    consume_browser_errors(page, "live fault after canceled departure")
+    reported_browser_errors(
+        page,
+        "live fault after canceled departure",
+        "live fault after canceled departure",
+    )
 
 
 @pytest.mark.parametrize("engine", ["browser", "webkit_browser"])

@@ -139,11 +139,12 @@ const cardPictures = new WeakMap();
 const INLINE_WORDS = new Set(
   "a abbr b cite code em i kbd mark q s samp span sub sup time u var".split(" "),
 );
+/** @param {Element | null} title */
 const cardLine = (title) => {
   let words = "";
   for (let node = title?.nextSibling ?? null; node; node = node.nextSibling) {
-    if (node.nodeType === Node.TEXT_NODE) words += node.data;
-    else if (node.nodeType !== Node.ELEMENT_NODE) continue;
+    if (node instanceof Text) words += node.data;
+    else if (!(node instanceof Element)) continue;
     else if (node.localName === "small" || node.localName.includes("-")) continue;
     else if (node.matches(".lf-key-badge, svg, img, picture")) continue;
     else if (INLINE_WORDS.has(node.localName)) words += node.textContent;
@@ -154,6 +155,7 @@ const cardLine = (title) => {
   }
   return words.replace(/\s+/g, " ").trim();
 };
+/** @param {Element} option */
 const cardParts = (option) => {
   const title = option.querySelector(":scope > strong");
   if (!cardPictures.has(option)) {
@@ -180,6 +182,7 @@ const cardParts = (option) => {
 // option's mark is the page speaking and belongs to what the user can point at — not
 // to the option's name, which is what every caller here wants. A settled title's answer
 // to an option with neither is to say "Settled" rather than name an id nobody wrote.
+/** @param {Element} option */
 const label = (option) => wrote(option.querySelector(":scope > strong") ?? option);
 
 // What choosing an option gives the user: the sentence after a card's title, as the
@@ -190,17 +193,18 @@ const label = (option) => wrote(option.querySelector(":scope > strong") ?? optio
 // them: the computed display below forces a layout in Firefox, which taken between the
 // render's own insertions leaves a row of cards off their shared title baseline
 // (`notes/browser-support.md`, "Baseline content-alignment").
+/** @param {Element} option */
 const consequence = (option) => {
   const title = option.querySelector(":scope > strong");
   let words = "";
   for (let node = title?.nextSibling; node; node = node.nextSibling) {
-    if (node.nodeType === Node.TEXT_NODE) words += node.data;
-    else if (node.nodeType !== Node.ELEMENT_NODE) continue;
+    if (node instanceof Text) words += node.data;
+    else if (!(node instanceof Element)) continue;
     else if (getComputedStyle(node).display === "inline") {
       // `wrote` trims the element's own edges, which may be the spaces between words,
       // as where Markdown emphasis splits a sentence.
-      const edges = node.textContent.match(/^(\s*)[\s\S]*?(\s*)$/);
-      words += `${edges[1]}${wrote(node)}${edges[2]}`;
+      const text = node.textContent;
+      words += `${/^\s/.test(text) ? " " : ""}${wrote(node)}${/\s$/.test(text) ? " " : ""}`;
     } else {
       if (!words.trim() && node.localName === "p") words = wrote(node);
       break;
@@ -211,6 +215,7 @@ const consequence = (option) => {
 
 // The option the page advises wears the `recommended` tag the registry's card shape
 // names, and the group says so wherever the option is answered away from its card.
+/** @param {Element} option */
 const recommended = (option) =>
   [...option.querySelectorAll(":scope > small.tag")].some(
     (tag) => wrote(tag).trim() === "recommended",
@@ -223,6 +228,36 @@ const recommended = (option) =>
 // replaced, and knows it while the obligation is still open rather than after answering it.
 const OPEN = { one: "choose one", any: "choose any" };
 const SELECTED = "selected";
+
+/** @param {unknown} value @returns {readonly string[]} */
+function choiceIds(value) {
+  if (!Array.isArray(value))
+    throw new Error("An option choice must contain option ids");
+  /** @type {unknown[]} */
+  const ids = value;
+  if (!ids.every((id) => typeof id === "string"))
+    throw new Error("An option choice must contain string ids");
+  return ids;
+}
+
+/** @param {import("../../../browser/runtime/widget-controller.js").WidgetReading["state"] | null | undefined} state */
+function additions(state) {
+  const added = state?.add;
+  if (!added) return [];
+  if (!("units" in added)) throw new Error("Added options require their unit records");
+  return Object.entries(added.units).map(([id, record]) => {
+    const text = record.detail.text;
+    if (typeof text !== "string")
+      throw new Error("An added option must contain Markdown text");
+    return { id, text };
+  });
+}
+
+/** @param {import("../../../browser/runtime/widget-controller.js").WidgetReading["state"] | null | undefined} state */
+function isAnswered(state) {
+  const answer = state?.answer;
+  return answer && "action" in answer ? Boolean(answer.action) : false;
+}
 
 const SECTION = "In the options";
 const MARK_TAG = "lf-option-control";
@@ -241,6 +276,7 @@ customElements.define(
     // its controller, the one state owner the page's group draws from. `pressed` lets
     // the caller repaint. A group of `multiple`, or one that can't take `choose` now,
     // draws none, and On me copies its controls as today.
+    /** @param {Element} group @param {{pressed: () => void}} options */
     static card(group, { pressed }) {
       if (group.hasAttribute("multiple")) return null;
       const controller = widgetController(group);
@@ -249,51 +285,52 @@ customElements.define(
       const options = [...group.querySelectorAll(":scope > lf-option")].filter(
         (option) => !option.hasAttribute("data-lf-added"),
       );
+      /** @type {Set<string>} */
       const picked = new Set(
-        reading.state.choose?.detail?.value ??
+        /** @type {string[] | undefined} */ (reading.state.choose?.detail?.value) ??
           options.filter((option) => option.hasAttribute("chosen")).map((o) => o.id),
       );
       return html`<div class="lf-options-card">
         <div class="lf-options-card-list">
           ${options.map((option) => {
-          const parts = cardParts(option);
-          const chosen = picked.has(option.id);
-          return html`<button
-            type="button"
-            class="lf-options-card-option"
-            aria-pressed=${String(chosen)}
-            @click=${() => {
-              controller.dispatch({
-                kind: "action",
-                verb: "choose",
-                detail: { value: chosen ? [] : [option.id] },
-                says: chosen ? "Cleared selection" : `Chose “${parts.title}”`,
-              });
-              pressed();
-            }}
-          >
-            ${
-              parts.picture
-                ? html`<span class="lf-options-card-picture">${parts.picture}</span>`
-                : nothing
-            }<span class="lf-options-card-title">${parts.title}</span>${
-              parts.tags.length
-                ? html`<span class="lf-options-card-tags"
-                    >${parts.tags.map(
-                    (tag) =>
-                      html`<span class="lf-options-card-tag" data-tone=${tag.tone}
-                        >${tag.text}</span
-                      >`,
-                  )}</span
-                  >`
-                : nothing
-            }${
-              parts.says
-                ? html`<span class="lf-options-card-says">${parts.says}</span>`
-                : nothing
-            }
-          </button>`;
-        })}
+            const parts = cardParts(option);
+            const chosen = picked.has(option.id);
+            return html`<button
+              type="button"
+              class="lf-options-card-option"
+              aria-pressed=${String(chosen)}
+              @click=${() => {
+                controller.dispatch({
+                  kind: "action",
+                  verb: "choose",
+                  detail: { value: chosen ? [] : [option.id] },
+                  says: chosen ? "Cleared selection" : `Chose “${parts.title}”`,
+                });
+                pressed();
+              }}
+            >
+              ${
+                parts.picture
+                  ? html`<span class="lf-options-card-picture">${parts.picture}</span>`
+                  : nothing
+              }<span class="lf-options-card-title">${parts.title}</span>${
+                parts.tags.length
+                  ? html`<span class="lf-options-card-tags"
+                      >${parts.tags.map(
+                        (tag) =>
+                          html`<span class="lf-options-card-tag" data-tone=${tag.tone}
+                            >${tag.text}</span
+                          >`,
+                      )}</span
+                    >`
+                  : nothing
+              }${
+                parts.says
+                  ? html`<span class="lf-options-card-says">${parts.says}</span>`
+                  : nothing
+              }
+            </button>`;
+          })}
         </div>
       </div>`;
     }
@@ -301,29 +338,56 @@ customElements.define(
     // What the obligation was answered with: the picked options' names, the group's own in its
     // order and then the user's in the order they added them. An option the user added
     // is named by the words its `add` carries, and an authored one by its markup.
+    /** @param {unknown} value @param {Element} group */
     static answerWords(value, group) {
-      const picked = new Set(value);
-      const added = Object.entries(group.reading?.state.add?.units ?? {});
+      const picked = new Set(choiceIds(value));
+      const added = additions(
+        group instanceof LeafElement ? group.reading?.state : null,
+      );
       const authored = [...group.querySelectorAll(":scope > lf-option")].filter(
-        (option) => picked.has(option.id) && !added.some(([id]) => id === option.id),
+        (option) =>
+          picked.has(option.id) && !added.some((record) => record.id === option.id),
       );
       return (
         [
           ...authored.map((option) => label(option) || option.id),
           ...added
-            .filter(([id]) => picked.has(id))
-            .map(([, { detail }]) => markdownWords(detail.text)),
+            .filter(({ id }) => picked.has(id))
+            .map(({ text }) => markdownWords(text)),
         ].join(", ") || "No options selected"
       );
     }
 
-    #addition = null;
+    /** @type {OptionAddition | undefined} */
+    #additionOwner;
     #choosable = false;
+    /** @type {Map<HTMLElement, HTMLElement>} */
     #controls = new Map();
+    /** @type {Map<string, number>} */
     #contextNumbers = new Map();
+    /** @type {{host: HTMLElement, control: HTMLButtonElement, bindingBadge: HTMLSpanElement} | null} */
     #done = null;
+    /** @type {SettledOptions | null} */
     #settled = null;
     #keyed = false;
+
+    get #addition() {
+      return (this.#additionOwner ??= new OptionAddition(this, {
+        // `closed` answers only from the listed options.
+        offered: this.#choosable && !inChrome(this) && !this.hasAttribute("closed"),
+        available: () => this.#available("choose"),
+        commit: (added, choice, attempt) => {
+          if (!this.#available("add") || !this.#available("choose")) return null;
+          const add = this.#dispatch("add", added, attempt, `Added “${added.text}”`);
+          if (!add) return null;
+          const pick = this.#dispatch("choose", choice, null, `Chose “${added.text}”`);
+          // A refused `add` answers the draft at once: its words go back to the box
+          // while the pick behind it is still in the wire, and the door refuses that
+          // pick too, since it names no option the group holds.
+          return add.delivery.then((added) => (added && pick ? pick.delivery : added));
+        },
+      }));
+    }
 
     // An exhibited or purely structural group has no semantic identity: it renders the
     // authored alternatives, but owns no selection and therefore has no captured widget
@@ -334,7 +398,7 @@ customElements.define(
 
     connectedCallback() {
       super.connectedCallback();
-      this.#addition?.connect();
+      this.#addition.connect();
       if (this.#choosable && this.hasAttribute("multiple") && !this.#done)
         this.#doneRow();
       this.#settled?.connect();
@@ -344,6 +408,7 @@ customElements.define(
       }
     }
 
+    /** @param {boolean} exhibited */
     #wire(exhibited) {
       // Quoted material is exhibited, not offered, so a sample renders exactly like a
       // group that was never choosable: it shows what a decision looks like without
@@ -366,30 +431,16 @@ customElements.define(
       for (const option of this.#options())
         if (this.#choosable || option.hasAttribute("chosen"))
           this.#control(option, this.#choosable);
-      this.#addition = new OptionAddition(this, {
-        // `closed` answers only from the listed options.
-        offered: this.#choosable && !inChrome(this) && !this.hasAttribute("closed"),
-        available: () => this.#available("choose"),
-        commit: (added, choice, attempt) => {
-          if (!this.#available("add") || !this.#available("choose")) return null;
-          const add = this.#dispatch("add", added, attempt, `Added “${added.text}”`);
-          if (!add) return null;
-          const pick = this.#dispatch("choose", choice, null, `Chose “${added.text}”`);
-          // A refused `add` answers the draft at once: its words go back to the box
-          // while the pick behind it is still in the wire, and the door refuses that
-          // pick too, since it names no option the group holds.
-          return add.delivery.then((added) => (added && pick ? pick.delivery : added));
-        },
-      });
+      void this.#addition;
       if (this.hasAttribute("settled")) {
         this.#settled = new SettledOptions(this, { label });
       }
       if (!this.#choosable) return;
       this.addEventListener("click", (e) => {
         // A click ending a drag-select belongs to the selection rather than the option.
-        const option = /** @type {Partial<Element>} */ (e.target).closest?.(
-          "lf-option",
-        );
+        const target = e.target;
+        if (!(target instanceof Element)) return;
+        const option = target.closest("lf-option");
         if (!option || option.parentElement !== this) return;
         if (!pressIsKeyboardActivation(e) && reachedForWords(option)) return;
         // A click something in the option has a use for is not a pick: the user was
@@ -398,7 +449,7 @@ customElements.define(
         // question, and what it cannot answer is which of the controls in here this
         // module put there: the mark is the pick's own control, and the digit stands in
         // the column beside it, so a press on either is aimed at this option after all.
-        const inner = worksInside(e.target, option);
+        const inner = worksInside(target, option);
         if (inner && !inner.matches(".lf-pick, .lf-key-badge")) return;
         if (!this.#available("choose")) return;
         const was = this.#picked();
@@ -419,12 +470,15 @@ customElements.define(
       });
     }
 
+    /** @param {string} verb */
     #available(verb) {
       return Boolean(this.reading?.actions[verb]?.available);
     }
 
+    /** @param {string} verb @param {Record<string, unknown>} detail @param {string | null} [attempt] @param {string} [says] */
     #dispatch(verb, detail, attempt = null, says = "") {
-      return this.controller?.dispatch({
+      if (!this.reading) return null;
+      return this.controller.dispatch({
         kind: "action",
         verb,
         detail,
@@ -433,23 +487,26 @@ customElements.define(
       });
     }
 
+    /** @returns {NodeListOf<HTMLElement>} */
     #options() {
       return this.querySelectorAll(":scope > lf-option");
     }
 
     #picked() {
       const ids = new Set(
-        this.reading?.state.choose?.detail.value ?? this.#authoredChoice().value,
+        choiceIds(
+          this.reading?.state.choose?.detail?.value ?? this.#authoredChoice().value,
+        ),
       );
       return new Set([...this.#options()].filter((option) => ids.has(option.id)));
     }
 
     #marks() {
-      return this.#choosable
-        ? [...this.#options()]
-            .map((option) => this.#controls.get(option))
-            .filter((mark) => mark?.isConnected)
-        : [];
+      if (!this.#choosable) return [];
+      return [...this.#options()].flatMap((option) => {
+        const mark = this.#controls.get(option);
+        return mark?.isConnected ? [{ option, mark }] : [];
+      });
     }
 
     // A page obligation owns the ordinary add form below its options. An obligation already
@@ -465,15 +522,14 @@ customElements.define(
     // is inside the button, as an option's is inside the option, so a press on it is a
     // press on Done; the seat is out of flow, so it moves neither label nor edges.
     #doneRow() {
-      this.#done = offer(DONE_TAG, "lf-options-done");
+      const host = offer(DONE_TAG, "lf-options-done");
       const button = offerAction("commit", "lf-done", "Done");
       const bindingBadge = offer("span", "lf-key-badge");
       bindingBadge.setAttribute("aria-hidden", "true");
       button.append(bindingBadge);
-      this.#done.control = button;
-      this.#done.bindingBadge = bindingBadge;
-      this.#done.append(button);
-      this.append(this.#done);
+      host.append(button);
+      this.append(host);
+      this.#done = { host, control: button, bindingBadge };
     }
 
     #doneUndo() {
@@ -483,7 +539,7 @@ customElements.define(
     }
 
     #doneAvailable() {
-      return this.reading?.state.answer?.action
+      return isAnswered(this.reading?.state)
         ? Boolean(this.#doneUndo())
         : this.#available("answer");
     }
@@ -494,14 +550,17 @@ customElements.define(
       if (!this.#doneAvailable()) return;
       const undo = this.#doneUndo();
       if (undo)
-        this.controller.dispatch({ kind: "undo", target: undo.attempt ?? undo.id });
+        this.controller.dispatch({
+          kind: "undo",
+          target: ("attempt" in undo ? undo.attempt : null) ?? undo.id,
+        });
       else this.#dispatch("answer", {}, null, "Marked answered");
       this.#syncDone();
     }
 
     #syncDone() {
       if (!this.#done) return;
-      const answered = Boolean(this.reading?.state.answer?.action);
+      const answered = Boolean(isAnswered(this.reading?.state));
       keeps(
         this.#done.control,
         "aria-label",
@@ -514,7 +573,7 @@ customElements.define(
 
     #refreshAvailability() {
       const available = this.#available("choose");
-      for (const mark of this.#marks()) {
+      for (const { mark } of this.#marks()) {
         keeps(mark, "aria-disabled", !available);
         keeps(mark, "tabindex", available ? 0 : -1);
       }
@@ -524,10 +583,13 @@ customElements.define(
 
     // Numbers stay with identities until this widget instance leaves, including a
     // removed choice the user can restore with undo.
+    /** @param {string} identity */
     #contextKeys(identity) {
-      if (!this.#contextNumbers.has(identity))
-        this.#contextNumbers.set(identity, this.#contextNumbers.size + 1);
-      const number = this.#contextNumbers.get(identity);
+      let number = this.#contextNumbers.get(identity);
+      if (number === undefined) {
+        number = this.#contextNumbers.size + 1;
+        this.#contextNumbers.set(identity, number);
+      }
       return number <= 9 ? [String(number)] : [];
     }
 
@@ -535,9 +597,9 @@ customElements.define(
     // numbered commands; the obligation view forwards those same declarations.
     #keys() {
       const marks = this.#marks();
+      /** @type {import("/runtime/keyboard/bindings.js").Command[]} */
       const answerRows = [];
-      for (const mark of marks) {
-        const option = mark.parentElement;
+      for (const { option, mark } of marks) {
         // The widget declares the number and its local face; the shared keyboard
         // presenter paints whichever declared binding currently reaches this action.
         let bindingBadge = option.querySelector(":scope > .lf-key-badge");
@@ -574,17 +636,17 @@ customElements.define(
               // this option where that thread is nowhere to stand — the route
               // `landInThread` records for exactly that case, and the one Escape
               // out of a text box reads.
-              run: () =>
-                landInThread(this.#reply(), {
-                  target: mark,
-                  line: "back to the options",
-                }),
+              run: () => {
+                const reply = this.#reply();
+                if (reply)
+                  landInThread(reply, { target: mark, line: "back to the options" });
+              },
             },
             ...rowWalk({
               id: "option",
               noun: "Option",
               plural: "options",
-              rows: () => this.#marks(),
+              rows: () => this.#marks().map(({ mark }) => mark),
             }),
             {
               id: "option.toggle",
@@ -602,31 +664,33 @@ customElements.define(
         };
         commandsChanged(mark);
       }
-      if (this.#addition.input)
+      const input = this.#addition.input;
+      if (input)
         answerRows.push({
           id: "option.write",
           contextKeys: this.#contextKeys("write"),
-          control: this.#addition.input,
+          control: input,
           decision: true,
           bindingBadge: this.#addition.bindingBadge,
           title: "Another option",
           when: () => this.#available("choose"),
           run: () => {
-            focusDestination(this.#addition.input, "move");
-            scrollIntoView(this.#addition.input, { block: "nearest" });
+            focusDestination(input, "move");
+            scrollIntoView(input, { block: "nearest" });
           },
         });
-      if (this.#done)
+      const done = this.#done;
+      if (done)
         answerRows.push({
           id: "option.done",
           contextKeys: this.#contextKeys("done"),
-          control: () => this.#done.control,
+          control: done.control,
           decision: true,
           commits: true,
-          bindingBadge: () => this.#done.bindingBadge,
+          bindingBadge: done.bindingBadge,
           title: "Done",
           description: () =>
-            this.reading?.state.answer?.action
+            isAnswered(this.reading?.state)
               ? "Take back Done and keep choosing"
               : "Finish choosing options",
           when: () => this.#doneAvailable(),
@@ -641,6 +705,7 @@ customElements.define(
     // only where no block in the option's document answers to it. After § a kind word
     // such as "section" says nothing, so the name stands alone. It is chrome
     // throughout — a thing to work and nothing else, so paper drops it.
+    /** @param {Element} option */
     #reference(option) {
       const target = option.getAttribute("for");
       if (!target) return;
@@ -654,6 +719,7 @@ customElements.define(
 
     // Generated controls are retained DOM. The controller paints them synchronously
     // while authored options keep their identities, words, and nested evidence.
+    /** @param {HTMLElement} option @param {boolean} pressable */
     #control(option, pressable) {
       let mark = this.#controls.get(option);
       if (mark) return mark;
@@ -671,6 +737,7 @@ customElements.define(
       return mark;
     }
 
+    /** @param {{value: readonly string[]}} detail */
     #syncChoice(detail) {
       const options = [...this.#options()];
       const picked = new Set(detail.value);
@@ -721,14 +788,13 @@ customElements.define(
       // A settled group may have no choose projection, so its authored attributes
       // supply the selection. A live group's complete choice is authoritative,
       // including accepted replay.
-      const detail = state.choose?.detail ?? this.#authoredChoice();
+      const detail = {
+        value: choiceIds(state.choose?.detail?.value ?? this.#authoredChoice().value),
+      };
       const added = Object.fromEntries(
-        Object.entries(state.add?.units ?? {}).map(([id, record]) => [
-          id,
-          record.detail.text,
-        ]),
+        additions(state).map(({ id, text }) => [id, text]),
       );
-      this.#addition.render(added, this.#done);
+      this.#addition.render(added, this.#done?.host ?? null);
       this.#syncChoice(detail);
       this.#refreshAvailability();
       return nothing;

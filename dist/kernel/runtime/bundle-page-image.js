@@ -1,5 +1,5 @@
 import { __exportAll } from "./bundle-rolldown-runtime.js";
-import { describeFailure } from "./bundle-portable.js";
+import { canvas2D, describeFailure } from "./bundle-portable.js";
 
 //#region runtime/composing/page-image.js
 var page_image_exports = /* @__PURE__ */ __exportAll({
@@ -27,10 +27,10 @@ const drawsThroughEffect = (style) => style.opacity !== "1" || style.mixBlendMod
 	"rotate",
 	"scale",
 	"filter",
-	"backdropFilter",
-	"clipPath",
-	"maskImage"
-].some((property) => style[property] !== "none");
+	"backdrop-filter",
+	"clip-path",
+	"mask-image"
+].some((property) => style.getPropertyValue(property) !== "none");
 function* laidOut(parent, skip) {
 	for (const child of parent.children) {
 		if (skip && child.matches(skip)) continue;
@@ -58,15 +58,16 @@ function captureRoot(region, skip) {
 		ground.push(style.backgroundColor);
 		root = holder;
 	}
-	const ctx = new OffscreenCanvas(1, 1).getContext("2d");
+	const canvas = new OffscreenCanvas(1, 1);
+	const ctx = canvas2D(canvas);
 	for (const color of ground) {
 		ctx.fillStyle = color;
 		ctx.fillRect(0, 0, 1, 1);
 	}
-	const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
+	const channels = Array.from(ctx.getImageData(0, 0, 1, 1).data, (channel, index) => index === 3 ? channel / 255 : channel);
 	return {
 		root,
-		ground: `rgba(${r}, ${g}, ${b}, ${a / 255})`
+		ground: `rgba(${channels.join(", ")})`
 	};
 }
 async function pageImage(clip, { exclude = [] } = {}) {
@@ -82,12 +83,15 @@ async function pageImage(clip, { exclude = [] } = {}) {
 		const top = rect.top + frame.clientTop * scaleY;
 		const right = Math.min(left + frame.clientWidth * scaleX, clip.x - scrollX + clip.width);
 		const bottom = Math.min(top + frame.clientHeight * scaleY, clip.y - scrollY + clip.height);
-		const crop = {
+		const start = {
 			x: (Math.max(left, clip.x - scrollX) - left) / scaleX,
 			y: (Math.max(top, clip.y - scrollY) - top) / scaleY
 		};
-		crop.width = (right - left) / scaleX - crop.x;
-		crop.height = (bottom - top) / scaleY - crop.y;
+		const crop = {
+			...start,
+			width: (right - left) / scaleX - start.x,
+			height: (bottom - top) / scaleY - start.y
+		};
 		if (crop.width <= 0 || crop.height <= 0) return box;
 		try {
 			const child = await sampleFrameImage(frame, crop);
@@ -123,7 +127,7 @@ async function pageImage(clip, { exclude = [] } = {}) {
 		}, {
 			name: "leaf-root-in-place",
 			afterClone: ({ clone }) => {
-				clone.style.justifySelf = "normal";
+				if (clone) clone.style.justifySelf = "normal";
 			}
 		}]
 	});

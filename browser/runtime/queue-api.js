@@ -9,13 +9,17 @@
 import { readPart } from "./semantic-state.js";
 import { announce } from "./notifications.js";
 
+/** @param {Pick<import("./framework/application.js").QueueItem, "kind" | "id">} item */
 export const queueItemKey = (item) => JSON.stringify([item.kind, item.id]);
 
 export const readQueues = readPart((root) => root.effective.queues);
 export const readPlan = readPart((root) => root.effective.plan);
 
+/** @typedef {ReturnType<typeof readQueues>["on_user"][number]} CurrentQueueItem */
+/** @param {{post: ReturnType<typeof import("./pending/dispatch.js").createCommandDispatch>["post"], arrive: ReturnType<typeof import("./queue-walk.js").createQueueWalk>["arriveAtItem"]}} dependencies */
 export function createQueueActions({ post, arrive }) {
   return Object.freeze({
+    /** @param {string} key */
     open(key) {
       const reading = readQueues();
       const item = [...reading.on_user, ...reading.on_agent, ...reading.done].find(
@@ -23,6 +27,7 @@ export function createQueueActions({ post, arrive }) {
       );
       return item?.offers.open ? arrive(item) : Promise.resolve(false);
     },
+    /** @param {string} key */
     done(key) {
       const reading = readQueues();
       const item = reading.on_user.find((candidate) => queueItemKey(candidate) === key);

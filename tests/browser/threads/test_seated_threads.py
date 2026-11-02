@@ -319,6 +319,10 @@ def test_a_reopening_waits_where_the_reopened_thread_would_stand(
     told(page)
     rendered(page)
     expect(summary).to_have_text("Resolved · 1 · Reopened · 1 new reply")
+    # The news is Leaf's, in its face, as the thread's own held news is.
+    expect(summary.locator('[data-voice="leaf"]')).to_have_text(
+        "Reopened · 1 new reply"
+    )
     assert open_thread.bounding_box()["y"] == pytest.approx(before, abs=0.5)
 
 
@@ -580,6 +584,7 @@ def test_a_turn_arriving_leaves_a_user_who_scrolled_away_from_their_box_reading(
     box = thread.locator(":scope > .lf-thread-reply leaf-text")
     box.scroll_into_view_if_needed()
     write(box, "Half a thought")
+    rendered(page)
     page.evaluate(
         """node => document.scrollingElement.scrollBy({
           top: node.getBoundingClientRect().top - innerHeight - 400,
@@ -588,6 +593,7 @@ def test_a_turn_arriving_leaves_a_user_who_scrolled_away_from_their_box_reading(
     )
     scroll_settled(page)
     expect(box).to_be_focused()
+    assert box.bounding_box()["y"] > page.evaluate("innerHeight")
     before = page.evaluate("() => document.scrollingElement.scrollTop")
     append_carried_log_record(
         serve.page_dir,

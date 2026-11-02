@@ -7,6 +7,7 @@
  * Public widget values are copied at their package boundary.
  * Promises, rendering instances, and proof of presentation stay outside this owner.
  */
+import { hasObligationSource } from "../obligations/source.js";
 import { createApplicationPublisher, share } from "./snapshot.js";
 import {
   coordinateOf,
@@ -168,6 +169,9 @@ function advance(entry, signal, admitted = null) {
   return { ...entry, state, admitted: entry.admitted ?? admitted };
 }
 
+/** @typedef {{reach: "waiting", fault?: never}
+ * | {reach: "reached" | "unreachable" | "refused" | "broken", fault?: never}
+ * | {reach: "faulted", fault: string}} Reach */
 /** The state the server serves (`served_state/state.schema.json`), whose type the
  * build generates. The server answers `active` and `browser` null only before a page's
  * first revision, when it serves no document a runtime could run in
@@ -177,6 +181,7 @@ function advance(entry, signal, admitted = null) {
  * @typedef {ServedState & {
  *   active: NonNullable<ServedState["active"]>;
  *   browser: NonNullable<ServedState["browser"]>;
+ *   data: {version: string, sources: Record<string, import("../data.js").SourceReading>};
  * }} AuthoritativeState
  */
 /** A server view with its basis, the transport identity, left off.
@@ -195,10 +200,13 @@ function advance(entry, signal, admitted = null) {
  * send has no stage the server knows yet, and a widget move no coordinate the server
  * has read.
  *
- * @typedef {Omit<ServedWorkflow, "stage" | "coordinate"> & {
+ * @template T
+ * @typedef {T extends unknown ? Omit<T, "stage" | "coordinate"> & {
  *   stage: ServedWorkflow["stage"] | "sending";
  *   coordinate: readonly (string | null)[] | null;
- * }} Workflow
+ * } : never} PublishedWorkflow
+ */
+/** @typedef {PublishedWorkflow<ServedWorkflow>} Workflow
  */
 
 /** One to-do as the browser publishes it: as the server serves it, or ended by this
@@ -212,22 +220,18 @@ function advance(entry, signal, admitted = null) {
 /** One row of On me or On <agent>, as `served_state.queues` serves it or this tab
  * places it: `owner` names the list. A widget or to-do row names its record
  * by `id`. `also`, on a record's row, names the other records the user answers at
- * its place; `live` says whether the agent has it in hand now; `obligation` and
- * `todo` are a widget row's and a to-do row's current record, which `localQueues`
- * joins on.
+ * its place; `live` says whether the agent has it in hand now. `localQueues` joins
+ * the current obligation or to-do record before publication (`CurrentQueueItem`).
  *
- * @typedef {{
- *   kind: ServedQueueRow["kind"];
- *   id: string;
- *   owner: "user" | "agent";
- *   subject: ServedSubject;
- *   thread: string | null;
- *   also?: readonly string[];
- *   live: boolean;
- *   obligation?: ObligationRecord;
- *   todo?: WireTodo;
- *   [field: string]: unknown;
- * }} QueueItem
+ * @typedef {import("../../types/contract.js").CompleteUnion<ServedQueueRow>} QueueItem
+ */
+
+/** The current record joined onto a queue row before publication. Only agent to-dos
+ * read the to-do inventory; every other row names its canonical obligation record.
+ * @typedef {Exclude<QueueItem, {kind: "todo", owner: "agent"}>} ObligationQueueItem
+ * @typedef {(ObligationQueueItem & {obligation: ObligationRecord, todo?: never}) |
+ * {kind: "todo", owner: "agent", todo: WireTodo, obligation?: never}} QueueRecord
+ * @typedef {QueueItem & QueueRecord} CurrentQueueItem
  */
 
 /** A finished item, in the Done of the list `owner` names: how it ended, when, and the
@@ -261,23 +265,15 @@ function advance(entry, signal, admitted = null) {
  *     }
  *   > & {
  *     $reactions?: { tokens: Record<string, { glyph: string; settles?: boolean }> };
- *     $states: Record<string, Record<string, StampedState>>;
+ *     $states: import("../registry-contract.js").StampedRegistry["$states"];
  *   };
  *   authored: AuthoredMap;
  *   descriptors: ReadonlyMap<string, WidgetDescriptor>;
  *   messageBodies?: ReadonlyMap<
  *     string,
- *     { text: string; document?: { thread: string; message: string } }
+ *     { text: string; markup: string; document?: { thread: string; message: string } }
  *   >;
  * }} SemanticDocument
- */
-
-/** One verb's state as composition stamps it (`registry.contract.stamp_states`).
- *
- * @typedef {{
- *   writer: "user" | "agent";
- *   definition: unknown;
- * }} StampedState
  */
 
 /**
@@ -285,7 +281,7 @@ function advance(entry, signal, admitted = null) {
  *   id: string;
  *   tag: string;
  *   document:
- *     | { kind: "page"; revision: number }
+ *     | { kind: "page"; revision: number | null }
  *     | { kind: "thread"; thread?: string; message?: string };
  *   declaration: SemanticDocument["registry"][string];
  *   parent: { id: string; tag: string } | null;
@@ -351,7 +347,7 @@ function normalizedObligations(view, widgets, document, projection, todos) {
     /** @returns {ObligationRecord} */ (item) => {
       // Done and its Undo decide the user's task directly. Reuse the pending to-do
       // reading so the canonical inventory and its queue row show the same gesture.
-      if (item.source.kind === "todo") {
+      if (hasObligationSource(item, "todo")) {
         const todo = /** @type {NonNullable<ReturnType<typeof todoRecords.get>>} */ (
           todoRecords.get(item.source.id)
         );
@@ -363,7 +359,10 @@ function normalizedObligations(view, widgets, document, projection, todos) {
             next_actor: "user",
             end: null,
           };
-        if (todo.state !== "open" && item.status === "open")
+        if (
+          (todo.state === "done" || todo.state === "failed") &&
+          item.status === "open"
+        )
           return {
             ...item,
             answer: { value: todo.state, event: null },
@@ -373,7 +372,7 @@ function normalizedObligations(view, widgets, document, projection, todos) {
           };
         return item;
       }
-      if (item.source.kind !== "widget") return item;
+      if (!hasObligationSource(item, "widget")) return item;
       const sourceId = item.source.id;
       const sourceUnit = item.source.unit;
       const widget = widgets.get(sourceId);
@@ -595,15 +594,15 @@ function localQueues(served, workflows, todos, items, local) {
   };
   // A record's row carries this tab's record of its obligation, and a to-do's row
   // this tab's record of the to-do.
-  /** @template {QueueItem} T @param {T} item @returns {T} */
+  /** @template {QueueItem} T @param {T} item @returns {T & QueueRecord} */
   const current = (item) =>
     namesRecord(item)
       ? { ...item, obligation: obligationOf(item) }
-      : { ...item, todo: todoOf(item) };
+      : { ...item, kind: "todo", owner: "agent", todo: todoOf(item) };
   /** @param {DoneItem} done */
   const asOpen = ({ state: _state, ended: _ended, detail: _detail, ...item }) =>
     current(/** @type {QueueItem} */ (item));
-  /** @param {QueueItem} item @returns {DoneItem} */
+  /** @param {QueueItem} item @returns {DoneItem & QueueRecord} */
   const asDone = (item) => ({
     ...current(item),
     live: false,
@@ -618,7 +617,7 @@ function localQueues(served, workflows, todos, items, local) {
   const reopenedFor = (owner) =>
     served.done.filter((item) => item.owner === owner && reopened(item));
   // A record this tab published, as the row the server would list it under.
-  /** @param {ObligationRecord} item @returns {QueueItem} */
+  /** @param {ObligationRecord} item @returns {CurrentQueueItem} */
   const localRow = (item) => {
     const source = /** @type {{ kind: "update"; subject: ServedSubject }} */ (
       item.source
@@ -715,7 +714,7 @@ const onUserRank = (item) =>
   item.kind === "todo" ? 1 : item.kind === "update" ? 2 : 0;
 
 // Every row but an agent-owned to-do names the canonical obligation inventory.
-/** @param {QueueItem} item */
+/** @param {QueueItem} item @returns {item is ObligationQueueItem} */
 const namesRecord = (item) => item.kind !== "todo" || item.owner === "user";
 
 /** @typedef {ReturnType<ReturnType<typeof createSemanticApplication>["read"]>} SemanticRoot */
@@ -901,15 +900,13 @@ export function createSemanticApplication({ presentation } = {}) {
     // where it refused this tab's key), with an error of its own (`faulted`, whose
     // words `fault` keeps), or with one the page could not apply (`broken`). It is
     // what the page's status says about the server, and no semantic epoch.
-    reach:
-      /** @type {"waiting" | "reached" | "unreachable" | "refused" | "faulted" | "broken"} */ (
-        "waiting"
-      ),
-    fault: /** @type {string | null} */ (null),
+    /** @type {Reach} */
+    reach: { reach: "waiting" },
     hostAvailable: true,
     data: {
       version: /** @type {string | null} */ (null),
-      sources: /** @type {Record<string, unknown>} */ ({}),
+      /** @type {Record<string, import("../data.js").SourceReading>} */
+      sources: {},
     },
     // Ephemeral typed values derived by mounted widgets; no server run or revision.
     outputs:
@@ -1121,22 +1118,19 @@ export function createSemanticApplication({ presentation } = {}) {
     const localWorkflow = (entry, rejected) => {
       const turn = isTurnEvent(entry.event) ? entry.thread : null;
       const thread = threadOfEntry(entry);
-      /** @type {Workflow["subject"] | null} */
-      const subject = turn
-        ? thread === null
-          ? null
-          : { kind: "thread", id: thread }
-        : entry.event.kind === "action"
-          ? { kind: "widget", id: entry.event.widget }
-          : null;
+      const subject =
+        turn && thread !== null
+          ? { kind: "thread", id: thread }
+          : entry.event.kind === "action"
+            ? { kind: "widget", id: entry.event.widget }
+            : null;
       if (!subject) return null;
-      return {
+      /** @type {Omit<Workflow, "subject" | "revision" | "detail" | "detail_seq"> & {detail: null, detail_seq: null}} */
+      const common = {
         id: `${rejected ? "rejected" : "pending"}:${entry.event.attempt}`,
-        revision: entry.event.revision ?? document.revision,
         seq: entry.order,
         input: turn?.id ?? entry.localId,
         message: turn ? turnMessage(turn) : null,
-        subject,
         thread,
         at_work: false,
         // The server's tuple, where the local fold keys a coordinate.
@@ -1159,6 +1153,17 @@ export function createSemanticApplication({ presentation } = {}) {
         activity: [],
         condition: rejected ? { kind: "failed", operation: "delivery" } : null,
         started_by: [],
+      };
+      if (entry.event.kind === "action")
+        return {
+          ...common,
+          subject: { kind: "widget", id: entry.event.widget },
+          revision: entry.event.revision,
+        };
+      return {
+        ...common,
+        subject: { kind: "thread", id: subject.id },
+        revision: entry.event.revision ?? document.revision,
       };
     };
     const sends = localUpdates([
@@ -1207,7 +1212,7 @@ export function createSemanticApplication({ presentation } = {}) {
     for (const workflow of workflows)
       if (workflow.obligation !== null && !serving.has(workflow.obligation))
         serving.set(workflow.obligation, workflow);
-    /** @template {{ id: string; kind: string }} T @param {T[]} items */
+    /** @template {{ id: string; kind: QueueItem["kind"] }} T @param {T[]} items */
     const contextual = (items, onUser = false) =>
       items.map((item) => ({
         ...item,
@@ -1399,7 +1404,7 @@ export function createSemanticApplication({ presentation } = {}) {
     },
     // Render checks compare authored, carried, and current states. The event filter is
     // a semantic selection of the same root, not a presentation-owned partial fold.
-    /** @param {string[] | null} [eventIds] */
+    /** @param {readonly string[] | null} [eventIds] */
     selectWidgets(eventIds = null) {
       if (eventIds === null) return widgetsPart.read();
       const wanted = new Set(eventIds);
@@ -1472,11 +1477,12 @@ export function createSemanticApplication({ presentation } = {}) {
     setPhase(phase) {
       return publish({ phase });
     },
-    /** @param {typeof initial.reach} reach @param {string | null} [fault] */
-    setReach(reach, fault = null) {
+    /** @param {Reach} reach */
+    setReach(reach) {
       const now = publisher.peek();
-      if (now.reach === reach && now.fault === fault) return now;
-      return publish({ reach, fault });
+      if (now.reach.reach === reach.reach && now.reach.fault === reach.fault)
+        return now;
+      return publish({ reach });
     },
     /**
      * @param {string} widget
@@ -1553,8 +1559,7 @@ export function createSemanticApplication({ presentation } = {}) {
         unresolved,
         settled,
         phase: "ready",
-        reach: "reached",
-        fault: null,
+        reach: { reach: "reached" },
       });
       return true;
     },
@@ -1692,7 +1697,7 @@ export function createSemanticApplication({ presentation } = {}) {
     },
     // A document pass carrying these receipts has run, which moves only the actions
     // among them, and publishes only where one moved.
-    /** @param {Event[]} receipts */
+    /** @param {readonly Event[]} receipts */
     present(receipts) {
       const { unresolved, settled } = publisher.peek();
       const attempts = byAttempt(receipts);

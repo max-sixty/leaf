@@ -10,13 +10,16 @@ import {
   whileConnected,
 } from "/runtime/widget-api.js";
 
+/** @param {HTMLElement} pane */
 const bodyOf = (pane) =>
   [...pane.children].find((child) => !child.matches("header, footer")) ?? null;
 
 customElements.define(
   "lf-pane",
   class extends HTMLElement {
+    /** @type {Element | null} */
     #body = null;
+    /** @type {(() => void) | null} */
     #stop = null;
     #children = new MutationObserver(() => this.#register());
 

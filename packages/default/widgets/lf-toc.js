@@ -81,28 +81,50 @@ const LENS_DURATION = 1_000_000;
 customElements.define(
   "lf-toc",
   class extends HTMLElement {
-    #main;
-    #drawing;
-    #nav;
-    #rows;
-    #lens;
+    /** @type {Element | null} */
+    #main = null;
+    /** @type {ReturnType<typeof drawToc> | undefined} */
+    #drawingOwner;
+    get #drawing() {
+      return (this.#drawingOwner ??= drawToc(this, {
+        label: wrote,
+        chrome: inChrome,
+        lends: true,
+      }));
+    }
+    get #nav() {
+      return this.#drawing.nav;
+    }
+    get #rows() {
+      return this.#drawing.track;
+    }
+    get #lens() {
+      return this.#drawing.lens;
+    }
+    /** @type {{animation: Animation, effect: KeyframeEffect} | null} */
     #lensMotion = null;
     #lensInputs = "";
+    /** @type {ReturnType<ReturnType<typeof drawToc>["sections"]>} */
     #sections = [];
-    #positions = [];
-    #mapPositions = [];
+    /** @typedef {{section: ReturnType<ReturnType<typeof drawToc>["sections"]>[number], position: number, shown: boolean, mapPosition?: number}} MeasuredSection */
+    /** @type {MeasuredSection[]} */
+    #measured = [];
     #mapHeight = 1;
-    #shown = [];
     #contentStart = 0;
     #contentEnd = 1;
+    /** @type {HTMLAnchorElement | null} */
     #currentLink = null;
-    #scroller;
+    /** @type {Element | null} */
+    #scroller = null;
+    /** @type {(() => void) | undefined} */
     #stopWatching;
-    #watching;
-    #renamed;
+    /** @type {{watching: ResizeObserver, renamed: MutationObserver} | null} */
+    #observers = null;
     #navHeight = 0;
+    /** @type {Element | null} */
     #focusedLink = null;
     #focusedVisible = false;
+    /** @type {boolean | undefined} */
     #flowOpen;
 
     #onInterface = () => {
@@ -117,8 +139,7 @@ customElements.define(
     };
 
     connectedCallback() {
-      this.#drawing ??= drawToc(this, { label: wrote, chrome: inChrome, lends: true });
-      render(this.#drawing.render(), this.#drawing.root ?? this, { host: this });
+      render(this.#drawing.render(), this, { host: this });
       const main = this.#drawing.scope();
       if (!once(this) && main === this.#main && scrollerFor(main) === this.#scroller)
         return;
@@ -127,7 +148,6 @@ customElements.define(
       this.#stopWatching?.();
       this.#main = main;
       if (!main) return;
-      ({ nav: this.#nav, track: this.#rows, lens: this.#lens } = this.#drawing);
       this.#reconcile();
       this.#stopWatching = whileConnected(this, (signal) => this.#watch(signal));
     }
@@ -163,19 +183,22 @@ customElements.define(
       this.#observeDestinations(previous);
     }
 
+    /** @param {Element[]} [previous] */
     #observeDestinations(previous = []) {
-      if (!this.#watching) return;
+      const observers = this.#observers;
+      if (!observers) return;
       for (const destination of previous)
-        if (destination !== this.#main) this.#watching.unobserve(destination);
-      this.#renamed.disconnect();
+        if (destination !== this.#main) observers.watching.unobserve(destination);
+      observers.renamed.disconnect();
       // The complete destination reports section growth and title-group layout,
       // including an eyebrow changing size while its heading stays the same.
       for (const { destination } of this.#sections) {
-        if (destination !== this.#main) this.#watching.observe(destination);
-        this.#renamed.observe(destination, { attributeFilter: ["id"] });
+        if (destination !== this.#main) observers.watching.observe(destination);
+        observers.renamed.observe(destination, { attributeFilter: ["id"] });
       }
     }
 
+    /** @param {AbortSignal} signal */
     #watch(signal) {
       this.#main = this.#drawing.scope();
       if (!this.#main) return;
@@ -187,12 +210,13 @@ customElements.define(
         this.#scroller === document.scrollingElement ? document : this.#scroller;
       // The map writes only its own geometry. Measure during size delivery so
       // the document and its section lengths paint together.
-      this.#watching = sizeObserver(() => this.#measure());
-      this.#watching.observe(this.#main);
-      this.#renamed = new MutationObserver(() => {
+      const watching = sizeObserver(() => this.#measure());
+      watching.observe(this.#main);
+      const renamed = new MutationObserver(() => {
         this.#reconcile();
         this.#scheduleMeasure();
       });
+      this.#observers = { watching, renamed };
       this.#observeDestinations();
       const passive = { passive: true, signal };
       scrollSource.addEventListener("scroll", this.#schedulePaint, passive);
@@ -210,11 +234,10 @@ customElements.define(
       matchMedia("print").addEventListener("change", this.#onPresentation, { signal });
       this.#scheduleMeasure();
       return () => {
-        this.#watching.disconnect();
-        this.#watching = null;
-        this.#renamed.disconnect();
-        this.#renamed = null;
-        this.#lensMotion?.cancel();
+        watching.disconnect();
+        renamed.disconnect();
+        this.#observers = null;
+        this.#lensMotion?.animation.cancel();
         this.#lensMotion = null;
         this.#lensInputs = "";
       };
@@ -224,8 +247,7 @@ customElements.define(
 
     #measure() {
       if (!this.#main || !this.#scroller || !this.#rows) return;
-      const disclosure = this.#nav.querySelector("details");
-      const summary = disclosure.querySelector("summary");
+      const { disclosure, summary } = this.#drawing;
       // CSS already owns posture. A hidden summary means these links are an
       // always-exposed outline, which requires native open state in every engine.
       if (getComputedStyle(summary).display === "none") {
@@ -236,40 +258,43 @@ customElements.define(
         if (disclosure.open !== open) disclosure.open = open;
         this.#flowOpen = undefined;
       }
-      if (!this.#sections.length) {
-        this.#positions = [];
-        this.#shown = [];
+      const [first] = this.#sections;
+      if (!first) {
+        this.#measured = [];
         this.#paint();
         return;
       }
-      const mainTop = this.#documentTop(this.#main);
-      let previous = this.#documentTop(this.#sections[0].destination);
-      this.#shown = this.#sections.map(
-        ({ destination }) =>
-          destination === this.#main || destination.checkVisibility(),
-      );
-      this.#positions = this.#sections.map(({ destination }, index) => {
-        const position = this.#shown[index]
-          ? Math.max(previous, this.#documentTop(destination))
+      const main = this.#main,
+        scroller = this.#scroller;
+      const mainTop = this.#documentTop(main, scroller, main);
+      const start = this.#documentTop(first.destination, scroller, main);
+      let previous = start;
+      this.#measured = this.#sections.map((section) => {
+        const shown =
+          section.destination === main || section.destination.checkVisibility();
+        const position = shown
+          ? Math.max(previous, this.#documentTop(section.destination, scroller, main))
           : previous;
         previous = position;
-        return position;
+        return { section, shown, position };
       });
-      this.#contentStart = this.#positions[0];
+      this.#contentStart = start;
       this.#contentEnd = Math.max(
         mainTop +
-          this.#main.clientTop +
-          this.#main.scrollHeight -
-          parseFloat(getComputedStyle(this.#main).paddingBottom),
-        this.#positions.at(-1) + 1,
+          main.clientTop +
+          main.scrollHeight -
+          parseFloat(getComputedStyle(main).paddingBottom),
+        previous + 1,
       );
-      this.#sections.forEach(({ row }, index) => {
-        row.toggleAttribute("data-lf-toc-hidden", !this.#shown[index]);
-        const nextVisible = this.#shown.findIndex((shown, at) => at > index && shown);
-        const next = nextVisible < 0 ? this.#contentEnd : this.#positions[nextVisible];
+      this.#measured.forEach((measured, index) => {
+        const { row } = measured.section;
+        row.toggleAttribute("data-lf-toc-hidden", !measured.shown);
+        const next =
+          this.#measured.find((other, at) => at > index && other.shown)?.position ??
+          this.#contentEnd;
         row.style.setProperty(
           "--lf-toc-span",
-          this.#shown[index] ? String(Math.max(1, next - this.#positions[index])) : "0",
+          measured.shown ? String(Math.max(1, next - measured.position)) : "0",
         );
       });
       this.#fitRows();
@@ -281,19 +306,21 @@ customElements.define(
     // A row's shift moves its label and dot (a transform and an inset), never the row, so
     // the rows are measured where they stand and each shift is written once, as fitted.
     #fitRows() {
-      this.#mapPositions = [];
+      for (const measured of this.#measured) delete measured.mapPosition;
       const shifts = this.#fitLabels();
-      this.#sections.forEach(({ row }, index) => {
-        if (shifts.has(index))
-          row.style.setProperty("--lf-toc-row-shift", `${shifts.get(index)}px`);
-        else row.style.removeProperty("--lf-toc-row-shift");
-      });
+      for (const measured of this.#measured) {
+        const shift = shifts.get(measured);
+        if (shift !== undefined)
+          measured.section.row.style.setProperty("--lf-toc-row-shift", `${shift}px`);
+        else measured.section.row.style.removeProperty("--lf-toc-row-shift");
+      }
     }
 
     #rememberFocus() {
       const viewport = this.#nav.getBoundingClientRect();
       const active = focused(document);
-      const shown = this.#nav.contains(active) ? active.getBoundingClientRect() : null;
+      const shown =
+        active && this.#nav.contains(active) ? active.getBoundingClientRect() : null;
       this.#navHeight = viewport.height;
       this.#focusedLink = active;
       this.#focusedVisible =
@@ -302,6 +329,7 @@ customElements.define(
 
     // Each fitted row's shift, by section index.
     #fitLabels() {
+      /** @type {Map<MeasuredSection, number>} */
       const shifts = new Map();
       this.removeAttribute("data-lf-compact");
       this.removeAttribute("data-lf-outline");
@@ -310,19 +338,19 @@ customElements.define(
       this.#mapHeight = track.height;
 
       const readLabels = () => {
-        /** @type {{index: number, ideal: number, height: number, center: number, prefix?: number}[]} */
-        const labels = this.#sections.flatMap(({ row, link }, index) =>
-          this.#shown[index]
+        const labels = this.#measured.flatMap((measured) => {
+          const { row, link } = measured.section;
+          return measured.shown
             ? [
                 {
-                  index,
+                  measured,
                   ideal: row.getBoundingClientRect().top - track.top,
                   height: link.getBoundingClientRect().height,
                   center: parseFloat(getComputedStyle(link).lineHeight) / 2,
                 },
               ]
-            : [],
-        );
+            : [];
+        });
         const lineHeight = parseFloat(getComputedStyle(this.#nav).lineHeight);
         const preferredGap = Number.isFinite(lineHeight) ? lineHeight * 0.5 : 0;
         const labelHeight = labels.reduce((sum, label) => sum + label.height, 0);
@@ -364,109 +392,112 @@ customElements.define(
       }
 
       let prefix = 0;
-      for (const label of layout.labels) {
-        label.prefix = prefix;
+      const labels = layout.labels.map((label) => {
+        const placed = { ...label, prefix };
         prefix += label.height + layout.gap;
-      }
+        return placed;
+      });
       const occupiedHeight = Math.max(0, prefix - layout.gap);
-
-      // Fit label boxes around their marker centers. A collision-free label top is its
-      // document coordinate minus its first-line center and every preceding label's
-      // height. Pool adjacent violations and share their correction, so a
-      // crowded group bends one monotone scale around its destinations instead of
-      // accumulating displacement below them.
+      // Pool adjacent labels that overlap into one weighted block. Each block
+      // retains its labels directly, so fitting needs no parallel index ranges.
+      /** @type {{labels: typeof labels, top: number, count: number}[]} */
       const blocks = [];
-      layout.labels.forEach((label, at) => {
-        blocks.push({
-          start: at,
-          end: at,
+      for (const label of labels) {
+        let block = {
+          labels: [label],
           top: label.ideal - label.center - label.prefix,
           count: 1,
-        });
-        while (blocks.length > 1 && blocks.at(-2).top > blocks.at(-1).top) {
-          const next = blocks.pop();
-          const previous = blocks.pop();
-          const count = previous.count + next.count;
-          blocks.push({
-            start: previous.start,
-            end: next.end,
-            top: (previous.top * previous.count + next.top * next.count) / count,
+        };
+        let previous = blocks.at(-1);
+        while (previous && previous.top > block.top) {
+          blocks.pop();
+          const count = previous.count + block.count;
+          block = {
+            labels: [...previous.labels, ...block.labels],
+            top: (previous.top * previous.count + block.top * block.count) / count,
             count,
-          });
+          };
+          previous = blocks.at(-1);
         }
-      });
+        blocks.push(block);
+      }
 
       const floor = -layout.firstCenter;
       const ceiling = track.height - occupiedHeight;
       for (const block of blocks) {
         const top = Math.max(floor, Math.min(ceiling, block.top));
-        for (let at = block.start; at <= block.end; at += 1) {
-          const label = layout.labels[at];
+        for (const label of block.labels) {
           const fitted = top + label.prefix + label.center;
-          this.#mapPositions[label.index] = fitted;
-          shifts.set(label.index, fitted - label.ideal);
+          label.measured.mapPosition = fitted;
+          shifts.set(label.measured, fitted - label.ideal);
         }
       }
       return shifts;
     }
 
+    /** @param {number} position */
     #mapPosition(position) {
+      /** @type {{documentPosition: number, mapPosition: number}[]} */
       const anchors = [];
-      this.#positions.forEach((documentPosition, index) => {
-        if (!this.#shown[index] || !Number.isFinite(this.#mapPositions[index])) return;
-        const anchor = { documentPosition, mapPosition: this.#mapPositions[index] };
-        // Several outline entries can name the same rendered position. Current-section
-        // selection walks forward through that run, so the lens must use its last entry
-        // too; retaining the first put the lens beside a different title.
+      for (const measured of this.#measured) {
+        const { shown, position: documentPosition, mapPosition } = measured;
+        if (!shown || mapPosition === undefined || !Number.isFinite(mapPosition))
+          continue;
+        const anchor = { documentPosition, mapPosition };
         if (anchors.at(-1)?.documentPosition === documentPosition) anchors.pop();
         anchors.push(anchor);
-      });
-      if (!anchors.length) {
+      }
+      const [first, ...rest] = anchors;
+      if (!first) {
         const total = Math.max(1, this.#contentEnd - this.#contentStart);
         return (
           Math.max(0, Math.min(1, (position - this.#contentStart) / total)) *
           this.#mapHeight
         );
       }
-      if (position <= anchors[0].documentPosition) return anchors[0].mapPosition;
-      for (let index = 1; index < anchors.length; index += 1) {
-        const previous = anchors[index - 1];
-        const next = anchors[index];
-        if (position > next.documentPosition) continue;
+      if (position <= first.documentPosition) return first.mapPosition;
+      let previous = first;
+      for (const next of rest) {
+        if (position > next.documentPosition) {
+          previous = next;
+          continue;
+        }
         const distance = Math.max(1, next.documentPosition - previous.documentPosition);
         const progress = (position - previous.documentPosition) / distance;
         return (
           previous.mapPosition + progress * (next.mapPosition - previous.mapPosition)
         );
       }
-      const last = anchors.at(-1);
-      const distance = Math.max(1, this.#contentEnd - last.documentPosition);
+      const distance = Math.max(1, this.#contentEnd - previous.documentPosition);
       const progress = Math.max(
         0,
-        Math.min(1, (position - last.documentPosition) / distance),
+        Math.min(1, (position - previous.documentPosition) / distance),
       );
-      return last.mapPosition + progress * (this.#mapHeight - last.mapPosition);
+      return previous.mapPosition + progress * (this.#mapHeight - previous.mapPosition);
     }
 
-    #documentTop(element) {
-      for (let candidate = element; candidate; candidate = candidate.parentElement) {
+    /** @param {Element} element @param {Element} scroller @param {Element} main */
+    #documentTop(element, scroller, main) {
+      /** @type {Element | null} */
+      let candidate = element;
+      for (; candidate; candidate = candidate.parentElement) {
         const box = candidate.getBoundingClientRect();
-        if (box.width || box.height) return box.top + this.#scroller.scrollTop;
-        if (candidate === this.#main) break;
+        if (box.width || box.height) return box.top + scroller.scrollTop;
+        if (candidate === main) break;
       }
-      const mainBox = this.#main.getBoundingClientRect();
-      return mainBox.top + this.#scroller.scrollTop;
+      const mainBox = main.getBoundingClientRect();
+      return mainBox.top + scroller.scrollTop;
     }
 
     #schedulePaint = frameFor(this, () => this.#paint());
 
     #paint() {
       if (!this.#rows || !this.#scroller) return;
-      let current = this.#shown.findIndex(Boolean);
-      if (current < 0) {
+      let current = this.#measured.find((measured) => measured.shown);
+      if (!current) {
         this.#currentLink?.removeAttribute("aria-current");
         this.#currentLink = null;
-        this.#lensMotion?.cancel();
+        this.#lensMotion?.animation.cancel();
         this.#lensMotion = null;
         this.#lensInputs = "";
         keeps(this.#lens, "style", "display: none;");
@@ -478,17 +509,17 @@ customElements.define(
       const visibleStart = this.#scroller.scrollTop + clear.top;
       const visibleEnd =
         this.#scroller.scrollTop + this.#scroller.clientHeight - clear.bottom;
-      this.#standLens(clear);
+      this.#standLens(clear, this.#scroller);
       if (!SCROLL_TIMELINE && this.#lensMotion)
-        this.#lensMotion.currentTime =
+        this.#lensMotion.animation.currentTime =
           (LENS_DURATION * this.#scroller.scrollTop) / scrollLimit(this.#scroller);
 
       const threshold = visibleStart + Math.min(32, (visibleEnd - visibleStart) * 0.08);
-      this.#positions.forEach((position, index) => {
-        if (this.#shown[index] && position <= threshold) current = index;
-      });
-      if (atScrollEnd(this.#scroller)) current = this.#shown.findLastIndex(Boolean);
-      const link = this.#sections[current].link;
+      const end = atScrollEnd(this.#scroller);
+      for (const measured of this.#measured)
+        if (measured.shown && (end || measured.position <= threshold))
+          current = measured;
+      const link = current.section.link;
       if (link === this.#currentLink) return;
       this.#currentLink?.removeAttribute("aria-current");
       link.setAttribute("aria-current", "location");
@@ -497,32 +528,38 @@ customElements.define(
 
     // Keyframes are set again only when a measure has moved the map, or the scroller's
     // length or landing band has changed; a scroll alone reaches the early return.
-    #standLens(clear) {
-      const scroller = this.#scroller;
+    /** @param {{top: number, bottom: number}} clear @param {Element} scroller */
+    #standLens(clear, scroller) {
       const reach = scrollLimit(scroller);
       const band = scroller.clientHeight - clear.top - clear.bottom;
       const inputs = `${reach} ${band} ${clear.top}`;
       if (inputs === this.#lensInputs) return;
       this.#lensInputs = inputs;
       const floor = Math.max(LENS_FLOOR, this.#mapHeight * 0.012);
-      const span = (scrolled) => {
+      const span = (/** @type {number} */ scrolled) => {
         const start = this.#mapPosition(scrolled + clear.top);
         return {
           start,
           size: Math.max(start, this.#mapPosition(scrolled + clear.top + band)) - start,
         };
       };
-      const transform = ({ start, size }) =>
+      const transform = (
+        /** @type {{start: number, size: number}} */ { start, size },
+      ) =>
         `translateY(${layoutPx(start)}) scaleY(${atLayoutPrecision(Math.max(floor, size))})`;
       if (reach <= 0) {
-        this.#lensMotion?.cancel();
+        this.#lensMotion?.animation.cancel();
         this.#lensMotion = null;
         keeps(this.#lens, "style", `transform: ${transform(span(0))};`);
         return;
       }
       // The map is linear between the scroll positions where the band's top or foot
       // meets a destination or the document's ends, and where the lens meets its floor.
-      const bends = [this.#contentStart, this.#contentEnd, ...this.#positions]
+      const bends = [
+        this.#contentStart,
+        this.#contentEnd,
+        ...this.#measured.map(({ position }) => position),
+      ]
         .flatMap((position) => [position - clear.top, position - clear.top - band])
         .filter((scrolled) => scrolled > 0 && scrolled < reach);
       const stops = [...new Set([0, reach, ...bends])].sort((a, b) => a - b);
@@ -542,18 +579,23 @@ customElements.define(
       }));
       this.#lens.removeAttribute("style");
       if (this.#lensMotion) this.#lensMotion.effect.setKeyframes(frames);
-      else if (SCROLL_TIMELINE)
-        this.#lensMotion = this.#lens.animate(frames, {
-          timeline: new globalThis.ScrollTimeline({ source: scroller, axis: "block" }),
-          fill: "both",
-        });
       else {
-        // #paint sets the time as the scroller scrolls.
-        this.#lensMotion = this.#lens.animate(frames, {
-          duration: LENS_DURATION,
-          fill: "both",
-        });
-        this.#lensMotion.pause();
+        const effect = new KeyframeEffect(
+          this.#lens,
+          frames,
+          SCROLL_TIMELINE
+            ? { fill: "both" }
+            : { duration: LENS_DURATION, fill: "both" },
+        );
+        const animation = new Animation(
+          effect,
+          SCROLL_TIMELINE
+            ? new globalThis.ScrollTimeline({ source: scroller, axis: "block" })
+            : document.timeline,
+        );
+        this.#lensMotion = { effect, animation };
+        animation.play();
+        if (!SCROLL_TIMELINE) animation.pause();
       }
     }
   },

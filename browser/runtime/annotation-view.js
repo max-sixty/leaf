@@ -7,7 +7,6 @@
  * annotations, resolves their anchors, folds events or publishes an application root.
  * The owner retains its rows and layout, and unregisters when its document leaves.
  */
-import { contributionSource } from "./contributions.js";
 import {
   activateContributionControl,
   clearContributionControls,
@@ -20,6 +19,18 @@ import { declareSide } from "./current-target.js";
 import { under } from "./shadow.js";
 import { annotationItems, entryControls } from "./margin-model.js";
 
+/** @typedef {import("./annotation-inventory.js").InventoryEntry} Entry
+ * @typedef {import("./contributions.js").ContributionSource} Source
+ * @typedef {import("./contributions.js").ContributionOffer} Offer
+ * @typedef {ReturnType<typeof import("./annotation-inventory.js").createAnnotationInventory>} Inventory
+ * @typedef {{target: Inventory["targetFor"], activate: Inventory["activate"], items: typeof annotationItems,
+ * controlKey: typeof contributionControlKey, controlRecord: typeof contributionEntryRecord,
+ * arriving: boolean, place: (entry: Entry, row: Element) => void,
+ * controls: (entry: Entry) => Element[]}} Capabilities
+ * @typedef {(entries: readonly Entry[], capabilities: Capabilities) => unknown} Paint
+ */
+/** @param {Element} owner @param {Paint} render @param {Inventory} inventory
+ * @param {() => void} invalidate @param {() => void} retire */
 export function createAnnotationView(owner, render, inventory, invalidate, retire) {
   if (!(owner instanceof Element))
     throw new TypeError("consumeAnnotations needs an Element owner");
@@ -28,7 +39,9 @@ export function createAnnotationView(owner, render, inventory, invalidate, retir
   if (typeof render !== "function")
     throw new TypeError("consumeAnnotations needs a synchronous render callback");
   let active = true;
+  /** @type {Map<Element, Entry>} */
   let places = new Map();
+  /** @type {Set<Source>} */
   let offers = new Set();
   const stopSide = declareSide((node) => {
     for (const [row, entry] of places)
@@ -36,14 +49,17 @@ export function createAnnotationView(owner, render, inventory, invalidate, retir
     return null;
   });
 
+  /** @param {readonly Entry[]} entries */
   function paint(entries) {
     if (!active) return;
     if (!owner.isConnected) return unregister();
+    /** @type {Map<Element, Entry>} */
     const nextPlaces = new Map();
+    /** @type {Set<Source>} */
     const nextOffers = new Set();
     const allowed = new Set(entries);
     let painting = true;
-    const admit = (entry) => {
+    const admit = (/** @type {Entry} */ entry) => {
       if (!painting || !allowed.has(entry))
         throw new TypeError("Annotation capabilities belong to their current reading");
     };
@@ -56,7 +72,7 @@ export function createAnnotationView(owner, render, inventory, invalidate, retir
         controlRecord: contributionEntryRecord,
         arriving: entries.some((entry) =>
           entry.offers.some((model) => {
-            const offered = contributionSource(model);
+            const offered = model.source();
             const request = offered.focusRequest;
             return (
               request &&
@@ -75,28 +91,36 @@ export function createAnnotationView(owner, render, inventory, invalidate, retir
         },
         controls(entry) {
           admit(entry);
-          const retained = new Map(
-            entry.offers.map((model) => {
-              const offered = contributionSource(model);
-              nextOffers.add(offered);
-              return [
-                model,
-                materializeContributionControls(
-                  offered,
-                  "page",
-                  activateContributionControl,
-                ),
-              ];
-            }),
-          );
+          /** @type {Map<Offer, ReturnType<typeof materializeContributionControls>>} */
+          const retained = new Map();
+          /** @param {Offer} offer */
+          const materialize = (offer) => {
+            let controls = retained.get(offer);
+            if (!controls) {
+              controls = materializeContributionControls(
+                offer,
+                "page",
+                activateContributionControl,
+              );
+              retained.set(offer, controls);
+              nextOffers.add(offer.source());
+            }
+            return controls;
+          };
+          for (const offer of entry.offers) materialize(offer);
           return entryControls(entry).map(({ offered, record, receipt }) => {
-            const control = retained.get(offered).get(record.key);
+            const control = materialize(offered)(record);
             presentContributionReceipts(control, receipt, false);
             return control;
           });
         },
       });
-      if (result?.then)
+      if (
+        result &&
+        (typeof result === "object" || typeof result === "function") &&
+        "then" in result &&
+        result.then
+      )
         throw new TypeError(
           "Annotation paint must finish inside its inventory reading",
         );

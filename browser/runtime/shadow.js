@@ -2,7 +2,10 @@
  * the shared highlight rules. */
 import { isStage, liveStages } from "./arrivals.js";
 import { registry } from "./registry.js";
+export { overIn, SAID, UI_MARKS, uiInside, inUi } from "./shadow-tree.js";
 import {
+  isElement,
+  isHTML,
   excludedByInert,
   byRenderedOrder,
   composedParentNode,
@@ -47,9 +50,12 @@ export {
 //
 // A root refused for holding bare text (passages.js, `refusesBareText`) leaves the list for
 // good, and its host reads the same way.
+/** @type {WeakSet<ShadowRoot>} */
 const refusedRoots = new WeakSet();
+/** @param {ShadowRoot} root */
 export const refuseShadowRoot = (root) => refusedRoots.add(root);
 // The declared root `host` holds the page's words in, or null.
+/** @param {Element} host */
 export const declaredRoot = (host) =>
   host.shadowRoot &&
   registry[host.localName]?.["x-shadow"] &&
@@ -57,6 +63,7 @@ export const declaredRoot = (host) =>
   !refusedRoots.has(host.shadowRoot)
     ? host.shadowRoot
     : null;
+/** @param {Node} root */
 export const shadowRootsIn = (root) =>
   liveStages().filter(
     (stage) => root.contains(stage.host) && declaredRoot(stage.host) === stage,
@@ -64,62 +71,23 @@ export const shadowRootsIn = (root) =>
 export const pageShadowRoots = () => shadowRootsIn(document);
 // Geometry walks the children that paint here: a host's shadow tree and a slot's
 // assigned (or fallback) content, rather than the separate light-DOM ownership tree.
+/** @param {Node} node */
 export const renderedChildren = (node) =>
-  node.localName === "slot"
+  isHTML(node, "slot")
     ? node.assignedNodes({ flatten: true })
-    : (node.shadowRoot ?? node).childNodes;
+    : (isElement(node) ? (node.shadowRoot ?? node) : node).childNodes;
 
 // What stands for `node` in the tree `root` roots (a Document or a ShadowRoot): the node
 // itself when it is in that tree, else the host of the shadow tree holding it, climbed
 // out until one is. Null when none is: a detached node, or one outside `root`
 // altogether. A shadow tree renders where its host stands, so order and range
 // questions, which the platform answers only within one tree, are asked of this.
+/** @param {Node | null} node @param {Node} root */
 export const hostIn = (node, root) => {
   let at = node;
   while (at && at.getRootNode() !== root) at = shadowHost(at.getRootNode());
   return at;
 };
-
-// Which layer a node stands in — the runtime's chrome, a declared label, or the
-// document — is asked by every reading that climbs out of a widget, so it is answered
-// here, beside the climb, where geometry.js and widget-elements.js can ask it without
-// importing the passage readings back.
-// The chrome over a node, read within one frame: above the frame it is nobody's, and with
-// no frame at all it is the document's own reading, unchanged.
-export const overIn = (el, selector, frame) => {
-  const near = el.closest(selector);
-  return near && (!frame || under(near, frame)) ? near : null;
-};
-// A label a widget declared as the page speaking (generatedElement), which the anchor
-// pass reads over the chrome it sits in.
-export const SAID = "[data-lf-said]";
-// The pair `uiInside` weighs, the nearer deciding. The passage walk reads the same pair one
-// element at a time on its way down (passages.js, `chromeMark`).
-export const UI_MARKS = `.lf-ui, ${SAID}`;
-// The same question one node at a time: is this the runtime's own chrome rather than the
-// document? Every affordance asks it before acting on where the pointer or the caret is.
-// The nearest element that answers wins: a declared label is the page's words inside the
-// control it labels, and a control nested inside one is chrome again. `.lf-ui` alone was
-// the answer once, and it is a look — which is how a user ended up reading a heading
-// they could not point at, twice.
-//
-// Bounded or not, by the second argument, and that is the whole difference between the
-// two ways this gets asked. Unbounded — `inUi` — the answer is about the page: a
-// control is the runtime's apparatus wherever it stands, which is what a pointer or a
-// caret needs to know. Bounded at an element, the answer is about that element's own
-// insides, which is what a reading of one widget needs: the panel holding a widget an
-// agent sent in a reply is itself `.lf-ui`, so asked the unbounded way every child of
-// such a widget answers yes, and the widget reads as having nothing of its own left.
-// The text readings took the same seam (quotable, shownParts, settledAway, authored);
-// it is stated once here so
-// that what a mark may hang on, what a settlement has emptied, and what a quote may
-// name cannot come apart.
-export const uiInside = (el, within) => {
-  const near = el && overIn(el, UI_MARKS, within);
-  return Boolean(near) && !near.matches(SAID);
-};
-export const inUi = (node) =>
-  uiInside(node?.nodeType === 1 ? node : node?.parentElement, null);
 
 // The layer's rules for shadow trees: every root's shadow.css, above adopted defaults,
 // followed by semantic state.css (layer.py's `composed_sheets`). Read from the layer
@@ -131,6 +99,7 @@ export let shadowRules = "";
 // arrive at any of them — in the document, in a later version, or in an agent's reply —
 // so the ask is repeated and the answer is not. Sharing the promise rather than the text
 // also holds a second caller behind the first read instead of starting another.
+/** @type {Promise<void> | null} */
 let loading = null;
 export function loadShadowRules() {
   loading ??= readShadowRules();

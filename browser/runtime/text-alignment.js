@@ -26,6 +26,8 @@ export const sentenceUnits = new Intl.Segmenter(undefined, {
 });
 const MAX_EDIT_LENGTH = 1_000;
 
+/** @typedef {{kind: "same" | "delete" | "insert", text: string}} TextRun */
+/** @param {string} before @param {string} after @param {Intl.Segmenter} [units] @param {number} [maxEditLength] @returns {TextRun[]} */
 export function alignText(
   before,
   after,
@@ -35,16 +37,21 @@ export function alignText(
   const left = [...units.segment(before)].map((part) => part.segment);
   const right = [...units.segment(after)].map((part) => part.segment);
   const changes = diffArrays(left, right, { maxEditLength });
-  if (!changes)
-    return [
+  if (!changes) {
+    /** @type {TextRun[]} */
+    const replaced = [
       { kind: "delete", text: before },
       { kind: "insert", text: after },
-    ].filter((run) => run.text);
+    ];
+    return replaced.filter((run) => run.text);
+  }
   return changes
-    .map((change) => ({
-      kind: change.added ? "insert" : change.removed ? "delete" : "same",
-      text: change.value.join(""),
-    }))
+    .map(
+      /** @returns {TextRun} */ (change) => ({
+        kind: change.added ? "insert" : change.removed ? "delete" : "same",
+        text: change.value.join(""),
+      }),
+    )
     .filter((run) => run.text);
 }
 
@@ -52,32 +59,37 @@ export function alignText(
 // then refines a replaced sentence only where most of the old sentence survives. That
 // makes a local clause or word edit genuinely inline without letting incidental words
 // such as "the" shred two different sentences into alternating fragments.
+/** @param {string} before @param {string} after */
 export function alignInlineText(before, after) {
-  const coarse = alignText(before, after, sentenceUnits);
+  const coarse = alignText(before, after, sentenceUnits)[Symbol.iterator]();
+  /** @type {TextRun[]} */
   const runs = [];
-  const push = (run) => {
+  const push = (/** @type {TextRun} */ run) => {
     const last = runs.at(-1);
     if (last?.kind === run.kind) last.text += run.text;
     else runs.push({ ...run });
   };
-  for (let at = 0; at < coarse.length; at++) {
-    const run = coarse[at];
-    const replacement = run.kind === "delete" && coarse[at + 1]?.kind === "insert";
-    if (!replacement) {
+  let current = coarse.next();
+  while (!current.done) {
+    const run = current.value;
+    const next = coarse.next();
+    if (run.kind !== "delete" || next.done || next.value.kind !== "insert") {
       push(run);
+      current = next;
       continue;
     }
-    const next = coarse[++at];
-    const fine = alignText(run.text, next.text);
+    const replacement = next.value;
+    const fine = alignText(run.text, replacement.text);
     const retained = fine
       .filter((part) => part.kind === "same")
       .reduce((length, part) => length + part.text.length, 0);
-    if (retained >= Math.min(run.text.length, next.text.length) * 0.6)
+    if (retained >= Math.min(run.text.length, replacement.text.length) * 0.6)
       fine.forEach(push);
     else {
       push(run);
-      push(next);
+      push(replacement);
     }
+    current = coarse.next();
   }
   return runs;
 }

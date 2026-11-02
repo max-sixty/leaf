@@ -8,6 +8,7 @@ const FAILURES = {
 	"no-speech": "No speech heard"
 };
 const STATUS = {
+	idle: "",
 	starting: "Starting microphone…",
 	listening: "Listening…",
 	stopping: "Finishing…"
@@ -40,7 +41,7 @@ function createDictation({ Recognition, language, read, write, changed, announce
 			return failure;
 		},
 		get status() {
-			return STATUS[phase] ?? failure?.text ?? "";
+			return STATUS[phase] || failure?.text || "";
 		},
 		cancel,
 		edited() {

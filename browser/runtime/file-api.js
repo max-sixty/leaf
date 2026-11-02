@@ -10,9 +10,10 @@ import { applicationState, readPart } from "./semantic-state.js";
 
 const live = readPart((root) => root.document.live);
 
+/** @param {string} binding */
 export function boundFile(binding) {
-  const writable = () => !offlineInteractive && live();
-  /** @returns {Promise<import("../types/contract.js").ServedFileSnapshot | null>} */
+  const writable = () => !offlineInteractive && Boolean(live());
+  /** @template T @param {RequestInit} [options] @returns {Promise<T>} */
   async function request(options = {}) {
     if (!writable()) throw new Error("File editing is available in live pages.");
     try {
@@ -47,10 +48,13 @@ export function boundFile(binding) {
     // The server answers a binding the page lacks as no file, keeping the console
     // clean for a designed state; the editor still shows it as unavailable.
     read: async () => {
+      /** @type {import("../types/contract.js").ServedFileSnapshot | null} */
       const file = await request();
       if (file === null) throw new Error(`No file is bound as '${binding}'.`);
       return file;
     },
+    /** @param {Pick<import("../types/contract.js").ServedFileSnapshot, "revision" | "text">} snapshot
+     * @returns {Promise<import("../types/contract.js").ServedFileSnapshot>} */
     save: (snapshot) =>
       request({
         method: "POST",
@@ -61,6 +65,7 @@ export function boundFile(binding) {
     // binding, the tab's first answer included, until the returned function stops it.
     // A stamp says only that the file may have moved; `read()`'s revision says whether
     // it did.
+    /** @param {() => void} callback */
     watch(callback) {
       let subscribing = true;
       const stop = applicationState

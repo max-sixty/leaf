@@ -33,8 +33,10 @@ can start a turn or interrupt one. What the harnesses share lives here: their
 isolation and its evidence (`isolated`), the session the journey hears through every
 wait (`Terminal`), and the user (`User`). `--sandbox` runs the session's shell
 commands in its harness's sandbox; `--preview` has Codex serve the page with the
-canonical `leaf-dev preview --user`. The journey stops at the first check that fails
-and keeps no sample.
+canonical `leaf-dev preview --user`; `--forks` lets forks of Claude Code's
+conversation answer the user's thread messages, and runs the steps that test them
+in place of the delivery steps (`journey_claude_code`). The journey stops at the
+first check that fails and keeps no sample.
 
 Where the user is, every step alike, is the journey's one axis (`User.end`):
 
@@ -73,7 +75,10 @@ own, so both start from the same page and context. The JSON on stdout carries al
 of it: the user's end (`userEnd`), the `case`, `comment` for the release ask,
 `steps` for each step's duration and its comments' timings, and the code version
 the journey ran. A comment whose step held a permission prompt the user answered
-says so (`approved`), since the prompt held the session for as long as it stood.
+says so (`approved`), since the prompt held the session for as long as it stood. A
+comment a fork of the conversation decided on carries the fork's outcome, time and
+tokens (`fork`); one the fork answered has no `reply` breakdown, since the session
+spent nothing on it.
 
 A failure receipt ends the journey on the first ask
 (`worker/README.md` owns that contract).
@@ -123,12 +128,13 @@ from leaf_dev.browser import DESKTOP, headless_shell
 from leaf_dev.commands.verify_site import (
     LocalWorker,
     agent_session,
-    answered,
     await_presentation,
+    capture_script_responses,
     check,
     local_adapter,
     local_worker,
     observe_startup,
+    read_state,
     said,
     start_direct_agent,
     startup_profile,
@@ -387,17 +393,6 @@ def check_turn_answered(
     return published, answer
 
 
-def read_state(session: Session) -> dict:
-    """Read the page's authoritative state, as this session reaches it."""
-    response = answered(
-        session.context.request.get(
-            session.state_url, headers=session.headers, timeout=120_000
-        ),
-        session.state_url,
-    )
-    return response.json()
-
-
 def release_ask(marker: str) -> str:
     """What the user tells the agent: release `marker` passed its checks. It says what
     happened and leaves how the page shows it to the agent, as a user would, so the
@@ -514,7 +509,12 @@ def send_written(
     profile.acknowledge()
     # Read the admitted event from state rather than the intercepted response body,
     # which Playwright can wait on forever once the page has consumed it.
-    accepted = read_state(session)
+    accepted = read_state(
+        session.context.request,
+        session.state_url,
+        headers=session.headers,
+        timeout=120_000,
+    ).json()
     profile.observe(accepted)
     assert posted.request.post_data_json is not None
     attempt = posted.request.post_data_json["attempt"]
@@ -932,12 +932,21 @@ def user_at(
             if command["session"] == claim["id"]
         ]
 
+    def forks() -> list[dict]:
+        # The reader's own gap records come whatever type is asked for.
+        return [
+            record
+            for record in read_interactions(place.page, types=("fork_reply",))
+            if record["type"] == "fork_reply"
+        ]
+
     user = User(
         end,
         checkout_version(),
         lambda: read_events(place.page),
         terminal,
         commands,
+        forks,
     )
     try:
         user.passed("setup", started)
@@ -1025,7 +1034,12 @@ class BrowserEnd:
         self.pause = session.pause
 
     def state(self) -> dict:
-        return read_state(self.session)
+        return read_state(
+            self.session.context.request,
+            self.session.state_url,
+            headers=self.session.headers,
+            timeout=120_000,
+        ).json()
 
     def names(self, active: dict, marker: str) -> bool:
         """Whether the served revision's authored board names `marker`."""
@@ -1044,65 +1058,66 @@ class BrowserEnd:
     def closing(self, published: dict, answer: dict, marker: str) -> dict:
         """Require a reload to present the published revision naming `marker`, and
         return the reloaded page's profile."""
-        page, url, failures = self.session.page, self.url, self.session.failures
-        reloaded = page.reload(wait_until="load", timeout=120_000)
-        check(
-            reloaded is not None and reloaded.ok,
-            f"{url} did not reload after its agent turn",
-        )
-        await_presentation(page, url, failures, timeout=TURN_PRESENTATION)
-        startup = startup_reading(page)
-        # Startup can present the offline authored fallback when its first read fails.
-        # A later answer brings the revision back, with its own wait and timing.
-        # The revision marker advances as the patch begins; its presentation proof
-        # must finish before the text below is a reading of that revision.
-        followed_at = time.monotonic()
-        try:
-            page.wait_for_function(
-                "window.__leafVerifier.revisionAtLeast",
-                arg=published["revision"],
-                timeout=TURN_PRESENTATION,
+        with capture_script_responses(self.session.page):
+            page, url, failures = self.session.page, self.url, self.session.failures
+            reloaded = page.reload(wait_until="load", timeout=120_000)
+            check(
+                reloaded is not None and reloaded.ok,
+                f"{url} did not reload after its agent turn",
             )
-        except PlaywrightTimeout:
-            pass
-        followed_in = (time.monotonic() - followed_at) * 1000
-        # After the wait, so an error on the way there is reported rather than the
-        # revision it never reached.
-        check(not failures, f"{url} reported browser errors: {said(failures)}")
-        shown = page.evaluate("window.__leafVerifier.revision")
-        # The page's status separates a page whose first read answered with an old
-        # revision from one that presented offline and was never told.
-        status = page.evaluate("window.__leafVerifier.status")
-        check(
-            (shown or "").isdigit() and int(shown) >= published["revision"],
-            f"{url} stands on revision {shown} rather than following the published "
-            f"{published['revision']}, with its status reading ‘{status}’",
-        )
-        check(
-            page.evaluate(
-                "window.__leafVerifier.revisionAtLeast", published["revision"]
-            ),
-            f"{url} reached revision {shown} but did not finish presenting it, "
-            f"with its status reading ‘{status}’",
-        )
-        # `inner_text` applies the theme's text-transform, so a release recorded in
-        # an uppercase eyebrow or panel heading reads `35B36571`. Compare ignoring case.
-        rendered = page.locator("main").inner_text()
-        check(
-            marker.casefold() in rendered.casefold(),
-            f"{url} rendered a page that never names ‘{marker}’, which the agent's "
-            "published revision did",
-        )
-        print(
-            f"  the reloaded page followed it {followed_in:.0f} ms after presentation",
-            file=sys.stderr,
-        )
-        return {
-            "changedPage": {
-                **startup_profile(startup),
-                "followedRevisionMs": followed_in,
+            await_presentation(page, url, failures, timeout=TURN_PRESENTATION)
+            startup = startup_reading(page)
+            # Startup can present the offline authored fallback when its first read fails.
+            # A later answer brings the revision back, with its own wait and timing.
+            # The revision marker advances as the patch begins; its presentation proof
+            # must finish before the text below is a reading of that revision.
+            followed_at = time.monotonic()
+            try:
+                page.wait_for_function(
+                    "window.__leafVerifier.revisionAtLeast",
+                    arg=published["revision"],
+                    timeout=TURN_PRESENTATION,
+                )
+            except PlaywrightTimeout:
+                pass
+            followed_in = (time.monotonic() - followed_at) * 1000
+            # After the wait, so an error on the way there is reported rather than the
+            # revision it never reached.
+            check(not failures, f"{url} reported browser errors: {said(failures)}")
+            shown = page.evaluate("window.__leafVerifier.revision")
+            # The page's status separates a page whose first read answered with an old
+            # revision from one that presented offline and was never told.
+            status = page.evaluate("window.__leafVerifier.status")
+            check(
+                (shown or "").isdigit() and int(shown) >= published["revision"],
+                f"{url} stands on revision {shown} rather than following the published "
+                f"{published['revision']}, with its status reading ‘{status}’",
+            )
+            check(
+                page.evaluate(
+                    "window.__leafVerifier.revisionAtLeast", published["revision"]
+                ),
+                f"{url} reached revision {shown} but did not finish presenting it, "
+                f"with its status reading ‘{status}’",
+            )
+            # `inner_text` applies the theme's text-transform, so a release recorded in
+            # an uppercase eyebrow or panel heading reads `35B36571`. Compare ignoring case.
+            rendered = page.locator("main").inner_text()
+            check(
+                marker.casefold() in rendered.casefold(),
+                f"{url} rendered a page that never names ‘{marker}’, which the agent's "
+                "published revision did",
+            )
+            print(
+                f"  the reloaded page followed it {followed_in:.0f} ms after presentation",
+                file=sys.stderr,
+            )
+            return {
+                "changedPage": {
+                    **startup_profile(startup),
+                    "followedRevisionMs": followed_in,
+                }
             }
-        }
 
     def write(self, name: str) -> Callable[[], tuple[str, AgentProfile]]:
         """Write step `name`'s comment (`COMMENTS`) on its passage, unsent, as a user
@@ -1139,7 +1154,8 @@ class User:
     the release ask, each later step's comment, and how long each step took. A
     harness module drives the steps and checks them; `events` reads the page's log,
     `commands` the `leaf_command` records Leaf's commands left in the page's diagnostics,
-    and `terminal` is the session, where the journey runs them."""
+    `forks` the `fork_reply` records its forks left there (`leaf.forks.take`), and
+    `terminal` is the session, where the journey runs them."""
 
     def __init__(
         self,
@@ -1148,9 +1164,11 @@ class User:
         events: Callable[[], list[dict]] | None = None,
         terminal: Terminal | None = None,
         commands: Callable[[], list[dict]] | None = None,
+        forks: Callable[[], list[dict]] | None = None,
     ) -> None:
         self.end, self.version = end, version
         self.events, self.terminal, self.commands = events, terminal, commands
+        self.forks = forks
         self.records = terminal.records if terminal is not None else None
         self.case = "waiting"
         self.ids: dict[str, str] = {}
@@ -1198,6 +1216,20 @@ class User:
         assert self.events is not None
         return deployment_answer(self.events(), self.ids[name]) is not None
 
+    def fork(self, name: str) -> dict | None:
+        """The record of the last fork of the session's conversation that decided on
+        step `name`'s comment, if one has."""
+        if self.forks is None:
+            return None
+        return next(
+            (
+                record
+                for record in reversed(self.forks())
+                if self.ids[name] in record["inputs"]
+            ),
+            None,
+        )
+
     def passed(self, name: str, started: float, *details: str) -> None:
         """Record step `name`, begun at `started`, with the comments sent during it
         and the permission prompts the user answered, and print it with `details`. A
@@ -1221,12 +1253,13 @@ class User:
 
     def timing(self, name: str) -> str:
         """When step `name`'s comment was picked up and answered, after its
-        admission (`recorded_steps`)."""
+        admission (`recorded_steps`), and what a fork that decided on it did."""
         assert self.events is not None
         events = self.events()
         comment = next(e for e in events if e["id"] == self.ids[name])
         steps = recorded_steps(events, comment, None)
         picked = steps["pickedUp"]
+        fork = self.fork(name)
         return (
             f"`{name}` "
             + (
@@ -1234,7 +1267,8 @@ class User:
                 if picked is None
                 else f"picked up after {picked:.1f} s"
             )
-            + f", answered after {steps['replied']:.0f} s"
+            + f", answered after {steps['replied']:.1f} s"
+            + (f"; {fork_summary(fork)}" if fork is not None else "")
         )
 
     def sample(self) -> dict:
@@ -1249,15 +1283,20 @@ class User:
             if self.events is not None and (self.profiles or self.records)
             else []
         )
-        comments = {}
-        for name, profile in self.profiles.items():
-            comment = next(e for e in events if e["id"] == self.ids[name])
-            answer = deployment_answer(events, comment["id"])
-            answer = check(answer, f"`{name}` has no answer")
-            reading = self.end.reading(
-                profile, recorded_steps(events, comment, None), answer
+
+        def replied(name: str, comment: dict, answer: dict) -> dict:
+            """What a fork that decided on step `name`'s `comment` did, and where the
+            session's reply to it went, from its record. A reply the fork wrote
+            took nothing of the session's, which picks the comment up only later."""
+            fork = self.fork(name)
+            reading: dict[str, dict | None] = (
+                {}
+                if fork is None
+                else {"fork": {key: fork[key] for key in FORK_READING if key in fork}}
             )
-            if self.records is not None:
+            if self.records is not None and (
+                fork is None or fork["outcome"] != "reply"
+            ):
                 assert self.commands is not None
                 reading["reply"] = reply_breakdown(
                     self.records(),
@@ -1266,21 +1305,26 @@ class User:
                     pickup_at(events, comment["id"], "opened"),
                     answer["ts"],
                 )
-            comments[name] = reading
+            return reading
+
+        comments = {}
+        for name, profile in self.profiles.items():
+            comment = next(e for e in events if e["id"] == self.ids[name])
+            answer = deployment_answer(events, comment["id"])
+            answer = check(answer, f"`{name}` has no answer")
+            reading = self.end.reading(
+                profile, recorded_steps(events, comment, None), answer
+            )
+            comments[name] = {**reading, **replied(name, comment, answer)}
         release = self.release_reading
         if self.records is not None and "release" in self.ids:
             asked = next(e for e in events if e["id"] == self.ids["release"])
             answer = deployment_answer(events, asked["id"])
-            assert self.commands is not None
             assert answer is not None
-            reply = reply_breakdown(
-                self.records(),
-                self.commands(),
-                asked["ts"],
-                pickup_at(events, asked["id"], "opened"),
-                answer["ts"],
-            )
-            release = {**release, "comment": {**release["comment"], "reply": reply}}
+            release = {
+                **release,
+                "comment": {**release["comment"], **replied("release", asked, answer)},
+            }
         for step in self.steps:
             for name in step["comments"]:
                 if "approved" in step:
@@ -1295,6 +1339,32 @@ class User:
             for step in self.steps
         ]
         return {"userEnd": self.end.name, "case": self.case, **release, "steps": steps}
+
+
+# What a sample keeps of a fork's `fork_reply` record (`leaf.forks.take`).
+FORK_READING = ("outcome", "why", "elapsedMs", "usage")
+# The usage counts a fork reports, as a step prints them.
+FORK_TOKENS = (
+    ("input_tokens", "in"),
+    ("output_tokens", "out"),
+    ("cache_read_input_tokens", "cache read"),
+    ("cache_creation_input_tokens", "cache written"),
+)
+
+
+def fork_summary(record: dict) -> str:
+    """A fork's `fork_reply` record as a step prints it: what the fork did, in how
+    long, on how many tokens, and why it handed the thread over."""
+    usage = record.get("usage") or {}
+    tokens = ", ".join(
+        f"{usage[key]} {name}" for key, name in FORK_TOKENS if key in usage
+    )
+    return (
+        f"a fork's {record['outcome']}"
+        + (f" after {record['elapsedMs']:.0f} ms" if "elapsedMs" in record else "")
+        + (f" on {tokens} tokens" if tokens else "")
+        + (f": {record['why']}" if "why" in record else "")
+    )
 
 
 def checkout_version() -> str:
@@ -1330,7 +1400,7 @@ def local_session(browser, url: str) -> Session:
     check(response is not None and response.ok, f"{url} did not load")
     await_presentation(page, url, failures)
     state_url = PageClient(url).state_url
-    state = answered(context.request.get(state_url), state_url).json()
+    state = read_state(context.request, state_url).json()
     return Session(context, page, failures, url, state_url, state, {}, None)
 
 
@@ -1342,6 +1412,7 @@ def target_session(
     *,
     sandbox: bool,
     preview: bool,
+    forks: bool,
 ) -> Generator[tuple[User, dict, Callable[[], None]]]:
     """The user at the page TARGET answers, what names TARGET in the journey's
     output (`target` the same across runs, as a local server's `origin` is not), and
@@ -1351,8 +1422,9 @@ def target_session(
         if target == "claude-code":
             from leaf_dev.journey_claude_code import answering
 
-            harness = answering(browser, sandbox=sandbox)
+            harness = answering(browser, sandbox=sandbox, forks=forks)
             named |= {"sandbox": True} if sandbox else {}
+            named |= {"forks": True} if forks else {}
         elif target == "pi":
             from leaf_dev.journey_pi import answering
 
@@ -1422,6 +1494,12 @@ def target_session(
     help="On a codex target, serve the page with `leaf-dev preview --user`.",
 )
 @click.option(
+    "--forks",
+    is_flag=True,
+    help="On claude-code, let forks of the session's conversation answer the user's "
+    "thread messages, and run the steps that test them in place of the delivery steps.",
+)
+@click.option(
     "--case",
     type=click.Choice(CASES),
     default="waiting",
@@ -1440,6 +1518,7 @@ def journey(
     release: str | None,
     sandbox: bool,
     preview: bool,
+    forks: bool,
     case: str,
     browser: bool | None,
 ) -> None:
@@ -1461,6 +1540,8 @@ def journey(
         raise click.UsageError("--preview is an option of the codex targets")
     if preview and sandbox:
         raise click.UsageError("--preview runs leaf-dev, which a sandbox refuses")
+    if forks and target != "claude-code":
+        raise click.UsageError("--forks is an option of claude-code")
     website = target not in HARNESS_TARGETS
     if website and case == "working":
         raise click.UsageError("a website's journey has no terminal to start a turn")
@@ -1477,6 +1558,7 @@ def journey(
                 release,
                 sandbox=sandbox,
                 preview=preview,
+                forks=forks,
             )
         )
         user.case = case

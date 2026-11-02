@@ -1814,6 +1814,53 @@ def test_code_copy_releases_only_its_own_scroll_stop(browser, serve):
     expect(pre).to_have_attribute("tabindex", "0")
 
 
+@pytest.mark.parametrize("own_root", ["section", "table", "pre"])
+def test_own_styling_keeps_native_content_and_comments(browser, serve, own_root):
+    """An authored styling boundary leaves tables and code alone, not unaddressable."""
+    own = ' data-style="own"'
+    section = own if own_root == "section" else ""
+    table = own if own_root == "table" else ""
+    pre = own if own_root == "pre" else ""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Own styling",
+                f'<section id="embedded"{section}>'
+                f'<table id="own-table" style="width:100%"{table}>'
+                "<tr><td>Short</td><td>Columns</td></tr></table>"
+                f'<pre id="own-pre"{pre}><code class="language-yaml">'
+                '<span id="own-token" style="color:rgb(160, 20, 80)">key</span>: value'
+                "</code></pre></section>"
+                '<pre id="leaf-pre"><code class="language-yaml">key: value</code></pre>',
+            ),
+            anchored=[("own-table", "Short")]
+            if own_root == "table"
+            else [("own-token", "key")],
+        ),
+    )
+    expect(page.locator("#leaf-pre code")).to_have_attribute("data-lf-syntax", "yaml")
+    if own_root != "pre":
+        assert (
+            page.locator("#own-table").evaluate("el => getComputedStyle(el).display")
+            == "table"
+        )
+    if own_root != "table":
+        assert page.locator("#own-token").count() == 1
+        assert (
+            page.locator("#own-token").evaluate("el => getComputedStyle(el).color")
+            == "rgb(160, 20, 80)"
+        )
+        assert (
+            page.locator("#own-pre").evaluate(
+                "el => getComputedStyle(el, '::after').content"
+            )
+            == "none"
+        )
+        assert page.locator("#own-pre code").get_attribute("data-lf-syntax") is None
+    assert page.evaluate("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
+
+
 def test_native_code_uses_the_bundled_grammars_language_aliases(browser, serve):
     """Markdown fence labels select the same colors as their full language names."""
     sources = {
@@ -3786,15 +3833,17 @@ def test_a_thread_whose_quote_was_rewritten_keeps_its_words(browser, serve):
 def test_a_changed_block_shows_an_inline_diff_against_the_base_version(browser, serve):
     """The other half of a comparison is one inline reading of what changed.
 
-    The Change margin entry is a disclosure per block. Its press inserts dropped
-    text at its aligned boundary and highlights added words in the current prose, so the
-    user need not compare the paragraph with a second copy underneath. Rewritten
+    The Change margin entry is a disclosure per change, a run of changed blocks with no
+    unchanged one between them, which opens and closes together. Its press inserts
+    dropped text at each aligned boundary and highlights added words in the current
+    prose, so the user need not compare the paragraph with a second copy underneath. Rewritten
     sentences stay whole; a local edit is refined to its words. Generated historical
     words stay outside the authored passage: the existing comment remains attached and
     selection still reads the current version alone.
 
     The authored pair supplies the contrasts: one rewritten paragraph with a surviving
-    and a replaced sentence, one new paragraph, and one new list item."""
+    and a replaced sentence, and the new paragraph after it, which make one change; a
+    rewritten heading and lede, another; and one new list item, the third."""
     example = next(p for p in EXAMPLES if p.stem == "log-retention")
     page = open_page(browser, serve(example))
     compare_with(page, 1)
@@ -3812,17 +3861,18 @@ def test_a_changed_block_shows_an_inline_diff_against_the_base_version(browser, 
     # press, which is what the margin entry said before it had one to make.
     expect(rewritten.locator(".lf-margin-entry-context")).to_have_text("v1 → v2")
 
-    # Page Map carries the same provenance on each changed-passage row. The account
-    # stays distinct from the versions, and both remain searchable away from the passage.
+    # Page Map carries the same provenance on each change's row, which says where the
+    # change starts and how many blocks follow it. The account stays distinct from the
+    # versions, and both remain searchable away from the passage.
     page.keyboard.press("g")
     page.keyboard.press("Shift+p")
     sheet = page.get_by_role("dialog", name="Page Map", exact=True)
     mapped = sheet.locator('[data-lf-map-item^="change:"]').filter(has_text="v1 → v2")
-    expect(mapped).to_have_count(5)
-    paragraph = mapped.filter(has_text="paragraph changed · Two years")
+    expect(mapped).to_have_count(3)
+    paragraph = mapped.filter(has_text="paragraph and 1 more changed · Two years")
     expect(paragraph).to_have_count(1)
     expect(paragraph.locator(".lf-page-map-action-label-word")).to_have_text(
-        re.compile(r"^paragraph changed · ")
+        re.compile(r"^paragraph and 1 more changed · ")
     )
     expect(paragraph.locator(".lf-page-map-action-context")).to_have_text("v1 → v2")
     expect(paragraph).to_have_attribute(
@@ -3840,7 +3890,8 @@ def test_a_changed_block_shows_an_inline_diff_against_the_base_version(browser, 
     expect(label).to_have_css("clip-path", "inset(50%)")
     expect(rewritten).to_have_attribute("aria-expanded", "true")
     expect(rewritten).to_have_attribute(
-        "aria-controls", "lf-version-inline-ret-cost-body"
+        "aria-controls",
+        "lf-version-inline-ret-cost-body lf-version-inline-ret-cost-keep",
     )
     struck = page.locator("#ret-cost-body > .lf-version-inline-deletion del")
     expect(struck).to_have_count(1)
@@ -3855,20 +3906,19 @@ def test_a_changed_block_shows_an_inline_diff_against_the_base_version(browser, 
 
     # The press reports the move where the panel says a moment's news.
     expect_panel_says(
-        page, "paragraph changed since v1 · showing an inline diff from v1"
+        page, "paragraph and 1 more changed since v1 · showing an inline diff from v1"
     )
 
-    # A passage the revision added has no counterpart to show, so the inline label says
-    # that directly and the block keeps its all-new wash.
-    added = page.locator(
-        '[data-lf-margin-for="ret-cost-keep"] [data-lf-kinds~="change"]'
-    )
-    added.click()
+    # The paragraph the revision added in the same change opened with it. It has no
+    # counterpart to show, so the inline label says that directly and the block keeps
+    # its all-new wash.
     expect(page.locator("#ret-cost-keep > .lf-version-inline-label")).to_have_text(
         "New since v1"
     )
     expect(page.locator("#ret-cost-keep .lf-version-inline-deletion")).to_have_count(0)
-    expect_panel_says(page, "paragraph changed since v1 · v1 had nothing here")
+    expect(
+        page.locator('[data-lf-margin-for="ret-cost-keep"] [data-lf-kinds~="change"]')
+    ).to_have_count(0)
 
     # And the same inside a list item, where a sibling would be markup no <ol> may hold.
     step = page.locator(
@@ -3878,6 +3928,7 @@ def test_a_changed_block_shows_an_inline_diff_against_the_base_version(browser, 
     expect(page.locator("#ret-steps-carve > .lf-version-inline-label")).to_have_text(
         "New since v1"
     )
+    expect_panel_says(page, "item changed since v1 · v1 had nothing here")
     expect(
         page.locator(
             "main ol > .lf-version-inline-label, main ul > .lf-version-inline-label"
@@ -3894,8 +3945,9 @@ def test_a_changed_block_shows_an_inline_diff_against_the_base_version(browser, 
     # highlight with the marks.
     rewritten.click()
     expect(page.locator("#ret-cost-body > .lf-version-inline-label")).to_have_count(0)
+    expect(page.locator("#ret-cost-keep > .lf-version-inline-label")).to_have_count(0)
     expect(rewritten).to_have_attribute("aria-expanded", "false")
-    expect(page.locator(".lf-version-inline-label")).to_have_count(2)
+    expect(page.locator(".lf-version-inline-label")).to_have_count(1)
     compare_with(page, 1)
     expect(page.locator(".lf-version-inline-label")).to_have_count(0)
     expect(page.locator("main .lf-ins-block")).to_have_count(0)
@@ -4279,7 +4331,7 @@ def test_a_failed_comparison_clears_its_pending_choice_and_can_retry(browser, se
     page.unroute(view_request)
 
     menu = panel_menu(page, "versions")
-    compare = menu.get_by_role("menuitem", name="Compare with v2")
+    compare = menu.get_by_role("button", name="Compare with v2")
     expect(compare).to_have_attribute("aria-pressed", "false")
     # A pending choice left behind would treat this press as cancellation.
     compare.click()
@@ -4316,22 +4368,22 @@ def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
 
     # Reopened, the list says which comparison stands.
     menu = panel_menu(page, "versions")
-    expect(menu.get_by_role("menuitem", name="Compare with v1")).to_have_attribute(
+    expect(menu.get_by_role("button", name="Compare with v1")).to_have_attribute(
         "aria-pressed", "true"
     )
-    expect(menu.get_by_role("menuitem", name="Compare with v2")).to_have_attribute(
+    expect(menu.get_by_role("button", name="Compare with v2")).to_have_attribute(
         "aria-pressed", "false"
     )
 
     # Pressing the current base again is the way off, and clears the marks.
-    menu.get_by_role("menuitem", name="Compare with v1").click()
+    menu.get_by_role("button", name="Compare with v1").click()
     expect(page.locator(".lf-ins-block")).to_have_count(0)
 
     # Compare is reachable by keyboard too: the walk stands on it after its version.
     menu = panel_menu(page, "versions")
     menu.locator(".lf-fp-version").filter(has_text="v1").locator(".lf-fp-item").focus()
     page.keyboard.press("ArrowDown")
-    compare = menu.get_by_role("menuitem", name="Compare with v1")
+    compare = menu.get_by_role("button", name="Compare with v1")
     expect(compare).to_be_focused()
     page.keyboard.press("Enter")
     expect(page.locator(".lf-ins-block")).to_have_count(2)
@@ -4423,11 +4475,11 @@ def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
     )
 
     details = page.locator("lf-diff details").first
-    file_row = page.locator("lf-diff .lf-diff-file").first
+    file_header = details.locator("summary")
     expect(details).not_to_have_attribute("open", "")
     expect(page.locator("lf-diff [data-line-type]")).to_have_count(0)
-    expect(file_row).to_have_attribute("data-lf-datum", '["app.py","file"]')
-    expect(file_row).to_have_attribute("data-lf-datum-label", "app.py · file")
+    expect(file_header).to_have_attribute("data-lf-datum", '["app.py","file"]')
+    expect(file_header).to_have_attribute("data-lf-datum-label", "app.py · file")
 
     page.get_by_role("button", name="Comment on app.py", exact=True).click()
     expect(details).not_to_have_attribute("open", "")
@@ -5084,7 +5136,9 @@ def test_passage_at_either_shadow_host_edge_excludes_its_words(browser, serve):
           range.setEnd(diff, 0);
           const before = anchorForRange(range).quote;
           const afterParagraph = document.querySelector('#merge-both').firstChild;
-          range.setStart(diff, diff.childNodes.length);
+          // An empty light DOM has just offset zero, before its shadow words.
+          // Put the trailing endpoint outside the host to exclude those words.
+          range.setStartAfter(diff);
           range.setEnd(afterParagraph, afterParagraph.length);
           return [before, anchorForRange(range).quote];
         }"""

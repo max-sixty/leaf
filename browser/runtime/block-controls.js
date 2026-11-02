@@ -41,6 +41,7 @@ import { upFrom } from "./shadow-tree.js";
 const home = document.createElement("div");
 home.className = "lf-block-controls";
 // The frames each document control stands in, under its block's sticky headers.
+/** @type {WeakMap<HTMLElement, ReturnType<typeof cutFrames>>} */
 const cuts = new WeakMap();
 const makeCut = () => {
   const frame = document.createElement("div");
@@ -50,11 +51,16 @@ const makeCut = () => {
 // Stands a document control in the frames its block's headers cut (`headerLevels`),
 // read again each time the control is revealed and once a frame after a resize, since a
 // header can come, go or change height while the control shows or while it hides.
+/** @type {Map<HTMLElement, Element>} */
 const placed = new Map(); // document control → its block
 const wired = new WeakSet();
+/** @type {HTMLElement | null} */
 let hoveredControl = null;
+/** @type {HTMLElement | null} */
 let focusedControl = null;
-const activeBlock = (control) => control && placed.get(control);
+/** @param {HTMLElement | null} control */
+const activeBlock = (control) => (control ? placed.get(control) : undefined);
+/** @param {Element | null | undefined} block */
 const syncActive = (block) => {
   if (block)
     block.toggleAttribute(
@@ -62,6 +68,7 @@ const syncActive = (block) => {
       activeBlock(hoveredControl) === block || activeBlock(focusedControl) === block,
     );
 };
+/** @param {"hover" | "focus"} kind @param {HTMLElement | null} control */
 const setActiveControl = (kind, control) => {
   const previous = kind === "hover" ? hoveredControl : focusedControl;
   if (previous === control) return;
@@ -72,7 +79,8 @@ const setActiveControl = (kind, control) => {
 };
 onCurrentLocation((node) => {
   for (let at = node; at; at = upFrom(at)) {
-    if (placed.has(at)) return setActiveControl("focus", at);
+    if (at instanceof HTMLElement && placed.has(at))
+      return setActiveControl("focus", at);
   }
   setActiveControl("focus", null);
 });
@@ -85,16 +93,22 @@ addEventListener("resize", () => {
     // when the user next reveals the control. Read every shown block before writing.
     const read = [...placed]
       .filter(([, block]) => !skipped(block))
-      .map(([control, block]) => [control, block, headerLevels(block)]);
-    for (const [control, block, levels] of read) standInChrome(control, block, levels);
+      .map(([control, block]) => ({ control, block, levels: headerLevels(block) }));
+    for (const { control, block, levels } of read)
+      standInChrome(control, block, levels);
   });
 });
 
 /** Stand `control` over `block` from chrome, cut by `levels`, its block's
  * `headerLevels` read before any control was written. */
+/** @param {HTMLElement} control @param {Element} block @param {ReturnType<typeof headerLevels>} levels */
 export function standInChrome(control, block, levels) {
   const previousBlock = placed.get(control);
-  const frames = cutFrames(levels, cuts.get(control) ?? [], makeCut);
+  const frames = cutFrames(
+    levels,
+    (cuts.get(control) ?? []).map(({ frame }) => frame),
+    makeCut,
+  );
   cuts.set(control, frames);
   placed.set(control, block);
   if (!wired.has(control)) {
@@ -109,8 +123,9 @@ export function standInChrome(control, block, levels) {
     syncActive(block);
   }
   if (home.parentNode !== chromeRoot) move(chromeRoot, home, null);
-  if (frames[0] && frames[0].parentNode !== home) move(home, frames[0], null);
-  const frame = frames.at(-1) ?? home;
+  const outer = frames[0]?.frame;
+  if (outer && outer.parentNode !== home) move(home, outer, null);
+  const frame = frames.at(-1)?.frame ?? home;
   if (control.parentNode !== frame) move(frame, control, null);
 }
 
@@ -118,6 +133,7 @@ export function standInChrome(control, block, levels) {
  * kept current while the control stands, and the block's anchor name. A control
  * whose block is away is `hidden`, which hides it whatever display its own rules give
  * it (base.css). */
+/** @template {HTMLElement} C @param {C} control @param {Element} block */
 export function anchorControl(control, block) {
   const place = () => {
     keepsHidden(control, !anchorView(control, block, place));
@@ -129,7 +145,7 @@ export function anchorControl(control, block) {
   };
 }
 
-/** @param {ReturnType<typeof anchorControl>} reading */
+/** @template {HTMLElement} C @param {{control: C, near: boolean, anchor: ReturnType<typeof anchorReading>}} reading */
 export function aimControl({ control, near, anchor }) {
   keepsHidden(control, !near);
   const name = nameAnchor(anchor);
@@ -142,6 +158,7 @@ export function aimControl({ control, near, anchor }) {
 // (css-anchors.js, `anchorBox`), such as Firefox on a block in a table granted room.
 // Read whenever the control is about to show, since only a shown control needs it; a
 // control shown as it arrives reads them with the batch's other readings.
+/** @param {Element} block */
 export function readInsets(block) {
   const box = block.getBoundingClientRect();
   const at = anchorBox(block);
@@ -152,15 +169,16 @@ export function readInsets(block) {
  * @param {ReturnType<typeof readInsets>} insets
  */
 export function writeInsets(control, { dx, dy }) {
-  for (const [property, length] of /** @type {[string, number][]} */ ([
-    ["--lf-block-control-dx", dx],
-    ["--lf-block-control-dy", dy],
-  ])) {
+  for (const [property, length] of Object.entries({
+    "--lf-block-control-dx": dx,
+    "--lf-block-control-dy": dy,
+  })) {
     const value = length ? layoutPx(length) : "";
     if (control.style.getPropertyValue(property) !== value)
       control.style.setProperty(property, value);
   }
 }
+/** @param {HTMLElement} control @param {Element} block */
 export function revealControl(control, block) {
   if (cuts.has(control)) standInChrome(control, block, headerLevels(block));
   writeInsets(control, readInsets(block));
@@ -169,6 +187,7 @@ export function revealControl(control, block) {
 
 /** Let Tab from a document control continue from its block's place in the document,
  * rather than from the control's later place in chrome, until `signal` aborts. */
+/** @param {HTMLElement} control @param {Element} block @param {AbortSignal} signal */
 export function tabFromBlock(control, block, signal) {
   control.addEventListener(
     "keydown",
@@ -191,16 +210,18 @@ addEventListener(
   { capture: true },
 );
 /** Whether a click on `control` comes from a press that began elsewhere. */
+/** @param {MouseEvent} event @param {Element} control */
 export const pressedElsewhere = (event, control) =>
   event.detail > 0 && !pressedPath.has(control);
 
 /** Take a document control and its frames out of chrome once its block has left. */
+/** @param {HTMLElement} control */
 export function releaseControl(control) {
   const block = placed.get(control);
   if (hoveredControl === control) hoveredControl = null;
   if (focusedControl === control) focusedControl = null;
   control.remove();
-  cuts.get(control)?.[0]?.remove();
+  cuts.get(control)?.[0]?.frame.remove();
   cuts.delete(control);
   placed.delete(control);
   syncActive(block);

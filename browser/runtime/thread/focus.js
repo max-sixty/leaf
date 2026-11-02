@@ -16,11 +16,17 @@ import { allThreads } from "./state.js";
 import { replyControlDestination, replyThreadKey } from "./replies.js";
 import { threadKey } from "./model.js";
 
+/** @typedef {ReturnType<typeof retainUserIntent>} UserIntent */
+/** @typedef {ReturnType<typeof import("./destination.js").createThreadDestinations>["openPageThread"]} OpenThread */
+/** @typedef {{node: Element, id: string, intent: UserIntent, may: UserIntent, reply: boolean}} CarriedPlace */
+
 // A drawn thread's root is where the user is on it.
+/** @param {Element} thread @param {"move" | "return"} cause */
 export function focusThread(thread, cause) {
   focusDestination(thread, cause);
 }
 
+/** @param {Element | null | undefined} thread */
 export const threadReplyInput = (thread) => {
   const input = thread && threadPart(thread, "reply");
   return input && shownBox(input).height ? input : null;
@@ -28,13 +34,14 @@ export const threadReplyInput = (thread) => {
 
 // Where in a drawing of a thread a route lands: the thread, its reply box (else the
 // thread), or the message `message` names.
-export function threadFocusDestination(
-  thread,
-  { part = "reply", message = null } = {},
-) {
-  if (part === "message")
-    return thread.querySelector(`.lf-msg[data-event="${CSS.escape(message)}"]`);
-  return (part === "thread" ? thread : null) ?? threadReplyInput(thread) ?? thread;
+/** @param {Element} thread
+ * @param {{part?: "thread" | "reply" | "message" | null, message: string} | {part?: "thread" | "reply" | null, message?: null}} [options] */
+export function threadFocusDestination(thread, options = {}) {
+  if (options.part === "message")
+    return thread.querySelector(`.lf-msg[data-event="${CSS.escape(options.message)}"]`);
+  return (
+    (options.part === "thread" ? thread : null) ?? threadReplyInput(thread) ?? thread
+  );
 }
 
 // The thread whose root holds focus. A control inside it keeps its own command scope.
@@ -48,7 +55,8 @@ export function focusedThreadTarget() {
 // inner focus reaches a seat a widget stages in its shadow tree. The box's way out climbs
 // further, to a seat holding no thread yet (landing.js, `heldThreadOrSeat`). A walk asks
 // the same of the node its origin was read from (`threadIn`).
-export const threadIn = (node) => closestAcross(node, THREAD);
+/** @param {Node | null | undefined} node */
+export const threadIn = (node) => closestAcross(node ?? null, THREAD);
 export const heldThread = () => threadIn(focused());
 
 // Its logged id.
@@ -63,6 +71,7 @@ export const heldThreadId = () => drawnThreadId(heldThread());
 // the press ends, when the current location repaint reads focus again. This is current location as drawn,
 // which lags focus across a press; a command acts on the held thread (`heldThreadId`).
 // The press is focus.js's (`onPress`), which ends it every way it can end.
+/** @type {string | null} */
 let pressed = null;
 let release = 0;
 function releasePress() {
@@ -73,16 +82,19 @@ function releasePress() {
     repaint();
   });
 }
-onPress((start) => {
-  if (start.button !== 0) return null;
-  pressed = heldThreadId();
-  return releasePress;
-});
+onPress(
+  /** @param {PointerEvent | MouseEvent} start */ (start) => {
+    if (start.button !== 0) return null;
+    pressed = heldThreadId();
+    return releasePress;
+  },
+);
 
 export const currentLocationThreadId = () => heldThreadId() ?? pressed;
 
 // The intent restricted to the thread `id` still present: every thread takes a reply,
 // a resolved one too, which the reply reopens.
+/** @param {string} id @param {UserIntent} intent */
 const mayReplyTo = (id, intent) =>
   restrictUserIntent(intent, () =>
     allThreads().some((candidate) => candidate.id === id),
@@ -120,6 +132,8 @@ const mayReplyTo = (id, intent) =>
 // From the pass's start until that step has run, the node is being carried
 // (`carryingThreadPlace`): a surface closing under the user meanwhile, as the margin card
 // does when its thread goes back to a widget, places no one, and the step decides.
+/** @param {string} id @param {OpenThread} open @param {UserIntent} intent
+ * @param {{destination?: (thread: Element) => Element | null, scroll?: boolean}} [options] */
 export async function replyDestination(
   id,
   open,
@@ -142,6 +156,7 @@ export async function replyDestination(
 // The thread itself, for a user whose node has no like where it now stands. Another
 // owner that put them on a drawn node meanwhile, as a list keeping its rows does, has
 // placed them already.
+/** @param {string} id @param {OpenThread} open @param {UserIntent} may */
 async function threadDestination(id, open, may) {
   const at = focused();
   if (at && at !== document.body && drawn(at)) return null;
@@ -149,19 +164,28 @@ async function threadDestination(id, open, may) {
   return shown instanceof Element && focused() === shown && may() ? shown : null;
 }
 
+/** @type {WeakSet<Element>} */
 const carried = new WeakSet();
+/** @type {CarriedPlace | null} */
 let carrying = null;
 // A seat can appear later in the pass, after its former margin card closes. The
 // close must defer its landing while the thread and the user's intent still stand;
 // `may` checks for the new seat only when the pass chooses its destination. A reply
 // goes on in any thread still present, a resolved one included.
-export const carryingThreadPlace = (node) =>
-  Boolean(node) &&
-  carrying?.node === node &&
-  (carrying.reply
-    ? carrying.may()
-    : carrying.intent() &&
-      allThreads().some((thread) => thread.id === carrying.id && !thread.resolved));
+/** @param {Element | null | undefined} node */
+export const carryingThreadPlace = (node) => {
+  const place = carrying;
+  return Boolean(
+    place &&
+    place.node === node &&
+    (place.reply
+      ? place.may()
+      : place.intent() &&
+        allThreads().some((thread) => thread.id === place.id && !thread.resolved)),
+  );
+};
+/** @param {OpenThread} open
+ * @param {{threadAt: (node: Element) => string | null, seated: (id: string) => boolean}} placement */
 export function holdThreadPlace(open, { threadAt, seated }) {
   carrying = null;
   const held = holdCurrentLocation();

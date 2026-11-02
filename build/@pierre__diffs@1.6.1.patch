@@ -1,0 +1,13 @@
+diff --git a/dist/managers/ScrollSyncManager.d.ts b/dist/managers/ScrollSyncManager.d.ts
+index 644e522d7b818328cdc7618427e16b9aa4358fdd..d87eb6edf0511e3b8b755a22b7a9f9f9e0a4221a 100644
+--- a/dist/managers/ScrollSyncManager.d.ts
++++ b/dist/managers/ScrollSyncManager.d.ts
+@@ -2,7 +2,7 @@
+ declare class ScrollSyncManager {
+   isDeletionsScrolling: boolean;
+   isAdditionsScrolling: boolean;
+-  timeoutId: NodeJS.Timeout;
++  timeoutId: ReturnType<typeof setTimeout>;
+   codeDeletions: HTMLElement | undefined;
+   codeAdditions: HTMLElement | undefined;
+   private enabled;

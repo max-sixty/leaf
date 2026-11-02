@@ -14,12 +14,17 @@ it("an arriving widget scope requires its own upgrade while template contents st
     const scope = window.document.createElement("lf-arrival");
     scope.innerHTML =
       "<p>Prose</p><table></table><lf-unregistered></lf-unregistered><template><lf-unused></lf-unused></template>";
-    const registry = {
-      "lf-arrival": { "x-upgrade": true },
-      "lf-unused": { "x-upgrade": true },
-      table: { description: "A native table idiom.", "x-example": "<table></table>" },
+    const registry: import("../../browser/runtime/widget-imports.js").Registry = {
+      "lf-arrival": { "x-upgrade": true, "x-content": "empty" },
+      "lf-unused": { "x-upgrade": true, "x-content": "empty" },
+      table: {
+        "x-upgrade": false,
+        "x-content": "markup",
+        "x-example": "<table></table>",
+      },
       "lf-arrival.selected": {
-        description: "A selected widget idiom.",
+        "x-upgrade": false,
+        "x-content": "markup",
         "x-example": '<lf-arrival class="selected"></lf-arrival>',
       },
     };
@@ -57,14 +62,15 @@ it("bundles each document's static graph without fetching optional modules or ch
       await writeFile(
         join(layer, "registry.json"),
         JSON.stringify({
-          "lf-used": { "x-upgrade": true },
-          "lf-unused": { "x-upgrade": true },
+          "lf-used": { "x-upgrade": true, "x-content": "empty" },
+          "lf-unused": { "x-upgrade": true, "x-content": "empty" },
         }),
       );
       const sources = {
-        "leaf.js": `import "./runtime/bundle-common.js"; export * from "${root}/vendor/framework.js"; export * from "${root}/page/app.mjs"; export const optional = () => import("./runtime/optional.js");`,
+        "leaf.js": `import "./runtime/document-inputs.js"; import "./runtime/bundle-common.js"; export * from "${root}/vendor/framework.js"; export * from "${root}/page/app.mjs"; export const optional = () => import("./runtime/optional.js");`,
         "runtime/bundle-common.js":
           'import "./bundle-cycle.js"; export const state = 1;',
+        "runtime/document-inputs.js": "(() => { window.inputsInstalled = true; })();",
         "runtime/bundle-cycle.js": 'export * from "./bundle-common.js";',
         "vendor/framework.js":
           'export * from "/vendor/lit.js"; export * from "../runtime/media.js";',
@@ -133,6 +139,7 @@ it("bundles each document's static graph without fetching optional modules or ch
           [
             `${root}/leaf.js`,
             `${root}/runtime/media.js`,
+            `${root}/runtime/document-inputs.js`,
             `${root}/vendor/framework.js`,
             `${root}/vendor/lit.js`,
             `${root}/vendor/revision-${revision}.js`,
@@ -151,7 +158,12 @@ it("bundles each document's static graph without fetching optional modules or ch
       }
     }
     for (const [path, source] of modules) {
-      if (!path.includes("/vendor/") && !path.includes("/page/")) continue;
+      if (
+        !path.includes("/vendor/") &&
+        !path.includes("/page/") &&
+        !path.endsWith("/runtime/document-inputs.js")
+      )
+        continue;
       expect(await readFile(path, "utf8")).toBe(source);
     }
   } finally {

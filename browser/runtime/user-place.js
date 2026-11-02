@@ -59,6 +59,7 @@
 
    The module also owns when focus marks the user's place at all (`focusedInView`), for
    the readers outside a hold that take focus as that place. */
+import { inlineStyle } from "./keeps.js";
 import { cancelRender, nextFrame, nextRender } from "./rendering.js";
 import {
   headerInset,
@@ -94,12 +95,21 @@ export function focusedInView() {
 // The candidates in the order they may hold the place, each once: an inherited
 // reference, named items in input order, the surface's preferred reading, then the
 // visible ones from the lead downward and wrapping to those above it.
+/** @template {Element | string} T
+ * @param {{inherited?: T | null | undefined, named: readonly T[], preferred?: T | null | undefined, visible: readonly T[]}} candidates
+ * @returns {T[]} */
 export function placeCandidates({ inherited, named, preferred, visible }) {
   const lead = inherited || named[0] || preferred || visible[0];
-  const at = visible.indexOf(lead);
+  const at = lead ? visible.indexOf(lead) : -1;
   const rest =
     at < 0 ? visible : [...visible.slice(at + 1), ...visible.slice(0, at + 1)];
-  return [...new Set([inherited, ...named, preferred, lead, ...rest].filter(Boolean))];
+  return [
+    ...new Set(
+      [inherited, ...named, preferred, lead, ...rest].filter(
+        /** @returns {candidate is T} */ (candidate) => Boolean(candidate),
+      ),
+    ),
+  ];
 }
 
 // How far to scroll so a reference whose content offset moved from `was` to `now` stands
@@ -107,6 +117,8 @@ export function placeCandidates({ inherited, named, preferred, visible }) {
 // hold last corrected at. Across tasks a clamp is removed only where the limit fell below
 // the held scroll and the scroller stands exactly on it, since any other movement may be
 // the user's; `withinTask`, every movement since the reading is reflow's.
+/** @typedef {{scrollTop: number, limit: number}} ScrollReading */
+/** @param {{was: number, now: number, scrollTop: number, limit: number, held: ScrollReading, withinTask?: boolean}} movement */
 export function placeCorrection({
   was,
   now,
@@ -125,18 +137,29 @@ export function placeCorrection({
 // A synchronous hold inside another hold can correct a transient clamp before the
 // enclosing presentation finishes. Credit the outer hold for the scroll the inner
 // hold applied, so its own reference can still correct any different movement.
+/** @typedef {{node: Element, key: string | null | undefined, contentTop: number}} PlaceReference */
+/** @typedef {{named: Element | null, references: PlaceReference[], at: ScrollReading,
+ * spans: boolean, borrowed?: {lease: PlaceLease, reading: LeaseReading}}} PlaceHold */
+/** @typedef {{hold: PlaceHold | null, references: PlaceReference[]}} LeaseReading */
+/** @typedef {{owner: object, snapshot: () => LeaseReading, sync: (reading: LeaseReading, paid: number) => void}} PlaceLease */
+/** @type {WeakMap<Element, PlaceLease>} */
 const heldScrollers = new WeakMap();
+/** @param {number} moved @param {number} paid */
 const sharedMovement = (moved, paid) =>
   Math.sign(moved) === Math.sign(paid)
     ? Math.sign(paid) * Math.min(Math.abs(moved), Math.abs(paid))
     : 0;
 
+/** @param {Element} scroller
+ * @param {{items: string, identity: (node: Element) => string | null | undefined, active?: () => boolean, preferred?: () => Element | null | undefined}} options */
 export function placeKeeper(
   scroller,
   { items, identity, active = () => true, preferred = () => null },
 ) {
+  /** @type {PlaceHold | null} */
   let current = null;
   const owner = {};
+  /** @type {PlaceLease} */
   const lease = {
     owner,
     snapshot: () => ({
@@ -144,7 +167,7 @@ export function placeKeeper(
       references: current?.references.filter(live) ?? [],
     }),
     sync: ({ hold, references }, paid) => {
-      if (current !== hold) return;
+      if (current !== hold || !hold) return;
       for (const reference of references)
         if (live(reference)) reference.contentTop += paid;
       hold.at = { scrollTop: scroller.scrollTop, limit: limit() };
@@ -152,6 +175,7 @@ export function placeKeeper(
   };
   const limit = () => scrollLimit(scroller);
   // The box a node can hold the place by, or null where it holds nothing.
+  /** @param {Element | null | undefined} node */
   const heldBox = (node) => {
     if (
       !node?.isConnected ||
@@ -165,18 +189,25 @@ export function placeKeeper(
   };
   // A node with no identity (undefined or empty) has no successor to hand across to; it
   // must not match every other node that lacks one.
-  const rendered = (key) =>
-    !key
-      ? null
-      : [...scroller.querySelectorAll(items)].find(
-          (node) => identity(node) === key && heldBox(node),
-        );
+  /** @param {string | null | undefined} key */
+  const rendered = (key) => {
+    if (!key) return null;
+    for (const node of scroller.querySelectorAll(items)) {
+      if (identity(node) !== key) continue;
+      const box = heldBox(node);
+      if (box) return { node, box };
+    }
+    return null;
+  };
   // The reference's live node: itself, or the node the render put under its identity.
+  /** @param {PlaceReference} reference */
   const live = (reference) => {
-    if (heldBox(reference.node)) return reference.node;
+    const box = heldBox(reference.node);
+    if (box) return { reference, node: reference.node, box };
     const replacement = rendered(reference.key);
-    if (replacement) reference.node = replacement;
-    return replacement ?? null;
+    if (!replacement) return null;
+    reference.node = replacement.node;
+    return { reference, ...replacement };
   };
 
   // Native anchoring is off while a hold that spans tasks stands, and comes back at the
@@ -187,15 +218,16 @@ export function placeKeeper(
     if (current?.spans) {
       cancelRender(returning);
       returning = 0;
-      scroller.style.setProperty("overflow-anchor", "none");
-    } else if (!returning && scroller.style.getPropertyValue("overflow-anchor"))
+      inlineStyle(scroller).setProperty("overflow-anchor", "none");
+    } else if (!returning && inlineStyle(scroller).getPropertyValue("overflow-anchor"))
       returning = nextRender(() => {
         returning = 0;
         if (!heldScrollers.has(scroller))
-          scroller.style.removeProperty("overflow-anchor");
+          inlineStyle(scroller).removeProperty("overflow-anchor");
       });
   }
 
+  /** @param {PlaceHold} hold */
   function release(hold) {
     if (current !== hold) return;
     current = null;
@@ -203,11 +235,18 @@ export function placeKeeper(
     if (hold.spans) claim();
   }
 
+  /** @param {PlaceHold} hold */
   function correct(hold) {
     if (current !== hold || !active()) return false;
-    const reference = hold.references.find(live);
-    if (!reference) return false;
-    const now = heldBox(reference.node).top + scroller.scrollTop;
+    /** @type {ReturnType<typeof live>} */
+    let reading = null;
+    for (const reference of hold.references) {
+      reading = live(reference);
+      if (reading) break;
+    }
+    if (!reading) return false;
+    const reference = reading.reference;
+    const now = reading.box.top + scroller.scrollTop;
     const was = reference.contentTop;
     const scrollWas = scroller.scrollTop;
     const delta = placeCorrection({
@@ -228,8 +267,8 @@ export function placeKeeper(
     // Every candidate observed this reflow too; refresh their baselines after the
     // correction, or a later hand-off pays again for movement the first one absorbed.
     for (const candidate of hold.references) {
-      const node = live(candidate);
-      if (node) candidate.contentTop = heldBox(node).top + scroller.scrollTop;
+      const geometry = live(candidate);
+      if (geometry) candidate.contentTop = geometry.box.top + scroller.scrollTop;
     }
     hold.at = { scrollTop: scroller.scrollTop, limit: limit() };
     if (hold.borrowed) {
@@ -257,23 +296,30 @@ export function placeKeeper(
   }
 
   // The place as it stands now, carrying on from `prior` where one stood.
+  /** @param {PlaceHold | null} prior @param {boolean} spans @returns {PlaceHold | null} */
   function heldPlace(prior, spans) {
     if (!active()) return null;
     const band = visibleBand(scroller);
     if (!band) return null;
-    const nodes = [...scroller.querySelectorAll(items)];
-    const boxes = new Map(nodes.map((node) => [node, node.getBoundingClientRect()]));
+    const nodes = [...scroller.querySelectorAll(items)].map((node) => ({
+      node,
+      box: node.getBoundingClientRect(),
+    }));
     // Where each item's view starts: below the sticky headers stuck over it, if any.
+    /** @type {Map<Element, number>} */
     const tops = new Map();
+    /** @param {Element} node */
     const topFor = (node) => {
-      if (!tops.has(node)) tops.set(node, band.top + headerInset(node, scroller));
-      return tops.get(node);
+      const prior = tops.get(node);
+      if (prior !== undefined) return prior;
+      const top = band.top + headerInset(node, scroller);
+      tops.set(node, top);
+      return top;
     };
     const { x, y } = pointerAt();
     const over = x >= band.left && x <= band.right && y >= band.top && y <= band.bottom;
     const visible = nodes
-      .filter((node) => {
-        const box = boxes.get(node);
+      .filter(({ node, box }) => {
         return (
           node.checkVisibility() &&
           box.width &&
@@ -282,25 +328,27 @@ export function placeKeeper(
           box.top < band.bottom
         );
       })
-      .sort((a, b) => boxes.get(a).top - boxes.get(b).top);
+      .sort((a, b) => a.box.top - b.box.top);
     // A named row begins in view. The surface's active reading may begin above it.
-    const beginning = visible.filter((node) => boxes.get(node).top >= topFor(node));
-    const shown = new Set(visible);
+    const beginning = visible
+      .filter(({ node, box }) => box.top >= topFor(node))
+      .map(({ node }) => node);
+    const shown = new Set(visible.map(({ node }) => node));
     const pointer = over ? document.elementFromPoint(x, y)?.closest?.(items) : null;
     const focus = focused()?.closest?.(items);
     const named = (
       recentPlaceInput() === "pointer" ? [pointer, focus] : [focus, pointer]
-    ).filter((node) => beginning.includes(node));
+    ).flatMap((candidate) => beginning.filter((node) => node === candidate));
     const reading = preferred();
     const candidates = placeCandidates({
       inherited: prior?.references.find(
         (candidate) => live(candidate) && shown.has(candidate.node),
       )?.node,
       named,
-      preferred: shown.has(reading) ? reading : null,
+      preferred: visible.find(({ node }) => node === reading)?.node,
       visible: beginning,
     });
-    const references = [...new Set([...candidates, ...visible])]
+    const references = [...new Set([...candidates, ...visible.map(({ node }) => node)])]
       .filter((node) => scroller.contains(node))
       .map((node) => ({
         node,
@@ -316,11 +364,13 @@ export function placeKeeper(
     };
   }
 
+  /** @param {PlaceHold} hold @param {() => boolean} following */
   function follow(hold, following) {
     if (!correct(hold) || !following()) release(hold);
     else nextFrame(() => follow(hold, following));
   }
 
+  /** @param {PlaceHold | null | undefined} hold @param {() => boolean} [following] */
   function finish(hold, following = () => false) {
     if (!hold) return;
     correct(hold);
@@ -329,6 +379,7 @@ export function placeKeeper(
   }
 
   // One synchronous mutation under a hold.
+  /** @template T @param {() => T} mutate @returns {T} */
   function around(mutate) {
     const held = take({ spans: false });
     try {

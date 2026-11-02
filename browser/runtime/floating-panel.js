@@ -228,11 +228,11 @@ import {
 } from "./thread/workflow.js";
 import { agentSays, leafSays, voiceOf, voiced, wordsText } from "./voice.js";
 import {
-  headingRepeatsOpening,
   messageReading,
   messageText,
   threadHeading,
   threadName,
+  titlePending,
 } from "./thread/messages.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
 import { declareThreadParts } from "./thread/selectors.js";
@@ -1356,7 +1356,7 @@ export function createFloatingPanel({
       },
       quiet: (route) => {
         const thread = threadOf(route);
-        return !thread || headingRepeatsOpening(thread);
+        return thread?.title == null && !(thread && titlePending(thread));
       },
       draw: (route) => threadView(route.thread),
       presses: (route) => threadPresses(route),
@@ -4212,13 +4212,7 @@ export function createFloatingPanel({
               ></button>`
             : nothing
         }
-        <h2
-          class=${
-            view.quiet?.(top)
-              ? "lf-fp-title lf-head-title lf-quiet"
-              : "lf-fp-title lf-head-title"
-          }
-        >
+        <h2 class=${view.quiet?.(top) ? "lf-fp-title lf-quiet" : "lf-fp-title"}>
           ${(view.head ?? view.title)(top)}
         </h2>
         ${facts}

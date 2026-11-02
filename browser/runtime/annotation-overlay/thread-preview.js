@@ -368,6 +368,8 @@ export function createThreadPreview({
         })
       : null;
     if (previewRegionMounted && transcript) {
+      // The transcript's width and shown turns when its gutter was last decided.
+      let decided = "";
       session.stopRegion = registerReadingRegion({
         id: THREAD_CARD,
         host: preview,
@@ -380,11 +382,37 @@ export function createThreadPreview({
           // (`data-lf-scrolled`, annotation-chrome.css).
           let edge = 0;
           let height = above ? 12 : 0;
+          // Once its turns overflow, the transcript holds its scrollbar's gutter
+          // (`data-lf-overflows`, annotation-chrome.css) until its width or the
+          // number of turns it shows changes. The gutter narrows the turns, and a
+          // narrowed picture is shorter, so turns can overflow without the gutter and
+          // fit with it: dropping the gutter whenever they fit brought it back the
+          // next frame, and so on every frame. A transcript that stops overflowing
+          // otherwise, as when the window grows taller or the reply box empties,
+          // keeps its words the gutter's width narrower until then.
+          /** @type {NodeListOf<HTMLElement>} */
+          const messages = transcript.querySelectorAll(":scope > .lf-msg");
+          const overflows = transcript.scrollHeight > transcript.clientHeight;
+          const shown = [...messages].filter((message) => !message.hidden).length;
+          const shape = `${transcript.offsetWidth} ${shown}`;
+          const room = slotTop(transcript);
+          const top =
+            transcript.getBoundingClientRect().top + transcript.clientTop + room;
+          // A later message's head spans the actions' track (annotation-chrome.css),
+          // so while its line shares the actions' it keeps to its own track and its
+          // controls stand aside.
+          for (const message of messages) {
+            const head = message.querySelector(":scope > .lf-msg-head");
+            const box = head?.getBoundingClientRect();
+            keeps(
+              message,
+              "data-lf-beside-actions",
+              above && box && box.top < top + box.height && box.bottom > top
+                ? ""
+                : null,
+            );
+          }
           if (above) {
-            const top =
-              transcript.getBoundingClientRect().top +
-              transcript.clientTop +
-              slotTop(transcript);
             for (const head of transcript.querySelectorAll(".lf-msg-head")) {
               const box = head.getBoundingClientRect();
               if (!box.height || box.bottom <= top) continue;
@@ -400,6 +428,9 @@ export function createThreadPreview({
           card.style.setProperty("--lf-thread-fade-top", layoutPx(edge));
           card.style.setProperty("--lf-thread-fade-height", layoutPx(height));
           keeps(card, "data-lf-scrolled", above ? "" : null);
+          if (overflows || shape !== decided)
+            keeps(transcript, "data-lf-overflows", overflows ? "" : null);
+          decided = shape;
         },
       });
     }
@@ -899,8 +930,8 @@ export function createThreadPreview({
       keepsHidden(previewNav, threadItems.length < 2);
       const selectedIndex = Math.max(0, threadItems.indexOf(selected));
       // Every other walk says "1 of 3" (walk-position.js). This one stands on the card's
-      // head line, which on a 311px phone gives its title little room beside the presses;
-      // " of " made it 12px wider.
+      // actions line, which on a 311px phone already leaves the message heads no room;
+      // " of " made it 12px wider, which pushed the actions past the card's start.
       keepsText(previewPosition, `${selectedIndex + 1}/${threadItems.length}`);
       previewPrevious.toggleAttribute("disabled", selectedIndex === 0);
       previewNext.toggleAttribute("disabled", selectedIndex === threadItems.length - 1);

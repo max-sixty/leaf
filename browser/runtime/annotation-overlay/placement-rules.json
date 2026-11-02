@@ -69,11 +69,11 @@
       "rules": [
         {
           "id": "place-beside",
-          "says": "Beside: its head line (`--thread-card-head`) over the commented text's first line, so its first message stands level with that line, its top a gap (`COMMENT_GAP`) above the head line; and right of the row's margin entry where the card's full width (`--thread-card`) still fits beyond it, otherwise over the entry. The comment box keeps the head line's room over its field, so Send moves no word."
+          "says": "Beside: its top a gap (`COMMENT_GAP`) above the commented text's first line, and right of the row's margin entry where the card's full width (`--thread-card`) still fits beyond it; otherwise over the entry."
         },
         {
           "id": "place-under-or-over",
-          "says": "Under or over: starting at the quoted words' first character. Under, the comment box keeps the card's head line's room over its field, so its field stands that much further below the words and Send moves no word."
+          "says": "Under or over: starting at the quoted words' first character."
         },
         {
           "id": "place-carried",

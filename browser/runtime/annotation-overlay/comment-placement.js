@@ -422,9 +422,6 @@ const rootLength = (name) =>
   parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
 export const cardMinimum = () => rootLength("--thread-card-min");
 export const cardMeasure = () => rootLength("--thread-card");
-// Beside, the card's head line stands over the row and its first message level with
-// it, and the box keeps that line's room over its field (`place-beside`).
-const cardHead = () => rootLength("--thread-card-head");
 
 /* One surface's placement: the side it holds and its inline attachment.
 
@@ -717,7 +714,7 @@ export function commentPlacement() {
           mainAxis,
           crossAxis: across
             ? measure(state).column - state.rects.reference.x + (inline ?? 0)
-            : (row - COMMENT_GAP - box.top) / scale.y - cardHead(),
+            : (row - COMMENT_GAP - box.top) / scale.y,
         };
       }),
       holding,

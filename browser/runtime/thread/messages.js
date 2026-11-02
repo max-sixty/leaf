@@ -134,7 +134,7 @@ export function threadName(thread) {
 // agent owes the thread work. A turn that ended, stalled or was never picked up sends
 // none, nor does a page nobody has claimed, and the thread reads its opening words.
 /** @param {Parameters<typeof threadName>[0] & {readonly attention?: {readonly kind: string, readonly reason: string} | null}} thread */
-const titlePending = (thread) =>
+export const titlePending = (thread) =>
   thread.title == null &&
   thread.attention?.kind === "waiting" &&
   thread.attention.reason === "workflow" &&
@@ -152,14 +152,6 @@ export const threadHeading = (thread) =>
     ? html`<span class="lf-thread-name-pending">Generating thread name…</span
         ><span class="lf-quiet"> ${threadName(thread)}</span>`
     : threadName(thread);
-
-// Whether a thread's heading would only repeat the words of its opening message, which
-// stands under it: an untitled thread with no title on its way. The floating panel's
-// head line then names it to assistive tech alone (`.lf-quiet`, surfaces.css), and a
-// margin card's, whose thread is labelled with its name, draws none.
-/** @param {Parameters<typeof titlePending>[0]} thread */
-export const headingRepeatsOpening = (thread) =>
-  thread.title == null && !titlePending(thread);
 
 /** @param {Parameters<typeof threadName>[0] & Parameters<typeof lastMovedAt>[0]} thread */
 export const threadSummary = (thread) => ({

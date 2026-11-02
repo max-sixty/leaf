@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 
 import pytest
 from interact_support import PLUGIN_ROOT, append_carried_log_record
-from PIL import Image
+from PIL import Image, ImageStat
 from playwright.sync_api import expect
 from render_cases_interaction import (
     HOLD_MOTION,
@@ -121,10 +121,11 @@ def test_thread_actions_share_consistently_sized_message_headers(
 
 
 def test_a_later_message_copies_its_markdown_from_the_card_s_edge(browser, serve):
-    """Each head on a margin card runs to its edge, under the card's head line, so a
-    message's Copy stands at the card's edge, under Close, and copies the message's
-    Markdown source; with nothing selected, the copy key in the thread presses the
-    Copy of the message whose words the user clicked."""
+    """A margin card's heads end short of its edge, where the first message's head
+    leaves the thread's actions their room, so Copy at a later message's head end
+    stood mid-card. It stands at the card's edge, in the actions' column, and copies
+    the message's Markdown source; with nothing selected, the copy key in the thread
+    presses the Copy of the message whose words the user clicked."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Can it **wait**?", {"section": "lede"})
     source = "Not safely:\n\n- setup runs **untrusted** code\n- `v2` is weeks away"
@@ -135,18 +136,19 @@ def test_a_later_message_copies_its_markdown_from_the_card_s_edge(browser, serve
     card = page.locator(".lf-margin-preview .lf-page-thread")
     reply = card.locator(".lf-msg[data-lf-author=agent]")
     # A press leaves focus on the first message's Copy, and its controls still leave
-    # with the pointer.
+    # with the pointer. While they show, a rule parts them from the thread's actions.
     first = card.locator(".lf-msg[data-lf-author=user]")
     first.hover()
     first.locator(".lf-msg-copy").click()
-    shown = """message => [...message.querySelector('.lf-msg-controls').children]
-      .map((c) => getComputedStyle(c).opacity)"""
-    assert first.evaluate(shown) == ["1", "1"]
+    shown = """message => { const controls = message.querySelector('.lf-msg-controls');
+      return [getComputedStyle(controls.closest('.lf-msg-head'), '::after').opacity,
+        ...[...controls.children].map((c) => getComputedStyle(c).opacity)]; }"""
+    assert first.evaluate(shown) == ["1", "1", "1"]
     reply.locator(".lf-msg-text p").first.hover()
     rendered(page)
     assert first.evaluate("m => m.contains(document.activeElement)")
-    assert first.evaluate(shown) == ["0", "0"]
-    # The hovered reply's Copy shows, and takes the press at its middle.
+    assert first.evaluate(shown) == ["0", "0", "0"]
+    # The hovered reply's Copy shows over its head row's cell in the actions' track.
     assert reply.locator(".lf-msg-copy").evaluate(
         """copy => { const box = copy.getBoundingClientRect();
           return getComputedStyle(copy).opacity === '1' && copy.contains(
@@ -197,23 +199,13 @@ def test_a_head_s_words_take_its_controls_room_while_they_hide(browser, serve):
     the receipt's end, which neither moves nor changes its size."""
     url = serve(PANEL_PAGE)
     panel_comment(serve.page_dir, "Can it wait?", {"section": "lede"})
+    # The margin at this width caps the card short of the head's words and controls.
     context = browser.new_context(viewport={"width": 1440, "height": 900})
     page = open_page(browser, url, context=context)
     page.locator(".lf-margin-marker").first.click()
     message = page.locator(".lf-margin-preview .lf-msg[data-lf-author=user]").first
     expect(message.locator(".lf-msg-sending")).to_contain_text("Queued")
     page.mouse.move(0, 0)
-    rendered(page)
-    # A card's head line leaves each message's head the card's whole width, so narrow
-    # this head until its words fill it, as a narrower card or a longer receipt would.
-    message.locator(".lf-msg-head").evaluate(
-        """head => {
-          const end = head.querySelector('.lf-msg-sending').getBoundingClientRect().right;
-          const words = end - head.getBoundingClientRect().left
-            + parseFloat(getComputedStyle(head).paddingInlineEnd);
-          head.style.inlineSize = `${Math.ceil(words) + 2}px`;
-        }"""
-    )
     rendered(page)
     rest = message.evaluate(RECEIPT_BESIDE_CONTROLS)
     assert rest["whole"] and rest["controls"] is None, rest
@@ -1017,10 +1009,14 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
 def test_words_scrolled_past_a_card_head_show_nowhere_above_it(
     engine, forced, request, serve
 ):
-    """Wherever the card's transcript is scrolled, its stuck head stands a focus ring's
-    room under the transcript's edge, below the card's head line, and that room shows
-    no words, in forced colours too, which drop shadows. Firefox once stuck a head at
-    its scroller's edge, past the room, and words showed above the name in Chromium."""
+    """Wherever the card's transcript is scrolled, its stuck head stands on the line
+    of the card's actions, and the focus-ring room above that line shows no words,
+    in forced colours too, which drop shadows. Firefox stuck a head at its subgrid
+    scroller's edge, past the room, so the name stood 6px above the actions and words
+    showed over Resolve; in Chromium they showed above the name. Nor do words show
+    beneath the actions, a summary's included, and the head row holding the line
+    lends them its ground: an arriving message's tint runs behind them, where the
+    actions' own paper box used to cut it whenever the card was scrolled."""
     url = serve(PANEL_PAGE)
     root = panel_comment(
         serve.page_dir, "Opening turn. " + LANDING_WORDS, {"section": "how-store"}
@@ -1035,9 +1031,9 @@ def test_words_scrolled_past_a_card_head_show_nowhere_above_it(
                 "text": f"Turn {turn}. " + LANDING_WORDS,
             },
         )
-        for turn in range(1, 9)
+        for turn in range(1, 8)
     ]
-    # A summary's words have no head of their own, and scroll out under the room too.
+    # A summary's words have no head of their own, and pass beneath the actions too.
     summarize_thread(serve.page_dir, turns[0]["id"], turns[1]["id"], LANDING_WORDS)
     page = open_page(request.getfixturevalue(engine), url)
     resized(page, 1200, 600)
@@ -1053,9 +1049,19 @@ def test_words_scrolled_past_a_card_head_show_nowhere_above_it(
     travel = transcript.evaluate("box => box.scrollHeight - box.clientHeight")
     # Through the first messages, including where one pushes the last one's head off.
     assert travel > 300, travel
+    actions = page.locator(
+        f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]'
+        " > .lf-margin-thread-controls"
+    )
 
-    def shot(clip):
-        return Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
+    def shot(clip, hidden=None):
+        toggle = "row => { for (const c of row.children) c.style.visibility = '%s'; }"
+        if hidden:
+            hidden.evaluate(toggle % "hidden")
+        image = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
+        if hidden:
+            hidden.evaluate(toggle % "")
+        return image
 
     def spread(image):
         low, high = image.convert("L").getextrema()
@@ -1066,6 +1072,8 @@ def test_words_scrolled_past_a_card_head_show_nowhere_above_it(
         rendered(page)
         reading = transcript.evaluate(
             r"""box => {
+              const controls = box.parentElement
+                .querySelector(':scope > .lf-margin-thread-controls');
               const edge = box.getBoundingClientRect().top + box.clientTop;
               const head = [...box.querySelectorAll('.lf-msg-head')]
                 .find(head => head.getBoundingClientRect().bottom > edge + 1);
@@ -1073,23 +1081,41 @@ def test_words_scrolled_past_a_card_head_show_nowhere_above_it(
               const card = box.parentElement.getBoundingClientRect();
               return {edge, head: at.top, left: card.left, right: card.right,
                 pushed: at.bottom >= head.parentElement.getBoundingClientRect().bottom - 1,
+                line: controls.getBoundingClientRect().top,
+                actions: controls.getBoundingClientRect().toJSON(),
                 // The focus-ring room, which the transcript's landings also keep.
                 ring: parseFloat(getComputedStyle(box).scrollPaddingTop),
-                line: box.parentElement.querySelector(':scope > .lf-margin-thread-head')
-                  .getBoundingClientRect().bottom};
+                event: head.parentElement.dataset.event};
             }"""
         )
-        # A head the next message pushes off rises with it; every other stands at the
-        # foot of the card's head line, or below it, a ring's room under the edge.
+        # A head the next message pushes off rises with it; every other stands on the
+        # actions' line or below it.
         assert reading["pushed"] or reading["head"] >= reading["line"] - 0.5, (
             scroll,
             reading,
         )
         assert reading["line"] - reading["edge"] >= reading["ring"], reading
-        # Where no head is stuck, as over a summary, words run to the edge as they do
-        # anywhere a transcript is cut.
+        # Beneath the controls, with the paper their row lays under the heads.
+        beneath = {
+            side: reading["actions"][side] for side in ("x", "y", "width", "height")
+        }
+        ground = shot(beneath, hidden=actions)
+        assert spread(ground) < 40, (scroll, reading)
+        # Where no head holds the line, as over a summary, words run to the edge as
+        # they do anywhere a transcript is cut.
         if reading["head"] > reading["line"] + 0.5:
             continue
+        if not forced and not reading["pushed"]:
+            # The head holding the line lends its arrival tint to the actions' track.
+            held = transcript.locator(f'.lf-msg[data-event="{reading["event"]}"]')
+            held.evaluate("m => m.style.setProperty('--lf-msg-arrival', '1')")
+            rendered(page)
+            tinted = shot(beneath, hidden=actions)
+            held.evaluate("m => m.style.removeProperty('--lf-msg-arrival')")
+            rendered(page)
+            assert spread(tinted) < 40, (scroll, reading)
+            blue = ImageStat.Stat(ground).mean[2] - ImageStat.Stat(tinted).mean[2]
+            assert blue > 20, (scroll, blue, reading)
         room = reading["head"] - reading["edge"]
         if room < 1:
             continue

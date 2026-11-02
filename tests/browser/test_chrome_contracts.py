@@ -379,10 +379,10 @@ def test_the_caret_after_a_list_bullet_is_drawn(engine, request, serve):
     assert caret == words
 
 
-# Two threads put the card's navigation on its head line too, which a finger's larger
+# Two threads put the card's navigation on the row too, which a finger's larger
 # controls leave least room for.
 @pytest.mark.parametrize(("touch", "thread_count"), [(False, 1), (True, 2)])
-def test_a_card_s_presses_share_its_head_line_over_its_messages(
+def test_page_thread_dismiss_and_resolve_share_the_metadata_row(
     browser, serve, thread_count, touch
 ):
     context = browser.new_context(
@@ -399,7 +399,7 @@ def test_a_card_s_presses_share_its_head_line_over_its_messages(
     expect(resolve).to_be_visible()
     expect(dismiss).to_be_visible()
     assert dismiss.evaluate(
-        "button => button.closest('.lf-margin-thread-head') !== null"
+        "button => button.closest('.lf-margin-thread-controls') !== null"
     )
     centers = preview.evaluate(
         """preview => ['.lf-margin-preview-expand', '.lf-resolve', '.lf-margin-preview-close']
@@ -412,29 +412,35 @@ def test_a_card_s_presses_share_its_head_line_over_its_messages(
         centers
     )
     assert centers[0]["x"] < centers[1]["x"] < centers[2]["x"], centers
-    # The line holds every press whole, and the first message's head stands under it.
-    row = preview.evaluate(
-        """preview => {
-          const line = preview.querySelector('.lf-margin-thread-head');
-          const box = selector => preview.querySelector(selector).getBoundingClientRect();
-          const middle = selector => box(selector).y + box(selector).height / 2;
-          const nav = preview.querySelector('.lf-margin-preview-nav');
-          return {
-            nav: nav && middle('.lf-margin-preview-nav'),
-            navRight: nav && box('.lf-margin-preview-nav').right,
-            actions: middle('.lf-thread-meta-actions'),
-            resolveLeft: box('.lf-resolve').left,
-            line: line.getBoundingClientRect().bottom,
-            author: box('.lf-thread-transcript .lf-msg-head').top,
-            overflow: line.scrollWidth - line.clientWidth,
-          };
-        }"""
-    )
-    assert row["line"] <= row["author"], row
-    assert row["overflow"] == 0, row
     if thread_count == 2:
+        row = preview.evaluate(
+            """preview => {
+              const actions = preview.querySelector('.lf-margin-thread-controls');
+              const head = preview.querySelector('.lf-thread-transcript .lf-msg-head');
+              const box = selector => preview.querySelector(selector)
+                .getBoundingClientRect();
+              const middle = selector => box(selector).y + box(selector).height / 2;
+              return {
+                nav: middle('.lf-margin-preview-nav'),
+                author: middle('.lf-thread-transcript .lf-msg-head > b'),
+                actions: middle('.lf-thread-meta-actions'),
+                authorRight: head.getBoundingClientRect().right
+                  - parseFloat(getComputedStyle(head).paddingInlineEnd),
+                navLeft: box('.lf-margin-preview-nav').left,
+                navRight: box('.lf-margin-preview-nav').right,
+                resolveLeft: box('.lf-resolve').left,
+                // The head's items, not its controls' reach past its edge.
+                overflow: actions.scrollWidth - actions.clientWidth
+                  + Math.max(0, ...[...head.children].map((item) =>
+                    item.getBoundingClientRect().right - head.getBoundingClientRect().right)),
+              };
+            }"""
+        )
         assert row["nav"] == pytest.approx(row["actions"], abs=1), row
+        assert row["author"] == pytest.approx(row["actions"], abs=1), row
+        assert row["authorRight"] < row["navLeft"], row
         assert row["navRight"] < row["resolveLeft"], row
+        assert row["overflow"] == 0, row
     dismiss.focus()
     resized(page, 1000, 844)
     expect(dismiss).to_be_focused()

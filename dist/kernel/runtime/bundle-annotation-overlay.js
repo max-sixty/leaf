@@ -351,16 +351,26 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 			items: ".lf-msg[data-event]",
 			identity: (message) => message.getAttribute("data-event")
 		}) : null;
-		if (previewRegionMounted && transcript) session.stopRegion = registerReadingRegion({
-			id: THREAD_CARD,
-			host: preview,
-			body: transcript,
-			paintContinuation: (above) => {
-				let edge = 0;
-				let height = above ? 12 : 0;
-				if (above) {
-					const top = transcript.getBoundingClientRect().top + transcript.clientTop + slotTop(transcript);
-					for (const head of transcript.querySelectorAll(".lf-msg-head")) {
+		if (previewRegionMounted && transcript) {
+			let decided = "";
+			session.stopRegion = registerReadingRegion({
+				id: THREAD_CARD,
+				host: preview,
+				body: transcript,
+				paintContinuation: (above) => {
+					let edge = 0;
+					let height = above ? 12 : 0;
+					const messages = transcript.querySelectorAll(":scope > .lf-msg");
+					const overflows = transcript.scrollHeight > transcript.clientHeight;
+					const shown = [...messages].filter((message) => !message.hidden).length;
+					const shape = `${transcript.offsetWidth} ${shown}`;
+					const room = slotTop(transcript);
+					const top = transcript.getBoundingClientRect().top + transcript.clientTop + room;
+					for (const message of messages) {
+						const box = message.querySelector(":scope > .lf-msg-head")?.getBoundingClientRect();
+						keeps(message, "data-lf-beside-actions", above && box && box.top < top + box.height && box.bottom > top ? "" : null);
+					}
+					if (above) for (const head of transcript.querySelectorAll(".lf-msg-head")) {
 						const box = head.getBoundingClientRect();
 						if (!box.height || box.bottom <= top) continue;
 						if (box.top <= top) edge = box.bottom - top;
@@ -369,12 +379,14 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 							break;
 						}
 					}
+					card.style.setProperty("--lf-thread-fade-top", layoutPx(edge));
+					card.style.setProperty("--lf-thread-fade-height", layoutPx(height));
+					keeps(card, "data-lf-scrolled", above ? "" : null);
+					if (overflows || shape !== decided) keeps(transcript, "data-lf-overflows", overflows ? "" : null);
+					decided = shape;
 				}
-				card.style.setProperty("--lf-thread-fade-top", layoutPx(edge));
-				card.style.setProperty("--lf-thread-fade-height", layoutPx(height));
-				keeps(card, "data-lf-scrolled", above ? "" : null);
-			}
-		});
+			});
+		}
 	}
 	const placementDriver = floatingPlacement({
 		floating: preview,

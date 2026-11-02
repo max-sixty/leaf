@@ -564,8 +564,8 @@ summary {
      (`.lf-thread-news > span[data-lf-more]`, below), in the notice's own size. */
   --lf-news-count-room: 1.6em;
   /* The widest a news notice beside a message head's words stands, its count's room
-     included: a primary reader's, in a message head or a part, so the head keeps its
-     author and time. */
+     included: a primary reader's, in a message head or a part, and a margin card's, in
+     its controls row (annotation-chrome.css), so the head keeps its author and time. */
   --lf-news-width: calc(5rem + var(--lf-news-count-room));
 }
 .lf-thread-transcript {
@@ -1065,7 +1065,7 @@ button.lf-thread-news {
    past the last fact it shows: "+1" (held-news.js, `newsNotice`), since a finger never
    sees the title that lists them. A placement that bounds the notice's width, and so
    may drop facts, reserves that room from the notice's first paint, so the count
-   arriving moves nothing under the pointer; a margin card's head line reserves it
+   arriving moves nothing under the pointer; a margin card's controls row reserves it
    in its own rule (annotation-chrome.css). A placement that draws the notice whole, as
    the floating panel's head line does while its thread's name has room to give, drops
    no fact and reserves no room. The count stays

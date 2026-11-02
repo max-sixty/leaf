@@ -231,9 +231,8 @@ TIMES_WHOLE = """card => [...card.querySelectorAll('.lf-msg-head')]
 
 def test_a_card_s_head_row_cuts_the_name_before_the_time(browser, serve):
     """A narrow card, with Previous and Next for its target's two threads,
-    holding news while the user writes: the notice reads whole on the card's head line,
-    and under it a long name gives up a message head's room, with an ellipsis, while the
-    time stays whole."""
+    holding news while the user writes: the notice reads whole beside the actions, the
+    message head's time stays whole, and the name gives up the room, with an ellipsis."""
     url = serve(PANEL_PAGE)
     # Supply the overflow this test needs: a short author can fit as the other
     # header content changes.
@@ -265,7 +264,7 @@ def test_a_card_s_head_row_cuts_the_name_before_the_time(browser, serve):
         serve.page_dir, {"parent": root}, "And the title the muted ink."
     )
     told(page)
-    notice = preview.locator(".lf-margin-thread-head .lf-thread-news")
+    notice = preview.locator(".lf-margin-thread-controls .lf-thread-news")
     expect(notice).to_have_text("2 new replies")
     rendered(page)
     assert notice.evaluate("node => node.scrollWidth <= node.clientWidth")
@@ -277,32 +276,31 @@ def test_a_card_s_head_row_cuts_the_name_before_the_time(browser, serve):
     assert name.evaluate("node => getComputedStyle(node).textOverflow") == "ellipsis"
 
 
-# Where a card's notice stands on its head line: its box and its first press's start,
-# and the top of the head of the message under it.
-NEWS_ON_HEAD_LINE = """([notice, head]) => {
-  const box = (node) => node.getBoundingClientRect();
-  const press = notice.parentElement.querySelector('.lf-thread-meta-actions > *');
+# Where a card's notice stands against the user's head beside it: the notice's start,
+# and the head's end, its Edit's symbol and its time's end.
+NEWS_BESIDE_HEAD = """([notice, head]) => {
+  const box = (node) => node?.getBoundingClientRect();
   return {
-    right: box(notice).right,
-    bottom: box(notice).bottom,
-    press: box(press).left,
-    head: box(head).top,
-    cut: notice.scrollWidth > notice.clientWidth + 1,
+    notice: box(notice).left,
+    head: box(head).right,
+    edit: box(head.querySelector('.lf-msg-controls > .lf-msg-edit svg')).left,
+    time: box(head.querySelector('time')).right,
   };
 }"""
 
 
 @pytest.mark.parametrize("phone", [False, True])
-def test_a_card_s_news_stands_on_its_head_line_over_whole_heads(browser, serve, phone):
-    """A card holding news while the user writes: the notice stands on the card's head
-    line, before its presses, saying what fits there, and the head of the user's message
-    under it keeps "Me" and its time whole, on a desktop card with Previous and Next for
-    its target's two threads and on a phone's card, whose presses each take a finger's
-    width. The notice once shared the head's line and took its room, which cut the
-    phone's time."""
+def test_a_card_s_head_stands_whole_beside_news(browser, serve, phone):
+    """A card holding news while the user writes: the notice takes only the room the
+    head of the user's message leaves beside its name and time, and stands clear of
+    it. On a desktop card, with Previous and Next for its target's two threads, the
+    head keeps "Me" and its time whole. On a phone's card, whose three controls, the
+    notice and the head's Edit each take a finger's width, the notice says one count,
+    "2 new", and the head keeps "Me" whole and gives up its time, as any narrow head
+    does before its name. Drawn whole, the notice stood over the head."""
     url = serve(PANEL_PAGE)
-    # Written 51 days ago, so the time reads "51d ago", wider than "just now", however
-    # slowly the test runs.
+    # Written 51 days ago, so the time reads "51d ago" however slowly the test runs:
+    # "just now" turned "1m ago", narrow enough to stand whole on the phone.
     root = append_carried_log_record(
         serve.page_dir,
         {
@@ -336,19 +334,22 @@ def test_a_card_s_news_stands_on_its_head_line_over_whole_heads(browser, serve, 
     )
     append_user_reply(serve.page_dir, root, "Sent from my other tab.")
     told(page)
-    notice = preview.locator(".lf-margin-thread-head .lf-thread-news")
+    notice = preview.locator(".lf-margin-thread-controls .lf-thread-news")
     expect(notice).to_have_attribute("title", "1 new reply · 1 new message")
+    if phone:
+        expect(notice.locator(":scope > span")).to_have_attribute(
+            "data-lf-short", "2 new"
+        )
     rendered(page)
     card = preview.locator(f'.lf-page-thread[data-thread="{root}"]')
     head = card.locator(".lf-msg-head").first
     stands = page.evaluate(
-        NEWS_ON_HEAD_LINE, [notice.element_handle(), head.element_handle()]
+        NEWS_BESIDE_HEAD, [notice.element_handle(), head.element_handle()]
     )
-    assert stands["right"] <= stands["press"] + 0.5, stands
-    assert stands["bottom"] <= stands["head"] + 0.5, stands
-    assert not stands["cut"], stands
+    assert stands["notice"] >= stands["head"] - 0.5, stands
+    assert stands["time"] <= stands["edit"] + 0.5, stands
     times = card.evaluate(TIMES_WHOLE)
-    assert times and all(time["whole"] for time in times), times
+    assert times and all(time["whole"] != phone for time in times), times
     name = head.locator("b")
     expect(name).to_have_text("Me")
     assert name.evaluate("node => node.scrollWidth <= node.clientWidth")
@@ -482,7 +483,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     assert capped["bottom"] <= 472.5, capped
     assert capped["scrollHeight"] > capped["clientHeight"], capped
     # The thread scrolls while its opening metadata and settlement remain usable.
-    metadata = preview.locator(".lf-margin-thread-head")
+    metadata = preview.locator(".lf-margin-thread-controls")
     resolve = preview.get_by_role("button", name="Resolve thread", exact=True)
     metadata_box = metadata.bounding_box()
     resolve_box = resolve.bounding_box()

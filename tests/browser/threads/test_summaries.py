@@ -455,9 +455,11 @@ def test_progress_disclosure_keeps_its_words_visible_beside_margin_paging(
     expect(card).to_be_visible()
     expect(preview.locator(".lf-margin-preview-position")).to_have_text("1/3")
 
-    # The card's presses stand on its head line, over its messages, so no message's
-    # head shares their line, however the transcript stands scrolled.
-    def expect_heads_under_the_head_line():
+    # What every head on the actions' line shows stops short of them: the first
+    # message's head ends at them and cuts what it can't fit, and a later message's head,
+    # which runs to the card's edge, shows only its name and time there until its
+    # message is offered.
+    def expect_headers_clear_actions():
         # Read where the card comes to rest, once its entrance and any landing settle.
         preview.evaluate(
             """card => Promise.all(card.getAnimations({subtree: true})
@@ -466,23 +468,34 @@ def test_progress_disclosure_keeps_its_words_visible_beside_margin_paging(
               .map(motion => motion.finished))"""
         )
         geometry = card.evaluate("""card => {
-          const presses = card.querySelector('.lf-margin-thread-head > .lf-thread-meta-actions')
-            .getBoundingClientRect();
-          const shown = card.querySelector('.lf-thread-transcript').getBoundingClientRect();
+          const actions = card.querySelector('.lf-margin-thread-controls');
+          const line = [...actions.querySelectorAll('.lf-icon-action')]
+            .filter(control => control.checkVisibility())
+            .map(control => control.getBoundingClientRect());
+          const top = Math.min(...line.map(box => box.top));
+          const bottom = Math.max(...line.map(box => box.bottom));
+          const shown = head => Math.max(...[...head.querySelectorAll(
+            ':scope > :not(.lf-msg-control-room), :scope .lf-msg-controls > *')]
+            .filter(item => item.checkVisibility(
+              {visibilityProperty: true, opacityProperty: true}))
+            .map(item => item.getBoundingClientRect().right));
           return {
-            line: presses.bottom,
-            // Where each head shows, the transcript cutting one pushed off its top.
+            actions: actions.getBoundingClientRect().left,
             heads: [...card.querySelectorAll('.lf-msg-head')]
               .filter(head => head.checkVisibility())
-              .map(head => head.getBoundingClientRect())
-              .filter(box => box.bottom > shown.top)
-              .map(box => Math.max(box.top, shown.top)),
+              .filter(head => {
+                const box = head.getBoundingClientRect();
+                return box.top < bottom && box.bottom > top;
+              })
+              .map(head => Math.min(head.getBoundingClientRect().right, shown(head))),
           };
         }""")
         assert geometry["heads"], geometry
-        assert all(top >= geometry["line"] - 0.5 for top in geometry["heads"]), geometry
+        assert all(right <= geometry["actions"] + 0.5 for right in geometry["heads"]), (
+            geometry
+        )
 
-    expect_heads_under_the_head_line()
+    expect_headers_clear_actions()
     originals = [
         card.locator(f'.lf-msg[data-event="{message["id"]}"]') for message in progress
     ]
@@ -510,18 +523,18 @@ def test_progress_disclosure_keeps_its_words_visible_beside_margin_paging(
 
     expand = card.get_by_role("button", name="Show 3 progress messages", exact=True)
     expect_unclipped_words(expand)
-    # A keyboard arrival: the head line's presses come first, so Shift+Tab from the
-    # disclosure, the first stop in the messages, goes back to Close and Tab returns.
+    # A keyboard arrival: the disclosure is the card's first stop, so Shift+Tab goes
+    # back to the margin entry the card hangs from and Tab comes into the card again.
     expand.focus()
     page.keyboard.press("Shift+Tab")
-    expect(card.get_by_role("button", name="Dismiss thread view")).to_be_focused()
+    expect(page.locator(".lf-margin-marker").first).to_be_focused()
     page.keyboard.press("Tab")
     expect(expand).to_be_focused()
     assert expand.evaluate("node => node.matches(':focus-visible')")
     page.keyboard.press("Enter")
     for original in originals:
         expect(original).to_be_visible()
-    expect_heads_under_the_head_line()
+    expect_headers_clear_actions()
     collapse = card.get_by_role("button", name="Hide 3 progress messages", exact=True)
     expect(collapse).to_be_focused()
     expect_unclipped_words(collapse)

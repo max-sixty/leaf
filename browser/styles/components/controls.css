@@ -285,12 +285,16 @@ svg[data-lf-icon] {
 ) {
   --lf-msg-offered: 1;
 }
-/* Where a thread's own control, Resolve, follows its first message's on that
-   message's head line, as in a thread the page holds, a rule stands in the gap between
-   them while the message's show: the controls before it act on the message, the one
-   after it on the whole thread. An open rewrite's Discard and Save take the thread's
-   place past the gap (response.css), so the rule leaves with it. */
-.lf-thread-content:has(> .lf-thread-controls)
+/* Where a thread's own controls (Expand, Resolve, Close) follow its first message's
+   on that message's head line, a rule stands in the gap between them while the
+   message's show: the controls before it act on the message, those after it on the
+   whole thread. An open rewrite's Discard and Save take the thread's place past the
+   gap (response.css), so the rule leaves with it. It stands past the head's end rather
+   than its controls', since a card short of room for a held notice of news lets them
+   run past the head into that gap (thread-card.js, `#fitMarginNews`). */
+:is(.lf-thread-content, .lf-page-thread):has(
+    > :is(.lf-thread-controls, .lf-margin-thread-controls)
+  )
   > .lf-thread-transcript
   > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint):has(
     > .lf-msg-head > .lf-msg-control-room

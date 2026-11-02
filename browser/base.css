@@ -320,11 +320,6 @@
      (comment-placement.js). */
   --thread-card: 592px;
   --thread-card-min: 320px;
-  /* The card's head line, its name and presses, with the gap under it. Beside its
-     words the card stands it over the line it is about, so its first message stands
-     level with that line, and the comment box reserves it over its field, so Send
-     moves no word (comment-placement.js). */
-  --thread-card-head: 36px;
   /* A compact left margin for page-level wayfinding or reference. Unlike a sidenote,
      which annotates one block at its own height, a sidebar may remain beside the user
      while the document moves, so the whole left edge is spoken for wherever it is in

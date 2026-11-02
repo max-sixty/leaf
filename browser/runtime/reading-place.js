@@ -377,7 +377,8 @@ export const pageReadingBlock = () => pageReading({ bodies: false });
 // The sections whose words the user sees, by id in page order: the addressable element
 // around each text block on screen, on the page and in every reading region it shows. A
 // comment on the page as a whole records them (events.md, `viewing`), so on a page that
-// shows one section at a time, "this one" still says which.
+// shows one section at a time, "this one" still says which. An id a script or a shadow
+// tree repeats is listed once, since the record refuses a repeated id.
 export function sectionsInView() {
   /** @type {Set<Element>} */
   const sections = new Set();
@@ -386,8 +387,9 @@ export function sectionsInView() {
       const section = closestAcross(block, ADDRESSABLE);
       if (section) sections.add(section);
     }
-  return [...sections].sort(renderedOrder).map(({ id }) => id);
+  return [...new Set([...sections].sort(renderedOrder).map(({ id }) => id))];
 }
+
 // A let-go lands beside what it let go of while the user sees it: its first block on
 // screen, or, for a node inside a block, that block. Only failing that is it what they
 // are reading.

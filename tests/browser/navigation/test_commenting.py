@@ -921,6 +921,43 @@ def test_c_comments_and_g_t_navigates_to_threads(browser, serve):
     expect(comment).to_be_focused()
 
 
+def test_a_page_comment_records_the_sections_on_screen(browser, serve):
+    """A comment on the whole page has no passage, so on a deck that shows one slide at
+    a time, "drop this one" reached the agent without saying which slide (#5026). The
+    panel's send records the sections whose words are on screen: the header's, read
+    off the page, and the shown slide's, read in the workspace region that scrolls the
+    slides, but none of the slides the page hides."""
+    slides = "".join(
+        f'<section id="{id}"{"" if id == "results" else " hidden"}>'
+        f"<h2>{title}</h2><p>{title} is the subject of this slide's evidence.</p>"
+        "</section>"
+        for id, title in (
+            ("intro", "Where we started"),
+            ("results", "What it bought"),
+            ("next", "What comes next"),
+        )
+    )
+    html = leaf_page(
+        "Quarterly review",
+        '<header id="deck-title"><h1>Quarterly review, third quarter</h1></header>'
+        f'<div id="slides">{slides}</div>',
+        layout="workspace",
+    )
+    context = browser.new_context(viewport={"width": 1200, "height": 900})
+    page = open_page(browser, serve(html), context=context)
+    with sending(page, "the page comment"):
+        write(page_comment(page), "Drop this one")
+        page.keyboard.press("Enter")
+
+    [comment] = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    assert "anchor" not in comment
+    assert comment["viewing"] == ["deck-title", "results"]
+
+
 def test_the_panels_own_c_answers_a_page_whose_log_has_not_arrived(browser, serve):
     """A page whose first poll cannot reach the server is a page the user still writes
     on: `c` opens the page comment, and the panel says only that a comment will not

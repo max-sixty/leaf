@@ -455,6 +455,12 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     cases = {
         "comment": {"kind": "comment", **untitled, **owes("reply")},
         "comment over App Server": {"kind": "comment", **untitled, **owes("turn")},
+        "comment on the page, written while slides showed": {
+            "kind": "comment",
+            "viewing": ["results"],
+            **untitled,
+            **owes("reply"),
+        },
         "comment with a drawing": {
             "kind": "comment",
             "drawing": {

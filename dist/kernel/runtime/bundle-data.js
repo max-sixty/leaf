@@ -6664,7 +6664,7 @@ function sectionsInView() {
 		const section = closestAcross(block, ADDRESSABLE);
 		if (section) sections.add(section);
 	}
-	return [...sections].sort(renderedOrder).map(({ id }) => id);
+	return [...new Set([...sections].sort(renderedOrder).map(({ id }) => id))];
 }
 function landingPlace(from = null) {
 	if (from && from !== document.body && !inChrome(from)) {

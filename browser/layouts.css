@@ -129,11 +129,16 @@
     }
     /* What the page writes before the parts, named from itself rather than by a `:has()`
      * on `main`, which would restyle the whole document on every write: what stands
-     * before the parts' holder. */
+     * before the parts' holder. No class or tag narrows the subject, so the browser
+     * tests the rule against every element, checking the subject's conditions in the
+     * order they are written. `:where(main > *)` comes first so that an element outside
+     * `main` fails at once. The sibling conditions read every later or earlier sibling,
+     * and tested first on each line of an 18,000-line text document, they spent 40 s
+     * restyling it. */
     html[data-lf-interactive]
       body
       > main:not(.layout-column, .layout-sidebar, .layout-workspace)
-      > :has(~ [data-lf-views="parts"]):not(
+      > :where(main > *):has(~ [data-lf-views="parts"]):not(
         [data-lf-views="parts"],
         [data-lf-views="parts"] ~ *
       ) {
@@ -214,7 +219,7 @@
       html[data-lf-interactive]
         body
         > main:not(.layout-column, .layout-sidebar, .layout-workspace)
-        > :has(~ [data-lf-views="parts"]):not(
+        > :where(main > *):has(~ [data-lf-views="parts"]):not(
           [data-lf-views="parts"],
           [data-lf-views="parts"] ~ *
         ),
@@ -235,7 +240,7 @@
       html[data-lf-interactive]
         body
         > main:not(.layout-column, .layout-sidebar, .layout-workspace)
-        > :has(~ [data-lf-views="parts"]):not(
+        > :where(main > *):has(~ [data-lf-views="parts"]):not(
           [data-lf-views="parts"],
           [data-lf-views="parts"] ~ *
         ) {

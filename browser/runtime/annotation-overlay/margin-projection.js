@@ -51,6 +51,7 @@ import {
   scheduleMarginEntryLabels,
   scheduleMarginLayout,
   standsFolded,
+  standsWithheld,
   unregisterMarginRow,
 } from "./margin-layout.js";
 
@@ -162,6 +163,7 @@ import { retainUserIntent } from "../user-intent.js";
  * leavePageMap: ReturnType<typeof import("../page-map-dialog.js").createPageMapDialog>["leavePageMap"],
  * openPageMap: ReturnType<typeof import("../page-map-dialog.js").createPageMapDialog>["openPageMap"],
  * pageMapDialogContains: ReturnType<typeof import("../page-map-dialog.js").createPageMapDialog>["pageMapDialogContains"],
+ * currentLocationObligation: () => Element | null,
  * marksFor: ReturnType<typeof import("./anchor-paint.js").createAnchorPaint>["marksFor"]}} dependencies */
 export function createMarginProjection({
   inventory,
@@ -177,6 +179,7 @@ export function createMarginProjection({
   renderMarginThread,
   placedAt,
   marksFor,
+  currentLocationObligation,
   scrollToElement,
   openInPanel,
 }) {
@@ -209,6 +212,7 @@ export function createMarginProjection({
     placedAt,
     scrollThreadIntoView,
     scrollToElement,
+    openPageThread,
     openInPanel,
     onClose: closedPreview,
   });
@@ -452,7 +456,7 @@ export function createMarginProjection({
     return [...markerRows()].filter(
       (row) =>
         !row.hidden &&
-        !row.closest(".lf-withheld") &&
+        !standsWithheld(row) &&
         row.checkVisibility({ visibilityProperty: true }),
     );
   }
@@ -1191,8 +1195,12 @@ export function createMarginProjection({
       if (!fresh || !freshChoice) closePreview();
       else {
         const owner = threadMarginEntry(fresh);
+        // A withheld row is not gone: the card withholds itself with its target and
+        // comes back with it (thread-preview.js).
+        const away = owner && standsWithheld(owner);
         if (
           owner &&
+          !away &&
           !owner.checkVisibility() &&
           forcedKey !== fresh.key &&
           expandedOptionsKey !== fresh.key &&
@@ -1202,7 +1210,7 @@ export function createMarginProjection({
           unfoldOpenThreadOwner(fresh);
           return;
         }
-        if (!owner || (!owner.checkVisibility() && forcedKey !== fresh.key))
+        if (!owner || (!away && !owner.checkVisibility() && forcedKey !== fresh.key))
           closePreview();
         else {
           card.refresh(fresh, freshChoice, owner, threadOwnerHeld);
@@ -1284,7 +1292,11 @@ export function createMarginProjection({
       entry &&
       marksFor(currentLocation).length > 0 &&
       threadReading(entry)?.items.some((item) => item.thread.id === currentLocation);
-    highlight(drawingOnly || currentLocationShown ? null : (targetFor(entry) ?? null));
+    const target = targetFor(entry) ?? null;
+    // An obligation's location ring already identifies this target, including when
+    // its margin marker holds focus. Quiet brackets on that perimeter cover the ring.
+    const obligationShown = target && target === currentLocationObligation();
+    highlight(drawingOnly || currentLocationShown || obligationShown ? null : target);
   }
 
   function previewChanged() {

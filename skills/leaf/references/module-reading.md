@@ -263,10 +263,14 @@ published, for showing how long a worker has been quiet.
 
 ### Reading version changes
 
-`comparisonChanges(owner)` returns the changed elements inside `owner` in the current
-version comparison, or every changed element with no owner, and an empty array with no
-comparison active. Reading it during a `LeafElement` render subscribes that render
-to comparison changes.
+`comparisonChanges(owner)` returns the changes inside `owner` in the current version
+comparison, or every change with no owner, and an empty array with no comparison
+active. A change is a run of changed elements in one view, such as a tab, a
+`details`, or the content a disclosure control (`aria-expanded`) names in
+`aria-controls`, with no unchanged block between them, as a rewritten section is. Each
+change is an array of its elements inside `owner`, in page order, so the result's
+length counts changes as the reader does. Reading it during a `LeafElement` render
+subscribes that render to comparison changes.
 
 `revisionLabel(event.revision)` is the page's name for the version an event was
 recorded in.

@@ -499,10 +499,28 @@ export function createAnnotationInventory({
     }
 
     const base = comparisonBase();
-    comparisonChanges().forEach((target, index) => {
-      const account = `${addressableWord(target)} changed${base == null ? "" : ` since ${base.name}`}`;
-      const inline = inlineComparison(target);
-      const mapAccount = inline ? `${addressableWord(target)} changed` : account;
+    // One entry per change (a run of changed blocks), beside the block the run starts
+    // with, so a section rewritten whole gets one entry rather than one per paragraph.
+    // Its size counts what the reader sees changed: the children of the nearest element
+    // holding the whole run, so a rewritten table counts once rather than once a cell.
+    comparisonChanges().forEach((change, index) => {
+      const [target] = change;
+      let holder = target.parentElement;
+      while (holder && !change.every((block) => holder?.contains(block)))
+        holder = holder.parentElement;
+      /** @param {Element} block */
+      const childOf = (block) => {
+        let at = block;
+        while (at.parentElement && at.parentElement !== holder) at = at.parentElement;
+        return at;
+      };
+      const more = new Set(change.map(childOf)).size - 1;
+      const what = more
+        ? `${addressableWord(target)} and ${more} more`
+        : addressableWord(target);
+      const account = `${what} changed${base == null ? "" : ` since ${base.name}`}`;
+      const inline = inlineComparison(change);
+      const mapAccount = inline ? `${what} changed` : account;
       add(groups, target, {
         kind: "change",
         id: `change:${targetPath(target)}:${index}`,
@@ -514,20 +532,20 @@ export function createAnnotationInventory({
           ...(addressableLabel(target) ? [` · ${addressableLabel(target)}`] : []),
         ],
         // A disclosure has to say what it holds, or its one word reports a fact and
-        // promises nothing. The margin entry's quieter line carries it, and a block the
+        // promises nothing. The margin entry's quieter line carries it, and a change the
         // comparison holds nothing for has none, so no margin entry offers a press it has
         // not got.
         ...(inline ? { context: inline.offer, mapContext: inline.offer } : {}),
         // What a Change reading holds, where the comparison kept the base version's
-        // words for this block: pressing it splices dropped text into the current
+        // words for the change's blocks: pressing it splices dropped text into each
         // passage and paints additions there, so the user learns what changed without
         // travelling to the other version and back. Where it kept none, the press is the
         // travel it always was, and `discloses` answering null is what says so — to the
         // margin entry's relation, to the hint's word for the press, and to the
         // reference.
-        discloses: () => inlineComparison(target),
+        discloses: () => inlineComparison(change),
         activate: () => {
-          const said = toggleInlineComparison(target);
+          const said = toggleInlineComparison(change);
           revealTarget(
             target,
             said ? `${account} · ${said}` : account,

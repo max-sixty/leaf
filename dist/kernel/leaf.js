@@ -9211,19 +9211,23 @@ function createObligationView({ prepareNavigationStep, arrive, openPageThread, f
 
 //#endregion
 //#region runtime/change-walk.js
-const changes = () => byRenderedOrder(comparisonChanges(), (block) => block);
-const currentChange = (list, origin = currentLocationOrigin()) => origin?.kind === "current-location" ? list.find((block) => renderedUnder(origin.node, block)) ?? null : null;
+const start = (change) => change[0];
+const currentChange = (list, origin = currentLocationOrigin()) => origin?.kind === "current-location" ? list.find((change) => change.some((block) => renderedUnder(origin.node, block))) ?? null : null;
 const position = () => {
-	const list = changes();
+	const list = comparisonChanges();
 	const base = comparisonBase();
-	return listWalkPosition(list, currentChange(list), { qualifier: base ? `since ${base.name}` : "" });
+	return listWalkPosition(list, currentChange(list), {
+		identity: start,
+		qualifier: base ? `since ${base.name}` : ""
+	});
 };
 function step(dir) {
-	const list = changes();
+	const list = comparisonChanges();
 	const origin = walkOrigin();
 	const current = currentChange(list, origin);
-	const next = current ? cycledRow(list, current, dir) : stepFrom(list, origin, dir, (block) => block);
-	if (!next) return;
+	const change = current ? cycledRow(list, current, dir) : stepFrom(list, origin, dir, start);
+	if (!change) return;
+	const next = start(change);
 	if (!alreadyShown(next)) scrollIntoView(next, {
 		behavior: scrollBehavior(),
 		block: "start"

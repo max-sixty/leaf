@@ -214,7 +214,8 @@ VERB_SCHEMA = {
             ]
         },
         "writer": {"const": "agent"},
-        "attention": {"type": "boolean"},
+        "attention": {"const": True},
+        "unsent": {"const": True},
         "creates": ACTION_CREATES,
         "decides": {"const": True},
         "contract": {
@@ -242,7 +243,9 @@ VERB_SCHEMA = {
                 }
             },
             "else": {"required": ["detail"]},
-        }
+        },
+        # Unsent work asks for nothing, so it can't also be a request.
+        {"not": {"required": ["attention", "unsent"]}},
     ],
     "additionalProperties": False,
     # An agent's verb moves declared state only, never body words — so the

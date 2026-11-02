@@ -378,7 +378,9 @@ def record(
     wait_until_ready(page)
     # The thread opened from Threads shows its answer in the floating panel's view.
     thread.click()
-    page.locator(".lf-fp-view[data-view=thread] .lf-msg.agent").get_by_text(
+    page.locator(
+        ".lf-fp-view[data-view=thread] .lf-msg[data-lf-author=agent]"
+    ).get_by_text(
         "Yes. The fixed rate limit keeps the backfill online.", exact=True
     ).wait_for(state="visible")
     shot(2300)
@@ -447,7 +449,9 @@ def shoot_stills(browser, url: str, page_dir: Path, into: Path) -> None:
             )
             open_threads(page)
             page.locator(".lf-fp-thread").first.click()
-            page.wait_for_selector(".lf-fp-view[data-view=thread] .lf-msg.agent")
+            page.wait_for_selector(
+                ".lf-fp-view[data-view=thread] .lf-msg[data-lf-author=agent]"
+            )
             page.locator("#top").scroll_into_view_if_needed()
             settle(page)
             page.screenshot(

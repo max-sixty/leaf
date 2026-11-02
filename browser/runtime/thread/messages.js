@@ -493,9 +493,7 @@ export class MessageView {
         if (keptRewrite(presentation.model.id) !== this.#kept)
           this.#commands.edit.paint(this.node);
       });
-    if (prior && prior.author !== model.author)
-      this.node.classList.toggle(prior.author, false);
-    this.node.classList.toggle(model.author, true);
+    keeps(this.node, "data-lf-author", model.author);
     keeps(this.node, "data-event", model.id);
     this.node.classList.toggle("lf-unread", Boolean(model.unread));
     keeps(this.node, "data-attempt", model.attempt || null);

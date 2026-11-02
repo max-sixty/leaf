@@ -1,6 +1,6 @@
 /** The committed kernel shares one state instance with native package modules. */
 import assert from "node:assert/strict";
-import { cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -31,7 +31,9 @@ test("the kernel preserves native packages and shared state", async () => {
     "runtime/state.js": "export const state = { clicks: 0, annotations: false };",
     "runtime/vendor-bridge.js": 'export { state } from "./state.js";',
     "runtime/widget-api.js": 'export { state } from "./state.js";',
-    "runtime/portable-api.js": 'export { state } from "./state.js";',
+    "runtime/portable-api.js":
+      'export const clock = () => import("./document-inputs.js"); export { state } from "./state.js";',
+    "runtime/document-inputs.js": "(() => {})();",
     "runtime/check-api.js": 'export { state } from "./state.js";',
     "runtime/annotation-overlay/check-api.js": 'export { state } from "../state.js";',
     "runtime/media.js":
@@ -58,6 +60,10 @@ test("the kernel preserves native packages and shared state", async () => {
     // A rebuild of the same modules reproduces the committed bytes.
     assert.deepEqual(await kernelOutputs(layer), kernel);
     const record = await vendor(layer, kernel, output);
+    assert.equal(
+      await readFile(join(output, "runtime/document-inputs.js"), "utf8"),
+      sources["runtime/document-inputs.js"],
+    );
     await writeFile(join(output, "package.json"), '{"type":"module"}');
 
     const leaf = await import(pathToFileURL(join(output, "leaf.js")).href);

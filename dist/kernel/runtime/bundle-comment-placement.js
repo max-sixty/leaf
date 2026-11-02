@@ -1,8 +1,5 @@
-import { LAYOUT, afterScript, atLayoutPrecision, cancelRender, inlineStyle, keeps, layoutPx, nextRender, renderedParent, renderedUnder, sizeObserver, skipped, under, upFrom } from "./bundle-portable.js";
-import { TAB_STOP, coarsePointer, hoveringPointer, move, renderedChildren } from "./bundle-layer-stack.js";
-import { afterPresentation, anchorBox, anchorElement, anchorFor, anchorName, anchorReading, boundedBlockOf, carriedAnchor, containingReadingRegionFor, cutFrames, headerLevels, moveScrollerBy, nameAnchor, pageScroller, passageBoxes, pointBand, proseRect, railStands, scrollAxes, scrollLimit, scrollerFor, scrollsWith, targetRange, targetSegments } from "./bundle-content-layout.js";
-import { clamp, clippedContents, clippedRect, clippingAxes, overlaps, overlapsAcross, scrollsContent, shellRight, shownBand, shownExtent, shownParts, shownRect, shownWindow, union, visualViewport } from "./bundle-geometry.js";
-import { inChrome, layoutBox } from "./bundle-passages.js";
+import { LAYOUT, TAB_STOP, afterScript, anchorBox, anchorElement, anchorFor, anchorName, anchorReading, atLayoutPrecision, cancelRender, carriedAnchor, clamp, clippedContents, clippedRect, clippingAxes, coarsePointer, cutFrames, headerLevels, hoveringPointer, inChrome, inlineStyle, keeps, layoutBox, layoutPx, move, moveScrollerBy, nameAnchor, nextRender, overlaps, overlapsAcross, pageScroller, renderedChildren, renderedParent, renderedUnder, scrollAxes, scrollLimit, scrollsContent, scrollsWith, shellRight, shownBand, shownExtent, shownParts, shownRect, shownWindow, sizeObserver, skipped, under, union, upFrom, visualViewport } from "./bundle-portable.js";
+import { afterPresentation, boundedBlockOf, containingReadingRegionFor, passageBoxes, pointBand, proseRect, railStands, scrollerFor, targetRange, targetSegments } from "./bundle-content-layout.js";
 import { visibleTargetParts } from "./bundle-visible-target-parts.js";
 
 //#region runtime/annotation-overlay/margin-placement.js
@@ -395,7 +392,7 @@ function placeMarginEntryLabel(control) {
 	setStyle(label, "--lf-label-y", layoutPx(choice.rect.top - marginEntryBox.top - control.clientTop));
 	keeps(control, "data-lf-label-side", choice.name);
 }
-const revealsLabel = () => hoveringPointer.matches ? ":is(:hover, [data-lf-focus]):not([aria-expanded=\"true\"]), [data-lf-held-word]" : "[data-lf-focus]:focus-visible:not([aria-expanded=\"true\"]), [data-lf-held-word]";
+const revealsLabel = () => "[data-lf-kinds~=\"on-me\"][data-lf-target-selected], " + (hoveringPointer.matches ? ":is(:hover, [data-lf-focus]):not([aria-expanded=\"true\"]), [data-lf-held-word]" : "[data-lf-focus]:focus-visible:not([aria-expanded=\"true\"]), [data-lf-held-word]");
 function heldLabelBoxes(row) {
 	return [...row.querySelectorAll(".lf-margin-entry[data-lf-label-side]")].filter((control) => control.matches(revealsLabel())).flatMap((control) => {
 		const label = control.querySelector(":scope > .lf-margin-entry-label");

@@ -2,7 +2,15 @@
 
 from browser.threads import open_panel_thread
 from playwright.sync_api import expect
-from render_harness import PANEL, open_threads, panel_menu, panel_settled, panel_view
+from render_harness import (
+    PANEL,
+    close_panel_menu,
+    open_threads,
+    panel_menu,
+    panel_settled,
+    panel_view,
+    show_resolved,
+)
 
 from leaf import event_log as events_model
 
@@ -11,6 +19,8 @@ def listed_threads(page):
     """The keys of every thread the panel's Threads view lists, the open ones and then
     those under Resolved; Threads is put away after."""
     open_threads(page)
+    if page.locator(f"{panel_view('threads')} .lf-fp-settled").count():
+        show_resolved(page)
     keys = page.locator(f"{panel_view('threads')} .lf-fp-thread").evaluate_all(
         "rows => rows.map(row => row.dataset.key)"
     )
@@ -50,4 +60,4 @@ def expect_showing(page, version):
     expect(
         panel_menu(page).locator('.lf-fp-item[data-row="versions"]')
     ).to_contain_text(f"v{version}")
-    page.locator(".lf-fp-leaf").click()
+    close_panel_menu(page)

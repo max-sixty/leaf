@@ -164,7 +164,8 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
     asked = _asked(context)
     page = open_page(browser, serve(example), context=context)
 
-    modules = sorted(p for p in asked if p.startswith("/widgets/"))
+    # Compare widget entry modules, leaving their internal imports unconstrained.
+    modules = sorted(p for p in asked if p.startswith("/widgets/lf-"))
     assert modules == [
         "/widgets/lf-activity.js",
         "/widgets/lf-board.js",

@@ -26,6 +26,7 @@ import http.server
 import json
 import time
 from collections.abc import Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Literal
 
@@ -118,11 +119,13 @@ REFUSED = '<lf-chart id="refused"><pre>\n{ marks: [ }\n</pre></lf-chart>'
 ROOT = "/leaf"
 
 
-def install() -> Mapping[str, Resource]:
+def install(*packages: str) -> Mapping[str, Resource]:
     """What Leaf serves a page of these widgets' packages, by rooted path: the layer
     they compose and the runtime beside it."""
     layer = compose_layer(
-        layer_inputs(tuple(sorted({widget.package for widget in PORTABLE})))
+        layer_inputs(
+            tuple(sorted({widget.package for widget in PORTABLE} | set(packages)))
+        )
     )
     files = {
         f"/{sub}/{name}": Resource(data, resource_type(name))
@@ -157,9 +160,10 @@ def plain_page() -> str:
 </head><body><main>{sections}</main></body></html>"""
 
 
-def test_a_display_widget_draws_on_a_page_without_leaf(browser, subtests):
-    resources = install()
-    page_bytes = plain_page().encode()
+@contextmanager
+def host_page(markup: str, resources: Mapping[str, Resource]):
+    """Serve ordinary host markup beside the install, without Leaf delivery."""
+    page_bytes = markup.encode()
 
     class Host(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
@@ -190,12 +194,17 @@ def test_a_display_widget_draws_on_a_page_without_leaf(browser, subtests):
 
     httpd = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Host)
     with running_http_server(httpd):
+        yield f"http://127.0.0.1:{httpd.server_port}/"
+
+
+def test_a_display_widget_draws_on_a_page_without_leaf(browser, subtests):
+    with host_page(plain_page(), install()) as url:
         page = browser.new_page(viewport={"width": 900, "height": 1200})
         console = []
         page.on(
             "console", lambda message: console.append(f"{message.type}: {message.text}")
         )
-        page.goto(f"http://127.0.0.1:{httpd.server_port}/")
+        page.goto(url)
         assert page.evaluate("() => !window.lfRootState"), (
             "the page must run none of Leaf's runtime"
         )
@@ -269,3 +278,140 @@ def test_a_display_widget_draws_on_a_page_without_leaf(browser, subtests):
         # The refusal is the page's to show, and nothing of it, or of any widget,
         # reaches the console of a page that runs no Leaf.
         assert console == [], console
+
+
+def test_a_host_sets_a_diff_value_and_reads_its_drawn_marks(browser):
+    """A host owns the value; drawn hands it the marks of that exact drawing."""
+
+    def patch(path, word):
+        return (
+            f"diff --git a/{path} b/{path}\n"
+            f"--- a/{path}\n+++ b/{path}\n"
+            f"@@ -1 +1 @@\n-old\n+{word}\n"
+        )
+
+    first = patch("first.txt", "first value")
+    second = patch("second.txt", "second value")
+    markup = f"""<!doctype html>
+<html><head><meta charset="utf-8"><title>Host-owned diff</title>
+<script type="importmap">{json.dumps(layer_import_map(ROOT))}</script>
+</head><body><button id="show-both">Show both files</button><lf-diff id="diff"></lf-diff>
+<script type="module">
+const diff = document.querySelector("lf-diff");
+window.drawings = [];
+// Read synchronously: the marks must stand when the widget reports its drawing.
+diff.addEventListener("drawn", event => drawings.push({{
+  value: event.detail.value,
+  marks: [...diff.shadowRoot.querySelectorAll("[data-lf-datum]")].map(node => ({{
+    key: node.dataset.lfDatum, text: node.textContent,
+  }})),
+}}));
+try {{
+  await import("/widgets/lf-diff.js");
+  diff.value = {json.dumps(first)};
+  document.querySelector("#show-both").onclick = () => {{
+    diff.value = {json.dumps(first + second)};
+  }};
+}} catch (error) {{
+  document.querySelector("#failure").textContent = error.stack;
+}} finally {{
+  window.hostReady = true;
+}}
+</script><pre id="failure"></pre></body></html>"""
+    with host_page(markup, install("diff")) as url:
+        page = browser.new_page()
+        page.goto(url)
+        page.wait_for_function("window.hostReady")
+        assert page.locator("#failure").inner_text() == ""
+        expect(page.locator("#diff .lf-diff-file")).to_be_visible()
+        page.wait_for_function(
+            "value => drawings.some(drawing => drawing.value === value)", arg=first
+        )
+        drawn = page.evaluate("drawings.at(-1)")
+        assert drawn["value"] == first
+        assert drawn["marks"], drawn
+        expect(
+            page.get_by_role("button", name="Comment on", exact=False)
+        ).to_have_count(0)
+        expect(page.locator("#diff .lf-diff-line-number").first).to_have_text("1")
+        assert any("first value" in mark["text"] for mark in drawn["marks"])
+        first_keys = {mark["key"] for mark in drawn["marks"]}
+
+        page.evaluate(
+            "value => { document.querySelector('#diff').value = value; }", second
+        )
+        page.wait_for_function(
+            "value => drawings.some(drawing => drawing.value === value)", arg=second
+        )
+        drawn = page.evaluate("drawings.at(-1)")
+        assert drawn["value"] == second
+        assert drawn["marks"], drawn
+        expect(
+            page.get_by_role("button", name="Comment on", exact=False)
+        ).to_have_count(0)
+        expect(page.locator("#diff .lf-diff-line-number").first).to_have_text("1")
+        assert any("second value" in mark["text"] for mark in drawn["marks"])
+        assert first_keys.isdisjoint(mark["key"] for mark in drawn["marks"])
+        assert all("first value" not in mark["text"] for mark in drawn["marks"])
+        # The same portable input/focus helpers let a reader filter the host's value
+        # and retain their search while a matching file's drawing is replaced.
+        page.get_by_role("button", name="Show both files").click()
+        search = page.get_by_role("searchbox", name="Filter diff files")
+        search.fill("second")
+        expect(page.locator("#diff .lf-diff-file:visible")).to_have_count(1)
+        expect(page.locator("#diff .lf-diff-file:visible")).to_contain_text(
+            "second.txt"
+        )
+        replacement = first + patch("second.txt", "updated value")
+        page.evaluate(
+            "value => { document.querySelector('#diff').value = value; }", replacement
+        )
+        expect(page.locator("#diff .lf-diff-file:visible")).to_contain_text(
+            "updated value"
+        )
+        expect(search).to_be_focused()
+        expect(search).to_have_value("second")
+        assert page.evaluate(
+            "!window.lfRootState && !window.lfDocumentLifetime && !window.lfViews"
+        )
+
+
+def test_a_host_builds_named_controls_without_leaf(browser):
+    """Control construction and generated labels need no page services."""
+    markup = f"""<!doctype html>
+<html><head><meta charset="utf-8"><title>Host controls</title>
+<style>svg {{ width: 1em; height: 1em; }}</style>
+<script type="importmap">{json.dumps(layer_import_map(ROOT))}</script>
+</head><body><main></main><pre id="failure"></pre>
+<script type="module">
+try {{
+  const {{offer, nameAction, relabel, searchField}} =
+    await import("/runtime/portable-api.js");
+  await import("/vendor/webawesome.esm.js");
+  const button = offer("button");
+  nameAction(button, "close", {{label: "Close evidence"}});
+  const label = offer("span");
+  relabel(label, "Evidence", {{says: "echo"}});
+  const search = searchField("host-search", {{name: "files", label: "Find files"}});
+  document.querySelector("main").append(button, label, search);
+}} catch (error) {{ document.querySelector("#failure").textContent = error.stack; }}
+finally {{ window.hostReady = true; }}
+</script></body></html>"""
+    with host_page(markup, install()) as url:
+        page = browser.new_page()
+        page.goto(url)
+        page.wait_for_function("window.hostReady")
+        assert page.locator("#failure").inner_text() == ""
+        button = page.get_by_role("button", name="Close evidence")
+        expect(button.locator("svg")).to_be_visible()
+        expect(button).to_have_attribute("title", "Close evidence")
+        expect(page.locator("span[data-lf-echo]")).to_have_text("Evidence")
+        search = page.get_by_role("searchbox", name="Find files")
+        search.fill("patch")
+        expect(search).to_have_value("patch")
+        button.focus()
+        page.keyboard.press("Tab")
+        expect(search).to_be_focused()
+        assert page.evaluate(
+            "!window.lfRootState && !window.lfDocumentLifetime && !window.lfViews"
+        )

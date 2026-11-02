@@ -1,6 +1,4 @@
-import { afterSettling, inlineStyle, keeps, motionEasing, motionPlays, motionTime, nextRender, playMotion } from "./bundle-portable.js";
-import { TEXT_FIELD, onUserInput } from "./bundle-layer-stack.js";
-import { contentRides } from "./bundle-content-layout.js";
+import { TEXT_FIELD, afterSettling, contentRides, inlineStyle, keeps, motionEasing, motionPlays, motionTime, nextRender, onUserInput, playMotion } from "./bundle-portable.js";
 
 //#region runtime/box-motion.js
 let gesture = null;

@@ -1,7 +1,4 @@
-import { describeFailure, foldDuration, inBaseLayer, keeps, keepsHidden, keepsText, offerAction, offered, reducedMotion } from "./bundle-portable.js";
-import { closeLayer, closeNativeLayer, focusDestination, handBack, html, nativeLayers, offlineInteractive, openLayer, openerOf, pageUrl, plainPress, render, runtimeResource, showNativeLayer } from "./bundle-layer-stack.js";
-import { closeControl, keys, paintKeys } from "./bundle-layer-client.js";
-import { says } from "./bundle-passages.js";
+import { closeControl, closeLayer, closeNativeLayer, describeFailure, focusDestination, foldDuration, handBack, html, inBaseLayer, keeps, keepsHidden, keepsText, keys, nativeLayers, offerAction, offered, offlineInteractive, openLayer, openerOf, pageUrl, paintKeys, plainPress, reducedMotion, render, runtimeResource, says, showNativeLayer } from "./bundle-portable.js";
 
 //#region runtime/media.js
 const CANONICAL_MEDIA_ROOT = "/media/";

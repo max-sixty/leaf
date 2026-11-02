@@ -1,9 +1,13 @@
-"""Every JavaScript and TypeScript export has a reader in another file.
+"""Fail on any JavaScript or TypeScript export that no other file reads.
+
+    uv run leaf-dev unused-exports
 
 An export nothing imports is what a removed caller leaves behind: the module keeps
 offering it, the next reader takes it for a contract, and the code it holds up
-outlives its last use. The check runs here, over the whole tree, rather than in a
-JavaScript tool such as knip, because the runtime's readers are not all JavaScript.
+outlives its last use. This is JavaScript's counterpart to vulture, and runs beside it
+as a pre-commit hook, so both landing paths check the whole tree on every change. It
+runs here rather than in a JavaScript tool such as knip because the runtime's readers
+are not all JavaScript.
 
 What a module exports, and what each module reads from others, come from its parse
 (`tests/js_facts.mjs`, `exports` and `imports`), a TypeScript module's types and
@@ -33,10 +37,13 @@ file name.
 
 import json
 import re
+import subprocess
 import tomllib
 from pathlib import PurePosixPath
 
-from interact_support import PLUGIN_ROOT, js_facts, shipped_payload
+import click
+
+from leaf_dev import ROOT
 
 SOURCES = (".js", ".mjs", ".ts")
 WORDED = (".py", ".html", ".md")
@@ -56,10 +63,39 @@ WORD = re.compile(r"\\[a-z]|([A-Za-z_$][\w$]*)")
 WORKER = "worker/wrangler.toml"
 
 
-def test_every_export_has_a_reader_in_another_file():
+def js_facts(command: str, files) -> dict:
+    """What `tests/js_facts.mjs` reads with `command` out of the parsed modules `files`."""
+    return json.loads(
+        subprocess.run(
+            ["node", "tests/js_facts.mjs", command, *files],
+            capture_output=True,
+            text=True,
+            check=True,
+            cwd=ROOT,
+        ).stdout
+    )
+
+
+def unread_exports() -> list[str]:
+    """`module: name` for each export no other file reads, over the tracked and
+    unignored files a change would commit."""
+    listed = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(ROOT),
+            "ls-files",
+            "--cached",
+            "--others",
+            "--exclude-standard",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
     texts = {}
-    for path in shipped_payload():
-        relative = path.relative_to(PLUGIN_ROOT).as_posix()
+    for relative in listed.splitlines():
+        path = ROOT / relative
         if not path.is_file():
             continue
         try:
@@ -72,13 +108,14 @@ def test_every_export_has_a_reader_in_another_file():
         for relative in sources
         if not BUNDLED.search(relative) and not UNCHECKED.search(relative)
     ]
-    exported = json.loads(js_facts("exports", modules))
-    imported = json.loads(js_facts("imports", sources))
+    exported = js_facts("exports", modules)
+    imported = js_facts("imports", sources)
     exporters = {}
     for module in modules:
         for name in exported[module]["names"]:
             exporters.setdefault(name, set()).add(module)
-    assert exporters, "no exports read — an empty set guards nothing"
+    if not exporters:
+        raise click.ClickException("no exports read — an empty set guards nothing")
 
     read = set()
 
@@ -103,14 +140,12 @@ def test_every_export_has_a_reader_in_another_file():
     worker = PurePosixPath(WORKER).parent
     mark(str(worker / tomllib.loads(texts[WORKER])["main"]), "*")
 
-    worded = {
-        relative: text for relative, text in texts.items() if relative.endswith(WORDED)
-    }
     words = set()
-    for text in worded.values():
-        words.update(WORD.findall(text))
+    for relative, text in texts.items():
+        if relative.endswith(WORDED):
+            words.update(WORD.findall(text))
 
-    unread = sorted(
+    return sorted(
         [
             f"{module}: {name}"
             for module in modules
@@ -129,7 +164,14 @@ def test_every_export_has_a_reader_in_another_file():
             )
         ]
     )
-    assert not unread, (
-        "exports nothing reads; drop `export` where only the module itself uses the "
-        "name, and delete what nothing uses:\n" + "\n".join(unread)
-    )
+
+
+@click.command()
+def unused_exports() -> None:
+    """Fail on any JavaScript or TypeScript export that no other file reads."""
+    unread = unread_exports()
+    if unread:
+        raise click.ClickException(
+            "exports nothing reads; drop `export` where only the module itself uses "
+            "the name, and delete what nothing uses:\n" + "\n".join(unread)
+        )

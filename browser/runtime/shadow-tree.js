@@ -52,6 +52,32 @@ export const isStyledElement = (node) =>
   node.namespaceURI === "http://www.w3.org/1999/xhtml" ||
   node.namespaceURI === "http://www.w3.org/2000/svg" ||
   node.namespaceURI === "http://www.w3.org/1998/Math/MathML";
+// closest() stops at a shadow boundary, so a node inside a widget's shadow tree can't
+// reach the section that holds it or the chrome marker above it — both out in the
+// document. Same climb as upFrom, asked with a selector at each tree it passes through.
+/** @param {Node | null} node @param {string} selector @returns {Element | null} */
+export function closestAcross(node, selector) {
+  let el = isElement(node) ? node : upFrom(node);
+  while (el) {
+    const hit = el.closest(selector);
+    if (hit) return hit;
+    el = shadowHost(el.getRootNode());
+  }
+  return null;
+}
+
+// A different question the class also used to answer, and not a question about looks at
+// all: which document is this element in? The runtime's layer is one container, so a
+// widget inside a reply — markup frozen in the log, carried by no version — is exactly
+// what that container holds, and the reading position is a place in the page rather than
+// in the panel over it. `.lf-ui` reached those elements and a widget's own controls out
+// on the page besides, which is the look standing in for the place.
+// Across the boundary as closestAcross does: the marker lives out in
+// the document, so a node inside a widget's shadow tree can only reach it by leaving the
+// tree, and a widget staged inside a reply would otherwise read as page content.
+/** @param {Node | null} node */
+export const inChrome = (node) => Boolean(node && closestAcross(node, ".lf-chrome"));
+
 // The same step through the tree as rendered: a node slotted into a shadow tree renders
 // inside its slot, so the slot is where it is scrolled and ordered, not its light parent.
 /** @param {Node | null | undefined} node @returns {Element | null} */
@@ -84,6 +110,50 @@ export const renderedUnder = (node, root) => {
   for (let at = node; at; at = renderedParentNode(at)) if (at === root) return true;
   return false;
 };
+
+// Which layer a node stands in — the runtime's chrome, a declared label, or the
+// document — is asked by every reading that climbs out of a widget, so it is answered
+// here, beside the climb, where geometry.js and widget-elements.js can ask it without
+// importing the passage readings back.
+// The chrome over a node, read within one frame: above the frame it is nobody's, and with
+// no frame at all it is the document's own reading, unchanged.
+/** @param {Element} el @param {string} selector @param {Element | null | undefined} frame */
+export const overIn = (el, selector, frame) => {
+  const near = el.closest(selector);
+  return near && (!frame || under(near, frame)) ? near : null;
+};
+// A label a widget declared as the page speaking (generatedElement), which the anchor
+// pass reads over the chrome it sits in.
+export const SAID = "[data-lf-said]";
+// The pair `uiInside` weighs, the nearer deciding. The passage walk reads the same pair one
+// element at a time on its way down (passages.js, `chromeMark`).
+export const UI_MARKS = `.lf-ui, ${SAID}`;
+// The same question one node at a time: is this the runtime's own chrome rather than the
+// document? Every affordance asks it before acting on where the pointer or the caret is.
+// The nearest element that answers wins: a declared label is the page's words inside the
+// control it labels, and a control nested inside one is chrome again. `.lf-ui` alone was
+// the answer once, and it is a look — which is how a user ended up reading a heading
+// they could not point at, twice.
+//
+// Bounded or not, by the second argument, and that is the whole difference between the
+// two ways this gets asked. Unbounded — `inUi` — the answer is about the page: a
+// control is the runtime's apparatus wherever it stands, which is what a pointer or a
+// caret needs to know. Bounded at an element, the answer is about that element's own
+// insides, which is what a reading of one widget needs: the panel holding a widget an
+// agent sent in a reply is itself `.lf-ui`, so asked the unbounded way every child of
+// such a widget answers yes, and the widget reads as having nothing of its own left.
+// The text readings took the same seam (quotable, shownParts, settledAway, authored);
+// it is stated once here so
+// that what a mark may hang on, what a settlement has emptied, and what a quote may
+// name cannot come apart.
+/** @param {Element | null | undefined} el @param {Element | null | undefined} within */
+export const uiInside = (el, within) => {
+  const near = el && overIn(el, UI_MARKS, within);
+  return !!near && !near.matches(SAID);
+};
+/** @param {Node | null | undefined} node */
+export const inUi = (node) =>
+  uiInside(isElement(node) ? node : node?.parentElement, null);
 
 // Which of two nodes the reader reaches first in the page as rendered: negative when `a`
 // is, positive when `b` is, 0 for one node. A node comes before what it holds, so a

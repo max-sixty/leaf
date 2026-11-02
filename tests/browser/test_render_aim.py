@@ -2767,7 +2767,16 @@ def test_the_legend_follows_the_page_it_is_a_reading_of(browser, serve):
     expect(page.locator(".lf-inspect")).to_have_text("paragraph · p20")
     box = page.locator(".lf-aim").bounding_box()
     name = page.locator(".lf-inspect").bounding_box()
-    assert abs(name["y"] + name["height"] - box["y"]) < 4, (name, box)
+    # The label touches the painted perimeter, outside the target's box. Read the
+    # outline the brackets draw, so this still checks attachment when its gap changes.
+    perimeter = page.locator(".lf-aim").evaluate(
+        """node => {
+          const style = getComputedStyle(node, '::before');
+          return node.getBoundingClientRect().top
+            - parseFloat(style.outlineOffset) - parseFloat(style.outlineWidth);
+        }"""
+    )
+    assert abs(name["y"] + name["height"] - perimeter) < 1, (name, box, perimeter)
     assert abs(name["x"] - box["x"]) < 4, (name, box)
     # Threads opens over the page. Opened by key.
     page.keyboard.press("g")

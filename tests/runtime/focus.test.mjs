@@ -182,11 +182,11 @@ test("early input ignores inaccessible foreign events but counts keys before int
     };
     page.eval(
       readFileSync(
-        new URL("../../browser/runtime/prepaint.js", import.meta.url),
+        new URL("../../browser/runtime/document-inputs.js", import.meta.url),
         "utf8",
       ),
     );
-    const inputs = page.window.lfInputs;
+    const inputs = page.eval('Reflect.get(window, Symbol.for("leaf.inputs"))');
     const heard = [];
     inputs.observe((event) => heard.push(event.type));
     // Native Firefox can call a sandboxed window's wheel listener with a foreign
@@ -217,6 +217,18 @@ test("early input ignores inaccessible foreign events but counts keys before int
     );
     assert.equal(inputs.count, 2);
     assert.deepEqual(heard, ["wheel", "keydown"]);
+    // The module graph evaluates the same input source after early delivery. It
+    // must retain both the clock and its subscriptions, without counting twice.
+    page.eval(
+      readFileSync(
+        new URL("../../browser/runtime/document-inputs.js", import.meta.url),
+        "utf8",
+      ),
+    );
+    assert.equal(page.eval('Reflect.get(window, Symbol.for("leaf.inputs"))'), inputs);
+    page.dispatchEvent(new page.WheelEvent("wheel"));
+    assert.equal(inputs.count, 3);
+    assert.deepEqual(heard, ["wheel", "keydown", "wheel"]);
   } finally {
     await page.happyDOM.close();
   }

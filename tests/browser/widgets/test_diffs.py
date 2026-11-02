@@ -62,6 +62,33 @@ def long_diff(id):
     return f'<lf-diff id="{id}"><pre>{LONG_DIFF_PATCH}</pre></lf-diff>'
 
 
+def test_an_unbound_diff_draws_and_clears_a_host_value(browser, serve):
+    page = open_page(browser, serve(leaf_page("Host value", long_diff("patch"))))
+    diff = page.locator("#patch")
+    expect(diff.locator(".lf-diff-file")).to_contain_text(LONG_DIFF_PATH)
+    replacement = LONG_DIFF_PATCH.replace(LONG_DIFF_PATH, "host.txt")
+    page.evaluate(
+        """async value => {
+          const diff = document.querySelector('#patch');
+          window.drawings = [];
+          diff.addEventListener('drawn', event => drawings.push({
+            value: event.detail.value,
+            marks: [...diff.shadowRoot.querySelectorAll('[data-lf-datum]')]
+              .map(node => node.dataset.lfDatum),
+          }));
+          diff.value = value;
+          await diff.updateComplete;
+        }""",
+        replacement,
+    )
+    assert "host.txt" in diff.locator(".lf-diff-file").inner_text()
+    drawn = page.evaluate("drawings.at(-1)")
+    assert drawn["value"] == replacement
+    assert drawn["marks"] and all("host.txt" in key for key in drawn["marks"])
+    page.evaluate("document.querySelector('#patch').value = null")
+    expect(diff.locator("[data-lf-datum]")).to_have_count(0)
+
+
 def test_a_rewrite_reads_its_deletions_above_its_additions(browser, serve):
     """A change of 4 lines into 19 reads as git wrote it, its old lines above its new.
     Pierre re-splits such a change to pair similar lines, which in Leaf's unified
@@ -211,6 +238,9 @@ def test_an_inline_patch_stays_readable_until_its_drawing_arrives(
             expect(source).to_be_visible()
             expect(source).to_contain_text("diff --git")
         expect(page.locator("#single > lf-diff-note")).to_be_visible()
+        note_width = page.locator("#single > lf-diff-note").evaluate(
+            "note => note.getBoundingClientRect().width"
+        )
         boot.pop().continue_()
         wait_until_ready(page)
         page.wait_for_function(
@@ -218,6 +248,9 @@ def test_an_inline_patch_stays_readable_until_its_drawing_arrives(
         )
         expect(page.locator("#code [data-line]").last).to_contain_text("z = 3")
         expect(page.locator("#single lf-diff-note")).to_be_visible()
+        assert page.locator("#single lf-diff-note").evaluate(
+            "note => note.getBoundingClientRect().width"
+        ) == pytest.approx(note_width)
         expect(page.locator("#folded details[open]")).to_have_count(0)
         expect(page.locator("#file-view [data-line]").last).to_contain_text(
             "The first file remains readable."

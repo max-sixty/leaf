@@ -216,20 +216,14 @@ aside.note {
   line-height: 1.45;
   color: var(--muted);
 }
+/* A list of facts takes Leaf's facts layout (reading.css, `dl.facts`). In the
+   column it keeps the prose's rhythm, and its labels step down to the apparatus size,
+   never above the size of the words around the list. */
 dl.facts {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  align-items: baseline;
-  gap: var(--sp-1) var(--sp-3);
   margin: 14px 0;
 }
 dl.facts dt {
-  color: var(--muted);
-  font-weight: 400;
-  font-size: var(--t-5);
-}
-dl.facts dd {
-  margin: 0;
+  font-size: min(var(--t-5), 1em);
 }
 /* A metric tile: one figure under the label naming it, with an optional change beside
    the figure, written as a one-term definition list. It is type and a hairline above,
@@ -267,21 +261,6 @@ dl.metric dd > :is(strong, small) {
 }
 dl.metric dd small {
   font: 500 var(--t-6) / 1.3 var(--sans);
-}
-@media screen {
-  @container (width <= 640px) {
-    /* A long term must not spend most of a narrow box's line on the first column and
-       leave its explanation as a one-word ribbon. Stack each fact while the box holding
-       the facts is narrow, a phone's column or a narrow pane alike; later terms keep the
-       ordinary block rhythm through the row gap. */
-    dl.facts {
-      grid-template-columns: minmax(0, 1fr);
-      align-items: start;
-    }
-    dl.facts dd + dt {
-      margin-top: var(--sp-2);
-    }
-  }
 }
 /* A column of quantities lines up on its last digit — the comparison a table of
    numbers is there for, and one tabular figures alone don't make. Said per cell,

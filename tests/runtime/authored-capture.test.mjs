@@ -1,3 +1,4 @@
+import "/runtime/stage-integration.js";
 /* Authored inputs are captured before widgets render; presentation may then move
    nodes without changing the document coordinates those inputs established. */
 import assert from "node:assert/strict";

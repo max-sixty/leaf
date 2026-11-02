@@ -11,7 +11,13 @@
  * route says where it lands, what takes focus and how to scroll; `arrive` then does
  * the reveal, clearing, painting, focus and scrolling, and no route does them itself.
  * When the reveal replaces a visible view, the destination lands at once instead of
- * scrolling from the old view's position.
+ * scrolling from the old view's position. A destination inside a box the browser
+ * skips while it is out of view (`content-visibility: auto`), such as a run of a long
+ * text document's lines, also lands at once. Such boxes come in long series, sized by
+ * estimate until drawn, so a smooth scroll aims at the estimated place, and each box it
+ * draws on the way changes size and pushes the destination away. A jump draws only the
+ * boxes around the destination, and it lands again as each of them takes its size,
+ * until the user's next input (`holdLanding`).
  *
  * Travel gets the current threads and the synchronous thread refresh from the
  * application root, so geometry code never imports the presenter. A navigation step keeps the
@@ -49,6 +55,7 @@ import {
   shownBox,
 } from "./geometry.js";
 import { scrollBehavior } from "./motion.js";
+import { renderedParent } from "./shadow-tree.js";
 import {
   onReadingInput,
   scrollersOf,
@@ -218,7 +225,15 @@ export function createAnchorTravel({
     if (!intent()) return false;
     if (present) await present();
     if (!intent()) return false;
-    return place(true);
+    const landed = place(true);
+    const box = skippableBox(first.where);
+    if (landed && box)
+      holdLanding(box, intent, () => {
+        const current = resolve();
+        if (current?.where)
+          for (const placement of current.scroll) placeScroll(placement, true);
+      });
+    return landed;
   }
 
   // A remembered passage carries semantic words, never retained DOM endpoints.
@@ -491,6 +506,37 @@ export function createAnchorTravel({
   // not move with that region, so a fixed boundary ends the scrollers that move it
   // (`scrollersOf`); a scroller inside that boundary still owns its ordinary descendants.
 
+  // The box `at` stands in that the browser skips while it is out of view, or null,
+  // read from the box's style rather than from whether it is skipped now: the boxes
+  // between it and the view can be skipped while its own is drawn, as naming the
+  // destination's anchor for its thread's card draws it.
+  /** @param {Element | Range} at */
+  const skippableBox = (at) => {
+    for (let box = placeHolder(at); box; box = renderedParent(box))
+      if (getComputedStyle(box).contentVisibility === "auto") return box;
+    return null;
+  };
+
+  // The latest travel's watch on the series of skippable boxes it landed in.
+  /** @type {ResizeObserver | null} */
+  let landing = null;
+  // A box drawn around the destination takes its own size in place of its estimate,
+  // which moves the destination and resizes the series holding the boxes. So while the
+  // travel is still the user's latest intent, each resize lands the destination again,
+  // before the update paints; any input of the user's ends the watch.
+  /** @param {Element} box @param {UserIntent} intent @param {() => void} again */
+  function holdLanding(box, intent, again) {
+    landing?.disconnect();
+    const series = box.parentElement;
+    if (!series) return;
+    const watch = (landing = new ResizeObserver(() => {
+      if (intent()) return again();
+      watch.disconnect();
+      if (landing === watch) landing = null;
+    }));
+    watch.observe(series);
+  }
+
   /** @param {ScrollPlacement} place @param {boolean} replacedView */
   function placeScroll(
     { at, align = at, block = "center", behavior = scrollBehavior(), when },
@@ -501,7 +547,7 @@ export function createAnchorTravel({
     else
       scrollIntoView(at, {
         alignment: align,
-        behavior: replacedView ? "instant" : behavior,
+        behavior: replacedView || skippableBox(at) ? "instant" : behavior,
         block,
       });
   }

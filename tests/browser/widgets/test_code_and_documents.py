@@ -15,6 +15,7 @@ from render_harness import (
     round_trip,
     scroll_settled,
     select,
+    select_words,
     sending,
     told,
     write,
@@ -712,6 +713,64 @@ def refresh_keeps_selection(page, serve, document, name):
     rendered(page)
     expect(code).to_contain_text('first = "new beginning"')
     assert page.evaluate(reading) == before, document
+
+
+def test_a_long_text_document_draws_the_lines_in_view_and_keeps_the_rest_whole(
+    browser, serve
+):
+    """A long text document draws only the runs of lines in view: styling every line on
+    each change to the page took tens of seconds and gigabytes at a few megabytes of
+    text. The lines out of view stay whole for the reader. The listing holds every
+    line, its numbers stand in one column from the first run to the last, and a thread
+    on a line far down travels to it, where a smooth scroll across runs the browser
+    had only estimated stopped short of the line."""
+    text = "".join(
+        f"line {i} " + ("wrapping words " * 20 if i % 3 == 0 else "short") + "\n"
+        for i in range(1, 1001)
+    )
+    url = serve(
+        leaf_page(
+            "Long evidence",
+            '<h1>Run log</h1><lf-text-document id="log" source="log-text">'
+            "</lf-text-document>",
+        )
+    )
+    data_model.cmd_data_set(serve.page_dir, "log-text", text)
+    page = open_page(browser, url)
+    assert page.locator("#log code").text_content() == text
+    expect(page.locator("#log .lf-text-document-run")).to_have_count(8)
+    first, far = (
+        page.locator('#log [data-line="1"]'),
+        page.locator('#log [data-line="900"]'),
+    )
+    # A run itself always has a box; the browser skips the lines inside it.
+    drawn = "line => line.checkVisibility({contentVisibilityAuto: true})"
+    assert first.evaluate(drawn)
+    assert not far.evaluate(drawn)
+    left = "line => line.getBoundingClientRect().left"
+    first_left = first.evaluate(left)
+
+    select_words(page, '#log [data-line="900"] span')
+    assert far.evaluate(left) == pytest.approx(first_left, abs=0.5)
+    write(page.locator(".lf-composer leaf-text"), "Why does this line repeat?")
+    with sending(page, "the comment on line 900"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    # The open card keeps its passage's run drawn; a returning reader finds it skipped.
+    page.reload()
+    wait_until_ready(page)
+    assert not far.evaluate(drawn)
+    page.keyboard.press("t")
+    expect(page.locator(".lf-page-thread")).to_be_focused()
+    scroll_settled(page, "#log pre")
+    landed = far.evaluate("""line => {
+      const pre = line.closest('pre');
+      const box = pre.getBoundingClientRect();
+      const at = line.getBoundingClientRect();
+      return {shown: at.top >= box.top && at.bottom <= box.bottom, top: at.top,
+              bottom: at.bottom, boxTop: box.top, boxBottom: box.bottom,
+              scrollTop: pre.scrollTop, height: pre.scrollHeight, y: scrollY};
+    }""")
+    assert landed["shown"], json.dumps(landed)
 
 
 def test_an_excerpt_shows_and_answers_to_its_source_line_numbers(browser, serve):

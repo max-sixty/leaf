@@ -3691,17 +3691,17 @@ const clippingAxes = (style) => {
 //#endregion
 //#region runtime/shown-box.js
 const skipped = (element) => {
-	if (element.checkVisibility({ contentVisibilityAuto: true })) return false;
-	if (element.checkVisibility()) return true;
+	const drawn = (box) => box.checkVisibility({ contentVisibilityAuto: true });
+	if (drawn(element)) return false;
 	let child = element;
 	let box = renderedParent(element);
-	while (box && !box.checkVisibility()) {
+	while (box && !drawn(box)) {
 		child = box;
 		box = renderedParent(box);
 	}
 	if (!box) return false;
 	if (box.localName === "details") return !box.hasAttribute("open") && child.localName !== "summary";
-	return getComputedStyle(box).contentVisibility === "hidden";
+	return getComputedStyle(box).contentVisibility !== "visible";
 };
 function elementBox(el) {
 	const r = el.getBoundingClientRect();

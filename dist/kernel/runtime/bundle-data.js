@@ -7790,7 +7790,13 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 		if (!intent()) return false;
 		if (present) await present();
 		if (!intent()) return false;
-		return place(true);
+		const landed = place(true);
+		const box = skippableBox(first.where);
+		if (landed && box) holdLanding(box, intent, () => {
+			const current = resolve();
+			if (current?.where) for (const placement of current.scroll) placeScroll(placement, true);
+		});
+		return landed;
 	}
 	async function restoreSelection(anchor, { backward, intent }) {
 		const mayArrive = retainTravel(intent);
@@ -7977,12 +7983,28 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 		}
 		return arrived;
 	}
+	const skippableBox = (at) => {
+		for (let box = placeHolder(at); box; box = renderedParent(box)) if (getComputedStyle(box).contentVisibility === "auto") return box;
+		return null;
+	};
+	let landing = null;
+	function holdLanding(box, intent, again) {
+		landing?.disconnect();
+		const series = box.parentElement;
+		if (!series) return;
+		const watch = landing = new ResizeObserver(() => {
+			if (intent()) return again();
+			watch.disconnect();
+			if (landing === watch) landing = null;
+		});
+		watch.observe(series);
+	}
 	function placeScroll({ at, align = at, block = "center", behavior = scrollBehavior(), when }, replacedView) {
 		if (when && !when()) return;
 		if (block === "fragment") scrollToFragment(at);
 		else scrollIntoView(at, {
 			alignment: align,
-			behavior: replacedView ? "instant" : behavior,
+			behavior: replacedView || skippableBox(at) ? "instant" : behavior,
 			block
 		});
 	}

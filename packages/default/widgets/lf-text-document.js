@@ -6,9 +6,12 @@
  * viewport, keeping the page still when switching and its scroll place independent.
  * Pierre draws numbered source using the same static renderer as diffs. Its sheets
  * are scoped to the listing; gutter glyphs are generated content, so selecting or
- * copying the source never includes line numbers. The Markdown preview renders a file,
+ * copying the source never includes line numbers. A long listing's rows stand in runs
+ * that the browser draws only in view (`inRuns`). The Markdown preview renders a file,
  * whose soft line breaks are spaces, so a paragraph wraps to the preview's width. The
- * source and Markdown renderers reconcile unchanged text across source updates. HTML
+ * source and Markdown renderers reconcile unchanged text across source updates, except
+ * a row that a change above it moves into the next run, which is drawn anew and loses
+ * a selection in it. HTML
  * lives in a separate frame so its styles and scripts cannot access Leaf’s document.
  * Source provenance is stamped with its text before awaiting the frame's presentation. */
 import {
@@ -78,10 +81,51 @@ async function sourceListing(source, language) {
   });
   const code = rendered.querySelector("code");
   const pre = rendered.querySelector("pre");
-  if (!code || !pre || code.textContent !== source)
+  if (!code || !pre) throw new Error("Pierre did not return a listing");
+  inRuns(code);
+  if (code.textContent !== source)
     throw new Error("Pierre did not return the source unchanged");
   markSyntax(rendered, foreground);
   return { rendered, pre, code };
+}
+
+// Rows per run: several times the lines a document's box shows, so the runs in view
+// are cheap to draw, and a megabyte of text makes about 150 runs.
+const RUN = 128;
+
+// Pierre draws the numbers and the lines as two columns, each a subgrid spanning every
+// row. This regroups them into runs of rows, each a grid of the two columns that the
+// browser skips while it is out of view (`content-visibility: auto`). The browser
+// styles and lays out a skipped run only when it comes into view, a search lands in
+// it, or a script measures it, and its text stays in the DOM for find-in-page,
+// selection, copy and comments. When every row was styled on each change to the page,
+// a few megabytes of text took tens of seconds and gigabytes of memory to draw. A text
+// of one run's rows stays as Pierre drew it: a box the browser skips buys it nothing,
+// and its rows would stand undrawn for the frames after the document scrolls into view.
+/** @param {Element} code */
+function inRuns(code) {
+  const [gutter, content] = /** @type {[Element, Element]} */ ([...code.children]);
+  const numbers = [...gutter.children];
+  const lines = [...content.children];
+  if (lines.length <= RUN) return;
+  /** @param {Element} column @param {Element[]} cells @param {number} first @param {number} rows */
+  const part = (column, cells, first, rows) => {
+    const box = /** @type {HTMLElement} */ (column.cloneNode(false));
+    box.style.gridRow = `span ${rows}`;
+    box.append(...cells.slice(first, first + rows));
+    return box;
+  };
+  const runs = [];
+  for (let first = 0; first < lines.length; first += RUN) {
+    const rows = Math.min(RUN, lines.length - first);
+    const run = document.createElement("div");
+    run.className = "lf-text-document-run";
+    // Until it has been drawn, a run is estimated at one line a row.
+    run.style.containIntrinsicBlockSize = `auto ${rows}lh`;
+    run.append(part(gutter, numbers, first, rows), part(content, lines, first, rows));
+    runs.push(run);
+  }
+  code.replaceChildren(...runs);
 }
 
 class TextDocument extends LeafElement {

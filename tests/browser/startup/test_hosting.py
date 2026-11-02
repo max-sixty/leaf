@@ -446,8 +446,8 @@ def test_a_sample_reached_while_loading_holds_growth_the_reader_did_not_cause(
     inside it, its growth is theirs: a disclosure they open, and growth the child makes
     of its own accord afterwards, apply at once.
 
-    The inner window sample's document is held throughout, so the child is still
-    arriving at every step."""
+    The inner window sample keeps the child arriving until the final step, which
+    checks that completing arrival does not release later unsolicited growth."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     watched(page)
     held = []
@@ -558,6 +558,10 @@ def test_a_sample_reached_while_loading_holds_growth_the_reader_did_not_cause(
     # The reading resumes once the returning page's first refreshed reading lands.
     page.wait_for_function("continuity.readingReturn() === null")
 
+    page.unroute(SAMPLE_DOCUMENT)
+    for each in held:
+        each.continue_()
+    wait_until_ready(page)
     child_grows_unseen(1800)
     child.locator("#more > summary").click()
     expect(child.locator("#more")).to_have_attribute("open", "")

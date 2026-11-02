@@ -2234,8 +2234,7 @@ const part = {
 	undo: readPart((root) => root.effective.view?.undo ?? []),
 	todos: readPart((root) => root.authoritative?.browser.todos ?? []),
 	receipts: readPart((root) => root.authoritative?.browser.receipts ?? []),
-	revisionLabels: readPart((root) => root.authoritative?.revision_labels),
-	seen: readPart((root) => root.authoritative?.seen ?? null)
+	revisionLabels: readPart((root) => root.authoritative?.revision_labels)
 };
 const shownActive = () => {
 	const active = part.active();
@@ -2282,9 +2281,6 @@ const runtime = {
 	},
 	get versions() {
 		return part.versions();
-	},
-	get seen() {
-		return part.seen();
 	},
 	get workflows() {
 		return part.workflows();

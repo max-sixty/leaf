@@ -5276,8 +5276,7 @@ function workingView(working, controls = nothing, observe = null) {
 	return html`<div class="lf-thread-working-head">
       ${working.who ? html`<b>${working.who}</b>` : nothing}
       ${working.timestamp || working.condition ? html`<span class="lf-msg-meta"
-              >${working.timestamp ? html`<time datetime=${working.timestamp}>${working.age}</time>` : nothing}
-              ${working.condition ? voiced(working.condition) : nothing}</span
+              >${working.timestamp ? html`<time datetime=${working.timestamp}>${working.age}</time>` : nothing}${working.condition ? html`<span>${voiced(working.condition)}</span>` : nothing}</span
             >` : nothing}
       ${controls}
     </div>
@@ -5968,15 +5967,11 @@ var ThreadView = class {
 			const style = getComputedStyle(head);
 			const name = head.querySelector(":scope > b");
 			const time = head.querySelector(":scope > .lf-msg-meta > time");
-			const room = head.querySelector(":scope > .lf-msg-control-room");
-			const controls = room?.querySelector(":scope > .lf-msg-controls")?.getBoundingClientRect().width ?? 0;
-			const held = room && getComputedStyle(room).minInlineSize !== "0px" ? controls : 0;
+			const controls = head.querySelector(":scope > .lf-msg-control-room > .lf-msg-controls")?.getBoundingClientRect().width ?? 0;
 			const need = parseFloat(style.paddingInlineStart) + parseFloat(style.paddingInlineEnd) + controls + wordsWidth(name) + (name && time ? parseFloat(style.columnGap) : 0) + wordsWidth(time);
 			heads.push({
 				name,
-				need,
-				spare: head.getBoundingClientRect().width - need,
-				yields: controls - held + wordsWidth(time)
+				spare: head.getBoundingClientRect().width - need
 			});
 		}
 		if (!heads.length || !notice.isConnected) {
@@ -5986,12 +5981,10 @@ var ThreadView = class {
 		const width = notice.getBoundingClientRect().width;
 		const spare = Math.min(...heads.map((head) => head.spare));
 		notice.style.setProperty("--lf-news-room", roomPx(Math.max(0, width + spare)));
-		const taken = notice.getBoundingClientRect().width - width;
-		for (const { name, spare, yields } of heads) {
-			if (!name) continue;
-			const shown = wordsWidth(name) + Math.min(0, spare - taken + yields);
-			keeps(name, "data-lf-nameless", shown < parseFloat(getComputedStyle(name).fontSize) ? "" : null);
-		}
+		const nameless = heads.map(({ name }) => !!name && name.scrollWidth > name.clientWidth && name.clientWidth < parseFloat(getComputedStyle(name).fontSize));
+		heads.forEach(({ name }, at) => {
+			if (name) keeps(name, "data-lf-nameless", nameless[at] ? "" : null);
+		});
 	}
 	#watchMarginNews() {
 		this.#marginNews.disconnect();

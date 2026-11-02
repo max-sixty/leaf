@@ -2,6 +2,7 @@
 through news, presses, reflows and scrolls, panes included."""
 
 import re
+from datetime import datetime, timedelta
 
 import pytest
 from interact_support import append_carried_log_record
@@ -297,9 +298,19 @@ def test_a_card_s_head_stands_whole_beside_news(browser, serve, phone):
     "2 new", and the head keeps "Me" whole and gives up its time, as any narrow head
     does before its name. Drawn whole, the notice stood over the head."""
     url = serve(PANEL_PAGE)
-    root = panel_comment(
-        serve.page_dir, "Keep the logo where it is", {"section": "h-how"}
-    )
+    # Written 51 days ago, so the time reads "51d ago" however slowly the test runs:
+    # "just now" turned "1m ago", narrow enough to stand whole on the phone.
+    root = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Keep the logo where it is",
+            "anchor": {"section": "h-how"},
+            "ts": (datetime.now().astimezone() - timedelta(days=51)).isoformat(),
+        },
+    )["id"]
     if phone:
         context = browser.new_context(
             viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True

@@ -370,16 +370,27 @@
       max-inline-size: min(100%, var(--wide));
     }
   }
-  :is(.layout-column, .layout-flow) {
-    > [data-lf-space="wide"] {
-      grid-column: prose-start / full-end;
-      max-inline-size: min(100%, var(--wide));
-      --lf-breakout: 1;
+  /* A sheet has no window margin to borrow: exhibits keep the prose track on paper. */
+  @media screen {
+    :is(.layout-column, .layout-flow) {
+      > [data-lf-space="wide"] {
+        grid-column: prose-start / full-end;
+        max-inline-size: min(100%, var(--wide));
+        --lf-breakout: 1;
+      }
+      > [data-lf-space="available"] {
+        grid-column: full;
+        max-inline-size: 100%;
+        --lf-breakout: 1;
+      }
     }
-    > [data-lf-space="available"] {
-      grid-column: full;
-      max-inline-size: 100%;
-      --lf-breakout: 1;
+  }
+  :is(.layout-column, .layout-flow) {
+    /* A failed upgrade draws prose in place of its exhibit. The source scrolls
+     * inside the error box, while its host returns to the prose track. */
+    > [data-lf-space]:has(> .lf-error) {
+      grid-column: prose;
+      --lf-breakout: 0;
     }
     > table[data-lf-space] {
       contain: none;
@@ -391,7 +402,12 @@
       &[data-lf-space="available"] {
         justify-self: center;
       }
+      /* A native caption joins the anonymous table grid, whose width is the
+       * columns' full scrollable width. An inline block belongs to this scrollport
+       * instead, so its percentage limit and sticky position use the same box. */
       > caption {
+        display: inline-block;
+        vertical-align: top;
         max-inline-size: 100%;
       }
     }

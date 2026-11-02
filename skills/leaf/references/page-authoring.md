@@ -81,8 +81,8 @@ working region; `layout-workspace` lets the user work within one screen. A Layou
 class on `main`. `page-layout.md` owns their geometry, custom arrangements, bounds,
 tiles, and pages with tabs or parts.
 
-A dashboard the reader glances at, or settings they tune against their evidence, keeps
-its working state in the first window, since a glance or a tuning pass doesn't scroll.
+A dashboard the reader glances at keeps its working state in the first window, since
+a glance doesn't scroll.
 Keep each relevant setting or status, its evidence and the reader's next action together
 in that window, and spend as little of it as the page allows on the title, the premise
 and supporting reading. By default that means a title and premise of a line or two,
@@ -139,6 +139,12 @@ without `!important` or extra specificity, and an element rule of its own, such 
 too wherever the theme's would show through. Wrapping elements the theme already
 styles in a card adds visual weight without meaning; give a card a grouping or
 interaction to express.
+
+For embedded content that already has its own design, put `data-style="own"` on
+its root (including `main` for a whole page). Leaf leaves native table sizing, code-block
+scrolling and scrollbar clearance, and syntax highlighting to that subtree. Comments still anchor in its text, and Leaf widgets keep their component
+styles. Choose no theme for a page whose layout and typography are wholly its own;
+this boundary does not remove the page's theme or inherited styles.
 
 Restyle the whole page through the theme's tokens on `:root` rather than rules on
 `body`, so Leaf's widgets, threads and panel follow the page: `--paper` and `--ink` for

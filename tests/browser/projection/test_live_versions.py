@@ -25,6 +25,7 @@ from render_harness import (
     page_comment,
     panel_control,
     panel_menu,
+    panel_view,
     refuse,
     sending,
     take_browser_errors,
@@ -186,9 +187,9 @@ def test_a_stamped_live_draft_and_its_unstamped_view_keep_distinct_menu_rows(
     # had followed by then would come down to whether a state read landed between the
     # two presses. The keyboard route leaves the composer open through both.
     page.locator(".lf-fp-leaf").press("Enter")
-    expect(page.locator(PANEL)).to_have_attribute("data-menu", "")
+    expect(page.locator(PANEL)).to_have_attribute("data-open", "menu")
     page.locator('.lf-fp-item[data-row="versions"]').press("Enter")
-    rows = page.locator(".lf-fp-menu[data-level=versions] .lf-fp-version")
+    rows = page.locator(panel_view("versions")).locator(".lf-fp-version")
     # The third revision's row is what the hold leaves the page short of.
     expect(rows).to_have_count(4)
     latest = rows.filter(has_text="Current · Draft after v2").locator(".lf-fp-item")
@@ -201,8 +202,8 @@ def test_a_stamped_live_draft_and_its_unstamped_view_keep_distinct_menu_rows(
     expect(page).to_have_title("Live third")
     panel_menu(page, "versions")
     expect(rows).to_have_count(3)
-    # The menu draws its rows afresh at each opening: the stamped version keeps its
-    # row, and the view of its revision the page has left has none.
+    # The stamped version keeps its row, and the view of its revision the page has
+    # left has none.
     expect(stamped_row).to_have_count(1)
     expect(draft_row).to_have_count(0)
     stamped_row.click()

@@ -5,6 +5,8 @@ import {
   nothing,
   generate,
   highlightBlocks,
+  keepsHidden,
+  keepsText,
   publishOutput,
   quoted,
   tabStore,
@@ -75,17 +77,17 @@ customElements.define(
             let view = null,
               ticker;
             const showError = (error) => {
-              errorBox.hidden = false;
-              errorBox.textContent = error.message;
+              keepsHidden(errorBox, false);
+              keepsText(errorBox, error.message);
             };
             const draw = async (value) => {
               const staged = approach.stage(preview, value, (error) => {
                 if (signal.aborted || view !== staged) return;
                 view = null;
                 staged.dispose();
-                empty.hidden = false;
-                status.textContent = "Widget error.";
-                overall.textContent = "A preview encountered an error.";
+                keepsHidden(empty, false);
+                keepsText(status, "Widget error.");
+                keepsText(overall, "A preview encountered an error.");
                 showError(error);
               });
               view = staged;
@@ -94,33 +96,41 @@ customElements.define(
               staged.frame.removeAttribute("data-staging");
               staged.frame.inert = false;
               staged.frame.removeAttribute("aria-hidden");
-              empty.hidden = true;
+              keepsHidden(empty, true);
             };
             const metrics = (result) => {
               const time = result.timing;
-              status.textContent = `${result.value.limitation ? "Limited result" : "Preview ready"} in ${(time.totalMs / 1000).toFixed(1)} s`;
-              get("metrics").textContent =
-                `${result.usage.outputTokens ?? "Unknown"} output tokens · ${(time.generationMs / 1000).toFixed(1)} s generation · ${(time.renderMs / 1000).toFixed(1)} s rendering · ${result.model}`;
+              keepsText(
+                status,
+                `${result.value.limitation ? "Limited result" : "Preview ready"} in ${(time.totalMs / 1000).toFixed(1)} s`,
+              );
+              keepsText(
+                get("metrics"),
+                `${result.usage.outputTokens ?? "Unknown"} output tokens · ${(time.generationMs / 1000).toFixed(1)} s generation · ${(time.renderMs / 1000).toFixed(1)} s rendering · ${result.model}`,
+              );
             };
             const run = async (input) => {
               view?.dispose();
               view = null;
-              empty.hidden = false;
-              errorBox.hidden = true;
+              keepsHidden(empty, false);
+              keepsHidden(errorBox, true);
               publishOutput(request, "document", input);
               for (const part of ["code", "css", "js"]) {
                 const listing = get(part);
                 if (!listing) continue;
-                listing.textContent = "No output yet.";
+                keepsText(listing, "No output yet.");
                 delete listing.dataset.lfSyntax;
               }
-              if (get("compiled")) get("compiled").textContent = "No source yet.";
-              get("metrics").textContent = "";
+              if (get("compiled")) keepsText(get("compiled"), "No source yet.");
+              keepsText(get("metrics"), "");
               const started = performance.now();
-              status.textContent = "Generating…";
-              clock.textContent = "0.0 s";
+              keepsText(status, "Generating…");
+              keepsText(clock, "0.0 s");
               ticker = setInterval(() => {
-                clock.textContent = `${((performance.now() - started) / 1000).toFixed(1)} s`;
+                keepsText(
+                  clock,
+                  `${((performance.now() - started) / 1000).toFixed(1)} s`,
+                );
               }, 100);
               try {
                 const result = await generate({
@@ -130,7 +140,7 @@ customElements.define(
                 });
                 if (signal.aborted) return;
                 const generated = performance.now();
-                status.textContent = "Rendering…";
+                keepsText(status, "Rendering…");
                 const record = {
                   ...result,
                   timing: {
@@ -139,14 +149,16 @@ customElements.define(
                     totalMs: 0,
                   },
                 };
-                code.textContent =
+                keepsText(
+                  code,
                   name === "html"
                     ? result.value.html
-                    : JSON.stringify(result.value, null, 2);
+                    : JSON.stringify(result.value, null, 2),
+                );
                 for (const part of ["css", "js"])
-                  if (get(part)) get(part).textContent = result.value[part];
+                  if (get(part)) keepsText(get(part), result.value[part]);
                 if (get("compiled")) {
-                  get("compiled").textContent = catalog.compile(result.value);
+                  keepsText(get("compiled"), catalog.compile(result.value));
                   delete get("compiled").dataset.lfSyntax;
                 }
                 void highlightBlocks(region);
@@ -157,16 +169,19 @@ customElements.define(
                 metrics(record);
               } catch (error) {
                 if (!signal.aborted) {
-                  status.textContent = `Failed after ${((performance.now() - started) / 1000).toFixed(1)} s`;
+                  keepsText(
+                    status,
+                    `Failed after ${((performance.now() - started) / 1000).toFixed(1)} s`,
+                  );
                   const failed = view;
                   view = null;
                   failed?.dispose();
-                  empty.hidden = false;
+                  keepsHidden(empty, false);
                   showError(error);
                 }
               } finally {
                 clearInterval(ticker);
-                if (!signal.aborted) clock.textContent = "";
+                if (!signal.aborted) keepsText(clock, "");
               }
             };
             return {
@@ -191,10 +206,10 @@ customElements.define(
               busy = true;
               button.disabled = true;
               const input = field.value.trim();
-              overall.textContent = "Comparing the same request…";
+              keepsText(overall, "Comparing the same request…");
               try {
                 await Promise.all(lanes.map((lane) => lane.run(input)));
-                if (!signal.aborted) overall.textContent = "Comparison finished.";
+                if (!signal.aborted) keepsText(overall, "Comparison finished.");
               } finally {
                 busy = false;
                 if (!signal.aborted) button.disabled = false;

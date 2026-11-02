@@ -102,7 +102,6 @@ export {
   annotationMarkSheets,
 } from "./stylesheets.js";
 export { claimed } from "./thread/surfaces.js";
-export { runtimeRootState } from "./root-state.js";
 export { draftStore, userStore, PAGE_SCOPE } from "./storage.js";
 export { tabStore } from "./tab-store.js";
 export {

@@ -136,8 +136,12 @@ lf-call-diff {
   text-overflow: ellipsis;
 }
 
+/* The count stands on the call's baseline, though set smaller and in the sans. */
+.lf-call-group-summary :is(.lf-call-body, .lf-call-group-count) {
+  align-self: baseline;
+}
+
 .lf-call-group-count {
-  align-self: center;
   grid-column: 4;
   grid-row: 1;
   margin-inline-start: var(--sp-4);

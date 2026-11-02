@@ -1,7 +1,8 @@
 """Read execution identity from the retained Promptfoo result and its provider.
 
-The saved provider configuration owns the requested author model and selected
-viewport names. Native provider IDs identify their harness; workflow configurations
+The saved provider configuration owns the requested author model, condition and
+viewport names, including when execution fails before producing diagnostics.
+Native provider IDs identify their harness; workflow configurations
 name it explicitly. A result's provider label joins that configuration;
 the provider id alone is shared by multiple arms and models. The saved test metadata
 owns the execution kind. Actual capture dimensions remain in the result's diagnostics,
@@ -33,4 +34,5 @@ def execution_metadata(result: dict, providers: list[dict]) -> dict:
             "model": config["model"],
         },
         "requested_viewports": config.get("viewports", []),
+        "condition": config.get("condition"),
     }

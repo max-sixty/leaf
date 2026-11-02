@@ -74,7 +74,7 @@ PORTABLE = [
         '<lf-code id="lf-code" language="python" hi="2"><pre>\ndef bracket(temp):\n'
         '    if temp &lt; 0:\n        return "steel"\n</pre></lf-code>',
         # Its lines, coloured, the highlighted one among them.
-        "pre:has(> .lf-code-line.hi [data-lf-syn])",
+        "pre:has(> .lf-code-line[data-lf-hi] [data-lf-syn])",
         sized="width",
     ),
     Portable(

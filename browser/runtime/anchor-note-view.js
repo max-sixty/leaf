@@ -11,12 +11,13 @@
  * while it shows only the count, which the name begins with.
  *
  * A keyboard reaches a block's threads from the block itself (`c`, `t`) and through its
- * margin row. Focus on the note shows it at the window's head (chrome.css).
+ * margin row. The note is a stop: focus on it rings its block and brings the block into
+ * view (details-shelf.js).
  */
 import { aimTargetAt } from "./anchor-resolution.js";
 import { shelve, unshelve } from "./details-shelf.js";
 import { spokenSubject } from "./contribution-model.js";
-import { offer } from "./widget-elements.js";
+import { offerAction } from "./widget-elements.js";
 import { keeps, keepsText } from "./keeps.js";
 
 /** @param {number} count */
@@ -32,7 +33,7 @@ export function createAnchorNoteProjection({ openThread, labelAnchor }) {
 
   /** @param {string} firstThreadId */
   function claim(firstThreadId) {
-    const note = offer("button", "lf-mark-note");
+    const note = offerAction("stop", "lf-mark-note");
     note.tabIndex = -1;
     const record = { note, firstThreadId };
     note.addEventListener(

@@ -434,6 +434,9 @@ face, symbol and name to an existing node. The roles are:
 - `"response"`, a response bar's choice; Leaf builds these.
 - `"gutter"`, a line's number in a code gutter that takes a comment.
 - `"picture"`, a picture that opens in the media viewer; its face is the picture.
+- `"stop"`, the keyboard's stop for something on the page the pointer takes by itself,
+  such as a phrase that opens an explanation. It shows nothing; give the thing it stands
+  for the ring its focus draws, as a gloss rings its phrase.
 
 `className` places the control; don't restyle its face. Use a symbol where a standard
 symbol for the action exists, one readers know from other software, and words where

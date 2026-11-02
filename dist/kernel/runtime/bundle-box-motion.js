@@ -1,11 +1,87 @@
 import { __exportAll } from "./bundle-rolldown-runtime.js";
-import { afterSettling, cancelRender, inlineStyle, keeps, motionEasing, motionPlays, motionTime, nextRender, playMotion } from "./bundle-portable.js";
-import { TEXT_FIELD, move, onUserInput } from "./bundle-layer-stack.js";
-import { el } from "./bundle-layer-client.js";
-import { contentRides } from "./bundle-content-layout.js";
+import { afterSettling, cancelRender, inlineStyle, keeps, motionEasing, motionPlays, motionTime, nextRender, offer, playMotion, upFrom } from "./bundle-portable.js";
+import { TEXT_FIELD, move, onCurrentLocation, onUserInput } from "./bundle-layer-stack.js";
+import { el, reveal } from "./bundle-layer-client.js";
+import { chromeRoot, contentRides } from "./bundle-content-layout.js";
+import { declareSide } from "./bundle-data.js";
 import { inChrome } from "./bundle-passages.js";
+import { retainUserIntent, scrollIntoView } from "./bundle-copy-control.js";
 import { SVG_NS, paintGeometry, paintShape, paintStand, placement, standBox, standOver, vacate } from "./bundle-page-layout.js";
 
+//#region runtime/details-shelf.js
+const records = /* @__PURE__ */ new Map();
+const owners = /* @__PURE__ */ new WeakMap();
+let shelf = null;
+function standsFor(node) {
+	let at = node;
+	for (; at && at !== shelf; at = upFrom(at)) {
+		const owner = owners.get(at);
+		if (owner) return owner.standsFor(node) ?? owner.element;
+	}
+	return null;
+}
+declareSide(standsFor);
+onCurrentLocation((node) => {
+	if (!node || !standsFor(node)) return;
+	reveal(standsFor(node), retainUserIntent());
+	scrollIntoView(standsFor(node), {
+		behavior: "instant",
+		block: "nearest"
+	});
+});
+const same$1 = (left, right) => left.length === right.length && left.every((node, index) => node === right[index]);
+const authoredDetails = (element, value) => {
+	const root = element.getRootNode();
+	if (!("getElementById" in root)) return [];
+	return (value ?? "").split(/\s+/).filter(Boolean).flatMap((id) => {
+		const node = root.getElementById(id);
+		return node ? [node] : [];
+	});
+};
+const written = (element) => element.getAttribute("aria-details") === "";
+function name(element, record) {
+	if (!written(element)) record.authored = element.getAttribute("aria-details");
+	const wanted = [...authoredDetails(element, record.authored), ...record.notes];
+	if (written(element) && same$1(element.ariaDetailsElements ?? [], wanted)) return;
+	element.ariaDetailsElements = wanted;
+}
+function shelve(element, note, standsFor = () => null) {
+	shelf ??= offer("div", "lf-details-shelf");
+	if (!shelf.isConnected) chromeRoot.append(shelf);
+	if (note.parentNode !== shelf) move(shelf, note, null);
+	owners.set(note, {
+		element,
+		standsFor
+	});
+	let record = records.get(element);
+	if (!record) {
+		record = {
+			notes: [],
+			authored: null
+		};
+		records.set(element, record);
+	}
+	if (!record.notes.includes(note)) record.notes.push(note);
+	name(element, record);
+}
+function unshelve(element, note) {
+	const record = records.get(element);
+	if (record?.notes.includes(note)) {
+		record.notes = record.notes.filter((held) => held !== note);
+		if (record.notes.length) name(element, record);
+		else {
+			if (written(element)) {
+				if (record.authored === null) element.removeAttribute("aria-details");
+				else element.setAttribute("aria-details", record.authored);
+			}
+			records.delete(element);
+		}
+	}
+	note.remove();
+	owners.delete(note);
+}
+
+//#endregion
 //#region runtime/target-paint.js
 var target_paint_exports = /* @__PURE__ */ __exportAll({
 	aimLayer: () => aimLayer,
@@ -858,4 +934,4 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 }
 
 //#endregion
-export { aimLayer, boxMotion, mountTargetPaint, paintTrace, targetTraceLayer, target_paint_exports };
+export { aimLayer, boxMotion, mountTargetPaint, paintTrace, shelve, standsFor, targetTraceLayer, target_paint_exports, unshelve };

@@ -70,50 +70,6 @@
   user-select: none;
   -webkit-user-select: none;
 }
-/* A comment note's resting box: a pixel, out of flow and out of the selection, the
-   geometry .lf-quiet has for the same reasons (shadow.css). */
-.lf-mark-note {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  user-select: none;
-  -webkit-user-select: none;
-}
-/* A comment note rests transparent rather than clipped, since the on-screen readings
-   (control sweeps, covered words, paper) ask opacity, and takes no pointer while it
-   rests, being a keyboard affordance. */
-.lf-mark-note {
-  opacity: 0;
-  pointer-events: none;
-}
-/* A comment note (anchor-note-view.js) and a picture's response proxy
-   (anchor-controls.js) share this face at the window's head on focus. Its ring
-   insets: it is dropped over whatever the page has there. */
-:is(.lf-mark-note, .lf-visual-action)[data-lf-focus] {
-  position: fixed;
-  top: calc(var(--lf-head-room) + 6px);
-  left: 8px;
-  width: auto;
-  height: auto;
-  min-height: var(--aim-floor);
-  max-width: calc(100vw - 16px);
-  padding: 6px 10px;
-  overflow: visible;
-  clip-path: none;
-  pointer-events: auto;
-  white-space: normal;
-  border: 1px solid var(--accent);
-  border-radius: var(--r);
-  background: var(--card);
-  color: var(--ink);
-  box-shadow: var(--raise-2);
-  outline-offset: var(--focus-ring-inset);
-}
-.lf-mark-note[data-lf-focus] {
-  opacity: 1;
-  z-index: var(--lf-z-escaped-control);
-}
 /* Delay action-control feedback so a quick answer causes no busy flash.
    aria-busy also marks reading content (messages, drafts, and uploading editors):
    their text stays readable, and their receipt or progress cursor carries the wait. */
@@ -287,21 +243,13 @@ html[data-lf-region-capture] main * {
       display: none;
     }
   }
-  /* The details shelf rests where its notes' focused faces stand. It stands after the
-     whole page, so a note focused while it rested in flow would scroll the page to the
-     chrome's end; fixed, focus moves nothing. Its stacking context owns the escaped
-     controls' layer so page headers cannot cover a focused face inside it. */
+  /* The details shelf stands after the whole page, so a stop on it focused while it
+     stood in flow would scroll the page to the chrome's end; fixed, focus moves nothing
+     but the scroll that brings what the stop stands for into view (details-shelf.js). */
   .lf-details-shelf {
     position: fixed;
-    z-index: var(--lf-z-escaped-control);
-    top: calc(var(--lf-head-room) + 6px);
-    left: 8px;
-  }
-  /* A picture's response proxies stand on the details shelf rather than as a role written
-     onto the provider's drawing. Resting, each is a conventional clipped control; focus
-     gives it the comment note's face at the window's head (above). */
-  .lf-visual-action {
-    pointer-events: none;
+    top: 0;
+    left: 0;
   }
   /* What the layer would inherit from the document, answered at its root:
      position, so a page's broad positioning cannot make the wrapper or the legend's

@@ -27,32 +27,53 @@
  *
  * Nothing on the shelf is a Tab stop: from the chrome it would come after the whole
  * page, away from the element it is about, so each owner takes its controls out of the
- * Tab order. The shelf stands fixed at the window's head, so a note focused at rest moves
- * nothing (chrome.css). Focus on a note stands at its element (current-target.js).
+ * Tab order, and builds each as a stop (control-faces.js, `stop`), which shows nothing
+ * of its own. Focus on a note stands at what it stands for (`standsFor`): the user's
+ * place is there (current-target.js), the ring the overlay draws for focus stands
+ * round it (anchor-paint.js), and the focus brings it into view, nearest, as a focus
+ * move to it would, opening what folds it away. The shelf stands fixed, so the focus
+ * moves the page no other way (chrome.css).
  */
 import { chromeRoot } from "./chrome.js";
 import { move } from "./dom-move.js";
 import { declareSide } from "./current-target.js";
+import { onCurrentLocation } from "./focus.js";
+import { scrollIntoView } from "./landing-scroll.js";
 import { upFrom } from "./shadow.js";
-import { offer } from "./widget-elements.js";
+import { retainUserIntent } from "./user-intent.js";
+import { offer, reveal } from "./widget-elements.js";
 
-// element -> { notes, authored }; a note's element, read back.
+// element -> { notes, authored }; a note -> its element and the reading of what a
+// node in it stands for.
 /** @typedef {{notes: Element[], authored: string | null}} ShelfRecord */
+/** @typedef {(node: Element) => Element | null} StandsFor */
 /** @type {Map<Element, ShelfRecord>} */
 const records = new Map();
-/** @type {WeakMap<Node, Element>} */
+/** @type {WeakMap<Node, {element: Element, standsFor: StandsFor}>} */
 const owners = new WeakMap();
 /** @type {HTMLDivElement | null} */
 let shelf = null;
 
-declareSide((node) => {
+// What a node on the shelf stands for: what its note's owner reads for the node, such as
+// one of a picture's parts for that part's proxy, else the element naming the note.
+// Null for a node off the shelf.
+/** @param {Element} node */
+export function standsFor(node) {
   /** @type {Element | null} */
   let at = node;
   for (; at && at !== shelf; at = upFrom(at)) {
-    const element = owners.get(at);
-    if (element) return element;
+    const owner = owners.get(at);
+    if (owner) return owner.standsFor(node) ?? owner.element;
   }
   return null;
+}
+declareSide(standsFor);
+
+onCurrentLocation((node) => {
+  if (!node || !standsFor(node)) return;
+  reveal(standsFor(node), retainUserIntent());
+  // What the reveal opened may have drawn the target anew.
+  scrollIntoView(standsFor(node), { behavior: "instant", block: "nearest" });
 });
 
 /** @template T @param {readonly T[]} left @param {readonly T[]} right */
@@ -87,13 +108,14 @@ function name(element, record) {
 }
 
 // Stand `note` on the shelf and have `element` name it. Idempotent, and meant to be asked
-// on every pass that finds the note still owed.
-/** @param {Element} element @param {Element} note */
-export function shelve(element, note) {
+// on every pass that finds the note still owed. `standsFor` reads what a node in the
+// note stands for where that is not `element` itself.
+/** @param {Element} element @param {Element} note @param {StandsFor} [standsFor] */
+export function shelve(element, note, standsFor = () => null) {
   shelf ??= offer("div", "lf-details-shelf");
   if (!shelf.isConnected) chromeRoot.append(shelf);
   if (note.parentNode !== shelf) move(shelf, note, null);
-  owners.set(note, element);
+  owners.set(note, { element, standsFor });
   let record = records.get(element);
   if (!record) {
     record = { notes: [], authored: null };

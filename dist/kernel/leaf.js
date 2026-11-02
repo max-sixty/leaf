@@ -1,4 +1,4 @@
-import { LAYOUT, PAGE_PAINT_ATTRIBUTE, actionTemplate, bindQueuedWork, byRenderedOrder, cancelRender, canvas2D, describeFailure, holdRendering, iconTemplate, inlineStyle, isElement, isHTML, keeps, keepsHidden, keepsText, layoutPx, motionEasing, motionPlays, motionTime, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offered, offeredAction, pagePresented, pageUpgraded, playMotion, reducedMotion, renderedOrder, renderedUnder, renderingState, scrollBehavior, scrollGlides, scrolling, setScroll, shadowHost, sizeObserver, skipped, tabStore, under as under$1, upFrom, watchScrollEnds, watchScrolls, whileConnected } from "./runtime/bundle-portable.js";
+import { LAYOUT, PAGE_PAINT_ATTRIBUTE, actionTemplate, bindQueuedWork, byRenderedOrder, cancelRender, canvas2D, describeFailure, holdRendering, iconTemplate, inlineStyle, isElement, isHTML, keeps, keepsHidden, keepsText, layoutPx, motionEasing, motionPlays, motionTime, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offeredAction, pagePresented, pageUpgraded, playMotion, reducedMotion, renderedOrder, renderedUnder, renderingState, scrollBehavior, scrollGlides, scrolling, setScroll, shadowHost, sizeObserver, skipped, tabStore, under as under$1, upFrom, watchScrollEnds, watchScrolls, whileConnected } from "./runtime/bundle-portable.js";
 import { CARET_KEYS, COLLAPSE, J, LitElement, MODIFIER_KEYS, PRESENTATION_DOM, PRESSES, SHARE_ROOT, TEXT_BLOCK, TEXT_BOX, TEXT_FIELD, WEBSITE_DELIVERY, WORKS, Z, agentName, agentSays, annotationMode, annotationSheets, applicationPresenter, applicationState, bareReaction, blurFocused, carriesObligation, chromeSheet, claimReleaseClick, closeLayer, closeNativeLayer, coarsePointer, currentLocationIn, d, decisionFor, declareReading, dismissPopoversOutside, documentChanged, drawn, eventSource, focusDestination, focusRevision, focused, fragmentId, guard, handBack, hasObligationSource, holdFocus, hostIn, html, inUi, isNews, itemNoun, itemOutcome, keyed, layerLanding, leafSays, letGo, live, marksSheet, move, nativeLayers, nativeModalAdmits, noChange, nothing, offlineInteractive, onCurrentLocation, onPress, onPressAway, onUserInput, openLayer, openerOf, pointerAt, pressHolds, pressIsKeyboardActivation, pressRecords, q, readPart, ref, registry, release, releaseFocus, render, repeat, rove, runtime, runtimeResource, saidBy, sameAnchor, selectsAll, shareUrl, showNativeLayer, tagsDeclaring, takesLetters, threadCounts, threadKey, threadNames, tick, tokenEntry, typesText, voiceOf, voiced, watchLayerChanges, whenApplicationPresented, wordsText, x } from "./runtime/bundle-layer-stack.js";
 import { EVERYTHING, LINK, PRESS, PRESSABLE, advertisesKeys, allBindings, announce, bindingEnabled, bindings, buttonCommand, claimsEsc, clampedRow, closeControl, commandBinding, commandDeclarationsWithin, commandPresentations, commandRoutes, commandRun, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, el, errorsReading, hasRows, holdingError, keys, labelOf, live as live$1, liveEl, mountRepaint, nativePress, notice, noticeReading, noticeWords, pageRange, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, programmaticSelection, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reflectFirstScopes, reflectKeys, repaint, repaintPage, reportPageError, reveal, routedCommand, rowArrows, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, selectEnds, selectionBackward, setNoticeContext, setQuickShortcuts, setRuntimeRootStyle, spell, spokenBinding, submitBindings, titleOf, uploadMedia, watchCommandAvailability, word } from "./runtime/bundle-layer-client.js";
 import { ADDRESSABLE, PAGE_CONTROL_RANK, PRESENTATION, UPGRADE, addressableLabel, addressableSays, addressableWord, afterPresentation, ago, aimTargetAt, aimTargets, anchorFor, anchoringIsReady, annotationAt, atScrollEnd, chromeForeground, chromeRoot, designPressAt, effectiveScroller, elementFrame, exactTarget, fragmentTarget, holdArrivingBounds, isAddressable, lightSeat, livePoint, markPagePresented, markPageUpgraded, moveScrollerBy, openDocumentLayout, pageControls, pageControlsChanged, pageReadiness, pageScroller, placePoints, pointInto, railStands, reachScrollers, readingRegionFor, registerPageControl, registerReadingRegion, resolveAnchor, resolvedInMessage, revealAddressed, scrollChainOf, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, sectionLabel, sectionOf, setAnchoringReady, settlePageInterface, shortAgo, targetElement, targetParts, targetPlace, targetRange, targetSegments, unclaimedVisualGesture, userReadingRegion, visualAt, visualParts, visualSelector, whenArrived } from "./runtime/bundle-content-layout.js";
@@ -12,7 +12,7 @@ import { DISCLOSE, DISCLOSURE_SELECTOR, DRAWING_COORDINATE_LIMIT, KINDS, LeafEle
 import { visibleTargetParts } from "./runtime/bundle-visible-target-parts.js";
 import { pageImage, pageRenderer } from "./runtime/bundle-page-image.js";
 import { pageIdentity, shownScheme } from "./runtime/bundle-page-identity.js";
-import { aimLayer, boxMotion, mountTargetPaint, targetTraceLayer, target_paint_exports } from "./runtime/bundle-box-motion.js";
+import { aimLayer, boxMotion, mountTargetPaint, shelve, targetTraceLayer, target_paint_exports, unshelve } from "./runtime/bundle-box-motion.js";
 import "/vendor/webawesome-chrome.js";
 
 //#region runtime/composing/drawing-geometry.js
@@ -3525,74 +3525,12 @@ function createAnchorPlacement() {
 }
 
 //#endregion
-//#region runtime/details-shelf.js
-const records = /* @__PURE__ */ new Map();
-const owners = /* @__PURE__ */ new WeakMap();
-let shelf = null;
-declareSide((node) => {
-	let at = node;
-	for (; at && at !== shelf; at = upFrom(at)) {
-		const element = owners.get(at);
-		if (element) return element;
-	}
-	return null;
-});
-const same$2 = (left, right) => left.length === right.length && left.every((node, index) => node === right[index]);
-const authoredDetails = (element, value) => {
-	const root = element.getRootNode();
-	if (!("getElementById" in root)) return [];
-	return (value ?? "").split(/\s+/).filter(Boolean).flatMap((id) => {
-		const node = root.getElementById(id);
-		return node ? [node] : [];
-	});
-};
-const written = (element) => element.getAttribute("aria-details") === "";
-function name(element, record) {
-	if (!written(element)) record.authored = element.getAttribute("aria-details");
-	const wanted = [...authoredDetails(element, record.authored), ...record.notes];
-	if (written(element) && same$2(element.ariaDetailsElements ?? [], wanted)) return;
-	element.ariaDetailsElements = wanted;
-}
-function shelve(element, note) {
-	shelf ??= offer("div", "lf-details-shelf");
-	if (!shelf.isConnected) chromeRoot.append(shelf);
-	if (note.parentNode !== shelf) move(shelf, note, null);
-	owners.set(note, element);
-	let record = records.get(element);
-	if (!record) {
-		record = {
-			notes: [],
-			authored: null
-		};
-		records.set(element, record);
-	}
-	if (!record.notes.includes(note)) record.notes.push(note);
-	name(element, record);
-}
-function unshelve(element, note) {
-	const record = records.get(element);
-	if (record?.notes.includes(note)) {
-		record.notes = record.notes.filter((held) => held !== note);
-		if (record.notes.length) name(element, record);
-		else {
-			if (written(element)) {
-				if (record.authored === null) element.removeAttribute("aria-details");
-				else element.setAttribute("aria-details", record.authored);
-			}
-			records.delete(element);
-		}
-	}
-	note.remove();
-	owners.delete(note);
-}
-
-//#endregion
 //#region runtime/anchor-note-view.js
 const label = (count) => `${count} comment${count === 1 ? "" : "s"}`;
 function createAnchorNoteProjection({ openThread, labelAnchor }) {
 	const claims = /* @__PURE__ */ new Map();
 	function claim(firstThreadId) {
-		const note = offer("button", "lf-mark-note");
+		const note = offerAction("stop", "lf-mark-note");
 		note.tabIndex = -1;
 		const record = {
 			note,
@@ -3698,18 +3636,11 @@ function createAnchorControls({ commentOnTarget, openThread, withdrawReaction, l
 		}
 		return groups;
 	}
-	function focusVisualAction(event) {
-		const control = event.currentTarget;
-		let current = resolveAnchor(control.lfAnchor);
-		let element = targetParts(current)[0] ?? targetElement(current);
-		if (!element) return;
-		reveal(element, retainUserIntent());
-		current = resolveAnchor(control.lfAnchor);
-		element = targetParts(current)[0] ?? targetElement(current);
-		scrollIntoView(element, {
-			behavior: "instant",
-			block: "nearest"
-		});
+	function visualActionTarget(node) {
+		const control = node.closest(".lf-visual-action");
+		if (!control) return null;
+		const current = resolveAnchor(control.lfAnchor);
+		return targetParts(current)[0] ?? targetElement(current);
 	}
 	function activateVisualAction(event) {
 		const control = event.currentTarget;
@@ -3717,11 +3648,10 @@ function createAnchorControls({ commentOnTarget, openThread, withdrawReaction, l
 	}
 	const visualActionTemplate = ({ anchor, label }) => html`
     <button
-      ${offered("lf-visual-action lf-quiet")}
+      ${offeredAction("stop", "lf-visual-action")}
       tabindex="-1"
       .lfAnchor=${anchor}
       .textContent=${`Respond to ${label}`}
-      @focus=${focusVisualAction}
       @click=${activateVisualAction}
     ></button>
   `;
@@ -3740,7 +3670,7 @@ function createAnchorControls({ commentOnTarget, openThread, withdrawReaction, l
 			const restoreFocus = holdFocus(holder);
 			keeps(holder, "aria-label", `Responses to ${first.label}`);
 			render(html`${repeat(targets, ({ key }) => key, visualActionTemplate)}`, holder);
-			shelve(seat, holder);
+			shelve(seat, holder, visualActionTarget);
 			restoreFocus?.();
 		}
 		for (const [seat, holder] of visualActionHolders) if (!kept.has(seat)) {

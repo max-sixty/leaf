@@ -357,8 +357,7 @@ a[data-lf-external]::after,
    flow, or state their own height.
 
    Declared pressables join by their offer, rather than by adding their class here.
-   A resting skip control is transparent and has no pointer route; it takes its aim
-   size from chrome.css only when focus reveals it.
+   A stop takes no pointer and shows nothing, so it takes no aim size (controls.css).
    Native and selectable choice marks keep their enclosing labelled target; a button's
    face takes its reach (below) and version rows the padding floor described above. Inline offered words
    remain inline: like links in prose, their words determine their target.
@@ -375,7 +374,7 @@ a[data-lf-external]::after,
     [data-lf-offer=""],
     [data-lf-offer="checkbox"],
     [data-lf-offer="radio"],
-    .lf-mark-note
+    .lf-stop
   )
 ),
 .lf-btn,

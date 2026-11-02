@@ -1,6 +1,6 @@
 """What `tests/js_facts.mjs` reads out of a module: a dynamic import's namespace past
-rejection handling, a JSDoc import tag's names, and each press with the classes it is
-built with."""
+rejection handling, a JSDoc import tag's names, and each press with how a role
+dresses it."""
 
 import json
 import subprocess
@@ -59,79 +59,55 @@ def test_jsdoc_import_tag_reads_its_names(tmp_path, tag, names):
     assert sorted(name for _, name in facts("imports", reader)["reads"]) == names
 
 
-# One press a line, each in a block of its own. The first eight, and the five after
-# them, are presses the press check once misread: a family name in a title or a label
-# taken for a class, a `className` given to another block's `button`, spacing or a
-# bound role that hid a press, a `>` inside a quoted attribute that ended the tag; a
-# `className` on a parameter given to an unrelated `button`, a family name joined to
-# more text, an escaped quote read raw, and Lit's `classMap` unread; and a method
-# named after `copyControl` taken for it. Then a copy control around a trigger, a
-# made button dressed by role through the name it is bound to, one never dressed, and
-# a name dressed and then given another button, over two lines of one block, whose
-# buttons neither reads as dressed; and a pure template that writes a role's face
-# into its class.
+# One press a line, each in a block of its own. The first four are presses the press
+# check once missed: spacing or a bound role that hid one, and a method named after
+# `copyControl` taken for it. Then the ways a role dresses a press: in its tag,
+# through a name, as it is made, in a copy control's options, around a trigger, and
+# through the name a made button is bound to; a scripted role never dressed; a name
+# dressed and then given another button, over two lines of one block, whose buttons
+# neither reads as dressed; and a pure template that writes a role's face into its
+# class.
 PRESSES = """\
-{ html`<button class="own-face" title="lf-react">`; }
-{ offer("button", "own-face", "lf-react"); }
-{ const button = document.createElement("button"); }
-{ const button = document.createElement("button"); button.className = "lf-media-open"; }
 { document.createElement ("button"); }
 { html`<div role = "button" class="lf-grip">`; }
 { html`<div role=${"button"} class="lf-grip">`; }
-{ html`<button title="a > b" class="lf-react">`; }
+{ class M { #copyControl() { return copyControl("lf-x", { role: "symbol" }); } go() { this.#copyControl(); } } }
+{ html`<button class="own-face">`; }
+{ offer("button", "own-face"); }
 { html`<button ${offeredAction("word", "lf-x")}>`; }
 { const close = offeredAction("symbol", "", "Close"); html`<button ${close}>`; }
 { offerActionElement(document.createElement("button"), "symbol"); }
 { copyControl("lf-x", { role: "symbol" }); }
-{ const grip = offer("span", "lf-grip"); grip.setAttribute("role", "button"); }
-{ function style(button) { button.className = "lf-react"; } function make() { return document.createElement("button"); } }
-{ offer("button", "lf-react" + "-icon"); }
-{ html`<button class="lf-react${suffix}">`; }
-{ html`<button title=\\"a > b\\" class="lf-react">`; }
-{ html`<button class=${classMap({ "lf-react": true, "lf-off": false, own: on })}>`; }
-{ class M { #copyControl() { return copyControl("lf-x", { role: "symbol" }); } go() { this.#copyControl(); } } }
 { copyControl("lf-x", { trigger: true }); }
 { const button = document.createElement("button"); offerActionElement(button, "word", "lf-x"); }
-{ const button = document.createElement("button"); button.className = "lf-x"; }
+{ const grip = offer("span", "lf-grip"); grip.setAttribute("role", "button"); }
 { let button = document.createElement("button"); offerActionElement(button, "word", "lf-old");
   button = document.createElement("button"); }
 { html`<button class=${`${actionClass("word", "lf-x")} lf-ui`}>`; }
 """
-# Each line's press: the kind it is read as, how a role dresses it, and its classes.
+# Each line's press: the kind it is read as and how a role dresses it.
 READ = [
-    ("template", None, ["own-face"]),
-    ("made", None, ["own-face"]),
-    ("made", None, []),
-    ("made", None, ["lf-media-open"]),
-    ("made", None, []),
-    ("template", None, ["lf-grip"]),
-    ("template", None, ["lf-grip"]),
-    ("template", None, ["lf-react"]),
-    ("template", "role in its tag", ["lf-x"]),
-    ("template", "role through a name", []),
-    ("made", "role as it is made", []),
-    ("copy control", "role in its options", ["lf-x"]),
-    ("scripted role", None, ["lf-grip"]),
-    ("made", None, []),
-    ("made", None, []),
-    ("template", None, []),
-    ("template", None, ["lf-react"]),
-    ("template", None, ["lf-react", "own"]),
-    ("copy control", "role in its options", ["lf-x"]),
-    ("copy control", "trigger in its options", ["lf-x"]),
-    ("made", "role as it is made", ["lf-x"]),
-    ("made", None, ["lf-x"]),
-    ("made", None, []),
-    ("made", None, []),
-    ("template", "role in its tag", ["lf-ui"]),
+    ("made", None),
+    ("template", None),
+    ("template", None),
+    ("copy control", "role in its options"),
+    ("template", None),
+    ("made", None),
+    ("template", "role in its tag"),
+    ("template", "role through a name"),
+    ("made", "role as it is made"),
+    ("copy control", "role in its options"),
+    ("copy control", "trigger in its options"),
+    ("made", "role as it is made"),
+    ("scripted role", None),
+    ("made", None),
+    ("made", None),
+    ("template", "role in its tag"),
 ]
 
 
-def test_each_press_is_read_with_the_classes_it_is_built_with(tmp_path):
+def test_each_press_is_read_with_how_a_role_dresses_it(tmp_path):
     module = tmp_path / "presses.js"
     module.write_text(PRESSES)
-    read = [
-        (p["line"], p["kind"], p["built"], p["classes"])
-        for p in facts("presses", module)
-    ]
+    read = [(p["line"], p["kind"], p["built"]) for p in facts("presses", module)]
     assert read == [(line, *press) for line, press in enumerate(READ, 1)]

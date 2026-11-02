@@ -1640,46 +1640,21 @@ def _bundled_modules():
     ]
 
 
-# The presses that keep a face of their own rather than a role's (browser/AGENTS.md,
-# "A control wears its role's face"), each family's classes and the reason no role
-# serves it. A press belongs to a family by a class it is built with, and
-# `test_every_press_is_built_by_role_or_family` refuses one built neither by role nor
-# with a family's class. A class that no press outside the roles wears leaves the list.
-PRESS_FAMILIES = {
-    "keyboard stops": (
-        {"lf-mark-note", "lf-visual-action", "lf-gloss-mark"},
-        "the keyboard's stop, unseen at rest, for what the pointer takes on the page;"
-        " it shows two ways when reached, a card at the window's head (a comment note,"
-        " a picture's proxy) or a ring on its host (a gloss), and which is the role's"
-        " face is the user's choice",
-    ),
-}
-
-
-def test_every_press_is_built_by_role_or_family():
-    """Every press a bundled module builds wears a role's face or belongs to a family in
-    `PRESS_FAMILIES` by a class it is built with, and every family's class names some
-    press that needs it. `js_facts.mjs presses` reads the presses and says what they
-    are, how a role dresses them and which classes they are built with.
+def test_every_press_is_built_by_role():
+    """Every press a bundled module builds wears a role's face (browser/AGENTS.md, "A
+    control wears its role's face"). `js_facts.mjs presses` reads the presses and says
+    what they are and how a role dresses them.
 
     Before this check only a role's classes were watched, so a press drawn with a face
     of its own passed: the floating panel's symbols and a message's Edit and Add
     reaction each drew a 26px face beside the thread's 28px symbols. Drawing a press's
     symbol from its action gives it no face, so a press that does only that still needs
-    a role or a family."""
-    family_classes = {
-        name for classes, _reason in PRESS_FAMILIES.values() for name in classes
-    }
-    reached, unbuilt, worn = set(), [], set()
+    a role."""
+    reached, unbuilt = set(), []
     for module, presses in json.loads(js_facts("presses", _bundled_modules())).items():
         for press in presses:
             reached |= {press["kind"], press["built"]}
-            if press["built"]:
-                continue
-            if classes := family_classes & set(press["classes"]):
-                worn |= classes
-                reached.add("family")
-            else:
+            if not press["built"]:
                 where = Path(module).relative_to(ROOT)
                 unbuilt.append(f"{where}:{press['line']}: {press['site']}")
     assert reached - {None} == {
@@ -1691,21 +1666,13 @@ def test_every_press_is_built_by_role_or_family():
         "role as it is made",
         "role in its options",
         "trigger in its options",
-        "family",
     }, f"the reading missed a kind of press: {reached}"
     assert not unbuilt, (
         "these presses draw a face of their own:\n"
         + "\n".join(unbuilt)
         + "\nBuild each by role with offerAction, offeredAction, offerActionElement or"
-        " copyControl's `role` (control-faces.js, `ACTION_FACES`), or, where no role serves"
-        " it, add its class to a family in PRESS_FAMILIES"
-        " (tests/model/test_interact_layer.py) with the reason it keeps its own face,"
-        " for a reviewer to weigh."
-    )
-    unworn = sorted(family_classes - worn)
-    assert not unworn, (
-        "no press outside the roles wears these classes; take them out of"
-        f" PRESS_FAMILIES: {unworn}"
+        " copyControl's `role` (control-faces.js, `ACTION_FACES`). A press no role"
+        " serves is a new role, for a reviewer to weigh."
     )
 
 

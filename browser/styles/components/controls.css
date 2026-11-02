@@ -610,12 +610,9 @@ summary,
  * across document and shadow trees; a package places a control and may set its
  * density, the line a word or an answer stands (`--lf-line`) and a symbol's face
  * (`--lf-icon-action-face`), but restates none of its face, so a surface's own
- * presses, the floating panel's included, stand beside its neighbours' alike. The
- * presses that still keep a face of their own, each family drawn by its one owner,
- * are listed with the reason no role serves them yet in `PRESS_FAMILIES`
- * (tests/model/test_interact_layer.py). One face stands elsewhere, the entry's, in
- * base.css beside the margin it is drawn for, and the response face extends the
- * response bar's shared frame in response.css.
+ * presses, the floating panel's included, stand beside its neighbours' alike. One face
+ * stands elsewhere, the entry's, in base.css beside the margin it is drawn for, and the
+ * response face extends the response bar's shared frame in response.css.
  *
  * The word face: words in the muted ink with no frame, until a hovering pointer or
  * visible focus lays the chip under them and inks them. A press leaves focus on the
@@ -903,6 +900,29 @@ wa-copy-button.lf-icon-action {
 }
 .lf-picture:hover {
   box-shadow: none;
+}
+/* The stop face: a pixel out of flow, out of the selection and transparent, taking no
+   pointer, since what it stands for takes the pointer and is what the user sees. Its
+   focus draws nothing on it: the ring stands on that thing (control-faces.js, `stop`).
+   Transparent rather than clipped, as the on-screen readings (control sweeps, covered
+   words, paper) ask opacity, and off the floor, which sizes what a pointer aims at
+   (surfaces.css). */
+.lf-stop {
+  position: absolute;
+  box-sizing: border-box;
+  width: 1px;
+  min-width: 0;
+  height: 1px;
+  min-height: 0;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  outline: none;
+  opacity: 0;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 /* The mark face: a small icon press seated on the thing it acts on. It rides a corner of that
    thing (`.lf-corner-mark`, below), as the floating panel's fold, an attachment's

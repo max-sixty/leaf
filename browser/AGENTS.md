@@ -352,10 +352,8 @@ targets, or a condition its owner sets on the styled element, and measure with
   `offerAction` or `offeredAction`, and never names a face's classes, so two controls
   of one kind can't look different (`runtime/control-faces.js`, `ACTION_FACES`, lists the
   roles). A new role needs a difference in the user's task, not only in a widget's
-  taste. A press that keeps a face of its own belongs to a family named, with the
-  reason no role serves it, in `PRESS_FAMILIES` (`tests/model/test_interact_layer.py`).
-  Checks: `test_controls_are_built_by_role_and_never_by_face`,
-  `test_every_press_is_built_by_role_or_family`.
+  taste. Checks: `test_controls_are_built_by_role_and_never_by_face`,
+  `test_every_press_is_built_by_role`.
 - **A face used twice is a token or a shared rule.** A lift names one of the theme's
   heights, `--raise-1` to `--raise-3` (`base.css`). Check:
   `test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink`.

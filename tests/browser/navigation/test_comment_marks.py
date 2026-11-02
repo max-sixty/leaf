@@ -620,14 +620,19 @@ def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
     inline2 = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{c2}"]')
     expect(note).to_have_role("button")
     # Focused with the keyboard's modality, as a screen reader moving to it focuses it,
-    # the note shows and enters the first thread, and the walk goes on from there.
+    # the note shows nothing of its own: its block wears the focus ring, in view. The
+    # note enters the first thread, and the walk goes on from there.
+    page.locator("#p1").evaluate("p => { p.style.marginTop = '150vh'; }")
     page.keyboard.press("Tab")
     note.focus()
     expect(note).to_be_focused()
-    assert note.evaluate("el => el.getBoundingClientRect().width > 1"), (
-        "the comment path stayed invisible when a keyboard user reached it"
-    )
-    assert note.evaluate("el => getComputedStyle(el).opacity") == "1"
+    assert note.evaluate("el => getComputedStyle(el).opacity") == "0"
+    expect(page.locator("#p1")).to_be_in_viewport()
+    ring = page.locator(".lf-visual-mark.lf-visual-mark-focus")
+    expect(ring).to_have_count(1)
+    held, block = ring.bounding_box(), page.locator("#p1").bounding_box()
+    assert all(abs(held[side] - block[side]) < 1 for side in held), (held, block)
+    page.locator("#p1").evaluate("p => { p.style.marginTop = ''; }")
     note.press("Enter")
     expect(inline1).to_be_focused()
     expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))

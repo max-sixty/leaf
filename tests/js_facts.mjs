@@ -398,22 +398,6 @@ function literals() {
   return JSON.stringify(read);
 }
 
-// The calls that dress an element, and which argument holds the classes they give it.
-const CLASS_ARGUMENT = {
-  offer: 1,
-  el: 1,
-  offerElement: 1,
-  offered: 0,
-  offerAction: 1,
-  offeredAction: 1,
-  offerActionElement: 2,
-  offerContentElement: 2,
-  roleElement: 2,
-  actionClass: 1,
-  selectableOffer: 1,
-  selectableOffered: 1,
-  copyControl: 0,
-};
 // The builders that give an element a role's face (control-faces.js, `ACTION_FACES`), and
 // the calls that make an element of the tag they are handed first.
 // `roleElement` is element-markers.js's own writer behind them, and `actionClass` the
@@ -511,9 +495,9 @@ function bound(node, parents) {
 }
 
 // The whole words an expression's string value can hold, through templates,
-// conditions, concatenation, Lit's `classMap` and the constants it names. A word that
-// touches a dynamic part or a join, as in `"lf-react" + "-icon"` or `lf-${kind}`, is
-// unknown and left out.
+// conditions, concatenation and the constants it names. A word that touches a dynamic
+// part or a join, as in `"lf-react" + "-icon"` or `lf-${kind}`, is unknown and left
+// out.
 function words(node, parents, seen = new Set()) {
   switch (node?.type) {
     case "Literal":
@@ -539,15 +523,6 @@ function words(node, parents, seen = new Set()) {
       return [node.consequent ?? node.left, node.alternate ?? node.right].flatMap((e) =>
         words(e, parents, seen),
       );
-    case "CallExpression":
-      // Lit's `classMap({name: on})` sets each name whose value isn't literally false.
-      return callee(node) !== "classMap"
-        ? []
-        : (node.arguments[0]?.properties ?? [])
-            .filter(
-              (p) => !p.computed && !(p.value?.type === "Literal" && !p.value.value),
-            )
-            .flatMap((p) => joined([String(p.key.name ?? p.key.value)]));
     case "Identifier":
       if (seen.has(node)) return [];
       seen.add(node);
@@ -577,32 +552,22 @@ function joined(parts, parents, seen) {
   });
 }
 
-const classNames = (values) => values.filter((name) => /^[\w-]+$/.test(name));
-
-// Whether a role's builder dresses what `node` hands an element, and the classes the
-// calls in it give the element, read from each call's class argument (`CLASS_ARGUMENT`).
-// At `depth` above 0 the functions it calls are followed too, that many steps.
+// Whether a role's builder dresses what `node` hands an element. At `depth` above 0
+// the functions it calls are followed too, that many steps.
 function dressing(node, parents, depth) {
-  const found = { role: false, classes: [] };
+  let role = false;
   const calls = [];
   walk(node, (n) => {
-    const name = callee(n);
-    if (ROLE_BUILDERS.has(name)) found.role = true;
-    if (Object.hasOwn(CLASS_ARGUMENT, name))
-      found.classes.push(...words(n.arguments[CLASS_ARGUMENT[name]], parents));
+    if (ROLE_BUILDERS.has(callee(n))) role = true;
     if (depth > 0 && n.callee?.type === "Identifier") calls.push(n.callee);
   });
-  for (const name of calls) {
-    const inner = dressing(bound(name, parents), parents, depth - 1);
-    found.role ||= inner.role;
-    found.classes.push(...inner.classes);
-  }
-  return found;
+  return (
+    role || calls.some((name) => dressing(bound(name, parents), parents, depth - 1))
+  );
 }
 
-// Every press a module builds: `{line, site, kind, built, classes}`, where `built` says
-// how a role's builder dresses it, or is null, and `classes` are the classes it is built
-// with, read only where a class is given (`class`, a class argument, `className`).
+// Every press a module builds: `{line, site, kind, built}`, where `built` says how a
+// role's builder dresses it, or is null.
 //
 // - "template": a `<button>`, or an element whose `role` is "button", in a template
 //   literal or an HTML string, read with parse5's tokenizer so quoting holds, each
@@ -610,8 +575,8 @@ function dressing(node, parents, depth) {
 //   element part: "role in its tag" when a builder is called there, "role through a
 //   name" when the part names a directive kept in a constant, or a callback handed to
 //   `ref`, whose binding calls one, directly or through a function it calls.
-// - "made": a "button" made by `offer`, `el` or `createElement`, with the `className`
-//   later given to the variable it is bound to; "role as it is made" when it is made
+// - "made": a "button" made by `offer`, `el` or `createElement`; "role as it is made"
+//   when it is made
 //   as the element of `offerActionElement` or `offerContentElement`, or the variable
 //   that holds it, and only it, is later handed to one.
 // - "copy control": a `copyControl(…)`, "role in its options" when they name a role,
@@ -625,18 +590,10 @@ function presses() {
     const source = readFileSync(file, "utf8");
     const program = tree(file);
     const parents = new Map();
-    const assigned = [];
     const dressed = [];
     const rebinding = [];
     walk(program, (node, _loops, parent) => {
       parents.set(node, parent);
-      if (
-        node.type === "AssignmentExpression" &&
-        node.left.type === "MemberExpression" &&
-        node.left.property.name === "className" &&
-        node.left.object.type === "Identifier"
-      )
-        assigned.push(node);
       if (ROLE_BUILDERS.has(callee(node)) && node.arguments[0]?.type === "Identifier")
         dressed.push(node);
       if (node.type === "AssignmentExpression" && node.left.type === "Identifier")
@@ -649,22 +606,13 @@ function presses() {
       parents.get(binding)?.kind === "const" ||
       !rebinding.some((a) => declaration(a.left.name, a, parents) === binding);
     const found = [];
-    const press = (start, end, kind, built, values) =>
+    const press = (start, end, kind, built) =>
       found.push({
         line: source.slice(0, start).split("\n").length,
         site: source.slice(start, Math.min(end, start + 100)).replace(/\s+/g, " "),
         kind,
         built: built || null,
-        classes: classNames(values),
       });
-    // The classes given to the variable a made element is bound to, after it is made;
-    // none where the element is bound to nothing this module declares.
-    const givenLater = (binding) =>
-      !binding
-        ? []
-        : assigned
-            .filter((a) => declaration(a.left.object.name, a, parents) === binding)
-            .flatMap((a) => words(a.right, parents));
     // The role builders' calls handed the variable a made element is bound to.
     const dressedLater = (binding) =>
       !binding || !holdsOne(binding)
@@ -694,13 +642,7 @@ function presses() {
         const asMade =
           (ROLE_BUILDERS.has(callee(parent)) && parent.arguments[0] === node) ||
           later.length > 0;
-        press(node.start, node.end, "made", asMade && "role as it is made", [
-          ...words(args[CLASS_ARGUMENT[name]], parents),
-          ...givenLater(binding),
-          ...later.flatMap((call) =>
-            words(call.arguments[CLASS_ARGUMENT[callee(call)]], parents),
-          ),
-        ]);
+        press(node.start, node.end, "made", asMade && "role as it is made");
       }
       if (name === "copyControl" && node.callee.type === "Identifier") {
         const option = (name) => args[1]?.properties?.find((p) => p.key?.name === name);
@@ -710,7 +652,6 @@ function presses() {
           node.end,
           "copy control",
           role ? "role in its options" : option("trigger") && "trigger in its options",
-          [...words(args[0], parents)],
         );
       }
       const receiver =
@@ -728,11 +669,7 @@ function presses() {
           ? declaration(receiver.name, receiver, parents)
           : null;
       const made = binding?.init;
-      if (MAKERS.has(callee(made)))
-        press(node.start, node.end, "scripted role", null, [
-          ...words(made.arguments[CLASS_ARGUMENT[callee(made)]], parents),
-          ...givenLater(binding),
-        ]);
+      if (MAKERS.has(callee(made))) press(node.start, node.end, "scripted role", null);
     });
     read[file] = found;
   }
@@ -777,11 +714,8 @@ function templatePresses(node, parents, press) {
     const asButton = valueWords(role?.value ?? "").includes("button");
     if (tagName !== "button" && !asButton) return;
     const classValue = attrs.find((attr) => attr.name === "class")?.value ?? "";
-    const classes = valueWords(classValue);
     // A pure template writes a role's face into its class (`actionClass`).
-    const facedClass = marked(classValue).some(
-      (part) => dressing(part, parents, 0).role,
-    );
+    const facedClass = marked(classValue).some((part) => dressing(part, parents, 0));
     // The element part: an expression standing in the tag as an attribute name.
     const parts = attrs.flatMap((attr) => marked(attr.name));
     const handed = parts.flatMap((part) => {
@@ -791,16 +725,14 @@ function templatePresses(node, parents, press) {
       });
       return [part, ...names].filter((n) => bound(n, parents));
     });
-    const direct = parts.map((part) => dressing(part, parents, 0));
-    const named = handed.map((name) => dressing(bound(name, parents), parents, 1));
     press(
       inSource(location.startOffset),
       inSource(location.endOffset - 1) + 1,
       "template",
-      direct.some((d) => d.role) || facedClass
+      parts.some((part) => dressing(part, parents, 0)) || facedClass
         ? "role in its tag"
-        : named.some((d) => d.role) && "role through a name",
-      [...classes, ...[...direct, ...named].flatMap((d) => d.classes)],
+        : handed.some((name) => dressing(bound(name, parents), parents, 1)) &&
+            "role through a name",
     );
   };
   // The tokenizer calls a handler for every kind of token; only start tags matter.

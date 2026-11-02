@@ -5,7 +5,7 @@
    so two controls of one kind cannot be drawn two ways; this table is the only place
    the classes are spelled (`test_controls_are_built_by_role_and_never_by_face` in
    `tests/model/test_interact_layer.py` holds that), and every press a bundled module
-   builds wears one (`test_every_press_is_built_by_role_or_family`).
+   builds wears one (`test_every_press_is_built_by_role`).
 
    - `symbol`: a press drawn as one of Leaf's icons, named by its tooltip and
      accessible name (browser/AGENTS.md): quiet at rest, the chip under a hovering
@@ -41,6 +41,12 @@
      the keys.
    - `picture`: a picture that opens larger in the media viewer, a message's or a
      draft's, whose face is the picture itself, unframed, under a magnifier.
+   - `stop`: the keyboard's or a screen reader's stop for something on the page the
+     pointer takes by itself, such as a gloss's phrase, a commented block (its comment
+     note) or a picture and its declared parts (their response proxies). Its face is an
+     invisible carrier, a pixel out of flow, since the thing it stands for is what the
+     user sees: its focus rings that thing, with the ring the thing would wear focused
+     itself, and brings it into view (details-shelf.js).
 
    A difference that was only a past choice is not a role: a symbol once came bordered
    in some widgets and quiet in others, a word framed in some, quiet in others and a
@@ -60,6 +66,7 @@ const ACTION_FACES = {
   response: "lf-response-face",
   gutter: "lf-gutter",
   picture: "lf-picture",
+  stop: "lf-stop",
 };
 
 /** @param {LeafActionRole} role */

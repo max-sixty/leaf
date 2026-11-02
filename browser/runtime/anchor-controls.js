@@ -14,7 +14,6 @@
  * cluster; Max chose undo over it on 23 October 2026. Commands enter only through the
  * constructor.
  */
-import { scrollIntoView } from "./landing-scroll.js";
 import { nextRender } from "./rendering.js";
 import { holdFocus, onPressAway } from "./focus.js";
 import { fragmentId } from "./anchor-coordinate.js";
@@ -50,7 +49,7 @@ import { tokenEntry } from "./registry.js";
 import { isElement } from "./shadow-tree.js";
 import { shadowHost, upFrom } from "./shadow.js";
 import { targetElement, targetParts, targetSegments } from "./resolved-target.js";
-import { offer, offered, reveal } from "./widget-elements.js";
+import { offer, offeredAction } from "./widget-elements.js";
 import { keeps, keepsText } from "./keeps.js";
 import { retainUserIntent } from "./user-intent.js";
 import { bareReaction } from "./thread/model.js";
@@ -181,19 +180,15 @@ export function createAnchorControls({
     return groups;
   }
 
-  /** @param {FocusEvent & {currentTarget: VisualActionControl}} event */
-  function focusVisualAction(event) {
-    const control = event.currentTarget;
-    let current = resolveAnchor(control.lfAnchor);
-    let element = targetParts(current)[0] ?? targetElement(current);
-    if (!element) return;
-    reveal(element, retainUserIntent());
-    current = resolveAnchor(control.lfAnchor);
-    element = targetParts(current)[0] ?? targetElement(current);
-    scrollIntoView(element, {
-      behavior: "instant",
-      block: "nearest",
-    });
+  // What a proxy stands for: the part it responds to, or the picture.
+  /** @param {Element} node */
+  function visualActionTarget(node) {
+    const control = /** @type {VisualActionControl | null} */ (
+      node.closest(".lf-visual-action")
+    );
+    if (!control) return null;
+    const current = resolveAnchor(control.lfAnchor);
+    return targetParts(current)[0] ?? targetElement(current);
   }
 
   /** @param {MouseEvent & {currentTarget: VisualActionControl}} event */
@@ -205,11 +200,10 @@ export function createAnchorControls({
   /** @param {VisualAction} target */
   const visualActionTemplate = ({ anchor, label }) => html`
     <button
-      ${offered("lf-visual-action lf-quiet")}
+      ${offeredAction("stop", "lf-visual-action")}
       tabindex="-1"
       .lfAnchor=${anchor}
       .textContent=${`Respond to ${label}`}
-      @focus=${focusVisualAction}
       @click=${activateVisualAction}
     ></button>
   `;
@@ -233,7 +227,7 @@ export function createAnchorControls({
         html`${repeat(targets, ({ key }) => key, visualActionTemplate)}`,
         holder,
       );
-      shelve(seat, holder);
+      shelve(seat, holder, visualActionTarget);
       restoreFocus?.();
     }
     for (const [seat, holder] of visualActionHolders)

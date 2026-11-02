@@ -101,6 +101,7 @@ test("a thread preview registers its keyboard routes before any conversation is 
     placedAt: () => undefined,
     scrollThreadIntoView() {},
     scrollToElement() {},
+    openPageThread() {},
     openInPanel() {},
     onClose() {},
   });

@@ -1921,10 +1921,12 @@ function threadAttention(thread, agent) {
 //#region runtime/syntax.js
 const LANGUAGE_CLASS = /(?:^|\s)language-([\w+.#-]+)(?=\s|$)/;
 const BLOCK = "pre > code[class]";
-const languageOf = (code) => {
+const colouredAs = (code) => {
 	const lang = code.getAttribute("class")?.match(LANGUAGE_CLASS)?.[1];
-	if (!lang) return void 0;
-	return Object.hasOwn(syntaxLanguageNames, lang) ? syntaxLanguageNames[lang] : void 0;
+	if (!lang || !Object.hasOwn(syntaxLanguageNames, lang)) return void 0;
+	if (code.querySelector(":not([data-lf-syn])")) return void 0;
+	if (code.isConnected && getComputedStyle(code).getPropertyValue("--lf-reading-face").trim() !== "1") return void 0;
+	return syntaxLanguageNames[lang];
 };
 const tokenizing = /* @__PURE__ */ new WeakSet();
 async function highlightBlocks(root) {
@@ -1932,7 +1934,7 @@ async function highlightBlocks(root) {
 	const found = [...root.querySelectorAll(BLOCK)];
 	if (root instanceof Element && root.matches(BLOCK)) found.unshift(root);
 	for (const code of found) {
-		const lang = languageOf(code);
+		const lang = colouredAs(code);
 		if (lang && code.getAttribute("data-lf-syntax") !== lang && !tokenizing.has(code)) {
 			tokenizing.add(code);
 			blocks.push(code);
@@ -1940,13 +1942,13 @@ async function highlightBlocks(root) {
 	}
 	if (!blocks.length) return;
 	for (const code of blocks) {
-		let lang = languageOf(code);
+		let lang = colouredAs(code);
 		try {
 			while (lang) {
 				const source = code.textContent;
 				const tokens = await syntax(source, lang);
-				if (code.textContent !== source || languageOf(code) !== lang) {
-					lang = languageOf(code);
+				if (code.textContent !== source || colouredAs(code) !== lang) {
+					lang = colouredAs(code);
 					continue;
 				}
 				if (tokens.some(({ style }) => Object.keys(style).length)) code.replaceChildren(...synNodes(tokens));

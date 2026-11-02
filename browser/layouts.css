@@ -392,7 +392,12 @@
       grid-column: prose;
       --lf-breakout: 0;
     }
-    > table[data-lf-space] {
+  }
+  /* The reading face's table is a block that scrolls its columns (reading.css), and a
+   * breakout sizes that block. A page without the face keeps the browser's table,
+   * whose caption these rules would turn out of its caption box. */
+  @container style(--lf-reading-face: 1) {
+    :is(.layout-column, .layout-flow) > table[data-lf-space] {
       contain: none;
       container-type: normal;
       container-type: scroll-state;

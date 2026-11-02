@@ -1837,6 +1837,26 @@ def test_native_code_uses_the_bundled_grammars_language_aliases(browser, serve):
         assert painted == full.evaluate(tokens)
 
 
+def test_a_block_its_author_marked_up_keeps_its_markup(browser, serve):
+    """A code block that holds elements was marked up by its author, as a page that
+    highlights its own code marks up every token, and colouring it would delete what
+    they wrote. Leaf colours the block beside it, which holds only text."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Marked-up code",
+                '<pre id="own"><code class="language-python">'
+                '<span class="kw">def</span> f(): pass</code></pre>\n'
+                '<pre id="plain"><code class="language-python">def f(): pass</code></pre>',
+            )
+        ),
+    )
+    expect(page.locator("#plain [data-lf-syn]").first).to_be_attached()
+    expect(page.locator("#own .kw")).to_have_text("def")
+    assert page.locator("#own [data-lf-syn]").count() == 0
+
+
 def test_a_block_rewritten_while_it_is_colored_keeps_its_new_text(browser, serve):
     """A second dressing pass that reaches a block whose tokens are still on their way
     leaves it to the pass in flight, so that pass colors the text the block holds when

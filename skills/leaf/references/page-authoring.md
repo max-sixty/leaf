@@ -130,8 +130,9 @@ and hierarchy within that treatment. Where the task calls for a design of its ow
 such as an instrument, an arrangement, or a look the user asks for, write it in
 ordinary CSS. A page whose design is wholly its own, such as an existing site, a
 mockup or a page the user brings, takes no theme instead (`leaf page init <page>
---no-theme`), so it starts from the browser's defaults and none of the theme shows
-through its rules; Leaf's widgets, threads and panel keep their own faces either way.
+--no-theme`), so it starts from the browser's defaults, its tables and code blocks
+included, and none of the theme shows through its rules; Leaf's widgets, threads and
+panel keep their own faces either way.
 `leaf theme list` names the themes a page can take (`package-themes.md`, "Personal
 themes"). Page CSS stands above every theme rule
 without `!important` or extra specificity, and an element rule of its own, such as

@@ -94,10 +94,11 @@ def _rendered_words(markup: str, *, image_alt=False) -> str:
 
 
 @lru_cache(maxsize=2)
-def _markdown_dialect(breaks: bool):
-    """The browser's safe Markdown dialect; `breaks` reads soft line breaks as hard
-    ones, as a user-created child renders them. A block body reads as a Markdown
-    file, its soft breaks spaces."""
+def markdown_dialect(message: bool):
+    """The browser's safe Markdown dialect for one of its two readings, with its
+    linkify and task lists (markdown.js, `makeMarkdown`; `renderMarkdown` says how
+    the readings differ). A thread message and a user-created child's words read as
+    a message, and a Markdown body reads as a file."""
     from markdown_it import MarkdownIt
     from markdown_it.renderer import RendererHTML
     from mdit_py_plugins.tasklists import tasklists_plugin
@@ -106,11 +107,11 @@ def _markdown_dialect(breaks: bool):
         def validateLink(self, url: str) -> bool:
             return True
 
-    parser = (
-        PageMarkdown("gfm-like", {"html": False, "breaks": breaks})
-        .disable(["lheading", "code"])
-        .use(tasklists_plugin)
+    parser = PageMarkdown("gfm-like", {"html": False, "breaks": message}).use(
+        tasklists_plugin
     )
+    if message:
+        parser.disable(["lheading", "code"])
     assert parser.linkify is not None
     parser.linkify.set({"fuzzy_link": False})
     # The browser accepts syntax first, then removes unsafe link destinations while
@@ -171,21 +172,14 @@ def _markdown_dialect(breaks: bool):
 
 
 def inline_markdown_words(source: str, *, added: bool = False) -> str:
-    return _rendered_words(_markdown_dialect(added).renderInline(source))
-
-
-def block_markdown():
-    """The shared safe block Markdown dialect: the browser's `makeMarkdown`, with its
-    linkify and task lists, which messages and Markdown bodies are parsed in. It
-    renders a Markdown body as a file, its soft line breaks spaces (markdown.js,
-    `paintMarkdown`)."""
-    return _markdown_dialect(False)
+    return _rendered_words(markdown_dialect(added).renderInline(source))
 
 
 def markdown_markup(source: str) -> str:
-    """A Markdown body (`x-text-format: markdown`) as the browser paints it, as inert
-    markup for passage reading and a revision's prepaint."""
-    return block_markdown().render(source)
+    """A Markdown body (`x-text-format: markdown`) as the browser paints it, read as
+    a file (markdown.js, `paintMarkdown`), as inert markup for passage reading and a
+    revision's prepaint."""
+    return markdown_dialect(False).render(source)
 
 
 def feed_markdown(parser, source: str) -> None:

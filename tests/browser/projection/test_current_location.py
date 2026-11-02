@@ -983,17 +983,17 @@ def test_live_revision_drafts_wait_for_the_complete_controller_publication(
         "Drafts first",
         """<h1>Drafts</h1>
 <lf-draft id="revised-draft"><pre>
-    The first revision's existing body.
+The first revision's existing body.
 </pre></lf-draft>""",
     )
     second = leaf_page(
         "Drafts second",
         """<h1>Drafts</h1>
 <lf-draft id="revised-draft"><pre>
-    The second revision's replacement body.
+The second revision's replacement body.
 </pre></lf-draft>
 <lf-draft id="arriving-draft"><pre>
-    The second revision's newly inserted body.
+The second revision's newly inserted body.
 </pre></lf-draft>""",
     )
     page = open_page(browser, live_url(serve(first)))

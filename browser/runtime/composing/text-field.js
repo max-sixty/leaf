@@ -283,9 +283,10 @@ sheet.replaceSync(`
     user-select: none;
     -webkit-user-select: none; }
   /* A fence's line is a line of the code box, the sent pre's padding of one code line
-     (reading.css, \`.lf-msg-body pre\`), and the end of a fence its container or the
-     draft ends, where no fence line stands, takes that padding on the code's own line
-     instead. */
+     (reading.css, \`.lf-msg-body pre\`), and an end where no fence line stands, as
+     where a fence's container or the draft ends it and at both ends of an indented
+     block, takes that padding on the code's own line instead. */
+  .cm-line.lf-md-code-pad-start { padding-block-start: var(--code-line); }
   .cm-line.lf-md-code-pad-end { padding-block-end: var(--code-line); }
 `);
 

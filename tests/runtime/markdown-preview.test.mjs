@@ -1,7 +1,8 @@
-/* A draft's preview (composing/field-editor.js) draws what its sent message will, from
-   the reading of the renderer that sends it. A rule the renderer enables whose tokens
-   the preview doesn't draw leaves its construct as source in the draft while the
-   message renders it. This holds every rule the renderer's parser enables
+/* A draft's preview (composing/field-editor.js) draws what its sent message will, and a
+   field editing a Markdown body in place draws what the body shows, each from the
+   reading of the renderer that draws it. A rule the renderer enables whose tokens the
+   preview doesn't draw leaves its construct as source in the field while the message
+   or body renders it. This holds every rule either reading's parser enables
    (markdown.js, `makeMarkdown`) to the token types the preview draws (`DRAWN`), or to
    an exception that says why its source stays as typed. */
 
@@ -26,11 +27,13 @@ const EMITS = {
   blank_lines: [],
   safe_links: [],
   // block
+  code: ["code_block"],
   fence: ["fence"],
   blockquote: ["blockquote_open"],
   hr: ["hr"],
   list: ["bullet_list_open", "ordered_list_open", "list_item_open"],
   heading: ["heading_open"],
+  lheading: ["heading_open"],
   paragraph: ["paragraph_open"],
   // inline, both passes
   text: ["text"],
@@ -59,32 +62,37 @@ const AS_TYPED = {
   smartquotes: "the typographer is off, so the rule changes nothing",
 };
 
-test("the draft draws each construct its message renders, or keeps one listed as typed", async () => {
-  const markdown = makeMarkdown(await import("/vendor/markdown-it.esm.js"), true);
-  // The exceptions for markup and typography rest on these.
-  assert.equal(markdown.options.html, false);
-  assert.equal(markdown.options.typographer, false);
-  const enabled = new Set(
-    [
+test("the field draws each construct its message or body renders, or keeps one listed as typed", async () => {
+  const module = await import("/vendor/markdown-it.esm.js");
+  const gaps = [];
+  const listed = new Set();
+  for (const message of [true, false]) {
+    const markdown = makeMarkdown(module, message);
+    // The exceptions for markup and typography rest on these.
+    assert.equal(markdown.options.html, false);
+    assert.equal(markdown.options.typographer, false);
+    const enabled = [
       markdown.core.ruler,
       markdown.block.ruler,
       markdown.inline.ruler,
       markdown.inline.ruler2,
     ].flatMap((ruler) =>
       ruler.__rules__.filter((rule) => rule.enabled).map((rule) => rule.name),
-    ),
-  );
-  const gaps = [];
-  for (const name of enabled) {
-    if (name in AS_TYPED) continue;
-    if (!(name in EMITS)) gaps.push(`${name}: enabled, but neither drawn nor listed`);
-    else
-      for (const type of EMITS[name])
-        if (!DRAWN.has(type))
-          gaps.push(`${name}: the draft leaves its ${type} as source`);
+    );
+    const reading = message ? "message" : "file";
+    for (const name of enabled) {
+      listed.add(name);
+      if (name in AS_TYPED) continue;
+      if (!(name in EMITS))
+        gaps.push(`${reading} ${name}: enabled, but neither drawn nor listed`);
+      else
+        for (const type of EMITS[name])
+          if (!DRAWN.has(type))
+            gaps.push(`${reading} ${name}: the field leaves its ${type} as source`);
+    }
   }
-  // A rule turned off leaves its entry claiming what nothing emits.
+  // A rule neither reading enables leaves its entry claiming what nothing emits.
   for (const name of [...Object.keys(EMITS), ...Object.keys(AS_TYPED)])
-    if (!enabled.has(name)) gaps.push(`${name}: listed, but not enabled`);
+    if (!listed.has(name)) gaps.push(`${name}: listed, but not enabled`);
   assert.deepEqual(gaps, []);
 });

@@ -3103,12 +3103,23 @@
               }
             : null,
         });
+        // Translation values alone cannot distinguish local travel from motion
+        // inherited from the holder. Keep both border-box endpoints from the same
+        // comparison, rather than reading geometry later when the report is drawn.
+        const parent = paintAt(target, to)?.parent;
         const inputs = {
           property,
           before: sample(before),
           after: sample(after),
           viewport: by,
           scroll,
+          geometry: {
+            before: boxAt(target, from),
+            after: boxAt(target, to),
+            parent,
+            parent_before: boxAt(parent, from),
+            parent_after: boxAt(parent, to),
+          },
         };
         for (const axis of ["left", "top"])
           credit(

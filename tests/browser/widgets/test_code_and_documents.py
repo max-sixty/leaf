@@ -718,6 +718,45 @@ def refresh_keeps_selection(page, serve, document, name):
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_text_document_update_keeps_a_selection_it_carries_into_another_run(
+    request, serve, engine
+):
+    """Lines added above a selected row carry it from one run of rows into another, and
+    it keeps its native selection: runs are a drawing boundary, not a row's identity.
+    Reconciled run by run, one line added above the last row of a run grew Chromium's
+    selection to take in the row before it and cleared Firefox's. The numbers still
+    count every row in order."""
+    lines = [f"line {i}" for i in range(1, 279)]
+    lines[127] = "selected passage"
+    url = serve(
+        leaf_page(
+            "Run edges",
+            '<h1>Run log</h1><lf-text-document id="log" source="log-text">'
+            "</lf-text-document>",
+        )
+    )
+    data_model.cmd_data_set(serve.page_dir, "log-text", "\n".join(lines) + "\n")
+    page = open_page(request.getfixturevalue(engine), url)
+    select_words(page, '#log [data-line="128"] span')
+    selected = page.evaluate("() => getSelection().toString()")
+    assert "selected passage" in selected
+    for added in (1, 200):
+        lines = [f"added {added} {i}" for i in range(added)] + lines
+        data_model.cmd_data_set(serve.page_dir, "log-text", "\n".join(lines) + "\n")
+        told(page)
+        rendered(page)
+        row = page.locator(f'#log [data-line="{lines.index("selected passage") + 1}"]')
+        expect(row).to_have_text("selected passage")
+        assert page.evaluate("() => getSelection().toString()") == selected, added
+        numbers = page.locator("#log [data-number]").evaluate_all(
+            "cells => cells.map(cell => +cell.dataset.number)"
+        )
+        assert numbers == [
+            *range(1, page.locator("#log [data-content] > *").count() + 1)
+        ]
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_long_text_document_draws_the_lines_in_view_and_keeps_the_rest_whole(
     request, serve, engine
 ):

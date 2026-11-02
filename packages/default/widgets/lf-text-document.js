@@ -10,9 +10,8 @@
  * the browser draws only in view (`inRuns`), each sized ahead of drawing by the lines
  * its rows fill (`sizeRuns`). The Markdown preview renders a file, whose soft line
  * breaks are spaces, so a paragraph wraps to the preview's width. The source and
- * Markdown renderers reconcile unchanged text across source updates, except a row that
- * lines added or removed above it carry across a run's edge, into the next run or the
- * previous one, which is drawn anew and loses a selection in it. HTML
+ * Markdown renderers reconcile unchanged text across source updates, the source's rows
+ * across the whole listing (`reconcileRuns`). HTML
  * lives in a separate frame so its styles and scripts cannot access Leaf’s document.
  * Source provenance is stamped with its text before awaiting the frame's presentation. */
 import {
@@ -25,6 +24,7 @@ import {
   whileConnected,
   keepsText,
   setRenderedChildren,
+  setChildLists,
   setChildren,
   loadMarkdown,
   renderMarkdown,
@@ -32,6 +32,7 @@ import {
   textWidth,
   nextFrame,
 } from "/runtime/widget-api.js";
+import { diffArrays } from "/vendor/jsdiff.esm.js";
 import { pierre, markSyntax } from "./pierre.js";
 
 // Writing the same key again would still be a mutation the page's observers see.
@@ -129,6 +130,78 @@ function inRuns(code) {
     runs.push(run);
   }
   code.replaceChildren(...runs);
+}
+
+// Reconciles a new text's runs (`drawn`) into the runs on the page (`code`), as a
+// drawing boundary rather than a row's identity: each row the new text keeps first
+// moves into the run the new text puts it in (`setChildLists`), and each run then
+// reconciles its rows (`setRenderedChildren`), finding its kept rows in place. A run's
+// numbers stay with it, since they count its places rather than its rows. Reconciled
+// run by run alone, a row that lines added above it carried across a run's edge was
+// drawn anew, and a selection in it was lost, or grew to take in the row before it.
+// Moving a node resets a selection's end inside it, as the DOM's move algorithm resets
+// every live range there, so the selection's ends go back once the rows have landed.
+/** @param {Element} code @param {Element} drawn @param {readonly string[]} before @param {readonly string[]} after */
+function reconcileRuns(code, drawn, before, after) {
+  const held = [...code.children];
+  const lines = held.flatMap((run) => [...(run.lastElementChild?.children ?? [])]);
+  // The drawn row each line of the new text keeps, or -1 for a new line.
+  const kept = after.map(() => -1);
+  let from = 0;
+  let to = 0;
+  for (const { count = 0, added, removed } of diffArrays([...before], [...after])) {
+    if (added) to += count;
+    else if (removed) from += count;
+    else for (const end = to + count; to < end;) kept[to++] = from++;
+  }
+  const fresh = [...drawn.children];
+  const runs = fresh.map((run, at) => {
+    const live = held[at];
+    if (live) return live;
+    const shell = /** @type {Element} */ (run.cloneNode(false));
+    shell.append(...[...run.children].map((part) => part.cloneNode(false)));
+    code.append(shell);
+    return shell;
+  });
+  let line = 0;
+  /** @type {[Element, Element[]][]} */
+  const lists = [];
+  runs.forEach((run, at) => {
+    const rows = kept
+      .slice(line, (line += fresh[at]?.lastElementChild?.childElementCount ?? 0))
+      .filter((row) => row >= 0);
+    if (run.lastElementChild)
+      lists.push([run.lastElementChild, rows.flatMap((row) => lines[row] ?? [])]);
+  });
+  const selection = getSelection();
+  const ends = selection?.rangeCount
+    ? /** @type {const} */ ([
+        selection.anchorNode,
+        selection.anchorOffset,
+        selection.focusNode,
+        selection.focusOffset,
+      ])
+    : null;
+  setChildLists(lists);
+  runs.forEach((run, at) => setRenderedChildren(run, fresh[at]?.childNodes ?? []));
+  setChildren(code, runs);
+  if (!selection || !ends) return;
+  const [anchor, anchorOffset, focus, focusOffset] = ends;
+  /** @param {Node | null} node @param {number} offset */
+  const stands = (node, offset) =>
+    node?.isConnected &&
+    offset <= (node instanceof CharacterData ? node.length : node.childNodes.length);
+  if (
+    anchor &&
+    focus &&
+    stands(anchor, anchorOffset) &&
+    stands(focus, focusOffset) &&
+    (selection.anchorNode !== anchor ||
+      selection.anchorOffset !== anchorOffset ||
+      selection.focusNode !== focus ||
+      selection.focusOffset !== focusOffset)
+  )
+    selection.setBaseAndExtent(anchor, anchorOffset, focus, focusOffset);
 }
 
 // How many characters a line of the listing holds, and a tab's width in them: a row's
@@ -344,6 +417,7 @@ class TextDocument extends LeafElement {
         this.getAttribute("source") ??
         this.getAttribute("for");
       keepsText(view.caption, value == null ? `${label} · no data` : label);
+      const previous = this.text;
       this.text = text;
       if (!this.sourceView) {
         setChildren(view.listing, [...listing.childNodes]);
@@ -354,9 +428,9 @@ class TextDocument extends LeafElement {
         // The pre owns provenance and scroll; the code owns its native reach stop.
         // Reconcile only their source children, leaving those independent owners
         // in place while unchanged lines keep their text nodes and selection.
-        // Sized as the drawn runs are, the new runs leave unchanged sizes alone.
-        if (this.lineLength) sizeRuns(drawnCode, text, this.lineLength);
-        setRenderedChildren(this.sourceView.code, drawnCode.childNodes);
+        reconcileRuns(this.sourceView.code, drawnCode, previous, text);
+        if (this.lineLength)
+          sizeRuns(this.sourceView.code, text, this.lineLength, this.drawn);
         const width = "--diffs-min-number-column-width-default";
         const drawnWidth = drawnPre.style.getPropertyValue(width);
         if (this.sourceView.pre.style.getPropertyValue(width) !== drawnWidth)

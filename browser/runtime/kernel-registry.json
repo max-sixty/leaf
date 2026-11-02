@@ -136,6 +136,12 @@
       "comment": [
         {
           "when": {
+            "required": ["viewing"]
+          },
+          "text": "The user wrote this with no passage selected, so it has no anchor. `viewing` holds the ids of the sections whose words were on their screen as they wrote it, in page order. Where the comment points at something without naming it, as \"this one\" does, it points into one of those sections."
+        },
+        {
+          "when": {
             "required": ["drawing"]
           },
           "text": "The user drew on the page. `drawing.says`, when present, is the page's text inside the ink's bounding box, from its first word to its last; it is absent where the box covers no words, as over a picture. `drawing.strokes` are coordinates in one frame: the comment's target, or the visual inside it that the optional `drawing.frame` names (CSS pixels for HTML, user units for SVG, intrinsic pixels for an image, canvas or video), and `drawing.box` is that frame's size. To see what the mark covers, run `leaf page picture <page> <message>` with the comment's `id`; it prints the path of a PNG of the revision as the user saw it, with the ink drawn over it. Answer it like any comment; its `text`, if any, explains the mark."
@@ -640,7 +646,13 @@
             "markup": { "type": "string", "minLength": 1 },
             "attempt": { "type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$" },
             "holds": { "type": "string", "minLength": 1 },
-            "obligation": { "const": true }
+            "obligation": { "const": true },
+            "viewing": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": { "type": "string", "minLength": 1 }
+            }
           },
           "required": ["attention", "id", "ts", "author", "kind", "seq", "revision"],
           "additionalProperties": false,

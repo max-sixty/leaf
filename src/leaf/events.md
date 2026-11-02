@@ -10,7 +10,7 @@ so an id is not a global identifier. Each kind's record schema is `$events.kinds
 
 | Kind                                         | Author          | Door                                                                            | Fields                                                                                                                                                                 | Meaning                                                                                                                                                                                       |
 | -------------------------------------------- | --------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| <a id="kind-comment"></a>`comment`           | user or agent   | `POST /api/event`, `leaf thread create`                                         | `text`, `drawing` or `token`; optional `anchor`, `suggestion`, `about: "design"`, `title`, `markup` (CLI only)                                                         | opens a thread; with `token`, puts a reaction mark on the anchor                                                                                                                              |
+| <a id="kind-comment"></a>`comment`           | user or agent   | `POST /api/event`, `leaf thread create`                                         | `text`, `drawing` or `token`; optional `anchor`, `suggestion`, `about: "design"`, `title`, `viewing` (browser), `markup` (CLI only)                                    | opens a thread; with `token`, puts a reaction mark on the anchor                                                                                                                              |
 | <a id="kind-reply"></a>`reply`               | user or agent   | `POST /api/event`, `leaf thread reply`                                          | `parent`; `text` or `token`; `responds` on an agent's answer; `todo`, `markup` and a replacement or null `anchor` (CLI only)                                           | a message in the thread of `parent`; an agent's answer settles the update `responds` names, without closing the thread; an agent reply may also move or detach the thread                     |
 | <a id="kind-edit"></a>`edit`                 | user or agent   | `POST /api/event`, `leaf thread edit`                                           | `message`, `text`; `base` (browser)                                                                                                                                    | replaces the text of a message its own author wrote; the original stays in the log ("Messages")                                                                                               |
 | <a id="kind-read"></a>`read`                 | user            | `POST /api/event`                                                               | `messages: [{message, version}]`                                                                                                                                       | records the agent-content versions the user has read; bookkeeping ("Read state")                                                                                                              |
@@ -60,6 +60,15 @@ move never invents a passage: it falls back to the surviving section or detaches
 reply can choose a new passage. `events.build_threads` reads the latest reply
 transition or `reanchor` as the thread's location and keeps the old anchor as
 `rewritten_from` or `detached_from`; the opening message keeps its quote.
+
+A comment the user writes in the panel with nothing selected is about the whole page and
+has no anchor. The browser records with it `viewing`, the ids of the addressable
+elements around the words on the user's screen as they sent it, in page order
+(`runtime/reading-place.js`, `sectionsInView`), so that on a page showing one section at
+a time the agent can tell which section "this one" meant. It describes what the user
+saw, not where the thread stands: the thread stays on the page, since the user chose to
+comment there. The browser read the ids off the rendered page, so the door checks only
+their shape.
 
 A `drawing` is up to 32 freehand strokes on a comment, and may be its only content. The
 browser anchors it on the element its first stroke starts on or nearest, and records

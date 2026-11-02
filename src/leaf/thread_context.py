@@ -319,6 +319,9 @@ MESSAGE_FIELDS = (
     "markup",
     "drawing",
     "suggestion",
+    # What the user had on screen as they wrote a message with no passage, which is
+    # where its "this one" points once the batch that carried it is gone.
+    "viewing",
     "edited",
 )
 

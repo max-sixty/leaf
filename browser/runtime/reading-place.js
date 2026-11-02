@@ -96,6 +96,7 @@ import {
   scrollersOf,
   shownRegionBounds,
   pageReadingRegion,
+  unconcealedReadingRegions,
 } from "./reading-regions.js";
 import { followingItsEnd } from "./bounds.js";
 import {
@@ -105,7 +106,7 @@ import {
   placeKept,
   scrollToEnd,
 } from "./scrolling.js";
-import { inUi, renderedParent, under, upFrom } from "./shadow.js";
+import { inUi, renderedOrder, renderedParent, under, upFrom } from "./shadow.js";
 import { runtime } from "./context.js";
 import { retainUserIntent } from "./user-intent.js";
 import { recentPlaceInput, focused } from "./focus.js";
@@ -372,6 +373,21 @@ function pageReading({ bodies }) {
   return readingBlock();
 }
 export const pageReadingBlock = () => pageReading({ bodies: false });
+
+// The sections whose words the user sees, by id in page order: the addressable element
+// around each text block on screen, on the page and in every reading region it shows. A
+// comment on the page as a whole records them (events.md, `viewing`), so on a page that
+// shows one section at a time, "this one" still says which.
+export function sectionsInView() {
+  /** @type {Set<Element>} */
+  const sections = new Set();
+  for (const region of [null, ...unconcealedReadingRegions()])
+    for (const [block] of blocksOnScreen(region, textBlocks(region?.body))) {
+      const section = closestAcross(block, ADDRESSABLE);
+      if (section) sections.add(section);
+    }
+  return [...sections].sort(renderedOrder).map(({ id }) => id);
+}
 // A let-go lands beside what it let go of while the user sees it: its first block on
 // screen, or, for a node inside a block, that block. Only failing that is it what they
 // are reading.

@@ -152,6 +152,7 @@ _THREAD_DIGEST = object_schema(
                             "True where the comment is a suggestion.",
                             {"type": "boolean"},
                         ),
+                        "viewing": {"$ref": "leaf:event/comment#/properties/viewing"},
                         "edited": described(
                             "The user's latest rewrite, and the words it replaced.",
                             object_schema(

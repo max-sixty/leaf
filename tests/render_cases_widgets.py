@@ -431,7 +431,10 @@ DIAGRAM_ROOM = """() => {
     const svg = holder.querySelector('svg');
     const board = document.getElementById('plan');
     const main = document.querySelector('main'), ms = getComputedStyle(main);
-    const room = main.clientWidth - parseFloat(ms.paddingLeft) - parseFloat(ms.paddingRight);
+    // The room a breakout may take: the column's prose and the room it pads beside it.
+    const free = (name) => parseFloat(ms.getPropertyValue(name)) || 0;
+    const room = main.clientWidth - parseFloat(ms.paddingLeft) - parseFloat(ms.paddingRight)
+        + free('--lf-free-start') + free('--lf-free-end');
     return { drawn: svg.getBoundingClientRect().width,
              natural: svg.viewBox.baseVal.width,
              box: holder.clientWidth,

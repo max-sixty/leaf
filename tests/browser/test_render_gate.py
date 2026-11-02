@@ -342,8 +342,8 @@ def test_user_view_checks_read_current_geometry_without_changing_the_page(
 
     The same drawing's labels shrink further on a narrower window; large labels are
     clean at desktop and cross the stated threshold on mobile. A closed disclosure's
-    arrangement is no part of the view until opened. The reading includes the native
-    column grid as well as the page's flex rows. Reading leaves
+    arrangement is no part of the view until opened. The column is block flow, so the
+    reading holds only the page's own flex rows. Reading leaves
     the DOM, focus, selection, and scroll position intact.
     """
     source = DRAWN_LABELS_PAGE.replace(
@@ -391,8 +391,7 @@ def test_user_view_checks_read_current_geometry_without_changing_the_page(
     assert desktop["unchanged"] and narrow["unchanged"]
     for result in (desktop, narrow):
         reading = result["reading"]
-        column, arrangement = reading["layout"]["arrangement"]
-        assert column["path"] == "main"
+        (arrangement,) = reading["layout"]["arrangement"]
         assert arrangement["at"] == "<div id=arrangement>"
         assert arrangement["rows"] == "2"
         assert page.locator(arrangement["path"]).get_attribute("id") == "arrangement"
@@ -413,8 +412,7 @@ def test_user_view_checks_read_current_geometry_without_changing_the_page(
     rendered(page)
     opened = read()
     assert opened["unchanged"]
-    column, arrangement, later = opened["reading"]["layout"]["arrangement"]
-    assert column["path"] == "main"
+    arrangement, later = opened["reading"]["layout"]["arrangement"]
     assert arrangement["at"] == "<div id=arrangement>"
     assert later["at"] == "<div id=later-arrangement>"
     assert later["rows"] == "2"

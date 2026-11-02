@@ -2335,7 +2335,10 @@ def test_a_drawing_the_room_can_hold_is_shown_whole(browser, serve):
         const el = document.getElementById('flow');
         const m = document.querySelector('main');
         const s = getComputedStyle(m);
-        const room = m.clientWidth - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight);
+        // The room a breakout may take: the prose and the room the column pads beside it.
+        const free = (name) => parseFloat(s.getPropertyValue(name)) || 0;
+        const room = m.clientWidth - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight)
+            + free('--lf-free-start') + free('--lf-free-end');
         return { shows: el.clientWidth, drawn: el.scrollWidth, room,
                  column: m.querySelector('h1').getBoundingClientRect().width };
     }""")

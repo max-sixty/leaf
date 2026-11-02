@@ -1551,10 +1551,8 @@ def test_the_render_gate_tells_what_a_column_loses_from_what_stands_beside_it(
     off the window, so the clipped sidenote stands on the container-clip page."""
     fixed = """
 <style>
-/* This probe needs a block column: floats and display: contents must retain their
-   ordinary flow behavior rather than becoming items in the document track grid. */
+/* This probe reads what spills past a 720px column with no room beside it. */
 main.layout-column {
-  display: block;
   max-width: 720px;
   margin-inline: auto;
   padding-inline: 0;

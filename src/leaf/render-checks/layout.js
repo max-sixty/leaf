@@ -246,14 +246,15 @@ function marginReading(main) {
   const box = main.getBoundingClientRect();
   // The page's room: the Layout's content box and the room beside its prose that it
   // pads (`--lf-free-start`, `--lf-free-end`, layouts.css), which is the page's too.
+  // Where a page's own padding replaces the column's, only what it pads is room.
   /** @param {string} name */
   const free = (name) => parseFloat(style.getPropertyValue(name)) || 0;
   const [freeLeft, freeRight] =
     style.direction === "rtl"
       ? [free("--lf-free-end"), free("--lf-free-start")]
       : [free("--lf-free-start"), free("--lf-free-end")];
-  const left = box.left + parseFloat(style.paddingLeft) - freeLeft;
-  const right = box.right - parseFloat(style.paddingRight) + freeRight;
+  const left = box.left + Math.max(0, parseFloat(style.paddingLeft) - freeLeft);
+  const right = box.right - Math.max(0, parseFloat(style.paddingRight) - freeRight);
   // Logical floats compute to whichever physical or logical token was written, so
   // resolve them against the element's own direction.
   /** @param {CSSStyleDeclaration} s */

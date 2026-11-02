@@ -458,9 +458,11 @@
     }
   }
   :is(.layout-column, .layout-flow) {
-    /* A failed upgrade draws prose in place of its exhibit. The source scrolls
-     * inside the error box, while its host keeps the prose's measure. */
-    > [data-lf-space]:has(> .lf-error) {
+    /* A failed upgrade draws prose in place of its exhibit, and a page whose runtime
+     * could not start shows each undrawn widget's source. Either is prose, so its host
+     * keeps the prose's measure and the source scrolls inside it. */
+    > [data-lf-space]:has(> .lf-error),
+    html[data-lf-startup-error]:not([data-lf-interactive]) & > [data-lf-space] {
       position: static;
       inline-size: 100%;
       max-inline-size: 100%;

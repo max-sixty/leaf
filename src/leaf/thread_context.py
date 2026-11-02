@@ -1,5 +1,6 @@
 """Thread identity, frozen markup, and bounded delivery context."""
 
+from collections.abc import Callable
 from functools import lru_cache
 from typing import NamedTuple
 
@@ -503,3 +504,61 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
         digest["actions"] = acted
         carried.append(digest)
     return carried
+
+
+def unsent_at_messages(
+    events: list, batch: list, within: dict, unsent: Callable[[dict], bool]
+) -> dict[str, list]:
+    """Input id → the unsent work in force when the user wrote it, on each widget
+    their words were about, for the batch's messages and edits that had any.
+
+    Unsent work (`$state.unsent`) asks for nothing, so no batch carries it, and a
+    message about a playground's preview would reach the agent without the settings
+    the preview showed; current state may hold later ones. `unsent` says whether an
+    action's verb declares it, which takes the page's vocabulary.
+
+    A message is about the widgets enclosing its thread's anchor as it stood then,
+    by `build_threads`' rule, in the live page's containment, and about the widgets
+    sent in its thread. An edit is the user speaking again, so it reads its message's
+    thread at its own position. The walk is the one `thread_memberships` makes, read
+    at each input rather than at the end, so an action undone after it still counts
+    and one undone before it doesn't."""
+    names = thread_names(events)
+    sent_in = thread_widgets(thread_structure(events), names)
+    position = {event["id"]: index for index, event in enumerate(events)}
+    about = {}
+    for event in batch:
+        if event["author"] != "user":
+            continue
+        if event["kind"] in kinds_declaring("message"):
+            thread = names.get(event["id"])
+        elif event["kind"] == "edit":
+            thread = names.get(event["message"])
+        else:
+            continue
+        then = build_threads(events[: position[event["id"]] + 1], within).get(thread)
+        anchor = (then and then["anchor"]) or {}
+        about[event["id"]] = set(within.get(anchor.get("section"), ())) | {
+            widget for widget, holder in sent_in.items() if holder == thread
+        }
+    if not any(about.values()):
+        return {}
+    in_force = InForce(within)
+    found = {}
+    for event in events:
+        if about.get(event["id"]) and (
+            work := [
+                {key: action[key] for key in ACTION_FIELDS}
+                for (widget, _, _), action in in_force.winners().items()
+                if widget in about[event["id"]] and unsent(action)
+            ]
+        ):
+            found[event["id"]] = work
+        kind = event["kind"]
+        if kind == "action":
+            in_force.admit(event)
+        elif kind == "undo":
+            in_force.withdraw(event["undoes"])
+        elif kind == "note":
+            in_force.restate(event)
+    return found

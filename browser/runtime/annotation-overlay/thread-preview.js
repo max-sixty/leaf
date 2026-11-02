@@ -37,6 +37,7 @@
    and target landing; the card keeps Send's focus on the thread that received it. */
 import {
   atScrollEnd,
+  keepFoot,
   moveScrollerBy,
   pageScroller,
   scrollToEnd,
@@ -110,7 +111,7 @@ import { CardAnchor } from "../thread/card-anchor.js";
  * positionFrame: number, positionResult: PromiseWithResolvers<boolean> | null,
  * focusPending: {holding: Element | null} | null, withheldFocus: ReturnType<typeof holdFocus>,
  * transcript: HTMLElement | null, place: ReturnType<typeof placeKeeper> | null,
- * stopRegion: (() => void) | null, side: ReturnType<typeof commentPlacement>, anchor: CardAnchor,
+ * stopRegion: (() => void) | null, stopFoot: (() => void) | null, side: ReturnType<typeof commentPlacement>, anchor: CardAnchor,
  * reading: {input: number, scroll: number, end: boolean} | null, itemView: {node: HTMLElement, body: HTMLElement} | null, width: number | null, scroller: Element, followed: boolean}} Session
  * @typedef {{latest: boolean, end: boolean, scroll: number, keepTop: boolean, transcript: HTMLElement}} Reading
  */
@@ -213,7 +214,20 @@ export function createThreadPreview({
     if (!preview.hasAttribute("data-lf-thread-placement")) return following.forget();
     following.follow();
   };
-  const followed = sizeObserver(followCard);
+  // A change of the card's size can move its placement too, as a line taking it past
+  // the window's foot holds it there, so the reading waits for the placement it asks
+  // for, which lands before this frame paints (box-motion.js, `placed`). A card being
+  // carried stands where the pointer holds it.
+  const followed = sizeObserver(() => {
+    const session = previewSession;
+    if (
+      session &&
+      preview.hasAttribute("data-lf-thread-placement") &&
+      !preview.hasAttribute("data-lf-carried")
+    )
+      void placedThreadPreview(session).then((stands) => stands && followCard());
+    else followCard();
+  });
   const following = boxMotion({
     // The face is the root, so the grip beside it, whose clip opens its middle to
     // the card's own presses, is never cut by the motion.
@@ -341,6 +355,12 @@ export function createThreadPreview({
     session.stopRegion?.();
     session.stopRegion = null;
     session.transcript = transcript;
+    // The transcript stands on its foot beside the reply box: a reader at its end keeps
+    // the turn there beside the box as the box takes room from it or gives it back,
+    // whatever changed the box, and one read back keeps their offset, as the card hangs
+    // from its passage (scrolling.js, `keepFoot`).
+    session.stopFoot?.();
+    session.stopFoot = transcript ? keepFoot(transcript, { atEnd: true }) : null;
     session.place = transcript
       ? placeKeeper(transcript, {
           items: ".lf-msg[data-event]",
@@ -424,6 +444,7 @@ export function createThreadPreview({
     cancelRender(session.positionFrame);
     placementDriver.supersede();
     session.stopRegion?.();
+    session.stopFoot?.();
     preview.style.removeProperty("visibility");
     previewSession = null;
   }
@@ -678,9 +699,13 @@ export function createThreadPreview({
         const { scale } = session.side.landed(position);
         anchored.commit();
         // An unchanged declaration is the browser's own no-op, and `keeps` is the rest's.
-        placementDriver.stand(position);
+        // A drag the grip carried ends where the placement stands the card.
+        following.placed(() => {
+          const moved = placementDriver.stand(position);
+          carry.placed();
+          return moved;
+        });
         session.width ??= preview.getBoundingClientRect().width;
-        carry.placed();
         preview.style.removeProperty("visibility");
         session.withheldFocus?.();
         session.withheldFocus = null;
@@ -789,6 +814,7 @@ export function createThreadPreview({
       place: null,
       reading: null,
       stopRegion: null,
+      stopFoot: null,
       side: commentPlacement(),
       anchor: new CardAnchor(preview),
       // The width the card stands at for this selection, in client pixels: the box's

@@ -143,7 +143,7 @@ def stranded_quotes(page):
     stranded = []
     for thread_id in ids:
         quote = thread_quote(page, thread_id)
-        if quote.count() and "detached" in quote.get_attribute("class").split():
+        if quote.count() and quote.get_attribute("data-lf-detached") is not None:
             stranded.append(quote.inner_text())
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
@@ -419,7 +419,7 @@ def test_a_revision_preserves_every_open_quoted_thread(browser, serve):
         quote = thread_quote(page, root["id"])
         expect(quote).to_contain_text(f"“{root['anchor']['quote']}”")
         expect(quote.locator(".lf-anchor-status")).to_have_text("Changed")
-        expect(quote).not_to_have_class(re.compile(r"\bdetached\b"))
+        expect(quote).not_to_have_attribute("data-lf-detached", "")
         expect(page.locator(f"{PANEL_THREAD} .lf-msg")).to_have_count(1)
     moves = [
         event
@@ -554,7 +554,7 @@ def test_quotes_cross_preserving_containers_and_remain_attached(browser, serve, 
     page.reload()
     held = thread_quote(page, comment_ids(serve.page_dir)[-1])
     expect(held).to_have_text(f"“{quote}”")
-    expect(held).not_to_have_class(re.compile("detached"))
+    expect(held).not_to_have_attribute("data-lf-detached", "")
 
 
 def test_monitoring_regions_share_one_collaboration_layer(browser, serve):
@@ -3443,7 +3443,7 @@ def test_an_ambiguous_revised_passage_keeps_its_section_until_the_agent_moves_it
     told(page)
 
     quote = thread_quote(page, root["id"])
-    expect(quote).not_to_have_class(re.compile(r"\bdetached\b"))
+    expect(quote).not_to_have_attribute("data-lf-detached", "")
     expect(quote).to_contain_text(revised_passage)
     painted = page.evaluate(
         "() => [...(CSS.highlights.get('lf-mark') ?? [])]"
@@ -3514,7 +3514,7 @@ def test_a_removed_subject_keeps_its_thread_open_and_detached(browser, serve):
     assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
     quote = thread_quote(page, root["id"])
     expect(quote).to_contain_text("The version stamp never lands")
-    expect(quote).to_have_class(re.compile(r"\bdetached\b"))
+    expect(quote).to_have_attribute("data-lf-detached", "")
     expect(quote).to_have_attribute("title", re.compile("no longer"))
     # With nowhere on the page to go, the view offers no way there.
     expect(
@@ -3833,15 +3833,17 @@ def test_a_thread_whose_quote_was_rewritten_keeps_its_words(browser, serve):
 def test_a_changed_block_shows_an_inline_diff_against_the_base_version(browser, serve):
     """The other half of a comparison is one inline reading of what changed.
 
-    The Change margin entry is a disclosure per block. Its press inserts dropped
-    text at its aligned boundary and highlights added words in the current prose, so the
-    user need not compare the paragraph with a second copy underneath. Rewritten
+    The Change margin entry is a disclosure per change, a run of changed blocks with no
+    unchanged one between them, which opens and closes together. Its press inserts
+    dropped text at each aligned boundary and highlights added words in the current
+    prose, so the user need not compare the paragraph with a second copy underneath. Rewritten
     sentences stay whole; a local edit is refined to its words. Generated historical
     words stay outside the authored passage: the existing comment remains attached and
     selection still reads the current version alone.
 
     The authored pair supplies the contrasts: one rewritten paragraph with a surviving
-    and a replaced sentence, one new paragraph, and one new list item."""
+    and a replaced sentence, and the new paragraph after it, which make one change; a
+    rewritten heading and lede, another; and one new list item, the third."""
     example = next(p for p in EXAMPLES if p.stem == "log-retention")
     page = open_page(browser, serve(example))
     compare_with(page, 1)
@@ -3859,17 +3861,18 @@ def test_a_changed_block_shows_an_inline_diff_against_the_base_version(browser, 
     # press, which is what the margin entry said before it had one to make.
     expect(rewritten.locator(".lf-margin-entry-context")).to_have_text("v1 → v2")
 
-    # Page Map carries the same provenance on each changed-passage row. The account
-    # stays distinct from the versions, and both remain searchable away from the passage.
+    # Page Map carries the same provenance on each change's row, which says where the
+    # change starts and how many blocks follow it. The account stays distinct from the
+    # versions, and both remain searchable away from the passage.
     page.keyboard.press("g")
     page.keyboard.press("Shift+p")
     sheet = page.get_by_role("dialog", name="Page Map", exact=True)
     mapped = sheet.locator('[data-lf-map-item^="change:"]').filter(has_text="v1 → v2")
-    expect(mapped).to_have_count(5)
-    paragraph = mapped.filter(has_text="paragraph changed · Two years")
+    expect(mapped).to_have_count(3)
+    paragraph = mapped.filter(has_text="paragraph and 1 more changed · Two years")
     expect(paragraph).to_have_count(1)
     expect(paragraph.locator(".lf-page-map-action-label-word")).to_have_text(
-        re.compile(r"^paragraph changed · ")
+        re.compile(r"^paragraph and 1 more changed · ")
     )
     expect(paragraph.locator(".lf-page-map-action-context")).to_have_text("v1 → v2")
     expect(paragraph).to_have_attribute(
@@ -3887,7 +3890,8 @@ def test_a_changed_block_shows_an_inline_diff_against_the_base_version(browser, 
     expect(label).to_have_css("clip-path", "inset(50%)")
     expect(rewritten).to_have_attribute("aria-expanded", "true")
     expect(rewritten).to_have_attribute(
-        "aria-controls", "lf-version-inline-ret-cost-body"
+        "aria-controls",
+        "lf-version-inline-ret-cost-body lf-version-inline-ret-cost-keep",
     )
     struck = page.locator("#ret-cost-body > .lf-version-inline-deletion del")
     expect(struck).to_have_count(1)
@@ -3902,20 +3906,19 @@ def test_a_changed_block_shows_an_inline_diff_against_the_base_version(browser, 
 
     # The press reports the move where the panel says a moment's news.
     expect_panel_says(
-        page, "paragraph changed since v1 · showing an inline diff from v1"
+        page, "paragraph and 1 more changed since v1 · showing an inline diff from v1"
     )
 
-    # A passage the revision added has no counterpart to show, so the inline label says
-    # that directly and the block keeps its all-new wash.
-    added = page.locator(
-        '[data-lf-margin-for="ret-cost-keep"] [data-lf-kinds~="change"]'
-    )
-    added.click()
+    # The paragraph the revision added in the same change opened with it. It has no
+    # counterpart to show, so the inline label says that directly and the block keeps
+    # its all-new wash.
     expect(page.locator("#ret-cost-keep > .lf-version-inline-label")).to_have_text(
         "New since v1"
     )
     expect(page.locator("#ret-cost-keep .lf-version-inline-deletion")).to_have_count(0)
-    expect_panel_says(page, "paragraph changed since v1 · v1 had nothing here")
+    expect(
+        page.locator('[data-lf-margin-for="ret-cost-keep"] [data-lf-kinds~="change"]')
+    ).to_have_count(0)
 
     # And the same inside a list item, where a sibling would be markup no <ol> may hold.
     step = page.locator(
@@ -3925,6 +3928,7 @@ def test_a_changed_block_shows_an_inline_diff_against_the_base_version(browser, 
     expect(page.locator("#ret-steps-carve > .lf-version-inline-label")).to_have_text(
         "New since v1"
     )
+    expect_panel_says(page, "item changed since v1 · v1 had nothing here")
     expect(
         page.locator(
             "main ol > .lf-version-inline-label, main ul > .lf-version-inline-label"
@@ -3941,8 +3945,9 @@ def test_a_changed_block_shows_an_inline_diff_against_the_base_version(browser, 
     # highlight with the marks.
     rewritten.click()
     expect(page.locator("#ret-cost-body > .lf-version-inline-label")).to_have_count(0)
+    expect(page.locator("#ret-cost-keep > .lf-version-inline-label")).to_have_count(0)
     expect(rewritten).to_have_attribute("aria-expanded", "false")
-    expect(page.locator(".lf-version-inline-label")).to_have_count(2)
+    expect(page.locator(".lf-version-inline-label")).to_have_count(1)
     compare_with(page, 1)
     expect(page.locator(".lf-version-inline-label")).to_have_count(0)
     expect(page.locator("main .lf-ins-block")).to_have_count(0)
@@ -4719,7 +4724,7 @@ def test_a_datum_comment_reveals_its_shadow_host_and_outer_tab(browser, serve):
     patch_tab = page.locator("#patch-tab")
     expect(patch_tab).to_have_attribute("hidden", re.compile(".*"))
     quote = thread_quote(page, comment_ids(serve.page_dir)[0])
-    expect(quote).not_to_have_class(re.compile(r"\bdetached\b"))
+    expect(quote).not_to_have_attribute("data-lf-detached", "")
 
     show_on_page(page)
 
@@ -4842,7 +4847,7 @@ def test_a_deferred_diff_renders_only_opened_files_and_hydrates_comment_travel(
         resized(page, 400, 900)
     [thread] = comment_ids(serve.page_dir)
     quote = thread_quote(page, thread)
-    expect(quote).not_to_have_class(re.compile(r"\bdetached\b"))
+    expect(quote).not_to_have_attribute("data-lf-detached", "")
     show_on_page(page, key=activation == "keyboard")
     page.wait_for_function("typeof window.__leafReleaseDeferred === 'function'")
     search = page.locator("lf-diff .lf-diff-search input")

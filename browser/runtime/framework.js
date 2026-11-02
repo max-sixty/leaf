@@ -7,7 +7,6 @@ export {
   AsyncDirective,
   LitElement,
   PartType,
-  classMap,
   createRef,
   directive,
   guard,
@@ -19,8 +18,6 @@ export {
   ref,
   render,
   repeat,
-  styleMap,
-  unsafeHTML,
 } from "/vendor/lit.js";
 export {
   SignalWatcher,

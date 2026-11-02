@@ -38,6 +38,7 @@ from browser.margin import (
     LONG_THREAD,
     LONG_THREAD_PAGE,
     LONG_THREAD_ROOT,
+    LOW_PASSAGE_PAGE,
     MARGIN_EDITOR_ROOTS,
     PANE_PIN_PAGE,
     _comment_on,
@@ -544,6 +545,76 @@ def test_a_press_on_a_moving_card_reaches_what_it_aims_at(browser, serve):
     expect(preview).to_be_hidden()
 
 
+# Every motion held at its first frame is finished, until the card rests.
+CARD_RELEASED = (
+    "() => { window.__lfHeld.splice(0).forEach(motion => motion.finish());"
+    " return (" + CARD_AT_REST + ")(); }"
+)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_line_that_changes_the_edge_holding_a_card_moves_it_from_where_it_stood(
+    engine, request, serve
+):
+    """A card whose foot stands within a line of where the window's foot holds a card
+    is held by that foot once its reply gains a line, which shows at once, and stands
+    beside its passage again once the line goes, which travels. The travel starts from
+    where the card stood held: at the motion's first frame its outline, head row and
+    turn are drawn where they were, and at rest the card has moved down. Read by the
+    edge holding the card after the line went, its placement's move read as the page
+    carrying it, which drew it part of a line lower for a frame before it travelled back
+    (reported on 31 October 2026 in Firefox)."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(LOW_PASSAGE_PAGE, events=[LONG_THREAD_ROOT]),
+    )
+    page.emulate_media(reduced_motion="no-preference")
+    resized(page, 1440, 900)
+    page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_be_visible()
+    editor = preview.get_by_role("textbox", name="Reply", exact=True)
+    editor.click()
+    write(editor, "A first line.")
+
+    def foot_after_scrolling(by):
+        page.evaluate("by => document.scrollingElement.scrollBy(0, by)", by)
+        scroll_settled(page)
+        rendered(page)
+        page.wait_for_function(CARD_AT_REST)
+        box = preview.bounding_box()
+        return box["y"] + box["height"]
+
+    # The passage at the window's foot stands the card against it; scrolled well up,
+    # the card stands beside its passage, and a scroll back stands its foot half a line
+    # above where the window's holds it.
+    page.locator("#open").evaluate("node => node.scrollIntoView({block: 'end'})")
+    held = foot_after_scrolling(0)
+    beside = foot_after_scrolling(400)
+    assert beside < held - 100, (held, beside)
+    assert foot_after_scrolling(-(held - 10 - beside)) == pytest.approx(
+        held - 10, abs=1
+    )
+    page.evaluate("() => {" + HOLD_MOTION + "}")
+    stood = preview.evaluate(CARD_DRAWN)
+    page.keyboard.press("Shift+Enter")
+    rendered(page)
+    held_up = preview.evaluate(CARD_DRAWN)
+    assert held_up[0] < stood[0] - 5, (
+        f"a line held the card nowhere: {stood} -> {held_up}"
+    )
+    page.wait_for_function(CARD_RELEASED)
+    page.keyboard.press("Backspace")
+    page.wait_for_function(
+        "() => window.__lfHeld.some(motion => motion.playState !== 'idle')"
+    )
+    drawn = preview.evaluate(CARD_DRAWN)
+    page.wait_for_function(CARD_RELEASED)
+    rest = preview.evaluate(CARD_DRAWN)
+    assert rest[0] > held_up[0] + 5, f"the line went and the card stayed: {rest}"
+    assert drawn == pytest.approx(held_up, abs=1), f"{held_up} -> {drawn}"
+
+
 def test_a_growing_margin_reply_keeps_its_whole_ring_from_the_first_frame(
     browser, serve
 ):
@@ -677,6 +748,27 @@ def test_a_growing_margin_reply_keeps_the_previous_turn_visible(browser, serve):
     assert visible["tail"] >= visible["top"] + 20, visible
     assert visible["tail"] <= visible["editor"], visible
     assert editor.evaluate("input => input.scrollTop > 0")
+
+
+def test_a_card_at_its_end_keeps_its_last_turn_as_the_window_shortens(browser, serve):
+    """A transcript standing at its end keeps its last turn beside the reply box
+    whatever takes its room, here the window shortening. The card read whether it
+    stood at its end as it refitted, after the room had already gone, so the last
+    turn slid under the reply box by the height the window lost."""
+    page = open_page(browser, serve(LONG_THREAD_PAGE, events=LONG_THREAD))
+    page.emulate_media(reduced_motion="reduce")
+    resized(page, 1440, 900)
+    page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
+    transcript = page.locator(".lf-margin-preview .lf-thread-transcript")
+    expect(transcript).to_be_visible()
+    rendered(page)
+    past_end = "list => list.scrollHeight - list.clientHeight - list.scrollTop"
+    assert transcript.evaluate(past_end) <= 1
+    room = transcript.evaluate("list => list.clientHeight")
+    resized(page, 1440, 700)
+    rendered(page)
+    assert transcript.evaluate("list => list.clientHeight") < room - 100
+    assert transcript.evaluate(past_end) <= 1
 
 
 @pytest.mark.parametrize("comment_repeats", [0, 17])
@@ -1695,7 +1787,7 @@ def test_sending_during_a_stream_keeps_later_tokens_from_moving_the_reading(
     resized(page, 1440, 900)
     page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
     card = page.locator(".lf-margin-preview")
-    streamed = card.locator(".lf-msg.agent .lf-msg-text")
+    streamed = card.locator(".lf-msg[data-lf-author=agent] .lf-msg-text")
     expect(streamed).to_have_text("The answer has started.")
 
     read_positions = """card => ({
@@ -1742,7 +1834,9 @@ def test_sending_during_a_stream_keeps_later_tokens_from_moving_the_reading(
     page.route("**/api/event", hold_reply)
     card.locator(".lf-thread-reply .lf-compose-submit").click()
     holding(page, held, 1, "the reply")
-    sent = card.locator(".lf-msg.user").filter(has_text="Also include the date.")
+    sent = card.locator(".lf-msg[data-lf-author=user]").filter(
+        has_text="Also include the date."
+    )
     expect(sent).to_be_visible()
     expect(sent).to_have_attribute("aria-busy", "true")
     expect(streamed).to_have_text(waiting.strip())
@@ -1833,7 +1927,7 @@ def test_sending_during_a_stream_keeps_later_tokens_from_moving_the_reading(
         return card.evaluate("""card => {
           const transcript = card.querySelector('.lf-thread-transcript');
           const bounds = transcript.getBoundingClientRect();
-          const words = card.querySelector('.lf-msg.agent .lf-msg-text');
+          const words = card.querySelector('.lf-msg[data-lf-author=agent] .lf-msg-text');
           const walker = document.createTreeWalker(words, NodeFilter.SHOW_TEXT);
           const range = document.createRange();
           let text, offset = 0;

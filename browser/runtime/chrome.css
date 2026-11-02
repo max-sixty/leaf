@@ -419,16 +419,16 @@ html[data-lf-region-capture] main * {
     -webkit-mask: url("/icon.svg") center / contain no-repeat;
     mask: url("/icon.svg") center / contain no-repeat;
   }
-  .lf-dot:where(.working) {
+  .lf-dot:where([data-lf-tone="working"]) {
     background: var(--accent);
   }
-  .lf-dot:where(.listening) {
+  .lf-dot:where([data-lf-tone="listening"]) {
     background: var(--ok);
   }
-  .lf-dot:where(.away) {
+  .lf-dot:where([data-lf-tone="away"]) {
     background: var(--warn);
   }
-  .lf-dot:where(.blocked) {
+  .lf-dot:where([data-lf-tone="blocked"]) {
     background: var(--danger);
   }
 
@@ -470,7 +470,7 @@ html[data-lf-region-capture] main * {
     color: var(--ink-2);
   }
 
-  .lf-quote.detached {
+  .lf-quote[data-lf-detached] {
     border-inline-start-color: var(--border-2);
     color: var(--muted);
     cursor: default;

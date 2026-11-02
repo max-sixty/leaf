@@ -482,7 +482,9 @@ def message_as_drawn(thread, message):
         "says": message.locator(".lf-msg-meta").inner_text(),
         "lines": message.evaluate(WORD_LINES),
         "picture": picture.bounding_box(),
-        "answer": thread.locator(".lf-msg.agent").first.bounding_box()["y"],
+        "answer": thread.locator(".lf-msg[data-lf-author=agent]").first.bounding_box()[
+            "y"
+        ],
         "height": message.bounding_box()["height"],
     }
 
@@ -542,7 +544,9 @@ def test_a_package_feed_keeps_a_rewrite_where_a_card_would(browser, serve):
     page, workspace, message = _rewrite_surface(browser, serve, "feed")
     mine = message.get_attribute("data-event")
     feed = workspace.get_by_role("button", name="Feed", exact=True)
-    expect(workspace.locator(".lf-msg.agent .lf-msg-edit")).to_have_count(0)
+    expect(
+        workspace.locator(".lf-msg[data-lf-author=agent] .lf-msg-edit")
+    ).to_have_count(0)
 
     message.hover()
     message.get_by_role("button", name="Edit message").click()
@@ -647,7 +651,9 @@ def test_one_unchanged_rewrite_stands_open_in_a_thread_across_its_readers(
     message.locator(".lf-msg-text").dblclick()
     expect(message.locator(".lf-msg-editor leaf-text")).to_be_focused()
     page.locator('[data-lf-margin-for="cd-q"] .lf-margin-marker').click()
-    said = page.locator(".lf-margin-preview .lf-msg.user").filter(has_text="Thanks.")
+    said = page.locator(".lf-margin-preview .lf-msg[data-lf-author=user]").filter(
+        has_text="Thanks."
+    )
     # Named by its id, since an open rewrite holds its words in the box, not as text.
     thanks = page.locator(
         f'.lf-margin-preview .lf-msg[data-event="{said.get_attribute("data-event")}"]'

@@ -248,7 +248,6 @@ function createApplication(dependencies) {
       applicationState.settleMarkRead(messages);
     }
   };
-  // Arrival marking is disabled while marks tied to Versions are considered.
   const read = createReadTracking({
     markRead,
     openThread: openPageThread,

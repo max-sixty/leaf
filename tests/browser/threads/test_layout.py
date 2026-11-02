@@ -258,7 +258,9 @@ def test_a_squeezed_head_gives_up_one_part_at_a_time(browser, serve):
     context = browser.new_context(viewport={"width": 1440, "height": 900})
     page = open_page(browser, url, context=context)
     page.locator(".lf-margin-marker").first.click()
-    head = page.locator(".lf-margin-preview .lf-msg.user > .lf-msg-head").first
+    head = page.locator(
+        ".lf-margin-preview .lf-msg[data-lf-author=user] > .lf-msg-head"
+    ).first
     expect(head.locator(".lf-msg-sending")).to_contain_text("Queued")
     squeeze = head.evaluate(SQUEEZED_HEAD)
     parts, least, steps = squeeze["parts"], squeeze["least"], squeeze["steps"]

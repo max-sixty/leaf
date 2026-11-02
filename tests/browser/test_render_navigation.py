@@ -417,3 +417,6 @@ def test_an_external_link_says_and_opens_where_it_goes(
     tab = opened_tab(page, destination, external.click)
     expect(tab).to_have_url(f"{other_url}/")
     expect(page).to_have_url(url.split("?", 1)[0])
+
+
+import pytest

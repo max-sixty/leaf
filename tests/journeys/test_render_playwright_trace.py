@@ -2380,6 +2380,131 @@ def test_trace_frames_retain_saved_elements_and_disclosure_stays_closable(
     )
 
 
+def test_trace_play_press_belongs_to_its_pointer_click(browser, serve):
+    """A held Pause keeps its meaning; a canceled press leaves keyboard Play free."""
+    source = ROOT / "examples/developer/playwright-trace-gallery.html"
+    user = browser.new_page()
+    user.goto(serve(source))
+    wait_until_ready(user)
+    widget = user.locator("lf-trace")
+    play = widget.get_by_role("button", name="Play", exact=True)
+    pause = widget.get_by_role("button", name="Pause", exact=True)
+    # Hold the recording clock first: on the wall clock, playback can end before
+    # a loaded runner's next click reaches Pause.
+    user.clock.install(time=0)
+    user.clock.pause_at(1)
+    play.click()
+    pause.click()
+    for canceled in (True, False):
+        widget.get_by_role("button", name="Start", exact=True).click()
+        play.click()
+        expect(pause).to_be_visible()
+        box = pause.bounding_box()
+        user.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+        user.mouse.down()
+        if canceled:
+            user.mouse.move(box["x"] + box["width"] + 60, box["y"] + 100)
+            user.mouse.up()
+        # Playback may wait for an image to decode. Let its clock continue after
+        # that asynchronous work instead of advancing a fixed span while paused.
+        user.clock.resume()
+        expect(play).to_be_visible()
+        user.clock.pause_at(user.evaluate("() => Date.now() / 1000") + 1)
+        if not canceled:
+            user.mouse.up()
+            expect(play).to_be_visible()
+        play.focus()
+        play.press("Enter")
+        expect(pause).to_be_visible()
+        pause.click()
+
+
+from browser.test_render_playwright_trace import (
+    LANDED_ROW,
+    assert_row_shown,
+    scrolled_closed_tree,
+)
+from render_harness import (
+    scroll_settled,
+)
+
+
+def test_trace_results_can_be_read_and_compared_on_a_phone(browser, serve):
+    """Result names stay readable and switching recordings keeps their evidence in view."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True
+    )
+    page = open_page(
+        browser, serve(ROOT / "examples/review-a-fix.html"), context=context
+    )
+    for recording, label in [("before", "Before the fix"), ("after", "After the fix")]:
+        page.get_by_role("radio", name=label, exact=True).tap()
+        image = page.locator(f"#fix-{recording} .lf-trace-image-viewport")
+        if recording == "after":
+            expect(image).to_be_in_viewport(ratio=1)
+        moment = page.locator(f"#fix-{recording} .lf-trace-bookmark").last
+        moment.scroll_into_view_if_needed()
+        measured = moment.evaluate("""row => {
+          const label = row.querySelector('.lf-trace-moment-label');
+          const box = row.getBoundingClientRect();
+          const range = document.createRange();
+          range.selectNodeContents(label);
+          return {horizontal: label.scrollWidth - label.clientWidth,
+            words: [...range.getClientRects()].every(r =>
+              r.left >= box.left && r.right <= box.right &&
+              r.top >= box.top && r.bottom <= box.bottom)};
+        }""")
+        assert measured["horizontal"] <= 1, measured
+        assert measured["words"], measured
+        moment.tap()
+        expect(image).to_be_in_viewport(ratio=1)
+        expect(page.locator(".lf-trace-compare-controls")).to_be_in_viewport(ratio=1)
+
+    page.get_by_role("radio", name="After the fix", exact=True).press("Tab")
+    start = page.locator("#fix-after").get_by_role("button", name="Start", exact=True)
+    expect(start).to_be_focused()
+    scroll_settled(page)
+    chooser = page.locator(".lf-trace-compare-controls").bounding_box()
+    assert start.bounding_box()["y"] >= chooser["y"] + chooser["height"]
+
+
+@pytest.mark.parametrize("motion", ["no-preference", "reduce"])
+def test_trace_moment_lands_its_saved_element_over_the_trees_reading(
+    browser, serve, motion
+):
+    """A Moment naming a saved element shows its row in the tree and the page.
+
+    The reader scrolled this checkpoint's tree and closed it, so opening the tree
+    has a reading to restore. The Moment's landing is newer and stands. Its
+    checkpoint is already shown, so no image decode delays the landing past the
+    restore; that delay is what let this pass on some runs. Smooth motion is cut
+    short by any later scroll write, so both motions run. A row inside the window
+    but below the tree's own box is not shown either.
+    """
+    user, widget, _ = scrolled_closed_tree(browser, serve, motion)
+    saved = widget.locator(".lf-trace-bookmarks").get_by_role(
+        "button", name=re.compile("Saved element")
+    )
+    saved.click()
+    landed = user.evaluate(LANDED_ROW)
+    assert landed["open"]
+    assert_row_shown(landed)
+
+    # The open tree back at its start, its top near the window's: the row is
+    # inside the window, below what the tree shows.
+    user.set_viewport_size({"width": 1280, "height": 900})
+    rendered(user)
+    widget.locator(".lf-trace-tree").evaluate(
+        "tree => { tree.scrollTop = 0;"
+        " scrollBy(0, tree.getBoundingClientRect().top - 120); }"
+    )
+    rendered(user)
+    saved.evaluate("button => button.click()")
+    landed = user.evaluate(LANDED_ROW)
+    user.context.close()
+    assert_row_shown(landed)
+
+
 def test_trace_replaces_captures_without_blank_pixels_or_layout_displacement(
     browser, serve
 ):
@@ -2512,42 +2637,3 @@ def test_trace_replaces_captures_without_blank_pixels_or_layout_displacement(
         <= 1
     ), frames
     expect(widget.locator(".viewer-container")).to_have_count(1)
-
-
-def test_trace_play_press_belongs_to_its_pointer_click(browser, serve):
-    """A held Pause keeps its meaning; a canceled press leaves keyboard Play free."""
-    source = ROOT / "examples/developer/playwright-trace-gallery.html"
-    user = browser.new_page()
-    user.goto(serve(source))
-    wait_until_ready(user)
-    widget = user.locator("lf-trace")
-    play = widget.get_by_role("button", name="Play", exact=True)
-    pause = widget.get_by_role("button", name="Pause", exact=True)
-    # Hold the recording clock first: on the wall clock, playback can end before
-    # a loaded runner's next click reaches Pause.
-    user.clock.install(time=0)
-    user.clock.pause_at(1)
-    play.click()
-    pause.click()
-    for canceled in (True, False):
-        widget.get_by_role("button", name="Start", exact=True).click()
-        play.click()
-        expect(pause).to_be_visible()
-        box = pause.bounding_box()
-        user.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
-        user.mouse.down()
-        if canceled:
-            user.mouse.move(box["x"] + box["width"] + 60, box["y"] + 100)
-            user.mouse.up()
-        # Playback may wait for an image to decode. Let its clock continue after
-        # that asynchronous work instead of advancing a fixed span while paused.
-        user.clock.resume()
-        expect(play).to_be_visible()
-        user.clock.pause_at(user.evaluate("() => Date.now() / 1000") + 1)
-        if not canceled:
-            user.mouse.up()
-            expect(play).to_be_visible()
-        play.focus()
-        play.press("Enter")
-        expect(pause).to_be_visible()
-        pause.click()

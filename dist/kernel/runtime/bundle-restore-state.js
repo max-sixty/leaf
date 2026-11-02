@@ -1,6 +1,5 @@
-import { composedParentNode, exceptionRecord, excludedByInert, pagePresented, pageUpgraded, renderedUnder, sizeObserver, tabStore } from "./bundle-portable.js";
-import { canPlaceFocus, focusDestination, focused, nativeLayers, onCurrentLocation, onUserInput, recoveredLabelFocus, takesLetters } from "./bundle-layer-stack.js";
-import { EVERYTHING, allBindings, answers, bindingEnabledFor, bindings, commandEntries, commandReady, commandRoutes, commandRun, declaredBindings, descriptionOf, live, nativeActivationAt, nativeClaimAt, quickShortcuts, referencedCommandEntry, routedCommand, runLanding, scopeAvailable, scopeIdentity, scopesAt, scopesFor, spell, titleOf, word } from "./bundle-layer-client.js";
+import { canPlaceFocus, composedParentNode, exceptionRecord, excludedByInert, focusDestination, focused, nativeLayers, onCurrentLocation, onUserInput, pagePresented, pageUpgraded, recoveredLabelFocus, renderedUnder, sizeObserver, tabStore, takesLetters } from "./bundle-portable.js";
+import { EVERYTHING, allBindings, answers, bindingEnabledFor, bindings, commandEntries, commandReady, commandRoutes, commandRun, declaredBindings, descriptionOf, live, nativeActivationAt, nativeClaimAt, quickShortcuts, referencedCommandEntry, routedCommand, runLanding, scopeAvailable, scopeIdentity, scopesAt, scopesFor, spell, titleOf, word } from "./bundle-errors.js";
 import { whenArrived } from "./bundle-content-layout.js";
 import { DESIGN_MODE_KEY, ELEMENTS, pageScopes, stances, textEntryScopes, universalCommandReference } from "./bundle-data.js";
 
@@ -138,6 +137,30 @@ if (child) {
 	});
 	inspect();
 }
+
+//#endregion
+//#region runtime/stylesheets.js
+const delivery = document.querySelector("script[type=\"application/json\"][data-lf-runtime][data-lf-sheets]");
+if (!delivery) throw new Error("The document has no runtime stylesheets");
+const sheets = JSON.parse(delivery.textContent);
+function constructSheet(text) {
+	const sheet = new CSSStyleSheet();
+	sheet.replaceSync(text);
+	return sheet;
+}
+const chromeSheet = constructSheet(sheets.chrome);
+const chromeSharedClasses = Object.freeze([
+	"lf-aiming",
+	"lf-over-item",
+	"lf-react-mark",
+	"lf-mark-note",
+	"lf-ui",
+	"lf-version-inline-deletion",
+	"lf-visual-action"
+]);
+const marksSheet = constructSheet(sheets.marks);
+const annotationMarkSheets = sheets.annotations ? [constructSheet(sheets.annotations.marks)] : [];
+const annotationSheets = sheets.annotations ? [constructSheet(sheets.annotations.chrome), ...annotationMarkSheets] : [];
 
 //#endregion
 //#region runtime/keyboard/dispatch.js
@@ -459,4 +482,4 @@ function restoreUserView({ setDesignMode }) {
 }
 
 //#endregion
-export { ANNOTATIONS_KEY, USER_VIEW_RESTORE_CASES, activeCommandLabel, answerCloseRequest, availableCommandRoutes, dispatchKey, escapeTakesAStep, executeCommand, innermostStance, invokePress, keyReady, onSampleNotice, registerSampleCommand, restoreUserView, sampleNotice, stack, userIn };
+export { ANNOTATIONS_KEY, USER_VIEW_RESTORE_CASES, activeCommandLabel, annotationMarkSheets, annotationSheets, answerCloseRequest, availableCommandRoutes, chromeSharedClasses, chromeSheet, dispatchKey, escapeTakesAStep, executeCommand, innermostStance, invokePress, keyReady, marksSheet, onSampleNotice, registerSampleCommand, restoreUserView, sampleNotice, stack, userIn };

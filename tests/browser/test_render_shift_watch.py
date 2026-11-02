@@ -4030,16 +4030,23 @@ motion.pause();motion.currentTime=150;
     paint(page)
     page.locator("#start").click()
     paint(page)
+    before = page.locator("#control").bounding_box()
     page.evaluate(
         """({fault, guard}) => {
           motion.currentTime = 800;
           // A removed anchor must not own an equal independent displacement.
-          if (fault) tip.style.marginLeft = ['wins', 'lower'].includes(guard) ? '130px' : '55px';
+          // The important rollback must not cancel the injected margin itself.
+          if (fault) tip.style.setProperty('margin-left',
+            ['wins', 'lower'].includes(guard) ? '130px' : '55px',
+            guard === 'lower' ? 'important' : '');
           trigger.style.left = '40px';
         }""",
         {"fault": fault, "guard": guard},
     )
     paint(page)
+    after = page.locator("#control").bounding_box()
+    expected = (130 if guard in {"wins", "lower"} else 185) if fault else 130
+    assert after["x"] - before["x"] == pytest.approx(expected)
     judge_watches()
     errors = take_browser_errors(page)
     assert names_move(errors, "p#trigger"), errors

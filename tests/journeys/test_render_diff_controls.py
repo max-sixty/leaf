@@ -286,7 +286,8 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
     page.emulate_media(forced_colors="none")
     write(floating, markdown)
     draft_face = face(floating)
-    text_end = f"{(44 if touch else 28) + 2 * 16 + 1}px"
+    # Touch reserves Send's column; a mouse lets words use its free corner.
+    text_end = f"{44 + 2 * 16 + 1}px" if touch else "13px"
     assert (
         f"{float(draft_face['padding-right'].removesuffix('px')) + 1:g}px" == text_end
     )

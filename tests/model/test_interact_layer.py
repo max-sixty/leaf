@@ -4299,7 +4299,7 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     prepaint bootstrap's hold answers no press either: it keeps keys pressed before the
     page presents and hands them to the dispatcher's owner. The sample bootstrap's
     other listener enters its browsing context on trusted input without answering a
-    key; the same listener handles pointer input. prepaint.js records inputs
+    key; the same listener handles pointer input. document-inputs.js records inputs
     from the document's first script. focus.js reads keys as the end of a label press
     and as a Tab's step; neither answers a command. The
     interaction log records keys and answers none. A control standing over a page block, such as a code block's Copy, hands Tab back to its block. A span Leaf offers as
@@ -4325,7 +4325,7 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
         "controller.js": 2,
         "aim.js": 1,
         "bootstrap.js": 2,
-        "prepaint.js": 1,
+        "document-inputs.js": 1,
         "focus.js": 2,
         "interaction-log.js": 1,
         "block-controls.js": 1,

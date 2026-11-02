@@ -182,9 +182,11 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     expect(widget.locator(".lf-call-toggle")).to_have_attribute(
         "aria-label", "Collapse all 1 call-tree root"
     )
-    file_row = page.locator("#patch .lf-diff-file").first
-    expect(file_row).to_have_attribute("data-lf-datum", '["gateway/limits.py","file"]')
-    expect(file_row).to_have_attribute(
+    file_header = page.locator("#patch .lf-diff-file summary").first
+    expect(file_header).to_have_attribute(
+        "data-lf-datum", '["gateway/limits.py","file"]'
+    )
+    expect(file_header).to_have_attribute(
         "data-lf-datum-label", "gateway/limits.py · file"
     )
     expect(lines.nth(1)).to_have_attribute("data-root", "")
@@ -440,18 +442,11 @@ def test_a_live_revision_preserves_a_reply_after_native_tab(browser, serve):
 
     # A fresh document cannot claim native retention and still waits for composition.
     (serve.page_dir / "index.html").write_text(executable_revision(third, "reload"))
-    # The menu holds the rows it opened with, so it opens once the page has heard. It
-    # is reached by keys: a press on the leaf is a press away from the reply's row,
-    # which ends its composition (thread/replies.js), and then only the open menu
-    # would hold the fresh document back. A state read after the menu closes asks
-    # again whether the page may follow, and the composition still says no.
+    # The page has heard of it once the row, beside the open thread, says it shows an
+    # older version and offers the latest. A state read after that asks again whether
+    # the page may follow, and the composition still says no.
     told(page)
-    page.locator(".lf-fp-leaf").press("Enter")
-    expect(
-        page.locator('.lf-fp-menu .lf-fp-item[data-row="latest"]:not(:disabled)')
-    ).to_have_count(1)
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-floating-panel")).not_to_have_attribute("data-menu", "")
+    expect(page.locator(".lf-fp-row-notice button")).to_be_enabled()
     nudge(serve.page_dir)
     told(page)
     assert editor.evaluate("node => node === window.heldReply")
@@ -783,9 +778,11 @@ def test_activity_held_targets_follow_the_current_document(browser, serve, fresh
         serve.page_dir, source(restored, restored_executable), "Restore a destination"
     )
     if fresh:
+        # Generated history is drawn by the runtime, after the authored destination
+        # has parsed. Holding that runtime must not wait for its own drawing.
         page.wait_for_function("""() => document.readyState === 'interactive' &&
-          document.querySelector('#feed a.lf-activity-target')?.getAttribute('href') === '#route'""")
-        assert blocked, "startup module must remain pending during the parsed drawing"
+          document.getElementById('route') !== null""")
+        assert blocked, "startup module must remain pending after parsing"
         assert page.locator("body").get_attribute("data-lf-presented") is None
         page.unroute("**/leaf.js")
         for route in blocked:

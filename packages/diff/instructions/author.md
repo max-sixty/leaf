@@ -48,7 +48,7 @@ Inside each member, use ordinary authored markup followed by the real `lf-diff`:
     <p>Preserve a composer draft while switching threads.</p>
     <details>
       <summary>Snapshot details</summary>
-      <dl>
+      <dl class="facts">
         <dt>Repository</dt>
         <dd><code>/workspace/leaf</code></dd>
         <dt>Current commit</dt>

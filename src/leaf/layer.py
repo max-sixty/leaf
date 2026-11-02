@@ -6,7 +6,7 @@ import re
 import subprocess
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from functools import cache, cached_property
+from functools import cache, cached_property, lru_cache
 from pathlib import Path
 
 from .files import file_stamp
@@ -232,30 +232,43 @@ def stylesheet(source: Path, root: Path) -> str:
 
 def _stylesheet(source: Path, root: Path, opened: tuple[Path, ...]) -> str:
     """`stylesheet`, inside the imports of `opened`."""
-    import tinycss2
-
-    from .revision_artifact import css_syntax_errors
-    from .styles import css_stylesheet
-
     opened = (*opened, source.resolve())
     try:
         css = source.read_text(encoding="utf-8")
     except UnicodeDecodeError as error:
         raise Refused(f"{source} must be UTF-8") from error
-    # A layer's sheet is a package's maintained code, so a declaration a browser
-    # drops refuses it here, though a page's own sheets only hear it as advice.
-    if errors := css_syntax_errors(css, str(source)):
-        raise Refused(str(errors[0]))
     parts = []
-    for node in css_stylesheet(css):
-        if _is_import(node):
-            path, layer = _import(node, source, root, opened)
+    for part in _stylesheet_parts(css, source):
+        if isinstance(part, str):
+            parts.append(part)
+        else:
+            path, layer = _import(part, source, root, opened)
             sheet = _stylesheet(path, root, opened)
             parts.append(f"@layer {layer} {{\n{sheet}}}\n" if layer else sheet)
-        else:
-            parts.append(tinycss2.serialize([node]))
     serialized = "".join(parts).translate(_CSS_SURROGATES)
     return serialized if serialized.endswith("\n") else serialized + "\n"
+
+
+@lru_cache(maxsize=512)
+def _stylesheet_parts(css: str, source: Path) -> tuple:
+    """One exact source's validated, normalized parts and read-only import rules.
+
+    Only source-local work is held: every composition reads each source again and
+    resolves its imports against that call's root and active import chain.
+    """
+    import tinycss2
+
+    from .revision_artifact import css_syntax_errors
+    from .styles import css_stylesheet
+
+    # Maintained layer code refuses declarations the browser drops; page CSS
+    # reports those as advice.
+    if errors := css_syntax_errors(css, str(source)):
+        raise Refused(str(errors[0]))
+    return tuple(
+        node if _is_import(node) else tinycss2.serialize([node])
+        for node in css_stylesheet(css)
+    )
 
 
 def imported_sheets(source: Path, root: Path) -> list[Path]:
@@ -772,7 +785,7 @@ def running_leaf() -> dict:
 def provenance_label(provenance: dict) -> str:
     """One line naming a payload's commit and date, as `payload_provenance` read it.
 
-    `+` marks uncommitted changes, as the leaf's menu does.
+    `+` marks uncommitted changes, as About this page does.
     """
     commit = provenance.get("commit")
     if not commit:

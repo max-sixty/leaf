@@ -83,7 +83,7 @@ def test_a_reply_sent_while_the_agent_streams_moves_nothing_when_accepted(
     expect(streamed.locator(".lf-msg-text")).to_have_text(
         "First words and more of them"
     )
-    expect(page.locator(".lf-fp-controls .lf-thread-news:visible")).to_have_count(0)
+    expect(page.locator(".lf-fp-head .lf-thread-news:visible")).to_have_count(0)
 
 
 @pytest.mark.watch_shifts
@@ -113,7 +113,7 @@ def test_an_idle_open_panel_thread_shows_appended_replies(browser, serve, reply_
     reply = append_agent_reply(serve.page_dir, root, words)
     told(page)
     expect(thread.locator(f'.lf-msg[data-event="{reply["id"]}"]')).to_be_visible()
-    expect(page.locator(".lf-fp-controls .lf-thread-news:visible")).to_have_count(0)
+    expect(page.locator(".lf-fp-head .lf-thread-news:visible")).to_have_count(0)
     rendered(page)
     # The view grows to hold the answer, the message keeping its place within it.
     assert message.evaluate(

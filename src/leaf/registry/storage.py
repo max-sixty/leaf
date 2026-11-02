@@ -273,7 +273,7 @@ def layer_metadata_of(record: dict) -> dict:
 def served_layer(metadata: dict, page_dir: Path) -> dict:
     """`metadata` as the served state names the layer the page at `page_dir` is read
     under: with the fingerprint of the layer this Leaf composes for it, and this Leaf
-    as its producer, the one the leaf's menu shows (`runtime/page-about.js`)."""
+    as its producer, the one About this page shows (`runtime/page-about.js`)."""
     from leaf.layer import running_leaf
 
     return {

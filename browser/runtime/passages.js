@@ -103,7 +103,8 @@
    It also catches a module that replaces declared words after the shared render
    passes. */
 
-import { isNode } from "./shadow-tree.js";
+import { isNode, closestAcross, inChrome } from "./shadow-tree.js";
+export { closestAcross, inChrome } from "./shadow-tree.js";
 import {
   SAID,
   declaredRoot,
@@ -288,17 +289,6 @@ export function settledAway(el) {
 }
 const GENERATED = ".lf-ui, [data-lf-gen]";
 export const DATUM = "[data-lf-projection][data-lf-datum]";
-// A different question the class also used to answer, and not a question about looks at
-// all: which document is this element in? The runtime's layer is one container, so a
-// widget inside a reply — markup frozen in the log, carried by no version — is exactly
-// what that container holds, and the reading position is a place in the page rather than
-// in the panel over it. `.lf-ui` reached those elements and a widget's own controls out
-// on the page besides, which is the look standing in for the place.
-// Across the boundary for the same reason the climb below is: the marker lives out in
-// the document, so a node inside a widget's shadow tree can only reach it by leaving the
-// tree, and a widget staged inside a reply would otherwise read as page content.
-/** @param {Node | null} node */
-export const inChrome = (node) => Boolean(node && closestAcross(node, ".lf-chrome"));
 // Whether the user can see a block's words, for a reading or a landing chosen among the
 // page's blocks. A box is no answer: what content-visibility hides keeps its boxes where
 // it would stand shown, both an inactive tab's panel (hidden="until-found") and a closed
@@ -734,20 +724,6 @@ export function textNodesUnder(
       : null,
   );
   return segments;
-}
-
-// closest() stops at a shadow boundary, so a node inside a widget's shadow tree can't
-// reach the section that holds it or the chrome marker above it — both out in the
-// document. Same climb as upFrom, asked with a selector at each tree it passes through.
-/** @param {Node | null} node @param {string} selector @returns {Element | null} */
-export function closestAcross(node, selector) {
-  let el = isElement(node) ? node : upFrom(node);
-  while (el) {
-    const hit = el.closest(selector);
-    if (hit) return hit;
-    el = shadowHost(el.getRootNode());
-  }
-  return null;
 }
 
 // getElementById searches the document tree alone, which is the same boundary again and

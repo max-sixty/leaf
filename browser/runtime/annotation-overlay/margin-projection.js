@@ -1624,6 +1624,7 @@ export function createMarginProjection({
       if (!selected.has(control)) syncContributionSelection(control, false);
     for (const control of selected) syncContributionSelection(control, true);
     selectedReadingCarriers = selected;
+    scheduleMarginEntryLabels();
   }
 
   // ---------- the card goes where the user is ----------

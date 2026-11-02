@@ -93,9 +93,15 @@ STYLE = """
 .report-highlights li { margin-block: .75rem; }
 .report-score-summary td, .report-score-summary th { vertical-align: top; }
 .pair-shots details img { margin-top: .5rem; }
+.campaign-diagrams { display: flex; flex-wrap: wrap; align-items: start; gap: 1rem; }
+/* These sibling studies wrap at their drawings' natural widths; the report
+   supplies the width bound instead of the layer's available-width containment. */
+.campaign-diagrams > lf-diagram { flex: 1 1 auto; inline-size: max-content; contain: none; min-inline-size: 0; max-inline-size: 100%; }
 .sample-links { display: flex; flex-wrap: wrap; gap: .5rem 1.25rem; }
 .sample-table td { vertical-align: top; }
-.sample-table small { display: block; max-inline-size: 20rem; overflow-wrap: anywhere; }
+/* Keep metadata in its own formatting context: Chrome 156 crashes when this
+   report reveals the table with ordinary block metadata; flow-root preserves it. */
+.sample-table small { display: flow-root; max-inline-size: 20rem; overflow-wrap: anywhere; }
 #report-views lf-tabs { margin-block: .75rem; }
 @media (max-width: 640px) {
   .sample-table, .sample-table tbody { display: block; }
@@ -160,13 +166,16 @@ def leaf(*args: str) -> str:
 def condition_labels(columns: dict) -> dict[str, str]:
     """Keep a named arm intact; name the condition when it distinguishes arms."""
     names = {
-        column: {"leaf": "Leaf", "html": "Plain HTML"}.get(
-            members[0]["diagnostics"].get("condition"), column
+        column: members[0].get("arm_label")
+        or {"leaf": "Leaf", "html": "Plain HTML"}.get(
+            members[0]["execution_metadata"]["condition"], column
         )
         for column, members in columns.items()
     }
     return {
-        column: name if list(names.values()).count(name) == 1 else column
+        column: name
+        if columns[column][0].get("arm_label") or list(names.values()).count(name) == 1
+        else column
         for column, name in names.items()
     }
 
@@ -906,7 +915,7 @@ def sample_section(page: Path, sample: dict, label: str, output_url: str | None)
     )
     if sample.get("comparisons"):
         assessment += (
-            "<p>Assessed relative to another output:</p><ul>"
+            "<p>Compare authored outputs:</p><ul>"
             + "".join(
                 f'<li><a href="#{escape(anchor)}">{escape(title)}</a></li>'
                 for anchor, title in sample["comparisons"]
@@ -1460,7 +1469,6 @@ def judge_preferences(
             )
         )
     subjects = sorted({pair["subject"] for _, pair in records})
-    labels = [label for label, _ in groups]
     symbols = ["circle", "diamond", "square", "triangle", "cross", "star", "wye"]
     glyphs = ["●", "◆", "■", "▲", "+", "★", "Y"]
     points, rows = [], []
@@ -1562,6 +1570,9 @@ def judge_preferences(
                 )
     chart = "<p>No completed Plain HTML/Leaf pair judgments are available to plot.</p>"
     if points:
+        plotted_subjects = sorted({point["task"] for point in points})
+        plotted_labels = {point["checkpoint"] for point in points}
+        labels = [label for label, _ in groups if label in plotted_labels]
         options = r"""({
           ariaLabel: "Overall Plain HTML versus Leaf preferences for both presentation orders, on five ordinal categories. Exact outcomes and sources follow in the table.",
           marginLeft: width < 650 ? 110 : 155, marginRight: 25,
@@ -1580,7 +1591,7 @@ def judge_preferences(
         })"""
         values = {
             "CATEGORIES": categories,
-            "TASKS": subjects,
+            "TASKS": plotted_subjects,
             "LABELS": labels,
             "COLORS": [f"var(--series-{i % 5 + 1})" for i in range(len(labels))],
             "SYMBOLS": [symbols[i % len(symbols)] for i in range(len(labels))],
@@ -1593,7 +1604,7 @@ def judge_preferences(
             f"{glyphs[i % len(glyphs)]} {escape(label)}"
             for i, label in enumerate(labels)
         )
-        chart = f'<p>{legend}</p><lf-chart id="format-preferences" data-height="{max(300, len(subjects) * 44 + 100)}"><pre>{escape(options)}</pre></lf-chart>'
+        chart = f'<p>{legend}</p><lf-chart id="format-preferences" data-height="{max(300, len(plotted_subjects) * 44 + 100)}"><pre>{escape(options)}</pre></lf-chart>'
     repairs = (review or {}).get("repair_comparisons", [])
     repair_table = ""
     if repairs:
@@ -1691,19 +1702,60 @@ def campaign_view(campaign: dict | None) -> str:
         return ""
     kinds = list(dict.fromkeys(node["kind"] for node in campaign["nodes"]))
     nodes = {node["id"]: f"n{number}" for number, node in enumerate(campaign["nodes"])}
-    lines = [
-        "flowchart TD",
-        "accTitle: Campaign journey",
-        "accDescr: " + campaign["summary"],
-    ]
-    for node in campaign["nodes"]:
-        lines.append(f"{nodes[node['id']]}[{json.dumps(node['label'])}]")
-        lines.append(f"class {nodes[node['id']]} kind-{kinds.index(node['kind'])}")
+    # Independent studies do not share a graph rank. Keep each connected study
+    # whole so multi-input joins survive, without widening unrelated diagrams.
+    neighbors = {node_id: set() for node_id in nodes}
     for edge in campaign["edges"]:
-        label = f"|{json.dumps(edge['label'])}|" if edge.get("label") else ""
-        lines.append(f"{nodes[edge['from']]} -->{label} {nodes[edge['to']]}")
+        neighbors[edge["from"]].add(edge["to"])
+        neighbors[edge["to"]].add(edge["from"])
+    unseen = set(nodes)
+    diagrams = []
+    for node_id in nodes:
+        if node_id not in unseen:
+            continue
+        component = set()
+        pending = [node_id]
+        while pending:
+            member = pending.pop()
+            if member in component:
+                continue
+            component.add(member)
+            pending.extend(neighbors[member] - component)
+        unseen -= component
+        lines = [
+            "---",
+            "config:",
+            "  flowchart:",
+            "    nodeSpacing: 20",
+            "---",
+            "flowchart TD",
+            "accTitle: Campaign study",
+            "accDescr: " + campaign["summary"],
+        ]
+        for node in campaign["nodes"]:
+            if node["id"] in component:
+                label = f"{node['kind']} · {node['label']}"
+                lines.append(
+                    f"{nodes[node['id']]}[{json.dumps(label, ensure_ascii=False)}]"
+                )
+                lines.append(
+                    f"class {nodes[node['id']]} kind-{kinds.index(node['kind'])}"
+                )
+        for edge in campaign["edges"]:
+            if edge["from"] not in component:
+                continue
+            label = (
+                f"|{json.dumps(edge['label'], ensure_ascii=False)}|"
+                if edge.get("label")
+                else ""
+            )
+            lines.append(f"{nodes[edge['from']]} -->{label} {nodes[edge['to']]}")
+        diagram_id = "campaign-flow" if not diagrams else f"campaign-flow-{node_id}"
+        diagrams.append(
+            f'<lf-diagram id="{escape(diagram_id)}" parts="all"><pre>{escape(chr(10).join(lines))}</pre></lf-diagram>'
+        )
     styles = "".join(
-        f"#campaign-flow .pele-node.kind-{number} rect {{fill: color-mix(in srgb, var(--series-{number % 5 + 1}) 12%, var(--paper)); stroke: var(--series-{number % 5 + 1});}}"
+        f"#campaign-journey .pele-node.kind-{number} rect {{fill: color-mix(in srgb, var(--series-{number % 5 + 1}) 12%, var(--paper)); stroke: var(--series-{number % 5 + 1});}}"
         for number, _ in enumerate(kinds)
     )
     legend = "".join(
@@ -1717,7 +1769,7 @@ def campaign_view(campaign: dict | None) -> str:
     return (
         '<section id="campaign-journey" data-width="available"><h2>Campaign journey</h2>'
         f'<p>{escape(campaign["summary"])}</p><ul class="sample-links">{legend}</ul>'
-        f'<style>{styles}</style><lf-diagram id="campaign-flow" parts="all"><pre>{escape(chr(10).join(lines))}</pre></lf-diagram>'
+        f'<style>{styles}</style><div class="campaign-diagrams">{"".join(diagrams)}</div>'
         '<details><summary>Journey steps and evidence</summary><table id="campaign-step-key"><thead><tr><th scope="col">Step</th><th scope="col">Run type</th></tr></thead><tbody>'
         f"{key}</tbody></table></details>"
         + (
@@ -1908,12 +1960,17 @@ def review_sections(
         )
         selected = experiment.get("review", False)
         kind = experiment.get("kind", "Experiment")
-        content = (
+        heading = (
             '<header class="experiment-heading">'
             f'<p class="report-kind">{escape(kind)}</p>'
             f"<h2>{escape(experiment['title'])}</h2>"
             f'<p class="experiment-recommendation"><span>Recommendation:</span> <strong>{escape(experiment["recommendation"])}</strong></p></header>'
-            f'<p class="experiment-change">{escape(experiment["change"])}</p>'
+            if selected
+            else f'<p class="report-kind">{escape(kind)}</p>'
+        )
+        content = (
+            heading
+            + f'<p class="experiment-change">{escape(experiment["change"])}</p>'
             + f'<aside id="{anchor}-assessment" class="report-assessment"><p class="report-kind">Assessment · Report author</p>'
             + f"<p>{escape(experiment['reason'])}</p></aside>"
             + f'<p class="experiment-limit"><strong>Limits.</strong> {escape(experiment["limits"])}</p>'
@@ -1988,7 +2045,7 @@ def review_sections(
         + f"<p>{escape(latest['summary'])}</p>"
         + (
             '<section id="score-summary"><h3>Results at a glance</h3><table id="score-summary-table" class="report-score-summary" data-width="available"><thead><tr>'
-            '<th scope="col">Comparison</th><th scope="col">Baseline / first result</th><th scope="col">Candidate / final result</th><th scope="col">Interpretation</th>'
+            '<th scope="col">Comparison</th><th scope="col">Scope / baseline</th><th scope="col">Observed result</th><th scope="col">Interpretation</th>'
             f"</tr></thead><tbody>{score_rows}</tbody></table></section>"
             if score_rows
             else ""
@@ -2087,8 +2144,9 @@ def eval_report(
                         Path(reference["run"]).resolve(), reference["sample"]
                     ].append(link)
         for columns in found.values():
-            for members in columns.values():
+            for column, members in columns.items():
                 for sample in members:
+                    sample["arm_label"] = assessment.get("arm_labels", {}).get(column)
                     sample["review_context"] = assessment.get("review_context", "")
                     sample["comparisons"] = list(
                         dict.fromkeys(

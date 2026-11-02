@@ -202,6 +202,7 @@ import { el, namedAction, offeredAction, reveal } from "./widget-elements.js";
 import { actionTemplate, iconTemplate } from "./icons.js";
 import { copyControl } from "./copy-control.js";
 import { keeps, keepsHidden, layoutPx } from "./keeps.js";
+import { keepFieldKeys } from "./field-keys.js";
 import { setRuntimeRootStyle } from "./root-state.js";
 import { statusReading } from "./page-status.js";
 import { leavesRows } from "./live-leaves.js";
@@ -862,6 +863,7 @@ export function createFloatingPanel({
     const input = host.querySelector("input.lf-fp-search");
     if (!(input instanceof HTMLInputElement))
       throw new Error("Floating panel template is missing its search input");
+    keepFieldKeys(input);
     return input;
   })();
   const threadSearch = { input: threadSearchInput, controls: [] };

@@ -793,7 +793,7 @@ document.addEventListener("input", (event) => {
   });
   if (editor) rememberWriting(editorInput(editor));
 });
-// In capture, since a key typed in the editor stops at it (composing/text-field.js).
+// In capture, since a key typed in the editor stops at it (field-keys.js).
 document.addEventListener(
   "keyup",
   (event) => {

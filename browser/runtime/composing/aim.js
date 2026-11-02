@@ -252,7 +252,7 @@ export function createAim({
     else if (claimedPress.designMode) designMode.open(claimedPress.designMode);
   }
   function mount() {
-    // In capture, since ⌥ pressed while writing stops at the field (text-field.js).
+    // In capture, since ⌥ pressed while writing stops at the field (field-keys.js).
     addEventListener("keydown", keyDown, true);
     addEventListener("keyup", keyUp, true);
     addEventListener("blur", blur);

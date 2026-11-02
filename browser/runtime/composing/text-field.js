@@ -134,17 +134,8 @@
  * for what its draft holds beside them (`record`), such as a composer's drawing, each
  * taken back or redone in the order it was made.
  *
- * A key typed in the field is the field's and Leaf's alone. Page shortcut code skips a
- * key typed into a text field by asking whether the focused element is an input, a
- * textarea or editable, and from outside a closed root the focused element is this
- * host, which is none of those, so a slide deck's own `b` blacked the deck out
- * mid-comment. The host therefore stops each keydown, keypress and keyup as it bubbles
- * out of the field, once the editor has handled it and Leaf's key dispatcher has read
- * it there (`readLeavingKeys`). No listener around the field, the page's or Leaf's,
- * hears it bubble, so Leaf's other readers of these keys listen in capture. The field's
- * `input` still reaches the page, as a textarea's does. Rejected: the host answering
- * `isContentEditable`, which reveal.js asks of the focused element but a check by tag
- * or selector never does, and a page that checks nothing hears every key regardless.
+ * A key typed in the field stops at the host once the editor and Leaf's key dispatcher
+ * have handled it, so the page's listeners never hear it bubble (field-keys.js).
  *
  * The host is the textarea's scrollport. CodeMirror's content-sized inner scroller
  * never clips the words; the page sizes the host. The field reveals the caret's whole
@@ -165,6 +156,7 @@ import { TEXT_FIELD } from "../control-selectors.js";
 import { afterPresentation } from "../presentation.js";
 import { loadFieldEditor, readFaces } from "./field-editor.js";
 import { holdRendering, sizeObserver } from "../rendering.js";
+import { keepFieldKeys } from "../field-keys.js";
 
 const sheet = new CSSStyleSheet();
 sheet.replaceSync(`
@@ -311,13 +303,6 @@ sheet.replaceSync(`
 let editor = null;
 const loadEditor = () => loadFieldEditor().then((loaded) => (editor = loaded));
 afterPresentation(loadEditor);
-
-// Who reads a key at the host before it stops there: Leaf's key dispatcher, whose pass
-// after the control's own handling would otherwise run on the document.
-/** @type {Set<(event: KeyboardEvent) => void>} */
-const leavingKeyReaders = new Set();
-/** @param {(event: KeyboardEvent) => void} read */
-export const readLeavingKeys = (read) => void leavingKeyReaders.add(read);
 
 // A field's words before it has an editor: the source, the selection, and the steps an
 // owner recorded in its history (`record`), which the editor's history takes up as it
@@ -588,11 +573,7 @@ class LeafText extends HTMLElement {
     // announce every edit twice. The host's is the one the page hears.
     for (const type of ["input", "beforeinput"])
       this.#root.addEventListener(type, (event) => event.stopPropagation());
-    for (const type of /** @type {const} */ (["keydown", "keypress", "keyup"]))
-      this.addEventListener(type, (event) => {
-        for (const read of leavingKeyReaders) read(event);
-        event.stopPropagation();
-      });
+    keepFieldKeys(this);
   }
 
   // What the user types before the editor has loaded lands natively in the empty line's

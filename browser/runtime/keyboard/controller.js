@@ -10,7 +10,7 @@ import { nextFrame } from "../rendering.js";
 import { pageUpgraded } from "../page-paint.js";
 import { runtime } from "../context.js";
 import { UPGRADE, PRESENTATION } from "../presentation.js";
-import { readLeavingKeys } from "../composing/text-field.js";
+import { readLeavingKeys } from "../field-keys.js";
 /** @param {{goToSequenceActive: () => boolean, setGoToSequence: (on: boolean) => void, reactArmed: () => boolean, setReact: (on: boolean) => void}} options */
 export function mountKeyboard({
   goToSequenceActive,
@@ -58,7 +58,7 @@ export function mountKeyboard({
     if (ev.key.length !== 1) press(ev);
   };
   document.addEventListener("keydown", afterControl);
-  // A key typed in a Leaf field stops at the field (composing/text-field.js), so this
+  // A key typed in a Leaf field stops at the field (field-keys.js), so this
   // pass reads it there.
   readLeavingKeys((ev) => {
     if (ev.type === "keydown") afterControl(ev);

@@ -163,14 +163,15 @@ def test_global_shortcuts_leave_other_browser_navigation_keys_alone(browser, ser
     assert observed == dict.fromkeys(keys[:-1], False)
 
 
-def test_keys_typed_into_leaf_fields_never_reach_the_page(browser, serve):
+def test_keys_typed_into_leaf_fields_never_bubble_to_the_page(browser, serve):
     """A page's shortcut code skips keys typed into the fields it knows of, and Leaf's
     fields are not among them: a slide deck's `b` blacked the deck out mid-comment. So
-    none of the page's listeners hears a key typed into a Leaf field, whether it listens
-    on the document, the window or `main`. `main` holds the draft's editor, and the
-    comment's box stands in Leaf's chrome. Each field still takes its keys, Leaf still
-    reads them there (Enter sends the comment, Escape closes the editor), and a key
-    pressed on the page itself still reaches the page."""
+    a key typed into a Leaf field never bubbles to the page's listeners, whether they
+    listen on the document, the window or `main`; a listener in capture still hears it.
+    `main` holds the draft's editor, while the comment box and the page search stand in
+    Leaf's chrome. Each field still takes its keys, Leaf still reads them there (Enter
+    sends the comment, Escape closes the editor and the search), and a key pressed on
+    the page itself still reaches the page."""
     page = open_page(browser, serve(KEYS_PAGE))
     page.evaluate(
         """() => {
@@ -226,6 +227,19 @@ def test_keys_typed_into_leaf_fields_never_reach_the_page(browser, serve):
     expect(editor).to_have_count(0)
     assert not [key for key in heard() if "keyup Escape" not in key], (
         "the page heard keys typed into the draft's editor"
+    )
+
+    page.keyboard.press("/")
+    search = page.get_by_role("searchbox", name="Search page text")
+    expect(search).to_be_focused()
+    heard()
+    page.keyboard.type("b ")
+    page.keyboard.press("ArrowLeft")
+    expect(search).to_have_value("b ")
+    page.keyboard.press("Escape")
+    expect(search).to_be_hidden()
+    assert not [key for key in heard() if "keyup Escape" not in key], (
+        "the page heard keys typed into the page search"
     )
 
 

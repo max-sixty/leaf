@@ -1551,12 +1551,6 @@ def test_the_render_gate_tells_what_a_column_loses_from_what_stands_beside_it(
     off the window, so the clipped sidenote stands on the container-clip page."""
     fixed = """
 <style>
-/* This probe reads what spills past a 720px column with no room beside it. */
-main.layout-column {
-  max-width: 720px;
-  margin-inline: auto;
-  padding-inline: 0;
-}
 #fixed-margin { position: fixed; top: 80px; left: 24px; width: 150px; }
 #fixed-half { position: fixed; top: 500px; left: 180px; width: 180px; }
 @media (max-width: 1199px) {

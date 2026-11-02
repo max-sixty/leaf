@@ -295,27 +295,33 @@
     inherits: false;
     initial-value: box;
   }
-  /* The column is ordinary block flow: its content box is the prose, centred by its
-   * inline padding, so its blocks' margins collapse and floats, auto margins and the
-   * edge trim behave as on any page. Its padding beyond the gutter is the room a block
-   * declaring a wider space breaks into (Breakouts, below). Ordinary boxes contain their
+  /* The column is ordinary block flow: a box `--col` wide around the prose, centred by
+   * auto margins, so its blocks' margins collapse and floats, auto margins and the edge
+   * trim behave as on any page. A page's own CSS sizes it as any box, and its text keeps
+   * the measure from the box's start edge (base.css). Ordinary boxes contain their
    * children, so a list item, custom grid or frame needs no geometry policing.
    *
-   * The padding is a percentage of the box the column stands in, so a column inside
-   * another box centres in it. A breakout needs that room as a length, which only the
-   * column's own shell can give (`100cqi`): the Layout's box (`--lf-layout-box`,
-   * above) stands in a size container that is as wide as it, so it states the room
-   * each side of its prose (`--lf-free-start`, `--lf-free-end`) and pads by it. Any
-   * other column, such as one in a tab's panel, centres its prose and gives none. The
-   * lengths inherit, since WebKit left one passed down with `inherit` stale after a
-   * resize (notes/browser-support.md). */
-  @property --lf-free-start {
+   * The room past the gutter on each side of the column is what a block declaring a
+   * wider space breaks into (Breakouts, below). Only the Layout's box
+   * (`--lf-layout-box`, above) has room: it stands in a size container as wide as its
+   * shell, so it resolves the shell's width (`--lf-shell-width`) and states each side's
+   * room as that width less its own content's, which a block in its flow resolves as
+   * its own 100% (`--lf-free-start`, `--lf-free-end`). So the room follows the column's
+   * actual width, however the page sizes it. Any other column, such as one in a tab's
+   * panel, gives none. The lengths inherit, since WebKit left one passed down with
+   * `inherit` stale after a resize (notes/browser-support.md). */
+  @property --lf-shell-width {
     syntax: "<length>";
     inherits: true;
     initial-value: 0px;
   }
+  @property --lf-free-start {
+    syntax: "<length-percentage>";
+    inherits: true;
+    initial-value: 0px;
+  }
   @property --lf-free-end {
-    syntax: "<length>";
+    syntax: "<length-percentage>";
     inherits: true;
     initial-value: 0px;
   }
@@ -329,7 +335,9 @@
     initial-value: 0px;
   }
   .layout-column {
-    padding-inline: max(var(--col-pad), (100% - var(--col)) / 2);
+    max-inline-size: var(--col);
+    margin-inline: auto;
+    padding-inline: var(--col-pad);
     padding-block: var(--page-pad-start) var(--page-pad-end);
     --lf-measure: var(--col);
     --lf-prose-measure: var(--col);
@@ -341,18 +349,30 @@
     main:not(.layout-column, .layout-sidebar, .layout-workspace) > *,
     main > [data-lf-views="parts"] > * > *
   ).layout-column {
-    --lf-free-start: max(0px, (100cqi - 2 * var(--col-pad) - var(--col)) / 2);
+    --lf-shell-width: 100cqi;
+    --lf-free-start: max(0px, (var(--lf-shell-width) - 100%) / 2 - var(--col-pad));
     --lf-free-end: var(--lf-free-start);
-    padding-inline: calc(var(--col-pad) + var(--lf-free-start))
-      calc(var(--col-pad) + var(--lf-free-end));
     /* An authored note column centers the prose and note together when both fit.
      * Narrower columns keep centered prose and wrap the note. The author chooses
      * this axis on its owner; notes inside another column never choose it. */
     &.layout-notes {
+      margin-inline: max(
+          0px,
+          (
+              100% - 2 * var(--col-pad) - var(--col) - var(--note) *
+                clamp(
+                  0,
+                  sign(100cqi - 2 * var(--col-pad) - var(--col) - var(--note)) + 1,
+                  1
+                )
+            ) /
+            2
+        )
+        auto;
       --lf-free-start: max(
         0px,
         (
-            100cqi - 2 * var(--col-pad) - var(--col) - var(--note) *
+            var(--lf-shell-width) - 2 * var(--col-pad) - var(--col) - var(--note) *
               clamp(
                 0,
                 sign(100cqi - 2 * var(--col-pad) - var(--col) - var(--note)) + 1,
@@ -363,7 +383,7 @@
       );
       --lf-free-end: max(
         0px,
-        100cqi - 2 * var(--col-pad) - var(--col) - var(--lf-free-start)
+        var(--lf-shell-width) - 2 * var(--col-pad) - 100% - var(--lf-free-start)
       );
     }
   }
@@ -482,6 +502,7 @@
      * the prose allows. */
     > .layout-note {
       inline-size: min(var(--col) + var(--note), 100% + var(--lf-free-end));
+      --lf-breakout: 1;
     }
   }
   /* Native wrapping puts the note after its passage when there is no room; the next
@@ -569,7 +590,9 @@
   .layout-sidebar > .layout-column {
     flex: 1000000 1 var(--col);
     min-inline-size: min(100%, var(--col));
+    max-inline-size: none;
     box-sizing: border-box;
+    margin: 0;
     padding: 0;
     --lf-wide-page: 0;
     --lf-free-end: max(

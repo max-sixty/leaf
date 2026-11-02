@@ -1565,18 +1565,13 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
     # An obligation inside a breakout takes its holder's room, as any block
     # there does, however much room its own block asks for.
     assert at["wrapped"] == at["wrapper"], at
-    # The column's room beside its prose is the page's: negative margins can leave the
-    # prose without leaving the page. Only the padded box exceeds that actual room.
-    boxes = column.evaluate("""() => Object.fromEntries(
-      ['main', '#pulled', '#spilled'].map(selector => {
-        const box = document.querySelector(selector).getBoundingClientRect();
-        return [selector, {left: box.left, right: box.right}];
-      }))""")
-    for selector in ("#pulled", "#spilled"):
-        assert boxes[selector]["left"] >= boxes["main"]["left"], boxes
-        assert boxes[selector]["right"] <= boxes["main"]["right"], boxes
+    # A box the page pulls out of the column by its margins, an inline one, or one it
+    # grows round its block by margins and padding of its own, stands in the margin. A
+    # fixed box across the column's edges answers for itself, as it hangs off the window.
     misplaced = evaluate_probe(column, "misplacedBoxes")
     assert [(m["code"], m["at"]) for m in misplaced] == [
+        ("past-column", "<div id=pulled>"),
+        ("past-column", "<span id=spilled>"),
         ("past-column", "<div id=padded>"),
         ("clipped-out", "<div id=padded>"),
     ], misplaced
@@ -2337,10 +2332,9 @@ def test_a_drawing_the_room_can_hold_is_shown_whole(browser, serve):
         const el = document.getElementById('flow');
         const m = document.querySelector('main');
         const s = getComputedStyle(m);
-        // The room a breakout may take: the prose and the room the column pads beside it.
-        const free = (name) => parseFloat(s.getPropertyValue(name)) || 0;
-        const room = m.clientWidth - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight)
-            + free('--lf-free-start') + free('--lf-free-end');
+        // The room an available block takes: the shell's width less a gutter each side.
+        const room = parseFloat(s.getPropertyValue('--lf-shell-width'))
+            - 2 * parseFloat(s.getPropertyValue('--col-pad'));
         return { shows: el.clientWidth, drawn: el.scrollWidth, room,
                  column: m.querySelector('h1').getBoundingClientRect().width };
     }""")

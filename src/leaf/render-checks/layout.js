@@ -19,8 +19,9 @@ import { coveredWords, shrunkLabelReading } from "./words.js";
 export const rootOverflow = () => pageScroller.scrollWidth - pageScroller.clientWidth;
 /** @param {Element} el */
 const at = (el) => (el === pageScroller ? "<root scrollport>" : element(el));
-// A direct document child granted a wider track by its own declared width.
-// Holders request their own width; a wide child alone stays inside its holder.
+// A block in the column's flow granted the room past the prose (`--lf-breakout`,
+// layouts.css): one declaring a wider space, a note row, or a sidebar Layout. Holders
+// request their own width; a wide child alone stays inside its holder.
 /** @param {Element} el */
 const breaksOut = (el) =>
   getComputedStyle(el).getPropertyValue("--lf-breakout").trim() === "1";
@@ -244,17 +245,8 @@ export function overflowingRegions() {
 function marginReading(main) {
   const style = getComputedStyle(main);
   const box = main.getBoundingClientRect();
-  // The page's room: the Layout's content box and the room beside its prose that it
-  // pads (`--lf-free-start`, `--lf-free-end`, layouts.css), which is the page's too.
-  // Where a page's own padding replaces the column's, only what it pads is room.
-  /** @param {string} name */
-  const free = (name) => parseFloat(style.getPropertyValue(name)) || 0;
-  const [freeLeft, freeRight] =
-    style.direction === "rtl"
-      ? [free("--lf-free-end"), free("--lf-free-start")]
-      : [free("--lf-free-start"), free("--lf-free-end")];
-  const left = box.left + Math.max(0, parseFloat(style.paddingLeft) - freeLeft);
-  const right = box.right - Math.max(0, parseFloat(style.paddingRight) - freeRight);
+  const left = box.left + parseFloat(style.paddingLeft);
+  const right = box.right - parseFloat(style.paddingRight);
   // Logical floats compute to whichever physical or logical token was written, so
   // resolve them against the element's own direction.
   /** @param {CSSStyleDeclaration} s */
@@ -326,7 +318,11 @@ export function misplacedBoxes() {
     el.checkVisibility({ opacityProperty: true, visibilityProperty: true });
   const { isMarginContent, left, marginElements, right } = marginReading(main);
   const wides = new Set(
-    [...main.querySelectorAll("[data-lf-space]")].filter(breaksOut),
+    [
+      ...main.querySelectorAll(
+        "[data-lf-space], :is(.layout-column, .layout-flow) > *",
+      ),
+    ].filter(breaksOut),
   );
   // A widget the registry declares wide is answered for out here, the way
   // absolutely-positioned margin content is: standing past the column is what it was

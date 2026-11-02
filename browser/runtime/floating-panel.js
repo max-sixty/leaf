@@ -314,6 +314,7 @@ import {
   placeHolder,
 } from "./geometry.js";
 import { registerReadingRegion } from "./reading-regions.js";
+import { sectionsInView } from "./reading-place.js";
 import { agentName, documentChanged } from "./semantic-state.js";
 import { runtime } from "./context.js";
 import { renderedOrder, renderedUnder, under } from "./shadow.js";
@@ -1099,11 +1100,18 @@ export function createFloatingPanel({
       send: (_text, raw, owns) => {
         let flight = null;
         streamSend();
+        // A page comment has no passage, so it records the sections on screen as the
+        // user sends it (reading-place.js, `sectionsInView`).
+        const viewing = sectionsInView();
         const handle = sendMessage(
           PAGE_DRAFT,
           owns,
           (attempt) =>
-            (flight = threadActions.create({ attempt, text: raw })?.delivery),
+            (flight = threadActions.create({
+              attempt,
+              text: raw,
+              ...(viewing.length && { viewing }),
+            })?.delivery),
         );
         if (!handle) return;
         // The box empties as the send leaves; the row reads it again once it has.

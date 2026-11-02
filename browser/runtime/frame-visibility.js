@@ -21,12 +21,13 @@
      modal reach and `aria-hidden` (sample.js, `admitted`). It posts the answer across
      the sample's port, and the child publishes it here. Exact message exposure asks
      each containing geometry owner for a fresh band (`readSampleVisibility`).
-   - Any other framed Leaf document has a same-origin parent, since a live page
-     admits only those (`structure.FRAME_ANCESTORS_CSP`), so it watches its own
-     `frameElement` and every frame element above it that it can reach, and shows
-     when all of them do. Firefox reports a frame inside an outer iframe under
-     `content-visibility: hidden` as intersecting, and tells the inner frame nothing
-     when that changes.
+   - Any other framed Leaf document watches its own `frameElement` and every frame
+     element above it that it can reach, and shows when all of them do. A live page
+     admits same-origin parents and other Leaf servers under its key (validation.md,
+     "Delivery policy"); a Leaf parent at another port hides its frame element, so a
+     page it frames reads as shown whenever its tab is. Firefox reports a frame inside
+     an outer iframe under `content-visibility: hidden` as intersecting, and tells the
+     inner frame nothing when that changes.
    - A top-level document has no frame to read, and `frameVisibility` is null.
 
    The tab's own visibility is the reader's to add (`document.hidden`).

@@ -55,6 +55,7 @@ from .layer import incompatible_layer, running_leaf
 from .locations import path_is_within
 from .media import MAX_MEDIA_UPLOAD_BYTES, MediaUploadError, store_uploaded_media
 from .passages import SourceReading
+from .presence import live_servers
 from .refusals import Refused
 from .registry.storage import layer_metadata, layer_record
 from .revision_artifact import (
@@ -82,7 +83,7 @@ from .schema import (
     SERVED_PATH,
 )
 from .served_state.service import LivePage, PageSource, PageStateService
-from .server import preview_metadata
+from .server import page_origin, preview_metadata, running_server
 from .structure import FRAME_ANCESTORS_CSP
 from .user_views import observe_user_view
 
@@ -392,8 +393,17 @@ class PageEndpoint:
             if message["type"] == "http.response.start":
                 headers = MutableHeaders(scope=message)
                 headers.setdefault("Cache-Control", self.cache_control)
-                if headers.get("Content-Type", "").startswith("text/html"):
-                    headers.setdefault("Content-Security-Policy", FRAME_ANCESTORS_CSP)
+                # An opaque parent is not expressible as a frame-ancestors source,
+                # so a child capability's documents carry no policy and admit
+                # nested samples.
+                if (
+                    headers.get("Content-Type", "").startswith("text/html")
+                    and not self.sample_request
+                ):
+                    headers.setdefault(
+                        "Content-Security-Policy",
+                        await run_in_threadpool(self._frame_ancestors),
+                    )
                 headers.update(self._delivery_headers())
                 if self.sample_request:
                     self._sample_headers(headers)
@@ -596,6 +606,29 @@ class PageEndpoint:
             ):
                 return False
         return True
+
+    def _frame_ancestors(self) -> str:
+        """Who may frame this page's documents (validation.md, "Delivery policy").
+
+        The page's running server also admits every other live Leaf server under
+        the state home's key, read at each framed document so a server started
+        after this one can frame it. That reading costs each live server a lease
+        and record read, so a top-level navigation, which has no ancestors to
+        admit, skips it; the browser alone sets `Sec-Fetch-Dest`. Any other server
+        over the page, such as a temporary one with a key of its own, and leaf.page
+        admit only their own origin."""
+        if self.headers.get("Sec-Fetch-Dest") == "document":
+            return FRAME_ANCESTORS_CSP
+        own = running_server(self.page_dir) if self._page_dir is not None else None
+        if own is None or own["server_id"] != self.server.server_id:
+            return FRAME_ANCESTORS_CSP
+        page = self.page_dir.resolve()
+        origins = {
+            page_origin(service["host"], service["port"])
+            for candidate, _row, service in live_servers()
+            if candidate != page
+        }
+        return " ".join([FRAME_ANCESTORS_CSP, *sorted(origins)])
 
     def _delivery_headers(self) -> dict[str, str]:
         """What every response carries, whichever route it came from.
@@ -852,10 +885,6 @@ class PageEndpoint:
                 "Referrer-Policy": "no-referrer",
             }
         )
-        # An opaque parent is not expressible as a frame-ancestors source. Child
-        # capabilities admit nested samples; parent documents keep their policy.
-        if headers.get("Content-Security-Policy") == FRAME_ANCESTORS_CSP:
-            del headers["Content-Security-Policy"]
 
     def _serve_root(self) -> Response:
         served = self.source.served_document()

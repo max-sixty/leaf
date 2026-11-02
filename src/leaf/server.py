@@ -368,8 +368,13 @@ def host_key() -> str:
     return access["token"]
 
 
-def page_url(host: str, port: int, token: str) -> str:
-    """The handover URL. A bare IPv6 address is bracketed, since the authority
-    already separates its port with a colon."""
+def page_origin(host: str, port: int) -> str:
+    """The origin a page's URL names. A bare IPv6 address is bracketed, since the
+    authority already separates its port with a colon."""
     host = f"[{host}]" if ":" in host else host
-    return f"http://{host}:{port}/?t={token}"
+    return f"http://{host}:{port}"
+
+
+def page_url(host: str, port: int, token: str) -> str:
+    """The handover URL."""
+    return f"{page_origin(host, port)}/?t={token}"

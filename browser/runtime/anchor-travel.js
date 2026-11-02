@@ -525,11 +525,18 @@ export function createAnchorTravel({
   // The box `at` stands in that the browser skips while it is out of view, or null,
   // read from the box's style rather than from whether it is skipped now: the boxes
   // between it and the view can be skipped while its own is drawn, as naming the
-  // destination's anchor for its thread's card draws it.
+  // destination's anchor for its thread's card draws it. A box an earlier landing still
+  // holds drawn (`drawForLanding`) counts though its style reads `visible`: read from
+  // the style alone, a second `t` within those frames, as a held key repeats, glided
+  // and left the line 1,220 px out of view.
   /** @param {Element | Range} at */
   const skippableBox = (at) => {
     for (let box = placeHolder(at); box; box = renderedParent(box))
-      if (getComputedStyle(box).contentVisibility === "auto") return box;
+      if (
+        drawnForLanding.has(box) ||
+        getComputedStyle(box).contentVisibility === "auto"
+      )
+        return box;
     return null;
   };
 
@@ -539,7 +546,7 @@ export function createAnchorTravel({
   // text that breaks other than as its estimate assumes, such as base64 in Firefox,
   // that drew lines 26 past the destination. Drawn for the jump, the box lands where
   // it is read; two frames later the browser has found it in view, and it is released.
-  /** @type {Map<HTMLElement, string>} */
+  /** @type {Map<Element, string>} */
   const drawnForLanding = new Map();
   /** @param {Element} box */
   function drawForLanding(box) {

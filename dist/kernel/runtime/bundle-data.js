@@ -8000,7 +8000,7 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 		return arrived;
 	}
 	const skippableBox = (at) => {
-		for (let box = placeHolder(at); box; box = renderedParent(box)) if (getComputedStyle(box).contentVisibility === "auto") return box;
+		for (let box = placeHolder(at); box; box = renderedParent(box)) if (drawnForLanding.has(box) || getComputedStyle(box).contentVisibility === "auto") return box;
 		return null;
 	};
 	const drawnForLanding = /* @__PURE__ */ new Map();

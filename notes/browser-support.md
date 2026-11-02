@@ -546,3 +546,26 @@ run left skipped, a jump past them stopped 104 px short and a second scroll foll
 `test_a_long_text_document_draws_the_lines_in_view_and_keeps_the_rest_whole` covers it
 in both engines. To recheck, drop `drawForLanding` and travel past long tokens in
 Firefox.
+
+### A skipped `content-visibility: auto` box keeps its drawn height
+
+Chromium 156, Firefox 157 and WebKit (Playwright's builds, macOS) keep the height a
+`content-visibility: auto` box was drawn at for as long as it is skipped, whatever its
+`contain-intrinsic-size` says: written without `auto`, or never given `auto`, the box
+still stood at its drawn height frames later. They drop it only when the box's style
+resolves with neither `auto` nor `content-visibility: auto`, which a `getComputedStyle`
+read does within the same task. css-sizing-4 ("Last Remembered Size") keeps a
+remembered size only while `contain-intrinsic-size` has `auto`, and removes it at
+ResizeObserver timing once `auto` is gone; no engine does either. On 2026-11-02 a long
+text document narrowed from 718 to 460 px after its last runs were drawn left End
+240 px short in Chromium, 1,700 px in Firefox and 1,834 px in WebKit. So when its line
+length changes, `lf-text-document.js` (`sizeRuns`) resolves each drawn, skipped run's
+style once as `hidden` without `auto`, then takes both back in the same task, and End
+and a drag to the bottom land in all three. The forgetting rests on that uniform but
+unspecified behaviour: should an engine keep the height through that resolution, or
+drop it only as specified, the drag after the narrowing in
+`test_a_long_text_document_draws_the_lines_in_view_and_keeps_the_rest_whole` stops
+short. To recheck, draw a `content-visibility: auto` box with
+`contain-intrinsic-size: auto 100px`, scroll it out of view, write
+`contain-intrinsic-size: 300px` and read its height a few frames later: 300 px is the
+specified behaviour.

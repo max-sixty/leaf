@@ -194,16 +194,14 @@ function rowLines(row, columns, tab) {
 // of pixels short, and End, a drag to the bottom and travel to a line each stopped
 // short as the runs they passed took their real heights.
 //
-// A run drawn at an earlier line length holds the height it was drawn at while it is
-// skipped, whatever its size says: Chromium and Firefox both keep a skipped run's
-// remembered height until its style resolves with neither `auto` nor
-// `content-visibility: auto`, and a size written without `auto`, for any number of
-// frames, changed nothing. Narrowed from 718 to 460 px, the last run stood 1,700 px
-// short of its new height and End stopped short by as much. So when the line length
-// changes, each run the browser has `drawn` that is skipped now resolves its style
-// once as `hidden` without `auto`, which forgets its height, and takes both back
-// before anything is drawn. That resolution cost Firefox about 60 ms on a 4 MB text,
-// and 400 ms with every run resized, so it takes in only the forgetting runs.
+// A skipped run keeps the height it was last drawn at, whatever its size says, until
+// its style resolves with neither `auto` nor `content-visibility: auto`. Chromium,
+// Firefox and WebKit all do so, though css-sizing-4 says otherwise
+// (notes/browser-support.md). Narrowed after its last runs were drawn, a long text
+// left End 240 to 1,834 px short. So when the line length changes, each run the
+// browser has `drawn` that is skipped now resolves its style once as `hidden` without
+// `auto`, and takes both back before anything is drawn. Only those runs: the
+// resolution cost Firefox about 60 ms on 4 MB, and 426 ms over every resized run.
 /** @param {Element} code @param {readonly string[]} text @param {{columns: number, tab: number}} length @param {WeakSet<Element>} [drawn] the runs drawn since they last forgot a height */
 function sizeRuns(code, text, { columns, tab }, drawn) {
   /** @type {[HTMLElement, number][]} */

@@ -9,6 +9,7 @@ from playwright.sync_api import expect
 from render_cases_widgets import LONG_LINE_DIFF_PAGE
 from render_harness import (
     ROOT,
+    held_frames,
     holding,
     leaf_page,
     open_page,
@@ -730,7 +731,8 @@ def test_a_long_text_document_draws_the_lines_in_view_and_keeps_the_rest_whole(
     kept, it left a drag to the bottom short of the last line in both engines. Long
     tokens, which Firefox also breaks after a slash, fill more lines than the size
     says, and the run the travel lands in is drawn for the jump: left skipped,
-    Firefox's jump stopped 104 px short and a second scroll followed."""
+    Firefox's jump stopped short and a second scroll followed. A second travel while
+    the first still holds the run drawn jumps too: it glided."""
     # Long tokens stand in every run but the last, which the drag to the bottom draws:
     # Firefox draws more lines than the size says over them, and the drag would stop
     # short, a limit Leaf accepts.
@@ -790,23 +792,30 @@ def test_a_long_text_document_draws_the_lines_in_view_and_keeps_the_rest_whole(
     resized(page, width, height)
     pre.evaluate("pre => { pre.scrollTop = 0; }")
 
-    select_words(page, '#log [data-line="880"] span')
+    for line, words in ((840, "Where does this start?"), (880, "Why does it repeat?")):
+        select_words(page, f'#log [data-line="{line}"] span')
+        write(page.locator(".lf-composer leaf-text"), words)
+        with sending(page, f"the comment on line {line}"):
+            page.keyboard.press("ControlOrMeta+Enter")
+        page.keyboard.press("Escape")
     assert far.evaluate(left) == pytest.approx(first_left, abs=0.5)
-    write(page.locator(".lf-composer leaf-text"), "Why does this line repeat?")
-    with sending(page, "the comment on line 880"):
-        page.keyboard.press("ControlOrMeta+Enter")
     # The open card keeps its passage's run drawn; a returning reader finds it skipped.
     page.reload()
     wait_until_ready(page)
     assert not far.evaluate(drawn)
-    # The travel jumps: a glide across the runs drew each one it passed, for seconds.
+    # Each travel jumps: a glide across the runs drew each one it passed, for seconds.
+    # The second leaves while the first still holds the run drawn, as a held `t` does:
+    # the frames that would release it are held.
     page.locator("#log pre").evaluate(
         "pre => { window.steps = 0; pre.addEventListener('scroll', () => steps++); }"
     )
-    page.keyboard.press("t")
+    with held_frames(page):
+        page.keyboard.press("t")
+        page.wait_for_function("() => steps > 0")
+        page.keyboard.press("t")
     expect(page.locator(".lf-page-thread")).to_be_focused()
     scroll_settled(page, "#log pre")
-    assert page.evaluate("steps") == 1
+    assert page.evaluate("steps") == 2
     landed = far.evaluate("""line => {
       const box = line.closest('pre').getBoundingClientRect();
       const at = line.getBoundingClientRect();

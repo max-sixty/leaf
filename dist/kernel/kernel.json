@@ -106,7 +106,7 @@
     "runtime/geometry.js": "cd448f6468693a45d43ec809e9817416b3e5dbea84dcb98865064398076724ea",
     "runtime/heading-links.js": "056e3bb72da3573c04d80028d1a47012295e0d60e47a21fc01f84a97f5b93d1e",
     "runtime/held-word.js": "b19c912dfe1eb4ff99e52b5663e2f5a1bcbe069c507ca91adc2a385e40b60963",
-    "runtime/history.js": "8a7fb3c8f19e44c7edd5bc5e892ad53fd9761b628b54d01064f77c909628e999",
+    "runtime/history.js": "511d66925175d4e6b69c2a019ba15b5c302844f3f5c0c01b3cdc0af9cacd9773",
     "runtime/http-api.js": "d898e1afac17f612a91aec8de608a81cea13125fd2818169ea209732a497ed26",
     "runtime/icon-paths.js": "fef9899eaefc4250ceb96c83a2c82047d275b80de63b92ae2a2d77253042f7f4",
     "runtime/icons.js": "7c5bc290b8d89b4137d8c0636d58a24b6d6c0fbdc1cf83f2e67637ba4a780c15",

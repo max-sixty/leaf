@@ -7674,7 +7674,7 @@ function mountHistory({ followFragment, returnToFragment }) {
 			if (key) places.set(key, readPlace());
 		}
 		if (event.navigationType === "traverse") {
-			const handler = claimed(url) ?? returnToFragment(url);
+			const claim = claimed(url);
 			const place = places.get(event.destination.key);
 			const mayReturn = retainUserIntent({ available: () => !event.signal.aborted });
 			event.intercept({
@@ -7687,11 +7687,17 @@ function mountHistory({ followFragment, returnToFragment }) {
 					if (!mayReturn()) return;
 					let work;
 					mayReturn.handoff(() => {
-						work = handler?.();
+						work = claim?.();
 					});
-					const placed = await work;
+					let placed = Boolean(claim) && await work !== false;
 					if (!mayReturn()) return;
-					if (!handler || placed === false) {
+					work = void 0;
+					mayReturn.handoff(() => {
+						work = returnToFragment(url)?.();
+					});
+					if (work !== void 0) placed = await work !== false || placed;
+					if (!mayReturn()) return;
+					if (!placed) {
 						if (place) setScroll(pageScroller, {
 							left: place.offset[0],
 							top: place.offset[1],

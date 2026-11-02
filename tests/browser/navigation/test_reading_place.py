@@ -363,6 +363,40 @@ def test_a_url_naming_a_widget_key_reaches_its_part(browser, serve):
     expect(part("b", 1)).to_be_in_viewport()
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_back_across_root_tabs_draws_the_key_the_entry_names(request, serve, engine):
+    """A root tab set takes Back to an entry in another of its views and opens that
+    view; the widget inside it still draws the item the entry's key names, though the
+    user picked another item before leaving the view."""
+    url = live_url(
+        serve(
+            leaf_page(
+                "Items in tabs",
+                '<lf-tabs id="views"><lf-tab id="first" label="First">'
+                '<p><a id="to-part" href="#items:b/3">Part 3 of item b</a></p>'
+                '<lf-items id="items"></lf-items><div style="height:1600px"></div>'
+                '</lf-tab><lf-tab id="second" label="Second"><p>Elsewhere.</p>'
+                "</lf-tab></lf-tabs>",
+            ),
+            layer_registry=ITEMS_LAYER,
+            layer_widgets=ITEMS_WIDGETS,
+        )
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    b3 = page.locator('#items [data-item="b"][data-part="3"]')
+    page.locator("#to-part").click()
+    expect(b3).to_be_in_viewport()
+    # The user picks another item inside the widget, which leaves the URL alone.
+    page.locator("#items").evaluate("items => items.lfRevealDatum('a/1')")
+    expect(b3).to_have_count(0)
+    page.locator("#views").get_by_role("tab", name="Second", exact=True).click()
+    page.wait_for_url(re.compile(r"#second$"))
+
+    page.go_back()
+    page.wait_for_url(re.compile(r"#items:b/3$"))
+    expect(b3).to_be_in_viewport()
+
+
 @pytest.mark.parametrize(
     ("route", "large", "focusable"),
     [("click", False, True), ("Tab", False, True), ("click", True, False)],

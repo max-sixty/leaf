@@ -162,6 +162,7 @@ import { retainUserIntent } from "../user-intent.js";
  * leavePageMap: ReturnType<typeof import("../page-map-dialog.js").createPageMapDialog>["leavePageMap"],
  * openPageMap: ReturnType<typeof import("../page-map-dialog.js").createPageMapDialog>["openPageMap"],
  * pageMapDialogContains: ReturnType<typeof import("../page-map-dialog.js").createPageMapDialog>["pageMapDialogContains"],
+ * currentLocationObligation: () => Element | null,
  * marksFor: ReturnType<typeof import("./anchor-paint.js").createAnchorPaint>["marksFor"]}} dependencies */
 export function createMarginProjection({
   inventory,
@@ -177,6 +178,7 @@ export function createMarginProjection({
   renderMarginThread,
   placedAt,
   marksFor,
+  currentLocationObligation,
   scrollToElement,
   openInPanel,
 }) {
@@ -1284,7 +1286,11 @@ export function createMarginProjection({
       entry &&
       marksFor(currentLocation).length > 0 &&
       threadReading(entry)?.items.some((item) => item.thread.id === currentLocation);
-    highlight(drawingOnly || currentLocationShown ? null : (targetFor(entry) ?? null));
+    const target = targetFor(entry) ?? null;
+    // An obligation's location ring already identifies this target, including when
+    // its margin marker holds focus. Quiet brackets on that perimeter cover the ring.
+    const obligationShown = target && target === currentLocationObligation();
+    highlight(drawingOnly || currentLocationShown || obligationShown ? null : target);
   }
 
   function previewChanged() {

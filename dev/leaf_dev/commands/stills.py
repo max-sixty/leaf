@@ -1796,6 +1796,16 @@ def versions_menu(page: Page) -> None:
     page.locator(".lf-fp-version").first.wait_for()
 
 
+def obligation_marker_by_keyboard(page: Page) -> None:
+    """An obligation's margin marker and the location ring it projects onto the page."""
+    marker = page.locator('.lf-margin-entry[data-lf-kinds="on-me"]').first
+    for _ in range(400):
+        page.keyboard.press("Tab")
+        if marker.evaluate("node => node === document.activeElement"):
+            return
+    raise AssertionError("Tab did not reach the obligation's margin marker")
+
+
 def ask_by_keyboard(page: Page) -> None:
     """The next open obligation, an `lf-ask`, reached with `m`: its ring and its marker in view."""
     page.keyboard.press("m")
@@ -3109,6 +3119,12 @@ STATES = (
     State("alert-option-long", "alert-review", option_long),
     State("alert-options-in-pane", "alert-review", options_in_pane),
     State("ideas-ask", "ideas-to-implement", ask_by_keyboard),
+    State(
+        "pr-obligation-marker",
+        "pr-walkthrough",
+        obligation_marker_by_keyboard,
+        region="#pr-approval-decision",
+    ),
     State("progress-callout", "live-progress", at_rest),
     State("progress-metrics", "live-progress", at_rest, region="#lp-status"),
     State(

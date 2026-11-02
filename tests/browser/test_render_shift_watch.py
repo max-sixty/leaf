@@ -3967,6 +3967,24 @@ start.onclick = () => {
     errors = take_browser_errors(page)
     assert names_move(errors, "p#trigger"), errors
     assert names_move(errors, "button#control") == fault, errors
+    if fault:
+        error = next(e for e in errors if is_problem(e, moved_within("button#control")))
+        comparisons = shift_evidence(error)["comparisons"]
+        term = next(
+            term
+            for comparison in comparisons
+            for term in comparison["animation_terms"]
+            if term["branch"] == "animation" and term["axis"] == "top"
+        )
+        geometry = term["inputs"]["geometry"]
+        assert term["amount"] == pytest.approx(-20)
+        # The independent margin collapses through the message, adding travel
+        # that the translation value alone cannot explain.
+        assert geometry["after"]["top"] - geometry["before"]["top"] == pytest.approx(
+            -35
+        )
+        assert geometry["parent"] == ["div#scroller"]
+        assert geometry["parent_before"] == geometry["parent_after"]
 
 
 @pytest.mark.parametrize(

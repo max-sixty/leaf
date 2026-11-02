@@ -462,6 +462,39 @@ def test_file_tree_opens_current_diff_files_by_pointer_and_keyboard(
     expect(tree.get_by_role("treeitem")).to_have_count(0)
 
 
+def test_reloading_a_picked_file_reopens_it_in_a_one_file_view(browser, serve):
+    """Picking a file writes its key into the URL, and a reload opens that file again.
+
+    A one-file view keeps every other file in the page, hidden until found, so the
+    picked file's node exists while it is closed: the arrival asks the diff to show it
+    rather than reading the node's existence as the file being drawn."""
+    patch = "".join(
+        f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
+        f"@@ -1 +1 @@\n-old\n+{path} new\n"
+        for path in ("app.py", "lib.py")
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Pick a file",
+                '<h1>Review</h1><lf-file-tree id="files" for="patch"></lf-file-tree>'
+                f'<lf-diff id="patch" view="file"><pre>{escape(patch)}</pre></lf-diff>',
+            )
+        ),
+    )
+    lines = page.locator("#patch [data-line]")
+    picked = lines.filter(has_text="lib.py new")
+    expect(lines.filter(has_text="app.py new")).to_be_visible()
+    expect(picked).to_be_hidden()
+    page.locator("#files").get_by_role("treeitem", name="lib.py", exact=True).click()
+    expect(picked).to_be_visible()
+    page.wait_for_url(re.compile(r"#patch:"))
+    page.reload()
+    expect(picked).to_be_visible()
+    expect(lines.filter(has_text="app.py new")).to_be_hidden()
+
+
 @pytest.mark.parametrize("scroller", ["pane", "document"])
 def test_file_tree_lands_at_the_file_start_after_reading_down(browser, serve, scroller):
     """File activation reveals its first line in document and nested scrollports,
@@ -1501,3 +1534,6 @@ def test_evidence_close_folds_room_but_retires_controls_immediately(
     )
     details.evaluate("d => d.open = true")
     assert height() == pytest.approx(full, abs=1)
+
+
+import pytest

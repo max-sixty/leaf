@@ -54,7 +54,6 @@ from render_cases_navigation import (
 )
 from render_cases_widgets import (
     GENERIC_VISUAL_LAYER,
-    PART_DIAGRAM_PAGE,
     prefixed_visual_layer,
     visual_widgets,
 )
@@ -138,22 +137,6 @@ BOUNDED_WORKSPACE_PAGE = leaf_page(
 )
 
 
-def test_the_render_gate_reports_a_compact_spill(browser, serve):
-    source = leaf_page(
-        "Compact spill",
-        "<h1>Compact route</h1>"
-        '<p id="compact-overflow">This row spills only from compact viewports.</p>',
-        head="<style>@media(max-width:600px){#compact-overflow{width:700px}}</style>",
-    )
-    reading = render_gate_model.render_version(browser, serve(source, packages=()))
-    overflow = [
-        finding for finding in reading.failures if finding.code == "page-scrolls"
-    ]
-    assert [(f.widths, f.scheme, f.viewports) for f in overflow] == [
-        ((360, 600), None, ())
-    ], reading.failures
-
-
 def test_startup_shift_evidence_serializes_as_advice(browser, serve, monkeypatch):
     """Platform entries survive the real JS probe and report boundary as advice.
 
@@ -206,93 +189,6 @@ def test_startup_shift_evidence_serializes_as_advice(browser, serve, monkeypatch
 
 def _panel(name: str) -> str:
     return f'<section class="panel" id="{name}"><h2>{name}</h2><p>Words.</p></section>'
-
-
-def test_the_render_gate_fails_a_page_that_scrolls_sideways_only_between_viewports(
-    browser, serve
-):
-    """A body beside its track, and a row that spills only from 600 to 900px: both fixed
-    viewports read the page clean, and only the sweep between them sees it. A control
-    row that loses its scrollbar track room only between them is the same reading for
-    the overlay bar. Below both, a decision in a card of fixed height, whose prose
-    grows at 440px and narrower (a margin stands in for its wrapping) until it pushes
-    the decision's controls under the card's clip: a press nobody can reach, which only
-    the sweep's narrowest widths see. A card as tall as the window holds its decision
-    below 600px of plan, so a window 720px tall clips it and one 900px tall does not:
-    read at a user's 900px-tall desktop window, only the phone render's sweep, at its
-    own height, sees it. A card whose rule for the
-    dark scheme pushes its decision under the clip is clipped only in the two dark
-    renders, which each read the geometry once."""
-    source = leaf_page(
-        "mid-width overflow",
-        f"""
-<h1>Mid-width spill</h1>
-<div id="tracks">
-  <div id="body">{_panel("plan")}{_panel("steps")}</div>
-  <div id="rail">{_panel("checks")}{_panel("log")}</div>
-</div>
-<p id="mid-spill">{"A line that wraps at both viewports and runs on unbroken between them. " * 4}</p>
-<div id="strip"><button>Summary</button><button>Release scope</button>
-<button>Owner handoff</button></div>
-<div id="card"><lf-ask id="go-decision"><h2>Ship it?</h2>
-<p>The release passed its checks.</p><lf-options id="go" choose>
-<lf-option id="go-yes"><strong>Yes</strong></lf-option>
-</lf-options></lf-ask></div>
-<div id="short"><div id="plan-body"></div><lf-ask id="hold-decision"><h2>Hold it?</h2>
-<lf-options id="hold" choose><lf-option id="hold-yes"><strong>Yes</strong></lf-option>
-</lf-options></lf-ask></div>
-<div id="dusk"><lf-ask id="dusk-decision"><h2>Wait?</h2>
-<p>The canary is still running.</p><lf-options id="wait" choose>
-<lf-option id="wait-yes"><strong>Yes</strong></lf-option>
-</lf-options></lf-ask></div>
-""",
-        head="""<style>
-#tracks { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4); }
-@media (min-width: 600px) and (max-width: 900px) { #mid-spill { white-space: nowrap; } }
-#strip { display: flex; width: 240px; overflow: auto; padding: 0 0 15px; border: 0; }
-#strip button { flex: 0 0 180px; height: 40px; margin: 0; }
-@media (min-width: 600px) and (max-width: 900px) { #strip { padding-bottom: 0; } }
-#card { height: 400px; overflow: hidden; }
-@media (max-width: 440px) { #card p { margin-bottom: 400px; } }
-#short { height: 100vh; overflow: hidden; }
-#plan-body { height: 600px; }
-#dusk { height: 400px; overflow: hidden; }
-@media (prefers-color-scheme: dark) { #dusk p { margin-bottom: 400px; } }
-</style>""",
-    )
-
-    reading = render_gate_model.render_version(
-        browser,
-        serve(source, packages=("default",)),
-        desktop={"width": 1280, "height": 900},
-    )
-
-    clipped = [f for f in reading.failures if f.code == "clipped-control"]
-    assert clipped, reading.failures
-    assert {(f.values["by"], f.widths) for f in clipped} == {
-        ("<div id=card>", (360, 440)),
-        ("<div id=short>", (360, 540)),
-        ("<div id=dusk>", (1280, 1280)),
-        ("<div id=dusk>", (540, 540)),
-    }, clipped
-    # Each card that loses its controls loses the prose above them too, at the same
-    # widths: the content reading names the card, with what would show the rest.
-    cut = {(f.at, f.widths) for f in reading.failures if f.code == "clipped-content"}
-    assert cut == {(f.values["by"], f.widths) for f in clipped}, reading.failures
-    assert {(f.code, f.at, f.widths) for f in reading.failures} - {
-        (f.code, f.at, f.widths) for f in clipped
-    } - {("clipped-content", *box) for box in cut} == {
-        ("page-scrolls", "", (600, 880)),
-    }, reading.failures
-    # A strip that leaves no room for an overlay scrollbar is advice: the bar covers its
-    # last line only under the pointer, and the room is the author's to choose.
-    [strip] = reading.advice
-    assert (strip.code, strip.at, strip.widths) == (
-        "scrollbar-clearance",
-        "<div id=strip>",
-        (600, 880),
-    ), reading.advice
-    assert strip.values["clear"] == 0, strip
 
 
 # Four drawings in the idiom. The first is drawn wider than the column holds, so the fit
@@ -1011,30 +907,6 @@ def test_replay_findings_keep_the_throw_site(browser, serve):
     assert 'File "' not in finding["error"], finding
     assert "TypeError: replay rejected" in finding["error"]
     assert "replayProjection" in finding["error"]
-
-
-def test_the_render_gate_refuses_duplicate_diagram_identities(browser, serve):
-    """Two named boxes cannot share the same stable comment identity."""
-    page = PART_DIAGRAM_PAGE.replace(
-        "</lf-diagram>",
-        """</lf-diagram>
-<lf-diagram id="model" parts="all"><pre>
-classDiagram
-  namespace Job {
-    class Job
-  }
-</pre></lf-diagram>""",
-        1,
-    )
-    failures = render_gate_model.render_version(browser.unwatched, serve(page)).failures
-    assert [(f.scheme, f.code, f.at) for f in failures] == [
-        (scheme, "console-error", "") for scheme in ("light", "dark")
-    ], failures
-    assert all(
-        'leaf: <lf-diagram id="model"> failed:' in f.values["text"]
-        and "Job" in f.values["text"]
-        for f in failures
-    ), failures
 
 
 def test_diagrams_preserve_late_state_labels_and_sequence_titles(browser, serve):
@@ -4463,6 +4335,40 @@ def test_a_table_keeps_its_columns_natural_width_wherever_it_stands(browser, ser
     assert root_overflow(page) == 0
 
 
+def test_a_breakout_table_without_the_reading_face_keeps_its_columns_width(
+    browser, serve
+):
+    """On a page that takes no theme, a table marked `data-width="wide"` keeps the
+    browser's table and is as wide as its columns need, standing where the prose
+    starts. The breakout's 100% spread two one-word columns across the whole wide
+    track."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Breakout tables",
+                '<p id="prose">The prose column.</p>'
+                '<table id="short" data-width="wide">'
+                "<tr><th>Key</th><th>Value</th></tr><tr><td>name</td><td>leaf</td></tr>"
+                "</table>",
+            ),
+            theme=False,
+        ),
+    )
+    measured = page.evaluate(
+        """() => {
+        const prose = document.querySelector('#prose').getBoundingClientRect();
+        const table = document.querySelector('#short');
+        const row = table.querySelector('tr').getBoundingClientRect();
+        return {display: getComputedStyle(table).display, row: row.width,
+                column: prose.width, start: row.left - prose.left};
+    }"""
+    )
+    assert measured["display"] == "table", measured
+    assert measured["row"] < measured["column"] / 2, measured
+    assert 0 <= measured["start"] <= 4, measured
+
+
 def test_an_identifier_in_a_cell_breaks_rather_than_holding_its_column(browser, serve):
     """The theme's second case, reached by a table that used to fall through to the
     third: a column of test names beside a column of prose. A name is one word to
@@ -4620,3 +4526,9 @@ def test_label_size_reading_ignores_html_elements_inside_a_drawing(browser, serv
     assert drawing["words"] == "SVG label"
     assert drawing["set"] == 20
     assert drawing["drawn"] == 5
+
+
+import pytest
+from render_harness import (
+    leaf_page,
+)

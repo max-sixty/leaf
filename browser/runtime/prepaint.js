@@ -351,20 +351,29 @@
   const reloaded =
     /** @type {PerformanceNavigationTiming | undefined} */
     (performance.getEntriesByType("navigation")[0])?.type === "reload";
-  const fragment = () => {
+  /** @param {string} raw */
+  const decoded = (raw) => {
     try {
-      return decodeURIComponent(location.hash.slice(1));
+      return decodeURIComponent(raw);
     } catch {
-      return location.hash.slice(1);
+      return raw;
     }
+  };
+  // The ids a fragment can name: its whole text, then, for a widget's key, the
+  // widget's id before the first colon. anchor-coordinate.js (`fragmentKey`) states
+  // the rule; this script runs before any module can be imported.
+  const fragmentIds = () => {
+    const raw = location.hash.slice(1);
+    const at = raw.indexOf(":");
+    return at > 0 ? [decoded(raw), decoded(raw.slice(0, at))] : [decoded(raw)];
   };
   /** @param {Element} holder @param {Element[]} members */
   const chooseView = (holder, members) => {
-    const ids = [fragment(), tabStore.get("lf-open:" + holder.id)];
-    if (reloaded) ids.reverse();
-    for (const id of ids) {
-      if (!id) continue;
-      const target = document.getElementById(id);
+    const named = [fragmentIds(), [tabStore.get("lf-open:" + holder.id)]];
+    if (reloaded) named.reverse();
+    for (const ids of named) {
+      if (!ids[0]) continue;
+      const target = ids.map((id) => id && document.getElementById(id)).find(Boolean);
       // A later parser chunk may hold the intended destination. Never flash the
       // fallback before that target arrives, or parsing proves it absent.
       if (!target && document.readyState === "loading") return undefined;

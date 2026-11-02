@@ -3,15 +3,21 @@
  *
  * A place is what an anchor names (anchor-resolution.js): an element with an id, a
  * passage inside one, or a part of a widget, such as a projected datum or a visual
- * part. A thread travels to its anchor's place, a fragment link to its element, an obligation
- * to its own arrival region, and a module's `navigateToDatum` to the part its
- * reference names. Every route shares three steps: `revealAddressed` draws the part,
+ * part. A thread travels to its anchor's place, a fragment link to its element or to
+ * the part a widget's key names, an obligation to its own arrival region, and a
+ * module's `navigateToDatum` to the part its reference names. Every route shares three
+ * steps: `revealAddressed` draws the part,
  * `reveal` opens what holds it, and `clearFor` puts away a surface that would stand
  * over it where it lands (floating-panel.js). Each
  * route says where it lands, what takes focus and how to scroll; `arrive` then does
  * the reveal, clearing, painting, focus and scrolling, and no route does them itself.
  * When the reveal replaces a visible view, the destination lands at once instead of
- * scrolling from the old view's position.
+ * scrolling from the old view's position. A destination inside a box the browser
+ * skips while it is out of view (`content-visibility: auto`), such as a run of a long
+ * text document's lines, also lands at once, since a glide across such a series draws
+ * each box it passes, which took over two seconds on a long text. The box holding the
+ * destination is drawn for the jump (`drawForLanding`), so the landing doesn't depend
+ * on how well the box's estimated size matches its drawn one.
  *
  * Travel gets the current threads and the synchronous thread refresh from the
  * application root, so geometry code never imports the presenter. A navigation step keeps the
@@ -33,8 +39,10 @@
 
 import { selectEnds } from "./native-selection.js";
 import { referencedProjection, requireReference } from "./references.js";
+import { fragmentUrl } from "./anchor-coordinate.js";
 import {
   addressedElements,
+  fragmentAddress,
   fragmentTarget,
   resolveAnchor,
   revealAddressed,
@@ -49,12 +57,14 @@ import {
   shownBox,
 } from "./geometry.js";
 import { scrollBehavior } from "./motion.js";
+import { renderedParent } from "./shadow-tree.js";
+import { nextFrame } from "./rendering.js";
 import {
   onReadingInput,
   scrollersOf,
   unconcealedReadingRegions,
 } from "./reading-regions.js";
-import { prepareEntry } from "./history.js";
+import { prepareEntry, replaceEntry } from "./history.js";
 import { pageScroller, stopScroll } from "./scrolling.js";
 import { landedBox, scrollIntoView } from "./landing-scroll.js";
 import { PRESSABLE, reveal } from "./widget-elements.js";
@@ -80,6 +90,15 @@ const scrollingBoxFor = (element) => scrollersOf(element).next().value ?? null;
 export function scrollToFragment(element) {
   scrollIntoView(element, { behavior: "auto", block: "start" });
 }
+
+// Whether the page shows the place a fragment names (anchor-resolution.js,
+// `fragmentAddress`). A widget's key names no shown place until the widget draws its
+// part and shows it: a file view keeps an unselected file's node hidden until found,
+// so a node existing is not the widget having drawn it. A traversal and a load ask the
+// widget for the part only where this is false.
+/** @param {ReturnType<typeof fragmentAddress>} address */
+export const fragmentShown = (address) =>
+  Boolean(address?.place && showsContents(address.place));
 
 /** @typedef {Element | Range} Destination
  * @typedef {import("./user-intent.js").UserIntent} UserIntent
@@ -357,6 +376,8 @@ export function createAnchorTravel({
         if (moving === undefined) return;
         if (!moving) {
           if (continuing && arrival) Object.assign(continuing, arrival);
+          // No departure, but the entry the user stays on now names where they are.
+          if (url) replaceEntry(url);
           return;
         }
         navigationGroup = arrival && {
@@ -372,11 +393,12 @@ export function createAnchorTravel({
     };
   }
 
-  // A fragment link naming an element of the page is a navigation step there whose departure is
-  // the browser's: the navigation has already added the entry Back returns to, whoever
+  // A fragment link naming a place of the page, an element or a widget's key, is a
+  // navigation step there whose departure is the browser's: the navigation has already
+  // added the entry Back returns to, whoever
   // followed it — a press on a page link or a reply's reference, a Go-to hint. What the
   // platform lacks for a page place is travel's to add, the same as for any other
-  // destination: clear the surface hiding it, and reveal what holds
+  // destination: draw a key's part, clear the surface hiding it, and reveal what holds
   // it, which reaches a widget's own disclosure as well as `hidden="until-found"` (a
   // worker in a shut goal is `display: none`, and the browser landed on nothing). It
   // then lands by the browser's fragment placement rule and puts focus
@@ -386,8 +408,7 @@ export function createAnchorTravel({
   // fragment naming nothing here is not claimed, and the browser keeps it.
   /** @param {URL} url */
   function followFragment(url) {
-    const where = fragmentTarget(url.hash);
-    return where && fragmentNavigationStep(url, true);
+    return fragmentTarget(url.hash) && fragmentNavigationStep(url, true);
   }
 
   // Back or Forward restores the offset the entry was left at (history.js), which is
@@ -396,20 +417,29 @@ export function createAnchorTravel({
   // disclosure or a widget's own shut state, the offset was read over a page that has
   // changed, and restoring it lands on whatever now sits at that pixel. The fragment is
   // then the one thing the entry still says, so the traversal is a navigation step to it that
-  // departs by no new entry: the same clearing and reveal as a followed link. The
-  // browser's own landing on a traversal is that offset, so travel lands the place by
-  // the fragment rule itself (`scrollToFragment`).
+  // departs by no new entry: the same clearing and reveal as a followed link. A widget's
+  // key whose part the widget no longer draws, since the user has picked another of its
+  // items, names such a place too. The browser's own landing on a traversal is that
+  // offset, so travel lands the place by the fragment rule itself (`scrollToFragment`).
   /** @param {URL} url */
   function returnToFragment(url) {
-    const where = fragmentTarget(url.hash);
-    return where && !showsContents(where) ? fragmentNavigationStep(url, false) : null;
+    const address = fragmentAddress(url.hash);
+    if (!address) return null;
+    return fragmentShown(address) ? null : fragmentNavigationStep(url, false);
   }
 
+  // A key's part is asked for first, as `navigateToDatum` asks for it, and a key the
+  // widget draws nothing for lands on the widget.
   /** @param {URL} url @param {boolean} focus */
   function fragmentNavigationStep(url, focus) {
     const mayArrive = retainTravel();
-    return () =>
-      arrive(
+    return async () => {
+      const address = fragmentAddress(url.hash);
+      const drawing =
+        address?.key == null ? null : revealAddressed(address.element, address.key);
+      if (drawing?.then) await drawing;
+      if (!mayArrive()) return false;
+      return arrive(
         () => {
           const where = fragmentTarget(url.hash);
           return (
@@ -422,6 +452,7 @@ export function createAnchorTravel({
         },
         { intent: mayArrive },
       );
+    };
   }
 
   /** @param {Element} owner @param {string} attribute @param {string} key @param {{success?: string, missing?: string, focus?: boolean}} [options] */
@@ -441,8 +472,8 @@ export function createAnchorTravel({
       return false;
     }
 
-    const url = new URL(window.location.href);
-    url.hash = source.id;
+    // The entry names the key, so a reload or a copied URL reaches the same part.
+    const url = new URL(fragmentUrl(source, key));
     const departure = prepareNavigationStep({ url, intent: mayArrive });
 
     // The widget owns filters, lazy projection, and the state a visual draws. Ask it to
@@ -491,6 +522,47 @@ export function createAnchorTravel({
   // not move with that region, so a fixed boundary ends the scrollers that move it
   // (`scrollersOf`); a scroller inside that boundary still owns its ordinary descendants.
 
+  // The box `at` stands in that the browser skips while it is out of view, or null,
+  // read from the box's style rather than from whether it is skipped now: the boxes
+  // between it and the view can be skipped while its own is drawn, as naming the
+  // destination's anchor for its thread's card draws it. A box an earlier landing still
+  // holds drawn (`drawForLanding`) counts though its style reads `visible`: read from
+  // the style alone, a second `t` within those frames, as a held key repeats, glided
+  // and left the line 1,220 px out of view.
+  /** @param {Element | Range} at */
+  const skippableBox = (at) => {
+    for (let box = placeHolder(at); box; box = renderedParent(box))
+      if (
+        drawnForLanding.has(box) ||
+        getComputedStyle(box).contentVisibility === "auto"
+      )
+        return box;
+    return null;
+  };
+
+  // A skipped box takes its estimated size, so geometry read inside it, which the
+  // browser lays out to answer, can disagree with the stretch drawn where the jump
+  // lands; Firefox also keeps the box skipped until it meets the view at an update. On
+  // text that breaks other than as its estimate assumes, such as base64 in Firefox,
+  // that drew lines 26 past the destination. Drawn for the jump, the box lands where
+  // it is read; two frames later the browser has found it in view, and it is released.
+  /** @type {Map<Element, string>} */
+  const drawnForLanding = new Map();
+  /** @param {Element} box */
+  function drawForLanding(box) {
+    if (!(box instanceof HTMLElement) || drawnForLanding.has(box)) return;
+    drawnForLanding.set(box, box.style.getPropertyValue("content-visibility"));
+    box.style.setProperty("content-visibility", "visible");
+    nextFrame(() =>
+      nextFrame(() => {
+        const before = drawnForLanding.get(box);
+        drawnForLanding.delete(box);
+        if (before) box.style.setProperty("content-visibility", before);
+        else box.style.removeProperty("content-visibility");
+      }),
+    );
+  }
+
   /** @param {ScrollPlacement} place @param {boolean} replacedView */
   function placeScroll(
     { at, align = at, block = "center", behavior = scrollBehavior(), when },
@@ -498,12 +570,15 @@ export function createAnchorTravel({
   ) {
     if (when && !when()) return;
     if (block === "fragment") scrollToFragment(at);
-    else
+    else {
+      const skippable = skippableBox(at);
+      if (skippable) drawForLanding(skippable);
       scrollIntoView(at, {
         alignment: align,
-        behavior: replacedView ? "instant" : behavior,
+        behavior: replacedView || skippable ? "instant" : behavior,
         block,
       });
+    }
   }
 
   // Synchronous: the move is the caller's gesture, so its intent is the current one.
@@ -616,11 +691,18 @@ export function createAnchorTravel({
     // written by the thread pass. Wait for it: a claim is synchronous but its
     // paint is not, so reading the destination in this turn would find the page as the
     // press left it.
+    // A route naming no part of the thread lands on the place it is about, where the
+    // page shows that place but no view of the thread (thread/destination.js, `page`).
     return arrive(
       () => {
         const where = threadDestination(id);
         if (!where) return null;
-        const target = focus && part ? threadFocusTarget(id, { part }) : null;
+        const placement = anchors.placedAt(id);
+        const target = !focus
+          ? null
+          : part
+            ? threadFocusTarget(id, { part })
+            : (targetElement(placement) ?? targetPlace(placement));
         /** @type {ScrollPlacement[]} */
         const scroll = [];
         if (target) scroll.push({ at: target, block: "nearest" });

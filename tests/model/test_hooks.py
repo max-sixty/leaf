@@ -62,6 +62,7 @@ from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
 from leaf.registry.storage import LAYER, layer_record
+from leaf.served_state import context as context_model
 
 
 def handed(page_dir, input_id: str) -> bool:
@@ -1174,6 +1175,43 @@ def test_a_tool_boundary_reminds_the_agent_of_a_status_line_left_standing(
     assert hook("PostToolBatch") == ""
 
 
+def test_a_tool_boundary_with_nothing_new_answers_from_the_log(
+    claimed, monkeypatch, capsys
+):
+    """Claude Code waits for the tool-boundary hook before every model call, and
+    nearly every boundary finds nothing to carry. Folding each page to find that
+    out took most of the hook's half second, so a boundary reads its pages' logs
+    first and folds them only for input past a cursor. A comment arriving later
+    still reaches the turn at the next boundary."""
+    folded = []
+    read_plans = hook_transport_model.read_plans
+    monkeypatch.setattr(
+        hook_transport_model,
+        "read_plans",
+        lambda session: folded.append(session) or read_plans(session),
+    )
+
+    def hook(event: str) -> str:
+        hooks_model.cmd_hook(
+            "claude-code",
+            {"hook_event_name": event, "session_id": "s1", "prompt_id": "p1"},
+        )
+        return capsys.readouterr().out
+
+    hook("UserPromptSubmit")
+    # The session's first boundary checks its status lines, which reads its pages.
+    hook("PostToolBatch")
+    folded.clear()
+    assert hook("PostToolBatch") == ""
+    assert folded == []
+
+    comment = append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "which ships first?"}
+    )
+    assert comment["id"] in hook("PostToolBatch")
+    assert folded == ["s1"]
+
+
 def test_a_boundary_handover_escape_kept_is_never_handed_over_twice(
     claimed, interactive, context_record, monkeypatch, capsys
 ):
@@ -1542,12 +1580,16 @@ def test_hook_snapshot_serializes_receipt_and_reply(claimed, monkeypatch):
         plan.batch for plan in hook_transport_model.read_plans("s1") if plan.batch
     ]
     [frozen] = delivery_model.freeze_delivery([batch])["batches"]
-    projected = hook_transport_model.read_page
+    projected = context_model.read_page
     lock_proved = threading.Event()
     errors = []
     writers = []
 
     def read_while_settlement_waits(page_dir, events):
+        if writers:
+            # The settlement's own readings, and the hook's after the first.
+            return projected(page_dir, events)
+
         def settle():
             try:
                 with open(page_dir / schema_model.EVENTS_FILE, "r+b") as held:
@@ -1577,7 +1619,7 @@ def test_hook_snapshot_serializes_receipt_and_reply(claimed, monkeypatch):
         )
         return projected(page_dir, events)
 
-    monkeypatch.setattr(hook_transport_model, "read_page", read_while_settlement_waits)
+    monkeypatch.setattr(context_model, "read_page", read_while_settlement_waits)
     plans = hook_transport_model.read_plans("s1")
     for writer in writers:
         writer.join(timeout=STATED_TIMEOUT)

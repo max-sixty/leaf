@@ -157,6 +157,15 @@ import { announce, liveEl, notice } from "./runtime/notifications.js";
 import { raiseError } from "./runtime/errors.js";
 import { mediaViewer } from "./runtime/media.js";
 import { retainUserIntent, restrictUserIntent } from "./runtime/user-intent.js";
+import { installMoveSelection } from "./runtime/dom-move.js";
+import { holdSelection } from "./runtime/native-selection.js";
+
+// Leaf's selection writer keeps a page selection across `setChildLists`'s moves
+// (dom-move.js), installed before the boot draws anything. It stands here rather than
+// beside `installMoveFocus` (move-focus.js): native-selection.js reaches context.js
+// through shadow.js, and imported from move-focus.js, which framework.js imports
+// first, it ran a module before `readPart` (semantic-state.js) was initialized.
+installMoveSelection(holdSelection);
 
 // The boot runs in a function, since a compiled module awaits nothing at its top
 // level (`topLevelAwaitRule` in eslint.config.mjs says why). Its rejection names
@@ -517,7 +526,7 @@ async function boot() {
     placedAt: anchorPlacement.placedAt,
     openThreadSubject: (id, options) =>
       app.threadDestinations.openThreadSubject(id, options),
-    atLastResort: (key) => app.threadDestinations.atLastResort(key),
+    showsOnPage: (key) => app.threadDestinations.showsOnPage(key),
     annotationsHidden: () => annotationRenderer?.annotationsHidden() ?? false,
   });
   // The page's general comment box is the floating panel's field.

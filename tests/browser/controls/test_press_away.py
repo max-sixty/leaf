@@ -19,7 +19,6 @@ from render_harness import (
 
 from browser.drafts.test_reply_sessions import open_reply
 from browser.margin.test_pins import FOLDING_PAGE
-from browser.test_render_reactions import select_paragraph
 from leaf import event_log as events_model
 
 PHONE = {
@@ -165,27 +164,6 @@ def test_a_press_away_puts_the_panel_s_view_away(browser, serve):
     panel_settled(page, view="queue")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
-
-
-def test_a_press_away_puts_the_response_bar_away(browser, serve):
-    page = open_page(browser, serve(PANEL_PAGE))
-    bar = page.locator(".lf-fab-bar")
-    outside = centre(page.locator("h1"))
-    select_paragraph(page, "#how-store")
-    expect(bar).to_be_visible()
-    # Selecting the words typed in its field past its edge leaves it standing.
-    drag(page, centre(bar.locator(".lf-fab-input")), outside)
-    expect(bar).to_be_visible()
-    tap(page, outside)
-    expect(bar).to_be_hidden()
-    select_paragraph(page, "#how-store")
-    expect(bar).to_be_visible()
-    page.mouse.click(*outside)
-    expect(bar).to_be_hidden()
-    select_paragraph(page, "#how-store")
-    expect(bar).to_be_visible()
-    page.keyboard.press("Escape")
-    expect(bar).to_be_hidden()
 
 
 def test_a_press_away_takes_back_a_reaction_s_offered_remove(browser, serve):

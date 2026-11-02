@@ -58,7 +58,8 @@ not by looking up the id yourself.
 the first element `key` names in the referenced widget: a visual part's id, a projected
 datum's key, or whatever the target's `lfElementsFor(key)` maps it to (`lf-code` takes
 line ranges such as `"3-5,8"`). Leaf loads the datum, opens what holds it, reveals and
-focuses it, updates the fragment, and announces `success`. An absent destination
+focuses it, sets the URL's fragment to the widget's id and the key, and announces
+`success`. An absent destination
 keeps the reader's place and history and shows `missing` in Leaf's notice seat. Pass
 `focus: false` when the source stays the user's input surface, as a file navigator does
 beside the evidence it selects. A lazy target can implement
@@ -67,6 +68,14 @@ beside the evidence it selects. A lazy target can implement
 name a datum not yet drawn. Where your key is a source location rather than the datum's
 lasting identity, translate it and read `projectedDatum(widget, key)`, the one matching
 element or `null`.
+
+A URL reaches the same parts. `fragmentUrl(widget, key)` returns this page's URL with
+a fragment naming the part `key` names in `widget`, `#<widget-id>:<key>`, for a
+copy-link control or a link to hand on; `fragmentUrl(element)` names the element alone.
+Loading, following, reloading, or going Back or Forward to that URL draws the part
+through the same hooks; a load or followed link lands on it, or on the widget where the
+key names nothing. A widget that answers `navigateToDatum` needs nothing more for links
+to its parts.
 
 ## Content helpers
 
@@ -98,7 +107,9 @@ page's syntax theme. `synNodes(tokens)` turns them into nodes, and `tokenLines(t
 splits them by line. `lang` is a registry `$languages` name; `langForPath(path)` derives
 one from a file name, and `ensureSyntaxLanguage(lang)` loads one ahead of time.
 `highlightBlocks(root)` colours each `pre > code` in `root` whose `language-…` class
-names a language.
+names a language, that holds only text, and that wears the reading face
+(`package-themes.md`, "Personal themes"); a block in a shadow tree wears it where the
+widget sets `--lf-reading-face: 1` on a box around it.
 
 Leaf adds a Copy button to each `pre > code` in the page. A widget block holding other
 source text, such as numbered code lines, declares its own: give the block

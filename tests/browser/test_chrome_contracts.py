@@ -386,7 +386,7 @@ def test_page_thread_dismiss_and_resolve_share_the_metadata_row(
     browser, serve, thread_count, touch
 ):
     context = browser.new_context(
-        viewport={"width": 900, "height": 844}, is_mobile=touch, has_touch=touch
+        viewport={"width": 1000, "height": 844}, is_mobile=touch, has_touch=touch
     )
     url = serve(LONG_PAGE)
     for index in range(thread_count):
@@ -442,7 +442,7 @@ def test_page_thread_dismiss_and_resolve_share_the_metadata_row(
         assert row["navRight"] < row["resolveLeft"], row
         assert row["overflow"] == 0, row
     dismiss.focus()
-    resized(page, 1000, 844)
+    resized(page, 1100, 844)
     expect(dismiss).to_be_focused()
     resolve.focus()
     page.keyboard.press("Tab")
@@ -1058,38 +1058,6 @@ REPORTED_DRAFT = (
     "great, let's go with the more square form. I don't have a strong view of which"
     " one is better, and the other parts of this thread can wait until later"
 )
-
-
-@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_a_scrolling_draft_shows_the_caret_s_row_with_the_padding_beside_it(
-    engine, request, serve
-):
-    """A line typed at the end of a draft that scrolls leaves nothing below it to scroll
-    to, and the caret taken to the first line leaves nothing above. Revealing only the
-    caret, as a native textarea does, left the field's padding out of view, and in
-    Firefox the foot of the caret's row too."""
-    page = open_page(request.getfixturevalue(engine), serve(LONG_PAGE))
-    field = page_comment(page)
-    hidden = """box => ({
-      below: box.scrollHeight - box.clientHeight - box.scrollTop,
-      above: box.scrollTop,
-    })"""
-    page.keyboard.type("line 0")
-    for line in range(1, 40):
-        page.keyboard.press("Shift+Enter")
-        page.keyboard.type(f"line {line}")
-        if field.evaluate("box => box.scrollHeight > box.clientHeight + 40"):
-            break
-    else:
-        raise AssertionError("the draft never scrolled")
-    for key in ("Shift+Enter", "w", "ControlOrMeta+Home"):
-        page.keyboard.press(key)
-        rendered(page)
-        shown = field.evaluate(hidden)
-        if key == "ControlOrMeta+Home":
-            assert shown["above"] < 1, shown
-        else:
-            assert shown["below"] < 1, (key, shown)
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

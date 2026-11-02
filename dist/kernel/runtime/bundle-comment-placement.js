@@ -268,7 +268,9 @@ function standsNow(row) {
 	const left = at ? by.across ? at.left : 0 : -scrollX;
 	return {
 		top: top + by.top,
-		right: left + by.right
+		bottom: top + by.bottom,
+		right: left + by.right,
+		level: by.level
 	};
 }
 function scrollSources(node) {
@@ -363,8 +365,8 @@ function quotedBoxes(options) {
 const wordsStart = (options) => targetSegments(options.passage?.())[0]?.node ?? null;
 function wordsShown(boxes, start, bands, stop) {
 	const holder = renderedParent(start);
-	const box = union(boxes);
-	return holder && box && clippedContents(box, holder, bands, stop);
+	if (!holder) return [];
+	return boxes.flatMap((box) => clippedContents(box, holder, bands, stop) ?? []);
 }
 function passageBlock(words, target) {
 	let block = null;
@@ -679,7 +681,7 @@ function pinSeating(rows, { bands, shell, pinInset }) {
 		const { target, point, words, row, preformatted } = read;
 		const height = entry.rect.bottom - entry.rect.top;
 		const width = entry.rect.right - entry.rect.left;
-		const line = words?.[0];
+		const line = words && read.shownWords[0];
 		const home = !preformatted ? entry.rect : {
 			left: preformatted.right - pinInset - width,
 			right: preformatted.right - pinInset,
@@ -818,6 +820,10 @@ function targetShown(target, extent, stands, bands) {
 	const view = clippedRect(EVERYWHERE, target, bands, pageScroller);
 	if (!extent || !view || !overlaps(extent, view)) return false;
 	if (!stands) return true;
+	if (stands.level) {
+		const middle = (Number(stands.top) + Number(stands.bottom)) / 2;
+		return middle >= extent.top - 1 && middle <= extent.bottom + 1;
+	}
 	return Number(stands.top) >= view.top - 1 && (stands.right === void 0 || stands.right <= view.right + 1);
 }
 const pushes = /* @__PURE__ */ new Map();
@@ -850,7 +856,7 @@ function scheduleStirReading() {
 			if (!withheld && boxes.every((box) => box === pageScroller)) continue;
 			const now = withheld ? null : standsNow(row);
 			const stands = now && (row.dataset.lfPlace === "pin" ? now : { top: now.top });
-			if (targetShown(target, start ? wordsShown(words, start, bands, pageScroller) : shownExtent(target), stands, bands) === withheld) {
+			if (targetShown(target, start ? union(wordsShown(words, start, bands, pageScroller)) : shownExtent(target), stands, bands) === withheld) {
 				scheduleMarginLayout();
 				return;
 			}
@@ -950,7 +956,8 @@ function layoutMountedRows(layer) {
 		const rootLane = scroller === pageScroller;
 		const box = anchor.getBoundingClientRect();
 		const whole = shownExtent(target);
-		const extent = whole && (passageNode ? wordsShown(words, passageNode, bands, scroller) : clippedRect(whole, target, bands, scroller));
+		const shownWords = passageNode ? wordsShown(words, passageNode, bands, scroller) : [];
+		const extent = whole && (passageNode ? union(shownWords) : clippedRect(whole, target, bands, scroller));
 		const preformatted = preformattedBlock(passageNode ? renderedParent(passageNode) : point ? null : target, bands, scroller);
 		const blockNode = passageNode && !preformatted && passageBlock(passageNode, target);
 		const blockWhole = blockNode && shownExtent(blockNode);
@@ -979,6 +986,7 @@ function layoutMountedRows(layer) {
 			target,
 			point,
 			words: words.length ? words : null,
+			shownWords,
 			passageNode,
 			block,
 			preformatted: preformatted || null,
@@ -1268,19 +1276,25 @@ function layoutMountedRows(layer) {
 	for (const { key: row, rect, read, visualLeft, step = 0 } of placed) {
 		const push = packed.get(row) ?? 0;
 		pushes.set(row, push);
-		if (read.place === "pin") row.classList.toggle("lf-withheld", !targetShown(read.target, read.extent, {
-			top: rect.top + push,
-			right: rect.right
-		}, bands));
 		const left = (visualLeft ?? rect.left) + step;
 		const top = rect.top + push;
+		const level = read.place === "pin" && Boolean(read.preformatted && read.words);
+		if (read.place === "pin") row.classList.toggle("lf-withheld", !targetShown(read.target, read.extent, {
+			top,
+			bottom: rect.bottom + push,
+			right: rect.right,
+			level
+		}, bands));
 		const across = read.axes === "xy";
 		const at = read.carrierPaint?.box;
+		const fromTop = at ? at.top : -scrollY;
 		standsBy.set(row, {
 			anchor: at ? read.carrier : null,
 			across,
-			top: top - (at ? at.top : -scrollY),
-			right: rect.right - (at ? across ? at.left : 0 : -scrollX)
+			top: top - fromTop,
+			bottom: rect.bottom + push - fromTop,
+			right: rect.right - (at ? across ? at.left : 0 : -scrollX),
+			level
 		});
 		if (read.carrierPaint) {
 			const { node: carrier, box: carrierBox, reading } = read.carrierPaint;

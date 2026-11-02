@@ -455,6 +455,77 @@ def test_a_pin_on_a_line_of_a_scrolling_code_block_marks_that_line(
     expect(row).not_to_have_class(re.compile(r"\blf-withheld\b"))
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+@pytest.mark.parametrize(("edge", "first"), [("top", 4), ("bottom", 24)])
+def test_a_pin_on_lines_partly_scrolled_away_stands_by_one_still_shown(
+    request, serve, engine, edge, first
+):
+    """A comment can quote several lines of a code block that scrolls. Once the block
+    scrolls the first of them out past an edge of its box, the pin stands level with
+    the first quoted line still in view, at the block's right edge, the same after a
+    fresh pass, and the row hides only once none of them shows. Seated by its first line
+    wherever that line had gone, the pin stood above the code box with five quoted
+    lines in view, or below it with one line just showing at its foot."""
+    browser = request.getfixturevalue(engine)
+    quote = "\n".join(LONG_NEIGHBOURS[first - 1 : first + 7]).strip()
+    comment = _comment_on("listing", quote=quote)
+    page = open_page(browser, serve(_listing(LONG_NEIGHBOURS), events=[comment]))
+    resized(page, 1280, 800)
+    margins_laid_out(page)
+    # The boxes of the quoted lines, as JavaScript taking the quote.
+    lines = """(quote) => {
+      const text = document.querySelector('#listing code').firstChild;
+      const at = text.data.indexOf(quote);
+      const range = document.createRange();
+      range.setStart(text, at);
+      range.setEnd(text, at + quote.length);
+      return [...range.getClientRects()].filter((box) => box.width);
+    }"""
+    reading = f"""quote => {{
+      const lines = ({lines})(quote);
+      const code = document.querySelector('#listing code');
+      const box = code.getBoundingClientRect();
+      const top = box.top + code.clientTop;
+      const band = {{top, bottom: top + code.clientHeight}};
+      const row = document.querySelector('[data-lf-margin-for="listing"]');
+      const pin = row.getBoundingClientRect();
+      const middle = (pin.top + pin.bottom) / 2;
+      return {{shown: !row.classList.contains('lf-withheld'),
+              beside: middle >= Math.max(lines[0].top, band.top)
+                && middle <= Math.min(lines.at(-1).bottom, band.bottom),
+              inBox: pin.left >= box.left && pin.right <= box.right,
+              pin: pin.toJSON(), band, first: lines[0].toJSON()}};
+    }}"""
+    page.evaluate(
+        f"""async ([quote, edge]) => {{
+          const first = ({lines})(quote)[0];
+          const code = document.querySelector('#listing code');
+          const top = code.getBoundingClientRect().top + code.clientTop;
+          const ended = new Promise((done) =>
+            code.addEventListener('scrollend', done, {{once: true}}));
+          // Two quoted lines and part of a third above the box, or the first line's
+          // top 6px showing at its foot.
+          code.scrollTop += edge === 'top'
+            ? first.top - top + 50 : first.top - (top + code.clientHeight - 6);
+          await ended;
+        }}""",
+        [quote, edge],
+    )
+    rendered(page)
+    scrolled = page.evaluate(reading, quote)
+    assert scrolled["shown"] and scrolled["beside"] and scrolled["inBox"], scrolled
+    margins_laid_out(page)
+    placed = page.evaluate(reading, quote)
+    assert placed["shown"] and placed["beside"] and placed["inBox"], placed
+    page.locator("#listing code").evaluate(
+        "(code, edge) => { code.scrollTop = edge === 'top' ? code.scrollTop + 400 : 0; }",
+        edge,
+    )
+    expect(page.locator('[data-lf-margin-for="listing"]')).to_have_class(
+        re.compile(r"\blf-withheld\b")
+    )
+
+
 FIRST_LINE = "configuration = load_settings(path, defaults, overrides, environment, profile_name)"
 FIRST_LINE_LISTING = [FIRST_LINE, "short_second = 1", "third = 2"]
 # The same block on a slide a deck translates and scales, as reveal.js does.

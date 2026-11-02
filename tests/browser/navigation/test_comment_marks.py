@@ -628,7 +628,7 @@ def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
     expect(note).to_be_focused()
     assert note.evaluate("el => getComputedStyle(el).opacity") == "0"
     expect(page.locator("#p1")).to_be_in_viewport()
-    ring = page.locator(".lf-visual-mark.lf-visual-mark-focus")
+    ring = page.locator(".lf-stop-ring")
     expect(ring).to_have_count(1)
     held, block = ring.bounding_box(), page.locator("#p1").bounding_box()
     assert all(abs(held[side] - block[side]) < 1 for side in held), (held, block)
@@ -714,6 +714,44 @@ def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
     expect_comment_notes(page, "#p2", 1)
     assert accessible_details(page, "#p1")[0].startswith("2 comments on ")
     assert accessible_details(page, "#p2")[0].startswith("1 comment on ")
+
+
+def test_a_focused_note_rings_its_block_where_the_page_draws_its_own_annotations(
+    browser, serve
+):
+    """The ring a focused note draws round its block is the chrome's own (target-paint.js),
+    not the annotation overlay's, so a page that presents its own annotations, which loads
+    no overlay, still shows a sighted screen reader user where they are."""
+    url = serve(NOTED_PAGE.replace("<body>", '<body data-annotations="page">', 1))
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Sharpen this.",
+            "anchor": {"section": "p1"},
+        },
+    )
+    page = open_page(browser, url)
+    expect_comment_notes(page, "#p1", 1)
+    note = comment_note(page, "#p1")
+    page.keyboard.press("Tab")
+    note.focus()
+    expect(note).to_be_focused()
+    ring = page.locator(".lf-stop-ring")
+    expect(ring).to_be_visible()
+    held, block = ring.bounding_box(), page.locator("#p1").bounding_box()
+    gaps = (
+        block["x"] - held["x"],
+        block["y"] - held["y"],
+        held["x"] + held["width"] - block["x"] - block["width"],
+        held["y"] + held["height"] - block["y"] - block["height"],
+    )
+    assert all(0 <= gap <= 4 for gap in gaps), (held, block)
+    # Leaving the note takes its ring down.
+    note.evaluate("note => note.blur()")
+    expect(ring).to_be_hidden()
 
 
 def test_a_revision_keeps_a_block_naming_its_comment_note(browser, serve):

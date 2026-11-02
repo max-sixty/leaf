@@ -302,8 +302,10 @@ html[data-lf-region-capture] main * {
   }
   /* Every margin-projection control traces the content it concerns through one quiet
      overlay. Painting above the target keeps a package-owned frame from covering the
-     contour; the stronger accent ring remains a separate focus fact. */
-  .lf-target-trace {
+     contour; the stronger accent ring remains a separate focus fact. A focused stop
+     draws that focus ring round what it stands for the same way (target-paint.js),
+     whole, in the ring's ink and width. */
+  :is(.lf-target-trace, .lf-stop-ring) {
     position: absolute;
     display: none;
     pointer-events: none;
@@ -313,6 +315,11 @@ html[data-lf-region-capture] main * {
     --lf-shape-stroke: var(--target-trace-w);
     --lf-shape-dash: none;
   }
+  .lf-stop-ring {
+    --lf-target-outline: var(--focus-ring);
+    --lf-shape-ink: var(--accent);
+    --lf-shape-stroke: var(--focus-ring-w);
+  }
   /* On the target's perimeter, where its focus ring and location ring stand too
      (base.css, "Where it stands"): brackets are two 8px end strips of the outline
      keyboard focus draws whole there. No state changes bounds, radius or offset, and
@@ -321,7 +328,7 @@ html[data-lf-region-capture] main * {
      rectangle, its corner shape and the gap, `--lf-mark-offset`. `--lf-mark-room` is
      how far the band reaches outside the target, which each strip's clip starts from.
      Keep this in shared chrome so Aim and an optional annotation painter agree. */
-  :is(.lf-aim, .lf-target-trace, .lf-visual-mark):not(.lf-shaped) {
+  :is(.lf-aim, .lf-target-trace, .lf-stop-ring, .lf-visual-mark):not(.lf-shaped) {
     --lf-mark-room: calc(var(--focus-ring-w) + var(--lf-mark-offset));
     &::before,
     &::after {
@@ -345,14 +352,14 @@ html[data-lf-region-capture] main * {
           calc(-1 * var(--lf-mark-room)) calc(100% + var(--lf-mark-room) - 8px)
       );
     }
-    &.lf-visual-mark-focus::after {
+    &:is(.lf-visual-mark-focus, .lf-stop-ring)::after {
       clip-path: none;
     }
-    &.lf-visual-mark-focus::before {
+    &:is(.lf-visual-mark-focus, .lf-stop-ring)::before {
       content: none;
     }
   }
-  .lf-target-trace-shape {
+  :is(.lf-target-trace-shape, .lf-stop-ring-shape) {
     display: block;
     width: 100%;
     height: 100%;

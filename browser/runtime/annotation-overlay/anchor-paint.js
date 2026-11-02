@@ -6,8 +6,6 @@
  */
 
 import { ringBox, visibleFocus } from "../focus.js";
-import { visualAt } from "../anchor-resolution.js";
-import { standsFor } from "../details-shelf.js";
 import { shownParts } from "../geometry.js";
 import { cancelRender, nextRender } from "../rendering.js";
 import {
@@ -113,17 +111,6 @@ export function createAnchorPaint({
     if (ownsRing && active.getRootNode() === document && pageWords(active))
       elements.add(active);
     const focus = new Set(ownsRing && elements.has(active) ? [active] : []);
-    // A stop on the details shelf shows nothing of its own: the ring its focus draws
-    // stands round what it stands for, a commented block or a picture's part, as that
-    // focused itself would wear it, and a part's in its own contour.
-    const stood = active && standsFor(active);
-    if (stood) {
-      elements.add(stood);
-      focus.add(stood);
-      const part = visualAt(stood, { unclaimed: false })?.part;
-      if (part?.element === stood && !visualTargets.has(stood))
-        visualTargets.set(stood, part.surface);
-    }
     /** @type {[string, Set<Element>][]} */
     const sources = [
       ["pending", pending],

@@ -1522,7 +1522,7 @@ def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser,
     expect(part).to_be_in_viewport()
     # It shows nothing of its own: the part wears the focus ring, round its contour.
     assert control.evaluate("control => getComputedStyle(control).opacity") == "0"
-    ring = page.locator(".lf-visual-mark.lf-visual-mark-focus")
+    ring = page.locator(".lf-stop-ring")
     expect(ring).to_have_count(1)
     held, drawn = ring.bounding_box(), part.bounding_box()
     # The ring stands round the part, at its gap.

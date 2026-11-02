@@ -8,7 +8,7 @@ import { clamp, rightCover, seenRect, shownBox, shownParts, shownWindow, showsCo
 import { blockAt, closestAcross, elementFromPointAcross, inChrome, labelWords, pageWords, quoteFrom, rangeOf, segmentsIn } from "./bundle-passages.js";
 import { retainUserIntent } from "./bundle-copy-control.js";
 import { SVG_NS, activateContributionControl, awaitingUser, canFold, choosePrimary, clearContributionControls, clusterProjection, contributionEntry, contributionEntryRecord, contributionEntrySource, dropStand, entryEngaged, entryHasMarginHost, focusedOfferOf, markerFace, materializeContributionControls, optionsOffered, paintGeometry, paintShape, paintStand, placement, presentContributionEntry, presentContributionReceipts, primaryReading, readingBehavior, readingChoices, readingContext, readingFace, readingKey, readingLabel, readingState, spokenContext, spokenSubject, standOver, syncContributionSelection, syncContributionUnread, threadReading, unreadIn } from "./bundle-page-layout.js";
-import { boxMotion, paintTrace, standsFor } from "./bundle-box-motion.js";
+import { boxMotion, paintTrace } from "./bundle-box-motion.js";
 import { THREAD_CARD, cardMeasure, cardMinimum, commentAttachment, commentBoundary, commentPlacement, commentReference, floatingGeometry, floatingPlacement, floatingSelections, floatingUi, heldEdges, layoutMarginRows, makeRoom, marginColumn, mountMarginLayer, paintedBox, registerMarginRow, scheduleMarginEntryLabels, scheduleMarginLayout, standsFolded, syncMarginContentLayout, unregisterMarginRow } from "./bundle-comment-placement.js";
 
 //#region runtime/annotation-overlay/surface-grip.js
@@ -2275,13 +2275,6 @@ function createAnchorPaint({ targetPaint, pointer, currentLocationThreadId, curr
 		const ownsRing = active && ringBox(active) === active && !obligationRing;
 		if (ownsRing && active.getRootNode() === document && pageWords(active)) elements.add(active);
 		const focus = new Set(ownsRing && elements.has(active) ? [active] : []);
-		const stood = active && standsFor(active);
-		if (stood) {
-			elements.add(stood);
-			focus.add(stood);
-			const part = visualAt(stood, { unclaimed: false })?.part;
-			if (part?.element === stood && !visualTargets.has(stood)) visualTargets.set(stood, part.surface);
-		}
 		const sources = [
 			["pending", pending],
 			["action", action],

@@ -716,10 +716,10 @@
         mark: el.matches(".lf-mark-el"),
         pseudo: pseudo ? "after" : null,
         carrier: outlined ? "outline" : "box-shadow",
-        focused: el === focused || el.matches(".lf-visual-mark-focus"),
+        focused: el === focused || el.matches(".lf-visual-mark-focus, .lf-stop-ring"),
         sample:
           el === focused ||
-          el.matches(".lf-visual-mark-focus") ||
+          el.matches(".lf-visual-mark-focus, .lf-stop-ring") ||
           holds(el, focused) ||
           holds(focused, el) ||
           el.hasAttribute("data-lf-ring-sample"),
@@ -818,8 +818,11 @@
     if (shadowBand(cs, accent, mixed) > 0) return null;
     overlaid(e);
     // The target painter's focus state names the current keyboard carrier even
-    // when its source has no id. Its other states are reference brackets.
-    const projected = e.ownerDocument.querySelector(".lf-visual-mark-focus");
+    // when its source has no id, and so does a focused stop's ring round what it
+    // stands for. The painter's other states are reference brackets.
+    const projected = e.ownerDocument.querySelector(
+      ".lf-visual-mark-focus, .lf-stop-ring",
+    );
     if (projected?.checkVisibility({ visibilityProperty: true })) overlaid(projected);
     // Tabs draw focus on their label inside the larger hit target.
     for (const child of e.querySelectorAll("*"))

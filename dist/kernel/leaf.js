@@ -1,5 +1,5 @@
 import { LAYOUT, PAGE_PAINT_ATTRIBUTE, actionTemplate, bindQueuedWork, byRenderedOrder, cancelRender, canvas2D, describeFailure, holdRendering, iconTemplate, inlineStyle, isElement, isHTML, keeps, keepsHidden, keepsText, layoutPx, motionEasing, motionPlays, motionTime, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offeredAction, pagePresented, pageUpgraded, playMotion, reducedMotion, renderedOrder, renderedUnder, renderingState, scrollBehavior, scrollGlides, scrolling, setScroll, shadowHost, sizeObserver, skipped, tabStore, under as under$1, upFrom, watchScrollEnds, watchScrolls, whileConnected } from "./runtime/bundle-portable.js";
-import { CARET_KEYS, COLLAPSE, J, LitElement, MODIFIER_KEYS, PRESENTATION_DOM, PRESSES, SHARE_ROOT, TEXT_BLOCK, TEXT_BOX, TEXT_FIELD, WEBSITE_DELIVERY, WORKS, Z, agentName, agentSays, annotationMode, annotationSheets, applicationPresenter, applicationState, bareReaction, blurFocused, carriesObligation, chromeSheet, claimReleaseClick, closeLayer, closeNativeLayer, coarsePointer, currentLocationIn, d, decisionFor, declareReading, dismissPopoversOutside, documentChanged, drawn, eventSource, focusDestination, focusRevision, focused, fragmentId, guard, handBack, hasObligationSource, holdFocus, hostIn, html, inUi, isNews, itemNoun, itemOutcome, keyed, layerLanding, leafSays, letGo, live, marksSheet, move, nativeLayers, nativeModalAdmits, noChange, nothing, offlineInteractive, onCurrentLocation, onPress, onPressAway, onUserInput, openLayer, openerOf, pointerAt, pressHolds, pressIsKeyboardActivation, pressRecords, q, readPart, ref, registry, release, releaseFocus, render, repeat, rove, runtime, runtimeResource, saidBy, sameAnchor, selectsAll, shareUrl, showNativeLayer, tagsDeclaring, takesLetters, threadCounts, threadKey, threadNames, tick, tokenEntry, typesText, voiceOf, voiced, watchLayerChanges, whenApplicationPresented, wordsText, x } from "./runtime/bundle-layer-stack.js";
+import { CARET_KEYS, COLLAPSE, J, LitElement, MODIFIER_KEYS, PRESENTATION_DOM, PRESSES, SHARE_ROOT, TEXT_BLOCK, TEXT_BOX, TEXT_FIELD, WEBSITE_DELIVERY, WORKS, Z, agentName, agentSays, annotationMode, annotationSheets, applicationPresenter, applicationState, bareReaction, blurFocused, carriesObligation, chromeSheet, claimReleaseClick, closeLayer, closeNativeLayer, coarsePointer, currentLocationIn, d, decisionFor, declareReading, dismissPopoversOutside, documentChanged, drawn, eventSource, focusDestination, focusRevision, focused, fragmentId, guard, handBack, hasObligationSource, holdFocus, hostIn, html, inUi, isNews, itemNoun, itemOutcome, keyed, layerLanding, leafSays, letGo, live, marksSheet, move, nativeLayers, nativeModalAdmits, noChange, nothing, offlineInteractive, onCurrentLocation, onPress, onPressAway, onUserInput, openLayer, openerOf, pointerAt, pressHolds, pressIsKeyboardActivation, pressRecords, q, readPart, ref, registry, release, releaseFocus, render, repeat, rove, runtime, runtimeResource, saidBy, sameAnchor, selectsAll, shareUrl, showNativeLayer, tagsDeclaring, takesLetters, threadCounts, threadKey, threadNames, tick, tokenEntry, typesText, visibleFocus, voiceOf, voiced, watchLayerChanges, whenApplicationPresented, wordsText, x } from "./runtime/bundle-layer-stack.js";
 import { EVERYTHING, LINK, PRESS, PRESSABLE, advertisesKeys, allBindings, announce, bindingEnabled, bindings, buttonCommand, claimsEsc, clampedRow, closeControl, commandBinding, commandDeclarationsWithin, commandPresentations, commandRoutes, commandRun, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, el, errorsReading, hasRows, holdingError, keys, labelOf, live as live$1, liveEl, mountRepaint, nativePress, notice, noticeReading, noticeWords, pageRange, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, programmaticSelection, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reflectFirstScopes, reflectKeys, repaint, repaintPage, reportPageError, reveal, routedCommand, rowArrows, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, selectEnds, selectionBackward, setNoticeContext, setQuickShortcuts, setRuntimeRootStyle, spell, spokenBinding, submitBindings, titleOf, uploadMedia, watchCommandAvailability, word } from "./runtime/bundle-layer-client.js";
 import { ADDRESSABLE, PAGE_CONTROL_RANK, PRESENTATION, UPGRADE, addressableLabel, addressableSays, addressableWord, afterPresentation, ago, aimTargetAt, aimTargets, anchorFor, anchoringIsReady, annotationAt, atScrollEnd, chromeForeground, chromeRoot, designPressAt, effectiveScroller, elementFrame, exactTarget, fragmentTarget, holdArrivingBounds, isAddressable, lightSeat, livePoint, markPagePresented, markPageUpgraded, moveScrollerBy, openDocumentLayout, pageControls, pageControlsChanged, pageReadiness, pageScroller, placePoints, pointInto, railStands, reachScrollers, readingRegionFor, registerPageControl, registerReadingRegion, resolveAnchor, resolvedInMessage, revealAddressed, scrollChainOf, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, sectionLabel, sectionOf, setAnchoringReady, settlePageInterface, shortAgo, targetElement, targetParts, targetPlace, targetRange, targetSegments, unclaimedVisualGesture, userReadingRegion, visualAt, visualParts, visualSelector, whenArrived } from "./runtime/bundle-content-layout.js";
 import { activeCommandLabel, answerCloseRequest, availableCommandRoutes, dispatchKey, escapeTakesAStep, executeCommand, innermostStance, invokePress, keyReady, onSampleNotice, registerSampleCommand, restoreUserView, sampleNotice, userIn } from "./runtime/bundle-restore-state.js";
@@ -12,7 +12,7 @@ import { DISCLOSE, DISCLOSURE_SELECTOR, DRAWING_COORDINATE_LIMIT, KINDS, LeafEle
 import { visibleTargetParts } from "./runtime/bundle-visible-target-parts.js";
 import { pageImage, pageRenderer } from "./runtime/bundle-page-image.js";
 import { pageIdentity, shownScheme } from "./runtime/bundle-page-identity.js";
-import { aimLayer, boxMotion, mountTargetPaint, shelve, targetTraceLayer, target_paint_exports, unshelve } from "./runtime/bundle-box-motion.js";
+import { aimLayer, boxMotion, mountTargetPaint, paintStopRing, stopRingLayer, targetTraceLayer, target_paint_exports } from "./runtime/bundle-box-motion.js";
 import "/vendor/webawesome-chrome.js";
 
 //#region runtime/composing/drawing-geometry.js
@@ -3522,6 +3522,89 @@ function createAnchorPlacement() {
 		},
 		pendingAt: () => pendingPlaced
 	});
+}
+
+//#endregion
+//#region runtime/details-shelf.js
+const records = /* @__PURE__ */ new Map();
+const owners = /* @__PURE__ */ new WeakMap();
+let shelf = null;
+function standsFor(node) {
+	let at = node;
+	for (; at && at !== shelf; at = upFrom(at)) {
+		const owner = owners.get(at);
+		if (owner) return owner.standsFor(node) ?? owner.element;
+	}
+	return null;
+}
+declareSide(standsFor);
+let ringing = false;
+onCurrentLocation((node) => {
+	if (!node || !standsFor(node)) {
+		if (ringing) paintStopRing(null);
+		ringing = false;
+		return;
+	}
+	reveal(standsFor(node), retainUserIntent());
+	const target = standsFor(node);
+	scrollIntoView(target, {
+		behavior: "instant",
+		block: "nearest"
+	});
+	ringing = Boolean(target && visibleFocus(node));
+	const part = ringing ? visualAt(target, { unclaimed: false })?.part : null;
+	paintStopRing(ringing ? target : null, part?.element === target ? part.surface : target);
+});
+const same$2 = (left, right) => left.length === right.length && left.every((node, index) => node === right[index]);
+const authoredDetails = (element, value) => {
+	const root = element.getRootNode();
+	if (!("getElementById" in root)) return [];
+	return (value ?? "").split(/\s+/).filter(Boolean).flatMap((id) => {
+		const node = root.getElementById(id);
+		return node ? [node] : [];
+	});
+};
+const written = (element) => element.getAttribute("aria-details") === "";
+function name(element, record) {
+	if (!written(element)) record.authored = element.getAttribute("aria-details");
+	const wanted = [...authoredDetails(element, record.authored), ...record.notes];
+	if (written(element) && same$2(element.ariaDetailsElements ?? [], wanted)) return;
+	element.ariaDetailsElements = wanted;
+}
+function shelve(element, note, standsFor = () => null) {
+	shelf ??= offer("div", "lf-details-shelf");
+	if (!shelf.isConnected) chromeRoot.append(shelf);
+	if (note.parentNode !== shelf) move(shelf, note, null);
+	owners.set(note, {
+		element,
+		standsFor
+	});
+	let record = records.get(element);
+	if (!record) {
+		record = {
+			notes: [],
+			authored: null
+		};
+		records.set(element, record);
+	}
+	if (!record.notes.includes(note)) record.notes.push(note);
+	name(element, record);
+}
+function unshelve(element, note) {
+	const record = records.get(element);
+	if (record?.notes.includes(note)) {
+		record.notes = record.notes.filter((held) => held !== note);
+		if (record.notes.length) name(element, record);
+		else {
+			if (written(element)) {
+				if (record.authored === null) element.removeAttribute("aria-details");
+				else element.setAttribute("aria-details", record.authored);
+			}
+			records.delete(element);
+		}
+	}
+	note.remove();
+	owners.delete(note);
 }
 
 //#endregion
@@ -11168,7 +11251,7 @@ async function boot() {
 			chromeSheet,
 			marksSheet
 		];
-		chromeForeground.append(targetTraceLayer, aimLayer, liveEl, mediaViewer, commandReferenceDialog, inspectEl);
+		chromeForeground.append(targetTraceLayer, stopRingLayer, aimLayer, liveEl, mediaViewer, commandReferenceDialog, inspectEl);
 		chromeRoot.append(legendRoot, atWorkLayer, ...visualMarkPaint ? [visualMarkPaint.layer] : [], drawingPaint.layer, fabBar, chromeForeground);
 		document.body.append(chromeRoot);
 		version.mount();

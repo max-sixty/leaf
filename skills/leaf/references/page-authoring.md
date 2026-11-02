@@ -140,6 +140,12 @@ too wherever the theme's would show through. Wrapping elements the theme already
 styles in a card adds visual weight without meaning; give a card a grouping or
 interaction to express.
 
+For embedded content that already has its own design, put `data-style="own"` on
+its root (including `main` for a whole page). Leaf leaves native table sizing, code-block
+scrolling and scrollbar clearance, and syntax highlighting to that subtree. Comments still anchor in its text, and Leaf widgets keep their component
+styles. Choose no theme for a page whose layout and typography are wholly its own;
+this boundary does not remove the page's theme or inherited styles.
+
 Restyle the whole page through the theme's tokens on `:root` rather than rules on
 `body`, so Leaf's widgets, threads and panel follow the page: `--paper` and `--ink` for
 ground and text, `--card`, `--muted`, `--rule` and `--accent`, and the faces

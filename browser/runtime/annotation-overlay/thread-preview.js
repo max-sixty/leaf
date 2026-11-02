@@ -41,6 +41,7 @@
    and target landing; the card keeps Send's focus on the thread that received it. */
 import {
   atScrollEnd,
+  keepFoot,
   moveScrollerBy,
   pageScroller,
   scrollToEnd,
@@ -114,7 +115,7 @@ import { CardAnchor } from "../thread/card-anchor.js";
  * positionFrame: number, positionResult: PromiseWithResolvers<boolean> | null,
  * focusPending: {holding: Element | null} | null, withheldFocus: ReturnType<typeof holdFocus>,
  * transcript: HTMLElement | null, place: ReturnType<typeof placeKeeper> | null,
- * stopRegion: (() => void) | null, side: ReturnType<typeof commentPlacement>, anchor: CardAnchor,
+ * stopRegion: (() => void) | null, stopFoot: (() => void) | null, side: ReturnType<typeof commentPlacement>, anchor: CardAnchor,
  * reading: {input: number, scroll: number, end: boolean} | null, itemView: {node: HTMLElement, body: HTMLElement} | null, width: number | null, scroller: Element, followed: boolean}} Session
  * @typedef {{latest: boolean, end: boolean, scroll: number, keepTop: boolean, transcript: HTMLElement}} Reading
  */
@@ -134,6 +135,7 @@ const CUT_EDGES = [
  * placedAt: ReturnType<typeof import("../anchor-placement.js").createAnchorPlacement>["placedAt"],
  * scrollThreadIntoView: typeof import("../thread/reply-landing.js").scrollThreadIntoView,
  * scrollToElement: ReturnType<typeof import("../anchor-travel.js").createAnchorTravel>["scrollToElement"],
+ * openPageThread: ReturnType<typeof import("../thread/destination.js").createThreadDestinations>["openPageThread"],
  * openInPanel: (id: string) => unknown, onClose: (selection: Selection | null) => void}} dependencies */
 export function createThreadPreview({
   inventory,
@@ -141,6 +143,7 @@ export function createThreadPreview({
   placedAt,
   scrollThreadIntoView,
   scrollToElement,
+  openPageThread,
   openInPanel,
   onClose,
 }) {
@@ -343,6 +346,12 @@ export function createThreadPreview({
     session.stopRegion?.();
     session.stopRegion = null;
     session.transcript = transcript;
+    // The transcript stands on its foot beside the reply box: a reader at its end keeps
+    // the turn there beside the box as the box takes room from it or gives it back,
+    // whatever changed the box, and one read back keeps their offset, as the card hangs
+    // from its passage (scrolling.js, `keepFoot`).
+    session.stopFoot?.();
+    session.stopFoot = transcript ? keepFoot(transcript, { atEnd: true }) : null;
     session.place = transcript
       ? placeKeeper(transcript, {
           items: ".lf-msg[data-event]",
@@ -457,6 +466,7 @@ export function createThreadPreview({
     cancelRender(session.positionFrame);
     placementDriver.supersede();
     session.stopRegion?.();
+    session.stopFoot?.();
     preview.style.removeProperty("visibility");
     previewSession = null;
   }
@@ -822,6 +832,7 @@ export function createThreadPreview({
       place: null,
       reading: null,
       stopRegion: null,
+      stopFoot: null,
       side: commentPlacement(),
       anchor: new CardAnchor(preview),
       // The width the card stands at for this selection, in client pixels: the box's
@@ -944,8 +955,7 @@ export function createThreadPreview({
     const next = Math.max(0, Math.min(threadItems.length - 1, current + step));
     const item = threadItems[next];
     if (next === current || !item) return;
-    const positioned = show({ ...session, threadItem: item.id });
-    focusThread(positioned);
+    void openPageThread(item.thread.id, { part: "thread" });
   }
   /** @param {Item} item @param {Session} session */
   function previewItemNode(item, session) {

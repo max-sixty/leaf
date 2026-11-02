@@ -72,7 +72,16 @@ import {
   setAnchoringReady,
 } from "./runtime/anchor-resolution.js";
 import { createPageGeometry } from "./runtime/page-geometry.js";
-import * as targetPaint from "./runtime/target-paint.js";
+import {
+  aimLayer,
+  clearAim,
+  geometryChanged,
+  labelAim,
+  mountTargetPaint,
+  paintAim,
+  shifted,
+  targetTraceLayer,
+} from "./runtime/target-paint.js";
 import { pointerAt } from "./runtime/pointer.js";
 import { createWritingResume } from "./runtime/drafts.js";
 import { createRewriteRestore } from "./runtime/thread/message-edit.js";
@@ -310,7 +319,7 @@ async function boot() {
     aim: { isOn: aim.aimIsOn, target: aim.aimedTarget },
     pointer: pointerAt,
     designMode,
-    targetPaint,
+    targetPaint: { clearAim, geometryChanged, labelAim, paintAim, shifted },
     visualMarkPaint,
     shiftDrawings: drawingPaint.shifted,
     queueLegend: designMode.queueLegend,
@@ -707,8 +716,8 @@ async function boot() {
     // One permanent home for the chrome's foreground; none of these live descendants is
     // reparented.
     chromeForeground.append(
-      targetPaint.targetTraceLayer,
-      targetPaint.aimLayer,
+      targetTraceLayer,
+      aimLayer,
       liveEl,
       mediaViewer,
       commandReferenceDialog,
@@ -732,7 +741,7 @@ async function boot() {
     targets.mount();
     drawing.mount();
     aim.mount();
-    targetPaint.mountTargetPaint();
+    mountTargetPaint();
     anchorPaint?.mount();
     anchorControls.mount();
     pageGeometry.mount();

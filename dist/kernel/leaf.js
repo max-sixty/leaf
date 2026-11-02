@@ -10,7 +10,7 @@ import { mediaViewer, readAttachedMedia, scopedMediaUrl, writeAttachedMedia } fr
 import { visibleTargetParts } from "./runtime/bundle-visible-target-parts.js";
 import { pageImage, pageRenderer } from "./runtime/bundle-page-image.js";
 import { pageIdentity, shownScheme } from "./runtime/bundle-page-identity.js";
-import { aimLayer, boxMotion, mountTargetPaint, targetTraceLayer, target_paint_exports } from "./runtime/bundle-box-motion.js";
+import { aimLayer, boxMotion, clearAim, geometryChanged, labelAim, mountTargetPaint, paintAim, shifted, targetTraceLayer } from "./runtime/bundle-box-motion.js";
 import "/vendor/webawesome-chrome.js";
 
 //#region runtime/keyboard/disclosure.js
@@ -10876,7 +10876,13 @@ async function boot() {
 		},
 		pointer: pointerAt,
 		designMode,
-		targetPaint: target_paint_exports,
+		targetPaint: {
+			clearAim,
+			geometryChanged,
+			labelAim,
+			paintAim,
+			shifted
+		},
 		visualMarkPaint,
 		shiftDrawings: drawingPaint.shifted,
 		queueLegend: designMode.queueLegend,

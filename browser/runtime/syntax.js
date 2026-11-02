@@ -4,8 +4,6 @@ import { reportPageError } from "./layer-client.js";
 import { syntaxLanguageNames } from "./syntax-languages.js";
 import { synNodes, syntax } from "./syntax-tokens.js";
 
-export { langForPath } from "./language-paths.js";
-
 // The page's own code blocks: <pre><code class="language-python">. The class is the
 // universal one — what every Markdown renderer emits — so a block Claude wrote anywhere
 // else needs no translation to land here. Shiki's names and aliases resolve to the

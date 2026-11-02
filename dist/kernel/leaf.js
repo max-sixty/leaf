@@ -3638,13 +3638,13 @@ function createAnchorNoteProjection({ openThread, labelAnchor }) {
 		const left = /* @__PURE__ */ new Map();
 		for (const [holder, record] of claims) if (!notes.has(holder) || !holder.isConnected) {
 			claims.delete(holder);
-			left.set(record.firstThreadId, [holder, record]);
+			const waiting = left.get(record.firstThreadId) ?? [];
+			left.set(record.firstThreadId, [...waiting, [holder, record]]);
 		}
 		for (const [holder, threadIds] of notes) {
 			let record = claims.get(holder);
 			if (!record) {
-				record = left.get(threadIds[0])?.[1] ?? claim(threadIds[0]);
-				left.delete(threadIds[0]);
+				record = left.get(threadIds[0])?.shift()?.[1] ?? claim(threadIds[0]);
 				claims.set(holder, record);
 			}
 			shelve(holder, record.note);
@@ -3654,7 +3654,7 @@ function createAnchorNoteProjection({ openThread, labelAnchor }) {
 			keepsText(record.note, count);
 			keeps(record.note, "aria-label", anchor ? `${count} on ${spokenSubject(labelAnchor(anchor))}` : count);
 		}
-		for (const [holder, record] of left.values()) release(holder, record);
+		for (const [holder, record] of [...left.values()].flat()) release(holder, record);
 	}
 	function destroy() {
 		for (const [holder, record] of claims) release(holder, record);

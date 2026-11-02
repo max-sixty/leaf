@@ -6,7 +6,7 @@
     "runtime/addressable-names.js": "791dd8a2650ad414016608f9e88c3fad2efd71f8880aa070c1178e58bac9d3af",
     "runtime/anchor-controls.js": "597c789b9feff2fc88b527a8cf1cccf3966f74df7067a18e9815c8f3570bcdd5",
     "runtime/anchor-coordinate.js": "7a98dddc99f0308a631a677eb642fbc93b7a6b6d9e405b12ab2e2602f56de6e5",
-    "runtime/anchor-note-view.js": "6975673f34479284ffe20f6e0174ef59daae4ad8d7308beece9396ede1aa2a70",
+    "runtime/anchor-note-view.js": "63800ce72155ff4edc9449b22154b9f4a23fa00925e7d761edbd08e7b3ec5c99",
     "runtime/anchor-placement.js": "3bb7695bb000da18b06f4aca8668b38db70d9e2646fb52fcee08304c680c9ab0",
     "runtime/anchor-resolution.js": "d9357efe83a5ecc4b8292aa9dfe0a82ee24b44d6c4b22e32c3db8311cd9cfb30",
     "runtime/anchor-travel.js": "4a2718973d8f2e60e5010854c73f93b3eba25431deb6d85cefc5fd31e66d63d7",

@@ -785,6 +785,16 @@ def stop_note_row(page: Page) -> None:
     focus_stop(page, NOTE_OF, "pr-focus-latency")
 
 
+def stop_note_own_annotations(page: Page) -> None:
+    """A paragraph's comment note focused on a page that presents its own annotations,
+    where no annotation overlay is loaded, which still rings the paragraph."""
+    comment_on("plan")
+    page.wait_for_function(
+        "() => document.getElementById('plan').ariaDetailsElements?.length"
+    )
+    focus_stop(page, NOTE_OF, "plan")
+
+
 def stop_proxy_drawing(page: Page) -> None:
     """A diagram's own response proxy focused, which rings the diagram."""
     page.get_by_role("tab", name="Behavior diff").click()
@@ -3119,6 +3129,17 @@ STATES = (
         region=".lf-fp-row",
     ),
     State("plan-option-empty", "review-a-plan", option_empty, region=".lf-another"),
+    State(
+        "stop-note-own-annotations",
+        "../tests/fixtures/pages/page-annotations",
+        stop_note_own_annotations,
+    ),
+    State(
+        "stop-note-own-annotations-dark",
+        "../tests/fixtures/pages/page-annotations",
+        stop_note_own_annotations,
+        scheme="dark",
+    ),
     State("stop-note-paragraph", "pr-walkthrough", stop_note_paragraph),
     State(
         "stop-note-paragraph-dark", "pr-walkthrough", stop_note_paragraph, scheme="dark"

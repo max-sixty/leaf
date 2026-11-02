@@ -2460,6 +2460,16 @@ leaf page stamp ./proposal --text "Ready for review"</code></pre>
 const api = widgetController(source);
 // Read the source widget's current selection.
 const ids = api.read().state.choose.value;</code></pre>
+              <p id="bg-annotated-code-guide">
+                The marked return value keeps its annotation while the whole block shows
+                Python syntax colors. Line wrappers and the empty link target stay in
+                place too.
+              </p>
+              <pre
+                id="bg-annotated-code"
+              ><code class="language-python"><span id="bg-code-target"></span><span class="line">def load(path):</span>
+<span class="line">    data = read(path)</span>
+<span class="line">    return <mark>data</mark></span></code></pre>
               <lf-code id="bg-code" language="python" lines="40-43,58-59" hi="41-42">
                 <pre>
 def route(weather):

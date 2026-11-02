@@ -14,6 +14,8 @@ from pathlib import Path
 from leaf.event_log import read_events
 from leaf.files import list_revisions
 from leaf.leases import page_locked
+from leaf.registry.contract import RegistryError
+from leaf.registry.storage import layer_record, selected
 
 from .source import check_source, moved_threads, source_advice
 
@@ -34,6 +36,14 @@ def cmd_check(page_dir: Path, render: bool = False) -> dict:
         # repair it names comes first (`layer.incompatible_layer`).
         if refusal := write_refusal(page_dir):
             return reported(1, [refusal])
+        # Nor does one whose layer can't be composed to serve it. The check composes
+        # it here because reading the page parses none of the layer's sheets or
+        # modules (`layer.LayerVocabulary`).
+        if (record := layer_record(page_dir)) is not None:
+            try:
+                selected(record, page_dir)
+            except RegistryError as error:
+                return reported(1, list(error.findings))
         events = read_events(page_dir)
         result = check_source(page_dir, events)
         active = max(list_revisions(page_dir), default=0)

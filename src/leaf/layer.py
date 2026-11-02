@@ -519,13 +519,27 @@ def kernel_runtime_paths() -> set[str]:
 
 
 @dataclass(frozen=True, eq=False)
-class LayerComposition:
+class LayerVocabulary:
+    """The part of a layer a page's documents are read in: the merged registry, and
+    the paths of the files the layer's `widgets/` directory serves.
+
+    Reading a page needs only this (`registry.storage.page_vocabulary`), so it is
+    composed apart from the layer's files (`LayerComposition`). A Leaf composes
+    those, parsing every package sheet and module and refusing one that doesn't
+    compose, only to serve, export or check a page."""
+
     registry: dict
-    top_files: dict[str, bytes]
-    directory_files: dict[str, dict[str, bytes]]
-    # What readers derive from this composition, such as a revision's vocabulary
+    widgets: frozenset[str]
+    # What readers derive from this vocabulary, such as a revision's
     # (`registry.storage.revision_vocabulary`), held for as long as it is.
     readings: dict = field(default_factory=dict, repr=False)
+
+
+@dataclass(frozen=True, eq=False)
+class LayerComposition:
+    vocabulary: LayerVocabulary
+    top_files: dict[str, bytes]
+    directory_files: dict[str, dict[str, bytes]]
 
     @cached_property
     def fingerprint(self) -> str:
@@ -561,16 +575,37 @@ def selected_layer(
     rather than its spelling, since a page's own copy is another directory in another
     page, and an installed name another snapshot after `package install`; and a
     page's copy by its stamp too, since its next `page init` replaces it in place."""
+    return _composed(*_selection(packages, theme, page_dir))
+
+
+def selected_vocabulary(
+    packages: tuple[str, ...], theme: str | None, page_dir: Path
+) -> LayerVocabulary:
+    """The vocabulary of the layer `selected_layer` composes for the same selection,
+    without reading the layer's files. Held for the process, as the layer is."""
+    return _vocabulary(*_selection(packages, theme, page_dir))
+
+
+def _selection(
+    packages: tuple[str, ...], theme: str | None, page_dir: Path
+) -> tuple[tuple[Path, ...], tuple]:
+    """The inputs a selection resolves to, and the stamps of the page's own copies
+    among them: what `selected_layer` and `selected_vocabulary` hold a layer by."""
     if theme is not None:
         packages = (theme, *(name for name in packages if name != theme))
     inputs = tuple(layer_inputs(packages, page_dir))
     copies = tuple(file_stamp(root) for root in inputs if root.is_relative_to(page_dir))
-    return _composed(inputs, copies)
+    return inputs, copies
+
+
+@cache
+def _vocabulary(inputs: tuple[Path, ...], copies: tuple) -> LayerVocabulary:
+    return compose_vocabulary(checked_inputs(list(inputs)))
 
 
 @cache
 def _composed(inputs: tuple[Path, ...], copies: tuple) -> LayerComposition:
-    return compose_layer(checked_layer_inputs(list(inputs)))
+    return _composition(checked_layer_inputs(list(inputs)), _vocabulary(inputs, copies))
 
 
 def files_identity(files: dict[str, bytes]) -> str:
@@ -592,7 +627,7 @@ def layer_fingerprint(composition: LayerComposition) -> str:
         {
             **composition.top_files,
             "registry.json": json.dumps(
-                composition.registry,
+                composition.vocabulary.registry,
                 ensure_ascii=False,
                 separators=(",", ":"),
                 sort_keys=True,
@@ -797,19 +832,47 @@ def provenance_label(provenance: dict) -> str:
     return label
 
 
+def compose_vocabulary(roots: list[Path]) -> LayerVocabulary:
+    """Read and validate the vocabulary of the layer checked inputs produce
+    (`LayerVocabulary`), refusing a registry that marks a widget upgraded whose
+    module no input holds."""
+    from .validation.composition import incoming_registry
+
+    incoming = incoming_registry(roots)
+    widgets = frozenset(composed_dir_files(roots, "widgets"))
+    missing_modules = sorted(
+        tag
+        for tag, entry in incoming.items()
+        if is_element_name(tag) and entry["x-upgrade"] and f"{tag}.js" not in widgets
+    )
+    if missing_modules:
+        raise Refused(
+            "the incoming registry marks widgets as upgraded but their modules "
+            "are missing:\n"
+            + "\n".join(f"  - widgets/{tag}.js" for tag in missing_modules)
+        )
+    return LayerVocabulary(incoming, widgets)
+
+
 def compose_layer(roots: list[Path]) -> LayerComposition:
-    """Read and validate the complete layer produced by checked inputs.
+    """Read and validate the complete layer produced by checked inputs: its
+    vocabulary (`compose_vocabulary`) and every file it serves.
 
     The kernel's own runtime, `leaf.js` and its `runtime/` and `vendor/` files, is
     not part of it: the Leaf serving a page supplies that (`runtime_selection`), so
     the layer holds what packages add beside it, and the registry, theme and widgets
     every root contributes."""
+    return _composition(roots, compose_vocabulary(roots))
+
+
+def _composition(roots: list[Path], vocabulary: LayerVocabulary) -> LayerComposition:
+    """The layer `roots` produce, over the `vocabulary` they compose: its modules
+    checked for private kernel imports, and its sheets and files read."""
     from .revision_artifact import (
         PUBLIC_MODULES,
         dependency_reference,
         javascript_imports,
     )
-    from .validation.composition import incoming_registry
 
     protected = kernel_runtime_paths()
     private_modules = {"/leaf.js", *(f"/runtime/{name}" for name in protected)} - set(
@@ -843,7 +906,6 @@ def compose_layer(roots: list[Path]) -> LayerComposition:
                             f"{module} imports private kernel module {specifier!r}; "
                             "use /runtime/widget-api.js"
                         )
-    incoming = incoming_registry(roots)
     directory_sources = {
         sub: composed_dir_files(
             [
@@ -855,20 +917,6 @@ def compose_layer(roots: list[Path]) -> LayerComposition:
         )
         for sub in BROWSER_DIRS
     }
-    missing_modules = sorted(
-        tag
-        for tag, entry in incoming.items()
-        if is_element_name(tag)
-        and entry["x-upgrade"]
-        and f"{tag}.js" not in directory_sources["widgets"]
-    )
-    if missing_modules:
-        raise Refused(
-            "the incoming registry marks widgets as upgraded but their modules "
-            "are missing:\n"
-            + "\n".join(f"  - widgets/{tag}.js" for tag in missing_modules)
-        )
-
     top_files = composed_sheets(roots)
     for name in LAYER_TOP_FILES:
         if name == "registry.json" or name in top_files:
@@ -887,4 +935,4 @@ def compose_layer(roots: list[Path]) -> LayerComposition:
         for sub in BROWSER_DIRS
     }
     directory_files[INSTRUCTIONS_DIR] = composed_instructions(roots)
-    return LayerComposition(incoming, top_files, directory_files)
+    return LayerComposition(vocabulary, top_files, directory_files)

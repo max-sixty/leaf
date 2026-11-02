@@ -138,7 +138,7 @@
           "when": {
             "required": ["viewing"]
           },
-          "text": "The user wrote this with no passage selected, so it has no anchor. `viewing` holds the ids of the sections whose words were on their screen as they wrote it, in page order. Where the comment points at something without naming it, as \"this one\" does, it points into one of those sections."
+          "text": "The user wrote this with no passage selected, so it has no anchor. `viewing` holds the ids of the elements whose words or pictures were on their screen as they sent it, page chrome such as a header included. Use it to resolve a pointer such as \"this one\"; a comment that reads as about the whole page still is, and where `viewing` doesn't settle what a pointer means, ask."
         },
         {
           "when": {

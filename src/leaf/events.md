@@ -63,9 +63,10 @@ transition or `reanchor` as the thread's location and keeps the old anchor as
 
 A comment the user writes in the panel with nothing selected is about the whole page and
 has no anchor. The browser records with it `viewing`, the ids of the addressable
-elements around the words on the user's screen as they sent it, in page order
-(`runtime/reading-place.js`, `sectionsInView`), so that on a page showing one section at
-a time the agent can tell which section "this one" meant. The thread still stands on the
+elements around the words and pictures on the user's screen as they sent it, in page
+order (`runtime/reading-place.js`, `sectionsInView`), so that on a page showing one
+section at a time the agent can tell which section "this one" meant. Page chrome the
+author gave an id, such as a header, is among them. The thread still stands on the
 whole page, since the user chose to comment there; `viewing` records only what they saw.
 The browser read the ids off the rendered page, so the door checks only their shape.
 

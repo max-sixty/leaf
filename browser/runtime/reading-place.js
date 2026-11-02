@@ -53,8 +53,8 @@
  * region shows in turn, a root tab set (lf-tabs) for each of its views. History's
  * working-place checkpoints separately own an entry's viewport offset (history.js).
  * `readingBlock` is the first block on screen in one region or the page;
- * `sectionsInView` names the sections of every block on screen, which a page comment
- * records; `pageReadingBlock` is the block the user is reading, where a walk starts, and
+ * `sectionsInView` names the sections of every block and drawing on screen, which a page
+ * comment records; `pageReadingBlock` is the block the user is reading, where a walk starts, and
  * `landingPlace` is where a let-go puts them, beside what they let go of where they see it. `openingPassage`
  * gives travel the passage its destination draws first, using the same rendered words
  * as the visible landmarks. It is independent of the viewport, so scrolling through a tall landing
@@ -375,19 +375,32 @@ function pageReading({ bodies }) {
 }
 export const pageReadingBlock = () => pageReading({ bodies: false });
 
-// The sections whose words the user sees, by id in page order: the addressable element
-// around each text block on screen, on the page and in every reading region it shows. A
-// comment on the page as a whole records them (events.md, `viewing`), so on a page that
-// shows one section at a time, "this one" still says which. An id a script or a shadow
+// The sections whose words or pictures the user sees, by id in page order: the
+// addressable element around each text block and each drawing on screen, on the page
+// and in every reading region it shows. A comment on the page as a whole records them
+// (events.md, `viewing`), so on a page that shows one section at a time, "this one"
+// still says which, even of a slide that is only a chart. An id a script or a shadow
 // tree repeats is listed once, since the record refuses a repeated id.
 export function sectionsInView() {
   /** @type {Set<Element>} */
   const sections = new Set();
-  for (const region of [null, ...unconcealedReadingRegions()])
-    for (const [block] of blocksOnScreen(region, textBlocks(region?.body))) {
-      const section = closestAcross(block, ADDRESSABLE);
-      if (section) sections.add(section);
+  /** @param {Element} node */
+  const add = (node) => {
+    const section = closestAcross(node, ADDRESSABLE);
+    if (section) sections.add(section);
+  };
+  for (const region of [null, ...unconcealedReadingRegions()]) {
+    for (const [block] of blocksOnScreen(region, textBlocks(region?.body))) add(block);
+    const bounds = readingBounds(region);
+    const body = region?.body ?? pageDocument();
+    if (!bounds || !body) continue;
+    const clips = new Map();
+    for (const drawing of body.querySelectorAll(DRAWING)) {
+      if (!region && effectiveScroller(drawing) !== pageScroller) continue;
+      const seen = drawing.checkVisibility() && seenRect(drawing, clips);
+      if (seen && seen.bottom > bounds.top && seen.top < bounds.bottom) add(drawing);
     }
+  }
   return [...new Set([...sections].sort(renderedOrder).map(({ id }) => id))];
 }
 

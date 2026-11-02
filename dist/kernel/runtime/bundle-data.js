@@ -6643,9 +6643,21 @@ function pageReading({ bodies }) {
 const pageReadingBlock = () => pageReading({ bodies: false });
 function sectionsInView() {
 	const sections = /* @__PURE__ */ new Set();
-	for (const region of [null, ...unconcealedReadingRegions()]) for (const [block] of blocksOnScreen(region, textBlocks(region?.body))) {
-		const section = closestAcross(block, ADDRESSABLE);
+	const add = (node) => {
+		const section = closestAcross(node, ADDRESSABLE);
 		if (section) sections.add(section);
+	};
+	for (const region of [null, ...unconcealedReadingRegions()]) {
+		for (const [block] of blocksOnScreen(region, textBlocks(region?.body))) add(block);
+		const bounds = readingBounds(region);
+		const body = region?.body ?? pageDocument();
+		if (!bounds || !body) continue;
+		const clips = /* @__PURE__ */ new Map();
+		for (const drawing of body.querySelectorAll(DRAWING)) {
+			if (!region && effectiveScroller(drawing) !== pageScroller) continue;
+			const seen = drawing.checkVisibility() && seenRect(drawing, clips);
+			if (seen && seen.bottom > bounds.top && seen.top < bounds.bottom) add(drawing);
+		}
 	}
 	return [...new Set([...sections].sort(renderedOrder).map(({ id }) => id))];
 }

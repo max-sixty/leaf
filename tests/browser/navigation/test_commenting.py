@@ -921,21 +921,30 @@ def test_c_comments_and_g_t_navigates_to_threads(browser, serve):
     expect(comment).to_be_focused()
 
 
-def test_a_page_comment_records_the_sections_on_screen(browser, serve):
+# A deck's slides, each a section the page shows one at a time: two of words, and one
+# that is only a picture.
+DECK_SLIDES = {
+    "intro": "<h2>Where we started</h2><p>Three teams shared one build pipeline.</p>",
+    "results": "<h2>What it bought</h2><p>Release lead time fell from nine days.</p>",
+    "chart": (
+        '<svg viewBox="0 0 200 100" width="400" height="200" role="img" '
+        'aria-label="Lead time by quarter"><rect x="10" y="40" width="40" height="60">'
+        "</rect></svg>"
+    ),
+}
+
+
+@pytest.mark.parametrize("shown", ["results", "chart"])
+def test_a_page_comment_records_the_sections_on_screen(browser, serve, shown):
     """A comment on the whole page has no passage, so on a deck that shows one slide at
     a time, "drop this one" reached the agent without saying which slide (#5026). The
-    panel's send records the sections whose words are on screen: the header's, read
-    off the page, and the shown slide's, read in the workspace region that scrolls the
-    slides, but none of the slides the page hides."""
+    panel's send records the sections whose words or pictures are on screen: the
+    header's, read off the page, and the shown slide's, read in the workspace region
+    that scrolls the slides, but none of the slides the page hides. A slide that is
+    only a picture counts too, or the header alone would answer "this one"."""
     slides = "".join(
-        f'<section id="{id}"{"" if id == "results" else " hidden"}>'
-        f"<h2>{title}</h2><p>{title} is the subject of this slide's evidence.</p>"
-        "</section>"
-        for id, title in (
-            ("intro", "Where we started"),
-            ("results", "What it bought"),
-            ("next", "What comes next"),
-        )
+        f'<section id="{id}"{"" if id == shown else " hidden"}>{content}</section>'
+        for id, content in DECK_SLIDES.items()
     )
     html = leaf_page(
         "Quarterly review",
@@ -955,7 +964,7 @@ def test_a_page_comment_records_the_sections_on_screen(browser, serve):
         if event["kind"] == "comment"
     ]
     assert "anchor" not in comment
-    assert comment["viewing"] == ["deck-title", "results"]
+    assert comment["viewing"] == ["deck-title", shown]
 
 
 def test_the_panels_own_c_answers_a_page_whose_log_has_not_arrived(browser, serve):

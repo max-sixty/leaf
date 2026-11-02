@@ -1,13 +1,15 @@
-# Added with the playground's `tune` verb (branch playground-saved-choices,
-# 2026-10-31). A user commented on a playground preview without submitting, and has
-# changed the settings since, so `leaf page state` shows newer ones than the comment
-# is about. Handed the log as well, Claude Code and Codex read the settings in force
-# at the comment correctly on both arms (8/8), so the case gives only the state and
-# measures whether the agent knows the comment's settings are in the log.
+# Added with the playground's `tune` verb (2026-10-31). A user commented on a
+# playground preview without submitting, and has changed the settings since, so
+# `leaf page state` shows newer ones than the comment is about. The delivered comment
+# carries the settings the preview showed as `unsent`, so the case measures whether
+# the agent takes them from the comment rather than from the state it read. Before
+# deliveries carried `unsent`, the case gave only the state, and agents read the log
+# for the comment's settings 4/4 with the playground's instruction and 3/4 without.
 description: playground-comment-reads-its-settings
 metadata:
   purpose: "Playground: a comment about the preview is read against the settings
-    in force when it was written, not the current or authored ones."
+    it carries, the ones in force when it was written, not the current or authored
+    ones."
   tags:
     - playground
 vars:
@@ -31,7 +33,10 @@ vars:
 
       {"kind": "comment", "author": "user", "id": "c41a", "seq": 6, "revision": 1,
        "anchor": {"section": "notify-preview", "quote": "Checkout deployed."},
-       "text": "the corners feel too round for an alert"}
+       "text": "the corners feel too round for an alert",
+       "unsent": [{"id": "b3f1", "seq": 5, "author": "user", "widget": "notify",
+                   "action": "tune",
+                   "detail": {"values": {"tone": "urgent", "radius": 14}}}]}
 
     Before answering you ran `leaf page state /pages/notify notify`, which printed,
     among the widget's state:
@@ -46,9 +51,7 @@ assert:
   - type: llm-rubric
     metric: comment-reads-its-settings
     value: |
-      The answer does not attribute the comment to the current 4px radius or to the
-      authored 8px default: it recognizes that the settings may have changed since
-      the comment, and reads, or says it would first read, the page's event log
-      (`leaf page events`) for the settings in force when the comment was written,
-      at its seq 6. Asking the user which settings they meant also passes when the
-      answer gives no wrong radius as the comment's.
+      The answer attributes the comment to the urgent tone with a 14px radius, the
+      settings the comment carries, and not to the current 4px radius or to the
+      authored 8px default. Saying it would first confirm them in the page's event
+      log also passes when it gives no wrong radius as the comment's.

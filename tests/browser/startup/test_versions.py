@@ -315,8 +315,10 @@ def test_the_diff_marks_what_the_author_changed_and_no_word_a_script_wrote(
     The author rewrote the readout's placeholder too, so it is marked. On the fresh
     load the words it shows are the script's, so it offers no inline diff, which would
     paint the source's words over the script's, while the rewritten closing paragraph
-    offers one. A paragraph holding a gloss is one block, so rewording the words around
-    the gloss marks it; a paragraph the script swapped for a copy is found by its id."""
+    offers one, through the change it ends: the three reworded paragraphs stand
+    together, so they are one change with one margin entry. A paragraph holding a gloss
+    is one block, so rewording the words around the gloss marks it; a paragraph the
+    script swapped for a copy is found by its id."""
     source = SCRIPTED[script]
     url = live_url(serve(source))
     page = open_page(browser, url)
@@ -361,7 +363,11 @@ def test_the_diff_marks_what_the_author_changed_and_no_word_a_script_wrote(
         )
 
     expect(fresh.locator("#readout")).to_have_text("42 items counted by the script.")
-    expect(change("outro")).to_have_attribute("aria-expanded", "false")
+    expect(change("glossed")).to_have_attribute("aria-expanded", "false")
+    expect(change("glossed")).to_have_attribute(
+        "aria-controls", re.compile(r"\blf-version-inline-outro\b")
+    )
+    expect(change("outro")).to_have_count(0)
     expect(change("readout")).not_to_have_attribute("aria-expanded", re.compile(".*"))
 
 

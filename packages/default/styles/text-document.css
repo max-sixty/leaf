@@ -6,11 +6,16 @@ lf-text-document {
   margin: 14px 0;
   min-height: 2px;
 }
+/* The frame clips its rounded corners with `clip`, which makes no scroll container
+   (base.css, at `--lf-top`), so the Preview/Source strip sticks against the page's
+   scroller as every horizontal tab strip does. `hidden` made the frame the strip's
+   scroller, which held the strip at the page's stacked header height inside the frame,
+   below the caption and over the preview's first lines. */
 lf-text-document > .lf-text-document-view {
   margin: 0;
   border: 1px solid var(--code-border);
   border-radius: var(--r);
-  overflow: hidden;
+  overflow: clip;
   background: var(--pre-bg);
   --lf-block-frame: 1;
 }

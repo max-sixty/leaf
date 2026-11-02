@@ -298,6 +298,12 @@ def native_code(page: Page) -> None:
     page.locator("#bg-javascript-code").scroll_into_view_if_needed()
 
 
+def own_styling(page: Page) -> None:
+    """A full-width native table and code tokens with an authored presentation."""
+    native_code(page)
+    page.locator("#bg-own-styling-case").scroll_into_view_if_needed()
+
+
 def native_code_copy_hover(page: Page) -> None:
     """A document code block under the pointer, which shows its Copy on its border."""
     native_code(page)
@@ -1800,6 +1806,16 @@ def versions_menu(page: Page) -> None:
     page.locator(".lf-fp-version").first.wait_for()
 
 
+def obligation_marker_by_keyboard(page: Page) -> None:
+    """An obligation's margin marker and the location ring it projects onto the page."""
+    marker = page.locator('.lf-margin-entry[data-lf-kinds="on-me"]').first
+    for _ in range(400):
+        page.keyboard.press("Tab")
+        if marker.evaluate("node => node === document.activeElement"):
+            return
+    raise AssertionError("Tab did not reach the obligation's margin marker")
+
+
 def ask_by_keyboard(page: Page) -> None:
     """The next open obligation, an `lf-ask`, reached with `m`: its ring and its marker in view."""
     page.keyboard.press("m")
@@ -2026,6 +2042,7 @@ class State:
     scheme: str = "light"
     touch: bool = False
     region: str | None = None
+    activated: bool = True
 
 
 STATES = (
@@ -2095,6 +2112,12 @@ STATES = (
         "developer/feature-gallery",
         native_code,
         region="#bg-javascript-code",
+    ),
+    State(
+        "own-styling",
+        "developer/feature-gallery",
+        own_styling,
+        region="#bg-own-styling-case",
     ),
     State(
         "native-code-copy-hover",
@@ -2479,6 +2502,13 @@ STATES = (
         region="#dfg-scroll",
     ),
     State("worktree-diffs", "developer/worktree-diffs", at_rest),
+    State(
+        "worktree-startup",
+        "developer/worktree-diffs",
+        at_rest,
+        activated=False,
+        region="#worktree-example-workbench",
+    ),
     State(
         "worktree-summaries",
         "developer/worktree-diffs",
@@ -3113,6 +3143,12 @@ STATES = (
     State("alert-option-long", "alert-review", option_long),
     State("alert-options-in-pane", "alert-review", options_in_pane),
     State("ideas-ask", "ideas-to-implement", ask_by_keyboard),
+    State(
+        "pr-obligation-marker",
+        "pr-walkthrough",
+        obligation_marker_by_keyboard,
+        region="#pr-approval-decision",
+    ),
     State("progress-callout", "live-progress", at_rest),
     State("progress-metrics", "live-progress", at_rest, region="#lp-status"),
     State(
@@ -3414,10 +3450,20 @@ def capture(
     (`STYLES`), the lines whose words stand on baselines `SPLIT` apart (`BASELINES`),
     and the tab, open until the block ends so `declaration_changes` can read it."""
     scale = 2
+    held_modules = []
     with tab(browser, state.viewport, state.scheme, state.touch, scale=scale) as page:
-        load(page, address)
-        state.drive(page)
-        settle(page)
+        if state.activated:
+            load(page, address)
+            state.drive(page)
+            settle(page)
+        else:
+            # Keep authored layout visible while the activation module is in flight.
+            page.route("**/leaf.js", lambda route: held_modules.append(route))
+            page.goto(address, wait_until="commit")
+            # A visible node can precede the render-blocking stylesheet.
+            page.wait_for_function("""() => performance.getEntriesByType('paint')
+                .some(entry => entry.name === 'first-contentful-paint')""")
+            page.evaluate("() => document.fonts.ready")
         clip = None
         if state.region:
             target = page.locator(state.region)
@@ -3442,7 +3488,11 @@ def capture(
         }
         splits = page.evaluate(BASELINES, SPLIT)
         region = {key: value * scale for key, value in clip.items()} if clip else None
-        yield region, styles, reading["texts"], splits, page
+        try:
+            yield region, styles, reading["texts"], splits, page
+        finally:
+            for route in held_modules:
+                route.abort()
 
 
 def style_changes(

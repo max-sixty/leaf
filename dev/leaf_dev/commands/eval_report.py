@@ -166,13 +166,16 @@ def leaf(*args: str) -> str:
 def condition_labels(columns: dict) -> dict[str, str]:
     """Keep a named arm intact; name the condition when it distinguishes arms."""
     names = {
-        column: {"leaf": "Leaf", "html": "Plain HTML"}.get(
+        column: members[0].get("arm_label")
+        or {"leaf": "Leaf", "html": "Plain HTML"}.get(
             members[0]["execution_metadata"]["condition"], column
         )
         for column, members in columns.items()
     }
     return {
-        column: name if list(names.values()).count(name) == 1 else column
+        column: name
+        if columns[column][0].get("arm_label") or list(names.values()).count(name) == 1
+        else column
         for column, name in names.items()
     }
 
@@ -912,7 +915,7 @@ def sample_section(page: Path, sample: dict, label: str, output_url: str | None)
     )
     if sample.get("comparisons"):
         assessment += (
-            "<p>Assessed relative to another output:</p><ul>"
+            "<p>Compare authored outputs:</p><ul>"
             + "".join(
                 f'<li><a href="#{escape(anchor)}">{escape(title)}</a></li>'
                 for anchor, title in sample["comparisons"]
@@ -2141,8 +2144,9 @@ def eval_report(
                         Path(reference["run"]).resolve(), reference["sample"]
                     ].append(link)
         for columns in found.values():
-            for members in columns.values():
+            for column, members in columns.items():
                 for sample in members:
+                    sample["arm_label"] = assessment.get("arm_labels", {}).get(column)
                     sample["review_context"] = assessment.get("review_context", "")
                     sample["comparisons"] = list(
                         dict.fromkeys(

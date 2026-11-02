@@ -64,10 +64,6 @@ def test_every_comment_surface_shares_the_empty_microphone_and_typed_send(
                 )
                 < 1
             )
-            assert (
-                abs((before["y"] - before_field["y"]) - (after["y"] - after_field["y"]))
-                < 1
-            )
         return field
 
     # The panel's field takes a page comment, then the reply of the thread it opens

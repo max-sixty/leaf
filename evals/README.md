@@ -209,9 +209,17 @@ field identifies the journey's executions, including its baselines and unsuccess
 candidates; other supplied runs are reference outputs. It can include several
 executions, such as a short case and a longer workflow.
 
+Optional `arm_labels` maps recorded provider labels to reader-facing names. It
+changes presentation only; saved results and comparison identities keep their
+recorded labels.
+
 ```json
 {
   "title": "Hill-climbing journey",
+  "arm_labels": {
+    "codex:app-server/base/workflow": "Original guidance",
+    "codex:app-server/candidate/workflow": "Latest guidance"
+  },
   "latest": {
     "title": "Latest validation",
     "runs": ["/absolute/path/to/run"],

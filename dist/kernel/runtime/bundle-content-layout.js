@@ -1,8 +1,7 @@
-import { LAYOUT, PAGE_PAINT_ATTRIBUTE, afterScript, inlineStyle, isElement, isHTML, isText, keeps, layoutChanged, layoutPx, nativeLayerHolding, nextFrame, nextRender, pagePresented, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, renderedParent, renderedUnder, renderingState, revealRegisteredVisualPart, revealsVisualParts, setScroll, shadowHost, sizeObserver, skipped, under, upFrom, visualPartAdmission, watchArrivals, watchOwner, watchScrolls, whileConnected } from "./bundle-portable.js";
-import { J, LENT_REACH_STOP, PRESSES, TEXT_BLOCK, TEXT_BOX, WORKS, Z, anchorKey, applicationPresented, deepFocus, documentChanged, eventSource, fragmentId, hostIn, inUi, isElementName, marks, move, onCurrentLocation, pressing, registry, shadowRootsIn, tabStops, tagsDeclaring, tick, uiInside, wearsLentStop } from "./bundle-layer-stack.js";
-import { PRESSABLE, removeRuntimeRootStyle, repaintPage, reportPageError, setRuntimeRootAttribute, setRuntimeRootStyle } from "./bundle-layer-client.js";
-import { clamp, clippedContents, headerCuts, landingBand, nearObserver, nearWindow, overlaps, scrollContainer, scrollsBy, scrollsContent, shellRight, shownBox, shownParts, shownRect, union, userScrollport } from "./bundle-geometry.js";
-import { DATUM, authoredScope, blockAt, closestAcross, contextAround, cut, elementById, elementReading, excerptWords, fileModelsPassage, findQuote, inChrome, layoutBox, leafSurface, neighbourhood, pageDocument, pageQueryAll, pageText, quoteFrom, rangeOf, readingFrom, segmentsIn, settledAway, spanIn, textNodesUnder } from "./bundle-passages.js";
+import { J, LAYOUT, LENT_REACH_STOP, PAGE_PAINT_ATTRIBUTE, PRESSES, TEXT_BOX, WORKS, Z, afterScript, atScrollEnd, clamp, clippedContents, closestAcross, deepFocus, elementFrame, eventSource, headerCuts, inChrome, inUi, inlineStyle, installScrollerLookup, isElement, isHTML, isText, keeps, landingBand, layoutChanged, layoutPx, move, nativeLayerHolding, nearObserver, nearWindow, nextFrame, nextRender, onCurrentLocation, overlaps, pagePresented, pageScroller, pressing, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, renderedParent, renderedUnder, renderingState, revealRegisteredVisualPart, revealsVisualParts, scrollContainer, scrollToEnd, scrollersOf, scrollsBy, scrollsContent, shadowHost, shellRight, shownParts, shownRect, sizeObserver, skipped, tabStops, tick, uiInside, under, union, upFrom, userScrollport, visualPartAdmission, watchArrivals, watchScrolls, wearsLentStop, whileConnected } from "./bundle-portable.js";
+import { PRESSABLE, TEXT_BLOCK, anchorKey, applicationPresented, documentChanged, fragmentId, hostIn, isElementName, marks, registry, repaintPage, shadowRootsIn, tagsDeclaring } from "./bundle-errors.js";
+import { removeRuntimeRootStyle, reportPageError, setRuntimeRootAttribute, setRuntimeRootStyle } from "./bundle-layer-client.js";
+import { DATUM, authoredScope, blockAt, contextAround, cut, elementById, elementReading, excerptWords, fileModelsPassage, findQuote, layoutBox, leafSurface, neighbourhood, pageDocument, pageQueryAll, pageText, quoteFrom, rangeOf, readingFrom, segmentsIn, settledAway, spanIn, textNodesUnder } from "./bundle-passages.js";
 
 //#region runtime/presence.js
 let clockSkew = 0;
@@ -119,851 +118,6 @@ function whileInterfaceConnected(element, { declare, connect }) {
 		if (declared) start();
 		return () => cleanup?.();
 	});
-}
-
-//#endregion
-//#region runtime/chrome.js
-const chromeRoot = document.createElement("div");
-chromeRoot.className = "lf-chrome";
-const chromeForeground = document.createElement("dialog");
-chromeForeground.className = "lf-ui lf-foreground";
-chromeForeground.setAttribute("open", "");
-chromeForeground.setAttribute("role", "presentation");
-
-//#endregion
-//#region runtime/resolved-target.js
-const resolvedElement = ({ element, place = element, surface = null }) => ({
-	exact: true,
-	status: "exact",
-	datumElement: null,
-	kind: "element",
-	element,
-	place,
-	surface
-});
-const resolvedPassage = ({ place, segments }) => ({
-	exact: true,
-	status: "exact",
-	datumElement: null,
-	kind: "passage",
-	place,
-	segments
-});
-const resolvedInMessage = ({ message }) => ({
-	exact: true,
-	status: "exact",
-	datumElement: null,
-	kind: "message",
-	message,
-	place: null
-});
-const targetElement = (resolved) => resolved?.kind === "element" ? resolved.element : null;
-const targetSegments = (resolved) => resolved?.kind === "passage" ? resolved.segments : [];
-const targetPlace = (resolved) => resolved?.place ?? null;
-const exactTarget = (resolved) => resolved?.exact ? targetElement(resolved) ?? targetPlace(resolved) : null;
-const targetRange = (resolved) => {
-	const segments = targetSegments(resolved);
-	if (!segments.length || segments.some(({ node, start, end }) => !node.isConnected || start > node.length || end > node.length)) return null;
-	return rangeOf(segments);
-};
-function rangeGeometry(range) {
-	return {
-		range,
-		contextNode: range.startContainer.nodeType === Node.TEXT_NODE ? range.startContainer : range.startContainer.childNodes[range.startOffset] ?? range.startContainer,
-		box: range.getBoundingClientRect(),
-		attachment: [...range.getClientRects()].find((rect) => rect.width > 0 && rect.height > 0) ?? null
-	};
-}
-const passageBoxes = (resolved) => targetRange(resolved) ? targetSegments(resolved).flatMap((segment) => [...rangeOf([segment]).getClientRects()]).filter((box) => box.width && box.height) : [];
-function passageGeometry(resolved) {
-	const range = targetRange(resolved);
-	return range && rangeGeometry(range);
-}
-const targetSurface = (resolved) => resolved?.kind === "element" ? resolved.surface : null;
-const targetParts = (resolved) => {
-	const element = targetElement(resolved);
-	if (!element) return [];
-	return targetSurface(resolved) ? [element] : shownParts(element);
-};
-
-//#endregion
-//#region runtime/addressable-names.js
-const HTML_WORDS = {
-	input: "control",
-	select: "control",
-	button: "control",
-	p: "paragraph",
-	li: "item",
-	tr: "row",
-	td: "cell",
-	th: "cell",
-	figure: "figure",
-	blockquote: "quote",
-	pre: "block",
-	section: "section",
-	article: "section",
-	aside: "aside",
-	ul: "list",
-	ol: "list",
-	dl: "list",
-	table: "table",
-	details: "note",
-	h1: "heading",
-	h2: "heading",
-	h3: "heading",
-	h4: "heading",
-	h5: "heading",
-	h6: "heading"
-};
-function addressableWord(addressable) {
-	if (!addressable) return "";
-	const tag = addressable.tagName.toLowerCase();
-	const word = widgetWord(tag, addressable);
-	if (word) return word;
-	if (tag === "pre") return addressable.querySelector(":scope > code") ? "code" : "block";
-	return HTML_WORDS[tag] ?? tag;
-}
-function widgetWord(tag, element = null) {
-	const declared = registry[tag]?.["x-word"];
-	return (declared === "module" ? element?.lfWord?.() : declared) || (tag.startsWith("lf-") ? tag.slice(3) : "");
-}
-function addressableSays(addressable) {
-	if (!addressable) return "";
-	return (registry[addressable.localName]?.["x-word"] === "module" ? addressable.lfSays?.() : "") || elementReading(addressable);
-}
-const TITLES = "summary, h1, h2, h3, h4, h5, h6, strong";
-function leadingTitle(container) {
-	for (const node of container.childNodes) {
-		if (node.nodeType === Node.TEXT_NODE && node.textContent?.trim()) return null;
-		if (!(node instanceof Element) || uiInside(node, container)) continue;
-		if (node.matches(TITLES)) return node;
-		if (["header", "hgroup"].includes(node.localName)) return leadingTitle(node);
-	}
-	return null;
-}
-function declaredName(element) {
-	const attribute = registry[element.localName]?.["x-name"];
-	return attribute && element.getAttribute(attribute)?.trim() || "";
-}
-function addressableName(element) {
-	if (!element) return "";
-	const declared = declaredName(element);
-	if (declared) return declared;
-	const title = leadingTitle(element);
-	return title ? elementReading(title, "wrote") : "";
-}
-const LABEL_WORDS = 60;
-const captionOf = (element) => {
-	const caption = [...element.children].find((child) => child.matches("figcaption, caption") && !uiInside(child, element));
-	return caption ? elementReading(caption) : "";
-};
-const accessibleName = (element) => element.getAttribute("aria-label")?.trim() || (element.labels?.[0] ? elementReading(element.labels[0]) : "") || element.alt?.trim() || "";
-const ownName = (element) => addressableName(element) || captionOf(element) || accessibleName(element);
-const saysItself = (element) => element.matches("p,li,h1,h2,h3,h4,h5,h6,td,th,pre,blockquote,dd,dt,figcaption,summary") || registry[element.localName]?.["x-word"] === "module" && element.lfSays?.() || [...element.childNodes].some((node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim());
-function addressableLabel(element) {
-	if (!element) return "";
-	const own = ownName(element);
-	if (own) return own;
-	if (saysItself(element)) return excerptWords(addressableSays(element), LABEL_WORDS);
-	const scope = authoredScope(element);
-	for (let at = upFrom(element); at && at !== scope; at = upFrom(at)) {
-		const name = ownName(at);
-		if (name) return name;
-	}
-	if (isElementName(element.localName) && registry[element.localName]) return "";
-	return excerptWords(addressableSays(element) || element.querySelector("[aria-label]")?.getAttribute("aria-label"), LABEL_WORDS);
-}
-const sectionLabel = (addressable) => [addressableWord(addressable), addressableLabel(addressable)].filter(Boolean).join(" · ");
-
-//#endregion
-//#region runtime/anchor-resolution.js
-let anchoringReady = false;
-const anchoringIsReady = () => anchoringReady;
-function setAnchoringReady(ready) {
-	anchoringReady = ready;
-}
-const sectionOf = (anchor) => anchor?.section ? elementById(anchor.section) : null;
-function currentDatums(source, key, identity = null, dataSource = null) {
-	if (!source?.id) return [];
-	return pageQueryAll(DATUM).filter((datum) => under(datum, source) && datum.getAttribute("data-lf-projection") === source.id && (dataSource === null || datum.getAttribute("data-lf-source") === dataSource) && (identity === null ? datum.getAttribute("data-lf-datum") === key : datum.getAttribute("data-lf-identity") === identity));
-}
-const projectedDatum = (source, key) => {
-	const matches = currentDatums(source, key);
-	return matches.length === 1 ? matches[0] ?? null : null;
-};
-function datumLabel(anchor) {
-	if (!anchor?.datum) return "";
-	documentChanged();
-	const source = sectionOf(anchor);
-	const datums = currentDatums(source, anchor.datum, anchor.identity ?? null, anchor.source ?? null);
-	const [datum] = datums;
-	const label = datum ? datums.length === 1 && datum.getAttribute("data-lf-datum-label") : source?.lfDatumLabel?.(anchor.datum);
-	return typeof label === "string" ? label.trim() : "";
-}
-function suppliedDatum(source, key) {
-	const supplied = source?.lfDataDatum?.(key);
-	return supplied instanceof Element && under(supplied, source) && supplied.getAttribute("data-lf-projection") === source.id ? supplied : null;
-}
-function addressedElements(source, key) {
-	if (typeof source.lfElementsFor === "function") return [...source.lfElementsFor(key) ?? []].filter((element) => element instanceof Element && under(element, source));
-	const part = visualPart(source, key)?.element;
-	if (part) return [part];
-	const datum = projectedDatum(source, key) ?? suppliedDatum(source, key);
-	return datum ? [datum] : [];
-}
-function revealAddressed(source, key) {
-	if (revealVisualPart(source, key)) return null;
-	return source.lfRevealDatum?.(key) ?? null;
-}
-const visualAdmission = (visual) => visual ? visualPartAdmission(visual, registry[visual.localName]?.["x-visual"] ?? null) : null;
-const wholeVisualSurface = (element) => element && registry[element.localName]?.["x-visual"] ? element : null;
-function visualParts(visual) {
-	const admits = visualAdmission(visual);
-	if (!admits) return [];
-	return registeredVisualParts(visual).filter((part) => admits(part.id));
-}
-const admitsVisualPart = (visual, part) => visualAdmission(visual)?.(part) ?? false;
-function visualPart(visual, part) {
-	return admitsVisualPart(visual, part) ? registeredVisualPart(visual, part) : null;
-}
-function revealVisualPart(visual, part) {
-	return admitsVisualPart(visual, part) ? revealRegisteredVisualPart(visual, part) : null;
-}
-function visualPartAt(visual, target) {
-	const admits = visualAdmission(visual);
-	return admits ? registeredVisualPartAt(visual, target instanceof Element ? target : target?.parentElement ?? null, (part) => admits(part.id)) : null;
-}
-const visualPartLabel = (visual, part) => visual && admitsVisualPart(visual, part) ? registeredVisualPartLabel(visual, part) : null;
-const declaredVisualSelector = () => [...tagsDeclaring((entry) => entry["x-visual"])].join(",");
-const genericVisualSelector = "svg, img, figure";
-const visualSelector = () => [declaredVisualSelector(), genericVisualSelector].filter(Boolean).join(",");
-const outermostAcross = (element, selector) => {
-	for (let parent = upFrom(element); parent;) {
-		const outer = closestAcross(parent, selector);
-		if (!outer) break;
-		element = outer;
-		parent = upFrom(element);
-	}
-	return element;
-};
-const claimsVisualGesture = (element) => element.matches(`${PRESSES},${PRESSABLE}`);
-const unclaimedVisualGesture = (target) => {
-	if (inChrome(target) || inUi(target)) return false;
-	for (let element = target instanceof Element ? target : target?.parentElement; element; element = upFrom(element)) if (claimsVisualGesture(element)) return false;
-	return true;
-};
-function visualAt(target, { unclaimed = true } = {}) {
-	if (unclaimed && !unclaimedVisualGesture(target)) return null;
-	const declared = declaredVisualSelector();
-	let element = declared ? closestAcross(target, declared) : null;
-	if (element) element = outermostAcross(element, declared);
-	else {
-		element = closestAcross(target, genericVisualSelector);
-		if (element) element = outermostAcross(element, genericVisualSelector);
-	}
-	if (!element) return null;
-	const seat = closestAcross(element, ADDRESSABLE);
-	return seat ? {
-		element,
-		seat,
-		id: seat.id,
-		part: visualPartAt(element, target)
-	} : null;
-}
-const designCandidates = () => [
-	...tagsDeclaring(() => true),
-	WORKS,
-	"[data-lf-offer]",
-	genericVisualSelector
-].join(",");
-function designPressAt(target) {
-	const at = target instanceof Element ? target : target?.parentElement;
-	const hit = at && closestAcross(at, designCandidates());
-	if (!hit || !hit.matches(genericVisualSelector)) return hit;
-	return closestAcross(hit, `${PRESSES},${"[data-lf-offer]:not([data-lf-offer=\"\"])"}`) || visualAt(at, { unclaimed: false })?.element || hit;
-}
-const ADDRESSABLE = "[id]:not(.lf-ui):not([id^=\"lf-\"])";
-function isAddressable(at) {
-	if (!at.matches("[id]:not(.lf-ui):not([id^=\"lf-\"])") || inChrome(at) || inUi(at) || settledAway(at)) return false;
-	const visual = tagsDeclaring((entry) => entry["x-visual"]).join(",");
-	return !(visual && at.parentElement && closestAcross(at.parentElement, visual));
-}
-function addressableAt(node) {
-	let at = node instanceof Element ? node : node?.parentElement;
-	for (; at; at = upFrom(at)) if (isAddressable(at)) return at;
-	return null;
-}
-function annotationAt(node, fallback = addressableAt) {
-	const formatted = tagsDeclaring((entry) => entry["x-text-format"] === "markdown").join(",");
-	return formatted && closestAcross(node, formatted) || blockAt(node) || fallback(node);
-}
-const lightSeat = (seat) => (seat && shadowHost(seat.getRootNode())) ?? seat;
-const aimLabel = (addressable, says = addressableLabel(addressable)) => [addressableWord(addressable), says].filter(Boolean).join(": ");
-const addressableAimTarget = (addressable) => ({
-	anchor: { section: addressable.id },
-	element: addressable,
-	label: aimLabel(addressable),
-	surface: wholeVisualSurface(addressable)
-});
-const anchorForDatum = (datum, fields = {}) => {
-	const section = datum.getAttribute("data-lf-projection");
-	const key = datum.getAttribute("data-lf-datum");
-	if (section === null || key === null) return null;
-	const sourceRevision = datum.getAttribute("data-lf-source-revision");
-	const source = datum.getAttribute("data-lf-source");
-	const identity = datum.getAttribute("data-lf-identity");
-	return {
-		section,
-		datum: key,
-		...fields,
-		...source && sourceRevision ? {
-			source,
-			source_revision: sourceRevision
-		} : {},
-		...identity ? { identity } : {}
-	};
-};
-function datumAimTarget(datum) {
-	if (!(datum instanceof Element) || !datum.matches("[data-lf-projection][data-lf-datum]")) return null;
-	const anchor = anchorForDatum(datum);
-	if (!anchor) return null;
-	const owner = sectionOf(anchor);
-	if (!owner || !under(datum, owner)) return null;
-	return {
-		anchor,
-		element: datum,
-		label: datum.getAttribute("data-lf-datum-label")?.trim() || aimLabel(datum)
-	};
-}
-const anchorForRange = (range) => anchorForPassage(segmentsIn(range), range.commonAncestorContainer);
-function anchorForPassage(segments, node) {
-	const holder = node.nodeType === Node.ELEMENT_NODE ? node : upFrom(node);
-	const { text: quote, units } = readingFrom(segments);
-	const dataNodes = new Set(segments.map((seg) => closestAcross(seg.node, DATUM)).filter(Boolean));
-	const [onlyDatum] = dataNodes;
-	const datum = dataNodes.size === 1 && segments.every((seg) => closestAcross(seg.node, "[data-lf-projection][data-lf-datum]") === onlyDatum) ? onlyDatum : null;
-	if (datum) {
-		const anchor = anchorForDatum(datum, quote ? { quote } : {});
-		if (anchor) return anchor;
-	}
-	const section = closestAcross(holder, "[id]:not(.lf-ui):not([id^=\"lf-\"])")?.id ?? null;
-	if (!quote) return section === null ? null : { section };
-	const reading = pageText();
-	const [start, stop] = spanIn(reading, segments);
-	for (let width = 24;; width *= 2) {
-		const prefix = cut(neighbourhood(reading, start, width, true), -width, Infinity);
-		const suffix = cut(neighbourhood(reading, stop, width, false), 0, width);
-		const anchor = {
-			section,
-			quote,
-			...prefix && { prefix },
-			...suffix && { suffix }
-		};
-		const resolved = resolveAnchor(anchor);
-		if (resolved?.exact && resolved.kind === "passage") {
-			const first = resolved.segments[0];
-			const last = resolved.segments.at(-1);
-			const from = units[0]?.start;
-			const to = units.at(-1)?.end;
-			if (first && last && from && to && first.node === from.node && first.start === from.offset && last.node === to.node && last.end === to.offset) return anchor;
-		}
-		if ([...prefix].length < width && [...suffix].length < width) return {
-			...anchor,
-			detached: true
-		};
-	}
-}
-const controlName = (control) => control instanceof HTMLElement && control.isContentEditable ? accessibleName(control) : ownName(control) || (control.matches(PRESSES) ? (control instanceof HTMLElement ? control.innerText : "")?.trim().replace(/\s+/g, " ") || addressableWord(control) : "");
-const controlFaces = (control) => [control, ...control.labels ?? []];
-const controlIdentity = (control) => (control instanceof HTMLLabelElement ? control.control : null) ?? control;
-const namedParts = (owner, name) => [...new Set(pageQueryAll(WORKS).map(controlIdentity))].filter((control) => control !== owner && under(control, owner) && addressableAt(control) === owner && controlName(control) === name);
-function controlContext(control, contexts) {
-	const block = blockAt(control);
-	if (!block) return "";
-	if (!contexts.has(block)) contexts.set(block, quoteFrom(textNodesUnder(block).filter(({ node }) => !closestAcross(node, WORKS))));
-	return [contexts.get(block), elementReading(control)].filter(Boolean).join(" ");
-}
-function controlPassages(face, control) {
-	const words = textNodesUnder(face);
-	const barriers = face === control ? pageQueryAll(WORKS).filter((other) => other !== control && under(other, face)) : [control];
-	const passages = [];
-	let run = [];
-	const finish = () => {
-		if (run.length) passages.push(run);
-		run = [];
-	};
-	for (const word of words) {
-		if (face === control ? closestAcross(word.node, WORKS) !== control : under(word.node, control)) {
-			finish();
-			continue;
-		}
-		if (run.length && barriers.some((barrier) => rangeOf([...run, word]).intersectsNode(barrier))) finish();
-		run.push(word);
-	}
-	finish();
-	return passages;
-}
-function visiblePassage(segments) {
-	const clips = /* @__PURE__ */ new Map();
-	return segments.every((segment) => {
-		const holder = segment.node.parentElement;
-		if (!holder || !holder.checkVisibility({
-			opacityProperty: true,
-			visibilityProperty: true
-		})) return false;
-		return [...rangeOf([segment]).getClientRects()].some((rect) => rect.width > 0 && rect.height > 0 && clippedContents(rect, holder, clips));
-	});
-}
-function designTargetAt(node, marginTargetAt, reading = {
-	owners: /* @__PURE__ */ new Map(),
-	contexts: /* @__PURE__ */ new Map()
-}) {
-	const { owners, contexts } = reading;
-	let at = node instanceof Element ? node : node?.parentElement;
-	if (!at) return null;
-	const pressed = designPressAt(at);
-	const control = pressed?.matches(`${WORKS},${genericVisualSelector}`) ? controlIdentity(pressed) : null;
-	const visual = visualAt(at, { unclaimed: false });
-	const declared = declaredVisualSelector();
-	if (declared && visual?.element.matches(declared)) at = visual.element;
-	else if (control && (pressed instanceof HTMLLabelElement && pressed.control || visual && control.matches(PRESSES) && under(visual.element, control))) at = control;
-	const surface = leafSurface(at);
-	const margin = closestAcross(at, ".lf-margin-entry, [data-lf-margin-for]");
-	const marginTarget = marginTargetAt?.(at);
-	const standsFor = margin && (!surface || under(margin, surface)) && marginTarget;
-	const authored = surface && closestAcross(at, "[id]:not([id^=\"lf-\"])");
-	const element = standsFor || (surface ? authored && under(authored, surface) && authored : addressableAt(at));
-	if (!element) return null;
-	const partElement = control && control !== element && (marginTarget === element || under(control, element)) ? control : null;
-	const part = partElement && controlName(partElement);
-	let target = owners.get(element);
-	if (!target) {
-		target = addressableAimTarget(element);
-		owners.set(element, target);
-	}
-	if (!partElement || !part) return control === element ? {
-		...target,
-		controlElement: control,
-		controlFaces: controlFaces(control)
-	} : target;
-	const faces = controlFaces(partElement);
-	const detail = [.../* @__PURE__ */ new Set([controlContext(partElement, contexts), ...faces.filter((face) => face !== partElement).map((label) => quoteFrom(textNodesUnder(label).filter(({ node }) => !under(node, partElement))))])].filter((text) => text && text !== part).join(" · ");
-	const named = {
-		...target,
-		anchor: {
-			...target.anchor,
-			part
-		},
-		label: `${part}${detail ? ` · ${detail}` : ""} · ${target.label}`,
-		controlElement: partElement,
-		controlFaces: faces
-	};
-	if (partElement.matches(genericVisualSelector) && !claimsVisualGesture(partElement)) return named;
-	return {
-		...named,
-		capture() {
-			const repeatedName = namedParts(element, part).length > 1;
-			for (const face of faces) for (const passage of controlPassages(face, partElement)) {
-				if (!passage.length || !fileModelsPassage(passage)) continue;
-				const captured = anchorForRange(rangeOf(passage));
-				if (!captured) continue;
-				const resolved = captured.quote ? resolveAnchor({
-					...captured,
-					quote: captured.quote
-				}) : null;
-				const attachment = resolved?.kind === "passage" && passageGeometry(resolved)?.attachment;
-				if (resolved?.kind === "passage" && resolved.exact && attachment && resolved.segments.every(({ node }) => under(node, face)) && overlaps(attachment, face.getBoundingClientRect()) && visiblePassage(resolved.segments)) {
-					const context = contextAround(pageText(), resolved.segments, {
-						before: [...captured.prefix ?? ""].length,
-						after: [...captured.suffix ?? ""].length
-					});
-					const phrase = [
-						part === captured.quote ? part : `${part} · “${captured.quote}”`,
-						context.before && `after …${context.before}`,
-						context.after && `before ${context.after}…`,
-						target.label
-					].filter(Boolean).join(" · ");
-					return {
-						...named,
-						anchor: {
-							...target.anchor,
-							...captured,
-							part
-						},
-						label: repeatedName ? phrase : named.label
-					};
-				}
-			}
-			return named;
-		}
-	};
-}
-function aimTargetAt(node, { design = false, marginTargetAt } = {}) {
-	if (design) {
-		const target = designTargetAt(node, marginTargetAt);
-		return target?.capture ? target.capture() : target;
-	}
-	const visual = visualAt(node, { unclaimed: false });
-	if (visual?.part) return {
-		anchor: {
-			section: visual.id,
-			visual: visual.part.id
-		},
-		element: visual.part.element,
-		label: aimLabel(visual.seat, visual.part.label),
-		surface: visual.part.surface
-	};
-	const datum = closestAcross(node, DATUM);
-	if (datum) return datumAimTarget(datum);
-	const addressable = addressableAt(node);
-	return addressable ? addressableAimTarget(addressable) : null;
-}
-function aimTargets(options = {}) {
-	const candidates = [
-		...pageQueryAll(ADDRESSABLE).filter(isAddressable),
-		...pageQueryAll(DATUM),
-		...options.design ? pageQueryAll(designCandidates()) : [],
-		...pageQueryAll(declaredVisualSelector()).flatMap((visual) => visualParts(visual).map((part) => part.element))
-	];
-	const reading = {
-		owners: /* @__PURE__ */ new Map(),
-		contexts: /* @__PURE__ */ new Map()
-	};
-	const targets = candidates.map((node) => options.design ? designTargetAt(node, options.marginTargetAt, reading) : aimTargetAt(node, options)).filter((target) => target !== null);
-	if (options.design) {
-		const seen = /* @__PURE__ */ new Set();
-		return targets.filter((target) => {
-			const identity = target.controlElement ?? target.element;
-			if (seen.has(identity)) return false;
-			seen.add(identity);
-			return true;
-		});
-	}
-	const keys = /* @__PURE__ */ new Set();
-	return targets.filter((target) => {
-		const key = anchorKey(target.anchor);
-		if (keys.has(key)) return false;
-		keys.add(key);
-		return true;
-	});
-}
-function resolveAnchor(anchor) {
-	if (anchor.detached) return null;
-	if (anchor.datum) {
-		const source = sectionOf(anchor);
-		const datums = currentDatums(source, anchor.datum, anchor.identity ?? null, anchor.source ?? null);
-		const anchoredToData = typeof anchor.source === "string" && typeof anchor.source_revision === "string";
-		const basis = datums[0] ?? source;
-		if (!(!anchoredToData || basis !== null && basis.getAttribute("data-lf-source") === anchor.source && (anchor.identity ? datums.length > 0 && basis.getAttribute("data-lf-identity") === anchor.identity : basis.getAttribute("data-lf-source-revision") === anchor.source_revision))) {
-			const contextual = source?.lfDataDatum?.(anchor.datum, { outdated: true });
-			const fallback = contextual instanceof Element && under(contextual, source) ? contextual : source;
-			if (!(fallback instanceof Element)) return null;
-			return {
-				...resolvedElement({ element: fallback }),
-				datumElement: null,
-				exact: false,
-				status: "outdated"
-			};
-		}
-		if (datums.length > 1) return null;
-		const [datum] = datums;
-		if (!datum) {
-			const virtual = source?.lfDataDatum?.(anchor.datum);
-			if (!(virtual instanceof Element) || !under(virtual, source)) return null;
-			return {
-				...resolvedElement({ element: virtual }),
-				datumElement: null,
-				exact: false,
-				status: "fallback"
-			};
-		}
-		if (!anchor.quote) return {
-			...resolvedElement({ element: datum }),
-			datumElement: datum,
-			exact: true,
-			status: "exact"
-		};
-		const segments = findQuote(pageText(), anchor.quote, anchor, datum);
-		const [first] = segments;
-		return first ? {
-			...resolvedPassage({
-				place: annotationAt(first.node, () => datum),
-				segments
-			}),
-			datumElement: datum,
-			exact: true,
-			status: "exact"
-		} : {
-			...resolvedElement({ element: datum }),
-			datumElement: datum,
-			exact: false,
-			status: "fallback"
-		};
-	}
-	if (anchor.visual) {
-		const section = sectionOf(anchor);
-		if (!section || settledAway(section)) return null;
-		const found = visualPart(section, anchor.visual);
-		if (found) return resolvedElement({
-			element: found.element,
-			place: section,
-			surface: found.surface
-		});
-		return admitsVisualPart(section, anchor.visual) && revealsVisualParts(section) ? {
-			...resolvedElement({
-				element: section,
-				surface: wholeVisualSurface(section)
-			}),
-			exact: false,
-			status: "fallback"
-		} : null;
-	}
-	if (!anchor.quote) {
-		const section = sectionOf(anchor);
-		if (!section || settledAway(section)) return null;
-		const target = resolvedElement({
-			element: section,
-			surface: wholeVisualSurface(section)
-		});
-		return anchor.part ? {
-			...target,
-			exact: false,
-			status: "fallback"
-		} : target;
-	}
-	const segments = findQuote(pageText(), anchor.quote, anchor, sectionOf(anchor));
-	const [first] = segments;
-	if (!first) return null;
-	const face = anchor.part && closestAcross(first.node, WORKS);
-	const controlFace = face && segments.every(({ node }) => closestAcross(node, WORKS) === face);
-	return resolvedPassage({
-		place: controlFace ? face : annotationAt(first.node),
-		segments
-	});
-}
-const fragmentTarget = (fragment) => fragment ? targetElement(resolveAnchor({ section: fragmentId(fragment) })) : null;
-
-//#endregion
-//#region runtime/scrolling.js
-const nativeScroller = document.scrollingElement;
-if (!(nativeScroller instanceof HTMLElement)) throw new Error("Leaf requires an active HTML document scrollport");
-const pageScroller = nativeScroller;
-const moving = /* @__PURE__ */ new WeakMap();
-const ended = /* @__PURE__ */ new WeakMap();
-const scrollSteps = /* @__PURE__ */ new WeakMap();
-const layoutMoved = /* @__PURE__ */ new WeakSet();
-const watchedLayout = /* @__PURE__ */ new WeakSet();
-const extents = /* @__PURE__ */ new WeakMap();
-const extentOf = (box) => [
-	box.scrollHeight,
-	box.clientWidth,
-	box.clientHeight
-];
-const changedExtent = (before, after) => before?.some((value, index) => value !== after[index]);
-function watchLayout(box) {
-	if (watchedLayout.has(box)) return;
-	watchedLayout.add(box);
-	extents.set(box, extentOf(box));
-	const root = box === pageScroller ? document.documentElement : box;
-	const sizes = /* @__PURE__ */ new WeakMap();
-	const measure = (node) => skipped(node) ? null : [
-		node.clientWidth,
-		node.clientHeight,
-		node.scrollHeight
-	];
-	const observer = sizeObserver((entries) => {
-		let changed = false;
-		for (const { target } of entries) {
-			const next = measure(target);
-			const before = sizes.get(target);
-			sizes.set(target, next);
-			if (next && (!before || before.some((value, index) => value !== next[index]))) changed = true;
-		}
-		if (changed) {
-			if (ended.has(box) && box.scrollTop !== ended.get(box)) layoutMoved.add(box);
-			else extents.set(box, extentOf(box));
-		}
-	}, { counted: false });
-	const observe = (node) => {
-		sizes.set(node, measure(node));
-		observer.observe(node);
-	};
-	observe(root);
-	if (box !== pageScroller) {
-		for (const child of box.children) observe(child);
-		const mutation = new MutationObserver((entries) => {
-			for (const entry of entries) {
-				for (const node of entry.addedNodes) if (node instanceof Element) observe(node);
-				for (const node of entry.removedNodes) if (node instanceof Element) observer.unobserve(node);
-			}
-		});
-		mutation.observe(box, { childList: true });
-		watchOwner(box, { disconnect() {
-			observer.disconnect();
-			mutation.disconnect();
-			watchedLayout.delete(box);
-		} });
-	}
-}
-watchLayout(pageScroller);
-ended.set(pageScroller, pageScroller.scrollTop);
-function stopScroll(boxes) {
-	const stopped = [...boxes].flatMap((box) => {
-		const sequence = moving.get(box);
-		return sequence ? [{
-			box,
-			sequence
-		}] : [];
-	});
-	if (!stopped.length) return null;
-	for (const { box } of stopped) setScroll(box, {
-		left: box.scrollLeft,
-		top: box.scrollTop,
-		behavior: "instant"
-	});
-	return new Promise((resolve) => nextFrame(() => nextFrame(() => {
-		for (const { box, sequence } of stopped) if (moving.get(box) === sequence) moving.delete(box);
-		resolve(void 0);
-	})));
-}
-let choices = 0;
-const chosen = /* @__PURE__ */ new WeakMap();
-const kept = /* @__PURE__ */ new WeakMap();
-const scrollChoices = () => choices;
-const chosenSince = (box, count) => (chosen.get(box) ?? 0) > count;
-const chooseScroll = (box) => chosen.set(box, ++choices);
-function startScroll(box) {
-	moving.set(box, { glide: true });
-	chooseScroll(box);
-}
-let travel = null;
-document.addEventListener("beforematch", () => {
-	const mark = travel = {};
-	nextFrame(() => nextFrame(() => {
-		if (travel === mark) travel = null;
-	}));
-}, { capture: true });
-const eventScroller = (target) => target === document ? pageScroller : target instanceof Element ? target : null;
-document.addEventListener("scroll", ({ target }) => {
-	const box = eventScroller(target);
-	if (!box) return;
-	if (skipped(box)) return;
-	watchLayout(box);
-	scrollSteps.set(box, (scrollSteps.get(box) ?? 0) + 1);
-	if (moving.get(box)?.glide) return;
-	const sequence = { glide: false };
-	moving.set(box, sequence);
-	nextFrame(() => nextFrame(() => {
-		if (moving.get(box) === sequence) moving.delete(box);
-	}));
-}, {
-	capture: true,
-	passive: true
-});
-function placeKept(...boxes) {
-	for (const box of boxes) kept.set(box, box.scrollTop);
-}
-document.addEventListener("scrollend", ({ target }) => {
-	const box = eventScroller(target);
-	if (!box) return;
-	if (skipped(box)) {
-		moving.delete(box);
-		scrollSteps.delete(box);
-		layoutMoved.delete(box);
-		return;
-	}
-	watchLayout(box);
-	const wasMoving = moving.get(box);
-	moving.delete(box);
-	const extent = extentOf(box);
-	const repeated = (scrollSteps.get(box) ?? 0) > 1;
-	scrollSteps.delete(box);
-	if ((wasMoving?.glide || repeated || travel !== null || ended.get(box) !== box.scrollTop && !layoutMoved.has(box) && !changedExtent(extents.get(box), extent)) && kept.get(box) !== box.scrollTop) chooseScroll(box);
-	ended.set(box, box.scrollTop);
-	layoutMoved.delete(box);
-	extents.set(box, extent);
-	kept.delete(box);
-}, {
-	capture: true,
-	passive: true
-});
-const riding = /* @__PURE__ */ new WeakSet();
-const contentRides = (box, rides) => rides ? riding.add(box) : riding.delete(box);
-function laidOutHeight(box) {
-	let end = 0;
-	for (const child of box.children) {
-		if (!child.checkVisibility()) continue;
-		if (!(child instanceof HTMLElement) || child.offsetParent !== box) return box.scrollHeight;
-		end = Math.max(end, child.offsetTop + child.offsetHeight + Number.parseFloat(getComputedStyle(child).marginBottom));
-	}
-	const padding = Number.parseFloat(getComputedStyle(box).paddingBottom);
-	return Math.min(box.scrollHeight, end + padding);
-}
-const scrollLimit = (box) => Math.max(0, (riding.has(box) ? laidOutHeight(box) : box.scrollHeight) - box.clientHeight);
-const SCROLL_SLACK = 2;
-const atScrollEnd = (box) => scrollLimit(box) - box.scrollTop <= 2;
-const scrollToEnd = (box, behavior = "instant") => {
-	if (behavior !== "instant" && !atScrollEnd(box)) startScroll(box);
-	setScroll(box, {
-		top: scrollLimit(box),
-		behavior
-	});
-};
-const aims = /* @__PURE__ */ new WeakMap();
-const moveScrollerBy = (box, top, behavior = "instant") => {
-	const aim = box.scrollTop + top;
-	if (Math.abs(top) >= .5) {
-		if (behavior !== "instant" && reachable(box, top)) startScroll(box);
-		setScroll(box, {
-			top: aim,
-			behavior
-		});
-	}
-	if (behavior === "instant" && Math.abs(aim - box.scrollTop) < 1) aims.set(box, {
-		aim,
-		at: box.scrollTop
-	});
-	else aims.delete(box);
-};
-const aimedTop = (box) => {
-	const kept = aims.get(box);
-	return kept?.at === box.scrollTop ? kept.aim : box.scrollTop;
-};
-const reachable = (box, top) => Math.max(-box.scrollTop, Math.min(scrollLimit(box) - box.scrollTop, top));
-function keepFoot(box, { atEnd = false, kept } = {}) {
-	let foot = null;
-	const observer = sizeObserver((entries) => {
-		const room = box.clientHeight;
-		if (foot && room !== foot.room && (!atEnd || foot.end) && entries.every(({ target }) => target === box)) {
-			moveScrollerBy(box, foot.top + foot.room - room - box.scrollTop);
-			kept?.();
-		}
-		foot = {
-			room,
-			top: box.scrollTop,
-			end: atScrollEnd(box)
-		};
-	});
-	observer.observe(box);
-	for (const child of box.children) observer.observe(child);
-	const children = new MutationObserver((records) => {
-		for (const { addedNodes, removedNodes } of records) {
-			for (const node of addedNodes) if (node instanceof Element) observer.observe(node);
-			for (const node of removedNodes) if (node instanceof Element) observer.unobserve(node);
-		}
-	});
-	children.observe(box, { childList: true });
-	const scrolled = () => {
-		if (!foot || box.clientHeight > foot.room && box.scrollTop < foot.top && atScrollEnd(box)) return;
-		foot.top = box.scrollTop;
-		foot.end = atScrollEnd(box);
-	};
-	box.addEventListener("scroll", scrolled, { passive: true });
-	return () => {
-		observer.disconnect();
-		children.disconnect();
-		box.removeEventListener("scroll", scrolled);
-	};
 }
 
 //#endregion
@@ -1506,14 +660,7 @@ const scrollerFor = (el) => {
 	const region = containingReadingRegionFor(el);
 	return region ? effectiveScroller(region) : pageScroller;
 };
-function* scrollersOf(node) {
-	for (let box = scrollerFor(node);; box = scrollerFor(renderedParent(box))) {
-		for (let at = node; at !== box; at = renderedParent(at)) if (!at || getComputedStyle(at).position === "fixed") return;
-		yield box;
-		if (box === pageScroller) return;
-		node = box;
-	}
-}
+installScrollerLookup(scrollerFor);
 function* scrollChainOf(node) {
 	let last = null;
 	for (last of scrollersOf(node)) yield last;
@@ -1608,386 +755,626 @@ sizes.observe(pageScroller);
 addEventListener("resize", () => nextRender(measureRegions), { passive: true });
 
 //#endregion
-//#region runtime/bounds.js
-const BOUND = marks["x-bound"].paint;
-const BOUNDED = `[${BOUND}]`;
-const FOLLOWING = `[${BOUND}="end"]`;
-const holds = /* @__PURE__ */ new WeakMap();
-const registered = /* @__PURE__ */ new Set();
-const byBox = /* @__PURE__ */ new WeakMap();
-const THIS_DOCUMENT = `lf-region:bound:${performance.timeOrigin}`;
-let unnamed = 0;
-function scrollerOf(bounded) {
-	const selector = getComputedStyle(bounded).getPropertyValue("--lf-bound-box").trim();
-	if (!selector) return bounded;
-	for (const box of bounded.querySelectorAll(selector)) if (box.closest(BOUNDED) === bounded) return box;
-	return bounded;
-}
-const regionId = (bounded) => bounded.id && authoredScope(bounded) === pageDocument() ? compoundReadingRegionId(bounded, "bound") : `${THIS_DOCUMENT}:${unnamed += 1}`;
-const following = (hold, box) => hold.bounded.matches(FOLLOWING) && !hold.left && !(hold.pinned !== null && box.scrollTop < hold.pinned - 2 && !atScrollEnd(box));
-const heldBy = (box) => {
-	const hold = byBox.get(box);
-	return hold?.box === box && registered.has(hold) ? hold : null;
+//#region runtime/addressable-names.js
+const HTML_WORDS = {
+	input: "control",
+	select: "control",
+	button: "control",
+	p: "paragraph",
+	li: "item",
+	tr: "row",
+	td: "cell",
+	th: "cell",
+	figure: "figure",
+	blockquote: "quote",
+	pre: "block",
+	section: "section",
+	article: "section",
+	aside: "aside",
+	ul: "list",
+	ol: "list",
+	dl: "list",
+	table: "table",
+	details: "note",
+	h1: "heading",
+	h2: "heading",
+	h3: "heading",
+	h4: "heading",
+	h5: "heading",
+	h6: "heading"
 };
-const followingItsEnd = (box) => {
-	const hold = heldBy(box);
-	return Boolean(hold && following(hold, box));
+function addressableWord(addressable) {
+	if (!addressable) return "";
+	const tag = addressable.tagName.toLowerCase();
+	const word = widgetWord(tag, addressable);
+	if (word) return word;
+	if (tag === "pre") return addressable.querySelector(":scope > code") ? "code" : "block";
+	return HTML_WORDS[tag] ?? tag;
+}
+function widgetWord(tag, element = null) {
+	const declared = registry[tag]?.["x-word"];
+	return (declared === "module" ? element?.lfWord?.() : declared) || (tag.startsWith("lf-") ? tag.slice(3) : "");
+}
+function addressableSays(addressable) {
+	if (!addressable) return "";
+	return (registry[addressable.localName]?.["x-word"] === "module" ? addressable.lfSays?.() : "") || elementReading(addressable);
+}
+const TITLES = "summary, h1, h2, h3, h4, h5, h6, strong";
+function leadingTitle(container) {
+	for (const node of container.childNodes) {
+		if (node.nodeType === Node.TEXT_NODE && node.textContent?.trim()) return null;
+		if (!(node instanceof Element) || uiInside(node, container)) continue;
+		if (node.matches(TITLES)) return node;
+		if (["header", "hgroup"].includes(node.localName)) return leadingTitle(node);
+	}
+	return null;
+}
+function declaredName(element) {
+	const attribute = registry[element.localName]?.["x-name"];
+	return attribute && element.getAttribute(attribute)?.trim() || "";
+}
+function addressableName(element) {
+	if (!element) return "";
+	const declared = declaredName(element);
+	if (declared) return declared;
+	const title = leadingTitle(element);
+	return title ? elementReading(title, "wrote") : "";
+}
+const LABEL_WORDS = 60;
+const captionOf = (element) => {
+	const caption = [...element.children].find((child) => child.matches("figcaption, caption") && !uiInside(child, element));
+	return caption ? elementReading(caption) : "";
 };
-const boundedBlockOf = (box) => heldBy(box)?.bounded ?? null;
-function holdBlock(bounded) {
-	const hold = {
-		bounded,
-		id: regionId(bounded),
-		bound: null,
-		box: null,
-		pinned: null,
-		left: false,
-		sync: () => sync(false)
-	};
-	let stopRegion = null;
-	const letGo = () => {
-		if (hold.box && hold.box !== bounded) resize.unobserve(hold.box);
-		stopRegion?.();
-		stopRegion = null;
-		hold.box = null;
-		registered.delete(hold);
-	};
-	const adopt = (box) => {
-		if (box === hold.box) return;
-		letGo();
-		const onScroll = () => {
-			if (bounded.hasAttribute("hidden") || skipped(bounded)) return;
-			hold.left = !atScrollEnd(box);
-			if (!hold.left) hold.pinned = box.scrollTop;
-		};
-		box.addEventListener("scroll", onScroll, { passive: true });
-		resize.observe(box);
-		byBox.set(box, hold);
-		hold.box = box;
-		hold.left = false;
-		hold.pinned = null;
-		const release = registerReadingRegion({
-			id: hold.id,
-			host: bounded,
-			body: box
-		});
-		stopRegion = () => {
-			box.removeEventListener("scroll", onScroll);
-			release();
-		};
-		registered.add(hold);
-	};
-	const sync = (observed) => {
-		hold.bound = bounded.getAttribute(BOUND);
-		if (!bounded.isConnected || hold.bound === null) return letGo();
-		if (bounded.hasAttribute("hidden") || skipped(bounded)) {
-			if (!hold.box) adopt(bounded);
-			hold.pinned = null;
-			if (!observed) {
-				resize.unobserve(bounded);
-				resize.observe(bounded);
-			}
-			return;
-		}
-		const box = scrollerOf(bounded);
-		adopt(box);
-		if (!bounded.matches(FOLLOWING)) return;
-		if (!following(hold, box)) {
-			hold.left = true;
-			return;
-		}
-		scrollToEnd(box);
-		hold.pinned = box.scrollTop;
-	};
-	const resize = sizeObserver(() => sync(true));
-	resize.observe(bounded);
-	new MutationObserver((records) => {
-		if (records.some((record) => record.type !== "attributes" || record.target === bounded)) hold.sync();
-	}).observe(bounded, {
-		attributes: true,
-		attributeFilter: ["hidden"],
-		childList: true,
-		characterData: true,
-		subtree: true
-	});
-	return hold;
+const accessibleName = (element) => element.getAttribute("aria-label")?.trim() || (element.labels?.[0] ? elementReading(element.labels[0]) : "") || element.alt?.trim() || "";
+const ownName = (element) => addressableName(element) || captionOf(element) || accessibleName(element);
+const saysItself = (element) => element.matches("p,li,h1,h2,h3,h4,h5,h6,td,th,pre,blockquote,dd,dt,figcaption,summary") || registry[element.localName]?.["x-word"] === "module" && element.lfSays?.() || [...element.childNodes].some((node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim());
+function addressableLabel(element) {
+	if (!element) return "";
+	const own = ownName(element);
+	if (own) return own;
+	if (saysItself(element)) return excerptWords(addressableSays(element), LABEL_WORDS);
+	const scope = authoredScope(element);
+	for (let at = upFrom(element); at && at !== scope; at = upFrom(at)) {
+		const name = ownName(at);
+		if (name) return name;
+	}
+	if (isElementName(element.localName) && registry[element.localName]) return "";
+	return excerptWords(addressableSays(element) || element.querySelector("[aria-label]")?.getAttribute("aria-label"), LABEL_WORDS);
 }
-function holdArrivingBounds() {
-	watchArrivals(BOUNDED, [BOUND], {
-		arrive: (el) => {
-			let hold = holds.get(el);
-			if (!hold) {
-				hold = holdBlock(el);
-				holds.set(el, hold);
-			}
-			if (!registered.has(hold) || hold.bound !== el.getAttribute(BOUND)) hold.sync();
-		},
-		leave: (el) => holds.get(el)?.sync()
-	});
-}
+const sectionLabel = (addressable) => [addressableWord(addressable), addressableLabel(addressable)].filter(Boolean).join(" · ");
 
 //#endregion
-//#region runtime/element-axes.js
-function elementAxes(source) {
-	let matrix = new window.DOMMatrix();
-	let node = source;
-	for (; isElement(node); node = renderedParent(node)) {
-		const style = getComputedStyle(node);
-		let local = new window.DOMMatrix();
-		if (style.rotate !== "none") {
-			const split = style.rotate.lastIndexOf(" ");
-			const angle = style.rotate.slice(split + 1);
-			const parts = style.rotate.slice(0, split + 1).trim().split(" ");
-			const degrees = parseFloat(angle) * (angle.endsWith("turn") ? 360 : angle.endsWith("grad") ? .9 : angle.endsWith("rad") ? 180 / Math.PI : 1);
-			const axis = parts.length === 3 ? [
-				Number(parts[0]),
-				Number(parts[1]),
-				Number(parts[2])
-			] : parts[0] === "x" ? [
-				1,
-				0,
-				0
-			] : parts[0] === "y" ? [
-				0,
-				1,
-				0
-			] : [
-				0,
-				0,
-				1
-			];
-			local = local.rotateAxisAngle(...axis, degrees);
-		}
-		if (style.scale !== "none") {
-			const scale = style.scale.split(" ").map(Number);
-			local = local.scale(scale[0], scale[1] ?? scale[0], scale[2] ?? 1);
-		}
-		if (style.transform !== "none") local = local.multiply(new window.DOMMatrix(style.transform));
-		const zoom = Number(style.zoom);
-		local = local.scale(zoom, zoom);
-		matrix = local.multiply(matrix);
-	}
+//#region runtime/resolved-target.js
+const resolvedElement = ({ element, place = element, surface = null }) => ({
+	exact: true,
+	status: "exact",
+	datumElement: null,
+	kind: "element",
+	element,
+	place,
+	surface
+});
+const resolvedPassage = ({ place, segments }) => ({
+	exact: true,
+	status: "exact",
+	datumElement: null,
+	kind: "passage",
+	place,
+	segments
+});
+const resolvedInMessage = ({ message }) => ({
+	exact: true,
+	status: "exact",
+	datumElement: null,
+	kind: "message",
+	message,
+	place: null
+});
+const targetElement = (resolved) => resolved?.kind === "element" ? resolved.element : null;
+const targetSegments = (resolved) => resolved?.kind === "passage" ? resolved.segments : [];
+const targetPlace = (resolved) => resolved?.place ?? null;
+const exactTarget = (resolved) => resolved?.exact ? targetElement(resolved) ?? targetPlace(resolved) : null;
+const targetRange = (resolved) => {
+	const segments = targetSegments(resolved);
+	if (!segments.length || segments.some(({ node, start, end }) => !node.isConnected || start > node.length || end > node.length)) return null;
+	return rangeOf(segments);
+};
+function rangeGeometry(range) {
 	return {
-		x: {
-			x: matrix.a,
-			y: matrix.b
-		},
-		y: {
-			x: matrix.c,
-			y: matrix.d
-		}
+		range,
+		contextNode: range.startContainer.nodeType === Node.TEXT_NODE ? range.startContainer : range.startContainer.childNodes[range.startOffset] ?? range.startContainer,
+		box: range.getBoundingClientRect(),
+		attachment: [...range.getClientRects()].find((rect) => rect.width > 0 && rect.height > 0) ?? null
 	};
 }
-function scrollAxes(source) {
-	return source === source.ownerDocument.scrollingElement ? {
-		x: {
-			x: 1,
-			y: 0
-		},
-		y: {
-			x: 0,
-			y: 1
-		}
-	} : elementAxes(source);
+const passageBoxes = (resolved) => targetRange(resolved) ? targetSegments(resolved).flatMap((segment) => [...rangeOf([segment]).getClientRects()]).filter((box) => box.width && box.height) : [];
+function passageGeometry(resolved) {
+	const range = targetRange(resolved);
+	return range && rangeGeometry(range);
 }
+const targetSurface = (resolved) => resolved?.kind === "element" ? resolved.surface : null;
+const targetParts = (resolved) => {
+	const element = targetElement(resolved);
+	if (!element) return [];
+	return targetSurface(resolved) ? [element] : shownParts(element);
+};
 
 //#endregion
-//#region runtime/element-frame.js
-const nativePositions = /* @__PURE__ */ new WeakMap();
-let positionProbe;
-function nativePosition(source, position, horizontal, vertical) {
-	const key = JSON.stringify([
-		position,
-		horizontal,
-		vertical
-	]);
-	const prior = nativePositions.get(source);
-	if (prior?.key === key) return prior.offset;
-	let depth = 0;
-	let split = -1;
-	for (let at = 0; at < position.length; at++) {
-		const character = position[at];
-		if (character === "(") depth++;
-		if (character === ")") depth--;
-		if (character === " " && !depth) {
-			split = at;
-			break;
-		}
-	}
-	if (split < 0) throw new TypeError(`Computed object-position has no second component: ${position}`);
-	const pixels = (value, space) => value.replace(/([-+]?(?:\d*\.)?\d+(?:e[-+]?\d+)?)%/gi, (_unit, percent) => `${Number(percent) * space / 100}px`);
-	if (!positionProbe) {
-		const measure = document.createElement("div");
-		measure.className = "lf-ui";
-		measure.dataset.lfRuntime = "";
-		measure.inert = true;
-		measure.style.cssText = "all:initial;position:fixed;visibility:hidden;contain:strict;width:0;height:0;left:0;top:0;pointer-events:none";
-		const point = document.createElement("div");
-		point.style.cssText = "all:initial;position:absolute;width:0;height:0";
-		measure.append(point);
-		positionProbe = {
-			measure,
-			point
-		};
-	}
-	const { measure, point } = positionProbe;
-	point.style.left = pixels(position.slice(0, split), horizontal);
-	point.style.top = pixels(position.slice(split + 1), vertical);
-	document.body.append(measure);
-	const resolved = getComputedStyle(point);
-	const offset = {
-		x: Number.parseFloat(resolved.left),
-		y: Number.parseFloat(resolved.top)
-	};
-	measure.remove();
-	nativePositions.set(source, {
-		key,
-		offset
-	});
-	return offset;
+//#region runtime/anchor-resolution.js
+let anchoringReady = false;
+const anchoringIsReady = () => anchoringReady;
+function setAnchoringReady(ready) {
+	anchoringReady = ready;
 }
-function elementFrame(source) {
-	const box = shownBox(source);
-	if (!box?.width || !box?.height) return null;
-	if (source instanceof window.SVGGraphicsElement) {
-		const local = source instanceof window.SVGSVGElement ? source.viewBox.baseVal.width && source.viewBox.baseVal.height ? source.viewBox.baseVal : {
-			x: 0,
-			y: 0,
-			width: Number.parseFloat(getComputedStyle(source).width),
-			height: Number.parseFloat(getComputedStyle(source).height)
-		} : source.getBBox();
-		const screen = source.getScreenCTM();
-		if (!screen) return null;
-		return {
-			box,
-			width: local.width,
-			height: local.height,
-			matrix: new window.DOMMatrix([
-				screen.a,
-				screen.b,
-				screen.c,
-				screen.d,
-				screen.e,
-				screen.f
-			])
-		};
+const sectionOf = (anchor) => anchor?.section ? elementById(anchor.section) : null;
+function currentDatums(source, key, identity = null, dataSource = null) {
+	if (!source?.id) return [];
+	return pageQueryAll(DATUM).filter((datum) => under(datum, source) && datum.getAttribute("data-lf-projection") === source.id && (dataSource === null || datum.getAttribute("data-lf-source") === dataSource) && (identity === null ? datum.getAttribute("data-lf-datum") === key : datum.getAttribute("data-lf-identity") === identity));
+}
+const projectedDatum = (source, key) => {
+	const matches = currentDatums(source, key);
+	return matches.length === 1 ? matches[0] ?? null : null;
+};
+function datumLabel(anchor) {
+	if (!anchor?.datum) return "";
+	documentChanged();
+	const source = sectionOf(anchor);
+	const datums = currentDatums(source, anchor.datum, anchor.identity ?? null, anchor.source ?? null);
+	const [datum] = datums;
+	const label = datum ? datums.length === 1 && datum.getAttribute("data-lf-datum-label") : source?.lfDatumLabel?.(anchor.datum);
+	return typeof label === "string" ? label.trim() : "";
+}
+function suppliedDatum(source, key) {
+	const supplied = source?.lfDataDatum?.(key);
+	return supplied instanceof Element && under(supplied, source) && supplied.getAttribute("data-lf-projection") === source.id ? supplied : null;
+}
+function addressedElements(source, key) {
+	if (typeof source.lfElementsFor === "function") return [...source.lfElementsFor(key) ?? []].filter((element) => element instanceof Element && under(element, source));
+	const part = visualPart(source, key)?.element;
+	if (part) return [part];
+	const datum = projectedDatum(source, key) ?? suppliedDatum(source, key);
+	return datum ? [datum] : [];
+}
+function revealAddressed(source, key) {
+	if (revealVisualPart(source, key)) return null;
+	return source.lfRevealDatum?.(key) ?? null;
+}
+const visualAdmission = (visual) => visual ? visualPartAdmission(visual, registry[visual.localName]?.["x-visual"] ?? null) : null;
+const wholeVisualSurface = (element) => element && registry[element.localName]?.["x-visual"] ? element : null;
+function visualParts(visual) {
+	const admits = visualAdmission(visual);
+	if (!admits) return [];
+	return registeredVisualParts(visual).filter((part) => admits(part.id));
+}
+const admitsVisualPart = (visual, part) => visualAdmission(visual)?.(part) ?? false;
+function visualPart(visual, part) {
+	return admitsVisualPart(visual, part) ? registeredVisualPart(visual, part) : null;
+}
+function revealVisualPart(visual, part) {
+	return admitsVisualPart(visual, part) ? revealRegisteredVisualPart(visual, part) : null;
+}
+function visualPartAt(visual, target) {
+	const admits = visualAdmission(visual);
+	return admits ? registeredVisualPartAt(visual, target instanceof Element ? target : target?.parentElement ?? null, (part) => admits(part.id)) : null;
+}
+const visualPartLabel = (visual, part) => visual && admitsVisualPart(visual, part) ? registeredVisualPartLabel(visual, part) : null;
+const declaredVisualSelector = () => [...tagsDeclaring((entry) => entry["x-visual"])].join(",");
+const genericVisualSelector = "svg, img, figure";
+const visualSelector = () => [declaredVisualSelector(), genericVisualSelector].filter(Boolean).join(",");
+const outermostAcross = (element, selector) => {
+	for (let parent = upFrom(element); parent;) {
+		const outer = closestAcross(parent, selector);
+		if (!outer) break;
+		element = outer;
+		parent = upFrom(element);
 	}
-	const layout = elementBorderFrame(source);
-	if (!layout) return null;
-	const { width, height, matrix } = layout;
-	const style = getComputedStyle(source);
-	const native = source instanceof window.HTMLImageElement ? {
-		width: source.naturalWidth,
-		height: source.naturalHeight
-	} : source instanceof window.HTMLCanvasElement ? {
-		width: source.width,
-		height: source.height
-	} : source instanceof window.HTMLVideoElement ? {
-		width: source.videoWidth,
-		height: source.videoHeight
+	return element;
+};
+const claimsVisualGesture = (element) => element.matches(`${PRESSES},${PRESSABLE}`);
+const unclaimedVisualGesture = (target) => {
+	if (inChrome(target) || inUi(target)) return false;
+	for (let element = target instanceof Element ? target : target?.parentElement; element; element = upFrom(element)) if (claimsVisualGesture(element)) return false;
+	return true;
+};
+function visualAt(target, { unclaimed = true } = {}) {
+	if (unclaimed && !unclaimedVisualGesture(target)) return null;
+	const declared = declaredVisualSelector();
+	let element = declared ? closestAcross(target, declared) : null;
+	if (element) element = outermostAcross(element, declared);
+	else {
+		element = closestAcross(target, genericVisualSelector);
+		if (element) element = outermostAcross(element, genericVisualSelector);
+	}
+	if (!element) return null;
+	const seat = closestAcross(element, ADDRESSABLE);
+	return seat ? {
+		element,
+		seat,
+		id: seat.id,
+		part: visualPartAt(element, target)
 	} : null;
-	if (native) {
-		if (!native.width || !native.height) return null;
-		const edge = (side) => Number.parseFloat(style[`border${side}Width`]) + Number.parseFloat(style[`padding${side}`]);
-		const contentWidth = width - edge("Left") - edge("Right");
-		const contentHeight = height - edge("Top") - edge("Bottom");
-		let sx = contentWidth / native.width;
-		let sy = contentHeight / native.height;
-		if (style.objectFit !== "fill") sx = sy = style.objectFit === "cover" ? Math.max(sx, sy) : style.objectFit === "none" ? 1 : Math.min(sx, sy, style.objectFit === "scale-down" ? 1 : Infinity);
-		const { x: dx, y: dy } = nativePosition(source, style.objectPosition, contentWidth - native.width * sx, contentHeight - native.height * sy);
-		if (![
-			sx,
-			sy,
-			dx,
-			dy
-		].every(Number.isFinite) || !sx || !sy) return null;
-		return {
-			box,
-			width: native.width,
-			height: native.height,
-			matrix: matrix.translate(edge("Left") + dx, edge("Top") + dy).scale(sx, sy)
+}
+const designCandidates = () => [
+	...tagsDeclaring(() => true),
+	WORKS,
+	"[data-lf-offer]",
+	genericVisualSelector
+].join(",");
+function designPressAt(target) {
+	const at = target instanceof Element ? target : target?.parentElement;
+	const hit = at && closestAcross(at, designCandidates());
+	if (!hit || !hit.matches(genericVisualSelector)) return hit;
+	return closestAcross(hit, `${PRESSES},${"[data-lf-offer]:not([data-lf-offer=\"\"])"}`) || visualAt(at, { unclaimed: false })?.element || hit;
+}
+const ADDRESSABLE = "[id]:not(.lf-ui):not([id^=\"lf-\"])";
+function isAddressable(at) {
+	if (!at.matches("[id]:not(.lf-ui):not([id^=\"lf-\"])") || inChrome(at) || inUi(at) || settledAway(at)) return false;
+	const visual = tagsDeclaring((entry) => entry["x-visual"]).join(",");
+	return !(visual && at.parentElement && closestAcross(at.parentElement, visual));
+}
+function addressableAt(node) {
+	let at = node instanceof Element ? node : node?.parentElement;
+	for (; at; at = upFrom(at)) if (isAddressable(at)) return at;
+	return null;
+}
+function annotationAt(node, fallback = addressableAt) {
+	const formatted = tagsDeclaring((entry) => entry["x-text-format"] === "markdown").join(",");
+	return formatted && closestAcross(node, formatted) || blockAt(node) || fallback(node);
+}
+const lightSeat = (seat) => (seat && shadowHost(seat.getRootNode())) ?? seat;
+const aimLabel = (addressable, says = addressableLabel(addressable)) => [addressableWord(addressable), says].filter(Boolean).join(": ");
+const addressableAimTarget = (addressable) => ({
+	anchor: { section: addressable.id },
+	element: addressable,
+	label: aimLabel(addressable),
+	surface: wholeVisualSurface(addressable)
+});
+const anchorForDatum = (datum, fields = {}) => {
+	const section = datum.getAttribute("data-lf-projection");
+	const key = datum.getAttribute("data-lf-datum");
+	if (section === null || key === null) return null;
+	const sourceRevision = datum.getAttribute("data-lf-source-revision");
+	const source = datum.getAttribute("data-lf-source");
+	const identity = datum.getAttribute("data-lf-identity");
+	return {
+		section,
+		datum: key,
+		...fields,
+		...source && sourceRevision ? {
+			source,
+			source_revision: sourceRevision
+		} : {},
+		...identity ? { identity } : {}
+	};
+};
+function datumAimTarget(datum) {
+	if (!(datum instanceof Element) || !datum.matches("[data-lf-projection][data-lf-datum]")) return null;
+	const anchor = anchorForDatum(datum);
+	if (!anchor) return null;
+	const owner = sectionOf(anchor);
+	if (!owner || !under(datum, owner)) return null;
+	return {
+		anchor,
+		element: datum,
+		label: datum.getAttribute("data-lf-datum-label")?.trim() || aimLabel(datum)
+	};
+}
+const anchorForRange = (range) => anchorForPassage(segmentsIn(range), range.commonAncestorContainer);
+function anchorForPassage(segments, node) {
+	const holder = node.nodeType === Node.ELEMENT_NODE ? node : upFrom(node);
+	const { text: quote, units } = readingFrom(segments);
+	const dataNodes = new Set(segments.map((seg) => closestAcross(seg.node, DATUM)).filter(Boolean));
+	const [onlyDatum] = dataNodes;
+	const datum = dataNodes.size === 1 && segments.every((seg) => closestAcross(seg.node, "[data-lf-projection][data-lf-datum]") === onlyDatum) ? onlyDatum : null;
+	if (datum) {
+		const anchor = anchorForDatum(datum, quote ? { quote } : {});
+		if (anchor) return anchor;
+	}
+	const section = closestAcross(holder, "[id]:not(.lf-ui):not([id^=\"lf-\"])")?.id ?? null;
+	if (!quote) return section === null ? null : { section };
+	const reading = pageText();
+	const [start, stop] = spanIn(reading, segments);
+	for (let width = 24;; width *= 2) {
+		const prefix = cut(neighbourhood(reading, start, width, true), -width, Infinity);
+		const suffix = cut(neighbourhood(reading, stop, width, false), 0, width);
+		const anchor = {
+			section,
+			quote,
+			...prefix && { prefix },
+			...suffix && { suffix }
+		};
+		const resolved = resolveAnchor(anchor);
+		if (resolved?.exact && resolved.kind === "passage") {
+			const first = resolved.segments[0];
+			const last = resolved.segments.at(-1);
+			const from = units[0]?.start;
+			const to = units.at(-1)?.end;
+			if (first && last && from && to && first.node === from.node && first.start === from.offset && last.node === to.node && last.end === to.offset) return anchor;
+		}
+		if ([...prefix].length < width && [...suffix].length < width) return {
+			...anchor,
+			detached: true
 		};
 	}
+}
+const controlName = (control) => control instanceof HTMLElement && control.isContentEditable ? accessibleName(control) : ownName(control) || (control.matches(PRESSES) ? (control instanceof HTMLElement ? control.innerText : "")?.trim().replace(/\s+/g, " ") || addressableWord(control) : "");
+const controlFaces = (control) => [control, ...control.labels ?? []];
+const controlIdentity = (control) => (control instanceof HTMLLabelElement ? control.control : null) ?? control;
+const namedParts = (owner, name) => [...new Set(pageQueryAll(WORKS).map(controlIdentity))].filter((control) => control !== owner && under(control, owner) && addressableAt(control) === owner && controlName(control) === name);
+function controlContext(control, contexts) {
+	const block = blockAt(control);
+	if (!block) return "";
+	if (!contexts.has(block)) contexts.set(block, quoteFrom(textNodesUnder(block).filter(({ node }) => !closestAcross(node, WORKS))));
+	return [contexts.get(block), elementReading(control)].filter(Boolean).join(" ");
+}
+function controlPassages(face, control) {
+	const words = textNodesUnder(face);
+	const barriers = face === control ? pageQueryAll(WORKS).filter((other) => other !== control && under(other, face)) : [control];
+	const passages = [];
+	let run = [];
+	const finish = () => {
+		if (run.length) passages.push(run);
+		run = [];
+	};
+	for (const word of words) {
+		if (face === control ? closestAcross(word.node, WORKS) !== control : under(word.node, control)) {
+			finish();
+			continue;
+		}
+		if (run.length && barriers.some((barrier) => rangeOf([...run, word]).intersectsNode(barrier))) finish();
+		run.push(word);
+	}
+	finish();
+	return passages;
+}
+function visiblePassage(segments) {
+	const clips = /* @__PURE__ */ new Map();
+	return segments.every((segment) => {
+		const holder = segment.node.parentElement;
+		if (!holder || !holder.checkVisibility({
+			opacityProperty: true,
+			visibilityProperty: true
+		})) return false;
+		return [...rangeOf([segment]).getClientRects()].some((rect) => rect.width > 0 && rect.height > 0 && clippedContents(rect, holder, clips));
+	});
+}
+function designTargetAt(node, marginTargetAt, reading = {
+	owners: /* @__PURE__ */ new Map(),
+	contexts: /* @__PURE__ */ new Map()
+}) {
+	const { owners, contexts } = reading;
+	let at = node instanceof Element ? node : node?.parentElement;
+	if (!at) return null;
+	const pressed = designPressAt(at);
+	const control = pressed?.matches(`${WORKS},${genericVisualSelector}`) ? controlIdentity(pressed) : null;
+	const visual = visualAt(at, { unclaimed: false });
+	const declared = declaredVisualSelector();
+	if (declared && visual?.element.matches(declared)) at = visual.element;
+	else if (control && (pressed instanceof HTMLLabelElement && pressed.control || visual && control.matches(PRESSES) && under(visual.element, control))) at = control;
+	const surface = leafSurface(at);
+	const margin = closestAcross(at, ".lf-margin-entry, [data-lf-margin-for]");
+	const marginTarget = marginTargetAt?.(at);
+	const standsFor = margin && (!surface || under(margin, surface)) && marginTarget;
+	const authored = surface && closestAcross(at, "[id]:not([id^=\"lf-\"])");
+	const element = standsFor || (surface ? authored && under(authored, surface) && authored : addressableAt(at));
+	if (!element) return null;
+	const partElement = control && control !== element && (marginTarget === element || under(control, element)) ? control : null;
+	const part = partElement && controlName(partElement);
+	let target = owners.get(element);
+	if (!target) {
+		target = addressableAimTarget(element);
+		owners.set(element, target);
+	}
+	if (!partElement || !part) return control === element ? {
+		...target,
+		controlElement: control,
+		controlFaces: controlFaces(control)
+	} : target;
+	const faces = controlFaces(partElement);
+	const detail = [.../* @__PURE__ */ new Set([controlContext(partElement, contexts), ...faces.filter((face) => face !== partElement).map((label) => quoteFrom(textNodesUnder(label).filter(({ node }) => !under(node, partElement))))])].filter((text) => text && text !== part).join(" · ");
+	const named = {
+		...target,
+		anchor: {
+			...target.anchor,
+			part
+		},
+		label: `${part}${detail ? ` · ${detail}` : ""} · ${target.label}`,
+		controlElement: partElement,
+		controlFaces: faces
+	};
+	if (partElement.matches(genericVisualSelector) && !claimsVisualGesture(partElement)) return named;
 	return {
-		box,
-		width,
-		height,
-		matrix
+		...named,
+		capture() {
+			const repeatedName = namedParts(element, part).length > 1;
+			for (const face of faces) for (const passage of controlPassages(face, partElement)) {
+				if (!passage.length || !fileModelsPassage(passage)) continue;
+				const captured = anchorForRange(rangeOf(passage));
+				if (!captured) continue;
+				const resolved = captured.quote ? resolveAnchor({
+					...captured,
+					quote: captured.quote
+				}) : null;
+				const attachment = resolved?.kind === "passage" && passageGeometry(resolved)?.attachment;
+				if (resolved?.kind === "passage" && resolved.exact && attachment && resolved.segments.every(({ node }) => under(node, face)) && overlaps(attachment, face.getBoundingClientRect()) && visiblePassage(resolved.segments)) {
+					const context = contextAround(pageText(), resolved.segments, {
+						before: [...captured.prefix ?? ""].length,
+						after: [...captured.suffix ?? ""].length
+					});
+					const phrase = [
+						part === captured.quote ? part : `${part} · “${captured.quote}”`,
+						context.before && `after …${context.before}`,
+						context.after && `before ${context.after}…`,
+						target.label
+					].filter(Boolean).join(" · ");
+					return {
+						...named,
+						anchor: {
+							...target.anchor,
+							...captured,
+							part
+						},
+						label: repeatedName ? phrase : named.label
+					};
+				}
+			}
+			return named;
+		}
 	};
 }
-function elementBorderFrame(source) {
-	const box = shownBox(source);
-	if (!box?.width || !box?.height) return null;
-	const style = getComputedStyle(source);
-	if (style.display === "contents") return {
-		box,
-		width: box.width,
-		height: box.height,
-		matrix: new window.DOMMatrix().translate(box.left, box.top)
+function aimTargetAt(node, { design = false, marginTargetAt } = {}) {
+	if (design) {
+		const target = designTargetAt(node, marginTargetAt);
+		return target?.capture ? target.capture() : target;
+	}
+	const visual = visualAt(node, { unclaimed: false });
+	if (visual?.part) return {
+		anchor: {
+			section: visual.id,
+			visual: visual.part.id
+		},
+		element: visual.part.element,
+		label: aimLabel(visual.seat, visual.part.label),
+		surface: visual.part.surface
 	};
-	const borderSize = (side, edges, fallback) => {
-		const size = Number.parseFloat(style[side]);
-		if (!Number.isFinite(size)) return fallback;
-		return style.boxSizing === "border-box" ? size : size + edges.reduce((sum, edge) => sum + Number.parseFloat(style[`padding${edge}`]) + Number.parseFloat(style[`border${edge}Width`]), 0);
-	};
-	const width = borderSize("width", ["Left", "Right"], isHTML(source) ? source.offsetWidth : void 0);
-	const height = borderSize("height", ["Top", "Bottom"], isHTML(source) ? source.offsetHeight : void 0);
-	if (width === void 0 || height === void 0) return null;
-	const { x, y } = elementAxes(source);
-	const left = box.left - Math.min(0, width * x.x, height * y.x, width * x.x + height * y.x);
-	const top = box.top - Math.min(0, width * x.y, height * y.y, width * x.y + height * y.y);
-	return {
-		box,
-		width,
-		height,
-		matrix: new window.DOMMatrix([
-			x.x,
-			x.y,
-			y.x,
-			y.y,
-			left,
-			top
-		])
-	};
+	const datum = closestAcross(node, DATUM);
+	if (datum) return datumAimTarget(datum);
+	const addressable = addressableAt(node);
+	return addressable ? addressableAimTarget(addressable) : null;
 }
-function localScrollBy(source, { x, y }) {
-	const axes = scrollAxes(source);
-	const horizontal = source.scrollWidth > source.clientWidth;
-	const vertical = source.scrollHeight > source.clientHeight;
-	const along = (axis) => {
-		return [...x && axis.x ? [x / axis.x] : [], ...y && axis.y ? [y / axis.y] : []].reduce((move, amount) => Math.abs(amount) > Math.abs(move) ? amount : move, 0);
+function aimTargets(options = {}) {
+	const candidates = [
+		...pageQueryAll(ADDRESSABLE).filter(isAddressable),
+		...pageQueryAll(DATUM),
+		...options.design ? pageQueryAll(designCandidates()) : [],
+		...pageQueryAll(declaredVisualSelector()).flatMap((visual) => visualParts(visual).map((part) => part.element))
+	];
+	const reading = {
+		owners: /* @__PURE__ */ new Map(),
+		contexts: /* @__PURE__ */ new Map()
 	};
-	const reach = (offset, current, minimum, maximum) => Math.max(minimum - current, Math.min(maximum - current, offset));
-	const horizontalLimit = source.scrollWidth - source.clientWidth;
-	const rtl = getComputedStyle(source).direction === "rtl";
-	const reachLeft = (offset) => reach(offset, source.scrollLeft, rtl ? -horizontalLimit : 0, rtl ? 0 : horizontalLimit);
-	const reachTop = (offset) => reach(offset, source.scrollTop, 0, source.scrollHeight - source.clientHeight);
-	if (!horizontal) return {
-		left: 0,
-		top: vertical ? reachTop(along(axes.y)) : 0
-	};
-	if (!vertical) return {
-		left: reachLeft(along(axes.x)),
-		top: 0
-	};
-	const determinant = axes.x.x * axes.y.y - axes.x.y * axes.y.x;
-	const left = (x * axes.y.y - y * axes.y.x) / determinant;
-	const top = (y * axes.x.x - x * axes.x.y) / determinant;
-	const reachableLeft = reachLeft(left);
-	const reachableTop = reachTop(top);
-	if (reachableLeft !== left && axes.y.y) return {
-		left: reachableLeft,
-		top: reachTop((y - reachableLeft * axes.x.y) / axes.y.y)
-	};
-	if (reachableTop !== top && axes.x.x) return {
-		left: reachLeft((x - reachableTop * axes.y.x) / axes.x.x),
-		top: reachableTop
-	};
-	return {
-		left,
-		top
-	};
+	const targets = candidates.map((node) => options.design ? designTargetAt(node, options.marginTargetAt, reading) : aimTargetAt(node, options)).filter((target) => target !== null);
+	if (options.design) {
+		const seen = /* @__PURE__ */ new Set();
+		return targets.filter((target) => {
+			const identity = target.controlElement ?? target.element;
+			if (seen.has(identity)) return false;
+			seen.add(identity);
+			return true;
+		});
+	}
+	const keys = /* @__PURE__ */ new Set();
+	return targets.filter((target) => {
+		const key = anchorKey(target.anchor);
+		if (keys.has(key)) return false;
+		keys.add(key);
+		return true;
+	});
 }
+function resolveAnchor(anchor) {
+	if (anchor.detached) return null;
+	if (anchor.datum) {
+		const source = sectionOf(anchor);
+		const datums = currentDatums(source, anchor.datum, anchor.identity ?? null, anchor.source ?? null);
+		const anchoredToData = typeof anchor.source === "string" && typeof anchor.source_revision === "string";
+		const basis = datums[0] ?? source;
+		if (!(!anchoredToData || basis !== null && basis.getAttribute("data-lf-source") === anchor.source && (anchor.identity ? datums.length > 0 && basis.getAttribute("data-lf-identity") === anchor.identity : basis.getAttribute("data-lf-source-revision") === anchor.source_revision))) {
+			const contextual = source?.lfDataDatum?.(anchor.datum, { outdated: true });
+			const fallback = contextual instanceof Element && under(contextual, source) ? contextual : source;
+			if (!(fallback instanceof Element)) return null;
+			return {
+				...resolvedElement({ element: fallback }),
+				datumElement: null,
+				exact: false,
+				status: "outdated"
+			};
+		}
+		if (datums.length > 1) return null;
+		const [datum] = datums;
+		if (!datum) {
+			const virtual = source?.lfDataDatum?.(anchor.datum);
+			if (!(virtual instanceof Element) || !under(virtual, source)) return null;
+			return {
+				...resolvedElement({ element: virtual }),
+				datumElement: null,
+				exact: false,
+				status: "fallback"
+			};
+		}
+		if (!anchor.quote) return {
+			...resolvedElement({ element: datum }),
+			datumElement: datum,
+			exact: true,
+			status: "exact"
+		};
+		const segments = findQuote(pageText(), anchor.quote, anchor, datum);
+		const [first] = segments;
+		return first ? {
+			...resolvedPassage({
+				place: annotationAt(first.node, () => datum),
+				segments
+			}),
+			datumElement: datum,
+			exact: true,
+			status: "exact"
+		} : {
+			...resolvedElement({ element: datum }),
+			datumElement: datum,
+			exact: false,
+			status: "fallback"
+		};
+	}
+	if (anchor.visual) {
+		const section = sectionOf(anchor);
+		if (!section || settledAway(section)) return null;
+		const found = visualPart(section, anchor.visual);
+		if (found) return resolvedElement({
+			element: found.element,
+			place: section,
+			surface: found.surface
+		});
+		return admitsVisualPart(section, anchor.visual) && revealsVisualParts(section) ? {
+			...resolvedElement({
+				element: section,
+				surface: wholeVisualSurface(section)
+			}),
+			exact: false,
+			status: "fallback"
+		} : null;
+	}
+	if (!anchor.quote) {
+		const section = sectionOf(anchor);
+		if (!section || settledAway(section)) return null;
+		const target = resolvedElement({
+			element: section,
+			surface: wholeVisualSurface(section)
+		});
+		return anchor.part ? {
+			...target,
+			exact: false,
+			status: "fallback"
+		} : target;
+	}
+	const segments = findQuote(pageText(), anchor.quote, anchor, sectionOf(anchor));
+	const [first] = segments;
+	if (!first) return null;
+	const face = anchor.part && closestAcross(first.node, WORKS);
+	const controlFace = face && segments.every(({ node }) => closestAcross(node, WORKS) === face);
+	return resolvedPassage({
+		place: controlFace ? face : annotationAt(first.node),
+		segments
+	});
+}
+const fragmentTarget = (fragment) => fragment ? targetElement(resolveAnchor({ section: fragmentId(fragment) })) : null;
+
+//#endregion
+//#region runtime/chrome.js
+const chromeRoot = document.createElement("div");
+chromeRoot.className = "lf-chrome";
+const chromeForeground = document.createElement("dialog");
+chromeForeground.className = "lf-ui lf-foreground";
+chromeForeground.setAttribute("open", "");
+chromeForeground.setAttribute("role", "presentation");
 
 //#endregion
 //#region runtime/css-anchors.js
@@ -2471,6 +1858,125 @@ function pointBand(box, point) {
 }
 
 //#endregion
+//#region runtime/bounds.js
+const BOUND = marks["x-bound"].paint;
+const BOUNDED = `[${BOUND}]`;
+const FOLLOWING = `[${BOUND}="end"]`;
+const holds = /* @__PURE__ */ new WeakMap();
+const registered = /* @__PURE__ */ new Set();
+const byBox = /* @__PURE__ */ new WeakMap();
+const THIS_DOCUMENT = `lf-region:bound:${performance.timeOrigin}`;
+let unnamed = 0;
+function scrollerOf(bounded) {
+	const selector = getComputedStyle(bounded).getPropertyValue("--lf-bound-box").trim();
+	if (!selector) return bounded;
+	for (const box of bounded.querySelectorAll(selector)) if (box.closest(BOUNDED) === bounded) return box;
+	return bounded;
+}
+const regionId = (bounded) => bounded.id && authoredScope(bounded) === pageDocument() ? compoundReadingRegionId(bounded, "bound") : `${THIS_DOCUMENT}:${unnamed += 1}`;
+const following = (hold, box) => hold.bounded.matches(FOLLOWING) && !hold.left && !(hold.pinned !== null && box.scrollTop < hold.pinned - 2 && !atScrollEnd(box));
+const heldBy = (box) => {
+	const hold = byBox.get(box);
+	return hold?.box === box && registered.has(hold) ? hold : null;
+};
+const followingItsEnd = (box) => {
+	const hold = heldBy(box);
+	return Boolean(hold && following(hold, box));
+};
+const boundedBlockOf = (box) => heldBy(box)?.bounded ?? null;
+function holdBlock(bounded) {
+	const hold = {
+		bounded,
+		id: regionId(bounded),
+		bound: null,
+		box: null,
+		pinned: null,
+		left: false,
+		sync: () => sync(false)
+	};
+	let stopRegion = null;
+	const letGo = () => {
+		if (hold.box && hold.box !== bounded) resize.unobserve(hold.box);
+		stopRegion?.();
+		stopRegion = null;
+		hold.box = null;
+		registered.delete(hold);
+	};
+	const adopt = (box) => {
+		if (box === hold.box) return;
+		letGo();
+		const onScroll = () => {
+			if (bounded.hasAttribute("hidden") || skipped(bounded)) return;
+			hold.left = !atScrollEnd(box);
+			if (!hold.left) hold.pinned = box.scrollTop;
+		};
+		box.addEventListener("scroll", onScroll, { passive: true });
+		resize.observe(box);
+		byBox.set(box, hold);
+		hold.box = box;
+		hold.left = false;
+		hold.pinned = null;
+		const release = registerReadingRegion({
+			id: hold.id,
+			host: bounded,
+			body: box
+		});
+		stopRegion = () => {
+			box.removeEventListener("scroll", onScroll);
+			release();
+		};
+		registered.add(hold);
+	};
+	const sync = (observed) => {
+		hold.bound = bounded.getAttribute(BOUND);
+		if (!bounded.isConnected || hold.bound === null) return letGo();
+		if (bounded.hasAttribute("hidden") || skipped(bounded)) {
+			if (!hold.box) adopt(bounded);
+			hold.pinned = null;
+			if (!observed) {
+				resize.unobserve(bounded);
+				resize.observe(bounded);
+			}
+			return;
+		}
+		const box = scrollerOf(bounded);
+		adopt(box);
+		if (!bounded.matches(FOLLOWING)) return;
+		if (!following(hold, box)) {
+			hold.left = true;
+			return;
+		}
+		scrollToEnd(box);
+		hold.pinned = box.scrollTop;
+	};
+	const resize = sizeObserver(() => sync(true));
+	resize.observe(bounded);
+	new MutationObserver((records) => {
+		if (records.some((record) => record.type !== "attributes" || record.target === bounded)) hold.sync();
+	}).observe(bounded, {
+		attributes: true,
+		attributeFilter: ["hidden"],
+		childList: true,
+		characterData: true,
+		subtree: true
+	});
+	return hold;
+}
+function holdArrivingBounds() {
+	watchArrivals(BOUNDED, [BOUND], {
+		arrive: (el) => {
+			let hold = holds.get(el);
+			if (!hold) {
+				hold = holdBlock(el);
+				holds.set(el, hold);
+			}
+			if (!registered.has(hold) || hold.bound !== el.getAttribute(BOUND)) hold.sync();
+		},
+		leave: (el) => holds.get(el)?.sync()
+	});
+}
+
+//#endregion
 //#region runtime/page-controls.js
 const EMPTY = Object.freeze([]);
 const PAGE_CONTROL_RANK = Object.freeze({
@@ -2649,4 +2155,4 @@ const readDocumentHeaders = () => {
 };
 
 //#endregion
-export { ADDRESSABLE, PAGE_CONTROL_RANK, PAGE_INTERFACE, PRESENTATION, UPGRADE, activityTransitionDue, addressableLabel, addressableName, addressableSays, addressableWord, addressedElements, afterPresentation, ago, aimTargetAt, aimTargets, aimedTop, anchorAt, anchorBox, anchorElement, anchorFor, anchorForPassage, anchorForRange, anchorName, anchorReaches, anchorReading, anchorView, anchoringIsReady, annotationAt, atScrollEnd, boundedBlockOf, carriedAnchor, chosenSince, chromeForeground, chromeRoot, claimReachStop, clockValue, commitPoint, compoundReadingRegionId, containingReadingRegionFor, contentRides, cutFrames, datumAimTarget, datumLabel, declaredName, deferredArrival, designPressAt, effectiveScroller, elementFrame, exactTarget, followingItsEnd, fragmentTarget, headerLevels, holdArrivingBounds, isAddressable, keepFoot, leadingTitle, lightSeat, livePoint, localScrollBy, markPagePresented, markPageUpgraded, markStateApplied, moveScrollerBy, nameAnchor, nameable, observeServerNow, observeWorkingGrace, onReadingInput, openDocumentLayout, pageControls, pageControlsChanged, pageReadiness, pageReadingRegion, pageScroller, passageBoxes, passageGeometry, placeKept, placePoints, pointBand, pointInto, preserveReadingRegions, projectedDatum, proseRect, quietSince, railStands, rangeGeometry, reachScrollers, reachable, readingRegion, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, registerReadingRegion, releaseReachStop, resolveAnchor, resolvedInMessage, revealAddressed, saidNow, scheduleDocumentLayout, scrollAxes, scrollChainOf, scrollChoices, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, scrollsWith, sectionLabel, sectionOf, setAnchoringReady, settleDocumentLayout, settlePageInterface, shortAgo, showReadingSubject, shownRegionBounds, startScroll, stopScroll, targetElement, targetParts, targetPlace, targetRange, targetSegments, targetSurface, tickClock, unclaimedVisualGesture, unconcealedReadingRegions, userReadingRegion, visualAt, visualPartLabel, visualParts, visualSelector, watchReadingRegionTransitions, whenArrived, whileInterfaceConnected, widgetWord };
+export { ADDRESSABLE, PAGE_CONTROL_RANK, PAGE_INTERFACE, PRESENTATION, UPGRADE, activityTransitionDue, addressableLabel, addressableName, addressableSays, addressableWord, addressedElements, afterPresentation, ago, aimTargetAt, aimTargets, anchorAt, anchorBox, anchorElement, anchorFor, anchorForPassage, anchorForRange, anchorName, anchorReaches, anchorReading, anchorView, anchoringIsReady, annotationAt, boundedBlockOf, carriedAnchor, chromeForeground, chromeRoot, claimReachStop, clockValue, commitPoint, compoundReadingRegionId, containingReadingRegionFor, cutFrames, datumAimTarget, datumLabel, declaredName, deferredArrival, designPressAt, effectiveScroller, exactTarget, followingItsEnd, fragmentTarget, headerLevels, holdArrivingBounds, isAddressable, leadingTitle, lightSeat, livePoint, markPagePresented, markPageUpgraded, markStateApplied, nameAnchor, nameable, observeServerNow, observeWorkingGrace, onReadingInput, openDocumentLayout, pageControls, pageControlsChanged, pageReadiness, pageReadingRegion, passageBoxes, passageGeometry, placePoints, pointBand, pointInto, preserveReadingRegions, projectedDatum, proseRect, quietSince, railStands, rangeGeometry, reachScrollers, readingRegion, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, registerReadingRegion, releaseReachStop, resolveAnchor, resolvedInMessage, revealAddressed, saidNow, scheduleDocumentLayout, scrollChainOf, scrollerFor, scrollsWith, sectionLabel, sectionOf, setAnchoringReady, settleDocumentLayout, settlePageInterface, shortAgo, showReadingSubject, shownRegionBounds, targetElement, targetParts, targetPlace, targetRange, targetSegments, targetSurface, tickClock, unclaimedVisualGesture, unconcealedReadingRegions, userReadingRegion, visualAt, visualPartLabel, visualParts, visualSelector, watchReadingRegionTransitions, whenArrived, whileInterfaceConnected, widgetWord };

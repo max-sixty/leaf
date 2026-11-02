@@ -452,9 +452,7 @@ export function statusModel(status, queues, agent) {
   const counted = WITHOUT_QUEUES.has(kind) ? [] : queueWords(queues, agent);
   if (counted.length) {
     appendParts(explanationParts, counted);
-    appendParts(addsParts, counted);
     explanation = wordsText(explanationParts);
-    adds = wordsText(addsParts);
   }
   let publicationModel = null;
   if (publication) {

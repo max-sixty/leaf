@@ -688,7 +688,7 @@ def test_a_moved_card_identifies_its_user_origin_across_tabs(browser, serve):
     second.keyboard.press("g")
     second.keyboard.press("Shift+p")
     expect(
-        second.get_by_role("button", name=re.compile(r"^Open saved: Saved"))
+        second.get_by_role("button", name=re.compile(r"^Open queued: Queued for "))
     ).to_be_visible()
     expect(
         second.get_by_role("button", name=re.compile(r"^Open my change"))

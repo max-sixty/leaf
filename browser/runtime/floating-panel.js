@@ -76,8 +76,9 @@
  *   mode chip when a draft hides its placeholder. No transient message adds a row.
  *   The keys that send are Send's hover name, where Return sends with
  *   Shift+Return's new line beside it (composing/input.js).
- * - **Opened**: a view above the same row (On, whose tabs are On me, On <agent>, Threads
- *   and the plan; a thread; or All pages), what the user reads there, under its head
+ * - **Opened**: a view above the same row (On, whose tabs are the menu, On me,
+ *   On <agent>, Threads and the plan; a thread; or All pages), what the user reads or
+ *   chooses there, under its head
  *   line: the way back to the list the view opened over, a ‹ alone before the name,
  *   which names that list as its tooltip; the view's name; a thread's own presses, its
  *   held news, Next unread, Show on page and Resolve; and last its Close, in the
@@ -129,21 +130,21 @@
  *   While it stands it covers the page under it, which reads as unseen (geometry.js,
  *   `declareOccluder`).
  *
- * The leaf's menu is a small list above the leaf holding the rest of the page's
+ * The leaf's menu is the On view's first tab, beside On me, On <agent> and Threads,
+ * and the leaf opens the view on it: the full status over the rest of the page's
  * controls, each one line, with its key where it has one, and a chevron on a row that
- * opens a list of its own (Versions, and the groups: Navigate, Annotations, and About,
- * which holds the rows that copy a text only where no clipboard is there to copy with;
- * elsewhere each such row, the page's link and the Leaf version among them, is one press
- * in the menu, as the user chose on 15 October over an About view of one line). That
- * list takes the menu's place in the same box, sliding in from the side the chevron
- * points to, under its name and over a way back to the menu, as → and ← go, which
- * stands at the list's foot over the leaf as a list's tabs do (`menuAt`): those
- * lists are for choosing, as the menu is, while what the user reads, Threads, On and
- * All pages, whose rows say what each page's agent is doing, opens as a view. The user
- * chose this on 15 October, reversing each list opening as a view rising from the
- * field with no way back to the menu. Rejected: that view keeping
- * its place with a "‹ Menu /" crumb at its head, which still moves the user's eye from
- * the menu to the panel's top. A
+ * opens a list of its own (Versions, and the groups Navigate and Annotations). Such a
+ * list opens over the menu, its way back returning there. While the menu stands, the
+ * field is its search (`menuFound`), narrowing the rows to the words typed, with the
+ * threads and versions they name and a press that hands the words to the command
+ * reference. The user chose this on 30 October, over the menu as a small list of its
+ * own over the leaf (15 October), which reached neither On me nor Threads and, with
+ * its lists, kept a second surface with its own opening, holding and fade beside the
+ * views. Rejected with it: the On view's tabs at that menu's foot, a menu of rows for
+ * On me and Threads, and a leaf that folds the panel or opens On <agent>. A row that
+ * copies a text is one press in the menu where a clipboard is there to copy with, and
+ * says which session or Leaf the page runs only in About this page (page-controls.js,
+ * the `about` group). A
  * keyboard's convenience for where the reader stands, such as Resume writing, stands
  * under Navigate only where no keyboard is there to reach it (page-controls.js, the
  * `keys` group). The panel shows one key hint of its own, the key that enters an open
@@ -206,13 +207,14 @@ import { statusReading } from "./page-status.js";
 import { leavesRows } from "./live-leaves.js";
 import { keys } from "./keyboard/scopes.js";
 import { pageCommand, pageDoor, pageRung } from "./keyboard/register.js";
-import { advertisesKeys, nativePress, parsed, rowArrows } from "./keyboard/bindings.js";
+import { advertisesKeys, parsed } from "./keyboard/bindings.js";
 import {
   keySequenceModel,
   keySequenceTemplate,
   neutralSteps,
 } from "./keyboard/key-sequence.js";
 import { pageControls } from "./page-controls.js";
+import { findCommands } from "./keyboard/command-reference.js";
 import { readPlace } from "./history.js";
 import { readThreads } from "./thread/state.js";
 import { isNews, threadCounts } from "./thread/model.js";
@@ -320,6 +322,11 @@ import { closestAcross } from "./passages.js";
 
 const prefs = () => window.lfChrome;
 
+// What the field's own search box asks for, in each list it searches.
+const SEARCH_PROMPTS = Object.freeze({
+  menu: "Rows, threads, versions",
+  threads: "Find a thread or message",
+});
 // The menu's groups, each a list of the page's controls declaring it, in the menu's place.
 const GROUPS = Object.freeze([
   { name: "navigate", label: "Navigate" },
@@ -375,7 +382,8 @@ const clock = (at) =>
 /** @typedef {(typeof GROUPS)[number]} MenuGroup */
 /** @typedef {({view: "thread", thread: string} | {view: "group", group: MenuGroup} |
  * {view: "errors", errors: readonly import("./errors.js").RaisedError[]} |
- * {view: "threads"} | {view: "queue"} | {view: "leaves"} | {view: "versions"}) & {
+ * {view: "menu"} | {view: "threads"} | {view: "queue"} | {view: "leaves"} |
+ * {view: "versions"}) & {
  * thread?: string, group?: MenuGroup, errors?: readonly import("./errors.js").RaisedError[]}} PanelRoute */
 /** @template {PanelRoute["view"]} K @typedef {Extract<PanelRoute, {view: K}>} RouteFor */
 /** @template {PanelRoute} R @typedef {{
@@ -384,8 +392,11 @@ const clock = (at) =>
  * controls?: (route: R) => {crumb?: unknown, aux?: unknown},
  * presses?: (route: R) => {facts?: unknown, presses?: unknown},
  * nominate?: (route: R, collection: import("./thread/primary-reader.js").PrimaryCollection, parts: import("./thread/primary-reader.js").NominationParts) => unknown,
- * over?: readonly ("threads" | "queue")[], rows?: string, menu?: boolean, row?: PanelRoute}} PanelView */
+ * over?: readonly ("threads" | "queue" | "menu")[], rows?: string, row?: PanelRoute,
+ * keys?: readonly import("./keyboard/bindings.js").Command[],
+ * claims?: (binding: string) => boolean}} PanelView */
 /** @typedef {{[K in PanelRoute["view"]]: PanelView<RouteFor<K>>}} PanelViews */
+/** @typedef {{key: string, draw: (gone: boolean) => unknown}} MenuSeat */
 
 /** @typedef {FloatingPanel} FloatingPanelElement For its generated tag. */
 class FloatingPanel extends LeafElement {
@@ -446,25 +457,25 @@ export function createFloatingPanel({
   host.setAttribute("role", "region");
   host.setAttribute("aria-label", "Leaf");
   let expanded = false;
-  // One template owns the panel's shell, menu, views and editor placement. Its
-  // detached first drawing establishes the retained nodes that setup wires below.
-  // The menu and peek must follow the leaf in the tree so they can anchor to it.
+  // One template owns the panel's shell, views and editor placement. Its detached first
+  // drawing establishes the retained nodes that setup wires below. The peek must follow
+  // the leaf in the tree so it can anchor to it.
   // The quick seat is one button, changing between the mark and a search's or a
   // stance's way out. Its count keeps its room even when empty; a count arriving moves
   // nothing beside it.
   function panelTemplate(initial = false) {
     const top = initial ? null : (trail.value.at(-1) ?? null);
     const search = initial ? null : activeSearch();
-    const searchMode = search ? (pageSearch?.open ? "page" : "threads") : "";
+    const searchMode = initial ? "" : searchModeOf(search);
     const searchControls = search?.controls ?? [];
-    const searchLabel = !initial && pageSearch?.open ? "Search page" : "Search threads";
+    const searchLabel = `Search ${searchMode}`;
+    const prompt = searchMode === "menu" ? SEARCH_PROMPTS.menu : SEARCH_PROMPTS.threads;
     const thread = top ? (threadOf(top)?.id ?? null) : null;
     const input = initial ? null : fieldInput();
     const reading = initial ? null : fieldReading(top?.thread ?? null, input);
     const selection =
       !search && reading?.says === "selection" && Boolean(draftOf(input));
-    const folded =
-      !initial && prefs().rest === "mark" && !top && !menuOpen.value && !search;
+    const folded = !initial && prefs().rest === "mark" && !top && !search;
     const statusModel = initial ? { summary: "Connecting…", tone: "" } : status();
     const onUser = initial ? 0 : onUserCount();
     const news = initial ? 0 : newCount();
@@ -474,23 +485,26 @@ export function createFloatingPanel({
       errorsReading().some(
         (error) => !error.seen && !sayingNow.has(error.id) && !standsAtItsBox(error),
       );
-    const viewControls = top ? controlsTemplate(top) : nothing;
     const exit = initial ? null : fieldExit(search, top);
     // A view's Close ends the line its presses stand on: a list's tabs at its foot, or
     // the head line, where a thread's presses stand and every other view's name. A
     // search's own ✕ ends the row under a list's tabs while it holds the field, so the
     // list's Close waits, unseen, for the search to end, and one ✕ shows at the foot;
     // it keeps its room, so the search press beside it stays under the pointer.
-    const closeAtFoot = viewControls !== nothing;
+    const closeAtFoot = Boolean(top && viewOf(top).controls);
+    // Page search's way out is its stance's, which the repaint frame reads after the
+    // paint that opens it (touch-controls.js). Until then the seat keeps what it shows
+    // rather than stepping aside, which, opened from the menu, would hide it again in
+    // the task that put the menu away and showed it.
     const quickHidden =
-      initial || (Boolean(top) && !exit) || (!exit && (search || writing || drafted));
+      initial || (Boolean(top) && !exit) || (!exit && (writing || drafted));
     const notice = initial || search ? null : olderVersion();
     const peek = initial ? null : peekPresentation();
     const mode = search
       ? html`<span class="lf-fp-mode-word">Search </span>${iconTemplate(
             "search",
             "lf-fp-mode-icon",
-          )}<span>${pageSearch?.open ? "page" : "threads"}</span>`
+          )}<span>${searchMode}</span>`
       : selection
         ? "Selection"
         : nothing;
@@ -522,7 +536,7 @@ export function createFloatingPanel({
       type="button"
       class="lf-fp-face lf-fp-chip lf-fp-exit lf-fp-close"
       ${namedAction("close", { label: "Close" })}
-      ?data-unoffered=${Boolean(search) && viewControls !== nothing}
+      ?data-unoffered=${Boolean(search) && !menuSearching() && closeAtFoot}
       @mousedown=${(/** @type {MouseEvent} */ event) => event.preventDefault()}
       @click=${() => close()}
     ></button>`;
@@ -569,12 +583,8 @@ export function createFloatingPanel({
                     )
               }
             </div>
-            <div
-              class="lf-fp-controls"
-              ?hidden=${viewControls === nothing}
-              ?data-named=${top?.view === "queue"}
-            >
-              ${viewControls}${closeAtFoot ? viewClose : nothing}
+            <div class="lf-fp-controls" ?hidden=${!closeAtFoot}>
+              ${top && closeAtFoot ? controlsTemplate(top, viewClose) : nothing}
             </div>
           </div>
           <div class="lf-fp-row">
@@ -593,11 +603,9 @@ export function createFloatingPanel({
             <button
               type="button"
               class="lf-fp-face lf-fp-leaf"
-              aria-haspopup="menu"
-              aria-controls="lf-fp-menu"
               aria-describedby="lf-fp-peek"
               aria-label=${`${folded ? "Unfold Leaf" : "Page menu"} · ${statusModel.summary}`}
-              aria-expanded=${folded ? nothing : String(!initial && menuOpen.value)}
+              aria-expanded=${folded ? nothing : String(!initial && menuStands())}
               @click=${pressLeaf}
               @pointerenter=${() => showPeek(true)}
               @pointerleave=${() => showPeek(false)}
@@ -635,10 +643,10 @@ export function createFloatingPanel({
                   type="search"
                   class="lf-fp-face lf-fp-search"
                   name="thread-search"
-                  placeholder="Find a thread or message"
-                  aria-label="Find a thread or message"
+                  placeholder=${prompt}
+                  aria-label=${prompt}
                   .value=${live(initial ? "" : query)}
-                  ?hidden=${searchMode !== "threads"}
+                  ?hidden=${searchMode !== "threads" && searchMode !== "menu"}
                   @input=${(
                     /** @type {InputEvent & {currentTarget: HTMLInputElement}} */ event,
                   ) => {
@@ -666,42 +674,6 @@ export function createFloatingPanel({
             <div class="lf-fp-quick" ?hidden=${quickHidden}>${quick}</div>
           </div>
         </div>
-      </div>
-      <div
-        class="lf-fp-menu scroll"
-        id="lf-fp-menu"
-        role="menu"
-        aria-label="Page"
-        ?data-leaving=${!initial && Boolean(menuFade)}
-        ?inert=${!initial && Boolean(menuFade)}
-        data-level=${
-          initial
-            ? nothing
-            : menuFade
-              ? noChange
-              : menuOpen.value && menuAt.value
-                ? menuAt.value.view
-                : nothing
-        }
-        style=${
-          initial
-            ? nothing
-            : menuFade
-              ? noChange
-              : menuOpen.value && menuRoom
-                ? `height: ${menuRoom}px`
-                : nothing
-        }
-      >
-        ${
-          initial
-            ? nothing
-            : menuFade
-              ? noChange
-              : menuOpen.value
-                ? menuTemplate()
-                : nothing
-        }
       </div>
       <div
         class="lf-fp-peek"
@@ -734,7 +706,6 @@ export function createFloatingPanel({
   const head = shell("head");
   const controls = shell("controls");
   const row = shell("row");
-  const menu = shell("menu");
   let peekAsked = false; // pointer or focus on the folded leaf
   /** @type {import("./activity-words.js").Words | null} */
   let peekReading = null;
@@ -871,29 +842,14 @@ export function createFloatingPanel({
         >${part.text}</span
       >`;
     });
-  // The trail of views open above the row, innermost last; empty at rest. It, whether
-  // the menu is open and the list standing in it are signals, since the panel's keys
-  // read them and follow the signals they read (keyboard/scopes.js): a press that opens
-  // Threads gives the panel its `/` with no other call.
+  // The trail of views open above the row, innermost last; empty at rest. It is a
+  // signal, since the panel's keys read it and follow the signals they read
+  // (keyboard/scopes.js): a press that opens Threads gives the panel its `/` with no
+  // other call.
   /** @type {import("@preact/signals-core").Signal<PanelRoute[]>} */
   const trail = signal([]);
   /** @type {PanelRoute | null} */
   let leaving = null;
-  const menuOpen = signal(false);
-  // The list standing in the menu's place, a group or Versions, or null for the menu,
-  // and the height it first stood at, which it keeps while it stands, so news changing
-  // the list moves none of the menu's rows.
-  /** @type {import("@preact/signals-core").Signal<PanelRoute | null>} */
-  const menuAt = signal(null);
-  /** @type {number | null} */
-  let menuRoom = null;
-  // A closing menu's fade, which holds its last rows, inert, until it ends, so the menu
-  // goes out in a disclosure's time as it came in; null while it stands or is gone.
-  // Whether the menu was drawn open at the last paint tells a close from a menu that
-  // was never shown.
-  /** @type {Animation | null} */
-  let menuFade = null;
-  let menuDrawn = false;
   let query = "";
   let searching = false;
   // The settled sections the user unfolded while the panel stands open
@@ -909,12 +865,21 @@ export function createFloatingPanel({
     return input;
   })();
   const threadSearch = { input: threadSearchInput, controls: [] };
+  // While the menu stands the field is its search, so the leaf opens a list the user
+  // narrows by typing (`menuFound`); Threads' search opens on `/` or its press. Both
+  // take the same native input, each with its own words. The user chose the menu's
+  // search on 30 October, with the menu as the On view's first tab.
+  const menuSearching = () => showing({ view: "menu" });
   const activeSearch = () =>
     pageSearch?.open
       ? pageSearch
-      : searching && showing({ view: "threads" })
+      : (searching && showing({ view: "threads" })) || menuSearching()
         ? threadSearch
         : null;
+  // What the field searches, by the name its mode chip says.
+  /** @param {PanelSearch | typeof threadSearch | null} search */
+  const searchModeOf = (search) =>
+    !search ? "" : pageSearch?.open ? "page" : menuSearching() ? "menu" : "threads";
   /** @param {PanelSearch} search */
   function searchPage(search) {
     pageSearch = search;
@@ -1220,14 +1185,14 @@ export function createFloatingPanel({
   // open view's Close stands on the view's own line (`closeAtFoot`).
   /** @param {PanelSearch | typeof threadSearch | null} search @param {PanelRoute | null | undefined} top */
   const fieldExit = (search, top) => {
-    if (search === threadSearch)
+    if (search === threadSearch && !menuSearching())
       return {
         label: "Close search",
         press: closeThreadSearch,
         disabled: false,
         action: null,
       };
-    if (top && !search) return null;
+    if (top && (!search || menuSearching())) return null;
     const exit = rows().find((entry) => entry.exit);
     return exit ? { ...exit, press: () => exit.press?.(null) } : null;
   };
@@ -1344,21 +1309,45 @@ export function createFloatingPanel({
   //   (`headTemplate`). `controls`: what stands at its foot (`controlsTemplate`):
   //   `crumb`, its tabs, and `aux`, the presses beside them.
   // - `nominate`: the outlets in it Leaf's reader draws messages into.
-  // - `menu`: a list for choosing, which stands in the menu's place (`menuAt`), rather
-  //   than a view over the row for reading; `row` where the menu leads to it by a row
-  //   of the page's controls, which the panel then opens itself, those rows leading the
-  //   menu in this order.
+  // - `row`: the menu leads to it by a row of the page's controls, which the panel then
+  //   opens itself, those rows leading the menu in this order.
   // - `rows`: the rows of a list the arrows walk (`listRows`).
   // - `over`: the lists it opens over, which its way back returns to, the first where it
-  //   was opened from anywhere else (`open`).
+  //   was opened from anywhere else (`open`). A list the menu leads to, such as
+  //   Versions, opens over the menu, so its way back returns there.
+  // - `keys`: the page's keys it acts on itself while it stands, and `claims`, those it
+  //   rests (the declaration on the view, below).
   /** @type {PanelViews} */
   const VIEWS = Object.freeze({
+    menu: {
+      title: () => "Menu",
+      quiet: () => true,
+      draw: () => menuView(),
+      controls: () => ({ crumb: onTabs("menu") }),
+      rows: ".lf-fp-item:not(:disabled)",
+      keys: [
+        {
+          id: "panel.floating.menu.find",
+          keys: ["/"],
+          title: "search the menu",
+          run: () => focusDestination(threadSearchInput, "move"),
+        },
+      ],
+    },
     threads: {
       title: () => "Threads",
       quiet: () => true,
       draw: () => threadsView(),
       controls: () => threadsControls(),
       rows: ".lf-fp-thread, .lf-fp-settled",
+      keys: [
+        {
+          id: "panel.floating.threads.find",
+          keys: ["/"],
+          title: "find a thread",
+          run: () => findThreads(),
+        },
+      ],
     },
     thread: {
       key: (route) => `thread:${route.thread}`,
@@ -1374,7 +1363,7 @@ export function createFloatingPanel({
       draw: (route) => threadView(route.thread),
       presses: (route) => threadPresses(route),
       nominate: (route, collection, parts) => nominateThread(route, collection, parts),
-      over: ["threads", "queue"],
+      over: ["threads", "queue", "menu"],
     },
     queue: {
       title: () => tabLabel(queueTab),
@@ -1393,15 +1382,53 @@ export function createFloatingPanel({
     versions: {
       title: () => "Versions",
       draw: () => versionsList(),
-      menu: true,
+      rows: ".lf-fp-version > :is(.lf-fp-item, .lf-fp-compare)",
       row: { view: "versions" },
+      over: ["menu"],
+      // Versions is a list for choosing, so while it stands the page's character keys
+      // rest rather than move the page under it; two doors stay open: `?`, and Go-to,
+      // whose `g V` puts Versions away as it opened it.
+      keys: [
+        {
+          id: "panel.floating.versions.pick",
+          keys: () => numbered().map(({ version }) => String(version)),
+          label: () => {
+            const top = numbered().at(-1)?.version;
+            return top !== undefined && top > 1 ? `1–${top}` : "1";
+          },
+          title: "show version",
+          when: () => numbered().length > 0,
+          runKey: (binding) => {
+            const chosen = numbered().find(
+              ({ version }) => String(version) === binding,
+            );
+            if (!chosen)
+              throw new Error(`Version ${binding} is unavailable in the panel`);
+            showVersion(chosen.entry);
+          },
+        },
+      ],
+      claims: (binding) => {
+        const { key, mods } = parsed(binding);
+        return (
+          key.length === 1 &&
+          key !== " " &&
+          mods.every((mod) => mod === "Shift") &&
+          !pageDoor(binding)
+        );
+      },
     },
-    errors: { title: () => "Errors", draw: (route) => errorsList(route), menu: true },
+    errors: {
+      title: () => "Errors",
+      draw: (route) => errorsList(route),
+      over: ["menu"],
+    },
     group: {
       key: (route) => `group:${route.group.name}`,
       title: (route) => route.group.label,
       draw: (route) => groupList(route.group.name),
-      menu: true,
+      rows: ".lf-fp-item:not(:disabled)",
+      over: ["menu"],
     },
   });
   /** @template {PanelRoute["view"]} K @param {RouteFor<K>} route @returns {PanelView<RouteFor<K>>} */
@@ -1416,12 +1443,15 @@ export function createFloatingPanel({
   const OWN_VIEWS = Object.values(VIEWS).flatMap((view) =>
     view.row ? [view.row] : [],
   );
-  // Whether the route is the one standing: the menu's list, or the view over the row.
+  // Whether the route is the view standing over the row.
   /** @param {PanelRoute} route */
   const showing = (route) => {
-    const at = viewOf(route).menu ? menuOpen.value && menuAt.value : trail.value.at(-1);
+    const at = trail.value.at(-1);
     return Boolean(at && routeKey(at) === routeKey(route));
   };
+  // Whether the menu stands, itself or under a list it leads to, so the leaf that opened
+  // it closes it.
+  const menuStands = () => trail.value.some((level) => level.view === "menu");
   // What one opening of the view over the row keeps, from the change that opens it to
   // the one that puts it away, by its route's key (`transition`): a change of key,
   // closing included, starts a fresh opening, so nothing one view held reaches the
@@ -1446,6 +1476,8 @@ export function createFloatingPanel({
    *   openItem: string | null,
    *   seatHeights: Map<string, number>,
    *   planShown: boolean,
+   *   menuSeats: { key: string, draw: (gone: boolean) => unknown }[] | null,
+   *   menuLines: { summary: number, explain: number } | null,
    * }} Opening
    */
   /** @returns {Opening} */
@@ -1463,6 +1495,8 @@ export function createFloatingPanel({
     openItem: null,
     seatHeights: new Map(),
     planShown: false,
+    menuSeats: null,
+    menuLines: null,
   });
   let opening = freshOpening();
 
@@ -1476,7 +1510,6 @@ export function createFloatingPanel({
   /** @param {PanelRoute} route @param {{replace?: boolean, reopen?: boolean, focus?: boolean}} [options] */
   function open(route, { replace = false, reopen = false, focus = true } = {}) {
     const before = trail.value.at(-1);
-    setMenu(false);
     if (before && routeKey(before) === routeKey(route) && !replace) {
       if (reopen) return;
       close();
@@ -1531,7 +1564,6 @@ export function createFloatingPanel({
     // already empty route must keep its signal identity or that commit reads the
     // new route as an input and starts the same presentation again.
     if (trail.value.length) trail.value = [];
-    setMenu(false);
     transition(before, { focus: false });
   }
   function writeOnPage() {
@@ -1587,7 +1619,16 @@ export function createFloatingPanel({
   function back() {
     const before = trail.value.at(-1);
     trail.value = trail.value.slice(0, -1);
-    transition(before);
+    // Back in the menu, the user stands on the row that opened the list. The transition
+    // leaves them to it rather than standing them on the menu's first row, which the
+    // paint's walk would follow there and back, a write that changes nothing.
+    const door =
+      before && trail.value.at(-1)?.view === "menu" ? routeKey(before) : null;
+    transition(before, { focus: door === null });
+    if (door === null) return;
+    const row = shownView()?.querySelector(`[data-row="${CSS.escape(door)}"]`);
+    if (row) focusDestination(row, "return");
+    else focusView(trail.value.at(-1), null);
   }
   function close({ handedOn = false } = {}) {
     // Closing the view ends the writing posture too. A saved page draft keeps
@@ -1599,70 +1640,18 @@ export function createFloatingPanel({
     unfolded.clear();
     transition(before, { handedOn });
   }
-  // A press puts away only the menu or view it stands in. The menu borrows the open
-  // view: closing it must keep that view and its editor, just as invoking the same
-  // command by key does. The command owns any navigation it causes. Hand back to the leaf,
-  // the door to both, before its command runs, so the pressed row going takes no one's
-  // focus to the body: a layer the command opens records the leaf as where its close
-  // returns (focus.js, `openLayer`), folding leaves the user on the leaf it folds to, and
-  // a command that places the user elsewhere still does.
+  // A row's press puts away the view it stands in, the menu or a list it leads to, and
+  // the command owns any navigation it causes. Hand back to the leaf, the menu's door,
+  // before its command runs, so the pressed row going takes no one's focus to the body:
+  // a layer the command opens records the leaf as where its close returns (focus.js,
+  // `openLayer`), folding leaves the user on the leaf it folds to, and a command that
+  // places the user elsewhere still does.
   /** @param {() => unknown} run */
   function putAwayThen(run) {
     const inside = currentLocationIn(host);
-    if (!menuOpen.value) close();
-    setMenu(false);
+    close();
     if (inside) focusDestination(leaf, "return");
     run();
-  }
-  /** @param {boolean} on */
-  function setMenu(on) {
-    if (menuOpen.value === on) return;
-    menuOpen.value = on;
-    menuAt.value = null;
-    menuRoom = null;
-    held = null;
-    paint();
-  }
-  // A list the menu leads to takes the menu's place, and going back puts the menu back,
-  // either sliding in from the side it lies on. The menu stays open across the change, so
-  // a user on the row it removes moves to the leaf, its door, meanwhile; one who
-  // came by key, or from outside the panel, as `g V` does, stands on the first row the
-  // list offers, and going back, on the row that opened it.
-  /** @param {PanelRoute | null} level */
-  function showMenuAt(level) {
-    const before = menuOpen.value ? menuAt.value : undefined;
-    if (before && level && routeKey(before) === routeKey(level)) return;
-    if (renderedUnder(focused(), menu)) focusDestination(leaf, "return");
-    menuOpen.value = true;
-    menuAt.value = level;
-    menuRoom = null;
-    held = null;
-    paint();
-    if (level) {
-      menuRoom = menu.offsetHeight;
-      paint();
-    }
-    const page = menu.firstElementChild;
-    if (before !== undefined && page) {
-      const side =
-        (level ? 1 : -1) * (getComputedStyle(menu).direction === "rtl" ? -1 : 1);
-      playMotion(
-        page,
-        [
-          { translate: `${side * 16}px 0`, opacity: 0 },
-          { translate: "0 0", opacity: 1 },
-        ],
-        { duration: viewResizeMs(), easing: ease() },
-      );
-    }
-    // A press on a menu row leaves focus on that row. A command-reference press
-    // originates outside the panel even when closing the reference hands focus back
-    // to the leaf before this door runs, so enter the menu in that case.
-    if (pointedInPanel) return;
-    const target = level
-      ? page?.querySelector(".lf-fp-item:not(.lf-fp-menu-back, :disabled)")
-      : before && menu.querySelector(`[data-row="${routeKey(before)}"]`);
-    if (target) focusDestination(target, "move");
   }
 
   // ---------- motion: everything follows the box ----------
@@ -1851,6 +1840,27 @@ export function createFloatingPanel({
     },
     { capture: true },
   );
+  // A press that changes the view brings other controls under a pointer that hasn't
+  // moved: the ‹ back to the menu, at the head of a shorter list, stands where the
+  // menu's Undo comes. No control in the panel means anything by a second click, so a
+  // click that goes on a run of clicks begun on another control presses nothing and
+  // takes no focus, and a double-click on ‹ goes back once. Clicks repeated on one
+  // control, as Next match, each press it.
+  /** @type {WeakRef<Element> | null} */
+  let clicked = null;
+  /** @param {MouseEvent} event */
+  const runOfClicks = (event) => {
+    const control =
+      event.target instanceof Element ? event.target.closest("button") : null;
+    if (event.detail > 1 && control && control !== clicked?.deref()) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return;
+    }
+    if (event.type === "click") clicked = control && new WeakRef(control);
+  };
+  host.addEventListener("mousedown", runOfClicks, { capture: true });
+  host.addEventListener("click", runOfClicks, { capture: true });
   // The press being judged: the control pressed, where it stood in the view's content,
   // and how tall the view, what it holds and its scroll stood. Once what the press
   // changed has drawn, after the press's own handlers, and before the frame shows it,
@@ -1935,6 +1945,34 @@ export function createFloatingPanel({
   // A list takes its room as it stands before the paint that would change it, once
   // this opening has drawn it (`drawn`): what it holds then is what it fits, so taking
   // it writes only the height the list already stands at.
+  // The menu grows upward from the row, so news that adds a row to it, or takes one
+  // away, would carry every row above up or down the window under the reader: a row a
+  // revision offers, such as the newer version, or a status re-wrapping the head. So
+  // while one opening of it stands it holds what it showed with the first status it said
+  // (Connecting… is not yet one). Its rows keep their seats (`menuSeats`): a row news
+  // takes off offer stands disabled, and one news offers joins at the next opening.
+  // Each part of its head keeps its lines (`menuLines`): a later status re-wraps inside
+  // them, ending in an ellipsis where it runs past them. Turning back to the menu shows
+  // everything as it is. Rejected: holding the head's height and scrolling what runs
+  // past it, which still moves the words a re-wrap carries across its edge.
+  function holdMenu() {
+    if (opening.menuLines || !showing({ view: "menu" }) || !statusReading())
+      return false;
+    const state = shownView()?.querySelector(".lf-fp-state");
+    if (!state) return false;
+    /** @param {string} part */
+    const lines = (part) => {
+      const line = state.querySelector(`.lf-fp-${part}`);
+      return line
+        ? Math.round(
+            line.getBoundingClientRect().height /
+              Number.parseFloat(getComputedStyle(line).lineHeight),
+          )
+        : 0;
+    };
+    opening.menuLines = { summary: lines("summary"), explain: lines("explain") };
+    return true;
+  }
   function holdRoom() {
     const top = trail.value.at(-1);
     if (!top || top.thread || opening.room !== null || refitting) return false;
@@ -2065,42 +2103,6 @@ export function createFloatingPanel({
     opening.waiting = null;
     paint();
   }
-  // The leaf's menu stands on the leaf and grows upward, so anything news adds to it, or
-  // takes from it, carries everything above up or down the window: a row a revision
-  // offers, such as the newer version, or a status re-wrapping the head. So while the
-  // menu stands it holds what it showed with the first status it said (Connecting… is
-  // not yet one). Its rows keep their seats: a row news takes off offer stands
-  // disabled, and one news offers joins at the next opening. Each part of its head
-  // keeps its lines: a later status re-wraps inside them, ending in an ellipsis
-  // where it runs past them; a part the first status lacked stays out, and one a later
-  // status lacks stands blank. Reopening the menu shows everything as it is. Rejected:
-  // holding the head's height and scrolling what runs past it, which still moves the
-  // words a re-wrap carries across its edge, and the same lines for every status, which
-  // leaves most heads blank.
-  /** @typedef {{key: string, draw: (gone: boolean) => unknown}} MenuSeat */
-  /** @type {{summary: number, explain: number, seats: MenuSeat[]} | null} */
-  let held = null;
-  // The menu's seats as last drawn, each a row's key and how to draw it, `gone` once
-  // news has taken it off offer.
-  /** @type {MenuSeat[]} */
-  let seats = [];
-  function holdMenu() {
-    if (!menuOpen.value || held !== null || !statusReading()) return false;
-    const state = menu.querySelector(".lf-fp-state");
-    if (!state) return false;
-    /** @param {string} part */
-    const lines = (part) => {
-      const line = state.querySelector(`.lf-fp-${part}`);
-      return line
-        ? Math.round(
-            line.getBoundingClientRect().height /
-              Number.parseFloat(getComputedStyle(line).lineHeight),
-          )
-        : 0;
-    };
-    held = { summary: lines("summary"), explain: lines("explain"), seats };
-    return true;
-  }
   /** @param {PanelRoute | null | undefined} before @param {{focus?: boolean, handedOn?: boolean}} [options] */
   function transition(before, { focus = true, handedOn = false } = {}) {
     const after = trail.value.at(-1);
@@ -2201,13 +2203,9 @@ export function createFloatingPanel({
   // gesture outside the panel, `g T` from the page among them, is neither, whatever
   // the panel last heard, so the view it opens holds focus itself.
   let keyed = false;
-  let pointedInPanel = false;
   onUserInput((event) => {
-    if (["keydown", "pointerdown"].includes(event.type)) {
-      const inPanel = event.composedPath().includes(host);
-      keyed = event.type === "keydown" && inPanel;
-      pointedInPanel = event.type === "pointerdown" && inPanel;
-    }
+    if (["keydown", "pointerdown"].includes(event.type))
+      keyed = event.type === "keydown" && event.composedPath().includes(host);
   });
 
   // ---------- the leaf's menu ----------
@@ -2223,7 +2221,6 @@ export function createFloatingPanel({
     {
       urgent = false,
       disabled = false,
-      role = "menuitem",
       row = null,
       opens = false,
       title = null,
@@ -2232,7 +2229,6 @@ export function createFloatingPanel({
   ) =>
     html`<button
       type="button"
-      role=${role ?? nothing}
       data-row=${row ?? nothing}
       title=${title ?? nothing}
       ${offeredAction("row", "lf-fp-face lf-fp-item")}
@@ -2291,7 +2287,6 @@ export function createFloatingPanel({
         () => {},
         {
           disabled: entry.disabled,
-          role: menuOpen.value ? "menuitem" : null,
           row: entry.key,
           title: entry.title || entry.value || null,
         },
@@ -2300,47 +2295,110 @@ export function createFloatingPanel({
     );
     return copy;
   }
+  // A row leading to a list of the panel's own opens that list over the menu, whose way
+  // back returns there; any other row runs its command.
   /** @param {ReturnType<typeof pageControls>[number]} entry */
   function rowFor(entry) {
     if (entry.copies) return copyItem(entry);
     const route = OWN_VIEWS.find((route) => route.view === entry.key) ?? null;
-    const menuList = Boolean(route && viewOf(route).menu);
     return menuItem(
       entry.label,
       rowEnd(entry),
       () => {
-        if (menuList) showMenuAt(route);
-        else if (route) open(route);
+        if (route) open(route);
         else putAwayThen(() => entry.press?.(heldCurrentLocation));
       },
       {
         urgent: Boolean(entry.urgent),
         disabled: entry.disabled,
-        role: menuOpen.value ? "menuitem" : null,
         row: entry.key,
-        opens: menuList,
+        opens: Boolean(route && viewOf(route).over?.includes("menu")),
         title: entry.title || null,
       },
     );
   }
-  // The menu, or the list standing in its place under its name, over the way back to it.
-  function menuTemplate() {
-    if (!menuAt.value)
-      return html`<div class="lf-fp-menu-page" role="none">${rootTemplate()}</div>`;
-    return html`<div class="lf-fp-menu-page" role="none">
-      <div class="lf-fp-menu-name" role="none">${titleOf(menuAt.value)}</div>
-      ${viewOf(menuAt.value).draw(menuAt.value)}
-      <div class="lf-fp-menu-rule" role="none"></div>
-      <button
-        type="button"
-        role="menuitem"
-        ${offeredAction("row", "lf-fp-face lf-fp-menu-back")}
-        aria-label=${`Back to the page menu from ${titleOf(menuAt.value)}`}
-        @click=${() => showMenuAt(null)}
-      >
-        ${iconTemplate("next", "lf-fp-chevron")}Menu
-      </button>
-    </div>`;
+  // The menu: the On view's first tab, the state over its rows, or what its search
+  // finds while the field holds words.
+  const menuView = () =>
+    html`<div class="lf-fp-menu">${query.trim() ? menuFound() : rootTemplate()}</div>`;
+  // The menu narrowed to the words its search holds: the lists whose names hold them,
+  // then every row it reaches, the rows its lists hold included, then the threads and
+  // versions whose names hold the words, and last the command reference opened on them,
+  // which searches every command. The reference owns that catalog, so the menu lists
+  // only what it already reaches.
+  function menuFound() {
+    const words = query.trim();
+    /** @param {unknown} text */
+    const holds = (text) =>
+      String(text ?? "")
+        .toLocaleLowerCase()
+        .includes(words.toLocaleLowerCase());
+    const reached = rows().filter(
+      (entry) =>
+        !entry.exit &&
+        (listed(entry) || HELD_ELSEWHERE.includes(entry.key)) &&
+        (groupOf(entry) === "page" ||
+          GROUPS.some((group) => group.name === groupOf(entry))) &&
+        holds(entry.copies ? `Copy ${entry.label}` : entry.label),
+    );
+    const lists = GROUPS.filter(
+      (group) =>
+        holds(group.label) &&
+        rows().some((entry) => groupOf(entry) === group.name && listed(entry)),
+    );
+    const errors = holds("Errors") ? errorsReading() : [];
+    const named = threads().filter((thread) => holds(threadName(thread)));
+    const versions = versionsReading().rows.filter((entry) =>
+      holds(`${entry.name} ${entry.note ?? ""}`),
+    );
+    /** @param {unknown} word */
+    const kind = (word) => html`<span class="lf-fp-value">${word}</span>`;
+    return html`${
+        errors.length
+          ? menuItem(
+              "Errors",
+              kind(errors.length),
+              () => {
+                open({ view: "errors", errors });
+                seeErrors();
+              },
+              { opens: true, row: "errors" },
+            )
+          : nothing
+      }${lists.map((group) =>
+        menuItem(group.label, nothing, () => open({ view: "group", group }), {
+          opens: true,
+          row: `group:${group.name}`,
+        }),
+      )}${reached.map(rowFor)}${named.map((thread) =>
+        menuItem(
+          threadName(thread),
+          kind("Thread"),
+          () => open({ view: "thread", thread: thread.key }),
+          { row: `thread:${thread.key}` },
+        ),
+      )}${versions.map((entry) =>
+        menuItem(
+          html`${entry.name}${
+            entry.note ? html`<span class="lf-fp-note">${entry.note}</span>` : nothing
+          }`,
+          kind("Version"),
+          () => showVersion(entry),
+          { title: entry.note },
+        ),
+      )}${
+        errors.length ||
+        reached.length ||
+        lists.length ||
+        named.length ||
+        versions.length
+          ? nothing
+          : html`<p class="lf-rows-empty">No row, thread or version matches.</p>`
+      }
+      <hr class="lf-fp-rule" />
+      ${menuItem(`Search commands for “${words}”`, nothing, () =>
+        putAwayThen(() => findCommands(words, leaf)),
+      )}`;
   }
   function rootTemplate() {
     const all = rows();
@@ -2383,6 +2441,7 @@ export function createFloatingPanel({
             >${publication.install}</a
           >`
       : said;
+    const held = opening.menuLines;
     /** @param {"summary" | "explain"} name @param {unknown} text */
     const part = (name, text) =>
       (held ? held[name] : text)
@@ -2409,7 +2468,7 @@ export function createFloatingPanel({
                   "Errors",
                   html`<span class="lf-fp-value">${errors.length}</span>`,
                   () => {
-                    showMenuAt({ view: "errors", errors });
+                    open({ view: "errors", errors });
                     seeErrors();
                   },
                   {
@@ -2431,7 +2490,7 @@ export function createFloatingPanel({
             groupValue(group.name)
               ? html`<span class="lf-fp-value">${groupValue(group.name)}</span>`
               : nothing,
-            () => showMenuAt({ view: "group", group }),
+            () => open({ view: "group", group }),
             { opens: true, disabled: gone, row: `group:${group.name}` },
           ),
       })),
@@ -2440,8 +2499,9 @@ export function createFloatingPanel({
       ...(fold ? [seat(fold)] : []),
     ];
     const now = new Map(offered.map((row) => [row.key, row]));
-    seats = held?.seats ?? offered;
-    return html`<div class="lf-fp-state" role="none" ?data-held=${held !== null}>
+    // Only the menu standing holds its seats; a menu leaving draws what it showed.
+    const seats = showing({ view: "menu" }) ? (opening.menuSeats ??= offered) : offered;
+    return html`<div class="lf-fp-state" ?data-held=${held !== null}>
         ${part("summary", statusParts(summaryParts))}${part("explain", explains)}
       </div>
       ${seats.map(({ key, draw }) => now.get(key)?.draw(false) ?? draw(true))}`;
@@ -2507,7 +2567,6 @@ export function createFloatingPanel({
                 entry.comparable
                   ? html`<button
                       type="button"
-                      role="menuitem"
                       class="lf-fp-face lf-fp-quiet lf-fp-compare"
                       aria-pressed=${String(
                         selection.on && selection.base === entry.revision,
@@ -2532,9 +2591,9 @@ export function createFloatingPanel({
   }
 
   // The errors the user has met, newest first, each saying what failed and when, with
-  // a press that dismisses it, whose name carries both, since a menu's keys reach only
-  // its presses. Like the root menu, the list keeps the reading it opened with: new
-  // errors wait behind the leaf's dot until reopening. An error whose cause ends
+  // a press that dismisses it, whose name carries both, since a list's keys reach only
+  // its presses. The list keeps the reading it opened with: new errors wait behind the
+  // leaf's dot until reopening. An error whose cause ends
   // clears its words but keeps its space, so the next control stays under the reader.
   // A dismissal removes that space by the user's gesture and leaves them on the next
   // error's press, or on the way back once none is left.
@@ -2545,7 +2604,7 @@ export function createFloatingPanel({
       return html`<p class="lf-rows-empty" role="none">No errors.</p>`;
     /** @param {number | null} dismissed */
     const movePast = (dismissed) => {
-      const presses = [...menu.querySelectorAll(".lf-fp-error button")];
+      const presses = [...stage.querySelectorAll(".lf-fp-error button")];
       const at = errors.findIndex((error) => error.id === dismissed);
       const after = errors.findIndex(
         (error, index) => index > at && live.has(error.id),
@@ -2554,7 +2613,8 @@ export function createFloatingPanel({
         (error, index) => index < at && live.has(error.id),
       );
       const next = dismissed === null ? null : presses[after >= 0 ? after : before];
-      focusDestination(next ?? shell("menu-back"), "move");
+      const target = next ?? controls.querySelector(".lf-fp-back");
+      if (target) focusDestination(target, "move");
     };
     // An error clearing itself also hands focus off before its control disappears.
     const currentLocation = focused()?.closest(".lf-fp-error");
@@ -2564,11 +2624,14 @@ export function createFloatingPanel({
     /** @param {number | null} dismissed */
     const dismiss = (dismissed) => {
       movePast(dismissed);
-      menuAt.value = {
-        view: "errors",
-        errors:
-          dismissed === null ? [] : errors.filter((error) => error.id !== dismissed),
-      };
+      trail.value = [
+        ...trail.value.slice(0, -1),
+        {
+          view: "errors",
+          errors:
+            dismissed === null ? [] : errors.filter((error) => error.id !== dismissed),
+        },
+      ];
       if (dismissed === null) dismissErrors();
       else dismissError(dismissed);
     };
@@ -2587,7 +2650,6 @@ export function createFloatingPanel({
           </p>
           <button
             type="button"
-            role="menuitem"
             class="lf-fp-face lf-fp-quiet"
             ?disabled=${!live.has(error.id)}
             aria-label=${`Dismiss: ${error.message}, ${clock(error.at)}`}
@@ -4161,37 +4223,40 @@ export function createFloatingPanel({
           : html`<div class="lf-fp-aux">${presses}${close}</div>`
       }`;
   };
-  // A view's foot: its tabs and what stands beside them (`VIEWS`, `controls`); a view
-  // with none has no foot.
-  /** @param {PanelRoute} top */
-  function controlsTemplate(top) {
+  // A view's foot, as its head line is in two parts: its tabs (`VIEWS`, `controls`),
+  // then what stands beside them, ended by its Close; a view with none has no foot.
+  /** @param {PanelRoute} top @param {unknown} close */
+  function controlsTemplate(top, close) {
     const { crumb = nothing, aux = nothing } = viewOf(top).controls?.(top) ?? {};
-    if (crumb === nothing && aux === nothing) return nothing;
     return html`<div class="lf-fp-crumb">${crumb}</div>
-      <div class="lf-fp-aux">${aux}</div>`;
+      <div class="lf-fp-aux">${aux}${close}</div>`;
   }
-  // The On view's tabs: the two lists and Threads, at the controls' start, where every
-  // other view's way back stands, since they name the view.
-  // Threads is a view of its own, opened over by the threads it lists, so turning to or
-  // from it stands the other view in its place (`onTab`).
-  /** @param {"you" | "agent" | "threads"} current */
+  // The On view's tabs: the menu, the two lists and Threads, at the controls' start,
+  // where every other view's way back stands, since they name the view. The menu and
+  // Threads are views of their own, so turning to or from either stands the other view
+  // in its place (`onTab`). The user chose the menu as the first tab on 30 October,
+  // over a menu of its own standing over the leaf, which reached neither list nor
+  // Threads; the leaf opens the view on it.
+  const TAB_LABELS = Object.freeze({ menu: "Menu", threads: "Threads" });
+  /** @param {"menu" | "you" | "agent" | "threads"} current */
   function onTabs(current) {
     const lists = queueLists();
     return tabs(
-      ["you", "agent", "threads"],
+      ["menu", "you", "agent", "threads"],
       current,
-      (tab) => (tab === "threads" ? "Threads" : tabLabel(tab)),
+      (tab) => (tab === "menu" || tab === "threads" ? TAB_LABELS[tab] : tabLabel(tab)),
       onTab,
-      (tab) => (tab === "threads" ? openCount() : lists[tab].length),
+      (tab) =>
+        tab === "menu" ? null : tab === "threads" ? openCount() : lists[tab].length,
     );
   }
   // A tab keeps the user on it, as turning between the lists always has, so the press
   // that stands Threads in the list's place leaves focus on the Threads tab.
-  /** @param {"you" | "agent" | "threads"} tab */
+  /** @param {"menu" | "you" | "agent" | "threads"} tab */
   function onTab(tab) {
-    if (tab === "threads") {
+    if (tab === "menu" || tab === "threads") {
       query = "";
-      open({ view: "threads" }, { replace: true, focus: false });
+      open({ view: tab }, { replace: true, focus: false });
       return;
     }
     const turned = chooseQueueTab(tab);
@@ -4346,10 +4411,6 @@ export function createFloatingPanel({
     const inside = currentLocationIn(host);
     prefs().setRest(rest);
     trail.value = [];
-    menuOpen.value = false;
-    menuAt.value = null;
-    menuRoom = null;
-    held = null;
     transition(before, { focus: false });
     if (inside) focusDestination(leaf, "return");
   }
@@ -4459,32 +4520,10 @@ export function createFloatingPanel({
     const top = trail.value.at(-1) ?? null;
     const drawing = opening;
     const search = activeSearch();
-    const folded = prefs().rest === "mark" && !top && !menuOpen.value && !search;
-    keeps(host, "data-search", search ? (pageSearch?.open ? "page" : "threads") : null);
+    const folded = prefs().rest === "mark" && !top && !search;
+    keeps(host, "data-search", searchModeOf(search) || null);
     keeps(host, "data-rest", folded ? "mark" : "row");
     keeps(host, "data-open", top ? top.view : null);
-    keeps(host, "data-menu", menuOpen.value ? "" : null);
-    if (menuOpen.value) {
-      // Reopening cancels the fade and retains the menu's controls and scroll position.
-      if (menuFade) {
-        menuFade.cancel();
-        menuFade = null;
-      }
-    } else if (menuDrawn && !menuFade && motionPlays()) {
-      menu.setAttribute("data-leaving", "");
-      menuFade = playMotion(menu, [{ opacity: 1 }, { opacity: 0 }], {
-        duration: motionTime("--lf-motion-disclosure", menu),
-        easing: "linear",
-      });
-      menuFade?.finished.then(
-        () => {
-          menuFade = null;
-          paint();
-        },
-        () => {},
-      );
-    }
-    menuDrawn = menuOpen.value;
     // Capture native focus before Lit commits the next view and editor.
     const heldView = shownView();
     const focusHold = heldView
@@ -4522,12 +4561,6 @@ export function createFloatingPanel({
 
     // Geometry, native focus and reading regions consume the committed tree.
     for (const copy of copyItems.values()) if (!copy.isConnected) copy.remove();
-    keeps(menu, "role", menu.querySelector("textarea") ? "dialog" : "menu");
-    if (menuOpen.value) {
-      const rows = menuRows();
-      const current = focused();
-      rove(rows, rows.find((row) => row === current) ?? rows[0]);
-    }
     if (focusHold && focusHold.view === shownView())
       focusHold.restore?.(focusHold.view);
     drawing.drawn = true;
@@ -4604,18 +4637,21 @@ export function createFloatingPanel({
   }
 
   // ---------- gestures ----------
-  // The leaf unfolds a folded panel, and otherwise opens or closes its menu.
+  // The leaf unfolds a folded panel, and otherwise opens the menu, the On view's first
+  // tab, or puts it away where it stands, a list it leads to included.
   function pressLeaf() {
     if (host.dataset.rest === "mark") {
       prefs().setRest("row");
       paint();
       return;
     }
-    setMenu(!menuOpen.value);
-    if (menuOpen.value && keyed) {
-      const first = menu.querySelector("button");
-      if (first) focusDestination(first, "move");
+    if (menuStands()) {
+      close();
+      return;
     }
+    query = "";
+    open({ view: "menu" });
+    if (!coarse()) focusDestination(threadSearchInput, "move");
   }
   // Only the folded leaf needs a status peek; the row and menu already show status.
   // Folded, it also carries passing notices because there is no field to show them.
@@ -4644,13 +4680,14 @@ export function createFloatingPanel({
     peekAsked = on;
     if (peekAsks() !== before) paint();
   };
-  // What stands open, the menu first and then a view, is a step of the page's Escape,
+  // What stands open above the row, the menu as any view, is a step of the page's Escape,
   // taken wherever focus has fallen once the field has been left
   // (`panel.floating.leave`); with nothing open, the page's own foot of the ladder takes
   // the user from the panel back onto the page.
   pageRung("floating panel", () => {
-    // Threads' search box clears its words first, then, empty, returns to Threads,
-    // as a find box returns to its panel (keyboard/AGENTS.md, "Escape").
+    // The field's search, the menu's or Threads', clears its words first; then, empty,
+    // the menu's closes the menu and Threads' returns to Threads, as a find box returns
+    // to its panel (keyboard/AGENTS.md, "Escape").
     if (focused()?.matches?.(".lf-fp-search"))
       return query
         ? {
@@ -4662,28 +4699,33 @@ export function createFloatingPanel({
               paint();
             },
           }
-        : {
-            root: host,
-            title: "close search",
-            out: closeThreadSearch,
-          };
-    if (menuOpen.value && menuAt.value)
-      return {
-        root: host,
-        title: "back to menu",
-        out: () => showMenuAt(null),
-      };
-    if (menuOpen.value)
+        : menuSearching()
+          ? {
+              root: host,
+              title: "close menu",
+              out: () => {
+                close();
+                focusDestination(leaf, "return");
+              },
+            }
+          : {
+              root: host,
+              title: "close search",
+              out: closeThreadSearch,
+            };
+    const top = trail.value.at(-1);
+    if (!top) return null;
+    if (trail.value.at(-2)?.view === "menu")
+      return { root: host, title: "back to menu", out: back };
+    if (top.view === "menu")
       return {
         root: host,
         title: "close menu",
         out: () => {
-          setMenu(false);
+          close();
           focusDestination(leaf, "return");
         },
       };
-    const top = trail.value.at(-1);
-    if (!top) return null;
     // An On item standing open folds back to its line before the view goes, where the
     // user is in the panel; from the page, where `m` took them, Escape puts the view
     // away as it always has.
@@ -4701,93 +4743,88 @@ export function createFloatingPanel({
       },
     };
   });
-  // The menu's rows are one list the arrows, Home and End walk, from the leaf too, and
-  // one stop for Tab, which stands on the row last walked to. With nothing open the
-  // panel declares no Escape of its own: the page's foot of the ladder takes the user
-  // from the chrome back onto the page (keyboard/page.js), and a step declared over the
-  // whole panel would claim Escape on its every control, where the Go-to sequence
-  // refuses to arm.
-  /** @returns {HTMLButtonElement[]} */
-  const menuRows = () => {
-    /** @type {NodeListOf<HTMLButtonElement>} */
-    const buttons = menu.querySelectorAll("button:not(:disabled)");
-    return [...buttons];
-  };
-  // A view's list, Threads, On, Versions or a group, is walked as the menu is, from the
-  // view itself too, which a pointer opening it stands on: ↓ there enters its first row.
-  // Only from a row or the view, so the arrows on an On card's own controls, or in a
-  // thread's messages, keep their meaning there.
+  // A view's list, the menu, Threads, On, Versions or a group, is one list the arrows,
+  // Home and End walk, from the view itself too, which a pointer opening it stands on: ↓
+  // there enters its first row. Only from a row or the view, so the arrows on an On
+  // card's own controls, or in a thread's messages, keep their meaning there. With
+  // nothing open the panel declares no Escape of its own: the page's foot of the ladder
+  // takes the user from the chrome back onto the page (keyboard/page.js), and a step
+  // declared over the whole panel would claim Escape on its every control, where the
+  // Go-to sequence refuses to arm.
   const inList = () => {
     const at = focused();
     const rows = listRows();
     return rows.length > 0 && (at === shownView() || rows.some((row) => row === at));
   };
-  // One walk over whichever list is open, the menu while it stands and the view's list
-  // otherwise, so each key has one meaning and one row in the command reference.
-  const walkedRows = () => (menuOpen.value ? menuRows() : listRows());
   keys(host, "In the floating panel", [
     ...rowWalk({
       id: "panel.floating.rows",
       noun: "Row",
-      plural: "rows of the page menu or the open view",
-      rows: walkedRows,
-      // A menu names its rows' places to a screen reader itself; the walk shows no
-      // position over either list.
+      plural: "rows of the open view",
+      rows: listRows,
+      // A list names its rows' places to a screen reader itself; the walk shows no
+      // position over it.
       position: () => null,
-      landed: (row) => rove(walkedRows(), row),
-    }).map((row) => ({ ...row, when: () => menuOpen.value || inList() })),
-    // → goes into the list a row opens, as its chevron points, and ← back to the menu.
-    {
-      id: "panel.floating.menu.level",
-      keys: ["ArrowLeft", "ArrowRight"],
-      title: "open or leave a list",
-      when: () => menuOpen.value && renderedUnder(focused(), menu),
-      runKey: (binding) => {
-        const [backward] = rowArrows(menu);
-        if (binding === backward) {
-          if (menuAt.value) showMenuAt(null);
-        } else {
-          const control = focused();
-          if (control?.hasAttribute("data-opens")) nativePress(control)?.();
-        }
-      },
-    },
-    // Tab leaves the menu as it leaves a menu button's menu: the menu goes, and the
-    // browser moves the user on from the leaf that opened it, either way.
-    ...["Tab", "Shift+Tab"].map((key) => ({
-      id: `panel.floating.menu.leave-${key === "Tab" ? "forward" : "backward"}`,
-      keys: [key],
-      title: key === "Tab" ? "leave forward" : "leave backward",
-      native: true,
-      when: () => menuOpen.value && renderedUnder(focused(), menu),
-      run: () => {
-        focusDestination(leaf, "move");
-        setMenu(false);
-      },
-    })),
+      landed: (row) => rove(listRows(), row),
+    }).map((row) => ({ ...row, when: inList })),
   ]);
-  // A key the page has acts on the view standing open where the view has that act of
-  // its own, as d and u already page the view the user is in (navigation.js): `/` in
-  // Threads finds a thread rather than the page's words. Rooted at the view and its
-  // controls together, so the filters find too; the search box's own `/` is a character.
   keys(
-    opened,
-    "In the floating panel",
+    stage,
+    "In the menu",
     [
       {
-        id: "panel.floating.threads.find",
-        keys: ["/"],
-        title: "find a thread",
-        run: findThreads,
+        id: "panel.floating.menu.search",
+        keys: ["ArrowUp"],
+        title: "back to the search",
+        touch: false,
+        travels: true,
+        run: () => focusDestination(threadSearchInput, "move"),
       },
     ],
-    () => showing({ view: "threads" }),
+    () => menuSearching() && focused() === listRows()[0],
   );
-  // Versions is a list for choosing, as the menu is, so while it holds focus the
-  // page's character keys rest rather than move the page under it, and a version's
-  // number shows it. Two doors stay open: `?`, and Go-to, whose `g V` puts Versions
-  // away as it opened it.
+  // The menu's search box, as the page's find box does, takes Enter to press what it
+  // found first and ↓ to the rows, on the exact input, ahead of the text field's own
+  // claim on those keys (keyboard/dispatch.js).
+  keys(
+    threadSearchInput,
+    "In the menu's search",
+    [
+      {
+        id: "panel.floating.menu.first",
+        keys: ["Enter"],
+        title: "press the first row found",
+        touch: false,
+        when: () => query.trim() !== "" && listRows().length > 0,
+        run: () => listRows()[0]?.click(),
+      },
+      {
+        id: "panel.floating.menu.rows",
+        keys: ["ArrowDown"],
+        title: "to the rows",
+        touch: false,
+        travels: true,
+        when: () => listRows().length > 0,
+        run: () => {
+          const first = listRows()[0];
+          if (first) focusDestination(first, "move");
+        },
+      },
+    ],
+    () => menuSearching(),
+  );
+  // A key the page has acts on the view standing open where the view has that act of
+  // its own (`VIEWS`, `keys` and `claims`), as d and u already page the view the user is
+  // in (navigation.js): `/` in the menu or Threads searches it rather than the page's
+  // words, and a number in Versions shows that version. Rooted at the view and its
+  // controls together, so the filters find too; the search box's own `/` is a
+  // character. An element holds one declaration (keyboard/scopes.js), so every view's
+  // keys are this one, each standing while its view does.
   const versionsShown = () => showing({ view: "versions" });
+  const shownViewDef = () => {
+    const top = trail.value.at(-1);
+    return top ? viewOf(top) : null;
+  };
   const numbered = () =>
     versionsReading()
       .rows.flatMap((entry) =>
@@ -4797,37 +4834,17 @@ export function createFloatingPanel({
       )
       .toSorted((a, b) => a.version - b.version);
   keys(
-    menu,
+    opened,
     "In the floating panel",
-    [
-      {
-        id: "panel.floating.versions.pick",
-        keys: () => numbered().map(({ version }) => String(version)),
-        label: () => {
-          const top = numbered().at(-1)?.version;
-          return top !== undefined && top > 1 ? `1–${top}` : "1";
-        },
-        title: "show version",
-        when: () => numbered().length > 0,
-        runKey: (binding) => {
-          const chosen = numbered().find(({ version }) => String(version) === binding);
-          if (!chosen)
-            throw new Error(`Version ${binding} is unavailable in the panel`);
-          showVersion(chosen.entry);
-        },
-      },
-    ],
+    Object.values(VIEWS).flatMap((view) =>
+      (view.keys ?? []).map((row) => ({
+        ...row,
+        when: () => shownViewDef() === view && (row.when?.() ?? true),
+      })),
+    ),
     {
-      when: versionsShown,
-      claims: (binding) => {
-        const { key, mods } = parsed(binding);
-        return (
-          key.length === 1 &&
-          key !== " " &&
-          mods.every((mod) => mod === "Shift") &&
-          !pageDoor(binding)
-        );
-      },
+      when: () => Boolean(shownViewDef()?.keys),
+      claims: (binding) => shownViewDef()?.claims?.(binding) ?? false,
     },
   );
   // The caret in the field is the innermost thing open, so while a view is open
@@ -4842,7 +4859,7 @@ export function createFloatingPanel({
       keys: ["Escape"],
       description: "The view above stays open",
       title: "leave field",
-      when: () => !menuOpen.value && trail.value.length > 0,
+      when: () => trail.value.length > 0,
       run: () => focusDestination(leaf, "return"),
     },
   ]);
@@ -4878,10 +4895,6 @@ export function createFloatingPanel({
   // Writing begins in the field and lasts while the user stays in the panel, so the
   // line naming where the words go stays put while they press Resolve or a filter.
   onCurrentLocation((node, _cause, left) => {
-    // The menu lasts while the user is in it or on the leaf that opened it, so Tab
-    // past its row, or a press in the field, puts it away.
-    if (menuOpen.value && node && node !== leaf && !renderedUnder(node, menu))
-      setMenu(false);
     const inside = Boolean(node) && renderedUnder(node, host);
     // Stepping in from the page holds where the user was, and from nowhere holds no
     // place. A row the panel just took away, as a pressed menu row hands the user to the
@@ -4897,14 +4910,8 @@ export function createFloatingPanel({
   // A press away from the panel puts away what stands open above the row (focus.js,
   // `onPressAway`). A press in a modal over the panel is not on the page (`overPanel`).
   onPressAway(
-    (path) =>
-      (menuOpen.value || trail.value.length > 0) &&
-      !path.includes(host) &&
-      nativeModalAdmits(host),
-    () => {
-      if (menuOpen.value) setMenu(false);
-      if (trail.value.length) close();
-    },
+    (path) => trail.value.length > 0 && !path.includes(host) && nativeModalAdmits(host),
+    () => close(),
   );
   // Travel to a place on the page (anchor-travel.js, `arrive`) shows it, so the view
   // open above the row gives way where it would stand over any of that place once
@@ -4942,8 +4949,8 @@ export function createFloatingPanel({
   // it shows another tab, and the Threads door to Threads.
   // `shows` says whether the press would put its view away.
   function putVersionsAway() {
-    const inside = renderedUnder(focused(), menu);
-    setMenu(false);
+    const inside = currentLocationIn(host);
+    close();
     if (inside) focusDestination(leaf, "return");
   }
   const doors = Object.freeze({
@@ -4965,8 +4972,7 @@ export function createFloatingPanel({
     },
     versions: {
       shows: versionsShown,
-      press: () =>
-        versionsShown() ? putVersionsAway() : showMenuAt({ view: "versions" }),
+      press: () => (versionsShown() ? putVersionsAway() : open({ view: "versions" })),
     },
   });
 

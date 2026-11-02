@@ -377,7 +377,7 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     tab_matches = help_el.locator(
         ".lf-command-reference-binding-matches [role=row][data-lf-command]:visible"
     ).evaluate_all("rows => rows.map(row => row.dataset.lfCommand)")
-    assert "panel.floating.menu.leave-forward" in tab_matches, tab_matches
+    assert "page.search.match.next" in tab_matches, tab_matches
     search.fill("w")
     w_results = help_el.locator("[role=row][data-lf-command]:visible").evaluate_all(
         "rows => rows.map(row => row.dataset.lfCommand)"
@@ -457,7 +457,7 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     [
         ("navigation.panel.queue", "M", panel_view("queue")),
         ("navigation.page-map", "P", ".lf-page-map-dialog"),
-        ("version.open", "V", '.lf-fp-menu[data-level="versions"]'),
+        ("version.open", "V", panel_view("versions")),
     ],
 )
 def test_the_reference_enters_named_go_to_destinations(
@@ -525,9 +525,9 @@ def test_a_command_reference_versions_press_enters_the_menu_from_the_leaf(
     reference = page.locator(".lf-command-reference")
     page.get_by_role("combobox", name="Search commands").fill("version.open")
     reference.locator('[role=row][data-lf-command="version.open"] button').click()
-    versions = page.locator('.lf-fp-menu[data-level="versions"]')
+    versions = page.locator(panel_view("versions"))
     expect(versions).to_be_visible()
-    expect(versions.locator(".lf-fp-item:focus")).to_have_count(1)
+    expect(versions).to_be_focused()
 
 
 @pytest.mark.parametrize("viewport", [(1280, 800), (390, 800), (800, 320)])
@@ -787,10 +787,8 @@ def test_the_reference_reads_the_same_way_twice(browser, serve):
 
 def test_the_reference_lists_each_of_the_panel_s_keys_once(browser, serve):
     """The floating panel's section listed ↑ ↓ Home End twice, once for the leaf's menu
-    and once for the open view, under the same words, and gave ← and → a row each with
-    one description between them: twelve rows for seven keys' meanings. One walk over
-    whichever list is open, and ← / → on one row as the margin's reads, list each key
-    once."""
+    and once for the open view, under the same words. One walk over the open view's
+    list, the menu's among them, lists each key once."""
     page = open_page(browser, serve(LONG_PAGE))
     page.keyboard.press("?")
     expect(page.locator(".lf-command-reference")).to_be_visible()
@@ -815,13 +813,8 @@ def test_the_reference_lists_each_of_the_panel_s_keys_once(browser, serve):
         ("panel.floating.rows.next", "Next row"),
         ("panel.floating.rows.first", "First row"),
         ("panel.floating.rows.last", "Last row"),
-        ("panel.floating.menu.level", "Open or leave a list"),
-        ("panel.floating.menu.leave-forward", "Leave forward"),
-        ("panel.floating.menu.leave-backward", "Leave backward"),
     ], rows
-    # The arrows' glyphs read the same on every platform; Tab's modifier does not.
-    # Alternatives stand as keys of their own: ← and → each open or leave a list.
-    assert [keys for _, keys, _ in rows[:5]] == ["↑", "↓", "home", "end", "← →"], rows
+    assert [keys for _, keys, _ in rows] == ["↑", "↓", "home", "end"], rows
 
 
 def test_the_reference_keeps_its_count_line_whole_above_the_results(browser, serve):

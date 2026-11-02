@@ -7,7 +7,7 @@
  * its context identifies one occurrence.
  */
 
-import { anchorKey, fragmentId } from "./anchor-coordinate.js";
+import { anchorKey, fragmentId, fragmentKey } from "./anchor-coordinate.js";
 import { documentChanged } from "./semantic-state.js";
 import {
   resolvedElement,
@@ -874,10 +874,37 @@ export function resolveAnchor(anchor) {
   });
 }
 
-// The page element a fragment names: the anchor `{section}` it spells, resolved as every
-// other anchor is, so an id in chrome, in a message's own markup, or on content a
-// revision settled away names nothing here. A fresh load's arrival, a followed link, and
-// a reply's reference all read their destination through this.
+/** @param {string} id */
+const pageElement = (id) => targetElement(resolveAnchor({ section: id }));
+
+// What a fragment names (anchor-coordinate.js, `fragmentKey`): the element whose id it
+// spells, read as the anchor `{section}` is, so an id in chrome, in a message's own
+// markup, or on content a revision settled away names nothing here. Failing that, a
+// widget and a key, whose `place` is the element the key addresses under the widget
+// (`addressedElements`) or null until the widget draws it (`revealAddressed`). A
+// fresh load's arrival, a followed link, Back and Forward, and a reply's reference all
+// read their destination through this.
+/** @param {string | null | undefined} fragment
+ * @returns {{element: Element, key: string | null, place: Element | null} | null} */
+export function fragmentAddress(fragment) {
+  if (!fragment) return null;
+  const named = pageElement(fragmentId(fragment));
+  if (named) return { element: named, key: null, place: named };
+  const keyed = fragmentKey(fragment);
+  const element = keyed && pageElement(keyed.id);
+  if (!keyed || !element) return null;
+  return {
+    element,
+    key: keyed.key,
+    place: addressedElements(element, keyed.key)[0] ?? null,
+  };
+}
+
+// The page element a fragment names: for a widget's key, the part the widget has drawn
+// for it, else the widget itself, so a reader that needs only an element lands on the
+// widget.
 /** @param {string | null | undefined} fragment */
-export const fragmentTarget = (fragment) =>
-  fragment ? targetElement(resolveAnchor({ section: fragmentId(fragment) })) : null;
+export function fragmentTarget(fragment) {
+  const address = fragmentAddress(fragment);
+  return address ? (address.place ?? address.element) : null;
+}

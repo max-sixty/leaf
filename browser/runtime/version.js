@@ -163,7 +163,7 @@ import {
   fragmentTarget,
   revealAddressed,
 } from "./anchor-resolution.js";
-import { scrollToFragment } from "./anchor-travel.js";
+import { fragmentShown, scrollToFragment } from "./anchor-travel.js";
 import { deferredArrival } from "./presentation.js";
 import { rememberAuthoredParents, stageAuthoredStates } from "./projection/authored.js";
 import { foldWidgetStates, obligationValue } from "./projection/model.js";
@@ -2822,9 +2822,9 @@ export function createVersionController({
   // its open panel), and that is display state, not a destination. A reload or history
   // traversal keeps the browser's restored offset instead, and input during the arrival
   // ends it. However the page arrived, a URL naming a widget's key asks the widget to
-  // draw the key's part (`revealAddressed`) where it has not drawn it once it upgrades,
-  // so the widget shows the state the URL names: the one a reload's restored offset was
-  // read over. The answer counts as a deferred arrival, and a fresh URL lands on the
+  // draw the key's part (`revealAddressed`) where the page doesn't show it once widgets
+  // upgrade (anchor-travel.js, `fragmentShown`), so the widget shows the state the URL
+  // names: the one a reload's restored offset was read over. The answer counts as a deferred arrival, and a fresh URL lands on the
   // part once it is drawn, or on the widget where it draws none. A fragment followed
   // once the page is here is travel's (anchor-travel.js, `followFragment`), as is Back
   // or Forward to one the page has hidden since (`returnToFragment`); both read the
@@ -2850,7 +2850,7 @@ export function createVersionController({
       const address = fragmentAddress(arrivedAt);
       aimedAt ??= fresh && (address?.element ?? null);
       if (!currentIntent()) return;
-      if (address?.key != null && !address.place && !drawing) {
+      if (address?.key != null && !fragmentShown(address) && !drawing) {
         const asked = revealAddressed(address.element, address.key);
         if (asked?.then)
           drawing = deferredArrival(Promise.resolve(asked).then(land, land));

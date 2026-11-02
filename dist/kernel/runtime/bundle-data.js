@@ -7730,6 +7730,7 @@ function scrollToFragment(element) {
 		block: "start"
 	});
 }
+const fragmentShown = (address) => Boolean(address?.place && showsContents(address.place));
 function createAnchorTravel({ anchors, refreshThread, focusForNavigation, threadFocusTarget, clearFor, announce }) {
 	let travelIntent = 0;
 	const retainTravel = (retained = retainUserIntent()) => {
@@ -7909,7 +7910,7 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 	function returnToFragment(url) {
 		const address = fragmentAddress(url.hash);
 		if (!address) return null;
-		return address.place && showsContents(address.place) ? null : fragmentNavigationStep(url, false);
+		return fragmentShown(address) ? null : fragmentNavigationStep(url, false);
 	}
 	function fragmentNavigationStep(url, focus) {
 		const mayArrive = retainTravel();
@@ -9622,7 +9623,7 @@ function createVersionController({ initialDocument, compositionInput, openThread
 			const address = fragmentAddress(arrivedAt);
 			aimedAt ??= fresh && (address?.element ?? null);
 			if (!currentIntent()) return;
-			if (address?.key != null && !address.place && !drawing) {
+			if (address?.key != null && !fragmentShown(address) && !drawing) {
 				const asked = revealAddressed(address.element, address.key);
 				if (asked?.then) drawing = deferredArrival(Promise.resolve(asked).then(land, land));
 			}

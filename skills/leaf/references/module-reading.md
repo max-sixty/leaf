@@ -73,8 +73,9 @@ A URL reaches the same parts. `fragmentUrl(widget, key)` returns this page's URL
 a fragment naming the part `key` names in `widget`, `#<widget-id>:<key>`, for a
 copy-link control or a link to hand on; `fragmentUrl(element)` names the element alone.
 Loading, following, reloading, or going Back or Forward to that URL draws the part
-through the same hooks and lands on it, or on the widget where the key names nothing,
-so a widget that answers `navigateToDatum` needs nothing more for links to its parts.
+through the same hooks; a load or followed link lands on it, or on the widget where the
+key names nothing. A widget that answers `navigateToDatum` needs nothing more for links
+to its parts.
 
 ## Content helpers
 

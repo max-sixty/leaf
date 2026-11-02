@@ -84,6 +84,15 @@ export function scrollToFragment(element) {
   scrollIntoView(element, { behavior: "auto", block: "start" });
 }
 
+// Whether the page shows the place a fragment names (anchor-resolution.js,
+// `fragmentAddress`). A widget's key names no shown place until the widget draws its
+// part and shows it: a file view keeps an unselected file's node hidden until found,
+// so a node existing is not the widget having drawn it. A traversal and a load ask the
+// widget for the part only where this is false.
+/** @param {ReturnType<typeof fragmentAddress>} address */
+export const fragmentShown = (address) =>
+  Boolean(address?.place && showsContents(address.place));
+
 /** @typedef {Element | Range} Destination
  * @typedef {import("./user-intent.js").UserIntent} UserIntent
  * @typedef {import("./focus.js").Caret} Caret
@@ -409,9 +418,7 @@ export function createAnchorTravel({
   function returnToFragment(url) {
     const address = fragmentAddress(url.hash);
     if (!address) return null;
-    return address.place && showsContents(address.place)
-      ? null
-      : fragmentNavigationStep(url, false);
+    return fragmentShown(address) ? null : fragmentNavigationStep(url, false);
   }
 
   // A key's part is asked for first, as `navigateToDatum` asks for it, and a key the

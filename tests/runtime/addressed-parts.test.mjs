@@ -1,7 +1,8 @@
 /* What travel asks a widget before it reads what a key addresses under it
    (`revealAddressed`): a visual draws the state holding a declared part, and a lazy
-   widget hands back its hydration. A thread anchored to a part and a module's
-   `navigateToDatum` both ask this, so a part one of them reaches the other reaches too.
+   widget hands back its hydration. A thread anchored to a part, a module's
+   `navigateToDatum` and a URL fragment naming a widget's key all ask this, so a part
+   one of them reaches the others reach too.
 
    The vocabulary is stated here: a film admitting frame ids by prefix and drawing one
    frame at a time, and a lazy list answering `lfRevealDatum`. */
@@ -9,8 +10,11 @@
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
 
+import { fragmentKey, fragmentUrl } from "/runtime/anchor-coordinate.js";
 import {
   addressedElements,
+  fragmentAddress,
+  fragmentTarget,
   revealAddressed,
   visualParts,
 } from "/runtime/anchor-resolution.js";
@@ -138,4 +142,42 @@ test("a package inventory rejects bad ids instead of recovering or rewriting the
   assert.equal(visualParts(source)[0].id, id);
   for (id of [" frame:one", "frame:one ", "frame:two parts", "", 7, null])
     assert.throws(() => visualParts(source), /has no single-token id/);
+});
+
+test("a fragment names a widget's key, and the URL built for one reads back as it", () => {
+  const widget = document.createElement("lf-film");
+  for (const [id, key] of [
+    ["items", "b/3"],
+    ["diff", '["src/a b.py","new",12]'],
+    ["flow", "node:Line%20Item"],
+    ["a:b", "c"],
+  ]) {
+    widget.id = id;
+    const url = new URL(fragmentUrl(widget, key));
+    assert.deepEqual(fragmentKey(url.hash), { id, key }, url.hash);
+  }
+  widget.id = "items";
+  assert.equal(new URL(fragmentUrl(widget)).hash, "#items");
+  assert.equal(new URL(fragmentUrl(widget, "b/3")).hash, "#items:b/3");
+  for (const hash of ["#items", "#:b/3", "#items:"])
+    assert.equal(fragmentKey(hash), null, hash);
+});
+
+test("a fragment names an element by its id first, else a widget's key", () => {
+  document.body.innerHTML = '<main><section id="a:b">Authored</section></main>';
+  const source = film();
+  document.querySelector("main").append(source);
+
+  // An authored id holding a colon keeps its link.
+  assert.equal(fragmentTarget("#a:b"), document.getElementById("a:b"));
+  // A key the widget has not drawn names the widget until travel draws it.
+  assert.deepEqual(fragmentAddress("#film:frame:two"), {
+    element: source,
+    key: "frame:two",
+    place: null,
+  });
+  assert.equal(fragmentTarget("#film:frame:two"), source);
+  revealAddressed(source, "frame:two");
+  assert.equal(fragmentTarget("#film:frame:two")?.dataset.frame, "two");
+  assert.equal(fragmentTarget("#missing:frame:two"), null);
 });

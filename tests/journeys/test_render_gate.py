@@ -3,10 +3,29 @@
 import json
 
 import pytest
+from browser.margin.test_entries import _refreshes_restate_no_margin_name
 from browser.test_render_gate import (
+    BOUNDED_WORKSPACE_PAGE,
+    DIAGRAM_FAMILIES,
+    DRAWN_LABELS_PAGE,
+    EXPECTED_STALL_MS,
     FRAMED_TABLES_PAGE,
+    RESIZE_PATH,
     _added,
     _author_stateful_verbatim_widget,
+    adopted_sheet_findings,
+    held_scroller_findings,
+    pressable_paper_findings,
+    resize_findings,
+    rest_findings,
+    scroll_findings,
+    short_aim_findings,
+    short_aim_findings_in_every_tab,
+    surface_findings,
+    typed_box_findings,
+    unread_syntax,
+    unshown_key_findings,
+    untouched_resize_findings,
 )
 from interact_support import (
     add_test_widget,
@@ -14,6 +33,9 @@ from interact_support import (
     append_command,
 )
 from playwright.sync_api import expect
+from render_cases_interaction import (
+    CHANGE_SHAPES_PAGE,
+)
 from render_cases_layout import (
     AUTHORED_LINES_PAGE,
     BARE_IDENTIFIERS_PAGE,
@@ -31,7 +53,9 @@ from render_cases_layout import (
     SIDENOTE_IN_A_WIDGET,
     SPILLING_PAGE,
     UNMARKABLE_PAGE,
+    arrival_findings,
     resize_notice_after_last_probe,
+    user_view_restore_cases,
 )
 from render_cases_widgets import (
     TYPED_PARTS_PAGE,
@@ -65,27 +89,6 @@ from leaf.revision_artifact import read_revision
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
-
-from browser.margin.test_entries import _refreshes_restate_no_margin_name
-from browser.test_render_gate import (
-    BOUNDED_WORKSPACE_PAGE,
-    DIAGRAM_FAMILIES,
-    DRAWN_LABELS_PAGE,
-    RESIZE_PATH,
-    adopted_sheet_findings,
-    held_scroller_findings,
-    pressable_paper_findings,
-    resize_findings,
-    rest_findings,
-    scroll_findings,
-    short_aim_findings,
-    short_aim_findings_in_every_tab,
-    surface_findings,
-    typed_box_findings,
-    unread_syntax,
-    unshown_key_findings,
-    untouched_resize_findings,
-)
 
 
 def test_the_layer_holds_its_whole_page_rules_on_the_corpus(browser, serve, subtests):
@@ -1673,3 +1676,106 @@ classDiagram
         and "Job" in f.values["text"]
         for f in failures
     ), failures
+
+
+def test_every_restore_case_a_user_can_return_to_is_arrived_in(browser, serve):
+    """Every restore case the layer restores is exercised on one representative page.
+
+    Restoring user furniture is layer-owned and identical under every authored
+    version, so multiplying this reading across the corpus repeats the mechanism rather
+    than adding an input. The probe speaks only to a returning user, and every finding
+    here is the arrival pass's. It is held to the restore cases the runtime declares —
+    all of them, in order, because a pass that stopped at the first would leave every
+    surface after it exactly as unwatched as it was before.
+    """
+
+    def prepare(page):
+        # At document start, before the page's own scripts, so what is read is what the
+        # gate seeded and not what the runtime has since written back over it.
+        page.add_init_script(
+            "const held = [...Object.keys(localStorage), ...Object.keys(sessionStorage)];"
+            "if (held.length) console.error('returned holding ' + held.join());"
+        )
+
+    url = serve(
+        CHANGE_SHAPES_PAGE,
+        events=[
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": 1,
+                "widget": "sug-rewrite",
+                "action": "decide",
+                "detail": {"outcome": "accept"},
+                "meaning": {
+                    "scope": "page",
+                    "unit": "sug-rewrite",
+                    "depends": ["sug-rewrite"],
+                    "answer": None,
+                    "state": {
+                        "origin": "lf-suggestion",
+                        "unit": "widget",
+                        "record": None,
+                        "creates": None,
+                        "decides": True,
+                        "detail": {
+                            "type": "object",
+                            "properties": {"outcome": {"enum": ["accept", "reject"]}},
+                            "required": ["outcome"],
+                            "additionalProperties": False,
+                        },
+                    },
+                },
+            }
+        ],
+    )
+    declared = browser.new_page()
+    declared.goto(url, wait_until="load")
+    wait_until_ready(declared)
+    restore_cases = user_view_restore_cases(declared)
+    suggestion_state = declared.locator("#sug-rewrite").get_attribute("data-lf-state")
+    fold_transition = declared.locator("#sug-rewrite > lf-old").evaluate(
+        "element => getComputedStyle(element).transitionProperty"
+    )
+    declared.close()
+    assert len(restore_cases) > 1, "the runtime declares nothing to arrive in"
+    assert suggestion_state == "accept"
+    assert fold_transition == "padding"
+
+    arrived = [f for f in arrival_findings(primed(browser.unwatched, prepare), url)]
+    assert [f.split("]")[0].lstrip("[") for f in arrived] == [
+        a["name"] for a in restore_cases
+    ]
+    # And each was the restore case it names rather than that one plus everything the
+    # reloads before it left open — a difference no finding could show on its own,
+    # since all of them would still be reported, each under a name that had stopped
+    # being true. Only the other restore cases' keys are held against an arrival: the
+    # page writes its own reading position on the way out of every load, so a store
+    # holding that too is a page that departed, not a restore case that leaked.
+    arranged = {a["key"] for a in restore_cases}
+    for finding, restore_case in zip(arrived, restore_cases, strict=True):
+        held = set(finding.split("returned holding ")[1].split(","))
+        assert held & arranged == {restore_case["key"]}, finding
+
+
+def test_the_readiness_wait_names_the_stage_a_page_still_owes(browser, serve):
+    """An upgraded page whose first state answer is held has replayed nothing, so the
+    wait fails there by the runtime's own stage rather than timing out unexplained,
+    and passes once the answer lands."""
+    page = browser.new_page()
+    held = []
+    page.route("**/api/state*", lambda route: held.append(route))
+    page.goto(serve(LONG_PAGE), wait_until="load")
+    render_checks_model.wait_for_probe(page, "upgraded")
+
+    with pytest.raises(render_checks_model.PageNotReady) as unready:
+        wait_until_ready(page, timeout_ms=EXPECTED_STALL_MS)
+    assert unready.value.stage == "log"
+    assert str(unready.value) == (
+        f"the runtime never finished replaying the log within {EXPECTED_STALL_MS}ms"
+    )
+
+    for route in held:
+        route.continue_()
+    page.unroute("**/api/state*")
+    wait_until_ready(page)

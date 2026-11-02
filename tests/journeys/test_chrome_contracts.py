@@ -162,3 +162,77 @@ def test_a_scrolling_draft_shows_the_caret_s_row_with_the_padding_beside_it(
             assert shown["above"] < 1, shown
         else:
             assert shown["below"] < 1, (key, shown)
+
+
+def test_opening_a_line_under_the_last_moves_no_words(browser, serve):
+    """Shift+Enter opens a line under a draft's last words, and once the first
+    character typed there lands, every word above rests where it did: Send's room
+    stands on every line, so no keystroke at the end changes where the lines above
+    wrap."""
+    url = serve(LONG_PAGE)
+    panel_comment(serve.page_dir, "Keep the first paragraph.", {"section": "p0"})
+    page = open_page(
+        browser,
+        url,
+        init_script="""
+          window.editorRoots = new Map();
+          const attach = Element.prototype.attachShadow;
+          Element.prototype.attachShadow = function(options) {
+            const root = attach.call(this, options);
+            if (this.localName === 'leaf-text') window.editorRoots.set(this, root);
+            return root;
+          };
+        """,
+    )
+    root = next(
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    )
+    open_panel_thread(page, root)
+    field = panel_field(page)
+    field.click()
+
+    def reading():
+        return field.evaluate(
+            """host => {
+              const rows = [];
+              for (const line of window.editorRoots.get(host).querySelectorAll('.cm-line')) {
+                const range = document.createRange();
+                range.selectNodeContents(line);
+                for (const r of range.getClientRects()) {
+                  if (r.width < 0.5) continue;
+                  const row = rows.find(o => Math.abs(o.top - r.top) < 4);
+                  if (row) row.right = Math.max(row.right, r.right);
+                  else rows.push({top: r.top, right: r.right});
+                }
+              }
+              const box = host.getBoundingClientRect();
+              return {top: box.top, height: box.height,
+                      rows: rows.sort((a, b) => a.top - b.top)
+                        .map((row) => ({top: row.top - box.top, right: row.right}))};
+            }"""
+        )
+
+    page.keyboard.insert_text(
+        "The first paragraph runs long enough to wrap once, and then runs on a while"
+    )
+    # A newly grown line carries the existing words with the panel edge; compare
+    # the resulting places after that ride finishes.
+    panel_settled(page)
+    full = reading()
+    page.keyboard.press("Shift+Enter")
+    panel_settled(page)
+    opened = reading()
+    page.keyboard.type("S")
+    panel_settled(page)
+    typed = reading()
+    assert typed["height"] == opened["height"], (opened, typed)
+    assert typed["top"] == opened["top"], (opened, typed)
+    assert typed["rows"][: len(full["rows"])] == opened["rows"][: len(full["rows"])], (
+        opened,
+        typed,
+    )
+    assert [row["right"] for row in opened["rows"]] == [
+        row["right"] for row in full["rows"]
+    ], (full, opened)

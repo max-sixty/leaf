@@ -19,12 +19,14 @@ from render_harness import (
     page_comment,
     panel_control,
     scroll_settled,
+    sending,
     stamp_page,
     told,
     wait_for_revision,
     write,
 )
 
+from leaf import event_log as events_model
 from leaf_dev.browser import slow_cpu
 
 
@@ -209,3 +211,83 @@ def test_primary_arrival_records_a_return_place_only_when_travelling(
         assert page.evaluate("getSelection().toString()") == heading.text_content()
     else:
         assert page.evaluate("scrollY") == source_top
+
+
+@pytest.mark.parametrize("width", [1440, 390])
+def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
+    browser, serve, width
+):
+    context = browser.new_context(
+        viewport={"width": width, "height": 900},
+        has_touch=width < 500,
+        is_mobile=width < 500,
+    )
+    url = package_workspace(serve)
+    for question_id, text in [
+        ("tone-question", "Should it stay concise?"),
+        ("followup-question", "When should it send?"),
+    ]:
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "id": question_id,
+                "kind": "reply",
+                "author": "agent",
+                "revision": 1,
+                "parent": "opening",
+                "text": text,
+                "obligation": True,
+            },
+        )
+    page = open_page(browser, url, context=context)
+    workspace = page.locator("#workspace")
+    email = workspace.locator("lf-option#email")
+    expect(email).to_be_visible()
+    if width < 500:
+        # Playwright's automatic click scroll has no trusted input for the
+        # shift watcher; move the short reader with a user scroll first.
+        workspace.locator(".reader").hover()
+        page.mouse.wheel(0, 100)
+    page.evaluate(
+        "window.originalOption = document.querySelector('#workspace').querySelector('#email')"
+    )
+    with sending(page, "answer the package's native obligation"):
+        email.get_by_role("checkbox").click()
+    expect(workspace.locator(".counts")).to_contain_text("Email")
+    workspace.get_by_role("button", name="Keep it concise.", exact=True).click()
+    editor = workspace.get_by_role("textbox", name="Reply", exact=True)
+    write(editor, "A shared draft")
+    workspace.get_by_role("button", name="Feed", exact=True).click()
+    expect(editor).to_have_js_property("value", "A shared draft")
+    workspace.get_by_role("button", name="Shelf", exact=True).click()
+    assert page.evaluate(
+        "document.querySelector('#workspace').querySelector('#email') === window.originalOption"
+    )
+    expect(
+        workspace.get_by_role("textbox", name="Reply", exact=True).last
+    ).to_have_js_property("value", "A shared draft")
+    with sending(page, "send the retained reply"):
+        workspace.get_by_role("textbox", name="Reply", exact=True).last.press(
+            "Control+Enter"
+        )
+    expect(workspace.get_by_text("A shared draft", exact=True)).to_be_visible()
+    # One reply answers both questions; the separate proofread task remains due.
+    # Counts include them, while the compact answer summary names only widget
+    # choices instead of repeating words.
+    expect(workspace.locator(".counts")).to_have_text(
+        "1 waiting on me · 3 answered · Email"
+    )
+    with sending(page, "create a real conversation from a package"):
+        workspace.get_by_role("textbox", name="New conversation").fill(
+            "New package conversation"
+        )
+        workspace.get_by_role("button", name="Start conversation").click()
+    expect(
+        workspace.locator(".lf-page-thread").get_by_text(
+            "New package conversation", exact=True
+        )
+    ).to_be_visible()
+    assert any(
+        event.get("text") == "New package conversation" and event["kind"] == "comment"
+        for event in events_model.read_events(serve.page_dir)
+    )

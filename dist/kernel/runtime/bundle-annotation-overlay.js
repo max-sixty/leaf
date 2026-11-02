@@ -260,7 +260,6 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 	});
 	const face = el("div", "lf-margin-preview-card");
 	face.append(previewList);
-	const cardPlaced = () => preview.hasAttribute("data-lf-thread-placement");
 	const following = boxMotion({
 		root: face,
 		box: face,
@@ -268,10 +267,10 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 		lift: 3,
 		outset: 0,
 		placement: {
-			held: () => cardPlaced() ? placementDriver.held() : null,
+			held: () => placementDriver.held(),
 			place: () => {
 				const session = previewSession;
-				return session !== null && cardPlaced() && !preview.hasAttribute("data-lf-carried") && placeNow(session);
+				return session !== null && preview.hasAttribute("data-lf-thread-placement") && !preview.hasAttribute("data-lf-carried") && placeNow(session);
 			}
 		}
 	});
@@ -588,7 +587,8 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 			session.reading = null;
 			const { scale } = session.side.landed(position);
 			anchored.commit();
-			if (!session.followed) {
+			const anew = !session.followed;
+			if (anew) {
 				session.followed = true;
 				if (session.sent) following.drawnAt(session.sent.field);
 			}
@@ -597,7 +597,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 				carry.placed();
 				keeps(preview, "data-lf-thread-placement", THREAD_SIDES[side]);
 				return moved;
-			});
+			}, anew);
 			session.width ??= preview.getBoundingClientRect().width;
 			preview.style.removeProperty("visibility");
 			session.withheldFocus?.();

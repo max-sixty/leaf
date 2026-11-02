@@ -173,12 +173,13 @@ function listen() {
   window.addEventListener("click", beginGesture, { capture: true, passive: true });
 }
 
-// The parts of every box a placement stands are observed by one observer, made as this
-// module loads, which asks each box's placement first (`placed`). A placement landing in
-// its delivery can resize the placed box, which the placement's own observer, made when
-// it first watches the box, observes too. Delivered after this one, that observer reads
-// the box's new size; delivered before it, as a motion's own observer made when the box
-// first stood was, it read the old size and heard the new one only as a loop.
+// The parts of every box a placement stands are observed by one observer, made as
+// this module loads, which asks each box's placement first (`placed`). A placement
+// landing in its delivery can resize the placed box, which the placement's own
+// observer, made when it first watches the box, observes too. Chromium delivers
+// observers in the order they were made, so that observer reads the box's new size
+// after this one. Delivered before it, as a motion's own observer made when the box
+// first stood was, it read the old size and Chromium reported the new one as a loop.
 /** @type {WeakMap<Element, () => void>} */
 const readers = new WeakMap();
 const placedParts = sizeObserver((entries) => {
@@ -395,7 +396,6 @@ export function boxMotion({
   // no placement stands yet: that reading takes it as it stands.
   const forget = () => {
     rests = null;
-    besideAt = null;
   };
   // The window changed size: the next reading takes the box as it stands, rather than
   // trail the window's edge by a tween.
@@ -1168,34 +1168,44 @@ export function boxMotion({
     // stood nowhere until now is taken as it stands. A placement can change the edges
     // that hold the box, as a line taking it past the window's foot holds it by that
     // foot, so the plane's carry is read first, by the edges that held it until then.
-    // What the placement moves then is the plane's or the box's own. At the size last
-    // read it is the plane's, as when a scroll re-solves a box held at the window's edge:
-    // the reading carries the box by the edges that hold it now. At a new size, the
-    // plane's is where the placement would have stood the box at its old size: as far
-    // as what the box stands by moved past it meanwhile, as a scroll moves a passage
-    // past a box the window's edge holds, and then back inside the edge of its room the
+    // What the placement moves then is the plane's or the box's own. For a box its
+    // owner stands anew (`anew`), as the card another thread opens, the whole move is
+    // the box's own. Otherwise, at the size last read it is the plane's, as when a
+    // scroll re-solves a box held at the window's edge: the reading carries the box by
+    // the edges that hold it now. At a new size, the plane's is where the placement
+    // would have stood the box at its old size. The edges that hold it now take it
+    // there, as far as what the box stands by moved past it meanwhile, as a scroll
+    // moves a passage past a box the window's edge holds: a card that a scroll takes
+    // from the window's foot to beside its passage as it grows stands its head by the
+    // passage and grows at its foot. It then comes back inside the edge of its room the
     // placement now holds it against, as a scroll that carried the box past the
     // window's foot leaves it held at that foot. The rest is the box's own and travels
     // from where the box was drawn. `place` says how far it moved the box by its own
     // answer: in Chromium, a box it just took into its anchor's plane lays out off its
     // spot until the browser next places it, by hundreds of pixels (floating.js,
     // `clientBox`).
-    /** @param {() => {x: number, y: number}} place */
-    placed(place) {
+    /** @param {() => {x: number, y: number}} place @param {boolean} [anew] */
+    placed(place, anew = false) {
       if (!held()) forget();
       const { at, past } = rebase();
       const read = rests?.get(root);
       const moved = place();
       const edges = held();
       besideAt = beside(edges);
-      if (read && !(near(width(read), width(at)) && near(height(read), height(at)))) {
+      const resized =
+        read && !(near(width(read), width(at)) && near(height(read), height(at)));
+      if (edges && read && (anew || resized)) {
         const to = shifted(at, moved.x, moved.y);
-        let dx = planeShare(moved.x, past.x);
-        let dy = planeShare(moved.y, past.y);
-        const from = shifted(read, dx, dy);
-        const side = edges?.against;
-        if (side === "top" || side === "bottom") dy += inside(from, to, side);
-        else if (side) dx += inside(from, to, side);
+        let dx = 0;
+        let dy = 0;
+        if (!anew) {
+          dx = planeShare(to[edges.x] - read[edges.x], past.x);
+          dy = planeShare(to[edges.y] - read[edges.y], past.y);
+          const from = shifted(read, dx, dy);
+          const side = edges.against;
+          if (side === "top" || side === "bottom") dy += inside(from, to, side);
+          else if (side) dx += inside(from, to, side);
+        }
         carryReadings(dx, dy);
         frame = to;
       }

@@ -206,8 +206,8 @@ export function createThreadPreview({
   // scroll or a carry that moves it whole moves nothing in it, and a change of its size
   // asks for its placement first (box-motion.js, `placed`). A card no placement stands
   // yet, or put away, has nothing to move from, and one being carried stands where the
-  // pointer holds it.
-  const cardPlaced = () => preview.hasAttribute("data-lf-thread-placement");
+  // pointer holds it. A card closing stands where its placement left it until its fade
+  // ends (`close`), so the card another thread opens meanwhile travels from there.
   const following = boxMotion({
     // The face is the root, so the grip beside it, whose clip opens its middle to
     // the card's own presses, is never cut by the motion.
@@ -223,12 +223,12 @@ export function createThreadPreview({
     lift: 3,
     outset: 0,
     placement: {
-      held: () => (cardPlaced() ? placementDriver.held() : null),
+      held: () => placementDriver.held(),
       place: () => {
         const session = previewSession;
         return (
           session !== null &&
-          cardPlaced() &&
+          preview.hasAttribute("data-lf-thread-placement") &&
           !preview.hasAttribute("data-lf-carried") &&
           placeNow(session)
         );
@@ -723,13 +723,15 @@ export function createThreadPreview({
         // card opened low in the window rises back to it once a scroll gives it room.
         const { scale } = session.side.landed(position);
         anchored.commit();
-        // The card's first spot is the first reading its motion follows from. A card
-        // Send opened grows out of the field it replaces, as any box's outline travels
-        // (box-motion.js): the box paints only its field while it is written, and the
-        // user preferred (19 October) a field that opens into its card at Send to a box
-        // painted as the card throughout (#3157). The card stands whole under its
-        // outline from the first frame, so no word moves.
-        if (!session.followed) {
+        // The card's first spot is the first reading its motion follows from. The card
+        // another thread opens travels there from where the last one stood
+        // (box-motion.js, `placed`). A card Send opened grows out of the field it
+        // replaces, as any box's outline travels: the box paints only its field while
+        // it is written, and the user preferred (19 October) a field that opens into
+        // its card at Send to a box painted as the card throughout (#3157). The card
+        // stands whole under its outline from the first frame, so no word moves.
+        const anew = !session.followed;
+        if (anew) {
           session.followed = true;
           if (session.sent) following.drawnAt(session.sent.field);
         }
@@ -740,7 +742,7 @@ export function createThreadPreview({
           carry.placed();
           keeps(preview, "data-lf-thread-placement", THREAD_SIDES[side]);
           return moved;
-        });
+        }, anew);
         session.width ??= preview.getBoundingClientRect().width;
         preview.style.removeProperty("visibility");
         session.withheldFocus?.();

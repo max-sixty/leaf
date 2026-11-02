@@ -8,6 +8,7 @@ import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import (
+    HOLD_MOTION,
     OBLIGATION_PAGE,
     PANEL_PAGE,
     SUGGESTION_PAGE,
@@ -40,6 +41,9 @@ from render_harness import (
 from browser.margin import (
     ACTION_ON_OBLIGATION,
     ACTION_PAGE,
+    CARD_AT_REST,
+    CARD_OUTLINE,
+    CARD_RELEASED,
     COMMENT_ON_OBLIGATION,
     COMMENT_ON_SUGGESTION,
     LONG_THREAD,
@@ -1227,6 +1231,61 @@ def test_a_second_press_into_an_open_card_leaves_one_level_to_take_off(
     # One card is open whichever press put this thread in it, so there is one way
     # out of it, beside the target it is anchored to.
     leave_card(page)
+
+
+THREE_THREADS_PAGE = leaf_page(
+    "Three threads on two passages",
+    '<div style="height: 20vh"></div>'
+    '<p id="gutters">Decide the gutters.</p>'
+    '<div style="height: 160px"></div>'
+    '<p id="lines">Review the open questions.<br><br><br><br><br><br><br><br>'
+    "Settle the release date.</p>"
+    '<div style="height: 200vh"></div>',
+)
+
+
+def test_a_card_open_on_one_thread_travels_to_another_the_user_clicks(browser, serve):
+    """A click on another thread's margin entry while a card is open carries the card
+    from where it stood to that thread, whether the thread is on another passage or on
+    the same one. A card the same size as the last was taken to have moved as the page
+    does, so it stood beside the other thread at once."""
+    page = open_page(
+        browser,
+        serve(
+            THREE_THREADS_PAGE,
+            events=[
+                _comment_on("gutters", "Can this wait?"),
+                _comment_on("lines", "Can this wait?", "Review the open questions."),
+                _comment_on("lines", "Can this wait?", "Settle the release date."),
+            ],
+        ),
+    )
+    page.emulate_media(reduced_motion="no-preference")
+    resized(page, 1440, 900)
+    preview = page.locator(".lf-margin-preview")
+    page.locator('[data-lf-margin-for="gutters"] .lf-margin-marker').click()
+    expect(preview).to_be_visible()
+    rendered(page)
+    page.wait_for_function(CARD_AT_REST)
+    stood = preview.evaluate(CARD_OUTLINE)
+    page.evaluate("() => {" + HOLD_MOTION + "}")
+    lines = page.locator('[data-lf-margin-for="lines"] .lf-margin-marker')
+    expect(lines).to_have_count(2)
+    for passage, marker in [("another", lines.first), ("the same", lines.last)]:
+        marker.click()
+        page.wait_for_function(
+            "() => window.__lfHeld.some(motion =>"
+            " motion.effect?.target?.matches?.('.lf-margin-preview .lf-box-ring'))"
+        )
+        drawn = preview.evaluate(CARD_OUTLINE)
+        page.wait_for_function(CARD_RELEASED)
+        rest = preview.evaluate(CARD_OUTLINE)
+        assert rest[1] - rest[0] == pytest.approx(stood[1] - stood[0], abs=1), (
+            f"a card of another size, on {passage} passage: {stood} -> {rest}"
+        )
+        assert rest[0] > stood[0] + 100, f"on {passage} passage: {stood} -> {rest}"
+        assert drawn == pytest.approx(stood, abs=1), f"{stood} -> {drawn} -> {rest}"
+        stood = rest
 
 
 def test_a_shared_passage_steps_between_single_thread_cards(browser, serve):

@@ -301,7 +301,6 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer: g
 	root.addEventListener("lf-before-edit", noteFieldScrolls, { passive: true });
 	const forget = () => {
 		rests = null;
-		besideAt = null;
 	};
 	addEventListener("resize", forget);
 	function carryReadings(dx, dy) {
@@ -879,21 +878,26 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer: g
 				});
 			}
 		},
-		placed(place) {
+		placed(place, anew = false) {
 			if (!held()) forget();
 			const { at, past } = rebase();
 			const read = rests?.get(root);
 			const moved = place();
 			const edges = held();
 			besideAt = beside(edges);
-			if (read && !(near(width(read), width(at)) && near(height(read), height(at)))) {
+			const resized = read && !(near(width(read), width(at)) && near(height(read), height(at)));
+			if (edges && read && (anew || resized)) {
 				const to = shifted(at, moved.x, moved.y);
-				let dx = planeShare(moved.x, past.x);
-				let dy = planeShare(moved.y, past.y);
-				const from = shifted(read, dx, dy);
-				const side = edges?.against;
-				if (side === "top" || side === "bottom") dy += inside(from, to, side);
-				else if (side) dx += inside(from, to, side);
+				let dx = 0;
+				let dy = 0;
+				if (!anew) {
+					dx = planeShare(to[edges.x] - read[edges.x], past.x);
+					dy = planeShare(to[edges.y] - read[edges.y], past.y);
+					const from = shifted(read, dx, dy);
+					const side = edges.against;
+					if (side === "top" || side === "bottom") dy += inside(from, to, side);
+					else if (side) dx += inside(from, to, side);
+				}
 				carryReadings(dx, dy);
 				frame = to;
 			}

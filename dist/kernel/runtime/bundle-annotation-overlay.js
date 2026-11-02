@@ -1171,7 +1171,7 @@ function createMarginClusterViews(dependencies) {
 
 //#endregion
 //#region runtime/annotation-overlay/margin-projection.js
-function createMarginProjection({ inventory, refreshInventory, renderAnnotations, openPageThread, designModeActive, pointerModeActive, leavePageMap, openPageMap, pageMapDialogContains, scrollThreadIntoView, renderMarginThread, placedAt, marksFor, scrollToElement, openInPanel }) {
+function createMarginProjection({ inventory, refreshInventory, renderAnnotations, openPageThread, designModeActive, pointerModeActive, leavePageMap, openPageMap, pageMapDialogContains, scrollThreadIntoView, renderMarginThread, placedAt, marksFor, currentLocationObligation, scrollToElement, openInPanel }) {
 	const { targetFor, entryPoint, entryPlace, entryPassage, sourceItem, workflowReceipt, threadIdsAt, threadItem: marginThreadItem } = inventory;
 	const nav = el("nav", "lf-ui lf-margin-projection");
 	generatedElement(nav, { says: false });
@@ -1817,7 +1817,9 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 		const drawingOnly = entry?.items.length && entry.items.every((item) => item.kind === "comment" && Boolean(item.thread?.root.drawing));
 		const currentLocation = currentLocationThreadId();
 		const currentLocationShown = !marker && entry && marksFor(currentLocation).length > 0 && threadReading(entry)?.items.some((item) => item.thread.id === currentLocation);
-		highlight(drawingOnly || currentLocationShown ? null : targetFor(entry) ?? null);
+		const target = targetFor(entry) ?? null;
+		const obligationShown = target && target === currentLocationObligation();
+		highlight(drawingOnly || currentLocationShown || obligationShown ? null : target);
 	}
 	function previewChanged() {
 		refreshHighlight();

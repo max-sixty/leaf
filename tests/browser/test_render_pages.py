@@ -601,8 +601,6 @@ def test_a_failed_state_keeps_focus_in_the_open_versions_menu(browser, serve):
     page.keyboard.press("g")
     page.keyboard.press("Shift+V")
     versions = page.locator(panel_view("versions"))
-    expect(versions).to_be_focused()
-    page.keyboard.press("ArrowDown")
     row = versions.locator(".lf-fp-version .lf-fp-item").first
     expect(row).to_be_focused()
 

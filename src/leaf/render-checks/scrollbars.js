@@ -7,7 +7,8 @@
  * scrollbar happened to paint in the headless browser. It passes over what an
  * off-screen `content-visibility: auto` box skips, such as a long text document's runs,
  * since asking about those elements makes the browser style them first: the live
- * view's reading of a megabyte of text spent 1.4 s doing that. SVG readings use native
+ * view's reading of a megabyte of text spent 1.4 s doing that. So it can't see the end
+ * of such a document while the reader is away from it. SVG readings use native
  * primitive bounds: stroke/filter extents, clip paths and nested SVG viewport
  * transforms are not reconstructed here. */
 import {

@@ -6,12 +6,13 @@
  * viewport, keeping the page still when switching and its scroll place independent.
  * Pierre draws numbered source using the same static renderer as diffs. Its sheets
  * are scoped to the listing; gutter glyphs are generated content, so selecting or
- * copying the source never includes line numbers. A long listing's rows stand in runs
- * that the browser draws only in view (`inRuns`). The Markdown preview renders a file,
- * whose soft line breaks are spaces, so a paragraph wraps to the preview's width. The
- * source and Markdown renderers reconcile unchanged text across source updates, except
- * a row that a change above it moves into the next run, which is drawn anew and loses
- * a selection in it. HTML
+ * copying the source never includes line numbers. The listing's rows stand in runs that
+ * the browser draws only in view (`inRuns`), each sized ahead of drawing by the lines
+ * its rows fill (`sizeRuns`). The Markdown preview renders a file, whose soft line
+ * breaks are spaces, so a paragraph wraps to the preview's width. The source and
+ * Markdown renderers reconcile unchanged text across source updates, except a row that
+ * lines added or removed above it carry across a run's edge, into the next run or the
+ * previous one, which is drawn anew and loses a selection in it. HTML
  * lives in a separate frame so its styles and scripts cannot access Leaf’s document.
  * Source provenance is stamped with its text before awaiting the frame's presentation. */
 import {
@@ -27,6 +28,8 @@ import {
   setChildren,
   loadMarkdown,
   renderMarkdown,
+  sizeObserver,
+  textWidth,
 } from "/runtime/widget-api.js";
 import { pierre, markSyntax } from "./pierre.js";
 
@@ -86,7 +89,7 @@ async function sourceListing(source, language) {
   if (code.textContent !== source)
     throw new Error("Pierre did not return the source unchanged");
   markSyntax(rendered, foreground);
-  return { rendered, pre, code };
+  return { rendered, pre, code, text };
 }
 
 // Rows per run: several times the lines a document's box shows, so the runs in view
@@ -99,15 +102,14 @@ const RUN = 128;
 // styles and lays out a skipped run only when it comes into view, a search lands in
 // it, or a script measures it, and its text stays in the DOM for find-in-page,
 // selection, copy and comments. When every row was styled on each change to the page,
-// a few megabytes of text took tens of seconds and gigabytes of memory to draw. A text
-// of one run's rows stays as Pierre drew it: a box the browser skips buys it nothing,
-// and its rows would stand undrawn for the frames after the document scrolls into view.
+// a few megabytes of text took tens of seconds and gigabytes of memory to draw. A lone
+// run stays drawn (text-document.css): skipping it buys nothing, and its rows would
+// stand undrawn for the frames after the document scrolls into view.
 /** @param {Element} code */
 function inRuns(code) {
   const [gutter, content] = /** @type {[Element, Element]} */ ([...code.children]);
   const numbers = [...gutter.children];
   const lines = [...content.children];
-  if (lines.length <= RUN) return;
   /** @param {Element} column @param {Element[]} cells @param {number} first @param {number} rows */
   const part = (column, cells, first, rows) => {
     const box = /** @type {HTMLElement} */ (column.cloneNode(false));
@@ -120,12 +122,92 @@ function inRuns(code) {
     const rows = Math.min(RUN, lines.length - first);
     const run = document.createElement("div");
     run.className = "lf-text-document-run";
-    // Until it has been drawn, a run is estimated at one line a row.
+    // A line a row until the drawn listing says how long a line is (`sizeRuns`).
     run.style.containIntrinsicBlockSize = `auto ${rows}lh`;
     run.append(part(gutter, numbers, first, rows), part(content, lines, first, rows));
     runs.push(run);
   }
   code.replaceChildren(...runs);
+}
+
+// How many characters a line of the listing holds, and a tab's width in them: a row's
+// text box over the average advance of the first run's one-line rows, as drawn. The
+// face drawn need not be the one named: a freshly started Firefox sets the listing in a
+// proportional fallback until its font list loads, seconds later. Null while the rows
+// have no box, as in a hidden tab.
+/** @param {Element} code */
+function lineColumns(code) {
+  const rows = [...(code.firstElementChild?.lastElementChild?.children ?? [])];
+  const first = rows[0];
+  if (!(first instanceof HTMLElement) || !first.clientWidth) return null;
+  const style = getComputedStyle(first);
+  const line = parseFloat(style.lineHeight);
+  const range = document.createRange();
+  let width = 0;
+  let characters = 0;
+  for (const row of rows) {
+    const text = row.textContent?.replace(/\r?\n$/, "") ?? "";
+    if (text.length < 8 || text.includes("\t")) continue;
+    if (row.getBoundingClientRect().height > line * 1.5) continue;
+    range.selectNodeContents(row);
+    width += range.getBoundingClientRect().width;
+    characters += text.length;
+    if (characters > 1000) break;
+  }
+  const face = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+  const advance = characters ? width / characters : textWidth("0", face);
+  const room =
+    first.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+  return {
+    columns: Math.max(1, Math.floor(room / advance)),
+    tab: parseFloat(style.tabSize) || 8,
+  };
+}
+
+// The lines a row takes in a line of `columns` characters, broken as `pre-wrap` breaks
+// it: after a space, where the spaces past a line's end hang, and within a word longer
+// than a line. A tab counts `tab` characters.
+/** @param {string} row @param {number} columns @param {number} tab */
+function rowLines(row, columns, tab) {
+  if (row.length <= columns && !row.includes("\t")) return 1;
+  let lines = 1;
+  let used = 0;
+  for (const piece of row.replaceAll("\t", " ".repeat(tab)).split(/(?<= )(?=[^ ])/)) {
+    const word = piece.trimEnd().length;
+    if (used && used + word > columns) {
+      lines++;
+      used = 0;
+    }
+    if (word > columns) {
+      lines += Math.ceil(word / columns) - 1;
+      used = word % columns || columns;
+      used += piece.length - word;
+    } else used += piece.length;
+  }
+  return lines;
+}
+
+// The height the browser gives each run until it draws it, in lines (`rowLines`). That
+// is exact for a monospaced face and close for any other. A run the browser has drawn
+// keeps its drawn height (`auto`). Estimated a line a row, wrapped text was thousands
+// of pixels short, and End, a drag to the bottom and travel to a line each stopped
+// short as the runs they passed took their real heights.
+/** @param {Element} code @param {readonly string[]} text @param {{columns: number, tab: number}} length */
+function sizeRuns(code, text, { columns, tab }) {
+  let line = 0;
+  for (const run of code.children) {
+    if (!(run instanceof HTMLElement)) continue;
+    let lines = 0;
+    for (
+      const end = line + (run.lastElementChild?.childElementCount ?? 0);
+      line < end;
+      line++
+    )
+      lines += rowLines(text[line] ?? "", columns, tab);
+    const size = `auto ${lines}lh`;
+    if (run.style.containIntrinsicBlockSize !== size)
+      run.style.containIntrinsicBlockSize = size;
+  }
 }
 
 class TextDocument extends LeafElement {
@@ -138,6 +220,24 @@ class TextDocument extends LeafElement {
   view;
   /** @type {{pre: HTMLPreElement, code: HTMLElement} | null} */
   sourceView = null;
+  /** @type {readonly string[]} */
+  text = [];
+  /** @type {{columns: number, tab: number} | null} */
+  lineLength = null;
+  // A new width gives the listing's lines another length, and its runs another height.
+  // So can a new face, which shows where a drawn run changes height.
+  sizes = sizeObserver(() => this.refit());
+  // Size the drawn runs again where the listing's line length changed.
+  refit() {
+    const code = this.sourceView?.code;
+    const length = code && lineColumns(code);
+    const last = this.lineLength;
+    if (!length || (length.columns === last?.columns && length.tab === last.tab))
+      return;
+    this.lineLength = length;
+    sizeRuns(code, this.text, length);
+  }
+
   setup() {
     // A departure abandons the rendering in flight and its frame's wait.
     whileConnected(this, () => () => {
@@ -190,6 +290,7 @@ class TextDocument extends LeafElement {
         rendered: listing,
         pre: drawnPre,
         code: drawnCode,
+        text,
       } = await sourceListing(source, language);
       if (preview === "markdown") {
         let failure;
@@ -202,13 +303,18 @@ class TextDocument extends LeafElement {
         this.getAttribute("source") ??
         this.getAttribute("for");
       keepsText(view.caption, value == null ? `${label} · no data` : label);
+      this.text = text;
       if (!this.sourceView) {
         setChildren(view.listing, [...listing.childNodes]);
         this.sourceView = { pre: drawnPre, code: drawnCode };
+        this.sizes.observe(view.listing);
+        this.sizes.observe(drawnCode);
       } else {
         // The pre owns provenance and scroll; the code owns its native reach stop.
         // Reconcile only their source children, leaving those independent owners
         // in place while unchanged lines keep their text nodes and selection.
+        // Sized as the drawn runs are, the new runs leave unchanged sizes alone.
+        if (this.lineLength) sizeRuns(drawnCode, text, this.lineLength);
         setRenderedChildren(this.sourceView.code, drawnCode.childNodes);
         const width = "--diffs-min-number-column-width-default";
         const drawnWidth = drawnPre.style.getPropertyValue(width);
@@ -241,6 +347,7 @@ class TextDocument extends LeafElement {
           previewNode.srcdoc = source;
       }
       setChildren(this, [view.figure]);
+      this.refit();
       // The drawn text's items, marked for whoever hosts the widget: on a Leaf page,
       // comments on them anchor to the document's data.
       if (previewNode) {

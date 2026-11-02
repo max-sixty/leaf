@@ -18,7 +18,7 @@
 
     "runtime/anchor-resolution.js": "fc81f15f6fd8bfd5f444e5ba5c46ceffbe9949d1fef651f4a7763d1ab26c94dd",
 
-    "runtime/anchor-travel.js": "dd074a3f7bf47fe1502d818cc0dfa35771421a1a7d3bcd9dba021a7fcf032730",
+    "runtime/anchor-travel.js": "7eca6fef724f446398d203f59b3ed22fd21c1ecc0f68d4891036a4f22773c46c",
 
     "runtime/annotation-inventory.js": "f85cda64cdf583a005bab2dd5e14983763d8ee2a55b26962d336b3bf359f5b87",
 
@@ -388,7 +388,7 @@
 
     "runtime/reading-continuity.js": "cef989af886deaa24e32727730263b4d522a3d33a8bfd9c87f4ca29b6f9e36c4",
 
-    "runtime/reading-place.js": "33f09c8141a41e12e33d7c27bea8a69712a0a0d12259a77138f4374b0177e4e2",
+    "runtime/reading-place.js": "f06d3b4e966278d8a5a315e781c817b6ef5a9cb654e2d5a7314185bf888dd553",
 
     "runtime/reading-regions.js": "d136548d92891ed60edbb929c07ed5bc218218a6f6042feb7cd0b1e22786ef5b",
 
@@ -436,7 +436,7 @@
 
     "runtime/shown-answer.js": "73c249722e776e4940161b4f99fdc92fb0d829c23237f4d70e414d22631356ef",
 
-    "runtime/shown-box.js": "952f0aafc6ababa70f2fd894ffb8405411c71c06f6253068f09b1925c385e646",
+    "runtime/shown-box.js": "cb94abad19c474596a2fbb0bd3af2fbfbe919f0cf612b6a3e2af518a1c177c34",
 
     "runtime/stage-integration.js": "a0641b35b38c410911ed7d5122a9a57517c388fd69ea7481dbd0c67b85d48f96",
 

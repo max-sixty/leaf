@@ -14,11 +14,9 @@
  * When the reveal replaces a visible view, the destination lands at once instead of
  * scrolling from the old view's position. A destination inside a box the browser
  * skips while it is out of view (`content-visibility: auto`), such as a run of a long
- * text document's lines, also lands at once. Such boxes come in long series, sized by
- * estimate until drawn, so a smooth scroll aims at the estimated place, and each box it
- * draws on the way changes size and pushes the destination away. A jump draws only the
- * boxes around the destination, and it lands again as each of them takes its size,
- * until the user's next input (`holdLanding`).
+ * text document's lines, also lands at once: a glide across such a series draws each
+ * box it passes, which took over two seconds on a long text, and lands only as well as
+ * each box's estimated size matches its drawn one.
  *
  * Travel gets the current threads and the synchronous thread refresh from the
  * application root, so geometry code never imports the presenter. A navigation step keeps the
@@ -237,15 +235,7 @@ export function createAnchorTravel({
     if (!intent()) return false;
     if (present) await present();
     if (!intent()) return false;
-    const landed = place(true);
-    const box = skippableBox(first.where);
-    if (landed && box)
-      holdLanding(box, intent, () => {
-        const current = resolve();
-        if (current?.where)
-          for (const placement of current.scroll) placeScroll(placement, true);
-      });
-    return landed;
+    return place(true);
   }
 
   // A remembered passage carries semantic words, never retained DOM endpoints.
@@ -530,36 +520,16 @@ export function createAnchorTravel({
   // not move with that region, so a fixed boundary ends the scrollers that move it
   // (`scrollersOf`); a scroller inside that boundary still owns its ordinary descendants.
 
-  // The box `at` stands in that the browser skips while it is out of view, or null,
-  // read from the box's style rather than from whether it is skipped now: the boxes
-  // between it and the view can be skipped while its own is drawn, as naming the
-  // destination's anchor for its thread's card draws it.
+  // Whether `at` stands in a box the browser skips while it is out of view, read from
+  // the box's style rather than from whether it is skipped now: the boxes between it
+  // and the view can be skipped while its own is drawn, as naming the destination's
+  // anchor for its thread's card draws it.
   /** @param {Element | Range} at */
-  const skippableBox = (at) => {
+  const inSkippableBox = (at) => {
     for (let box = placeHolder(at); box; box = renderedParent(box))
-      if (getComputedStyle(box).contentVisibility === "auto") return box;
-    return null;
+      if (getComputedStyle(box).contentVisibility === "auto") return true;
+    return false;
   };
-
-  // The latest travel's watch on the series of skippable boxes it landed in.
-  /** @type {ResizeObserver | null} */
-  let landing = null;
-  // A box drawn around the destination takes its own size in place of its estimate,
-  // which moves the destination and resizes the series holding the boxes. So while the
-  // travel is still the user's latest intent, each resize lands the destination again,
-  // before the update paints; any input of the user's ends the watch.
-  /** @param {Element} box @param {UserIntent} intent @param {() => void} again */
-  function holdLanding(box, intent, again) {
-    landing?.disconnect();
-    const series = box.parentElement;
-    if (!series) return;
-    const watch = (landing = new ResizeObserver(() => {
-      if (intent()) return again();
-      watch.disconnect();
-      if (landing === watch) landing = null;
-    }));
-    watch.observe(series);
-  }
 
   /** @param {ScrollPlacement} place @param {boolean} replacedView */
   function placeScroll(
@@ -571,7 +541,7 @@ export function createAnchorTravel({
     else
       scrollIntoView(at, {
         alignment: align,
-        behavior: replacedView || skippableBox(at) ? "instant" : behavior,
+        behavior: replacedView || inSkippableBox(at) ? "instant" : behavior,
         block,
       });
   }

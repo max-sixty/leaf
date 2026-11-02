@@ -715,15 +715,17 @@ def refresh_keeps_selection(page, serve, document, name):
     assert page.evaluate(reading) == before, document
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_long_text_document_draws_the_lines_in_view_and_keeps_the_rest_whole(
-    browser, serve
+    request, serve, engine
 ):
     """A long text document draws only the runs of lines in view: styling every line on
     each change to the page took tens of seconds and gigabytes at a few megabytes of
     text. The lines out of view stay whole for the reader. The listing holds every
     line, its numbers stand in one column from the first run to the last, and a thread
-    on a line far down travels to it, where a smooth scroll across runs the browser
-    had only estimated stopped short of the line."""
+    on a line far down jumps to the line drawn there. Each run is sized by the lines
+    its rows fill: sized a line a row, wrapped text left the travel thousands of pixels
+    short, and in Firefox over a run still skipped, where another line was drawn."""
     text = "".join(
         f"line {i} " + ("wrapping words " * 20 if i % 3 == 0 else "short") + "\n"
         for i in range(1, 1001)
@@ -736,7 +738,7 @@ def test_a_long_text_document_draws_the_lines_in_view_and_keeps_the_rest_whole(
         )
     )
     data_model.cmd_data_set(serve.page_dir, "log-text", text)
-    page = open_page(browser, url)
+    page = open_page(request.getfixturevalue(engine), url)
     assert page.locator("#log code").text_content() == text
     expect(page.locator("#log .lf-text-document-run")).to_have_count(8)
     first, far = (
@@ -759,18 +761,23 @@ def test_a_long_text_document_draws_the_lines_in_view_and_keeps_the_rest_whole(
     page.reload()
     wait_until_ready(page)
     assert not far.evaluate(drawn)
+    # The travel jumps: a glide across the runs drew each one it passed, for seconds.
+    page.locator("#log pre").evaluate(
+        "pre => { window.steps = 0; pre.addEventListener('scroll', () => steps++); }"
+    )
     page.keyboard.press("t")
     expect(page.locator(".lf-page-thread")).to_be_focused()
     scroll_settled(page, "#log pre")
+    assert page.evaluate("steps") == 1
     landed = far.evaluate("""line => {
-      const pre = line.closest('pre');
-      const box = pre.getBoundingClientRect();
+      const box = line.closest('pre').getBoundingClientRect();
       const at = line.getBoundingClientRect();
-      return {shown: at.top >= box.top && at.bottom <= box.bottom, top: at.top,
-              bottom: at.bottom, boxTop: box.top, boxBottom: box.bottom,
-              scrollTop: pre.scrollTop, height: pre.scrollHeight, y: scrollY};
+      const hit = document.elementFromPoint(at.left + 30, at.top + 8);
+      return {shown: at.top >= box.top && at.bottom <= box.bottom,
+              hit: hit?.closest('[data-line]')?.dataset.line ?? null,
+              top: at.top - box.top};
     }""")
-    assert landed["shown"], json.dumps(landed)
+    assert landed == {"shown": True, "hit": "900", "top": landed["top"]}, landed
 
 
 def test_an_excerpt_shows_and_answers_to_its_source_line_numbers(browser, serve):

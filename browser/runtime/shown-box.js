@@ -27,22 +27,26 @@ import { sizeObserver } from "./rendering.js";
 // it is drawn, so its own style is not skipped either. A disclosure skips through a
 // pseudo-element of its own, so it is asked by its state rather than by its style.
 //
-/** @param {Element} element */
-export const skipped = (element) => {
+// `skipper` names the box that skips `el`, so a reading over many elements under it,
+// such as a long text document's lines in one run, asks once and passes over the rest.
+/** @param {Element} element @returns {Element | null} */
+export const skipper = (element) => {
   const drawn = (/** @type {Element} */ box) =>
     box.checkVisibility({ contentVisibilityAuto: true });
-  if (drawn(element)) return false;
+  if (drawn(element)) return null;
   let child = element;
   let box = renderedParent(element);
   while (box && !drawn(box)) {
     child = box;
     box = renderedParent(box);
   }
-  if (!box) return false;
+  if (!box) return null;
   if (box.localName === "details")
-    return !box.hasAttribute("open") && child.localName !== "summary";
-  return getComputedStyle(box).contentVisibility !== "visible";
+    return !box.hasAttribute("open") && child.localName !== "summary" ? box : null;
+  return getComputedStyle(box).contentVisibility !== "visible" ? box : null;
 };
+/** @param {Element} element */
+export const skipped = (element) => Boolean(skipper(element));
 
 // The box an element shows as. An element that generates none of its own — a
 // display: contents wrapper — shows as what its contents paint, so its bounds are

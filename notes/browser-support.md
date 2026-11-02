@@ -525,3 +525,22 @@ launched without `--hide-scrollbars`, and Firefox launched headed under
 bars). Once they match in both, the attribute and its rule can go.
 `test_a_card_that_scrolls_gives_its_scrollbar_room` in
 `tests/browser/margin/test_card_reply.py` covers the card in Chromium.
+
+### A landing in a skipped `content-visibility: auto` box in Firefox
+
+Firefox 157 (Playwright's build, macOS) leaves a `content-visibility: auto` box skipped
+after script scrolls to an element inside it until the box itself intersects the view
+at a rendering update; it doesn't activate the box for the scroll, and the box keeps
+its estimated size meanwhile. Geometry read from inside the skipped box is the drawn
+layout's, so where the estimate was off, a landing computed from it showed another
+stretch. On 2026-11-02, before a long text document's runs were sized to their lines,
+`t` to line 11,000 of a 1 MB wrapped text reported the line 214 px into its listing,
+while `elementFromPoint` there found line 11,041, the box showed line 11,035 onwards
+with no comment mark, and the run was still skipped 1.5 s later. Setting the run
+`content-visibility: visible` drew line 11,000 where it was reported. Runs are now
+sized to the lines their rows fill (`lf-text-document.js`, `sizeRuns`), so the estimate
+matches the drawn height and the run under the landing is the one drawn: the hit-test
+finds the line in Chromium and Firefox.
+`test_a_long_text_document_draws_the_lines_in_view_and_keeps_the_rest_whole` covers it
+in both. To recheck, size every run at a line a row and travel to a wrapped line in
+Firefox.

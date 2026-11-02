@@ -10,6 +10,7 @@ import {
   watchThreadSurfaces,
 } from "/runtime/thread/surfaces.js";
 import { readThreadRecords } from "/runtime/thread/model.js";
+import { threadSurface } from "/runtime/thread/surface-handles.js";
 import { servedThread } from "../served.mjs";
 
 // Every card draws its reply box; this stands in for the box's input wiring, which
@@ -59,7 +60,7 @@ test("a surface widget whose constructor threw is not waited for", async () => {
   }
 });
 
-test("a paint reading which threads a seat claims follows the commit that changes them", async () => {
+test("a paint follows a surface's opener lifetime and the threads its seat claims", async () => {
   // The margin lists a thread no seat draws (annotation-inventory.js), so its paint
   // reads `claimed`. Nothing else tells it a commit seated or released a thread: the
   // thread pass paints no region but its own, and the margin's presenter repaints
@@ -101,7 +102,17 @@ test("a paint reading which threads a seat claims follows the commit that change
     invalidate() {},
     reveal() {},
   };
-  const surface = placePageThreads(owner, (batch) => batch.map(() => outlet), commands);
+  const portable = threadSurface(owner);
+  const openers = [];
+  const stopOpeners = effect(() => openers.push(portable.open));
+  assert.deepEqual(openers, [null], "a host without registration offers no opener");
+  const draw = (batch) => batch.map(() => outlet);
+  let surface = placePageThreads(owner, draw, commands);
+  assert.equal(
+    openers.at(-1),
+    surface.open,
+    "late registration offers the real opener",
+  );
   const placements = {
     placedAt: (id) => (id === thread.id ? { status: "exact", place: target } : null),
     pendingAt: () => null,
@@ -154,8 +165,35 @@ test("a paint reading which threads a seat claims follows the commit that change
       [false, true, false],
       "releasing the thread is followed too",
     );
+    surface.unregister();
+    assert.equal(openers.at(-1), null, "retirement removes the capability");
+    surface = placePageThreads(owner, draw, commands);
+    assert.equal(
+      openers.at(-1),
+      surface.open,
+      "registration can return on the same owner",
+    );
+    owner.remove();
+    await renderSurfaces({ phase: "ready", threads: [] }, placements, commands)
+      .completion;
+    assert.equal(
+      openers.at(-1),
+      null,
+      "disconnected cleanup also removes the capability",
+    );
+    const departed = surface;
+    assert.equal(departed.open(target), false, "a captured departed opener is retired");
+    document.body.append(owner);
+    surface = placePageThreads(owner, draw, commands);
+    departed.unregister();
+    assert.equal(
+      portable.open,
+      surface.open,
+      "old cleanup cannot retire a new registration",
+    );
   } finally {
     stop();
+    stopOpeners();
     surface.unregister();
     owner.remove();
     target.remove();

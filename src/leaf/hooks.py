@@ -38,9 +38,10 @@ declarations only once the payload names a session. Page-owning prompt and Stop
 hooks reach `hook_transport`; Codex's tool and Stop hooks reach its delivery
 records in `codex`. Claude Code's background Stop hook and Pi's extension watch
 between turns (`cmd_watch`), and Leaf's Claude Code hooks module follows the
-session's pages (`cmd_pages`) to draw them beside the prompt, and at each turn's
-end asks the clerk what to fork the conversation with and hands back the fork's
-answer (`--fork`, `clerk.cmd_fork`). `leaf hook`
+session's pages (`cmd_pages`) to draw them beside the prompt and to fork for each
+thread Leaf holds, and at each turn's end asks the clerk what to fork the
+conversation with; `--fork` asks for each fork's prompt and hands back its answer
+(`clerk.cmd_fork`, `forks.cmd_reply`). `leaf hook`
 (`cli.hook`) dispatches here.
 
 Claude Code's PostToolBatch carries pending input before the next model call,
@@ -76,6 +77,7 @@ from .state import (
     prompt_turn,
     session_lock_path,
     session_record,
+    still_named,
     turn_closed,
     worker_tool_batch,
 )
@@ -257,6 +259,10 @@ def cmd_watch(harness: str, payload: dict) -> str | None:
 SHOWN_FIELDS = ("page_key", "url", "title", "on_user", "threads", "activity")
 
 
+# How often a pages follower holding the forks lane looks for a message to fork.
+FORK_POLL_S = 0.25
+
+
 def cmd_pages(payload: dict) -> None:
     """Print the live pages the payload's session holds, as one JSON list
     (`presence.live_leaves`), then again each time that list changes, until the
@@ -265,7 +271,14 @@ def cmd_pages(payload: dict) -> None:
 
     Read every presence interval: a dead server leaves its row behind, so native
     notifications cannot replace this timer. The prompt band needs no subscription
-    of its own in addition to the session's between-turn delivery watch."""
+    of its own in addition to the session's between-turn delivery watch.
+
+    A payload asking for `forks` makes the follower the session's forks lane
+    (`forks.take_lane`) while it runs, and gives each page its held threads, each as
+    the `thread` and `inputs` the module forks with, handing to the session those
+    whose bound has passed (`forks.look`). It looks for them every `FORK_POLL_S`,
+    reading a page again only once its reading has moved or a hold has run out,
+    since a thread's hold starts as its message is admitted."""
     sid = payload.get("session_id") or ""
     if not owned_pages(sid):
         print("[]", flush=True)
@@ -273,21 +286,87 @@ def cmd_pages(payload: dict) -> None:
 
     from .presence import PRESENCE_CACHE_S, live_leaves
 
+    forking = bool(payload.get("forks"))
+    if forking:
+        from .forks import lane_path, take_lane
+        from .leases import release_lease
+
+        lane = take_lane(sid)
+    looked: dict = {}
     shown = None
-    while True:
-        held = {page.resolve() for page in owned_pages(sid)}
-        listed = json.dumps(
-            [
-                {field: leaf[field] for field in SHOWN_FIELDS}
-                for _page, leaf in (live_leaves(held) if held else [])
-            ]
-        )
-        if listed != shown:
-            print(listed, flush=True)
-            shown = listed
-        if not held:
-            return
-        time.sleep(PRESENCE_CACHE_S)
+    try:
+        while True:
+            held = {page.resolve() for page in owned_pages(sid)}
+            leaves = live_leaves(held) if held else []
+            # Between presence reads, a lane's holder looks for held threads.
+            for _ in range(round(PRESENCE_CACHE_S / FORK_POLL_S) if forking else 1):
+                if forking and not still_named(lane.fileno(), lane_path(sid)):
+                    # A later follower took the lane, which let go what this one
+                    # held, and forks what this one would.
+                    forking = False
+                    _let_go(sid, looked)
+                # Every page the session holds keeps its holds' bounds, listed or
+                # not, as one whose server stopped is not.
+                forks = (
+                    {page: _forks(sid, page, looked) for page in held}
+                    if forking
+                    else {}
+                )
+                listed = json.dumps(
+                    [
+                        {
+                            **{field: leaf[field] for field in SHOWN_FIELDS},
+                            **({"forks": forks[page]} if forking else {}),
+                        }
+                        for page, leaf in leaves
+                    ]
+                )
+                if listed != shown:
+                    print(listed, flush=True)
+                    shown = listed
+                if not held:
+                    return
+                time.sleep(FORK_POLL_S if forking else PRESENCE_CACHE_S)
+    finally:
+        if forking:
+            release_lease(lane)
+            _let_go(sid, looked)
+
+
+def _let_go(sid: str, looked: dict) -> None:
+    """Nudge what a lane this follower gave up held, as a watch giving up its lease
+    nudges what it held back (`session.nudge_pending`): only where the follower last
+    listed a held thread, since a nudge as a Stop hook's watch starts would wake the
+    session a second time."""
+    from .session import nudge_pending
+
+    holding = any(requests for _stamp, _until, requests in looked.values())
+    looked.clear()
+    if holding:
+        nudge_pending(sid)
+
+
+def _forks(sid: str, page_dir, looked: dict) -> list[dict]:
+    """The page's held threads (`forks.look`), read again only once the page's
+    reading has moved or the earliest hold `looked` kept for it has run out."""
+    from .forks import look
+    from .served_state.reading import page_reading
+
+    try:
+        stamp = page_reading(page_dir)
+    except FileNotFoundError:
+        return []
+    kept = looked.get(page_dir)
+    if kept is not None and kept[0] == stamp and time.time() < kept[1]:
+        return kept[2]
+    try:
+        threads = look(sid, page_dir)
+    except FileNotFoundError:
+        return []
+    requests = [thread.basis(page_dir) for thread in threads]
+    until = min((thread.until for thread in threads), default=float("inf"))
+    looked[page_dir] = (stamp, until, requests)
+    return requests
 
 
 def main(
@@ -338,7 +417,11 @@ def main(
         cmd_pages(payload)
         return
     if fork:
-        from .clerk import cmd_fork
+        # A held thread's fork (`forks`), or else the clerk's.
+        if "thread" in payload:
+            from .forks import cmd_reply as cmd_fork
+        else:
+            from .clerk import cmd_fork
 
         answered = cmd_fork(payload.get("session_id") or "", payload)
         if answered is not None:

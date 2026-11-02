@@ -1,1242 +1,12 @@
 import { __exportAll } from "./bundle-rolldown-runtime.js";
-import { afterScript, bindQueuedWork, excludedByInert, isElement, isHTML, isNativeLayer, isNode, isStage, keeps, liveStages, nativeLayerHolding, nativeLayerKind, nextRender, renderedParent, renderedUnder, shadowHost, under, watchOwner } from "./bundle-portable.js";
-import { AsyncDirective, LitElement, PartType as PartType$1, directive as directive$1, guard, html as html$1, keyed, live, noChange, nothing as nothing$1, ref, render, repeat } from "/vendor/lit.js";
+import { ANNOUNCE, CARET_KEYS, COMMANDS, J, PRESS, PRESSES, ROLE_BUTTON_OFFER, W, WORKS, Z, actionTemplate, bindQueuedWork, coarsePointer, commandsChangedOn, controlNavigationKeys, d, focusDestination, focusRevision, holdFocus, installLanguagePaths, installMoveFocus, isElement, isHTML, isNativeLayer, isStage, keeps, liveStages, move, nextRender, offer, offerAction, onCurrentLocation, onFocusVisibility, pressIsKeyboardActivation, refuseCommands, renderedParent, renderedUnder, shadowHost, showNativeLayer, takesLetters, tick, under, watchCurrentLocationIn, x } from "./bundle-portable.js";
+import { AsyncDirective, LitElement as LitElement$1, PartType as PartType$1, directive as directive$1, guard, html as html$1, keyed, live as live$1, noChange, nothing as nothing$1, ref, render as render$1, repeat } from "/vendor/lit.js";
 
-//#region vendor/signals-core.js
-var j = Symbol.for("preact-signals");
-function S() {
-	if (h > 1) h--;
-	else {
-		var t, i = !1;
-		for ((function() {
-			var e = p;
-			for (p = void 0; e !== void 0;) {
-				var w = e.S;
-				if (w.v === e.v) for (var u = w.t; u !== void 0; u = u.x) u.i === e.i && (u.i = w.i);
-				e = e.o;
-			}
-		})(); c !== void 0;) {
-			var o = c;
-			for (c = void 0, l++; o !== void 0;) {
-				var n = o.u;
-				if (o.u = void 0, o.f &= -3, !(8 & o.f) && U(o)) try {
-					o.c();
-				} catch (e) {
-					i || (t = e, i = !0);
-				}
-				o = n;
-			}
-		}
-		if (l = 0, h--, i) throw t;
-	}
-}
-function W(t) {
-	if (h > 0) return t();
-	m = ++_, h++;
-	try {
-		return t();
-	} finally {
-		S();
-	}
-}
-var s;
-var r = void 0;
-function d(t) {
-	var i = r, o = s;
-	r = void 0, s = void 0;
-	try {
-		return t();
-	} finally {
-		r = i, s = o;
-	}
-}
-var c = void 0;
-var h = 0;
-var l = 0;
-var _ = 0;
-var m = 0;
-var p = void 0;
-var y$1 = 0;
-function g(t) {
-	if (r !== void 0) {
-		var i = t.n;
-		if (i === void 0 || i.t !== r) return i = {
-			i: 0,
-			S: t,
-			p: r.s,
-			n: void 0,
-			t: r,
-			e: void 0,
-			x: void 0,
-			r: i
-		}, r.s !== void 0 && (r.s.n = i), r.s = i, t.n = i, 32 & r.f && t.S(i), i;
-		if (i.i === -1) return i.i = 0, i.n !== void 0 && (i.n.p = i.p, i.p !== void 0 && (i.p.n = i.n), i.p = r.s, i.n = void 0, r.s.n = i, r.s = i), i;
-	}
-}
-function f(t, i) {
-	this.v = t, this.i = 0, this.n = void 0, this.t = void 0, this.l = 0, this.W = i?.watched, this.Z = i?.unwatched, this.name = i?.name;
-}
-f.prototype.brand = j;
-f.prototype.h = function() {
-	return !0;
-};
-f.prototype.S = function(t) {
-	var i = this, o = this.t;
-	o !== t && t.e === void 0 && (t.x = o, this.t = t, o !== void 0 ? o.e = t : d(function() {
-		var n;
-		(n = i.W) == null || n.call(i);
-	}));
-};
-f.prototype.U = function(t) {
-	var i = this;
-	if (this.t !== void 0) {
-		var o = t.e, n = t.x;
-		o !== void 0 && (o.x = n, t.e = void 0), n !== void 0 && (n.e = o, t.x = void 0), t === this.t && (this.t = n, n === void 0 && d(function() {
-			var e;
-			(e = i.Z) == null || e.call(i);
-		}));
-	}
-};
-f.prototype.subscribe = function(t) {
-	var i = this;
-	return x$1(function() {
-		var o = i.value;
-		d(function() {
-			return t(o);
-		});
-	}, { name: "sub" });
-};
-f.prototype.valueOf = function() {
-	return this.value;
-};
-f.prototype.toString = function() {
-	return this.value + "";
-};
-f.prototype.toJSON = function() {
-	return this.value;
-};
-f.prototype.peek = function() {
-	var t = this;
-	return d(function() {
-		return t.value;
-	});
-};
-Object.defineProperty(f.prototype, "value", {
-	get: function() {
-		var t = g(this);
-		return t !== void 0 && (t.i = this.i), this.v;
-	},
-	set: function(t) {
-		if (t !== this.v) {
-			if (l > 100) throw new Error("Cycle detected");
-			(function(o) {
-				h !== 0 && l === 0 && o.l !== m && (o.l = m, p = {
-					S: o,
-					v: o.v,
-					i: o.i,
-					o: p
-				});
-			})(this), this.v = t, this.i++, y$1++, h++;
-			try {
-				for (var i = this.t; i !== void 0; i = i.x) i.t.N();
-			} finally {
-				S();
-			}
-		}
-	}
+//#region runtime/move-focus.js
+installMoveFocus({
+	hold: holdFocus,
+	watch: watchCurrentLocationIn
 });
-function Z(t, i) {
-	return new f(t, i);
-}
-function U(t) {
-	for (var i = t.s; i !== void 0; i = i.n) if (i.S.i !== i.i || !i.S.h() || i.S.i !== i.i) return !0;
-	return !1;
-}
-function C(t) {
-	for (var i = t.s; i !== void 0; i = i.n) {
-		var o = i.S.n;
-		if (o !== void 0 && (i.r = o), i.S.n = i, i.i = -1, i.n === void 0) {
-			t.s = i;
-			break;
-		}
-	}
-}
-function O(t) {
-	for (var i = t.s, o = void 0; i !== void 0;) {
-		var n = i.p;
-		i.i === -1 ? (i.S.U(i), n !== void 0 && (n.n = i.n), i.n !== void 0 && (i.n.p = n)) : o = i, i.S.n = i.r, i.r !== void 0 && (i.r = void 0), i = n;
-	}
-	t.s = o;
-}
-function v(t, i) {
-	f.call(this, void 0, i), this.x = t, this.s = void 0, this.g = y$1 - 1, this.f = 4;
-}
-v.prototype = new f();
-v.prototype.h = function() {
-	if (this.f &= -3, 1 & this.f) return !1;
-	if ((36 & this.f) == 32 || (this.f &= -5, this.g === y$1)) return !0;
-	if (this.g = y$1, this.f |= 1, this.i > 0 && !U(this)) return this.f &= -2, !0;
-	var t = r;
-	try {
-		C(this), r = this;
-		var i = this.x();
-		(16 & this.f || this.v !== i || this.i === 0) && (this.v = i, this.f &= -17, this.i++);
-	} catch (o) {
-		this.v = o, this.f |= 16, this.i++;
-	}
-	return r = t, O(this), this.f &= -2, !0;
-};
-v.prototype.S = function(t) {
-	if (this.t === void 0) {
-		this.f |= 36;
-		for (var i = this.s; i !== void 0; i = i.n) i.S.S(i);
-	}
-	f.prototype.S.call(this, t);
-};
-v.prototype.U = function(t) {
-	if (this.t !== void 0 && (f.prototype.U.call(this, t), this.t === void 0)) {
-		this.f &= -33;
-		for (var i = this.s; i !== void 0; i = i.n) i.S.U(i);
-	}
-};
-v.prototype.N = function() {
-	if (!(2 & this.f)) {
-		this.f |= 6;
-		for (var t = this.t; t !== void 0; t = t.x) t.t.N();
-	}
-};
-Object.defineProperty(v.prototype, "value", { get: function() {
-	if (1 & this.f) throw new Error("Cycle detected");
-	var t = g(this);
-	if (this.h(), t !== void 0 && (t.i = this.i), 16 & this.f) throw this.v;
-	return this.v;
-} });
-function J(t, i) {
-	return new v(t, i);
-}
-function k(t) {
-	var i = t.m;
-	if (t.m = void 0, typeof i == "function") {
-		h++;
-		var o = r;
-		r = void 0;
-		try {
-			i();
-		} catch (n) {
-			throw t.f &= -2, t.f |= 8, b(t), n;
-		} finally {
-			r = o, S();
-		}
-	}
-}
-function b(t) {
-	for (var i = t.s; i !== void 0; i = i.n) i.S.U(i);
-	t.x = void 0, t.s = void 0, k(t);
-}
-function P(t) {
-	if (r !== this) throw new Error("Out-of-order effect");
-	O(this), r = t, this.f &= -2, 8 & this.f && b(this), S();
-}
-function a(t, i) {
-	this.x = t, this.m = void 0, this.s = void 0, this.u = void 0, this.f = 32, this.name = i?.name, s && s.push(this);
-}
-a.prototype.c = function() {
-	var t = this.S();
-	try {
-		if (8 & this.f || this.x === void 0) return;
-		var i = this.x();
-		typeof i == "function" && (this.m = i);
-	} finally {
-		t();
-	}
-};
-a.prototype.S = function() {
-	if (1 & this.f) throw new Error("Cycle detected");
-	this.f |= 1, this.f &= -9, k(this), C(this), h++;
-	var t = r;
-	return r = this, P.bind(this, t);
-};
-a.prototype.N = function() {
-	2 & this.f || (this.f |= 2, this.u = c, c = this);
-};
-a.prototype.d = function() {
-	this.f |= 8, 1 & this.f || b(this);
-};
-a.prototype.dispose = function() {
-	this.d();
-};
-function x$1(t, i) {
-	var o = new a(t, i);
-	try {
-		o.c();
-	} catch (e) {
-		throw o.d(), e;
-	}
-	var n = o.d.bind(o);
-	return n[Symbol.dispose] = n, n;
-}
-function q(t) {
-	return class extends t {
-		performUpdate() {
-			var i;
-			if (this.isUpdatePending === !1) return;
-			(i = this._$Oo) === null || i === void 0 || i.call(this);
-			let o = !0;
-			this._$Oo = x$1((() => {
-				o ? (o = !1, super.performUpdate()) : this.requestUpdate();
-			}));
-		}
-		connectedCallback() {
-			super.connectedCallback(), this.requestUpdate();
-		}
-		disconnectedCallback() {
-			var i;
-			super.disconnectedCallback(), (i = this._$Oo) === null || i === void 0 || i.call(this);
-		}
-	};
-}
-
-//#endregion
-//#region runtime/control-selectors.js
-const TEXT_FIELD = window.lfInputs.textField;
-const MODIFIER_KEYS = [
-	"Shift",
-	"Alt",
-	"Control",
-	"Meta"
-];
-const CARET_KEYS = [
-	"ArrowLeft",
-	"ArrowRight",
-	"ArrowUp",
-	"ArrowDown",
-	"Home",
-	"End",
-	"PageUp",
-	"PageDown"
-];
-const selectsAll = (event) => event.key.toLowerCase() === "a" && (event.metaKey || event.ctrlKey);
-const TEXT_BOX = window.lfInputs.textBox;
-const TAB_STOP = `a[href], button, input, select, ${TEXT_BOX}, summary, [contenteditable]:not([contenteditable="false"]), [tabindex]:not([tabindex="-1"])`;
-const PRESS_SELECTORS = [
-	"a[href]",
-	"audio[controls]",
-	"button",
-	"img[usemap]",
-	"input:not([type='hidden'])",
-	"label",
-	"select",
-	"summary",
-	TEXT_BOX,
-	"video[controls]",
-	"video[data-lf-player]",
-	"[role='button']",
-	"[role='checkbox']",
-	"[role='combobox']",
-	"[role='link']",
-	"[role='menuitem']",
-	"[role='menuitemcheckbox']",
-	"[role='menuitemradio']",
-	"[role='option']",
-	"[role='radio']",
-	"[role='scrollbar']",
-	"[role='searchbox']",
-	"[role='separator'][tabindex]",
-	"[role='slider']",
-	"[role='spinbutton']",
-	"[role='switch']",
-	"[role='tab']",
-	"[role='textbox']",
-	"[role='treeitem']"
-];
-const LENT_REACH_STOP = "data-lf-lent-reach-stop";
-const REGION_SELECTORS = [
-	`[tabindex]:not([tabindex='-1']):not([${LENT_REACH_STOP}]):not([role='tabpanel'])`,
-	"[contenteditable]:not([contenteditable='false'])",
-	"[draggable='true']",
-	"[role='application']",
-	"[role='grid']",
-	"[role='gridcell']",
-	"[role='listbox']",
-	"[role='menu']",
-	"[role='menubar']",
-	"[role='radiogroup']",
-	"[role='tablist']",
-	"[role='tree']",
-	"[role='treegrid']"
-];
-const PRESSES = PRESS_SELECTORS.join(",");
-const WORKS = [...PRESS_SELECTORS, ...REGION_SELECTORS].join(",");
-
-//#endregion
-//#region runtime/pointer.js
-let x = -1;
-let y = -1;
-const remember = (ev) => {
-	x = ev.clientX;
-	y = ev.clientY;
-};
-document.addEventListener("pointermove", remember, { capture: true });
-document.addEventListener("pointerdown", remember, { capture: true });
-const pointerAt = () => ({
-	x,
-	y
-});
-const coarsePointer = matchMedia("(pointer: coarse)");
-const hoveringPointer = matchMedia("(hover: hover)");
-const pressIsKeyboardActivation = (event) => event.type === "click" && !event.detail;
-const plainPress = (event) => event.button === 0 && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
-function restorePointer(point) {
-	if (x !== -1 || y !== -1 || !Number.isFinite(point?.x) || !Number.isFinite(point?.y)) return;
-	x = point.x;
-	y = point.y;
-}
-const eventSource = (event) => event.composedPath().find((node) => isNode(node)) ?? null;
-
-//#endregion
-//#region runtime/focus.js
-function* renderedElements(node) {
-	const children = isHTML(node, "slot") ? node.assignedElements({ flatten: true }) : (isElement(node) && node.shadowRoot || node).children;
-	for (const child of children) {
-		yield child;
-		const tabIndex = child.getAttribute("tabindex");
-		if (child.shadowRoot && tabIndex !== null && parseInt(tabIndex) < 0) continue;
-		yield* renderedElements(child);
-	}
-}
-const SEQUENTIAL = `${TAB_STOP}, iframe, audio[controls], video[controls]`;
-const tabStops = (root) => [...renderedElements(root)].filter((node) => node.matches(SEQUENTIAL) && "tabIndex" in node && typeof node.tabIndex === "number" && node.tabIndex >= 0 && !node.shadowRoot?.delegatesFocus && !node.matches(":disabled") && !(isHTML(node) && node.inert) && node.checkVisibility({ visibilityProperty: true }));
-const canPlaceFocus = () => window === window.top || document.hasFocus();
-const CAUSES = /* @__PURE__ */ new Set([
-	"move",
-	"step",
-	"return",
-	"press"
-]);
-function focusDestination(destination, cause, { caret = null, ...unknown } = {}) {
-	if (!CAUSES.has(cause)) throw new TypeError(`focusDestination: no cause ${cause}`);
-	const unexpected = Object.keys(unknown);
-	if (unexpected.length) throw new TypeError(`focusDestination: unknown options ${unexpected.join(", ")}`);
-	if (!canPlaceFocus()) return;
-	const options = {
-		preventScroll: true,
-		...!pressLed() && { focusVisible: true }
-	};
-	placed(cause, () => {
-		nativeFocusTarget(destination).focus(options);
-		if (!landedOn(destination) && lendable(destination)) lendStop(destination, options);
-	});
-	if (caret && holdsCaret(destination)) destination.setSelectionRange(...caret);
-}
-let placing = null;
-const placed = (cause, move) => {
-	const was = placing;
-	placing ??= cause;
-	try {
-		return move();
-	} finally {
-		placing = was;
-	}
-};
-const landedOn = (node) => node === document.body ? node.matches(":focus") : activeIn(node.getRootNode()) === node || Boolean(node.shadowRoot?.activeElement);
-const lendable = (node) => drawn(node) && !node.matches(TAB_STOP);
-const lent = /* @__PURE__ */ new WeakSet();
-const wearsLentStop = (element) => lent.has(element);
-function whenLeft(element, leave) {
-	const blur = () => {
-		if (activeIn(element.getRootNode()) === element) return;
-		element.removeEventListener("blur", blur);
-		leave();
-	};
-	element.addEventListener("blur", blur);
-}
-function lendStop(destination, options) {
-	if (destination.hasAttribute("tabindex")) return;
-	const giveBack = () => {
-		lent.delete(destination);
-		if (destination.getAttribute("tabindex") === "-1") destination.removeAttribute("tabindex");
-	};
-	lent.add(destination);
-	destination.setAttribute("tabindex", "-1");
-	nativeFocusTarget(destination).focus(options);
-	if (!landedOn(destination)) {
-		giveBack();
-		return;
-	}
-	whenLeft(destination, giveBack);
-}
-const CARETED = /* @__PURE__ */ new Set([
-	"text",
-	"search",
-	"url",
-	"tel",
-	"password"
-]);
-const holdsCaret = (node) => isHTML(node) && (node.matches(TEXT_BOX) || isHTML(node, "input") && CARETED.has(node.type));
-function readCaret(node) {
-	if (!node || !holdsCaret(node)) return null;
-	const { selectionStart, selectionEnd, selectionDirection } = node;
-	if (selectionStart === null || selectionEnd === null || selectionDirection === null) return null;
-	return [
-		selectionStart,
-		selectionEnd,
-		selectionDirection
-	];
-}
-const deepFocus = (at = document.activeElement) => {
-	while (at?.shadowRoot?.activeElement) at = at.shadowRoot.activeElement;
-	return at;
-};
-const focusRoot = (root) => root.nodeType === Node.DOCUMENT_NODE || root.nodeType === Node.DOCUMENT_FRAGMENT_NODE && "host" in root;
-const activeIn = (root) => focusRoot(root) ? root.activeElement : null;
-function hasNativeFocus(element) {
-	return "focus" in element && typeof element.focus === "function" && "blur" in element && typeof element.blur === "function" && "tabIndex" in element && typeof element.tabIndex === "number";
-}
-function nativeFocusTarget(element) {
-	if (!hasNativeFocus(element)) throw new TypeError(`Element ${element.localName} has no native focus capability`);
-	return element;
-}
-function blurFocused() {
-	const active = deepFocus();
-	if (active) nativeFocusTarget(active).blur();
-}
-let labelPress = null;
-const heldByLabel = () => labelPress?.held.isConnected ? labelPress.held : null;
-function finishLabelPress() {
-	const press = labelPress;
-	if (!press) return null;
-	labelPress = null;
-	return press;
-}
-function landLabelPress() {
-	if (!finishLabelPress()) return;
-	setTimeout(() => {
-		if (labelPress) return;
-		const at = deepFocus();
-		if (at && at !== document.body) return reconcile(null, pressedPath);
-		if (!drawn(published?.deref())) return;
-		placements += 1;
-		lastLocation = null;
-		publish(null, cause(null));
-	});
-}
-const currentLocation = Z(0);
-const focusRevision = () => currentLocation.value;
-const focused = (tree = null) => {
-	let at = heldByLabel() ?? deepFocus();
-	if (tree) while (at && at.getRootNode() !== tree) at = shadowHost(at.getRootNode());
-	return at;
-};
-const selectionOf = (node) => {
-	const root = node.getRootNode();
-	return focusRoot(root) && root.nodeType === Node.DOCUMENT_FRAGMENT_NODE && root.getSelection?.() || getSelection();
-};
-function currentLocationNodes() {
-	const at = focused();
-	const selection = getSelection();
-	return [
-		at && at !== document.body ? at : null,
-		selection?.focusNode ?? null,
-		selection?.anchorNode ?? null
-	].filter((node) => node !== null);
-}
-function currentLocationTouches(node) {
-	if (!node) return false;
-	if (currentLocationNodes().some((at) => at === node || node.contains(at))) return true;
-	const selection = selectionOf(node);
-	return Boolean(selection?.rangeCount && selection.getRangeAt(0).intersectsNode(node));
-}
-let restoring = false;
-let placements = 0;
-let lastLocation = null;
-const readers = /* @__PURE__ */ new Set();
-const onCurrentLocation = (read) => {
-	readers.add(read);
-	return () => readers.delete(read);
-};
-let published = null;
-let departed = false;
-let readings = 0;
-let paintDestination = null;
-let paintedFocus = null;
-let paintedWithin = /* @__PURE__ */ new Set();
-let paintedVisible = null;
-let paintedVisibleWithin = /* @__PURE__ */ new Set();
-const visibilityReaders = /* @__PURE__ */ new Set();
-const onFocusVisibility = (read) => {
-	visibilityReaders.add(read);
-	return () => visibilityReaders.delete(read);
-};
-function markFocus(node, name, present) {
-	keeps(node, `data-lf-${name}`, present ? "" : null);
-	if (!present) {
-		if (node.part?.contains(`lf-${name}`)) node.part.remove(`lf-${name}`);
-	} else if (node.getRootNode().nodeType === Node.DOCUMENT_FRAGMENT_NODE && node.hasAttribute("part")) node.part.add(`lf-${name}`);
-}
-function visibleFocus(node = focused()) {
-	return node && node !== document.body && node !== document.documentElement && (node.matches(":focus-visible") || node.matches(TEXT_BOX) || node.localName === "iframe" && !pressLed()) ? node : null;
-}
-function paintFocus(node) {
-	const next = node === document.body || node === document.documentElement ? null : node;
-	if (next !== paintedFocus) {
-		if (paintedFocus) markFocus(paintedFocus, "focus", false);
-		if (next) markFocus(next, "focus", true);
-		paintedFocus = next;
-	}
-	const within = /* @__PURE__ */ new Set();
-	for (let owner = next; owner && owner !== document.body && owner !== document.documentElement; owner = renderedParent(owner)) within.add(owner);
-	for (const owner of paintedWithin) if (!within.has(owner)) markFocus(owner, "focus-within", false);
-	for (const owner of within) if (!paintedWithin.has(owner)) markFocus(owner, "focus-within", true);
-	paintedWithin = within;
-	const visible = visibleFocus(next);
-	if (visible !== paintedVisible) {
-		if (paintedVisible) markFocus(paintedVisible, "focus-visible", false);
-		if (visible) markFocus(visible, "focus-visible", true);
-		paintedVisible = visible;
-		for (const read of visibilityReaders) read();
-	}
-	const visibleWithin = visible ? within : /* @__PURE__ */ new Set();
-	for (const owner of paintedVisibleWithin) if (!visibleWithin.has(owner)) markFocus(owner, "focus-visible-within", false);
-	for (const owner of visibleWithin) if (!paintedVisibleWithin.has(owner)) markFocus(owner, "focus-visible-within", true);
-	paintedVisibleWithin = visibleWithin;
-}
-const refreshFocusPaint = () => {
-	const node = paintDestination?.deref();
-	if (node?.isConnected && node !== deepFocus() && node !== heldByLabel()) return;
-	if (node?.isConnected) watchCurrentLocationAround(node);
-	paintFocus(node?.isConnected ? node : null);
-};
-let returnPaintPending = false;
-const paintAfterScript = () => {
-	if (!returnPaintPending) refreshFocusPaint();
-};
-const queueFocusPaint = () => afterScript(paintAfterScript);
-const queueReturnFocusPaint = () => {
-	if (returnPaintPending) return;
-	returnPaintPending = true;
-	nextRender(() => {
-		if (!returnPaintPending) return;
-		returnPaintPending = false;
-		refreshFocusPaint();
-	});
-};
-const paintRoots = /* @__PURE__ */ new WeakSet();
-function watchFocusPaintIn(root) {
-	if (paintRoots.has(root)) return;
-	paintRoots.add(root);
-	new MutationObserver(queueFocusPaint).observe(root, {
-		childList: true,
-		subtree: true
-	});
-	root.addEventListener("slotchange", queueFocusPaint);
-}
-function publish(node, cause) {
-	watchCurrentLocationAround(node);
-	paintDestination = node && new WeakRef(node);
-	if (cause === "return") queueReturnFocusPaint();
-	else {
-		returnPaintPending = false;
-		queueFocusPaint();
-	}
-	if (node === (published?.deref() ?? null) && !departed) return;
-	departed = false;
-	const left = published?.deref() ?? null;
-	const reading = ++readings;
-	currentLocation.value = reading;
-	if (cause === "drop") departed = true;
-	else published = node && new WeakRef(node);
-	if (node) placeInput = "focus";
-	const was = {
-		placing,
-		restoring
-	};
-	[placing, restoring] = [null, false];
-	try {
-		for (const read of readers) {
-			try {
-				read(node, cause, left);
-			} catch (error) {
-				reportError(error);
-			}
-			if (readings !== reading) return;
-		}
-	} finally {
-		placing = was.placing;
-		restoring = was.restoring;
-	}
-}
-let pressedPath = null;
-const pressedOn = (node) => pressedPath !== null && pressedPath.some((ref) => {
-	const at = ref.deref();
-	return at === node || isHTML(at, "label") && at.control === node;
-});
-const pressLed = () => pressedPath !== null;
-let stepping = null;
-const leftClosedLayer = (left) => {
-	const layer = isElement(left) ? left.closest("dialog, [popover]") : null;
-	return layer !== null && !(isHTML(layer, "dialog") && layer.open || isNativeLayer(layer));
-};
-const cause = (node, left = null) => placing ?? (leftClosedLayer(left) ? "return" : pressedOn(node) ? "press" : stepping ? "step" : "move");
-const read = /* @__PURE__ */ new WeakSet();
-function readFocusEvent(event) {
-	if (!("relatedTarget" in event)) return;
-	if (read.has(event)) return;
-	read.add(event);
-	if (closing$1) return;
-	if (heldByLabel()) {
-		if (placing === null) return;
-		finishLabelPress();
-	}
-	if (!restoring && !(placing === null && leftClosedLayer(event.relatedTarget))) placements += 1;
-	const at = deepFocus();
-	lastLocation = at && new WeakRef(at);
-	publish(at, cause(at, event.relatedTarget));
-}
-function watchCurrentLocationAround(node) {
-	for (let at = node; at; at = renderedParent(at)) {
-		const root = at.getRootNode();
-		if (focusRoot(root)) watchCurrentLocationIn(root);
-	}
-}
-function enter(event) {
-	if (read.has(event)) return;
-	read.add(event);
-	watchCurrentLocationAround(deepFocus());
-}
-function watchCurrentLocationIn(root) {
-	root.addEventListener("focus", enter, true);
-	root.addEventListener("focusin", readFocusEvent, true);
-	watchFocusPaintIn(root);
-}
-watchCurrentLocationIn(document);
-watchCurrentLocationAround(deepFocus());
-document.addEventListener("focusout", (event) => {
-	if (event.relatedTarget !== null) departed = true;
-	const left = eventSource(event);
-	if (!isElement(left)) return;
-	lastLocation = new WeakRef(left);
-	if (restoring) return;
-	const departure = readings;
-	setTimeout(() => {
-		if (readings !== departure) return;
-		const at = document.activeElement;
-		if (at !== null && at !== document.body) return;
-		if (heldByLabel()) return;
-		if (!drawn(left)) return publish(null, "drop");
-		if (left !== document.body) placements += 1;
-		if (lastLocation?.deref() === left) lastLocation = null;
-		publish(null, cause(null));
-	});
-}, true);
-const sequential = (event) => event.key === "Tab" && !event.altKey && !event.ctrlKey && !event.metaKey;
-function reconcile(step, pressed) {
-	if (heldByLabel()) return;
-	const deep = deepFocus();
-	const at = deep === document.body ? null : deep;
-	const was = published?.deref() ?? null;
-	if (at === was || !at && was?.localName !== "iframe") return;
-	placements += 1;
-	lastLocation = at && new WeakRef(at);
-	const input = {
-		stepping,
-		pressedPath
-	};
-	[stepping, pressedPath] = [step, pressed];
-	try {
-		publish(at, cause(at));
-	} finally {
-		stepping = input.stepping;
-		pressedPath = input.pressedPath;
-	}
-}
-function inputInFrame(frame, type) {
-	if (deepFocus() !== frame) return;
-	if (type === "keydown") pressedPath = null;
-	else if (type === "pointerdown" || type === "touchstart") pressedPath = [new WeakRef(frame)];
-	if (published?.deref() === frame) queueFocusPaint();
-	else reconcile(null, pressedPath);
-}
-addEventListener("click", () => {
-	const pressed = pressedPath;
-	setTimeout(() => {
-		reconcile(null, pressed);
-		queueFocusPaint();
-	});
-}, {
-	capture: true,
-	passive: true
-});
-const inputs = window.lfInputs;
-const inputCount = () => inputs.count;
-const onUserInput = (read) => inputs.observe(read);
-let keyCarets = null;
-onUserInput((event) => {
-	if (event.type !== "keydown") return;
-	const carets = /* @__PURE__ */ new Map();
-	for (const node of event.composedPath()) {
-		const caret = isElement(node) && readCaret(node);
-		if (caret) carets.set(node, caret);
-	}
-	keyCarets = carets;
-	setTimeout(() => {
-		if (keyCarets === carets) keyCarets = null;
-	});
-});
-const caretAtKey = (node) => keyCarets?.get(node) ?? null;
-onUserInput((event) => {
-	if (event.type !== "blur") return;
-	landLabelPress();
-	endPress(event, false);
-});
-let placeInput = "focus";
-for (const type of [
-	"pointermove",
-	"pointerdown",
-	"wheel"
-]) addEventListener(type, () => placeInput = "pointer", {
-	capture: true,
-	passive: true
-});
-addEventListener("click", (event) => {
-	if (event.isTrusted && event.button === 0) placeInput = focused()?.contains(eventSource(event)) ? "focus" : "pointer";
-}, {
-	capture: true,
-	passive: true
-});
-const recentPlaceInput = () => placeInput;
-let press = null;
-const pressing = () => press;
-const pressReaders = /* @__PURE__ */ new Set();
-const onPress = (read) => {
-	pressReaders.add(read);
-	return () => pressReaders.delete(read);
-};
-function pressRecords() {
-	const records = /* @__PURE__ */ new WeakMap();
-	return {
-		keep(event, value) {
-			if (press?.pointerId === event.pointerId && !press.released) records.set(press, value);
-			return value;
-		},
-		kept: () => (press && records.get(press)) ?? null
-	};
-}
-const pressHolds = (event) => press !== null && press.pointerId === event.pointerId && (event.type !== "pointermove" || !press.released);
-function overPress(ended) {
-	if (press !== ended) return;
-	press = null;
-	for (const over of ended.overs) over();
-}
-const overSoon = (ended) => setTimeout(() => overPress(ended));
-const claimReleaseClick = () => {
-	if (press) press.clickClaimed = true;
-};
-document.addEventListener("click", (event) => {
-	if (!press?.clickClaimed || !event.isTrusted || pressIsKeyboardActivation(event)) return;
-	press.clickClaimed = false;
-	event.preventDefault();
-	event.stopImmediatePropagation();
-}, { capture: true });
-for (const type of ["click", "auxclick"]) addEventListener(type, (event) => {
-	if (press?.released && event.isTrusted && !pressIsKeyboardActivation(event)) overSoon(press);
-}, {
-	capture: true,
-	passive: true
-});
-onUserInput((event) => {
-	if (press?.released && event.type !== "pointerdown") overSoon(press);
-});
-const onPressAway = (away, dismiss) => onPress((start, from) => start.button === 0 && away(from) ? (end, completed) => {
-	const path = end.composedPath();
-	if (completed && away(path)) dismiss(path, from);
-} : null);
-addEventListener("pointerdown", (event) => {
-	if (!event.isPrimary) return;
-	if (press) {
-		const before = press;
-		endPress(event, false);
-		overPress(before);
-	}
-	const path = event.composedPath();
-	const begun = {
-		pointerId: event.pointerId,
-		path,
-		ends: [],
-		overs: [],
-		released: false,
-		clickClaimed: false
-	};
-	press = begun;
-	for (const read of pressReaders) {
-		const end = read(event, path);
-		if (end) begun.ends.push(end);
-	}
-	if (event.button !== 0 || labelPress) return;
-	const label = path.find((node) => isHTML(node, "label") && node.control !== null);
-	const held = label && deepFocus();
-	if (!label || !held || held === document.body) return;
-	labelPress = {
-		held,
-		pointerId: event.pointerId,
-		label
-	};
-}, {
-	capture: true,
-	passive: true
-});
-function endPress(event, completed) {
-	if (!press) return;
-	const ended = press;
-	if (!ended.released) {
-		ended.released = true;
-		for (const end of ended.ends) {
-			const over = end(event, completed);
-			if (over) ended.overs.push(over);
-		}
-	}
-	if (!completed) overSoon(ended);
-}
-for (const type of ["pointerup", "pointercancel"]) addEventListener(type, (event) => {
-	if (event.pointerId === labelPress?.pointerId && (type === "pointercancel" || !event.composedPath().includes(labelPress.label))) landLabelPress();
-	if (event.pointerId === press?.pointerId) endPress(event, type === "pointerup");
-}, {
-	capture: true,
-	passive: true
-});
-addEventListener("contextmenu", (event) => {
-	landLabelPress();
-	endPress(event, false);
-}, {
-	capture: true,
-	passive: true
-});
-addEventListener("click", landLabelPress, {
-	capture: true,
-	passive: true
-});
-const recoveredLabelKeys = /* @__PURE__ */ new WeakMap();
-const recoveredLabelFocus = (event) => recoveredLabelKeys.get(event) ?? null;
-addEventListener("keydown", (event) => {
-	placeInput = "focus";
-	const recovering = labelPress;
-	if (!recovering || event.isComposing || MODIFIER_KEYS.includes(event.key)) return;
-	const active = deepFocus();
-	finishLabelPress();
-	const { held } = recovering;
-	if (active === held || !held.isConnected) return;
-	focusDestination(held, "return");
-	if (deepFocus() === held) recoveredLabelKeys.set(event, held);
-}, true);
-for (const type of [
-	"keydown",
-	"pointerdown",
-	"wheel",
-	"touchstart"
-]) addEventListener(type, (event) => {
-	if (type === "pointerdown") pressedPath = event.composedPath().map((node) => new WeakRef(node));
-	else if (type === "keydown") pressedPath = null;
-	stepping = null;
-	if (type === "keydown" || type === "pointerdown") {
-		const step = event instanceof KeyboardEvent && sequential(event) ? event : null;
-		const pressed = pressedPath;
-		stepping = step;
-		setTimeout(() => {
-			if (step && stepping === step) stepping = null;
-			reconcile(step, pressed);
-			queueFocusPaint();
-		});
-	}
-	const at = deepFocus();
-	if (at && at !== document.body || heldByLabel()) return;
-	lastLocation = null;
-	publish(null, cause(null));
-}, {
-	capture: true,
-	passive: true
-});
-function ringBox(node) {
-	if (!isElement(node) || !node.matches(":focus, [data-lf-focus]")) return node;
-	for (let box = renderedParent(node); isElement(box); box = renderedParent(box)) if (getComputedStyle(box).getPropertyValue("--lf-wears-ring") === "1") return box;
-	return node;
-}
-const drawn = (node) => node?.isConnected && !excludedByInert(node) && node.checkVisibility({ visibilityProperty: true });
-const dropped = () => {
-	const at = deepFocus();
-	if (at && at !== document.body) return null;
-	const node = lastLocation?.deref();
-	return node && !drawn(node) ? node : null;
-};
-function holdFocus(scope, { key = null } = {}) {
-	const node = heldIn(scope);
-	if (!node) return null;
-	const restore = holdOn(node);
-	if (!key) return restore;
-	let item = node;
-	while (item && !item.matches?.(`[${key}]`)) item = renderedParent(item);
-	if (!item || item === scope || !renderedUnder(item, scope)) return restore;
-	const tree = item.getRootNode() === scope.getRootNode() ? scope : item.getRootNode();
-	const items = () => [...tree.querySelectorAll(`[${key}]`)].filter((item) => renderedUnder(item, scope));
-	const keys = [...new Set(items().map((each) => each.getAttribute(key)))];
-	const at = keys.indexOf(item.getAttribute(key));
-	const order = [
-		keys[at],
-		...keys.slice(at + 1),
-		...keys.slice(0, at).reverse()
-	];
-	let control = node;
-	while (control.getRootNode() !== item.getRootNode()) {
-		const host = shadowHost(control.getRootNode());
-		if (!host) break;
-		control = host;
-	}
-	const like = control.localName + [...control.classList].map((name) => `.${CSS.escape(name)}`).join("");
-	const [same, ...rest] = order;
-	return (...standIns) => {
-		let byKey = null;
-		const keyed = (value) => {
-			if (!byKey) {
-				byKey = /* @__PURE__ */ new Map();
-				for (const each of items()) {
-					const at = each.getAttribute(key);
-					let group = byKey.get(at);
-					if (!group) {
-						group = [];
-						byKey.set(at, group);
-					}
-					group.push(each);
-				}
-			}
-			return byKey.get(value) ?? [];
-		};
-		const matching = (root) => {
-			if (root.matches(like) && drawn(root)) return root;
-			const assigned = isHTML(root, "slot") ? root.assignedElements({ flatten: true }) : [];
-			for (const child of assigned.length ? assigned : root.children) {
-				const found = matching(child);
-				if (found) return found;
-			}
-			return null;
-		};
-		const find = (value) => {
-			const found = keyed(value).filter(drawn);
-			return found.find((each) => each.matches(like)) ?? found.map(matching).find(Boolean) ?? found[0] ?? null;
-		};
-		const neighbour = (value) => () => {
-			const place = find(value);
-			if (!place || !drawn(place)) return null;
-			focusDestination(place, "return");
-			return landedOn(place);
-		};
-		return restore(() => find(same), ...rest.map(neighbour), ...standIns);
-	};
-}
-const heldIn = (scope) => {
-	const held = heldByLabel();
-	if (held) return renderedUnder(held, scope) ? held : null;
-	const currentLocation = deepFocus(activeIn(scope.getRootNode()) ?? scope.ownerDocument.activeElement);
-	if (currentLocation && currentLocation !== document.body && renderedUnder(currentLocation, scope)) return currentLocation;
-	const node = lastLocation?.deref();
-	return node && renderedUnder(node, scope) ? dropped() : null;
-};
-const currentLocationIn = (scope) => {
-	const at = focused();
-	return Boolean(at) && at !== document.body && renderedUnder(at, scope);
-};
-function rove(items, stop) {
-	for (const item of items) keeps(item, "tabindex", item === stop ? 0 : -1);
-}
-const openers = /* @__PURE__ */ new WeakMap();
-function openLayer(layer, opener = focused()) {
-	openers.set(layer, opener && opener !== document.body ? opener : null);
-}
-const openerOf = (layer) => openers.get(layer) ?? null;
-let closing$1 = 0;
-let deferredLanding = null;
-let landingLayer = false;
-function layerLanding(land) {
-	return (...args) => {
-		if (!landingLayer) throw new Error("A layer's landing runs only as the layer closes");
-		return land(...args);
-	};
-}
-function closeLayer(close, land = null) {
-	closing$1 += 1;
-	let deferred = null;
-	const landingAround = landingLayer;
-	landingLayer = false;
-	try {
-		close();
-	} finally {
-		landingLayer = landingAround;
-		closing$1 -= 1;
-		if (!closing$1) [deferred, deferredLanding] = [deferredLanding, null];
-	}
-	if (closing$1) {
-		if (land) deferredLanding ??= land;
-		return;
-	}
-	const landing = land || deferred;
-	if (landing) {
-		const outer = landingLayer;
-		landingLayer = true;
-		try {
-			landing();
-		} finally {
-			landingLayer = outer;
-		}
-	}
-	const at = deepFocus();
-	if (!at || at === document.body || at === published?.deref()) return;
-	lastLocation = new WeakRef(at);
-	publish(at, "return");
-}
-function holdCurrentLocation() {
-	const at = focused();
-	const node = at && at !== document.body ? at : dropped();
-	return node ? {
-		node,
-		restore: holdOn(node)
-	} : null;
-}
-const carried = /* @__PURE__ */ new WeakMap();
-const carriedFrom = (node) => carried.get(node) ?? null;
-const isCompletion = (value) => value !== null && typeof value === "object" && "then" in value && typeof value.then === "function";
-function holdOn(held) {
-	const caret = readCaret(held);
-	const began = placements;
-	return (...standIns) => {
-		if (placements !== began) return false;
-		for (const standIn of [held, ...standIns]) {
-			if (placements !== began) return false;
-			const place = typeof standIn === "function" ? standIn() : standIn;
-			if (isCompletion(place)) return place.then((destination) => {
-				if (!isElement(destination) || !drawn(destination) || deepFocus() !== destination) return false;
-				return land(() => {
-					focusDestination(destination, "return", { caret });
-					return landedOn(destination);
-				});
-			});
-			if (place === true) return true;
-			if (!isElement(place) || !drawn(place)) continue;
-			if (place === held && deepFocus() === held) return true;
-			if (land(() => {
-				focusDestination(place, "return", { caret });
-				return landedOn(place);
-			})) {
-				const before = carriedFrom(held);
-				if (place !== held) carried.set(place, before?.inputs === inputCount() ? before : {
-					from: held,
-					inputs: inputCount()
-				});
-				return true;
-			}
-		}
-		return false;
-	};
-}
-const land = (landing) => {
-	const was = restoring;
-	restoring = true;
-	try {
-		return landing();
-	} finally {
-		restoring = was;
-	}
-};
-const typesText = inputs.typesText;
-const takesLetters = inputs.takesLetters;
-function controlNavigationKeys(node) {
-	if (node?.matches("input[type=\"radio\"], [role=\"radio\"]")) return [
-		"ArrowLeft",
-		"ArrowRight",
-		"ArrowUp",
-		"ArrowDown"
-	];
-	if (node?.matches("input[type=\"range\"], [role=\"slider\"]")) return [
-		"ArrowLeft",
-		"ArrowRight",
-		"ArrowUp",
-		"ArrowDown",
-		"Home",
-		"End",
-		"PageUp",
-		"PageDown"
-	];
-	return [];
-}
-let readingBlock = () => null;
-function declareReading(read) {
-	readingBlock = read;
-}
-function releaseFocus() {
-	focusDestination(document.body, "move");
-	document.body.blur();
-}
-let released = () => {};
-function declareRelease(release) {
-	released = release;
-}
-let letGoes = 0;
-function release() {
-	const before = letGoes;
-	released();
-	if (letGoes === before) letGo();
-}
-const letGoReaders = /* @__PURE__ */ new Set();
-const onLetGo = (read) => {
-	letGoReaders.add(read);
-	return () => letGoReaders.delete(read);
-};
-function letGo(from = focused()) {
-	letGoes++;
-	const block = readingBlock(from);
-	if (!block?.isConnected) releaseFocus();
-	else {
-		focusDestination(block, "move");
-		block.blur();
-	}
-	if (from && from !== document.body) for (const read of letGoReaders) read(from);
-}
-function handBack(...destinations) {
-	const places = destinations.flatMap((node) => node && node !== document.body ? [node] : []);
-	const landed = () => {
-		const at = placements;
-		return places.some((node) => {
-			if (placements !== at) return true;
-			if (!drawn(node)) return false;
-			focusDestination(node, "return");
-			return landedOn(node);
-		});
-	};
-	if (landed()) return;
-	if (!places.some((node) => node.isConnected)) {
-		letGo();
-		return;
-	}
-	const yielded = !drawn(deepFocus());
-	if (yielded) releaseFocus();
-	const began = placements;
-	const pendingInput = inputCount();
-	nextRender(() => {
-		if (inputCount() !== pendingInput || placements !== began || yielded && deepFocus() !== document.body || landed()) return;
-		letGo();
-	});
-}
-
-//#endregion
-//#region runtime/dom-move.js
-function move(parent, node, before = null) {
-	if (node.parentNode === parent && (before === node || node.nextSibling === before)) return node;
-	if (parent.isConnected) watchCurrentLocationIn(parent.getRootNode());
-	if (parent.moveBefore && node.getRootNode({ composed: true }) === parent.getRootNode({ composed: true })) parent.moveBefore(node, before);
-	else {
-		const restore = isElement(node) ? holdFocus(node) : null;
-		parent.insertBefore(node, before);
-		restore?.();
-	}
-	return node;
-}
-window.lfMove = move;
 
 //#endregion
 //#region runtime/obligations/source.js
@@ -1802,7 +572,7 @@ const tokenChoices = (tokens, inForce) => Object.entries(tokens).map(([name, ent
 	label: name,
 	inForce: inForce.find((item) => item.token === name) ?? null
 }));
-const spoken = (thread) => thread.msgs.filter((message) => !isReaction(message));
+const spoken$1 = (thread) => thread.msgs.filter((message) => !isReaction(message));
 const turns = (thread) => thread.msgs.filter((message) => message.id === thread.root.id || !isReaction(message));
 const threadKey = (thread) => thread.root.attempt ?? thread.id;
 const messageKey = (message) => message.key ?? message.attempt ?? message.id;
@@ -1897,7 +667,7 @@ function foldThreads(threads, gestures) {
 			pending: true
 		} : null;
 	}
-	for (const thread of opened) thread.bare_reaction = isReaction(thread.root) && !spoken(thread).length;
+	for (const thread of opened) thread.bare_reaction = isReaction(thread.root) && !spoken$1(thread).length;
 	return [...copies, ...opened];
 }
 const reactionsAt = (threads, anchor) => threads.filter((thread) => !discussed(thread) && !thread.resolved && sameAnchor(thread.anchor, anchor)).map((thread) => thread.root);
@@ -3227,12 +1997,6 @@ function createPresentationSchedule(bindJob) {
 }
 
 //#endregion
-//#region runtime/version-signal.js
-const tick = (version) => {
-	version.value = version.peek() + 1;
-};
-
-//#endregion
 //#region runtime/semantic-state.js
 let reportPresentationFailure = (reason) => console.error("leaf: presentation failed", reason);
 const presentation = createPresentationCoordinator({ reportFailure: (reason) => reportPresentationFailure(reason) });
@@ -3305,7 +2069,7 @@ const applicationPresenter = ({ region, after, reading, paint, failSoft }) => {
 			const stretch = (run) => {
 				let first = true;
 				let outcome;
-				const stop = x$1(() => {
+				const stop = x(() => {
 					if (!first) {
 						if (!owed && current()) d(() => {
 							const next = selected.value;
@@ -3343,7 +2107,7 @@ const applicationPresenter = ({ region, after, reading, paint, failSoft }) => {
 	}));
 	documentPresenters.push(present);
 	let first = true;
-	x$1(() => {
+	x(() => {
 		const value = selected.value;
 		if (first || value === null) {
 			first = false;
@@ -3537,6 +2301,7 @@ const elementDeclarations = () => Object.entries(registry).filter(([tag]) => isE
 function adoptRegistry(declarations) {
 	for (const [name, value] of Object.entries(declarations)) if (name.startsWith("$")) freeze(value);
 	Object.assign(registry, declarations);
+	if (declarations.$languages) installLanguagePaths(declarations.$languages.paths);
 }
 function freeze(value) {
 	if (value === null || typeof value !== "object" || Object.isFrozen(value)) return;
@@ -3598,17 +2363,6 @@ const hostIn = (node, root) => {
 	while (at && at.getRootNode() !== root) at = shadowHost(at.getRootNode());
 	return at;
 };
-const overIn = (el, selector, frame) => {
-	const near = el.closest(selector);
-	return near && (!frame || under(near, frame)) ? near : null;
-};
-const SAID = "[data-lf-said]";
-const UI_MARKS = `.lf-ui, ${SAID}`;
-const uiInside = (el, within) => {
-	const near = el && overIn(el, ".lf-ui, [data-lf-said]", within);
-	return !!near && !near.matches("[data-lf-said]");
-};
-const inUi = (node) => uiInside(isElement(node) ? node : node?.parentElement, null);
 let shadowRules = "";
 let loading = null;
 function loadShadowRules() {
@@ -3623,209 +2377,1368 @@ async function readShadowRules() {
 }
 
 //#endregion
-//#region runtime/stylesheets.js
-const delivery = document.querySelector("script[type=\"application/json\"][data-lf-runtime][data-lf-sheets]");
-if (!delivery) throw new Error("The document has no runtime stylesheets");
-const sheets = JSON.parse(delivery.textContent);
-function constructSheet(text) {
-	const sheet = new CSSStyleSheet();
-	sheet.replaceSync(text);
-	return sheet;
+//#region runtime/native-selection.js
+function pageRange(sel) {
+	const plain = sel.getRangeAt(0);
+	const shadowRoots = pageShadowRoots();
+	if (!shadowRoots.length) return plain;
+	const [composed] = sel.getComposedRanges({ shadowRoots });
+	if (!composed) return plain;
+	const { startContainer, startOffset, endContainer, endOffset } = composed;
+	if (startContainer.getRootNode() !== endContainer.getRootNode()) return plain;
+	const range = document.createRange();
+	range.setStart(startContainer, startOffset);
+	range.setEnd(endContainer, endOffset);
+	return range;
 }
-const chromeSheet = constructSheet(sheets.chrome);
-const chromeSharedClasses = Object.freeze([
-	"lf-aiming",
-	"lf-over-item",
-	"lf-react-mark",
-	"lf-mark-note",
-	"lf-ui",
-	"lf-version-inline-deletion",
-	"lf-visual-action"
-]);
-const marksSheet = constructSheet(sheets.marks);
-const annotationMarkSheets = sheets.annotations ? [constructSheet(sheets.annotations.marks)] : [];
-const annotationSheets = sheets.annotations ? [constructSheet(sheets.annotations.chrome), ...annotationMarkSheets] : [];
+let writtenSelection = null;
+let writtenBackward = false;
+function selectEnds(anchor, focus) {
+	const selection = getSelection();
+	if (!selection) return;
+	const from = document.createRange(), to = document.createRange();
+	from.setStart(...anchor);
+	to.setStart(...focus);
+	writtenBackward = from.compareBoundaryPoints(Range.START_TO_START, to) > 0;
+	selection.setBaseAndExtent(...anchor, ...focus);
+	writtenSelection = selectionEnds(selection);
+}
+const selectionEnds = (selection) => {
+	const range = selection.rangeCount ? pageRange(selection) : null;
+	return [
+		selection.anchorNode,
+		selection.anchorOffset,
+		selection.focusNode,
+		selection.focusOffset,
+		range?.startContainer,
+		range?.startOffset,
+		range?.endContainer,
+		range?.endOffset
+	];
+};
+function programmaticSelection(selection) {
+	if (!selection) {
+		writtenSelection = null;
+		return false;
+	}
+	const written = writtenSelection;
+	if (!written) return false;
+	if (selectionEnds(selection).every((end, i) => end === written[i])) return true;
+	writtenSelection = null;
+	return false;
+}
+function selectionBackward(selection, range = pageRange(selection)) {
+	const anchor = selection.anchorNode;
+	if (!anchor) return false;
+	if (anchor.getRootNode() !== range.commonAncestorContainer.getRootNode()) return programmaticSelection(selection) ? writtenBackward : selection.direction === "backward";
+	const probe = document.createRange();
+	probe.setStart(anchor, selection.anchorOffset);
+	return probe.compareBoundaryPoints(Range.START_TO_START, range) > 0;
+}
 
 //#endregion
-//#region runtime/keyboard/layer-stack.js
-let entries = [];
-const watchedRoots = /* @__PURE__ */ new WeakSet();
-const nativeDialogShowModal = HTMLDialogElement.prototype.showModal;
-const nativePopoverShow = HTMLElement.prototype.showPopover;
-function prune() {
-	entries = entries.filter((entry) => entry.active());
-}
-function pushNativeLayer(node, source = null) {
-	const at = entries.findIndex((entry) => entry.root === node);
-	const existing = at < 0 ? null : entries[at];
-	if (existing?.active()) return existing;
-	prune();
-	const holding = focused();
-	const entry = {
-		root: node,
-		opening: !isNativeLayer(node),
-		get kind() {
-			return nativeLayerKind(node);
-		},
-		active() {
-			return this.opening || isNativeLayer(node);
-		},
-		fromNowhere: !holding || holding === document.body,
-		opener: holding && holding !== document.body ? holding : null,
-		source
+//#region runtime/keyboard/bindings.js
+const MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+const GLYPH = {
+	Enter: "⏎",
+	" ": "space",
+	Escape: "esc",
+	ArrowUp: "↑",
+	ArrowDown: "↓",
+	ArrowLeft: "←",
+	ArrowRight: "→",
+	Home: "home",
+	End: "end",
+	Tab: "⇥",
+	Mod: MAC ? "⌘" : "Ctrl",
+	Shift: MAC ? "⇧" : "Shift",
+	Alt: MAC ? "⌥" : "Alt"
+};
+const MODIFIERS = [
+	"Mod",
+	"Alt",
+	"Shift"
+];
+const parsed = (binding) => {
+	const separator = binding.lastIndexOf("+");
+	return {
+		key: binding.slice(separator + 1),
+		mods: separator < 0 ? [] : binding.slice(0, separator).split("+")
 	};
-	if (entry.opening) queueMicrotask(() => {
-		entry.opening = false;
-	});
-	entries.push(entry);
-	return entry;
-}
-function closing(event) {
-	if (event.newState !== "closed") return;
-	const entry = entries.find((candidate) => candidate.root === event.target);
-	if (entry) entry.opening = false;
-	if (entry?.kind === "popover") {
-		for (const layer of nativeLayers().toReversed()) if (layer.kind === "modal" && renderedUnder(layer.root, entry.root)) closeNativeLayer(layer.root);
-	}
-	if (entry?.kind === "popover" && entry.fromNowhere && !document.documentElement.inert && canPlaceFocus() && renderedUnder(focused(), entry.root)) releaseFocus();
-}
-HTMLDialogElement.prototype.showModal = function() {
-	const entry = nativeLayerKind(this) !== "modal" ? pushNativeLayer(this) : null;
-	try {
-		return nativeDialogShowModal.call(this);
-	} finally {
-		if (entry) entry.opening = false;
-	}
 };
-HTMLElement.prototype.showPopover = function(options) {
-	const entry = nativeLayerKind(this) !== "popover" ? pushNativeLayer(this) : null;
-	try {
-		nativePopoverShow.call(this, options);
-	} finally {
-		if (entry) entry.opening = false;
-	}
-	if (entry && options?.source) entry.source = options.source;
+const spell = (binding) => {
+	const { key, mods } = parsed(binding);
+	if (mods.length === 1 && mods[0] === "Shift" && /^[a-z]$/.test(key)) return key.toUpperCase();
+	return mods.reduceRight((rest, mod) => {
+		const glyph = GLYPH[mod] ?? mod;
+		return /^\w/.test(glyph) ? `${glyph}+${rest}` : `${glyph}${rest}`;
+	}, GLYPH[key] ?? key);
 };
-function showNativeLayer(layer, { source, modal = true } = {}) {
-	const withholdFocus = Boolean(document.documentElement.lfSample) && !layer.inert;
-	if (withholdFocus) layer.inert = true;
-	try {
-		if (layer instanceof HTMLDialogElement) {
-			if (modal) {
-				if (source) seatModal(layer, source);
-				layer.showModal();
-			} else layer.show();
-		} else {
-			if (source && !isHTML(source)) throw new TypeError("A popover source must be an HTML element");
-			layer.showPopover(source ? { source } : void 0);
-		}
-	} finally {
-		if (withholdFocus) layer.inert = false;
-	}
-}
-const modalHomes = /* @__PURE__ */ new WeakMap();
-function seatModal(dialog, source) {
-	let place = modalHomes.get(dialog);
-	if (!place) {
-		const parent = dialog.parentNode;
-		if (!parent) throw new Error("A modal dialog needs a connected home");
-		place = {
-			home: parent,
-			chrome: Boolean(dialog.closest(".lf-chrome")),
-			scope: null
-		};
-		modalHomes.set(dialog, place);
-		const home = place;
-		const restore = () => {
-			if (dialog.parentNode !== home.home) move(home.home, dialog);
-			home.scope?.remove();
-		};
-		dialog.addEventListener("close", () => {
-			if (!dialog.open) restore();
-		});
-		watchOwner(dialog, { disconnect() {
-			if (dialog.parentNode === home.home) return;
-			closeNativeLayer(dialog);
-			restore();
-		} });
-	}
-	const holder = nativeLayerHolding(source);
-	let seat = place.home;
-	if (holder && nativeLayerKind(holder) === "popover") {
-		if (renderedUnder(holder, place.home)) seat = holder;
-		else if (place.chrome) {
-			if (!place.scope) {
-				place.scope = document.createElement("div");
-				place.scope.className = "lf-chrome";
-			}
-			const root = holder.getRootNode();
-			if (root instanceof ShadowRoot && !root.adoptedStyleSheets.includes(chromeSheet)) root.adoptedStyleSheets = [...root.adoptedStyleSheets, chromeSheet];
-			if (place.scope.parentNode !== holder) move(holder, place.scope);
-			seat = place.scope;
-		}
-	}
-	if (dialog.parentNode !== seat) move(seat, dialog);
-}
-function closeNativeLayer(layer) {
-	const dialog = layer instanceof HTMLDialogElement;
-	if (dialog ? !layer.open : !isNativeLayer(layer)) return;
-	const currentLocation = focused();
-	const returnTo = entries.find((entry) => entry.root === layer)?.opener;
-	const returnLocally = document.documentElement.lfSample && currentLocation && renderedUnder(currentLocation, layer);
-	const inhibited = document.documentElement.lfSample ? [document.documentElement, ...nativeLayers().filter((entry) => entry.kind === "modal").map((entry) => entry.root)].filter((node) => !node.inert) : [];
-	closeLayer(() => {
-		for (const node of inhibited) node.inert = true;
-		try {
-			if (dialog) layer.close();
-			else layer.hidePopover();
-		} finally {
-			for (const node of inhibited) node.inert = false;
-		}
-	}, returnLocally && (() => {
-		if (!canPlaceFocus()) return;
-		if (returnTo) handBack(returnTo);
-		else releaseFocus();
+const softKeyboard = () => coarsePointer.matches;
+const submitBindings = () => softKeyboard() ? ["Mod+Enter"] : ["Enter", "Mod+Enter"];
+const advertisesKeys = () => !coarsePointer.matches;
+const spokenBinding = (binding) => {
+	const { key, mods } = parsed(binding);
+	const spokenModifier = (mod) => {
+		if (mod === "Mod") return MAC ? "Command" : "Control";
+		return mod;
+	};
+	const spokenKey = key === " " ? "Space" : key;
+	return [...mods.map(spokenModifier), spokenKey].join("+");
+};
+const word = (cell) => typeof cell === "function" ? cell() : cell;
+const declaredBindings = (row) => word(row.keys) ?? [];
+const contextBindings = (row) => word(row.contextKeys) ?? [];
+const titleOf = (row) => {
+	const title = word(row.title);
+	if (typeof title !== "string" || !title.trim()) throw new TypeError(`leaf: ${row.id} has no command title; expected non-empty text`);
+	return title;
+};
+const descriptionOf = (row) => word(row.description) ?? "";
+const allBindings = (row) => [.../* @__PURE__ */ new Set([
+	...declaredBindings(row),
+	...contextBindings(row),
+	...commandRoutes(row).flatMap(contextBindings)
+])];
+const commandRoutes = (row) => word(row.routes) ?? [];
+const commandBinding = (row, route = null) => route ? route.binding ?? contextBindings(route)[0] : declaredBindings(row)[0] ?? contextBindings(row)[0];
+const ROUTED_COMMAND = Symbol("a routed command reference");
+const contextualRoute = (route, command) => ({
+	...route,
+	[ROUTED_COMMAND]: command
+});
+const routedCommand = (route) => route?.[ROUTED_COMMAND] ?? null;
+const quickShortcuts = () => window.lfKeyboard.quick;
+const setQuickShortcuts = (on) => window.lfKeyboard.setQuick(on);
+const bindingEnabledFor = (binding, quick) => {
+	const { key, mods } = parsed(binding);
+	return quick || key.length !== 1 || key === " " || mods.some((mod) => mod !== "Shift");
+};
+const bindingEnabled = (binding) => bindingEnabledFor(binding, quickShortcuts());
+const bindings = (row) => declaredBindings(row).filter(bindingEnabled);
+const commandEntries = (row, active = bindings(row), { includeUnavailable = false } = {}) => {
+	const routes = commandRoutes(row);
+	if (!routes.length) return includeUnavailable || commandAvailable(row) ? [{
+		id: row.id,
+		binding: active[0],
+		route: null
+	}] : [];
+	return routes.filter((route) => (includeUnavailable || commandAvailable(row, route)) && (route.binding !== void 0 && active.includes(route.binding) || contextBindings(route).some((binding) => active.includes(binding)))).map((route) => ({
+		id: route.id,
+		binding: route.binding ?? active.find((binding) => contextBindings(route).includes(binding)),
+		route
 	}));
-}
-const changeListeners = /* @__PURE__ */ new Set();
-function watchLayerChanges(listener) {
-	changeListeners.add(listener);
-	return () => changeListeners.delete(listener);
-}
-const changed = (event) => {
-	if (!(event.target instanceof HTMLElement) || !event.target.matches("[popover], dialog")) return;
-	for (const listener of changeListeners) listener(event);
 };
-function watchLayers(root) {
-	if (watchedRoots.has(root)) return;
-	watchedRoots.add(root);
-	const opened = (event) => {
-		if (event.newState === "open" && event.target instanceof HTMLElement && event.target.matches("[popover], dialog")) pushNativeLayer(event.target, event.source);
-	};
-	root.addEventListener("beforetoggle", opened, true);
-	root.addEventListener("beforetoggle", closing, true);
-	root.addEventListener("toggle", opened, true);
-	root.addEventListener("toggle", changed, true);
-}
-watchLayers(document);
-function nativeLayers() {
-	prune();
-	return entries.filter((entry) => entry.active());
-}
-const NATIVE_LAYERS = Symbol.for("leaf.nativeLayers");
-Object.defineProperty(document, NATIVE_LAYERS, { value: nativeLayers });
-function nativeModalAdmits(node) {
-	const owner = node.ownerDocument;
-	const reading = owner[NATIVE_LAYERS];
-	if (reading) {
-		const modal = reading().findLast((layer) => layer.kind === "modal")?.root;
-		return !modal || renderedUnder(node, modal);
+const commandPresentations = (row, active = bindings(row), options = {}) => {
+	if (row.runFromCommandReference === false) return [{
+		id: row.id,
+		route: null
+	}];
+	return commandEntries(row, active, options);
+};
+const labelOf = (row) => {
+	const label = word(row.label);
+	if (label !== void 0 && label !== null) return label;
+	return bindings(row).map(spell).join(" / ");
+};
+const controlOutputs = /* @__PURE__ */ new WeakMap();
+function controlAvailabilityOutput(control, owner, fields = null) {
+	let outputs = controlOutputs.get(control);
+	if (!fields) {
+		outputs?.delete(owner);
+		return;
 	}
-	return [...owner.querySelectorAll("dialog")].filter((dialog) => nativeLayerKind(dialog) === "modal").every((modal) => renderedUnder(node, modal));
+	if (!outputs) controlOutputs.set(control, outputs = /* @__PURE__ */ new Map());
+	outputs.set(owner, fields);
 }
-function dismissPopoversOutside(root) {
-	for (const entry of nativeLayers().toReversed()) if (entry.kind === "popover" && entry.root.popover !== "manual" && !renderedUnder(entry.root, root)) closeNativeLayer(entry.root);
+function disabledByFieldset(control) {
+	for (let parent = control.parentElement; parent; parent = parent.parentElement) {
+		if (!(parent instanceof HTMLFieldSetElement) || !parent.disabled) continue;
+		if (![...parent.children].find((child) => child.localName === "legend")?.contains(control)) return true;
+	}
+	return false;
+}
+function controlAvailable(control) {
+	if (!control?.isConnected) return false;
+	const outputs = [...controlOutputs.get(control)?.values() ?? []];
+	const disabled = outputs.some((fields) => fields.disabled) ? disabledByFieldset(control) : control.matches(":disabled");
+	const ariaDisabled = !outputs.some((fields) => fields.ariaDisabled) && control.getAttribute("aria-disabled") === "true";
+	return !disabled && !ariaDisabled;
+}
+const declaredCommandAvailable = (row, route = null) => commandReady(row, route) && (!row.when || row.when()) && (!route?.when || route.when());
+const scopeReadiness = /* @__PURE__ */ new WeakMap();
+const savedReadingSettled = () => runtime.statePhase !== "waiting";
+function declareCommandReadiness(rows, ready) {
+	if (ready !== void 0 && typeof ready !== "function") throw new TypeError("leaf: scope readiness must be a function");
+	if (ready) for (const row of rows) scopeReadiness.set(row, ready);
+}
+const commandReady = (row, route = null) => {
+	const saved = savedReadingSettled();
+	if ((row.decision || route?.decision) && !saved) return false;
+	const reference = routedCommand(route);
+	if (reference) {
+		const entry = referencedCommandEntry(reference, { includeUnavailable: true });
+		if (entry && !commandReady(reference.row, entry.route)) return false;
+	}
+	const ready = route?.ready ?? row.ready ?? scopeReadiness.get(row);
+	return ready ? ready() : true;
+};
+const scopeAvailable = (scope) => !commandReady(scope) || !scope.when || scope.when();
+const commandAvailable = (row, route = null) => {
+	const control = route?.control ?? row.control;
+	const reference = routedCommand(route);
+	return declaredCommandAvailable(row, route) && (control === void 0 || controlAvailable(word(control))) && (!reference || referencedCommandEntry(reference) !== null);
+};
+function referencedCommandEntry(reference, options) {
+	if (!reference.source.isConnected || !reference.scope.rows.includes(reference.row) || !scopeAvailable(reference.scope)) return null;
+	return commandEntries(reference.row, allBindings(reference.row), options).find(({ id, binding }) => id === reference.id && (binding ?? null) === reference.binding) ?? null;
+}
+const live = (row) => {
+	const routes = commandRoutes(row);
+	return routes.length ? routes.some((route) => commandAvailable(row, route)) : commandAvailable(row);
+};
+const availableBindings = (row, declared) => declared.filter((binding) => commandEntries(row, [binding]).length > 0);
+const touchPresses = (row) => row.touch ? [{
+	id: row.id,
+	row,
+	binding: void 0,
+	words: row.touch
+}] : [];
+const COMMAND_ID = /^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9-]*)+$/;
+const canonicalBinding = (binding) => {
+	const { key: declaredKey, mods } = parsed(binding);
+	const key = declaredKey === "Space" ? " " : declaredKey;
+	const letter = key.length === 1 && key.toLowerCase() !== key.toUpperCase();
+	const named = key === " " || key.length > 1;
+	const canonicalKey = letter ? key.toLowerCase() : key;
+	return [...MODIFIERS.filter((mod) => mods.includes(mod) && (mod !== "Shift" || letter || named)), canonicalKey].join("+");
+};
+function validateActive(active, where, bindingOf) {
+	const owners = /* @__PURE__ */ new Map();
+	for (const row of active) for (const binding of bindingOf(row)) {
+		const identity = canonicalBinding(binding);
+		const prior = owners.get(identity);
+		if (prior) throw new Error(`leaf: ${where} has two live meanings for ${binding}: ${titleOf(prior)}; ${titleOf(row)}`);
+		owners.set(identity, row);
+	}
+	return active;
+}
+const validateRows = (rows, where = "a scope") => {
+	const active = rows.filter(live);
+	validateActive(active, where, (row) => availableBindings(row, declaredBindings(row)));
+	return validateActive(active, where, (row) => availableBindings(row, [...contextBindings(row), ...commandRoutes(row).flatMap(contextBindings)]));
+};
+function activeRows(rows, where = "a scope") {
+	return validateActive(rows.filter((row) => live(row) && bindings(row).length > 0), where, (row) => availableBindings(row, bindings(row)));
+}
+function decisionControls(commands, where = "an obligation") {
+	const controls = /* @__PURE__ */ new Map();
+	for (const { source, scope, row } of commands) {
+		const routes = commandRoutes(row);
+		const candidates = [...row.decision ? [{
+			row,
+			route: null
+		}] : [], ...routes.filter((route) => route.decision).map((route) => ({
+			row,
+			route
+		}))];
+		for (const { route } of candidates) {
+			const contribution = route ?? row;
+			const control = word(contribution.control ?? row.control);
+			const label = titleOf(contribution);
+			const description = descriptionOf(route?.description !== void 0 ? route : row);
+			const bindingBadge = word(contribution.bindingBadge !== void 0 ? contribution.bindingBadge : row.bindingBadge) ?? null;
+			const active = route ? [route.binding, ...contextBindings(route)].filter(Boolean) : allBindings(row);
+			if (control == null) continue;
+			if (!(control instanceof Element)) throw new TypeError(`leaf: ${contribution.id} in ${where} has no control`);
+			if (bindingBadge !== null && !(bindingBadge instanceof Element)) throw new TypeError(`leaf: ${contribution.id} in ${where} has no Element binding badge`);
+			const binding = active[0] ?? null;
+			const record = {
+				id: contribution.id,
+				source,
+				control,
+				label,
+				description,
+				recommended: Boolean(contribution.recommended ?? row.recommended),
+				commits: Boolean(contribution.commits ?? row.commits),
+				bindingBadge,
+				intrinsicBindings: active,
+				command: Object.freeze({
+					id: contribution.id,
+					source,
+					scope,
+					row,
+					binding,
+					control
+				})
+			};
+			const prior = controls.get(control);
+			if (prior) {
+				if (prior.id !== record.id || prior.label !== record.label || prior.bindingBadge !== record.bindingBadge || prior.command.source !== record.command.source || prior.command.scope !== record.command.scope || prior.command.row !== record.command.row) throw new TypeError(`leaf: one control has two Decision commands in ${where}: ${prior.id} and ${record.id}`);
+				continue;
+			}
+			controls.set(control, record);
+		}
+	}
+	return [...controls.values()];
+}
+const ariaBindings = (binding) => {
+	const { key, mods } = parsed(binding);
+	return (mods.includes("Mod") ? ["Meta", "Control"] : [null]).map((modKey) => [...mods.map((mod) => mod === "Mod" ? modKey : mod), key === " " ? "Space" : key].filter(Boolean).join("+"));
+};
+const ariaShortcuts = (rows, current = true, where, includes = () => true) => [...new Set((current ? activeRows(rows, where) : rows).flatMap((row) => bindings(row).filter((binding) => !current || commandEntries(row, [binding]).some((entry) => includes(binding, entry, row))).flatMap(ariaBindings)))].join(" ");
+function answers(binding, ev) {
+	const { key, mods } = parsed(binding);
+	if (mods.includes("Mod") !== (ev.metaKey || ev.ctrlKey)) return false;
+	if (mods.includes("Alt") !== ev.altKey) return false;
+	const shift = mods.includes("Shift");
+	if (key.length === 1 && key.toLowerCase() !== key.toUpperCase()) return ev.key.toLowerCase() === key.toLowerCase() && ev.shiftKey === shift;
+	return key === " " || key.length > 1 ? ev.key === key && ev.shiftKey === shift : ev.key === key && (!shift || ev.shiftKey);
+}
+const declaresCommandHandler = (row, handler) => Boolean(Object.getOwnPropertyDescriptor(row, handler)?.get) || typeof row[handler] === "function";
+function checked(rows, where, ready) {
+	declareCommandReadiness(rows, ready);
+	const ids = /* @__PURE__ */ new Map();
+	const named = (command) => {
+		if (typeof command.id !== "string" || !COMMAND_ID.test(command.id)) throw new Error(`leaf: ${where} names ${String(command.id)}, which is not a stable command id`);
+		const prior = ids.get(command.id);
+		if (prior && (!routedCommand(command) || routedCommand(prior) !== routedCommand(command))) throw new Error(`leaf: ${where} declares ${command.id} twice`);
+		ids.set(command.id, command);
+		if (!(typeof command.title === "function" || typeof command.title === "string" && command.title.trim())) throw new Error(`leaf: ${command.id} has no command title`);
+		if (command.description !== void 0 && typeof command.description !== "string" && typeof command.description !== "function") throw new Error(`leaf: ${command.id} has invalid command description`);
+		if (command.ready !== void 0 && typeof command.ready !== "function") throw new TypeError(`leaf: ${command.id} readiness must be a function`);
+		if (command.decision !== void 0 && typeof command.decision !== "boolean") throw new Error(`leaf: ${command.id} has invalid Decision role; expected a boolean`);
+	};
+	rows.forEach((row, i) => {
+		if (!row) throw new TypeError(`${where}: row ${i + 1} is missing`);
+		named(row);
+		const declaresRun = declaresCommandHandler(row, "run");
+		const declaresRunKey = declaresCommandHandler(row, "runKey");
+		if (row.decision && row.control == null) throw new Error(`leaf: ${row.id} is a Decision command with no control`);
+		if (row.lands !== void 0 && typeof row.lands !== "function") throw new TypeError(`leaf: ${row.id} lands must be a function`);
+		if (row.native && !declaresRun && !declaresRunKey) throw new Error(`leaf: row ${i} of ${where} leaves the native press to the platform but runs no result`);
+		if (row.exit && (!declaresRun || row.touch || row.routes)) throw new Error(`leaf: ${row.id} is its stance's way out, which the panel's row offers in its own words, so it needs a run and no touch words or routes`);
+		if (row.touch && (!declaresRun || row.routes)) throw new Error(`leaf: ${row.id} stands in for its keys under a finger, so it needs a run and makes one press, with no routes`);
+		const routes = commandRoutes(row);
+		if (routes.length && contextBindings(row).length) throw new Error(`leaf: ${row.id} owns distinct routes; declare contextKeys on each route`);
+		const declared = declaredBindings(row);
+		const routed = /* @__PURE__ */ new Map();
+		const contextual = /* @__PURE__ */ new Map();
+		for (const route of routes) {
+			named(route);
+			if (route.decision && route.control == null && row.control == null) throw new Error(`leaf: route ${route.id} of ${row.id} is a Decision command with no control`);
+			if ((route.binding === void 0 || !declared.includes(route.binding)) && !contextBindings(route).length) throw new Error(`leaf: route ${route.id} uses ${String(route.binding)}, which ${row.id} does not bind`);
+			const routeBindings = [[route.binding === void 0 ? [] : [route.binding], routed], [contextBindings(route), contextual]];
+			for (const [bindings, owners] of routeBindings) for (const binding of bindings) {
+				const prior = owners.get(binding);
+				if (prior && prior !== route) throw new Error(`leaf: ${row.id} routes ${binding} twice`);
+				owners.set(binding, route);
+			}
+		}
+		if (routes.length) {
+			const missing = declared.filter((binding) => !routed.has(binding));
+			if (missing.length) throw new Error(`leaf: ${row.id} has no route for ${missing.join(", ")}`);
+		}
+		for (const binding of allBindings(row)) {
+			for (const mod of parsed(binding).mods) if (!MODIFIERS.includes(mod)) throw new Error(`leaf: row ${i} of ${where} binds ${binding}, and ${mod} is no modifier this dispatcher answers (${MODIFIERS.join(", ")})`);
+			const canonical = canonicalBinding(binding);
+			if (binding !== canonical) throw new Error(`leaf: row ${i} of ${where} binds ${binding}; write the canonical ${canonical.endsWith(" ") ? JSON.stringify(canonical) : canonical}`);
+		}
+	});
+	return rows;
+}
+function clampedRow(rows, current, dir, entry = dir > 0 ? 0 : rows.length - 1) {
+	if (!rows.length) return void 0;
+	const at = rows.findIndex((row) => row === current);
+	const next = at < 0 ? entry : at + dir;
+	return rows[Math.max(0, Math.min(rows.length - 1, next))];
+}
+const hasRows = (rows) => rows.length > 0;
+function cycledRow(rows, current, dir) {
+	if (!rows.length) return void 0;
+	const at = rows.findIndex((row) => row === current);
+	return rows[((at < 0 ? dir > 0 ? 0 : rows.length - 1 : at + dir) + rows.length) % rows.length];
+}
+function nativePress(control) {
+	return control instanceof HTMLElement && control.isConnected ? () => control.click() : null;
+}
+function commandRun(row, binding, control = word(row.control)) {
+	const keyed = row.runKey;
+	const action = row.run;
+	if (keyed && binding != null) return () => keyed(binding);
+	return action ?? nativePress(control);
 }
 
 //#endregion
-export { AsyncDirective, CARET_KEYS, COLLAPSE, DELIVERY, DRAFT_FORMAT, J, LENT_REACH_STOP, LIVE_ROOT, LitElement, MODIFIER_KEYS, PAGE_ROOT, PENDING, PRESENTATION_DOM, PRESSES, PartType$1 as PartType, SAID, SHARE_ROOT, TAB_STOP, TEXT_BLOCK, TEXT_BOX, TEXT_FIELD, UI_MARKS, W, WEBSITE_DELIVERY, WORKS, Z, actionForWidget, adoptRegistry, agentName, agentSays, anchorKey, annotationMarkSheets, annotationMode, annotationSheets, applicationPresented, applicationPresenter, applicationRegionsPresented, applicationState, attachApplicationPresentation, attachWidgetPresentation, authoredRank, bareReaction, blurFocused, canPlaceFocus, caretAtKey, carriedFrom, carriesObligation, chromeSharedClasses, chromeSheet, claimReleaseClick, closeLayer, closeNativeLayer, coarsePointer, controlNavigationKeys, createPresentationSchedule, currentLocationIn, currentLocationNodes, currentLocationTouches, d, decisionFor, declarationFor, declareReading, declareRelease, declaredRoot, deepFocus, directive$1 as directive, discussed, dismissPopoversOutside, documentChanged, drawingSchema, drawn, editable, elementDeclarations, elementsDeclaring, eventSource, exhibits, focusDestination, focusRevision, focused, foldWidgetStates, fragmentId, guard, handBack, hasObligationSource, holdCurrentLocation, holdFocus, hostIn, hoveringPointer, html$1 as html, inUi, inputCount, inputInFrame, isElementName, isMessageEvent, isNews, isReaction, isThreadEvent, itemNoun, itemOutcome, keyed, lastMovedAt, layerFact, layerLanding, layerRoot, leafSays, letGo, live, loadShadowRules, marks, marksSheet, matchesWhen, messageKey, move, moved, nativeFocusTarget, nativeLayers, nativeModalAdmits, noChange, nothing$1 as nothing, obligationValue, offlineData, offlineInteractive, offlineState, onCurrentLocation, onFocusVisibility, onLetGo, onPress, onPressAway, onUserInput, openLayer, openerOf, overIn, pageClaimed, pageShadowRoots, pageUrl, plainPress, pointerAt, presentDocument, pressHolds, pressIsKeyboardActivation, pressLed, pressRecords, pressing, projectView, projectionOrigins, projectionRegionsPresented, q, queueWidgetUpdate, rankAt, reactionsAt, readApplication, readApplicationPresentation, readCaret, readPart, recentPlaceInput, recordedWidgetSelector, recoveredLabelFocus, ref, refuseShadowRoot, registry, release, releaseFocus, render, renderedChildren, repeat, restorePointer, revisionLabel, ringBox, rove, runtime, runtimeModule, runtimeResource, saidBy, sameAnchor, seatRoot, selectWidgets, selectsAll, setPresentationFailureReporter, shadowRootsIn, shadowRules, share, shareUrl, showNativeLayer, stateSpecs, tabStops, tagsDeclaring, takesLetters, threadCounts, threadKey, threadNames, tick, tokenChoices, tokenEntry, turns, typesText, uiInside, visibleFocus, voiceOf, voiced, watchCurrentLocationIn, watchLayerChanges, watchLayers, watchPresentation, watchSemantic, wearsLentStop, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenLeft, whenWidgetsPresented, wordsText, x$1 as x };
+//#region runtime/keyboard/text-entry.js
+function EVERYTHING() {
+	return true;
+}
+function CHARACTER(binding) {
+	return [...parsed(binding).key].length === 1;
+}
+const EDITING = /* @__PURE__ */ new Set([
+	"Enter",
+	"Backspace",
+	"Delete",
+	...CARET_KEYS
+]);
+function TEXT_ENTRY(binding) {
+	return CHARACTER(binding) || EDITING.has(parsed(binding).key);
+}
+function nativeClaimAt(control) {
+	if (takesLetters(control)) return TEXT_ENTRY;
+	const navigation = controlNavigationKeys(control);
+	return navigation.length ? (binding) => navigation.includes(parsed(binding).key) : null;
+}
+const LINK = "a[href], area[href]";
+const ACTIVATION = [
+	[LINK, ["Enter"]],
+	[`button, ${ROLE_BUTTON_OFFER}, details > summary, input:is([type="button"], [type="submit"], [type="reset"], [type="image"])`, PRESS],
+	["input:is([type=\"checkbox\"], [type=\"radio\"])", [" "]]
+];
+function nativeActivationAt(control) {
+	const presses = ACTIVATION.find(([selector]) => control?.matches?.(selector))?.[1];
+	return presses ? (binding) => presses.includes(binding) : null;
+}
+
+//#endregion
+//#region runtime/repaint.js
+let painters = null;
+let frame = 0;
+let movePage = false;
+function mountRepaint(slots) {
+	painters = slots;
+	onCurrentLocation(requestFrame);
+	onFocusVisibility(requestFrame);
+	requestFrame();
+}
+function requestFrame() {
+	const p = painters;
+	if (!p || frame) return;
+	frame = nextRender(() => {
+		frame = 0;
+		const shiftPage = movePage;
+		movePage = false;
+		p.reflectFirstScopes?.();
+		p.markHere?.();
+		p.paintCurrentLocation?.();
+		p.paintSelectedMarginEntries?.();
+		p.paintTouchControls?.();
+		p.paintCloseRequests?.();
+		p.paintStatusContext?.();
+		p.syncLayout?.();
+		if (shiftPage) p.pageShifted?.();
+		p.publishInputHint?.();
+		p.paintGoToHints?.();
+		p.paintTargetPickerHints?.();
+		p.paintCommandHints?.();
+		p.paintCoreControls?.();
+		p.paintVersionShortcuts?.();
+		p.reflectKeys?.();
+	});
+}
+function repaint() {
+	requestFrame();
+}
+function repaintPage() {
+	movePage = true;
+	requestFrame();
+}
+
+//#endregion
+//#region runtime/keyboard/scopes.js
+const unpainted = /* @__PURE__ */ new Map();
+let buttonsDirty = true;
+const wiredButtons = /* @__PURE__ */ new WeakSet();
+const buttonReadings = /* @__PURE__ */ new WeakMap();
+const buttonCommand = (control) => buttonReadings.get(control);
+const buttonBaselines = /* @__PURE__ */ new WeakMap();
+const BUTTON_AVAILABILITY = Symbol("native command availability");
+const commandAvailabilityReaders = /* @__PURE__ */ new Set();
+function watchCommandAvailability(read) {
+	commandAvailabilityReaders.add(read);
+	buttonsDirty = true;
+	return () => commandAvailabilityReaders.delete(read);
+}
+const reflectCommandAvailability = () => {
+	for (const read of commandAvailabilityReaders) read();
+};
+const commandScopeReaders = /* @__PURE__ */ new Set();
+function watchCommandScopes(read) {
+	commandScopeReaders.add(read);
+	buttonsDirty = true;
+	return () => commandScopeReaders.delete(read);
+}
+function* nativeCommandScopes() {
+	for (const ref of scopeRefs) {
+		const source = ref.deref();
+		if (source?.isConnected) for (const scope of scopesAt(source)) yield {
+			source,
+			scope
+		};
+	}
+	for (const read of commandScopeReaders) for (const scope of read()) yield {
+		source: document.documentElement,
+		scope
+	};
+}
+const projectedOnto = (control, scope) => [...projectedScopes.get(control)?.values() ?? []].some((projected) => scopeIdentity(projected) === scopeIdentity(scope));
+function buttonDeclarations() {
+	const declarations = /* @__PURE__ */ new Map();
+	for (const { source, scope } of nativeCommandScopes()) {
+		if (scope.contextual || scope.sequence) continue;
+		for (const row of scope.rows) {
+			if (!row.run && !row.runKey) continue;
+			const routes = commandRoutes(row);
+			for (const entry of routes.length ? routes : [row]) {
+				const control = word(entry.control ?? row.control);
+				if (!(control instanceof HTMLButtonElement) || !control.isConnected) continue;
+				if (projectedOnto(control, scope)) continue;
+				const run = commandRun(row, commandBinding(row, entry === row ? null : entry), null);
+				if (!run) continue;
+				const candidate = {
+					source,
+					scope,
+					row,
+					run,
+					entry
+				};
+				const candidates = declarations.get(control);
+				if (!candidates) declarations.set(control, [candidate]);
+				else if (!candidates.some((candidate) => candidate.row === row && candidate.entry.id === entry.id)) candidates.push(candidate);
+			}
+		}
+	}
+	return declarations;
+}
+function chosenCommand(candidates) {
+	const [first, second] = candidates.filter(({ scope, row, entry }) => (!scope.when || scope.when()) && declaredCommandAvailable(row, entry === row ? null : entry));
+	if (first && second) throw new TypeError(`leaf: ${second.entry.id} shares a button with ${first.entry.id}`);
+	return first ?? candidates[0];
+}
+function buttonCommands() {
+	return new Map([...buttonDeclarations()].map(([control, candidates]) => [control, chosenCommand(candidates)]));
+}
+function releaseButtons(declarations) {
+	for (const ref of scopeRefs) {
+		const control = ref.deref();
+		if (!(control instanceof HTMLButtonElement) || declarations.has(control)) continue;
+		const baseline = buttonBaselines.get(control);
+		if (!baseline) continue;
+		buttonReadings.delete(control);
+		buttonAvailability.get(control)?.();
+		buttonAvailability.delete(control);
+		const { disabled, ariaDisabled } = baseline;
+		if (control.disabled !== disabled) control.disabled = disabled;
+		keeps(control, "aria-disabled", ariaDisabled);
+		buttonBaselines.delete(control);
+		controlAvailabilityOutput(control, BUTTON_AVAILABILITY);
+		reflectElementShortcuts(control);
+		forgetScopedElement(control);
+	}
+}
+const buttonAvailability = /* @__PURE__ */ new WeakMap();
+const buttonCandidates = /* @__PURE__ */ new WeakMap();
+const sameCandidates = (left, right) => left?.length === right.length && right.every((candidate, index) => candidate.scope === left?.[index]?.scope && candidate.row === left?.[index]?.row && candidate.entry === left?.[index]?.entry);
+function reflectButton(control, candidates) {
+	buttonAvailability.get(control)?.();
+	buttonCandidates.set(control, candidates);
+	const ref = new WeakRef(control);
+	let reading = {
+		control,
+		candidates
+	};
+	let failure = null;
+	const dispose = x(() => {
+		if (reading) {
+			const read = reading;
+			reading = null;
+			try {
+				focusRevision();
+				const command = chosenCommand(read.candidates);
+				const { scope, row, entry } = command;
+				const disabled = Boolean(scope.when && !scope.when() || !commandAvailable(row, entry === row ? null : entry));
+				keeps(read.control, "aria-disabled", disabled ? "true" : null);
+				buttonReadings.set(read.control, command);
+			} catch (error) {
+				failure = error;
+			}
+			return;
+		}
+		const moved = ref.deref();
+		if (moved) {
+			dirtyButtons.add(moved);
+			repaint();
+		} else dispose();
+	});
+	buttonAvailability.set(control, dispose);
+	if (failure) throw failure;
+}
+function claimButton(control) {
+	if (!buttonBaselines.has(control)) buttonBaselines.set(control, {
+		disabled: control.disabled,
+		ariaDisabled: control.getAttribute("aria-disabled")
+	});
+	controlAvailabilityOutput(control, BUTTON_AVAILABILITY, {
+		disabled: true,
+		ariaDisabled: true
+	});
+	if (control.disabled) control.disabled = false;
+	rememberScopedElement(control);
+}
+function runLanding(row, run, from) {
+	run();
+	const to = row.lands?.(from);
+	if (to) focusDestination(to, "move");
+}
+function wireButton(control) {
+	claimButton(control);
+	if (wiredButtons.has(control)) return;
+	wiredButtons.add(control);
+	control.addEventListener("click", (event) => {
+		if (event.defaultPrevented || event.button !== 0) return;
+		const command = buttonCommands().get(control);
+		if (!command) return;
+		event.preventDefault();
+		if (command.scope.when && !command.scope.when() || !commandAvailable(command.row, command.entry === command.row ? null : command.entry)) return;
+		runLanding(command.row, command.run, control);
+	});
+}
+function wireDeclaredButtons(scope) {
+	if (scope.contextual || scope.sequence) return;
+	for (const row of scope.rows) {
+		if (!declaresCommandHandler(row, "run") && !declaresCommandHandler(row, "runKey") || typeof row.routes === "function") continue;
+		for (const entry of row.routes?.length ? row.routes : [row]) {
+			const control = entry.control ?? row.control;
+			if (control instanceof HTMLButtonElement && !projectedOnto(control, scope)) wireButton(control);
+		}
+	}
+}
+const elementScopes = /* @__PURE__ */ new WeakMap();
+const projectedScopes = /* @__PURE__ */ new WeakMap();
+const commandScopeCapabilities = /* @__PURE__ */ new WeakSet();
+const scopeIdentity = (scope) => scope.identity ?? scope;
+const isCommandScope = (capability) => capability != null && (typeof capability === "object" || typeof capability === "function") && commandScopeCapabilities.has(capability);
+const localContexts = /* @__PURE__ */ new WeakMap();
+function localContext(source, scope) {
+	let contexts = localContexts.get(source);
+	if (!contexts) localContexts.set(source, contexts = /* @__PURE__ */ new WeakMap());
+	let contextual = contexts.get(scope);
+	if (!contextual) {
+		contextual = {
+			identity: Object.freeze({}),
+			title: scope.title,
+			contextual: true,
+			el: source,
+			when: scope.when,
+			ready: scope.ready,
+			get rows() {
+				return contextRows([{
+					source,
+					scope
+				}]);
+			}
+		};
+		contexts.set(scope, contextual);
+	}
+	return contextual;
+}
+const scopesAt = (element) => {
+	return [elementScopes.get(element), ...projectedScopes.get(element)?.values() ?? []].filter((scope) => scope !== void 0).flatMap((scope) => scope.contextual ? [scope] : [scope, localContext(element, scope)]);
+};
+const contextRowsBySource = /* @__PURE__ */ new WeakMap();
+function contextRows(declarations) {
+	return declarations.flatMap(({ source, scope, rows = scope.rows }) => {
+		let scopes = contextRowsBySource.get(source);
+		if (!scopes) contextRowsBySource.set(source, scopes = /* @__PURE__ */ new WeakMap());
+		let rowsBySource = scopes.get(scope);
+		if (!rowsBySource) scopes.set(scope, rowsBySource = /* @__PURE__ */ new WeakMap());
+		return rows.flatMap((row) => {
+			const contributions = () => commandRoutes(row).length ? commandRoutes(row) : [row];
+			if (!contributions().some((contribution) => contextBindings(contribution).length)) return [];
+			let contextual = rowsBySource.get(row);
+			if (!contextual) {
+				contextual = {
+					id: row.id,
+					title: () => titleOf(row),
+					description: () => descriptionOf(row),
+					get keys() {
+						return commandRoutes(this).flatMap(({ binding }) => binding === void 0 ? [] : [binding]);
+					},
+					get routes() {
+						return contributions().flatMap((contribution) => {
+							const aliases = contextBindings(contribution);
+							const reference = Object.freeze({
+								id: contribution.id,
+								source,
+								scope,
+								row,
+								binding: commandBinding(row, contribution === row ? null : contribution) ?? null,
+								get control() {
+									return word(contribution.control ?? row.control);
+								}
+							});
+							return aliases.map((binding) => contextualRoute({
+								id: contribution.id,
+								binding,
+								title: () => titleOf(contribution),
+								description: () => descriptionOf(contribution),
+								control: contribution.control ?? row.control,
+								bindingBadge: contribution.bindingBadge !== void 0 ? contribution.bindingBadge : row.bindingBadge,
+								intrinsicBindings: contribution === row ? declaredBindings(row) : contribution.binding ? [contribution.binding] : []
+							}, reference));
+						});
+					},
+					when: () => source.isConnected && scopesAt(source).includes(scope) && (!scope.when || scope.when()) && scope.rows.includes(row) && live(row)
+				};
+				rowsBySource.set(row, contextual);
+			}
+			return [contextual];
+		});
+	});
+}
+const contextScopeReaders = /* @__PURE__ */ new Set();
+function contextScopes(title, resolve) {
+	const identity = Object.freeze({});
+	const read = (origin) => {
+		const projection = resolve(origin);
+		if (!projection) return null;
+		return {
+			identity,
+			title,
+			contextual: true,
+			el: projection.root,
+			get rows() {
+				return contextRows(word(projection.declarations));
+			}
+		};
+	};
+	contextScopeReaders.add(read);
+	return () => contextScopeReaders.delete(read);
+}
+const scopeRefs = /* @__PURE__ */ new Set();
+const scopeRefFor = /* @__PURE__ */ new WeakMap();
+const pruneScopedElements = () => {
+	for (const ref of scopeRefs) if (!ref.deref()) scopeRefs.delete(ref);
+};
+function rememberScopedElement(el) {
+	if (scopeRefFor.has(el)) return;
+	const ref = new WeakRef(el);
+	scopeRefFor.set(el, ref);
+	scopeRefs.add(ref);
+}
+function forgetScopedElement(el) {
+	if (elementScopes.has(el) || projectedScopes.has(el) || buttonBaselines.has(el)) return;
+	const ref = scopeRefFor.get(el);
+	if (ref) scopeRefs.delete(ref);
+	scopeRefFor.delete(el);
+}
+function attachScope(where, declaration) {
+	const scope = {
+		...declaration,
+		el: where,
+		validated: false
+	};
+	unpainted.delete(where);
+	elementScopes.set(where, scope);
+	unpainted.set(where, scope);
+	wireDeclaredButtons(scope);
+	rememberScopedElement(where);
+	buttonsDirty = true;
+	repaint();
+	return scope;
+}
+function detachScope(element, scope) {
+	if (elementScopes.get(element) !== scope) return false;
+	unpainted.delete(element);
+	elementScopes.delete(element);
+	forgetScopedElement(element);
+	buttonsDirty = true;
+	reflectElementShortcuts(element);
+	return true;
+}
+function declaredScope(title, rows, options) {
+	const { when, escape, ready, claims } = typeof options === "function" ? { when: options } : options ?? {};
+	if (escape !== void 0 && escape !== "inner") throw new TypeError(`A command scope's Escape ownership must be "inner", got ${String(escape)}`);
+	return {
+		title,
+		rows: checked(rows, title ?? "a scope", ready),
+		when,
+		escape,
+		ready,
+		claims
+	};
+}
+function keys(where, ...declaration) {
+	if (declaration[1] === void 0) return attachScope(where, declaration[0].scope).rows;
+	const [title, rows, options] = declaration;
+	return attachScope(where, declaredScope(title, rows, options)).rows;
+}
+const commandsOn = directive$1(class extends AsyncDirective {
+	#reconnect = () => {};
+	#disconnect = () => {};
+	constructor(part) {
+		super(part);
+		if (part.type !== PartType$1.ELEMENT) throw new TypeError("commandsOn belongs in a template's element part");
+	}
+	render(_title, _rows, _options) {
+		return nothing$1;
+	}
+	update(part, values) {
+		const element = part.element;
+		const declaration = values[1] === void 0 ? values[0].scope : declaredScope(values[0], typeof values[1] === "function" ? values[1](element) : values[1], values[2]);
+		let scope = null;
+		this.#reconnect = () => {
+			scope = attachScope(element, declaration);
+		};
+		this.#disconnect = () => {
+			if (detachScope(element, scope)) repaint();
+		};
+		if (this.isConnected) this.reconnected();
+		return nothing$1;
+	}
+	reconnected() {
+		this.#reconnect();
+	}
+	disconnected() {
+		this.#disconnect();
+	}
+});
+const declared = /* @__PURE__ */ new WeakMap();
+addEventListener(COMMANDS, (event) => {
+	const element = commandsChangedOn(event);
+	const declaration = element.lfCommands ?? null;
+	const standing = declared.get(element);
+	if (declaration === (standing?.declaration ?? null)) {
+		paintKeys();
+		return;
+	}
+	if (!declaration) {
+		declared.delete(element);
+		if (detachScope(element, standing.scope)) repaint();
+		return;
+	}
+	try {
+		const scope = attachScope(element, isCommandScope(declaration) ? declaration.scope : declaredScope(declaration.title, declaration.rows, declaration));
+		declared.set(element, {
+			declaration,
+			scope
+		});
+	} catch (error) {
+		refuseCommands(event, error);
+	}
+});
+function commandScope(title, rows, options) {
+	const scope = {
+		...declaredScope(title, rows, options),
+		identity: Object.freeze({})
+	};
+	validateRows(scope.rows, title ?? "a scope");
+	const capability = Object.freeze({ scope });
+	commandScopeCapabilities.add(capability);
+	return capability;
+}
+function projectCommandScope(control, projector, capability = null) {
+	dirtyButtons.add(control);
+	const projections = projectedScopes.get(control) ?? /* @__PURE__ */ new Map();
+	if (capability == null) {
+		projections.delete(projector);
+		if (!projections.size) {
+			projectedScopes.delete(control);
+			forgetScopedElement(control);
+		}
+		reflectElementShortcuts(control);
+		return;
+	}
+	projections.set(projector, capability.scope);
+	projectedScopes.set(control, projections);
+	wireDeclaredButtons(capability.scope);
+	rememberScopedElement(control);
+	reflectTracked(control);
+}
+function scopesWithin(root, activeOnly) {
+	pruneScopedElements();
+	const found = [];
+	const seen = /* @__PURE__ */ new Set();
+	for (const ref of scopeRefs) {
+		const scoped = ref.deref();
+		if (!scoped?.isConnected) continue;
+		let inside = false;
+		let node = scoped;
+		for (; node; node = renderedParent(node)) if (node === root) {
+			inside = true;
+			break;
+		}
+		if (!inside) continue;
+		for (const scope of scopesAt(scoped)) {
+			if (scope.contextual) continue;
+			if (activeOnly && scope.when && !scope.when()) continue;
+			const identity = scopeIdentity(scope);
+			if (seen.has(identity)) continue;
+			seen.add(identity);
+			found.push({
+				source: scoped,
+				scope
+			});
+		}
+	}
+	return found;
+}
+const commandDeclarationsWithin = (root) => scopesWithin(root, false);
+function commandsWithin(root) {
+	return scopesWithin(root, true).flatMap(({ source, scope }) => scope.rows.filter(live).map((row) => ({
+		source,
+		scope,
+		row
+	})));
+}
+function reflectElementShortcuts(element) {
+	const available = scopesAt(element).filter((scope) => !scope.when || scope.when());
+	for (const scope of available) {
+		try {
+			validateRows(scope.rows, scope.title ?? "a scope");
+		} catch (error) {
+			if (scope.el === element && !scope.validated) detachScope(element, scope);
+			throw error;
+		}
+		if (scope.el === element) scope.validated = true;
+	}
+	const nativeClaims = nativeClaimAt(element);
+	const activation = nativeActivationAt(element);
+	const ownsControl = available.some((scope) => scope.rows.some((row) => word(row.control) === element || commandRoutes(row).some((route) => word(route.control ?? row.control) === element)));
+	const shortcuts = [...new Set(available.flatMap((scope) => ariaShortcuts(scope.rows, true, scope.title ?? "a scope", (binding, entry, row) => {
+		if (scope.contextual && (nativeClaims?.(binding) || activation?.(binding))) return false;
+		const control = word(entry.route?.control ?? row.control);
+		return !ownsControl || control == null || control === element;
+	}).split(" ").filter(Boolean)))].join(" ");
+	keeps(element, "aria-keyshortcuts", shortcuts || null);
+}
+function reflectFirstScopes() {
+	reflectButtonsTracked();
+	for (const [element, scope] of unpainted) {
+		unpainted.delete(element);
+		reflectTracked(scope.el);
+	}
+}
+let keysDirty = true;
+const dirtyElements = /* @__PURE__ */ new Set();
+const tracked = /* @__PURE__ */ new WeakMap();
+const dirtyButtons = /* @__PURE__ */ new Set();
+let availabilityTracking = null;
+let availabilityDirty = true;
+function reflectAvailabilityReaders() {
+	availabilityDirty = false;
+	availabilityTracking?.();
+	let first = true;
+	let failure = null;
+	availabilityTracking = x(() => {
+		if (first) {
+			first = false;
+			try {
+				focusRevision();
+				reflectCommandAvailability();
+			} catch (error) {
+				failure = error;
+			}
+			return;
+		}
+		availabilityDirty = true;
+		repaint();
+	});
+	if (failure) throw failure;
+}
+function reflectButtonsTracked() {
+	if (!buttonsDirty && !dirtyButtons.size && !availabilityDirty) return;
+	const every = buttonsDirty;
+	buttonsDirty = false;
+	for (const control of buttonDeclarations().keys()) claimButton(control);
+	const failures = [];
+	try {
+		reflectAvailabilityReaders();
+	} catch (error) {
+		failures.push(error);
+	}
+	const dirty = new Set(dirtyButtons);
+	dirtyButtons.clear();
+	const declarations = buttonDeclarations();
+	releaseButtons(declarations);
+	for (const [control, candidates] of declarations) {
+		claimButton(control);
+		rememberScopedElement(control);
+		wireButton(control);
+		if (!every && !dirty.has(control) && buttonAvailability.has(control) && sameCandidates(buttonCandidates.get(control), candidates)) continue;
+		try {
+			reflectButton(control, candidates);
+		} catch (error) {
+			failures.push(error);
+		}
+	}
+	for (const failure of failures) reportError(failure);
+}
+function reflectTracked(element) {
+	tracked.get(element)?.();
+	const ref = new WeakRef(element);
+	let initial = element;
+	let failure = null;
+	const dispose = x(() => {
+		if (initial) {
+			const current = initial;
+			initial = null;
+			try {
+				focusRevision();
+				reflectElementShortcuts(current);
+			} catch (error) {
+				failure = error;
+			}
+			return;
+		}
+		const moved = ref.deref();
+		if (moved) {
+			dirtyElements.add(moved);
+			repaint();
+		} else dispose();
+	});
+	tracked.set(element, dispose);
+	if (failure) throw failure;
+}
+function reflectKeys() {
+	if (!keysDirty && !dirtyElements.size) return;
+	const every = keysDirty;
+	keysDirty = false;
+	const dirty = [...dirtyElements];
+	dirtyElements.clear();
+	reflectButtonsTracked();
+	pruneScopedElements();
+	const elements = every ? [...scopeRefs].map((ref) => ref.deref()) : dirty;
+	for (const scoped of elements) {
+		if (!scoped?.isConnected) continue;
+		try {
+			reflectTracked(scoped);
+		} catch (error) {
+			reportError(error);
+		}
+	}
+}
+const paintKeys = () => {
+	keysDirty = true;
+	buttonsDirty = true;
+	repaint();
+};
+const paintKeysWithin = (root) => {
+	for (const ref of scopeRefs) {
+		const scoped = ref.deref();
+		if (scoped && under(scoped, root)) {
+			dirtyElements.add(scoped);
+			dirtyButtons.add(scoped);
+		}
+	}
+	repaint();
+};
+const saying = (rows) => activeRows(rows, "an announced scope").map((row) => `${spoken(row)} ${titleOf(row)}`).join(", ");
+const spoken = (row) => {
+	const active = bindings(row);
+	if (active.some((binding) => parsed(binding).mods.length)) return active.map(spokenBinding).join(" or ");
+	return word(row.label) ?? active.map(spokenBinding).join(" or ");
+};
+function scopesFor(node) {
+	const contexts = [...contextScopeReaders].map((read) => read(node)).filter((scope) => scope !== null);
+	const found = [];
+	const seen = /* @__PURE__ */ new Set();
+	const collect = (start) => {
+		for (let a = start; a; a = renderedParent(a)) {
+			for (const scope of [...scopesAt(a), ...contexts.filter(({ el }) => el === a)]) {
+				const identity = scopeIdentity(scope);
+				if (seen.has(identity)) continue;
+				found.push(scope.el ? scope : {
+					...scope,
+					el: a
+				});
+				seen.add(identity);
+			}
+			if (a.hasAttribute?.("data-lf-thread-surface")) break;
+		}
+	};
+	collect(node);
+	return found;
+}
+const claimsEsc = (node) => scopesFor(node).some((scope) => scope.rows.some((row) => live(row) && bindings(row).includes("Escape")));
+
+//#endregion
+//#region runtime/widget-elements.js
+function reveal(el, mayReveal) {
+	const chain = [];
+	const settling = /* @__PURE__ */ new Set();
+	let replacedView = false;
+	for (let a = el; a; a = renderedParent(a)) chain.push(a);
+	chain.reverse();
+	for (const [at, a] of chain.entries()) {
+		if (!mayReveal()) break;
+		if (a instanceof HTMLDetailsElement && !a.open) a.open = true;
+		if (a instanceof HTMLElement && a.hasAttribute("popover") && !isNativeLayer(a)) showNativeLayer(a, { modal: false });
+		if (a.getAttribute?.("hidden") !== "until-found") continue;
+		const shown = [...a.parentNode?.children ?? []].filter((s) => !("hidden" in s && s.hidden));
+		a.dispatchEvent(new Event("beforematch", { bubbles: true }));
+		a.removeAttribute("hidden");
+		if (shown.some((sibling) => "hidden" in sibling && sibling.hidden)) replacedView = true;
+		for (const owner of chain.slice(0, at + 1)) if (owner.updateComplete?.then) settling.add(owner.updateComplete);
+	}
+	const ready = Promise.all(settling);
+	ready.catch(() => {});
+	return {
+		ready,
+		replacedView
+	};
+}
+function el(tag, cls, text) {
+	const node = document.createElement(tag);
+	if (cls) node.className = cls;
+	if (text !== void 0) node.textContent = text;
+	return node;
+}
+const hands = Z(/* @__PURE__ */ new Set());
+const dragHeld = () => hands.value.size > 0;
+const dragging = (el, on) => {
+	const held = new Set(hands.peek());
+	if (on) held.add(el);
+	else held.delete(el);
+	hands.value = held;
+	paintKeysWithin(el);
+};
+function worksInside(node, container) {
+	const parts = /* @__PURE__ */ new Set([container.localName]);
+	for (let grew = true; grew;) {
+		grew = false;
+		for (const tag of tagsDeclaring((entry) => (entry["x-owners"] ?? []).some((owner) => parts.has(owner)))) if (!parts.has(tag)) {
+			parts.add(tag);
+			grew = true;
+		}
+	}
+	const held = tagsDeclaring(() => true).filter((tag) => !parts.has(tag));
+	const inner = node.closest([
+		...held,
+		WORKS,
+		"[data-lf-offer]",
+		".lf-msg-sending"
+	].join(","));
+	return inner && inner !== container && container.contains(inner) ? inner : null;
+}
+const PRESSABLE = "[data-lf-offer]:not([data-lf-offer=\"\"])";
+function reachedForWords(el) {
+	const sel = getSelection();
+	if (!sel?.rangeCount) return false;
+	const range = pageRange(sel);
+	const focus = selectionBackward(sel, range) ? range.startContainer : range.endContainer;
+	return !range.collapsed && renderedUnder(focus, el);
+}
+document.addEventListener("click", (ev) => {
+	if (pressIsKeyboardActivation(ev)) return;
+	const control = ev.composedPath().find((node) => node instanceof Element && node.matches(`${PRESSES},[data-lf-offer]`));
+	if (control && reachedForWords(control)) {
+		ev.stopPropagation();
+		ev.preventDefault();
+	}
+}, true);
+const closeControl = ({ name, title = name, className = "" }) => offerAction("symbol", className, name, {
+	title,
+	action: "close"
+});
+function responseAction(control, { glyph = null, action = null, label, behavior = "action", collapse = false }) {
+	if (Boolean(String(glyph ?? "").trim()) === Boolean(action)) throw new TypeError("A response action needs exactly one glyph or action");
+	control.classList.toggle("lf-response-control", true);
+	control.classList.toggle("lf-response-action", true);
+	keeps(control, "data-lf-behavior", behavior);
+	control.toggleAttribute("data-lf-collapse", collapse);
+	if (behavior !== "action" && !control.hasAttribute("aria-expanded")) control.setAttribute("aria-expanded", "false");
+	if (behavior === "action") control.removeAttribute("aria-expanded");
+	if (!control.hasAttribute("aria-label")) control.setAttribute("aria-label", label);
+	render$1(html$1`${action ? actionTemplate(action) : html$1`<span class="lf-response-action-glyph" aria-hidden="true"
+              >${glyph}</span
+            >`}<span class="lf-response-action-space" aria-hidden="true"> </span
+      ><span class="lf-response-action-label">${label}</span>`, control);
+	return control;
+}
+function motionPreview(label) {
+	const preview = offer("div", "lf-motion-preview", label);
+	preview.inert = true;
+	preview.setAttribute("aria-hidden", "true");
+	return preview;
+}
+const authoredBodies = /* @__PURE__ */ new WeakMap();
+const authoredBody = (host) => authoredBodies.get(host) ?? null;
+function holdAuthoredBody(host, body) {
+	for (const node of [...host.childNodes]) move(body, node, null);
+	authoredBodies.set(host, body);
+	return body;
+}
+
+//#endregion
+//#region runtime/notifications.js
+const liveEl = el("div", "lf-ui lf-live");
+liveEl.setAttribute("aria-live", "polite");
+const NOTICE_MS = 4e3;
+let noticeTimer = 0;
+let showingBackground = null;
+const waitingBackground = [];
+let userContext = false;
+let userHoldTimer = 0;
+const noticePresentation = Z(Object.freeze({
+	message: "",
+	visible: false
+}));
+const noticeReading = () => noticePresentation.value;
+const noticeVisible = () => noticePresentation.peek().visible;
+const noticeWords = (message) => typeof message === "string" ? [leafSays(message)] : message;
+const presentNotice = (message, visible) => {
+	noticePresentation.value = Object.freeze({
+		message,
+		visible
+	});
+};
+function announce(msg) {
+	if (liveEl.firstChild) liveEl.replaceChildren();
+	setTimeout(() => {
+		if (liveEl.firstChild) liveEl.replaceChildren();
+		liveEl.append(wordsText(msg));
+	}, 30);
+}
+addEventListener(ANNOUNCE, (event) => announce(event.detail));
+function showNotice(msg, background = null) {
+	presentNotice(msg, true);
+	showingBackground = background;
+	clearTimeout(noticeTimer);
+	noticeTimer = setTimeout(() => {
+		if (!userContext && !userHoldTimer && showBackground(waitingBackground.shift())) return;
+		presentNotice(noticePresentation.peek().message, false);
+		showingBackground = null;
+	}, NOTICE_MS);
+}
+function showBackground(entry) {
+	while (entry) {
+		const message = entry.key === "text" ? entry.value : entry.format(entry.value);
+		if (wordsText(message)) {
+			showNotice(message, entry);
+			return true;
+		}
+		entry = waitingBackground.shift();
+	}
+	return false;
+}
+const textBackground = (message) => ({
+	key: "text",
+	value: message
+});
+function queueBackground(entry, front = false) {
+	const waiting = waitingBackground.find((waiting) => waiting.key === entry.key);
+	if (waiting) {
+		waitingBackground.splice(waitingBackground.indexOf(waiting), 1);
+		if (entry.key === "semantic-news" && waiting.key === "semantic-news") entry = {
+			...entry,
+			value: front ? entry.combine(entry.value, waiting.value) : entry.combine(waiting.value, entry.value)
+		};
+		else if (front) entry = waiting;
+	}
+	if (front) waitingBackground.unshift(entry);
+	else waitingBackground.push(entry);
+}
+function notice(msg, { background = false, announce: speak = true, group = null } = {}) {
+	if (speak) announce(msg);
+	if (background) {
+		const entry = group ?? textBackground(msg);
+		if (userContext || userHoldTimer || noticeVisible()) return queueBackground(entry);
+		return showBackground(entry);
+	}
+	if (showingBackground) queueBackground(showingBackground, true);
+	showNotice(msg);
+}
+function yieldNotice() {
+	if (showingBackground) queueBackground(showingBackground, true);
+	clearTimeout(noticeTimer);
+	presentNotice(noticePresentation.peek().message, false);
+	showingBackground = null;
+}
+function holdStatus(ms) {
+	if (noticeVisible()) yieldNotice();
+	clearTimeout(userHoldTimer);
+	userHoldTimer = setTimeout(() => {
+		userHoldTimer = 0;
+		if (userContext || noticeVisible() || !waitingBackground.length) return;
+		showBackground(waitingBackground.shift());
+	}, ms);
+}
+function setNoticeContext(active) {
+	userContext = active;
+	if (active && showingBackground) yieldNotice();
+	else if (!active && !userHoldTimer && waitingBackground.length && !noticeVisible()) showBackground(waitingBackground.shift());
+}
+
+//#endregion
+//#region runtime/errors.js
+const KEPT = 20;
+let raised = 0;
+let unsaid = [];
+const errors = Z(Object.freeze([]));
+const publish = (next) => {
+	errors.value = Object.freeze(next.slice(0, KEPT));
+};
+const errorsReading = () => errors.value;
+function raiseError(message, { subject = null, announce: speak = true } = {}) {
+	return raise(message, subject, speak, null);
+}
+function raise(message, subject, speak, replaced) {
+	const id = ++raised;
+	if (speak && !unsaid.length) queueMicrotask(() => {
+		announce(unsaid.map((said) => said.replace(/\.$/, "")).join(". "));
+		unsaid = [];
+	});
+	if (speak) unsaid.push(message);
+	publish([Object.freeze({
+		id,
+		message,
+		subject,
+		at: Date.now(),
+		passed: false,
+		seen: false
+	}), ...errors.peek().filter((entry) => entry.id !== replaced)]);
+	return Object.freeze({
+		id,
+		clear: () => dismissError(id)
+	});
+}
+function passErrors(ids) {
+	if (errors.peek().some((entry) => ids.includes(entry.id) && !entry.passed)) publish(errors.peek().map((entry) => ids.includes(entry.id) && !entry.passed ? Object.freeze({
+		...entry,
+		passed: true
+	}) : entry));
+}
+function passErrorsAt(subject) {
+	passErrors(errors.peek().filter((entry) => entry.subject === subject).map((entry) => entry.id));
+}
+function seeErrors() {
+	if (errors.peek().some((entry) => !entry.seen)) publish(errors.peek().map((entry) => entry.seen ? entry : Object.freeze({
+		...entry,
+		seen: true
+	})));
+}
+function dismissError(id) {
+	if (errors.peek().some((entry) => entry.id === id)) publish(errors.peek().filter((entry) => entry.id !== id));
+}
+function holdingError({ announce: speak = true } = {}) {
+	let held = null;
+	let said = null;
+	return (message) => {
+		if (message === said) return;
+		if (message) held = raise(message, null, speak, held?.id ?? null);
+		else {
+			held?.clear();
+			held = null;
+		}
+		said = message;
+	};
+}
+function dismissErrors() {
+	if (errors.peek().length) publish([]);
+}
+
+//#endregion
+export { COLLAPSE, DELIVERY, DRAFT_FORMAT, EVERYTHING, LINK, LIVE_ROOT, LitElement$1 as LitElement, PAGE_ROOT, PENDING, PRESENTATION_DOM, PRESSABLE, SHARE_ROOT, TEXT_BLOCK, TEXT_ENTRY, WEBSITE_DELIVERY, actionForWidget, adoptRegistry, advertisesKeys, agentName, agentSays, allBindings, anchorKey, annotationMode, announce, answers, applicationPresented, applicationPresenter, applicationRegionsPresented, applicationState, ariaShortcuts, attachApplicationPresentation, attachWidgetPresentation, authoredBody, authoredRank, bareReaction, bindingEnabled, bindingEnabledFor, bindings, buttonCommand, carriesObligation, checked, claimsEsc, clampedRow, closeControl, commandAvailable, commandBinding, commandDeclarationsWithin, commandEntries, commandPresentations, commandReady, commandRoutes, commandRun, commandScope, commandsOn, commandsWithin, contextBindings, contextScopes, controlAvailabilityOutput, createPresentationSchedule, cycledRow, decisionControls, decisionFor, declarationFor, declareCommandReadiness, declaredBindings, declaredRoot, declaresCommandHandler, descriptionOf, discussed, dismissError, dismissErrors, documentChanged, dragHeld, dragging, drawingSchema, editable, el, elementDeclarations, elementsDeclaring, errorsReading, exhibits, foldWidgetStates, fragmentId, guard, hasObligationSource, hasRows, holdAuthoredBody, holdStatus, holdingError, hostIn, html$1 as html, isCommandScope, isElementName, isMessageEvent, isNews, isReaction, isThreadEvent, itemNoun, itemOutcome, keyed, keys, labelOf, lastMovedAt, layerFact, layerRoot, leafSays, live, live$1, liveEl, loadShadowRules, marks, matchesWhen, messageKey, motionPreview, mountRepaint, moved, nativeActivationAt, nativeClaimAt, nativePress, noChange, nothing$1 as nothing, notice, noticeReading, noticeWords, obligationValue, offlineData, offlineInteractive, offlineState, pageClaimed, pageRange, pageShadowRoots, pageUrl, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, presentDocument, programmaticSelection, projectCommandScope, projectView, projectionOrigins, projectionRegionsPresented, pruneScopedElements, queueWidgetUpdate, quickShortcuts, raiseError, rankAt, reachedForWords, reactionsAt, readApplication, readApplicationPresentation, readPart, recordedWidgetSelector, ref, referencedCommandEntry, reflectFirstScopes, reflectKeys, refuseShadowRoot, registry, render$1 as render, renderedChildren, repaint, repaintPage, repeat, responseAction, reveal, revisionLabel, routedCommand, runLanding, runtime, runtimeModule, runtimeResource, saidBy, sameAnchor, savedReadingSettled, saying, scopeAvailable, scopeIdentity, scopeRefs, scopesAt, scopesFor, seatRoot, seeErrors, selectEnds, selectWidgets, selectionBackward, setNoticeContext, setPresentationFailureReporter, setQuickShortcuts, shadowRootsIn, shadowRules, share, shareUrl, spell, spokenBinding, stateSpecs, submitBindings, tagsDeclaring, threadCounts, threadKey, threadNames, titleOf, tokenChoices, tokenEntry, touchPresses, turns, voiceOf, voiced, watchCommandAvailability, watchCommandScopes, watchPresentation, watchSemantic, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented, word, wordsText, worksInside };

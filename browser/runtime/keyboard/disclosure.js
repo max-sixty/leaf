@@ -29,10 +29,9 @@
    an `aria-expanded` control fires nothing anywhere. Both keep that state in an
    attribute, so one `MutationObserver` over `open` and `aria-expanded` repaints for both,
    and `shadowStage` hands it each root. */
-import { PRESS, rowArrows } from "./bindings.js";
 import { paintKeysWithin } from "./scopes.js";
 
-import { inChrome } from "../passages.js";
+export { DISCLOSE, DISCLOSURE_SELECTOR, disclosureAt } from "../control-keys.js";
 
 // Where a disclosure keeps which way it stands, in both spellings. Declared up here
 // because `shadowStage` calls it, far above the surfaces it repaints for.
@@ -65,28 +64,3 @@ export const watchDisclosures = (root) =>
     attributeFilter: ["open", "aria-expanded"],
     attributeOldValue: true,
   });
-
-/** @param {Element | null} el */
-export const DISCLOSE = (el) => {
-  const disclosure = disclosureAt(el);
-  if (!disclosure) return [...PRESS, "ArrowLeft", "ArrowRight"];
-  const { element, open } = disclosure;
-  const [back, ahead] = rowArrows(element);
-  return inChrome(element) ? PRESS : [...PRESS, open ? back : ahead];
-};
-
-export const DISCLOSURE_SELECTOR =
-  'details > summary, :is(button, [role="button"])[aria-expanded]';
-
-// The disclosure at this element and whether it is open, or null where none stands.
-// The reference asks from wherever the user is, listing scopes the page has.
-/** @param {Element | null} el */
-export function disclosureAt(el) {
-  if (!el?.matches(DISCLOSURE_SELECTOR)) return null;
-  return {
-    element: el,
-    open: el.matches("details > summary")
-      ? el.matches("details[open] > summary")
-      : el.getAttribute("aria-expanded") === "true",
-  };
-}

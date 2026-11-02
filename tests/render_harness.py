@@ -1749,15 +1749,15 @@ def open_versions(page):
 
 
 # The floating panel (runtime/floating-panel.js) is Leaf's one chrome: a row of the leaf,
-# the field and the On me and Threads marks, with a view opened above it and the leaf's
-# menu over the leaf. Its state stands on its host as attributes: `data-open` names the
-# open view (threads, thread, queue, leaves), `data-menu` marks the menu open and
+# the field and the On me and Threads marks, with a view opened above it, the leaf's
+# menu among them. Its state stands on its host as attributes: `data-open` names the
+# open view (menu, versions, group, errors, threads, thread, queue, leaves) and
 # `data-rest="mark"` the panel folded to the leaf.
 PANEL = ".lf-floating-panel"
 
 
 def panel_view(name: str) -> str:
-    """The selector of the panel's `name` view (threads, thread, queue, leaves) that
+    """The selector of the panel's `name` view (`data-open`'s values, above) that
     stands open. A view put away keeps its node, marked `data-leaving`, until its
     exit motion ends, so this never matches one: a selector that did would find two
     views mid-switch, or a view already on its way out."""
@@ -1877,33 +1877,44 @@ def expect_on_me(page, count):
     expect(page.locator(".lf-fp-badge")).to_have_text(str(count) if count else "")
 
 
-def panel_menu(page, at=None):
-    """Open the leaf's menu and return it, open at its root or at the list `at`
-    names: a group (`navigate`, `annotate`, `about`) or `versions`.
+def panel_menu(page, at=None, *, touch=False):
+    """Open the leaf's menu and return its view, or the view of the list `at` names
+    opened over it: a group (`navigate`, `annotate`) or `versions`. Each press is a
+    mouse's, or a finger's with `touch`.
 
-    The menu holds the rows it opened with while it stands (floating-panel.js,
-    `holdMenu`), a row news took away staying disabled and one news offered waiting for
-    the next opening, so a reading of it is a reading of the moment it opened. A row's
-    `data-row` is its key among the page's control rows (page-controls.js)."""
+    The leaf opens the panel's view on the menu, the On view's first tab
+    (floating-panel.js, `VIEWS.menu`); a list it leads to opens as a view over it, whose
+    way back returns to the menu. A row's `data-row` is its key among the page's control
+    rows (page-controls.js). The menu holds the rows it opened with while it stands
+    (floating-panel.js, `holdMenu`), a row news took away staying disabled and one news
+    offered waiting for the next opening, so a reading of it is a reading of the moment
+    it opened. A mouse's press on the leaf leaves the user in the menu's search."""
     host = page.locator(PANEL)
     leaf = page.locator(".lf-fp-leaf")
-    menu = page.locator(".lf-fp-menu")
     if host.get_attribute("data-rest") == "mark":
-        press_visible(page, leaf)
+        press_visible(page, leaf, touch=touch)
         expect(host).to_have_attribute("data-rest", "row")
-    if host.get_attribute("data-menu") is None:
-        press_visible(page, leaf)
-        expect(host).to_have_attribute("data-menu", "")
-    if menu.get_attribute("data-level") is not None:
-        press_visible(page, menu.locator(".lf-fp-menu-back"))
-        expect(menu).not_to_have_attribute("data-level", re.compile("."))
-    if at is not None:
-        door = "versions" if at == "versions" else f"group:{at}"
-        press_visible(page, menu.locator(f'.lf-fp-item[data-row="{door}"]'))
-        expect(menu).to_have_attribute(
-            "data-level", "versions" if at == "versions" else "group"
+    if host.get_attribute("data-open") != "menu":
+        back = page.locator(".lf-fp-head").get_by_role(
+            "button", name="Back to Menu", exact=True
         )
-    return menu
+        press_visible(page, back if back.count() else leaf, touch=touch)
+    panel_settled(page, view="menu")
+    menu = page.locator(panel_view("menu"))
+    if at is None:
+        return menu
+    view = "versions" if at == "versions" else "group"
+    door = "versions" if at == "versions" else f"group:{at}"
+    press_visible(page, menu.locator(f'.lf-fp-item[data-row="{door}"]'), touch=touch)
+    panel_settled(page, view=view)
+    return page.locator(panel_view(view))
+
+
+def close_panel_menu(page):
+    """Put the leaf's menu away, and any list standing over it, by pressing the leaf
+    again, as a user does, and wait until no view stands."""
+    press_visible(page, page.locator(".lf-fp-leaf"))
+    panel_settled(page, open=False)
 
 
 def panel_control(page, key, at=None):
@@ -1930,16 +1941,11 @@ def panel_control(page, key, at=None):
 
 
 def expect_panel_offers(page, key, *, offered=True, at=None):
-    """Read whether the leaf's menu offers the row `key`, enabled, in the list `at`
-    names, then put the menu away.
-
-    The menu holds what it opened with (`panel_menu`), so this reads one opening: wait
-    first for the page state the row follows. The leaf keeps the focus its press gave
-    it."""
+    """Wait until the leaf's menu offers the row `key`, enabled, in the list `at` names,
+    or, with `offered` false, until it doesn't, then put the menu away."""
     row = panel_menu(page, at).locator(f'.lf-fp-item[data-row="{key}"]:not(:disabled)')
     expect(row).to_have_count(1 if offered else 0)
-    page.locator(".lf-fp-leaf").click()
-    expect(page.locator(PANEL)).not_to_have_attribute("data-menu", "")
+    close_panel_menu(page)
 
 
 def selection_field(page):
@@ -2016,11 +2022,10 @@ def expect_error_waits_in_menu(page, message):
     about a box outside the panel, such as a passage's composer, or about nothing while
     the field holds words."""
     expect(page.locator(".lf-fp-error-dot")).to_be_visible()
-    menu = panel_menu(page)
-    menu.locator('.lf-fp-item[data-row="errors"]').click()
-    expect(menu.locator(".lf-fp-error-words b").first).to_have_text(message)
-    page.locator(".lf-fp-leaf").click()
-    expect(page.locator(PANEL)).not_to_have_attribute("data-menu", "")
+    panel_menu(page).locator('.lf-fp-item[data-row="errors"]').click()
+    errors = page.locator(panel_view("errors"))
+    expect(errors.locator(".lf-fp-error-words b").first).to_have_text(message)
+    close_panel_menu(page)
 
 
 # How many of the page's active obligations are answered, as "answered/total": the publisher's
@@ -2924,16 +2929,16 @@ def write(box, text):
 def compare_with(page, version=None):
     """Mark what changed since a version, the way the page offers it.
 
-    Versions in the leaf's menu lists each version with its Compare beside the note that
-    says in words what it changed. With no version named it is the one before the
-    version being read — the first Compare in the list, a row offering one only where it
-    is older than this."""
-    menu = panel_menu(page, "versions")
+    Versions, a list the leaf's menu leads to, lists each version with its Compare
+    beside the note that says in words what it changed. With no version named it is
+    the one before the version being read — the first Compare in the list, a row
+    offering one only where it is older than this."""
+    versions = panel_menu(page, "versions")
     press = (
-        menu.locator(".lf-fp-compare").first
+        versions.locator(".lf-fp-compare").first
         if version is None
-        else menu.get_by_role(
-            "menuitem", name=re.compile(rf"^Compare with v{version}( |$)")
+        else versions.get_by_role(
+            "button", name=re.compile(rf"^Compare with v{version}( |$)")
         )
     )
     press.click()

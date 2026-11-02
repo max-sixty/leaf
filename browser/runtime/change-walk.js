@@ -1,10 +1,8 @@
 // @ts-check
 /* The change walk: `h` and Shift+`h` step through the changes the version comparison
    marks (version.js, `comparisonChanges`), each a run of changed blocks, in the page's
-   order, coming round at either end, whatever started the comparison: a Compare in
-   Versions, or the page marking what changed since the user was last shown it
-   (since-seen.js, turned off for now). A diff reader's next and previous hunk, which is
-   what the letter stands for.
+   order, coming round at either end, while a Compare in Versions stands. A diff
+   reader's next and previous hunk, which is what the letter stands for.
 
    A step starts from the user's place by the rule every page walk shares
    (current-target.js, `walkOrigin` and `stepFrom`), and lands on the block the change
@@ -16,8 +14,7 @@
    `toggleInlineComparison`).
 
    The marks are annotations, so `o` hides them with the rest, and nothing here stops
-   them: an offered comparison gives way to the next one a return brings
-   (since-seen.js), and a chosen one ends with its Compare in Versions. The user decided
+   them: a comparison ends with its Compare in Versions. The user decided
    on 31 October against a stop of their own, an Escape step and a menu row, which no
    other annotation has. A finger needs no row for the walk (keyboard/AGENTS.md, "Touch
    routes"): every change is marked where it stands, and its margin entry and Page Map

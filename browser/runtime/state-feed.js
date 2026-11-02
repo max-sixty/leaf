@@ -42,7 +42,7 @@ import {
 async function readState(bound) {
   countTraffic("asked");
   try {
-    if (offlineInteractive) return { state: offlineState(), fault: null };
+    if (offlineInteractive) return { state: await offlineState(), fault: null };
     const signal = globalThis.AbortSignal.timeout(bound);
     const held = runtime.data;
     let res;

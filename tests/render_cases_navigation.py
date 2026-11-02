@@ -934,7 +934,7 @@ def live_watcher(page_dir, page):
 # agreed with the leaf on the one state where nothing had to have happened.
 TAB_TONE = """(want) => {
     const el = document.querySelector('.lf-fp-leaf .lf-dot');
-    const judged = el.className.replace('lf-dot', '').trim();
+    const judged = el.getAttribute('data-lf-tone') ?? '';
     const prefix = 'data:image/svg+xml,';
     const href = document.querySelector('link[rel=icon]').getAttribute('href');
     const svg = href.startsWith(prefix)

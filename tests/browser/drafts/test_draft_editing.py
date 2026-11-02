@@ -218,6 +218,8 @@ Two blank lines stand before these words.
 leaf page init ./workshop
 ```
 
+    pnpm install --frozen-lockfile
+
 > ### Quoted
 >
 > Practice beats theory.
@@ -274,7 +276,7 @@ def test_a_draft_edits_where_it_reads(browser, serve):
     fence's lines at a code line each and no mark after a link that leaves the page.
     Opening a draft holding them moved the words below its first block. The words and
     picture now stay where the prose showed them, the editor taking each block's face
-    and gaps from where it stands."""
+    and gaps from where it stands, an indented block's code as a fence's."""
     url = serve(
         leaf_page(
             "Draft faces",
@@ -298,6 +300,7 @@ def test_a_draft_edits_where_it_reads(browser, serve):
         "bold",
         "inline",
         "leaf",
+        "pnpm",
         "Quoted",
         "Practice",
         "Heading",

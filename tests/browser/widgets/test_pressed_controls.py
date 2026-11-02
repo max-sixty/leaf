@@ -146,7 +146,7 @@ def _example_pages(package):
     tags = own_tags(package)
     pages = [
         (layout, SourceDocument(html), data)
-        for layout, html, data in example_pages(composition.registry, tags)
+        for layout, html, data in example_pages(composition.vocabulary.registry, tags)
         if layout == "column"
     ]
     if state := STATES.get(package.name):

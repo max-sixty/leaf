@@ -250,7 +250,7 @@ def test_reply_timing_records_send_and_words_when_the_panel_opens(browser, serve
     }""")
     with page.expect_response(lambda response: trace_has(response, "reply_visible")):
         view = open_panel_thread(page, question["id"])
-        expect(view.locator(".lf-msg.agent .lf-msg-text")).to_have_text(
+        expect(view.locator(".lf-msg[data-lf-author=agent] .lf-msg-text")).to_have_text(
             "The roof comes first."
         )
     assert page.evaluate("""async () => (await window.__lfCheckApi())
@@ -2344,9 +2344,9 @@ def test_primary_reading_holds_remote_changes_before_package_layout(
         )
     expect(workspace.locator('[data-event="later-answer"]')).to_have_count(0)
     assert editor.bounding_box() == before
-    workspace.get_by_role(
-        "button", name="1 new reply · 1 message edited", exact=True
-    ).click()
+    notice = workspace.get_by_role("button", name="2 new", exact=True)
+    expect(notice).to_have_accessible_description("1 new reply · 1 message edited")
+    notice.click()
     if mode != "Reply only":
         expect(workspace.locator('[data-event="later-answer"]')).to_contain_text(
             "A later turn."
@@ -2357,11 +2357,7 @@ def test_primary_reading_holds_remote_changes_before_package_layout(
         assert page.evaluate(
             "document.querySelector('#workspace [data-event=answer]') === heldMessage"
         )
-    expect(
-        workspace.get_by_role(
-            "button", name="1 new reply · 1 message edited", exact=True
-        )
-    ).to_have_count(0)
+    expect(notice).to_have_count(0)
     expect(editor).to_have_js_property("value", "Keep this draft while updates wait.")
     rendered(page)
 

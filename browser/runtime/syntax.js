@@ -15,18 +15,32 @@ import { synNodes, syntax } from "./syntax-tokens.js";
 // The spans change no text: a <span> is no text block, so the anchor pass reads exactly
 // the run of characters it read before. That is what lets this run over the document
 // without the file's reading of the same page needing to know it happened.
-// An authored styling boundary owns token spans and colours as well as CSS.
-// Check on every reading, including after an asynchronous grammar load.
 const LANGUAGE_CLASS = /(?:^|\s)language-([\w+.#-]+)(?=\s|$)/;
 const BLOCK = "pre > code[class]";
-// A block's declared language where the registry colours it.
+// The language Leaf colours a block in, or none, read again when its tokens land. A
+// block is coloured when its declared language is one the registry colours, it holds
+// only text, and it wears the reading face.
+//
+// A block holding elements was marked up by its author, as a page that highlights its
+// own code marks up every token, and replacing its children would delete what they
+// wrote. Leaf's own spans from an earlier pass are the exception, so a block whose
+// language a revision changed is coloured again.
+//
+// The token palette is the face's, drawn for the face's code ground (reading.css), so a
+// block that doesn't wear it, as on a page that takes no theme, keeps the colours its
+// page gives it. Only a block in the document has a face to read: one not yet placed is
+// a surface Leaf is building, such as a message, and all of those wear the face.
 /** @param {Element} code */
-const languageOf = (code) => {
+const colouredAs = (code) => {
   const lang = code.getAttribute("class")?.match(LANGUAGE_CLASS)?.[1];
-  if (!lang || code.closest('[data-style="own"]')) return undefined;
-  return Object.hasOwn(syntaxLanguageNames, lang)
-    ? syntaxLanguageNames[lang]
-    : undefined;
+  if (!lang || !Object.hasOwn(syntaxLanguageNames, lang)) return undefined;
+  if (code.querySelector(":not([data-lf-syn])")) return undefined;
+  if (
+    code.isConnected &&
+    getComputedStyle(code).getPropertyValue("--lf-reading-face").trim() !== "1"
+  )
+    return undefined;
+  return syntaxLanguageNames[lang];
 };
 // Blocks whose tokens are on their way. A pass that reaches one again before they land,
 // as a message that renders twice in a turn does, would tokenize the same text and
@@ -46,7 +60,7 @@ export async function highlightBlocks(root) {
     // A block already tokenized for this language keeps its spans: a live revision
     // that rewrote an ancestor's attribute dresses the ancestor again, and the user
     // may be holding a selection in the block beneath it.
-    const lang = languageOf(code);
+    const lang = colouredAs(code);
     if (lang && code.getAttribute("data-lf-syntax") !== lang && !tokenizing.has(code)) {
       tokenizing.add(code);
       blocks.push(code);
@@ -54,13 +68,13 @@ export async function highlightBlocks(root) {
   }
   if (!blocks.length) return;
   for (const code of blocks) {
-    let lang = languageOf(code);
+    let lang = colouredAs(code);
     try {
       while (lang) {
         const source = code.textContent;
         const tokens = await syntax(source, lang);
-        if (code.textContent !== source || languageOf(code) !== lang) {
-          lang = languageOf(code);
+        if (code.textContent !== source || colouredAs(code) !== lang) {
+          lang = colouredAs(code);
           continue;
         }
         // Tokens that colour nothing are the text the block already holds.

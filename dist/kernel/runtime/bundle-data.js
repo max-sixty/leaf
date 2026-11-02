@@ -1,5 +1,5 @@
 import { CARET_KEYS, HOLDS_WORD, J, OUTPUT, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSES, RUNTIME_PAINT_ATTRIBUTE, SourcePairs, TEXT_BOX, TEXT_FIELD, W, WALK, Z, actionElement, actionTemplate, afterScript, aimedTop, alreadyShown, atScrollEnd, attachDeferredLoader, backgroundFlash, beginWalk, bindQueuedWork, blurFocused, byRenderedOrder, cancelRender, caretAtKey, chosenSince, clippedContents, clippedPlace, closestAcross, currentLocationIn, currentLocationNodes, currentLocationTouches, d, dataBody, deepFocus, describeFailure, drawn as drawn$2, eventSource, fitsWhole, flashDuration, focusDestination, focused, foldBlock, frameFor, generatedElement, growthAfterIsSeen, growthIsSeen, headerInset, holdCurrentLocation, holdFocus, iconElement, inChrome, inUi, inWindowChrome, inlineStyle, inputCount, isElement, isHTML, keeps, keepsHidden, keepsText, landedBox, landingBand, layoutChanged, layoutPx, listWalkPosition, measure, motion, motionPlays, move, moveScrollerBy, nativeLayerHolding, nextAnimation, nextFrame, nextRender, offer, offerAction, offered, offeredAction, offeredActionElement, onCurrentLocation, onLetGo, onPress, onPressAway, onUserInput, outputProducer, pagePresented, pageScroller, passOn, patchRetains, patchTree, placeBox, placeHolder, placeKept, plainPress, pointerAt, presented, readCaret, recentPlaceInput, refuseOutput, registrations, renderedOrder, renderedParent, renderedUnder, renderingState, restorePointer, restrictUserIntent, retainUserIntent, roomPx, scrollBehavior, scrollChoices, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollToEnd, scrollersOf, seenRect, selectsAll, setChildren, setRegistration, setScroll, shownBox, shownRect, shownWindow, showsContents, sizeObserver, skipped, slotTop, stopScroll, stuckBox, synNodes, syntax, syntaxLanguageNames, tabStore, takesLetters, tick, typesText, under, union, upFrom, updateSurface, userScrollport, visibleBand, watchArrivals, watchOwner, whenNone, x } from "./bundle-portable.js";
-import { COLLAPSE, LIVE_ROOT, PENDING, PRESENTATION_DOM, PRESSABLE, TEXT_BLOCK, adoptRegistry, agentName, agentSays, announce, applicationPresenter, applicationState, ariaShortcuts, attachApplicationPresentation, authoredBody, bindings, buttonCommand, checked, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, decisionFor, declarationFor, declareCommandReadiness, declaresCommandHandler, deleted, descriptionOf, editable, el, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, fragmentUrl, hasObligationSource, holdStatus, holdingError, html, isElementName, isReaction, keyed, keys, labelOf, lastMovedAt, layerRoot, leafSays, live as live$1, live$1 as live, loadShadowRules, marks, messageKey, nothing, notice, obligationValue, offlineData, offlineInteractive, pageClaimed, pageRange, pageUrl, paintKeys, passErrorsAt, projectCommandScope, projectView, projectionOrigins, projectionRegionsPresented, pruneScopedElements, raiseError, readApplication, readPart, ref, registry, render as render$1, repaint, repeat, reveal, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, savedReadingSettled, seatRoot, selectEnds, selectionBackward, share, spell, tagsDeclaring, threadKey, threadNames, titleOf, tokenEntry, touchPresses as touchPresses$1, turns, voiced, watchCommandScopes, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented, word } from "./bundle-errors.js";
+import { COLLAPSE, LIVE_ROOT, PENDING, PRESENTATION_DOM, PRESSABLE, TEXT_BLOCK, adoptRegistry, agentName, agentSays, announce, applicationPresenter, applicationState, ariaShortcuts, attachApplicationPresentation, authoredBody, bindings, buttonCommand, checked, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, decisionFor, declarationFor, declareCommandReadiness, declaresCommandHandler, deleted, descriptionOf, editable, el, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, fragmentUrl, hasObligationSource, holdStatus, holdingError, html, isElementName, isReaction, keyed, keys, labelOf, lastMovedAt, layerRoot, leafSays, live as live$1, live$1 as live, loadShadowRules, marks, messageKey, nothing, notice, obligationValue, offlineDeferred, offlineInteractive, pageClaimed, pageRange, pageUrl, paintKeys, passErrorsAt, projectCommandScope, projectView, projectionOrigins, projectionRegionsPresented, pruneScopedElements, raiseError, readApplication, readPart, ref, registry, render as render$1, repaint, repeat, reveal, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, savedReadingSettled, seatRoot, selectEnds, selectionBackward, share, spell, tagsDeclaring, threadKey, threadNames, titleOf, tokenEntry, touchPresses as touchPresses$1, turns, voiced, watchCommandScopes, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented, word } from "./bundle-errors.js";
 import { LayerRefused, admitReading, admitResponse, randomId, reportPageError, requestJson, revealLayer, runtimeRootState, sameLayer, setRuntimeRootAttribute } from "./bundle-layer-client.js";
 import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableWord, addressedElements, ago, aimTargetAt, anchorBox, anchorForPassage, anchorForRange, anchorReading, anchorView, anchoringIsReady, chromeForeground, chromeRoot, claimReachStop, containingReadingRegionFor, cutFrames, datumAimTarget, datumLabel, deferredArrival, effectiveScroller, followingItsEnd, fragmentAddress, fragmentTarget, headerLevels, isAddressable, leadingTitle, livePoint, nameAnchor, nameable, onReadingInput, pageReadingRegion, projectedDatum, reachScrollers, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, releaseReachStop, resolveAnchor, revealAddressed, scrollChainOf, scrollerFor, sectionLabel, sectionOf, settleDocumentLayout, shortAgo, shownRegionBounds, targetElement, targetPlace, targetSegments, unconcealedReadingRegions, visualPartLabel, watchReadingRegionTransitions } from "./bundle-content-layout.js";
 import { alignInlineText, alignText, authored, authoredScope, blockAt, elementById, excerptWords, fencePassageParts, labelWords, leafSurface, pageBlocks, pageDocument, pageQueryAll, pageText, pageWords, pointAt as pointAt$1, quoteFrom, quotedWords, rangeOf, readingFrom, renderRetired, segmentBlock, segmentsIn, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
@@ -1923,10 +1923,12 @@ function threadAttention(thread, agent) {
 //#region runtime/syntax.js
 const LANGUAGE_CLASS = /(?:^|\s)language-([\w+.#-]+)(?=\s|$)/;
 const BLOCK = "pre > code[class]";
-const languageOf = (code) => {
+const colouredAs = (code) => {
 	const lang = code.getAttribute("class")?.match(LANGUAGE_CLASS)?.[1];
-	if (!lang || code.closest("[data-style=\"own\"]")) return void 0;
-	return Object.hasOwn(syntaxLanguageNames, lang) ? syntaxLanguageNames[lang] : void 0;
+	if (!lang || !Object.hasOwn(syntaxLanguageNames, lang)) return void 0;
+	if (code.querySelector(":not([data-lf-syn])")) return void 0;
+	if (code.isConnected && getComputedStyle(code).getPropertyValue("--lf-reading-face").trim() !== "1") return void 0;
+	return syntaxLanguageNames[lang];
 };
 const tokenizing = /* @__PURE__ */ new WeakSet();
 async function highlightBlocks(root) {
@@ -1934,7 +1936,7 @@ async function highlightBlocks(root) {
 	const found = [...root.querySelectorAll(BLOCK)];
 	if (root instanceof Element && root.matches(BLOCK)) found.unshift(root);
 	for (const code of found) {
-		const lang = languageOf(code);
+		const lang = colouredAs(code);
 		if (lang && code.getAttribute("data-lf-syntax") !== lang && !tokenizing.has(code)) {
 			tokenizing.add(code);
 			blocks.push(code);
@@ -1942,13 +1944,13 @@ async function highlightBlocks(root) {
 	}
 	if (!blocks.length) return;
 	for (const code of blocks) {
-		let lang = languageOf(code);
+		let lang = colouredAs(code);
 		try {
 			while (lang) {
 				const source = code.textContent;
 				const tokens = await syntax(source, lang);
-				if (code.textContent !== source || languageOf(code) !== lang) {
-					lang = languageOf(code);
+				if (code.textContent !== source || colouredAs(code) !== lang) {
+					lang = colouredAs(code);
 					continue;
 				}
 				if (tokens.some(({ style }) => Object.keys(style).length)) code.replaceChildren(...synNodes(tokens));
@@ -9838,11 +9840,9 @@ async function readDeferred(manifest, key) {
 	};
 	if (!current()) throw new Error(`source ${source} revision ${revision} changed before loading deferred ${key}`);
 	if (offlineInteractive) {
-		const records = registry.$data.contracts[manifest.contract].records;
-		const item = offlineData().sources[source].value[records.items].find((item) => item[records.key] === key);
-		if (!item) throw new Error(`unknown record key '${key}' in data source '${source}'`);
-		if (!Object.hasOwn(item, records.deferred)) throw new Error(`record '${key}' in data source '${source}' has no deferred field '${records.deferred}'`);
-		return structuredClone(item[records.deferred]);
+		const field = offlineDeferred(source, key);
+		if (!field) throw new Error(`data source '${source}' defers no field of record '${key}'`);
+		return field;
 	}
 	const params = new URLSearchParams({
 		source,

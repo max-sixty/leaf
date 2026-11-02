@@ -13,6 +13,7 @@ from render_harness import (
     open_page,
     panel_settled,
     panel_view,
+    reported_browser_errors,
     resized,
     scroll_settled,
     sending,
@@ -466,7 +467,7 @@ def test_visual_review_refresh_retains_inspection_and_hands_focus_off_removed_ca
     expect(shot.locator(".lf-error")).to_contain_text(
         "a pair has to be shot at one viewport"
     )
-    consume_browser_errors(page, "a pair has to be shot at one viewport")
+    reported_browser_errors(page, "a pair has to be shot at one viewport")
     expect(control).to_be_focused()
     changed = invalid | {
         "cases": [
@@ -543,7 +544,7 @@ def test_visual_review_refresh_retains_inspection_and_hands_focus_off_removed_ca
     expect(shot.locator(".lf-error")).to_contain_text(
         "falls outside its captured images"
     )
-    consume_browser_errors(page, "falls outside its captured images")
+    reported_browser_errors(page, "falls outside its captured images")
     assert shot.evaluate(painted_pixels) == previous_pixels
     page.evaluate("window.releaseShotMasks()")
     # Correcting metadata alone must recover without changing either image URL.

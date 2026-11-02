@@ -1988,6 +1988,7 @@ function fieldEditor({ EditorView, EditorState, EditorSelection, Prec, StateEffe
 	});
 	function newLine(view) {
 		const { state } = view;
+		if (state.readOnly) return false;
 		if (state.facet(message)) return insertNewline(view);
 		const { from, to } = state.selection.main;
 		const { placed } = state.field(reading);
@@ -2199,7 +2200,7 @@ function fieldEditor({ EditorView, EditorState, EditorSelection, Prec, StateEffe
 				keymap.of([
 					{
 						key: "Shift-Enter",
-						run: () => field.oneLine()
+						run: (view) => field.oneLine() || view.state.readOnly
 					},
 					{
 						key: "Enter",

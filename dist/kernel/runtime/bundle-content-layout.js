@@ -1,4 +1,4 @@
-import { J, LAYOUT, LENT_REACH_STOP, PAGE_PAINT_ATTRIBUTE, PRESSES, TEXT_BOX, WORKS, Z, afterScript, atScrollEnd, clamp, clippedContents, closestAcross, deepFocus, elementFrame, eventSource, headerCuts, inChrome, inUi, inlineStyle, installScrollerLookup, isElement, isHTML, isText, keeps, landingBand, layoutChanged, layoutPx, layoutWindow, move, nativeLayerHolding, nearObserver, nearWindow, nextFrame, nextRender, onCurrentLocation, overlaps, pagePresented, pageScroller, pressing, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, renderedParent, renderedUnder, renderingState, revealRegisteredVisualPart, revealsVisualParts, scrollContainer, scrollToEnd, scrollersOf, scrollsBy, scrollsContent, shadowHost, shellRight, shownParts, shownRect, sizeObserver, skipped, tabStops, tick, uiInside, under, union, upFrom, userScrollport, visualPartAdmission, watchArrivals, watchScrolls, wearsLentStop, whileConnected } from "./bundle-portable.js";
+import { J, LAYOUT, LENT_REACH_STOP, PAGE_PAINT_ATTRIBUTE, PRESSES, TEXT_BOX, WORKS, Z, afterScript, atScrollEnd, clamp, clippedContents, closestAcross, deepFocus, elementFrame, eventSource, focusDestination, headerCuts, inChrome, inUi, inlineStyle, installScrollerLookup, isElement, isHTML, isText, keeps, keepsHidden, landingBand, layoutChanged, layoutPx, layoutWindow, move, nativeLayerHolding, nearObserver, nearWindow, nextFrame, nextRender, onCurrentLocation, overlaps, pagePresented, pageScroller, pressing, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, renderedParent, renderedUnder, renderingState, revealRegisteredVisualPart, revealsVisualParts, scrollContainer, scrollToEnd, scrollersOf, scrollsBy, scrollsContent, shadowHost, shellRight, shownParts, shownRect, sizeObserver, skipped, tabStops, tick, uiInside, under, union, upFrom, userScrollport, visualPartAdmission, watchArrivals, watchScrolls, wearsLentStop, whileConnected } from "./bundle-portable.js";
 import { PRESSABLE, TEXT_BLOCK, anchorKey, applicationPresented, documentChanged, fragmentId, fragmentKey, hostIn, isElementName, marks, registry, repaintPage, shadowRootsIn, tagsDeclaring } from "./bundle-errors.js";
 import { removeRuntimeRootStyle, reportPageError, setRuntimeRootAttribute, setRuntimeRootStyle } from "./bundle-layer-client.js";
 import { DATUM, authoredScope, blockAt, contextAround, cut, elementById, elementReading, excerptWords, fileModelsPassage, findQuote, layoutBox, leafSurface, neighbourhood, pageDocument, pageQueryAll, pageText, quoteFrom, rangeOf, readingFrom, segmentsIn, settledAway, spanIn, textNodesUnder } from "./bundle-passages.js";
@@ -1784,6 +1784,141 @@ function anchorView(node, target, changed) {
 }
 
 //#endregion
+//#region runtime/block-controls.js
+const home = document.createElement("div");
+home.className = "lf-block-controls";
+const cuts = /* @__PURE__ */ new WeakMap();
+const makeCut = () => {
+	const frame = document.createElement("div");
+	frame.className = "lf-block-control-cut";
+	return frame;
+};
+const placed = /* @__PURE__ */ new Map();
+const wired = /* @__PURE__ */ new WeakSet();
+const footprints = /* @__PURE__ */ new WeakSet();
+let hoveredControl = null;
+let focusedControl = null;
+const activeBlock = (control) => control ? placed.get(control) : void 0;
+const syncActive = (block) => {
+	if (block) block.toggleAttribute("data-lf-control-active", activeBlock(hoveredControl) === block || activeBlock(focusedControl) === block);
+};
+const setActiveControl = (kind, control) => {
+	const previous = kind === "hover" ? hoveredControl : focusedControl;
+	if (previous === control) return;
+	if (kind === "hover") hoveredControl = control;
+	else focusedControl = control;
+	syncActive(activeBlock(previous));
+	syncActive(activeBlock(control));
+};
+onCurrentLocation((node) => {
+	for (let at = node; at; at = upFrom(at)) if (at instanceof HTMLElement && placed.has(at)) return setActiveControl("focus", at);
+	setActiveControl("focus", null);
+});
+let resized = 0;
+addEventListener("resize", () => {
+	resized ||= nextRender(() => {
+		resized = 0;
+		const read = [...placed].filter(([, block]) => !skipped(block)).map(([control, block]) => ({
+			control,
+			block,
+			levels: headerLevels(block)
+		}));
+		for (const { control, block, levels } of read) standInChrome(control, block, levels);
+	});
+});
+function blockControlBoxes() {
+	const read = [...placed].filter(([control]) => footprints.has(control) && !control.hidden).map(([control, block]) => ({
+		control,
+		insets: readInsets(block)
+	}));
+	for (const { control, insets } of read) writeInsets(control, insets);
+	return read.map(({ control }) => control.getBoundingClientRect());
+}
+function standInChrome(control, block, levels, footprint = true) {
+	const previousBlock = placed.get(control);
+	if (!previousBlock && footprint) footprints.add(control);
+	const frames = cutFrames(levels, (cuts.get(control) ?? []).map(({ frame }) => frame), makeCut);
+	cuts.set(control, frames);
+	placed.set(control, block);
+	if (!wired.has(control)) {
+		wired.add(control);
+		control.addEventListener("pointerenter", () => setActiveControl("hover", control));
+		control.addEventListener("pointerleave", () => {
+			if (hoveredControl === control) setActiveControl("hover", null);
+		});
+	}
+	if (previousBlock !== block) {
+		syncActive(previousBlock);
+		syncActive(block);
+	}
+	if (home.parentNode !== chromeRoot) move(chromeRoot, home, null);
+	const outer = frames[0]?.frame;
+	if (outer && outer.parentNode !== home) move(home, outer, null);
+	const frame = frames.at(-1)?.frame ?? home;
+	if (control.parentNode !== frame) move(frame, control, null);
+}
+function anchorControl(control, block) {
+	const place = () => {
+		keepsHidden(control, !anchorView(control, block, place));
+	};
+	return {
+		control,
+		near: anchorView(control, block, place),
+		anchor: anchorReading(block)
+	};
+}
+function aimControl({ control, near, anchor }) {
+	keepsHidden(control, !near);
+	const name = nameAnchor(anchor);
+	if (control.style.positionAnchor !== name) control.style.positionAnchor = name;
+	return control;
+}
+function readInsets(block) {
+	const box = block.getBoundingClientRect();
+	const at = anchorBox(block);
+	return {
+		dx: box.left - at.left,
+		dy: box.top - at.top,
+		dw: box.width - at.width,
+		dh: box.height - at.height
+	};
+}
+function writeInsets(control, { dx, dy, dw, dh }) {
+	for (const [property, length] of Object.entries({
+		"--lf-block-control-dx": dx,
+		"--lf-block-control-dy": dy,
+		"--lf-block-control-dw": dw,
+		"--lf-block-control-dh": dh
+	})) {
+		const value = length ? layoutPx(length) : "";
+		if (control.style.getPropertyValue(property) !== value) control.style.setProperty(property, value);
+	}
+}
+function revealControl(control, block) {
+	if (cuts.has(control)) standInChrome(control, block, headerLevels(block));
+	writeInsets(control, readInsets(block));
+	refreshAnchorView(control);
+}
+function tabFromBlock(control, block, signal) {
+	control.addEventListener("keydown", (event) => {
+		if (event.key === "Tab") focusDestination(block, "step");
+	}, { signal });
+}
+let pressedPath = /* @__PURE__ */ new WeakSet();
+addEventListener("pointerdown", (event) => pressedPath = new WeakSet(event.composedPath()), { capture: true });
+const pressedElsewhere = (event, control) => event.detail > 0 && !pressedPath.has(control);
+function releaseControl(control) {
+	const block = placed.get(control);
+	if (hoveredControl === control) hoveredControl = null;
+	if (focusedControl === control) focusedControl = null;
+	control.remove();
+	cuts.get(control)?.[0]?.frame.remove();
+	cuts.delete(control);
+	placed.delete(control);
+	syncActive(block);
+}
+
+//#endregion
 //#region runtime/pointed-place.js
 const points = /* @__PURE__ */ new Map();
 const handed = /* @__PURE__ */ new Map();
@@ -2168,4 +2303,4 @@ const readDocumentHeaders = () => {
 };
 
 //#endregion
-export { ADDRESSABLE, PAGE_CONTROL_RANK, PAGE_INTERFACE, PRESENTATION, UPGRADE, activityTransitionDue, addressableLabel, addressableName, addressableSays, addressableWord, addressedElements, afterPresentation, ago, aimTargetAt, aimTargets, anchorAt, anchorBox, anchorElement, anchorFor, anchorForPassage, anchorForRange, anchorName, anchorReaches, anchorReading, anchorView, anchoringIsReady, annotationAt, boundedBlockOf, carriedAnchor, chromeForeground, chromeRoot, claimReachStop, clockValue, commitPoint, compoundReadingRegionId, containingReadingRegionFor, cutFrames, datumAimTarget, datumLabel, declaredName, deferredArrival, designPressAt, effectiveScroller, exactTarget, followingItsEnd, fragmentAddress, fragmentTarget, headerLevels, holdArrivingBounds, isAddressable, leadingTitle, lightSeat, livePoint, markPagePresented, markPageUpgraded, markStateApplied, nameAnchor, nameable, observeServerNow, observeWorkingGrace, onReadingInput, openDocumentLayout, pageControls, pageControlsChanged, pageReadiness, pageReadingRegion, passageBoxes, passageGeometry, placePoints, pointBand, pointInto, preserveReadingRegions, projectedDatum, proseRect, quietSince, railStands, rangeGeometry, reachScrollers, readingRegion, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, registerReadingRegion, releaseReachStop, resolveAnchor, resolvedInMessage, revealAddressed, saidNow, scheduleDocumentLayout, scrollChainOf, scrollMisplacesAnchors, scrollerFor, scrollsWith, sectionLabel, sectionOf, setAnchoringReady, settleDocumentLayout, settlePageInterface, shortAgo, showReadingSubject, shownRegionBounds, targetElement, targetParts, targetPlace, targetRange, targetSegments, targetSurface, tickClock, unclaimedVisualGesture, unconcealedReadingRegions, userReadingRegion, visualAt, visualPartLabel, visualParts, visualSelector, watchReadingRegionTransitions, whenArrived, whileInterfaceConnected, widgetWord, windowHoldsRail };
+export { ADDRESSABLE, PAGE_CONTROL_RANK, PAGE_INTERFACE, PRESENTATION, UPGRADE, activityTransitionDue, addressableLabel, addressableName, addressableSays, addressableWord, addressedElements, afterPresentation, ago, aimControl, aimTargetAt, aimTargets, anchorAt, anchorBox, anchorControl, anchorElement, anchorFor, anchorForPassage, anchorForRange, anchorHolder, anchorName, anchorReaches, anchorReading, anchoringIsReady, annotationAt, blockControlBoxes, boundedBlockOf, carriedAnchor, chromeForeground, chromeRoot, claimReachStop, clockValue, commitPoint, compoundReadingRegionId, containingReadingRegionFor, cutFrames, datumAimTarget, datumLabel, declaredName, deferredArrival, designPressAt, effectiveScroller, exactTarget, followingItsEnd, fragmentAddress, fragmentTarget, headerLevels, holdArrivingBounds, isAddressable, leadingTitle, lightSeat, livePoint, markPagePresented, markPageUpgraded, markStateApplied, nameAnchor, nameable, observeServerNow, observeWorkingGrace, onReadingInput, openDocumentLayout, pageControls, pageControlsChanged, pageReadiness, pageReadingRegion, passageBoxes, passageGeometry, placePoints, pointBand, pointInto, preserveReadingRegions, pressedElsewhere, projectedDatum, proseRect, quietSince, railStands, rangeGeometry, reachScrollers, readInsets, readingRegion, readingRegionFor, readingRegions, recentReadingRegion, regionScrollBehavior, regionsSettled, registerPageControl, registerReadingRegion, releaseControl, releaseReachStop, resolveAnchor, resolvedInMessage, revealAddressed, revealControl, saidNow, scheduleDocumentLayout, scrollChainOf, scrollMisplacesAnchors, scrollerFor, scrollsWith, sectionLabel, sectionOf, setAnchoringReady, settleDocumentLayout, settlePageInterface, shortAgo, showReadingSubject, shownRegionBounds, standInChrome, tabFromBlock, targetElement, targetParts, targetPlace, targetRange, targetSegments, targetSurface, tickClock, unclaimedVisualGesture, unconcealedReadingRegions, userReadingRegion, visualAt, visualPartLabel, visualParts, visualSelector, watchReadingRegionTransitions, whenArrived, whileInterfaceConnected, widgetWord, windowHoldsRail, writeInsets };

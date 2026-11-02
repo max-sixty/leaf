@@ -40,9 +40,9 @@
 
     "runtime/annotation-overlay/margin-cluster-view.js": "bd9224a3f08a2eba5a1c17f3e82b3392d4dd9119379bf553d7c406d3b29cd2c0",
 
-    "runtime/annotation-overlay/margin-layout.js": "eb26ddbbe1a238a677012674fe99cceca936ae8ab6531ab3c46bd7f79527863a",
+    "runtime/annotation-overlay/margin-layout.js": "1f73c13655e0b8b0ee4baaa531c163084253ad49290e5db849dd166e0a842c9f",
 
-    "runtime/annotation-overlay/margin-placement.js": "d1bb17880a91b4beeef9c79dc7d1dd41b477be2b826a4997030ab423323d3d02",
+    "runtime/annotation-overlay/margin-placement.js": "7eb32b30afc9432946f2ecd3ff60535ab3c1ff4ed4646fca1f5445bffb91de22",
 
     "runtime/annotation-overlay/margin-projection.js": "027902586b0df98ab1262562de7fc386cb5ed5c340d9af5a45f386aa6a792342",
 
@@ -60,7 +60,7 @@
 
     "runtime/base-layer.js": "7254e7c6c7df56faea13460dbbedc193593826d4bb4b79ef91ee98dc8bd4bc6c",
 
-    "runtime/block-controls.js": "268431bfd9aeeb5706b75d7437ca7e2ceb76bd9bc589d70a3296f8488074fd85",
+    "runtime/block-controls.js": "0385b74686947517ac721cc63f9fc0aeb2f458efb9eab5c8a82aa88258049ba4",
 
     "runtime/bootstrap.js": "9e072378ef47b74da4cf95f11ef14c3174d35076d5078a3925235dc278766b79",
 
@@ -142,7 +142,7 @@
 
     "runtime/copyable-text.js": "b4252f63a205ebd26d5e158c5127b3da844e61b553527350b69564bc71be04ef",
 
-    "runtime/css-anchors.js": "cb1bfea9b62f82401a398e147cc922b9332e26f865d6f6c176957b330cb30a7a",
+    "runtime/css-anchors.js": "03fabbdc0604c9624e56185521831b6b416d2e5f3272cfd5fe78e17b4b9631eb",
 
     "runtime/current-target.js": "03c34f5d7934e859370c65b4466ff8a5a56fa9f259d5805ba2041077deab88fc",
 
@@ -208,7 +208,7 @@
 
     "runtime/geometry.js": "cd448f6468693a45d43ec809e9817416b3e5dbea84dcb98865064398076724ea",
 
-    "runtime/heading-links.js": "056e3bb72da3573c04d80028d1a47012295e0d60e47a21fc01f84a97f5b93d1e",
+    "runtime/heading-links.js": "90bc9cde9e973a006ef7f8f09b8a3345e4957831a881af8872cfeffb5733ecaa",
 
     "runtime/held-word.js": "b19c912dfe1eb4ff99e52b5663e2f5a1bcbe069c507ca91adc2a385e40b60963",
 

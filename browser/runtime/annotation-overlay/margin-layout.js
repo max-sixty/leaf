@@ -33,7 +33,9 @@
    over its target, as the target's words do: its carrier stands in frames cut where
    they stand (css-anchors.js, `headerLevels`), one run of them for each run of rows
    the same headers cut, so a pin whose target scrolls under a stuck toolbar takes none
-   of the toolbar's presses. Remeasuring after a scroll writes the same insets.
+   of the toolbar's presses. A row that quotes a passage follows its words, which a box
+   inside the target can scroll, and is withheld as they leave its view (`wordsShown`).
+   Remeasuring after a scroll writes the same insets.
    Layout owners announce same-size view rearrangements with `lf-layout`; resize
    observation covers the target's layout siblings and ancestors, including a bounded
    region whose outer height stayed fixed. Geometric reflow, rather than scroll, is what
@@ -56,7 +58,7 @@
    Visibility reads `shownParts`, not the target's raw client rect: a project may set
    `display: contents` while its rendered descendants remain usable, and a collapsed
    target has no rendered part to offer. */
-import { TAB_STOP } from "../control-selectors.js";
+import { LENT_REACH_STOP, TAB_STOP } from "../control-selectors.js";
 import { afterScript, cancelRender, nextRender, sizeObserver } from "../rendering.js";
 import {
   clippedContents,
@@ -101,6 +103,7 @@ import {
   anchorBox,
   anchorFor,
   anchorElement,
+  anchorHolder,
   anchorReading,
   carriedAnchor,
   cutFrames,
@@ -119,16 +122,15 @@ import {
 /** @typedef {import("../css-anchors.js").Anchor} Anchor
  * @typedef {ReturnType<typeof headerLevels>[number]} HeaderLevel
  * @typedef {import("../css-anchors.js").CutLevel} CutLevel
- * @typedef {Box & {width: number, height: number}} Extent
  * @typedef {{row: HTMLElement, options: RowOptions, target: Element, point: Element | null,
- * words: DOMRect[] | null, passageNode: Text | null | undefined, block: Box | null, anchor: Element,
- * whole: Extent | null, scroller: Element, lane: HTMLElement | null, shown: boolean,
+ * words: DOMRect[] | null, passageNode: Text | null, block: {node: Element, box: Box} | null, anchor: Element,
+ * scroller: Element, lane: HTMLElement | null, shown: boolean,
  * place: "pin" | "rail", box: DOMRect, extent: Box | null, top: number | undefined,
  * carrier: Anchor | null, cuts: HeaderLevel[], cutKey: string,
  * carrierStand: {box: DOMRect, reading: ReturnType<typeof anchorReading>} | null,
  * carrierPaint: {node: Element, box: DOMRect, reading: ReturnType<typeof anchorReading>} | null,
  * home?: Element, container?: Element, axes?: "xy" | "y"}} TargetRead
- * @typedef {TargetRead & {shown: true, extent: Box, whole: Extent, top: number}} ShownRead
+ * @typedef {TargetRead & {shown: true, extent: Box, top: number}} ShownRead
  * @typedef {{row: HTMLElement, options: RowOptions, lane: HTMLElement, shown: false,
  * target?: never, home?: Element, container?: Element | null}} HiddenRead
  * @typedef {import("../../types/contract.js").CompleteUnion<TargetRead | HiddenRead>} Read
@@ -282,9 +284,22 @@ const laneOf = (box, layer) => {
 };
 // The page's sideways scroll as the last pass placed rows.
 let laidOutScrollX = 0;
-// Where the scroll reading finds a row standing, as offsets from its target's shown
-// extent, which every scroll around the target moves with it as it moves the row.
+// Where the last pass stood each row it placed, as offsets from what carries it: its
+// carrier's anchor, as the pass measured it (`anchorBox`), or, for a row in the root
+// lane, the document's origin.
+/** @type {WeakMap<HTMLElement, {anchor: Anchor | null, top: number, right: number}>} */
 const standsBy = new WeakMap();
+// Where `row` stands now, by those offsets from where what carries it stands now: the
+// place the browser moved it to in the frame that scrolled it, which reading the row's own
+// box finds a frame late (`scheduleStirReading`). Null where the pass placed it nowhere,
+// or its anchor has left.
+/** @param {HTMLElement} row */
+function standsNow(row) {
+  const by = standsBy.get(row);
+  if (!by || (by.anchor && !anchorHolder(by.anchor).isConnected)) return null;
+  const from = by.anchor ? anchorBox(by.anchor) : { left: -scrollX, top: -scrollY };
+  return { top: from.top + by.top, right: from.left + by.right };
+}
 
 // Every actual scrollport, including an inner table and a shadow root's scroller.
 // Reading-region identity decides the clip lane, not which ancestors can move words.
@@ -434,6 +449,43 @@ export function marginSpot(target, point = null, passage = null) {
 function quotedBoxes(options) {
   if (options.point?.()) return [];
   return passageBoxes(options.passage?.() ?? null);
+}
+// The text node those words start in.
+/** @param {RowOptions} options */
+const wordsStart = (options) => targetSegments(options.passage?.())[0]?.node ?? null;
+
+// What shows of a passage's words, those `boxes` starting in `start`, short of `stop`'s
+// band: what every box holding them leaves, counting the one holding them, which can
+// scroll them out of view while their target shows, as a reveal.js `pre code` scrolls
+// its lines inside the `pre`.
+/** @param {DOMRect[]} boxes @param {Node} start @param {import("../geometry.js").ClipCache} bands @param {Element} stop */
+function wordsShown(boxes, start, bands, stop) {
+  const holder = renderedParent(start);
+  const box = union(boxes);
+  return holder && box && clippedContents(box, holder, bands, stop);
+}
+// The block a passage's pin tries seats by once none by its words is clear
+// (`pinSeating`): the outermost box from the words out to the target that every scroll
+// moving them moves too. A box that scrolls them past its own edges, or a sticky, fixed
+// or absolute one, moves them as nothing outside it does, so the walk takes no box past
+// it: it stops short of the first, and at the second. It also stops short of a box
+// reach.js lent a keyboard stop, which the pin stands on by its words (`coverIn`): a
+// code block's corner is where Copy stands, the control that claimed that stop
+// (code-copy.js). Words standing directly in either have none.
+/** @param {Node} words @param {Element} target */
+function passageBlock(words, target) {
+  /** @type {Element | null} */
+  let block = null;
+  for (
+    let at = renderedParent(words);
+    at && !scrollsContent(at) && !at.hasAttribute(LENT_REACH_STOP);
+    at = renderedParent(at)
+  ) {
+    block = at;
+    if (at === target || !/^(static|relative)$/.test(getComputedStyle(at).position))
+      break;
+  }
+  return block;
 }
 
 // Whether a row's passage (a resolved anchor, or none) is the range `words` (or none).
@@ -647,9 +699,7 @@ function hearTargetChanges(root) {
   /** @param {Element} box */
   const carries = (box) =>
     [...carriers.values()].some((byAnchor) =>
-      [...byAnchor.keys()].some((anchor) =>
-        renderedUnder("scroller" in anchor ? anchor.scroller : anchor, box),
-      ),
+      [...byAnchor.keys()].some((anchor) => renderedUnder(anchorHolder(anchor), box)),
     );
   root.addEventListener(
     "scrollend",
@@ -765,7 +815,11 @@ function partsOf(target) {
 // avoid, since the pin stands on them. The walk leaves any subtree whose box misses the
 // band, so a long page costs what lies near the target.
 //
-// Anything the keyboard can reach is a control, so a package need declare nothing.
+// Anything the keyboard can reach is a control, so a package need declare nothing. A
+// stop reach.js lends a box holding a passage's words, for the keyboard to reach and
+// scroll them, makes nothing there a press (control-selectors.js, `LENT_REACH_STOP`), so
+// it is no control to that passage's pin (`words`): a pin on a line of a code block
+// stands by that line, as one on words in a scrolling pane does.
 // Every covered box counts as the part its own scrollers show, short of the one that
 // scrolls the pin (`stop`): a pin can take no press from a control nobody can see, as a
 // pane body's options scrolled behind the pane's footer, but a control scrolled with the
@@ -797,8 +851,8 @@ function controlsIn(host) {
   return found;
 }
 
-/** @param {Element} root @param {Pick<Box, "top" | "bottom">} band @param {Element} target @param {import("../geometry.js").ClipCache} bands @param {Element} stop */
-function coverIn(root, band, target, bands, stop) {
+/** @param {Element} root @param {Pick<Box, "top" | "bottom">} band @param {Element} target @param {Node | null} words @param {import("../geometry.js").ClipCache} bands @param {Element} stop */
+function coverIn(root, band, target, words, bands, stop) {
   /** @type {Box[]} */
   const cover = [];
   /** @type {Box[]} */
@@ -829,7 +883,9 @@ function coverIn(root, band, target, bands, stop) {
       if (!boxless && !meets(box)) continue;
       const holds = node !== target && renderedUnder(target, node);
       if (!boxless && !holds && node !== target) boxes.push({ node, box });
-      const control = node.matches(TAB_STOP);
+      const control =
+        node.matches(TAB_STOP) &&
+        !(words && node.hasAttribute(LENT_REACH_STOP) && renderedUnder(words, node));
       if (
         !boxless &&
         !holds &&
@@ -890,11 +946,6 @@ function contentBox(scroller) {
   };
 }
 
-// Each pin's seat, measured from the box it anchors to, as the last pass took it: a pin
-// under the pointer or holding focus keeps it (`seatRows`), and a scroll inside a pane
-// reads it to say whether the pin still stands inside what the pane shows.
-const seats = new WeakMap();
-
 // The rows the last pass stood folded (`seatRows`). This is the one reading of it: the
 // projection presents a row folded by asking `standsFolded`, and a row's `fold.changed`
 // tells it to ask again.
@@ -909,24 +960,20 @@ export const standsFolded = (row) => folded.has(row);
 export const standsWithheld = (node) => Boolean(node.closest(".lf-withheld"));
 
 // Where `part` of `row`, or the row itself, is painted. A carried row's own box reads a
-// frame late after a scroll (`scheduleStirReading`), so it is read where the row's
-// target now stands, by the offsets the last pass seated the row at (`standsBy`): the
-// place the browser moved it to in the frame that scrolled it. Any other row's box is
-// where it is painted.
+// frame late after a scroll (`scheduleStirReading`), so it is read where the row stands
+// now (`standsNow`). Any other row's box is where it is painted.
 /** @param {HTMLElement} part @param {HTMLElement | null} row */
 export function paintedBox(part, row) {
   const box = part.getBoundingClientRect();
-  if (!row) return box;
-  const by = standsBy.get(row);
-  const target = by && isCarrier(row.parentElement) ? rows.get(row)?.anchor() : null;
-  if (!target?.isConnected || skipped(target)) return box;
-  const whole = shownExtent(target);
-  if (!whole) return box;
+  const target = row && isCarrier(row.parentElement) ? rows.get(row)?.anchor() : null;
+  if (!row || !target?.isConnected || skipped(target)) return box;
+  const stands = standsNow(row);
+  if (!stands) return box;
   const own = part === row ? box : row.getBoundingClientRect();
-  const across = row.dataset.lfPlace === "pin" ? whole.right + by.right - own.right : 0;
+  const across = row.dataset.lfPlace === "pin" ? stands.right - own.right : 0;
   return new DOMRect(
     box.x + across,
-    box.y + whole.top + by.top - own.top,
+    box.y + stands.top - own.top,
     box.width,
     box.height,
   );
@@ -961,7 +1008,7 @@ function standFolded(row, fold, on) {
 // and above stands outside what a pane shows when the pane is scrolled to its target.
 // Below is the one seat clear beside a full-width figure or keypad that sits right
 // under a paragraph. A quoted passage's pin then tries the same seats by the block
-// holding it, so it covers words only where the block's do too.
+// holding it (`passageBlock`), so it covers words only where the block's do too.
 //
 // A row that can fold (its `fold.able()`, margin-projection.js) is seated at both sizes,
 // which are worked out rather than read, since only the one it stands at is drawn:
@@ -979,7 +1026,6 @@ function pinSeating(rows, { bands, shell, pinInset }) {
   return rows.map((entry) => {
     const { read } = entry;
     if (read.place !== "pin") {
-      seats.delete(read.row);
       standFolded(read.row, read.options.fold, false);
       return Object.assign(entry, { seat: null });
     }
@@ -1001,19 +1047,18 @@ function pinSeating(rows, { bands, shell, pinInset }) {
     // the row's boxes are read wherever it is drawn, a widget's shadow tree included,
     // since the walk below reads the room around the target, which is the document's.
     const parts = words ?? partsOf(point ?? target);
-    // A passage's pin falls back to its block's own seats, which cover nothing more
-    // often than the words' do, before it stands over words: the passage's highlight
-    // already says which words it is about.
-    const blockBox = read.block;
-    const blockParts = words && blockBox ? partsOf(target) : [];
-    const block = blockBox &&
+    // A passage's pin falls back to its block's own seats (`passageBlock`), which cover
+    // nothing more often than the words' do, before it stands over words: the passage's
+    // highlight already says which words it is about.
+    const blockParts = read.block ? partsOf(read.block.node) : [];
+    const block = read.block &&
       blockParts.length > 0 && {
         parts: blockParts,
         home: {
-          left: blockBox.right - pinInset - width,
-          right: blockBox.right - pinInset,
-          top: blockBox.top,
-          bottom: blockBox.top + height,
+          left: read.block.box.right - pinInset - width,
+          right: read.block.box.right - pinInset,
+          top: read.block.box.top,
+          bottom: read.block.box.top + height,
         },
       };
     const spans = [home, ...parts, ...(block ? [block.home, ...block.parts] : [])];
@@ -1030,6 +1075,7 @@ function pinSeating(rows, { bands, shell, pinInset }) {
       stop === pageScroller ? main : stop,
       band,
       target,
+      read.passageNode,
       bands,
       stop,
     );
@@ -1105,11 +1151,6 @@ function pinSeating(rows, { bands, shell, pinInset }) {
           : rect.left;
       entry.rect = rect;
       if (entry.fold) standFolded(entry.read.row, entry.fold, on);
-      const attached = targetBox(entry.read.target).getBoundingClientRect();
-      seats.set(entry.read.row, {
-        top: rect.top - attached.top,
-        right: attached.right - rect.right,
-      });
     };
     return Object.assign(entry, { seat });
   });
@@ -1176,7 +1217,7 @@ function setStyle(row, property, value) {
 // too: a card half past a board's edge would stand its pin outside the board, beside
 // nothing and past the page. A pin not yet seated passes `stands` null, and is asked
 // again once it is. `extent` is what shows of the target, or of the passage a row
-// quotes, and none where its scrollers show none.
+// quotes (`wordsShown`), and none where its scrollers show none.
 /** @param {Element} target @param {Box | null} extent @param {{top: number | undefined, right?: number} | null} stands @param {import("../geometry.js").ClipCache} bands */
 function targetShown(target, extent, stands, bands) {
   const shown = (/** @type {Element} */ part) =>
@@ -1225,34 +1266,27 @@ function scheduleStirReading() {
     for (const [row, options] of rows) {
       const target = options.anchor();
       if (!target?.isConnected) continue;
+      const words = quotedBoxes(options);
+      const start = words.length ? wordsStart(options) : null;
+      // A box inside the target that scrolls a passage's words moves them too.
       const moving = boxes.some((box) => {
-        /** @type {Element | null} */
-        let at = target;
+        /** @type {Node | null} */
+        let at = start ?? target;
         for (; at; at = renderedParent(at)) if (at === box) return true;
         return false;
       });
       if (!moving) continue;
       // The document carries ordinary rows and their lanes together.
-      if (
-        !row.classList.contains("lf-withheld") &&
-        boxes.every((box) => box === pageScroller)
-      )
-        continue;
-      const whole = shownExtent(target);
-      const words = quotedBoxes(options);
+      const withheld = row.classList.contains("lf-withheld");
+      if (!withheld && boxes.every((box) => box === pageScroller)) continue;
       // The row's own box is not read: a carried row's box is read a frame late
       // after a scroll, which is not where it is painted.
-      const by = standsBy.get(row);
-      const stands =
-        row.classList.contains("lf-withheld") || !whole || !by
-          ? null
-          : row.dataset.lfPlace === "pin"
-            ? { top: whole.top + by.top, right: whole.right + by.right }
-            : { top: whole.top + by.top };
-      if (
-        targetShown(target, words.length ? union(words) : whole, stands, bands) ===
-        row.classList.contains("lf-withheld")
-      ) {
+      const now = withheld ? null : standsNow(row);
+      const stands = now && (row.dataset.lfPlace === "pin" ? now : { top: now.top });
+      const extent = start
+        ? wordsShown(words, start, bands, pageScroller)
+        : shownExtent(target);
+      if (targetShown(target, extent, stands, bands) === withheld) {
         scheduleMarginLayout();
         return;
       }
@@ -1366,8 +1400,7 @@ function layoutMountedRows(layer) {
     // otherwise level with the target's top.
     const point = options.point?.() ?? null;
     const words = quotedBoxes(options);
-    const [firstWord, ...otherWords] = words;
-    const passageNode = firstWord ? targetSegments(options.passage?.())[0]?.node : null;
+    const passageNode = words.length ? wordsStart(options) : null;
     observeGeometry(point ?? target);
     present.push({
       row,
@@ -1379,10 +1412,15 @@ function layoutMountedRows(layer) {
     const whole = shownExtent(target);
     // A passage's row is about its words, so it stands within what shows of them and
     // is withheld once they are scrolled away, though the rest of the target shows.
-    const block = whole && clippedRect(whole, target, bands, scroller);
-    const extent = firstWord
-      ? whole && clippedRect(union([firstWord, ...otherWords]), target, bands, scroller)
-      : block;
+    const extent =
+      whole &&
+      (passageNode
+        ? wordsShown(words, passageNode, bands, scroller)
+        : clippedRect(whole, target, bands, scroller));
+    const blockNode = passageNode && passageBlock(passageNode, target);
+    const blockWhole = blockNode && shownExtent(blockNode);
+    const blockBox = blockWhole && clippedRect(blockWhole, blockNode, bands, scroller);
+    const block = blockNode && blockBox ? { node: blockNode, box: blockBox } : null;
     const line = point?.getBoundingClientRect() ?? words[0];
     const top =
       extent && line ? clamp(line.top, extent.top, extent.bottom) : extent?.top;
@@ -1409,7 +1447,6 @@ function layoutMountedRows(layer) {
       passageNode,
       block,
       anchor,
-      whole,
       scroller,
       lane: rootLane ? layer.root : null,
       shown,
@@ -1463,16 +1500,16 @@ function layoutMountedRows(layer) {
   // Read retained pin footprints once for their posture solver. The shared seating
   // order retains held rows before either posture takes any remaining room.
   for (const entry of placed) {
-    const seat = seats.get(entry.read.row);
-    if (entry.read.place !== "pin" || !seat || !entry.held) continue;
-    const heldBox = targetBox(entry.read.target).getBoundingClientRect();
+    const stands =
+      entry.read.place === "pin" && entry.held && standsNow(entry.read.row);
+    if (!stands) continue;
     const width = entry.rect.right - entry.rect.left;
     const height = entry.rect.bottom - entry.rect.top;
     entry.holding = {
-      left: heldBox.right - seat.right - width,
-      right: heldBox.right - seat.right,
-      top: heldBox.top + seat.top,
-      bottom: heldBox.top + seat.top + height,
+      left: stands.right - width,
+      right: stands.right,
+      top: stands.top,
+      bottom: stands.top + height,
     };
   }
   const prepared = pinSeating(placed, { bands, shell, pinInset });
@@ -1783,9 +1820,11 @@ function layoutMountedRows(layer) {
       );
     const left = (visualLeft ?? rect.left) + step;
     const top = rect.top + push;
+    const from = read.carrierPaint?.box ?? { left: -scrollX, top: -scrollY };
     standsBy.set(row, {
-      top: top - read.whole.top,
-      right: rect.right - read.whole.right,
+      anchor: read.carrierPaint ? read.carrier : null,
+      top: top - from.top,
+      right: rect.right - from.left,
     });
     if (read.carrierPaint) {
       // The carrier stands at the window's origin as this pass measured its anchor,

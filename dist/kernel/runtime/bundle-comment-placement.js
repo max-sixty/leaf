@@ -1,6 +1,6 @@
-import { LAYOUT, TAB_STOP, afterScript, atLayoutPrecision, cancelRender, clamp, clippedContents, clippedRect, clippingAxes, coarsePointer, hoveringPointer, inChrome, inlineStyle, keeps, layoutPx, move, moveScrollerBy, nextRender, overlaps, overlapsAcross, pageScroller, renderedParent, renderedUnder, scrollAxes, scrollLimit, scrollsContent, shellRight, shownBand, shownExtent, shownParts, shownRect, shownWindow, sizeObserver, skipped, under, union, upFrom, visualViewport } from "./bundle-portable.js";
+import { LAYOUT, LENT_REACH_STOP, TAB_STOP, afterScript, atLayoutPrecision, cancelRender, clamp, clippedContents, clippedRect, clippingAxes, coarsePointer, hoveringPointer, inChrome, inlineStyle, keeps, layoutPx, move, moveScrollerBy, nextRender, overlaps, overlapsAcross, pageScroller, renderedParent, renderedUnder, scrollAxes, scrollLimit, scrollsContent, shellRight, shownBand, shownExtent, shownParts, shownRect, shownWindow, sizeObserver, skipped, under, union, upFrom, visualViewport } from "./bundle-portable.js";
 import { renderedChildren } from "./bundle-errors.js";
-import { afterPresentation, anchorBox, anchorElement, anchorFor, anchorName, anchorReading, boundedBlockOf, carriedAnchor, containingReadingRegionFor, cutFrames, headerLevels, nameAnchor, passageBoxes, pointBand, proseRect, railStands, scrollMisplacesAnchors, scrollerFor, scrollsWith, targetRange, targetSegments } from "./bundle-content-layout.js";
+import { afterPresentation, anchorBox, anchorElement, anchorFor, anchorHolder, anchorName, anchorReading, boundedBlockOf, carriedAnchor, containingReadingRegionFor, cutFrames, headerLevels, nameAnchor, passageBoxes, pointBand, proseRect, railStands, scrollMisplacesAnchors, scrollerFor, scrollsWith, targetRange, targetSegments } from "./bundle-content-layout.js";
 import { layoutBox } from "./bundle-passages.js";
 import { visibleTargetParts } from "./bundle-visible-target-parts.js";
 
@@ -252,6 +252,18 @@ const laneOf = (box, layer) => {
 };
 let laidOutScrollX = 0;
 const standsBy = /* @__PURE__ */ new WeakMap();
+function standsNow(row) {
+	const by = standsBy.get(row);
+	if (!by || by.anchor && !anchorHolder(by.anchor).isConnected) return null;
+	const from = by.anchor ? anchorBox(by.anchor) : {
+		left: -scrollX,
+		top: -scrollY
+	};
+	return {
+		top: from.top + by.top,
+		right: from.left + by.right
+	};
+}
 function scrollSources(node) {
 	const sources = [];
 	for (let at = renderedParent(node); at && at !== pageScroller; at = renderedParent(at)) if (scrollsContent(at)) sources.push(at);
@@ -340,6 +352,20 @@ function marginSpot(target, point = null, passage = null) {
 function quotedBoxes(options) {
 	if (options.point?.()) return [];
 	return passageBoxes(options.passage?.() ?? null);
+}
+const wordsStart = (options) => targetSegments(options.passage?.())[0]?.node ?? null;
+function wordsShown(boxes, start, bands, stop) {
+	const holder = renderedParent(start);
+	const box = union(boxes);
+	return holder && box && clippedContents(box, holder, bands, stop);
+}
+function passageBlock(words, target) {
+	let block = null;
+	for (let at = renderedParent(words); at && !scrollsContent(at) && !at.hasAttribute("data-lf-lent-reach-stop"); at = renderedParent(at)) {
+		block = at;
+		if (at === target || !/^(static|relative)$/.test(getComputedStyle(at).position)) break;
+	}
+	return block;
 }
 function samePassage(passage, words) {
 	const range = passage && targetRange(passage);
@@ -456,7 +482,7 @@ function hearTargetChanges(root) {
 		capture: true,
 		passive: true
 	});
-	const carries = (box) => [...carriers.values()].some((byAnchor) => [...byAnchor.keys()].some((anchor) => renderedUnder("scroller" in anchor ? anchor.scroller : anchor, box)));
+	const carries = (box) => [...carriers.values()].some((byAnchor) => [...byAnchor.keys()].some((anchor) => renderedUnder(anchorHolder(anchor), box)));
 	root.addEventListener("scrollend", (event) => {
 		const source = event.target === document ? pageScroller : event.target;
 		if (source instanceof Element && carries(source) && scrollMisplacesAnchors(source)) scheduleMarginLayout();
@@ -529,7 +555,7 @@ function controlsIn(host) {
 	visit(host);
 	return found;
 }
-function coverIn(root, band, target, bands, stop) {
+function coverIn(root, band, target, words, bands, stop) {
 	const cover = [];
 	const controls = [];
 	const boxes = [];
@@ -557,7 +583,7 @@ function coverIn(root, band, target, bands, stop) {
 				node,
 				box
 			});
-			const control = node.matches(TAB_STOP);
+			const control = node.matches(TAB_STOP) && !(words && node.hasAttribute("data-lf-lent-reach-stop") && renderedUnder(words, node));
 			if (!boxless && !holds && (node.shadowRoot || node.matches(OPAQUE) || control) && node.checkVisibility()) {
 				const shown = clippedRect(box, node, bands, stop);
 				if (shown) cover.push(shown);
@@ -603,21 +629,18 @@ function contentBox(scroller) {
 		bottom: top + Math.max(scroller.scrollHeight, scroller.clientHeight)
 	};
 }
-const seats = /* @__PURE__ */ new WeakMap();
 const folded = /* @__PURE__ */ new WeakSet();
 const standsFolded = (row) => folded.has(row);
 const standsWithheld = (node) => Boolean(node.closest(".lf-withheld"));
 function paintedBox(part, row) {
 	const box = part.getBoundingClientRect();
-	if (!row) return box;
-	const by = standsBy.get(row);
-	const target = by && isCarrier(row.parentElement) ? rows.get(row)?.anchor() : null;
-	if (!target?.isConnected || skipped(target)) return box;
-	const whole = shownExtent(target);
-	if (!whole) return box;
+	const target = row && isCarrier(row.parentElement) ? rows.get(row)?.anchor() : null;
+	if (!row || !target?.isConnected || skipped(target)) return box;
+	const stands = standsNow(row);
+	if (!stands) return box;
 	const own = part === row ? box : row.getBoundingClientRect();
-	const across = row.dataset.lfPlace === "pin" ? whole.right + by.right - own.right : 0;
-	return new DOMRect(box.x + across, box.y + whole.top + by.top - own.top, box.width, box.height);
+	const across = row.dataset.lfPlace === "pin" ? stands.right - own.right : 0;
+	return new DOMRect(box.x + across, box.y + stands.top - own.top, box.width, box.height);
 }
 function standFolded(row, fold, on) {
 	if (folded.has(row) === on) return;
@@ -631,7 +654,6 @@ function pinSeating(rows, { bands, shell, pinInset }) {
 	return rows.map((entry) => {
 		const { read } = entry;
 		if (read.place !== "pin") {
-			seats.delete(read.row);
 			standFolded(read.row, read.options.fold, false);
 			return Object.assign(entry, { seat: null });
 		}
@@ -649,15 +671,14 @@ function pinSeating(rows, { bands, shell, pinInset }) {
 		const across = (count, style) => count * height + (count - 1) * parseFloat(style.columnGap) + parseFloat(style.paddingRight);
 		const wide = dimensions ? across(2, dimensions.style) : width;
 		const parts = words ?? partsOf(point ?? target);
-		const blockBox = read.block;
-		const blockParts = words && blockBox ? partsOf(target) : [];
-		const block = blockBox && blockParts.length > 0 && {
+		const blockParts = read.block ? partsOf(read.block.node) : [];
+		const block = read.block && blockParts.length > 0 && {
 			parts: blockParts,
 			home: {
-				left: blockBox.right - pinInset - width,
-				right: blockBox.right - pinInset,
-				top: blockBox.top,
-				bottom: blockBox.top + height
+				left: read.block.box.right - pinInset - width,
+				right: read.block.box.right - pinInset,
+				top: read.block.box.top,
+				bottom: read.block.box.top + height
 			}
 		};
 		const spans = [
@@ -671,7 +692,7 @@ function pinSeating(rows, { bands, shell, pinInset }) {
 			bottom: Math.max(...spans.map((box) => box.bottom)) + around
 		};
 		const stop = read.scroller;
-		const room = coverIn(stop === pageScroller ? main : stop, band, target, bands, stop);
+		const room = coverIn(stop === pageScroller ? main : stop, band, target, read.passageNode, bands, stop);
 		const { cover, controls } = room;
 		const end = parts.at(-1);
 		const inline = Boolean(words) || !point && end !== void 0 && target instanceof HTMLElement && getComputedStyle(target).display.startsWith("inline");
@@ -720,11 +741,6 @@ function pinSeating(rows, { bands, shell, pinInset }) {
 			entry.visualLeft = on && fold?.open() ? rect.right - (entry.rect.right - entry.rect.left) : rect.left;
 			entry.rect = rect;
 			if (entry.fold) standFolded(entry.read.row, entry.fold, on);
-			const attached = targetBox(entry.read.target).getBoundingClientRect();
-			seats.set(entry.read.row, {
-				top: rect.top - attached.top,
-				right: attached.right - rect.right
-			});
 		};
 		return Object.assign(entry, { seat });
 	});
@@ -792,20 +808,18 @@ function scheduleStirReading() {
 		for (const [row, options] of rows) {
 			const target = options.anchor();
 			if (!target?.isConnected) continue;
+			const words = quotedBoxes(options);
+			const start = words.length ? wordsStart(options) : null;
 			if (!boxes.some((box) => {
-				let at = target;
+				let at = start ?? target;
 				for (; at; at = renderedParent(at)) if (at === box) return true;
 				return false;
 			})) continue;
-			if (!row.classList.contains("lf-withheld") && boxes.every((box) => box === pageScroller)) continue;
-			const whole = shownExtent(target);
-			const words = quotedBoxes(options);
-			const by = standsBy.get(row);
-			const stands = row.classList.contains("lf-withheld") || !whole || !by ? null : row.dataset.lfPlace === "pin" ? {
-				top: whole.top + by.top,
-				right: whole.right + by.right
-			} : { top: whole.top + by.top };
-			if (targetShown(target, words.length ? union(words) : whole, stands, bands) === row.classList.contains("lf-withheld")) {
+			const withheld = row.classList.contains("lf-withheld");
+			if (!withheld && boxes.every((box) => box === pageScroller)) continue;
+			const now = withheld ? null : standsNow(row);
+			const stands = now && (row.dataset.lfPlace === "pin" ? now : { top: now.top });
+			if (targetShown(target, start ? wordsShown(words, start, bands, pageScroller) : shownExtent(target), stands, bands) === withheld) {
 				scheduleMarginLayout();
 				return;
 			}
@@ -895,8 +909,7 @@ function layoutMountedRows(layer) {
 		anchors.set(row, anchor);
 		const point = options.point?.() ?? null;
 		const words = quotedBoxes(options);
-		const [firstWord, ...otherWords] = words;
-		const passageNode = firstWord ? targetSegments(options.passage?.())[0]?.node : null;
+		const passageNode = words.length ? wordsStart(options) : null;
 		observeGeometry(point ?? target);
 		present.push({
 			row,
@@ -906,8 +919,14 @@ function layoutMountedRows(layer) {
 		const rootLane = scroller === pageScroller;
 		const box = anchor.getBoundingClientRect();
 		const whole = shownExtent(target);
-		const block = whole && clippedRect(whole, target, bands, scroller);
-		const extent = firstWord ? whole && clippedRect(union([firstWord, ...otherWords]), target, bands, scroller) : block;
+		const extent = whole && (passageNode ? wordsShown(words, passageNode, bands, scroller) : clippedRect(whole, target, bands, scroller));
+		const blockNode = passageNode && passageBlock(passageNode, target);
+		const blockWhole = blockNode && shownExtent(blockNode);
+		const blockBox = blockWhole && clippedRect(blockWhole, blockNode, bands, scroller);
+		const block = blockNode && blockBox ? {
+			node: blockNode,
+			box: blockBox
+		} : null;
 		const line = point?.getBoundingClientRect() ?? words[0];
 		const top = extent && line ? clamp(line.top, extent.top, extent.bottom) : extent?.top;
 		const level = line ? top : box.top;
@@ -931,7 +950,6 @@ function layoutMountedRows(layer) {
 			passageNode,
 			block,
 			anchor,
-			whole,
 			scroller,
 			lane: rootLane ? layer.root : null,
 			shown,
@@ -972,16 +990,15 @@ function layoutMountedRows(layer) {
 		};
 	});
 	for (const entry of placed) {
-		const seat = seats.get(entry.read.row);
-		if (entry.read.place !== "pin" || !seat || !entry.held) continue;
-		const heldBox = targetBox(entry.read.target).getBoundingClientRect();
+		const stands = entry.read.place === "pin" && entry.held && standsNow(entry.read.row);
+		if (!stands) continue;
 		const width = entry.rect.right - entry.rect.left;
 		const height = entry.rect.bottom - entry.rect.top;
 		entry.holding = {
-			left: heldBox.right - seat.right - width,
-			right: heldBox.right - seat.right,
-			top: heldBox.top + seat.top,
-			bottom: heldBox.top + seat.top + height
+			left: stands.right - width,
+			right: stands.right,
+			top: stands.top,
+			bottom: stands.top + height
 		};
 	}
 	const prepared = pinSeating(placed, {
@@ -1224,9 +1241,14 @@ function layoutMountedRows(layer) {
 		}, bands));
 		const left = (visualLeft ?? rect.left) + step;
 		const top = rect.top + push;
+		const from = read.carrierPaint?.box ?? {
+			left: -scrollX,
+			top: -scrollY
+		};
 		standsBy.set(row, {
-			top: top - read.whole.top,
-			right: rect.right - read.whole.right
+			anchor: read.carrierPaint ? read.carrier : null,
+			top: top - from.top,
+			right: rect.right - from.left
 		});
 		if (read.carrierPaint) {
 			const { node: carrier, box: carrierBox, reading } = read.carrierPaint;

@@ -342,6 +342,90 @@ def test_marks_stand_on_a_scaled_slide_in_every_engine(request, serve, engine):
     _outline_and_copy_stand_on(page, page.locator("#words"), "#words")
 
 
+CODE_SCROLLER_PAGE = leaf_page(
+    "a code block that scrolls",
+    "<div><h1>Listing</h1><p>A paragraph above the block, long enough to fill the "
+    'column it stands in from one edge to the other.</p><pre id="listing"><code>'
+    + "\n".join(
+        "    total = sum(weights)  # the commented line"
+        if i == 8
+        else f"def step_{i}(x):"
+        if i % 2
+        else f"    return x + {i}"
+        for i in range(1, 41)
+    )
+    + "</code></pre></div>",
+    head="<style>pre code { display: block; overflow: auto; max-height: 400px; }</style>",
+    layout="workspace",
+)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+def test_a_pin_on_a_line_of_a_scrolling_code_block_marks_that_line(
+    request, serve, engine
+):
+    """reveal.js's theme scrolls every long code block inside its `pre` (`pre code {
+    overflow: auto; max-height: 400px }`). A comment on one of its lines stood its pin
+    above the block's corner after a layout pass, and a scroll of the code then carried
+    the pin away with the lines, so where it stood depended on what moved it last; it
+    also kept standing while its line was scrolled out of the code's view. The pin stands
+    by its line, in the same place after a scroll of the code as after a fresh pass, and
+    is withheld while the line is out of the code's view."""
+    browser = request.getfixturevalue(engine)
+    comment = _comment_on("listing", quote="total = sum(weights)")
+    page = open_page(browser, serve(CODE_SCROLLER_PAGE, events=[comment]))
+    resized(page, 1280, 800)
+    margins_laid_out(page)
+    reading = """() => {
+      const text = document.querySelector('#listing code').firstChild;
+      const at = text.data.indexOf('total = sum(weights)');
+      const range = document.createRange();
+      range.setStart(text, at);
+      range.setEnd(text, at + 20);
+      const line = range.getClientRects()[0];
+      const row = document.querySelector('[data-lf-margin-for="listing"]');
+      const pin = row.getBoundingClientRect();
+      return {offset: [pin.left - line.right, pin.top - line.top],
+              byLine: pin.bottom >= line.top - 8 && pin.top <= line.bottom + 8,
+              shown: !row.classList.contains('lf-withheld')};
+    }"""
+    before = page.evaluate(reading)
+    assert before["shown"] and before["byLine"], before
+    laid_out = page.evaluate(
+        """async () => {
+          let laidOut = 0;
+          document.addEventListener('lf-margin-layout', () => laidOut++);
+          const code = document.querySelector('#listing code');
+          const ended = new Promise((done) =>
+            code.addEventListener('scrollend', done, {once: true}));
+          code.scrollTop = 40;
+          await ended;
+          await new Promise((done) =>
+            requestAnimationFrame(() => requestAnimationFrame(done)));
+          return laidOut;
+        }"""
+    )
+    carried = page.evaluate(reading)
+    # The scroll alone moved the pin; the pass that follows has to agree with it.
+    assert laid_out == 0, carried
+    margins_laid_out(page)
+    placed = page.evaluate(reading)
+    assert carried["offset"] == pytest.approx(before["offset"], abs=1), (
+        before,
+        carried,
+    )
+    assert placed["offset"] == pytest.approx(carried["offset"], abs=1), (
+        carried,
+        placed,
+    )
+    row = page.locator('[data-lf-margin-for="listing"]')
+    code = page.locator("#listing code")
+    code.evaluate("code => { code.scrollTop = 400; }")
+    expect(row).to_have_class(re.compile(r"\blf-withheld\b"))
+    code.evaluate("code => { code.scrollTop = 0; }")
+    expect(row).not_to_have_class(re.compile(r"\blf-withheld\b"))
+
+
 def test_a_pin_in_a_pane_paints_in_the_frame_its_target_scrolls(browser, serve):
     """Every frame Chrome draws while a pane scrolls shows the pin level with its
     target, since the browser carries both through the same scroll."""

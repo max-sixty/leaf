@@ -724,6 +724,87 @@ def panel_dictating(page: Page) -> None:
     settle(page)
 
 
+def comment_on(section: str) -> None:
+    """A comment the user left on `section`, posted as another of their tabs would."""
+    client = PageClient(served_page.get().address)
+    client.post(
+        {
+            "kind": "comment",
+            "revision": client.state()["active"]["revision"],
+            "attempt": f"stills-stop-{section}",
+            "text": "Worth a second look.",
+            "anchor": {"section": section},
+        }
+    )
+
+
+def focus_stop(page: Page, focus: str, *args: str) -> None:
+    """Focus the stop `focus` finds, with the keyboard's modality, as a screen reader
+    moving to it focuses it: a stop is no Tab stop of its own (control-faces.js,
+    `stop`)."""
+    page.keyboard.press("Tab")
+    page.evaluate(f"([...args]) => ({focus})(...args)", list(args))
+    page.wait_for_function(
+        "() => document.activeElement?.closest('.lf-details-shelf, lf-gloss')"
+    )
+    settle(page)
+
+
+# The comment note the element `id` names as its details, once it has one.
+NOTE_OF = """id => {
+  const notes = document.getElementById(id).ariaDetailsElements ?? [];
+  const note = notes.find((node) => node.matches('.lf-mark-note'));
+  if (!note) throw new Error(`#${id} names no comment note`);
+  note.focus();
+}"""
+# The response proxy whose words include `label`, or the first of its group's, its
+# drawing's own.
+PROXY_OF = """(label, whole) => {
+  const proxy = [...document.querySelectorAll('.lf-visual-action')].find((node) =>
+    node.textContent.includes(label),
+  );
+  (whole ? proxy.parentElement.querySelector('.lf-visual-action') : proxy).focus();
+}"""
+
+
+def stop_note_paragraph(page: Page) -> None:
+    """A paragraph's comment note focused, which rings the paragraph."""
+    comment_on("pr-approval-premise")
+    page.wait_for_function(
+        "() => document.getElementById('pr-approval-premise').ariaDetailsElements?.length"
+    )
+    focus_stop(page, NOTE_OF, "pr-approval-premise")
+
+
+def stop_note_row(page: Page) -> None:
+    """A table row's comment note focused, which rings the row."""
+    comment_on("pr-focus-latency")
+    page.wait_for_function(
+        "() => document.getElementById('pr-focus-latency').ariaDetailsElements?.length"
+    )
+    focus_stop(page, NOTE_OF, "pr-focus-latency")
+
+
+def stop_proxy_drawing(page: Page) -> None:
+    """A diagram's own response proxy focused, which rings the diagram."""
+    page.get_by_role("tab", name="Behavior diff").click()
+    focus_stop(page, PROXY_OF, "PreparedDiff", "whole")
+
+
+def stop_proxy_part(page: Page) -> None:
+    """The response proxy of one of a diagram's declared parts focused, which rings the
+    part in its own contour."""
+    page.get_by_role("tab", name="Behavior diff").click()
+    focus_stop(page, PROXY_OF, "PreparedDiff")
+
+
+def stop_gloss(page: Page) -> None:
+    """A gloss's stop focused, which rings its phrase."""
+    focus_stop(
+        page, "() => document.querySelector('#pr-focus-safety .lf-gloss-mark').focus()"
+    )
+
+
 def option_empty(page: Page) -> None:
     """An option list's empty one-line add field, focused."""
     field = page.locator(".lf-another leaf-text").first
@@ -3038,6 +3119,20 @@ STATES = (
         region=".lf-fp-row",
     ),
     State("plan-option-empty", "review-a-plan", option_empty, region=".lf-another"),
+    State("stop-note-paragraph", "pr-walkthrough", stop_note_paragraph),
+    State(
+        "stop-note-paragraph-dark", "pr-walkthrough", stop_note_paragraph, scheme="dark"
+    ),
+    State("stop-note-row", "pr-walkthrough", stop_note_row),
+    State("stop-note-row-dark", "pr-walkthrough", stop_note_row, scheme="dark"),
+    State("stop-proxy-drawing", "pr-walkthrough", stop_proxy_drawing),
+    State(
+        "stop-proxy-drawing-dark", "pr-walkthrough", stop_proxy_drawing, scheme="dark"
+    ),
+    State("stop-proxy-part", "pr-walkthrough", stop_proxy_part),
+    State("stop-proxy-part-dark", "pr-walkthrough", stop_proxy_part, scheme="dark"),
+    State("stop-gloss", "pr-walkthrough", stop_gloss),
+    State("stop-gloss-dark", "pr-walkthrough", stop_gloss, scheme="dark"),
     State("plan-card-reply-resolved", "review-a-plan", card_reply_resolved),
     State("section-ring-keyboard", "review-a-plan", section_ring_by_keyboard),
     State(

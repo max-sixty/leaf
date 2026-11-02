@@ -216,21 +216,21 @@ def comment_on_passage(
         if quote is None and target:
             opened = reveal(view, target, "|".join(map(re.escape, quotes)))
             quote = view.evaluate(SELECT, list(quotes))
+        if quote is not None:
+            view.dispatch_event("body", "mouseup")
+            view.locator('.lf-fp-field leaf-text[data-says="selection"]').click()
+            box = view.locator(".lf-composer leaf-text")
+        else:
+            box = view.locator(".lf-fp-field leaf-text")
+            box.click()
+        box.focus()
+        view.keyboard.insert_text(text if quote is not None else fallback)
         with view.expect_response(
             lambda response: (
                 response.url.split("?")[0].endswith("/api/event")
                 and response.request.method == "POST"
             )
         ) as answer:
-            if quote is not None:
-                view.dispatch_event("body", "mouseup")
-                view.locator('.lf-fp-field leaf-text[data-says="selection"]').click()
-                box = view.locator(".lf-composer leaf-text")
-            else:
-                box = view.locator(".lf-fp-field leaf-text")
-                box.click()
-            box.focus()
-            view.keyboard.insert_text(text if quote is not None else fallback)
             box.press("ControlOrMeta+Enter")
         posted = answer.value
         if not posted.ok:

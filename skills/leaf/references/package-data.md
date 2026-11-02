@@ -326,7 +326,10 @@ is a widget publishing `files`. `page check` verifies the referenced widget decl
 named output with the input's contract. Consumers never identify a producer by tag.
 
 The producer calls `publishOutput(this, "files", value)` after deriving its complete
-value, and publishes `null` when that output is unavailable. `page check --render`
+value, and publishes `null` when that output is unavailable. This helper is also
+available from `portable-api.js`: it dispatches a bubbling, composed `lf-output`
+event carrying `{output, value}`. A plain host may listen without Leaf; Leaf reads
+the notification into its typed output and presentation system. `page check --render`
 and `package check --render` validate every output exercised during their render,
 including values later withdrawn or replaced and values from contained samples whose
 frames are later disposed. A mismatch is an error naming the

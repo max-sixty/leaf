@@ -69,6 +69,7 @@
    Its dependencies are structural vocabulary, rendering and writes; importing a
    gesture owner would cycle through its focus dependency. */
 import { afterScript, nextRender } from "./rendering.js";
+import { inputs } from "./inputs.js";
 import { signal } from "/vendor/signals-core.js";
 import { keeps } from "./keeps.js";
 import { MODIFIER_KEYS, TEXT_BOX, TAB_STOP } from "./control-selectors.js";
@@ -917,7 +918,7 @@ addEventListener(
 // window losing focus, as find-in-page takes it. Delayed work compares the count it
 // began at (user-intent.js), as a hand-back waiting a frame for its target does. A scroll is none of these: the runtime's own landings fire
 // it, and each of the user's ways of scrolling begins with one that is.
-const inputs = window.lfInputs;
+
 export const inputCount = () => inputs.count;
 // Mechanical owners may stop motion at the input edge, before a command or drawing
 // handler consumes it. Observation adds no binding and never claims the event.

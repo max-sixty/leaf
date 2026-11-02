@@ -191,7 +191,7 @@ def test_a_comparison_retries_when_the_live_projection_advances(browser, serve):
         versions = panel_menu(page, "versions")
         expect(versions.locator(".lf-fp-version[data-current]")).to_contain_text("v2")
         expect(
-            versions.get_by_role("menuitem", name=re.compile(r"^Compare with v1\b"))
+            versions.get_by_role("button", name=re.compile(r"^Compare with v1\b"))
         ).to_have_attribute("aria-pressed", "true")
         page.keyboard.press("Escape")
     finally:

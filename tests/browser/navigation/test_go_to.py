@@ -751,8 +751,9 @@ def test_global_destinations_switch_from_a_covering_workspace(
     page.keyboard.press("Escape")
     expect(page_map).to_be_hidden()
 
-    # From a thread open in the panel, Versions turns the leaf's menu to its list, and
-    # Escape goes back from it with the thread still open.
+    # From a thread open in the panel, Versions opens over the leaf's menu in the
+    # thread's place, as every view does; Escape steps back to the menu, then puts the
+    # view away.
     thread_id = next(
         event["id"]
         for event in events_model.read_events(serve.page_dir)
@@ -761,10 +762,15 @@ def test_global_destinations_switch_from_a_covering_workspace(
     open_panel_thread(page, thread_id).focus()
     page.keyboard.press("g")
     page.keyboard.press("Shift+v")
-    versions = page.locator('.lf-fp-menu[data-level="versions"]')
+    versions = view("versions")
     expect(versions).to_be_visible()
-    assert versions.evaluate("menu => menu.contains(document.activeElement)")
+    assert versions.evaluate("view => view.contains(document.activeElement)")
     expect(versions.locator(".lf-fp-version")).to_have_count(2)
+    expect(page.locator(".lf-fp-head .lf-fp-back")).to_have_accessible_name(
+        "Back to Menu"
+    )
     page.keyboard.press("Escape")
     expect(versions).to_have_count(0)
-    expect(page.locator(PANEL)).to_have_attribute("data-open", "thread")
+    expect(page.locator(PANEL)).to_have_attribute("data-open", "menu")
+    page.keyboard.press("Escape")
+    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))

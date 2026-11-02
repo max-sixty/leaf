@@ -737,9 +737,8 @@ diff --git a/README.md b/README.md
 
     details = page.locator("lf-diff details").first
     summary = details.locator("summary")
-    file_row = page.locator("lf-diff .lf-diff-file").first
-    expect(file_row).to_have_attribute("data-lf-datum", '["app.py","file"]')
-    expect(file_row).to_have_attribute("data-lf-datum-label", "app.py · file")
+    expect(summary).to_have_attribute("data-lf-datum", '["app.py","file"]')
+    expect(summary).to_have_attribute("data-lf-datum-label", "app.py · file")
     details.evaluate(
         "element => { element.open = false; window.__lfDiffDetails = element; }"
     )
@@ -857,7 +856,7 @@ diff --git a/README.md b/README.md
     expect(added).not_to_be_in_viewport()
     # The thread's view goes to the line it quotes with Show on page.
     first_thread_quote(page, serve.page_dir)
-    page.locator(".lf-fp-controls").get_by_role("button", name="Show on page").click()
+    page.locator(".lf-fp-head").get_by_role("button", name="Show on page").click()
     expect(search).to_have_value("")
     expect(added).to_be_in_viewport()
     expect(added).to_have_class(re.compile(r"\blf-mark-here\b"))

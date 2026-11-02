@@ -1,8 +1,7 @@
-import { describeFailure, onMotionPreferenceChange, reducedMotion } from "./bundle-portable.js";
-import { coarsePointer, offlineInteractive, pageUrl, runtime, tagsDeclaring, watchSemantic } from "./bundle-layer-stack.js";
+import { coarsePointer, describeFailure, layoutWindow, onMotionPreferenceChange, reducedMotion, seenRect, shownWindow, watchRoom } from "./bundle-portable.js";
+import { offlineInteractive, pageUrl, runtime, tagsDeclaring, watchSemantic } from "./bundle-errors.js";
 import { layerHeaders, randomId, sessionIsActive } from "./bundle-layer-client.js";
 import { pageReadiness, unconcealedReadingRegions } from "./bundle-content-layout.js";
-import { layoutWindow, seenRect, shownWindow, watchRoom } from "./bundle-geometry.js";
 import { darkPreference, pageIdentity, shownScheme } from "./bundle-page-identity.js";
 
 //#region runtime/user-view.js

@@ -8,7 +8,7 @@
 
    A widget whose tag declares `x-data` names the items it drew from its bound value
    with plain attributes, and Leaf stamps them (`projectMarked`) once the widget
-   reports the value it drew (leaf-element.js, "Bound values"):
+   reports the value it drew (element-data.js, "Bound values"):
 
    - `data-lf-datum`, the key: a non-empty string unique within the seat, which core
      never interprets;
@@ -155,7 +155,7 @@ export function createDataProjection({ invalidateDom }) {
   }
 
   /** Stamp the items a widget marked under `root` with the snapshot that supplied the
-   *  value it drew, or null for words no bound value supplied; leaf-element.js has
+   *  value it drew, or null for words no bound value supplied; element-data.js has
    *  matched the value to the snapshot.
    *  @param {Element} root @param {import("../data.js").DataSnapshot | null} snapshot */
   function projectMarked(root, snapshot) {

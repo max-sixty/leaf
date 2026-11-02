@@ -1179,6 +1179,10 @@ def deliverable(
     so input waits here only on a page whose renewal was refused, and the hooks name
     why (`hook_transport.remedies`).
 
+    Less, too, each waiting message of a thread a fork of the owner's conversation
+    is deciding on (`forks.held`), until the fork answers or hands it over, which
+    keeps the watch from waking the session for it as it arrives.
+
     Which updates are owed is the page's fold, whose page model costs about 70 ms
     of CPU to import. Codex's tool hook runs after every tool call, so it passes
     `received=False` and hands over only what the cursor has not passed, answered
@@ -1188,6 +1192,11 @@ def deliverable(
     pending = unacknowledged(page.events, page.cursor)
     if pending and (held := awaiting_receipt(page)):
         pending = [event for event in pending if event["id"] not in held]
+    if pending:
+        from .forks import held_inputs
+
+        if forked := held_inputs(page):
+            pending = [event for event in pending if event["id"] not in forked]
     owed = unreferenced(page, obligations) if received else []
     if not pending and not owed:
         return []

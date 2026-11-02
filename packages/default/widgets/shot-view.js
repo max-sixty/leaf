@@ -16,7 +16,7 @@ import { html, nothing, ref, styleMap } from "/vendor/lit.js";
 /** @typedef {{pixelRatio?: number, captureWidth?: number, focus?: Rectangle | undefined, labels?: Record<Side, string>}} ShotMetadata */
 /** @typedef {{available: number, availableHeight?: number | undefined, screenHeight: number, labelHeight: number, sourceWidth?: number | undefined, sourceHeight?: number | undefined, focus?: Rectangle | undefined, full?: boolean, actual?: boolean, view?: string, gap: number}} ShotGeometryInput */
 /** @typedef {NonNullable<ReturnType<typeof fitShotGeometry>>} ShotGeometry */
-export const SHOT_VIEWS = {
+const SHOT_VIEWS = {
   flip: "Slider",
   compare: "Pair",
   pixels: "Pixels",

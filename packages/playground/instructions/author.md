@@ -38,16 +38,21 @@ follow from it:
 ## Placement and space
 
 Keep each control within sight of what it changes, so the user watches the effect
-while moving it. A control that is a direct child of `lf-playground` stands in the rail
-beside the preview, above the playground's actions, which suits a setting that changes
-the whole preview. One written inside `lf-playground-preview` stands where it is
-written: when each item takes its own setting, such as an alert's threshold beside
-that alert's replay, its control can stand beside the item, while a setting every item
-shares stays in the rail. Either kind is submitted, and presets and Reset set it.
-Weigh what controls in the preview cost the subject: a setting or two beside each item
-keeps its evidence in view, while many settings per item crowd out what the user is
-judging. Then an inspector serves better: the user selects an item in the preview, and
-only that item's settings show in the rail.
+while moving it. A control directly inside `lf-playground` stands in the rail beside
+the preview, above the playground's actions; one inside `lf-playground-preview` stands
+where authored. Both kinds are submitted, and presets and Reset set them.
+
+When tuning against supplied measurements, start with one comparison row per
+independently tuned item. Keep its prior and working settings, their outcomes, and the
+supplied alternatives' outcomes together, with its controls beside them. Coupled
+settings belong in the same row. Keep the comparison in the preview, and preserve it
+when the interaction becomes a final record. Use another arrangement when it makes the
+relationships clearer.
+
+For a visual design, give the actual candidate room to be judged. A few controls beside
+each candidate keep their effects in view; when controls crowd the candidate, an
+inspector lets the user edit the selected item while the candidates remain available
+for comparison.
 
 Choose the playground's space by what the user needs to see and operate together
 (`references/page-authoring.md`, "Composing a page"). For more room in a reading
@@ -101,12 +106,12 @@ such as hovering a card to show the raised style under review, can be wired on a
 
 ## Controls, samples, and output
 
-A choice control shows radio buttons by default, so alternatives and their labels can
-be compared directly. `appearance="select"` favors scanning current settings across
-many items, at the cost of opening menus to compare alternatives. Choose by whether
-the alternatives or the current values carry the decision. The same
-`lf-playground-choice` children provide the select's values and labels; presets, Reset
-and the submitted values work the same.
+A choice control shows radio buttons by default, keeping its option labels visible.
+`appearance="select"` saves space when scanning current settings across many items, at
+the cost of opening a menu to read the other labels. Choose the control within the
+comparison composed under “Placement and space.” The same `lf-playground-choice`
+children provide the select's values and labels; presets, Reset and the submitted
+values work the same.
 
 Keep the configuration the user is choosing apart from the cases used to inspect it.
 Controls and presets describe what to build. Give preview cases and inspection settings
@@ -180,7 +185,8 @@ grid's columns, such as `repeat(2, minmax(0, 1fr))`.
       Build the <lf-playground-value for="format"></lf-playground-value> notification
       with <lf-playground-value for="radius"></lf-playground-value> corners and compact
       spacing set to <lf-playground-value for="compact"></lf-playground-value>. Replace
-      the notification component and show me its browser test.
+      the notification component and show its before-and-after comparison and browser
+      test.
     </lf-playground-output>
   </lf-playground>
 </lf-ask>
@@ -221,8 +227,12 @@ CSS in a `<style>` inside its template, keyed on the child's root, such as
 `:root[data-playground-format="status strip"]`: each sample's root carries the
 playground's properties and attributes from its first paint, including after Reset.
 
-The output is the instruction the agent receives. Write a complete task that names the
-object, where the change goes, and the evidence you want back. Unless the page draws the actions, the user reads it only on
+The output is the task the agent receives after submission. Carry the user's purpose
+through the change: name the object, where the change goes, and the result the user
+needs to inspect afterward. When changing something already in use, ask for a
+before-and-after comparison so the user can inspect the choice and its effects.
+
+Unless the page draws the actions, the user reads it only on
 request, from a button beside the playground's Reset and submit, so whatever the user
 needs to see before submitting, such as the exact values the build will receive, belongs
 on the page where they tune. Use

@@ -201,17 +201,12 @@ export function createDelivery({
 // Send one bookkeeping event and apply the state its answer carries. Resolves
 // "accepted" once that state is applied, "refused" when the server's answer is final,
 // and "unreached" when no complete answer came back, which a later send may still get.
-// `keepalive` lets a send made as the document goes away reach the server.
 /** @param {import("../types/contract.js").BrowserCommand} event @param {ApplyState} applyState */
-export async function deliverBookkeeping(
-  event,
-  applyState,
-  { keepalive = false } = {},
-) {
+export async function deliverBookkeeping(event, applyState) {
   const held = runtime.data;
   let response;
   try {
-    response = await postEvent(event, held, { keepalive });
+    response = await postEvent(event, held);
   } catch {
     return "unreached";
   }

@@ -165,7 +165,12 @@ comparing the name. A watcher is one of:
 Every watcher watches every page the session holds, and every transport hands over the
 same envelope (`../../skills/leaf/references/event-batches.md`, "One envelope on every
 transport"). What a watcher delivers is `delivery.deliverable`, which includes the
-updates a page's previous owner received and left unanswered.
+updates a page's previous owner received and left unanswered. It leaves out the
+waiting messages of a thread a fork of a Claude Code session's conversation is
+deciding on, while that session's pages follower holds its forks lane
+(`sessions/<session>.fork-lane`), until the fork answers or the thread is handed
+over, by the fork or by the follower once the hold runs out, which
+`sessions/<session>.forks` records (`forks.py`).
 
 ### The hook
 
@@ -210,7 +215,8 @@ page and is interrupted. Input that reaches the page after that has no watcher, 
 the claimant's harness may offer a nudge, the one way to reach such a session.
 
 Admission sends a nudge when an event is appended to a page whose claimant takes no
-input, once per ending of its turn (`presence.nudge_unwatched`). An interrupted turn
+input, once per ending of its turn (`presence.nudge_unwatched`). For a message a fork
+holds, its hand-over nudges in admission's place (`forks.py`). An interrupted turn
 runs no hook, so Claude Code also starts the watch as each prompt starts, which waits
 while that turn runs and wakes for what an interrupt leaves (`hooks.cmd_watch`). Where
 no watch holds the lease, the page's server sends for the input an interrupted turn

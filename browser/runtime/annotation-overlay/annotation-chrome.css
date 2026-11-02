@@ -926,3 +926,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     }
   }
 }
+/* Floating editors stand above the chrome that the root's scroll padding clears.
+   Chromium carries a native caret reveal through a CSS-anchored fixed box and applies
+   that padding to it, moving the document beneath an already visible editor. */
+html:has(
+  .lf-margin-preview:focus-within,
+  .lf-fab-bar:not([data-lf-presentation="inline"]):focus-within
+) {
+  scroll-padding: 0;
+}

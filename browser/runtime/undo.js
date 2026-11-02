@@ -68,7 +68,13 @@ import { threadIdNamed, threadNamed } from "./thread/state.js";
 import { addressableLabel, addressableWord } from "./addressable-names.js";
 import { elementById, inChrome } from "./passages.js";
 import { focusDestination, inputCount, onUserInput } from "./focus.js";
-import { placeBox, placeHolder, seenRect, whenNone } from "./geometry.js";
+import {
+  clipsPastSurfaces,
+  placeBox,
+  placeHolder,
+  seenRect,
+  whenNone,
+} from "./geometry.js";
 import { messageHolding, threadName } from "./thread/messages.js";
 import { surfaceFocusTarget } from "./thread/surfaces.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
@@ -414,7 +420,10 @@ export function createUndo({
     armed = current;
     notice(`Press again to undo: ${takes(event)}`);
     // What the press shows may still be on its way into view, so only leaving it after
-    // it was seen clears the arm.
+    // it was seen clears the arm. Leaf's own surfaces standing over it, as the leaf's
+    // menu does while a finger reaches its Undo, are no look elsewhere, so the place is
+    // read past them; and a drawing the panel takes away for the menu, as a thread's
+    // view, leaves the arm standing, since it went by a press in Leaf's chrome.
     void show(event).then((nodes) => {
       if (armed !== current) return;
       current.shown = true;
@@ -422,13 +431,14 @@ export function createUndo({
       let landed = false;
       stop = whenNone(
         nodes,
-        (node, clips) => {
-          const shown = seenRect(node, clips);
+        (node) => {
+          const shown = seenRect(node, clipsPastSurfaces());
           landed ||= Boolean(shown);
           return shown;
         },
         () => {
-          if (landed && armed === current) disarm();
+          const scrolledAway = nodes.some((node) => node.isConnected);
+          if (landed && scrolledAway && armed === current) disarm();
         },
       );
     });

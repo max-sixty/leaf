@@ -989,11 +989,13 @@ body {
  * importance.
  *
  * The same rank makes `hidden` hide whatever display another rule states for the
- * element, which the UA's own rule loses to, so no rule restores it per selector. A box
+ * element, which the UA's own rule loses to, so no rule restores it per selector.
+ * Templates carry their future content's layout classes but never generate a box. A box
  * shown without its contents takes another state than `hidden`; `until-found` keeps its
  * box for find-in-page, and the owner of that box states it. Shadow trees repeat this
  * (styles/shadow-leading.css). */
 @layer {
+  template,
   [hidden]:not([hidden="until-found"]) {
     display: none !important;
   }
@@ -1861,8 +1863,25 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   transform: translateY(0);
   transition: none;
 }
+/* An obligation's subject need not say what the user owes. Keep its question
+   readable at the selected destination, including when the subject owns focus. */
+.lf-margin-entry[data-lf-kinds~="on-me"][data-lf-target-selected]
+  > .lf-margin-entry-label {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition: none;
+}
+.lf-margin-entry[data-lf-kinds~="on-me"][data-lf-target-selected]
+  .lf-margin-entry-label-word {
+  white-space: normal;
+}
 @media (hover: none) {
-  .lf-margin-entry[data-lf-focus]:not(:focus-visible, [data-lf-held-word])
+  .lf-margin-entry[data-lf-focus]:not(
+      :focus-visible,
+      [data-lf-held-word],
+      [data-lf-target-selected]
+    )
     > .lf-margin-entry-label {
     opacity: 0;
     visibility: hidden;

@@ -142,11 +142,6 @@ lf-code > pre > lf-note {
       border-radius: var(--r);
       padding: var(--lf-code-inset-block) var(--lf-code-inset-inline)
         var(--lf-code-inset-block) calc(var(--lf-code-gutter) + var(--lf-code-gap));
-      /* Reserve the clearance that the numbered rows take after upgrade, so their
-         arrival keeps the code block's first box. */
-      padding-block-end: calc(
-        var(--lf-code-inset-block) + var(--lf-text-scroll-clearance)
-      );
       white-space: pre-wrap;
       overflow-wrap: anywhere;
     }

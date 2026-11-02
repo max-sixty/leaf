@@ -21,6 +21,7 @@ from render_harness import (
     open_threads,
     page_comment,
     panel_field,
+    panel_menu,
     panel_settled,
     panel_view,
     press_visible,
@@ -669,13 +670,12 @@ def open_capture_area(page, *, touch=False):
     """Enter the screenshot tool through its ordinary page-control route: the leaf's
     menu, Annotations, Capture area, and wait for it to dim the page. It opens with no
     area drawn, inviting a drag."""
-    menu = page.locator(".lf-fp-menu")
-    for press in (
-        page.locator(".lf-fp-leaf"),
-        menu.locator('.lf-fp-item[data-row="group:annotate"]'),
-        menu.locator('.lf-fp-item[data-row="command:capture.region.open"]'),
-    ):
-        press_visible(page, press, touch=touch)
+    annotations = panel_menu(page, "annotate", touch=touch)
+    press_visible(
+        page,
+        annotations.locator('.lf-fp-item[data-row="command:capture.region.open"]'),
+        touch=touch,
+    )
     surface = page.get_by_role("region", name="Capture area", exact=True)
     expect(surface).to_be_visible()
     expect(surface.locator(".lf-region-selection")).to_be_hidden()

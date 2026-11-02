@@ -366,11 +366,12 @@ test("what the disclosure adds to the row says only what the row does not", () =
   const adds = (activity, onBoth = NO_QUEUES) =>
     statusModel(pageStatus(state(activity)), onBoth, "Claude").adds;
   const work = { kind: "working", detail: "revising the plan", ts: minutesAgo(0) };
-  // Working restates the row; what follows the sentence is all it adds.
+  // Working restates the row; what follows the sentence is all it adds. What waits on
+  // each side stands on the tabs beside the menu, so the menu's status leaves it out.
   assert.equal(adds(work), "");
   assert.equal(
     adds({ ...work, observed_kind: "tool", observed: "Running the tests" }, queues),
-    "Running the tests. Waiting on me: 2 to answer, 1 to-do (Try the build on a phone), 2 updates to send again. Waiting on Claude: 1 reply, 1 to-do (Rebuild the chart).",
+    "Running the tests",
   );
   assert.equal(adds({ kind: "listening", detail: "" }), "");
   // What the sentence says past the row, without the state the row already says.

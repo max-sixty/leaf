@@ -189,7 +189,7 @@ const head = () => {
   else removeRuntimeRootStyle(body, HEAD);
   return true;
 };
-export const readDocumentHeaders = () => {
+const readDocumentHeaders = () => {
   const titled = title();
   const headed = head();
   return { changed: titled || headed };

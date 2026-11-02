@@ -14,6 +14,7 @@ from render_harness import (
     open_page,
     panel_field,
     panel_menu,
+    panel_view,
     refuse,
     round_trip,
     select_words,
@@ -101,7 +102,7 @@ def test_history_dependent_keys_wait_for_the_first_read(browser, serve, command)
     if command == "unread":
         expect(page.locator('.lf-msg[data-event="unread-note"]')).to_be_focused()
     elif command == "version":
-        expect(page.locator('.lf-fp-menu[data-level="versions"]')).to_be_visible()
+        expect(page.locator(panel_view("versions"))).to_be_visible()
     else:
         round_trip(page)
         events = [

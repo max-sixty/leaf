@@ -1,5 +1,5 @@
 import { J, LAYOUT, LENT_REACH_STOP, PAGE_PAINT_ATTRIBUTE, PRESSES, TEXT_BOX, WORKS, Z, afterScript, atScrollEnd, clamp, clippedContents, closestAcross, deepFocus, elementFrame, eventSource, headerCuts, inChrome, inUi, inlineStyle, installScrollerLookup, isElement, isHTML, isText, keeps, landingBand, layoutChanged, layoutPx, layoutWindow, move, nativeLayerHolding, nearObserver, nearWindow, nextFrame, nextRender, onCurrentLocation, overlaps, pagePresented, pageScroller, pressing, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, renderedParent, renderedUnder, renderingState, revealRegisteredVisualPart, revealsVisualParts, scrollContainer, scrollToEnd, scrollersOf, scrollsBy, scrollsContent, shadowHost, shellRight, shownParts, shownRect, sizeObserver, skipped, tabStops, tick, uiInside, under, union, upFrom, userScrollport, visualPartAdmission, watchArrivals, watchScrolls, wearsLentStop, whileConnected } from "./bundle-portable.js";
-import { PRESSABLE, TEXT_BLOCK, anchorKey, applicationPresented, documentChanged, fragmentId, hostIn, isElementName, marks, registry, repaintPage, shadowRootsIn, tagsDeclaring } from "./bundle-errors.js";
+import { PRESSABLE, TEXT_BLOCK, anchorKey, applicationPresented, documentChanged, fragmentId, fragmentKey, hostIn, isElementName, marks, registry, repaintPage, shadowRootsIn, tagsDeclaring } from "./bundle-errors.js";
 import { removeRuntimeRootStyle, reportPageError, setRuntimeRootAttribute, setRuntimeRootStyle } from "./bundle-layer-client.js";
 import { DATUM, authoredScope, blockAt, contextAround, cut, elementById, elementReading, excerptWords, fileModelsPassage, findQuote, layoutBox, leafSurface, neighbourhood, pageDocument, pageQueryAll, pageText, quoteFrom, rangeOf, readingFrom, segmentsIn, settledAway, spanIn, textNodesUnder } from "./bundle-passages.js";
 
@@ -1365,7 +1365,28 @@ function resolveAnchor(anchor) {
 		segments
 	});
 }
-const fragmentTarget = (fragment) => fragment ? targetElement(resolveAnchor({ section: fragmentId(fragment) })) : null;
+const pageElement = (id) => targetElement(resolveAnchor({ section: id }));
+function fragmentAddress(fragment) {
+	if (!fragment) return null;
+	const named = pageElement(fragmentId(fragment));
+	if (named) return {
+		element: named,
+		key: null,
+		place: named
+	};
+	const keyed = fragmentKey(fragment);
+	const element = keyed && pageElement(keyed.id);
+	if (!keyed || !element) return null;
+	return {
+		element,
+		key: keyed.key,
+		place: addressedElements(element, keyed.key)[0] ?? null
+	};
+}
+function fragmentTarget(fragment) {
+	const address = fragmentAddress(fragment);
+	return address ? address.place ?? address.element : null;
+}
 
 //#endregion
 //#region runtime/chrome.js
@@ -2139,4 +2160,4 @@ const readDocumentHeaders = () => {
 };
 
 //#endregion
-export { ADDRESSABLE, PAGE_CONTROL_RANK, PAGE_INTERFACE, PRESENTATION, UPGRADE, activityTransitionDue, addressableLabel, addressableName, addressableSays, addressableWord, addressedElements, afterPresentation, ago, aimTargetAt, aimTargets, anchorAt, anchorBox, anchorElement, anchorFor, anchorForPassage, anchorForRange, anchorName, anchorReaches, anchorReading, anchorView, anchoringIsReady, annotationAt, boundedBlockOf, carriedAnchor, chromeForeground, chromeRoot, claimReachStop, clockValue, commitPoint, compoundReadingRegionId, containingReadingRegionFor, cutFrames, datumAimTarget, datumLabel, declaredName, deferredArrival, designPressAt, effectiveScroller, exactTarget, followingItsEnd, fragmentTarget, headerLevels, holdArrivingBounds, isAddressable, leadingTitle, lightSeat, livePoint, markPagePresented, markPageUpgraded, markStateApplied, nameAnchor, nameable, observeServerNow, observeWorkingGrace, onReadingInput, openDocumentLayout, pageControls, pageControlsChanged, pageReadiness, pageReadingRegion, passageBoxes, passageGeometry, placePoints, pointBand, pointInto, preserveReadingRegions, projectedDatum, proseMeasure, proseRect, quietSince, railStands, rangeGeometry, reachScrollers, readingRegion, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, registerReadingRegion, releaseReachStop, resolveAnchor, resolvedInMessage, revealAddressed, saidNow, scheduleDocumentLayout, scrollChainOf, scrollMisplacesAnchors, scrollerFor, scrollsWith, sectionLabel, sectionOf, setAnchoringReady, settleDocumentLayout, settlePageInterface, shortAgo, showReadingSubject, shownRegionBounds, targetElement, targetParts, targetPlace, targetRange, targetSegments, targetSurface, tickClock, unclaimedVisualGesture, unconcealedReadingRegions, userReadingRegion, visualAt, visualPartLabel, visualParts, visualSelector, watchReadingRegionTransitions, whenArrived, whileInterfaceConnected, widgetWord, windowHoldsRail };
+export { ADDRESSABLE, PAGE_CONTROL_RANK, PAGE_INTERFACE, PRESENTATION, UPGRADE, activityTransitionDue, addressableLabel, addressableName, addressableSays, addressableWord, addressedElements, afterPresentation, ago, aimTargetAt, aimTargets, anchorAt, anchorBox, anchorElement, anchorFor, anchorForPassage, anchorForRange, anchorName, anchorReaches, anchorReading, anchorView, anchoringIsReady, annotationAt, boundedBlockOf, carriedAnchor, chromeForeground, chromeRoot, claimReachStop, clockValue, commitPoint, compoundReadingRegionId, containingReadingRegionFor, cutFrames, datumAimTarget, datumLabel, declaredName, deferredArrival, designPressAt, effectiveScroller, exactTarget, followingItsEnd, fragmentAddress, fragmentTarget, headerLevels, holdArrivingBounds, isAddressable, leadingTitle, lightSeat, livePoint, markPagePresented, markPageUpgraded, markStateApplied, nameAnchor, nameable, observeServerNow, observeWorkingGrace, onReadingInput, openDocumentLayout, pageControls, pageControlsChanged, pageReadiness, pageReadingRegion, passageBoxes, passageGeometry, placePoints, pointBand, pointInto, preserveReadingRegions, projectedDatum, proseMeasure, proseRect, quietSince, railStands, rangeGeometry, reachScrollers, readingRegion, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, registerReadingRegion, releaseReachStop, resolveAnchor, resolvedInMessage, revealAddressed, saidNow, scheduleDocumentLayout, scrollChainOf, scrollMisplacesAnchors, scrollerFor, scrollsWith, sectionLabel, sectionOf, setAnchoringReady, settleDocumentLayout, settlePageInterface, shortAgo, showReadingSubject, shownRegionBounds, targetElement, targetParts, targetPlace, targetRange, targetSegments, targetSurface, tickClock, unclaimedVisualGesture, unconcealedReadingRegions, userReadingRegion, visualAt, visualPartLabel, visualParts, visualSelector, watchReadingRegionTransitions, whenArrived, whileInterfaceConnected, widgetWord, windowHoldsRail };

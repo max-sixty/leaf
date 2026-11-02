@@ -10,15 +10,15 @@
 
     "runtime/anchor-controls.js": "c26b3ddd310fdfcb9bcb1cfc8900910a252a9426c47ad754df49c0e59de13657",
 
-    "runtime/anchor-coordinate.js": "7a98dddc99f0308a631a677eb642fbc93b7a6b6d9e405b12ab2e2602f56de6e5",
+    "runtime/anchor-coordinate.js": "6d7459f75819addb1e358496ce936ede3d5cd7ec5403ba450961e69683d0506a",
 
     "runtime/anchor-note-view.js": "eedf4ef8f28d7a8b930132b1eac6b286ef06e4decab6b907f665c22ce83050c2",
 
     "runtime/anchor-placement.js": "3bb7695bb000da18b06f4aca8668b38db70d9e2646fb52fcee08304c680c9ab0",
 
-    "runtime/anchor-resolution.js": "d9357efe83a5ecc4b8292aa9dfe0a82ee24b44d6c4b22e32c3db8311cd9cfb30",
+    "runtime/anchor-resolution.js": "fc81f15f6fd8bfd5f444e5ba5c46ceffbe9949d1fef651f4a7763d1ab26c94dd",
 
-    "runtime/anchor-travel.js": "7485edebcba344a40f77a093ee9bfaffff9fab1052f6340f4da72c0792eec8c0",
+    "runtime/anchor-travel.js": "dd3705bf7b9b3a39b32408352d840bb453f873e8d12c672003ea54602cdb3266",
 
     "runtime/annotation-inventory.js": "f85cda64cdf583a005bab2dd5e14983763d8ee2a55b26962d336b3bf359f5b87",
 
@@ -208,11 +208,11 @@
 
     "runtime/geometry.js": "cd448f6468693a45d43ec809e9817416b3e5dbea84dcb98865064398076724ea",
 
-    "runtime/heading-links.js": "734e7c613203bf35110d415d5ee72c265ddfd33a7948b517e3a7518d1a1cde38",
+    "runtime/heading-links.js": "056e3bb72da3573c04d80028d1a47012295e0d60e47a21fc01f84a97f5b93d1e",
 
     "runtime/held-word.js": "b19c912dfe1eb4ff99e52b5663e2f5a1bcbe069c507ca91adc2a385e40b60963",
 
-    "runtime/history.js": "8a7fb3c8f19e44c7edd5bc5e892ad53fd9761b628b54d01064f77c909628e999",
+    "runtime/history.js": "511d66925175d4e6b69c2a019ba15b5c302844f3f5c0c01b3cdc0af9cacd9773",
 
     "runtime/http-api.js": "d898e1afac17f612a91aec8de608a81cea13125fd2818169ea209732a497ed26",
 
@@ -226,7 +226,7 @@
 
     "runtime/inputs.js": "24b1c6f1470cec84bbef724fcf7dbd453c150cdf6f280b9db089869693c5cd11",
 
-    "runtime/interaction-log.js": "75078aef28095796090c7b68a5eb720466309f264b93487706466b135c5b7efc",
+    "runtime/interaction-log.js": "f101a06877393bcb48252440b7fdafd791fb78b368734d3fb9a7c0a99ff41c6b",
 
     "runtime/keeps.js": "a41c1d22007f1526897c158aded9856aac6285d1f2373a4243578fad9359c3a7",
 
@@ -278,7 +278,7 @@
 
     "runtime/language-paths.js": "038583c5c8c80b5f772323aa1f47b6d8d865e615d632014ac2c12cd92f90006f",
 
-    "runtime/layer-client.js": "9469e1387d5867ef6db27e3c0647b726a02e7e55b1d979be6c752ad2192deae2",
+    "runtime/layer-client.js": "245cdc7afbe0f463a95f657591d036639228ea54c45c6e453009a69a53c863f8",
 
     "runtime/leaf-element.js": "105e501f7c6db5fc476c6c97834599c95a376befb02958935985dff92cba9abb",
 
@@ -356,7 +356,7 @@
 
     "runtime/portable-api.js": "f6de26faa9bc97a20e881ca1b2161446bf74aab49be6875a2c39ec8d0c55f6dd",
 
-    "runtime/prepaint.js": "16ccf9f557b96a9a4e0542e27022bdb7496e487d4bc8cf24087e5b4fd29a587b",
+    "runtime/prepaint.js": "1857cdddc2a05942a31d17642a0798b9e0f303e48af51d0127c46d30e5af688e",
 
     "runtime/presence.js": "4e4a1acbc1460e2d7e3e1c2ce74fbd496edb4678e6969e91106c630605a9f588",
 
@@ -538,7 +538,7 @@
 
     "runtime/version-signal.js": "2fd7de64264ad0318dbb2e7e8e44ec4a576f84c4f8f128e240f57f595dbedbeb",
 
-    "runtime/version.js": "78e7d169b41054fbc5313c1dd40dedde064ba14795574497c6702a376ed281aa",
+    "runtime/version.js": "11b1756debe92050992bf36a2a1d5409d59bc1ebf5c5511af4f09d73103994bf",
 
     "runtime/video-controls.js": "edeb26d5b544ecd5a1099a06146a6ce10baf214be6c172c66abe1fe535ec8f47",
 
@@ -552,7 +552,7 @@
 
     "runtime/walk-position.js": "10a8e77ca0ac65bd53c6ba061e3a34188ea352638a1cf6ae0082bf34929295f4",
 
-    "runtime/widget-api.js": "346ecd7a3739eb3453a5e32257d7d2b101e671f31aea9217991b624e00723e89",
+    "runtime/widget-api.js": "e00863c3a222b850e6ef6d75f13761b925d8f60f2e97008ddcf6189ae8505202",
 
     "runtime/widget-controller.js": "78ac7b9c2508e204c1c8fed85849ff724cb968c704ac188a7c51f96c9965824a",
 

@@ -63,6 +63,24 @@ the pointer's input is confirmed; the page's later input follows at the boundary
 after the ack. Stop and a prompt that opens the turn again hand unconfirmed input
 over again, as they do input Escape dropped.
 
+Claude Code waits for its tool-boundary hook before every model call, and nearly
+every boundary has nothing to carry. So a boundary first reads each page's log, and
+folds its pages only for input past a cursor (`new_input`), a status check coming
+due or a line the clerk queued. This module imports the page model only where a
+hook folds a page. An update the cursor has passed that its owner holds no usable
+reference for (`delivery.unreferenced`) reaches the turn only where a hook folds
+the pages:
+
+- a boundary with new input or a clerk line beside it;
+- a boundary whose status check is due, every `STATUS_RENEWAL` and at a session's
+  first boundary;
+- Stop under plain `--print`, where no watch follows the turn;
+- otherwise the prompt of the turn the watch wakes once this one ends.
+
+A page at an older page protocol offers no input (`delivery.deliverable`), so an
+empty boundary leaves its renewal to the next prompt or Stop hook
+(`vendoring.renew_layer`).
+
 Pi has the context once the hook returns, so its hook records the receipt with the
 pickup. Claude Code reads it only once every hook of the event has exited, and
 Escape before then drops a prompt with its context, though not a tool boundary's.
@@ -117,7 +135,6 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from .activity import acknowledged_obligations, turn_obligations, unanswered
 from .clerk import heard, queued
 from .delivery import (
     batch_data,
@@ -128,14 +145,12 @@ from .delivery import (
     receive_held,
     record_pickup,
 )
-from .event_contracts import write_refusal
 from .findings import Finding
 from .harness import Harness, claim_harness
 from .schema import (
     ANSWER_INSTRUCTION,
     PREVIEW_FILE,
 )
-from .served_state.context import read_page
 from .service import (
     PageTransaction,
     owned_pages,
@@ -236,7 +251,29 @@ class PagePlan:
     unready: Finding | None
 
 
+def new_input(session_id: str) -> bool:
+    """Whether a page the session holds has input a tool hook hands over: input past
+    the page's cursor that no hook has handed into the open turn
+    (`delivery.deliverable` without `received`), read from the page's log alone."""
+    for page_dir in owned_pages(session_id):
+        try:
+            with PageTransaction(page_dir) as page:
+                claim = page.active_claim
+                if (
+                    claim is not None
+                    and claim["id"] == session_id
+                    and deliverable(page, received=False)
+                ):
+                    return True
+        except FileNotFoundError:
+            continue
+    return False
+
+
 def read_plans(session_id: str) -> list[PagePlan]:
+    from .activity import acknowledged_obligations, turn_obligations
+    from .event_contracts import write_refusal
+    from .served_state.context import read_page
     from .vendoring import renew_layer
 
     plans = []
@@ -351,6 +388,8 @@ def remedies(
     plans: list[PagePlan], handing: list[dict] | tuple[dict, ...] = ()
 ) -> list[tuple[str, str | None]]:
     """Format remedies from already-read facts, with harness wording at the edge."""
+    from .activity import unanswered
+
     handed = {
         (batch["page"], event["id"]) for batch in handing for event in batch["events"]
     }
@@ -403,6 +442,9 @@ def pick_up_acknowledged(session_id: str, plans: list[PagePlan]) -> None:
     likewise checks generation and turn after reacquiring the page transaction.
     A page this Leaf may not write records none; `remedies` tells the turn why.
     """
+    from .activity import acknowledged_obligations
+    from .served_state.context import read_page
+
     for plan in plans:
         if not plan.acknowledged or plan.unwritable:
             continue
@@ -536,6 +578,12 @@ def carry_turn(
     into the one hook output its harness reads, recording a delivery it hands
     over inline by `CONFIRM_WITHIN` after `started`, the hook's
     `time.monotonic()` as it began."""
+    # The asks Leaf's clerk put On me and the replies forks posted since the agent
+    # last heard (`clerk.queued`), which the next prompt or tool boundary carries.
+    told = queued(sid) if event in {"UserPromptSubmit", "PostToolBatch"} else []
+    due = event == "PostToolBatch" and status_check_due(sid)
+    if event == "PostToolBatch" and not told and not due and not new_input(sid):
+        return
     plans = read_plans(sid)
     if session_record(sid) != expected or any(
         plan.lifecycle != expected for plan in plans
@@ -562,14 +610,7 @@ def carry_turn(
         if carries
         else []
     )
-    renewals = (
-        status_reminders(sid, plans)
-        if event == "PostToolBatch" and status_check_due(sid)
-        else []
-    )
-    # The asks Leaf's clerk put On me and the replies forks posted since the agent
-    # last heard (`clerk.queued`), which the next prompt or tool boundary carries.
-    told = queued(sid) if event in {"UserPromptSubmit", "PostToolBatch"} else []
+    renewals = status_reminders(sid, plans) if due else []
     if event == "PostToolBatch" and not batches and not renewals and not told:
         return
     if event == "UserPromptSubmit":

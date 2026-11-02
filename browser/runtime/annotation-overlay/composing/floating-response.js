@@ -24,8 +24,7 @@
    writes only whether the bar stands inline (`data-lf-presentation`), so neither leaves
    a visibility behind for the other to undo. */
 import { pageRange } from "../../native-selection.js";
-import { setScroll } from "../../arrivals.js";
-import { cancelRender, nextFrame, nextRender, sizeObserver } from "../../rendering.js";
+import { cancelRender, nextRender, sizeObserver } from "../../rendering.js";
 import { boxMotion } from "../../box-motion.js";
 import { sameAnchor } from "../../anchor-coordinate.js";
 import { declareOffFlowSurface } from "../../off-flow.js";
@@ -54,7 +53,7 @@ import {
 } from "../comment-placement.js";
 import { pointBand } from "../../pointed-place.js";
 import { keeps, roomPx } from "../../keeps.js";
-import { pageScroller, placeKept } from "../../scrolling.js";
+import { pageScroller } from "../../scrolling.js";
 
 /** @typedef {import("../../../types/domain.js").Anchor} Anchor */
 /** @param {{bar: HTMLElement, input: HTMLElement,
@@ -595,28 +594,6 @@ export function createFloatingResponsePlacement({
     returning?.();
   }
   function mount() {
-    // Chromium can reveal the caret by scrolling the document before it delivers
-    // `input`, even though this editor is in a fixed frame that will fit the new
-    // text inside the window. Keep the reader's page place in that same input task;
-    // a deliberate wheel or navigation is a separate gesture.
-    /** @type {number | null} */
-    let beforeInputScroll = null;
-    let inputEpoch = 0;
-    fabInput.addEventListener("lf-before-edit", () => {
-      beforeInputScroll =
-        response.open && response.floating ? pageScroller.scrollTop : null;
-      const epoch = ++inputEpoch;
-      nextFrame(() => {
-        if (inputEpoch === epoch) beforeInputScroll = null;
-      });
-    });
-    fabInput.addEventListener("input", () => {
-      if (beforeInputScroll === null) return;
-      if (pageScroller.scrollTop !== beforeInputScroll) {
-        setScroll(pageScroller, { top: beforeInputScroll, behavior: "instant" });
-        placeKept(pageScroller);
-      }
-    });
     // Widgets declare moves inside a stable outer box here. Scroll has its own
     // mechanical owner and never emits this geometry-invalidating publication.
     document.addEventListener(LAYOUT, (event) => {

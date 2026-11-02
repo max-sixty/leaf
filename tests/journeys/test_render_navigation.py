@@ -79,7 +79,7 @@ def go_to_passage(page, page_dir, words):
         if event["kind"] == "comment" and event["anchor"].get("quote") == words
     )
     open_panel_thread(page, thread)
-    page.locator(".lf-fp-controls").get_by_role("button", name="Show on page").click()
+    page.locator(".lf-fp-head").get_by_role("button", name="Show on page").click()
 
 
 # An obligation's digits beside a page-scoped command with a context key of its own,
@@ -418,8 +418,8 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
 
     An Ask stood on while On me stands lets go first, then On me. A thread's Ask
     reached by `m` with Threads open stands in the thread's margin card, since the
-    panel declines a thread about a passage, and Escape leaves the Ask for its passage,
-    then puts the card away, and only then puts Threads away."""
+    panel declines a thread about a passage. Escape closes that card beside its
+    target in one press, and only the next press puts Threads away."""
     # A page obligation stood on while On me, which the keyboard opened, stands over the page.
     page = open_page(browser, serve(OBLIGATIONS_PAGE))
     page.keyboard.press("g")
@@ -445,9 +445,8 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     card = page.locator(".lf-margin-preview")
     expect(card.locator("lf-ask[data-lf-obligation]")).to_be_focused()
     page.keyboard.press("Escape")
-    expect(page.locator("#off-t-resync")).to_be_focused()
-    page.keyboard.press("Escape")
     expect(card).to_be_hidden()
+    assert page.evaluate("() => document.activeElement === document.body")
     expect(page.locator(PANEL)).to_have_attribute("data-open", "threads")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
@@ -1262,7 +1261,7 @@ def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, s
     expect(page.locator("body")).not_to_have_attribute("data-lf-go-to-active", "")
     expect(button).not_to_have_attribute("title", re.compile(r"\(1\)"))
     settings()
-    page.get_by_role("combobox", name="Search commands").fill("Comment on an element")
+    page.get_by_role("combobox", name="Search commands").fill("Select mode")
     reference.locator('[role=row][data-lf-command="target.picker.open"]').get_by_role(
         "button"
     ).click()
@@ -1327,7 +1326,7 @@ def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, s
 
     page.locator("body").focus()
     settings()
-    page.get_by_role("combobox", name="Search commands").fill("Comment on an element")
+    page.get_by_role("combobox", name="Search commands").fill("Select mode")
     reference.locator('[role=row][data-lf-command="target.picker.open"]').get_by_role(
         "button"
     ).click()

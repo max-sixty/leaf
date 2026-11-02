@@ -1,3 +1,4 @@
+import "/runtime/stage-integration.js";
 /* Which layer a node stands in, read across the boundaries a shadow root draws, and
    when the page's one reading of those layers may change.
 

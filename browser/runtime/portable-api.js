@@ -80,4 +80,27 @@ export {
 } from "./element-markers.js";
 export { describeFailure } from "./exception.js";
 
+export { shadowStage } from "./shadow-stage.js";
+export { LeafElement } from "./leaf-element.js";
+
+export { publishOutput } from "./widget-output.js";
+
+export { loadDeferred } from "./deferred-value.js";
+
+export { threadSurface, releaseOutlets } from "./thread/surface-handles.js";
 export { canvas2D } from "./canvas.js";
+
+export { nameAction, namedAction, relabel, searchField } from "./control-labels.js";
+
+export { focusDestination, focused, holdFocus, currentLocationIn } from "./focus.js";
+export { retainUserIntent } from "./user-intent.js";
+export { scrollIntoView, scrollIntoReadingBand } from "./landing-scroll.js";
+export { inChrome } from "./shadow-tree.js";
+export { beginWalk, listWalkPosition } from "./walk-declaration.js";
+export { atLayoutPrecision, keeps, keepsHidden, keepsText, layoutPx } from "./keeps.js";
+export { move } from "./dom-move.js";
+export { setChildLists, setChildren, setRenderedChildren } from "./dom-children.js";
+export { scrollBehavior } from "./motion.js";
+export { HOLDS_WORD } from "./held-word.js";
+export { DISCLOSE } from "./control-keys.js";
+export { langForPath } from "./language-paths.js";

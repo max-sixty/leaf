@@ -14,6 +14,7 @@ from render_harness import (
     compare_with,
     draft_control,
     open_page,
+    panel_view,
     round_trip,
 )
 
@@ -416,7 +417,7 @@ def test_the_page_has_one_door_to_a_comparison(browser, serve):
         "reworded a paragraph",
     )
     page = open_page(browser, url.replace("v1.html", "v2.html"))
-    versions = page.locator('.lf-fp-menu[data-level="versions"]')
+    versions = page.locator(panel_view("versions"))
     # No key anywhere on the page marks changes: none of the commands the dispatcher
     # would run names `=`.
     assert not [

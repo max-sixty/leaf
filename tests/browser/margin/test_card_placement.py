@@ -627,19 +627,16 @@ def test_a_reflow_that_moves_a_marker_carries_its_open_card(browser, serve):
     marker.click()
     card = page.locator(".lf-margin-preview")
     expect(card).to_be_visible()
-    placement = """() => {
+    placement = """words => {
       const marker = document.querySelector('.lf-margin-marker[data-lf-kinds="comment"]');
       const controls = marker.closest('[data-lf-margin-for]');
       const card = document.querySelector('.lf-margin-preview');
       const m = controls.getBoundingClientRect();
       const c = card.getBoundingClientRect();
-      const main = document.querySelector('main');
-      const words = main.getBoundingClientRect().right
-        - parseFloat(getComputedStyle(main).paddingRight);
       return {marker: m.top, clear: c.left >= words + 7.5, words,
               cardLeft: c.left, cardTop: c.top};
     }"""
-    before = page.evaluate(placement)
+    before = page.evaluate(placement, page.evaluate(WORDS_RIGHT))
     assert before["clear"], before
 
     page.evaluate(
@@ -651,7 +648,7 @@ def test_a_reflow_that_moves_a_marker_carries_its_open_card(browser, serve):
         arg=before["marker"],
     )
     margins_laid_out(page)
-    after = page.evaluate(placement)
+    after = page.evaluate(placement, page.evaluate(WORDS_RIGHT))
     assert after["marker"] > before["marker"] + 40, (before, after)
     assert after["clear"], after
     assert after["cardTop"] - before["cardTop"] == pytest.approx(

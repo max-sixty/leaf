@@ -1,8 +1,8 @@
-import { describeFailure, offerAction, offeredAction, scrollBehavior } from "./bundle-portable.js";
-import { closeLayer, closeNativeLayer, currentLocationIn, focusDestination, guard, handBack, html, nothing, offlineInteractive, openLayer, openerOf, pageUrl, render, runtime, showNativeLayer } from "./bundle-layer-stack.js";
-import { closeControl, el, requestJson, reveal, sessionIsActive } from "./bundle-layer-client.js";
+import { closeLayer, closeNativeLayer, currentLocationIn, describeFailure, focusDestination, handBack, offerAction, offeredAction, openLayer, openerOf, retainUserIntent, scrollBehavior, scrollIntoView, showNativeLayer } from "./bundle-portable.js";
+import { closeControl, el, guard, html, nothing, offlineInteractive, pageUrl, render, reveal, runtime } from "./bundle-errors.js";
+import { requestJson, sessionIsActive } from "./bundle-layer-client.js";
 import { chromeForeground, pageControls } from "./bundle-content-layout.js";
-import { copyControl, retainUserIntent, scrollIntoView } from "./bundle-copy-control.js";
+import { copyControl } from "./bundle-data.js";
 import { readCurrentUserView } from "./bundle-user-view.js";
 
 //#region runtime/copyable-text.js
@@ -84,18 +84,19 @@ let loading = false;
 let destinations = /* @__PURE__ */ new WeakMap();
 let navigationError = null;
 const number = (value) => value.toLocaleString();
-const metrics = (values) => html`<dl class="lf-inspection-metrics">
-    ${Object.entries({
+const counts = (values) => html`<dl class="lf-facts">
+    ${Object.entries(values).map(([label, value]) => html`<div>
+          <dt>${label}</dt>
+          <dd>${number(value)}</dd>
+        </div>`)}
+  </dl>`;
+const metrics = (values) => counts({
 	"UTF-8 bytes": values.bytes,
 	"CSS rules": values.rules,
 	Declarations: values.declarations,
 	"Inline styles": values.inline_styles,
 	"!important": values.important
-}).map(([label, value]) => html`<div>
-          <dt>${label}</dt>
-          <dd>${number(value)}</dd>
-        </div>`)}
-  </dl>`;
+});
 const sourcesOf = (css, owner) => css.sources.filter((source) => source.owner === owner);
 const sourceRows = (css, owner) => html`<dl>
     ${sourcesOf(css, owner).map((source) => html`
@@ -209,11 +210,11 @@ function present() {
       </section>
       ${report.javascript ? html`<section aria-label="Authored JavaScript">
               <h2 class="lf-label">Authored JavaScript</h2>
-              <p>
-                ${number(report.javascript.page.bytes)} page-owned bytes ·
-                ${number(report.javascript.page.inline_scripts)} inline scripts ·
-                ${number(report.javascript.page.files)} files
-              </p>
+              ${counts({
+		"Page-owned bytes": report.javascript.page.bytes,
+		"Inline scripts": report.javascript.page.inline_scripts,
+		Files: report.javascript.page.files
+	})}
               <details>
                 <summary>JavaScript sources</summary>
                 <dl>

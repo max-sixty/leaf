@@ -83,7 +83,7 @@ def test_an_obligation_walk_glides_within_a_view_and_opens_other_tabs_at_the_que
         )
     source = leaf_page(
         "Ask travel across tabs",
-        '<h1>Review the two proposals</h1><lf-tabs id="views">'
+        '<h1>Review the two proposals</h1><lf-tabs id="views" class="layout-flow">'
         '<lf-tab id="first" label="First">'
         '<div style="height: 1800px"></div>'
         + first
@@ -94,6 +94,12 @@ def test_an_obligation_walk_glides_within_a_view_and_opens_other_tabs_at_the_que
     )
     page = open_page(browser, serve(source))
     page.emulate_media(reduced_motion="reduce" if reduced else "no-preference")
+
+    def landing_top(target):
+        return page.locator(f"#ask-{target}").evaluate("""ask =>
+          parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop) +
+          parseFloat(getComputedStyle(ask).scrollMarginTop)
+        """)
 
     def start_trace():
         page.evaluate("""() => {
@@ -162,14 +168,12 @@ def test_an_obligation_walk_glides_within_a_view_and_opens_other_tabs_at_the_que
     assert bool(intermediate) == (not reduced and not nested_source), trace
     assert trace["cues"] == [], trace
     if nested_source:
-        edge = page.evaluate(
-            "parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)"
-        )
+        edge = landing_top("first")
         arrived = [
             frame for frame in trace["frames"] if frame["source"] == "source-answer"
         ]
         assert arrived, trace
-        assert all(abs(frame["top"] - (edge + 5)) <= 3 for frame in arrived), trace
+        assert all(abs(frame["top"] - edge) <= 3 for frame in arrived), trace
 
     for key, target, tab in [("m", "second", "Second"), ("Shift+m", "first", "First")]:
         before = page.evaluate("scrollY")
@@ -184,15 +188,13 @@ def test_an_obligation_walk_glides_within_a_view_and_opens_other_tabs_at_the_que
         after = page.evaluate("scrollY")
         trace = finish_trace()
         assert abs(after - before) > 1000, (before, after)
-        edge = page.evaluate(
-            "parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)"
-        )
+        edge = landing_top(target)
         arrived = [frame for frame in trace["frames"] if frame["selected"] == target]
         assert arrived, trace
-        assert all(abs(frame["top"] - (edge + 5)) <= 3 for frame in arrived), trace
+        assert all(abs(frame["top"] - edge) <= 3 for frame in arrived), trace
         assert trace["cues"] == [0 if reduced else 1], trace
         top = page.locator(f"#ask-{target}").bounding_box()["y"]
-        assert top == pytest.approx(edge + 5, abs=3), (top, edge)
+        assert top == pytest.approx(edge, abs=3), (top, edge)
 
     # Leave the previous arrival entirely: the next navigation step must preserve this reading
     # as its own Back destination, including the tab that owned the outgoing offset.

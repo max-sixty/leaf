@@ -3799,9 +3799,7 @@ def test_an_inline_version_diff_indexes_astral_text_by_character(browser, serve)
         "() => [...CSS.highlights.get('lf-version-insert')].map(r => r.toString())"
     ) == ["new", "stands"]
 
-    tail = page.locator('[data-lf-margin-for="tail"] [data-lf-kinds~="change"]')
-    tail.click()
-    expect(tail).to_have_attribute("aria-expanded", "true")
+    # The adjacent edits share one change; its press opens both inline diffs.
     expect(page.locator("#tail del")).to_have_text("keeps a trailing phrase")
 
 

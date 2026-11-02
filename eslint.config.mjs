@@ -21,6 +21,8 @@ const runtimePrimitives = [
   "dom-move.js",
   "focus.js",
   "control-selectors.js",
+  "inputs.js",
+  "document-inputs.js",
   "shadow-tree.js",
   "keeps.js",
   "pointer.js",
@@ -1470,7 +1472,11 @@ export default [
     languageOptions: { globals: browserGlobals },
   },
   {
-    files: ["dev/leaf_dev/startup.js", "dev/leaf_dev/commands/bench_latency.js"],
+    files: [
+      "dev/leaf_dev/startup.js",
+      "dev/leaf_dev/commands/bench_latency.js",
+      "dev/leaf_dev/commands/stills_baselines.js",
+    ],
     languageOptions: { globals: browserGlobals, sourceType: "script" },
   },
   {

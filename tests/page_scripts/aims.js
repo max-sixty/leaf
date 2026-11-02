@@ -139,21 +139,46 @@
   // standing over it, cuts it short, which its computed size would not show. So where
   // the control is in view (`viewOf`), each end of its reach is pressed, and a reach
   // either end of which lands elsewhere counts for nothing; a control out of view keeps
-  // its computed reach, unpressed. A control whose own face a neighbour stands over at
-  // an edge has no aim worth the name, and reads as none.
-  function aim(control) {
+  // its computed reach, unpressed. With a finite floor, only a central box of that
+  // size must be clear; without one, the whole face is checked.
+  function aim(control, floor = Infinity) {
     const el = actionable(control);
     const box = el.getBoundingClientRect();
     let [w, h] = [box.width, box.height];
+    let [x, y] = [box.left + w / 2, box.top + h / 2];
     for (const pseudo of ["::before", "::after"]) {
       const at = getComputedStyle(el, pseudo);
       if (at.content === "none" || at.position !== "absolute") continue;
       if (at.pointerEvents === "none") continue;
-      w = Math.max(w, parseFloat(at.width) || 0);
-      h = Math.max(h, parseFloat(at.height) || 0);
+      const width = parseFloat(at.width) || 0;
+      const height = parseFloat(at.height) || 0;
+      // A static control's reach can fill an ancestor, as a command's fills its
+      // row. Its centre is that containing block's, not the label's: on touch the
+      // description stands below the label. Computed insets locate the reach;
+      // keep the label's centre on axes where its face already meets the floor.
+      const owner = getComputedStyle(el).position === "static" ? el.offsetParent : el;
+      if (owner && (width > w || height > h)) {
+        const origin = owner.getBoundingClientRect();
+        if (width > w && box.width < floor)
+          x =
+            origin.left +
+            owner.clientLeft -
+            owner.scrollLeft +
+            (parseFloat(at.left) || 0) +
+            (parseFloat(at.marginLeft) || 0) +
+            width / 2;
+        if (height > h && box.height < floor)
+          y =
+            origin.top +
+            owner.clientTop -
+            owner.scrollTop +
+            (parseFloat(at.top) || 0) +
+            (parseFloat(at.marginTop) || 0) +
+            height / 2;
+      }
+      w = Math.max(w, width);
+      h = Math.max(h, height);
     }
-    const x = box.left + box.width / 2;
-    const y = box.top + box.height / 2;
     const view = viewOf(el);
     const shown = (px, py) =>
       px >= view.left && py >= view.top && px < view.right && py < view.bottom;
@@ -161,15 +186,18 @@
     // button, as a reach of the host's own would.
     if (el !== control && shown(x, y) && pressed(x, y) === control)
       return { box, w: 0, h: 0, by: landed(x, y) };
+    if (shown(x, y) && cut(el, x, y)) return { box, w: 0, h: 0, by: landed(x, y) };
     if (shown(x, y) && takes(el, x, y)) {
-      // A face whose own edge another control lies over, by its face or its reach,
-      // loses presses there too. Each edge is pressed just inside the face, on each side
-      // where the face stands wholly in view.
+      // A minimum-size reading asks for a usable floor-sized box, not every
+      // point of a wider face. A version row shares its end with Compare but
+      // still offers a large independent target in the middle.
+      const faceW = Math.min(box.width, floor);
+      const faceH = Math.min(box.height, floor);
       const edges = [
-        [box.top >= view.top, x, box.top + 1],
-        [box.bottom <= view.bottom, x, box.bottom - 1],
-        [box.left >= view.left, box.left + 1, y],
-        [box.right <= view.right, box.right - 1, y],
+        [y - faceH / 2 >= view.top, x, y - faceH / 2 + 1],
+        [y + faceH / 2 <= view.bottom, x, y + faceH / 2 - 1],
+        [x - faceW / 2 >= view.left, x - faceW / 2 + 1, y],
+        [x + faceW / 2 <= view.right, x + faceW / 2 - 1, y],
       ]
         .filter(([inside]) => inside)
         .map(([, px, py]) => [px, py]);
@@ -273,7 +301,7 @@
       // exemption: its box is being rewritten alongside the group's pressable rule, and
       // this line goes with that change. It stands at 11x11 today.
       if (el.classList.contains("lf-pick")) continue;
-      const { box, w, h, by } = aim(el);
+      const { box, w, h, by } = aim(el, floor);
       if (!box.width || !box.height) continue;
       const name =
         (el.className || el.tagName).toString().trim().split(/\s+/)[0] +

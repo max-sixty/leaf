@@ -189,9 +189,9 @@ customElements.define(
             title: "Add feedback",
             keys: ["c"],
             control: selectedControl(".lf-vr-feedback"),
-            when: () => Boolean(this.#selected),
+            when: () => Boolean(this.#selected && threadSurface(this).open),
             run: () => {
-              if (this.#selected) threadSurface(this).open(this.#selected.article);
+              if (this.#selected) threadSurface(this).open?.(this.#selected.article);
             },
           },
           {
@@ -371,7 +371,9 @@ customElements.define(
                   return html`<button
                     type="button"
                     ${offeredAction("row", "lf-vr-case-button")}
-                    aria-current=${record.id === this.#selected?.record.id ? "true" : nothing}
+                    aria-current=${
+                      record.id === this.#selected?.record.id ? "true" : nothing
+                    }
                     aria-controls=${`${this.id}-${record.id}`}
                     @click=${() => this.#select(record.id)}
                   >
@@ -506,10 +508,18 @@ customElements.define(
                   type="checkbox"
                   ?disabled=${!available}
                   .checked=${live(approved)}
-                  @change=${(/** @type {Event} */ event) => event.currentTarget instanceof HTMLInputElement && this.#review(record, event.currentTarget.checked)}
+                  @change=${(/** @type {Event} */ event) =>
+                    event.currentTarget instanceof HTMLInputElement &&
+                    this.#review(record, event.currentTarget.checked)}
                 />Looks right</label
               >
-              <button ${offeredAction("word", "lf-vr-feedback")}>Add feedback</button>
+              ${
+                threadSurface(this).open
+                  ? html`<button ${offeredAction("word", "lf-vr-feedback")}>
+                      Add feedback
+                    </button>`
+                  : nothing
+              }
               ${
                 threads.length
                   ? html`<button
@@ -587,7 +597,7 @@ customElements.define(
                     "Close capture details",
                   )}
                 </header>
-                <dl class="lf-vr-provenance">
+                <dl class="lf-facts">
                   ${fact(
                     "Capture",
                     `${record.capture.viewport.width} × ${record.capture.viewport.height} · ${record.capture.deviceScaleFactor}× · ${record.capture.colorScheme}`,

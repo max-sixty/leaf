@@ -792,7 +792,11 @@ def compose_document(
         )
         + (
             runtime_element(
-                "script", {}, resources["/runtime/prepaint.js"].data.decode()
+                "script",
+                {},
+                resources["/runtime/document-inputs.js"].data.decode()
+                + "\n"
+                + resources["/runtime/prepaint.js"].data.decode(),
             )
             if delivery.runtime is not None
             else ""

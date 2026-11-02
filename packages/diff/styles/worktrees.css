@@ -168,10 +168,12 @@ lf-worktree > :last-child {
   margin-block-end: 0;
 }
 
+/* The label and the path, set in the sans and the mono, stand on one baseline. */
 .lf-worktree-path {
   margin-block-start: var(--sp-3);
   display: grid;
   grid-template-columns: 5rem minmax(0, 1fr);
+  align-items: baseline;
   gap: var(--sp-2);
   color: var(--muted);
   font: var(--font-small);
@@ -220,25 +222,8 @@ lf-worktree > details > summary {
   font-weight: 500;
 }
 
-lf-worktree dl {
-  display: grid;
-  grid-template-columns: minmax(6rem, max-content) minmax(0, 1fr);
-  gap: var(--sp-2) var(--sp-4);
-  margin-block: var(--sp-3);
-  font-size: var(--t-6);
-}
-
-lf-worktree dt,
-lf-worktree dd {
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-
-lf-worktree dt {
-  color: var(--muted);
-  font-weight: 400;
-}
-
+/* The snapshot's facts (reading.css, `dl.facts`) keep their values in ink inside the
+   muted disclosure. */
 lf-worktree dd {
   color: var(--ink);
 }
@@ -276,15 +261,6 @@ lf-worktree dd {
   .lf-worktree-path {
     grid-template-columns: 1fr;
     gap: 0;
-  }
-
-  lf-worktree dl {
-    grid-template-columns: 1fr;
-    row-gap: var(--sp-1);
-  }
-
-  lf-worktree dd + dt {
-    margin-block-start: var(--sp-2);
   }
 }
 

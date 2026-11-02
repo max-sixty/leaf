@@ -653,7 +653,9 @@ def test_a_todo_on_you_says_its_words_where_you_land_on_it(browser, serve):
     offers its Done. A to-do on the page as a whole stands at the page's heading, which
     its own words say nothing about."""
     url = serve(QUEUE_PAGE)
-    whole = "Confirm the page-level build works"
+    whole = (
+        "Review the change or name a reviewer, then merge it after checking the build"
+    )
     notes = "Try the notes command"
     put_todo_on_user(serve.page_dir, {"kind": "page"}, whole)
     put_todo_on_user(serve.page_dir, {"kind": "element", "id": "notes"}, notes)
@@ -670,6 +672,14 @@ def test_a_todo_on_you_says_its_words_where_you_land_on_it(browser, serve):
     page.locator("#cadence").click()
     page.keyboard.press("Shift+m")
     expect(page.locator("#h")).to_be_focused()
+    title = page.locator(
+        '[data-lf-margin-for="h"] .lf-margin-marker > .lf-margin-entry-label'
+    )
+    expect(title).to_be_visible()
+    expect(title.locator(".lf-margin-entry-label-word")).to_have_text(whole + "…")
+    assert title.locator(".lf-margin-entry-label-word").evaluate(
+        "el => el.scrollWidth <= el.clientWidth && el.scrollHeight <= el.clientHeight"
+    )
     panel_settled(page, view="queue")
     walked = page.locator(".lf-fp-on-item[data-walked]")
     expect(walked).to_contain_text(whole)
@@ -684,6 +694,12 @@ def test_a_todo_on_you_says_its_words_where_you_land_on_it(browser, serve):
         "placeholder", re.compile(f"^To-do · {re.escape(notes)}")
     )
     expect(row_done(page)).to_be_visible()
+    expect(title).to_be_hidden()
+    expect(
+        page.locator(
+            '[data-lf-margin-for="notes"] .lf-margin-marker > .lf-margin-entry-label'
+        )
+    ).to_be_visible()
 
     # A mode entered there is the stance the row's end leaves.
     page.keyboard.press("w")
@@ -741,8 +757,13 @@ def test_a_finger_ends_a_todo_on_you_where_show_lands(browser, serve):
     expect(todo_field(page)).to_have_attribute(
         "placeholder", re.compile("^To-do · Check the notes")
     )
+    label = page.locator(
+        '[data-lf-margin-for="notes"] .lf-margin-marker > .lf-margin-entry-label'
+    )
+    expect(label).to_be_visible()
     with sending(page, "the row's Done"):
         row_done(page).tap()
+    expect(label).to_be_hidden()
     expect_on_me(page, 1)
     assert events_model.read_events(serve.page_dir)[-1]["todo"] == task["id"]
     expect(row_done(page)).to_have_count(0)
@@ -1014,7 +1035,7 @@ def test_on_me_says_when_a_revision_removes_its_last_obligation(browser, serve):
     expect(note).to_be_visible()
     expect(note).to_have_text("Nothing waiting on me.")
     # The agent's tab says the same of its list.
-    page.locator(".lf-fp-filters button").nth(1).click()
+    page.locator(".lf-fp-filters button").nth(2).click()
     expect(page.locator(".lf-fp-view:not([data-leaving]) .lf-rows-empty")).to_have_text(
         re.compile(r"Nothing waiting on \S+\.")
     )

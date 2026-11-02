@@ -1745,6 +1745,9 @@ export class Trace extends LeafElement {
       image.timestamp > point.timestamp &&
       !checkpointOf(point?.action, point?.phase)?.imageId;
     if (this.#pictureId === image.id) {
+      // A refreshed index keeps the Viewer, but its image belongs to the new
+      // delivery, including the origin path drawn from that delivery's array.
+      this.#committedPicture.image = image;
       this.#hidePlayback();
       this.#picturePreview = preview;
       if (this.#pictureScope !== this.#scope && this.#picture?.viewed) {

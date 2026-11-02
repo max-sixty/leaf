@@ -99,7 +99,6 @@ function createWidgetController(owner) {
       `leaf: <${owner.localName}>#${owner.id || "(missing id)"} has no captured widget descriptor`,
     );
   const selected = applicationState.selectWidget(descriptor);
-  let deferred = false;
   /** @type {PreparationHandle | null} */
   let preparationHandle = null;
   /** @type {Map<PromiseLike<unknown>, ReturnType<typeof holdRendering> | null>} */
@@ -180,14 +179,11 @@ function createWidgetController(owner) {
       const drawing = selfDrawn.get(owner);
       if (!drawing)
         throw new Error(`<${owner.localName}> defers only a LeafElement's drawing`);
-      if (deferred) throw new Error("Widget presentation is already deferred");
-      deferred = true;
       const release = drawing.hold();
       let released = false;
       return () => {
         if (released) return read();
         released = true;
-        deferred = false;
         release();
         invalidateDom();
         return read();

@@ -1,7 +1,7 @@
 """The `claude-code` journey: a real interactive Claude Code session with Leaf's
 plugin, and the steps a user takes at its terminal.
 
-    uv run leaf-dev journey claude-code
+    uv run leaf-dev journey claude-code [--forks]
 
 The suite stands in for Claude Code around Leaf's hooks (`hooks.json`, and
 `tests/claude_code_driver.mjs` for the hooks module); this runs Claude Code itself,
@@ -21,13 +21,22 @@ the prompt in the step (`ClaudeCode.approve`). Bypassing permissions instead wou
 change what is under test: Claude Code then holds admission's nudge, which reaches
 the session as a message from another session (`crossSessionInbound`), unread.
 
+A fork of the conversation answers a thread message the session hasn't received
+(`leaf.forks`), and would answer the delivery steps' questions in the session's
+place, so by default the session runs with forks off (`LEAF_FORK_REPLIES=off`).
+`--forks` turns them on, and runs the fork steps in place of the delivery steps.
+
 The steps, in order:
 
 - `setup`: the user asks for a page to review; Claude Code serves it, and a watch
   holds the session's pages once its turn ends;
 - `release`: the journey's timed ask, sent while the session is idle, opens a turn
   that answers it (`journey.run_journey`); with `--case working` it is sent during
-  the user's own turn's shell command, which answers it;
+  the user's own turn's shell command, which answers it. It asks for work, so with
+  `--forks` a fork hands it over and the session answers it as before.
+
+Then the delivery steps:
+
 - `mid-turn`: a comment sent during a shell command is picked up in that turn;
   its PostToolBatch context carries the exact input before another model call,
   rather than waiting for Stop;
@@ -58,16 +67,36 @@ The steps, in order:
   session once the compaction ends, and a turn of its own answers it. Compaction
   runs no prompt or Stop hook, so the watch the last turn's Stop started keeps
   running through it, and Claude Code holds that watch's wake until the
-  compaction is done;
+  compaction is done.
+
+Or, with `--forks`, the fork steps, each timed from the comment's admission to the
+reply, with the fork's own time and tokens from its record in the page's
+diagnostics (`fork_reply`):
+
+- `fork-idle`: with the session idle, a question the conversation already answers
+  gets a fork's reply, and no turn opens for it: the session stays idle and the
+  page's claim on its last turn;
+- `fork-busy`: another such question, sent during the user's own turn's shell
+  command, gets a fork's reply before the command ends. The turn's next tool
+  boundary hands it the settled comment with Leaf's line saying a fork answered
+  it, and its prompt handed it `fork-idle`'s the same way;
+- `fork-work`: a request for a change to the page, sent during another such
+  command, is handed over by its fork, and the session picks it up and answers it
+  in that turn or the next.
+
+Then:
+
 - `quit`: `/exit` ends the session, so its claim on the page is inactive and its
   watch has ended.
 
 Between steps every comment sent so far has exactly one reply and a pickup, the
 page's claim names the session with its turn closed, no Stop hook has continued a
 turn with input, so each turn ends on its own answer, no delivery shows in the
-terminal, and Leaf put no empty wake or notice in the conversation (`leaf_rows`).
-Escape runs no Stop hook, so it leaves the turn open, and the watch its prompt
-started, which waits while that turn runs, still running.
+terminal, and Leaf put no empty wake or notice in the conversation (`leaf_rows`). A
+comment a fork answered while the session was idle enters its context only at its
+next prompt, so `fork-idle`'s counts from `fork-busy` on. Escape runs no Stop hook,
+so it leaves the turn open, and the watch its prompt started, which waits while that
+turn runs, still running.
 
 Each step also prints the rows Leaf put in the conversation the user reads, a nudge
 among them, and, with an Escape, whether it left the turn open, a
@@ -111,7 +140,16 @@ from leaf_dev.arms import (
     claude_home,
     run_leaf,
 )
-from leaf_dev.commands.journey import Isolation, Terminal, User, isolated, user_at
+from leaf_dev.commands.journey import (
+    QUIET,
+    Isolation,
+    Terminal,
+    User,
+    fork_summary,
+    isolated,
+    recorded_steps,
+    user_at,
+)
 from leaf_dev.reply_phases import (
     claude_code_debug_records,
     claude_code_records,
@@ -317,8 +355,9 @@ def runs(pid: int, command: str) -> bool:
     return False
 
 
-def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
-    """The steps after setup, as the module docstring lists them."""
+def steps(cc: ClaudeCode, user: User, place: Isolation, *, forks: bool) -> None:
+    """The steps after setup, as the module docstring lists them: with `forks` the
+    fork steps, else the delivery steps."""
     page, sent = place.page, []
     session = require(cc.session, "the session has no id")
     # The native records the steps so far have counted (`leaf_rows`).
@@ -339,7 +378,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
         name: str,
         started: float,
         *names: str,
-        escaped: str | None = None,
+        detail: str | None = None,
     ) -> None:
         sent.extend(names)
         settled(page, session, {name: user.ids[name] for name in sent})
@@ -363,7 +402,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
         )
         # The turn that answers ends with a watch running.
         cc.until(watched, f"{name}: no watch holds the session's pages", 60)
-        details = [escaped] if escaped else []
+        details = [detail] if detail else []
         records = native_records(cc.home, session)
         rows = leaf_rows(records[len(read) :])
         read[:] = records
@@ -406,192 +445,8 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
             f"{activity()}"
         )
 
-    started = time.monotonic()
-    user.release()
-    cc.until(cc.idle, "release: the turn that answered did not end")
-    step("release", started, "release")
-    started = time.monotonic()
-    cc.work()
-    turn = require(page_claim(page), "the page has no claim")["turn"]
-    mid_turn = user.comment("mid-turn")
-    cc.until(answered("mid-turn"), "mid-turn: the comment was not answered")
-    require(
-        any(
-            event["turn"] == turn
-            for event in pickup_receipts(
-                read_events(page), phase="opened", input_id=mid_turn
-            )
-        ),
-        f"mid-turn: the comment was not picked up in the user's turn {turn}",
-    )
-    require(
-        any(
-            event["id"] == mid_turn
-            for record in native_records(cc.home, session)
-            if (attachment := record.get("attachment", {})).get("hookEvent")
-            == "PostToolBatch"
-            for content in attachment["content"]
-            if content.startswith(INLINE_OPENING + "\n")
-            for batch in json.loads(content.split("\n")[1])["batches"]
-            for event in batch["events"]
-        ),
-        "mid-turn: PostToolBatch did not hand the exact input to the model",
-    )
-    step("mid-turn", started, "mid-turn")
-
-    started = time.monotonic()
-    cc.work()
-    turn = require(page_claim(page), "the page has no claim")["turn"]
-    first = user.comment("first")
-    cc.until(
-        lambda: bool(
-            pickup_receipts(read_events(page), phase="opened", input_id=first)
-        ),
-        "ending: `first` was not picked up",
-    )
-    # The watch woke for `first` and its handover is done, so nothing watches
-    # until this turn ends. Its next tool boundary carries input arriving now.
-    ending = user.comment("ending")
-    cc.until(answered("first", "ending"), "ending: the comments were not answered")
-    picked = [
-        event["turn"]
-        for event in pickup_receipts(read_events(page), phase="opened", input_id=ending)
-    ]
-    require(
-        turn in picked,
-        "ending: the running turn did not pick up `ending`",
-    )
-    step("ending", started, "first", "ending")
-
-    started = time.monotonic()
-    cc.work()
-    turn = require(page_claim(page), "the page has no claim")["turn"]
-    escape(turn)
-    escaped = after_escape("escape", turn)
-    user.comment("escape")
-    cc.until(answered("escape"), "escape: the comment was not answered")
-    step("escape", started, "escape", escaped=escaped)
-
-    started = time.monotonic()
-    cc.work()
-    turn = require(page_claim(page), "the page has no claim")["turn"]
-    woken = user.comment("woken")
-    # The turn reads the comment only at its next tool boundary, once its command
-    # ends, so a watch that held the session's lease as the comment arrived leaves
-    # it to the turn.
-    time.sleep(2)
-    require(
-        cc.sleeping()
-        and watched()
-        and not pickup_receipts(read_events(page), phase="opened", input_id=woken),
-        "woken: the comment did not wait for the running turn",
-    )
-    escape(turn)
-    escaped = after_escape("woken", turn)
-    # The stopped turn never read the comment, so the watch after Escape wakes for
-    # it, and a turn of its own answers it.
-    cc.until(answered("woken"), "woken: the watch after Escape did not answer it")
-    user.comment("after-wake")
-    cc.until(answered("woken", "after-wake"), "woken: the comments were not answered")
-    step("woken", started, "woken", "after-wake", escaped=escaped)
-
-    def drop(update: str) -> int:
-        """Slow the session's other prompt and tool-batch hooks, and press Escape
-        once Leaf's hook has handed `update` over and while the other still runs, so
-        Claude Code drops what Leaf's hook returned. Returns how many records the
-        conversation held as Escape was pressed."""
-        slow_prompt(place).touch()
-        try:
-            cc.until(
-                lambda: bool(
-                    pickup_receipts(read_events(page), phase="opened", input_id=update)
-                ),
-                f"{update}: no hook handed it over",
-                90,
-            )
-        finally:
-            slow_prompt(place).unlink()
-        require(
-            cc.state() == "busy",
-            f"{update}: the slow hook ended before Escape could land",
-        )
-        held = len(native_records(cc.home, session))
-        cc.tmux("send-keys", "-t", cc.pane, "Escape")
-        return held
-
-    def since(held: int) -> list[dict]:
-        """The conversation's records from record `held` on."""
-        return native_records(cc.home, session)[held:]
-
-    started = time.monotonic()
-    dropped = user.comment("dropped")
-    held = drop(dropped)
-    # Claude Code submits the queued wake again, and that attempt's prompt hook hands
-    # the comment over anew.
-    cc.until(answered("dropped"), "dropped: the comment was not answered", 120)
-    require(
-        bool(deliveries(since(held), dropped)),
-        "dropped: no hook delivered the comment again after Escape",
-    )
-    step("dropped", started, "dropped")
-
-    started = time.monotonic()
-    url = require(running_server(page), "the page has no server")["url"]
-    comment = post(url, "withdrawn", "Never mind, I'll check this myself.")
-    resolve = PageClient(url).post(
-        {"kind": "resolve", "parent": comment, "attempt": attempt("resolve")}
-    )
-    resolved = next(
-        event["id"]
-        for event in resolve["events"]
-        if event.get("attempt") == attempt("resolve")
-    )
-    held = drop(resolved)
-    cc.until(
-        lambda: delivery_ended(since(held), resolved),
-        "withdrawn: the resolve Escape dropped never reached the agent",
-        120,
-    )
-    step("withdrawn", started)
-
-    started = time.monotonic()
-    first = user.comment("first-wake")
-    cc.until(
-        lambda: bool(
-            pickup_receipts(read_events(page), phase="opened", input_id=first)
-        ),
-        "boundary: the wake was not handed its comment",
-    )
-    boundary = user.comment("boundary")
-    drop(boundary)
-    cc.until(
-        answered("first-wake", "boundary"),
-        "boundary: the comment Escape dropped was not answered",
-        150,
-    )
-    # Escape during a tool boundary's hooks keeps that boundary's context, so the
-    # comment is in the conversation once and the woken turn only names it as owed.
-    handed = deliveries(native_records(cc.home, session), boundary)
-    require(
-        len(handed) == 1,
-        f"boundary: the comment Escape kept was handed over {len(handed)} times",
-    )
-    step("boundary", started, "first-wake", "boundary")
-
-    started = time.monotonic()
-    cc.work(DEFERRING_TURN)
-    turn = require(page_claim(page), "the page has no claim")["turn"]
-    deferred = user.comment("deferred")
-    cc.until(lambda: closed(turn), "deferred: the user's turn did not end")
-    require(
-        not user.answered("deferred"),
-        "deferred: the user's turn answered the comment it was told to leave",
-    )
-    cc.until(
-        answered("deferred"), "deferred: the comment the turn left was not answered"
-    )
-
     def hook_contexts(event: str) -> list[str]:
+        """The contexts the hooks of `event` put in the conversation, one a hook."""
         return [
             content
             for record in native_records(cc.home, session)
@@ -599,29 +454,367 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
             for content in attachment.get("content") or []
         ]
 
-    require(
-        not any(ATTENTION_OPENING in content for content in hook_contexts("Stop")),
-        "deferred: a Stop hook continued the user's turn over the owed comment",
-    )
-    require(
-        any(
-            ATTENTION_OPENING in content and deferred in content
-            for content in hook_contexts("UserPromptSubmit")
-        ),
-        "deferred: no prompt of a later turn named the owed comment",
-    )
-    step("deferred", started, "deferred")
+    def delivered() -> None:
+        """The delivery steps, from `mid-turn` to `compacting`."""
+        started = time.monotonic()
+        cc.work()
+        turn = require(page_claim(page), "the page has no claim")["turn"]
+        mid_turn = user.comment("mid-turn")
+        cc.until(answered("mid-turn"), "mid-turn: the comment was not answered")
+        require(
+            any(
+                event["turn"] == turn
+                for event in pickup_receipts(
+                    read_events(page), phase="opened", input_id=mid_turn
+                )
+            ),
+            f"mid-turn: the comment was not picked up in the user's turn {turn}",
+        )
+        require(
+            any(
+                event["id"] == mid_turn
+                for record in native_records(cc.home, session)
+                if (attachment := record.get("attachment", {})).get("hookEvent")
+                == "PostToolBatch"
+                for content in attachment["content"]
+                if content.startswith(INLINE_OPENING + "\n")
+                for batch in json.loads(content.split("\n")[1])["batches"]
+                for event in batch["events"]
+            ),
+            "mid-turn: PostToolBatch did not hand the exact input to the model",
+        )
+        step("mid-turn", started, "mid-turn")
 
-    def compacting() -> bool:
-        return "Compacting conversation" in cc.screen()
+        started = time.monotonic()
+        cc.work()
+        turn = require(page_claim(page), "the page has no claim")["turn"]
+        first = user.comment("first")
+        cc.until(
+            lambda: bool(
+                pickup_receipts(read_events(page), phase="opened", input_id=first)
+            ),
+            "ending: `first` was not picked up",
+        )
+        # The watch woke for `first` and its handover is done, so nothing watches
+        # until this turn ends. Its next tool boundary carries input arriving now.
+        ending = user.comment("ending")
+        cc.until(answered("first", "ending"), "ending: the comments were not answered")
+        picked = [
+            event["turn"]
+            for event in pickup_receipts(
+                read_events(page), phase="opened", input_id=ending
+            )
+        ]
+        require(
+            turn in picked,
+            "ending: the running turn did not pick up `ending`",
+        )
+        step("ending", started, "first", "ending")
+
+        started = time.monotonic()
+        cc.work()
+        turn = require(page_claim(page), "the page has no claim")["turn"]
+        escape(turn)
+        escaped = after_escape("escape", turn)
+        user.comment("escape")
+        cc.until(answered("escape"), "escape: the comment was not answered")
+        step("escape", started, "escape", detail=escaped)
+
+        started = time.monotonic()
+        cc.work()
+        turn = require(page_claim(page), "the page has no claim")["turn"]
+        woken = user.comment("woken")
+        # The turn reads the comment only at its next tool boundary, once its command
+        # ends, so a watch that held the session's lease as the comment arrived leaves
+        # it to the turn.
+        time.sleep(2)
+        require(
+            cc.sleeping()
+            and watched()
+            and not pickup_receipts(read_events(page), phase="opened", input_id=woken),
+            "woken: the comment did not wait for the running turn",
+        )
+        escape(turn)
+        escaped = after_escape("woken", turn)
+        # The stopped turn never read the comment, so the watch after Escape wakes for
+        # it, and a turn of its own answers it.
+        cc.until(answered("woken"), "woken: the watch after Escape did not answer it")
+        user.comment("after-wake")
+        cc.until(
+            answered("woken", "after-wake"), "woken: the comments were not answered"
+        )
+        step("woken", started, "woken", "after-wake", detail=escaped)
+
+        def drop(update: str) -> int:
+            """Slow the session's other prompt and tool-batch hooks, and press Escape
+            once Leaf's hook has handed `update` over and while the other still runs, so
+            Claude Code drops what Leaf's hook returned. Returns how many records the
+            conversation held as Escape was pressed."""
+            slow_prompt(place).touch()
+            try:
+                cc.until(
+                    lambda: bool(
+                        pickup_receipts(
+                            read_events(page), phase="opened", input_id=update
+                        )
+                    ),
+                    f"{update}: no hook handed it over",
+                    90,
+                )
+            finally:
+                slow_prompt(place).unlink()
+            require(
+                cc.state() == "busy",
+                f"{update}: the slow hook ended before Escape could land",
+            )
+            held = len(native_records(cc.home, session))
+            cc.tmux("send-keys", "-t", cc.pane, "Escape")
+            return held
+
+        def since(held: int) -> list[dict]:
+            """The conversation's records from record `held` on."""
+            return native_records(cc.home, session)[held:]
+
+        started = time.monotonic()
+        dropped = user.comment("dropped")
+        held = drop(dropped)
+        # Claude Code submits the queued wake again, and that attempt's prompt hook hands
+        # the comment over anew.
+        cc.until(answered("dropped"), "dropped: the comment was not answered", 120)
+        require(
+            bool(deliveries(since(held), dropped)),
+            "dropped: no hook delivered the comment again after Escape",
+        )
+        step("dropped", started, "dropped")
+
+        started = time.monotonic()
+        url = require(running_server(page), "the page has no server")["url"]
+        comment = post(url, "withdrawn", "Never mind, I'll check this myself.")
+        resolve = PageClient(url).post(
+            {"kind": "resolve", "parent": comment, "attempt": attempt("resolve")}
+        )
+        resolved = next(
+            event["id"]
+            for event in resolve["events"]
+            if event.get("attempt") == attempt("resolve")
+        )
+        held = drop(resolved)
+        cc.until(
+            lambda: delivery_ended(since(held), resolved),
+            "withdrawn: the resolve Escape dropped never reached the agent",
+            120,
+        )
+        step("withdrawn", started)
+
+        started = time.monotonic()
+        first = user.comment("first-wake")
+        cc.until(
+            lambda: bool(
+                pickup_receipts(read_events(page), phase="opened", input_id=first)
+            ),
+            "boundary: the wake was not handed its comment",
+        )
+        boundary = user.comment("boundary")
+        drop(boundary)
+        cc.until(
+            answered("first-wake", "boundary"),
+            "boundary: the comment Escape dropped was not answered",
+            150,
+        )
+        # Escape during a tool boundary's hooks keeps that boundary's context, so the
+        # comment is in the conversation once and the woken turn only names it as owed.
+        handed = deliveries(native_records(cc.home, session), boundary)
+        require(
+            len(handed) == 1,
+            f"boundary: the comment Escape kept was handed over {len(handed)} times",
+        )
+        step("boundary", started, "first-wake", "boundary")
+
+        started = time.monotonic()
+        cc.work(DEFERRING_TURN)
+        turn = require(page_claim(page), "the page has no claim")["turn"]
+        deferred = user.comment("deferred")
+        cc.until(lambda: closed(turn), "deferred: the user's turn did not end")
+        require(
+            not user.answered("deferred"),
+            "deferred: the user's turn answered the comment it was told to leave",
+        )
+        cc.until(
+            answered("deferred"), "deferred: the comment the turn left was not answered"
+        )
+
+        require(
+            not any(ATTENTION_OPENING in content for content in hook_contexts("Stop")),
+            "deferred: a Stop hook continued the user's turn over the owed comment",
+        )
+        require(
+            any(
+                ATTENTION_OPENING in content and deferred in content
+                for content in hook_contexts("UserPromptSubmit")
+            ),
+            "deferred: no prompt of a later turn named the owed comment",
+        )
+        step("deferred", started, "deferred")
+
+        def compacting() -> bool:
+            return "Compacting conversation" in cc.screen()
+
+        started = time.monotonic()
+        cc.say("/compact")
+        cc.until(compacting, "compacting: the compaction did not start", 30)
+        user.comment("compacting")
+        require(compacting(), "compacting: the compaction ended before the comment")
+        cc.until(answered("compacting"), "compacting: the comment was not answered")
+        step("compacting", started, "compacting")
+
+    def forked() -> None:
+        """The fork steps, from `fork-idle` to `fork-work`."""
+
+        def picked(name: str) -> list[str]:
+            """The turns that picked up step `name`'s comment."""
+            return [
+                event["turn"]
+                for event in pickup_receipts(
+                    read_events(page), phase="opened", input_id=user.ids[name]
+                )
+            ]
+
+        def decided(name: str, outcome: str) -> None:
+            """Require the fork that decided on step `name`'s comment to have come
+            to `outcome`."""
+            fork = require(user.fork(name), f"{name}: no fork decided on the comment")
+            require(
+                fork["outcome"] == outcome,
+                f"{name}: the fork came to {fork['outcome']}, not {outcome}: "
+                + fork_summary(fork),
+            )
+
+        def told(event: str, name: str) -> bool:
+            """Whether a context `event`'s hooks put in the conversation handed step
+            `name`'s comment over whole and settled, owing no answer, with Leaf's
+            line naming the reply a fork posted to it."""
+            comment = user.ids[name]
+            reply = require(user.fork(name), f"{name}: no fork replied")["reply"]
+            for content in hook_contexts(event):
+                if not content.startswith(INLINE_OPENING + "\n"):
+                    continue
+                _, delivery, *lines = content.split("\n")
+                handed = [
+                    item
+                    for batch in json.loads(delivery)["batches"]
+                    for item in batch["events"]
+                    if item["id"] == comment
+                ]
+                if (
+                    handed
+                    and not any("answer" in item for item in handed)
+                    and any(comment in line and reply in line for line in lines)
+                ):
+                    return True
+            return False
+
+        def idle(done: Callable[[], object]) -> Callable[[], object]:
+            """`done`, once the session is still idle: a turn opening fails."""
+            return lambda: (
+                require(cc.idle(), "fork-idle: a turn opened for the comment")
+                and done()
+            )
+
+        started = time.monotonic()
+        turn = require(page_claim(page), "the page has no claim")["turn"]
+        user.comment("fork-idle")
+        cc.until(
+            idle(lambda: user.fork("fork-idle")),
+            "fork-idle: no fork decided on the comment",
+            60,
+        )
+        decided("fork-idle", "reply")
+        quiet = time.monotonic() + QUIET
+        cc.until(
+            idle(lambda: time.monotonic() >= quiet),
+            "fork-idle: the quiet after the fork's reply did not end",
+            QUIET + 5,
+        )
+        require(
+            require(page_claim(page), "the page has no claim")["turn"] == turn
+            and not picked("fork-idle"),
+            "fork-idle: a turn took the comment the fork answered",
+        )
+        step("fork-idle", started)
+
+        started = time.monotonic()
+        cc.work()
+        turn = require(page_claim(page), "the page has no claim")["turn"]
+        user.comment("fork-busy")
+        cc.until(
+            lambda: user.fork("fork-busy") or not cc.sleeping(),
+            "fork-busy: no fork decided on the comment",
+        )
+        require(
+            user.fork("fork-busy"),
+            "fork-busy: the user's command ended before a fork decided on the comment",
+        )
+        decided("fork-busy", "reply")
+        cc.until(
+            lambda: closed(turn) and cc.idle(), "fork-busy: the user's turn did not end"
+        )
+        require(
+            turn in picked("fork-busy") and told("PostToolBatch", "fork-busy"),
+            "fork-busy: no tool boundary of the user's turn handed it the settled "
+            "comment with Leaf's line naming the fork's reply",
+        )
+        require(
+            turn in picked("fork-idle") and told("UserPromptSubmit", "fork-idle"),
+            "fork-busy: the user's prompt did not hand the session `fork-idle`'s "
+            "settled comment with Leaf's line naming the fork's reply",
+        )
+        step("fork-busy", started, "fork-idle", "fork-busy")
+
+        started = time.monotonic()
+        cc.work()
+        turn = require(page_claim(page), "the page has no claim")["turn"]
+        work = user.comment("fork-work")
+        cc.until(
+            lambda: user.fork("fork-work"), "fork-work: no fork decided on the comment"
+        )
+        decided("fork-work", "hand_over")
+        cc.until(answered("fork-work"), "fork-work: the session did not answer it")
+        # The session's turn once it answered, which is the user's own or the next.
+        last = require(page_claim(page), "the page has no claim")["turn"]
+        took = picked("fork-work")
+        require(
+            bool(took) and took[0] in (turn, last),
+            "fork-work: neither the user's turn nor the next picked the request up",
+        )
+        events = read_events(page)
+        times = recorded_steps(
+            events, next(event for event in events if event["id"] == work), None
+        )
+        first = min(
+            at for at in (times["progress"], times["replied"]) if at is not None
+        )
+        where = "the user's turn" if took[0] == turn else "the next turn"
+        step(
+            "fork-work",
+            started,
+            "fork-work",
+            detail=f"`fork-work` had its first reply after {first:.1f} s, in {where}",
+        )
 
     started = time.monotonic()
-    cc.say("/compact")
-    cc.until(compacting, "compacting: the compaction did not start", 30)
-    user.comment("compacting")
-    require(compacting(), "compacting: the compaction ended before the comment")
-    cc.until(answered("compacting"), "compacting: the comment was not answered")
-    step("compacting", started, "compacting")
+    user.release()
+    cc.until(cc.idle, "release: the turn that answered did not end")
+    fork = user.fork("release")
+    step(
+        "release",
+        started,
+        "release",
+        detail=None if fork is None else f"`release`: {fork_summary(fork)}",
+    )
+    if forks:
+        forked()
+    else:
+        delivered()
 
     started = time.monotonic()
     cc.say("/exit")
@@ -748,9 +941,12 @@ def delivery_ended(records: list[dict], update: str) -> bool:
 
 
 @contextmanager
-def answering(browser, *, sandbox: bool) -> Generator[tuple[User, Callable]]:
+def answering(
+    browser, *, sandbox: bool, forks: bool
+) -> Generator[tuple[User, Callable]]:
     """The user at the page an interactive Claude Code session serves, once it has,
-    and the steps that follow."""
+    and the steps that follow: with `forks`, forks of its conversation answer the
+    user's thread messages."""
     require(shutil.which("tmux") is not None, "the claude-code journey drives tmux")
 
     def environment(place: Isolation) -> dict[str, str]:
@@ -765,7 +961,10 @@ def answering(browser, *, sandbox: bool) -> Generator[tuple[User, Callable]]:
             )
         )
         return claude_environment(
-            home, XDG_STATE_HOME=str(place.state), TERM="tmux-256color"
+            home,
+            XDG_STATE_HOME=str(place.state),
+            TERM="tmux-256color",
+            **({} if forks else {"LEAF_FORK_REPLIES": "off"}),
         )
 
     with isolated("claude-code", environment) as place:
@@ -839,7 +1038,7 @@ def answering(browser, *, sandbox: bool) -> Generator[tuple[User, Callable]]:
             )
             cc.keep("setup")
             with user_at(browser, place, cc, started) as user:
-                yield user, lambda: steps(cc, user, place)
+                yield user, lambda: steps(cc, user, place, forks=forks)
         finally:
             # A failed step's screen; once Claude Code exits there is none.
             cc.keep("end")

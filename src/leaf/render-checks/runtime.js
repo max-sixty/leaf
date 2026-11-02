@@ -2,6 +2,7 @@ import {
   USER_VIEW_RESTORE_CASES,
   scrolling,
   exceptionText,
+  upFrom,
 } from "/runtime/check-api.js";
 import { readThreads, threadActions } from "/runtime/widget-api.js";
 import { at } from "./locate.js";
@@ -44,7 +45,8 @@ export const pageSettled = () => moving().length === 0 && !scrolling();
 export const userViewRestoreCases = () => USER_VIEW_RESTORE_CASES;
 
 const formControl = (/** @type {Element} */ node) =>
-  customElements.get(node.localName)?.formAssociated === true;
+  node.ownerDocument.defaultView?.customElements.get(node.localName)?.formAssociated ===
+  true;
 
 // Where a node Chrome raised a DevTools issue about is, and whether the page owns it.
 // A form-associated control's shadow tree is its module's implementation, so an issue
@@ -54,16 +56,14 @@ export function issueNode(initial) {
   /** @type {Node | null} */
   let node = initial;
   let owned = true;
-  for (
-    let root = node.getRootNode();
-    root instanceof ShadowRoot;
-    root = root.host.getRootNode()
-  )
-    if (formControl(root.host)) owned = false;
+  // Roots and custom-element definitions belong to the node's own window.
+  for (let host = upFrom(node.getRootNode()); host; host = upFrom(host.getRootNode()))
+    if (formControl(host)) owned = false;
   // Read ownership before placing an embedded document's issue at the frame
   // the page author can find. Cross-origin frames withhold that element.
   const view = (/** @type {Node} */ n) =>
-    (n instanceof Document ? n : n.ownerDocument)?.defaultView;
+    (n.nodeType === n.DOCUMENT_NODE ? /** @type {Document} */ (n) : n.ownerDocument)
+      ?.defaultView;
   while (node && view(node) !== globalThis.top) node = view(node)?.frameElement ?? null;
   if (!node) return null;
   return { at: at(node), owned };

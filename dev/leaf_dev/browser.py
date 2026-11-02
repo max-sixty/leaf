@@ -197,15 +197,16 @@ def scroll_settled(page, scroller=None, axis="y", frames=SCROLL_STILL_FRAMES):
 
 
 # The floating panel's row ends in one seat: at rest the On me mark, which counts what
-# waits on the user and dots a thread with news; while a view, stance or search stands,
-# its way out (`.lf-fp-exit`, with `.lf-fp-close` for a view's Close) in the same place.
+# waits on the user and dots a thread with news; while a stance or search stands, its
+# way out (`.lf-fp-exit`) in the same place. A view's Close (`.lf-fp-exit.lf-fp-close`)
+# ends a list's tabs or another view's head line instead.
 ON_ME_MARK = ".lf-fp-on-user"
 
 
 def panel_tab(page: Page | FrameLocator, name: str):
-    """The On view's tab `name` at the foot of On and of Threads, Threads being one of
-    its tabs: `On me`, `On <agent>`, `Threads` and, while a plan exists, `Plan`. Each
-    but Plan says its count after its name, in `.lf-fp-count`."""
+    """The On view's tab `name` at the foot of the menu, On and Threads, each one of
+    its tabs: `Menu`, `On me`, `On <agent>`, `Threads` and, while a plan exists,
+    `Plan`. Each but Menu and Plan says its count after its name, in `.lf-fp-count`."""
     return page.locator(".lf-fp-controls .lf-fp-filters button", has_text=name)
 
 
@@ -242,7 +243,7 @@ def open_threads(page: Page | FrameLocator) -> None:
     host = page.locator(".lf-floating-panel")
     if host.get_attribute("data-open") == "threads":
         return
-    back = page.locator(".lf-fp-controls .lf-fp-back", has_text="Threads")
+    back = page.get_by_role("button", name="Back to Threads")
     if back.count():
         back.click()
     else:

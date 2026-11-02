@@ -87,17 +87,26 @@ const allocation = (name) => /** @type {any} */ (document.body.getAttribute(name
 export const annotationMode = allocation("data-annotations") ?? "overlay";
 
 export const offlineInteractive = offlinePayload !== null;
-// An export holds each data value outside its reading, as one gzipped JSON body at the
-// address its payload names (`exporting.py`): a source's value with its deferred fields
-// left out, and each deferred field. Each read decodes its own copy, as each answer from
-// a server is one, so the runtime holds no copy beside the reading it accepted.
-/** @param {string} address */
-const embeddedValue = async (address) =>
-  new Response(
-    /** @type {ReadableStream<BufferSource>} */ (
-      (await fetch(address)).body
-    ).pipeThrough(new globalThis.DecompressionStream("gzip")),
+// An export holds each data value outside its reading, as one gzipped JSON body
+// (`exporting.py`): a source's value with its deferred fields left out, and each
+// deferred field. The bodies are spans of one embedded file at the address the payload
+// names, which the page reads into one buffer, still compressed, at its first read.
+// A span of that buffer decodes about three times faster than a slice of the Blob,
+// which a diff of thousands of files feels. Each read decodes its own copy, as each
+// answer from a server is one, so the runtime holds no decoded copy beside the reading
+// it accepted.
+/** @type {Promise<ArrayBuffer> | undefined} */
+let dataFile;
+/** @param {[number, number]} span */
+const embeddedValue = async ([start, length]) => {
+  dataFile ??= fetch(offlinePayload.data).then((response) => response.arrayBuffer());
+  const body = new Response(new Uint8Array(await dataFile, start, length)).body;
+  return new Response(
+    /** @type {ReadableStream<BufferSource>} */ (body).pipeThrough(
+      new globalThis.DecompressionStream("gzip"),
+    ),
   ).json();
+};
 // The captured reading with its sources' values, as a served page's state answer
 // brings them.
 export const offlineState = async () => {

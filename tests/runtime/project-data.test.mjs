@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { Buffer } from "node:buffer";
 import { gzipSync } from "node:zlib";
 
 // The context reads export delivery once, when its modules load. Supply the same
 // captured payload an exported page carries before importing the runtime graph: the
-// manifest the reading delivers, and each deferred field as its own gzipped JSON body.
+// manifest the reading delivers, and each deferred field as its own gzipped JSON body,
+// a span of the one embedded data file.
 const exported = document.createElement("script");
 exported.type = "application/json";
 exported.dataset.lfRuntime = "";
@@ -15,11 +17,16 @@ const reading = {
   value: { files: [{ key: "metadata" }, { key: "empty" }, { key: "text" }] },
 };
 const data = { version: "v1", sources: { files: reading } };
-/** @param {unknown} value */
-const body = (value) =>
-  `data:application/gzip;base64,${gzipSync(JSON.stringify(value)).toString("base64")}`;
+const bodies = [null, { contents: "evidence" }].map((value) =>
+  gzipSync(JSON.stringify(value)),
+);
+const [empty, text] = bodies.map((body, index) => [
+  index ? bodies[0].length : 0,
+  body.length,
+]);
 exported.textContent = JSON.stringify({
-  deferred: { files: { empty: body(null), text: body({ contents: "evidence" }) } },
+  data: `data:application/gzip;base64,${Buffer.concat(bodies).toString("base64")}`,
+  deferred: { files: { empty, text } },
 });
 document.head.append(exported);
 const { acceptData, notifyDataSubscribers } = await import("/runtime/data.js");

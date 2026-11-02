@@ -2195,7 +2195,12 @@ const offlinePayload = offlineMarker ? JSON.parse(offlineMarker.textContent || "
 const allocation = (name) => document.body.getAttribute(name);
 const annotationMode = allocation("data-annotations") ?? "overlay";
 const offlineInteractive = offlinePayload !== null;
-const embeddedValue = async (address) => new Response((await fetch(address)).body.pipeThrough(new globalThis.DecompressionStream("gzip"))).json();
+let dataFile;
+const embeddedValue = async ([start, length]) => {
+	dataFile ??= fetch(offlinePayload.data).then((response) => response.arrayBuffer());
+	const body = new Response(new Uint8Array(await dataFile, start, length)).body;
+	return new Response(body.pipeThrough(new globalThis.DecompressionStream("gzip"))).json();
+};
 const offlineState = async () => {
 	if (!offlineInteractive) return null;
 	const state = structuredClone(offlinePayload.state);

@@ -14,12 +14,13 @@ the reported output byte count includes the base64 expansion.
 
 Data is embedded beside media, not in the reading the composed document carries:
 each source's value with its deferred fields left out, and each deferred field, is
-one gzipped JSON body, so each part of a value is in the file once. The runtime
-decodes the values when it reads the page's state, as a served page's first state
-answer brings them, and a deferred field when a widget loads it
-(`runtime/context.js`). A value inside the composed document would cross the
-package's JSON, the HTML parser and the reading's JSON before any widget read it,
-escaped again at each JSON layer.
+one gzipped JSON body, so each part of a value is in the file once. The bodies are
+spans of one embedded file, so a diff of thousands of files costs startup one object
+URL rather than one a record. The runtime decodes the values when it reads the
+page's state, as a served page's first state answer brings them, and a deferred field
+when a widget loads it (`runtime/context.js`). A value inside the composed document
+would cross the package's JSON, the HTML parser and the reading's JSON before any
+widget read it, escaped again at each JSON layer.
 """
 
 from __future__ import annotations
@@ -72,21 +73,25 @@ def _data_url(resource: Resource) -> str:
     return f"data:{resource.mime};base64,{base64.b64encode(resource.data).decode()}"
 
 
-def _data_body(value) -> Resource:
-    """A data value as the body the runtime reads (`offlineState` in
-    `runtime/context.js`): its JSON, gzipped. Nothing compresses a file opened from
-    disk or sent as an attachment, and gzip puts prose and code in the file at about
-    40% of their size, base64 included, where uncompressed base64 takes 133%. Level 6
-    packs within 1% of gzip's default 9 in a third to a half of the time, and a fixed
-    mtime lets equal values share one body."""
-    return Resource(
-        gzip.compress(
+class _DataFile:
+    """The one embedded file holding every data body (the module header), each a span
+    the runtime reads (`embeddedValue` in `runtime/context.js`): a value's JSON,
+    gzipped. Nothing compresses a file opened from disk or sent as an attachment, and
+    gzip puts prose and code in the file at about 40% of their size, base64 included,
+    where uncompressed base64 takes 133%. Level 6 packs within 1% of gzip's default 9
+    in a third to a half of the time."""
+
+    def __init__(self) -> None:
+        self.data = bytearray()
+
+    def span(self, value) -> list[int]:
+        """Append one value's body, and return its offset and length."""
+        body = gzip.compress(
             json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode(),
             compresslevel=6,
-            mtime=0,
-        ),
-        "application/gzip",
-    )
+        )
+        self.data.extend(body)
+        return [len(self.data) - len(body), len(body)]
 
 
 @dataclass
@@ -361,24 +366,25 @@ def export_document(
     }
     embedded_resources["/shadow.css"] = inliner.address("/shadow.css")
     embedded_resources["/registry.json"] = inliner.address("/registry.json")
+    data_file = _DataFile()
+    values = {source: data_file.span(value) for source, value in values.items()}
+    # Each record's deferred field, as the deferred door answers it.
+    deferred = {
+        source: {
+            key: data_file.span(field)
+            for key, field in deferred_fields(
+                reading["value"], reading["contract"], artifact.registry
+            ).items()
+        }
+        for source, reading in data["sources"].items()
+        if "value" in reading
+    }
     payload = json_script(
         {
             "state": state,
-            "values": {
-                source: inliner.embed(_data_body(value))
-                for source, value in values.items()
-            },
-            # Each record's deferred field, as the deferred door answers it.
-            "deferred": {
-                source: {
-                    key: inliner.embed(_data_body(field))
-                    for key, field in deferred_fields(
-                        reading["value"], reading["contract"], artifact.registry
-                    ).items()
-                }
-                for source, reading in data["sources"].items()
-                if "value" in reading
-            },
+            "data": inliner.embed(Resource(bytes(data_file.data), "application/gzip")),
+            "values": values,
+            "deferred": deferred,
             "resources": embedded_resources,
         }
     )

@@ -22,9 +22,9 @@
  * parent cannot tell its departure from one to a page outside Leaf, whose load can
  * land before the departure's notice, so nothing is counted between. Work a child
  * starts after it has arrived, such as one of its own samples' Reset, is the child's
- * to count. Until a child has arrived a resize the reader would see, because they
- * scrolled to the sample while it loaded, waits until it would move nothing they see,
- * the frame keeping its loading height (`heldGrowth`), or until the reader clicks,
+ * to count. A resize of a child the reader did not ask to load, reached by scrolling,
+ * waits until it would move nothing they see, the frame keeping its current height
+ * (`heldGrowth`), or until the reader clicks,
  * types or presses a key inside the child, which makes every later resize of that
  * document theirs, though not a wheel or touch that scrolls past it; a resize
  * after Reset or Return to page, or one of a frame the reader saw as it mounted, is
@@ -107,11 +107,11 @@ export class Sample extends HTMLElement {
   // Drops a resize `heldGrowth` holds.
   /** @type {(() => void) | null} */
   #heldFit = null;
-  // The current document's arrival (`#track`); whether a resize during it waits
-  // while seen; and whether the reader asked for the load.
+  // The current document's arrival (`#track`); whether its resizes wait while seen
+  // until the reader claims it; and whether the reader asked for the load.
   /** @type {{land: () => void, reported: (() => void) | null} | null} */
   #arrival = null;
-  #arriving = false;
+  #unclaimed = false;
   #asked = false;
   /** @type {{source: Promise<SampleReady>, ready: Promise<SampleReady>} | null} */
   #following = null;
@@ -340,7 +340,7 @@ export class Sample extends HTMLElement {
   // The child owns its body observer and reports values over the private port.
   // Full view retains the embedded height while its same frame fills the dialog;
   // returning applies the current block reading without replacing any native editor.
-  // A reading while the child arrives waits while its resize would be seen, unless
+  // An unclaimed child's reading waits while its resize would be seen, unless
   // the reader `asked` for it, by Reset or Return to page.
   /** @param {number} height */
   #height(height, { immediate = false, asked = false } = {}) {
@@ -349,14 +349,14 @@ export class Sample extends HTMLElement {
     this.#heldFit?.();
     this.#heldFit = null;
     const fit = immediate ? this.#fit : this.#scheduleFit;
-    if (this.#arriving && !asked) this.#heldFit = heldGrowth(this.#frame, fit);
+    if (this.#unclaimed && !asked) this.#heldFit = heldGrowth(this.#frame, fit);
     else fit();
   }
 
   // The reader's click or key inside the child makes the frame theirs to move: a
   // resize held while they read applies now, and so does each later one.
   #release() {
-    this.#arriving = false;
+    this.#unclaimed = false;
     if (!this.#heldFit) return;
     this.#heldFit();
     this.#heldFit = null;
@@ -407,9 +407,8 @@ export class Sample extends HTMLElement {
     deferredArrival(landed).then(() => {
       if (this.#arrival !== arrival) return;
       this.#arrival = null;
-      this.#arriving = false;
     });
-    this.#arriving = !this.#asked;
+    this.#unclaimed = !this.#asked;
     this.#asked = false;
     const ready = this.#follow(promise);
     // The child reports its arrival after its presentation, which this widget draws

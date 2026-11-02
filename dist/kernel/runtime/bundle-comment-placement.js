@@ -450,12 +450,19 @@ function hearTargetChanges(root) {
 	root.addEventListener("scroll", (event) => {
 		const source = event.target === document ? pageScroller : event.target;
 		if (!(source instanceof Element)) return;
-		scrolled.add(source);
-		scheduleScrollReading();
+		stirred.add(source);
+		scheduleStirReading();
 	}, {
 		capture: true,
 		passive: true
 	});
+	const settled = ({ target }) => {
+		if (!(target instanceof Element) || inChrome(target)) return;
+		stirred.add(target);
+		scheduleStirReading();
+	};
+	root.addEventListener("transitionend", settled);
+	root.addEventListener("animationend", settled);
 }
 const laneFrames = /* @__PURE__ */ new Map();
 const makeLaneFrame = () => {
@@ -751,7 +758,7 @@ function setStyle(row, property, value) {
 	else inlineStyle(row).setProperty(property, value);
 }
 function targetShown(target, extent, stands, bands) {
-	const shown = (part) => part.checkVisibility() && clippedRect(part.getBoundingClientRect(), part, bands, pageScroller);
+	const shown = (part) => clippedRect(part.getBoundingClientRect(), part, bands, pageScroller);
 	if (!visibleTargetParts(target).some(shown)) return false;
 	const view = clippedRect(EVERYWHERE, target, bands, pageScroller);
 	if (!extent || !view || !overlaps(extent, view)) return false;
@@ -761,14 +768,14 @@ function targetShown(target, extent, stands, bands) {
 const pushes = /* @__PURE__ */ new Map();
 let pass = 0;
 let came = /* @__PURE__ */ new Map();
-const scrolled = /* @__PURE__ */ new Set();
-let scrollReading = 0;
-function scheduleScrollReading() {
-	if (scrollReading) return;
-	scrollReading = nextRender(() => {
-		scrollReading = 0;
-		const boxes = [...scrolled];
-		scrolled.clear();
+const stirred = /* @__PURE__ */ new Set();
+let stirReading = 0;
+function scheduleStirReading() {
+	if (stirReading) return;
+	stirReading = nextRender(() => {
+		stirReading = 0;
+		const boxes = [...stirred];
+		stirred.clear();
 		if (boxes.includes(pageScroller) && scrollX !== laidOutScrollX && [...carriers.values()].some((byAnchor) => [...byAnchor.values()].some((held) => held.y.length))) {
 			scheduleMarginLayout();
 			return;

@@ -20,7 +20,7 @@
     "runtime/annotation-overlay/floating.js": "c1533830e6d2fb78e4e74577059ce642ed1d446def27bef3a584a3961cce3d15",
     "runtime/annotation-overlay/index.js": "972d2a085dfbbaf3de835649bd4e9ee7b6b0dd2df18dbc2f2d2ebbd15a91d1e0",
     "runtime/annotation-overlay/margin-cluster-view.js": "bd9224a3f08a2eba5a1c17f3e82b3392d4dd9119379bf553d7c406d3b29cd2c0",
-    "runtime/annotation-overlay/margin-layout.js": "da0b53aae4a136ecfe9e507ec2f35e12e3181f2f8d04b36b8f0a19473ea9bf1c",
+    "runtime/annotation-overlay/margin-layout.js": "8693c613f9c4b6de2130b214d423be8ce38ffd89412d71333715f92b74bce208",
     "runtime/annotation-overlay/margin-placement.js": "d1bb17880a91b4beeef9c79dc7d1dd41b477be2b826a4997030ab423323d3d02",
     "runtime/annotation-overlay/margin-projection.js": "d2d0e67be946d7849cdc1154bef880a9832a28fb6e6b58a35e66b632d627c73a",
     "runtime/annotation-overlay/surface-grip.js": "fcaae3d4a8967c133989238e9a284830e72fda427d2cf71ec6919d394e18fd00",

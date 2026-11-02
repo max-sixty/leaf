@@ -455,39 +455,149 @@ def test_a_pin_on_a_line_of_a_scrolling_code_block_marks_that_line(
     expect(row).not_to_have_class(re.compile(r"\blf-withheld\b"))
 
 
+FIRST_LINE = "configuration = load_settings(path, defaults, overrides, environment, profile_name)"
+FIRST_LINE_LISTING = [FIRST_LINE, "short_second = 1", "third = 2"]
+# The same block on a slide a deck translates and scales, as reveal.js does.
+SLIDE_PAGE = leaf_page(
+    "a code block on a slide",
+    '<div><h1>Deck</h1><div style="position: relative; height: 420px">'
+    '<div id="slide" style="position: absolute; left: 50%; top: 50%; width: 960px;'
+    ' transform: translate(-50%, -50%) scale(0.6)"><pre id="listing"><code>'
+    + "\n".join(FIRST_LINE_LISTING)
+    + "</code></pre></div></div></div>",
+    layout="workspace",
+)
+
+
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+@pytest.mark.parametrize("where", ["column", "moved-slide"])
 def test_a_pin_on_a_code_block_s_first_line_leaves_copy_pressable(
-    request, serve, engine
+    request, serve, engine, where
 ):
     """Copy stands just inside a code block's top-right corner, over the first line's
-    last words. A pin on that line stands level with it and clear of Copy, so a press on
-    Copy reaches Copy."""
+    last words. A pin on that line stands level with it and clear of where Copy shows,
+    so a press on Copy reaches Copy, also on a slide a deck moves after the page loads,
+    where Firefox read Copy's place at rest from before the move."""
     browser = request.getfixturevalue(engine)
-    first = (
-        "configuration = load_settings(path, defaults, overrides, environment, "
-        "profile_name)"
+    source = (
+        _listing(FIRST_LINE_LISTING, layout="column")
+        if where == "column"
+        else SLIDE_PAGE
     )
-    source = _listing([first, "short_second = 1", "third = 2"], layout="column")
     comment = _comment_on("listing", quote="profile_name)")
     page = open_page(browser, serve(source, events=[comment]))
+    resized(page, 760 if where == "column" else 1280, 800)
+    margins_laid_out(page)
+    if where == "moved-slide":
+        page.locator("#slide").evaluate(
+            "slide => { slide.style.transform = 'translate(-35%, -50%) scale(0.6)'; }"
+        )
+        margins_laid_out(page)
+    row = page.locator('[data-lf-margin-for="listing"]')
+    expect(row).not_to_have_class(re.compile(r"\blf-withheld\b"))
+    pin = row.bounding_box()
+    page.locator("#listing code").hover()
+    copy = page.locator(".lf-code-copy")
+    expect(copy).to_have_css("opacity", "1")
+    shows = copy.bounding_box()
+    assert (
+        pin["x"] + pin["width"] <= shows["x"]
+        or pin["x"] >= shows["x"] + shows["width"]
+        or pin["y"] + pin["height"] <= shows["y"]
+        or pin["y"] >= shows["y"] + shows["height"]
+    ), (pin, shows)
+    copy.click(timeout=5000)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+def test_a_code_block_s_own_pin_stands_above_its_corner(request, serve, engine):
+    """A comment on a whole code block stands its pin above the block's top-right
+    corner, outside the block, so it reads apart from the pins of the block's lines,
+    which stand inside it level with their lines, and keeps clear of Copy."""
+    browser = request.getfixturevalue(engine)
+    events = [
+        _comment_on("listing"),
+        _comment_on("listing", text="On a line.", quote="short_second = 1"),
+    ]
+    page = open_page(
+        browser, serve(_listing(FIRST_LINE_LISTING, layout="column"), events=events)
+    )
     resized(page, 760, 800)
     margins_laid_out(page)
-    reading = page.evaluate(PIN_ON_LINE, "profile_name)")
-    assert reading["shown"] and reading["onLine"], reading
-    copy = page.locator(".lf-code-copy")
-    clear = page.evaluate(
+    reading = page.evaluate(
         """() => {
-          const pin = document.querySelector('[data-lf-margin-for="listing"]')
-            .getBoundingClientRect();
-          const copy = document.querySelector('.lf-code-copy').getBoundingClientRect();
-          return pin.right <= copy.left || pin.left >= copy.right
-            || pin.bottom <= copy.top || pin.top >= copy.bottom;
+          const block = document.getElementById('listing').getBoundingClientRect();
+          const text = document.querySelector('#listing code').firstChild;
+          const at = text.data.indexOf('short_second = 1');
+          const range = document.createRange();
+          range.setStart(text, at);
+          range.setEnd(text, at + 16);
+          const line = range.getClientRects()[0];
+          const rows = [...document.querySelectorAll('[data-lf-margin-for="listing"]')]
+            .map((row) => ({quoted: row.getAttribute('aria-label').includes('short_second'),
+                            box: row.getBoundingClientRect()}));
+          const own = rows.find((row) => !row.quoted).box;
+          const lined = rows.find((row) => row.quoted).box;
+          const middle = (lined.top + lined.bottom) / 2;
+          return {above: own.bottom <= block.top, atCorner: block.right - own.right < 24,
+                  onLine: middle >= line.top && middle <= line.bottom,
+                  own: own.toJSON(), lined: lined.toJSON(), block: block.toJSON()};
         }"""
     )
-    assert clear, (reading, copy.bounding_box())
-    page.locator("#listing code").hover()
-    expect(copy).to_have_css("opacity", "1")
-    copy.click(timeout=5000)
+    assert reading["above"] and reading["atCorner"] and reading["onLine"], reading
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+def test_wrapped_prose_that_keeps_its_spaces_seats_its_pin_as_prose(
+    request, serve, engine
+):
+    """Prose that keeps its spaces and wraps, as a quoted message or a transcript might
+    (`white-space: pre-wrap`), reaches the column's edge on every line, so its pin
+    stands by its words as an ordinary paragraph's does, not at the edge as a line of
+    code's does."""
+    browser = request.getfixturevalue(engine)
+    words = (
+        "This paragraph keeps its spaces, as a quoted message might. It runs long "
+        "enough to wrap across several lines of the column, and a reader comments on "
+        "a phrase in its middle so the pin's seat shows how wrapped prose is treated."
+    )
+    # Each paragraph between the same neighbours, so where its pin stands differs only
+    # by how its spaces are kept.
+    body = (
+        "<div><h1>Prose</h1>"
+        + "".join(
+            f'<h2>{section.title()}</h2><p id="{section}"{style}>{words}</p>'
+            "<p>Words after the paragraph, so the room below it is the same.</p>"
+            for section, style in (
+                ("kept", ' style="white-space: pre-wrap"'),
+                ("plain", ""),
+            )
+        )
+        + "</div>"
+    )
+    events = [
+        _comment_on(section, quote="a phrase in its middle")
+        for section in ("kept", "plain")
+    ]
+    page = open_page(
+        browser, serve(leaf_page("Prose", body, layout="workspace"), events=events)
+    )
+    resized(page, 900, 800)
+    margins_laid_out(page)
+    offsets = page.evaluate(
+        """() => ['kept', 'plain'].map((id) => {
+          const text = document.getElementById(id).firstChild;
+          const at = text.data.indexOf('a phrase in its middle');
+          const range = document.createRange();
+          range.setStart(text, at);
+          range.setEnd(text, at + 22);
+          const words = range.getClientRects()[0];
+          const pin = document.querySelector(`[data-lf-margin-for="${id}"]`)
+            .getBoundingClientRect();
+          return [pin.left - words.left, pin.top - words.top];
+        })"""
+    )
+    assert offsets[0] == pytest.approx(offsets[1], abs=1), offsets
 
 
 def test_a_pin_in_a_pane_paints_in_the_frame_its_target_scrolls(browser, serve):

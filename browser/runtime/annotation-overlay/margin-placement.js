@@ -194,12 +194,12 @@ export function seatsBy(parts, home, inline, passage, { cover, beside }, size, g
 // inside `bounds`, the toggle is seated only where the open width fits to its left: the
 // search's bounds give up that width on the left.
 //
-// A pin kept `level` with a line of preformatted text, such as a code block's, has its
+// A pin kept `level` on a block of preformatted lines, such as a code block, has its
 // home seat alone (margin-layout.js says where): seats beside words that reach as far as
 // their neighbours' leave the line, and a seat slid left past the words lands at the
-// window's edge. It stands there over the line's last words, as Copy does over the first
-// line's, or where a control or a pin already seated stands there, slid left past those
-// alone, level with its line still.
+// window's edge. It stands there whatever words it covers, as Copy covers the first
+// line's last ones, or where a control or a pin already seated stands there, slid left
+// past those alone, so a line's pin stays level with its line.
 //
 // Each pin is `{ held, seats, floor, cover, controls, bounds, folds,
 // folded, level }`: `held` the rect it holds or null, `seats` its candidate rects, null

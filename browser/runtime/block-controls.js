@@ -94,29 +94,26 @@ addEventListener("resize", () => {
     // A hidden panel's old layout is invalid after resize. Reading its cuts would
     // force the browser to lay out each skipped subtree; revealControl reads them
     // when the user next reveals the control. Read every shown block before writing.
-    // A resize can rescale a deck's slides, so the insets are read again too.
     const read = [...placed]
       .filter(([, block]) => !skipped(block))
-      .map(([control, block]) => ({
-        control,
-        block,
-        levels: headerLevels(block),
-        insets: readInsets(block),
-      }));
-    for (const { control, block, levels, insets } of read) {
-      writeInsets(control, insets);
+      .map(([control, block]) => ({ control, block, levels: headerLevels(block) }));
+    for (const { control, block, levels } of read)
       standInChrome(control, block, levels);
-    }
   });
 });
 
 /** Where each document control with a footprint stands over its block, shown or
  * hidden at rest, so a margin pin keeps off it (margin-layout.js, `coverIn`) and
- * takes no press meant for it. */
-export const blockControlBoxes = () =>
-  [...placed.keys()]
-    .filter((control) => footprints.has(control) && !control.hidden)
-    .map((control) => control.getBoundingClientRect());
+ * takes no press meant for it. Each control's insets are read from its block first,
+ * every block before any control is written, since a deck moves and scales its
+ * slides with no resize to say so (`readInsets`). */
+export function blockControlBoxes() {
+  const read = [...placed]
+    .filter(([control]) => footprints.has(control) && !control.hidden)
+    .map(([control, block]) => ({ control, insets: readInsets(block) }));
+  for (const { control, insets } of read) writeInsets(control, insets);
+  return read.map(({ control }) => control.getBoundingClientRect());
+}
 
 /** Stand `control` over `block` from chrome, cut by `levels`, its block's
  * `headerLevels` read before any control was written. `footprint`, read where the
@@ -179,10 +176,10 @@ export function aimControl({ control, near, anchor }) {
 // The control's anchor insets carry how far `anchor()` reads the block's corner from
 // where it shows, and `anchor-size()` its size, which only an engine that leaves
 // transforms out makes other than nothing (css-anchors.js, `anchorBox`), such as Firefox
-// on a block in a table granted room or a scaled slide. Read where the control first
-// stands and after a resize, since a pin keeps off where it stands at rest
-// (`blockControlBoxes`), and again whenever it is about to show; a control shown as it
-// arrives reads them with the batch's other readings.
+// on a block in a table granted room or a scaled slide. Read whenever the control is
+// about to show, and wherever a pin keeps off where it stands at rest
+// (`blockControlBoxes`); a control shown as it arrives reads them with the batch's
+// other readings.
 /** @param {Element} block */
 export function readInsets(block) {
   const box = block.getBoundingClientRect();

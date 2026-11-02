@@ -490,14 +490,21 @@ function passageBlock(words, target) {
   }
   return block;
 }
-// What shows of the block a passage in preformatted text stands in, a code block's
-// lines for one, which its pin stands at the right edge of, level with its line
-// (`pinSeating`): the nearest block holding the words, cut by every box around it, its
-// own clip included. Null for words whose spaces collapse, which take a prose seat.
-/** @param {Node} words @param {import("../geometry.js").ClipCache} bands @param {Element} stop */
-function preformattedBlock(words, bands, stop) {
-  let at = renderedParent(words);
-  if (!at || !/^(preserve|break-spaces)$/.test(getComputedStyle(at).whiteSpaceCollapse))
+// What shows of a block of preformatted lines, a code block for one, whose pins stand
+// at its right edge (`pinSeating`): a passage's level with its line, the block's own
+// above its top-right corner. `at` is the box holding a passage's words, or the
+// target of a row about the block itself: preformatted where it keeps its spaces and
+// doesn't wrap its lines, since wrapped lines reach that edge however long they are.
+// The answer is the nearest block from `at` out, cut by every box around it, its own
+// clip included; null for text that isn't preformatted, which takes prose seats.
+/** @param {Element | null} at @param {import("../geometry.js").ClipCache} bands @param {Element} stop */
+function preformattedBlock(at, bands, stop) {
+  const style = at && getComputedStyle(at);
+  if (
+    !style ||
+    !/^(preserve|break-spaces)$/.test(style.whiteSpaceCollapse) ||
+    style.textWrapMode !== "nowrap"
+  )
     return null;
   while (at && /^(inline|contents)$/.test(getComputedStyle(at).display))
     at = renderedParent(at);
@@ -869,8 +876,8 @@ function controlsIn(host) {
   return found;
 }
 
-/** @param {Element} root @param {Pick<Box, "top" | "bottom">} band @param {Element} target @param {import("../geometry.js").ClipCache} bands @param {Element} stop */
-function coverIn(root, band, target, bands, stop) {
+/** @param {Element} root @param {Pick<Box, "top" | "bottom">} band @param {Element} target @param {import("../geometry.js").ClipCache} bands @param {Element} stop @param {readonly DOMRect[]} standing where the block controls stand (`blockControlBoxes`) */
+function coverIn(root, band, target, bands, stop, standing) {
   /** @type {Box[]} */
   const cover = [];
   /** @type {Box[]} */
@@ -935,7 +942,7 @@ function coverIn(root, band, target, bands, stop) {
     }
   };
   visit(root, renderedChildren(root));
-  for (const box of blockControlBoxes())
+  for (const box of standing)
     if (box.width && meets(box)) {
       cover.push(box);
       controls.push(box);
@@ -1030,9 +1037,11 @@ function standFolded(row, fold, on) {
 // Below is the one seat clear beside a full-width figure or keypad that sits right
 // under a paragraph. A quoted passage's pin then tries the same seats by the block
 // holding it (`passageBlock`), so it covers words only where the block's do too. A
-// passage in preformatted text, a line of code for one, has one seat instead: level
-// with its line, at the right edge of what shows of its block (`preformattedBlock`),
-// where `seatRow` keeps it level.
+// pin on a block of preformatted lines, a code block for one, has one seat instead, at
+// the right edge of what shows of the block (`preformattedBlock`), where `seatRow`
+// keeps it: a passage's level with its line, inside the block, and the block's own
+// above its top-right corner, which keeps it apart from its lines' pins and clear of
+// Copy.
 //
 // A row that can fold (its `fold.able()`, margin-projection.js) is seated at both sizes,
 // which are worked out rather than read, since only the one it stands at is drawn:
@@ -1047,6 +1056,10 @@ function pinSeating(rows, { bands, shell, pinInset }) {
   const rootBounds = /^(hidden|clip)$/.test(getComputedStyle(pageScroller).overflowY)
     ? shownWindow({ viewport: "layout" })
     : { top: pageScroller.getBoundingClientRect().top };
+  // Where the block controls stand, read once for every pin, and only where one is
+  // seated (`blockControlBoxes`).
+  /** @type {DOMRect[] | undefined} */
+  let standing;
   return rows.map((entry) => {
     const { read } = entry;
     if (read.place !== "pin") {
@@ -1056,17 +1069,20 @@ function pinSeating(rows, { bands, shell, pinInset }) {
     const { target, point, words, row, preformatted } = read;
     const height = entry.rect.bottom - entry.rect.top;
     const width = entry.rect.right - entry.rect.left;
-    // A passage in preformatted text keeps level with its line, at the right edge of
-    // what shows of its block (`preformattedBlock`, `seatRow`).
-    const line = preformatted && words?.[0];
-    const home = line
-      ? {
+    // A pin on preformatted lines stands at the right edge of what shows of their block
+    // (`preformattedBlock`), kept there by `seatRow`: a passage's level with its line,
+    // inside the block, and the block's own above its top-right corner, outside it.
+    const line = words?.[0];
+    const home = !preformatted
+      ? entry.rect
+      : {
           left: preformatted.right - pinInset - width,
           right: preformatted.right - pinInset,
-          top: (line.top + line.bottom - height) / 2,
-          bottom: (line.top + line.bottom + height) / 2,
-        }
-      : entry.rect;
+          top: line
+            ? (line.top + line.bottom - height) / 2
+            : preformatted.top - GAP - height,
+          bottom: line ? (line.top + line.bottom + height) / 2 : preformatted.top - GAP,
+        };
     const fold = !preformatted && read.options.fold?.able() ? read.options.fold : null;
     if (!fold) standFolded(row, read.options.fold, false);
     entry.fold = fold;
@@ -1105,12 +1121,14 @@ function pinSeating(rows, { bands, shell, pinInset }) {
     // header, standing still above it, would enter the band as the pane scrolled the
     // target up to it, and seat the pin differently at that scroll.
     const stop = read.scroller;
+    standing ??= blockControlBoxes();
     const room = coverIn(
       stop === pageScroller ? main : stop,
       band,
       target,
       bands,
       stop,
+      standing,
     );
     const { cover, controls } = room;
     const end = parts.at(-1);
@@ -1451,7 +1469,11 @@ function layoutMountedRows(layer) {
       (passageNode
         ? wordsShown(words, passageNode, bands, scroller)
         : clippedRect(whole, target, bands, scroller));
-    const preformatted = passageNode && preformattedBlock(passageNode, bands, scroller);
+    const preformatted = preformattedBlock(
+      passageNode ? renderedParent(passageNode) : point ? null : target,
+      bands,
+      scroller,
+    );
     const blockNode = passageNode && !preformatted && passageBlock(passageNode, target);
     const blockWhole = blockNode && shownExtent(blockNode);
     const blockBox = blockWhole && clippedRect(blockWhole, blockNode, bands, scroller);
@@ -1745,10 +1767,14 @@ function layoutMountedRows(layer) {
           );
         }
         const container = read.container;
-        // A pin at a code block's right edge stands there through a sideways scroll of
-        // the block's lines, as a rail row stands in the rail.
+        // A line's pin at a code block's right edge stands there through a sideways
+        // scroll of the block's lines, as a rail row stands in the rail: it follows its
+        // line down the block only. So a sideways scroll of a box around the block,
+        // such as a table that scrolls sideways, leaves the pin where the window holds
+        // it until the next pass, an accepted cost.
         /** @type {"y" | "xy"} */
-        const axes = read.place === "rail" || read.preformatted ? "y" : "xy";
+        const axes =
+          read.place === "rail" || (read.preformatted && read.words) ? "y" : "xy";
         if (!read.carrier) read.home = lane;
         else if (
           previous.carrier === read.carrier &&

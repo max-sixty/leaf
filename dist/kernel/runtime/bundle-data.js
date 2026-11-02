@@ -2348,18 +2348,14 @@ function watchCodeBlocks() {
 				if (!code) throw new Error("The code block no longer holds its source");
 				return code.textContent;
 			}, "code"),
-			levels: headerLevels(pre),
-			insets: readInsets(pre)
+			levels: headerLevels(pre)
 		}));
-		for (const { pre, pending, levels, insets } of prepared) {
+		for (const { pre, pending, levels } of prepared) {
 			const copy = aimControl(pending);
 			const parent = pre.parentNode;
 			if (!parent) continue;
 			if (leafSurface(pre)) move(parent, copy, pre.nextSibling);
-			else {
-				writeInsets(copy, insets);
-				standInChrome(copy, pre, levels);
-			}
+			else standInChrome(copy, pre, levels);
 			copy.tabIndex = -1;
 			claimReachStop(pre);
 			if (!wired.has(pre)) {

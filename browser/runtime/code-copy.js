@@ -33,12 +33,10 @@ import {
   aimControl,
   anchorControl,
   pressedElsewhere,
-  readInsets,
   releaseControl,
   revealControl,
   standInChrome,
   tabFromBlock,
-  writeInsets,
 } from "./block-controls.js";
 import { headerLevels } from "./css-anchors.js";
 import { leafSurface } from "./passages.js";
@@ -225,20 +223,15 @@ export function watchCodeBlocks() {
           "code",
         ),
         levels: headerLevels(pre),
-        insets: readInsets(pre),
       }));
-    for (const { pre, pending, levels, insets } of prepared) {
+    for (const { pre, pending, levels } of prepared) {
       const copy = aimControl(pending);
       // Runtime surfaces keep their controls inside their own interaction boundary;
       // a press on a control in document chrome would dismiss an open panel.
       const parent = pre.parentNode;
       if (!parent) continue;
       if (leafSurface(pre)) move(parent, copy, pre.nextSibling);
-      else {
-        // Where it stands at rest is a pin's to keep off (`blockControlBoxes`).
-        writeInsets(copy, insets);
-        standInChrome(copy, pre, levels);
-      }
+      else standInChrome(copy, pre, levels);
       copy.tabIndex = -1;
       claimReachStop(pre);
       if (!wired.has(pre)) {

@@ -374,9 +374,9 @@ function passageBlock(words, target) {
 	}
 	return block;
 }
-function preformattedBlock(words, bands, stop) {
-	let at = renderedParent(words);
-	if (!at || !/^(preserve|break-spaces)$/.test(getComputedStyle(at).whiteSpaceCollapse)) return null;
+function preformattedBlock(at, bands, stop) {
+	const style = at && getComputedStyle(at);
+	if (!style || !/^(preserve|break-spaces)$/.test(style.whiteSpaceCollapse) || style.textWrapMode !== "nowrap") return null;
 	while (at && /^(inline|contents)$/.test(getComputedStyle(at).display)) at = renderedParent(at);
 	return at && clippedContents(at.getBoundingClientRect(), at, bands, stop);
 }
@@ -569,7 +569,7 @@ function controlsIn(host) {
 	visit(host);
 	return found;
 }
-function coverIn(root, band, target, bands, stop) {
+function coverIn(root, band, target, bands, stop, standing) {
 	const cover = [];
 	const controls = [];
 	const boxes = [];
@@ -620,7 +620,7 @@ function coverIn(root, band, target, bands, stop) {
 		}
 	};
 	visit(root, renderedChildren(root));
-	for (const box of blockControlBoxes()) if (box.width && meets(box)) {
+	for (const box of standing) if (box.width && meets(box)) {
 		cover.push(box);
 		controls.push(box);
 	}
@@ -669,6 +669,7 @@ function standFolded(row, fold, on) {
 function pinSeating(rows, { bands, shell, pinInset }) {
 	const main = marginColumn();
 	const rootBounds = /^(hidden|clip)$/.test(getComputedStyle(pageScroller).overflowY) ? shownWindow({ viewport: "layout" }) : { top: pageScroller.getBoundingClientRect().top };
+	let standing;
 	return rows.map((entry) => {
 		const { read } = entry;
 		if (read.place !== "pin") {
@@ -678,13 +679,13 @@ function pinSeating(rows, { bands, shell, pinInset }) {
 		const { target, point, words, row, preformatted } = read;
 		const height = entry.rect.bottom - entry.rect.top;
 		const width = entry.rect.right - entry.rect.left;
-		const line = preformatted && words?.[0];
-		const home = line ? {
+		const line = words?.[0];
+		const home = !preformatted ? entry.rect : {
 			left: preformatted.right - pinInset - width,
 			right: preformatted.right - pinInset,
-			top: (line.top + line.bottom - height) / 2,
-			bottom: (line.top + line.bottom + height) / 2
-		} : entry.rect;
+			top: line ? (line.top + line.bottom - height) / 2 : preformatted.top - GAP - height,
+			bottom: line ? (line.top + line.bottom + height) / 2 : preformatted.top - GAP
+		};
 		const fold = !preformatted && read.options.fold?.able() ? read.options.fold : null;
 		if (!fold) standFolded(row, read.options.fold, false);
 		entry.fold = fold;
@@ -716,7 +717,8 @@ function pinSeating(rows, { bands, shell, pinInset }) {
 			bottom: Math.max(...spans.map((box) => box.bottom)) + around
 		};
 		const stop = read.scroller;
-		const room = coverIn(stop === pageScroller ? main : stop, band, target, bands, stop);
+		standing ??= blockControlBoxes();
+		const room = coverIn(stop === pageScroller ? main : stop, band, target, bands, stop, standing);
 		const { cover, controls } = room;
 		const end = parts.at(-1);
 		const inline = Boolean(words) || !point && end !== void 0 && target instanceof HTMLElement && getComputedStyle(target).display.startsWith("inline");
@@ -949,7 +951,7 @@ function layoutMountedRows(layer) {
 		const box = anchor.getBoundingClientRect();
 		const whole = shownExtent(target);
 		const extent = whole && (passageNode ? wordsShown(words, passageNode, bands, scroller) : clippedRect(whole, target, bands, scroller));
-		const preformatted = passageNode && preformattedBlock(passageNode, bands, scroller);
+		const preformatted = preformattedBlock(passageNode ? renderedParent(passageNode) : point ? null : target, bands, scroller);
 		const blockNode = passageNode && !preformatted && passageBlock(passageNode, target);
 		const blockWhole = blockNode && shownExtent(blockNode);
 		const blockBox = blockWhole && clippedRect(blockWhole, blockNode, bands, scroller);
@@ -1187,7 +1189,7 @@ function layoutMountedRows(layer) {
 					}, run);
 				}
 				const container = read.container;
-				const axes = read.place === "rail" || read.preformatted ? "y" : "xy";
+				const axes = read.place === "rail" || read.preformatted && read.words ? "y" : "xy";
 				if (!read.carrier) read.home = lane;
 				else if (previous.carrier === read.carrier && previous.axes === axes && previous.container === read.container) read.home = previous.home;
 				else {

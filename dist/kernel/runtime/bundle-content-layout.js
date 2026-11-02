@@ -1821,16 +1821,19 @@ addEventListener("resize", () => {
 		const read = [...placed].filter(([, block]) => !skipped(block)).map(([control, block]) => ({
 			control,
 			block,
-			levels: headerLevels(block),
-			insets: readInsets(block)
+			levels: headerLevels(block)
 		}));
-		for (const { control, block, levels, insets } of read) {
-			writeInsets(control, insets);
-			standInChrome(control, block, levels);
-		}
+		for (const { control, block, levels } of read) standInChrome(control, block, levels);
 	});
 });
-const blockControlBoxes = () => [...placed.keys()].filter((control) => footprints.has(control) && !control.hidden).map((control) => control.getBoundingClientRect());
+function blockControlBoxes() {
+	const read = [...placed].filter(([control]) => footprints.has(control) && !control.hidden).map(([control, block]) => ({
+		control,
+		insets: readInsets(block)
+	}));
+	for (const { control, insets } of read) writeInsets(control, insets);
+	return read.map(({ control }) => control.getBoundingClientRect());
+}
 function standInChrome(control, block, levels, footprint = true) {
 	const previousBlock = placed.get(control);
 	if (!previousBlock && footprint) footprints.add(control);

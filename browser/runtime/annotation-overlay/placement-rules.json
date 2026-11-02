@@ -1,0 +1,134 @@
+{
+  "$comment": "Where a comment's surfaces stand, as a reader sees them: the comment box the user types in and the thread card Send turns it into, which stand by one rule so Send moves nothing. comment-placement.js and thread/card-anchor.js keep these rules and say how, and which designs they rejected. A rule's `swept` names the findings by which the placement sweep (tests/journeys/margin/test_card_placement.py) reports it broken, each finding under one rule; the sweep refuses a finding no rule names, and a rule naming one it never reports.",
+  "sections": [
+    {
+      "id": "room",
+      "title": "How much room a card has",
+      "columns": [
+        "The commented row stands in",
+        "The card's room",
+        "What cuts the card"
+      ],
+      "rows": [
+        {
+          "id": "room-page",
+          "stands_in": "The page's flow: a paragraph, a pane the page scrolls, a screenshot",
+          "room": "The window, less Leaf's chrome: its header and the panel's row",
+          "cut": "Nothing; it scrolls off with the page"
+        },
+        {
+          "id": "room-block",
+          "stands_in": "A bounded block (`data-bound`, a log) in the page",
+          "room": "The window, as for the page's flow",
+          "cut": "The block's top once the card's top passes it with the row; its foot once the row's first line passes it; its sides once the words do. Each block around the row counts, nested ones too."
+        },
+        {
+          "id": "room-pane",
+          "stands_in": "A workspace pane that scrolls",
+          "room": "The pane's visible part, where that holds the card's minimum width (`--thread-card-min`) and the least height a surface stands in (`LEAST_HEIGHT`); otherwise the window",
+          "cut": "The pane's edges, so the card never stands over another pane",
+          "swept": ["over-another-pane"]
+        },
+        {
+          "id": "room-block-in-pane",
+          "stands_in": "A bounded block inside a workspace pane",
+          "room": "The pane, as above",
+          "cut": "The pane's edges, and the block's as in the page"
+        },
+        {
+          "id": "room-widget-box",
+          "stands_in": "A widget's own scrolling box: a screenshot holding its height in a full-height pane, a trace's snapshot",
+          "room": "That box, as for a pane",
+          "cut": "Its edges"
+        }
+      ],
+      "why": "A bounded block scrolls inside the box around it as a paragraph does, so its rows take that box's room and their margin entries stand in the rail. A pane is a place of its own, so it holds its cards and its rows' entries pin inside it."
+    },
+    {
+      "id": "side",
+      "title": "Which side",
+      "rules": [
+        {
+          "id": "side-order",
+          "says": "Right of the commented text where the room holds the card's minimum width; else left of it; else under or over it. With the margin rail showing, right of a column paragraph is the rail."
+        },
+        {
+          "id": "side-under-or-over",
+          "says": "Between under and over: the side that already shows the least height a surface stands in; then the side with more room, counting what the room's box can still scroll. A touch screen prefers under, since the selection menu stands over the words."
+        },
+        {
+          "id": "side-held",
+          "says": "Chosen when the card opens, and again only when the room's size or the commented text's width changes: a window resize, a pane narrowing, a reflow. A scroll never changes the side.",
+          "swept": ["side-changed"]
+        }
+      ]
+    },
+    {
+      "id": "place",
+      "title": "Where on that side",
+      "rules": [
+        {
+          "id": "place-beside",
+          "says": "Beside: its top a gap (`COMMENT_GAP`) above the commented text's first line, and right of the row's margin entry where the card's full width (`--thread-card`) still fits beyond it; otherwise over the entry."
+        },
+        {
+          "id": "place-under-or-over",
+          "says": "Under or over: starting at the quoted words' first character."
+        },
+        {
+          "id": "place-carried",
+          "says": "Carried by its grip: where it was dropped, relative to its text, until the side is chosen again."
+        }
+      ]
+    },
+    {
+      "id": "size",
+      "title": "How tall",
+      "rules": [
+        {
+          "id": "size-grows-away",
+          "says": "It grows away from its text: down beside or under it, up over it. Opening, it may take the room's whole height, sliding inside the room rather than shrinking."
+        },
+        {
+          "id": "size-room",
+          "says": "Once it has stood, it grows into the room below its top, or to the tallest it has stood since its text last moved, before its transcript scrolls.",
+          "swept": ["capped"]
+        },
+        {
+          "id": "size-rises",
+          "says": "Beside its text it rises instead, the window's foot lifting it, whether you're writing in it or an answer arrives. A press keeps the spot it pressed still, and a reply you've just sent keeps its place until more words arrive."
+        },
+        {
+          "id": "size-page-still",
+          "says": "Growing never scrolls the page. Opening under or over scrolls the room's box, as far as it can, to make the room the card needs, so it opens clear of its text."
+        }
+      ]
+    },
+    {
+      "id": "scroll",
+      "title": "As the page scrolls",
+      "rules": [
+        {
+          "id": "scroll-with-text",
+          "says": "It moves with its text, step for step, on both axes: a card on quoted words in a log scrolled sideways crosses the log's lines with them. A crossed edge never moves it.",
+          "swept": ["jumps"]
+        },
+        {
+          "id": "scroll-held-in",
+          "says": "While its text shows whole, the room's edges hold it whole inside them. Beside a tall element whose top has left the window, it waits at the window's top until the element's foot passes, then leaves with it.",
+          "swept": ["in-window", "uncut-while-shown"]
+        },
+        {
+          "id": "scroll-cut",
+          "says": "The edges in the room table's last column cut it as its text crosses them, so it leaves as its text does. Leaf's chrome passes over it.",
+          "swept": ["leaves-past-top", "leaves-past-foot"]
+        },
+        {
+          "id": "scroll-stays-open",
+          "says": "A scroll never closes it.",
+          "swept": ["closed"]
+        }
+      ]
+    }
+  ]
+}

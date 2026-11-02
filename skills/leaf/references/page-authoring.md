@@ -263,15 +263,18 @@ adds keyboard access and continuation cues when content exceeds the box. Its CSS
 change overflow at a breakpoint; Leaf measures the declared surface, never all of its
 descendants. For a box that scrolls vertically, see `page-layout.md`, "Bounds and widths".
 
-Leaf scrolls a `<pre>` or table wider than its container and fits an image or SVG to
-it, whatever theme the page takes, so none needs a width. A table's columns size to
-their content, so leave its cells' widths and wrapping to Leaf too. Text that can't break, such as a bare
-identifier or a cell kept on one line, holds its column at its full length, and once
-the table scrolls sideways, prose in the other columns wraps a word per line. Put
-identifiers in `<code>`, which can break inside a cell, and keep the columns to what
-fits at the narrowest width the page's readers use. Write each row's name as its
-first cell, a `<th scope="row">`, and the names stay in view while the other columns
-scroll.
+Leaf fits an image or SVG to its container on every page. On a page that wears the
+reading face, as a themed page does (`package-themes.md`, "Personal themes"), Leaf
+also scrolls a `<pre>` or table wider than its container, so neither needs a width,
+and a table's columns size to their content, so leave its cells' widths and wrapping
+to Leaf too. A page without the face keeps the browser's tables and code blocks, so
+it puts one that can outgrow a narrow window in a box of its own that scrolls
+sideways, as above. Text that can't break, such as a bare identifier or a cell kept on
+one line, holds its column at its full length, and once the table scrolls sideways,
+prose in the other columns wraps a word per line. Under the face, put identifiers in
+`<code>`, which can break inside a cell, and write each row's name as its first cell,
+a `<th scope="row">`, so the names stay in view while the other columns scroll. Keep
+the columns to what fits at the narrowest width the page's readers use.
 
 ## Stable anchors
 

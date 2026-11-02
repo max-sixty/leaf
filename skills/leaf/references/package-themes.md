@@ -23,6 +23,8 @@ Leaf's widgets, threads and panel keep their own faces. A page or a theme may st
 set `--lf-reading-face: 1` on any box to give the markup in it that face, and
 `--lf-reading-face: initial` on a box takes the face from the markup in it, as for
 content with its own design inside a themed page; comments still anchor there.
+Each of the face's rules reads the element's parent, so the box itself still wears
+the face: set the input on a wrapper around the table or code block, not on it.
 
 A user can also keep several named themes and choose one default. Each is an ordinary
 installed package; its `instructions/author.md` describes the tasks it suits. Install

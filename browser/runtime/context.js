@@ -87,11 +87,38 @@ const allocation = (name) => /** @type {any} */ (document.body.getAttribute(name
 export const annotationMode = allocation("data-annotations") ?? "overlay";
 
 export const offlineInteractive = offlinePayload !== null;
-export const offlineState = () =>
-  offlineInteractive ? structuredClone(offlinePayload.state) : null;
-// The fragment reader never mutates this captured authority. Keep one in-memory copy:
-// cloning a multi-megabyte split source for each opened file would defeat fragmentation.
-export const offlineData = () => (offlineInteractive ? offlinePayload.data : null);
+// An export holds each data value outside its reading, as one gzipped JSON body at the
+// address its payload names (`exporting.py`): a source's value with its deferred fields
+// left out, and each deferred field. Each read decodes its own copy, as each answer from
+// a server is one, so the runtime holds no copy beside the reading it accepted.
+/** @param {string} address */
+const embeddedValue = async (address) =>
+  new Response(
+    /** @type {ReadableStream<BufferSource>} */ (
+      (await fetch(address)).body
+    ).pipeThrough(new globalThis.DecompressionStream("gzip")),
+  ).json();
+// The captured reading with its sources' values, as a served page's state answer
+// brings them.
+export const offlineState = async () => {
+  if (!offlineInteractive) return null;
+  const state = structuredClone(offlinePayload.state);
+  await Promise.all(
+    Object.entries(offlinePayload.values).map(async ([source, address]) => {
+      state.data.sources[source].value = await embeddedValue(address);
+    }),
+  );
+  return state;
+};
+// One record's deferred field, as the deferred door answers it, or undefined where the
+// record defers none.
+/** @param {string} source @param {string} key */
+export const offlineDeferred = (source, key) => {
+  const fields = Object.hasOwn(offlinePayload.deferred, source)
+    ? offlinePayload.deferred[source]
+    : {};
+  return Object.hasOwn(fields, key) ? embeddedValue(fields[key]) : undefined;
+};
 /** @param {string} path */
 export const runtimeModule = (path) =>
   offlineInteractive ? `leaf:${path.startsWith("/") ? path : `/${path}`}` : path;

@@ -277,6 +277,20 @@ def data_manifest(value, contract: str, registry: dict):
     }
 
 
+def deferred_fields(value, contract: str, registry: dict) -> dict:
+    """Each record's deferred field by the record's key: what `data_manifest` leaves at
+    the source, and what `deferred_value` answers for each key that has one. An export
+    embeds these in place of the deferred door."""
+    spec = deferred_records(value, contract, registry)
+    if spec is None:
+        return {}
+    return {
+        item[spec["key"]]: item[spec["deferred"]]
+        for item in value[spec["items"]]
+        if spec["deferred"] in item
+    }
+
+
 def browser_data_from(stored: dict, registry: dict | None) -> dict:
     """The reading a browser receives: each value with its deferred fields omitted,
     which the deferred door serves from the same source file."""

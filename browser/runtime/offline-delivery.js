@@ -1,8 +1,9 @@
 /* One offline document's resource addresses, allocated before native HTML parsing.
 
    The export's composed document, CSS resource bodies and runtime address table use
-   the same tokens. Each captured body appears once in the file; each token becomes
-   one object URL shared by native elements, stylesheets and runtimeResource. Module
+   the same tokens. Each captured body, a data value included, appears once in the file;
+   each token becomes one object URL shared by native elements, stylesheets,
+   runtimeResource and the runtime's data reads (`offlineState`). Module
    addresses and the import map share that allocator and module identity. document.write
    hands the existing composed source to the native parser, including classic scripts,
    import maps and declarative shadow trees; it creates no alternate renderer. */

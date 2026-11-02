@@ -12,6 +12,7 @@ from leaf import hooks as hooks_model
 from leaf import todos as todos_model
 from leaf.agent_state import cmd_page_state
 from leaf.files import require_revision
+from leaf.interaction_log import read_interactions
 from leaf.refusals import Refused
 from leaf.revisioning import activate_source
 
@@ -616,6 +617,55 @@ def test_the_clerk_drops_an_answer_once_another_turn_opened(claimed, capsys):
     assert "dropped" in dropped
     assert len(events_model.read_events(claimed)) == before
     assert clerk_model.queued("s1") == []
+
+
+def test_each_fork_leaves_a_note_in_the_pages_diagnostics(claimed, capsys):
+    """Claude Code keeps no copy of a fork's exchange, so each page the session holds
+    notes what the fork named there and what came of it, with the fork's tokens and
+    time, whatever it found: nothing, records and a fix, no answer, or one Leaf
+    refuses."""
+    page = claimed.resolve()
+    activate_source(claimed)
+    hook(capsys, "UserPromptSubmit")
+    question = asked()
+    run = {
+        "basis": question["basis"],
+        "usage": {"output_tokens": 9},
+        "elapsed_ms": 1200,
+    }
+
+    def notes() -> list[dict]:
+        return read_interactions(claimed, types=("turn_end_check",))
+
+    clerk_model.cmd_fork("s1", {**run, "answer": '{"asks": [], "findings": []}'})
+    answer = json.loads(reply(page, "Pick one?"))
+    answer["findings"] = json.loads(_stale(page, "Ship dark.", "Ship behind a flag."))[
+        "findings"
+    ]
+    done = clerk_model.cmd_fork("s1", {**run, "answer": json.dumps(answer)})
+    assert done is not None
+    clerk_model.cmd_fork("s1", {**run, "failed": "the fork was aborted"})
+    with pytest.raises(Refused):
+        clerk_model.cmd_fork("s1", {**run, "answer": "Nothing to report."})
+
+    empty, found, failed, refused = notes()
+    assert {
+        name: empty.get(name)
+        for name in ("session", "turn", "asks", "findings", "usage", "elapsedMs")
+    } == {
+        "session": "s1",
+        "turn": question["basis"]["turn"],
+        "asks": [],
+        "findings": [],
+        "usage": {"output_tokens": 9},
+        "elapsedMs": 1200,
+    }
+    assert (found["asks"], found["findings"]) == (answer["asks"], answer["findings"])
+    assert found["wrote"] == [record["id"] for record in done["wrote"]]
+    assert found["changed"] == [{"old": "dark.", "new": "behind a flag."}]
+    assert found["told"] == 2
+    assert failed["failed"] == "the fork was aborted" and "asks" not in failed
+    assert refused["answer"] == "Nothing to report." and refused["refused"]
 
 
 @pytest.mark.parametrize(

@@ -126,6 +126,14 @@ lines: the questions stay On me and `leaf page state` lists them, but the agent 
 told. Confirming the lines from the transcript, as `delivery.confirm_entered` does
 for input, would close that gap.
 
+Each fork's outcome goes to the diagnostics of every page the session holds
+(`interaction_log`, type `turn_end_check`), as a fork reply's does (`forks.py`): what
+the fork named on that page, verbatim, what Leaf wrote, changed and told for it, or
+why it wrote no records, with the fork's tokens and time; a fork that failed, or gave
+an answer `ANSWER` refuses, is noted with its reason. Claude Code keeps no copy of a
+`$.model.fork` exchange, only its token counts in the debug log, so this record is
+what a later replay or audit scores against what the agent did next.
+
 Measured on 2026-10-29 by replaying 21 recorded turn ends three times each on Opus
 5.5 (`~/.tmp/leaf.agent-channels/replay/`, `fork3.py` and `score3.py`), with the asks
 alone: the fork found 59 of the 63 labelled asks missing from On me; 62 of its 64
@@ -425,11 +433,23 @@ def basis(session_id: str) -> dict | None:
 
 def cmd_fork(session_id: str, payload: dict) -> dict | None:
     """One half of a fork for `session_id`, as `leaf hook --fork` hands it over:
-    without `answer` in `payload`, the `question`; with one, `take_answer`."""
+    with neither `answer` nor `failed` in `payload`, the `question`; with either,
+    `take_answer`, and the fork's `usage` and `elapsed_ms` where the harness gives
+    them."""
     if not session_id:
         return None
-    if "answer" in payload:
-        return take_answer(session_id, payload["answer"], payload.get("basis"))
+    if "answer" in payload or "failed" in payload:
+        run = {
+            "usage": payload.get("usage"),
+            "elapsedMs": payload.get("elapsed_ms"),
+            "failed": payload.get("failed"),
+        }
+        return take_answer(
+            session_id,
+            payload.get("answer"),
+            payload.get("basis"),
+            {name: value for name, value in run.items() if value is not None},
+        )
     return question(session_id)
 
 
@@ -446,10 +466,48 @@ def question(session_id: str) -> dict | None:
     return {"prompt": fork_prompt(facts), "basis": basis(session_id)}
 
 
-def take_answer(session_id: str, text: str, asked: dict | None) -> dict:
+def take_answer(
+    session_id: str, text: str | None, asked: dict | None, run: dict | None = None
+) -> dict:
     """What Leaf wrote and told from `text`, the fork's reply to the question asked at
-    `asked`, its `basis` (`apply_answer`)."""
-    return apply_answer(session_id, read_answer(text), asked)
+    `asked`, its `basis` (`apply_answer`); `run` holds the fork's usage and time, and
+    why it failed where `text` is None. A fork that failed, or whose answer `ANSWER`
+    refuses, writes only its note in each page's diagnostics."""
+    from .refusals import Refused
+    from .service import owned_pages
+
+    run = run or {}
+
+    def note(outcome: dict) -> None:
+        for page_dir in owned_pages(session_id):
+            _note(page_dir, session_id, asked, outcome)
+
+    if text is None:
+        note(run)
+        return {"wrote": [], "changed": [], "told": []}
+    try:
+        answer = read_answer(text)
+    except Refused as error:
+        note({**run, "refused": str(error), "answer": text})
+        raise
+    return apply_answer(session_id, answer, asked, run)
+
+
+def _note(page_dir: Path, session_id: str, asked: dict | None, outcome: dict) -> None:
+    """Note what came of a turn-end fork in `page_dir`'s diagnostics."""
+    from .interaction_log import append_interactions
+
+    record = {
+        "source": "cli",
+        "type": "turn_end_check",
+        "session": session_id,
+        "turn": asked and asked["turn"],
+        **outcome,
+    }
+    try:
+        append_interactions(page_dir, [record])
+    except OSError:
+        pass
 
 
 def _facts(page_dir: Path) -> dict | None:
@@ -497,12 +555,15 @@ def _title(words: str) -> str:
     return title[: TITLE_LIMIT - 1].rsplit(" ", 1)[0].rstrip(" ,;:") + "…"
 
 
-def apply_answer(session_id: str, answer: dict, asked: dict | None) -> dict:
+def apply_answer(
+    session_id: str, answer: dict, asked: dict | None, run: dict | None = None
+) -> dict:
     """Act on `answer` for each page `session_id` holds: put its asks On me
     (`_ask`) and make each stale passage's fix (`_fix`) while the session's turn is
     still the one `asked` names, and pass each other finding to the agent whatever
     turn has opened since, queueing a line for each for the agent's next step; what
-    it wrote, changed and told, and why it wrote no records if it didn't."""
+    it wrote, changed and told, and why it wrote no records if it didn't. Each page's
+    diagnostics note what the fork named there and what came of it, with `run`."""
     from .leases import page_locked
     from .service import PageTransaction, owned_pages
 
@@ -517,7 +578,9 @@ def apply_answer(session_id: str, answer: dict, asked: dict | None) -> dict:
             for part in ("asks", "findings")
         }
         if not any(mine.values()):
+            _note(page_dir, session_id, asked, {**mine, **(run or {})})
             continue
+        here = {"wrote": [], "changed": [], "told": 0}
         # The page as a command's write takes it (`leases.contract_writer`), then the
         # session, in the lifecycle's lock order (`PageTransaction.publishing_claim`),
         # so no turn opens between reading the turn and queueing what it wrote.
@@ -538,11 +601,13 @@ def apply_answer(session_id: str, answer: dict, asked: dict | None) -> dict:
                 try:
                     if mine["asks"] and not current:
                         dropped = "another turn opened since the fork was made"
+                        here["dropped"] = dropped
                     elif mine["asks"]:
                         for record, line in _ask(
                             page_dir, page, mine["asks"], identity
                         ):
                             wrote.append(record)
+                            here["wrote"].append(record["id"])
                             lines.append(line)
                     # After the asks, which stand on the words the fork read.
                     for item in mine["findings"]:
@@ -554,10 +619,16 @@ def apply_answer(session_id: str, answer: dict, asked: dict | None) -> dict:
                         )
                         if fixed:
                             changed.append({"page": path, **fixed})
+                            here["changed"].append(fixed)
                         lines.append(_found(path, item, session_id, current, fixed))
+                except Exception as error:
+                    here["error"] = str(error)
+                    raise
                 finally:
                     _append(session_id, lines)
                     told.extend(lines)
+                    here["told"] = len(lines)
+                    _note(page_dir, session_id, asked, {**mine, **here, **(run or {})})
         except FileNotFoundError:
             continue
     return {

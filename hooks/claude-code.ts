@@ -300,7 +300,9 @@ let forkAgain = false;
  * no answer schema, so Leaf checks the answer against its own (`read_answer`).
  * What Leaf wrote goes to the debug log, beside Claude Code's own line for the
  * fork's tokens (`Forked agent [plugin_model_fork] finished`); the module logs no
- * usage of its own, since the debug log redacts a `*_tokens` field. In the
+ * usage of its own, since the debug log redacts a `*_tokens` field, and hands the
+ * fork's usage and time, or why it gave no answer, to Leaf, which notes them with
+ * the answer in each page's diagnostics. In the
  * claude-code journey on 2026-10-29, twelve forks over a 46–77k-token
  * conversation read it all from the cache, cost $0.015–0.026 each at list price and
  * took 1–6 s. */
@@ -316,17 +318,21 @@ async function clerk($: EngineInterface, session: string) {
       try {
         const asked = await forkStep($, session, {});
         if (!asked) continue;
+        const started = await $.clock.now();
         const reply = await $.model.fork({ prompt: asked.prompt });
+        const run = {
+          basis: asked.basis,
+          elapsed_ms: (await $.clock.now()) - started,
+          ...("usage" in reply ? { usage: reply.usage } : {}),
+        };
         if (!reply.isAnswered) {
+          await forkStep($, session, { ...run, failed: reply.reason });
           $.ui.log(`Leaf: the clerk's fork gave no answer (${reply.reason})`, {
             to: "debug",
           });
           continue;
         }
-        const applied = await forkStep($, session, {
-          answer: reply.text,
-          basis: asked.basis,
-        });
+        const applied = await forkStep($, session, { ...run, answer: reply.text });
         const wrote = applied.wrote.length;
         const changed = applied.changed.length;
         const told = applied.told.length;

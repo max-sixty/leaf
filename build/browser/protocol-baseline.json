@@ -71,6 +71,10 @@
       "since": 13,
       "schema": {"description":"The local text files a page may edit, in the page directory's `files.json`.","type":"object","properties":{"bindings":{"description":"Each binding id's file, by its canonical absolute path.","type":"object","additionalProperties":{"type":"string"}}},"required":["bindings"]}
     },
+    "fork-lane-start": {
+      "since": 37,
+      "schema": {"description":"The admission cutoff of a session's fork lane. Its live lease alone proves that lane is running (`forks.take_lane`).","type":"object","properties":{"since":{"type":"number"}},"required":["since"]}
+    },
     "forks": {
       "since": 37,
       "schema": {"description":"The thread messages a fork of a Claude Code session's conversation handed to the session, in the state home's `sessions/<digest>.forks` (`state.session_file`): for each page, by `state.page_key`, the ids of the messages it handed over that the session hasn't yet received (`forks`).","type":"object","properties":{"handed":{"type":"object","additionalProperties":{"type":"array","items":{"type":"string"}}}},"required":["handed"]}

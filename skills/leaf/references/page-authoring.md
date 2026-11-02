@@ -81,8 +81,8 @@ working region; `layout-workspace` lets the user work within one screen. A Layou
 class on `main`. `page-layout.md` owns their geometry, custom arrangements, bounds,
 tiles, and pages with tabs or parts.
 
-A dashboard the reader glances at, or settings they tune against their evidence, keeps
-its working state in the first window, since a glance or a tuning pass doesn't scroll.
+A dashboard the reader glances at keeps its working state in the first window, since
+a glance doesn't scroll.
 Keep each relevant setting or status, its evidence and the reader's next action together
 in that window, and spend as little of it as the page allows on the title, the premise
 and supporting reading. By default that means a title and premise of a line or two,

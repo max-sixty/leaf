@@ -788,7 +788,7 @@ def test_a_thread_an_open_to_do_holds_says_so_beside_the_page(browser, serve):
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     panel_settled(page, view="queue")
-    page.locator(".lf-floating-panel .lf-fp-filters button").nth(1).click()
+    page.locator(".lf-floating-panel .lf-fp-filters button").nth(2).click()
     queue = page.locator(panel_view("queue"))
     owed = queue.locator('.lf-fp-on-item[data-list="agent"]')
     expect(owed).to_have_count(1)

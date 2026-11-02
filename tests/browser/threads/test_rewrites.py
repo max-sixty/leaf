@@ -400,7 +400,7 @@ def test_a_rewrite_is_the_reply_box_where_the_words_stood(browser, serve, surfac
             head,
         )
         # A pointer reaches it: a seat's first head once cut Save off at its end.
-        control.click(trial=True, timeout=2000)
+        control.click(trial=True)
     page.keyboard.type("Z")
     expect(editor).to_have_js_property("value", "Fit the north bracket.Z")
     page.keyboard.press("Escape")
@@ -1477,6 +1477,7 @@ def test_a_rewrite_leaves_a_card_at_the_windows_foot_as_it_stood(browser, serve)
 
     def standing():
         return {
+            "scroll": page.evaluate("scrollY"),
             "card": card.bounding_box(),
             "words": words.evaluate(FIRST_LINE),
             "scrolls": card.locator(".lf-thread-transcript").evaluate(
@@ -1489,6 +1490,11 @@ def test_a_rewrite_leaves_a_card_at_the_windows_foot_as_it_stood(browser, serve)
 
     def as_it_stood():
         now = standing()
+        assert now["scroll"] == stood["scroll"], (
+            "editing a floating card scrolled its subject, resetting its held height",
+            now,
+            stood,
+        )
         for side in ("y", "height"):
             assert abs(now["card"][side] - stood["card"][side]) < 0.5, (now, stood)
         assert abs(now["words"][1] - stood["words"][1]) < 0.5, (now, stood)
@@ -1562,6 +1568,7 @@ def test_a_card_at_the_windows_foot_grows_back_to_how_it_stood(browser, serve):
 
     def standing():
         return {
+            "scroll": page.evaluate("scrollY"),
             "card": card.bounding_box(),
             "words": body.bounding_box()["y"],
             "scrolls": card.locator(".lf-thread-transcript").evaluate(
@@ -1574,6 +1581,11 @@ def test_a_card_at_the_windows_foot_grows_back_to_how_it_stood(browser, serve):
 
     def as_it_stood():
         now = standing()
+        assert now["scroll"] == stood["scroll"], (
+            "editing a floating card scrolled its subject, resetting its held height",
+            now,
+            stood,
+        )
         for side in ("y", "height"):
             assert abs(now["card"][side] - stood["card"][side]) < 0.5, (now, stood)
         assert abs(now["words"] - stood["words"]) < 0.5, (now, stood)

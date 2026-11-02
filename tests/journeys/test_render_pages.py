@@ -692,28 +692,23 @@ diff --git a/feeders/mount.py b/feeders/mount.py
 def test_the_render_gate_names_a_wide_widget_drawn_over_the_pages_own_margin(
     browser, serve
 ):
-    """Two rules in the theme give a margin up to what stands in it, one per claimant,
-    and a rule is only ever as complete as the list behind it. A project hangs its own
-    apparatus out there and the theme has no rule for it, so this is what is left: the
-    room the page states is measured against what is actually in the margin, and a widget
-    drawn over any of it is named at handover with both boxes in the message.
+    """Report a breakout covering authored margin furniture or escaping a frame.
 
-    It reads margin content by the same test the pass above excuses one by — placed
-    absolutely or fixed, or floated clear of the column — so this needs no vocabulary
-    of its own and nothing has to be declared to it. That is what keeps the two theme
-    rules honest: the next claimant that forgets one is a refusal with a name on it
-    rather than a page somebody eventually notices is drawn over its own controls.
-
-    The page's own frame is the same place: a wide widget is measured against the box
-    that frames it, and everything else on the page is excused by a scroll container
-    above it. The fixture deliberately overrides the board's width so it escapes the
-    frame; the ordinary theme now holds it inside. Asked in the wrong order, the scroll
-    container's excuse ate this measurement, so a wide widget escaping its frame went
-    unnamed."""
+    The authored grid is deliberately limited to its prose track, with the rail
+    positioned outside it. Both boards override the theme's width cap to create
+    actual overflow; the framed board belongs to a reading flow so it is a
+    breakout whose frame must be checked even though that frame scrolls.
+    """
     framed = FRAMED_SCROLLER_PAGE[FRAMED_SCROLLER_PAGE.index("<div id='own-frame'") :]
     framed = framed[: framed.index("</lf-board></div>") + len("</lf-board></div>")]
+    framed = framed.replace("id='own-frame'", "id='own-frame' class='layout-flow'")
     source = OWN_MARGIN_FURNITURE.replace(
-        "</head>", "<style>#framed { width: 1080px; }</style></head>"
+        "</head>",
+        "<style>main { position: relative; max-inline-size: var(--col); "
+        "margin-inline: auto; grid-template-columns: [full-start prose-start] minmax(0, 1fr) "
+        "[prose-end full-end]; } "
+        "#sprint, #framed { width: 1080px; max-inline-size: none; } "
+        "</style></head>",
     )
     failures = render_gate_model.render_version(
         browser, serve(source.replace("</main>", framed + "</main>"))

@@ -540,12 +540,14 @@ function placeMarginEntryLabel(control) {
 }
 
 // What reveals a margin entry's label, as the theme's rules for it say: a press held on
-// it (held-word.js), and focus or hover where the pointer really hovers. Elsewhere a
-// tap leaves the entry hovered and focused, so only the keyboard's focus reveals it.
+// it (held-word.js), the selected obligation, and focus or hover where the pointer
+// really hovers. Elsewhere a tap leaves the entry hovered and focused, so only the
+// keyboard's focus reveals a label on an unselected entry.
 const revealsLabel = () =>
-  hoveringPointer.matches
+  '[data-lf-kinds~="on-me"][data-lf-target-selected], ' +
+  (hoveringPointer.matches
     ? ':is(:hover, [data-lf-focus]):not([aria-expanded="true"]), [data-lf-held-word]'
-    : '[data-lf-focus]:focus-visible:not([aria-expanded="true"]), [data-lf-held-word]';
+    : '[data-lf-focus]:focus-visible:not([aria-expanded="true"]), [data-lf-held-word]');
 // Only a label this owner has placed and its control currently reveals paints a
 // footprint. Placement consumers read that same native geometry when the user holds
 // the control, so an arriving row does not make its existing label change sides.

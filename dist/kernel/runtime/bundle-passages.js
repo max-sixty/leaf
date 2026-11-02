@@ -1,5 +1,5 @@
-import { PAGE_PAINT_ATTRIBUTE, isElement, isHTML, isNode, isText, pageUpgraded, renderedOrder, renderedParent, renderedUnder, shadowHost, under, upFrom } from "./bundle-portable.js";
-import { COLLAPSE, SAID, TEXT_BLOCK, UI_MARKS, decisionFor, declaredRoot, inUi, overIn, pageShadowRoots, readPart, refuseShadowRoot, registry, shadowRootsIn, uiInside } from "./bundle-layer-stack.js";
+import { PAGE_PAINT_ATTRIBUTE, SAID, UI_MARKS, closestAcross, inChrome, inUi, isElement, isHTML, isNode, isText, overIn, pageUpgraded, renderedOrder, renderedParent, renderedUnder, shadowHost, uiInside, under, upFrom } from "./bundle-portable.js";
+import { COLLAPSE, TEXT_BLOCK, decisionFor, declaredRoot, pageShadowRoots, readPart, refuseShadowRoot, registry, shadowRootsIn } from "./bundle-errors.js";
 import { reportPageError } from "./bundle-layer-client.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
 
@@ -118,7 +118,6 @@ function settledAway(el) {
 }
 const GENERATED = ".lf-ui, [data-lf-gen]";
 const DATUM = "[data-lf-projection][data-lf-datum]";
-const inChrome = (node) => Boolean(node && closestAcross(node, ".lf-chrome"));
 const showsWords = (block) => block.checkVisibility({ visibilityProperty: true });
 const LEAF_SURFACE = ".lf-chrome, [data-lf-runtime]";
 const leafSurface = (node) => isNode(node) ? closestAcross(node, LEAF_SURFACE) : null;
@@ -320,15 +319,6 @@ function textNodesUnder(root, reading = "says", boundary = null, format = "prose
 		} else if (/^(block|flow-root|list-item|flex|grid|table|-webkit-box)/.test(display)) lineBefore = "\n";
 	} : null);
 	return segments;
-}
-function closestAcross(node, selector) {
-	let el = isElement(node) ? node : upFrom(node);
-	while (el) {
-		const hit = el.closest(selector);
-		if (hit) return hit;
-		el = shadowHost(el.getRootNode());
-	}
-	return null;
 }
 const elementById = (id, root = document) => {
 	if (id == null || root === null) return null;
@@ -817,4 +807,4 @@ function pageParts(sel) {
 }
 
 //#endregion
-export { DATUM, LEAF_SURFACE, alignInlineText, alignText, authored, authoredScope, blockAt, closestAcross, contextAround, cut, elementById, elementFromPointAcross, elementOver, elementReading, excerptWords, fencePassageParts, fileModelsPassage, findQuote, findText, inChrome, labelWords, layoutBox, leafSurface, neighbourhood, pageBlocks, pageDocument, pageParts, pageQueryAll, pageReadingVersion, pageText, pageWords, pointAt, quoteFrom, rangeOf, readingFrom, renderRetired, says, segmentBlock, segmentsIn, sentenceUnits, settledAway, showsWords, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity, watchPassageRoot, wrote };
+export { DATUM, LEAF_SURFACE, alignInlineText, alignText, authored, authoredScope, blockAt, contextAround, cut, elementById, elementFromPointAcross, elementOver, elementReading, excerptWords, fencePassageParts, fileModelsPassage, findQuote, findText, labelWords, layoutBox, leafSurface, neighbourhood, pageBlocks, pageDocument, pageParts, pageQueryAll, pageReadingVersion, pageText, pageWords, pointAt, quoteFrom, rangeOf, readingFrom, renderRetired, says, segmentBlock, segmentsIn, sentenceUnits, settledAway, showsWords, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity, watchPassageRoot, wrote };

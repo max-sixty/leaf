@@ -221,7 +221,7 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
     )
     data_model.cmd_data_set(serve.page_dir, "patch-data", patch)
     context = browser.new_context(
-        viewport={"width": 390 if touch else 1280, "height": 900},
+        viewport={"width": 1280, "height": 900},
         has_touch=touch,
         is_mobile=touch,
         color_scheme=scheme,

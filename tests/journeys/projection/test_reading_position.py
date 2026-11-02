@@ -30,7 +30,9 @@ def test_live_news_keeps_the_reading_draft_and_resting_target(browser, serve):
     editor are visible below the reply's insertion point.
     Status paints immediately and a tall reply waits behind its fixed-row notice.
     An unrelated source revision arrives while retaining the editor and restoring the
-    page's reading position. Opening the reply proves the notice held genuine growth.
+    page's reading position. Opening the reply proves the notice held genuine growth. A
+    pointer's press on the notice leaves the caret in the reply being written, which
+    holds its place, so the thread grows up from it.
     """
     source = SEATED_OBLIGATION_PAGE.replace(
         "</main>",
@@ -111,7 +113,7 @@ def test_live_news_keeps_the_reading_draft_and_resting_target(browser, serve):
         },
     )
     told(page)
-    notice = thread.get_by_role("button", name="1 new reply", exact=True)
+    notice = thread.get_by_role("button", name="1 new", exact=True)
     expect(notice).to_be_visible()
     expect(thread.locator(".lf-msg")).to_have_count(1)
     rendered(page)
@@ -129,10 +131,15 @@ def test_live_news_keeps_the_reading_draft_and_resting_target(browser, serve):
     kept()
 
     # A press releases genuine growth; all preceding observations were made at rest.
+    held = thread.bounding_box()
+    assert held
     notice.click()
     expect(thread.locator(".lf-msg")).to_have_count(2)
     expect(thread.locator(".lf-msg").last).to_contain_text(
         "The first job needs a careful explanation."
     )
     rendered(page)
-    assert reading.bounding_box()["y"] > place["y"] + 100
+    grown = thread.bounding_box()
+    assert grown and grown["height"] > held["height"] + 100, (held, grown)
+    expect(editor).to_be_focused()
+    assert editor.bounding_box() == pytest.approx(box, abs=0.5)

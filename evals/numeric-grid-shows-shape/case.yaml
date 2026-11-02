@@ -27,42 +27,82 @@ assert:
       omits a group or the five-week sequence.
 variants:
   experiment-comparison:
+    # From #4662: a page reporting a prompt A/B copied the grid its analysis script
+    # printed, one column per wording and model, so each wording sat two or four
+    # columns from its baseline, and quoted the tested sentences only in another
+    # section. The prompt carries that printout and the agent's earlier reply that
+    # repeated it. On Claude Code, base 2a9d00dc5 failed effect-against-baseline in
+    # 14 of 14 runs and change-beside-effect in 11 of 11; with the experiment sentence
+    # in page-authoring.md, "Composing a page", 4 of 4 passed both. Asked plainly,
+    # with the grid and no earlier turns, base failed effect-against-baseline in 15 of
+    # 15 and the sentence passed 4 of 4, but base already quoted the added sentences
+    # beside its table in 10 of 12, so that form was dropped.
     metadata:
-      purpose: "Make an experiment's changes and measured effects comparable with its baseline."
+      purpose: "Experiment results: each variant's effect reads against its baseline, beside what the variant changed."
       tags:
         - authoring
         - charts
     vars:
       prompt: |
-        Write the results section for our prompt experiment so I can decide what to
-        keep. Each condition ran the same 50 held-out tasks once on each model.
-        We haven't run repeats or estimated uncertainty. Here's the notebook export;
-        each cell counts tasks where that behavior passed.
+        Earlier in this session you wrote a Leaf page for our migration-review prompt
+        experiment. Its first section, "Wordings", quotes the three instructions we
+        are testing: Current is "Review the migration for correctness." Flag appends
+        "Flag any statement that locks a large table." Ask appends "If a statement
+        could lock a table, ask before approving." Each wording reviews the same 10
+        migrations once on each model.
 
-        | Behavior | Current, model A | Current, model B | Check, model A | Check, model B | Example, model A | Example, model B |
-        | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-        | Correct answer | 32/50 | 36/50 | 39/50 | 37/50 | 34/50 | 41/50 |
-        | Explains assumptions | 21/50 | 30/50 | 22/50 | 29/50 | 33/50 | 38/50 |
-        | Concise answer | 42/50 | 40/50 | 41/50 | 40/50 | 30/50 | 29/50 |
+        Then I asked you to run the analysis on last night's batch, and you ran
+        `uv run python analyze.py runs/2026-10-07`, which printed:
 
-        Current says "Answer the user's question." Check appends "Check your
-        arithmetic before answering." Example appends "Give a worked example."
-        No other settings changed.
+        ```
+        behaviour               current/opus  current/haiku  flag/opus  flag/haiku  ask/opus  ask/haiku
+        flags-risky-lock                2/10           1/10       9/10        7/10      8/10       6/10
+        notes-missing-rollback          6/10           4/10       8/10        5/10      6/10       4/10
+        no-false-alarm                 10/10           9/10       7/10        8/10      9/10       9/10
+        under-300-words                 8/10           9/10       8/10        9/10      5/10       6/10
+        ```
 
-        The page directory is not reachable here. Reply with the section's HTML
-        fragment rather than writing a file.
+        You replied:
+
+        > Last night's batch is in.
+        >
+        > | Behaviour | Current, Opus | Current, Haiku | Flag, Opus | Flag, Haiku | Ask, Opus | Ask, Haiku |
+        > | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+        > | Flags a risky table lock | 2/10 | 1/10 | 9/10 | 7/10 | 8/10 | 6/10 |
+        > | Notes a missing rollback | 6/10 | 4/10 | 8/10 | 5/10 | 6/10 | 4/10 |
+        > | No false alarm | 10/10 | 9/10 | 7/10 | 8/10 | 9/10 | 9/10 |
+        > | Under 300 words | 8/10 | 9/10 | 8/10 | 9/10 | 5/10 | 6/10 |
+        >
+        > Want me to put these on the page?
+
+        Yes, add a Results section to the page. The page directory isn't reachable
+        from here, so reply with the section's HTML fragment rather than writing a
+        file.
     assert:
       - type: llm-rubric
-        metric: comparable-experiment-evidence
+        metric: effect-against-baseline
         value: |
-          Pass when each treatment's effect against Current is directly readable
-          for each behavior and model: adjacent baseline/treatment cells, a shared
-          chart scale, or stated differences qualify. Copying the six-column export
-          alone fails because each treatment's baseline is several columns away.
-          The changed instruction must be beside its corresponding comparison.
-          Do not require a specific widget or a chart. Fail on an omitted behavior
-          or model, wrong values, an invented tradeoff winner, or a claim that these
-          single runs establish significance or a general reliability ranking.
+          Pass when the section's main presentation lets the reader see each
+          wording's effect against Current, for every behaviour and both models,
+          without subtracting across distant cells: each model's Current beside Flag
+          and Ask (adjacent cells, bars or dots), one shared chart axis per model, or
+          the differences shown. Fail when the main presentation keeps the printed
+          column order, where each model's Current sits two or four columns from the
+          wording it is compared with, even if prose or a later element states some of
+          the effects. Don't require a particular widget or a chart.
+      - type: llm-rubric
+        metric: change-beside-effect
+        value: |
+          Pass when the sentence Flag adds and the sentence Ask adds each appear
+          directly above, below or inside the table or chart that shows that
+          wording's results. Fail when the section names the wordings only by their
+          labels, or quotes them only in a separate part of the section or page.
+      - type: llm-rubric
+        metric: faithful-values
+        value: |
+          Pass when every behaviour, model and wording appears with the counts the
+          analysis printed, and any difference shown is computed correctly from them.
+          Fail on an omitted or misread count.
   traffic-mix:
     # Added after ordinary Leaf reports repeatedly described useful experiences
     # without showing them. Unlike the complete configuration tasks, this request

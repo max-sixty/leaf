@@ -71,7 +71,9 @@ cursor (`new_input`), a status check coming due or a line the clerk queued. This
 module imports the page model only where a hook folds a page. An update the cursor
 has passed that its owner holds no usable reference for (`delivery.unreferenced`)
 then reaches a boundary only beside new input, and otherwise the next prompt, as
-at Codex's tool hook.
+at Codex's tool hook. A page at an older page protocol offers no input
+(`delivery.deliverable`), so an empty boundary leaves its renewal to the next
+prompt or Stop hook (`vendoring.renew_layer`).
 
 Pi has the context once the hook returns, so its hook records the receipt with the
 pickup. Claude Code reads it only once every hook of the event has exited, and

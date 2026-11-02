@@ -226,7 +226,8 @@ restore the page itself when the user goes Back or Forward to one of its entries
 the page for an entry of the widget's, or nothing. The handler may be asynchronous.
 When it only reveals the destination view, it resolves to `false`, and Leaf restores
 the entry's saved viewport after the view is shown. Otherwise the handler owns
-viewport placement.
+viewport placement. Either way, where the entry's fragment still names a place the
+page doesn't show once the handler finishes, Leaf reveals that place and lands there.
 
 ## Motion
 

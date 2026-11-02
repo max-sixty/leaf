@@ -151,11 +151,18 @@ def caller_exited() -> Callable[[], bool]:
     or a subreaper. That happens when the caller exits, even while the caller
     waits unreaped as a zombie, and no later reuse of the caller's pid undoes it.
     psutil refuses to read a uv whose pid was reused (`NoSuchProcess`), and that
-    refusal reads as exited."""
+    refusal reads as exited. A caller that exits before this first reading, which
+    leaves its child already reparented, goes unnoticed: an init or subreaper
+    parent is also what a container's init or a service manager starts a child
+    under, so this process can't tell that it was orphaned."""
     import psutil
 
     linked = [psutil.Process()]
-    if (parent := linked[0].parent()) is not None and parent.name() == "uv":
+    # Not `Process.parent()`, which lists every process to find the lowest pid:
+    # Codex's macOS sandbox refuses that listing. A parent pid of 0, as under
+    # `docker exec`, names a parent outside this pid namespace.
+    ppid = linked[0].ppid()
+    if ppid and (parent := psutil.Process(ppid)).name() == "uv":
         linked.append(parent)
     links = [(process, process.ppid()) for process in linked]
 

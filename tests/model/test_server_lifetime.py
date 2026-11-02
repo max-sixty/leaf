@@ -6,6 +6,7 @@ import http.client
 import http.cookiejar
 import json
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -727,10 +728,31 @@ def test_server_run_temporary_uses_the_browser_harness_boundary(page_dir, spawn)
     assert json.loads(error)["error"] == "interrupted"
 
 
+# The refusal Codex's macOS sandbox makes of a listing of every process, with the
+# same error psutil raises there.
+PROCESS_LISTING_REFUSED = (
+    '(version 1)(allow default)(deny sysctl-read (sysctl-name "kern.proc.all"))'
+)
+
+
 @pytest.mark.parametrize(
     "command",
-    [LEAF_COMMAND, [str(PLUGIN_ROOT / "bin" / "leaf")]],
-    ids=["module", "launcher"],
+    [
+        pytest.param(LEAF_COMMAND, id="module"),
+        pytest.param([str(PLUGIN_ROOT / "bin" / "leaf")], id="launcher"),
+        pytest.param(
+            [
+                "sandbox-exec",
+                "-p",
+                PROCESS_LISTING_REFUSED,
+                str(PLUGIN_ROOT / "bin" / "leaf"),
+            ],
+            id="sandboxed launcher",
+            marks=pytest.mark.skipif(
+                not shutil.which("sandbox-exec"), reason="macOS's sandbox"
+            ),
+        ),
+    ],
 )
 def test_a_temporary_server_ends_when_the_process_that_ran_it_exits(
     page_dir, spawn, command
@@ -739,12 +761,15 @@ def test_a_temporary_server_ends_when_the_process_that_ran_it_exits(
     that dies without stopping it, as a killed test does, must not leave it serving.
     The caller here is a shell that starts it in the background and exits. Through
     the launcher, the server's own parent is the `uv run` that `bin/leaf` execs,
-    which waits on it and so outlives the caller."""
+    which waits on it and so outlives the caller. Codex's macOS sandbox refuses a
+    listing of every process, so finding that caller must not take one."""
+    # The caller hands its stdout and stderr to the server and closes its own, so
+    # they reach their end when the server exits, whether it served or failed.
     caller = spawn(
         [
             "sh",
             "-c",
-            '"$@" & read _',
+            '"$@" & exec >&- 2>&-; read _',
             "sh",
             *command,
             "server",
@@ -758,12 +783,14 @@ def test_a_temporary_server_ends_when_the_process_that_ran_it_exits(
         stderr=subprocess.PIPE,
         text=True,
     )
-    url = json.loads(caller.stdout.readline())["url"]
-    state = urllib.parse.urlsplit(url)._replace(path="/api/state").geturl()
+    started = caller.stdout.readline()
+    assert started, caller.communicate(timeout=STATED_TIMEOUT)[1]
+    state = urllib.parse.urlsplit(json.loads(started)["url"])
+    state = state._replace(path="/api/state").geturl()
     assert urllib.request.urlopen(state).status == 200
 
-    # Closing its stdin ends the caller. The server holds the caller's stdout and
-    # stderr, so reading them to their end waits for the server to exit.
+    # Closing its stdin ends the caller, and reading the server's stdout and stderr
+    # to their end waits for the server to exit.
     _, error = caller.communicate(timeout=STATED_TIMEOUT)
     assert error == ""
     with pytest.raises(urllib.error.URLError):

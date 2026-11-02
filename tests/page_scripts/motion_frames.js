@@ -98,7 +98,9 @@
         letter.setEnd(node, start + 1);
         const rect = letter.getBoundingClientRect();
         if (!rect.width || !onScreen(rect)) continue;
-        const key = `words ${idOf(node)} "${node.data.trim().slice(0, 20)}" in ${name(holder)}`;
+        // An edit must retain this run's pre-input position even when its words
+        // change. A replaced text node gets a new id.
+        const key = `words ${idOf(node)}`;
         parts[`${key} x`] = { at: round(rect.left) };
         parts[`${key} y`] = { at: round(rect.top) };
       } else if (

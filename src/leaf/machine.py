@@ -161,8 +161,8 @@ def caller_exited() -> Callable[[], bool]:
     # Not `Process.parent()`, which lists every process to find the lowest pid:
     # Codex's macOS sandbox refuses that listing. A parent pid of 0, as under
     # `docker exec`, names a parent outside this pid namespace.
-    ppid = linked[0].ppid()
-    if ppid and (parent := psutil.Process(ppid)).name() == "uv":
+    parent_pid = linked[0].ppid()
+    if parent_pid and (parent := psutil.Process(parent_pid)).name() == "uv":
         linked.append(parent)
     links = [(process, process.ppid()) for process in linked]
 

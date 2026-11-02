@@ -1317,7 +1317,9 @@ def test_datum_travel_resolves_the_destination_after_reveal(browser, serve):
     page.evaluate(hide)
     page.locator("#calls .lf-call-location").last.click()
     expect(page.locator(".lf-live")).to_have_text("Opened app.py:2 in the exact patch")
-    rebuilt = page.locator('lf-diff [data-lf-datum=\'["app.py","new",2]\'][data-rebuilt]')
+    rebuilt = page.locator(
+        'lf-diff [data-lf-datum=\'["app.py","new",2]\'][data-rebuilt]'
+    )
     expect(rebuilt).to_be_in_viewport()
     expect(rebuilt).to_be_focused()
     page.evaluate(hide)

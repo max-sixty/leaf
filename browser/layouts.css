@@ -344,10 +344,11 @@
     initial-value: 0px;
   }
   .layout-column {
-    box-sizing: border-box;
-    max-inline-size: calc(var(--col) + 2 * var(--col-pad));
+    max-inline-size: var(--col);
     margin-inline: auto;
     padding-inline: var(--col-pad);
+    /* A page that makes the column a grid keeps one track the column's width. */
+    grid-template-columns: minmax(0, 1fr);
     padding-block: var(--page-pad-start) var(--page-pad-end);
     --lf-measure: var(--col);
     --lf-prose-measure: var(--col);
@@ -382,7 +383,7 @@
       --lf-free-start: max(
         0px,
         (
-            var(--lf-shell-width) - 2 * var(--col-pad) - var(--col) - var(--note) *
+            var(--lf-shell-width) - 2 * var(--col-pad) - 100% - var(--note) *
               clamp(
                 0,
                 sign(100cqi - 2 * var(--col-pad) - var(--col) - var(--note)) + 1,

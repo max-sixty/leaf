@@ -240,8 +240,8 @@ export function overflowingRegions() {
 // was drawn over one. Margin content is whatever answered for itself out there, so a
 // project hanging its own furniture in the margin is covered without declaring anything.
 
-/** @param {Element} main */
-function marginReading(main) {
+/** @param {Element} main @param {number} shellLeft @param {number} shellRight */
+function marginReading(main, shellLeft, shellRight) {
   const style = getComputedStyle(main);
   const box = main.getBoundingClientRect();
   // The column, its content box, sets what stands in the margin. What a block may
@@ -253,14 +253,8 @@ function marginReading(main) {
     (parseFloat(style.getPropertyValue("--lf-shell-width")) || 0) > 0
       ? parseFloat(style.getPropertyValue("--col-pad")) || 0
       : null;
-  const left =
-    gutter === null
-      ? colLeft
-      : Math.min(colLeft, box.left - parseFloat(style.marginLeft) + gutter);
-  const right =
-    gutter === null
-      ? colRight
-      : Math.max(colRight, box.right + parseFloat(style.marginRight) - gutter);
+  const left = gutter === null ? colLeft : Math.min(colLeft, shellLeft + gutter);
+  const right = gutter === null ? colRight : Math.max(colRight, shellRight - gutter);
   // Logical floats compute to whichever physical or logical token was written, so
   // resolve them against the element's own direction.
   /** @param {CSSStyleDeclaration} s */
@@ -330,18 +324,6 @@ export function misplacedBoxes() {
   const pageBox = (el) =>
     !uiInside(el, main) ||
     el.checkVisibility({ opacityProperty: true, visibilityProperty: true });
-  const { isMarginContent, left, marginElements, right } = marginReading(main);
-  const wides = new Set(
-    [...main.querySelectorAll("[data-lf-space]")].filter(breaksOut),
-  );
-  // A widget the registry declares wide is answered for out here, the way
-  // absolutely-positioned margin content is: standing past the column is what it was
-  // declared for. What still has to hold is the page's own box — the room the layout
-  // measured is the column's leftover and the rail margin rows stand in, and an
-  // exhibit over that edge is in the margin whether or not the window happened to
-  // scroll for it. So the question is the same one, asked
-  // against the wider bound: this gate renders at one viewport with no panel open, and
-  // the user's window is free to be narrower than this one.
   // The shell the Layout's box stands in: `body`, or a `main` holding it.
   const shell = main.parentElement ?? document.body;
   const shellStyle = getComputedStyle(shell);
@@ -355,6 +337,22 @@ export function misplacedBoxes() {
     shellBox.left +
     (shell.clientLeft + shell.clientWidth - parseFloat(shellStyle.paddingRight)) *
       scale;
+  const { isMarginContent, left, marginElements, right } = marginReading(
+    main,
+    roomLeft,
+    roomRight,
+  );
+  const wides = new Set(
+    [...main.querySelectorAll("[data-lf-space]")].filter(breaksOut),
+  );
+  // A widget the registry declares wide is answered for out here, the way
+  // absolutely-positioned margin content is: standing past the column is what it was
+  // declared for. What still has to hold is the page's own box — the room the layout
+  // measured is the column's leftover and the rail margin rows stand in, and an
+  // exhibit over that edge is in the margin whether or not the window happened to
+  // scroll for it. So the question is the same one, asked
+  // against the wider bound: this gate renders at one viewport with no panel open, and
+  // the user's window is free to be narrower than this one.
   // Both readings that hand a box to an ancestor ask shownBand, or a box inside a
   // container that clips without saying so in `overflow` is named for a spill it is
   // drawn nowhere near and left unnamed for the loss it did take, the walk at the foot

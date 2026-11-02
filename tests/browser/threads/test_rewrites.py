@@ -606,7 +606,7 @@ def test_a_rewrite_opened_on_held_words_starts_from_the_words_as_they_stand(
     )
     round_trip(page)
     # Feed holds the other rewrite back while the user reads the message.
-    expect(workspace.locator(".lf-primary-news").first).to_have_text("1 message edited")
+    expect(workspace.locator(".lf-primary-news").first).to_have_text("1 new")
     expect(words).to_have_text("Fit the north bracket.")
     words.dblclick()
     editor = message.locator(".lf-msg-editor leaf-text")
@@ -736,10 +736,15 @@ def test_walking_up_through_rewrites_shows_each_one(browser, serve):
         page.keyboard.press("ArrowUp")
 
 
-def test_an_emptied_rewrite_keeps_nothing(browser, serve):
+def test_an_emptied_rewrite_keeps_nothing_and_saved_deletes_its_message(browser, serve):
     """A rewrite cleared and left kept its empty words, so every later opening showed an
     empty box in place of the message, without saying it held anything. A rewrite keeps
-    words: a page reloaded over an emptied one opens on the message's own."""
+    words: a page reloaded over an emptied one opens on the message's own.
+
+    Saved, an emptied rewrite deletes its message, where its Save once stood drawn live
+    and did nothing. The box says so before the press, its field reading Delete message
+    and its Save turning to Delete; the message then reads Deleted in its place, above
+    the answer given to it, offering no rewrite, and still does after a reload."""
     page, _, message = _rewrite_surface(browser, serve, "panel")
     words = message.locator(".lf-msg-text")
     editor = message.locator(".lf-msg-editor leaf-text")
@@ -755,6 +760,26 @@ def test_an_emptied_rewrite_keeps_nothing(browser, serve):
     expect(message.locator(".lf-msg-kept")).to_have_count(0)
     words.dblclick()
     expect(editor).to_have_js_property("value", "Fit the north bracket.")
+
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.press("Backspace")
+    expect(message.locator(".lf-msg-edit-save")).to_have_accessible_name("Delete")
+    assert editor.evaluate("n => n.placeholder").startswith("Delete message")
+    page.keyboard.press("Enter")
+    deleted = message.locator(".lf-msg-deleted")
+    expect(deleted).to_have_text("Deleted")
+    expect(message.locator(".lf-msg-edit, .lf-edited")).to_have_count(0)
+    round_trip(page)
+    assert [
+        e["text"]
+        for e in events_model.read_events(serve.page_dir)
+        if e["kind"] == "edit"
+    ] == [""]
+    page.reload()
+    wait_until_ready(page)
+    open_panel_thread(page, mine)
+    expect(deleted).to_have_text("Deleted")
+    expect(message.locator(".lf-msg-edit")).to_have_count(0)
 
 
 def test_a_discarded_rewrite_comes_back(browser, serve):
@@ -940,11 +965,12 @@ def test_a_cards_message_controls_cover_its_head(browser, serve):
     and opening it moves none of the head's words. The row is the rewrite's: the card's
     Resolve leaves it while the rewrite is open.
 
-    Under a finger each glyph takes the aim floor, so the pair reaches past the Edit's
-    room into the head's labels, which it doesn't at a desktop's card width."""
+    Under a finger each glyph takes the aim floor, so on a card at its least width the
+    pair reaches past the Edit's room into the head's labels, which it doesn't under a
+    fine pointer. A touch screen as wide as 1400 stands that card beside its words."""
     context = browser.new_context(has_touch=True, is_mobile=True)
     page, card, message = _rewrite_surface(
-        browser, serve, "card", size=(390, 844), context=context
+        browser, serve, "card", size=(1400, 844), context=context
     )
     # A saved rewrite marks the message edited, and the agent owes it an answer, so
     # the head carries its labels out to its end.
@@ -977,15 +1003,16 @@ def test_a_cards_message_controls_cover_its_head(browser, serve):
     expect(resolve).to_be_visible()
 
 
-@pytest.mark.parametrize("phone", [False, True])
+@pytest.mark.parametrize("finger", [False, True])
 def test_a_rewrite_keeps_its_pair_while_its_head_sticks_beside_the_actions(
-    browser, serve, phone
+    browser, serve, finger
 ):
     """A later message's controls stand aside while its head sticks on the line of the
     card's actions, and that once hid an open rewrite's Discard and Save too, though the
-    rewrite stood open below them. On a narrow phone card beside Previous and Next, the
-    pair, two fingers wide, then ran past the head into the actions, and a tap on Save
-    pressed Previous. The pair stays, over the head's words."""
+    rewrite stood open below them. On a card at its least width under a finger, beside
+    Previous and Next, the pair, two fingers wide, then ran past the head into the
+    actions, and a tap on Save pressed Previous. The pair stays, over the head's
+    words."""
     url = serve(PANEL_PAGE)
     section = {"section": "how-store"}
     root = panel_comment(serve.page_dir, "Fit the north bracket.", section)
@@ -1000,10 +1027,10 @@ def test_a_rewrite_keeps_its_pair_while_its_head_sticks_beside_the_actions(
         )
         if author == "user":
             later = mine["id"]
-    if phone:
+    if finger:
         panel_comment(serve.page_dir, "Make the banner quieter", section)
         context = browser.new_context(
-            viewport={"width": 320, "height": 844}, has_touch=True, is_mobile=True
+            viewport={"width": 1400, "height": 844}, has_touch=True, is_mobile=True
         )
         page = open_page(browser, url, context=context)
     else:
@@ -1251,7 +1278,7 @@ def test_opening_a_rewrite_keeps_room_the_thread_holds(browser, serve):
         },
     )
     told(page)
-    thread.get_by_role("button", name="1 message edited", exact=True).click()
+    thread.get_by_role("button", name="1 new", exact=True).click()
     reply.click()
     rendered(page)
     latest = thread.locator(".lf-msg").last

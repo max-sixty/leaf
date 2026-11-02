@@ -64,14 +64,15 @@ export function createThreadActions({
   };
 
   // The user rewriting a message of their own (`message-edit.js`), written over the
-  // revision `base` names. Words the message already says, and none, send nothing.
+  // revision `base` names. Words the message already says send nothing; none at all
+  // delete it.
   /** @param {string} key @param {string} messageId @param {string} text
    * @param {{attempt?: string, base?: string}} [options] */
   const edit = (key, messageId, text, { attempt, base } = {}) => {
     const thread = find(key);
     if (!thread) return null;
     const message = thread.msgs.find((item) => item.id === messageId);
-    if (!message || !editable(message) || !text || text === message.text) return null;
+    if (!message || !editable(message) || text === message.text) return null;
     return post({
       kind: "edit",
       message: messageId,

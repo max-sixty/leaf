@@ -218,7 +218,21 @@ cases:
           under 30 days, opens a ticket."
       reveal: ledger-reconciliation-lag
     assert:
-      - *id001
+      - type: javascript
+        metric: quality
+        value: file://../dev/leaf_dev/authoring_assertion.mjs
+        config:
+          rubric: >-
+            The final record lets the reader compare each alert's original threshold
+            and routing with its final threshold and routing, and compare the supplied
+            candidate thresholds' firing and real-incident counts without reconstructing
+            them from separate views. The choice and the evidence explaining its effect
+            remain readable together. Preserve the supplied counts and their limitations,
+            including inconsistent webhook counts and the previously disabled ledger alert.
+            Finance ownership and finance-ops paging appear beside ledger routing. The
+            final record preserves the user's selected settings and distinguishes a recorded
+            policy from a deployment. Judge the readable comparison and accurate evidence;
+            no particular table, chart, widget or number of rows above the fold is required.
   sidebar-page-at-900px:
     inputs:
       comment: null

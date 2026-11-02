@@ -737,9 +737,8 @@ diff --git a/README.md b/README.md
 
     details = page.locator("lf-diff details").first
     summary = details.locator("summary")
-    file_row = page.locator("lf-diff .lf-diff-file").first
-    expect(file_row).to_have_attribute("data-lf-datum", '["app.py","file"]')
-    expect(file_row).to_have_attribute("data-lf-datum-label", "app.py · file")
+    expect(summary).to_have_attribute("data-lf-datum", '["app.py","file"]')
+    expect(summary).to_have_attribute("data-lf-datum-label", "app.py · file")
     details.evaluate(
         "element => { element.open = false; window.__lfDiffDetails = element; }"
     )

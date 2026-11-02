@@ -76,6 +76,8 @@ function layerPath(path, assetRoot) {
  * native.
  */
 function native(local, assetRoot) {
+  // Delivery also inlines this classic source before the module graph runs.
+  if (local === "runtime/document-inputs.js") return true;
   if (local.startsWith("page/")) return true;
   if (local.startsWith("vendor/")) return local !== signalsPath;
   return !assetRoot && local.startsWith("widgets/");
@@ -315,7 +317,11 @@ export async function bundleRuntime(layerRoot, entries, outputRoot, assetRoot) {
     const runtime = join(outputRoot, "runtime");
     await Promise.all(
       (await readdir(runtime, { recursive: true }))
-        .filter((file) => file.endsWith(".js"))
+        .filter(
+          (file) =>
+            file.endsWith(".js") &&
+            !native(browserPath(join("runtime", file)), assetRoot),
+        )
         .map((file) => rm(join(runtime, file))),
     );
   }

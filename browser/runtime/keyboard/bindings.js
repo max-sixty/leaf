@@ -125,6 +125,7 @@
    `aria-keyshortcuts` and exposes the complete route through its title and the keyboard
    command reference. Call `paintKeys` when a state change moves row liveness so this projection
    and the visible surfaces change together. */
+export { PRESS, rowArrows } from "../control-keys.js";
 import { coarsePointer } from "../pointer.js";
 import { runtime } from "../context.js";
 
@@ -848,31 +849,6 @@ export function checked(rows, where, ready) {
   });
   return rows;
 }
-
-// What activates a focused button, stated once because it is the platform's fact and not
-// any one row's. Four rows spelled it by hand — the runtime's own control scope, a card
-// grip in each of its two states, and the version menu's row — and the fourth spelled it
-// short, naming Enter over a real <button> that answers Space too. A near-copy that has to
-// change whenever the original does is a primitive not yet extracted, and the drift here
-// was invisible: the key worked and the page under-promised it.
-//
-// A link is the case that keeps this honest. Enter follows an <a> and Space scrolls the
-// page, so All pages binds Enter alone and is right to — the shared fact is what a
-// button answers, not what a control does.
-export const PRESS = ["Enter", " "];
-
-// The arrows that step back and ahead along a row of controls, as `[back, ahead]`. Back
-// is the side the row's words run from: left in left-to-right text and right in
-// right-to-left text, where the first item stands at the right, as the ARIA tabs,
-// toolbar and slider patterns ask. Read from the directionality of the node the row
-// lays out in (`:dir()`), which the `dir` attributes around it decide, as the theme's
-// direction rules read it; a `direction` set in CSS alone moves neither. Key
-// availability asks this of every disclosure on the page, in the frame's pass after
-// other work has written to the document, so reading the computed `direction` made it
-// recalculate style for those writes, several times a comment on a page of diffs.
-/** @param {Element} node @returns {[string, string]} */
-export const rowArrows = (node) =>
-  node.matches(":dir(rtl)") ? ["ArrowRight", "ArrowLeft"] : ["ArrowLeft", "ArrowRight"];
 
 // The one-dimensional list policy. Every step inside the list clamps; a caller may name
 // the row where its own off-list arrival enters. A walk that comes round at its ends

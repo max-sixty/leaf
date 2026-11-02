@@ -23,8 +23,7 @@ html[data-lf-interactive] lf-text-document:not(:has(> :not(pre)))::before {
   padding: 7px 11px;
   border-bottom: 1px solid var(--rule);
   color: var(--muted);
-  font-family: var(--sans);
-  font-size: var(--t-6);
+  font: var(--font-small);
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
@@ -168,6 +167,7 @@ lf-text-document[preview] .lf-text-document-view > lf-tabs > lf-tab {
    (`reading.css`) whatever theme the page takes, as `.lf-markdown-body` does. */
 lf-text-document div.lf-text-document-preview {
   --lf-reading-face: 1;
+  --lf-block-frame: 1;
   padding: var(--sp-4);
   overflow-wrap: anywhere;
 }

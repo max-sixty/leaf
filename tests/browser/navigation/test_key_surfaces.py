@@ -243,7 +243,7 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
     assert page.evaluate("() => matchMedia('(pointer: coarse)').matches"), (
         "the touch fixture never reached Leaf's coarse-pointer rules"
     )
-    expect(page.locator(".lf-fp-field .lf-key-badge")).to_have_count(0)
+    expect(page.locator(".lf-fp-field .lf-key-badge:visible")).to_have_count(0)
 
     page.evaluate(
         """async () => {
@@ -315,7 +315,8 @@ def test_a_field_names_no_key_to_a_finger(browser, serve):
     )
     page = open_page(browser, serve(INLINE_PAGE, comments=2), context=context)
     assert page.evaluate("() => matchMedia('(pointer: coarse)').matches")
-    badge = page.locator(".lf-fp-field .lf-key-badge")
+    # Rich placeholders retain an empty badge; only a painted key advertises a press.
+    badge = page.locator(".lf-fp-field .lf-key-badge:visible")
     general = page_comment(page)
     expect(general).not_to_have_attribute("placeholder", re.compile(r" c$"))
     expect(badge).to_have_count(0)

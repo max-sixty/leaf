@@ -31,6 +31,23 @@ what fails and what still works.
 
 ## Known gaps
 
+### Native select keyboard input in the test engine
+
+On 2026-11-01, Playwright 1.64.1's Chromium headless shell 156.0.8078.4,
+build 1248, on macOS 26.5.1 left a focused native select unchanged after
+ArrowDown, Space → ArrowDown → Enter, Alt+ArrowDown → ArrowUp → Enter, and
+Home → Enter. Keyboard events reached the select without being prevented.
+The same sequences behaved alike on a Leaf page and a plain, script-free
+select. Typing `t` then Enter changed Page to Ticket in both, providing a
+working keyboard route. This observation does not establish a Leaf defect or
+the behavior of the host's Chrome or another test-engine build.
+
+Recheck with `leaf_dev.browser.headless_shell`: give a plain select the options
+Page, Ticket and Off, focus it, and send those sequences with
+`page.keyboard.press`, reading its value after each sequence. Compare the
+same actions on the page under review. Native selection remains browser-owned;
+there is no Leaf workaround.
+
 ### Report metadata in a revealed table
 
 On 2026-10-31, installed Google Chrome 156.0.8078.76, driven headlessly through

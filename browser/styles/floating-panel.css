@@ -65,15 +65,13 @@
      box's size travels on a floating box's tween (chrome.css, `--lf-motion-box-*`).
      The box growing as the words do, a line at a time, takes the tween's full length,
      which the user singled out as the panel's best motion (15 October). A view the
-     user opened, or put away, is what they asked to see, so it arrives almost at once,
-     as the menu does: its outline in a disclosure's time (`--lf-motion-disclosure`,
+     user opened, or put away, is what they asked to see, so it arrives almost at once:
+     its outline in a disclosure's time (`--lf-motion-disclosure`,
      base.css), since the user found the full tween slow there (15 October), and its
      words faded in at once after the leaving view's, which is gone before the arriving
      one shows, so the two never read through each other. The row gathers into its
      leaf on a curve of its own before that one object finishes travelling; its layout
-     is already final, so the two visual phases never delay input. The menu rises into
-     place on the panel's curve as it fades in, a little longer than the fade so its
-     last few pixels settle once it reads (`--lf-motion-menu-slide`). The corner mark
+     is already final, so the two visual phases never delay input. The corner mark
      and the peek fade in and out in a disclosure's time. They stand here, in
      the runtime's sheet, rather than in the theme a page vendors, since a page served
      by a later runtime keeps its own theme. */
@@ -82,7 +80,6 @@
     --lf-motion-panel-fold: 280ms;
     --lf-motion-view-in: 90ms;
     --lf-motion-view-out: 60ms;
-    --lf-motion-menu-slide: 200ms;
   }
 
   /* The surface (runtime/box-motion.js, chrome.css): a layer over the whole window,
@@ -201,6 +198,16 @@
     padding: var(--lf-fp-row-pad);
     box-sizing: border-box;
     position: relative;
+  }
+  /* While a view stands open, one hairline, inset as far as the words, sets the row off
+     from it, the view's controls included: its way back or its tabs belong to the view
+     they steer. Without the caret the field draws no frame and holds the status, which
+     read as the view's last row while the line stood above the controls instead. The
+     user chose the line here on 31 October 2026; rejected: a second line above the
+     field, which stacked three in the menu's foot. */
+  .lf-floating-panel[data-open] .lf-fp-row {
+    background: linear-gradient(var(--lf-fp-faint), var(--lf-fp-faint)) top center /
+      calc(100% - 2 * (6px + var(--lf-fp-inset))) 1px no-repeat;
   }
   /* The more-room mark stands over the leaf, in the corner a long
      draft leaves free beside the field's first line (floating-panel.js, `expand`). A
@@ -705,7 +712,7 @@
   }
   /* A view's Close at the end of its head line or its tabs takes the face of the presses
      before it. */
-  :is(.lf-fp-head > .lf-fp-aux, .lf-fp-controls) > .lf-fp-chip {
+  :is(.lf-fp-head, .lf-fp-controls) > .lf-fp-aux > .lf-fp-chip {
     flex: none;
     justify-content: center;
     min-width: max(var(--lf-fp-press), var(--aim-floor));
@@ -958,19 +965,10 @@
   .lf-fp-name > .lf-fp-facts {
     margin-inline-start: auto;
   }
-  /* A hairline inset as far as the words sets what an open view holds off from the line
-     under it: a list's tabs, or the row, under a view with no tabs, such as a thread
-     over its reply. */
-  .lf-fp-controls,
-  .lf-floating-panel[data-open]
-    .lf-fp-opened:has(> .lf-fp-controls[hidden])
-    + .lf-fp-row {
-    background: linear-gradient(var(--lf-fp-faint), var(--lf-fp-faint)) top center /
-      calc(100% - 2 * (6px + var(--lf-fp-inset))) 1px no-repeat;
-  }
-  /* A list's tabs stand on the row, which their growing view never moves. Their reach
-     stops short of the row's own presses' (`--lf-reach-room`), so a press between the
-     two lands on the one the user is nearer. */
+  /* A list's tabs stand on the row, which their growing view never moves, and read
+     with the view they steer, above the row's hairline. Their reach stops short of the
+     row's own presses' (`--lf-reach-room`), so a press between the two lands on the
+     one the user is nearer. */
   .lf-fp-controls {
     display: flex;
     align-items: center;
@@ -995,25 +993,6 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-  }
-  /* The menu's way back to the page menu is a row (controls.css, `.lf-row`) holding
-     the chevron and the menu's name, in the ink, washed under the pointer. It is as
-     wide as its words, which say it leaves the list rather than standing in it, and
-     its chevron stands 8px into its wash, as a menu row's words do, so it starts on
-     its rows' edge. */
-  .lf-fp-menu-back {
-    flex: none;
-    align-self: flex-start;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    min-height: var(--lf-fp-press);
-    padding: 0 8px 0 6px;
-  }
-  .lf-fp-menu-back .lf-fp-chevron {
-    flex: none;
-    scale: -1 1;
-    margin: 0;
   }
   .lf-fp-back {
     flex: none;
@@ -1072,19 +1051,27 @@
     align-items: center;
     gap: 2px;
   }
-  /* Tabs that name the view keep their room: where the presses after them do not fit
-     beside them, as on a phone, the presses go to a line of their own, at its end. */
-  .lf-fp-controls[data-named] {
-    flex-wrap: wrap;
+  /* The tabs name the view and keep their room: where the presses after them don't fit
+     beside them, as on a phone, the presses and Close go to a line of their own over
+     the tabs, at its end, so the tabs stay on the row and a tab turned to never
+     leaves the finger that turned it. Each tab's view keeps room for one press before
+     Close, Menu's none included, so every tab breaks the line alike and turning them
+     moves nothing; only On <agent>'s plan head, beside its press, may take that line
+     where the others share the tabs'. */
+  .lf-fp-controls {
+    flex-wrap: wrap-reverse;
   }
-  .lf-fp-controls[data-named] > .lf-fp-crumb {
-    flex: 1 0 auto;
+  /* The tabs' line stands as tall with the presses as without them. */
+  .lf-fp-controls > .lf-fp-crumb {
+    min-height: var(--lf-fp-press);
+    align-items: center;
   }
-  .lf-fp-controls[data-named] > .lf-fp-aux {
+  .lf-fp-controls > .lf-fp-aux {
+    min-width: calc(2 * max(var(--lf-fp-press), var(--aim-floor)) + 2px);
+    justify-content: flex-end;
     margin-inline-start: auto;
   }
-  /* Filter strips share the available width with the presses after them. Their tabs
-     scroll at full size when space runs out, keeping Search and Close reachable. The
+  /* The tabs scroll at full size only where they alone don't fit the line. The
      tabs keep their face under a finger and reach the pointer's floor as the presses
      beside them do. The strip scrolls, which would clip a reach beyond its box, so it
      keeps the reach's room inside its box and takes none in the row. */
@@ -1103,6 +1090,13 @@
     color: var(--muted);
     font: var(--font-small);
     min-height: var(--lf-fp-tab);
+  }
+  /* On a phone the tabs keep less of their inset, so in the faces phones ship they
+     share one line with a press and Close at 390px. */
+  @media (max-width: 420px) {
+    .lf-fp-filters button {
+      padding-inline: 3px;
+    }
   }
   .lf-fp-filters button:hover,
   .lf-fp-filters [aria-pressed="true"] {
@@ -1250,7 +1244,7 @@
   /* A menu row whose words name what it acts on, such as Undo naming the gesture it
      would take back, wraps to a second line rather than cutting the name it exists to
      say; its value keeps the first line's baseline. */
-  .lf-fp-item:not(.lf-fp-menu-back) > .lf-fp-label {
+  .lf-fp-item > .lf-fp-label {
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
@@ -1298,10 +1292,15 @@
      with its copy icon ending it where a value would. The control lays its face out in
      an inline flex box of its own, which a percentage cannot reach across, so the face
      takes the control's width as a container's; and the host is only the face's box, so
-     its own words would give it an empty line under the face. */
+     its own words would give it an empty line under the face. The control draws the
+     shadow tree that shows its face a frame after it joins, so the host keeps a row's
+     height (controls.css, `.lf-row`) meanwhile: the menu takes the room it opens with
+     at once (floating-panel.js, `holdRoom`), and a row arriving late would stand under
+     the tabs. */
   .lf-fp-copy-item {
     display: block;
     container-type: inline-size;
+    min-height: max(30px, var(--aim-floor));
     font-size: 0;
     line-height: 0;
   }
@@ -1865,80 +1864,8 @@
     margin: 0 0 6px;
   }
 
-  /* ---------- the leaf's menu ---------- */
-  /* It stands over the leaf, its trigger, however tall a view open above the row makes
-     the panel: its room runs from the leaf to the window's head, its height is its
-     content's within that room, and it scrolls rather than run past the window's top. */
-  .lf-fp-menu {
-    position: fixed;
-    position-anchor: --lf-fp-leaf;
-    top: calc(12px + var(--lf-safe-top));
-    bottom: calc(anchor(top) + 8px);
-    left: anchor(left);
-    align-self: end;
-    max-height: -webkit-fill-available;
-    max-height: stretch;
-    overflow-y: auto;
-    /* A list sliding in from the side shows no scrollbar across. */
-    overflow-x: hidden;
-    width: 248px;
-    padding: 6px;
-    box-sizing: border-box;
-    border-radius: var(--r-l);
-    background: var(--lf-fp-surface);
-    box-shadow:
-      0 0 0 1px var(--lf-fp-ring),
-      var(--raise-2);
-  }
-  .lf-floating-panel:not([data-menu]) .lf-fp-menu:not([data-leaving]) {
-    display: none;
-  }
-  /* A closing menu keeps its last rows while it fades out (floating-panel.js,
-     `menuFade`), inert and passing presses to the page beneath. */
-  .lf-fp-menu[data-leaving] {
-    pointer-events: none;
-  }
-  .lf-floating-panel[data-menu] .lf-fp-menu {
-    @starting-style {
-      opacity: 0;
-      translate: 0 6px;
-    }
-    transition:
-      opacity var(--lf-motion-disclosure) linear,
-      translate var(--lf-motion-menu-slide) var(--lf-motion-box-ease);
-  }
-  /* Versions' notes and Compare want more of a line than the menu's rows. */
-  .lf-fp-menu[data-level="versions"] {
-    width: min(360px, calc(100vw - 32px));
-  }
-  /* A list in the menu's place: its name over its rows, as the state stands over the
-     menu's, and the way back under them, over the leaf, set off from the list by a
-     hairline as a view's controls are. The list fills the height the menu holds
-     (floating-panel.js, `menuRoom`), so a row leaving it, as a dismissed error does,
-     moves the way back nowhere. */
-  .lf-fp-menu-page {
-    display: grid;
-  }
-  .lf-fp-menu[data-level] .lf-fp-menu-page {
-    display: flex;
-    flex-direction: column;
-    min-height: 100%;
-  }
-  .lf-fp-menu-name {
-    display: flex;
-    align-items: center;
-    min-height: 30px;
-    padding: 5px 8px;
-    box-sizing: border-box;
-    font-weight: 600;
-  }
-  .lf-fp-menu-rule {
-    flex: none;
-    height: 1px;
-    margin: auto 8px 3px;
-    padding-top: 3px;
-    background: var(--lf-fp-faint) content-box;
-  }
+  /* ---------- the menu: the On view's first tab ---------- */
+  /* The state over the page's controls, each a row, as every view's list draws. */
   .lf-fp-state {
     display: grid;
     gap: 1px;
@@ -2030,13 +1957,11 @@
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    .lf-fp-peek,
-    .lf-floating-panel[data-menu] .lf-fp-menu {
+    .lf-fp-peek {
       transition: none;
     }
   }
   @media (forced-colors: active) {
-    .lf-fp-menu,
     .lf-fp-peek {
       border: 1px solid CanvasText;
     }

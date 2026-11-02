@@ -69,15 +69,23 @@ import {
   canPlaceFocus,
 } from "../focus.js";
 import { move } from "../dom-move.js";
-import { renderedUnder } from "../shadow.js";
+import { renderedUnder } from "../shadow-tree.js";
 import {
   isHTML,
   isNativeLayer,
   nativeLayerHolding,
   nativeLayerKind,
 } from "../shadow-tree.js";
-import { chromeSheet } from "../stylesheets.js";
 import { watchOwner } from "../arrivals.js";
+
+// A host styles its own chrome when a modal carries it into another shadow tree.
+// Layer ordering and native opening need no stylesheet from the page.
+/** @type {((root: ShadowRoot) => void) | null} */
+let styleChrome = null;
+/** @param {(root: ShadowRoot) => void} style */
+export function installLayerStyleIntegration(style) {
+  styleChrome = style;
+}
 
 /** @typedef {{root: HTMLElement, opening: boolean, readonly kind: ReturnType<typeof nativeLayerKind>, active: () => boolean, fromNowhere: boolean, opener: Element | null, source: Element | null}} NativeLayer
  * @typedef {{home: NonNullable<HTMLDialogElement["parentNode"]>, chrome: boolean, scope: HTMLElement | null}} ModalHome
@@ -252,8 +260,7 @@ function seatModal(dialog, source) {
         place.scope.className = "lf-chrome";
       }
       const root = holder.getRootNode();
-      if (root instanceof ShadowRoot && !root.adoptedStyleSheets.includes(chromeSheet))
-        root.adoptedStyleSheets = [...root.adoptedStyleSheets, chromeSheet];
+      if (root instanceof ShadowRoot) styleChrome?.(root);
       if (place.scope.parentNode !== holder) move(holder, place.scope);
       seat = place.scope;
     }

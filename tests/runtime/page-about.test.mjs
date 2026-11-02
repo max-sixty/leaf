@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { claimantDiagnostics, claimantValue } from "/runtime/page-about.js";
+import { claimantDiagnostics } from "/runtime/page-about.js";
 
 const held = {
   agent: "Claude",
@@ -11,7 +11,6 @@ const held = {
 };
 
 test("the agent session row names the session the page's comments reach", () => {
-  assert.equal(claimantValue(held), "Fix the build · api");
   assert.equal(
     claimantDiagnostics(held),
     [
@@ -25,9 +24,8 @@ test("the agent session row names the session the page's comments reach", () => 
   );
 });
 
-test("a session with no name goes by its id, and one that ended says so", () => {
+test("a session with no name copies none, and one that ended says so", () => {
   const ended = { ...held, session_name: null, session_alive: false };
-  assert.equal(claimantValue(ended), "5cbebdab · api · ended");
   assert.ok(!claimantDiagnostics(ended).includes("name:"));
   assert.ok(claimantDiagnostics(ended).endsWith("running: false"));
 });

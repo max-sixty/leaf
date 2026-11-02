@@ -35,7 +35,7 @@ const isOneOf = (names) => `^${runtime}(?:${names.map(escaped).join("|")})$`;
 // caller would acquire that owner's initialization graph.
 const exactClosures = {
   "queued-work.js": [],
-  "control-selectors.js": [],
+  "control-selectors.js": ["inputs.js", "document-inputs.js"],
   "shadow-tree.js": [],
   "contribution-model.js": ["icon-paths.js", "words.js", "kernel-facts.js"],
   "margin-model.js": [
@@ -84,12 +84,15 @@ const exactClosures = {
     "focus.js",
     "dom-move.js",
     "control-selectors.js",
+    "inputs.js",
+    "document-inputs.js",
+    "control-keys.js",
+    "language-paths.js",
+    "syntax-languages.js",
     "shadow-tree.js",
     "keeps.js",
     "keyboard/bindings.js",
     "keyboard/layer-stack.js",
-    // Modal seating carries the existing chrome sheet into a source shadow root.
-    "stylesheets.js",
     "keyboard/register.js",
     "keyboard/scopes.js",
     "keyboard/text-entry.js",

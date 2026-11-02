@@ -313,7 +313,7 @@ DATA_INPUTS_SCHEMA = {
             "reference": {"type": "string", "pattern": f"^{HTML_NAME}$"},
             "output": {"type": "string", "pattern": f"^{HTML_NAME}$"},
             # The element property the runtime sets to the delivered value
-            # (leaf-element.js, "Bound values").
+            # (element-data.js, "Bound values").
             "property": {"type": "string", "pattern": "^[a-z][A-Za-z0-9]*$"},
         },
         "dependentRequired": {"reference": ["output"], "output": ["reference"]},

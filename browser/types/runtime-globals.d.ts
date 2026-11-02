@@ -1,3 +1,13 @@
+/** Document input vocabulary and intent, from the earliest installed owner. */
+interface DocumentInputs {
+  readonly textField: "leaf-text";
+  readonly textBox: string;
+  typesText(node: EventTarget | null | undefined): boolean;
+  takesLetters(node: EventTarget | null | undefined): boolean;
+  readonly count: number;
+  observe(read: (event: Event) => void): () => boolean;
+}
+
 // What Leaf's classic scripts hang on the page's globals for its modules to read.
 // `prepaint.js` and `bootstrap.js` run before any module, so they cannot export
 // what they build. Required document-runtime capabilities belong to `window`;
@@ -62,15 +72,6 @@ interface LeafSampleBridge {
 interface Window {
   /** Runs a fault report while this document is the one the browser keeps (prepaint.js). */
   lfDocumentLifetime: { whenActive(fault: string, report: () => void): void };
-  /** Text-entry vocabulary, input count and observation from the first script. */
-  lfInputs: {
-    readonly textField: "leaf-text";
-    readonly textBox: string;
-    typesText(node: EventTarget | null | undefined): boolean;
-    takesLetters(node: EventTarget | null | undefined): boolean;
-    readonly count: number;
-    observe(read: (event: Event) => void): () => boolean;
-  };
   lfViews: {
     members(holder: Element, selector?: string): Element[];
     opening(

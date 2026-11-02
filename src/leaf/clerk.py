@@ -129,10 +129,13 @@ for input, would close that gap.
 Each fork's outcome goes to the diagnostics of every page the session holds
 (`interaction_log`, type `turn_end_check`), as a fork reply's does (`forks.py`): what
 the fork named on that page, verbatim, what Leaf wrote, changed and told for it, or
-why it wrote no records, with the fork's tokens and time; a fork that failed, or gave
-an answer `ANSWER` refuses, is noted with its reason. Claude Code keeps no copy of a
-`$.model.fork` exchange, only its token counts in the debug log, so this record is
-what a later replay or audit scores against what the agent did next.
+why it wrote no records, with the fork's tokens and time and the request it resent:
+the model and effort it named, how many messages it carried and the newest
+transcript row the session had stored, which says where a replay cuts the
+conversation. A fork that failed, or gave an answer `ANSWER` refuses, is noted with
+its reason. Claude Code keeps no copy of a `$.model.fork` exchange, only its token
+counts in the debug log, so this record is what a later replay or audit scores
+against what the agent did next.
 
 Measured on 2026-10-29 by replaying 21 recorded turn ends three times each on Opus
 5.5 (`~/.tmp/leaf.agent-channels/replay/`, `fork3.py` and `score3.py`), with the asks
@@ -434,14 +437,15 @@ def basis(session_id: str) -> dict | None:
 def cmd_fork(session_id: str, payload: dict) -> dict | None:
     """One half of a fork for `session_id`, as `leaf hook --fork` hands it over:
     with neither `answer` nor `failed` in `payload`, the `question`; with either,
-    `take_answer`, and the fork's `usage` and `elapsed_ms` where the harness gives
-    them."""
+    `take_answer`, and the fork's `usage`, `elapsed_ms` and `request` where the
+    harness gives them."""
     if not session_id:
         return None
     if "answer" in payload or "failed" in payload:
         run = {
             "usage": payload.get("usage"),
             "elapsedMs": payload.get("elapsed_ms"),
+            "request": payload.get("request"),
             "failed": payload.get("failed"),
         }
         return take_answer(

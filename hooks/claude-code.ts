@@ -318,12 +318,14 @@ async function clerk($: EngineInterface, session: string) {
       try {
         const asked = await forkStep($, session, {});
         if (!asked) continue;
+        const resent = request();
         const started = await $.clock.now();
         const reply = await $.model.fork({ prompt: asked.prompt });
         const run = {
           basis: asked.basis,
           elapsed_ms: (await $.clock.now()) - started,
           ...("usage" in reply ? { usage: reply.usage } : {}),
+          ...(resent ? { request: resent } : {}),
         };
         if (!reply.isAnswered) {
           await forkStep($, session, { ...run, failed: reply.reason });
@@ -352,6 +354,19 @@ async function clerk($: EngineInterface, session: string) {
   }
 }
 
+// The main thread's last request, which `$.model.fork` resends: the model and effort
+// it named and how many messages it carried (`turn.step`), and the newest row the
+// main thread stored (`session.append`), the transcript's id for it. Each fork hands
+// it to Leaf, so a fork's diagnostics name the conversation it read.
+let lastStep: { model: string; effort?: string | number; messages: number } | undefined;
+let lastRow: string | undefined;
+
+function request() {
+  return (
+    lastStep && { ...lastStep, ...(lastRow === undefined ? {} : { row: lastRow }) }
+  );
+}
+
 // The tool calls the main thread is running, by their tool_use ids, which a fork
 // can't see: the main thread's last request predates them.
 const running = new Map<string, { tool: string; input: Record<string, string> }>();
@@ -378,6 +393,7 @@ function forkReply($: EngineInterface, session: string, held: Held) {
       const calls = [...running.values()];
       const asked = await forkStep($, session, { thread: held, running: calls });
       if (!asked) return;
+      const resent = request();
       const started = await $.clock.now();
       let answered: Record<string, unknown>;
       try {
@@ -395,6 +411,7 @@ function forkReply($: EngineInterface, session: string, held: Held) {
         thread: held,
         running: calls,
         elapsed_ms: (await $.clock.now()) - started,
+        ...(resent ? { request: resent } : {}),
         ...answered,
       });
       $.ui.log(`Leaf: a fork took thread ${held.thread}: ${outcome?.outcome}`, {
@@ -444,6 +461,22 @@ export const register: Register = (on) => {
     } finally {
       running.delete(e.tool_use_id);
     }
+  });
+
+  on("turn.step", async function* ($, e, next) {
+    if (e.agentId === undefined)
+      lastStep = {
+        model: e.model,
+        messages: e.messageCount,
+        ...(e.effort === undefined ? {} : { effort: e.effort }),
+      };
+    return yield* next(e);
+  });
+
+  on("session.append", async ($, e, next) => {
+    const stored = await next(e);
+    if (e.agentId === undefined && stored.deny === undefined) lastRow = stored.uuid;
+    return stored;
   });
 
   // A resumed or cleared session raises no session.start, so its first turn follows.

@@ -59,8 +59,9 @@ with the reply in the thread's digest, and the clerk's queue (`clerk.queue`) add
 line saying a fork wrote it, for the session to correct where what it knows shows the
 reply wrong: replayed on real messages, about one fork reply in eight or more was.
 Every outcome goes to the page's diagnostics
-(`interaction_log`, type `fork_reply`), with the fork's tokens and time, which is
-what a later replay or audit scores.
+(`interaction_log`, type `fork_reply`), with the fork's tokens and time and the
+request it resent, as the clerk's `turn_end_check` notes have it, which is what a
+later replay or audit scores.
 """
 
 import json
@@ -301,6 +302,7 @@ def cmd_reply(session_id: str, payload: dict) -> dict | None:
             usage=payload.get("usage"),
             elapsed_ms=payload.get("elapsed_ms"),
             running=payload.get("running") or [],
+            request=payload.get("request"),
         )
     return ask(session_id, basis, payload.get("running") or [])
 
@@ -389,6 +391,7 @@ def take(
     usage: dict | None = None,
     elapsed_ms: float | None = None,
     running: list[dict] | None = None,
+    request: dict | None = None,
 ) -> dict:
     """Post the fork's reply, or hand the thread to the session where it handed
     over, failed (`failed`, its reason) or gave an answer `ANSWER` refuses; what came
@@ -417,6 +420,7 @@ def take(
             "running": running or [],
             **({"usage": usage} if usage else {}),
             **({"elapsedMs": elapsed_ms} if elapsed_ms is not None else {}),
+            **({"request": request} if request else {}),
         },
     )
     return outcome

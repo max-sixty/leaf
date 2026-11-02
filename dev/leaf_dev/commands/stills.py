@@ -2022,6 +2022,7 @@ class State:
     scheme: str = "light"
     touch: bool = False
     region: str | None = None
+    activated: bool = True
 
 
 STATES = (
@@ -2475,6 +2476,13 @@ STATES = (
         region="#dfg-scroll",
     ),
     State("worktree-diffs", "developer/worktree-diffs", at_rest),
+    State(
+        "worktree-startup",
+        "developer/worktree-diffs",
+        at_rest,
+        activated=False,
+        region="#worktree-example-workbench",
+    ),
     State(
         "worktree-summaries",
         "developer/worktree-diffs",
@@ -3410,10 +3418,20 @@ def capture(
     (`STYLES`), the lines whose words stand on baselines `SPLIT` apart (`BASELINES`),
     and the tab, open until the block ends so `declaration_changes` can read it."""
     scale = 2
+    held_modules = []
     with tab(browser, state.viewport, state.scheme, state.touch, scale=scale) as page:
-        load(page, address)
-        state.drive(page)
-        settle(page)
+        if state.activated:
+            load(page, address)
+            state.drive(page)
+            settle(page)
+        else:
+            # Keep authored layout visible while the activation module is in flight.
+            page.route("**/leaf.js", lambda route: held_modules.append(route))
+            page.goto(address, wait_until="commit")
+            # A visible node can precede the render-blocking stylesheet.
+            page.wait_for_function("""() => performance.getEntriesByType('paint')
+                .some(entry => entry.name === 'first-contentful-paint')""")
+            page.evaluate("() => document.fonts.ready")
         clip = None
         if state.region:
             target = page.locator(state.region)
@@ -3438,7 +3456,11 @@ def capture(
         }
         splits = page.evaluate(BASELINES, SPLIT)
         region = {key: value * scale for key, value in clip.items()} if clip else None
-        yield region, styles, reading["texts"], splits, page
+        try:
+            yield region, styles, reading["texts"], splits, page
+        finally:
+            for route in held_modules:
+                route.abort()
 
 
 def style_changes(

@@ -5260,14 +5260,10 @@ new file mode 120000
 \\ No newline at end of file"""
     authored = leaf_page(
         "Native Git changes",
-        '<h1 id="changes">Changes</h1><lf-diff id="mixed-rename-diff"><pre>'
-        + ("" if manifest else escape(source))
-        + "</pre></lf-diff>",
+        '<h1 id="changes">Changes</h1><lf-diff id="mixed-rename-diff"'
+        + (' source="native-patch">' if manifest else f"><pre>{escape(source)}</pre>")
+        + "</lf-diff>",
     )
-    if manifest:
-        authored = authored.replace(
-            'id="mixed-rename-diff"', 'id="mixed-rename-diff" source="native-patch"'
-        )
     url = serve(authored)
     if manifest:
         data_model.cmd_data_set(serve.page_dir, "native-patch", patch_manifest(source))

@@ -6,11 +6,13 @@ import http.client
 import http.cookiejar
 import json
 import os
+import shutil
 import signal
 import subprocess
 import sys
 import threading
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -20,6 +22,7 @@ import pytest
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
 from interact_support import (
+    PLUGIN_ROOT,
     STATED_TIMEOUT,
     append_carried_log_record,
     available_loopback_port,
@@ -723,6 +726,75 @@ def test_server_run_temporary_uses_the_browser_harness_boundary(page_dir, spawn)
     _, error = process.communicate(timeout=STATED_TIMEOUT)
     assert process.returncode == 1, error
     assert json.loads(error)["error"] == "interrupted"
+
+
+# The refusal Codex's macOS sandbox makes of a listing of every process, with the
+# same error psutil raises there.
+PROCESS_LISTING_REFUSED = (
+    '(version 1)(allow default)(deny sysctl-read (sysctl-name "kern.proc.all"))'
+)
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        pytest.param(LEAF_COMMAND, id="module"),
+        pytest.param([str(PLUGIN_ROOT / "bin" / "leaf")], id="launcher"),
+        pytest.param(
+            [
+                "sandbox-exec",
+                "-p",
+                PROCESS_LISTING_REFUSED,
+                str(PLUGIN_ROOT / "bin" / "leaf"),
+            ],
+            id="sandboxed launcher",
+            marks=pytest.mark.skipif(
+                not shutil.which("sandbox-exec"), reason="macOS's sandbox"
+            ),
+        ),
+    ],
+)
+def test_a_temporary_server_ends_when_the_process_that_ran_it_exits(
+    page_dir, spawn, command
+):
+    """A temporary server leaves nothing `server stop` could reach, so a caller
+    that dies without stopping it, as a killed test does, must not leave it serving.
+    The caller here is a shell that starts it in the background and exits. Through
+    the launcher, the server's own parent is the `uv run` that `bin/leaf` execs,
+    which waits on it and so outlives the caller. Codex's macOS sandbox refuses a
+    listing of every process, so finding that caller must not take one."""
+    # The caller hands its stdout and stderr to the server and closes its own, so
+    # they reach their end when the server exits, whether it served or failed.
+    caller = spawn(
+        [
+            "sh",
+            "-c",
+            '"$@" & exec >&- 2>&-; read _',
+            "sh",
+            *command,
+            "server",
+            "run",
+            "--lifetime",
+            "temporary",
+            str(page_dir),
+        ],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    started = caller.stdout.readline()
+    assert started, caller.communicate(timeout=STATED_TIMEOUT)[1]
+    state = urllib.parse.urlsplit(json.loads(started)["url"])
+    state = state._replace(path="/api/state").geturl()
+    assert urllib.request.urlopen(state).status == 200
+
+    # Closing its stdin ends the caller, and reading the server's stdout and stderr
+    # to their end waits for the server to exit.
+    _, error = caller.communicate(timeout=STATED_TIMEOUT)
+    assert error == ""
+    with pytest.raises(urllib.error.URLError):
+        urllib.request.urlopen(state)
 
 
 def test_server_run_persistent_refuses_to_adopt_a_session_server(page_dir):

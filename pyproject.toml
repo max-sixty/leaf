@@ -104,6 +104,9 @@ dev = [
   "ty>=0.0.94",
   "ruff>=0.17.3",
   "datamodel-code-generator>=0.87.0",
+  # Draws the edits and placements that move a floating box
+  # (`journeys/test_floating_box_motion.py`).
+  "hypothesis>=6",
 ]
 
 # An install never syncs the members, but uv reads their `pyproject.toml` files to

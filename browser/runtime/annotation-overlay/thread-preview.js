@@ -899,8 +899,8 @@ export function createThreadPreview({
       keepsHidden(previewNav, threadItems.length < 2);
       const selectedIndex = Math.max(0, threadItems.indexOf(selected));
       // Every other walk says "1 of 3" (walk-position.js). This one stands on the card's
-      // actions line, which on a 311px phone already leaves the message heads no room;
-      // " of " made it 12px wider, which pushed the actions past the card's start.
+      // head line, which on a 311px phone gives its title little room beside the presses;
+      // " of " made it 12px wider.
       keepsText(previewPosition, `${selectedIndex + 1}/${threadItems.length}`);
       previewPrevious.toggleAttribute("disabled", selectedIndex === 0);
       previewNext.toggleAttribute("disabled", selectedIndex === threadItems.length - 1);

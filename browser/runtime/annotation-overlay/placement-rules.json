@@ -73,7 +73,7 @@
         },
         {
           "id": "place-under-or-over",
-          "says": "Under or over: starting at the quoted words' first character."
+          "says": "Under or over: starting at the quoted words' first character. Under, the comment box keeps the card's head line's room over its field, so its field stands that much further below the words and Send moves no word."
         },
         {
           "id": "place-carried",

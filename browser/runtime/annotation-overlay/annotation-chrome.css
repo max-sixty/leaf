@@ -508,17 +508,16 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     padding-block-end: calc(var(--thread-card-head) - var(--lf-icon-action-face));
     /* The name starts on the messages' words' edge. */
     padding-inline-start: var(--lf-thread-text-inset);
+    /* The transcript's ring room reaches up into the gap under the presses, and a
+       stuck head's paper covers that room once the card scrolls, so the line paints
+       over it and a focused press keeps its whole ring. */
+    position: relative;
+    z-index: 1;
   }
+  /* The name's face is the panel's title's (chrome.css, `.lf-head-title`). */
   .lf-margin-thread-title {
     flex: 0 1000 auto;
-    min-width: 0;
-    margin: 0;
     margin-inline-end: auto;
-    font: inherit;
-    font-weight: 600;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
   /* The notice stands just before the presses, further from them than they stand from
      each other, so news arriving moves no press and reads as a fact about the thread.

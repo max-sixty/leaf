@@ -5929,7 +5929,7 @@ var ThreadView = class {
 		keeps(notice.node, "data-lf-reflow", marginControls ? null : "text");
 		const body = html`
       ${marginControls ? html`<div class="lf-margin-thread-head">
-              ${headingRepeatsOpening(model.source) ? nothing : html`<h2 class="lf-margin-thread-title">
+              ${headingRepeatsOpening(model.source) ? nothing : html`<h2 class="lf-margin-thread-title lf-head-title">
                       ${threadHeading(model.source)}
                     </h2>`}${news}${threadActions}
             </div>` : nothing}${threadTodos(model.todos, (id) => this.#commands.todos.done(id))}${this.#transcript.node}

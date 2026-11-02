@@ -985,15 +985,6 @@
     gap: 6px;
     white-space: nowrap;
   }
-  .lf-fp-title {
-    min-width: 0;
-    margin: 0;
-    font: inherit;
-    font-weight: 600;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
   .lf-fp-back {
     flex: none;
   }

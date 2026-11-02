@@ -201,6 +201,18 @@ html[data-lf-region-capture] main * {
 }
 /* Everything below is private to the chrome: no widget or page class can match it. */
 @scope (.lf-chrome) {
+  /* The name on a head line over a thread or a list, the floating panel's view and a
+     margin card alike (floating-panel.js, `headTemplate`; thread/thread-card.js): one
+     line in the chrome's face, cut with an ellipsis, so the two read as one. */
+  .lf-head-title {
+    min-width: 0;
+    margin: 0;
+    font: inherit;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   /* The tween a floating box's change of layout travels on (runtime/box-motion.js),
      every box's alike, which its motion reads off the box: the Codex panel's one
      strong ease-out, at a length the user singled out as the panel's best motion for a

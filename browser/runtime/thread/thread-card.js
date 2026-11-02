@@ -711,7 +711,7 @@ export class ThreadView {
                 // card's own label already says it, so the line draws none.
                 headingRepeatsOpening(model.source)
                   ? nothing
-                  : html`<h2 class="lf-margin-thread-title">
+                  : html`<h2 class="lf-margin-thread-title lf-head-title">
                       ${threadHeading(model.source)}
                     </h2>`
               }${news}${threadActions}

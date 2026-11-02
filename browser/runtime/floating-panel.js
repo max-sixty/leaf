@@ -4212,7 +4212,13 @@ export function createFloatingPanel({
               ></button>`
             : nothing
         }
-        <h2 class=${view.quiet?.(top) ? "lf-fp-title lf-quiet" : "lf-fp-title"}>
+        <h2
+          class=${
+            view.quiet?.(top)
+              ? "lf-fp-title lf-head-title lf-quiet"
+              : "lf-fp-title lf-head-title"
+          }
+        >
           ${(view.head ?? view.title)(top)}
         </h2>
         ${facts}

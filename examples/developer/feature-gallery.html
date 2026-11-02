@@ -2460,6 +2460,51 @@ leaf page stamp ./proposal --text "Ready for review"</code></pre>
 const api = widgetController(source);
 // Read the source widget's current selection.
 const ids = api.read().state.choose.value;</code></pre>
+              <section id="bg-own-styling-case">
+                <h4>Embedded content keeps its own styling</h4>
+                <p>
+                  Inside <code>data-style="own"</code>, this table should fill its box
+                  and the YAML key should stay burgundy. Select “destination” and
+                  comment on it: the styling boundary still admits passage comments.
+                </p>
+                <div
+                  id="bg-own-styling"
+                  data-style="own"
+                  style="
+                    padding: 20px;
+                    background: #f4f0e8;
+                    color: #242424;
+                    color-scheme: light;
+                    font: 16px/1.5 system-ui;
+                  "
+                >
+                  <table
+                    id="bg-own-table"
+                    style="
+                      width: 100%;
+                      border-collapse: collapse;
+                      font: inherit;
+                      margin: 0;
+                    "
+                  >
+                    <tr>
+                      <td style="padding: 4px; border: 1px solid #aaa">Route</td>
+                      <td style="padding: 4px; border: 1px solid #aaa">Garden</td>
+                    </tr>
+                  </table>
+                  <pre
+                    id="bg-own-pre"
+                    style="
+                      margin: 16px 0 0;
+                      font: 14px/1.5 monospace;
+                      border: 0;
+                      padding: 0;
+                      background: none;
+                      color: inherit;
+                    "
+                  ><code class="language-yaml"><span style="color:#a01450">destination</span>: garden</code></pre>
+                </div>
+              </section>
               <lf-code id="bg-code" language="python" lines="40-43,58-59" hi="41-42">
                 <pre>
 def route(weather):

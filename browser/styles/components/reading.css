@@ -17,7 +17,11 @@
  * dresses one of these elements for its own purpose weighs only what that purpose
  * needs. The page's own sheet and every later tier outrank the whole tier.
  *
- * The guarantees come first and reach every page and transcript whatever its theme,
+ * `data-style="own"` leaves native table and code geometry to the author, including
+ * scrollbar clearance. It changes neither the reading face a page takes nor widget
+ * component styles. Syntax colouring honours the same boundary in syntax.js.
+ *
+ * The defaults come first and reach every page and transcript whatever its theme,
  * since the render gate refuses what they prevent: a block of code or a table scrolls
  * inside itself rather than widening the page, an identifier breaks where it must,
  * and paper wraps what a screen scrolls. */
@@ -49,7 +53,10 @@
  * shrinking box is sized from, so a flex item or a grid track holding a long name
  * hands room to its neighbour the same way (a flex item measured 691px to 359px).
  * A block (pre) wraps nothing, so this reaches nothing there. */
-:where(:root, .lf-thread-transcript) :is(code, samp, kbd:where(:not(.lf-key-badge))) {
+:where(:root, .lf-thread-transcript)
+  :is(code, samp, kbd:where(:not(.lf-key-badge))):not(
+    :where([data-style="own"], [data-style="own"] *)
+  ) {
   overflow-wrap: anywhere;
 }
 /* A block that scrolls its own lines never sizes what holds it: without this a long
@@ -58,7 +65,8 @@
  * one that scrolls down, and a landing inside it then counts none of the sticky headers
  * over it (state.css, `across`). Sized by its lines, it has nothing to scroll down; a
  * block an author bounds says how it scrolls down. */
-:where(:root, .lf-thread-transcript) pre {
+:where(:root, .lf-thread-transcript)
+  pre:not(:where([data-style="own"], [data-style="own"] *)) {
   overflow: auto hidden;
   contain: inline-size;
 }
@@ -86,19 +94,22 @@
  * float, it takes a row of its own across every track. */
 @media screen {
   .lf-text-scroller::after,
-  :where(:root, .lf-thread-transcript) pre::after {
+  :where(:root, .lf-thread-transcript)
+    pre:not(:where([data-style="own"], [data-style="own"] *))::after {
     content: "";
     float: inline-start;
     inline-size: 100%;
     block-size: var(--lf-text-scroll-track);
     grid-column: 1 / -1;
   }
-  :where(:root, .lf-thread-transcript) pre::after {
+  :where(:root, .lf-thread-transcript)
+    pre:not(:where([data-style="own"], [data-style="own"] *))::after {
     block-size: var(--lf-text-scroll-clearance);
   }
   /* A pseudo-element in an authored native table becomes an anonymous extra row.
      Block tables need clearance; collapsed native tables ignore this padding. */
-  :where(:root, .lf-thread-transcript) table {
+  :where(:root, .lf-thread-transcript)
+    table:not(:where([data-style="own"], [data-style="own"] *)) {
     padding-block-end: var(--lf-text-scroll-clearance);
   }
 }
@@ -112,7 +123,8 @@
    naming that box here would tie on specificity and lose on source order, and `@media`
    contributes nothing to break the tie. */
 @media print {
-  :where(:root, .lf-thread-transcript) pre {
+  :where(:root, .lf-thread-transcript)
+    pre:not(:where([data-style="own"], [data-style="own"] *)) {
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
@@ -165,7 +177,8 @@
  * widens a grid to its caption.
  *
  * It is the inline-size container its caption reads (100cqi). */
-:where(:root, .lf-thread-transcript) table {
+:where(:root, .lf-thread-transcript)
+  table:not(:where([data-style="own"], [data-style="own"] *)) {
   display: block;
   overflow: auto hidden;
   /* How far anything in a cell draws outside its box: a focus ring, or a capture's
@@ -174,14 +187,17 @@
   --lf-table-edge: max(var(--focus-ring-room), var(--raise-1-blur));
   container-type: inline-size;
 }
-:where(:root, .lf-thread-transcript) table > * {
+:where(:root, .lf-thread-transcript)
+  table:not(:where([data-style="own"], [data-style="own"] *))
+  > * {
   --lf-top: 0px;
 }
 /* The caption stands inside the box that scrolls the columns, at the columns' full
    width, so on a narrow window it ran past the scrollport and read "What the final
    revision demonstrates and what rem…". It keeps to the part of the table on screen
    (the table is its own inline-size container) and stays there as the columns scroll. */
-:where(:root, .lf-thread-transcript) caption {
+:where(:root, .lf-thread-transcript)
+  caption:not(:where([data-style="own"], [data-style="own"] *)) {
   position: sticky;
   --lf-head-inset: 0px;
   inset-inline: 0;
@@ -194,7 +210,8 @@
  * side on the table's edge. Room outside the table would have to come from a negative
  * margin, which overflows any scroller holding the table flush, as an x-bound box
  * does. */
-:where(:root, .lf-thread-transcript) :is(th, td) {
+:where(:root, .lf-thread-transcript)
+  :is(th, td):not(:where([data-style="own"], [data-style="own"] *)) {
   outline-offset: var(--focus-ring-inset);
 }
 

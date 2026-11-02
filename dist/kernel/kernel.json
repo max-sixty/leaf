@@ -225,7 +225,7 @@
     "runtime/stylesheets.js": "b69d522bae54e8ec6e7972da664302741d42220bb3ab22bda980db9babde4bdb",
     "runtime/syntax-languages.js": "13f24d02ff634d2c84400b12b28952256cc4dd79479f0d6948b979343bfd78df",
     "runtime/syntax-tokens.js": "fbefc2d948ff6ab77ee2a74fe5e04e0c5a0bbc513680aba889d132478ba0b9b5",
-    "runtime/syntax.js": "4991e37b4454d035bea670648f99e7fe506f1c2eaa9ed1e30938103474ce535d",
+    "runtime/syntax.js": "80fd23b12d5d100301b3ed167065eb0e17b6120919a74d2502c119494bf233b2",
     "runtime/tab-store.js": "a290fcf97023d587200d0efe7bd5e122d4d79ca4b77a058af25174824ca9d6e6",
     "runtime/target-paint-geometry.js": "6ff1e936a319e0f52c0bce9ee3a94548974e2a6a67a09090bf5ab5cb37a02b67",
     "runtime/target-paint.js": "688cc68df474fbcedca4761d8c133a5f142cc052d1e72ccabec5f13378bc53dd",

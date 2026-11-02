@@ -2,9 +2,9 @@
 "Primitives, not a template").
 
 The corpus is `tests/fixtures/plain/`: standalone pages, each written as an author
-writes for the open web and showing a pattern the others don't, whose one
-Leaf-specific edit is that the body's content sits in one `main`. Each brings its own
-design, so each takes no theme, as `page-authoring.md`, "Style the page", tells such
+writes for the open web and showing a pattern the others don't. The body's content
+sits in one `main`; a page may mark native content `data-style="own"` to keep its
+table and code presentation. Each brings its own design, so each takes no theme, as `page-authoring.md`, "Style the page", tells such
 a page to: what the comparison holds is Leaf's core sheet and runtime, never the
 reading look a page takes by default. A new ordinary pattern gets a page of its own,
 as small as shows it. They stay out of the example

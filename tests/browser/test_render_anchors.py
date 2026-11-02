@@ -1814,6 +1814,53 @@ def test_code_copy_releases_only_its_own_scroll_stop(browser, serve):
     expect(pre).to_have_attribute("tabindex", "0")
 
 
+@pytest.mark.parametrize("own_root", ["section", "table", "pre"])
+def test_own_styling_keeps_native_content_and_comments(browser, serve, own_root):
+    """An authored styling boundary leaves tables and code alone, not unaddressable."""
+    own = ' data-style="own"'
+    section = own if own_root == "section" else ""
+    table = own if own_root == "table" else ""
+    pre = own if own_root == "pre" else ""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Own styling",
+                f'<section id="embedded"{section}>'
+                f'<table id="own-table" style="width:100%"{table}>'
+                "<tr><td>Short</td><td>Columns</td></tr></table>"
+                f'<pre id="own-pre"{pre}><code class="language-yaml">'
+                '<span id="own-token" style="color:rgb(160, 20, 80)">key</span>: value'
+                "</code></pre></section>"
+                '<pre id="leaf-pre"><code class="language-yaml">key: value</code></pre>',
+            ),
+            anchored=[("own-table", "Short")]
+            if own_root == "table"
+            else [("own-token", "key")],
+        ),
+    )
+    expect(page.locator("#leaf-pre code")).to_have_attribute("data-lf-syntax", "yaml")
+    if own_root != "pre":
+        assert (
+            page.locator("#own-table").evaluate("el => getComputedStyle(el).display")
+            == "table"
+        )
+    if own_root != "table":
+        assert page.locator("#own-token").count() == 1
+        assert (
+            page.locator("#own-token").evaluate("el => getComputedStyle(el).color")
+            == "rgb(160, 20, 80)"
+        )
+        assert (
+            page.locator("#own-pre").evaluate(
+                "el => getComputedStyle(el, '::after').content"
+            )
+            == "none"
+        )
+        assert page.locator("#own-pre code").get_attribute("data-lf-syntax") is None
+    assert page.evaluate("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
+
+
 def test_native_code_uses_the_bundled_grammars_language_aliases(browser, serve):
     """Markdown fence labels select the same colors as their full language names."""
     sources = {

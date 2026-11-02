@@ -298,6 +298,12 @@ def native_code(page: Page) -> None:
     page.locator("#bg-javascript-code").scroll_into_view_if_needed()
 
 
+def own_styling(page: Page) -> None:
+    """A full-width native table and code tokens with an authored presentation."""
+    native_code(page)
+    page.locator("#bg-own-styling-case").scroll_into_view_if_needed()
+
+
 def native_code_copy_hover(page: Page) -> None:
     """A document code block under the pointer, which shows its Copy on its border."""
     native_code(page)
@@ -2102,6 +2108,12 @@ STATES = (
         "developer/feature-gallery",
         native_code,
         region="#bg-javascript-code",
+    ),
+    State(
+        "own-styling",
+        "developer/feature-gallery",
+        own_styling,
+        region="#bg-own-styling-case",
     ),
     State(
         "native-code-copy-hover",

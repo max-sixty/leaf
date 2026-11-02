@@ -255,6 +255,9 @@ For a custom horizontal scroll area, set `overflow-x: auto` and add
 adds keyboard access and continuation cues when content exceeds the box. Its CSS may
 change overflow at a breakpoint; Leaf measures the declared surface, never all of its
 descendants. For a box that scrolls vertically, see `page-layout.md`, "Bounds and widths".
+A box that only clips, such as a card with rounded corners, takes `overflow: clip`.
+`overflow: hidden` makes it a scroller Leaf doesn't know, so a tab strip or other sticky
+header inside it can drop below its place and cover the content under it.
 
 Leaf scrolls a `<pre>` or table wider than its container and fits an image or SVG to
 it, whatever theme the page takes, so none needs a width. A table's columns size to

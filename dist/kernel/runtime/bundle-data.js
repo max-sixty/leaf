@@ -1,10 +1,11 @@
-import { CARET_KEYS, HOLDS_WORD, J, OUTPUT, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSES, RUNTIME_PAINT_ATTRIBUTE, SourcePairs, TEXT_BOX, TEXT_FIELD, W, WALK, Z, actionElement, actionTemplate, afterScript, aimedTop, alreadyShown, atScrollEnd, attachDeferredLoader, backgroundFlash, beginWalk, bindQueuedWork, blurFocused, cancelRender, caretAtKey, chosenSince, clippedContents, clippedPlace, closestAcross, currentLocationIn, currentLocationNodes, currentLocationTouches, d, dataBody, deepFocus, describeFailure, drawn as drawn$2, eventSource, fitsWhole, flashDuration, focusDestination, focused, foldBlock, frameFor, generatedElement, growthAfterIsSeen, growthIsSeen, headerInset, holdCurrentLocation, holdFocus, iconElement, inChrome, inUi, inWindowChrome, inlineStyle, inputCount, isElement, isHTML, keeps, keepsHidden, landedBox, landingBand, layoutChanged, layoutPx, listWalkPosition, measure, motion, motionPlays, move, moveScrollerBy, nativeLayerHolding, nextAnimation, nextFrame, nextRender, offer, offerAction, offered, offeredAction, offeredActionElement, onCurrentLocation, onLetGo, onPress, onPressAway, onUserInput, outputProducer, pagePresented, pageScroller, passOn, patchRetains, patchTree, placeBox, placeHolder, placeKept, plainPress, pointerAt, presented, readCaret, recentPlaceInput, refuseOutput, registrations, renderedOrder, renderedParent, renderedUnder, renderingState, restorePointer, restrictUserIntent, retainUserIntent, roomPx, scrollBehavior, scrollChoices, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollToEnd, scrollersOf, seenRect, selectsAll, setChildren, setRegistration, setScroll, shownBox, shownRect, shownWindow, showsContents, sizeObserver, skipped, slotTop, stopScroll, stuckBox, synNodes, syntax, syntaxLanguageNames, tabStore, takesLetters, textWidth, tick, typesText, under, union, upFrom, updateSurface, userScrollport, visibleBand, watchArrivals, watchOwner, whenNone, x } from "./bundle-portable.js";
+import { CARET_KEYS, HOLDS_WORD, J, OUTPUT, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSES, RUNTIME_PAINT_ATTRIBUTE, SourcePairs, TEXT_BOX, TEXT_FIELD, W, WALK, Z, actionElement, actionTemplate, afterScript, aimedTop, alreadyShown, atScrollEnd, attachDeferredLoader, backgroundFlash, beginWalk, bindQueuedWork, blurFocused, byRenderedOrder, cancelRender, caretAtKey, chosenSince, clippedContents, clippedPlace, closestAcross, currentLocationIn, currentLocationNodes, currentLocationTouches, d, dataBody, deepFocus, describeFailure, drawn as drawn$2, eventSource, fitsWhole, flashDuration, focusDestination, focused, foldBlock, frameFor, generatedElement, growthAfterIsSeen, growthIsSeen, headerInset, holdCurrentLocation, holdFocus, iconElement, inChrome, inUi, inWindowChrome, inlineStyle, inputCount, isElement, isHTML, keeps, keepsHidden, landedBox, landingBand, layoutChanged, layoutPx, listWalkPosition, measure, motion, motionPlays, move, moveScrollerBy, nativeLayerHolding, nextAnimation, nextFrame, nextRender, offer, offerAction, offered, offeredAction, offeredActionElement, onCurrentLocation, onLetGo, onPress, onPressAway, onUserInput, outputProducer, pagePresented, pageScroller, passOn, patchRetains, patchTree, placeBox, placeHolder, placeKept, plainPress, pointerAt, presented, readCaret, recentPlaceInput, refuseOutput, registrations, renderedOrder, renderedParent, renderedUnder, renderingState, restorePointer, restrictUserIntent, retainUserIntent, roomPx, scrollBehavior, scrollChoices, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollToEnd, scrollersOf, seenRect, selectsAll, setChildren, setRegistration, setScroll, shownBox, shownRect, shownWindow, showsContents, sizeObserver, skipped, slotTop, stopScroll, stuckBox, synNodes, syntax, syntaxLanguageNames, tabStore, takesLetters, textWidth, tick, typesText, under, union, upFrom, updateSurface, userScrollport, visibleBand, watchArrivals, watchOwner, whenNone, x } from "./bundle-portable.js";
 import { COLLAPSE, LIVE_ROOT, PENDING, PRESENTATION_DOM, PRESSABLE, TEXT_BLOCK, adoptRegistry, agentName, agentSays, announce, applicationPresenter, applicationState, ariaShortcuts, attachApplicationPresentation, authoredBody, bindings, buttonCommand, checked, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, decisionFor, declarationFor, declareCommandReadiness, declaresCommandHandler, descriptionOf, editable, el, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, hasObligationSource, holdStatus, holdingError, html, isElementName, isReaction, keyed, keys, labelOf, lastMovedAt, layerRoot, leafSays, live as live$1, live$1 as live, loadShadowRules, marks, messageKey, nothing, notice, obligationValue, offlineData, offlineInteractive, pageClaimed, pageRange, pageUrl, paintKeys, passErrorsAt, projectCommandScope, projectView, projectionOrigins, projectionRegionsPresented, pruneScopedElements, raiseError, readApplication, readPart, ref, registry, render as render$1, repaint, repeat, reveal, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, savedReadingSettled, seatRoot, selectEnds, selectionBackward, share, spell, tagsDeclaring, threadKey, threadNames, titleOf, tokenEntry, touchPresses as touchPresses$1, turns, voiced, watchCommandScopes, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented, word } from "./bundle-errors.js";
 import { LayerRefused, admitReading, admitResponse, randomId, reportPageError, requestJson, revealLayer, runtimeRootState, sameLayer, setRuntimeRootAttribute } from "./bundle-layer-client.js";
 import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableWord, addressedElements, ago, aimTargetAt, anchorBox, anchorForPassage, anchorForRange, anchorReading, anchorView, anchoringIsReady, chromeForeground, chromeRoot, claimReachStop, containingReadingRegionFor, cutFrames, datumAimTarget, datumLabel, effectiveScroller, followingItsEnd, fragmentTarget, headerLevels, isAddressable, leadingTitle, livePoint, nameAnchor, nameable, onReadingInput, pageReadingRegion, projectedDatum, reachScrollers, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, releaseReachStop, resolveAnchor, revealAddressed, scrollChainOf, scrollerFor, sectionLabel, sectionOf, settleDocumentLayout, shortAgo, shownRegionBounds, targetElement, targetPlace, targetSegments, unconcealedReadingRegions, visualPartLabel, watchReadingRegionTransitions } from "./bundle-content-layout.js";
 import { alignInlineText, alignText, authored, authoredScope, blockAt, elementById, fencePassageParts, labelWords, leafSurface, pageBlocks, pageDocument, pageQueryAll, pageText, pageWords, pointAt as pointAt$1, quoteFrom, rangeOf, readingFrom, renderRetired, segmentBlock, segmentsIn, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
 import { aborted, authoredStates, commitWidgetDescriptors, quoted, rememberAuthoredParents, stageAuthoredStates, stageWidgetDescriptors, widgetElement } from "./bundle-abort.js";
 import { isCanonicalMediaUrl, readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "./media.js";
+import { diffArrays } from "/vendor/jsdiff.esm.js";
 
 //#region runtime/obligations/model.js
 const readObligations = readPart((root) => root.effective.obligations);
@@ -8324,6 +8325,7 @@ const diffBase = Z(null);
 const comparisonGeneration = Z(0);
 const diffPendingBase = Z(null);
 const diffMarked = /* @__PURE__ */ new Set();
+let diffChanges = [];
 const diffWordsOf = /* @__PURE__ */ new Map();
 const inlineOpen = /* @__PURE__ */ new Map();
 let diffRequest = 0;
@@ -8371,7 +8373,7 @@ function diffBlocks(root) {
 		const binding = [...bindingAttrs].sort().map((attr) => [attr, w.getAttribute(attr)]);
 		pairs.push([w, ` ${w.tagName}#${w.id}${JSON.stringify(binding)}`]);
 	}
-	return pairs;
+	return pairs.sort(([a], [b]) => a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1);
 }
 async function baseReading(baseRevision, throughSeq) {
 	const params = new URLSearchParams({
@@ -8463,19 +8465,65 @@ function standingFor(block, current) {
 	}
 	return null;
 }
-function changedSince(base, current = currentSource()) {
+const MAX_BLOCK_EDITS = 1e3;
+const heldAnywhere = (before, after) => {
 	const held = /* @__PURE__ */ new Map();
-	for (const [, key] of diffBlocks(base.root)) held.set(key, (held.get(key) ?? 0) + 1);
-	const changed = /* @__PURE__ */ new Set();
-	for (const [block, key] of diffBlocks(current.root)) {
+	for (const key of before) held.set(key, (held.get(key) ?? 0) + 1);
+	return after.map(([, key]) => {
 		const left = held.get(key) ?? 0;
-		if (left > 0) held.set(key, left - 1);
-		else {
-			const standing = standingFor(block, current);
-			if (standing) changed.add(standing);
-		}
+		if (left) held.set(key, left - 1);
+		return {
+			value: [key],
+			added: !left,
+			removed: false
+		};
+	});
+};
+function changedSince(base, current = currentSource()) {
+	const before = diffBlocks(base.root).map(([, key]) => key);
+	const after = diffBlocks(current.root);
+	const parts = diffArrays(before, after.map(([, key]) => key), { maxEditLength: MAX_BLOCK_EDITS }) ?? heldAnywhere(before, after);
+	const removed = /* @__PURE__ */ new Map();
+	for (const part of parts) if (part.removed) for (const key of part.value) removed.set(key, (removed.get(key) ?? 0) + 1);
+	const changed = /* @__PURE__ */ new Set();
+	const kept = /* @__PURE__ */ new Set();
+	let next = 0;
+	for (const part of parts) {
+		if (part.removed) continue;
+		const blocks = after.slice(next, next += part.value.length).map(([block]) => standingFor(block, current));
+		part.value.forEach((key, i) => {
+			const block = blocks[i];
+			if (!block) return;
+			if (!part.added) kept.add(block);
+			else if (removed.get(key)) removed.set(key, (removed.get(key) ?? 0) - 1);
+			else changed.add(block);
+		});
 	}
-	return changed;
+	return {
+		changed,
+		kept
+	};
+}
+function viewOf(block, controls) {
+	for (let at = block; at; at = at.parentElement) {
+		if (at.localName === "details") return at;
+		const members = registry[at.parentElement?.localName ?? ""]?.["x-views"]?.members;
+		if (members && at.matches(members)) return at;
+		const control = at.id ? controls.get(at.id) : void 0;
+		if (control) return control;
+	}
+	return null;
+}
+function changeRuns(marked, kept) {
+	const runs = [];
+	let run = null;
+	const controls = /* @__PURE__ */ new Map();
+	for (const control of document.querySelectorAll("[aria-expanded][aria-controls]")) for (const id of (control.getAttribute("aria-controls") ?? "").split(/\s+/)) controls.set(id, control);
+	for (const node of byRenderedOrder([.../* @__PURE__ */ new Set([...marked, ...kept])], (n) => n)) if (marked.has(node)) {
+		if (run && viewOf(node, controls) === viewOf(run[0], controls)) run.push(node);
+		else runs.push(run = [node]);
+	} else if (!run?.some((block) => under(node, block))) run = null;
+	return runs.map((each) => Object.freeze(each));
 }
 function servedElements() {
 	const served = /* @__PURE__ */ new Set();
@@ -8509,7 +8557,8 @@ function applyDiff(doc, baseAuthored, baseRevision, baseReading) {
 	if (!source) throw new Error("A comparison revision must contain its authored document");
 	const base = paintedSource(source, baseWidgets);
 	const current = currentSource();
-	for (const block of changedSince(base, current)) mark(block);
+	const { changed, kept } = changedSince(base, current);
+	for (const block of changed) mark(block);
 	for (const [id, now] of readApplication().effective.widgets) {
 		const before = baseWidgets.get(id);
 		const widget = elementById(id);
@@ -8547,7 +8596,8 @@ function applyDiff(doc, baseAuthored, baseRevision, baseReading) {
 			is: is ? comparisonWords(is, opaque) : null
 		});
 	}
-	return diffMarked.size;
+	diffChanges = changeRuns(diffMarked, kept);
+	return diffChanges.length;
 }
 const inlineId = (target) => `lf-version-inline-${target.id}`;
 const authoredReading = (target) => {
@@ -8630,7 +8680,6 @@ function openInlineComparison(target, base, words) {
 	});
 	paintInlineInsertions();
 	layoutChanged(target);
-	return before === null ? `${base.name} had nothing here` : `showing an inline diff from ${base.name}`;
 }
 function closeInlineComparison(target) {
 	const entry = inlineOpen.get(target);
@@ -8647,24 +8696,34 @@ function inlineReading(target) {
 		words
 	} : null;
 }
-const inlineComparison = (target) => {
-	const reading = inlineReading(target);
-	return reading ? {
-		id: inlineId(target),
-		open: inlineOpen.has(target),
-		offer: `${reading.base.name} → ${currentVersionToken()}`
+const inlineComparison = (change) => {
+	const base = diffOn.value ? diffBase.value : null;
+	const blocks = change.filter((block) => inlineReading(block));
+	return base && blocks.length ? {
+		id: blocks.map(inlineId).join(" "),
+		open: blocks.every((block) => inlineOpen.has(block)),
+		offer: `${base.name} → ${currentVersionToken()}`
 	} : null;
 };
-function toggleInlineComparison(target) {
-	const reading = inlineReading(target);
-	if (!reading) return null;
-	let said;
-	if (inlineOpen.has(target)) {
-		closeInlineComparison(target);
-		said = `inline diff from ${reading.base.name} hidden`;
-	} else said = openInlineComparison(target, reading.base, reading.words);
+function toggleInlineComparison(change) {
+	const readings = change.flatMap((block) => {
+		const reading = inlineReading(block);
+		return reading ? [{
+			block,
+			...reading
+		}] : [];
+	});
+	const [first] = readings;
+	if (!first) return null;
+	const opening = !readings.every(({ block }) => inlineOpen.has(block));
+	for (const { block, base, words } of readings) if (inlineOpen.has(block) !== opening) {
+		if (opening) openInlineComparison(block, base, words);
+		else closeInlineComparison(block);
+	}
 	tick(comparisonGeneration);
-	return said;
+	const { name } = first.base;
+	if (!opening) return `inline diff from ${name} hidden`;
+	return readings.some(({ words }) => words.was !== null) ? `showing an inline diff from ${name}` : `${name} had nothing here`;
 }
 const comparable = (revision) => runtime.currentRevision !== null && revision < runtime.currentRevision;
 function setDiff(on, base = null, pendingBase = null) {
@@ -8678,6 +8737,7 @@ function setDiff(on, base = null, pendingBase = null) {
 			diffWordsOf.clear();
 			for (const b of diffMarked) b.classList.remove("lf-ins-block");
 			diffMarked.clear();
+			diffChanges = [];
 		}
 		tick(comparisonGeneration);
 	});
@@ -8713,7 +8773,7 @@ async function showComparison(base) {
 	if (mine !== diffRequest) return;
 	const n = applyDiff(doc, baseAuthored, base, reading);
 	setDiff(true, base);
-	notice(n ? `${n} changed passage${n === 1 ? "" : "s"} since ${base.name}` : `No text changes since ${base.name}`);
+	notice(n ? `${n} change${n === 1 ? "" : "s"} since ${base.name}` : `No text changes since ${base.name}`);
 }
 const pressComparison = (version) => {
 	if (version === null) return;
@@ -8725,8 +8785,12 @@ const comparisonBase = () => diffOn.value ? diffBase.value : null;
 const selectedBase = () => diffPendingBase.value ?? comparisonBase();
 function comparisonChanges(owner = null) {
 	comparisonGeneration.value;
-	const changes = diffOn.value ? [...diffMarked] : [];
-	return owner ? changes.filter((block) => block !== owner && under(block, owner)) : changes;
+	const changes = diffOn.value ? diffChanges : [];
+	if (!owner) return changes;
+	return changes.flatMap((change) => {
+		const [first, ...rest] = change.filter((block) => block !== owner && under(block, owner));
+		return first ? [Object.freeze([first, ...rest])] : [];
+	});
 }
 async function authoredDocument(url) {
 	const response = await fetch(url);
@@ -9010,7 +9074,7 @@ function createVersionController({ initialDocument, compositionInput, openThread
 				}
 				if (comparedFrom !== null) showComparison(comparedFrom);
 				const outgoingSource = paintedSource(outgoing, readApplication().effective.widgets);
-				for (const block of changedSince(outgoingSource)) backgroundFlash(block, flashDuration());
+				for (const block of changedSince(outgoingSource).changed) backgroundFlash(block, flashDuration());
 				notice(`Updated to ${target.label}`, { background: true });
 			})
 		};

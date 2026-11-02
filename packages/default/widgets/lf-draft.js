@@ -140,12 +140,13 @@ function caretAt(body, x, y) {
 customElements.define(
   "lf-draft",
   class extends LeafElement {
-    // What the obligation was answered with: the current words.
+    // What the obligation was answered with: the current words, read as the body
+    // draws them, as a Markdown file.
     /** @param {unknown} value */
     static answerWords(value) {
       if (typeof value !== "string")
         throw new Error("A draft answer must be Markdown text");
-      return markdownWords(value).trim() || "Empty";
+      return markdownWords(value, false).trim() || "Empty";
     }
 
     get #savedText() {

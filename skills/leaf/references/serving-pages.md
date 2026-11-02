@@ -143,6 +143,6 @@ names the file's other owners.
 
 ## Temporary test servers
 
-`server run --lifetime temporary` serves on loopback until its foreground command exits, with
-its own key and no claim. It can't be revived and delivers no browser events to an
-agent. Use it for browser tests.
+`server run --lifetime temporary` serves on loopback until it is interrupted or the process
+that ran it exits, with its own key and no claim. It can't be revived and delivers no
+browser events to an agent. Use it for browser tests.

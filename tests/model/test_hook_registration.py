@@ -155,6 +155,18 @@ def _registered_hook_command(harness, event):
     return hook["command"]
 
 
+def test_claude_code_runs_the_start_hook_only_after_a_compaction():
+    """Outside a compaction, Leaf's start hook adds only a reconnect notice, which
+    the prompt hook hands the same first turn, while Claude Code holds a resumed
+    session's first reply until its start hooks end. After a compaction it tells
+    the agent to read the leaf skill again (`hooks.reload_skill`) before it
+    replies, which nothing else does."""
+    [registration] = _registrations("claude-code")["SessionStart"]
+    assert registration["matcher"] == "compact"
+    [hook] = registration["hooks"]
+    assert not hook.get("async")
+
+
 def _registered_hook_arguments(harness, event):
     """The `leaf` arguments the synchronous registration for this event passes."""
     words = shlex.split(_registered_hook_command(harness, event))
@@ -720,10 +732,12 @@ print(json.dumps(imported))
         assert [module for module in heavy if module in loaded] == []
 
 
-def test_a_claimed_hook_imports_no_css_script_or_watch_parser():
-    """The claimed hook reads the page and validates its events, so it needs the schema
-    validators, but not what only capture, vendoring and a watch
-    use. Their imports cost tens of milliseconds at every tool boundary."""
+def test_the_hook_transport_imports_no_page_model():
+    """Claude Code runs the tool-boundary hook before every model call, and one with
+    nothing new reads only its pages' logs (`hook_transport.new_input`). So the hook
+    transport loads the schema validators, the HTML, Markdown, CSS and script
+    parsers and the file watcher only where a hook reads a page, vendors it or
+    watches it; each costs tens of milliseconds at every start."""
     probe = (
         "import sys, json, leaf.hook_transport; print(json.dumps(sorted(sys.modules)))"
     )
@@ -735,7 +749,14 @@ def test_a_claimed_hook_imports_no_css_script_or_watch_parser():
         check=True,
     )
     loaded = set(json.loads(done.stdout))
-    assert {"tinycss2", "tree_sitter", "watchfiles"} & loaded == set()
+    assert {
+        "jsonschema",
+        "markdown_it",
+        "tinycss2",
+        "tree_sitter",
+        "turbohtml",
+        "watchfiles",
+    } & loaded == set()
 
 
 @pytest.mark.parametrize(

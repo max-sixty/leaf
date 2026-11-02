@@ -766,9 +766,10 @@ export class ThreadView {
   // The room is the notice's width and the narrowest head's spare width together,
   // which the two tracks trade one for one, so drawing the notice at it changes nothing
   // it was read from. A notice at a finger's floor can still leave a head short, and
-  // the head then gives up, in order, its controls' room, its time and its name
-  // (annotation-chrome.css): where less than an em of the name would show, none does
-  // (`data-lf-nameless`), so no sliver of a letter or an ellipsis stands in the head.
+  // the head then gives up its parts in their order (surfaces.css): where a name is cut
+  // to less than an em, none of it shows (`data-lf-nameless`), so no sliver of a letter
+  // or an ellipsis stands in the head. The fit reads what of each name the notice
+  // leaves as drawn, and a hidden name keeps its box, so the reading holds.
   #fitMarginNews() {
     const notice = this.#news.node;
     const heads = [];
@@ -779,14 +780,11 @@ export class ThreadView {
       const style = getComputedStyle(head);
       const name = head.querySelector(":scope > b");
       const time = head.querySelector(":scope > .lf-msg-meta > time");
-      // The controls' room is as wide as their group, and the head lends it to its
-      // words unless it is held whole (controls.css).
-      const room = head.querySelector(":scope > .lf-msg-control-room");
+      // The controls' room is as wide as their group (controls.css).
       const controls =
-        room?.querySelector(":scope > .lf-msg-controls")?.getBoundingClientRect()
-          .width ?? 0;
-      const held =
-        room && getComputedStyle(room).minInlineSize !== "0px" ? controls : 0;
+        head
+          .querySelector(":scope > .lf-msg-control-room > .lf-msg-controls")
+          ?.getBoundingClientRect().width ?? 0;
       const need =
         parseFloat(style.paddingInlineStart) +
         parseFloat(style.paddingInlineEnd) +
@@ -794,14 +792,7 @@ export class ThreadView {
         wordsWidth(name) +
         (name && time ? parseFloat(style.columnGap) : 0) +
         wordsWidth(time);
-      heads.push({
-        name,
-        need,
-        spare: head.getBoundingClientRect().width - need,
-        // What the head gives up before its name: its time, and its controls' room
-        // where that isn't held whole.
-        yields: controls - held + wordsWidth(time),
-      });
+      heads.push({ name, spare: head.getBoundingClientRect().width - need });
     }
     if (!heads.length || !notice.isConnected) {
       this.#clearMarginNews();
@@ -810,16 +801,15 @@ export class ThreadView {
     const width = notice.getBoundingClientRect().width;
     const spare = Math.min(...heads.map((head) => head.spare));
     notice.style.setProperty("--lf-news-room", roomPx(Math.max(0, width + spare)));
-    const taken = notice.getBoundingClientRect().width - width;
-    for (const { name, spare, yields } of heads) {
-      if (!name) continue;
-      const shown = wordsWidth(name) + Math.min(0, spare - taken + yields);
-      keeps(
-        name,
-        "data-lf-nameless",
-        shown < parseFloat(getComputedStyle(name).fontSize) ? "" : null,
-      );
-    }
+    const nameless = heads.map(
+      ({ name }) =>
+        !!name &&
+        name.scrollWidth > name.clientWidth &&
+        name.clientWidth < parseFloat(getComputedStyle(name).fontSize),
+    );
+    heads.forEach(({ name }, at) => {
+      if (name) keeps(name, "data-lf-nameless", nameless[at] ? "" : null);
+    });
   }
 
   // A render fits it again, and a head's time changes size while news waits as it

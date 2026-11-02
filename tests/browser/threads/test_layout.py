@@ -134,10 +134,10 @@ def test_a_later_message_copies_its_markdown_from_the_card_s_edge(browser, serve
     page = open_page(browser, url, context=context)
     page.locator(".lf-margin-marker").first.click()
     card = page.locator(".lf-margin-preview .lf-page-thread")
-    reply = card.locator(".lf-msg.agent")
+    reply = card.locator(".lf-msg[data-lf-author=agent]")
     # A press leaves focus on the first message's Copy, and its controls still leave
     # with the pointer. While they show, a rule parts them from the thread's actions.
-    first = card.locator(".lf-msg.user")
+    first = card.locator(".lf-msg[data-lf-author=user]")
     first.hover()
     first.locator(".lf-msg-copy").click()
     shown = """message => { const controls = message.querySelector('.lf-msg-controls');
@@ -158,7 +158,7 @@ def test_a_later_message_copies_its_markdown_from_the_card_s_edge(browser, serve
     rendered(page)
     edges = card.evaluate(
         """card => ({
-          copy: card.querySelector('.lf-msg.agent .lf-msg-copy').getBoundingClientRect().right,
+          copy: card.querySelector('.lf-msg[data-lf-author=agent] .lf-msg-copy').getBoundingClientRect().right,
           close: card.closest('.lf-margin-preview').querySelector('.lf-margin-preview-close')
             .getBoundingClientRect().right,
         })"""
@@ -203,7 +203,7 @@ def test_a_head_s_words_take_its_controls_room_while_they_hide(browser, serve):
     context = browser.new_context(viewport={"width": 1440, "height": 900})
     page = open_page(browser, url, context=context)
     page.locator(".lf-margin-marker").first.click()
-    message = page.locator(".lf-margin-preview .lf-msg.user").first
+    message = page.locator(".lf-margin-preview .lf-msg[data-lf-author=user]").first
     expect(message.locator(".lf-msg-sending")).to_contain_text("Queued")
     page.mouse.move(0, 0)
     rendered(page)
@@ -219,6 +219,59 @@ def test_a_head_s_words_take_its_controls_room_while_they_hide(browser, serve):
     )
     assert offered["controls"] < offered["end"], offered
     assert offered["receiptSeen"] is False, offered
+
+
+# A head's parts, in the order their shrink weights give, each one's least width (its
+# minimum, or its padding and border where it sizes its border box), and each one's
+# width as the head narrows from far wider than its words to nothing.
+SQUEEZED_HEAD = """head => {
+  const meta = head.querySelector(':scope > .lf-msg-meta');
+  const parts = [];
+  for (const node of [...head.children, ...meta.children])
+    if (node !== meta && getComputedStyle(node).position !== 'absolute')
+      parts.push({ name: node.classList[0] ?? node.localName, node });
+  const style = (part) => getComputedStyle(part.node);
+  parts.sort((a, b) => style(b).flexShrink - style(a).flexShrink);
+  const least = parts.map((part) => {
+    const box = style(part);
+    const edges = ['paddingLeft', 'paddingRight', 'borderLeftWidth', 'borderRightWidth']
+      .reduce((sum, side) => sum + parseFloat(box[side]), 0);
+    return Math.max(parseFloat(box.minWidth) || 0, box.boxSizing === 'border-box' ? edges : 0);
+  });
+  const steps = [];
+  for (let width = 2000; width >= 0; width -= width > 400 ? 1600 : 1) {
+    head.style.inlineSize = `${width}px`;
+    steps.push(parts.map((part) => parseFloat(style(part).width)));
+  }
+  return { parts: parts.map((part) => part.name), least, steps };
+}"""
+
+
+def test_a_squeezed_head_gives_up_one_part_at_a_time(browser, serve):
+    """A head too narrow for its words gives up its parts one at a time, in the order
+    the user chose (surfaces.css): its controls' room, its receipt, its time and its
+    name. No part is cut while one before it still has room to give, so a squeezed head
+    never reads "Me ju… · Que…", and each gives all it can before the head reaches
+    nothing. The user's queued message holds each part."""
+    url = serve(PANEL_PAGE)
+    panel_comment(serve.page_dir, "Can it wait?", {"section": "lede"})
+    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-margin-marker").first.click()
+    head = page.locator(
+        ".lf-margin-preview .lf-msg[data-lf-author=user] > .lf-msg-head"
+    ).first
+    expect(head.locator(".lf-msg-sending")).to_contain_text("Queued")
+    squeeze = head.evaluate(SQUEEZED_HEAD)
+    parts, least, steps = squeeze["parts"], squeeze["least"], squeeze["steps"]
+    assert parts == ["lf-msg-control-room", "lf-msg-sending", "time", "b"], parts
+    whole = steps[0]
+    assert steps[-1] == pytest.approx(least, abs=0.05), (parts, least, steps[-1])
+    for widths in steps:
+        for at in range(len(parts)):
+            if widths[at] < whole[at] - 0.05:
+                given = [widths[part] <= least[part] + 0.05 for part in range(at)]
+                assert all(given), (parts, widths)
 
 
 def test_a_margin_message_copy_keeps_its_edge_when_send_motion_ends(browser, serve):
@@ -241,7 +294,7 @@ def test_a_margin_message_copy_keeps_its_edge_when_send_motion_ends(browser, ser
         holding(page, pending, 1, "the margin reply")
         page.wait_for_function(
             """() => __lfHeld.some(a => a.playState !== 'idle' &&
-              a.effect.target.matches('.lf-msg.agent') &&
+              a.effect.target.matches('.lf-msg[data-lf-author=agent]') &&
               a.effect.getKeyframes().some(k => '--lf-box-carry' in k))"""
         )
         page.evaluate(
@@ -249,7 +302,7 @@ def test_a_margin_message_copy_keeps_its_edge_when_send_motion_ends(browser, ser
               a.currentTime = a.effect.getComputedTiming().endTime - 0.01;
             })"""
         )
-        message = page.locator(".lf-margin-preview .lf-msg.agent")
+        message = page.locator(".lf-margin-preview .lf-msg[data-lf-author=agent]")
         edges = """m => {
           const box = m.getBoundingClientRect();
           const copy = m.querySelector('.lf-msg-copy').getBoundingClientRect();
@@ -348,7 +401,10 @@ def test_the_user_s_words_end_where_the_agent_s_do(browser, serve, surface):
         thread = open_panel_thread(page, root)
     else:
         thread = page.locator("#cd-q .lf-page-thread").first
-    user, agent = thread.locator(".lf-msg.user"), thread.locator(".lf-msg.agent")
+    user, agent = (
+        thread.locator(".lf-msg[data-lf-author=user]"),
+        thread.locator(".lf-msg[data-lf-author=agent]"),
+    )
     expect(agent).to_contain_text("Check that these")
     rendered(page)
     mine, theirs = user.evaluate(WORDS_END), agent.evaluate(WORDS_END)
@@ -390,7 +446,7 @@ def test_opening_message_reactions_does_not_reflow_the_thread(browser, serve):
     )
     page = open_page(browser, url)
     view = open_panel_thread(page, first)
-    card = view.locator(".lf-msg.agent")
+    card = view.locator(".lf-msg[data-lf-author=agent]")
     neighbor = view.locator(".lf-msg").last
     trigger = card.locator(".lf-react-trigger")
     assert trigger.evaluate("b => getComputedStyle(b).backgroundColor") == (

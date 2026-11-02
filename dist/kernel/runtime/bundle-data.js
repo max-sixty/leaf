@@ -19,7 +19,7 @@ let render = escapedSource;
 let renderInline = escapedSource;
 let tokenize = null;
 let ready;
-const renderMarkdown = (text, breaks = true) => render(text, breaks);
+const renderMarkdown = (text, message = true) => render(text, message);
 function renderedWords(html, imageAlt = false) {
 	const parsed = document.createElement("template");
 	parsed.innerHTML = html;
@@ -31,10 +31,10 @@ function fragmentWords(fragment, imageAlt = false) {
 	return fragment.textContent;
 }
 const markdownWords = (text) => renderedWords(renderMarkdown(text));
-const renderInlineMarkdown = (text, breaks = true) => renderInline(text, breaks);
-function inlineMarkdownFragment(text, breaks = true) {
+const renderInlineMarkdown = (text, message = true) => renderInline(text, message);
+function inlineMarkdownFragment(text, message = true) {
 	const parsed = document.createElement("template");
-	parsed.innerHTML = renderInlineMarkdown(text, breaks);
+	parsed.innerHTML = renderInlineMarkdown(text, message);
 	return parsed.content;
 }
 async function loadDeclaredMarkdown(scope) {
@@ -106,8 +106,8 @@ const hasSourceSpan = (token) => token.lfSource?.source !== void 0;
 const isBeforeLinkifiedInline = (token) => token.type === "inline";
 const isBeforeJoinedInline = (token) => token.type === "inline";
 const isBlockPlacement = (placed, type) => placed.token.type === type;
-function placedMarkdownTokens(source) {
-	const tokens = markdownTokens(source);
+function placedMarkdownTokens(source, message = true) {
+	const tokens = markdownTokens(source, message);
 	if (!tokens) return [];
 	const starts = [0];
 	for (let at = 0; at < source.length; at++) {
@@ -188,7 +188,7 @@ function markdownSourceOffset(body, node, offset) {
 	if (source === void 0) return null;
 	let shownAt = 0;
 	let sourceEnd = 0;
-	for (const placed of placedMarkdownTokens(source)) {
+	for (const placed of placedMarkdownTokens(source, false)) {
 		const { token, from, to } = placed;
 		if (token.nesting) continue;
 		const words = placed.words;
@@ -235,7 +235,7 @@ function renderedElement(markup, tag) {
 	if (!element || element.localName !== tag) throw new Error(`leaf: Markdown renderer did not produce its ${tag} element`);
 	return element;
 }
-const markdownTokens = (text) => tokenize?.(text) ?? null;
+const markdownTokens = (text, message) => tokenize?.(text, message) ?? null;
 function sourcePositions(markdown) {
 	const NativeState = markdown.inline.State;
 	markdown.inline.State = class extends NativeState {
@@ -420,13 +420,18 @@ function sourcePositions(markdown) {
 		}
 	});
 }
-const BLOCK_LEAVES = /* @__PURE__ */ new Set(["fence", "hr"]);
-function makeMarkdown(module, breaks) {
+const BLOCK_LEAVES = /* @__PURE__ */ new Set([
+	"fence",
+	"code_block",
+	"hr"
+]);
+function makeMarkdown(module, message) {
 	const markdown = new module.MarkdownIt({
 		html: false,
-		breaks,
+		breaks: message,
 		linkify: true
-	}).disable(["lheading", "code"]).use(module.taskLists, { enabled: false });
+	}).use(module.taskLists, { enabled: false });
+	if (message) markdown.disable(["lheading", "code"]);
 	markdown.linkify.set({ fuzzyLink: false });
 	markdown.core.ruler.after("block", "blank_lines", (state) => {
 		const lines = state.src.split("\n");
@@ -506,17 +511,19 @@ function makeMarkdown(module, breaks) {
 function loadMarkdown(onError = null) {
 	const attempt = ready ??= import("/vendor/markdown-it.esm.js").then((module) => {
 		const markdown = makeMarkdown(module, true);
-		let softBreaks;
-		let positioned;
-		const dialect = (breaks) => breaks ? markdown : softBreaks ??= makeMarkdown(module, false);
-		render = (text, breaks) => dialect(breaks).render(text);
-		renderInline = (text, breaks) => dialect(breaks).renderInline(text);
-		tokenize = (text) => {
-			if (!positioned) {
-				positioned = makeMarkdown(module, true);
-				sourcePositions(positioned);
+		let file;
+		const dialect = (message) => message ? markdown : file ??= makeMarkdown(module, false);
+		render = (text, message) => dialect(message).render(text);
+		renderInline = (text, message) => dialect(message).renderInline(text);
+		const positioned = /* @__PURE__ */ new Map();
+		tokenize = (text, message) => {
+			let parser = positioned.get(message);
+			if (!parser) {
+				parser = makeMarkdown(module, message);
+				sourcePositions(parser);
+				positioned.set(message, parser);
 			}
-			return positioned.parse(text, {});
+			return parser.parse(text, {});
 		};
 	});
 	return attempt.then(() => true).catch((error) => {

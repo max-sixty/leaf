@@ -4,7 +4,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from leaf.findings import Finding, element_at
-from leaf.passages import block_markdown
+from leaf.passages import markdown_dialect
 from leaf.schema import MEDIA_DIR, SERVED_PATH
 from leaf.structure import (
     AUTHORED_ALLOCATIONS,
@@ -225,7 +225,7 @@ def text_media_errors(text: str, page_dir: Path) -> list[Finding]:
     and unused definitions as text, so neither asks for a file the page will not load."""
     refs = {
         url
-        for token in block_markdown().parse(text)
+        for token in markdown_dialect(True).parse(text)
         for child in token.children or ()
         if child.type in {"link_open", "image"}
         if (url := child.attrGet("href" if child.type == "link_open" else "src"))

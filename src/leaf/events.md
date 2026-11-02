@@ -83,7 +83,8 @@ and the anchor moves that depend on it land together.
 
 The user may withdraw a resolve, unresolve, action, or Done on a to-do (the
 kinds `$events.kinds` marks `undoable`), and a reaction while nothing has answered it
-and its thread is unresolved. Spoken messages cannot be withdrawn. An undo cannot
+and its thread is unresolved. Spoken messages cannot be withdrawn; their writer deletes
+one by rewriting it to no words, which leaves it in place ("Messages"). An undo cannot
 itself be undone. The door refuses an `undoes` naming anything but an unwithdrawn
 gesture of the user's own (`events.UndoReading`).
 
@@ -321,6 +322,11 @@ to-do is made from an obligation.
   message already says is refused. A browser's edit names its `base`, the id of the
   message or of its latest edit, and lands only while that is still the latest, so a
   tab cannot silently replace words another tab has since rewritten.
+- An `edit` whose `text` is empty deletes the message. Readings keep it in its place,
+  with empty `text` and `edited.was` holding what it said, since answers to it still
+  stand and name it; the browser draws it as Deleted, and offers no rewrite of it.
+  A user's deletion is a turn like any edit, and its answer says what the deletion
+  changes. A message carrying a drawing keeps the drawing.
 - An agent's `edit` corrects its words and hands nothing over. A user's `edit` is a
   turn of its own (`events.build_threads`, `revisions`): it reopens a resolved thread
   and is owed an answer, which names the edit as `responds` and the rewritten message

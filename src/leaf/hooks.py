@@ -56,7 +56,9 @@ Session-start and prompt hooks also inspect retained claims for disconnected pag
 (`reconnect`), including inactive ownership. That notice does not reclaim a
 page or reopen a turn at SessionStart, and it persists across session generations.
 A SessionStart after a compaction also has an agent holding a page read the leaf
-skill again (`reload_skill`).
+skill again (`reload_skill`). Claude Code runs Leaf's start hook only after a
+compaction (`hooks.json`): a resumed session's first reply waits for its start
+hooks, and the prompt hook hands that same turn the reconnect notice.
 
 Each harness's registrations name it (`--harness`) and its payload names the
 session; `harness.hook_harness` says why neither comes from the environment. A

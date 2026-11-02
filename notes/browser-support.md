@@ -537,10 +537,12 @@ stretch. On 2026-11-02, before a long text document's runs were sized to their l
 `t` to line 11,000 of a 1 MB wrapped text reported the line 214 px into its listing,
 while `elementFromPoint` there found line 11,041, the box showed line 11,035 onwards
 with no comment mark, and the run was still skipped 1.5 s later. Setting the run
-`content-visibility: visible` drew line 11,000 where it was reported. Runs are now
-sized to the lines their rows fill (`lf-text-document.js`, `sizeRuns`), so the estimate
-matches the drawn height and the run under the landing is the one drawn: the hit-test
-finds the line in Chromium and Firefox.
+`content-visibility: visible` drew line 11,000 where it was reported. So travel draws
+the box it lands in for the jump and releases it two frames later (`anchor-travel.js`,
+`drawForLanding`), and the hit-test finds the line because its run is drawn. Runs are
+sized to the lines their rows fill (`lf-text-document.js`, `sizeRuns`), but long
+tokens, which Firefox also breaks after a slash, fill more lines than that: with the
+run left skipped, a jump past them stopped 104 px short and a second scroll followed.
 `test_a_long_text_document_draws_the_lines_in_view_and_keeps_the_rest_whole` covers it
-in both. To recheck, size every run at a line a row and travel to a wrapped line in
+in both engines. To recheck, drop `drawForLanding` and travel past long tokens in
 Firefox.

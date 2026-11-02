@@ -7999,18 +7999,34 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 		}
 		return arrived;
 	}
-	const inSkippableBox = (at) => {
-		for (let box = placeHolder(at); box; box = renderedParent(box)) if (getComputedStyle(box).contentVisibility === "auto") return true;
-		return false;
+	const skippableBox = (at) => {
+		for (let box = placeHolder(at); box; box = renderedParent(box)) if (getComputedStyle(box).contentVisibility === "auto") return box;
+		return null;
 	};
+	const drawnForLanding = /* @__PURE__ */ new Map();
+	function drawForLanding(box) {
+		if (!(box instanceof HTMLElement) || drawnForLanding.has(box)) return;
+		drawnForLanding.set(box, box.style.getPropertyValue("content-visibility"));
+		box.style.setProperty("content-visibility", "visible");
+		nextFrame(() => nextFrame(() => {
+			const before = drawnForLanding.get(box);
+			drawnForLanding.delete(box);
+			if (before) box.style.setProperty("content-visibility", before);
+			else box.style.removeProperty("content-visibility");
+		}));
+	}
 	function placeScroll({ at, align = at, block = "center", behavior = scrollBehavior(), when }, replacedView) {
 		if (when && !when()) return;
 		if (block === "fragment") scrollToFragment(at);
-		else scrollIntoView(at, {
-			alignment: align,
-			behavior: replacedView || inSkippableBox(at) ? "instant" : behavior,
-			block
-		});
+		else {
+			const skippable = skippableBox(at);
+			if (skippable) drawForLanding(skippable);
+			scrollIntoView(at, {
+				alignment: align,
+				behavior: replacedView || skippable ? "instant" : behavior,
+				block
+			});
+		}
 	}
 	function scrollToElement(element, behavior = scrollBehavior(), block = "center") {
 		if (!element) return;

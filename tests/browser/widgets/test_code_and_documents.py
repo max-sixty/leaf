@@ -2,6 +2,7 @@
 switching a document between its rendered and source readings as its source changes."""
 
 import json
+from base64 import b64encode
 
 import pytest
 from playwright.sync_api import expect
@@ -724,10 +725,25 @@ def test_a_long_text_document_draws_the_lines_in_view_and_keeps_the_rest_whole(
     text. The lines out of view stay whole for the reader. The listing holds every
     line, its numbers stand in one column from the first run to the last, and a thread
     on a line far down jumps to the line drawn there. Each run is sized by the lines
-    its rows fill: sized a line a row, wrapped text left the travel thousands of pixels
-    short, and in Firefox over a run still skipped, where another line was drawn."""
+    its rows fill: sized a line a row, Firefox drew the far line's run for a returning
+    reader. A run drawn before the window narrows forgets the height it was drawn at:
+    kept, it left a drag to the bottom short of the last line in both engines. Long
+    tokens, which Firefox also breaks after a slash, fill more lines than the size
+    says, and the run the travel lands in is drawn for the jump: left skipped,
+    Firefox's jump stopped 104 px short and a second scroll followed."""
+    # Long tokens stand in every run but the last, which the drag to the bottom draws:
+    # Firefox draws more lines than the size says over them, and the drag would stop
+    # short, a limit Leaf accepts.
     text = "".join(
-        f"line {i} " + ("wrapping words " * 20 if i % 3 == 0 else "short") + "\n"
+        f"line {i} "
+        + (
+            b64encode(bytes((i * 31 + k * 101) % 256 for k in range(240))).decode()
+            if i % 7 == 0 and i <= 7 * 128
+            else "wrapping words " * 20
+            if i % 3 == 0
+            else "short"
+        )
+        + "\n"
         for i in range(1, 1001)
     )
     url = serve(
@@ -743,7 +759,7 @@ def test_a_long_text_document_draws_the_lines_in_view_and_keeps_the_rest_whole(
     expect(page.locator("#log .lf-text-document-run")).to_have_count(8)
     first, far = (
         page.locator('#log [data-line="1"]'),
-        page.locator('#log [data-line="900"]'),
+        page.locator('#log [data-line="880"]'),
     )
     # A run itself always has a box; the browser skips the lines inside it.
     drawn = "line => line.checkVisibility({contentVisibilityAuto: true})"
@@ -752,10 +768,32 @@ def test_a_long_text_document_draws_the_lines_in_view_and_keeps_the_rest_whole(
     left = "line => line.getBoundingClientRect().left"
     first_left = first.evaluate(left)
 
-    select_words(page, '#log [data-line="900"] span')
+    # The last run, drawn and then skipped, meets a narrower window.
+    pre, last = page.locator("#log pre"), page.locator('#log [data-line="1000"]')
+    width, height = page.viewport_size["width"], page.viewport_size["height"]
+    bottom = "pre => { pre.scrollTop = pre.scrollHeight; }"
+    for to, shown in ((bottom, "line"), ("pre => { pre.scrollTop = 0; }", "!line")):
+        pre.evaluate(to)
+        page.wait_for_function(
+            f"line => {shown}.checkVisibility({{contentVisibilityAuto: true}})",
+            arg=last.element_handle(),
+        )
+    resized(page, 560, height)
+    rendered(page)
+    pre.evaluate(bottom)
+    rendered(page)
+    below = last.evaluate(
+        "line => line.getBoundingClientRect().bottom"
+        " - line.closest('pre').getBoundingClientRect().bottom"
+    )
+    assert below <= 1
+    resized(page, width, height)
+    pre.evaluate("pre => { pre.scrollTop = 0; }")
+
+    select_words(page, '#log [data-line="880"] span')
     assert far.evaluate(left) == pytest.approx(first_left, abs=0.5)
     write(page.locator(".lf-composer leaf-text"), "Why does this line repeat?")
-    with sending(page, "the comment on line 900"):
+    with sending(page, "the comment on line 880"):
         page.keyboard.press("ControlOrMeta+Enter")
     # The open card keeps its passage's run drawn; a returning reader finds it skipped.
     page.reload()
@@ -777,7 +815,7 @@ def test_a_long_text_document_draws_the_lines_in_view_and_keeps_the_rest_whole(
               hit: hit?.closest('[data-line]')?.dataset.line ?? null,
               top: at.top - box.top};
     }""")
-    assert landed == {"shown": True, "hit": "900", "top": landed["top"]}, landed
+    assert landed == {"shown": True, "hit": "880", "top": landed["top"]}, landed
 
 
 def test_an_excerpt_shows_and_answers_to_its_source_line_numbers(browser, serve):

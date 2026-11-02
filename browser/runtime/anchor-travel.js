@@ -14,9 +14,10 @@
  * When the reveal replaces a visible view, the destination lands at once instead of
  * scrolling from the old view's position. A destination inside a box the browser
  * skips while it is out of view (`content-visibility: auto`), such as a run of a long
- * text document's lines, also lands at once: a glide across such a series draws each
- * box it passes, which took over two seconds on a long text, and lands only as well as
- * each box's estimated size matches its drawn one.
+ * text document's lines, also lands at once, since a glide across such a series draws
+ * each box it passes, which took over two seconds on a long text. The box holding the
+ * destination is drawn for the jump (`drawForLanding`), so the landing doesn't depend
+ * on how well the box's estimated size matches its drawn one.
  *
  * Travel gets the current threads and the synchronous thread refresh from the
  * application root, so geometry code never imports the presenter. A navigation step keeps the
@@ -57,6 +58,7 @@ import {
 } from "./geometry.js";
 import { scrollBehavior } from "./motion.js";
 import { renderedParent } from "./shadow-tree.js";
+import { nextFrame } from "./rendering.js";
 import {
   onReadingInput,
   scrollersOf,
@@ -520,16 +522,39 @@ export function createAnchorTravel({
   // not move with that region, so a fixed boundary ends the scrollers that move it
   // (`scrollersOf`); a scroller inside that boundary still owns its ordinary descendants.
 
-  // Whether `at` stands in a box the browser skips while it is out of view, read from
-  // the box's style rather than from whether it is skipped now: the boxes between it
-  // and the view can be skipped while its own is drawn, as naming the destination's
-  // anchor for its thread's card draws it.
+  // The box `at` stands in that the browser skips while it is out of view, or null,
+  // read from the box's style rather than from whether it is skipped now: the boxes
+  // between it and the view can be skipped while its own is drawn, as naming the
+  // destination's anchor for its thread's card draws it.
   /** @param {Element | Range} at */
-  const inSkippableBox = (at) => {
+  const skippableBox = (at) => {
     for (let box = placeHolder(at); box; box = renderedParent(box))
-      if (getComputedStyle(box).contentVisibility === "auto") return true;
-    return false;
+      if (getComputedStyle(box).contentVisibility === "auto") return box;
+    return null;
   };
+
+  // A skipped box takes its estimated size, so geometry read inside it, which the
+  // browser lays out to answer, can disagree with the stretch drawn where the jump
+  // lands; Firefox also keeps the box skipped until it meets the view at an update. On
+  // text that breaks other than as its estimate assumes, such as base64 in Firefox,
+  // that drew lines 26 past the destination. Drawn for the jump, the box lands where
+  // it is read; two frames later the browser has found it in view, and it is released.
+  /** @type {Map<HTMLElement, string>} */
+  const drawnForLanding = new Map();
+  /** @param {Element} box */
+  function drawForLanding(box) {
+    if (!(box instanceof HTMLElement) || drawnForLanding.has(box)) return;
+    drawnForLanding.set(box, box.style.getPropertyValue("content-visibility"));
+    box.style.setProperty("content-visibility", "visible");
+    nextFrame(() =>
+      nextFrame(() => {
+        const before = drawnForLanding.get(box);
+        drawnForLanding.delete(box);
+        if (before) box.style.setProperty("content-visibility", before);
+        else box.style.removeProperty("content-visibility");
+      }),
+    );
+  }
 
   /** @param {ScrollPlacement} place @param {boolean} replacedView */
   function placeScroll(
@@ -538,12 +563,15 @@ export function createAnchorTravel({
   ) {
     if (when && !when()) return;
     if (block === "fragment") scrollToFragment(at);
-    else
+    else {
+      const skippable = skippableBox(at);
+      if (skippable) drawForLanding(skippable);
       scrollIntoView(at, {
         alignment: align,
-        behavior: replacedView || inSkippableBox(at) ? "instant" : behavior,
+        behavior: replacedView || skippable ? "instant" : behavior,
         block,
       });
+    }
   }
 
   // Synchronous: the move is the caller's gesture, so its intent is the current one.

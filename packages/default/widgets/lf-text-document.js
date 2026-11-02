@@ -30,6 +30,7 @@ import {
   renderMarkdown,
   sizeObserver,
   textWidth,
+  nextFrame,
 } from "/runtime/widget-api.js";
 import { pierre, markSyntax } from "./pierre.js";
 
@@ -192,8 +193,21 @@ function rowLines(row, columns, tab) {
 // keeps its drawn height (`auto`). Estimated a line a row, wrapped text was thousands
 // of pixels short, and End, a drag to the bottom and travel to a line each stopped
 // short as the runs they passed took their real heights.
-/** @param {Element} code @param {readonly string[]} text @param {{columns: number, tab: number}} length */
-function sizeRuns(code, text, { columns, tab }) {
+//
+// A run drawn at an earlier line length holds the height it was drawn at while it is
+// skipped, whatever its size says: Chromium and Firefox both keep a skipped run's
+// remembered height until its style resolves with neither `auto` nor
+// `content-visibility: auto`, and a size written without `auto`, for any number of
+// frames, changed nothing. Narrowed from 718 to 460 px, the last run stood 1,700 px
+// short of its new height and End stopped short by as much. So when the line length
+// changes, each run the browser has `drawn` that is skipped now resolves its style
+// once as `hidden` without `auto`, which forgets its height, and takes both back
+// before anything is drawn. That resolution cost Firefox about 60 ms on a 4 MB text,
+// and 400 ms with every run resized, so it takes in only the forgetting runs.
+/** @param {Element} code @param {readonly string[]} text @param {{columns: number, tab: number}} length @param {WeakSet<Element>} [drawn] the runs drawn since they last forgot a height */
+function sizeRuns(code, text, { columns, tab }, drawn) {
+  /** @type {[HTMLElement, number][]} */
+  const resized = [];
   let line = 0;
   for (const run of code.children) {
     if (!(run instanceof HTMLElement)) continue;
@@ -204,10 +218,25 @@ function sizeRuns(code, text, { columns, tab }) {
       line++
     )
       lines += rowLines(text[line] ?? "", columns, tab);
-    const size = `auto ${lines}lh`;
-    if (run.style.containIntrinsicBlockSize !== size)
-      run.style.containIntrinsicBlockSize = size;
+    if (run.style.containIntrinsicBlockSize !== `auto ${lines}lh`)
+      resized.push([run, lines]);
   }
+  const forgetting = resized.filter(
+    ([run]) =>
+      drawn?.has(run) &&
+      run.lastElementChild?.firstElementChild?.checkVisibility({
+        contentVisibilityAuto: true,
+      }) === false,
+  );
+  for (const [run, lines] of forgetting) {
+    drawn?.delete(run);
+    run.style.contentVisibility = "hidden";
+    run.style.containIntrinsicBlockSize = `${lines}lh`;
+  }
+  for (const [run] of forgetting) getComputedStyle(run).contentVisibility;
+  for (const [run] of forgetting) run.style.removeProperty("content-visibility");
+  for (const [run, lines] of resized)
+    run.style.containIntrinsicBlockSize = `auto ${lines}lh`;
 }
 
 class TextDocument extends LeafElement {
@@ -225,8 +254,13 @@ class TextDocument extends LeafElement {
   /** @type {{columns: number, tab: number} | null} */
   lineLength = null;
   // A new width gives the listing's lines another length, and its runs another height.
-  // So can a new face, which shows where a drawn run changes height.
-  sizes = sizeObserver(() => this.refit());
+  // So can a new face, which shows where a drawn run changes height. The runs are
+  // sized again in the next frame, outside the observer's delivery: sized in it when
+  // Firefox's face arrived, they resized the code it watches, and Firefox reported the
+  // notification it couldn't deliver as an error.
+  sizes = sizeObserver(() => nextFrame(() => this.refit()));
+  // The runs the browser has drawn since they last forgot a height (`sizeRuns`).
+  drawn = new WeakSet();
   // Size the drawn runs again where the listing's line length changed.
   refit() {
     const code = this.sourceView?.code;
@@ -235,7 +269,7 @@ class TextDocument extends LeafElement {
     if (!length || (length.columns === last?.columns && length.tab === last.tab))
       return;
     this.lineLength = length;
-    sizeRuns(code, this.text, length);
+    sizeRuns(code, this.text, length, this.drawn);
   }
 
   setup() {
@@ -253,6 +287,15 @@ class TextDocument extends LeafElement {
 
   constructor() {
     super();
+    this.addEventListener(
+      "contentvisibilityautostatechange",
+      (event) => {
+        const { skipped, target } =
+          /** @type {ContentVisibilityAutoStateChangeEvent} */ (event);
+        if (!skipped && target instanceof Element) this.drawn.add(target);
+      },
+      { capture: true },
+    );
     /** @type {string | null} */
     this.value = null;
   }

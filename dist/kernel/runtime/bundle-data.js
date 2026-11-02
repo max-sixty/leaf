@@ -1923,7 +1923,7 @@ const LANGUAGE_CLASS = /(?:^|\s)language-([\w+.#-]+)(?=\s|$)/;
 const BLOCK = "pre > code[class]";
 const languageOf = (code) => {
 	const lang = code.getAttribute("class")?.match(LANGUAGE_CLASS)?.[1];
-	if (!lang) return void 0;
+	if (!lang || code.closest("[data-style=\"own\"]")) return void 0;
 	return Object.hasOwn(syntaxLanguageNames, lang) ? syntaxLanguageNames[lang] : void 0;
 };
 const tokenizing = /* @__PURE__ */ new WeakSet();

@@ -165,11 +165,20 @@ function gestureWords(event, gesture) {
 // Where taking `event` back shows on the page: the thread it settled or reacted in, the
 // message a rewrite changed, a widget an agent sent in a message (its message is its
 // place), or the element it changed. A to-do's Done changes only the leaf's own rows,
-// which stand in front of the user, so it has no place.
+// which stand in front of the user, so it has no place. A rewrite changes only its
+// message's words, so the thread's passage or marker in view doesn't show it.
 /** @param {UndoEvent} event @returns {UndoPlace | null} */
 function placeOf(event) {
   if (event.kind === "edit")
-    return { thread: threadIdNamed(event.message), message: event.message, nodes: [] };
+    return {
+      thread: null,
+      message: event.message,
+      nodes: [
+        ...document.querySelectorAll(
+          `.lf-msg[data-event="${CSS.escape(event.message)}"]`,
+        ),
+      ],
+    };
   // A reaction in a thread is a reply naming the message it reacts to.
   if (event.kind === "resolve" || event.kind === "unresolve" || event.kind === "reply")
     return { thread: event.parent ? threadIdNamed(event.parent) : null, nodes: [] };

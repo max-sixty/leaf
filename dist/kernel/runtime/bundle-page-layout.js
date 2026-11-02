@@ -4694,9 +4694,9 @@ function gestureWords(event, gesture) {
 }
 function placeOf(event) {
 	if (event.kind === "edit") return {
-		thread: threadIdNamed(event.message),
+		thread: null,
 		message: event.message,
-		nodes: []
+		nodes: [...document.querySelectorAll(`.lf-msg[data-event="${CSS.escape(event.message)}"]`)]
 	};
 	if (event.kind === "resolve" || event.kind === "unresolve" || event.kind === "reply") return {
 		thread: event.parent ? threadIdNamed(event.parent) : null,

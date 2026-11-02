@@ -184,6 +184,7 @@ import subprocess
 import sys
 import threading
 import urllib.parse
+import urllib.request
 
 from conftest import LEAF_COMMAND
 from interact_support import (

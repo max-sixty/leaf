@@ -1701,7 +1701,6 @@ def test_all_pages_takes_the_keyboard(browser, serve, live_leaf, one_user):
     rows = page.locator(f"{LEAVES} a.lf-fp-page")
     # Titles order the list, so the walk has a stated first row to start from.
     expect(rows.first.locator(".lf-fp-label")).to_have_text("A second leaf")
-    page.keyboard.press("ArrowDown")
     expect(rows.first).to_be_focused()
     page.keyboard.press("ArrowUp")
     expect(rows.first).to_be_focused()

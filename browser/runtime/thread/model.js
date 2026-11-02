@@ -121,6 +121,13 @@ export const editable = (message) =>
   !message.token &&
   Boolean(message.text);
 
+// A message its author deleted: a rewrite took all its words, and no drawing stands in
+// for them (events.md, "Messages"). It keeps its place in its thread, where answers to
+// it still stand.
+/** @param {{text?: string | undefined, edited?: unknown, drawing?: unknown}} message */
+export const deleted = (message) =>
+  Boolean(message.edited) && !message.text && !message.drawing;
+
 /** @template {{readonly bare_reaction: boolean, readonly root: {readonly token?: string | null}}} T
  * @param {T} thread
  * @returns {thread is T & {bare_reaction: true, root: T["root"] & {token: string}}} */

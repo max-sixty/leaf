@@ -52,7 +52,7 @@ def test_ship_review_obligations_are_directly_answerable(browser, serve):
     expect_obligations_answered(page, "1/3")
 
 
-@pytest.mark.parametrize("size", [(1200, 520), (509, 429)])
+@pytest.mark.parametrize("size", [(1200, 520), (1000, 429)])
 @pytest.mark.parametrize("prior_turns", [1, 5])
 def test_a_sent_margin_reply_shows_its_words_while_delivery_is_pending(
     browser, serve, size, prior_turns
@@ -117,11 +117,14 @@ def test_a_sent_margin_reply_shows_its_words_while_delivery_is_pending(
 def test_a_pending_reply_keeps_the_transcript_end_when_card_fitting_reduces_room(
     browser, serve, how
 ):
-    """The Send destination survives the geometry update after local presentation.
+    """A reply sent by key or by Send shows its words at the transcript's end while
+    its delivery is held, in a sidebar layout's card.
 
-    At this width and height the fitted transcript loses room after Send. The old
-    scroll destination stayed at 33px while its end moved to 60px, hiding the entire
-    reply body. Hold delivery so admission cannot repaint and conceal the failure.
+    On a narrow window the card's fitting once took room from the transcript after
+    Send, and the scroll destination stayed at 33px while its end moved to 60px,
+    hiding the reply's body. Such a window now opens the thread in the floating panel,
+    so this holds the route where cards still open. Hold delivery so admission cannot
+    repaint and conceal the failure.
     """
     source = leaf_page(
         "Margin reply",
@@ -154,7 +157,7 @@ def test_a_pending_reply_keeps_the_transcript_end_when_card_fitting_reduces_room
         },
     )
     page = open_page(browser, url)
-    resized(page, 636, 536)
+    resized(page, 1000, 536)
     page.locator('[data-lf-margin-for="candidate"] .lf-margin-marker').click()
     card = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
     page.keyboard.press("c")

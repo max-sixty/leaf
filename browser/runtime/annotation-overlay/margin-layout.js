@@ -636,8 +636,8 @@ function hearTargetChanges(root) {
     (event) => {
       const source = event.target === document ? pageScroller : event.target;
       if (!(source instanceof Element)) return;
-      scrolled.add(source);
-      scheduleScrollReading();
+      stirred.add(source);
+      scheduleStirReading();
     },
     { capture: true, passive: true },
   );
@@ -653,6 +653,19 @@ function hearTargetChanges(root) {
     },
     { capture: true, passive: true },
   );
+  // A transition or animation can show a target to the reader, or take it away, with
+  // no resize and no mutation after the one that started it, which was read at the old
+  // value: a reveal.js fragment, whose `visibility` turns visible only after the
+  // transition's first frame, or a slide moved out of the box that clips it. So the rows
+  // under a box whose transition or animation ends are read again as a scroll's are.
+  /** @param {Event} event */
+  const settled = ({ target }) => {
+    if (!(target instanceof Element) || inChrome(target)) return;
+    stirred.add(target);
+    scheduleStirReading();
+  };
+  root.addEventListener("transitionend", settled);
+  root.addEventListener("animationend", settled);
 }
 
 // A bounded region's lane is the innermost of the frames its region is cut by
@@ -885,7 +898,7 @@ export const standsFolded = (row) => folded.has(row);
 export const standsWithheld = (node) => Boolean(node.closest(".lf-withheld"));
 
 // Where `part` of `row`, or the row itself, is painted. A carried row's own box reads a
-// frame late after a scroll (`scheduleScrollReading`), so it is read where the row's
+// frame late after a scroll (`scheduleStirReading`), so it is read where the row's
 // target now stands, by the offsets the last pass seated the row at (`standsBy`): the
 // place the browser moved it to in the frame that scrolled it. Any other row's box is
 // where it is painted.
@@ -1141,21 +1154,21 @@ function setStyle(row, property, value) {
   else inlineStyle(row).setProperty(property, value);
 }
 
-// Whether a row has somewhere to stand: its target renders, its scrollers leave some of
-// it in view — the pane that scrolls it, a table or board it has been scrolled sideways
-// out of, or a scroller inside the shadow tree it anchors through, which can take the
-// target away while the host it anchors through still shows — and the row itself stands
-// inside what those scrollers show. `stands` is where the row stands: a rail row's top is
-// its target's, and a pin's is its seat, which may lie above or beside its target. Its top
-// line counts, since a row standing above a pane's top would be clipped by its lane and
-// still take the keyboard, and for a pin its right edge too: a card half past a board's
-// edge would stand its pin outside the board, beside nothing and past the page. A pin not
-// yet seated passes `stands` null, and is asked again once it is. `extent` is what shows
-// of the target, or of the passage a row quotes, and none where its scrollers show none.
+// Whether a row has somewhere to stand: its target is drawn (`visibleTargetParts`), its
+// scrollers leave some of it in view — the pane that scrolls it, a table or board it has
+// been scrolled sideways out of, or a scroller inside the shadow tree it anchors through,
+// which can take the target away while the host it anchors through still shows — and
+// the row itself stands inside what those scrollers show. `stands` is where the row
+// stands: a rail row's top is its target's, and a pin's is its seat, which may lie above
+// or beside its target. Its top line counts, since a row standing above a pane's top
+// would be clipped by its lane and still take the keyboard, and for a pin its right edge
+// too: a card half past a board's edge would stand its pin outside the board, beside
+// nothing and past the page. A pin not yet seated passes `stands` null, and is asked
+// again once it is. `extent` is what shows of the target, or of the passage a row
+// quotes, and none where its scrollers show none.
 /** @param {Element} target @param {Box | null} extent @param {{top: number | undefined, right?: number} | null} stands @param {import("../geometry.js").ClipCache} bands */
 function targetShown(target, extent, stands, bands) {
   const shown = (/** @type {Element} */ part) =>
-    part.checkVisibility() &&
     clippedRect(part.getBoundingClientRect(), part, bands, pageScroller);
   if (!visibleTargetParts(target).some(shown)) return false;
   const view = clippedRect(EVERYWHERE, target, bands, pageScroller);
@@ -1176,15 +1189,16 @@ let came = new Map();
 // A scroll inside anything but the document moves its rows in the frame that scrolls
 // them. What it can change is which of them still have somewhere to stand, so only rows
 // under a box that scrolled are read again, once a frame, and a row that changes answer
-// brings the whole pass, which places it, scrollers inside shadow trees included.
-const scrolled = new Set();
-let scrollReading = 0;
-function scheduleScrollReading() {
-  if (scrollReading) return;
-  scrollReading = nextRender(() => {
-    scrollReading = 0;
-    const boxes = [...scrolled];
-    scrolled.clear();
+// brings the whole pass, which places it, scrollers inside shadow trees included. A
+// transition or animation ending is read the same way (`hearTargetChanges`).
+const stirred = new Set();
+let stirReading = 0;
+function scheduleStirReading() {
+  if (stirReading) return;
+  stirReading = nextRender(() => {
+    stirReading = 0;
+    const boxes = [...stirred];
+    stirred.clear();
     if (
       boxes.includes(pageScroller) &&
       scrollX !== laidOutScrollX &&

@@ -994,7 +994,7 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
     data_model.cmd_data_set(serve.page_dir, "document", "Original source words.")
     original_revision = source_revision(serve.page_dir, "document")
     page = open_page(browser, url)
-    resized(page, 900, 900)
+    resized(page, 1024, 900)
     if quote_anchor:
         # The code box also spans the gutter and blank column; drag on its words.
         words = page.locator("#source [data-content] [data-line] span").evaluate(

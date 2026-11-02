@@ -40,7 +40,7 @@
 
     "runtime/annotation-overlay/margin-cluster-view.js": "bd9224a3f08a2eba5a1c17f3e82b3392d4dd9119379bf553d7c406d3b29cd2c0",
 
-    "runtime/annotation-overlay/margin-layout.js": "8693c613f9c4b6de2130b214d423be8ce38ffd89412d71333715f92b74bce208",
+    "runtime/annotation-overlay/margin-layout.js": "eb26ddbbe1a238a677012674fe99cceca936ae8ab6531ab3c46bd7f79527863a",
 
     "runtime/annotation-overlay/margin-placement.js": "d1bb17880a91b4beeef9c79dc7d1dd41b477be2b826a4997030ab423323d3d02",
 
@@ -60,7 +60,7 @@
 
     "runtime/base-layer.js": "7254e7c6c7df56faea13460dbbedc193593826d4bb4b79ef91ee98dc8bd4bc6c",
 
-    "runtime/block-controls.js": "5f2d3386afa49b4e3457f47cc63f00e28199ada74d3f7f74fd4f7b80ac64e960",
+    "runtime/block-controls.js": "268431bfd9aeeb5706b75d7437ca7e2ceb76bd9bc589d70a3296f8488074fd85",
 
     "runtime/bootstrap.js": "9e072378ef47b74da4cf95f11ef14c3174d35076d5078a3925235dc278766b79",
 
@@ -142,7 +142,7 @@
 
     "runtime/copyable-text.js": "b4252f63a205ebd26d5e158c5127b3da844e61b553527350b69564bc71be04ef",
 
-    "runtime/css-anchors.js": "fd63f08f8dcf1546e4789e56cd7b85ca7c6d5a4c495197d7592048c1cdb3a7ef",
+    "runtime/css-anchors.js": "cb1bfea9b62f82401a398e147cc922b9332e26f865d6f6c176957b330cb30a7a",
 
     "runtime/current-target.js": "03c34f5d7934e859370c65b4466ff8a5a56fa9f259d5805ba2041077deab88fc",
 

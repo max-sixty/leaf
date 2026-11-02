@@ -27,7 +27,7 @@ import { createPlayground } from "./playground-view.js";
  * its sample roots.
  *
  * The working configuration is page state: the `tune` verb records it, and declares
- * `attention: false`, since it is what the user hasn't sent. So a reload, every tab,
+ * `unsent`, since it is what the user hasn't sent. So a reload, every tab,
  * another browser and the agent's page state all read the same settings, and a comment
  * on the preview names a configuration the log holds. The controls draw
  * `#values` at once and record them when a gesture ends: a press, a committed edit

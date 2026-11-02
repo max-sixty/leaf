@@ -1291,6 +1291,12 @@ def test_datum_travel_resolves_the_destination_after_reveal(browser, serve):
     page.locator("#patch").evaluate(
         """source => {
           let revealed = false;
+          // This fixture replaces the widget's rows itself, so it also owns
+          // their address lookup rather than leaving lf-diff's retained rows stale.
+          const elementsFor = source.lfElementsFor.bind(source);
+          source.lfElementsFor = key => elementsFor(key).flatMap(original =>
+            [...source.shadowRoot.querySelectorAll('[data-lf-datum]')].filter(
+              row => row.dataset.lfDatum === original.dataset.lfDatum));
           source.parentElement.addEventListener('beforematch', () => {
             const row = source.shadowRoot.querySelector(
               `[data-lf-datum='["app.py","new",2]']`);
@@ -1311,9 +1317,11 @@ def test_datum_travel_resolves_the_destination_after_reveal(browser, serve):
     page.evaluate(hide)
     page.locator("#calls .lf-call-location").last.click()
     expect(page.locator(".lf-live")).to_have_text("Opened app.py:2 in the exact patch")
-    expect(
-        page.locator('lf-diff [data-lf-datum=\'["app.py","new",2]\'][data-rebuilt]')
-    ).to_be_in_viewport()
+    rebuilt = page.locator(
+        'lf-diff [data-lf-datum=\'["app.py","new",2]\'][data-rebuilt]'
+    )
+    expect(rebuilt).to_be_in_viewport()
+    expect(rebuilt).to_be_focused()
     page.evaluate(hide)
     page.locator("#calls .lf-call-location").last.click()
     expect(page.locator(".lf-live")).to_have_text(

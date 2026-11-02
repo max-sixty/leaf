@@ -1,6 +1,7 @@
 """Reactions: one-press tokens on a passage, an item, or a reply."""
 
 import pytest
+from browser.test_render_reactions import hint_code, painted
 from playwright.sync_api import expect
 from render_cases_navigation import (
     TARGETS_PAGE,
@@ -14,8 +15,6 @@ from render_harness import (
 from leaf import event_log as events_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
-
-from browser.test_render_reactions import hint_code, painted
 
 
 def test_a_target_hint_opens_comment_and_a_token_seats_only_its_glyph(browser, serve):

@@ -54,6 +54,9 @@ const makeCut = () => {
 /** @type {Map<HTMLElement, Element>} */
 const placed = new Map(); // document control → its block
 const wired = new WeakSet();
+// The controls other chrome keeps clear of where they stand (`blockControlBoxes`).
+/** @type {WeakSet<HTMLElement>} */
+const footprints = new WeakSet();
 /** @type {HTMLElement | null} */
 let hoveredControl = null;
 /** @type {HTMLElement | null} */
@@ -99,11 +102,28 @@ addEventListener("resize", () => {
   });
 });
 
+/** Where each document control with a footprint stands over its block, shown or
+ * hidden at rest, so a margin pin keeps off it (margin-layout.js, `coverIn`) and
+ * takes no press meant for it. Each control's insets are read from its block first,
+ * every block before any control is written, since a deck moves and scales its
+ * slides with no resize to say so (`readInsets`). */
+export function blockControlBoxes() {
+  const read = [...placed]
+    .filter(([control]) => footprints.has(control) && !control.hidden)
+    .map(([control, block]) => ({ control, insets: readInsets(block) }));
+  for (const { control, insets } of read) writeInsets(control, insets);
+  return read.map(({ control }) => control.getBoundingClientRect());
+}
+
 /** Stand `control` over `block` from chrome, cut by `levels`, its block's
- * `headerLevels` read before any control was written. */
-/** @param {HTMLElement} control @param {Element} block @param {ReturnType<typeof headerLevels>} levels */
-export function standInChrome(control, block, levels) {
+ * `headerLevels` read before any control was written. `footprint`, read where the
+ * control first stands, says whether other chrome keeps clear of it
+ * (`blockControlBoxes`). A control made only when it shows, as a heading's link is,
+ * has none, since a pin keeping clear of it would move as the pointer passed. */
+/** @param {HTMLElement} control @param {Element} block @param {ReturnType<typeof headerLevels>} levels @param {boolean} [footprint] */
+export function standInChrome(control, block, levels, footprint = true) {
   const previousBlock = placed.get(control);
+  if (!previousBlock && footprint) footprints.add(control);
   const frames = cutFrames(
     levels,
     (cuts.get(control) ?? []).map(({ frame }) => frame),
@@ -157,8 +177,9 @@ export function aimControl({ control, near, anchor }) {
 // where it shows, and `anchor-size()` its size, which only an engine that leaves
 // transforms out makes other than nothing (css-anchors.js, `anchorBox`), such as Firefox
 // on a block in a table granted room or a scaled slide. Read whenever the control is
-// about to show, since only a shown control needs it; a control shown as it arrives
-// reads them with the batch's other readings.
+// about to show, and wherever a pin keeps off where it stands at rest
+// (`blockControlBoxes`); a control shown as it arrives reads them with the batch's
+// other readings.
 /** @param {Element} block */
 export function readInsets(block) {
   const box = block.getBoundingClientRect();

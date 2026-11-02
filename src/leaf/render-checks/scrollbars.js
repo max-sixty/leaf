@@ -4,7 +4,11 @@
  * reading asks the composed geometry, including unmarked and shadow scrollers.
  * It reads the content at its vertical end without scrolling or changing styles,
  * so a check neither disturbs the reader nor depends on whether a hidden overlay
- * scrollbar happened to paint in the headless browser. SVG readings use native
+ * scrollbar happened to paint in the headless browser. It passes over what an
+ * off-screen `content-visibility: auto` box skips, such as a long text document's runs,
+ * since asking about those elements makes the browser style them first: the live
+ * view's reading of a megabyte of text spent 1.4 s doing that. So it can't see the end
+ * of such a document while the reader is away from it. SVG readings use native
  * primitive bounds: stroke/filter extents, clip paths and nested SVG viewport
  * transforms are not reconstructed here. */
 import {
@@ -18,8 +22,11 @@ import { openRoots } from "./open-roots.js";
 
 /** @param {Element} el */
 const visible = (el) =>
-  el.checkVisibility({ opacityProperty: true, visibilityProperty: true }) &&
-  !el.closest("[hidden], script, style");
+  el.checkVisibility({
+    contentVisibilityAuto: true,
+    opacityProperty: true,
+    visibilityProperty: true,
+  }) && !el.closest("[hidden], script, style");
 const px = (/** @type {string} */ value) => parseFloat(value) || 0;
 const controls = 'button, input, select, textarea, [role="button"], a[href], img';
 /** @param {HTMLElement} el */

@@ -41,9 +41,7 @@
  * So the margin measures and places the rows that scroll carried again at that box's
  * `scrollend` (`scrollMisplacesAnchors`, margin-layout.js): they drift while the scroll
  * runs and stand on their words a frame after it ends. Chromium 156 follows the words, so
- * there the pass moves only a row whose carrier scrolls with something its target
- * doesn't, such as a pin on a `pre` whose `code` scrolled, back to where a fresh pass
- * puts it.
+ * there the pass writes the insets the scroll left.
  *
  * A source keeps one name across those uses. Retained controls can observe whether its
  * source renders near the viewport before entering layout. That reading starts
@@ -377,7 +375,7 @@ function contentStart(scroller) {
 // The box whose scrolls carry `anchor`: the scroller a content start stands in, whose
 // own scroll carries it too, or the anchor itself.
 /** @param {Anchor} anchor */
-const anchorHolder = (anchor) => (isElement(anchor) ? anchor : anchor.scroller);
+export const anchorHolder = (anchor) => (isElement(anchor) ? anchor : anchor.scroller);
 
 // The name `el` answers to as an anchor, given it first where it has none.
 /** @param {Anchor} el */

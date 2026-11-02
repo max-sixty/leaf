@@ -1,6 +1,8 @@
 /* Lossless, language-aware alignment of whole-text states, which a block's inline
  * version comparison and any widget explaining how a text came to say what it says
- * share. Each caller renders the runs in its own surface. */
+ * share. Each caller renders the runs in its own surface. The same capped walk over
+ * whole lines says which line of a new version stands for which of the old
+ * (`keptLines`), for a widget that keeps what it drew for each line. */
 
 import { diffArrays } from "/vendor/jsdiff.esm.js";
 
@@ -53,6 +55,36 @@ export function alignText(
       }),
     )
     .filter((run) => run.text);
+}
+
+// Which line of `before` each line of `after` stands for, or -1 for a line it adds,
+// from the same capped walk over whole lines; null where a rewrite runs past the cap,
+// so the caller takes a path that needs no walk. A run of lines replaced by as many
+// others stands for them one for one, so an edited line keeps whatever stood for the
+// line it replaced.
+/** @param {readonly string[]} before @param {readonly string[]} after @param {number} [maxEditLength] @returns {number[] | null} */
+export function keptLines(before, after, maxEditLength = MAX_EDIT_LENGTH) {
+  const changes = diffArrays([...before], [...after], { maxEditLength });
+  if (!changes) return null;
+  const kept = after.map(() => -1);
+  let from = 0;
+  let to = 0;
+  // jsdiff puts a removed run before the added run that replaces it.
+  let removed = 0;
+  for (const { count = 0, added, removed: gone } of changes) {
+    if (gone) {
+      removed = count;
+      from += count;
+      continue;
+    }
+    if (added) {
+      if (count === removed)
+        for (let line = 0; line < count; line++) kept[to + line] = from - count + line;
+      to += count;
+    } else for (const end = to + count; to < end;) kept[to++] = from++;
+    removed = 0;
+  }
+  return kept;
 }
 
 // A version comparison starts at sentences so a rewritten paragraph stays readable,

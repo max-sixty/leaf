@@ -1,5 +1,5 @@
 import { __exportAll } from "./bundle-rolldown-runtime.js";
-import { ANNOUNCE, CARET_KEYS, COMMANDS, J, PRESS, PRESSES, ROLE_BUTTON_OFFER, W, WORKS, Z, actionTemplate, bindQueuedWork, coarsePointer, commandsChangedOn, controlNavigationKeys, d, focusDestination, focusRevision, holdFocus, installLanguagePaths, installMoveFocus, isElement, isHTML, isNativeLayer, isStage, keeps, liveStages, move, nextRender, offer, offerAction, onCurrentLocation, onFocusVisibility, onUserInput, pressIsKeyboardActivation, refuseCommands, renderedParent, renderedUnder, shadowHost, showNativeLayer, takesLetters, tick, under, watchCurrentLocationIn, x } from "./bundle-portable.js";
+import { ANNOUNCE, CARET_KEYS, COMMANDS, J, PRESS, PRESSES, ROLE_BUTTON_OFFER, W, WORKS, Z, actionTemplate, bindQueuedWork, coarsePointer, commandsChangedOn, controlNavigationKeys, d, focusDestination, focusRevision, holdFocus, installLanguagePaths, installMoveFocus, installMoveSelection, isElement, isHTML, isNativeLayer, isStage, keeps, liveStages, move, nextRender, offer, offerAction, onCurrentLocation, onFocusVisibility, onUserInput, pressIsKeyboardActivation, refuseCommands, renderedParent, renderedUnder, shadowHost, showNativeLayer, takesLetters, tick, under, watchCurrentLocationIn, x } from "./bundle-portable.js";
 import { AsyncDirective, LitElement as LitElement$1, PartType as PartType$1, directive as directive$1, guard, html as html$1, keyed, live as live$1, noChange, nothing as nothing$1, ref, render as render$1, repeat } from "/vendor/lit.js";
 
 //#region runtime/move-focus.js
@@ -2443,6 +2443,24 @@ const selectionEnds = (selection) => {
 		range?.endOffset
 	];
 };
+function holdSelection(placed) {
+	const selection = getSelection();
+	if (!selection?.rangeCount) return null;
+	const { anchorNode, anchorOffset, focusNode, focusOffset } = selection;
+	if (!anchorNode || !focusNode) return null;
+	const moving = new Set(placed);
+	const inside = (node) => {
+		for (let at = node; at; at = at.parentNode) if (moving.has(at)) return true;
+		return false;
+	};
+	if (!inside(anchorNode) && !inside(focusNode)) return null;
+	const stands = (node, offset) => node.isConnected && offset <= (node instanceof CharacterData ? node.length : node.childNodes.length);
+	return () => {
+		if (selection.anchorNode === anchorNode && selection.anchorOffset === anchorOffset && selection.focusNode === focusNode && selection.focusOffset === focusOffset || !stands(anchorNode, anchorOffset) || !stands(focusNode, focusOffset)) return;
+		selectEnds([anchorNode, anchorOffset], [focusNode, focusOffset]);
+	};
+}
+installMoveSelection(holdSelection);
 function programmaticSelection(selection) {
 	if (!selection) {
 		writtenSelection = null;

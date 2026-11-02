@@ -128,6 +128,12 @@ and it reports `success` or `error` as a code block's does.
 with `kind` `same`, `delete` or `insert`. To align by sentences, pass an
 `Intl.Segmenter` with `granularity: "sentence"` as the third argument.
 
+`keptLines(before, after)` takes two versions of a text as arrays of lines and returns,
+for each line of `after`, the index of the line of `before` it stands for, or -1 for a
+line it adds. A run of lines replaced by as many others stands for them one for one, so
+an edited line keeps whatever a widget drew for it. It returns null where a rewrite is
+too large to walk, and a widget then treats the text as new.
+
 ### Media URLs
 
 Pass a `/media/…` path from typed data through `scopedMediaUrl(path)` before putting it

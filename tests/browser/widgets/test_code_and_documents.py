@@ -724,8 +724,9 @@ def test_a_text_document_update_keeps_a_selection_it_carries_into_another_run(
     """Lines added above a selected row carry it from one run of rows into another, and
     it keeps its native selection: runs are a drawing boundary, not a row's identity.
     Reconciled run by run, one line added above the last row of a run grew Chromium's
-    selection to take in the row before it and cleared Firefox's. The numbers still
-    count every row in order."""
+    selection to take in the row before it and cleared Firefox's. The selected row
+    keeps it too when its own line is edited, in place or as it moves, where a walk
+    over the lines took the edit for a new row. The numbers still count every row."""
     lines = [f"line {i}" for i in range(1, 279)]
     lines[127] = "selected passage"
     url = serve(
@@ -740,14 +741,22 @@ def test_a_text_document_update_keeps_a_selection_it_carries_into_another_run(
     select_words(page, '#log [data-line="128"] span')
     selected = page.evaluate("() => getSelection().toString()")
     assert "selected passage" in selected
-    for added in (1, 200):
+    for added, edit in ((1, ""), (0, ", edited"), (200, " twice")):
+        at = next(i for i, line in enumerate(lines) if line.startswith("selected"))
+        lines[at] += edit
         lines = [f"added {added} {i}" for i in range(added)] + lines
         data_model.cmd_data_set(serve.page_dir, "log-text", "\n".join(lines) + "\n")
         told(page)
         rendered(page)
-        row = page.locator(f'#log [data-line="{lines.index("selected passage") + 1}"]')
-        expect(row).to_have_text("selected passage")
-        assert page.evaluate("() => getSelection().toString()") == selected, added
+        row = page.locator(f'#log [data-line="{at + added + 1}"]')
+        expect(row).to_have_text(lines[at + added])
+        now = page.evaluate("() => getSelection().toString()")
+        if not edit:
+            assert now == selected, added
+        else:
+            assert "selected passage" in now and not {"line", "added"} & set(
+                now.split()
+            )
         numbers = page.locator("#log [data-number]").evaluate_all(
             "cells => cells.map(cell => +cell.dataset.number)"
         )

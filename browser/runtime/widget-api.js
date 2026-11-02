@@ -138,7 +138,7 @@ export {
 } from "./reading-regions.js";
 export { notice } from "./notifications.js";
 export { raiseError } from "./errors.js";
-export { alignText } from "./text-alignment.js";
+export { alignText, keptLines } from "./text-alignment.js";
 export { says, wrote } from "./passages.js";
 export { ago, clockValue, quietSince, shortAgo } from "./presence.js";
 export { revisionLabel } from "./context.js";

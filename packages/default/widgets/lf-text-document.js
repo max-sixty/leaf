@@ -30,9 +30,9 @@ import {
   renderMarkdown,
   sizeObserver,
   textWidth,
+  keptLines,
   nextFrame,
 } from "/runtime/widget-api.js";
-import { diffArrays } from "/vendor/jsdiff.esm.js";
 import { pierre, markSyntax } from "./pierre.js";
 
 // Writing the same key again would still be a mutation the page's observers see.
@@ -134,26 +134,19 @@ function inRuns(code) {
 
 // Reconciles a new text's runs (`drawn`) into the runs on the page (`code`), as a
 // drawing boundary rather than a row's identity: each row the new text keeps first
-// moves into the run the new text puts it in (`setChildLists`), and each run then
-// reconciles its rows (`setRenderedChildren`), finding its kept rows in place. A run's
-// numbers stay with it, since they count its places rather than its rows. Reconciled
-// run by run alone, a row that lines added above it carried across a run's edge was
-// drawn anew, and a selection in it was lost, or grew to take in the row before it.
-// Moving a node resets a selection's end inside it, as the DOM's move algorithm resets
-// every live range there, so the selection's ends go back once the rows have landed.
+// moves into the run the new text puts it in (`setChildLists`, which keeps a selection
+// in it), and each run then reconciles its rows (`setRenderedChildren`), finding its
+// kept rows in place. An edited line keeps the row of the line it replaced, so its
+// text is patched in place. A run's numbers stay with it, since they count its places
+// rather than its rows. Reconciled run by run alone, a row that lines added above it
+// carried across a run's edge was drawn anew, and a selection in it was lost, or grew
+// to take in the row before it. Where a rewrite runs past the line walk's cap
+// (`keptLines`), nothing moves and each run reconciles its own rows: walked to the end,
+// every line of 4 MB rewritten took 285 s.
 /** @param {Element} code @param {Element} drawn @param {readonly string[]} before @param {readonly string[]} after */
 function reconcileRuns(code, drawn, before, after) {
   const held = [...code.children];
-  const lines = held.flatMap((run) => [...(run.lastElementChild?.children ?? [])]);
-  // The drawn row each line of the new text keeps, or -1 for a new line.
-  const kept = after.map(() => -1);
-  let from = 0;
-  let to = 0;
-  for (const { count = 0, added, removed } of diffArrays([...before], [...after])) {
-    if (added) to += count;
-    else if (removed) from += count;
-    else for (const end = to + count; to < end;) kept[to++] = from++;
-  }
+  const kept = keptLines(before, after);
   const fresh = [...drawn.children];
   const runs = fresh.map((run, at) => {
     const live = held[at];
@@ -163,45 +156,22 @@ function reconcileRuns(code, drawn, before, after) {
     code.append(shell);
     return shell;
   });
-  let line = 0;
-  /** @type {[Element, Element[]][]} */
-  const lists = [];
-  runs.forEach((run, at) => {
-    const rows = kept
-      .slice(line, (line += fresh[at]?.lastElementChild?.childElementCount ?? 0))
-      .filter((row) => row >= 0);
-    if (run.lastElementChild)
-      lists.push([run.lastElementChild, rows.flatMap((row) => lines[row] ?? [])]);
-  });
-  const selection = getSelection();
-  const ends = selection?.rangeCount
-    ? /** @type {const} */ ([
-        selection.anchorNode,
-        selection.anchorOffset,
-        selection.focusNode,
-        selection.focusOffset,
-      ])
-    : null;
-  setChildLists(lists);
+  if (kept) {
+    const lines = held.flatMap((run) => [...(run.lastElementChild?.children ?? [])]);
+    let line = 0;
+    /** @type {[Element, Element[]][]} */
+    const lists = [];
+    runs.forEach((run, at) => {
+      const rows = kept
+        .slice(line, (line += fresh[at]?.lastElementChild?.childElementCount ?? 0))
+        .filter((row) => row >= 0);
+      if (run.lastElementChild)
+        lists.push([run.lastElementChild, rows.flatMap((row) => lines[row] ?? [])]);
+    });
+    setChildLists(lists);
+  }
   runs.forEach((run, at) => setRenderedChildren(run, fresh[at]?.childNodes ?? []));
   setChildren(code, runs);
-  if (!selection || !ends) return;
-  const [anchor, anchorOffset, focus, focusOffset] = ends;
-  /** @param {Node | null} node @param {number} offset */
-  const stands = (node, offset) =>
-    node?.isConnected &&
-    offset <= (node instanceof CharacterData ? node.length : node.childNodes.length);
-  if (
-    anchor &&
-    focus &&
-    stands(anchor, anchorOffset) &&
-    stands(focus, focusOffset) &&
-    (selection.anchorNode !== anchor ||
-      selection.anchorOffset !== anchorOffset ||
-      selection.focusNode !== focus ||
-      selection.focusOffset !== focusOffset)
-  )
-    selection.setBaseAndExtent(anchor, anchorOffset, focus, focusOffset);
 }
 
 // How many characters a line of the listing holds, and a tab's width in them: a row's

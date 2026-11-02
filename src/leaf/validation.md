@@ -86,15 +86,23 @@ alone, since the page posts the same `error` events whenever a browser draws it
 ## Delivery policy
 
 A page carries no content policy of its own: its code is its author's, and may load,
-fetch and compile what it likes. Every served HTML response, historical versions and
-sample children included, adds `frame-ancestors 'self'`
-(`structure.FRAME_ANCESTORS_CSP`), so a different origin cannot frame a live page and
-disguise its decisions under another interface, even where same-site cookies would
-authorize the request. Same-origin parents may embed one, since they already share its
-DOM and request authority. The published site's Worker reads the header from the site
-manifest. A standalone file has no response header and so no framing guarantee. Every
-response carries `X-Content-Type-Options: nosniff`, and the data and media routes serve
-only JSON and admitted image types, so neither can become a script module.
+fetch and compile what it likes. Every served HTML response, historical versions
+included, carries a `frame-ancestors` policy naming the origins that may frame it, so
+no other origin can frame a live page and disguise its decisions under another
+interface. Cookies ignore ports, so the key's cookie reaches every server on the page's
+host, and this policy is all that keeps one of them from framing the page with the
+user's authority. The policy admits same-origin parents, which already share the page's
+DOM and request authority (`structure.FRAME_ANCESTORS_CSP`). A page's running server
+also admits each other Leaf server that holds its lease under the same state home, by
+its exact origin (`presence.live_servers`), since those serve with the same key
+(`server.host_key`) and so already hold that authority. It names no host wildcard,
+which would admit every server on the host, Leaf or not. A temporary server, whose key
+is its own, admits only its own origin, as does leaf.page, whose Worker reads the
+policy from the site manifest. A sample child's documents carry no policy, since an
+opaque parent can't be named as a source. A standalone file has no response header
+and so no framing guarantee. Every response carries `X-Content-Type-Options: nosniff`,
+and the data and media routes serve only JSON and admitted image types, so neither can
+become a script module.
 
 ## Browser validation
 

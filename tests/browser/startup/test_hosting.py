@@ -8,7 +8,6 @@ import pytest
 from playwright.sync_api import expect
 from render_cases_interaction import SHORT_SUGGESTION, live_url
 from render_harness import (
-    TOKEN,
     consume_browser_errors,
     holding,
     http_error_console,
@@ -22,6 +21,7 @@ from render_harness import (
 )
 
 from leaf import event_log as events_model
+from leaf import server as server_model
 from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -88,40 +88,48 @@ window.authoredModuleRan = true;
     )
 
 
-def test_a_live_page_refuses_a_same_site_parent_at_another_port(browser, serve):
-    """SameSite cookies do not isolate ports, so a different origin can authenticate
-    the frame even without knowing its key. CSP blocks disguising its controls."""
+def test_a_live_page_admits_only_leaf_parents_under_its_key(browser, serve, live_leaf):
+    """SameSite cookies do not isolate ports, so any server on the host can
+    authenticate a frame of a live page without knowing its key. CSP keeps every
+    other origin from disguising its controls, and admits another live Leaf server
+    under the same key, whose page then shows the framed page live."""
+    child_url, _ = live_leaf("child", "Child")
+    parent_url, _ = live_leaf("parent", "Parent")
+    key = server_model.host_key()
     context = browser.new_context()
-    child = open_page(
+    # One keyed arrival earns the cookie every same-key frame below goes out under.
+    open_page(browser, f"{child_url}/?t={key}", context=context)
+    foreign = open_page(
         browser,
-        live_url(serve(leaf_page("Child", '<h1 id="h">Child</h1>'))),
+        live_url(serve(leaf_page("Foreign", '<h1 id="foreign">Foreign</h1>'))),
         context=context,
     )
-    child_url = child.url
-    parent_url = live_url(serve(leaf_page("Parent", '<h1 id="parent">Parent</h1>')))
-    assert urlparse(child_url).port != urlparse(parent_url).port
-    parent = open_page(browser, parent_url, context=context)
-    with parent.expect_response(child_url) as loaded:
-        parent.locator("body").evaluate(
-            """async (body, url) => {
-                const frame = document.createElement('iframe');
-                frame.id = 'blocked-leaf';
-                frame.src = url;
-                const loaded = new Promise(resolve => frame.addEventListener('load', resolve, {once: true}));
-                body.append(frame);
-                await loaded;
-            }""",
-            child_url,
-        )
-    response = loaded.value
-    assert response.status == 200
-    assert TOKEN in response.request.all_headers()["cookie"]
-    assert "t=" not in response.url
-    errors = consume_browser_errors(parent, "Content Security Policy")
+    leaf = open_page(browser, f"{parent_url}/?t={key}", context=context)
+    for parent in (foreign, leaf):
+        assert urlparse(parent.url).port != urlparse(child_url).port
+        with parent.expect_response(f"{child_url}/") as loaded:
+            parent.locator("body").evaluate(
+                """async (body, url) => {
+                    const frame = document.createElement('iframe');
+                    frame.id = 'framed-leaf';
+                    frame.src = url;
+                    const loaded = new Promise(resolve => frame.addEventListener('load', resolve, {once: true}));
+                    body.append(frame);
+                    await loaded;
+                }""",
+                f"{child_url}/",
+            )
+        response = loaded.value
+        assert response.status == 200
+        assert key in response.request.all_headers()["cookie"]
+    errors = consume_browser_errors(foreign, "Content Security Policy")
     assert any(is_problem(error, "frame-ancestors 'self'") for error in errors), errors
-    assert parent.locator("#blocked-leaf").evaluate(
+    assert foreign.locator("#framed-leaf").evaluate(
         "frame => frame.contentDocument === null"
     )
+    framed = leaf.frame_locator("#framed-leaf")
+    expect(framed.locator("body")).to_have_attribute("data-lf-presented", "1")
+    expect(framed.locator("#t")).to_have_text("Long")
 
 
 @pytest.mark.parametrize("outcome", ["presented", "abandoned", "offline", "slow"])

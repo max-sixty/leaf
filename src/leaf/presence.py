@@ -157,13 +157,15 @@ def other_leaves(page_dir: Path) -> list:
     return [entry for candidate, entry in live_leaves() if candidate != own]
 
 
-def live_leaves(among: set[Path] | None = None) -> list:
-    """Each live page that is not closed, by its directory, with its row entry, in
-    title order (`other_leaves` says what each costs and holds); only those `among`
-    resolved page directories, where given, whose leases alone it then checks."""
-    from .server_rows import read_row, row_path
+def live_servers(among: set[Path] | None = None):
+    """Each page a row names whose server holds its lease, by its directory, with
+    its row record and running service (`server.running_server`); only those
+    `among` resolved page directories, where given, whose leases alone it then
+    checks. Every such server serves with this state home's key
+    (`server.host_key`). The row of a page whose lease no process holds is deleted
+    here (`other_leaves`)."""
+    from .server_rows import row_path
 
-    leaves = []
     for candidate, record in neighbor_candidates():
         if among is not None and candidate not in among:
             continue
@@ -173,12 +175,23 @@ def live_leaves(among: set[Path] | None = None) -> list:
         # every open page's state read on the machine, blaming the page that asked.
         try:
             info = running_server(candidate)
-            if info is None:
-                if not lock_is_held(candidate / SERVER_LOCK):
-                    row_path(candidate).unlink(missing_ok=True)
-                continue
-            if record is None:
-                continue
+            if info is None and not lock_is_held(candidate / SERVER_LOCK):
+                row_path(candidate).unlink(missing_ok=True)
+        except Exception:
+            continue
+        if info is not None:
+            yield candidate, record, info
+
+
+def live_leaves(among: set[Path] | None = None) -> list:
+    """Each live page that is not closed, by its directory, with its row entry, in
+    title order (`other_leaves` says what each costs and holds); only those `among`
+    resolved page directories, where given, whose leases alone it then checks."""
+    from .server_rows import read_row
+
+    leaves = []
+    for candidate, record, info in live_servers(among):
+        try:
             row = read_row(candidate, info, record=record)
             if row is not None and row["activity"]["kind"] != "closed":
                 leaves.append(

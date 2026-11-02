@@ -3398,6 +3398,23 @@ hosting.cmd_serve(Path(os.environ["PAGE"]), persistent=True, harness=None)
     assert server_model.running_server(page_dir) is None
 
 
+def test_a_page_admits_frames_only_from_live_leaf_servers_under_its_key(page_dir):
+    """Cookies ignore ports, so every server on the host is sent the key. A page's
+    server names, of those, only the live Leaf servers under its state home, each by
+    exact origin. A record whose server has stopped names no one, since its port
+    may since belong to any process."""
+    pages = cleanup_model.state_home() / "pages"
+    neighbour_page(pages / "live", title="Live", port=59999)
+    neighbour_page(pages / "stopped", title="Stopped", dead=True, port=59998)
+    url = hosting_model.start_server(page_dir, persistent=True, harness=None).url
+    try:
+        with urllib.request.urlopen(url) as answer:
+            policy = answer.headers["Content-Security-Policy"]
+    finally:
+        hosting_model.cmd_stop(page_dir)
+    assert policy == "frame-ancestors 'self' http://127.0.0.1:59999"
+
+
 def test_a_failed_row_producer_retires_and_revives_with_its_service(page_dir):
     """A failed fold cannot leave a live lease advertising stale canonical output.
 

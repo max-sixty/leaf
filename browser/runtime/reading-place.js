@@ -53,7 +53,8 @@
  * region shows in turn, a root tab set (lf-tabs) for each of its views. History's
  * working-place checkpoints separately own an entry's viewport offset (history.js).
  * `readingBlock` is the first block on screen in one region or the page;
- * `pageReadingBlock` is the block the user is reading, where a walk starts, and
+ * `sectionsInView` names the sections of every block on screen, which a page comment
+ * records; `pageReadingBlock` is the block the user is reading, where a walk starts, and
  * `landingPlace` is where a let-go puts them, beside what they let go of where they see it. `openingPassage`
  * gives travel the passage its destination draws first, using the same rendered words
  * as the visible landmarks. It is independent of the viewport, so scrolling through a tall landing

@@ -193,7 +193,7 @@
     "runtime/reach.js": "ac35eb1364566a694d001d2bd760c3db54fa663219c7644d9ea752a78c4b9816",
     "runtime/reactions.js": "1f62ac90bd81a23360a8903ee805553f836b909bc44c05e65bc40e251d2dcb80",
     "runtime/reading-continuity.js": "cef989af886deaa24e32727730263b4d522a3d33a8bfd9c87f4ca29b6f9e36c4",
-    "runtime/reading-place.js": "14acc72780c08e517247ff5bdbfb9cf5f941059aab3ce37a9687529b3af0d55c",
+    "runtime/reading-place.js": "3daa2be13e3b5028c31fc87328393ef0281322f27c80caab7eec2d50c7a6978c",
     "runtime/reading-regions.js": "d136548d92891ed60edbb929c07ed5bc218218a6f6042feb7cd0b1e22786ef5b",
     "runtime/rect.js": "7bd177a1cb19af76f1b208577aedd686b86a5b80657b42a49671e6d3c99a7374",
     "runtime/references.js": "027b3403f48e8b22ca6d9666e5a0bf5b12f03abd427aff056a39c5d5eab3ee59",

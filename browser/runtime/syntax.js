@@ -4,8 +4,6 @@ import { reportPageError } from "./layer-client.js";
 import { syntaxLanguageNames } from "./syntax-languages.js";
 import { synNodes, syntax } from "./syntax-tokens.js";
 
-export { langForPath } from "./language-paths.js";
-
 // The page's own code blocks: <pre><code class="language-python">. The class is the
 // universal one — what every Markdown renderer emits — so a block Claude wrote anywhere
 // else needs no translation to land here. Shiki's names and aliases resolve to the
@@ -17,13 +15,15 @@ export { langForPath } from "./language-paths.js";
 // The spans change no text: a <span> is no text block, so the anchor pass reads exactly
 // the run of characters it read before. That is what lets this run over the document
 // without the file's reading of the same page needing to know it happened.
+// An authored styling boundary owns token spans and colours as well as CSS.
+// Check on every reading, including after an asynchronous grammar load.
 const LANGUAGE_CLASS = /(?:^|\s)language-([\w+.#-]+)(?=\s|$)/;
 const BLOCK = "pre > code[class]";
 // A block's declared language where the registry colours it.
 /** @param {Element} code */
 const languageOf = (code) => {
   const lang = code.getAttribute("class")?.match(LANGUAGE_CLASS)?.[1];
-  if (!lang) return undefined;
+  if (!lang || code.closest('[data-style="own"]')) return undefined;
   return Object.hasOwn(syntaxLanguageNames, lang)
     ? syntaxLanguageNames[lang]
     : undefined;

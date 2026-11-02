@@ -336,7 +336,7 @@ def test_a_reaction_list_closes_once_its_trigger_is_out_of_sight(browser, serve)
     page = open_page(browser, url)
     resized(page, 1280, 800)
     message = page.locator(
-        f'lf-diff .lf-page-thread[data-thread="{root}"] .lf-msg.agent'
+        f'lf-diff .lf-page-thread[data-thread="{root}"] .lf-msg[data-lf-author=agent]'
     )
     message.hover()
     trigger = message.locator(".lf-react-trigger")

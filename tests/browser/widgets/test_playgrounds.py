@@ -1622,7 +1622,7 @@ def test_built_code_reader_design_comment_keeps_its_identity_after_revision(
     )
     quote = open_panel_thread(page, event["id"]).locator(".lf-fp-quote")
     expect(quote).to_contain_text("target-reader-heading")
-    expect(quote).not_to_have_class(re.compile(r"detached"))
+    expect(quote).not_to_have_attribute("data-lf-detached", "")
 
 
 def test_a_press_in_flight_does_what_the_playground_button_says(browser, serve):

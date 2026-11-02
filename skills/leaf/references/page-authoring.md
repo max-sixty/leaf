@@ -73,7 +73,9 @@ Arrange the material so the reader can do the task with little navigation or mem
 Put alternatives at a comparable scale, controls beside the results they change, and
 an explanation beside the evidence it interprets. Use the registry's semantic HTML,
 widgets and class idioms for those roles, including the theme's `.metric` entry
-for a metric.
+for a metric. Arrange an experiment's results so each variant's effect against its
+baseline reads without arithmetic, and show what each variant changed beside its
+effect.
 
 Choose the Layout after the content: `layout-column` supports a sequence of views,
 including wide diagrams and comparisons; `layout-sidebar` keeps context beside a
@@ -139,6 +141,12 @@ without `!important` or extra specificity, and an element rule of its own, such 
 too wherever the theme's would show through. Wrapping elements the theme already
 styles in a card adds visual weight without meaning; give a card a grouping or
 interaction to express.
+
+For embedded content that already has its own design, put `data-style="own"` on
+its root (including `main` for a whole page). Leaf leaves native table sizing, code-block
+scrolling and scrollbar clearance, and syntax highlighting to that subtree. Comments still anchor in its text, and Leaf widgets keep their component
+styles. Choose no theme for a page whose layout and typography are wholly its own;
+this boundary does not remove the page's theme or inherited styles.
 
 Restyle the whole page through the theme's tokens on `:root` rather than rules on
 `body`, so Leaf's widgets, threads and panel follow the page: `--paper` and `--ink` for

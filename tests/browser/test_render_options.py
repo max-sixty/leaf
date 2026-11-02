@@ -2564,16 +2564,18 @@ def test_a_table_in_a_reply_keeps_its_figures_whole(browser, serve):
     lines = """(el) => { const r = document.createRange();
                          r.selectNodeContents(el); return r.getClientRects().length; }"""
     assert view.get_by_role("cell", name="12,000").evaluate(lines) == 1
-    assert view.locator(".lf-msg.agent .lf-msg-body a").evaluate(lines) > 1
+    assert (
+        view.locator(".lf-msg[data-lf-author=agent] .lf-msg-body a").evaluate(lines) > 1
+    )
     # And the room the cells stopped giving up went where the theme puts it.
     assert (
-        view.locator(".lf-msg.agent .lf-msg-body table").evaluate(
+        view.locator(".lf-msg[data-lf-author=agent] .lf-msg-body table").evaluate(
             "(t) => t.scrollWidth - t.clientWidth"
         )
         > 0
     )
     assert (
-        view.locator(".lf-msg.agent .lf-msg-body").evaluate(
+        view.locator(".lf-msg[data-lf-author=agent] .lf-msg-body").evaluate(
             "(b) => b.scrollWidth - b.clientWidth"
         )
         == 0

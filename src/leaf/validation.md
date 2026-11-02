@@ -51,7 +51,8 @@ them:
   (`revision_artifact.uncaptured_errors`).
 
 The effective registry is validated only where it differs from the active revision's
-captured copy. A layer's sheets are validated whenever a Leaf composes it.
+captured copy. A layer's sheets and modules are validated wherever a Leaf composes
+its files (`layer-registry.md` says where).
 
 A reference to a thread, such as a widget's `resolves`, is checked against the thread
 ids the log holds (`thread_context.thread_ids`), including a thread whose opening

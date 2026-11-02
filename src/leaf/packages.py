@@ -359,12 +359,12 @@ def init_starter_widget(
         raise Refused(f"invalid widget tag {widget!r}: {WIDGET_NAME_RULE}")
     module_name = f"{widget}.js"
     module_path = package / "widgets" / module_name
-    if widget in composition.registry:
+    if widget in composition.vocabulary.registry:
         raise Refused(f"widget tag <{widget}> already exists in the composed layer")
     if (
         module_path.exists()
         or module_path.is_symlink()
-        or module_name in composition.directory_files["widgets"]
+        or module_name in composition.vocabulary.widgets
     ):
         raise Refused(
             f"widget module widgets/{module_name} already exists in the composed layer"

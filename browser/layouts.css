@@ -496,11 +496,11 @@
         translate: 50%;
       }
     }
-    /* A flow's box stands round what it holds: it grows into the room on each side as
-     * far as the blocks in it break out, so its focus ring and every mark drawn round
-     * it enclose them. Padding grows the box and an equal negative margin keeps the
-     * content box at the prose, so the blocks in it resolve their room as before. A
-     * table's reach is its room, since its columns set its width. */
+    /* A flow's box grows into the room on each side as far as the blocks in it break
+     * out, so its focus ring and every mark drawn round it enclose them. Padding grows
+     * the box and an equal negative margin keeps the content box at the prose, so the
+     * blocks in it resolve their room as before. A table's reach is its whole room,
+     * since its columns set its width. */
     :is(.layout-column, .layout-flow) > .layout-flow {
       --lf-reach-start: 0px;
       --lf-reach-end: 0px;

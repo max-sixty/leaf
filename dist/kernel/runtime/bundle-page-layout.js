@@ -5586,7 +5586,7 @@ function createThreadActions({ post, withdraw, sendReaction, currentRevision, op
 		const thread = find(key);
 		if (!thread) return null;
 		const message = thread.msgs.find((item) => item.id === messageId);
-		if (!message || !editable(message) || !text || text === message.text) return null;
+		if (!message || !editable(message) || text === message.text) return null;
 		return post({
 			kind: "edit",
 			message: messageId,

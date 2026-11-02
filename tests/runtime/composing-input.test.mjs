@@ -143,25 +143,36 @@ test("dictation and send trade the same field seat as its draft changes", async 
   );
 });
 
-test("a rewrite's generated save control shares its action row with retained discard", async (t) => {
+test("a rewrite's generated save control shares its action row with retained discard, and turns to Delete once emptied", async (t) => {
   const actions = document.createElement("span");
   const discard = document.createElement("button");
   discard.textContent = "Discard";
   actions.append(discard);
   document.body.append(actions);
   t.after(() => actions.remove());
+  // A rewrite emptied of words deletes its message (message-edit.js), so its control
+  // turns to Delete and stays live, rather than Save drawn live and doing nothing.
+  const box = { input: null };
+  const word = () => (box.input?.value.trim() === "" ? "delete" : "save");
   const { input, field, sync, button } = composer(t, {
     submitIn: actions,
     sendClass: "lf-msg-control lf-msg-edit-save",
-    sends: "save",
-    action: "save",
+    sends: word,
+    action: word,
+    hasContent: () => true,
   });
+  box.input = input;
+  const symbol = () =>
+    button.querySelector(":scope > svg[data-lf-icon]")?.dataset.lfIcon;
   assert.equal(actions.querySelector(".lf-msg-edit-save"), button);
   assert.equal(actions.firstElementChild, discard);
   assert.equal(button.getAttribute("aria-label"), "Save");
+  assert.equal(symbol(), "save");
   sync.load("");
   await field.updateComplete;
-  assert.equal(button.getAttribute("aria-disabled"), "true");
+  assert.equal(button.getAttribute("aria-label"), "Delete");
+  assert.equal(symbol(), "delete");
+  assert.equal(button.getAttribute("aria-disabled"), "false");
   assert.equal(actions.querySelector(".lf-msg-edit-save"), button);
   assert.equal(field.querySelector("textarea"), input);
   assert.equal(actions.firstElementChild, discard);

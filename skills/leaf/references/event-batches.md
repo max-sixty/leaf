@@ -41,9 +41,9 @@ Events keep their stored fields and log order, and add:
   choice separately from its tag labels and explanation.
 - `threads`: every thread the event belongs to. The event appears once in the batch
   however many threads it is in.
-- `was`: on the user's rewrite of their own message, the words it replaced.
-  `suggestion: true` beside it means the message is a suggestion, so its new `text`
-  is the exact replacement it proposes.
+- `was`: on the user's rewrite of their own message, the words it replaced. An empty
+  `text` beside it means they deleted the message. `suggestion: true` beside it means
+  the message is a suggestion, so its new `text` is the exact replacement it proposes.
 - `waiting`: your questions the event may have answered, each its obligation `id` and
   the `text` that asked it: on a widget action, those still waiting on the user's
   words in a thread about that widget; on the user's reply, those still waiting on a

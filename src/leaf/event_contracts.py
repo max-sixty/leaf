@@ -611,7 +611,8 @@ def _edit_error(event: dict, events: list) -> Finding | None:
     message's own id, or the latest edit of it; a browser names an edit of its own
     still sending once the log has answered it), lands only on that revision: one
     written over words another tab has since replaced would silently take their place.
-    Words the message already says are no revision, and no turn."""
+    Words the message already says are no revision, and no turn; no words at all
+    delete the message (events.md, "Messages")."""
     if event["kind"] != "edit":
         return None
     name = event["message"]

@@ -2072,6 +2072,7 @@ const ICONS = {
 	comment: "<path d=\"M3 3.25h10v7H7.25L4 12.75v-2H3z\"/>",
 	copy: "<rect x=\"6\" y=\"6\" width=\"7\" height=\"7\" rx=\"1.25\"/><path d=\"M10 6V4.25C10 3.56 9.44 3 8.75 3h-4.5C3.56 3 3 3.56 3 4.25v4.5C3 9.44 3.56 10 4.25 10H6\"/>",
 	cross: "<path d=\"m4 4 8 8M12 4l-8 8\"/>",
+	delete: "<path d=\"M3 4.5h10M6.25 4.5V3h3.5v1.5M4.5 4.5l.6 7.85c.05.65.6 1.15 1.25 1.15h3.3c.65 0 1.2-.5 1.25-1.15l.6-7.85M6.75 7v4M9.25 7v4\"/>",
 	dot: "<circle cx=\"8\" cy=\"8\" r=\"1.5\" fill=\"currentColor\" stroke=\"none\"/>",
 	down: "<path d=\"m4 6.25 4 4 4-4\"/>",
 	edit: "<path d=\"m3.25 10.75-.5 2.5 2.5-.5 6.9-6.9-2-2zM9.25 4.75l2 2\"/>",
@@ -2161,6 +2162,10 @@ const ACTIONS = {
 	"copy-link": {
 		name: "Copy link",
 		icon: "link"
+	},
+	delete: {
+		name: "Delete",
+		icon: "delete"
 	},
 	dictate: {
 		name: "Dictate",

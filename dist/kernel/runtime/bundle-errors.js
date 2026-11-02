@@ -2196,23 +2196,23 @@ const offlinePayload = offlineMarker ? JSON.parse(offlineMarker.textContent || "
 const allocation = (name) => document.body.getAttribute(name);
 const annotationMode = allocation("data-annotations") ?? "overlay";
 const offlineInteractive = offlinePayload !== null;
-let dataFile;
-const embeddedValue = async ([start, length]) => {
-	dataFile ??= fetch(offlinePayload.data).then((response) => response.arrayBuffer());
-	const body = new Response(new Uint8Array(await dataFile, start, length)).body;
-	return new Response(body.pipeThrough(new globalThis.DecompressionStream("gzip"))).json();
-};
+const readDataFile = () => fetch(offlinePayload.data).then((response) => response.arrayBuffer());
+let deferredFile;
+const decodeSpan = (file, [start, length]) => new Response(new Response(new Uint8Array(file, start, length)).body.pipeThrough(new globalThis.DecompressionStream("gzip"))).json();
 const offlineState = async () => {
 	if (!offlineInteractive) return null;
 	const state = structuredClone(offlinePayload.state);
-	await Promise.all(Object.entries(offlinePayload.values).map(async ([source, address]) => {
-		state.data.sources[source].value = await embeddedValue(address);
+	const file = await readDataFile();
+	await Promise.all(Object.entries(offlinePayload.values).map(async ([source, span]) => {
+		state.data.sources[source].value = await decodeSpan(file, span);
 	}));
 	return state;
 };
 const offlineDeferred = (source, key) => {
 	const fields = Object.hasOwn(offlinePayload.deferred, source) ? offlinePayload.deferred[source] : {};
-	return Object.hasOwn(fields, key) ? embeddedValue(fields[key]) : void 0;
+	if (!Object.hasOwn(fields, key)) return void 0;
+	deferredFile ??= readDataFile();
+	return deferredFile.then((file) => decodeSpan(file, fields[key]));
 };
 const runtimeModule = (path) => offlineInteractive ? `leaf:${path.startsWith("/") ? path : `/${path}`}` : path;
 const servedLayerRoot = layerRoot(document);

@@ -90,31 +90,32 @@ export const offlineInteractive = offlinePayload !== null;
 // An export holds each data value outside its reading, as one gzipped JSON body
 // (`exporting.py`): a source's value with its deferred fields left out, and each
 // deferred field. The bodies are spans of one embedded file at the address the payload
-// names, which the page reads into one buffer, still compressed, at its first read.
-// A span of that buffer decodes about three times faster than a slice of the Blob,
-// which a diff of thousands of files feels. Each read decodes its own copy, as each
-// answer from a server is one, so the runtime holds no decoded copy beside the reading
-// it accepted.
+// names. A span of a buffer of that file decodes about three times faster than a slice
+// of its Blob, which a diff of thousands of files feels. The state read decodes the
+// values from a buffer it lets go; the first deferred read keeps one for the page's
+// life, since a widget loading records one at a time would otherwise read the whole
+// file for each. Each read decodes its own copy, as each answer from a server is one,
+// so the runtime holds no decoded copy beside the reading it accepted.
+const readDataFile = () =>
+  fetch(offlinePayload.data).then((response) => response.arrayBuffer());
 /** @type {Promise<ArrayBuffer> | undefined} */
-let dataFile;
-/** @param {[number, number]} span */
-const embeddedValue = async ([start, length]) => {
-  dataFile ??= fetch(offlinePayload.data).then((response) => response.arrayBuffer());
-  const body = new Response(new Uint8Array(await dataFile, start, length)).body;
-  return new Response(
-    /** @type {ReadableStream<BufferSource>} */ (body).pipeThrough(
-      new globalThis.DecompressionStream("gzip"),
-    ),
+let deferredFile;
+/** @param {ArrayBuffer} file @param {[number, number]} span */
+const decodeSpan = (file, [start, length]) =>
+  new Response(
+    /** @type {ReadableStream<BufferSource>} */ (
+      new Response(new Uint8Array(file, start, length)).body
+    ).pipeThrough(new globalThis.DecompressionStream("gzip")),
   ).json();
-};
 // The captured reading with its sources' values, as a served page's state answer
 // brings them.
 export const offlineState = async () => {
   if (!offlineInteractive) return null;
   const state = structuredClone(offlinePayload.state);
+  const file = await readDataFile();
   await Promise.all(
-    Object.entries(offlinePayload.values).map(async ([source, address]) => {
-      state.data.sources[source].value = await embeddedValue(address);
+    Object.entries(offlinePayload.values).map(async ([source, span]) => {
+      state.data.sources[source].value = await decodeSpan(file, span);
     }),
   );
   return state;
@@ -126,7 +127,9 @@ export const offlineDeferred = (source, key) => {
   const fields = Object.hasOwn(offlinePayload.deferred, source)
     ? offlinePayload.deferred[source]
     : {};
-  return Object.hasOwn(fields, key) ? embeddedValue(fields[key]) : undefined;
+  if (!Object.hasOwn(fields, key)) return undefined;
+  deferredFile ??= readDataFile();
+  return deferredFile.then((file) => decodeSpan(file, fields[key]));
 };
 /** @param {string} path */
 export const runtimeModule = (path) =>

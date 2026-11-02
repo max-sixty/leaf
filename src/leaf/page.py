@@ -12,8 +12,7 @@ from pathlib import Path
 
 from .refusals import Refused
 from .registry.contract import is_element_name
-from .registry.storage import layer_record, require_candidate, selected
-from .schema import INSTRUCTIONS_DIR
+from .registry.storage import layer_record, require_candidate, selected_vocabulary
 from .structure import SourceDocument
 
 
@@ -98,8 +97,8 @@ def page_instructions(
     parts: dict[str, list[str]] = {}
     record = layer_record(page_dir)
     assert record is not None
-    layer = selected(record, page_dir)
-    for name, data in sorted(layer.directory_files[INSTRUCTIONS_DIR].items()):
+    vocabulary = selected_vocabulary(record, page_dir)
+    for name, data in sorted(vocabulary.instructions.items()):
         text = data.decode("utf-8").strip()
         if text:
             parts.setdefault(Path(name).stem, []).append(text)

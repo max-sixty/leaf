@@ -111,13 +111,13 @@ def test_a_new_page_reads_in_leaf_s_look_unless_it_takes_none(tmp_path):
     assert layer_metadata(page)["theme"] == {"name": "reading", "source": "default"}
     layer_3 = layer_record(page)
     assert layer_3 is not None
-    assert ".callout" in selected(layer_3, page).registry
+    assert ".callout" in selected(layer_3, page).vocabulary.registry
     assert "color-scheme: light dark;\n  --lf-reading-face: 1;" in served_theme(page)
     cmd_init(page, theme=False)
     assert layer_metadata(page)["theme"] is None
     layer_4 = layer_record(page)
     assert layer_4 is not None
-    assert ".callout" not in selected(layer_4, page).registry
+    assert ".callout" not in selected(layer_4, page).vocabulary.registry
     bare = served_theme(page)
     assert (
         ".callout" not in bare
@@ -143,7 +143,7 @@ def test_a_project_package_restates_a_theme_s_idiom(tmp_path, monkeypatch):
     layer_5 = layer_record(page)
     assert layer_5 is not None
     layer = selected(layer_5, page)
-    assert layer.registry[".callout"] == callout
+    assert layer.vocabulary.registry[".callout"] == callout
     sheet = layer.files["/theme.css"].decode()
     assert sheet.index(
         "background: var(--lf-ground);\n  padding: 12px 16px"

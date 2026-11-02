@@ -104,7 +104,7 @@ def layer_instructions(page: Path) -> dict[str, bytes]:
     """The instructions the layer `page` selects composes, by file name."""
     record = registry_storage.layer_record(page)
     assert record is not None
-    return registry_storage.selected(record, page).directory_files["instructions"]
+    return registry_storage.selected_vocabulary(record, page).instructions
 
 
 def test_cli_help_groups_commands_with_complete_summaries(regtest):
@@ -2131,13 +2131,92 @@ def test_the_layer_composer_is_the_browser_module_population():
     widgets = composition.directory_files["widgets"]
     upgraded = {
         f"{tag}.js"
-        for tag, entry in composition.registry.items()
+        for tag, entry in composition.vocabulary.registry.items()
         if tag.startswith("lf-") and entry["x-upgrade"]
     }
 
     assert upgraded <= widgets.keys()
     assert "lf-diagram.js" in widgets
     assert {"lf-options-addition.js", "lf-options-settled.js"} <= widgets.keys()
+
+
+def test_reading_a_page_composes_only_its_layers_vocabulary(
+    claimed, interactive, monkeypatch
+):
+    """Every prompt and Stop hook, and each command that reads a page's documents,
+    state or instructions, reads it in its layer's vocabulary: the registry, the
+    widget modules' paths and the packages' instructions. Composing the layer's sheets
+    and modules besides, which serving, export and check read, was most of each
+    hook's time. The prompt reads the page's candidate, and the Stop, after `page
+    state` activated it, its revision."""
+    composed = []
+    composition = layer_model._composition
+    monkeypatch.setattr(
+        layer_model,
+        "_composition",
+        lambda *args: composed.append(args) or composition(*args),
+    )
+    prompt = {"hook_event_name": "UserPromptSubmit", "session_id": "s1", "prompt": "go"}
+    hooks_model.cmd_hook("claude-code", prompt)
+    state = CliRunner().invoke(cli_model.cli, ["page", "state", str(claimed)])
+    assert state.exit_code == 0, state.output
+    assert json.loads(state.output)["active"]["revision"] == 1
+    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
+    for command in ("vocabulary", "instructions"):
+        read = CliRunner().invoke(cli_model.cli, ["page", command, str(claimed)])
+        assert read.exit_code == 0, read.output
+
+    assert composed == []
+
+
+@pytest.mark.parametrize(
+    ("path", "contents", "named"),
+    [
+        ("defaults.css", ".note { broken; }\n", "defaults.css syntax error"),
+        (
+            "widgets/helper.js",
+            'export { x } from "/runtime/semantic-state.js";\n',
+            "imports private kernel module",
+        ),
+    ],
+    ids=["sheet", "module"],
+)
+def test_a_package_that_stops_composing_is_refused_where_the_page_is_served(
+    tmp_path, monkeypatch, path, contents, named
+):
+    """`page init` refuses a package that doesn't compose, but its copy in the page can
+    stop composing later, edited in place or read by a stricter Leaf. Reading the
+    page's state needs no package sheet or module, so the page reads on, and `page
+    check` and a server about to bind (`http.page_endpoint`, which `server start`
+    runs) refuse it, naming the repair."""
+    from leaf.http import page_endpoint
+
+    monkeypatch.chdir(tmp_path)
+    package = tmp_path / "notes"
+    (package / "widgets").mkdir(parents=True)
+    (package / "registry.json").write_text("{}")
+    (package / "defaults.css").write_text(".note { color: teal; }\n")
+    (package / "widgets" / "helper.js").write_text("export const x = 1;\n")
+    page = tmp_path / "page"
+    runner = CliRunner()
+    made = runner.invoke(
+        cli_model.cli, ["page", "init", "--package", "./notes", str(page)]
+    )
+    assert made.exit_code == 0, made.output
+    (page / "index.html").write_text(leaf_page("Notes", '<p id="n">Ship Tuesday.</p>'))
+    (page / schema_model.PACKAGES_DIR / "notes" / path).write_text(contents)
+
+    state = runner.invoke(cli_model.cli, ["page", "state", str(page)])
+    assert state.exit_code == 0, state.output
+    checked = runner.invoke(cli_model.cli, ["page", "check", str(page)])
+    assert checked.exit_code == 1
+    [finding] = json.loads(checked.output)["findings"]
+    assert finding["code"] == "layer-unavailable"
+    assert named in finding["text"]
+    assert "leaf page init --package" in finding["text"]
+    served = registry_refusal(lambda: page_endpoint(page, "key"))
+    assert served.code == "layer-unavailable"
+    assert named in str(served)
 
 
 def test_every_test_runs_against_a_throwaway_state_home(tmp_path_factory):

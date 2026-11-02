@@ -2055,9 +2055,10 @@ def comment_once_served():
 
 
 class ContextRecord:
-    """Claude Code's transcript, as tests stand it in (`Harness.entered_context`):
-    every inline handover a hook printed reached the model's context, except those
-    into the turns a test has `dropped`, as Escape during a prompt hook drops them."""
+    """Claude Code's transcript, as tests stand it in (`Harness.entered_context`,
+    `Harness.prompt_dropped`): every prompt and every inline handover a hook printed
+    reached the model's context, except the turns a test has `dropped`, as Escape
+    during a prompt hook drops them."""
 
     def __init__(self):
         self.dropped: set[str] = set()
@@ -2083,6 +2084,11 @@ def context_record(monkeypatch):
         harness_model.ClaudeCodeHarness,
         "entered_context",
         lambda harness, payload: record.entered(harness),
+    )
+    monkeypatch.setattr(
+        harness_model.ClaudeCodeHarness,
+        "prompt_dropped",
+        lambda harness, payload, turn: turn in record.dropped,
     )
     return record
 

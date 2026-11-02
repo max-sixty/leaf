@@ -606,14 +606,46 @@ const sending = (turn) => ({
 	reason: "workflow",
 	workflow: turn.id
 });
+function unedited(thread, message, withdrawn) {
+	const { edited, ...rest } = message;
+	if (!edited || !withdrawn.has(edited.id)) return message;
+	const revisions = thread.revisions.filter((edit) => edit.message === message.id);
+	const at = revisions.findIndex(({ id }) => id === edited.id);
+	const before = revisions.slice(0, at).findLast(({ id }) => !withdrawn.has(id));
+	if (!before) return {
+		...rest,
+		text: edited.was,
+		content_version: message.id
+	};
+	const { id, ts, was } = before;
+	return {
+		...rest,
+		text: edited.was,
+		content_version: id,
+		edited: "seq" in before ? {
+			id,
+			seq: before.seq,
+			ts,
+			was
+		} : {
+			id,
+			ts,
+			was
+		}
+	};
+}
 function foldThreads(threads, gestures) {
 	if (!gestures.length) return [...threads];
 	const withdrawn = new Set(gestures.flatMap((gesture) => gesture.kind === "undo" ? [gesture.undoes] : []));
-	const copies = threads.filter((thread) => !withdrawn.has(thread.root.id)).map((thread) => ({
-		...thread,
-		msgs: thread.msgs.filter((message) => !withdrawn.has(message.id)),
-		...thread.resolved && "id" in thread.resolved && withdrawn.has(thread.resolved.id) ? { resolved: null } : {}
-	}));
+	const copies = threads.filter((thread) => !withdrawn.has(thread.root.id)).map((thread) => {
+		const msgs = thread.msgs.filter((message) => !withdrawn.has(message.id)).map((message) => unedited(thread, message, withdrawn));
+		return {
+			...thread,
+			root: msgs.find(({ id }) => id === thread.root.id) ?? thread.root,
+			msgs,
+			...thread.resolved && "id" in thread.resolved && withdrawn.has(thread.resolved.id) ? { resolved: null } : {}
+		};
+	});
 	const byName = threadNames(copies);
 	const opened = [];
 	for (const gesture of gestures) if (gesture.kind === "comment") {

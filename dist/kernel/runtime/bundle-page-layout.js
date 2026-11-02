@@ -4680,6 +4680,11 @@ function gestureWords(event, gesture) {
 			const name = thread ? quotedWords(threadName(thread), 48) : "a thread";
 			return `${event.kind === "resolve" ? "resolved" : "reopened"} ${name}`;
 		}
+		case "edit": {
+			const thread = threadNamed(event.message);
+			const name = thread ? quotedWords(threadName(thread), 48) : "a thread";
+			return `${event.text ? "edited" : "deleted"} a message in ${name}`;
+		}
 		case "todo_end": {
 			const todo = runtime.todos.find(({ id }) => id === event.todo);
 			return TODO_ENDINGS[event.outcome](todo ? quotedWords(todo.title) : "a to-do");
@@ -4688,6 +4693,11 @@ function gestureWords(event, gesture) {
 	}
 }
 function placeOf(event) {
+	if (event.kind === "edit") return {
+		thread: threadIdNamed(event.message),
+		message: event.message,
+		nodes: []
+	};
 	if (event.kind === "resolve" || event.kind === "unresolve" || event.kind === "reply") return {
 		thread: event.parent ? threadIdNamed(event.parent) : null,
 		nodes: []

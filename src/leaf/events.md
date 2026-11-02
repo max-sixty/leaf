@@ -81,11 +81,11 @@ and the anchor moves that depend on it land together.
 
 ## Undo
 
-The user may withdraw a resolve, unresolve, action, or Done on a to-do (the
+The user may withdraw a resolve, unresolve, action, edit, or Done on a to-do (the
 kinds `$events.kinds` marks `undoable`), and a reaction while nothing has answered it
 and its thread is unresolved. Spoken messages cannot be withdrawn; their writer deletes
-one by rewriting it to no words, which leaves it in place ("Messages"). An undo cannot
-itself be undone. The door refuses an `undoes` naming anything but an unwithdrawn
+one by rewriting it to no words, which leaves it in place ("Messages"), and withdrawing
+that edit gives the message its words back. An undo cannot itself be undone. The door refuses an `undoes` naming anything but an unwithdrawn
 gesture of the user's own (`events.UndoReading`).
 
 `undo` names its gesture and nothing else. It withdraws rather than deletes: the event
@@ -320,8 +320,9 @@ to-do is made from an obligation.
   to revise. Readings show the latest text on the original message, labelled edited,
   and the message's `edited` names that edit and the text it replaced (`was`). Text the
   message already says is refused. A browser's edit names its `base`, the id of the
-  message or of its latest edit, and lands only while that is still the latest, so a
-  tab cannot silently replace words another tab has since rewritten.
+  message or of its latest edit still in force, and lands only while that is still the
+  latest, so a tab cannot silently replace words another tab has since rewritten. A
+  withdrawn edit gives the message back the words it replaced.
 - An `edit` whose `text` is empty deletes the message. Readings keep it in its place,
   with empty `text` and `edited.was` holding what it said, since answers to it still
   stand and name it; the browser draws it as Deleted, and offers no rewrite of it.

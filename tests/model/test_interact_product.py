@@ -1812,7 +1812,8 @@ def test_a_rewrite_lands_only_on_the_words_it_was_written_over(page_dir):
     save silently replaced the newer rewrite another tab had made. A rewrite names the
     revision it was written over, and the door refuses it once that revision is not the
     message's latest, telling the user to edit again. Words the message already says are
-    no rewrite."""
+    no rewrite. Undoing a rewrite gives the message back the words it replaced, and the
+    rewrite before it is the one the next lands on."""
     publish(page_dir)
     said = append_command(
         page_dir,
@@ -1843,6 +1844,21 @@ def test_a_rewrite_lands_only_on_the_words_it_was_written_over(page_dir):
     ]
     assert [message["text"] for message in thread["msgs"]] == ["West."]
     assert thread["msgs"][0]["edited"]["was"] == "South."
+
+    append_command(page_dir, {"kind": "undo", "author": "user", "undoes": west["id"]})
+    thread = event_folds_model.build_threads(events_model.read_events(page_dir), {})[
+        said["id"]
+    ]
+    assert [message["text"] for message in thread["msgs"]] == ["South."]
+    assert thread["msgs"][0]["edited"] == {
+        "id": south["id"],
+        "seq": south["seq"],
+        "ts": south["ts"],
+        "was": "North.",
+    }
+    with pytest.raises(events_model.EventRefused):
+        rewrite("East.", west["id"])
+    rewrite("East.", south["id"])
 
 
 def test_edit_uses_the_captured_contract_when_the_candidate_registry_is_invalid(

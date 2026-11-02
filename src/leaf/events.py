@@ -357,16 +357,20 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
 def active_summaries(events: list, threads: dict) -> dict[str, list[dict]]:
     """Current presentation summaries for every thread, by thread id.
 
-    Summaries replace overlapping summaries whole. Editing a covered message
-    invalidates a summary containing prose. A fold without prose keeps showing the
-    revised originals. Progress completion is separate (`progress_completions`), so
-    opening a summary never restores completed progress.
+    Summaries replace overlapping summaries whole. Editing a covered message, or
+    undoing an edit of it, invalidates a summary containing prose. A fold without
+    prose keeps showing the revised originals. Progress completion is separate
+    (`progress_completions`), so opening a summary never restores completed progress.
     """
     edits = {}
+    edited = {}
     written = {}
     for event in events:
         if event["kind"] == "edit":
+            edited[event["id"]] = event["message"]
             edits[event["message"]] = event["seq"]
+        elif event["kind"] == "undo" and event["undoes"] in edited:
+            edits[edited[event["undoes"]]] = event["seq"]
         elif event["kind"] == "summary" and event["thread"] in threads:
             written.setdefault(event["thread"], []).append(event)
     return {

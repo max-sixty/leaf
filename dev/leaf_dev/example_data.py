@@ -38,8 +38,23 @@ _DATA_COMPANION = Draft202012Validator(
 )
 
 
-# Where a page named on a command line is looked up.
+# Where authored pages live: the examples, the developer galleries and the
+# full-page regression fixtures. A command line names a page by its file's stem.
 NAMED_SOURCE_DIRS = (ROOT / "examples", ROOT / "examples" / "developer", TEST_PAGES)
+
+
+def source_directories(root: Path = ROOT) -> list[Path]:
+    return [root / path.relative_to(ROOT) for path in NAMED_SOURCE_DIRS]
+
+
+def authored_sources(root: Path = ROOT) -> list[Path]:
+    """Every authored page, by directory and then name; the corpus is generated."""
+    return [
+        path
+        for directory in source_directories(root)
+        for path in sorted(directory.glob("*.html"))
+        if path != root / "examples" / "corpus.html"
+    ]
 
 
 def named_source(name: str, *, root: Path = ROOT) -> Path:
@@ -50,30 +65,13 @@ def named_source(name: str, *, root: Path = ROOT) -> Path:
         from leaf_dev.commands.corpus import generate
 
         return generate(root)
-    directories = [root / path.relative_to(ROOT) for path in NAMED_SOURCE_DIRS]
-    found = [
-        path
-        for directory in directories
-        if (path := directory / f"{name}.html").is_file()
-    ]
+    found = [path for path in authored_sources(root) if path.stem == name]
     if len(found) > 1:
         raise ValueError(f"{name} names more than one source: {found}")
     if not found:
-        available = sorted(
-            {"corpus"}
-            | {
-                path.stem
-                for directory in directories
-                for path in directory.glob("*.html")
-            }
-        )
+        available = sorted({"corpus"} | {path.stem for path in authored_sources(root)})
         raise ValueError(f"no source named {name}; available: {', '.join(available)}")
     return found[0]
-
-
-def regression_sources(root: Path = ROOT) -> list[Path]:
-    """Full-page regression inputs that are neither examples nor website routes."""
-    return sorted((root / "tests" / "fixtures" / "pages").glob("*.html"))
 
 
 def catalog_sources(root: Path = ROOT) -> list[Path]:

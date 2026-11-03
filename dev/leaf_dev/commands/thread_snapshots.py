@@ -11,7 +11,7 @@ images as evidence,
 except in the dark cases, whose colour scheme changes only pixels.
 A profile names the macOS version, architecture and locked Chromium version, and a
 missing profile fails: browser upgrades require deliberately reviewed captures.
-Existing fetch-assets warms the same cache as every other asset reader.
+`leaf-dev setup` warms that pin's cache with the media pin's.
 
     uv run pytest -n0 tests/*/test_render_thread_snapshots.py
     uv run leaf-dev thread-snapshots capture

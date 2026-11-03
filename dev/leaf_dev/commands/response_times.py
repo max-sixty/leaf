@@ -44,15 +44,12 @@ answering session's record can be read, the input also carries its reply's break
 idle time between its turns, and the model's time and calls. Its case is `working`
 where a turn was running at the admission, so the harness took the input at that
 turn's next tool boundary or its end, else `waiting`. A reply a fork of the
-conversation wrote (`leaf.forks`) has no breakdown, since the session spent nothing
-on it.
-
-`page_timings` reads a session's record through the reader it is given. This
-command's reads a Claude Code session's transcript still in this machine's Claude
-Code projects, which times no request or first output, so the model's time stays
-unsplit; other harnesses' inputs carry no breakdown, and the summary's reply rows
-count them missing. `leaf-dev journey` passes the record of the session it runs,
-on any harness (`journey.User.sample`).
+conversation wrote (`leaf.forks`) has none, since the session spent nothing on it.
+This command reads a Claude Code session's transcript still in this machine's Claude
+Code projects (`transcript_of`), which times no request or first output, so the
+model's time stays unsplit; other harnesses' inputs carry no breakdown, and the
+summary's reply rows count them missing. `leaf-dev journey` reads the record of the
+session it runs instead, on any harness (`journey.User.sample`).
 
 Each input whose opening session's record can be read also carries what its pickup
 waited on (`pickup`, `reply_phases.pickup_wait`), and the summary's `opened_*` rows

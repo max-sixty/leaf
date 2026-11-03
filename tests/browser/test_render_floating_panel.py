@@ -64,7 +64,7 @@ from leaf import thread as thread_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf_dev import browser as dev_browser
 from leaf_dev.browser import panel_tab
-from leaf_dev.panel_paint import ink_box, settled
+from leaf_dev.panel_paint import ROUTES, ink_box, settled
 
 OBLIGATION_PAGE = leaf_page(
     "obligation",
@@ -3571,12 +3571,7 @@ def test_the_leaf_paints_inside_its_focus_ring_after_folding(browser, serve):
     )
     colours = {name: ImageColor.getrgb(value) for name, value in colours.items()}
 
-    for route, action in (
-        ("pointer", ".lf-fp-minimize"),
-        ("pointer", ".lf-fp-leaf"),
-        ("keyboard", "."),
-        ("keyboard", "Enter"),
-    ):
+    for route, action in ROUTES:
         if action == ".lf-fp-minimize":
             card = page.locator(".lf-fp-card").bounding_box()
             page.mouse.move(card["x"] + card["width"] - 20, card["y"] + 6)

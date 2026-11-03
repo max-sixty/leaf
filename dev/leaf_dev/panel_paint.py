@@ -85,6 +85,9 @@ def run(page):
                 page.locator(".lf-fp-field leaf-text").click()
                 page.keyboard.press("Shift+Tab")
                 expect(leaf).to_be_focused()
+            # What the setup drew, such as the field's focus outline, rests before
+            # the route's clock starts.
+            settled(page)
             colours = leaf.evaluate("""node => ({
               ring: getComputedStyle(node).outlineColor,
               mark: getComputedStyle(node.querySelector('svg[data-lf-icon=leaf]')).color
@@ -99,14 +102,27 @@ def run(page):
                 one_frame(page)
                 page.mouse.up()
             settled(page)
-            ended = time.time() * 1000
-            painted = [f for f in frames if began <= f["timestamp"] <= ended]
-            boxes = (start, leaf.bounding_box())
-            routes.append((route, action, colours, boxes, painted))
+            window = (began, time.time() * 1000)
+            routes.append(
+                (route, action, colours, (start, leaf.bounding_box()), window)
+            )
+        # Frames reach Python after their swap, and stopping drops any still on the
+        # way, so wait for the last ones before the screencast stops.
+        page.wait_for_timeout(1500)
     return {
         "load_before": before,
         "load_after": load_average(),
-        "routes": [reading(viewport, *route) for route in routes],
+        "routes": [
+            reading(
+                viewport,
+                route,
+                action,
+                colours,
+                boxes,
+                [f for f in frames if began <= f["timestamp"] <= ended],
+            )
+            for route, action, colours, boxes, (began, ended) in routes
+        ],
     }
 
 

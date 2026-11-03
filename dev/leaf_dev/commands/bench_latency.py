@@ -264,7 +264,7 @@ class Session:
                 self.profiling(transition, self.profiled)
                 if self.profiled
                 else nullcontext()
-            ) as profiled:
+            ) as recorded:
                 start = act()
                 watch = until(
                     self.page,
@@ -277,9 +277,9 @@ class Session:
             frames = self.page.evaluate("() => window.__leafBench.frames()")
         finally:
             self.page.evaluate("() => window.__leafBench.disarm()")
-        if profiled:
+        if recorded:
             runs = self.attributed.setdefault(transition, [])
-            runs.append(attribute(*profiled, start, watch["goals"]))
+            runs.append(attribute(*recorded, start, watch["goals"]))
         end = max(goal["at"] for goal in watch["goals"])
         # The gesture's own POST: the attempt the probe bound its `delivered` goal to.
         answered = next(

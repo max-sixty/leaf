@@ -40,7 +40,7 @@
 
     "runtime/annotation-overlay/margin-cluster-view.js": "a329209183a6255d8df0b87dadd4047b521d14f2dd33de52da7d47fadcb88e1c",
 
-    "runtime/annotation-overlay/margin-layout.js": "4be4722f884fbc94a9847ee033aec7366bc24f678f640fed3e2f0349c97216e4",
+    "runtime/annotation-overlay/margin-layout.js": "7c89513a76842e85661bfdaa4e5baad9d7dbb9fde4917cf47004c3a831ec96ee",
 
     "runtime/annotation-overlay/margin-placement.js": "7eb32b30afc9432946f2ecd3ff60535ab3c1ff4ed4646fca1f5445bffb91de22",
 
@@ -144,7 +144,7 @@
 
     "runtime/css-anchors.js": "03fabbdc0604c9624e56185521831b6b416d2e5f3272cfd5fe78e17b4b9631eb",
 
-    "runtime/current-target.js": "157c79d43897e2f4d219bfc71ddf02b734f164f53cac16fa64336bd5ac576082",
+    "runtime/current-target.js": "caf76ef138c45b35c46982272ac827e571f49a300a46dbe12630c4993ad52d86",
 
     "runtime/data.js": "c80e810fbf3d964e4f20027b817256e0c5074f9c17aaa22dddac5b8e389d293d",
 
@@ -266,7 +266,7 @@
 
     "runtime/keyboard/register.js": "e3899176463d4b8e908c5f6d15edf1e92a1d0abaccd4714d0676e5c9fc38de02",
 
-    "runtime/keyboard/scopes.js": "c4abc9b3818c24c25321d1d46f41d089a455dc0f3f1265ed5488db785fddb176",
+    "runtime/keyboard/scopes.js": "7d734e1f81549acc9f10d6bbac5c38197a9d4f4c70389ac7a88912f008629457",
 
     "runtime/keyboard/status-context.js": "7a513009193c1d885a2bfb7d2d7cbcf81de793fdec47ee5d19e5422c9c69aa8b",
 

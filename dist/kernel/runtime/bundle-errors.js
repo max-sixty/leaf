@@ -3514,23 +3514,35 @@ installMoveKeys((node) => {
 	for (let at = node; at; at = composedParentNode(at)) if (paintedRoots.has(at)) return markScopedIn(node);
 });
 function markScopedIn(node) {
-	if (node instanceof Element && scopeRefFor.has(node)) {
+	if (isElement(node) && scopeRefFor.has(node)) {
 		dirtyElements.add(node);
 		dirtyButtons.add(node);
 	}
 	for (const child of node.childNodes) markScopedIn(child);
-	if (node instanceof Element && node.shadowRoot) markScopedIn(node.shadowRoot);
+	if (isElement(node) && node.shadowRoot) markScopedIn(node.shadowRoot);
 }
 function claimPaintedRoots() {
 	if (!paintedRoots.size) return;
-	for (const ref of scopeRefs) {
-		const scoped = ref.deref();
-		for (let at = scoped ?? null; at; at = composedParentNode(at)) if (paintedRoots.has(at)) {
-			dirtyElements.add(scoped);
-			dirtyButtons.add(scoped);
-			break;
+	const covered = /* @__PURE__ */ new Map();
+	const coveredFrom = (node) => {
+		const passed = [];
+		let answer = false;
+		for (let at = node; at; at = composedParentNode(at)) {
+			const known = covered.get(at);
+			if (known !== void 0) {
+				answer = known;
+				break;
+			}
+			passed.push(at);
+			if (paintedRoots.has(at)) {
+				answer = true;
+				break;
+			}
 		}
-	}
+		for (const at of passed) covered.set(at, answer);
+		return answer;
+	};
+	for (const root of paintedRoots) if (!coveredFrom(composedParentNode(root))) markScopedIn(root);
 	paintedRoots.clear();
 }
 const saying = (rows) => activeRows(rows, "an announced scope").map((row) => `${spoken(row)} ${titleOf(row)}`).join(", ");

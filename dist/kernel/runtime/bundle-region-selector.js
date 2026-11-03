@@ -1,6 +1,5 @@
 import { clamp, closeLayer, describeFailure, focusDestination, focused, handBack, keeps, keepsHidden, keepsText, layoutWindow, nextRender } from "./bundle-portable.js";
-import { el, notice, paintKeys, raiseError, runtime } from "./bundle-layer-client.js";
-import { LEAF_SURFACE } from "./bundle-passages.js";
+import { el, notice, paintKeys, raiseError, runtime } from "./bundle-errors.js";
 import { pageImage } from "./bundle-page-image.js";
 
 //#region runtime/composing/region-selector.js
@@ -113,7 +112,7 @@ function createRegionSelector({ parent, visibleTargets, openComposerWithMedia, r
 		keepsText(status, "Capturing…");
 		paintKeys();
 		try {
-			const { blob, warnings } = await pageImage(clip, { exclude: [LEAF_SURFACE] });
+			const { blob, warnings } = await pageImage(clip);
 			if (ended || ticket !== attempt) return;
 			if (revision !== runtime.currentRevision) throw new Error("The page changed. Select the area again.");
 			let adding;

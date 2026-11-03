@@ -345,12 +345,17 @@ export function* blocksOnScreen(region = null, blocks = textBlocks(), band = nul
 // The first visible block in a reading region, or with none given in the page outside
 // the regions that bound themselves, for alignment when nothing is selected. A stuck
 // box, such as a site header fixed over the page, rides along with every scroll, so
-// it is never the block the reader is on (geometry.js, `stuckBox`).
+// it is never the block the reader is on (geometry.js, `stuckBox`). Where every block
+// on screen reads as stuck, as in an app shell fixed over the window that scrolls its
+// own content, the first stands.
 /** @param {ReadingRegion | null} [region] */
 export const readingBlock = (region = null) => {
-  for (const [block] of blocksOnScreen(region, textBlocks(region?.body)))
+  let first = null;
+  for (const [block] of blocksOnScreen(region, textBlocks(region?.body))) {
+    first ??= block;
     if (!stuckBox(block, region?.body ?? null)) return block;
-  return null;
+  }
+  return first;
 };
 
 // The block the user is reading on the page, for a walk's origin, the keyboard

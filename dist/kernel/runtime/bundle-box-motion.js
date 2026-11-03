@@ -1,5 +1,5 @@
 import { TEXT_FIELD, afterSettling, cancelRender, contentRides, inChrome, inlineStyle, keeps, locationStandsDown, motionEasing, motionPlays, motionTime, move, nativeLayerHolding, nextRender, onUserInput, playMotion, shownParts } from "./bundle-portable.js";
-import { el } from "./bundle-layer-client.js";
+import { el } from "./bundle-errors.js";
 import "./bundle-passages.js";
 import { SVG_NS, paintGeometry, paintShape, paintStand, placement, standBox, standOver, vacate } from "./bundle-page-layout.js";
 

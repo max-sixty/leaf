@@ -110,7 +110,7 @@
 
     "runtime/composing/region-capture.js": "0497e183c37f85674e84a6eb459915b0f0670c83f63c686e605c4fe67251069d",
 
-    "runtime/composing/region-selector.js": "44de5b4ac19e7ab8f3d630ec6cd18528866738a752c3c76125a98fe4c42f1547",
+    "runtime/composing/region-selector.js": "c192e12b3450b187507871286c784d12ce1a078a2552b36b1596d3f962a1a584",
 
     "runtime/composing/selection.js": "391bd9fb7f9c46e3374144f918866a2f6d5eaaea818fed9eff104c244644fc9b",
 
@@ -388,7 +388,7 @@
 
     "runtime/reading-continuity.js": "cef989af886deaa24e32727730263b4d522a3d33a8bfd9c87f4ca29b6f9e36c4",
 
-    "runtime/reading-place.js": "5b1bfba3c2bd082138930a10212e29e95e1d77015d4c61c5f7e5463f54507e16",
+    "runtime/reading-place.js": "86f9d51c39b0818d5dd2a79383ecef9f63227cf23b6b997962cb174891271c85",
 
     "runtime/reading-regions.js": "ddce82affdf1156d19a0e22e500e61c78291341fb66144406ac5f9272d51edde",
 

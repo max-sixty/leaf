@@ -1,5 +1,6 @@
 import { PAGE_PAINT_ATTRIBUTE, SAID, UI_MARKS, closestAcross, inUi, isElement, isHTML, isNode, isText, overIn, pageUpgraded, renderedOrder, renderedParent, renderedUnder, shadowHost, uiInside, under, upFrom } from "./bundle-portable.js";
-import { COLLAPSE, TEXT_BLOCK, decisionFor, declaredRoot, pageShadowRoots, readPart, refuseShadowRoot, registry, reportPageError, shadowRootsIn } from "./bundle-layer-client.js";
+import { COLLAPSE, TEXT_BLOCK, decisionFor, declaredRoot, pageShadowRoots, readPart, refuseShadowRoot, registry, shadowRootsIn } from "./bundle-errors.js";
+import { reportPageError } from "./bundle-layer-client.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
 
 //#region runtime/text-alignment.js

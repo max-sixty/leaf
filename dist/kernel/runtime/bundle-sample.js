@@ -1,5 +1,6 @@
 import { exceptionRecord, frameView, frameVisibility, inputInFrame, keeps, layoutWindow, move, nextRender, onFrameVisibility, presented, readSampleVisibility, sizeObserver, watchFrame, watchRoom } from "./bundle-portable.js";
-import { RequestError, pageUrl, recordInteraction, requestJson, runtime } from "./bundle-layer-client.js";
+import { pageUrl, runtime } from "./bundle-errors.js";
+import { RequestError, recordInteraction, requestJson } from "./bundle-layer-client.js";
 import { aborted, widgetDescriptor } from "./bundle-abort.js";
 import { dressFor, registerSampleDress } from "./bundle-dress.js";
 

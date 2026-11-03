@@ -1,8 +1,8 @@
-import { CARET_KEYS, HOLDS_WORD, J, OUTPUT, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSES, RUNTIME_PAINT_ATTRIBUTE, SourcePairs, TEXT_BOX, TEXT_FIELD, W, WALK, Z, actionElement, actionTemplate, afterScript, aimedTop, alreadyShown, atScrollEnd, attachDeferredLoader, backgroundFlash, beginWalk, bindQueuedWork, blurFocused, byRenderedOrder, cancelRender, caretAtKey, chosenSince, clippedContents, clippedPlace, closestAcross, currentLocationIn, currentLocationNodes, currentLocationTouches, d, dataBody, deepFocus, describeFailure, drawn as drawn$2, eventSource, fitsWhole, flashDuration, focusDestination, focused, foldBlock, frameFor, generatedElement, growthAfterIsSeen, growthIsSeen, headerInset, holdCurrentLocation, holdFocus, iconElement, inChrome, inUi, inWindowChrome, inlineStyle, inputCount, isElement, isHTML, keeps, keepsHidden, landedBox, landingBand, layoutChanged, layoutPx, listWalkPosition, measure, motion, motionPlays, move, moveScrollerBy, nativeLayerHolding, nextAnimation, nextFrame, nextRender, offer, offerAction, offered, offeredAction, offeredActionElement, onCurrentLocation, onLetGo, onPress, onPressAway, onUserInput, outputProducer, pagePresented, pageScroller, passOn, patchRetains, patchTree, placeBox, placeHolder, placeKept, plainPress, pointerAt, presented, readCaret, recentPlaceInput, refuseOutput, registrations, renderedOrder, renderedParent, renderedUnder, renderingState, restorePointer, restrictUserIntent, retainUserIntent, roomPx, scrollBehavior, scrollChoices, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollToEnd, scrollersOf, seenRect, selectsAll, setChildren, setRegistration, setScroll, shownBox, shownRect, shownWindow, showsContents, sizeObserver, skipped, slotTop, stopScroll, stuckBox, synNodes, syntax, syntaxLanguageNames, tabStore, takesLetters, textWidth, tick, typesText, under, union, upFrom, updateSurface, userScrollport, visibleBand, watchArrivals, watchOwner, whenNone, x } from "./bundle-portable.js";
-import { COLLAPSE, LIVE_ROOT, PENDING, PRESENTATION_DOM, PRESSABLE, TEXT_BLOCK, adoptRegistry, agentName, agentSays, announce, applicationPresenter, applicationState, ariaShortcuts, attachApplicationPresentation, authoredBody, bindings, buttonCommand, checked, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, decisionFor, declarationFor, declareCommandReadiness, declaresCommandHandler, deleted, descriptionOf, editable, el, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, hasObligationSource, holdStatus, holdingError, html, isElementName, isReaction, keyed, keys, labelOf, lastMovedAt, layerRoot, leafSays, live as live$1, live$1 as live, loadShadowRules, marks, messageKey, nothing, notice, obligationValue, offlineData, offlineInteractive, pageClaimed, pageRange, pageUrl, paintKeys, passErrorsAt, projectCommandScope, projectView, projectionOrigins, projectionRegionsPresented, pruneScopedElements, raiseError, readApplication, readPart, ref, registry, render as render$1, repaint, repeat, reveal, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, savedReadingSettled, seatRoot, selectEnds, selectionBackward, share, spell, tagsDeclaring, threadKey, threadNames, titleOf, tokenEntry, touchPresses as touchPresses$1, turns, voiced, watchCommandScopes, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented, word } from "./bundle-errors.js";
+import { CARET_KEYS, HOLDS_WORD, J, OUTPUT, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSES, RUNTIME_PAINT_ATTRIBUTE, SourcePairs, TEXT_BOX, TEXT_FIELD, W, WALK, Z, actionElement, actionTemplate, afterScript, aimedTop, alreadyShown, atScrollEnd, attachDeferredLoader, backgroundFlash, beginWalk, bindQueuedWork, blurFocused, byRenderedOrder, cancelRender, caretAtKey, chosenSince, clippedContents, clippedPlace, closestAcross, currentLocationIn, currentLocationNodes, currentLocationTouches, d, dataBody, deepFocus, describeFailure, drawn as drawn$2, eventSource, fitsWhole, flashDuration, focusDestination, focused, foldBlock, frameFor, generatedElement, growthAfterIsSeen, growthIsSeen, headerInset, holdCurrentLocation, holdFocus, iconElement, inChrome, inUi, inWindowChrome, inlineStyle, inputCount, isElement, isHTML, keeps, keepsHidden, keepsText, landedBox, landingBand, layoutChanged, layoutPx, listWalkPosition, measure, motion, motionPlays, move, moveScrollerBy, nativeLayerHolding, nextAnimation, nextFrame, nextRender, offer, offerAction, offered, offeredAction, offeredActionElement, onCurrentLocation, onLetGo, onPress, onPressAway, onUserInput, outputProducer, pagePresented, pageScroller, passOn, patchRetains, patchTree, placeBox, placeHolder, placeKept, plainPress, pointerAt, presented, readCaret, recentPlaceInput, refuseOutput, registrations, renderedOrder, renderedParent, renderedUnder, renderingState, restorePointer, restrictUserIntent, retainUserIntent, roomPx, scrollBehavior, scrollChoices, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollToEnd, scrollersOf, seenRect, selectsAll, setChildren, setRegistration, setScroll, shownBox, shownRect, shownWindow, showsContents, sizeObserver, skipped, skipper, slotTop, stopScroll, stuckBox, synNodes, syntax, syntaxLanguageNames, tabStore, takesLetters, tick, typesText, under, union, upFrom, updateSurface, userScrollport, visibleBand, watchArrivals, watchOwner, whenNone, x } from "./bundle-portable.js";
+import { COLLAPSE, LIVE_ROOT, PENDING, PRESENTATION_DOM, PRESSABLE, TEXT_BLOCK, adoptRegistry, agentName, agentSays, announce, applicationPresenter, applicationState, ariaShortcuts, attachApplicationPresentation, authoredBody, bindings, buttonCommand, checked, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, decisionFor, declarationFor, declareCommandReadiness, declaresCommandHandler, deleted, descriptionOf, editable, el, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, fragmentUrl, hasObligationSource, holdStatus, holdingError, html, isElementName, isReaction, keyed, keys, labelOf, lastMovedAt, layerRoot, leafSays, live as live$1, live$1 as live, loadShadowRules, marks, messageKey, nothing, notice, obligationValue, offlineDeferred, offlineInteractive, pageClaimed, pageRange, pageUrl, paintKeys, passErrorsAt, projectCommandScope, projectView, projectionOrigins, projectionRegionsPresented, pruneScopedElements, raiseError, readApplication, readPart, ref, registry, render as render$1, repaint, repeat, reveal, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, savedReadingSettled, seatRoot, selectEnds, selectionBackward, share, spell, tagsDeclaring, threadKey, threadNames, titleOf, tokenEntry, touchPresses as touchPresses$1, turns, voiced, watchCommandScopes, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented, word } from "./bundle-errors.js";
 import { LayerRefused, admitReading, admitResponse, randomId, reportPageError, requestJson, revealLayer, runtimeRootState, sameLayer, setRuntimeRootAttribute } from "./bundle-layer-client.js";
-import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableWord, addressedElements, ago, aimTargetAt, anchorBox, anchorForPassage, anchorForRange, anchorReading, anchorView, anchoringIsReady, chromeForeground, chromeRoot, claimReachStop, containingReadingRegionFor, cutFrames, datumAimTarget, datumLabel, effectiveScroller, followingItsEnd, fragmentTarget, headerLevels, isAddressable, leadingTitle, livePoint, nameAnchor, nameable, onReadingInput, pageReadingRegion, projectedDatum, reachScrollers, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, releaseReachStop, resolveAnchor, revealAddressed, scrollChainOf, scrollerFor, sectionLabel, sectionOf, settleDocumentLayout, shortAgo, shownRegionBounds, targetElement, targetPlace, targetSegments, unconcealedReadingRegions, visualPartLabel, watchReadingRegionTransitions } from "./bundle-content-layout.js";
-import { alignInlineText, alignText, authored, authoredScope, blockAt, elementById, fencePassageParts, labelWords, leafSurface, pageBlocks, pageDocument, pageQueryAll, pageText, pageWords, pointAt as pointAt$1, quoteFrom, rangeOf, readingFrom, renderRetired, segmentBlock, segmentsIn, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
+import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableWord, addressedElements, ago, aimControl, aimTargetAt, anchorControl, anchorForPassage, anchorForRange, anchoringIsReady, chromeForeground, chromeRoot, claimReachStop, containingReadingRegionFor, datumAimTarget, datumLabel, deferredArrival, effectiveScroller, followingItsEnd, fragmentAddress, fragmentTarget, headerLevels, isAddressable, leadingTitle, livePoint, nameable, onReadingInput, pageReadingRegion, pressedElsewhere, projectedDatum, reachScrollers, readInsets, readingRegionFor, readingRegions, recentReadingRegion, regionScrollBehavior, regionsSettled, registerPageControl, releaseControl, releaseReachStop, resolveAnchor, revealAddressed, revealControl, scrollChainOf, scrollerFor, sectionLabel, sectionOf, settleDocumentLayout, shortAgo, shownRegionBounds, standInChrome, tabFromBlock, targetElement, targetPlace, targetSegments, unconcealedReadingRegions, visualPartLabel, watchReadingRegionTransitions, writeInsets } from "./bundle-content-layout.js";
+import { alignInlineText, alignText, authored, authoredScope, blockAt, elementById, excerptWords, fencePassageParts, labelWords, leafSurface, pageBlocks, pageDocument, pageQueryAll, pageText, pageWords, pointAt as pointAt$1, quoteFrom, quotedWords, rangeOf, readingFrom, renderRetired, segmentBlock, segmentsIn, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
 import { aborted, authoredStates, commitWidgetDescriptors, quoted, rememberAuthoredParents, stageAuthoredStates, stageWidgetDescriptors, widgetElement } from "./bundle-abort.js";
 import { isCanonicalMediaUrl, readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "./media.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
@@ -1923,18 +1923,51 @@ function threadAttention(thread, agent) {
 //#region runtime/syntax.js
 const LANGUAGE_CLASS = /(?:^|\s)language-([\w+.#-]+)(?=\s|$)/;
 const BLOCK = "pre > code[class]";
-const languageOf = (code) => {
+const colouredAs = (code) => {
 	const lang = code.getAttribute("class")?.match(LANGUAGE_CLASS)?.[1];
-	if (!lang || code.closest("[data-style=\"own\"]")) return void 0;
-	return Object.hasOwn(syntaxLanguageNames, lang) ? syntaxLanguageNames[lang] : void 0;
+	if (!lang || !Object.hasOwn(syntaxLanguageNames, lang)) return void 0;
+	if (code.querySelector("br")) return void 0;
+	if (code.isConnected && getComputedStyle(code).getPropertyValue("--lf-reading-face").trim() !== "1") return void 0;
+	return syntaxLanguageNames[lang];
 };
+function colourText(code, tokens) {
+	const nodes = [];
+	const collect = (parent) => {
+		for (const node of parent.childNodes) if (node instanceof Text || node instanceof Element && node.matches("[data-lf-syn]")) nodes.push(node);
+		else collect(node);
+	};
+	collect(code);
+	let index = 0;
+	let offset = 0;
+	for (const node of nodes) {
+		let remaining = node.textContent.length;
+		const pieces = [];
+		while (remaining) {
+			const token = tokens[index];
+			const length = Math.min(remaining, token.text.length - offset);
+			if (length) pieces.push({
+				text: token.text.slice(offset, offset + length),
+				style: token.style
+			});
+			remaining -= length;
+			offset += length;
+			if (offset === token.text.length) {
+				index++;
+				offset = 0;
+			}
+		}
+		const painted = synNodes(pieces);
+		if (painted.length === 1 && painted.every((piece) => node.isEqualNode(piece))) continue;
+		if (painted.length) node.replaceWith(...painted);
+	}
+}
 const tokenizing = /* @__PURE__ */ new WeakSet();
 async function highlightBlocks(root) {
 	const blocks = [];
 	const found = [...root.querySelectorAll(BLOCK)];
 	if (root instanceof Element && root.matches(BLOCK)) found.unshift(root);
 	for (const code of found) {
-		const lang = languageOf(code);
+		const lang = colouredAs(code);
 		if (lang && code.getAttribute("data-lf-syntax") !== lang && !tokenizing.has(code)) {
 			tokenizing.add(code);
 			blocks.push(code);
@@ -1942,16 +1975,16 @@ async function highlightBlocks(root) {
 	}
 	if (!blocks.length) return;
 	for (const code of blocks) {
-		let lang = languageOf(code);
+		let lang = colouredAs(code);
 		try {
 			while (lang) {
 				const source = code.textContent;
 				const tokens = await syntax(source, lang);
-				if (code.textContent !== source || languageOf(code) !== lang) {
-					lang = languageOf(code);
+				if (code.textContent !== source || colouredAs(code) !== lang) {
+					lang = colouredAs(code);
 					continue;
 				}
-				if (tokens.some(({ style }) => Object.keys(style).length)) code.replaceChildren(...synNodes(tokens));
+				colourText(code, tokens);
 				code.setAttribute("data-lf-syntax", lang);
 				break;
 			}
@@ -2234,127 +2267,6 @@ function copyControl(className, { label = "", success, error, action = "copy", r
 }
 function copyTrigger(copy) {
 	return copy?.shadowRoot?.querySelector("button") ?? null;
-}
-
-//#endregion
-//#region runtime/block-controls.js
-const home = document.createElement("div");
-home.className = "lf-block-controls";
-const cuts = /* @__PURE__ */ new WeakMap();
-const makeCut = () => {
-	const frame = document.createElement("div");
-	frame.className = "lf-block-control-cut";
-	return frame;
-};
-const placed = /* @__PURE__ */ new Map();
-const wired$1 = /* @__PURE__ */ new WeakSet();
-let hoveredControl = null;
-let focusedControl = null;
-const activeBlock = (control) => control ? placed.get(control) : void 0;
-const syncActive = (block) => {
-	if (block) block.toggleAttribute("data-lf-control-active", activeBlock(hoveredControl) === block || activeBlock(focusedControl) === block);
-};
-const setActiveControl = (kind, control) => {
-	const previous = kind === "hover" ? hoveredControl : focusedControl;
-	if (previous === control) return;
-	if (kind === "hover") hoveredControl = control;
-	else focusedControl = control;
-	syncActive(activeBlock(previous));
-	syncActive(activeBlock(control));
-};
-onCurrentLocation((node) => {
-	for (let at = node; at; at = upFrom(at)) if (at instanceof HTMLElement && placed.has(at)) return setActiveControl("focus", at);
-	setActiveControl("focus", null);
-});
-let resized = 0;
-addEventListener("resize", () => {
-	resized ||= nextRender(() => {
-		resized = 0;
-		const read = [...placed].filter(([, block]) => !skipped(block)).map(([control, block]) => ({
-			control,
-			block,
-			levels: headerLevels(block)
-		}));
-		for (const { control, block, levels } of read) standInChrome(control, block, levels);
-	});
-});
-function standInChrome(control, block, levels) {
-	const previousBlock = placed.get(control);
-	const frames = cutFrames(levels, (cuts.get(control) ?? []).map(({ frame }) => frame), makeCut);
-	cuts.set(control, frames);
-	placed.set(control, block);
-	if (!wired$1.has(control)) {
-		wired$1.add(control);
-		control.addEventListener("pointerenter", () => setActiveControl("hover", control));
-		control.addEventListener("pointerleave", () => {
-			if (hoveredControl === control) setActiveControl("hover", null);
-		});
-	}
-	if (previousBlock !== block) {
-		syncActive(previousBlock);
-		syncActive(block);
-	}
-	if (home.parentNode !== chromeRoot) move(chromeRoot, home, null);
-	const outer = frames[0]?.frame;
-	if (outer && outer.parentNode !== home) move(home, outer, null);
-	const frame = frames.at(-1)?.frame ?? home;
-	if (control.parentNode !== frame) move(frame, control, null);
-}
-function anchorControl(control, block) {
-	const place = () => {
-		keepsHidden(control, !anchorView(control, block, place));
-	};
-	return {
-		control,
-		near: anchorView(control, block, place),
-		anchor: anchorReading(block)
-	};
-}
-function aimControl({ control, near, anchor }) {
-	keepsHidden(control, !near);
-	const name = nameAnchor(anchor);
-	if (control.style.positionAnchor !== name) control.style.positionAnchor = name;
-	return control;
-}
-function readInsets(block) {
-	const box = block.getBoundingClientRect();
-	const at = anchorBox(block);
-	return {
-		dx: box.left - at.left,
-		dy: box.top - at.top
-	};
-}
-function writeInsets(control, { dx, dy }) {
-	for (const [property, length] of Object.entries({
-		"--lf-block-control-dx": dx,
-		"--lf-block-control-dy": dy
-	})) {
-		const value = length ? layoutPx(length) : "";
-		if (control.style.getPropertyValue(property) !== value) control.style.setProperty(property, value);
-	}
-}
-function revealControl(control, block) {
-	if (cuts.has(control)) standInChrome(control, block, headerLevels(block));
-	writeInsets(control, readInsets(block));
-	refreshAnchorView(control);
-}
-function tabFromBlock(control, block, signal) {
-	control.addEventListener("keydown", (event) => {
-		if (event.key === "Tab") focusDestination(block, "step");
-	}, { signal });
-}
-let pressedPath = /* @__PURE__ */ new WeakSet();
-addEventListener("pointerdown", (event) => pressedPath = new WeakSet(event.composedPath()), { capture: true });
-const pressedElsewhere = (event, control) => event.detail > 0 && !pressedPath.has(control);
-function releaseControl(control) {
-	const block = placed.get(control);
-	if (hoveredControl === control) hoveredControl = null;
-	if (focusedControl === control) focusedControl = null;
-	control.remove();
-	cuts.get(control)?.[0]?.frame.remove();
-	cuts.delete(control);
-	placed.delete(control);
-	syncActive(block);
 }
 
 //#endregion
@@ -2735,7 +2647,6 @@ function headingOn(node) {
 	const title = leadingTitle(node);
 	return title && headingAt(title) === title && headingAddress(title) === node ? title : null;
 }
-const linkUrl = (address) => new URL(`#${encodeURIComponent(address.id)}`, location.href).href;
 function makeLink(heading) {
 	const control = copyControl("lf-heading-link", {
 		label: "Copy link to section",
@@ -2755,7 +2666,7 @@ function makeLink(heading) {
 	control.addEventListener("click", (event) => {
 		const address = headingAddress(heading);
 		if (address && !pressedElsewhere(event, control)) {
-			control.value = linkUrl(address);
+			control.value = fragmentUrl(address);
 			return;
 		}
 		event.preventDefault();
@@ -2771,7 +2682,7 @@ function makeLink(heading) {
 	const line = firstLine(heading);
 	aimControl(reading);
 	writeInsets(control, insets);
-	standInChrome(control, heading, levels);
+	standInChrome(control, heading, levels, false);
 	writeLine(control, line);
 	return link;
 }
@@ -3710,6 +3621,7 @@ function coordinateLabel(anchor, about) {
 	}
 	return `§ ${addressable ? sectionLabel(addressable) : anchor.section}`;
 }
+const threadPassage = (thread) => thread.rewritten_from ?? thread.detached_from ?? thread.anchor;
 function anchorLabel(anchor, about) {
 	const label = coordinateLabel(anchor, about);
 	return [
@@ -4263,13 +4175,12 @@ function attach(composition, binding) {
 	const { context, row, controls, sync } = composition;
 	composition.binding = binding;
 	composition.send = (_text, raw, owns) => {
-		const { actions, landSent, sending, sent } = binding;
+		const { actions, sending, sent } = binding;
 		const land = sendLanding(controls.input);
 		sending?.();
 		if (!sendReply(context, composition.key, raw, owns, actions)) return;
 		if (sent) return sent();
-		landSent(binding.home);
-		land(binding.home);
+		land(controls.input);
 	};
 	const attached = {
 		composition,
@@ -4319,7 +4230,7 @@ async function restoreReplyEditing(editing, land) {
 		if (compositions.get(context) === session && !available(session.owner)) closeSession(context);
 	}
 }
-function createReplyView(key, home, commands, redraw, { onChange = () => {}, editLast = null, hint = () => "Reply", hintParts = null, hintLead = () => "", accessibleName = "Reply", busy = () => false, sending = null, sent = null } = {}) {
+function createReplyView(key, commands, redraw, { onChange = () => {}, editLast = null, hint = () => "Reply", hintParts = null, hintLead = () => "", accessibleName = "Reply", busy = () => false, sending = null, sent = null } = {}) {
 	const fresh = () => {
 		const row = offer("div", "lf-thread-reply");
 		const input = offer(TEXT_FIELD);
@@ -4336,7 +4247,6 @@ function createReplyView(key, home, commands, redraw, { onChange = () => {}, edi
 	let composition = fresh();
 	const binding = {
 		...commands,
-		home,
 		onChange,
 		editLast,
 		sending,
@@ -4376,13 +4286,24 @@ function createReplyView(key, home, commands, redraw, { onChange = () => {}, edi
 
 //#endregion
 //#region runtime/thread/folding.js
-async function settleThread({ parent, key, resolved, prepareLanding, pendingEntries, actions, landedAway, returnToThread }) {
+const NAMED = 48;
+function settledName(key) {
+	const thread = threadNamed(key);
+	if (!thread) return "the thread";
+	const passage = threadPassage(thread);
+	return anchorLabel(passage?.quote ? {
+		...passage,
+		quote: excerptWords(passage.quote, NAMED)
+	} : passage, thread.root.about) || quotedWords(threadName(thread), NAMED);
+}
+async function settleThread({ parent, key, resolved, prepareLanding, pendingEntries, actions, landedAway, offerUndo, returnToThread }) {
 	const land = prepareLanding?.();
 	const since = inputCount();
 	const attempt = randomId();
+	const named = settledName(key);
 	const answer = resolved ? actions.reopen(key, { attempt }) : actions.resolve(key, { attempt });
 	if (!answer) return;
-	notice(resolved ? "Reopened the thread" : "Resolved the thread");
+	notice(`${resolved ? "Reopened" : "Resolved"} ${named}`, { press: offerUndo(attempt) });
 	if (land) landedAway(attempt);
 	await landGesture({
 		land,
@@ -4687,8 +4608,8 @@ const newsParts = ({ settled, replies, messages, edits, reactions, summaries, th
 	counted(summaries, "summary changed", "summaries changed"),
 	counted(threads, "new thread", "new threads")
 ].flatMap((part) => typeof part === "string" && part.length > 0 ? [part] : []);
+const newsCount = (total) => `${total} new`;
 const said = (news) => {
-	const parts = newsParts(news).map((part, index) => index ? ` · ${part}` : part);
 	const { settled, replies, messages, edits, reactions, summaries, threads } = news;
 	const total = [
 		replies,
@@ -4699,8 +4620,8 @@ const said = (news) => {
 		threads
 	].reduce((sum, count) => sum + (count ?? 0), settled ? 1 : 0);
 	return {
-		parts,
-		label: parts.join(""),
+		text: newsCount(total),
+		label: newsParts(news).join(" · "),
 		total
 	};
 };
@@ -4710,25 +4631,8 @@ function newsNotice(header = false) {
 	const words = document.createElement("span");
 	words.dataset.voice = "leaf";
 	node.append(words);
-	let total = 0;
-	const dropped = sizeObserver(() => {
-		const facts = [...words.querySelectorAll("span")];
-		const top = Math.min(...facts.map((fact) => fact.offsetTop));
-		const shown = facts.filter((fact) => fact.offsetTop === top);
-		const count = facts.length - shown.length;
-		keeps(words, "data-lf-more", count ? `+${count}` : null);
-		let short = null;
-		if (facts.some((fact, index) => index === 0 && fact.scrollWidth > fact.clientWidth + 1)) {
-			const room = node.clientWidth - parseFloat(getComputedStyle(node).paddingInlineStart);
-			const face = getComputedStyle(words);
-			const font = `${face.fontStyle} ${face.fontWeight} ${face.fontSize} ${face.fontFamily}`;
-			short = textWidth(`${total} new`, font) <= room ? `${total} new` : `+${total}`;
-		}
-		keeps(words, "data-lf-short", short);
-		if (!count) words.style.removeProperty("--lf-news-shown");
-		else words.style.setProperty("--lf-news-shown", layoutPx(getComputedStyle(words).direction === "rtl" ? words.clientWidth - Math.min(...shown.map((fact) => fact.offsetLeft)) : Math.max(...shown.map((fact) => fact.offsetLeft + fact.offsetWidth))));
-	});
 	let open = () => null;
+	node.addEventListener("mousedown", (event) => event.preventDefault());
 	const show = () => {
 		const currentLocation = focused() === node;
 		const landing = open();
@@ -4744,14 +4648,9 @@ function newsNotice(header = false) {
 	return {
 		node,
 		set(news) {
-			if (words.textContent !== news.label) {
-				render$1(html`${news.parts.map((part) => html`<span>${part}</span>`)}`, words);
-				dropped.disconnect();
-				for (const box of [words, ...words.children]) dropped.observe(box);
-			}
+			keepsText(words, news.text);
 			keeps(node, "title", news.label);
 			node.classList.toggle("lf-reopen", news.reopened);
-			total = news.total ?? news.parts.length;
 			open = news.open;
 		}
 	};
@@ -4878,7 +4777,7 @@ var HeldNews = class {
 			const notice = thread.news && said(thread.news);
 			return {
 				...thread,
-				news: notice?.parts.length ? {
+				news: notice?.total ? {
 					...notice,
 					reopened: thread.news?.settled === "Reopened",
 					open: () => {
@@ -5628,7 +5527,7 @@ var Transcript = class {
 function quoteReading(thread, anchors) {
 	const placement = anchors.placedAt(thread.id);
 	const rewritten = thread.rewritten_from;
-	const quoted = rewritten ?? thread.detached_from ?? thread.anchor;
+	const quoted = threadPassage(thread);
 	const label = anchorLabel(quoted, thread.root.about);
 	if (!label) return null;
 	const anchored = Boolean(thread.anchor) || Boolean(thread.detached_from);
@@ -6094,7 +5993,7 @@ var ThreadView = class {
 		const right = Math.max(box.left, ...slot.items.map(({ node }) => node.getBoundingClientRect().right));
 		notice.style.setProperty("--lf-thread-news-start", layoutPx(right - box.left));
 		if (news) {
-			if (!notice.hasAttribute("data-room")) notice.dataset.room = news.label;
+			if (!notice.hasAttribute("data-room")) notice.dataset.room = news.text;
 			const shown = shownRect(header, /* @__PURE__ */ new Map());
 			if (shown) notice.style.setProperty("--lf-thread-news-visible-end", layoutPx(Math.max(0, shown.right - box.left)));
 		} else notice.removeAttribute("data-room");
@@ -6153,7 +6052,7 @@ var ThreadView = class {
 	};
 	#createReply(model) {
 		const commands = this.#commands.reply;
-		return createReplyView(model.key, this.node, {
+		return createReplyView(model.key, {
 			...commands,
 			actions: {
 				...commands.actions,
@@ -6221,10 +6120,13 @@ var ResolvedThreads = class {
 	present(threads, nodes) {
 		this.#threads = threads;
 		const held = threads.flatMap(({ news }) => news ? [news] : []);
-		const notice = held.length > 1 ? `${held.length} ${held.every(({ reopened }) => reopened) ? "reopened" : "changed"}` : held[0]?.label ?? null;
+		const total = held.reduce((sum, news) => sum + news.total, 0);
+		const notice = total ? newsCount(total) : null;
 		render$1(html`Resolved ·
       ${threads.length}${notice ? html` ·
-              <span data-lf-news>${voiced(leafSays(notice))}</span>` : ""}`, this.summary);
+              <span data-lf-news title=${held.map(({ label }) => label).join(" · ")}
+                >${voiced(leafSays(notice))}</span
+              >` : ""}`, this.summary);
 		setChildren(this.node, [this.summary, ...nodes]);
 	}
 };
@@ -6583,11 +6485,17 @@ function* renderedBlocks(blocks, within = null) {
 		const boxes = [];
 		const runs = [];
 		let run = null;
+		let hidden = null;
 		for (const segment of segments) {
 			const { node, start, end } = segment;
+			if (hidden?.contains(node)) {
+				run = null;
+				continue;
+			}
 			const parent = renderedParent(node);
 			if (!drawn.has(parent)) drawn.set(parent, drawsLandmark(parent));
 			if (!drawn.get(parent)) {
+				hidden = parent && skipper(parent);
 				run = null;
 				continue;
 			}
@@ -7682,7 +7590,7 @@ function mountHistory({ followFragment, returnToFragment }) {
 			if (key) places.set(key, readPlace());
 		}
 		if (event.navigationType === "traverse") {
-			const handler = claimed(url) ?? returnToFragment(url);
+			const claim = claimed(url);
 			const place = places.get(event.destination.key);
 			const mayReturn = retainUserIntent({ available: () => !event.signal.aborted });
 			event.intercept({
@@ -7695,11 +7603,17 @@ function mountHistory({ followFragment, returnToFragment }) {
 					if (!mayReturn()) return;
 					let work;
 					mayReturn.handoff(() => {
-						work = handler?.();
+						work = claim?.();
 					});
-					const placed = await work;
+					let placed = Boolean(claim) && await work !== false;
 					if (!mayReturn()) return;
-					if (!handler || placed === false) {
+					work = void 0;
+					mayReturn.handoff(() => {
+						work = returnToFragment(url)?.();
+					});
+					if (work !== void 0) placed = await work !== false || placed;
+					if (!mayReturn()) return;
+					if (!placed) {
 						if (place) setScroll(pageScroller, {
 							left: place.offset[0],
 							top: place.offset[1],
@@ -7740,6 +7654,7 @@ function scrollToFragment(element) {
 		block: "start"
 	});
 }
+const fragmentShown = (address) => Boolean(address?.place && showsContents(address.place));
 function createAnchorTravel({ anchors, refreshThread, focusForNavigation, threadFocusTarget, clearFor, announce }) {
 	let travelIntent = 0;
 	const retainTravel = (retained = retainUserIntent()) => {
@@ -7902,6 +7817,7 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 				if (moving === void 0) return;
 				if (!moving) {
 					if (continuing && arrival) Object.assign(continuing, arrival);
+					if (url) replaceEntry(url);
 					return;
 				}
 				navigationGroup = arrival && {
@@ -7916,22 +7832,29 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 		return fragmentTarget(url.hash) && fragmentNavigationStep(url, true);
 	}
 	function returnToFragment(url) {
-		const where = fragmentTarget(url.hash);
-		return where && !showsContents(where) ? fragmentNavigationStep(url, false) : null;
+		const address = fragmentAddress(url.hash);
+		if (!address) return null;
+		return fragmentShown(address) ? null : fragmentNavigationStep(url, false);
 	}
 	function fragmentNavigationStep(url, focus) {
 		const mayArrive = retainTravel();
-		return () => arrive(() => {
-			const where = fragmentTarget(url.hash);
-			return where && {
-				where,
-				focus: focus ? where : null,
-				scroll: [{
-					at: where,
-					block: "fragment"
-				}]
-			};
-		}, { intent: mayArrive });
+		return async () => {
+			const address = fragmentAddress(url.hash);
+			const drawing = address?.key == null ? null : revealAddressed(address.element, address.key);
+			if (drawing?.then) await drawing;
+			if (!mayArrive()) return false;
+			return arrive(() => {
+				const where = fragmentTarget(url.hash);
+				return where && {
+					where,
+					focus: focus ? where : null,
+					scroll: [{
+						at: where,
+						block: "fragment"
+					}]
+				};
+			}, { intent: mayArrive });
+		};
 	}
 	async function navigateToDatum(owner, attribute, key, { success = "", missing = "", focus = true } = {}) {
 		const mayArrive = retainTravel();
@@ -7942,10 +7865,8 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 			if (missing) notice(missing);
 			return false;
 		}
-		const url = new URL(window.location.href);
-		url.hash = source.id;
 		const departure = prepareNavigationStep({
-			url,
+			url: new URL(fragmentUrl(source, key)),
 			intent: mayArrive
 		});
 		const hydration = revealAddressed(source, key);
@@ -7984,14 +7905,34 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 		}
 		return arrived;
 	}
+	const skippableBox = (at) => {
+		for (let box = placeHolder(at); box; box = renderedParent(box)) if (drawnForLanding.has(box) || getComputedStyle(box).contentVisibility === "auto") return box;
+		return null;
+	};
+	const drawnForLanding = /* @__PURE__ */ new Map();
+	function drawForLanding(box) {
+		if (!(box instanceof HTMLElement) || drawnForLanding.has(box)) return;
+		drawnForLanding.set(box, box.style.getPropertyValue("content-visibility"));
+		box.style.setProperty("content-visibility", "visible");
+		nextFrame(() => nextFrame(() => {
+			const before = drawnForLanding.get(box);
+			drawnForLanding.delete(box);
+			if (before) box.style.setProperty("content-visibility", before);
+			else box.style.removeProperty("content-visibility");
+		}));
+	}
 	function placeScroll({ at, align = at, block = "center", behavior = scrollBehavior(), when }, replacedView) {
 		if (when && !when()) return;
 		if (block === "fragment") scrollToFragment(at);
-		else scrollIntoView(at, {
-			alignment: align,
-			behavior: replacedView ? "instant" : behavior,
-			block
-		});
+		else {
+			const skippable = skippableBox(at);
+			if (skippable) drawForLanding(skippable);
+			scrollIntoView(at, {
+				alignment: align,
+				behavior: replacedView || skippable ? "instant" : behavior,
+				block
+			});
+		}
 	}
 	function scrollToElement(element, behavior = scrollBehavior(), block = "center") {
 		if (!element) return;
@@ -8067,7 +8008,8 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 		return arrive(() => {
 			const where = threadDestination(id);
 			if (!where) return null;
-			const target = focus && part ? threadFocusTarget(id, { part }) : null;
+			const placement = anchors.placedAt(id);
+			const target = !focus ? null : part ? threadFocusTarget(id, { part }) : targetElement(placement) ?? targetPlace(placement);
 			const scroll = [];
 			if (target) scroll.push({
 				at: target,
@@ -9615,11 +9557,22 @@ function createVersionController({ initialDocument, compositionInput, openThread
 		const fresh = performance.getEntriesByType("navigation")[0]?.type === "navigate";
 		const arrivedAt = location.hash;
 		const currentIntent = retainUserIntent({ since: 0 });
+		let drawing = null;
+		const land = () => {
+			const where = aimedAt && currentIntent() && fragmentTarget(arrivedAt);
+			if (!where) return;
+			reveal(where, currentIntent);
+			scrollToFragment(where);
+		};
 		return function landFragment() {
-			aimedAt ??= fresh && fragmentTarget(arrivedAt);
-			if (!aimedAt || !currentIntent()) return;
-			reveal(aimedAt, currentIntent);
-			scrollToFragment(aimedAt);
+			const address = fragmentAddress(arrivedAt);
+			aimedAt ??= fresh && (address?.element ?? null);
+			if (!currentIntent()) return;
+			if (address?.key != null && !fragmentShown(address) && !drawing) {
+				const asked = revealAddressed(address.element, address.key);
+				if (asked?.then) drawing = deferredArrival(Promise.resolve(asked).then(land, land));
+			}
+			land();
 		};
 	}
 	function mount() {
@@ -9829,11 +9782,9 @@ async function readDeferred(manifest, key) {
 	};
 	if (!current()) throw new Error(`source ${source} revision ${revision} changed before loading deferred ${key}`);
 	if (offlineInteractive) {
-		const records = registry.$data.contracts[manifest.contract].records;
-		const item = offlineData().sources[source].value[records.items].find((item) => item[records.key] === key);
-		if (!item) throw new Error(`unknown record key '${key}' in data source '${source}'`);
-		if (!Object.hasOwn(item, records.deferred)) throw new Error(`record '${key}' in data source '${source}' has no deferred field '${records.deferred}'`);
-		return structuredClone(item[records.deferred]);
+		const field = offlineDeferred(source, key);
+		if (!field) throw new Error(`data source '${source}' defers no field of record '${key}'`);
+		return field;
 	}
 	const params = new URLSearchParams({
 		source,
@@ -9846,4 +9797,4 @@ async function readDeferred(manifest, key) {
 }
 
 //#endregion
-export { DESIGN_MODE_KEY, ELEMENTS, HeldNews, HeldReading, MessageView, NOT_ANSWERED, PAGE_DRAFT, PAGE_SCOPE, RESOLVED, SAYS_IN, SAY_BOX, THREAD, ThreadView, Transcript, acceptData, allButCommandReference, allThreads, anchorLabel, answeredInWords, arrivalOf, authoredHolder, awaitsData, beginThreadSeats, bindsInput, blocksOnScreen, bringBackSurfaceOf, captureDraftEditing, capturePlace, carryingThreadPlace, claimSeatReplies, claimTraversals, claimed$1 as claimed, clearDraft, commandSteps, commitThreadSeats, comparisonBase, comparisonChanges, completeReadingReturn, copyBlock, copyControl, copyTrigger, createAnchorTravel, createPassageSelection, createProjectionPresentation, createReplyView, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, dataReader, declareOffFlowSurface, declareSide, declareThreadParts, designName, dismissReply, dismissReplyAt, draftContexts, draftHasContent, draftStore, drawnThreadId, externalMark, focusThread, focusedThreadTarget, followBoxGrowth, gesturedOn, heldGrowth, heldObligation, heldOut, heldPagePlace, heldThread, highlightBlocks, holdPagePlace, holdReplyCompositions, holdThreadPlace, initializeServedDocument, inlineComparison, inlineMarkdownFragment, isBlockPlacement, isExternalPageLink, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, keepThreadLanding, keepView, landingPlace, leftThePage, loadDraft, loadMarkdown, loadMessageMarkdown, markdownReady, markdownSourceOffset, markdownWords, messageHolding, messageReading, messageText, mirrorDraft, mountFirstMessage, mountHistory, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, observeOutputs, onReadingInterrupted, openMessageEditIn, openingView, opensElsewhere, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, paintMarkdown, placeKeeper, placeNode, placeOf, placePageThreads, placedMarkdownTokens, prepareAuthoredMessage, prepareDocument, progressFace, pushEntry, quoteReading, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, readingReturn, registerWritingDestination, releaseAuthoredUnder, releaseReplies, rememberWriting, renderMarginThread, renderMarkdown, renderSeats, renderSurfaces, replaceEntry, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, replyIsEditing, replyThreadKey, restorePlace, retainThreadSeats, returnPlace, revealHeld, rowWalk, saveDraft, scrollThreadIntoView, selectionAnchor, sendDraft, sendLanding, sendMessage, servedElements, settleAcceptedDrafts, settleThread, shallowSigs, showHeld, showHeldThread, showReturnTurn, snapSelection, stances, stepFrom, storedDraft, strongestWorkflow, subjectPlace, suppliedSnapshot, surfaceFocusTarget, takeInitialDocument, tellDraft, textEntryScopes, threadAttention, threadDraft, threadFocusDestination, threadHeading, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, threadSummary, threadTodos, titlePending, todoWord, toggleInlineComparison, touchPresses, transferDraft, universalCommandReference, upgradeWidgets, userChoice, userStore, versionPicker, versionsReading, viewMembers, walkOrigin, watchDraft, watchDrafts, watchThreadSurfaces, whereDraft, wholeThread, workflowStep, workflowWord };
+export { DESIGN_MODE_KEY, ELEMENTS, HeldNews, HeldReading, MessageView, NOT_ANSWERED, PAGE_DRAFT, PAGE_SCOPE, RESOLVED, SAYS_IN, SAY_BOX, THREAD, ThreadView, Transcript, acceptData, allButCommandReference, allThreads, anchorLabel, answeredInWords, arrivalOf, authoredHolder, awaitsData, beginThreadSeats, bindsInput, blocksOnScreen, bringBackSurfaceOf, captureDraftEditing, capturePlace, carryingThreadPlace, claimSeatReplies, claimTraversals, claimed$1 as claimed, clearDraft, commandSteps, commitThreadSeats, comparisonBase, comparisonChanges, completeReadingReturn, copyBlock, copyControl, copyTrigger, createAnchorTravel, createPassageSelection, createProjectionPresentation, createReplyView, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, dataReader, declareOffFlowSurface, declareSide, declareThreadParts, designName, dismissReply, dismissReplyAt, draftContexts, draftHasContent, draftStore, drawnThreadId, externalMark, focusThread, focusedThreadTarget, followBoxGrowth, gesturedOn, heldGrowth, heldObligation, heldOut, heldPagePlace, heldThread, highlightBlocks, holdPagePlace, holdReplyCompositions, holdThreadPlace, initializeServedDocument, inlineComparison, inlineMarkdownFragment, isBlockPlacement, isExternalPageLink, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, keepThreadLanding, keepView, landingPlace, leftThePage, loadDraft, loadMarkdown, loadMessageMarkdown, markdownReady, markdownSourceOffset, markdownWords, messageHolding, messageReading, messageText, mirrorDraft, mountFirstMessage, mountHistory, newsCount, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, observeOutputs, onReadingInterrupted, openMessageEditIn, openingView, opensElsewhere, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, paintMarkdown, placeKeeper, placeNode, placeOf, placePageThreads, placedMarkdownTokens, prepareAuthoredMessage, prepareDocument, progressFace, pushEntry, quoteReading, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, readingReturn, registerWritingDestination, releaseAuthoredUnder, releaseReplies, rememberWriting, renderMarginThread, renderMarkdown, renderSeats, renderSurfaces, replaceEntry, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, replyIsEditing, replyThreadKey, restorePlace, retainThreadSeats, returnPlace, revealHeld, rowWalk, saveDraft, scrollThreadIntoView, selectionAnchor, sendDraft, sendLanding, sendMessage, servedElements, settleAcceptedDrafts, settleThread, shallowSigs, showHeld, showHeldThread, showReturnTurn, snapSelection, stances, stepFrom, storedDraft, strongestWorkflow, subjectPlace, suppliedSnapshot, surfaceFocusTarget, takeInitialDocument, tellDraft, textEntryScopes, threadAttention, threadDraft, threadFocusDestination, threadHeading, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, threadSummary, threadTodos, titlePending, todoWord, toggleInlineComparison, touchPresses, transferDraft, universalCommandReference, upgradeWidgets, userChoice, userStore, versionPicker, versionsReading, viewMembers, walkOrigin, watchDraft, watchDrafts, watchThreadSurfaces, whereDraft, wholeThread, workflowStep, workflowWord };

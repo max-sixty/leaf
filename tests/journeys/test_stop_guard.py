@@ -49,3 +49,147 @@ def test_only_serving_or_claiming_a_page_puts_the_session_under_the_guard(
     ]
     [batch] = json.loads(context.split("\n")[1])["batches"]
     assert [event["text"] for event in batch["events"]] == ["hi"]
+
+
+from interact_support import (
+    _interaction_prompt_evidence,
+    adapter_lease,
+    declare_idle,
+    receive_through,
+    yaml_document,
+)
+
+from leaf import harness as harness_model
+from leaf import leases as leases_model
+from leaf import session as session_model
+from leaf import thread as thread_model
+
+
+def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
+    codex_claimed_page, capsys
+):
+    page = codex_claimed_page
+    session_model.cmd_waiting(page)
+    session = service_model.page_claim(page)
+    assert session is not None
+    lease_path = leases_model.waiter_lease_path(page, session["id"])
+    assert lease_path is not None
+    lease = leases_model.take_wait_lease(lease_path)
+    assert lease
+
+    # A live watcher lets Claude end its turn, but Codex must keep this one active
+    # and poll the unified-exec session whose output can enter this context. The
+    # lease cannot say whether that session's command is the initial wait or the
+    # one that acknowledged a delivery before waiting, so the remedy names both.
+    hooks_model.cmd_hook(
+        "codex", {"hook_event_name": "Stop", "session_id": "codex-thread"}
+    )
+    reason = json.loads(capsys.readouterr().out)["reason"]
+    assert "poll the existing" in reason and "write_stdin" in reason
+    assert "running `leaf wait`, alone or after `leaf delivery ack`" in reason
+
+    # The adapter's second lease proves that the watcher can deliver into a
+    # later turn. With that adapter alive, this turn may end normally.
+    adapter = adapter_lease("codex-thread", None)
+    hooks_model.cmd_hook(
+        "codex", {"hook_event_name": "Stop", "session_id": "codex-thread"}
+    )
+    assert capsys.readouterr().out == ""
+    adapter.close()
+
+    # The existing one-shot escape still prevents a hook recursion.
+    hooks_model.cmd_hook(
+        "codex",
+        {
+            "hook_event_name": "Stop",
+            "session_id": "codex-thread",
+            "stop_hook_active": True,
+        },
+    )
+    assert capsys.readouterr().out == ""
+
+    # With no watcher, the ordinary remedy starts detached same-task delivery.
+    leases_model.release_lease(lease)
+    hooks_model.cmd_hook(
+        "codex", {"hook_event_name": "Stop", "session_id": "codex-thread"}
+    )
+    reason = json.loads(capsys.readouterr().out)["reason"]
+    assert "leaf page claim" in reason and str(page) in reason
+
+    # Pending output still has to cross context: the remedy is to poll the wait
+    # already running, and nothing tells this task to start one in the background.
+    # The delivery the poll yields says how this harness acknowledges it.
+    comment = append_carried_log_record(
+        page, {"kind": "comment", "author": "user", "text": "hi"}
+    )
+    lease_path_2 = leases_model.waiter_lease_path(page, session["id"])
+    assert lease_path_2 is not None
+    lease = leases_model.take_wait_lease(lease_path_2)
+    assert lease
+    hooks_model.cmd_hook(
+        "codex", {"hook_event_name": "Stop", "session_id": "codex-thread"}
+    )
+    reason = json.loads(capsys.readouterr().out)["reason"]
+    assert "running `leaf wait`, alone or after `leaf delivery ack`" in reason
+    assert "background" not in reason
+    acknowledge = session_model.wait_acknowledgement(
+        harness_model.CodexHarness("codex-thread", "Codex"), page
+    )("0a1b2c3d")
+    assert (
+        "run `leaf delivery ack 0a1b2c3d && leaf wait` in unified exec" in acknowledge
+    )
+    assert "background" not in acknowledge
+    leases_model.release_lease(lease)
+
+    receive_through(page, comment["seq"])
+    # Answered before the page closes: an acknowledged comment with nothing
+    # under it holds the turn on its own account, which is the subject of
+    # test_an_acknowledged_comment_nobody_answered_holds_the_turn.
+    thread_model.post_reply(
+        page,
+        {"parent": comment["id"], "responds": comment["id"]},
+        "so it does",
+    )
+    declare_idle(page)
+    hooks_model.cmd_hook(
+        "codex", {"hook_event_name": "Stop", "session_id": "codex-thread"}
+    )
+    assert capsys.readouterr().out == ""
+
+
+def test_agent_sees_codex_watcher_recovery(codex_claimed_page, capsys, snapshot):
+    page = codex_claimed_page
+    session_model.cmd_waiting(page)
+    observations = {}
+
+    def hook():
+        hooks_model.cmd_hook(
+            "codex", {"hook_event_name": "Stop", "session_id": "codex-thread"}
+        )
+        output = capsys.readouterr().out
+        return json.loads(output) if output else None
+
+    observations["no adapter"] = hook()
+    lease_path_3 = leases_model.waiter_lease_path(page, "codex-thread")
+    assert lease_path_3 is not None
+    lease = leases_model.take_wait_lease(lease_path_3)
+    assert lease
+    try:
+        observations["direct wait still running"] = hook()
+        append_carried_log_record(
+            page, {"kind": "comment", "author": "user", "text": "Check this."}
+        )
+        observations["direct wait has input"] = hook()
+        adapter = adapter_lease("codex-thread", None)
+        try:
+            observations["adapter carries input"] = hook()
+        finally:
+            adapter.close()
+    finally:
+        leases_model.release_lease(lease)
+    snapshot.check(
+        yaml_document(
+            "Codex Stop output: no adapter, a direct shell wait, and a live adapter.",
+            _interaction_prompt_evidence(page, observations),
+        )
+    )

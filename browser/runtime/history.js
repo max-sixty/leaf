@@ -18,11 +18,13 @@
  * Chrome answers a traversal to an entry whose fragment names an element by scrolling to that element
  * instead (measured: Back to `#s2` after reading 3000px down landed on `#s2` at 666).
  * So every same-document traversal comes through here, through the Navigation API. An
- * owner that claims the destination (`claimTraversals`) can place the page itself, as a
- * root tab set does for the entry of each of its views. Travel takes the traversal next
- * (`mountHistory`'s `returnToFragment`, anchor-travel.js) where the entry's fragment
- * names a place the page no longer shows: the offset was saved over a page that has
- * changed, so travel reveals the place and lands on it. Any other traversal is
+ * owner that claims the destination (`claimTraversals`) can reveal and place the page
+ * itself, as a root tab set does for the entry of each of its views. Travel takes the
+ * traversal after any claimant (`mountHistory`'s `returnToFragment`, anchor-travel.js)
+ * where the entry's fragment still names a place the page doesn't show, such as a
+ * widget's key whose part the widget no longer draws inside the view a tab set has
+ * just opened: the offset was saved over a page that has changed, so travel reveals
+ * the place and lands on it. Any other traversal is
  * intercepted to restore its working-place checkpoint, or the browser's saved offset
  * for an entry without one. Back and Forward restore that working place after its
  * owner has revealed the view, so the next command reads the returned place from the browser.
@@ -188,6 +190,7 @@ export function prepareEntry() {
 // nothing when the entry is not the claimant's. The first claim to answer takes it.
 // A handler places the viewport itself unless it resolves to false, handing placement
 // back to the entry's checkpoint (or the browser when no checkpoint was captured).
+// Travel follows it where the entry's fragment names a place its view doesn't show.
 /** @param {TraversalClaim} claim @param {{signal?: AbortSignal}} [options] */
 export function claimTraversals(claim, { signal } = {}) {
   claims.add(claim);
@@ -210,7 +213,7 @@ export function mountHistory({ followFragment, returnToFragment }) {
       if (key) places.set(key, readPlace());
     }
     if (event.navigationType === "traverse") {
-      const handler = claimed(url) ?? returnToFragment(url);
+      const claim = claimed(url);
       const place = places.get(event.destination.key);
       const mayReturn = retainUserIntent({ available: () => !event.signal.aborted });
       event.intercept({
@@ -227,14 +230,23 @@ export function mountHistory({ followFragment, returnToFragment }) {
           ]);
           await stopScroll(scrollers);
           if (!mayReturn()) return;
+          // The claimant reveals its view first, so travel reads the place the fragment
+          // names in the page that view leaves. Either one places the viewport unless it
+          // resolves to false.
           /** @type {unknown} */
           let work;
           mayReturn.handoff(() => {
-            work = handler?.();
+            work = claim?.();
           });
-          const placed = await work;
+          let placed = Boolean(claim) && (await work) !== false;
           if (!mayReturn()) return;
-          if (!handler || placed === false) {
+          work = undefined;
+          mayReturn.handoff(() => {
+            work = returnToFragment(url)?.();
+          });
+          if (work !== undefined) placed = (await work) !== false || placed;
+          if (!mayReturn()) return;
+          if (!placed) {
             if (place)
               setScroll(pageScroller, {
                 left: place.offset[0],

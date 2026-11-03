@@ -358,6 +358,23 @@ test("a seat beside its subject is offered only where no other block stands leve
   );
 });
 
+test("a pin level with a code line stands at the block's edge, or left of a control there", () => {
+  // A line of code running to the block's right edge, and Copy over that edge.
+  const line = box(24, 100, 366, 116);
+  const edge = box(318, 95, 362, 121);
+  const copy = box(334, 92, 362, 120);
+  const level = (over) =>
+    seatOf(
+      pin({ level: true, seats: [null, edge], floor: 121, cover: [line], ...over }),
+    ).get("card").rect;
+  // Over the line's last words, where seats beside it would leave the line.
+  assert.deepEqual(level({}), edge);
+  // Off a control, slid left along the line rather than up, down or to the window's edge.
+  assert.deepEqual(level({ controls: [copy] }), box(286, 95, 330, 121));
+  const held = box(200, 95, 244, 121);
+  assert.deepEqual(level({ held }), held);
+});
+
 test("a held pin keeps its seat, and one that no longer fits its bounds is seated again", () => {
   const held = box(200, 300, 244, 344);
   assert.deepEqual(seatOf(pin({ held, cover: [held] })).get("card").rect, held);

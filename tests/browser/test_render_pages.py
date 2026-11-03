@@ -3488,3 +3488,9 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
     expect(view.locator(".lf-msg[data-lf-author=agent] .lf-msg-body")).to_have_text(
         "this one does"
     )
+
+
+import pytest
+from render_harness import (
+    leaf_page,
+)

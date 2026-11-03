@@ -635,7 +635,8 @@ _TEXT = {
     "past-column": lambda at, v: (
         f"{at} is set {v['past']}px past the column, out in the margin; to give it"
         ' more room, mark it data-width="wide" or "available" rather than sizing it'
-        " past the column"
+        " past the column, or scroll it sideways in a box of its own with"
+        ' overflow-x: auto and class="scroll"'
     ),
     "outside-frame": lambda at, v: (
         f"{at} stands {v['past']}px outside the {v['frame']} that frames it — declare"

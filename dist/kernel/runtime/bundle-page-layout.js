@@ -2,8 +2,8 @@ import { HOLDS_WORD, LAYOUT, PENDING_TASK, PRESS, PRESSES, TEXT_FIELD, Z, action
 import { DRAFT_FORMAT, PENDING, PRESENTATION_DOM, TEXT_ENTRY, actionForWidget, agentName, agentSays, anchorKey, annotationMode, announce, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, claimsEsc, commandAvailable, commandBinding, commandRoutes, commandRun, controlAvailabilityOutput, cycledRow, discussed, documentChanged, drawingSchema, editable, el, hasObligationSource, hasRows, holdingError, html, isCommandScope, isMessageEvent, isThreadEvent, keys, leafSays, matchesWhen, moved, nativePress, notice, offlineInteractive, offlineState, pageUrl, paintKeys, paintKeysWithin, presentDocument, projectCommandScope, projectionOrigins, queueWidgetUpdate, raiseError, reactionsAt, readApplication, readPart, registry, render, repaint, responseAction, reveal, runtime, saidBy, savedReadingSettled, saying, setPresentationFailureReporter, shadowRootsIn, tagsDeclaring, threadKey, tokenChoices, turns, voiced, watchCommandAvailability, watchPresentation, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented, wordsText } from "./bundle-errors.js";
 import { admitResponse, completeData, countTraffic, dataHeaders, layerHeaders, postEvent, randomId, recordInteraction, removeRuntimeRootStyle, reportCarried, reportPageError, sameLayer, sessionIsActive, setRuntimeRootStyle, watchPendingTraffic } from "./bundle-layer-client.js";
 import { activityTransitionDue, addressableLabel, addressableWord, afterPresentation, ago, anchorAt, anchorBox, anchorElement, anchorForRange, anchorReaches, anchorReading, anchoringIsReady, commitPoint, cutFrames, declaredName, livePoint, markStateApplied, nameAnchor, observeServerNow, observeWorkingGrace, reachScrollers, readingRegionFor, saidNow, scheduleDocumentLayout, scrollsWith, sectionOf, settlePageInterface, targetSegments, tickClock, visualPartLabel, widgetWord } from "./bundle-content-layout.js";
-import { elementById, excerptWords, labelWords, leafSurface, pageParts, pageReadingVersion, quoteFrom, textNodesUnder } from "./bundle-passages.js";
-import { aborted, authoredStates, commitWidgetDescriptors, descriptorStillMatches, quoted as quoted$1, widgetDescriptor } from "./bundle-abort.js";
+import { elementById, excerptWords, labelWords, leafSurface, pageParts, pageReadingVersion, quoteFrom, quotedWords, textNodesUnder } from "./bundle-passages.js";
+import { aborted, authoredStates, commitWidgetDescriptors, descriptorStillMatches, quoted, widgetDescriptor } from "./bundle-abort.js";
 import { HeldNews, MessageView, NOT_ANSWERED, SAYS_IN, THREAD, ThreadView, Transcript, allButCommandReference, allThreads, anchorLabel, answeredInWords, authoredHolder, awaitsData, beginThreadSeats, bindsInput, bringBackSurfaceOf, claimed, clearDraft, commitThreadSeats, comparisonBase, comparisonChanges, completeReadingReturn, copyTrigger, createProjectionPresentation, createReplyView, dataReader, declareSide, dismissReplyAt, draftContexts, drawnThreadId, externalMark, focusThread, focusedThreadTarget, heldOut, heldThread, holdReplyCompositions, holdThreadPlace, inlineComparison, isBlockPlacement, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, loadDraft, loadMarkdown, loadMessageMarkdown, markdownReady, messageHolding, messageReading, messageText, mountFirstMessage, newsNotice, obligationHolding, obligationPlace, openMessageEditIn, opensElsewhere, pageCommand, pageScope, pageSelection, placeOf as placeOf$1, placePageThreads as placePageThreads$1, placedMarkdownTokens, prepareAuthoredMessage, progressFace, readObligations, readThreads, readingReturn, registerWritingDestination, rememberWriting, renderMarginThread, renderSeats, renderSurfaces, replyDraftContext, replyIsEditing, replyThreadKey, retainThreadSeats, revealHeld, saveDraft, sendLanding, sendMessage, settleAcceptedDrafts, showHeld, showHeldThread, strongestWorkflow, suppliedSnapshot, surfaceFocusTarget, threadAttention, threadDraft, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading as threadReading$1, threadReplyInput, threadRewrites, threadState, todoWord, toggleInlineComparison, transferDraft, watchDraft, watchDrafts, watchThreadSurfaces, wholeThread, workflowWord } from "./bundle-data.js";
 import { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
 import { visibleTargetParts } from "./bundle-visible-target-parts.js";
@@ -1020,8 +1020,16 @@ function registerContribution({ key, target, source = target, read, activate }) 
 	const landFocus = () => {
 		const key = owedFocus;
 		owedFocus = null;
-		offered.focusRequest = null;
-		if (key != null) registration.focus(key, "move");
+		const request = offered.focusRequest;
+		try {
+			if (key != null) {
+				settle({ immediate: true });
+				const destination = control(key, null, true);
+				if (destination) focusDestination(destination, "move");
+			}
+		} finally {
+			if (offered.focusRequest === request) offered.focusRequest = null;
+		}
 	};
 	const arrive = (entryKey, surface, move) => {
 		const request = {
@@ -4649,20 +4657,19 @@ function reactionPlace(event) {
 //#endregion
 //#region runtime/undo.js
 const WAIT = "Wait for the current change to finish before undoing";
-const quoted = (words, cap = 60) => `“${excerptWords(words, cap)}”`;
 function widgetNamed(id) {
 	const element = elementById(id);
 	if (!element) return "a widget";
 	const label = addressableLabel(element);
-	return label ? quoted(label) : `the ${addressableWord(element)}`;
+	return label ? quotedWords(label) : `the ${addressableWord(element)}`;
 }
 function actionWords(event, gesture) {
 	const widget = widgetNamed(event.widget);
 	switch (gesture?.form) {
-		case "choice": return `chose ${gesture.chosen.map((words) => quoted(words)).join(", ") || "nothing"} in ${widget}`;
-		case "move": return `moved ${quoted(gesture.unit)} to ${quoted(gesture.to)} in ${widget}`;
+		case "choice": return `chose ${gesture.chosen.map((words) => quotedWords(words)).join(", ") || "nothing"} in ${widget}`;
+		case "move": return `moved ${quotedWords(gesture.unit)} to ${quotedWords(gesture.to)} in ${widget}`;
 		case "edit": return `edited ${widget}`;
-		case "add": return `added ${quoted(gesture.words)} to ${widget}`;
+		case "add": return `added ${quotedWords(gesture.words)} to ${widget}`;
 		case "verb": return `recorded “${gesture.verb}” on ${widget}`;
 		default: return `updated ${widget}`;
 	}
@@ -4678,12 +4685,12 @@ function gestureWords(event, gesture) {
 		case "resolve":
 		case "unresolve": {
 			const thread = threadNamed(event.parent);
-			const name = thread ? quoted(threadName(thread), 48) : "a thread";
+			const name = thread ? quotedWords(threadName(thread), 48) : "a thread";
 			return `${event.kind === "resolve" ? "resolved" : "reopened"} ${name}`;
 		}
 		case "todo_end": {
 			const todo = runtime.todos.find(({ id }) => id === event.todo);
-			return TODO_ENDINGS[event.outcome](todo ? quoted(todo.title) : "a to-do");
+			return TODO_ENDINGS[event.outcome](todo ? quotedWords(todo.title) : "a to-do");
 		}
 		default: return actionWords(event, gesture);
 	}
@@ -4720,12 +4727,16 @@ const KEYS_HELD = /* @__PURE__ */ new Set([
 ]);
 const UNDO_KEYS = ["z"];
 function createUndo({ post, stateApplying, unaccountedGesture, openThread, threadPlace }) {
+	function takeable() {
+		const { effective, unresolved } = readApplication();
+		if (!effective.view) return null;
+		return /* @__PURE__ */ new Set([...effective.view.undo.map(({ event }) => event.attempt), ...unresolved.flatMap((entry) => entry.state === "refused" ? [] : [entry.event.attempt])]);
+	}
 	const gestures = /* @__PURE__ */ new Map();
 	function retainGesture(attempt, facts) {
-		const { effective, unresolved } = readApplication();
-		if (effective.view) {
-			const liveAttempts = /* @__PURE__ */ new Set([...effective.view.undo.map(({ event }) => event.attempt), ...unresolved.map((entry) => entry.event.attempt)]);
-			for (const kept of gestures.keys()) if (!liveAttempts.has(kept)) gestures.delete(kept);
+		const live = takeable();
+		if (live) {
+			for (const kept of gestures.keys()) if (!live.has(kept)) gestures.delete(kept);
 		}
 		gestures.set(attempt, {
 			...gestures.get(attempt),
@@ -4848,14 +4859,13 @@ function createUndo({ post, stateApplying, unaccountedGesture, openThread, threa
 			});
 		});
 	}
-	function undoLast() {
-		if (stateApplying() || unaccountedGesture()) {
-			raiseError(WAIT);
-			return null;
-		}
-		const entry = headEntry();
-		if (!entry) return null;
-		const event = entry.event;
+	function settled() {
+		if (!stateApplying() && !unaccountedGesture()) return true;
+		raiseError(WAIT);
+		return false;
+	}
+	function walkTo(entry) {
+		const { event } = entry;
 		const heldArm = armedFor(event);
 		const taking = heldArm && !(heldArm.returns && entry.picked_up);
 		if (!taking && needsShowing(entry)) {
@@ -4869,6 +4879,23 @@ function createUndo({ post, stateApplying, unaccountedGesture, openThread, threa
 		if (returning) whenDocumentPresented().then(() => show(event, returning)).catch(() => {});
 		return answer;
 	}
+	function undoLast() {
+		if (!settled()) return null;
+		const promised = runtime.undo.find(({ event }) => armedFor(event));
+		if (promised) return walkTo(promised);
+		const entry = headEntry();
+		return entry ? walkTo(entry) : null;
+	}
+	const offerUndo = (attempt) => ({
+		action: "undo",
+		command: "history.undo",
+		run() {
+			if (!settled()) return null;
+			const entry = runtime.undo.find(({ event }) => event.attempt === attempt);
+			return entry ? walkTo(entry) : null;
+		},
+		stands: () => takeable()?.has(attempt) ?? true
+	});
 	pageCommand({
 		id: "history.undo",
 		ready: savedReadingSettled,
@@ -4892,6 +4919,7 @@ function createUndo({ post, stateApplying, unaccountedGesture, openThread, threa
 	});
 	return {
 		landedAway,
+		offerUndo,
 		returnToThread,
 		retainGesture,
 		undoable,
@@ -5284,6 +5312,10 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 		};
 	}
 	const threadTarget = (id) => placedAt(id)?.place ?? null;
+	const placeDrawn = (id) => {
+		const place = threadTarget(id);
+		return place !== null && visibleTargetParts(place).length > 0;
+	};
 	const threadPlace$1 = (id) => {
 		const thread = allThreads().find((candidate) => candidate.id === id);
 		return thread ? threadPlace(thread, placedAt) : null;
@@ -5311,10 +5343,10 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 		part,
 		message: part === "message" ? thread.msgs.find((message) => message.id === id)?.key ?? null : null
 	});
-	const threadFocusTarget = (id, { part = null } = {}) => {
+	const threadFocusTarget = (id, { part = null, page = false } = {}) => {
 		const thread = threadNamed(id);
 		const candidates = [
-			thread && presentation?.owner.isConnected ? presentation.reader.destination(thread.key, addressedPart(thread, id, part)) : null,
+			!page && thread && presentation?.owner.isConnected ? presentation.reader.destination(thread.key, addressedPart(thread, id, part)) : null,
 			surfaceFocusTarget(id, { part }),
 			preview?.focusTarget(id, { part })
 		].filter((candidate) => candidate != null);
@@ -5322,7 +5354,7 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 	};
 	const DECLINED = Symbol("declined");
 	const UNDRAWN = Symbol("undrawn");
-	async function openPageThread(id, { part = null, focus = true, travel = true, history = true, scroll = true, intent = retainUserIntent(), origin = null, returning = false } = {}) {
+	async function openPageThread(id, { part = null, focus = true, travel = true, history = true, scroll = true, intent = retainUserIntent(), origin = null, page = false } = {}) {
 		if (!intent()) return null;
 		const navigationStep = travel && scroll;
 		const selected = presentation?.owner.isConnected ? presentation : null;
@@ -5425,13 +5457,12 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 			if (surfaceFocusTarget(id, { part: localPart })) return openSurface();
 			if (showHeldThread(id) && surfaceFocusTarget(id, { part: localPart })) return openSurface();
 			const place = preview && !navigationStep ? threadTarget(id) : null;
-			const placeDrawn = () => place !== null && visibleTargetParts(place).length > 0;
-			if (place && scroll && !placeDrawn()) {
+			if (place && scroll && !placeDrawn(id)) {
 				await reveal(place, intent).ready;
 				if (!mayPresent()) return null;
 			}
 			const invocation = { opened: null };
-			if (preview && (!place || placeDrawn())) intent.handoff(() => {
+			if (preview && (!place || placeDrawn(id))) intent.handoff(() => {
 				invocation.opened = preview.open(id, { origin });
 			});
 			const opened = invocation.opened;
@@ -5447,7 +5478,10 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 				} else {
 					if (!await opened.presented || !mayPresent()) return null;
 					if (focus !== false && !await arrive(() => {
-						const current = threadFocusTarget(id, { part });
+						const current = threadFocusTarget(id, {
+							part,
+							page
+						});
 						return current && {
 							where: current,
 							focus: current,
@@ -5458,7 +5492,10 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 						};
 					}, { intent })) return null;
 				}
-				return threadFocusTarget(id, { part });
+				return threadFocusTarget(id, {
+					part,
+					page
+				});
 			}
 			const held = revealHeld([threadIdNamed(id)]);
 			if (held) {
@@ -5468,14 +5505,26 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 			if (surfaceFocusTarget(id, { part: localPart })) return openSurface();
 			return DECLINED;
 		}
-		const asked = primary && !returning ? inPrimary(primary, false) : DECLINED;
+		const asked = primary && !page ? inPrimary(primary, false) : DECLINED;
 		const first = asked instanceof Promise ? await asked : asked;
 		if (first !== DECLINED && first !== UNDRAWN) return first;
 		const shown = await onPage();
-		if (returning) {
-			if (!shown || shown === DECLINED) return null;
-			if (primary) await inPrimary(primary, false);
-			return shown;
+		if (page) {
+			if (shown && shown !== DECLINED) {
+				if (primary) await inPrimary(primary, false);
+				return shown;
+			}
+			if (!shown || !navigationStep || !placeDrawn(id)) return null;
+			const control = focus ? preview?.control(id) ?? null : null;
+			if (!await scrollToThread(id, {
+				part: null,
+				focus: focus && !control,
+				intent,
+				history
+			})) return null;
+			if (!control) return threadTarget(id);
+			intent.handoff(() => focusDestination(control, "move"));
+			return control;
 		}
 		if (shown !== DECLINED) return shown;
 		if (!primary || first !== DECLINED) return null;
@@ -5497,7 +5546,7 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 				focus: replyThreadKey(focused()) !== key && drawnThreadId(heldThread()) === thread.id,
 				travel: false,
 				scroll: false,
-				returning: true
+				page: true
 			});
 		}
 	}
@@ -5550,7 +5599,10 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 		openThreadSubject,
 		openThreadDraft,
 		returnToPage,
-		atLastResort: (key) => lastResort.has(key),
+		showsOnPage: (key) => {
+			const thread = lastResort.has(key) ? allThreads().find((each) => threadKey(each) === key) : null;
+			return !thread || placeDrawn(thread.id);
+		},
 		holdsThreadDraft: (context) => Boolean(threadHolding(context)),
 		threadFocusTarget,
 		threadHere,
@@ -6003,7 +6055,7 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
 							for (const row of node.querySelectorAll(":scope > .lf-thread-reply")) if (row !== reply.node) row.remove();
 							move(node, reply.node, node.firstChild);
 						};
-						const reply = createReplyView(item.key, node, commands.reply, redraw, {
+						const reply = createReplyView(item.key, commands.reply, redraw, {
 							...item.options,
 							onChange: () => {
 								if (joined) update().catch(() => {});
@@ -7039,7 +7091,7 @@ function createMarginBars(inventory) {
 //#endregion
 //#region runtime/thread/box.js
 const threadBox$1 = (el, hint, { createComment, onDraftChanged, wireInput }) => {
-	if (inChrome(el) || quoted$1(el)) return null;
+	if (inChrome(el) || quoted(el)) return null;
 	const declaration = registry[el.localName]?.["x-thread-seat"];
 	if (!declaration || !matchesWhen(el, declaration.when)) throw new TypeError(`<${el.localName}> placed a thread outside its x-thread-seat predicate`);
 	const box = Object.assign(offer("div", "lf-thread-seat"), { lfThreadSeatOwner: el });
@@ -7381,7 +7433,7 @@ async function readState(bound) {
 	countTraffic("asked");
 	try {
 		if (offlineInteractive) return {
-			state: offlineState(),
+			state: await offlineState(),
 			fault: null
 		};
 		const signal = globalThis.AbortSignal.timeout(bound);
@@ -7745,6 +7797,7 @@ function createApplication(dependencies) {
 		pendingEntries: ledger.snapshot,
 		actions: threadActions,
 		landedAway: undo.landedAway,
+		offerUndo: undo.offerUndo,
 		returnToThread: undo.returnToThread
 	};
 	const inlineView = {
@@ -7819,6 +7872,7 @@ function createApplication(dependencies) {
 		refreshInventory: refreshAnnotationInventory,
 		renderAnnotations,
 		openPageThread,
+		returnToPage: () => threadDestinations.returnToPage(),
 		designModeActive: dependencies.annotationCommands.designModeActive,
 		pointerModeActive: dependencies.annotationCommands.pointerModeActive,
 		leavePageMap: dependencies.annotationCommands.leavePageMap,

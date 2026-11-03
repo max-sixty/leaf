@@ -1113,7 +1113,9 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
     told(page)
     # The seat holds arrivals that would move the diff on screen behind its notice:
     # the user's own two messages. The agent's reply, already read, is not among them.
-    thread.get_by_role("button", name="2 new messages").click()
+    notice = thread.get_by_role("button", name="2 new", exact=True)
+    expect(notice).to_have_accessible_description("2 new messages")
+    notice.click()
     line = ":scope > .lf-msg-head .lf-msg-sending"
     for view in (thread, panel_thread):
         if view == panel_thread:
@@ -1318,3 +1320,243 @@ def test_the_widget_reads_the_diff_patch_table(browser, serve):
         "error": None,
         "lines": ["visible", ""],
     }
+
+
+from browser.test_render_anchors import (
+    selected_comment_marks_chosen_start,
+    stranded_quotes,
+)
+from render_cases_navigation import (
+    composer_quote,
+    pending_text,
+)
+from render_harness import (
+    expect_open_threads,
+    post_event,
+    select,
+)
+
+
+@pytest.mark.shifts_unsurveyed
+def test_a_drag_released_mid_word_hugs_words_and_sentences(browser, serve):
+    """A drag stops where the hand stopped: four glyphs into "paragraph", four short
+    of the end of "carrying". The user meant the words, and the quote the capture
+    would otherwise store — "graph carr" — reads as a typo in the panel and in every
+    reply that quotes it back. So the pointer path grows a selection out to word
+    boundaries, outward only: an end resting in space or against punctuation is
+    already where the user put it, so "it," gains its 't' and not its comma, and a
+    word split across inline markup — here by splitText, which also leaves the empty
+    text node that puts two EDGEs flush in the indexed reading — still grows whole.
+
+    What the pointer path must not do is here too. A keyboard selection is never
+    grown — shift-arrow is the user being precise — so the comment field captures
+    a mid-word selection exactly as made. Machine-placed words never glue to the
+    author's, on either side of the declaration line: an undeclared generated span
+    is a fenced cell in the reading, and a declared label — a sample's, rendered
+    flush before its words inside a list item, where both share the one block — is
+    the seam itself.
+
+    A sentence follows the same rule at its two meaningful edges. A drag that already
+    reaches its opening and closing words grows over the punctuation around them, but
+    two words from its middle remain those two words. Sentence edges take only adjacent
+    punctuation, so status glyphs outside an opening quote remain outside. The whole
+    drag must stay in one rendered block; matching endpoints around a nested paragraph
+    do not make the intervening blocks one sentence.
+
+    The reads use Leaf's pending highlight, the durable form of the native selection."""
+    page = open_page(
+        browser,
+        serve(
+            INLINE_PAGE.replace(
+                '<p id="p">',
+                '<ul><li><lf-sample id="spec" label="mono">glyphs set close'
+                "</lf-sample></li></ul>\n"
+                '<p id="sentence">🔴 🟢 “<strong>Opening</strong> words stay '
+                "<em>together</em>.” 🔴 🟢 Next sentence.</p>\n"
+                '<ul><li id="nested">“Opening words<p>Nested block.</p>'
+                'closing together.”</li></ul>\n<p id="p">',
+            )
+        ),
+    )
+    page.locator("#p").scroll_into_view_if_needed()
+    # The point one pixel inside a character's own box, so a press there puts the
+    # boundary at the character's left edge — mid-word when the character is.
+    mid = """(args) => {
+        const walk = document.createTreeWalker(
+            document.querySelector(args.root), NodeFilter.SHOW_TEXT);
+        for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+            const at = n.data.indexOf(args.word);
+            if (at < 0) continue;
+            const r = document.createRange();
+            r.setStart(n, at + args.into);
+            r.setEnd(n, at + args.into + 1);
+            const box = r.getBoundingClientRect();
+            return [box.left + 1, box.top + box.height / 2];
+        }
+    }"""
+
+    def spot(root, word, into):
+        return page.evaluate(mid, {"root": root, "word": word, "into": into})
+
+    def captured():
+        expect(page.locator(".lf-fab-input")).to_be_visible()
+        quoted = composer_quote(page)["text"]
+        return quoted[1:-1]
+
+    select(
+        page,
+        spot("#sentence", "Opening", 3),
+        spot("#sentence", "together", 4),
+    )
+    assert captured() == "“Opening words stay together.”"
+
+    sentence_box = page.locator("#sentence").bounding_box()
+    page.mouse.click(sentence_box["x"] - 40, sentence_box["y"] + 4)
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
+    page.locator("#sentence").scroll_into_view_if_needed()
+    select(page, spot("#sentence", "words", 2), spot("#sentence", "stay", 2))
+    assert captured() == "words stay"
+
+    page.mouse.click(sentence_box["x"] - 40, sentence_box["y"] + 4)
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
+    page.locator("#nested").scroll_into_view_if_needed()
+    select(page, spot("#nested", "Opening", 3), spot("#nested", "together", 4))
+    assert captured() == ("Opening words Nested block. closing together")
+
+    nested_box = page.locator("#nested").bounding_box()
+    page.mouse.click(nested_box["x"] - 40, nested_box["y"] + 4)
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
+    page.locator("#p").scroll_into_view_if_needed()
+    select(page, spot("#p", "paragraph", 4), spot("#p", "carrying", 4))
+    assert captured() == "paragraph carrying"
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+
+    # The bar the selection raised stands above it, over the line the next drag starts
+    # on; a press in the margin beside the paragraph is the user's own move that
+    # takes it down, and moves nothing else. Read back before the drag, because the
+    # bar comes down in the press's own handler and the drag must not race it.
+    beside = page.locator("#p").bounding_box()
+    page.mouse.click(beside["x"] - 40, beside["y"] + 4)
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
+    assert pending_text(page) == ""
+    select(page, spot("#p", "inside", 2), spot("#p", "it,", 1))
+    assert captured() == "inside it"
+
+    # The same words dragged right to left are captured the same. The click first is
+    # the user's own move — a press inside the current selection would drag its
+    # text, not start a new one.
+    page.locator("#t").click()
+    select(page, spot("#p", "it,", 1), spot("#p", "inside", 2))
+    assert captured() == "inside it"
+
+    page.locator("#t").click()
+    page.evaluate("() => new Promise(resolve => setTimeout(resolve, 0))")
+    page.evaluate("""() => {
+        const n = document.querySelector('#p').firstChild;
+        const at = n.data.indexOf('paragraph') + 2;
+        getSelection().setBaseAndExtent(n, at, n, at + 5);
+    }""")
+    page.keyboard.press("Shift")
+    page.keyboard.press("c")
+    assert captured() == "ragra"
+    page.locator("#t").click()
+
+    page.evaluate("""() => {
+        const n = document.querySelector('#p').firstChild;
+        const at = n.data.indexOf('paragraph') + 4;
+        n.splitText(at);
+        n.splitText(at); // at the new node's own end, so the second piece is empty
+    }""")
+    select(page, spot("#p", "graph", 1), spot("#p", "carrying", 4))
+    assert captured() == "paragraph carrying"
+
+    page.evaluate("""() => {
+        const p2 = document.querySelector('#p2');
+        const rest = p2.firstChild.splitText(p2.firstChild.data.indexOf(' between'));
+        const span = document.createElement('span');
+        span.setAttribute('data-lf-gen', '');
+        span.textContent = 'flagged';
+        p2.insertBefore(span, rest); // flush: the page now reads "boundaryflagged"
+    }""")
+    # The bar the last drag raised stands over the line this one starts on.
+    page.locator("#t").click()
+    page.locator("#p2").scroll_into_view_if_needed()
+    select(page, spot("#p2", "flagged", 3), spot("#p2", "them", 1))
+    assert captured() == "flagged between them"
+
+    # The declared label: rendered by the real pass, flush before the sample's own
+    # words, unfenced because the registry models it — so the reading holds
+    # "monoglyphs", and only the seam keeps a drag into "glyphs" from taking "mono".
+    select(page, spot("lf-sample", "glyphs", 3), spot("lf-sample", "close", 3))
+    assert captured() == "glyphs set close"
+
+
+@pytest.mark.shifts_unsurveyed
+def test_a_quote_finds_its_passage_whatever_its_whitespace(browser, serve):
+    """The same passage gets written down several ways. The page holds it with the
+    author's line wraps; a selection renders it with a break where two blocks abut and
+    none where one wrapped; older versions of this runtime stored a third form again.
+    All of them name the same words, so all of them have to find them — otherwise a
+    comment made last month hangs off a passage the page insists isn't there."""
+    url = serve(INLINE_PAGE)
+    page = open_page(browser, live_url(url))
+    passage = "bold text and emphasis inside it"
+    forms = {
+        "as the page holds it": passage,
+        "wrapped where a source line ended": passage.replace(" and ", "\nand "),
+        "broken where a block ended": passage.replace(" and ", "\n\nand\n"),
+        "spaced out by an editor": passage.replace(" ", "   "),
+        # Reaching across the boundary between two blocks, which the user sees as a
+        # line break, the source writes as a newline, and a rendering may write as neither.
+        "spanning two blocks": "more than one text node. A neighbouring block",
+    }
+    for name, quote in forms.items():
+        post_event(
+            page,
+            url.rsplit("/versions/", 1)[0] + "/api/event",
+            data={
+                "kind": "comment",
+                "revision": 1,
+                "text": name,
+                "anchor": {"section": None, "quote": quote},
+            },
+        )
+    told(page)
+    expect_open_threads(page, len(forms))
+    stranded = stranded_quotes(page)
+    assert stranded == [], f"quotes naming a passage that is right there: {stranded}"
+
+    # The elasticity runs one way only. A quote is free to have gaps the page lacks; a
+    # page's gaps are word boundaries, and a quote that runs across one is naming
+    # something the page doesn't say — "never" must not find the tail of "on every".
+    post_event(
+        page,
+        url.rsplit("/versions/", 1)[0] + "/api/event",
+        data={
+            "kind": "comment",
+            "revision": 1,
+            "text": "words the page never runs together",
+            "anchor": {"section": None, "quote": "boldtext"},
+        },
+    )
+    told(page)
+    expect_open_threads(page, len(forms) + 1)
+    assert len(stranded_quotes(page)) == 1, (
+        "a quote gluing two of the page's words together still found a passage"
+    )
+
+    # Nor may a gap close up onto a compound the page writes as one word. "set up" and
+    # "setup" are different words, and the page has both — the anchor has to land on the
+    # one that was dragged, and it is stored, so landing wrong is permanent.
+    chosen = page.evaluate_handle("""() => {
+        const p = document.querySelector('#compound');
+        const at = p.firstChild.data.indexOf('set up');
+        const r = document.createRange();
+        r.setStart(p.firstChild, at); r.setEnd(p.firstChild, at + 6);
+        const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+        document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
+        return r.cloneRange();
+    }""")
+    assert selected_comment_marks_chosen_start(page, chosen), (
+        "'set up' anchored onto 'setup', an earlier and different word"
+    )

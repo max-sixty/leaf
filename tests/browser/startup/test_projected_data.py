@@ -43,7 +43,6 @@ from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import thread as thread_model
 from leaf.render_checks import rendered, wait_until_ready
-from leaf.schema import ELEMENT_ID
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -145,8 +144,8 @@ def test_a_comment_on_an_identified_datum_follows_the_subject_across_replacement
         "description": "A live deployment feed.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
-            "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+            "id": {"type": "string"},
+            "source": {"type": "string"},
         },
         "required": ["id", "source"],
         "additionalProperties": False,
@@ -434,8 +433,8 @@ def test_a_comment_follows_an_unversioned_derived_datum_by_its_stable_key(
         "description": "A project-supplied derived feed.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
-            "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+            "id": {"type": "string"},
+            "source": {"type": "string"},
         },
         "required": ["id"],
         "additionalProperties": False,
@@ -551,8 +550,8 @@ def test_a_draw_that_lands_after_a_newer_value_keeps_the_revision_it_drew(
         "description": "Text drawn from a bound value.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
-            "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+            "id": {"type": "string"},
+            "source": {"type": "string"},
         },
         "required": ["id", "source"],
         "additionalProperties": False,
@@ -1043,8 +1042,8 @@ def test_data_consumers_clear_and_recover_across_contract_only_rebindings(
             "description": "An instrumented data reader.",
             "type": "object",
             "properties": {
-                "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
-                "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+                "id": {"type": "string"},
+                "source": {"type": "string"},
             },
             "required": ["id", "source"],
             "additionalProperties": False,

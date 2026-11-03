@@ -129,9 +129,7 @@ def test_the_registry_door_validates_data_contracts(page_dir, contracts, code, v
         ),
         (lambda entry: entry["properties"].pop("source"), "data-source"),
         (
-            lambda entry: entry["properties"]["source"].update(
-                {"pattern": "^anything$"}
-            ),
+            lambda entry: entry["properties"].update({"source": {"type": "number"}}),
             "data-source",
         ),
         (lambda entry: entry.update({"x-instructions": ""}), "invalid-extensions"),
@@ -323,10 +321,7 @@ def _page_owned_deferred_source(page_dir):
         "records": {"items": "files", "key": "key", "deferred": "patch"},
     }
     widget = element_declaration("lf-local-data")
-    widget["properties"]["source"] = {
-        "type": "string",
-        "pattern": "^[a-z][a-z0-9-]*$",
-    }
+    widget["properties"]["source"] = {"type": "string"}
     widget["required"].append("source")
     widget["x-data"] = {"document": {"contract": "local-files", "source": "source"}}
     widget["x-example"] = (

@@ -1178,7 +1178,7 @@ _TEXT = {
     "data-source": _declared(
         lambda v: (
             f"x-data input `{v['input']}` source attribute `{v['attr']}` must"
-            " be a canonical data source string"
+            " be declared a string"
         )
     ),
     "measured-input": _declared(
@@ -1360,7 +1360,7 @@ _TEXT = {
     "creates-detail": _declared(
         lambda v: (
             f"x-state verb `{v['verb']}` creates a child, so its detail must be"
-            f" exactly the required element id `{v['unit']}` and the required non-empty"
+            f" exactly the required id string `{v['unit']}` and the required non-empty"
             f" words `{v['words']}`"
         )
     ),
@@ -1377,9 +1377,7 @@ _TEXT = {
         lambda v: _created(v, "which must require id and no other authored attributes")
     ),
     "creates-id": _declared(
-        lambda v: _created(
-            v, "whose required id must use the canonical element-id schema"
-        )
+        lambda v: _created(v, "whose required id must be declared a string")
     ),
     "creates-semantic-owner": _declared(
         lambda v: _created(
@@ -1465,7 +1463,7 @@ _TEXT = {
         lambda v: (
             f"x-state verb `{v['verb']}` binds detail field `{v['field']}` to"
             f" attribute `{v['attribute']}`: the field must be declared and the"
-            " attribute must be a string matching the data contract name pattern"
+            " attribute declared a string"
         )
     ),
     "instance-contract": lambda at, v: (

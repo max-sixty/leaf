@@ -9,7 +9,7 @@ from pathlib import Path
 from jsonschema._utils import equal as same_state_definition
 
 from leaf.files import read_json
-from leaf.schema import WIDGET_NAME
+from leaf.schema import DATA_CONTRACT_NAME, DATA_SOURCE_NAME, ELEMENT_ID, WIDGET_NAME
 
 from ..findings import Finding, Rejected, element_at
 from .kernel import verb_writers
@@ -287,8 +287,10 @@ def detail_schema(
     declaring `text: true` adds a required non-empty `text`. Attribute values
     inherit the destination's exact schema. Every identity the event depends on
     (`event_meaning.direct_dependencies`) is a nonempty string: a custom verb's
-    fold unit, and an attribute set's or position's ids. Derived schemas are
-    readings, never inserted into the registry beside the effect that owns them.
+    fold unit, and an attribute set's or position's ids. A verb that creates a
+    child names it by its fold unit, which therefore holds an element id. Derived
+    schemas are readings, never inserted into the registry beside the effect that
+    owns them.
 
     A custom verb may bind one field to a data contract named by an authored
     attribute. Without an instance this reads the package's base schema. With an
@@ -307,6 +309,8 @@ def detail_schema(
                 **declared,
                 "minLength": max(declared.get("minLength", 0), 1),
             }
+            if spec.get("creates"):
+                properties[unit]["pattern"] = f"^{ELEMENT_ID}$"
         binding = spec.get("contract")
         if binding and attrs and (name := attrs.get(binding["attribute"])):
             assert registry is not None
@@ -576,6 +580,44 @@ def stamp_words(registry: dict) -> dict:
                 properties[attr] = {}
             if isinstance(properties[attr], dict):
                 properties[attr]["enum"] = list(registry[fact]["names"])
+    return registry
+
+
+def _named_attributes(entry: dict):
+    """(attribute, grammar) for each attribute of one element declaration whose value
+    names something Leaf looks up: the element's own `id` and each `x-refers`
+    attribute naming an element by id hold an element id, an `x-data` input's source
+    attribute a data source, and a verb's `contract` attribute a data contract. A
+    keyed reference is left out: it names a member by the member's key attribute,
+    whose grammar the member's package declares."""
+    yield "id", ELEMENT_ID
+    for attr, reference in entry.get("x-refers", {}).items():
+        if "tag" not in reference:
+            yield attr, ELEMENT_ID
+    for spec in entry.get("x-data", {}).values():
+        if source := spec.get("source"):
+            yield source, DATA_SOURCE_NAME
+    for _verb, spec in state_specs(entry):
+        if binding := spec.get("contract"):
+            yield binding["attribute"], DATA_CONTRACT_NAME
+
+
+def stamp_grammars(registry: dict) -> dict:
+    """Write into a validated vocabulary the grammar of each attribute
+    `_named_attributes` finds, as its schema's `pattern`, replacing any the
+    declaration gave. Leaf owns these grammars, so a package declares only that such
+    an attribute is a string, and validation and an author reading the entry read the
+    grammar here. An attribute's schema may be `true`, which then becomes the
+    grammar alone, or `false`, which admits no value already and is left as it is.
+
+    Each composition stamps it (`registry.layer.stamp_composition`)."""
+    for entry in element_declarations(registry).values():
+        properties = entry.get("properties", {})
+        for attr, grammar in _named_attributes(entry):
+            if properties.get(attr) is True:
+                properties[attr] = {}
+            if isinstance(properties.get(attr), dict):
+                properties[attr]["pattern"] = f"^{grammar}$"
     return registry
 
 

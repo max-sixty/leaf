@@ -660,7 +660,7 @@ customElements.define('lf-quote-subject', class extends LeafElement {
                 "properties": {
                     "id": {"type": "string"},
                     "data-words": {"type": "string"},
-                    "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+                    "source": {"type": "string"},
                 },
                 "required": ["id"],
                 "additionalProperties": False,

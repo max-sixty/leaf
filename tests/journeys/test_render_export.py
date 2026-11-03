@@ -24,7 +24,6 @@ from leaf import exporting as exporting_model
 from leaf import server as server_model
 from leaf import state as cleanup_model
 from leaf.render_checks import wait_until_ready
-from leaf.schema import ELEMENT_ID
 from leaf.served_state.service import PageStateService
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -125,7 +124,7 @@ OFFLINE_REGISTRY = {
         "description": "A page-owned offline export test widget.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
+            "id": {"type": "string"},
             "choice": {"type": "string"},
             "restated": {"type": "boolean"},
         },

@@ -143,7 +143,11 @@ Every composition, `page init`'s layer and a page's own declarations over it, st
 the facts the browser reads rather than derives (`registry/layer.stamp_composition`),
 overwriting any a layer declared: `$decisions`, each widget's deciding `x-state` verb
 and the member tags each of its outcomes retires, and `$states`, each verb's writer
-and the operation definition an admitted event records.
+and the operation definition an admitted event records. It also completes the
+attribute schemas validation reads: an attribute naming one of the layer's words,
+such as a tone, takes the layer's list as its `enum`, and an attribute holding a
+name Leaf looks up, such as an element id, takes that name's grammar as its
+`pattern`.
 
 The kernel registry, `browser/runtime/kernel-registry.json`, declares the other facts
 both runtimes read (`registry.layer.KERNEL_FACTS`, described in `registry/kernel.py`'s

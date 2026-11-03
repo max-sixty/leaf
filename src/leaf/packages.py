@@ -31,7 +31,6 @@ from .locations import (
 from .machine import package_store
 from .refusals import Refused
 from .schema import (
-    ELEMENT_ID,
     HTML_NAME,
     LAYER_FILE,
     PACKAGE_DIRS,
@@ -125,12 +124,7 @@ def starter_element_declaration(tag: str) -> dict:
             "id."
         ),
         "type": "object",
-        "properties": {
-            "id": {
-                "type": "string",
-                "pattern": f"^{ELEMENT_ID}$",
-            }
-        },
+        "properties": {"id": {"type": "string"}},
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "markup",

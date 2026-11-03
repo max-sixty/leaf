@@ -68,8 +68,7 @@ def test_page_registry_composes_declarations_and_implementations_independently(
 
     composed = registry_page.compose_page_registry(layer, declarations, widget_paths)
 
-    assert composed.registry["lf-local"] == page_widget
-    assert "package-only" not in composed.registry["lf-local"]["properties"]
+    assert composed.registry["lf-local"]["properties"].keys() == {"id", "page-only"}
     assert composed.declaration_sources["lf-local"] == "page"
     assert composed.widget_sources["lf-local"] == "widgets/lf-local.js"
     assert composed.declaration_sources["lf-tabs"] == "layer"
@@ -295,7 +294,7 @@ def test_one_check_reports_the_first_problem_in_each_declaration(
 
     second = registry_storage.read_page_registry(page_dir)
 
-    assert second.registry["lf-local"] == declaration
+    assert second.registry["lf-local"]["description"] == declaration["description"]
     assert first.registry["lf-local"]["description"] != declaration["description"]
     assert "lf-local" not in registry_storage.load_registry(page_dir)
 
@@ -316,7 +315,7 @@ def test_a_page_with_no_revision_reads_its_candidate_vocabulary(page_dir):
         page_view_model.PageView(page_dir).registry(None),
     ):
         assert vocabulary is not None
-        assert vocabulary["lf-local"] == declaration
+        assert vocabulary["lf-local"]["description"] == declaration["description"]
 
 
 @pytest.mark.parametrize("active_attention", [True, False])

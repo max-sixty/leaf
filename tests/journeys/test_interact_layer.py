@@ -32,6 +32,7 @@ from leaf import event_log as events_model
 from leaf import files as interact_files
 from leaf import layer as layer_model
 from leaf import packages as packages_model
+from leaf.registry.contract import stamp_grammars
 from leaf.registry.storage import (
     layer_record,
     layer_widgets,
@@ -835,7 +836,11 @@ def test_package_is_the_unit_that_init_creates_checks_and_vendors(
     theme = layer.top_files["theme.css"].decode()
     assert "lf-callout {\n  display: block;" in theme
     assert theme.index("lf-callout {") < theme.index("@layer lf-overrides")
-    assert load_registry(page)["lf-callout"] == entry
+    # The package's entry, as composition completes it.
+    assert (
+        load_registry(page)["lf-callout"]
+        == stamp_grammars({"lf-callout": entry})["lf-callout"]
+    )
     assert (
         "Use them for short notices."
         in layer.vocabulary.instructions["author.md"].decode()

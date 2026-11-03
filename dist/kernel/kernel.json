@@ -1,6 +1,6 @@
 {
   "inputs": {
-    "leaf.js": "f589d980fd4fbb7b7eb38ecc193307e53db08f3f88752349b3e438b835998cbb",
+    "leaf.js": "b768370dcc09935d9be1533b9c658f495ba244d63dfc8ac0965acaad5411340d",
 
     "runtime/abort.js": "5ac3a80366571da2b98e2aae8cea84bbc2fa8befed9815a9e7d77e8a68445320",
 
@@ -18,7 +18,7 @@
 
     "runtime/anchor-resolution.js": "30d3c8c079d4d737ddcf103baccd23e68c16fd9b3409a7a1890f92405576240d",
 
-    "runtime/anchor-travel.js": "ec4f63fec7bb07f608c3c402b012d7e9f9b372a01caddd17ec7dc8d707ff23c5",
+    "runtime/anchor-travel.js": "187fbe97836671099bed09b7dc26736f63d8f832ce94e13c932f02855faf8825",
 
     "runtime/annotation-inventory.js": "f85cda64cdf583a005bab2dd5e14983763d8ee2a55b26962d336b3bf359f5b87",
 
@@ -56,7 +56,7 @@
 
     "runtime/application.js": "5920ac15e6a37226d88a41812e11ee8000dd2cf191d69f01c9b1ee1b2d4b7b32",
 
-    "runtime/arrivals.js": "761dcae033f787ec4b872615d0b2dd47de0017b079ec1a377ce618ff95dd57e9",
+    "runtime/arrivals.js": "60bf10bffb0c1932c829818c658b509936ca9b601ac098fabb81733a25a17760",
 
     "runtime/base-layer.js": "7254e7c6c7df56faea13460dbbedc193593826d4bb4b79ef91ee98dc8bd4bc6c",
 
@@ -212,7 +212,7 @@
 
     "runtime/held-word.js": "b19c912dfe1eb4ff99e52b5663e2f5a1bcbe069c507ca91adc2a385e40b60963",
 
-    "runtime/history.js": "2b63e73b5fbd9587ad0de1e38676b9d4fddf3e0d735094f41ff4d891c04f03ec",
+    "runtime/history.js": "8f9e3f78fbb06db5d1e1145c73e6f41a16ce10f248735ec6cd3015ae19a781c4",
 
     "runtime/http-api.js": "d898e1afac17f612a91aec8de608a81cea13125fd2818169ea209732a497ed26",
 
@@ -234,7 +234,7 @@
 
     "runtime/kernel-registry.json": "4b42ed86759e6086dd308f6ed1f91a147d64f0819a86724c35f0f3ded3ce084a",
 
-    "runtime/keyboard/bindings.js": "df27dc5618f49b0f81056b32b23687718447e90b075ae5a4f4cfafcc80038fe4",
+    "runtime/keyboard/bindings.js": "67c3dd0c589fc877dc7b84a00e03ce3599524455bc13984dd0be7f2637c8c837",
 
     "runtime/keyboard/chip-seats.js": "b1ebaa4d7e346ab3769db8b7621393f070c7be09826f0843d3b4e6bae51b7783",
 
@@ -242,7 +242,7 @@
 
     "runtime/keyboard/command-hints.js": "714f348b1dc4a7cead047972031b7fbacf31dc38c7a22cf128400b7d0132196b",
 
-    "runtime/keyboard/command-reference.js": "0b9d90044a2d7b1a7e745e4721531997f34a5ee5c5f3b1347df33caca16a1e09",
+    "runtime/keyboard/command-reference.js": "a5c118da375d4414efff13c0f0337cd902c38484c81b726d6e1f97cbd86c9512",
 
     "runtime/keyboard/control-keys.js": "019cfd871b5f9b8aa49c21f17a0753e9b7dd57c811b8e6f00c5eaafa9ea55614",
 
@@ -252,7 +252,7 @@
 
     "runtime/keyboard/dispatch.js": "a8cd6a9ca0dd5ffae0765738bc75337e9d2d418e84fc2cfd359487b9cbc1334e",
 
-    "runtime/keyboard/go-to-sequence.js": "795d9acaae7f2c17d9fa0b0ee15fce07be5aa7f2f3c334bb8bd0f613754d7b1e",
+    "runtime/keyboard/go-to-sequence.js": "5a82bef5f4bb0fc811ce74d4fff629cf0b81c842db168841fc9020e037d54fe5",
 
     "runtime/keyboard/hints.js": "092f392138572a5587a91ab118807851ca40782dc299da45bc23247a493294d6",
 
@@ -262,9 +262,9 @@
 
     "runtime/keyboard/layer-stack.js": "0d6fae014252f1971cfd96dc3935119a29b9409b091fd5e032e8964cfdb94058",
 
-    "runtime/keyboard/page.js": "4dbe57e03c017452d898e8043ae6fc614bbf571a7bba6905ed36d767bc4e8dde",
+    "runtime/keyboard/page.js": "01dae6e54679ee95e73f3c8cc0459a732d7ae910b16a5b9a043784343514822f",
 
-    "runtime/keyboard/register.js": "b1ee127ef099ccb462992bcf9fa75af56573290a66f1422aefa773d77a6a2bc7",
+    "runtime/keyboard/register.js": "e3899176463d4b8e908c5f6d15edf1e92a1d0abaccd4714d0676e5c9fc38de02",
 
     "runtime/keyboard/scopes.js": "4989842c2fdfa345ece3afcad3b68fc8fa48d8d8ce810b4b774bce72e740c84d",
 
@@ -274,7 +274,7 @@
 
     "runtime/keyboard/touch-controls.js": "921757cef46c6231263653480c5abb6f877b7c0b10dac5798df19fbab43de7db",
 
-    "runtime/landing-scroll.js": "c17a398332f3e9dcdc58f551177a5b20b1e2f1bf8739d058dca4dceb491889ac",
+    "runtime/landing-scroll.js": "01f0f1bba203f1ac198b3eff439f3ee1b3405bbf1a872f9407996771bba7e299",
 
     "runtime/language-paths.js": "038583c5c8c80b5f772323aa1f47b6d8d865e615d632014ac2c12cd92f90006f",
 
@@ -302,7 +302,7 @@
 
     "runtime/native-selection.js": "08e82d9ef0df71f411427caa64462dc0f81b1aa6f25b1693c5c54a38a247b5aa",
 
-    "runtime/navigation.js": "2c27e8e4760a3a1829f91c3f09e86bdf6af514eefa39a34b5408ee1e853e5f8e",
+    "runtime/navigation.js": "d2850e77340225b0b3bc323b16e100c11de0cf353f68e8033ea574095ac11d65",
 
     "runtime/notifications.js": "d42f075562ef0e67939c021a1154aed35ea5beb7e1d67a15c864eb4889cc5994",
 
@@ -318,7 +318,7 @@
 
     "runtime/obligations/view-elements.js": "ecac61c91f4693beedffc5fe6b704db41834caeb530b9fea0774a24f4be9d30e",
 
-    "runtime/obligations/view.js": "2e9bc6711d462664d071eb9019c7eb58d1342c680e5101f7ab3421395e2e998c",
+    "runtime/obligations/view.js": "0fe6459d81ecece8bfd37d582b2f7d0d7ef811e1e305130233ed7796c27064bd",
 
     "runtime/off-flow.js": "1dd4f46e98cab9ed86252754075ca2defd46016f0cb2d207ff48b1b3968bf58e",
 
@@ -376,7 +376,7 @@
 
     "runtime/queue-title.js": "af4eaec486fe0c3d52681945e13ede7fbfa7ab48e1a861ca9260480c685aa5b0",
 
-    "runtime/queue-walk.js": "efe05fa9abaf0be134dad3a53d1953e46079da1beef3cf80b443fefccfba0017",
+    "runtime/queue-walk.js": "cd3362bd0254f354f73b4580264c67d231dd4f348cd3de667ccfc29ad814125f",
 
     "runtime/queued-work.js": "4e4b2fcc68487261fd56e9ac17e59f1b62e9fc7b58bc8afe9a4eac2a8bc4262a",
 
@@ -388,7 +388,7 @@
 
     "runtime/reading-continuity.js": "cef989af886deaa24e32727730263b4d522a3d33a8bfd9c87f4ca29b6f9e36c4",
 
-    "runtime/reading-place.js": "f68e1790f3f6adfad3f3dc3c176f049723b4c487afa2d979997927da97d5569c",
+    "runtime/reading-place.js": "f96b375c648d6440fd0d7800d54f9bee4c8193ca428404617338e4b108b8afce",
 
     "runtime/reading-regions.js": "d136548d92891ed60edbb929c07ed5bc218218a6f6042feb7cd0b1e22786ef5b",
 
@@ -422,7 +422,7 @@
 
     "runtime/scroll-containers.js": "cd7f46aab1fe0df5b4967d37c8bcdebc4531aa6ff48767022b6d8683e97c9fff",
 
-    "runtime/scrolling.js": "2af9952ea633c2b84b1eb8c0dc36783ad5472aff87eec97e03127e97156fce9a",
+    "runtime/scrolling.js": "fd06bfb72e61886e55120097326f0eb9cbb014a201bb69e5df27d93adee7e188",
 
     "runtime/semantic-news.js": "99aff7dde9845b1594eb2c1d7f0db4e0ae2c6785250e13b8c62e41e98a92dfc7",
 
@@ -468,7 +468,7 @@
 
     "runtime/thread/card-anchor.js": "44a7dde53753c60a866644822445acd97f360516193fce7ec06751819a8568fb",
 
-    "runtime/thread/destination.js": "35230354b0675863341dce3556783805fff7ab43be9e96e532269797b7a6069f",
+    "runtime/thread/destination.js": "67d40fa2317bfa9a18f986758a18371f89734e14b434b2d9a84342efd7b6f088",
 
     "runtime/thread/focus.js": "a908d03af07809d156604759a827d44e0fff4d2b1f3192d7b581e5080840c06b",
 

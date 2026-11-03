@@ -75,6 +75,7 @@ from .obligations import collection, update_obligation
 from .projection import (
     NO_RECORD,
     PageReading,
+    attribute_marks,
     generated_children,
     recorded_state,
 )
@@ -167,6 +168,7 @@ def page_action_unsettled(
     source: dict,
     spec: dict,
     page: PageReading,
+    markup: tuple[dict, dict],
     *,
     owed: bool,
 ) -> bool:
@@ -184,16 +186,18 @@ def page_action_unsettled(
     it, and no version has to write it in. So a pick naming one names an element
     the markup need not hold: the markup records the authored part of the pick, and
     a later version's note takes in the part only the log holds.
+
+    `markup` is the page document's `(by_id, attribute_marks)`, read once for every
+    action a reading settles.
     """
     widget, unit, _verb = coordinate
-    byid = page.document.by_id
+    byid = markup[0]
     if widget not in byid or (
         (spec.get("record") or spec.get("creates")) and unit not in byid
     ):
         return False
-    document = (byid, page.spoken)
     reading = recorded_state(
-        coordinate, source, spec, document, document, page.registry, page.projection
+        coordinate, source, spec, markup, byid, page.registry, page.projection
     )
     versioned = any(
         event["kind"] == "note"
@@ -495,13 +499,20 @@ def handed_over(
     # obligation the user is still answering has not been handed over, so it has no receipt
     # until the finishing action carries one. The two documents differ only in what
     # settles an action and which operation answers an owed one.
+    markup: tuple[dict, dict] | None = None
+
     def page_action(coordinate: tuple, source: dict, spec: dict, owed: bool):
+        nonlocal markup
         assert page is not None
+        if markup is None:
+            byid = page.document.by_id
+            markup = (byid, attribute_marks(byid, page.spoken, page.registry))
         return page_action_unsettled(
             coordinate,
             source,
             spec,
             page,
+            markup,
             owed=owed,
         )
 

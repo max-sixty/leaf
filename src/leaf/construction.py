@@ -15,6 +15,7 @@ from pathlib import Path
 from .data import data_manifest, deferred_records, source_file
 from .projection import (
     StateProjection,
+    attribute_marks,
     folded_positions,
     generated_children,
     markup_value,
@@ -178,6 +179,7 @@ def constructed_content(
 
     # Every attribute-set owner paints its complete state over its current members.
     # A move can give an unchanged destination baseline a new member to paint.
+    marks = attribute_marks(members, spoken, registry)
     for widget, rec in members.items():
         for verb, spec in state_specs(registry.get(rec["tag"], {})):
             record = spec.get("record") or {}
@@ -187,7 +189,7 @@ def constructed_content(
             value = (
                 held[0]["detail"]["value"]
                 if held
-                else markup_value(widget, spec, members, spoken, registry)
+                else markup_value(widget, spec, members, marks)
             )
             for identity in record_members(
                 widget, record, projection, members, registry
@@ -209,9 +211,7 @@ def constructed_content(
     # Each container lists its units in the fold's order, in the slots its authored
     # units held and after them.
     for (widget, verb), record in placed.items():
-        order = folded_positions(
-            widget, verb, record, members, spoken, registry, projection
-        )
+        order = folded_positions(widget, verb, record, members, registry, projection)
         units = {unit for listed in order.values() for unit in listed}
         for container, listed in order.items():
             content = by_id[container]["content"]

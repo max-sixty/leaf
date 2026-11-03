@@ -1020,8 +1020,16 @@ function registerContribution({ key, target, source = target, read, activate }) 
 	const landFocus = () => {
 		const key = owedFocus;
 		owedFocus = null;
-		offered.focusRequest = null;
-		if (key != null) registration.focus(key, "move");
+		const request = offered.focusRequest;
+		try {
+			if (key != null) {
+				settle({ immediate: true });
+				const destination = control(key, null, true);
+				if (destination) focusDestination(destination, "move");
+			}
+		} finally {
+			if (offered.focusRequest === request) offered.focusRequest = null;
+		}
 	};
 	const arrive = (entryKey, surface, move) => {
 		const request = {
@@ -7387,7 +7395,7 @@ async function readState(bound) {
 	countTraffic("asked");
 	try {
 		if (offlineInteractive) return {
-			state: offlineState(),
+			state: await offlineState(),
 			fault: null
 		};
 		const signal = globalThis.AbortSignal.timeout(bound);

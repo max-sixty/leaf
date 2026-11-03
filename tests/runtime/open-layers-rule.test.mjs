@@ -2,35 +2,22 @@
 
    Whether a node is an open native layer, or stands in one, is shadow-tree.js's
    question, so a selector naming the open state is refused wherever it is asked, and
-   a selector about anything else passes. eslint lives in pre-commit's environment,
-   not this one, so the rule's visitors run here over acorn's tree, which is the
-   ESTree eslint hands them. */
+   a selector about anything else passes. */
 
 import assert from "node:assert/strict";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { parse } from "acorn";
 import { openLayersRule } from "../../eslint.config.mjs";
+import { ruleReports } from "./lint-rule.mjs";
 
 const at = (path) => fileURLToPath(new URL(`../../${path}`, import.meta.url));
 
 // How many times the rule reports on `code` in `file`.
-function reports(code, file = "browser/runtime/probe.js") {
-  let count = 0;
-  const visitors = openLayersRule.create({
+const reports = (code, file = "browser/runtime/probe.js") =>
+  ruleReports(openLayersRule, code, {
     filename: at(file),
     options: [["browser/runtime/shadow-tree.js"]],
-    report: () => (count += 1),
-  });
-  const walk = (node) => {
-    visitors[node.type]?.(node);
-    for (const value of Object.values(node))
-      for (const child of Array.isArray(value) ? value : [value])
-        if (child && typeof child.type === "string") walk(child);
-  };
-  walk(parse(code, { ecmaVersion: "latest", sourceType: "module" }));
-  return count;
-}
+  }).length;
 
 test("a selector asking for the open state is refused", () => {
   for (const code of [

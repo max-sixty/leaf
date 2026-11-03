@@ -30,6 +30,7 @@ reading it returns is caused by the markup and the log the test wrote and by
 nothing else on the machine.
 """
 
+from contextlib import contextmanager
 from pathlib import Path
 
 from interact_support import ModelPage, model_layer, served_state_error, served_thread
@@ -40,6 +41,7 @@ from leaf.passages import SourceReading
 from leaf.registry.storage import served_layer
 from leaf.served_state.context import PageRead
 from leaf.served_state.page import read_served_page
+from leaf.served_state.service import LivePage, PageStateService
 from leaf.structure import SourceDocument
 
 NOW = "2026-09-19T12:00:00+00:00"
@@ -127,6 +129,60 @@ def served_reading(
     such a command too: a `start` naming a move or task, as `leaf task start`
     writes it.
     """
+    state = read_served_page(
+        _fold(documents, events, registry=registry, presence=presence, data=data),
+        view_revision=view_revision,
+    ).state
+    assert (error := served_state_error(state)) is None, error
+    return state
+
+
+def served_answer(
+    documents: dict[int, str] | str,
+    events: tuple[dict, ...] | list[dict] = (),
+    *,
+    registry: dict | None = None,
+    view_revision: int | None = None,
+    presence: dict | None = None,
+    data: dict | None = None,
+) -> dict:
+    """The whole `/api/state` answer, as the route composes it
+    (`PageStateService.page_state`) from the inputs `served_reading` folds: the
+    reading, the layer it was read under, no neighbouring pages, and a news token."""
+    folded = _fold(documents, events, registry=registry, presence=presence, data=data)
+    answer = PageStateService(Path(), source=_FoldedPage(folded)).page_state(
+        view_revision
+    )
+    assert (error := served_state_error(answer, "answer")) is None, error
+    return answer
+
+
+class _FoldedPage(LivePage):
+    """A live page whose transaction reads a fold's inputs rather than a directory:
+    no other page is live, and the news token names the fold's log."""
+
+    def __init__(self, context: PageRead) -> None:
+        self.context = context
+
+    def other_pages(self) -> list[dict]:
+        return []
+
+    @contextmanager
+    def state_read(self, *, with_token: bool = False):
+        token = f"fold-{len(self.context.events)}" if with_token else None
+        yield self.context, token, None
+
+
+def _fold(
+    documents: dict[int, str] | str,
+    events: tuple[dict, ...] | list[dict],
+    *,
+    registry: dict | None = None,
+    presence: dict | None = None,
+    data: dict | None = None,
+) -> PageRead:
+    """The inputs the server reads a page's state from, folded from `documents` and
+    `events` as `served_reading` says."""
     if isinstance(documents, str):
         documents = {1: documents}
     parsed = {rev: SourceDocument(html) for rev, html in documents.items()}
@@ -160,28 +216,23 @@ def served_reading(
     readings = {
         rev: SourceReading(document, registry) for rev, document in parsed.items()
     }
-    state = read_served_page(
-        PageRead(
-            active=active,
-            events=log,
-            revisions=frozenset(parsed),
-            revision=readings.__getitem__,
-            registry=registry,
-            stored_layer=lambda: registry["$layer"],
-            # The fixture selects no package, so no page directory resolves one.
-            serve_layer=lambda metadata: served_layer(metadata, Path()),
-            stored_data=lambda: data,
-            bound_files=dict,
-            versions=tuple(version_descriptors(log, parsed)),
-            presence=presence or UNCLAIMED,
-            live_stream=None,
-            now=NOW,
-            taken=float(len(log) + 1),
-        ),
-        view_revision=view_revision,
-    ).state
-    assert (error := served_state_error(state)) is None, error
-    return state
+    return PageRead(
+        active=active,
+        events=log,
+        revisions=frozenset(parsed),
+        revision=readings.__getitem__,
+        registry=registry,
+        stored_layer=lambda: registry["$layer"],
+        # The fixture selects no package, so no page directory resolves one.
+        serve_layer=lambda metadata: served_layer(metadata, Path()),
+        stored_data=lambda: data,
+        bound_files=dict,
+        versions=tuple(version_descriptors(log, parsed)),
+        presence=presence or UNCLAIMED,
+        live_stream=None,
+        now=NOW,
+        taken=float(len(log) + 1),
+    )
 
 
 def reading(
@@ -194,8 +245,8 @@ def reading(
 ) -> dict:
     """The semantic browser projection beside its page-wide work readings.
 
-    Model assertions select from this view; wire consumers use `served_reading`
-    for the complete `/api/state` answer, including its envelope.
+    Model assertions select from this view; wire consumers use `served_answer`
+    for the complete `/api/state` answer.
     """
     state = served_reading(
         documents, events, registry=registry, view_revision=view_revision, data=data

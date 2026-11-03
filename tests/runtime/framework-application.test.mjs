@@ -6,6 +6,7 @@ import {
   servedGestureSequence,
   servedObligationRow,
   servedReading,
+  servedState,
   servedThread,
   servedWorkflow,
 } from "../served.mjs";
@@ -55,7 +56,6 @@ const descriptor = {
   ancestors: [],
   quoted: false,
 };
-const empty = () => ({ entries: [], actions: [], reports: [], desired: [] });
 const wireObligation = (
   target,
   tag,
@@ -97,57 +97,46 @@ const action = (attempt, outcome = "accept") => ({
   revision: 1,
   attempt,
 });
-const state = (taken, events = []) => ({
-  taken,
-  layer: { generation: "test" },
-  active: { revision: 1 },
-  revision_labels: {},
-  events,
-  workflows: [],
-  activity: { phase: "user", held: false },
-  reading: `reading-${taken}`,
-  browser: {
-    basis: { through_seq: events.length },
-    receipts: events,
-    thread_memberships: {},
-    todos: [],
-    views: {
-      1: {
-        basis: { revision: 1, through_seq: events.length },
-        thread: { threads: [], projection: empty() },
-        items: [],
-        coverage: [],
-        undo: [],
-        reports: [],
-        published_at: null,
-        queues: { on_user: [], on_agent: [], done: [] },
-        document: {
-          projection: {
-            entries: events.map((event) => ({
-              event: {
-                ...event,
-                meaning: {
-                  ...event.meaning,
-                  state: event.meaning?.state ?? definition("lf-choice", spec),
+// The answer taken at `taken` whose log holds `events`, each an action in force;
+// `changes` set its other fields, as `servedState` takes them.
+const state = (taken, events = [], changes = {}) =>
+  servedState({
+    ...changes,
+    taken,
+    reading: `reading-${taken}`,
+    events,
+    browser: {
+      basis: { through_seq: events.length },
+      receipts: events,
+      views: {
+        1: {
+          basis: { through_seq: events.length },
+          document: {
+            projection: {
+              entries: events.map((event) => ({
+                event: {
+                  ...event,
+                  meaning: {
+                    ...event.meaning,
+                    state: event.meaning?.state ?? definition("lf-choice", spec),
+                  },
                 },
-              },
-              coordinate: [event.widget, event.widget, event.action],
-              spec,
-              scope: "page",
-              value: event.action,
-              restated: [],
-              absorbed: false,
-              stands: true,
-            })),
-            actions: events.map((event) => event.id),
-            reports: [],
-            desired: events.slice(-1).map((event) => event.id),
+                coordinate: [event.widget, event.widget, event.action],
+                spec,
+                scope: "page",
+                value: event.action,
+                restated: [],
+                absorbed: false,
+                stands: true,
+              })),
+              actions: events.map((event) => event.id),
+              desired: events.slice(-1).map((event) => event.id),
+            },
           },
         },
       },
     },
-  },
-});
+  });
 // A served workflow for one input to `thread`, its opening message unless named.
 const threadWorkflow = (id, { thread = "root", input = thread, ...changes } = {}) =>
   servedWorkflow({
@@ -410,8 +399,7 @@ test("an adopted live revision retains its stamp while a newer revision waits", 
       [descriptor.id, { ...descriptor, document: { kind: "page", revision: 2 } }],
     ]),
   };
-  const read = state(2);
-  read.active = { revision: 2, version: 2 };
+  const read = state(2, [], { active: { revision: 2, version: 2 } });
   read.browser.views[2] = read.browser.views[1];
   read.browser.views[2].basis.revision = 2;
   delete read.browser.views[1];
@@ -428,8 +416,7 @@ test("a frozen descriptor capture cannot relabel the shown document", () => {
     ...app.read().document,
     descriptors: new Map([[descriptor.id, descriptor]]),
   };
-  const read = state(2);
-  read.active = { revision: 1, version: 2 };
+  const read = state(2, [], { active: { revision: 1, version: 2 } });
 
   assert.equal(app.adopt(read, capture), true);
   assert.equal(app.read().document.revision, 1);
@@ -443,8 +430,7 @@ test("message capture preserves a deferred document's identity and immutable fie
     const shown = app.read().document;
     const body = { text: "A newly read message" };
     const messageBodies = new Map([["message", body]]);
-    const read = state(2);
-    read.active = { revision: 2, version: 2 };
+    const read = state(2, [], { active: { revision: 2, version: 2 } });
 
     assert.equal(app.adopt(read, { ...shown, messageBodies }), true);
     const admitted = app.read().document;
@@ -495,16 +481,11 @@ test("document capture and its matching admitted reading publish atomically", ()
     ]),
     descriptors: new Map([[nextDescriptor.id, nextDescriptor]]),
   };
-  const read = state(2, [
-    {
-      ...action("next-action"),
-      id: "e-next",
-      seq: 1,
-      revision: 2,
-      widget: "next",
-    },
-  ]);
-  read.active = { revision: 2, version: 2 };
+  const read = state(
+    2,
+    [{ ...action("next-action"), id: "e-next", seq: 1, revision: 2, widget: "next" }],
+    { active: { revision: 2, version: 2 } },
+  );
   read.browser.views[2] = read.browser.views[1];
   read.browser.views[2].basis.revision = 2;
   delete read.browser.views[1];
@@ -523,7 +504,8 @@ test("document capture and its matching admitted reading publish atomically", ()
 
 test("accepted reading order includes non-event activity and data taken in order", () => {
   const app = setup();
-  const newer = { ...state(3), activity: { phase: "agent", held: true } };
+  const newer = state(3);
+  newer.activity.kind = "working";
   assert.equal(app.adopt(newer), true);
   // Transport asks the same question before preparing anything for an answer.
   assert.equal(app.overtaken(state(2)), true);

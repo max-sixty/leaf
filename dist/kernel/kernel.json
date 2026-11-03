@@ -40,7 +40,7 @@
 
     "runtime/annotation-overlay/margin-cluster-view.js": "a329209183a6255d8df0b87dadd4047b521d14f2dd33de52da7d47fadcb88e1c",
 
-    "runtime/annotation-overlay/margin-layout.js": "4be4722f884fbc94a9847ee033aec7366bc24f678f640fed3e2f0349c97216e4",
+    "runtime/annotation-overlay/margin-layout.js": "abab40d7b61775dfa0aac3ebfcc34d4c3e321fd5705036e4a2347107a6b3f9b1",
 
     "runtime/annotation-overlay/margin-placement.js": "7eb32b30afc9432946f2ecd3ff60535ab3c1ff4ed4646fca1f5445bffb91de22",
 
@@ -142,7 +142,7 @@
 
     "runtime/copyable-text.js": "b4252f63a205ebd26d5e158c5127b3da844e61b553527350b69564bc71be04ef",
 
-    "runtime/css-anchors.js": "03fabbdc0604c9624e56185521831b6b416d2e5f3272cfd5fe78e17b4b9631eb",
+    "runtime/css-anchors.js": "9f12de4aac61b83b328f047bef5f1ecbaea25f2aad177f1da85a5867aa0cb8eb",
 
     "runtime/current-target.js": "157c79d43897e2f4d219bfc71ddf02b734f164f53cac16fa64336bd5ac576082",
 

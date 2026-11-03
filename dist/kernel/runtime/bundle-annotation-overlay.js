@@ -487,13 +487,14 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 		}
 		const thread = threadCardThread(session);
 		const words = !point && thread?.anchor?.quote ? passageGeometry(placedAt(thread.id)) : null;
+		const place = commentAttachment({
+			target,
+			point,
+			passage: words
+		});
 		return {
-			element: target,
-			place: commentAttachment({
-				target,
-				point,
-				passage: words
-			})
+			element: place?.element ?? target,
+			place
 		};
 	}
 	const THREAD_SIDES = {

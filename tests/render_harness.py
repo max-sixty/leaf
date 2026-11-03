@@ -1748,21 +1748,21 @@ def open_versions(page):
 
 # The floating panel (runtime/floating-panel.js) is Leaf's one chrome: a row of the leaf,
 # the field and the On me and Threads marks, with a view opened above it, the leaf's
-# menu among them. Its state stands on its host as attributes: `data-open` names the
+# menu among them. Its state stands on its host as attributes: `data-lf-open` names the
 # open view (menu, versions, group, errors, threads, thread, queue, leaves) and
-# `data-rest="mark"` the panel folded to the leaf.
+# `data-lf-rest="mark"` the panel folded to the leaf.
 PANEL = ".lf-floating-panel"
 
 
 def panel_view(name: str) -> str:
-    """The selector of the panel's `name` view (`data-open`'s values, above) that
-    stands open. A view put away keeps its node, marked `data-leaving`, until its
+    """The selector of the panel's `name` view (`data-lf-open`'s values, above) that
+    stands open. A view put away keeps its node, marked `data-lf-leaving`, until its
     exit motion ends, so this never matches one: a selector that did would find two
     views mid-switch, or a view already on its way out."""
-    return f'.lf-fp-view[data-view="{name}"]:not([data-leaving])'
+    return f'.lf-fp-view[data-lf-route="{name}"]:not([data-lf-leaving])'
 
 
-# A view of one thread, which names the thread it shows by id in `data-thread`.
+# A view of one thread, which names the thread it shows by id in `data-lf-thread`.
 PANEL_THREAD = panel_view("thread")
 
 
@@ -1791,9 +1791,9 @@ def panel_settled(page, open=True, view=None):
             Number.isFinite(move.effect?.getComputedTiming().endTime));
           const moving = [host, ground].flatMap(finite);
           for (const move of moving) move.finish();
-          const shown = host.dataset.open ?? null;
+          const shown = host.dataset.lfOpen ?? null;
           return (open ? shown !== null && (!view || shown === view) : shown === null)
-            && !host.querySelector('.lf-fp-view[data-leaving]')
+            && !host.querySelector('.lf-fp-view[data-lf-leaving]')
             && [host, ground].every((n) => !finite(n).length);
         }""",
         arg=[open, view],
@@ -1882,17 +1882,18 @@ def panel_menu(page, at=None, *, touch=False):
 
     The leaf opens the panel's view on the menu, the On view's first tab
     (floating-panel.js, `VIEWS.menu`); a list it leads to opens as a view over it, whose
-    way back returns to the menu. A row's `data-row` is its key among the page's control
-    rows (page-controls.js). The menu holds the rows it opened with while it stands
-    (floating-panel.js, `holdMenu`), a row news took away staying disabled and one news
-    offered waiting for the next opening, so a reading of it is a reading of the moment
-    it opened. A mouse's press on the leaf leaves the user in the menu's search."""
+    way back returns to the menu. A row's `data-lf-row` is its key among the page's
+    control rows (page-controls.js). The menu holds the rows it opened with while it
+    stands (floating-panel.js, `holdMenu`), a row news took away staying disabled and
+    one news offered waiting for the next opening, so a reading of it is a reading of
+    the moment it opened. A mouse's press on the leaf leaves the user in the menu's
+    search."""
     host = page.locator(PANEL)
     leaf = page.locator(".lf-fp-leaf")
-    if host.get_attribute("data-rest") == "mark":
+    if host.get_attribute("data-lf-rest") == "mark":
         press_visible(page, leaf, touch=touch)
-        expect(host).to_have_attribute("data-rest", "row")
-    if host.get_attribute("data-open") != "menu":
+        expect(host).to_have_attribute("data-lf-rest", "row")
+    if host.get_attribute("data-lf-open") != "menu":
         back = page.locator(".lf-fp-head").get_by_role(
             "button", name="Back to Menu", exact=True
         )
@@ -1903,7 +1904,7 @@ def panel_menu(page, at=None, *, touch=False):
         return menu
     view = "versions" if at == "versions" else "group"
     door = "versions" if at == "versions" else f"group:{at}"
-    press_visible(page, menu.locator(f'.lf-fp-item[data-row="{door}"]'), touch=touch)
+    press_visible(page, menu.locator(f'.lf-fp-item[data-lf-row="{door}"]'), touch=touch)
     panel_settled(page, view=view)
     return page.locator(panel_view(view))
 
@@ -1933,7 +1934,7 @@ def panel_control(page, key, at=None):
     elif key == "threads":
         control = threads_tab(page)
     else:
-        control = panel_menu(page, at).locator(f'.lf-fp-item[data-row="{key}"]')
+        control = panel_menu(page, at).locator(f'.lf-fp-item[data-lf-row="{key}"]')
     expect(control).to_be_visible()
     return control
 
@@ -1941,7 +1942,9 @@ def panel_control(page, key, at=None):
 def expect_panel_offers(page, key, *, offered=True, at=None):
     """Wait until the leaf's menu offers the row `key`, enabled, in the list `at` names,
     or, with `offered` false, until it doesn't, then put the menu away."""
-    row = panel_menu(page, at).locator(f'.lf-fp-item[data-row="{key}"]:not(:disabled)')
+    row = panel_menu(page, at).locator(
+        f'.lf-fp-item[data-lf-row="{key}"]:not(:disabled)'
+    )
     expect(row).to_have_count(1 if offered else 0)
     close_panel_menu(page)
 
@@ -1951,7 +1954,9 @@ def selection_field(page):
     selected on the page: its placeholder quotes them, and a press on it comments on
     them (floating-panel.js, `selectedWords`). Nothing matches while no words are
     offered, so the locator reads as hidden then."""
-    return page.locator('.lf-fp-field leaf-text[name="comment"][data-says="selection"]')
+    return page.locator(
+        '.lf-fp-field leaf-text[name="comment"][data-lf-says="selection"]'
+    )
 
 
 def page_comment(page):
@@ -1962,10 +1967,10 @@ def page_comment(page):
     field becoming its reply, so this puts an open view away first, and unfolds a panel
     folded to the leaf."""
     host = page.locator(PANEL)
-    if host.get_attribute("data-rest") == "mark":
+    if host.get_attribute("data-lf-rest") == "mark":
         page.locator(".lf-fp-leaf").click()
-        expect(host).to_have_attribute("data-rest", "row")
-    if host.get_attribute("data-open") is not None:
+        expect(host).to_have_attribute("data-lf-rest", "row")
+    if host.get_attribute("data-lf-open") is not None:
         page.locator(".lf-fp-close").click()
         panel_settled(page, open=False)
     box = page.locator('.lf-fp-field leaf-text[name="comment"]')
@@ -1980,7 +1985,7 @@ def page_comment(page):
 # over the field's words (composing/input.js), else the empty field's placeholder.
 PANEL_SAYS = """() => {
   const peek = document.querySelector('.lf-fp-peek');
-  if (peek?.hasAttribute('data-shown')) return peek.textContent.trim();
+  if (peek?.hasAttribute('data-lf-shown')) return peek.textContent.trim();
   const line = document.querySelector('.lf-fp-context');
   if (line && !line.hidden && line.textContent.trim()) return line.textContent.trim();
   const cover = document.querySelector('.lf-fp-field .lf-compose-error:not([hidden])');
@@ -2020,7 +2025,7 @@ def expect_error_waits_in_menu(page, message):
     about a box outside the panel, such as a passage's composer, or about nothing while
     the field holds words."""
     expect(page.locator(".lf-fp-error-dot")).to_be_visible()
-    panel_menu(page).locator('.lf-fp-item[data-row="errors"]').click()
+    panel_menu(page).locator('.lf-fp-item[data-lf-row="errors"]').click()
     errors = page.locator(panel_view("errors"))
     expect(errors.locator(".lf-fp-error-words b").first).to_have_text(message)
     close_panel_menu(page)
@@ -3160,8 +3165,8 @@ def left_alone(page):
     # A passing notice stands in the panel's empty field, in the line over it once the
     # field is written in, or in the leaf's peek (notifications.js).
     notice = (
-        ".lf-floating-panel :is([data-says='notice'], .lf-fp-context[data-notice],"
-        " .lf-fp-peek[data-shown])"
+        ".lf-floating-panel :is([data-lf-says='notice'], .lf-fp-context[data-notice],"
+        " .lf-fp-peek[data-lf-shown])"
     )
     while any(frame.locator(notice).count() for frame in page.frames):
         assert time.monotonic() < deadline, "the arrival notice never retired"

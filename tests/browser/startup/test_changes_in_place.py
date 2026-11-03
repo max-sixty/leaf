@@ -63,7 +63,7 @@ def test_a_comparison_marks_each_change_with_a_bar_and_h_walks_them(browser, ser
     # Each change's mark is a bar beside it, and the block keeps its own paint.
     bars = page.locator(".lf-change-bar")
     expect(bars).to_have_count(2)
-    assert sorted(bars.evaluate_all("bars => bars.map(b => b.dataset.for)")) == [
+    assert sorted(bars.evaluate_all("bars => bars.map(b => b.dataset.lfFor)")) == [
         "b",
         "d",
     ]
@@ -80,7 +80,7 @@ def test_a_comparison_marks_each_change_with_a_bar_and_h_walks_them(browser, ser
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     expect(marked).to_have_count(2)
-    beta = page.locator('.lf-change-bar[data-for="b"]')
+    beta = page.locator('.lf-change-bar[data-lf-for="b"]')
     page.keyboard.press("o")
     expect(beta).to_have_css("background-color", clear)
     page.keyboard.press("o")
@@ -92,7 +92,7 @@ def test_a_comparison_marks_each_change_with_a_bar_and_h_walks_them(browser, ser
         """() => {
           const box = (s) => document.querySelector(s).getBoundingClientRect();
           const [block, change, work] = [
-            box('#b'), box('.lf-change-bar[data-for="b"]'), box('.lf-at-work-bar'),
+            box('#b'), box('.lf-change-bar[data-lf-for="b"]'), box('.lf-at-work-bar'),
           ];
           return change.right <= block.left && work.right <= change.left
             && change.top < block.bottom && change.bottom > block.top;
@@ -203,7 +203,7 @@ def test_the_agent_at_work_on_a_passage_marks_its_place(browser, serve):
     _start(d, quiet["id"], "Rewriting Delta", ts=long_ago)
     _start(d, comment["id"], "Rewriting Beta")
     expect(bars).to_have_count(1)
-    expect(bars).to_have_attribute("data-for", "b")
+    expect(bars).to_have_attribute("data-lf-for", "b")
     stalled = page.evaluate(
         """async () => (await (await fetch('/api/state')).json()).workflows
           .filter(w => w.at_work && w.condition?.kind === 'stale').length"""
@@ -255,4 +255,4 @@ def test_a_to_do_running_on_an_element_marks_it(browser, serve):
     expect(bars).to_have_count(0)
     _start(d, todo["id"], "Rewriting Gamma")
     expect(bars).to_have_count(1)
-    expect(bars).to_have_attribute("data-for", "c")
+    expect(bars).to_have_attribute("data-lf-for", "c")

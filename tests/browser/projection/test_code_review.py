@@ -436,7 +436,7 @@ def test_native_call_diff_json_keeps_spaced_paths_and_exact_patch_destinations(
             selector = (
                 ".lf-call-root-location a"
                 if status == "unchanged"
-                else f'.lf-call-line[data-status="{status}"] a'
+                else f'.lf-call-line[data-lf-status="{status}"] a'
             )
             # Playwright's text filters collapse whitespace; the source coordinates
             # intentionally distinguish these two names.

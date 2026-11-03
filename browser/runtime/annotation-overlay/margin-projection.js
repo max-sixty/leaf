@@ -1413,7 +1413,7 @@ export function createMarginProjection({
   // (thread/replies.js, `releaseReplies`), or the thread. A widened window gives it back
   // (thread/destination.js, `returnToPage`).
   function yieldPreview() {
-    const id = card.thread()?.getAttribute("data-thread");
+    const id = card.thread()?.getAttribute("data-lf-thread");
     const inCard = currentLocationIn(preview);
     const replying = card.replying();
     const intent = retainUserIntent();
@@ -1751,7 +1751,9 @@ export function createMarginProjection({
   const seatedOnPage = (id) =>
     claimed(id) ||
     [
-      ...document.querySelectorAll(`.lf-page-thread[data-thread="${CSS.escape(id)}"]`),
+      ...document.querySelectorAll(
+        `.lf-page-thread[data-lf-thread="${CSS.escape(id)}"]`,
+      ),
     ].some((seat) => closestAcross(seat, ".lf-thread-seat[data-lf-thread-seat]"));
   // The innermost target holding the node whose threads the card would show. A thread is
   // about exactly its anchor's target (header), reached from anywhere

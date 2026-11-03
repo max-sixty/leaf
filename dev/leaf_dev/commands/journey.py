@@ -460,7 +460,7 @@ def write_comment(session: Session, text: str, passage: str | None = None) -> Lo
         # The field writes a page comment while no view stands open over it. A send
         # opens its thread there, the field becoming its reply box, so a later page
         # comment closes that view first.
-        if page.locator(".lf-floating-panel[data-open]").count():
+        if page.locator(".lf-floating-panel[data-lf-open]").count():
             page.locator(".lf-fp-close").click()
         box = page.locator(".lf-fp-field leaf-text")
         box.click()
@@ -609,7 +609,7 @@ def open_news(page: Page, thread: str) -> None:
     The page times what it then shows, so when this runs changes no reading."""
     news = page.locator(
         f':is(.lf-thread[data-id="{thread}"],'
-        f' [data-lf-thread-view][data-thread="{thread}"])'
+        f' [data-lf-thread-view][data-lf-thread="{thread}"])'
         " .lf-thread-news"
     )
     if news.count() and news.first.is_visible():

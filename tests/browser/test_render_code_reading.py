@@ -76,7 +76,7 @@ def test_sample_code_copy_keeps_its_clipboard_boundary(browser, serve):
 def open_keyboard_shortcuts(page):
     """Tap the panel's leaf, unfolding it first where it rests as the mark, then its
     menu's Keyboard shortcuts row: a finger's door to the command reference."""
-    panel_menu(page, touch=True).locator('.lf-fp-item[data-row="keyboard"]').tap()
+    panel_menu(page, touch=True).locator('.lf-fp-item[data-lf-row="keyboard"]').tap()
 
 
 def test_code_wrapping_keeps_source_copy_and_reader_choice(browser, serve):

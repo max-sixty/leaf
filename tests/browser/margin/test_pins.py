@@ -496,7 +496,7 @@ def test_a_finger_hides_the_annotations_from_the_leaf_s_menu(browser, serve):
     toggle = panel_control(page, "command:annotations.toggle", at="annotate")
     expect(toggle).to_contain_text("Hide annotations")
     press_visible(page, toggle, touch=True)
-    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
+    expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
     expect(page.locator("html")).to_have_attribute("data-lf-annotations", "hidden")
     expect(pin).to_be_hidden()
     margins_laid_out(page)
@@ -525,14 +525,14 @@ def test_the_panel_says_the_annotations_are_hidden_while_they_are(browser, serve
 
     page.reload()
     page.wait_for_selector("body[data-lf-presented]")
-    expect(field).to_have_attribute("data-says", "status")
+    expect(field).to_have_attribute("data-lf-says", "status")
     expect(field).to_have_attribute(
         "placeholder", re.compile(r"^Annotations hidden · \S")
     )
 
     page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("w")
-    expect(field).to_have_attribute("data-says", "stance")
+    expect(field).to_have_attribute("data-lf-says", "stance")
     expect(field).to_have_attribute(
         "placeholder", re.compile("^In Draw mode · Annotations hidden")
     )
@@ -544,7 +544,7 @@ def test_the_panel_says_the_annotations_are_hidden_while_they_are(browser, serve
         "data-lf-annotations", re.compile(".*")
     )
     # The notice saying the annotations are shown passes, and the status stands alone.
-    expect(field).to_have_attribute("data-says", "status")
+    expect(field).to_have_attribute("data-lf-says", "status")
     expect(field).not_to_have_attribute("placeholder", re.compile("Annotations"))
 
 

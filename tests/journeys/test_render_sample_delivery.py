@@ -112,7 +112,9 @@ def test_sample_upgrade_does_not_wait_for_child_saved_state(
     if newer_input:
         expect(inner_box).to_be_focused()
     if not shown:
-        expect(child.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
+        expect(child.locator(PANEL)).not_to_have_attribute(
+            "data-lf-open", re.compile(".")
+        )
         return
     expect(
         child.locator(".lf-page-thread").get_by_text(

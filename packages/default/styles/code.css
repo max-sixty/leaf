@@ -44,7 +44,7 @@ lf-code .lf-code-line {
   overflow-wrap: anywhere;
 }
 lf-code :is(.lf-code-line, .lf-code-elided)::before {
-  content: attr(data-line);
+  content: attr(data-lf-line);
   display: inline-block;
   width: var(--lf-code-gutter);
   margin-right: var(--lf-code-gap);
@@ -80,7 +80,7 @@ lf-code .lf-code-elided::before {
   order: -2;
 }
 lf-code .lf-code-elided::after {
-  content: attr(data-elided);
+  content: attr(data-lf-elided);
   order: -1;
   flex: none;
 }

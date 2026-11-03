@@ -1229,12 +1229,12 @@ def test_a_phone_starts_the_page_and_comments_on_a_selection(iphone, serve, view
     # and the On me mark keeps its seat; the leaf's menu stays shut.
     comment = selection_field(page)
     expect(comment).to_have_attribute("placeholder", "“Paragraph one”")
-    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
+    expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
     expect(page.locator(".lf-fp-on-user")).to_be_visible()
     box = comment.bounding_box()
     assert box["x"] + box["width"] <= page.evaluate("innerWidth"), box
     comment.tap()
-    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
+    expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
     expect(field).to_be_focused()
     write(field, "From a phone")
     with sending(page, "the comment"):

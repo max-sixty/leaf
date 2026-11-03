@@ -1881,7 +1881,7 @@ def has_open_thread(page):
 def other_pages(page):
     """Whether the leaf's menu offers All pages, which it does only while other pages
     are live; the menu is put away again."""
-    offered = panel_menu(page, "navigate").locator('.lf-fp-item[data-row="leaves"]')
+    offered = panel_menu(page, "navigate").locator('.lf-fp-item[data-lf-row="leaves"]')
     count = offered.count()
     close_panel_menu(page)
     return count > 0
@@ -3068,7 +3068,7 @@ def test_a_box_of_text_that_scrolls_leaves_its_last_line_clear_of_the_bar(
         + TEXT_CLEAR_OF_BAR
         + """;
         const [wide, fits] = document.querySelectorAll(
-          '.lf-fp-view[data-view="thread"] .lf-msg-body pre');
+          '.lf-fp-view[data-lf-route="thread"] .lf-msg-body pre');
         const reading = { table: read(document.querySelector('#sessions')),
                           wide: read(wide), fits: read(fits),
                           fitsPad: parseFloat(getComputedStyle(fits).paddingBottom),

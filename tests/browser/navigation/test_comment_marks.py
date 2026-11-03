@@ -324,16 +324,16 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
         if event["kind"] == "comment"
     )
     thread = page.locator(
-        f'.lf-margin-preview .lf-page-thread[data-thread="{first_id}"]'
+        f'.lf-margin-preview .lf-page-thread[data-lf-thread="{first_id}"]'
     )
     second = page.locator(
-        f'.lf-margin-preview .lf-page-thread[data-thread="{second_id}"]'
+        f'.lf-margin-preview .lf-page-thread[data-lf-thread="{second_id}"]'
     )
     reply = thread.locator("leaf-text")
 
     page.mouse.click(*mark_point(page, "lf-mark"))
     expect(page.locator(".lf-margin-preview")).to_be_visible()
-    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
+    expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
 
     expect(thread).to_be_focused()
     expect(reply).to_be_visible()
@@ -460,14 +460,14 @@ def test_the_page_marks_the_comment_the_user_is_located_in(browser, serve):
     wait_current_location(page, "", ["fig"])
     # Past the last comment the walk comes round to the first, and back again.
     first = page.locator(
-        f'.lf-margin-preview .lf-page-thread[data-thread="{roots[0]}"]'
+        f'.lf-margin-preview .lf-page-thread[data-lf-thread="{roots[0]}"]'
     )
     page.keyboard.press("t")
     expect(first).to_be_focused()
     wait_current_location(page, "bold text")
     page.keyboard.press("Shift+t")
     expect(
-        page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{roots[2]}"]')
+        page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{roots[2]}"]')
     ).to_be_focused()
     wait_current_location(page, "", ["fig"])
     page.keyboard.press("Shift+t")
@@ -616,8 +616,8 @@ def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
     page.evaluate("""() => {
         window.__lfNote = document.getElementById('p1').ariaDetailsElements[0];
     }""")
-    inline1 = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{c1}"]')
-    inline2 = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{c2}"]')
+    inline1 = page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{c1}"]')
+    inline2 = page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{c2}"]')
     expect(note).to_have_role("button")
     # Focused with the keyboard's modality, as a screen reader moving to it focuses it,
     # the note shows nothing of its own: its block wears the focus ring, in view. The
@@ -635,7 +635,7 @@ def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
     page.locator("#p1").evaluate("p => { p.style.marginTop = ''; }")
     note.press("Enter")
     expect(inline1).to_be_focused()
-    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
+    expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
     page.keyboard.press("t")
     expect(inline2).to_be_focused()
 

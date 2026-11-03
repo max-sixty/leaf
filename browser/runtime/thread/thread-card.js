@@ -689,9 +689,9 @@ export class ThreadView {
     if (model.news) notice.set(model.news);
     const news = model.news ? notice.node : nothing;
     // Its id names the surface too (`drawnThreadId`).
-    keeps(this.node, "data-thread", model.id);
-    keeps(this.node, "data-resolved", model.resolved);
-    keeps(this.node, "data-attempt", model.attempt || null);
+    keeps(this.node, "data-lf-thread", model.id);
+    keeps(this.node, "data-lf-resolved", model.resolved);
+    keeps(this.node, "data-lf-attempt", model.attempt || null);
     // A card is itself where a send or a walk stands the user, so it carries the
     // thread's name.
     keeps(this.node, "role", "group");

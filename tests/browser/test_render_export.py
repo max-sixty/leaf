@@ -752,7 +752,7 @@ def test_inline_threads_keep_their_words_without_live_controls_in_print(
             serve.page_dir,
             {"kind": "resolve", "author": "user", "parent": root["id"]},
         )
-    selector = f'lf-diff .lf-page-thread[data-thread="{root["id"]}"]'
+    selector = f'lf-diff .lf-page-thread[data-lf-thread="{root["id"]}"]'
     live = open_page(browser, url)
     thread = live.locator(selector)
     expect(thread).to_have_count(1)

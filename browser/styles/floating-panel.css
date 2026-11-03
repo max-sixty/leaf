@@ -147,7 +147,7 @@
   .lf-fp-on-item {
     --lf-ring-at: var(--focus-ring-inset);
   }
-  .lf-fp-on-item[data-walked] {
+  .lf-fp-on-item[data-lf-walked] {
     outline: var(--focus-ring);
   }
 
@@ -172,7 +172,7 @@
      read as the view's last row while the line stood above the controls instead. The
      user chose the line here on 31 October 2026; rejected: a second line above the
      field, which stacked three in the menu's foot. */
-  .lf-floating-panel[data-open] .lf-fp-row {
+  .lf-floating-panel[data-lf-open] .lf-fp-row {
     background: linear-gradient(var(--lf-fp-faint), var(--lf-fp-faint)) top center /
       calc(100% - 2 * (6px + var(--lf-fp-inset))) 1px no-repeat;
   }
@@ -187,7 +187,7 @@
     inset-block-start: var(--lf-fp-row-pad);
     inset-inline-start: var(--lf-fp-row-pad);
   }
-  .lf-floating-panel[data-expanded] .lf-fp-row:has(> .lf-fp-expand) {
+  .lf-floating-panel[data-lf-expanded] .lf-fp-row:has(> .lf-fp-expand) {
     min-height: calc(2 * var(--lf-line) + 2 * var(--lf-fp-row-pad) + 4px);
   }
   /* The leaf is a symbol (controls.css), a line tall, its mark a size up from an
@@ -213,7 +213,7 @@
     box-shadow: 0 0 0 2px var(--lf-fp-surface);
     pointer-events: none;
   }
-  .lf-fp-error-dot[data-shown] {
+  .lf-fp-error-dot[data-lf-shown] {
     display: block;
   }
   .lf-fp-field {
@@ -336,18 +336,18 @@
       opacity var(--lf-motion-box-resize),
       visibility 0s var(--lf-motion-box-resize);
   }
-  .lf-floating-panel[data-long] .lf-fp-expand {
+  .lf-floating-panel[data-lf-long] .lf-fp-expand {
     opacity: 1;
     visibility: visible;
     transition: opacity var(--lf-motion-box-resize);
   }
-  .lf-floating-panel[data-expanded] {
+  .lf-floating-panel[data-lf-expanded] {
     --lf-fp-max: calc(61 * var(--msg-size));
   }
-  .lf-floating-panel[data-expanded] .lf-fp-field .lf-compose-field > leaf-text {
+  .lf-floating-panel[data-lf-expanded] .lf-fp-field .lf-compose-field > leaf-text {
     min-height: calc(6lh + var(--lf-line) - 1lh);
   }
-  .lf-floating-panel[data-expanded]:not([data-open])
+  .lf-floating-panel[data-lf-expanded]:not([data-lf-open])
     .lf-fp-field
     .lf-compose-field
     > leaf-text {
@@ -408,7 +408,7 @@
   /* The anchored comment box on a page drawing its own annotations, standing in the
      field's place while its composer is open and no view is open above the row
      (floating-panel.js, `responseSeat`). While the field offers words selected on the
-     page (`data-offers`), the field stands there instead, so the finger that selected
+     page (`data-lf-offers`), the field stands there instead, so the finger that selected
      them has its route to them, and the box comes back with its draft once they go. */
   .lf-fp-response {
     display: none;
@@ -416,12 +416,12 @@
     min-width: 0;
     align-self: center;
   }
-  .lf-floating-panel:not([data-open], [data-offers], [data-search])
+  .lf-floating-panel:not([data-lf-open], [data-lf-offers], [data-lf-search])
     .lf-fp-row:has(> .lf-fp-response > .lf-fab-bar > .lf-composer[data-lf-open])
     > .lf-fp-field {
     display: none;
   }
-  .lf-floating-panel:not([data-open], [data-offers], [data-search])
+  .lf-floating-panel:not([data-lf-open], [data-lf-offers], [data-lf-search])
     .lf-fp-row:has(> .lf-fp-response > .lf-fab-bar > .lf-composer[data-lf-open])
     > .lf-fp-response {
     display: block;
@@ -450,7 +450,7 @@
      there is more above or below, in place of a scrollbar, whose overlay flashed with
      every line the field scrolled to. The field says which edges words run past
      (text-field.js, `more-above`, `more-below`). */
-  .lf-fp-field .lf-compose-field > leaf-text[data-scrolls] {
+  .lf-fp-field .lf-compose-field > leaf-text[data-lf-overflows] {
     --lf-fp-fade-top: 0px;
     --lf-fp-fade-bottom: 0px;
     scrollbar-width: none;
@@ -477,7 +477,7 @@
      its status carries the sheen that marks work under way (surfaces.css), from its own
      dim face to ink and back. The face is the field's placeholder part, so it holds
      whether the words come with a key drawn beside them or alone. Whose reading the
-     words are is the editor's own `data-says`, written in the paint that writes the
+     words are is the editor's own `data-lf-says`, written in the paint that writes the
      words (floating-panel.js, `saying`), so no face stands over another reading's words
      for a frame, as the notice's weight once did over the status, carrying it sideways.
 
@@ -492,19 +492,21 @@
   .lf-fp-field leaf-text::part(placeholder) {
     color: var(--lf-fp-quiet);
   }
-  .lf-fp-field leaf-text[data-offers]::part(placeholder) {
+  .lf-fp-field leaf-text[data-lf-offers]::part(placeholder) {
     color: var(--ink);
   }
-  .lf-fp-field leaf-text[data-offers] .lf-compose-placeholder-lead {
+  .lf-fp-field leaf-text[data-lf-offers] .lf-compose-placeholder-lead {
     color: var(--lf-fp-quiet);
   }
   .lf-fp-field
-    leaf-text:not([data-offers], [data-says="destination"])
+    leaf-text:not([data-lf-offers], [data-lf-says="destination"])
     .lf-compose-placeholder
     kbd {
     display: none;
   }
-  .lf-fp-field leaf-text:not([data-says="destination"]) .lf-compose-placeholder-line {
+  .lf-fp-field
+    leaf-text:not([data-lf-says="destination"])
+    .lf-compose-placeholder-line {
     display: none;
   }
   /* An offer's key shows only while c goes to it (composing/surface.js,
@@ -512,7 +514,7 @@
      words never move as it comes and goes, standing out of the baseline it has no text
      for; a coarse pointer is shown no keys (keyboard/bindings.js, `advertisesKeys`). */
   @media not (pointer: coarse) {
-    .lf-fp-field leaf-text[data-offers] .lf-compose-placeholder > kbd:empty {
+    .lf-fp-field leaf-text[data-lf-offers] .lf-compose-placeholder > kbd:empty {
       display: inline-flex;
       align-self: center;
       visibility: hidden;
@@ -521,16 +523,16 @@
   /* In an open thread, whose turn it is stands beside the leaf, the agent's words as
      the status is at rest, and Reply stands at the field's end (floating-panel.js,
      `turnLead`). */
-  .lf-fp-field leaf-text[data-says="turn"] .lf-compose-placeholder-words {
+  .lf-fp-field leaf-text[data-lf-says="turn"] .lf-compose-placeholder-words {
     margin-inline-start: auto;
   }
-  .lf-fp-field leaf-text[data-says="notice"]::part(placeholder) {
+  .lf-fp-field leaf-text[data-lf-says="notice"]::part(placeholder) {
     color: var(--muted);
   }
   /* An error the field says stands in its status's place, in the danger's ink, until
      the user's first edit (errors.js). One about the field's editor covers it as at any
      box (response.css, `.lf-compose-error`), on one line here, cut short where long. */
-  .lf-fp-field leaf-text[data-says="error"]::part(placeholder) {
+  .lf-fp-field leaf-text[data-lf-says="error"]::part(placeholder) {
     color: var(--danger-ink);
   }
   .lf-fp-field .lf-compose-error {
@@ -543,9 +545,9 @@
   }
   /* The shared reduced-motion guard (state.css) stops at the field's closed tree. */
   @media (prefers-reduced-motion: no-preference) {
-    .lf-floating-panel[data-tone="working"]:not([data-asks])
+    .lf-floating-panel[data-lf-tone="working"]:not([data-lf-asks])
       .lf-fp-field
-      leaf-text[data-says="status"]::part(placeholder) {
+      leaf-text[data-lf-says="status"]::part(placeholder) {
       /* The quiet face is ink at 62% (`--lf-fp-quiet`). */
       --lf-sheen-rest: 0.62;
       animation: lf-sheen 2s ease-in-out infinite alternate;
@@ -555,32 +557,32 @@
      legible as words, so a request stands apart from a report. It stays quiet, at the
      words' own weight and short of full strength: the user found full-strength
      medium-weight green bold for a line that stands at rest (15 October). */
-  .lf-floating-panel[data-asks]
+  .lf-floating-panel[data-lf-asks]
     .lf-fp-field
-    leaf-text[data-says="status"]::part(placeholder) {
+    leaf-text[data-lf-says="status"]::part(placeholder) {
     color: color-mix(in srgb, var(--lf-fp-asks) 84%, transparent);
   }
-  .lf-floating-panel[data-asks] {
+  .lf-floating-panel[data-lf-asks] {
     --lf-fp-asks: var(--ink);
   }
-  .lf-floating-panel[data-asks][data-tone="working"] {
+  .lf-floating-panel[data-lf-asks][data-lf-tone="working"] {
     --lf-fp-asks: var(--accent);
   }
-  .lf-floating-panel[data-asks][data-tone="listening"] {
+  .lf-floating-panel[data-lf-asks][data-lf-tone="listening"] {
     --lf-fp-asks: var(--ok-ink);
   }
-  .lf-floating-panel[data-asks][data-tone="away"] {
+  .lf-floating-panel[data-lf-asks][data-lf-tone="away"] {
     --lf-fp-asks: var(--warn-ink);
   }
-  .lf-floating-panel[data-asks][data-tone="blocked"] {
+  .lf-floating-panel[data-lf-asks][data-lf-tone="blocked"] {
     --lf-fp-asks: var(--danger-ink);
   }
   /* A report in the blocked tone, a server the page can't reach or one answering with
      its own error, reads in the danger's ink at the quiet face's strength: red, so the
      words agree with the leaf, and dim, since the page retries on its own. */
-  .lf-floating-panel[data-tone="blocked"]:not([data-asks])
+  .lf-floating-panel[data-lf-tone="blocked"]:not([data-lf-asks])
     .lf-fp-field
-    leaf-text[data-says="status"]::part(placeholder) {
+    leaf-text[data-lf-says="status"]::part(placeholder) {
     color: color-mix(in srgb, var(--danger-ink) 62%, transparent);
   }
   /* Leaf's words are set in italic, as a stage direction stands apart from the lines
@@ -590,7 +592,7 @@
      placeholder sits in its own tree and wears the voice its words all share
      (`saying`). Both speakers' words are regular here, in the field's message font, so a
      notice or an error stands out by its colour alone. */
-  .lf-fp-field leaf-text[data-voice="leaf"]::part(placeholder) {
+  .lf-fp-field leaf-text[data-lf-voice="leaf"]::part(placeholder) {
     font-style: italic;
   }
   /* The field's presses float in its foot's end corner, as an anchored comment box's
@@ -615,11 +617,11 @@
   /* An open thread's Reply, standing at the field's end, keeps the room drafting
      reserves for the Send corner, so it doesn't move by that corner's width as writing
      starts and ends. */
-  .lf-floating-panel:is([data-writing], [data-drafted])
+  .lf-floating-panel:is([data-lf-writing], [data-lf-drafted])
     .lf-fp-field
     .lf-compose-field
     > leaf-text,
-  .lf-fp-field .lf-compose-field > leaf-text[data-says="turn"] {
+  .lf-fp-field .lf-compose-field > leaf-text[data-lf-says="turn"] {
     --lf-field-end-room: var(--lf-fp-send-room);
   }
   /* Under a mouse, once the field holds words they run the whole line and Send takes
@@ -629,7 +631,7 @@
      the row above. The empty field keeps the room, where the status and an open
      thread's Reply stand. */
   @media (hover: hover) and (pointer: fine) {
-    .lf-floating-panel .lf-fp-field .lf-compose-field[data-words] > leaf-text {
+    .lf-floating-panel .lf-fp-field .lf-compose-field[data-lf-words] > leaf-text {
       --lf-field-end-room: 0px;
       --lf-field-corner: max(var(--lf-line), var(--aim-floor));
     }
@@ -646,7 +648,7 @@
   .lf-fp-field .lf-compose-submit {
     display: none;
   }
-  .lf-floating-panel:is([data-writing], [data-drafted])
+  .lf-floating-panel:is([data-lf-writing], [data-lf-drafted])
     .lf-fp-field
     .lf-compose-submit {
     display: grid;
@@ -657,7 +659,7 @@
   /* Dictation is offered while the user writes in the panel, not at rest. Writing lasts
      while they stay in the panel (floating-panel.js, `writing`), so Tab from the field
      lands on Dictate rather than hiding it as the field lets go. */
-  .lf-floating-panel:not([data-writing]) .lf-compose-dictate {
+  .lf-floating-panel:not([data-lf-writing]) .lf-compose-dictate {
     display: none;
   }
 
@@ -688,7 +690,7 @@
   :is(.lf-fp-head, .lf-fp-controls) > .lf-fp-aux > .lf-fp-close {
     flex: none;
   }
-  .lf-fp-on-user[data-due] .lf-fp-num {
+  .lf-fp-on-user[data-lf-due] .lf-fp-num {
     color: var(--accent);
     font-weight: 600;
   }
@@ -724,8 +726,8 @@
      narrow rewrap, and the field grows up over its line under the reader. It stands
      aside with the mark while the user writes or the field holds a draft
      (floating-panel.js, `writing`). */
-  .lf-floating-panel[data-writing] .lf-fp-row-notice:not([data-passing]),
-  .lf-floating-panel[data-drafted] .lf-fp-row-notice {
+  .lf-floating-panel[data-lf-writing] .lf-fp-row-notice:not([data-lf-passing]),
+  .lf-floating-panel[data-lf-drafted] .lf-fp-row-notice {
     display: none;
   }
   /* A passing notice with its press (`rowNotice`) stands where the empty field's
@@ -733,7 +735,7 @@
      coming and its going move neither the field nor its controls. It stands through
      the writing posture, which lasts while the user stays in the panel, since the
      gesture it reports, such as a Resolve, stood them outside the field. */
-  .lf-fp-row-notice[data-passing] {
+  .lf-fp-row-notice[data-lf-passing] {
     position: absolute;
     left: anchor(--lf-fp-field left);
     top: anchor(--lf-fp-field top);
@@ -755,10 +757,10 @@
     background: var(--lf-fp-notice-tint);
     color: var(--ink);
     font: var(--font-small);
-    &[data-tone="warn"] {
+    &[data-lf-tone="warn"] {
       --lf-fp-notice-tint: var(--warn-tint);
     }
-    &[data-tone="ok"] {
+    &[data-lf-tone="ok"] {
       --lf-fp-notice-tint: var(--ok-tint);
     }
   }
@@ -767,7 +769,7 @@
      Leaf's italic (voice.js); its press is an inline press, as every notice's is. In a
      chip's small type and full ink it read as a different line from the field's
      "Away" or the "Resolved the thread" it replaced. */
-  .lf-fp-row-notice[data-passing] .lf-fp-row-notice-face {
+  .lf-fp-row-notice[data-lf-passing] .lf-fp-row-notice-face {
     font: var(--font-message);
     color: var(--muted);
   }
@@ -776,7 +778,7 @@
   }
 
   /* ---------- folded to the leaf, in the window's corner ---------- */
-  .lf-floating-panel[data-rest="mark"] {
+  .lf-floating-panel[data-lf-rest="mark"] {
     --lf-fp-fold-pad-inline: calc((var(--lf-fp-folded) - var(--lf-fp-aim)) / 2);
     --lf-fp-fold-pad-block: calc((var(--lf-fp-folded) - var(--lf-line)) / 2);
     width: var(--lf-fp-folded);
@@ -807,10 +809,10 @@
     }
   }
   /* The pointer's fold: a corner mark (controls.css) riding the box's top-right corner,
-     shown while the pointer is near that corner (floating-panel.js, `data-corner`). It
-     fades rather than moves, so nothing shifts under the pointer. An open view's Close
-     holds that corner, so the mark waits for the view to go rather than stand beside
-     ✕ and Resolve. */
+     shown while the pointer is near that corner (floating-panel.js, `data-lf-corner`).
+     It fades rather than moves, so nothing shifts under the pointer. An open view's
+     Close holds that corner, so the mark waits for the view to go rather than stand
+     beside ✕ and Resolve. */
   .lf-fp-minimize {
     top: -9px;
     right: -9px;
@@ -821,7 +823,8 @@
       visibility 0s var(--lf-motion-disclosure);
   }
   @media (hover: hover) {
-    .lf-floating-panel[data-rest="row"][data-corner]:not([data-open]) .lf-fp-minimize {
+    .lf-floating-panel[data-lf-rest="row"][data-lf-corner]:not([data-lf-open])
+      .lf-fp-minimize {
       opacity: 1;
       visibility: visible;
       transition: opacity var(--lf-motion-disclosure);
@@ -853,7 +856,7 @@
     left: -3px;
   }
   /* With no count beside it, the dot takes the count's corner. */
-  .lf-fp-badge:not([data-shown]) ~ .lf-fp-news-dot {
+  .lf-fp-badge:not([data-lf-shown]) ~ .lf-fp-news-dot {
     left: auto;
     right: -3px;
   }
@@ -862,7 +865,8 @@
     width: 8px;
     height: 8px;
   }
-  .lf-floating-panel[data-rest="mark"] :is(.lf-fp-badge, .lf-fp-news-dot)[data-shown] {
+  .lf-floating-panel[data-lf-rest="mark"]
+    :is(.lf-fp-badge, .lf-fp-news-dot)[data-lf-shown] {
     display: grid;
   }
 
@@ -877,7 +881,7 @@
     flex-direction: column;
     min-height: 0;
   }
-  .lf-floating-panel:not([data-open]) .lf-fp-opened {
+  .lf-floating-panel:not([data-lf-open]) .lf-fp-opened {
     display: none;
   }
   /* The head line, over what the view holds, in two parts (floating-panel.js,
@@ -1092,7 +1096,7 @@
     text-align: start;
     font-variant-numeric: tabular-nums;
   }
-  .lf-fp-count[data-zero] {
+  .lf-fp-count[data-lf-zero] {
     color: var(--muted);
   }
   /* A view's chooser: its symbol, an icon press's size and face, under the select that
@@ -1120,7 +1124,7 @@
   .lf-fp-chooser:has(> select[data-lf-focus-visible]) {
     outline: var(--focus-ring);
   }
-  :is(.lf-fp-on-page, .lf-fp-next-unread, .lf-fp-close)[data-unoffered] {
+  :is(.lf-fp-on-page, .lf-fp-next-unread, .lf-fp-close)[data-lf-unoffered] {
     visibility: hidden;
   }
   /* Next unread is an inline press (controls.css) after its symbol, standing in the
@@ -1172,7 +1176,7 @@
     outline: none;
     box-shadow: none;
   }
-  .lf-fp-stage:has(> .lf-fp-view[data-lf-focus-visible]:not([data-leaving]))::after {
+  .lf-fp-stage:has(> .lf-fp-view[data-lf-focus-visible]:not([data-lf-leaving]))::after {
     content: "";
     position: absolute;
     inset: 4px;
@@ -1181,7 +1185,7 @@
     outline: var(--focus-ring);
     outline-offset: var(--focus-ring-inset);
   }
-  .lf-fp-view[data-leaving] {
+  .lf-fp-view[data-lf-leaving] {
     pointer-events: none;
     position: absolute;
     inset-inline: 0;
@@ -1189,7 +1193,7 @@
   }
   /* A thread scrolled past its first lines fades out at its top edge rather than
      cutting a line in half. */
-  .lf-fp-view[data-view="thread"] {
+  .lf-fp-view[data-lf-route="thread"] {
     padding-top: 10px;
     mask-image: linear-gradient(to bottom, transparent 0, #000 12px);
   }
@@ -1307,10 +1311,10 @@
     color: var(--accent);
   }
   /* A row keeps its dot's room whether or not it has news. */
-  .lf-fp-thread:not([data-unread]) .lf-fp-news-mark {
+  .lf-fp-thread:not([data-lf-unread]) .lf-fp-news-mark {
     visibility: hidden;
   }
-  :is(.lf-fp-thread, .lf-fp-on-line)[data-resolved] .lf-fp-label {
+  :is(.lf-fp-thread, .lf-fp-on-line)[data-lf-resolved] .lf-fp-label {
     color: var(--muted);
   }
   /* The row half of the mark the pointer is indicating (anchor-paint.js, `markRow`):
@@ -1343,7 +1347,7 @@
     -webkit-line-clamp: 3;
     overflow: hidden;
   }
-  .lf-fp-quote[data-expanded="true"] {
+  .lf-fp-quote[data-lf-expanded="true"] {
     display: block;
     overflow: visible;
   }
@@ -1508,7 +1512,7 @@
   }
   /* An item open in place stands on the panel's faintest ground, so its answers read as
      its own. */
-  .lf-fp-on-item[data-open] {
+  .lf-fp-on-item[data-lf-open] {
     border-radius: var(--r);
     background: var(--lf-fp-hover);
   }
@@ -1551,14 +1555,14 @@
   /* On me's card reads as the thread it belongs to, its words in a thread's face, and
      the answers it takes, answered here. What it is and its question's heading set
      cards apart, with the space between them, so no rule runs between them. */
-  .lf-fp-on-item[data-card] {
+  .lf-fp-on-item[data-lf-card] {
     display: flex;
     flex-direction: column;
     padding: 10px 8px 12px;
   }
   /* A card's question stands as close under its group's heading as a lone card's
      stands under the group's name, so a group's name sits one way over its card. */
-  .lf-rows-head + .lf-fp-on-item[data-card] {
+  .lf-rows-head + .lf-fp-on-item[data-lf-card] {
     padding-top: 2px;
   }
   /* What left a list, folded under its group heading (floating-panel.js,
@@ -1622,7 +1626,7 @@
   }
   /* The card keeps its height after an answer; keep its answers at the foot too,
      so Show stays put when described choices give way to the result and Undo. */
-  .lf-fp-on-item[data-card] > .lf-fp-answers {
+  .lf-fp-on-item[data-lf-card] > .lf-fp-answers {
     margin-top: auto;
     padding-top: 9px;
   }
@@ -1641,8 +1645,8 @@
   }
   /* Each choice is an answer (controls.css, `.lf-answer`). One that says what it gives
      takes the line, its name over two lines at most of those words (floating-panel.js,
-     `data-told`). */
-  .lf-fp-answer[data-told] {
+     `data-lf-told`). */
+  .lf-fp-answer[data-lf-told] {
     flex: 1 0 100%;
     padding-block: 7px;
   }
@@ -1743,7 +1747,7 @@
     height: 16px;
     color: var(--lf-fp-quiet);
   }
-  .lf-fp-plan-step[data-state="open"] > .lf-fp-plan-mark::before {
+  .lf-fp-plan-step[data-lf-state="open"] > .lf-fp-plan-mark::before {
     content: "";
     display: block;
     width: 8px;
@@ -1753,23 +1757,23 @@
     border: 1.5px solid currentColor;
     border-radius: 50%;
   }
-  .lf-fp-plan-step[data-state="done"] > .lf-fp-plan-mark {
+  .lf-fp-plan-step[data-lf-state="done"] > .lf-fp-plan-mark {
     color: var(--ok-ink);
   }
-  .lf-fp-plan-step[data-state="done"] > .lf-fp-plan-title,
-  .lf-fp-plan-step[data-state="dropped"] > .lf-fp-plan-title {
+  .lf-fp-plan-step[data-lf-state="done"] > .lf-fp-plan-title,
+  .lf-fp-plan-step[data-lf-state="dropped"] > .lf-fp-plan-title {
     color: var(--muted);
   }
-  .lf-fp-plan-step[data-state="dropped"] > .lf-fp-plan-title {
+  .lf-fp-plan-step[data-lf-state="dropped"] > .lf-fp-plan-title {
     text-decoration: line-through;
   }
-  .lf-fp-plan-step[data-state="failed"] > .lf-fp-plan-mark {
+  .lf-fp-plan-step[data-lf-state="failed"] > .lf-fp-plan-mark {
     color: var(--danger-ink);
   }
-  .lf-fp-plan-step[data-state="working"] > .lf-fp-plan-mark {
+  .lf-fp-plan-step[data-lf-state="working"] > .lf-fp-plan-mark {
     color: var(--accent);
   }
-  .lf-fp-plan-step[data-state="working"] > .lf-fp-plan-title {
+  .lf-fp-plan-step[data-lf-state="working"] > .lf-fp-plan-title {
     font-weight: 600;
   }
   .lf-fp-plan-time,
@@ -1835,7 +1839,7 @@
   }
   /* While the menu stands, each part keeps the lines its first status took
      (floating-panel.js, `holdMenu`). */
-  .lf-fp-state[data-held] > span {
+  .lf-fp-state[data-lf-held-lines] > span {
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: var(--lines);
@@ -1845,10 +1849,10 @@
   /* The line reads as the row's status does: in its tone's ink where it asks the user
      to act (`--lf-fp-asks`, above), in the danger's where it reports a server the page
      can't reach, so it agrees with the leaf, and in ink where it only reports. */
-  .lf-floating-panel[data-asks] .lf-fp-summary {
+  .lf-floating-panel[data-lf-asks] .lf-fp-summary {
     color: var(--lf-fp-asks);
   }
-  .lf-floating-panel[data-tone="blocked"]:not([data-asks]) .lf-fp-summary {
+  .lf-floating-panel[data-lf-tone="blocked"]:not([data-lf-asks]) .lf-fp-summary {
     color: var(--danger-ink);
   }
 
@@ -1880,7 +1884,7 @@
   }
   /* It fades in where it stands: a peek that rose into place would move its words
      under nobody's input. */
-  .lf-fp-peek[data-shown] {
+  .lf-fp-peek[data-lf-shown] {
     display: block;
     opacity: 1;
     @starting-style {
@@ -1892,7 +1896,7 @@
     :is(.lf-floating-panel, .lf-fp-ground) {
       --lf-fp-gutter: 20px;
     }
-    .lf-floating-panel[data-rest="mark"] {
+    .lf-floating-panel[data-lf-rest="mark"] {
       right: calc(16px + var(--lf-safe-right));
     }
   }

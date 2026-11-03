@@ -192,7 +192,7 @@ def test_timeline_tooltips_keep_their_words_above_marks_inside_the_timeline(
         if zoom:
             widget.get_by_role("button", name="Zoom in", exact=True).click()
             rendered(page)
-        marks = timeline.locator("[data-tip]")
+        marks = timeline.locator("[data-lf-tip]")
         visible = marks.evaluate_all("""nodes => nodes.map((node, index) => {
             const box = node.getBoundingClientRect();
             const band = node.closest('.lf-trace-scroller').getBoundingClientRect();
@@ -214,7 +214,7 @@ def test_timeline_tooltips_keep_their_words_above_marks_inside_the_timeline(
             assert tip["x"] >= host["x"] - 1
             assert tip["x"] + tip["width"] <= host["x"] + host["width"] + 1
             assert tooltip.inner_text().replace("\u00a0", " ") == mark.get_attribute(
-                "data-tip"
+                "data-lf-tip"
             )
         page.get_by_role("heading", name="Inspect recorded input").hover()
         expect(timeline.get_by_role("tooltip")).to_be_hidden()
@@ -278,9 +278,9 @@ def test_trace_arrows_step_the_way_the_time_scale_runs_in_right_to_left_text(
     data_model.cmd_data_set(serve.page_dir, "rtl-trace", record)
     user = open_page(browser, url)
     widget = user.locator("#journey")
-    call = widget.locator(f'.lf-trace-call-bar[data-id="{setup["id"]}"]')
+    call = widget.locator(f'.lf-trace-call-bar[data-lf-id="{setup["id"]}"]')
     expect(call.locator(".lf-trace-call-name")).to_have_text(setup["method"])
-    expect(call).to_have_attribute("data-tip", re.compile(re.escape(setup["title"])))
+    expect(call).to_have_attribute("data-lf-tip", re.compile(re.escape(setup["title"])))
     timeline = widget.get_by_role("group", name="Recording timeline", exact=True)
     position = widget.locator(".lf-trace-position")
     playhead = widget.locator(".lf-trace-playhead")
@@ -792,7 +792,7 @@ def test_trace_overview_shows_every_row_and_preserves_page_scrolling(browser, se
           return r.top >= c.top && r.bottom <= c.bottom
             && r.left >= c.left && r.right <= c.right + 0.5
             && (hit === mark || mark.contains(hit)) ? [] : [{
-              label: mark.dataset.tip, bounds: r.toJSON(), coveredBy: hit?.className,
+              label: mark.dataset.lfTip, bounds: r.toJSON(), coveredBy: hit?.className,
             }];
         })""")
         assert hidden == [], hidden

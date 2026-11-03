@@ -110,7 +110,7 @@ export function createMarginBars(inventory) {
     for (const target of places)
       if (!targets.has(target)) {
         const node = el("span", KINDS[kind].className);
-        keeps(node, "data-for", target.id || null);
+        keeps(node, "data-lf-for", target.id || null);
         targets.set(target, node);
         sizes.observe(target);
         changed = true;

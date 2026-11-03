@@ -466,7 +466,9 @@ def test_an_arrival_cannot_hide_an_obligation_draft(browser, serve):
     action = next(e for e in events_model.read_events(d) if e["kind"] == "action")
     assert action["detail"] == {"option": added.get_attribute("id"), "text": draft}
     open_threads(page)
-    expect(page.locator(f'.lf-fp-thread[data-key="{external["id"]}"]')).to_have_count(1)
+    expect(
+        page.locator(f'.lf-fp-thread[data-lf-key="{external["id"]}"]')
+    ).to_have_count(1)
 
 
 def test_on_a_phone_options_draw_no_keys_and_return_adds_a_written_one(browser, serve):

@@ -526,7 +526,7 @@ def test_a_malformed_first_state_keeps_interaction_unresolved(browser, serve):
         expect(page.locator("#sug lf-old")).to_be_visible()
         # Versions is out of reach until state applies.
         expect(
-            panel_menu(page).locator('.lf-fp-item[data-row="versions"]')
+            panel_menu(page).locator('.lf-fp-item[data-lf-row="versions"]')
         ).to_be_disabled()
         # No producer below the feed saw the body, so the feed's report is the one
         # that reaches the agent.

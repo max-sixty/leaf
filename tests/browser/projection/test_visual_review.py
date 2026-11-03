@@ -131,7 +131,7 @@ def test_on_me_materializes_a_frozen_review_at_its_requested_case(browser, serve
     expect_on_me(page, 6)
     count.click()
     card = page.locator(
-        '.lf-fp-on-item[data-obligation="widget:reply-review:keep-mobile-destinations"]'
+        '.lf-fp-on-item[data-lf-obligation-id="widget:reply-review:keep-mobile-destinations"]'
     )
     card.get_by_role("button", name="Show", exact=True).click()
     case = page.locator("#reply-review").locator(SELECTED)

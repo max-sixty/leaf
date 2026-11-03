@@ -54,7 +54,7 @@ def test_a_thread_trip_takes_over_an_outgoing_trip_before_its_first_frame(
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
     )
-    card = page.locator(f'.lf-margin-preview [data-thread="{nearby}"]')
+    card = page.locator(f'.lf-margin-preview [data-lf-thread="{nearby}"]')
     page.keyboard.press("t")
     expect(card).to_be_focused()
     page.evaluate(
@@ -276,7 +276,7 @@ def test_a_reply_link_moves_the_thread_walk_to_its_destination(
     else:
         page.keyboard.press("t")
         source = page.locator(
-            f'.lf-margin-preview .lf-page-thread[data-thread="{roots[0]}"]'
+            f'.lf-margin-preview .lf-page-thread[data-lf-thread="{roots[0]}"]'
         )
         expect(source).to_be_focused()
 
@@ -310,7 +310,7 @@ def test_a_reply_link_moves_the_thread_walk_to_its_destination(
     expect(page.locator("#arrival")).to_be_focused()
     page.keyboard.press("t")
     next_thread = page.locator(
-        f'.lf-margin-preview .lf-page-thread[data-thread="{roots[2]}"]'
+        f'.lf-margin-preview .lf-page-thread[data-lf-thread="{roots[2]}"]'
     )
     expect(next_thread).to_be_focused()
 
@@ -340,7 +340,7 @@ def test_a_tap_on_a_reply_link_to_a_missing_section_says_why(browser, serve):
     # It reads as going nowhere too: muted, its underline dashed.
     expect(link).to_have_css("text-decoration-style", "dashed")
     link.tap(force=True)  # Playwright taps no aria-disabled control by itself.
-    expect(panel_field(page)).to_have_attribute("data-says", "error")
+    expect(panel_field(page)).to_have_attribute("data-lf-says", "error")
     expect(panel_field(page)).to_have_attribute(
         "placeholder", "§ removed-section isn't in the version shown"
     )
@@ -416,7 +416,7 @@ customElements.define("lf-shadow-reading", class extends HTMLElement {
 
     page.keyboard.press("t")
     expect(
-        page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{roots[1]}"]')
+        page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{roots[1]}"]')
     ).to_be_focused()
 
 
@@ -453,7 +453,7 @@ def test_the_thread_walk_opens_the_thread_on_the_passage_the_caret_is_in(
     )
     page.keyboard.press(key)
     expect(
-        page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{roots[1]}"]')
+        page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{roots[1]}"]')
     ).to_be_focused()
 
 
@@ -486,7 +486,7 @@ def test_thread_walks_start_at_the_selected_tabs_panel(browser, serve, key):
     page.get_by_role("tab", name="Second", exact=True).click()
     page.keyboard.press(key)
     expect(
-        page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{roots[2]}"]')
+        page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{roots[2]}"]')
     ).to_be_focused()
 
 
@@ -660,12 +660,12 @@ def test_go_to_threads_lands_on_threads_from_a_page_thread(browser, serve, width
             current_location = page.locator(".lf-margin-preview .lf-page-thread")
             expect(current_location).to_be_focused()
             # The second of the two threads, so the first row is not the answer.
-            stood_in = current_location.get_attribute("data-thread")
+            stood_in = current_location.get_attribute("data-lf-thread")
         page.keyboard.press("g")
         page.keyboard.press("Shift+t")
         # From the page the view takes focus; from a page thread, that thread's row.
         expect(
-            threads.locator(f'.lf-fp-thread[data-key="{stood_in}"]')
+            threads.locator(f'.lf-fp-thread[data-lf-key="{stood_in}"]')
             if from_thread
             else threads
         ).to_be_focused()
@@ -699,11 +699,11 @@ def test_a_thread_walk_shows_one_thread_at_a_time(browser, serve):
 
     page.keyboard.press("t")
     card = page.locator(".lf-margin-preview")
-    expect(card.locator(f'.lf-page-thread[data-thread="{second}"]')).to_be_focused()
+    expect(card.locator(f'.lf-page-thread[data-lf-thread="{second}"]')).to_be_focused()
     expect(page.locator(PANEL_THREAD)).to_have_count(0)
 
     page.keyboard.press("t")
-    expect(page.locator(f'{PANEL_THREAD}[data-thread="{general}"]')).to_be_focused()
+    expect(page.locator(f'{PANEL_THREAD}[data-lf-thread="{general}"]')).to_be_focused()
     expect(card).to_be_hidden()
 
 
@@ -780,7 +780,7 @@ def test_forced_colors_keep_inline_thread_focus_visible(browser, serve):
         url,
         context=context,
     )
-    thread = page.locator(f'#jobs .lf-page-thread[data-thread="{root}"]')
+    thread = page.locator(f'#jobs .lf-page-thread[data-lf-thread="{root}"]')
 
     reply = thread.locator("leaf-text")
     reply.click()
@@ -808,7 +808,7 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
         serve.page_dir, "Which job should come first?", {"section": "jobs"}
     )
     page = open_page(browser, url)
-    thread = page.locator(f'#jobs .lf-page-thread[data-thread="{root}"]')
+    thread = page.locator(f'#jobs .lf-page-thread[data-lf-thread="{root}"]')
     expect(page.locator("#jobs .lf-page-thread")).to_have_count(2)
 
     resting = thread.evaluate(
@@ -980,7 +980,7 @@ def test_r_resolves_the_focused_thread_while_x_is_unbound(browser, serve):
 
     # x has no command. r resolves the thread the walk stands on.
     page.keyboard.press("t")
-    first = page.locator(f'{PANEL_THREAD}[data-thread="{c1}"]')
+    first = page.locator(f'{PANEL_THREAD}[data-lf-thread="{c1}"]')
     expect(first).to_be_focused()
     page.keyboard.press("x")
     rendered(page)
@@ -1114,7 +1114,7 @@ def thread_page(serve):
 
 def linked_thread(page, name):
     return page.locator(
-        f':is(.lf-page-thread:not([data-lf-part]), .lf-fp-view)[data-thread="{name}"]'
+        f':is(.lf-page-thread:not([data-lf-part]), .lf-fp-view)[data-lf-thread="{name}"]'
     )
 
 
@@ -1173,7 +1173,7 @@ def test_following_a_thread_url_uses_native_history(browser, serve):
 def test_authored_fragment_takes_precedence_over_thread_query(browser, serve):
     page = open_page(browser, thread_url(thread_page(serve), "general1", "target"))
     expect(page.locator("#target")).to_be_in_viewport()
-    expect(page.locator('.lf-page-thread[data-thread="general1"]')).to_have_count(0)
+    expect(page.locator('.lf-page-thread[data-lf-thread="general1"]')).to_have_count(0)
 
 
 def test_unknown_thread_url_reports_the_missing_destination(browser, serve):
@@ -1214,7 +1214,7 @@ def test_input_during_startup_cancels_thread_url_arrival(browser, serve):
         route.continue_()
     wait_until_ready(page)
     expect(page.get_by_role("textbox", name="Your notes")).to_be_focused()
-    expect(page.locator('.lf-page-thread[data-thread="general1"]')).to_have_count(0)
+    expect(page.locator('.lf-page-thread[data-lf-thread="general1"]')).to_have_count(0)
 
 
 def test_thread_url_reveals_a_tab_despite_its_generated_display_fragment(

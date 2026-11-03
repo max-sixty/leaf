@@ -109,9 +109,9 @@ def test_a_sample_starts_without_its_host_s_saved_chrome(browser, serve):
     host = context.new_page()
     host.goto(url, wait_until="load")
     wait_until_ready(host.locator("#practice iframe").element_handle().content_frame())
-    expect(host.locator(PANEL)).to_have_attribute("data-rest", "mark")
+    expect(host.locator(PANEL)).to_have_attribute("data-lf-rest", "mark")
     child = host.frame_locator("#practice iframe")
-    expect(child.locator(PANEL)).to_have_attribute("data-rest", "row")
+    expect(child.locator(PANEL)).to_have_attribute("data-lf-rest", "row")
 
 
 def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve):

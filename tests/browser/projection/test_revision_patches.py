@@ -429,7 +429,7 @@ def test_a_prose_revision_takes_only_the_words_it_rewrote(browser, serve):
     page.keyboard.press("c")
     expect(page.locator(".lf-composer")).to_contain_text("account")
     expect(
-        panel_menu(page, "versions").locator(".lf-fp-version[data-current]")
+        panel_menu(page, "versions").locator(".lf-fp-version[data-lf-current]")
     ).to_contain_text("Current · Draft after v1")
 
 
@@ -1099,7 +1099,7 @@ def test_a_live_revision_reorders_the_page_and_obligation_inventory_together(
 
     def asked():
         return page.locator(cards).evaluate_all(
-            "nodes => nodes.map(node => JSON.parse(node.dataset.key)[1])"
+            "nodes => nodes.map(node => JSON.parse(node.dataset.lfKey)[1])"
         )
 
     assert identities("main > lf-ask", "id") == ["first-ask", "second-ask", "gone-ask"]

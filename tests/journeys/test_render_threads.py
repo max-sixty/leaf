@@ -405,7 +405,7 @@ def test_a_rewrite_never_replaces_words_it_did_not_see(browser, serve):
         tabs.append(tab)
     a, b = tabs
     in_a, in_b = (
-        tab.locator(f'{PANEL_THREAD} .lf-msg[data-message="{mine["id"]}"]')
+        tab.locator(f'{PANEL_THREAD} .lf-msg[data-lf-message="{mine["id"]}"]')
         for tab in tabs
     )
     expect(in_a).to_be_visible()

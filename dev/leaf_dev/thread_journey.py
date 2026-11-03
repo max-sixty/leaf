@@ -32,12 +32,12 @@ STAGES = (
 )
 Checkpoint = Callable[[str, Page, dict], None]
 # The floating panel's view of a thread, rather than one still leaving.
-THREAD_VIEW = ".lf-fp-view[data-view=thread]:not([data-leaving])"
+THREAD_VIEW = ".lf-fp-view[data-lf-route=thread]:not([data-lf-leaving])"
 # Where the floating panel says a passing notice: in its empty field's place, on the
 # line over its field, or, while a view stands open, in the leaf's peek.
 NOTICE = (
-    ".lf-fp-field leaf-text[data-says=notice],"
-    " .lf-fp-context[data-notice]:not([hidden]), .lf-fp-peek[data-shown]"
+    ".lf-fp-field leaf-text[data-lf-says=notice],"
+    " .lf-fp-context[data-notice]:not([hidden]), .lf-fp-peek[data-lf-shown]"
 )
 
 
@@ -96,7 +96,7 @@ class ThreadSurface:
         parent = None
         if self.kind == "reply":
             parent = self.messages.first.evaluate(
-                "node => node.dataset.mid ?? node.dataset.event"
+                "node => node.dataset.mid ?? node.dataset.lfEvent"
             )
             assert parent, "the chosen thread has no durable root identity"
         return {"kind": self.kind, "parent": parent, "anchor": None}
@@ -121,7 +121,7 @@ def open_surface(page: Page, surface: str) -> ThreadSurface:
                 "comment",
             )
         go_to_threads(page)
-        page.locator(".lf-fp-thread:not([data-resolved])").last.click()
+        page.locator(".lf-fp-thread:not([data-lf-resolved])").last.click()
         expect(view).to_be_visible()
         wait_for_probe(page, "pageSettled")
         return ThreadSurface(

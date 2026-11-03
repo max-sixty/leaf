@@ -92,7 +92,7 @@ def test_m_keeps_its_position_at_a_chrome_stop_without_a_page_target(browser, se
     page.keyboard.press("m")
     rendered(page)
     assert page.evaluate(
-        "id => document.activeElement.closest('[data-thread]')?.dataset.thread === id",
+        "id => document.activeElement.closest('[data-lf-thread]')?.dataset.lfThread === id",
         comment["id"],
     )
     position = walk_position(page)
@@ -148,8 +148,8 @@ def test_m_walks_what_waits_on_you_and_on_me_counts_it(browser, serve):
 
     counts(2)
 
-    thread = page.locator(f'.lf-page-thread[data-thread="{asked["id"]}"]')
-    message = thread.locator(f'.lf-msg[data-event="{question["id"]}"]')
+    thread = page.locator(f'.lf-page-thread[data-lf-thread="{asked["id"]}"]')
+    message = thread.locator(f'.lf-msg[data-lf-event="{question["id"]}"]')
     page.keyboard.press("m")
     expect_walk_position(page, "1 of 2 waiting on me · Reply")
     expect(message).to_be_focused()
@@ -193,7 +193,7 @@ def test_m_walks_what_waits_on_you_and_on_me_counts_it(browser, serve):
     # follow-up is in flight and after.
     page.keyboard.press("t")
     expect_walk_position(page, "Thread 2 of 2")
-    notes = page.locator(f'.lf-page-thread[data-thread="{owed["id"]}"]')
+    notes = page.locator(f'.lf-page-thread[data-lf-thread="{owed["id"]}"]')
     expect(notes).to_be_focused()
     page.keyboard.press("Enter")
     write(notes.locator("leaf-text"), "And the second line.")
@@ -567,7 +567,7 @@ def test_a_todo_on_you_ends_at_its_done_where_m_lands_and_in_the_panel(
     # The page's head holds nothing that answers the task, so On me opens on its card,
     # leaving the user on the head.
     panel_settled(page, view="queue")
-    expect(page.locator(".lf-fp-on-item[data-walked]")).to_contain_text(
+    expect(page.locator(".lf-fp-on-item[data-lf-walked]")).to_contain_text(
         "Read it through"
     )
     expect(page.locator("#h")).to_be_focused()
@@ -608,7 +608,7 @@ def test_a_todo_on_you_ends_at_its_done_where_m_lands_and_in_the_panel(
 
     # On me stands open from `m`'s arrival at the task on the notes.
     panel_settled(page, view="queue")
-    you = page.locator('.lf-fp-on-item[data-list="you"]')
+    you = page.locator('.lf-fp-on-item[data-lf-list="you"]')
     expect(you).to_have_count(2)
     finish = you.get_by_role("button", name="Done", exact=True)
     expect(finish).to_have_count(1)
@@ -674,13 +674,13 @@ def test_a_todo_on_you_says_its_words_where_you_land_on_it(browser, serve):
     page.keyboard.press("Shift+m")
     expect(page.locator("#h")).to_be_focused()
     panel_settled(page, view="queue")
-    walked = page.locator(".lf-fp-on-item[data-walked]")
+    walked = page.locator(".lf-fp-on-item[data-lf-walked]")
     expect(walked).to_contain_text(whole)
     expect(walked.get_by_role("button", name="Done", exact=True)).to_be_visible()
 
-    page.locator('.lf-fp-on-item[data-list="you"]').filter(has_text=notes).get_by_role(
-        "button", name="Show"
-    ).click()
+    page.locator('.lf-fp-on-item[data-lf-list="you"]').filter(
+        has_text=notes
+    ).get_by_role("button", name="Show").click()
     panel_settled(page, open=False)
     expect(page.locator("#notes")).to_be_focused()
     expect(todo_field(page)).to_have_attribute(
@@ -865,7 +865,7 @@ def test_an_m_step_newer_focus_cancels_at_a_thread_claims_no_arrival(browser, se
     page.locator("#h").click()
     page.keyboard.press("m")
     expect_walk_position(page, "1 of 2 waiting on me · Reply")
-    expect(page.locator(f'.lf-msg[data-event="{question["id"]}"]')).to_be_focused()
+    expect(page.locator(f'.lf-msg[data-lf-event="{question["id"]}"]')).to_be_focused()
 
 
 @pytest.mark.parametrize("width", [1200, 390])
@@ -896,10 +896,10 @@ def test_a_completed_obligation_stays_reachable_through_on_me(browser, serve, wi
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     panel_settled(page, view="queue")
-    done = page.locator('.lf-fp-on-item[data-list="done"]')
+    done = page.locator('.lf-fp-on-item[data-lf-list="done"]')
     expect(done).to_have_count(1)
     expect(done).to_contain_text("Pick one")
-    expect(page.locator('.lf-fp-on-item[data-list="you"]')).to_have_count(0)
+    expect(page.locator('.lf-fp-on-item[data-lf-list="you"]')).to_have_count(0)
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
@@ -953,7 +953,7 @@ def test_a_completed_obligation_keeps_its_answer_in_the_on_panel(browser, serve)
         route.continue_()
     round_trip(page)
     toggle_queue(page)
-    done = page.locator('.lf-fp-on-item[data-list="done"]')
+    done = page.locator('.lf-fp-on-item[data-lf-list="done"]')
     expect(done).to_have_count(1)
     expect(done).to_contain_text("First")
 
@@ -1001,7 +1001,7 @@ def test_on_me_says_when_a_revision_removes_its_last_obligation(browser, serve):
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     panel_settled(page, view="queue")
-    cards = page.locator('.lf-fp-on-item[data-list="you"]')
+    cards = page.locator('.lf-fp-on-item[data-lf-list="you"]')
     expect(cards).to_have_count(1)
     note = page.locator(f"{panel_view('queue')} .lf-rows-empty")
     expect(note).to_have_count(0)
@@ -1013,14 +1013,14 @@ def test_on_me_says_when_a_revision_removes_its_last_obligation(browser, serve):
     )
     wait_for_revision(page, 2)
     expect(cards).to_have_count(0)
-    expect(page.locator(PANEL)).to_have_attribute("data-open", "queue")
+    expect(page.locator(PANEL)).to_have_attribute("data-lf-open", "queue")
     expect(note).to_be_visible()
     expect(note).to_have_text("Nothing waiting on me.")
     # The agent's tab says the same of its list.
     page.locator(".lf-fp-filters button").nth(2).click()
-    expect(page.locator(".lf-fp-view:not([data-leaving]) .lf-rows-empty")).to_have_text(
-        re.compile(r"Nothing waiting on \S+\.")
-    )
+    expect(
+        page.locator(".lf-fp-view:not([data-lf-leaving]) .lf-rows-empty")
+    ).to_have_text(re.compile(r"Nothing waiting on \S+\."))
 
 
 def test_m_lands_what_it_reaches_above_the_open_on_me_view(browser, serve):

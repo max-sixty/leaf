@@ -396,11 +396,11 @@ svg[data-lf-icon] {
    and whatever Leaf says, such as Delivered, Not answered or a notice, stands apart from
    them in that face's italic, as a stage direction does from the lines. The seat keeps
    only its size and leading, which rank the words among its others. */
-span[data-voice] {
+span[data-lf-voice] {
   font-weight: 400;
   font-style: normal;
 }
-span[data-voice="leaf"] {
+span[data-lf-voice="leaf"] {
   font-style: italic;
 }
 .lf-msg-sending::before {
@@ -431,7 +431,7 @@ span[data-voice="leaf"] {
 }
 /* Scroll surfaces contain out-of-flow descendants and opt into keyboard reach and
  * continuation cues. Their owner declares overflow, including at breakpoints. */
-:where(.scroll) {
+:where(.scroll, [data-lf-scroll]) {
   position: relative;
 }
 /* The layer's marks for a box that shows less than it holds (reachScrollers, for why the
@@ -1120,7 +1120,7 @@ wa-copy-button.lf-icon-action {
    four drew four faces (held news bold at 10px, the feed's notice underlined at rest,
    Next unread at the body's weight and Full quote muted, those two washed under the
    pointer) until the user chose this one on 28 October. Words a press says in a
-   speaker's voice take that speaker's face instead (`span[data-voice]`, above), so
+   speaker's voice take that speaker's face instead (`span[data-lf-voice]`, above), so
    held news, which is Leaf's, is regular italic and stands apart by its ink: the user
    kept that over bold news on 31 October. A generated control in the document takes
    the chrome's size (surfaces.css, `.lf-ui-face`), so the face inherits its line's; a

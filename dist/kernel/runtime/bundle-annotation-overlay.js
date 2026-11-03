@@ -355,8 +355,8 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 		session.stopFoot?.();
 		session.stopFoot = transcript ? keepFoot(transcript, { atEnd: true }) : null;
 		session.place = transcript ? placeKeeper(transcript, {
-			items: ".lf-msg[data-event]",
-			identity: (message) => message.getAttribute("data-event")
+			items: ".lf-msg[data-lf-event]",
+			identity: (message) => message.getAttribute("data-lf-event")
 		}) : null;
 		if (previewRegionMounted && transcript) {
 			let decided = "";
@@ -896,7 +896,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 	}
 	function focusTarget(name, { part = null } = {}) {
 		const id = threadIdNamed(name);
-		const thread = [...previewList.querySelectorAll(".lf-page-thread")].find((candidate) => candidate.getAttribute("data-thread") === id);
+		const thread = [...previewList.querySelectorAll(".lf-page-thread")].find((candidate) => candidate.getAttribute("data-lf-thread") === id);
 		return thread ? threadFocusDestination(thread, {
 			part: part ?? "thread",
 			message: name
@@ -1897,7 +1897,7 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 		paintKeys();
 	}
 	function yieldPreview() {
-		const id = card.thread()?.getAttribute("data-thread");
+		const id = card.thread()?.getAttribute("data-lf-thread");
 		const inCard = currentLocationIn(preview);
 		const replying = card.replying();
 		const intent = retainUserIntent();
@@ -2061,7 +2061,7 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 		return choice ? threadIdOf(choice) : null;
 	};
 	const threadIdsOf = (choice) => choice.items.map((item) => item.thread.id);
-	const seatedOnPage = (id) => claimed(id) || [...document.querySelectorAll(`.lf-page-thread[data-thread="${CSS.escape(id)}"]`)].some((seat) => closestAcross(seat, ".lf-thread-seat[data-lf-thread-seat]"));
+	const seatedOnPage = (id) => claimed(id) || [...document.querySelectorAll(`.lf-page-thread[data-lf-thread="${CSS.escape(id)}"]`)].some((seat) => closestAcross(seat, ".lf-thread-seat[data-lf-thread-seat]"));
 	const threadEntryAt = (node) => {
 		const ids = threadIdsAt(node);
 		const here = (entry) => {
@@ -2548,7 +2548,7 @@ function createVisualMarkPaint() {
 			const { overlay, shape, stand } = record;
 			const { rect, shapeKey } = placed;
 			element.classList.toggle(PROJECTED, true);
-			keeps(overlay, "data-for", element.id || null);
+			keeps(overlay, "data-lf-for", element.id || null);
 			overlay.classList.toggle("lf-shaped", Boolean(geometry));
 			if (rebuildGeometry || record.geometry !== geometry || record.shapeKey !== shapeKey) {
 				if (geometry) paintShape(shape, geometry, rect);

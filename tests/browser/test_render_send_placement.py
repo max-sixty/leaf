@@ -637,7 +637,7 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
             + f"""<style>
               #paint-code {{ display:block; width:420px; }}
               #paint-code > pre {{ height:240px; max-height:240px; overflow:auto; }}
-              .lf-code-line[data-line="6"] {{ background:{SUBJECT_MARK} !important; }}
+              .lf-code-line[data-lf-line="6"] {{ background:{SUBJECT_MARK} !important; }}
             </style>""",
         )
         size, wheel, scroller = (1200, 700), 900, "#paint-code > pre"
@@ -700,7 +700,7 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
     )
     resized(page, *size)
     target = page.locator(
-        '#paint-code .lf-code-line[data-line="6"]'
+        '#paint-code .lf-code-line[data-lf-line="6"]'
         if region == "code"
         else "#paint-target"
     )

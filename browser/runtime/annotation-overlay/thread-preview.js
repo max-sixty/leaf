@@ -367,8 +367,8 @@ export function createThreadPreview({
     session.stopFoot = transcript ? keepFoot(transcript, { atEnd: true }) : null;
     session.place = transcript
       ? placeKeeper(transcript, {
-          items: ".lf-msg[data-event]",
-          identity: (message) => message.getAttribute("data-event"),
+          items: ".lf-msg[data-lf-event]",
+          identity: (message) => message.getAttribute("data-lf-event"),
         })
       : null;
     if (previewRegionMounted && transcript) {
@@ -1167,7 +1167,7 @@ export function createThreadPreview({
   function focusTarget(name, { part = null } = {}) {
     const id = threadIdNamed(name);
     const thread = [...previewList.querySelectorAll(".lf-page-thread")].find(
-      (candidate) => candidate.getAttribute("data-thread") === id,
+      (candidate) => candidate.getAttribute("data-lf-thread") === id,
     );
     return thread
       ? threadFocusDestination(thread, { part: part ?? "thread", message: name })

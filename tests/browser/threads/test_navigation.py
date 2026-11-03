@@ -49,7 +49,7 @@ def test_back_returns_from_a_thread_the_walk_travelled_to(browser, serve):
     entries = page.evaluate("history.length")
 
     page.keyboard.press("Shift+t")
-    page.wait_for_function("() => document.activeElement?.closest('[data-thread]')")
+    page.wait_for_function("() => document.activeElement?.closest('[data-lf-thread]')")
     # Focus reaches the card before its passage starts scrolling into view.
     expect(page.locator("#also p")).to_be_in_viewport()
     scroll_settled(page)
@@ -58,11 +58,11 @@ def test_back_returns_from_a_thread_the_walk_travelled_to(browser, serve):
     assert page.evaluate("history.length") == entries + 1
 
     first = page.evaluate(
-        "document.activeElement.closest('[data-thread]').dataset.thread"
+        "document.activeElement.closest('[data-lf-thread]').dataset.lfThread"
     )
     page.keyboard.press("Shift+t")
     page.wait_for_function(
-        "first => document.activeElement?.closest('[data-thread]')?.dataset.thread"
+        "first => document.activeElement?.closest('[data-lf-thread]')?.dataset.lfThread"
         " !== first",
         arg=first,
     )

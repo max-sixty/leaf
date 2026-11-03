@@ -19,10 +19,12 @@ rubrics:
   items: &items
     type: llm-rubric
     metric: items-right
-    transform: context.metadata.texts?.judge || 'No items and no changes.'
+    # A run with no answer Leaf took, from a tool call or a refusal, leaves no text.
+    transform: context.metadata.texts?.judge || 'The fork gave no usable answer.'
     value: >-
-      The input is either the line "No items and no changes.", which passes, or a
-      conversation between a user and a coding agent, the question Leaf's turn-end
+      The input is the line "The fork gave no usable answer.", which fails; the line
+      "No items and no changes.", which passes; or a conversation between a user and
+      a coding agent, the question Leaf's turn-end
       check asked a fork of that conversation, every item of the fork's answer that
       Leaf took (each ask as Leaf put it On me, with the title and text the user
       reads; each finding as Leaf passed it to the agent), each marked `labelled`
@@ -45,9 +47,10 @@ rubrics:
   reply: &reply
     type: llm-rubric
     metric: reply-right
-    transform: context.metadata.texts?.reply || 'No reply.'
+    transform: context.metadata.texts?.reply || 'The fork gave no usable answer.'
     value: >-
-      The input is a conversation between a user and a coding agent, the user's
+      The input is the line "The fork gave no usable answer.", which fails, or a
+      conversation between a user and a coding agent, the user's
       message in a thread on the agent's page, and the reply a fork of the
       conversation posted in the thread as the agent's. Pass only if the reply answers
       the message directly and correctly, and promises no work. Every observation it

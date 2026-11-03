@@ -407,7 +407,7 @@ RING_CASES = (
     (
         "a contents link",
         (),
-        {"feature-gallery": (("#bg-contents li a:visible", FLOOR_RING),)},
+        {"feature-gallery": (("#bg-contents li a", FLOOR_RING),)},
     ),
     # The reaction palette a message's strip opens. Its chips are the last boxes the
     # layer dresses in the chrome's chip face, and they are behind a press: the strip
@@ -436,7 +436,7 @@ RING_CASES = (
         {
             RING_CHROME: (
                 (".lf-command-reference-search input:visible", "wa-input::part"),
-                (".lf-command-reference-command", ".lf-command-reference-command"),
+                (".lf-command-reference-command", FLOOR_RING),
             )
         },
     ),
@@ -890,6 +890,11 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
 
     # Parent view commands never borrow child focus, nor the field the child's user
     # stands in: a panel view would stand the thread's reply there, so it is declined.
+    # The click's stability check waits on the child's animation frames, which a
+    # cross-origin frame below the fold doesn't get.
+    page.locator("#on-you-sample").evaluate(
+        "sample => sample.scrollIntoView({block: 'start', behavior: 'instant'})"
+    )
     child_field = views["you"].locator(".lf-fp-field leaf-text")
     child_field.click()
     expect(child_field).to_be_focused()
@@ -1503,7 +1508,10 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                         }"""
                     )
                     rendered(page)
-                    page.keyboard.press("Tab")
+                    # A key press makes the focus that follows keyboard focus. Shift
+                    # moves nothing: a Tab could stand in the panel's field, whose
+                    # caret puts the On me mark aside (floating-panel.js, `quickHidden`).
+                    page.keyboard.press("Shift")
                     target.focus()
                     # A note on the details shelf is reached from the element that
                     # names it (details-shelf.js), never by Tab, and is focused here as

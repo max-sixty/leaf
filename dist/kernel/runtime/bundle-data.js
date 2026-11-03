@@ -1,8 +1,8 @@
-import { CARET_KEYS, HOLDS_WORD, J, OUTPUT, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSES, RUNTIME_PAINT_ATTRIBUTE, SourcePairs, TEXT_BOX, TEXT_FIELD, W, WALK, Z, actionElement, actionTemplate, afterScript, aimedTop, alreadyShown, atScrollEnd, attachDeferredLoader, backgroundFlash, beginWalk, bindQueuedWork, blurFocused, byRenderedOrder, cancelRender, caretAtKey, chosenSince, clippedContents, clippedPlace, closestAcross, currentLocationIn, currentLocationNodes, currentLocationTouches, d, dataBody, deepFocus, describeFailure, drawn as drawn$2, eventSource, fitsWhole, flashDuration, focusDestination, focused, foldBlock, frameFor, generatedElement, growthAfterIsSeen, growthIsSeen, headerInset, holdCurrentLocation, holdFocus, iconElement, inChrome, inUi, inWindowChrome, inlineStyle, inputCount, isElement, isHTML, keeps, keepsHidden, keepsText, landedBox, landingBand, layoutChanged, layoutPx, listWalkPosition, measure, motion, motionPlays, move, moveScrollerBy, nativeLayerHolding, nextAnimation, nextFrame, nextRender, offer, offerAction, offerContentElement, offered, offeredAction, offeredActionElement, onCurrentLocation, onLetGo, onPress, onPressAway, onUserInput, outputProducer, pagePresented, pageScroller, passOn, patchRetains, patchTree, placeBox, placeHolder, placeKept, plainPress, pointerAt, presented, readCaret, recentPlaceInput, refuseOutput, registrations, renderedOrder, renderedParent, renderedUnder, renderingState, restorePointer, restrictUserIntent, retainUserIntent, roomPx, scrollBehavior, scrollChoices, scrollGoal, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollToEnd, scrollersOf, seenRect, selectsAll, setChildren, setRegistration, setScroll, shownBox, shownRect, shownWindow, showsContents, sizeObserver, skipped, skipper, slotTop, stopScroll, stuckBox, synNodes, syntax, syntaxLanguageNames, tabStore, takesLetters, tick, typesText, under, union, upFrom, updateSurface, userScrollport, visibleBand, watchArrivals, watchOwner, watchScrollEnds, whenNone, x } from "./bundle-portable.js";
-import { COLLAPSE, LIVE_ROOT, PENDING, PRESENTATION_DOM, PRESSABLE, TEXT_BLOCK, adoptRegistry, agentName, agentSays, announce, applicationPresenter, applicationState, ariaShortcuts, attachApplicationPresentation, authoredBody, bindings, buttonCommand, checked, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, decisionFor, declarationFor, declareCommandReadiness, declaresCommandHandler, deleted, descriptionOf, editable, el, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, fragmentUrl, hasObligationSource, holdStatus, holdingError, html, isElementName, isReaction, keyed, keys, labelOf, lastMovedAt, layerRoot, leafSays, live as live$1, live$1 as live, loadShadowRules, marks, messageKey, nothing, notice, obligationValue, offlineDeferred, offlineInteractive, pageClaimed, pageRange, pageUrl, paintKeys, passErrorsAt, projectCommandScope, projectView, projectionOrigins, projectionRegionsPresented, pruneScopedElements, raiseError, readApplication, readPart, ref, registry, render as render$1, repaint, repeat, reveal, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, savedReadingSettled, seatRoot, selectEnds, selectionBackward, share, spell, tagsDeclaring, threadKey, threadNames, titleOf, tokenEntry, touchPresses as touchPresses$1, turns, voiced, watchCommandScopes, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented, word } from "./bundle-errors.js";
+import { CARET_KEYS, HOLDS_WORD, J, OUTPUT, PAGE_PAINT_ATTRIBUTE, PRESS, RUNTIME_PAINT_ATTRIBUTE, SourcePairs, TEXT_BOX, TEXT_FIELD, W, WALK, Z, actionElement, actionTemplate, afterScript, aimedTop, alreadyShown, atScrollEnd, attachDeferredLoader, backgroundFlash, beginWalk, bindQueuedWork, blurFocused, byRenderedOrder, cancelRender, caretAtKey, chosenSince, clippedContents, clippedPlace, closestAcross, currentLocationIn, currentLocationNodes, currentLocationTouches, d, dataBody, deepFocus, describeFailure, drawn as drawn$2, eventSource, fitsWhole, flashDuration, focusDestination, focused, foldBlock, frameFor, generatedElement, growthAfterIsSeen, growthIsSeen, headerInset, holdCurrentLocation, holdFocus, iconElement, inChrome, inUi, inWindowChrome, inlineStyle, inputCount, isElement, isHTML, keeps, keepsHidden, keepsText, landedBox, landingBand, layoutChanged, layoutPx, listWalkPosition, measure, motion, motionPlays, move, moveScrollerBy, nativeLayerHolding, nextAnimation, nextFrame, nextRender, offer, offerAction, offerContentElement, offered, offeredAction, offeredActionElement, onCurrentLocation, onLetGo, onPress, onPressAway, onUserInput, outputProducer, pagePresented, pageScroller, passOn, patchRetains, patchTree, placeBox, placeHolder, placeKept, plainPress, pointerAt, presented, readCaret, recentPlaceInput, refuseOutput, registrations, renderedOrder, renderedParent, renderedUnder, renderingState, restorePointer, restrictUserIntent, retainUserIntent, roomPx, scrollBehavior, scrollChoices, scrollGoal, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollToEnd, scrollersOf, seenRect, selectsAll, setChildren, setRegistration, setScroll, shownBox, shownRect, shownWindow, showsContents, sizeObserver, skipped, skipper, slotTop, stopScroll, stuckBox, synNodes, syntax, syntaxLanguageNames, tabStore, takesLetters, tick, under, union, upFrom, updateSurface, userScrollport, visibleBand, watchArrivals, watchOwner, watchScrollEnds, whenNone, x } from "./bundle-portable.js";
+import { COLLAPSE, LIVE_ROOT, PENDING, PRESENTATION_DOM, TEXT_BLOCK, adoptRegistry, agentName, agentSays, announce, applicationPresenter, applicationState, ariaShortcuts, attachApplicationPresentation, authoredBody, bindings, buttonCommand, checked, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, decisionFor, declarationFor, declareCommandReadiness, declaresCommandHandler, deleted, descriptionOf, editable, el, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, fragmentUrl, hasObligationSource, holdStatus, holdingError, html, isElementName, isReaction, keyed, keys, labelOf, lastMovedAt, layerRoot, leafSays, live as live$1, live$1 as live, loadShadowRules, marks, messageKey, nothing, notice, obligationValue, offlineDeferred, offlineInteractive, pageClaimed, pageRange, pageUrl, paintKeys, passErrorsAt, projectCommandScope, projectView, projectionOrigins, projectionRegionsPresented, pruneScopedElements, raiseError, readApplication, readPart, ref, registry, render as render$1, repaint, repeat, reveal, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, savedReadingSettled, seatRoot, selectEnds, selectionBackward, share, spell, tagsDeclaring, threadKey, threadNames, titleOf, tokenEntry, touchPresses as touchPresses$1, turns, voiced, watchCommandScopes, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented, word } from "./bundle-errors.js";
 import { LayerRefused, admitReading, admitResponse, randomId, reportPageError, requestJson, revealLayer, runtimeRootState, sameLayer, setRuntimeRootAttribute } from "./bundle-layer-client.js";
 import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableWord, addressedElements, ago, aimControl, aimTargetAt, anchorControl, anchorForPassage, anchorForRange, anchoringIsReady, chromeForeground, chromeRoot, claimReachStop, containingReadingRegionFor, datumAimTarget, datumLabel, deferredArrival, effectiveScroller, followingItsEnd, fragmentAddress, fragmentTarget, headerLevels, isAddressable, leadingTitle, livePoint, nameable, onReadingInput, pageReadingRegion, pressedElsewhere, projectedDatum, reachScrollers, readInsets, readingRegionFor, readingRegions, recentReadingRegion, regionScrollBehavior, regionsSettled, registerPageControl, releaseControl, releaseReachStop, resolveAnchor, revealAddressed, revealControl, scrollChainOf, scrollerFor, sectionLabel, sectionOf, settleDocumentLayout, shortAgo, shownRegionBounds, standInChrome, tabFromBlock, targetElement, targetPlace, targetSegments, unconcealedReadingRegions, visualPartLabel, watchReadingRegionTransitions, writeInsets } from "./bundle-content-layout.js";
-import { alignInlineText, alignText, authored, authoredScope, blockAt, elementById, excerptWords, fencePassageParts, labelWords, leafSurface, pageBlocks, pageDocument, pageQueryAll, pageText, pageWords, pointAt as pointAt$1, quoteFrom, quotedWords, rangeOf, readingFrom, renderRetired, segmentBlock, segmentsIn, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
+import { LEAF_SURFACE, alignInlineText, alignText, authored, authoredScope, blockAt, elementById, excerptWords, fencePassageParts, inPage, labelWords, leafSurface, pageBlocks, pageDocument, pageQueryAll, pageText, pageWords, pointAt as pointAt$1, quoteFrom, quotedWords, rangeOf, readingFrom, renderRetired, segmentBlock, segmentsIn, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
 import { aborted, authoredStates, commitWidgetDescriptors, quoted, rememberAuthoredParents, stageAuthoredStates, stageWidgetDescriptors, widgetElement } from "./bundle-abort.js";
 import { isCanonicalMediaUrl, readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "./media.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
@@ -38,8 +38,13 @@ function inlineMarkdownFragment(text, message = true) {
 	parsed.innerHTML = renderInlineMarkdown(text, message);
 	return parsed.content;
 }
+const unpaintedFiles = (scope) => {
+	const elements = elementsDeclaring(scope, "x-prepaint");
+	if (isElement(scope) && declarationFor(scope, "x-prepaint")) elements.unshift(scope);
+	return elements.filter((element) => element.getAttribute(String(declarationFor(element, "x-prepaint"))) === "markdown" && element.querySelector(":scope > pre") && !element.querySelector(":scope > [data-lf-prepaint]"));
+};
 async function loadDeclaredMarkdown(scope) {
-	if (!(isElement(scope) && declarationFor(scope, "x-text-format")) && !elementsDeclaring(scope, "x-text-format").length) return;
+	if (!(isElement(scope) && declarationFor(scope, "x-text-format")) && !elementsDeclaring(scope, "x-text-format").length && !unpaintedFiles(scope).length) return;
 	let failure;
 	if (!await loadMarkdown((error) => failure = error)) throw new Error(`leaf: Markdown renderer failed to load: ${describeFailure(failure)}`);
 }
@@ -71,6 +76,17 @@ function formatDeclaredMarkdown(scope) {
 			words.append(parsed);
 			node.replaceWith(words);
 		}
+	}
+}
+function prepaintDeclaredFiles(scope) {
+	const files = unpaintedFiles(scope);
+	if (files.length && !tokenize) throw new Error("leaf: Markdown prepaint requires its loaded renderer");
+	for (const file of files) {
+		const body = generatedElement(document.createElement("div"), { says: false });
+		body.className = "lf-markdown-body";
+		body.setAttribute("data-lf-prepaint", "");
+		body.innerHTML = renderMarkdown(dataBody(file), false);
+		file.prepend(body);
 	}
 }
 function paintMarkdown(element, source) {
@@ -1811,14 +1827,13 @@ var MessageEditor = class {
 				title: "edit previous message",
 				when: () => {
 					const [start, end] = caretAtKey(this.input) ?? [this.input.selectionStart, this.input.selectionEnd];
-					return start === 0 && end === 0 && unchanged();
+					return start === 0 && end === 0 && unchanged() && Boolean(previous());
 				},
-				get run() {
+				run: () => {
 					const before = previous();
-					return before ? () => {
-						putAside();
-						before.openEdit();
-					} : void 0;
+					if (!before) return;
+					putAside();
+					before.openEdit();
 				}
 			}]
 		});
@@ -2228,6 +2243,7 @@ function copyThroughSelection(value, trigger) {
 	const field = document.createElement("textarea");
 	field.value = value;
 	field.style.cssText = "position: fixed; left: -9999px; top: 0";
+	field.dataset.lfRuntime = "";
 	(nativeLayerHolding(trigger) ?? document.body).append(field);
 	try {
 		focusDestination(field, "return");
@@ -2499,6 +2515,7 @@ const PAGE_COMMANDS = [
 	"panel.floating.fold",
 	COMMAND_REFERENCE,
 	"browser.caret",
+	"browser.history",
 	"aim.comment"
 ];
 const scopes = /* @__PURE__ */ new Map();
@@ -3072,6 +3089,7 @@ async function preloadWidgets(scope) {
 async function importWidgets(scope) {
 	await loadWidgetDependencies(scope);
 	formatDeclaredMarkdown(scope);
+	prepaintDeclaredFiles(scope);
 	await importWidgetModules(scope);
 }
 async function installDocument(scope) {
@@ -6402,12 +6420,27 @@ function obligationPlace(item, items = readObligations().all) {
 	const owner = elementById(item.source.id);
 	const source = item.source.unit ? projectedDatum(owner, item.source.unit) : owner;
 	const context = elementById(item.prompt.target);
-	const shared = items.some((other) => other.id !== item.id && other.source.kind === "widget" && other.prompt.target === item.prompt.target);
+	const sharing = contextsOf(items).get(item.prompt.target);
+	const shared = Boolean(sharing && (sharing.size > 1 || sharing.size === 1 && !sharing.has(item.id)));
 	return {
 		source,
 		context,
 		node: item.source.unit || shared ? source : context
 	};
+}
+const contexts = /* @__PURE__ */ new WeakMap();
+function contextsOf(items) {
+	let held = contexts.get(items);
+	if (held) return held;
+	held = /* @__PURE__ */ new Map();
+	for (const { id, source, prompt } of items) {
+		if (source.kind !== "widget") continue;
+		const ids = held.get(prompt.target);
+		if (ids) ids.add(id);
+		else held.set(prompt.target, /* @__PURE__ */ new Set([id]));
+	}
+	contexts.set(items, held);
+	return held;
 }
 const subjectPlace = (subject) => subject.kind === "page" || subject.kind === "thread" ? null : elementById(subject.id);
 function obligationsIn(region, items = readObligations().all) {
@@ -6537,11 +6570,6 @@ function passageBlock(node) {
 	for (let at = node instanceof Element ? node : node.parentElement; at; at = upFrom(at)) if (blocks.includes(at)) return at;
 	return null;
 }
-function openingPassage(where) {
-	if (where instanceof Range) return passageBlock(where.startContainer);
-	if (!where) return null;
-	return renderedBlocks(pageBlocks().filter((block) => under(block, where))).next().value?.[0] ?? null;
-}
 function readingBounds(region) {
 	const shown = region ? shownRegionBounds(region) : shownWindow();
 	if (!shown) return null;
@@ -6564,7 +6592,14 @@ function* blocksOnScreen(region = null, blocks = textBlocks(), band = null) {
 		];
 	}
 }
-const readingBlock = (region = null) => blocksOnScreen(region, textBlocks(region?.body)).next().value?.[0] ?? null;
+const readingBlock = (region = null) => {
+	let first = null;
+	for (const [block] of blocksOnScreen(region, textBlocks(region?.body))) {
+		first ??= block;
+		if (!stuckBox(block, region?.body ?? null)) return block;
+	}
+	return first;
+};
 function pageReading({ bodies }) {
 	for (let region = pageReadingRegion(); region; region = readingRegionFor(region.host.parentElement)) {
 		const block = readingBlock(region);
@@ -7375,6 +7410,7 @@ function captureCarry(root, authored) {
 	const held = /* @__PURE__ */ new Map();
 	const regionBodies = new Set(readingRegions().map(({ body }) => body));
 	for (const node of root.querySelectorAll("[id]")) {
+		if (!inPage(node)) continue;
 		const wrote = authored.querySelector(`#${CSS.escape(node.id)}`);
 		if (wrote?.localName !== node.localName) continue;
 		const record = {
@@ -7413,7 +7449,7 @@ function captureCarry(root, authored) {
 function restoreCarry(records, held = /* @__PURE__ */ new Map(), handoffFocus = (move) => move()) {
 	const positions = [];
 	for (const record of records ?? []) {
-		const arrived = document.getElementById(record.id);
+		const arrived = elementById(record.id, pageDocument());
 		if (!arrived || arrived === held.get(record.id)) continue;
 		if (arrived.localName !== record.name) continue;
 		if (record.open !== void 0 && isHTML(arrived, "details")) arrived.open = record.open;
@@ -7533,7 +7569,7 @@ function readPlace(focus = deepFocus()) {
 		place: place && new WeakRef(place),
 		caret: readCaret(focus),
 		ends,
-		offset: [scrollX, scrollY]
+		offset: [scrollX, scrollGoal(pageScroller)]
 	};
 }
 function returnPlace(checkpoint) {
@@ -7579,11 +7615,7 @@ function prepareEntry() {
 	const offset = place.offset;
 	const sourceUrl = window.location.href;
 	const sourceState = history.state;
-	return (url, state, replace) => {
-		if (replace) {
-			replaceEntry(url, state);
-			return;
-		}
+	return (url) => {
 		const arrival = {
 			left: scrollX,
 			top: scrollY
@@ -7594,7 +7626,7 @@ function prepareEntry() {
 			top: offset[1],
 			behavior: "instant"
 		});
-		pushEntry(url, state);
+		pushEntry(url);
 		setScroll(pageScroller, {
 			...arrival,
 			behavior: "instant"
@@ -7712,19 +7744,6 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 		const intent = ++travelIntent;
 		return restrictUserIntent(retained, () => intent === travelIntent);
 	};
-	const navigationGroupPrefix = `${performance.timeOrigin}:`;
-	let navigationSteps = 0;
-	let navigationGroup = null;
-	onReadingInput((node) => {
-		if (!navigationGroup || closestAcross(node, `${PRESSES},${"[data-lf-offer]:not([data-lf-offer=\"\"])"}`) || typesText(node)) return;
-		const passage = passageBlock(node);
-		if (!passage) return;
-		if (passage !== navigationGroup.passage()) navigationGroup = null;
-	});
-	function stillLanded() {
-		const where = navigationGroup && history.state?.lfNavigationGroup === navigationGroup.token && navigationGroup.landing();
-		return Boolean(where && seenOf(where));
-	}
 	async function arrive(resolve, { intent, present = null, departure = null }) {
 		if (!intent()) return false;
 		const initial = resolve();
@@ -7786,10 +7805,7 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 		const datum = anchor.datum;
 		const source = datum ? sectionOf(anchor) : null;
 		if (!destination && !source) return false;
-		const departure = prepareNavigationStep({
-			intent: mayArrive,
-			landing: () => resolve()?.where
-		});
+		const departure = prepareNavigationStep();
 		departure.plan(destination?.where ?? source, { there: (readable) => Boolean(destination && readable(destination.where)) });
 		if (source && datum) {
 			const hydration = revealAddressed(source, datum);
@@ -7805,10 +7821,7 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 		const mayArrive = retainTravel(intent);
 		const destination = resolve();
 		if (!destination?.where) return null;
-		const departure = prepareNavigationStep({
-			intent: mayArrive,
-			landing: () => resolve()?.where
-		});
+		const departure = prepareNavigationStep();
 		departure.plan(destination.where);
 		let release = () => {};
 		await arrive(() => {
@@ -7848,16 +7861,8 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 		release();
 		return mayArrive() ? resolve()?.input() ?? null : void 0;
 	}
-	function prepareNavigationStep({ landing = null, url, intent }) {
+	function prepareNavigationStep(url) {
 		const write = prepareEntry();
-		const continuing = landing && stillLanded() ? navigationGroup : null;
-		const arrival = landing ? {
-			landing,
-			passage: () => {
-				const where = landing();
-				return where ? openingPassage(where) : null;
-			}
-		} : null;
 		let moving;
 		return {
 			plan(where, { there } = {}) {
@@ -7865,17 +7870,8 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 				return moving;
 			},
 			commit() {
-				if (moving === void 0) return;
-				if (!moving) {
-					if (continuing && arrival) Object.assign(continuing, arrival);
-					if (url) replaceEntry(url);
-					return;
-				}
-				navigationGroup = arrival && {
-					token: navigationGroupPrefix + ++navigationSteps,
-					...arrival
-				};
-				write(url ?? window.location.href, navigationGroup && { lfNavigationGroup: navigationGroup.token }, Boolean(continuing));
+				if (moving) write(url ?? window.location.href);
+				else if (moving === false && url) replaceEntry(url);
 			}
 		};
 	}
@@ -7916,10 +7912,7 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 			if (missing) notice(missing);
 			return false;
 		}
-		const departure = prepareNavigationStep({
-			url: new URL(fragmentUrl(source, key)),
-			intent: mayArrive
-		});
+		const departure = prepareNavigationStep(new URL(fragmentUrl(source, key)));
 		const hydration = revealAddressed(source, key);
 		if (hydration?.then) await hydration;
 		if (!mayArrive()) return false;
@@ -8043,11 +8036,7 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 			key: anchor.datum
 		} : null;
 		const destination = threadDestination(id);
-		const landing = () => threadDestination(id);
-		const departure = history ? prepareNavigationStep({
-			landing,
-			intent: mayArrive
-		}) : null;
+		const departure = history ? prepareNavigationStep() : null;
 		if (destination || hydrationTarget) departure?.plan(destination);
 		if (hydrationTarget) {
 			const source = sectionOf(hydrationTarget.anchor);
@@ -8146,12 +8135,19 @@ const authoredMarkup = (root) => {
 	for (const member of root.querySelectorAll(`[${RUNTIME_PAINT_ATTRIBUTE.viewMember}]`)) member.removeAttribute("hidden");
 	for (const name of Object.values(RUNTIME_PAINT_ATTRIBUTE)) for (const element of root.querySelectorAll(`[${name}]`)) element.removeAttribute(name);
 	for (const preview of root.querySelectorAll("[data-lf-prepaint]")) preview.remove();
+	const body = root instanceof Document ? root.body : root instanceof Element && root.localName === "body" ? root : null;
+	if (body) {
+		for (const surface of body.querySelectorAll(LEAF_SURFACE)) surface.remove();
+		const attributes = authoredAttributes(body);
+		for (const { name } of [...body.attributes]) body.removeAttribute(name);
+		for (const [name, value] of attributes) body.setAttribute(name, value);
+	}
 	return root;
 };
 const pairSources = (source, live, pairs) => {
 	pairs.pair(source, live);
 	const held = source instanceof HTMLTemplateElement ? source.content : source;
-	const children = [...(live instanceof HTMLTemplateElement ? live.content : live).childNodes].filter((child) => !(child instanceof Element && child.matches("[data-lf-prepaint]")));
+	const children = [...(live instanceof HTMLTemplateElement ? live.content : live).childNodes].filter((child) => !(child instanceof Element && child.matches(`[data-lf-prepaint], ${".lf-chrome, [data-lf-runtime]"}`)));
 	for (const [at, child] of [...held.childNodes].entries()) {
 		const peer = children[at];
 		if (peer) pairSources(child, peer, pairs);
@@ -8159,9 +8155,9 @@ const pairSources = (source, live, pairs) => {
 	return pairs;
 };
 function captureInitialDocument() {
-	const main = pageDocument();
+	const body = pageDocument();
 	const inert = document.implementation.createHTMLDocument("");
-	const source = main ? authoredMarkup(inert.importNode(main, true)) : null;
+	const source = authoredMarkup(inert.importNode(body, true));
 	for (const input of source?.querySelectorAll("input") ?? []) {
 		if (![
 			"file",
@@ -8171,13 +8167,12 @@ function captureInitialDocument() {
 		input.checked = input.defaultChecked;
 	}
 	for (const textarea of source?.querySelectorAll("textarea") ?? []) textarea.value = textarea.defaultValue;
-	const pairs = main && source ? pairSources(source, main, new SourcePairs()) : new SourcePairs();
+	const pairs = pairSources(source, body, new SourcePairs());
 	for (const disclosure of source?.querySelectorAll("details") ?? []) {
 		const open = window.lfStorage.initialDisclosureOpen(pairs.require(disclosure));
 		if (open !== void 0) disclosure.toggleAttribute("open", open);
 	}
 	return {
-		authoredBodyAttributes: authoredAttributes(document.body),
 		authoredHeadNodes: new Set([...document.head.children].filter(versionedHeadNode)),
 		authoredHtmlAttributes: authoredAttributes(document.documentElement),
 		source,
@@ -8424,7 +8419,7 @@ function paintedSource(source, widgets) {
 	const doc = document.implementation.createHTMLDocument("");
 	const root = doc.importNode(source, true);
 	const sourceOf = pairSources(root, source, new SourcePairs());
-	doc.body.replaceChildren(root);
+	doc.body.replaceWith(root);
 	formatDeclaredMarkdown(root);
 	paintBodies(doc, widgets);
 	placeCreated(doc, widgets);
@@ -8801,7 +8796,7 @@ function revisionDocument(revision) {
 	return arriving;
 }
 function createVersionController({ initialDocument, compositionInput, openThread, refreshThread, midComposition, hasPending, readAndApply, syncLayout, captureRetainedCurrentLocation, restoreRetainedCurrentLocation, captureObligationCurrentLocation, restoreObligationCurrentLocation, versions }) {
-	let { authoredBodyAttributes, authoredHeadNodes, authoredHtmlAttributes, source: authoredSource } = initialDocument;
+	let { authoredHeadNodes, authoredHtmlAttributes, source: authoredSource } = initialDocument;
 	const sourcePairs = initialDocument.pairs;
 	versionSource = () => ({
 		source: authoredSource,
@@ -8927,7 +8922,7 @@ function createVersionController({ initialDocument, compositionInput, openThread
 		const arrivingRoot = layerRoot(doc);
 		return {
 			pairs: sourcePairs,
-			contains: under,
+			contains: (node, owner) => owner === pageDocument() ? inPage(node) : under(node, owner),
 			declared: upgraded,
 			body: authoredBody,
 			reaches: (before, after) => reachesMembers(before, after, arrivingRoot),
@@ -8982,7 +8977,7 @@ function createVersionController({ initialDocument, compositionInput, openThread
 		const rules = patchRules(doc);
 		revisionDocuments.delete(target.revision);
 		const isAuthored = authored(live);
-		const generated = (node) => (node.nodeType === Node.ELEMENT_NODE || node.parentElement !== null) && !isAuthored(node);
+		const generated = (node) => (node.nodeType === Node.ELEMENT_NODE || node.parentElement !== null) && (Boolean(leafSurface(node)) || !isAuthored(node));
 		const arrived = [];
 		const arrivedDescriptors = /* @__PURE__ */ new Map();
 		const prior = readApplication().document;
@@ -9011,6 +9006,7 @@ function createVersionController({ initialDocument, compositionInput, openThread
 				}
 				commitWidgetDescriptors({ bindings });
 				formatDeclaredMarkdown(arriving);
+				prepaintDeclaredFiles(arriving);
 				arrived.push(arriving);
 			}
 			return arriving;
@@ -9018,7 +9014,6 @@ function createVersionController({ initialDocument, compositionInput, openThread
 		const { restoreCarryScroll } = await patchDocument(live, () => {
 			authoredHtmlAttributes = replaceAuthoredAttributes(document.documentElement, doc.documentElement, authoredHtmlAttributes);
 			keeps(document.documentElement, "data-lf-layout", doc.documentElement.getAttribute("data-lf-layout"));
-			authoredBodyAttributes = replaceAuthoredAttributes(document.body, doc.body, authoredBodyAttributes);
 			activateHead(doc, target);
 			sourcePairs.set(source, live);
 			patchTree(outgoing, source, {
@@ -9269,7 +9264,7 @@ function createVersionController({ initialDocument, compositionInput, openThread
 		for (const box of boxes) {
 			const region = regionForBox(box);
 			if (region === void 0 || held(box)) continue;
-			if (region && !(under(region.host, pageDocument()) && shownRegionBounds(region))) continue;
+			if (region && !(inPage(region.host) && shownRegionBounds(region))) continue;
 			const before = places.get(region ? region.id : PAGE);
 			const acted = currentLocation || readerChose(box, before?.choices ?? 0) || inputSince(box, before?.inputs ?? 0);
 			if (before && !acted) continue;
@@ -9533,7 +9528,7 @@ function createVersionController({ initialDocument, compositionInput, openThread
 		for (const type of ["popstate", "hashchange"]) addEventListener(type, releaseHolds);
 		const recordCurrentLocation = () => {
 			const at = focused();
-			if (!at || !under(at, pageDocument())) return;
+			if (!at || !inPage(at)) return;
 			const box = boxOf(at);
 			recordPlaces([box], { currentLocation: true });
 			nextRender(() => recordPlaces([box], { currentLocation: true }));

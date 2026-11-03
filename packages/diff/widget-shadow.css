@@ -532,29 +532,29 @@ pre[data-overflow="wrap"] .lf-diff-rows {
 .lf-diff-line[data-line-type="change-addition"] > button {
   color: var(--ok-ink);
 }
-[data-line-type="change-deletion"] [data-diff-span] {
+:where(:host(lf-diff)) [data-line-type="change-deletion"] [data-diff-span] {
   background: color-mix(in srgb, var(--danger) 34%, var(--pre-bg));
 }
-[data-line-type="change-addition"] [data-diff-span] {
+:where(:host(lf-diff)) [data-line-type="change-addition"] [data-diff-span] {
   background: color-mix(in srgb, var(--ok) 34%, var(--pre-bg));
 }
-[data-separator],
-[data-no-newline] {
+:where(:host(lf-diff)) :is([data-separator], [data-no-newline]) {
   padding-inline: calc(var(--lf-diff-gutter) + 2ch) 8px;
   color: var(--code-muted);
   background: var(--code-chrome);
   white-space: pre-wrap;
 }
-[data-separator] svg {
+:where(:host(lf-diff)) [data-separator] svg {
   display: none;
 }
 /* A separator's label describes the source rather than quoting it, so it takes the
    chrome's face, as the path does the reverse. The row keeps the source's face,
    so its inset measures the code column in the code's `ch`; the label is a block so
    its line box holds only its own face and the row stays one source line tall. */
-:is([data-separator-wrapper], [data-no-newline] > span) {
+:where(:host(lf-diff)) :is([data-separator-wrapper], [data-no-newline] > span) {
   display: block;
-  font: var(--t-6) / var(--code-line) var(--sans);
+  font: var(--font-small);
+  line-height: var(--code-line);
 }
 /* A sibling carries the viewport's ring above its positioned rows without
    scrolling with them. Unlike a parent's :has() pseudo-element, its selector
@@ -683,7 +683,7 @@ pre[data-overflow="wrap"] .lf-diff-rows {
     content-visibility: visible;
     margin-top: -1px;
   }
-  [data-line] {
+  :where(:host(lf-diff)) [data-line] {
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }

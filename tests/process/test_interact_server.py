@@ -351,7 +351,8 @@ def test_samples_use_captured_resources_and_independent_event_logs(
     assert b"data-lf-share-url" not in document
     served = structure_model.SourceDocument(document.decode()).tree
     assert f'data-lf-page-root="{child.removeprefix(server)}"'.encode() in document
-    find_result = served.find("body")
+    # The root, so Leaf's chrome after the body is inert too until the sample presents.
+    find_result = served.find("html")
     assert find_result is not None
     assert "inert" in find_result.attrs
     find_result_2 = served.find("script", attrs={"data-lf-entry": True})
@@ -3239,12 +3240,12 @@ def test_neighbor_discovery_needs_no_native_subscription(
     page_dir, tmp_path, monkeypatch
 ):
     """A short-lived reader sees new rows even when native watches cannot start."""
-    import watchfiles.main
+    from leaf import file_changes
 
     def no_watcher(*_args, **_kwargs):
         raise RuntimeError("native watch unavailable")
 
-    monkeypatch.setattr(watchfiles.main, "RustNotify", no_watcher)
+    monkeypatch.setattr(file_changes._Native, "schedule", no_watcher)
     rows = cleanup_model.state_home() / "rows"
     assert not rows.exists()
     assert presence_model.neighbor_candidates() == ()

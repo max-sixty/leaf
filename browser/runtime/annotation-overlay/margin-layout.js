@@ -82,7 +82,7 @@ import {
 import { scrollerFor } from "../reading-regions.js";
 import { boundedBlockOf } from "../bounds.js";
 import { pageScroller } from "../scrolling.js";
-import { layoutBox } from "../passages.js";
+import { layoutBox, pageDocument } from "../passages.js";
 import {
   arrivals,
   inSeatingOrder,
@@ -1057,7 +1057,7 @@ function standFolded(row, fold, on) {
 // square the row's height, beside the gaps and the focus ring's room the row keeps.
 /** @param {PlacedRow[]} rows @param {{bands: import("../geometry.js").ClipCache, shell: number, pinInset: number}} options */
 function pinSeating(rows, { bands, shell, pinInset }) {
-  const main = marginColumn();
+  const page = pageDocument();
   // A scrollable document can reveal seats beyond the viewport, but none above its own
   // top. A root whose overflow prevents user scrolling cannot, so its window bounds the
   // seats.
@@ -1126,13 +1126,14 @@ function pinSeating(rows, { bands, shell, pinInset }) {
       top: Math.min(...spans.map((box) => box.top)) - around,
       bottom: Math.max(...spans.map((box) => box.bottom)) + around,
     };
-    // Only what scrolls with the pin is read: in a pane, the pane's own content. The pane's
+    // Only what scrolls with the pin is read: on the page, all of it, what stands beside
+    // `main` included; in a pane, the pane's own content. The pane's
     // header, standing still above it, would enter the band as the pane scrolled the
     // target up to it, and seat the pin differently at that scroll.
     const stop = read.scroller;
     standing ??= blockControlBoxes();
     const room = coverIn(
-      stop === pageScroller ? main : stop,
+      stop === pageScroller ? page : stop,
       band,
       target,
       bands,
@@ -1222,8 +1223,10 @@ function scheduleMarginLayout() {
   pending = nextRender(layoutMarginRows);
 }
 
-function observeLayout() {
-  const column = marginColumn();
+// The column is read where the pass reads it rather than as each row registers: a
+// column read restyles the page, and a first paint registers every row.
+/** @param {Element} column */
+function observeLayout(column) {
   if (!observer) {
     observer = sizeObserver(layoutMarginRows);
     observer.observe(document.body);
@@ -1239,7 +1242,6 @@ function observeLayout() {
 /** @param {HTMLElement} row @param {RowOptions} options */
 export function registerMarginRow(row, options) {
   rows.set(row, options);
-  observeLayout();
   scheduleMarginLayout();
 }
 
@@ -1376,6 +1378,7 @@ function layoutMountedRows(layer) {
   laidOutScrollX = scrollX;
   const present = [];
   const main = marginColumn();
+  if (rows.size) observeLayout(main);
   const columnRect = proseRect(main);
   const columnHeight = main.scrollHeight;
   const shell = shellRight();

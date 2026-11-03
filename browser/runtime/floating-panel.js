@@ -471,7 +471,8 @@ export function createFloatingPanel({
   // the leaf in the tree so it can anchor to it.
   // The quick seat is one button, changing between the mark and a search's or a
   // stance's way out. Its count keeps its room even when empty; a count arriving moves
-  // nothing beside it.
+  // nothing beside it. The corner mark presses the fold command's row, as the menu
+  // does, so its press is announced and logged like the key's.
   function panelTemplate(initial = false) {
     const top = initial ? null : (trail.value.at(-1) ?? null);
     const search = initial ? null : activeSearch();
@@ -707,7 +708,10 @@ export function createFloatingPanel({
         })}
         data-lf-corner
         tabindex="-1"
-        @click=${() => foldPanel()}
+        @click=${() =>
+          rows()
+            .find((entry) => entry.key === `command:${FOLD}`)
+            ?.press?.(null)}
       ></button>
     `;
   }

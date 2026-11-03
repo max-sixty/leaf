@@ -40,6 +40,13 @@ def at(seconds: float) -> str:
     return f"2026-10-08T09:00:{seconds:06.3f}+00:00"
 
 
+def logged(page: Path, events: list[dict]) -> Path:
+    """`page`, a directory holding `events` as its log."""
+    page.mkdir(exist_ok=True)
+    (page / "events.jsonl").write_text("".join(json.dumps(e) + "\n" for e in events))
+    return page
+
+
 def test_journey_declares_automation_after_a_user_preview_starts(
     page_dir, tmp_path, monkeypatch
 ):
@@ -86,7 +93,8 @@ def test_release_publication_requires_the_marker_in_board_markup():
                 url="https://leaf.page/",
                 pause=lambda _: None,
             ),
-        )
+        ),
+        None,
     )
     active = {"url": "revisions/2.html"}
     request.html = (
@@ -124,7 +132,9 @@ def test_release_publication_ignores_inline_script_and_style_text():
 
 
 @pytest.mark.parametrize("end", ["http", "browser"])
-def test_a_steps_comments_are_timed_from_the_log_and_in_a_browser_the_page(end):
+def test_a_steps_comments_are_timed_from_the_log_and_in_a_browser_the_page(
+    end, tmp_path
+):
     """Each step keeps the comments it sent, timed from the page's log on the
     server's clock from their admission, with the turn split from the session's
     records from the opened pickup on; in a browser, also from their send to their
@@ -132,9 +142,16 @@ def test_a_steps_comments_are_timed_from_the_log_and_in_a_browser_the_page(end):
     marks its step's comments, and the release ask's, so a reading held up by one is
     told apart from those that were not."""
     events = [
-        {"kind": "comment", "id": "c1", "ts": at(0)},
+        {
+            "kind": "comment",
+            "id": "c1",
+            "author": "user",
+            "attention": True,
+            "ts": at(0),
+        },
         {
             "kind": "pickup",
+            "author": "page",
             "id": "p1",
             "phase": "opened",
             "events": ["c1"],
@@ -183,6 +200,7 @@ def test_a_steps_comments_are_timed_from_the_log_and_in_a_browser_the_page(end):
             return {"at": 1_000_000 + 9_500, "by": "row", "message": message}
 
     url = "http://127.0.0.1:1/?t=token"
+    page = logged(tmp_path / "page", events)
     user_end = (
         journey.BrowserEnd(
             journey.Session(
@@ -194,17 +212,18 @@ def test_a_steps_comments_are_timed_from_the_log_and_in_a_browser_the_page(end):
                 {},
                 {},
                 None,
-            )
+            ),
+            page,
         )
         if end == "browser"
-        else journey.HttpEnd(url, Path("page"), time.sleep)
+        else journey.HttpEnd(url, page, time.sleep)
     )
     user = journey.User(user_end, "v", lambda: events, terminal, list)
     user.release_reading = {
         "version": "v",
         "comment": {
             "eventIds": ["c0"],
-            "sinceAdmissionMs": {"replied": 12000},
+            "milestones": {"answered": {"elapsed_s": 12}},
             "sinceSendMs": {},
         },
     }
@@ -234,8 +253,8 @@ def test_a_steps_comments_are_timed_from_the_log_and_in_a_browser_the_page(end):
     assert 5.9 <= step["seconds"] <= 6.5
     reading = step["comments"]["mid-turn"]
     assert reading["approved"] == ["Do you want to proceed?"]
-    assert reading["sinceAdmissionMs"]["pickedUp"] == 1000
-    assert reading["sinceAdmissionMs"]["replied"] == 9000
+    assert reading["milestones"]["opened"]["elapsed_s"] == 1
+    assert reading["milestones"]["answered"]["elapsed_s"] == 9
     if end == "browser":
         assert reading["sinceSendMs"]["responseVisible"] == 9500
         assert reading["responseShownBy"] == "row"
@@ -275,12 +294,18 @@ def test_a_steps_comments_are_timed_from_the_log_and_in_a_browser_the_page(end):
     }
 
 
-def test_a_comment_a_fork_decided_on_keeps_the_forks_record():
+def test_a_comment_a_fork_decided_on_keeps_the_forks_record(tmp_path):
     """A comment a fork of the conversation answered carries the fork's outcome,
     time and tokens, and no breakdown of a reply the session spent nothing on; one
     the fork handed over carries both."""
     events = [
-        {"kind": "comment", "id": "c1", "ts": at(0)},
+        {
+            "kind": "comment",
+            "id": "c1",
+            "author": "user",
+            "attention": True,
+            "ts": at(0),
+        },
         {
             "kind": "reply",
             "author": "agent",
@@ -290,9 +315,16 @@ def test_a_comment_a_fork_decided_on_keeps_the_forks_record():
             "text": "You asked me to serve it for review.",
             "ts": at(4),
         },
-        {"kind": "comment", "id": "c2", "ts": at(10)},
+        {
+            "kind": "comment",
+            "id": "c2",
+            "author": "user",
+            "attention": True,
+            "ts": at(10),
+        },
         {
             "kind": "pickup",
+            "author": "page",
             "id": "p2",
             "phase": "opened",
             "events": ["c1", "c2"],
@@ -329,7 +361,9 @@ def test_a_comment_a_fork_decided_on_keeps_the_forks_record():
             "elapsedMs": 2100.0,
         },
     ]
-    end = journey.HttpEnd("http://127.0.0.1:1/?t=t", Path("page"), time.sleep)
+    end = journey.HttpEnd(
+        "http://127.0.0.1:1/?t=t", logged(tmp_path / "page", events), time.sleep
+    )
     user = journey.User(
         end, "v", lambda: events, journey.Terminal(), list, lambda: forks
     )
@@ -1007,11 +1041,13 @@ def test_the_release_ask_over_http_is_the_shared_check(tmp_path):
             ROOT, state, "page", "stamp", str(page), "--text", "Recorded.", check=True
         )
         append_event(page, title_event(comment["id"], "Release recorded", agent))
+        # As `leaf thread reply` answers, standing on the revision it published.
         post_reply(
             page,
             {"parent": comment["id"], "responds": comment["id"]},
             "Recorded.",
             identity=agent,
+            validate_source=True,
         )
 
     with serving(ROOT, state, page) as url:
@@ -1023,12 +1059,7 @@ def test_the_release_ask_over_http_is_the_shared_check(tmp_path):
         "reply": "Recorded.",
     }
     assert set(reading) == {"version", "comment", "change"}
-    milestones = reading["comment"]["sinceAdmissionMs"]
-    assert None not in (
-        milestones["titled"],
-        milestones["published"],
-        milestones["replied"],
-    )
+    assert {"titled", "published", "answered"} <= set(reading["comment"]["milestones"])
     assert "sinceSendMs" not in reading["comment"]
     [asked] = [
         e for e in read_events(page) if e.get("attempt") == "journey-step-release"
@@ -1068,7 +1099,8 @@ def test_a_harness_journey_over_http_starts_no_browser(monkeypatch):
                     {},
                     {},
                     None,
-                )
+                ),
+                Path("page"),
             )
         )
         monkeypatch.setattr(end, "close", lambda: None)

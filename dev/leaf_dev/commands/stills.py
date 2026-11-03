@@ -1,15 +1,15 @@
-"""Screenshot a fixed catalogue of UI states on BASE_REF's runtime and HEAD's, and
-show which ones changed.
+"""Screenshot a fixed catalogue of UI states on a base's runtime and this working
+tree's, and show which ones changed.
 
-    uv run leaf-dev stills [BASE_REF] [--state NAME]... [--authored]
+    uv run leaf-dev stills [--base REF] [--state NAME]... [--authored]
         [--viewport WIDTHxHEIGHT] [--scheme dark] [--touch]
 
-BASE_REF defaults to the merge base of HEAD and `main`; each arm is the payload at its
-commit (`leaf_dev.arms.build_pair`), so commit what you want compared. Each page is
-built from this checkout's example source and served by the arm's own launcher, so
-only the runtime, theme and server differ between the two stills of a state. With
-`--authored`, each arm instead reads its own committed example and companions, so
-changes to page markup are visible as well. Each
+The base is the merge base with `main` unless `--base` names another commit, and the
+head is this working tree, uncommitted edits included (`leaf_dev.arms.choose_arms`).
+Each page is built from this working tree's example source and served by the arm's
+own launcher, so only the runtime, theme and server differ between the two stills of
+a state. With `--authored`, the base instead reads its own example and companions
+(`leaf_dev.arms.own_source`), so changes to page markup are visible as well. Each
 capture starts with a fresh authored fixture and event log, so a prior gesture cannot
 change another state's initial condition.
 Message delivery belongs to thread_journey and test_render_thread_snapshots, whose
@@ -94,8 +94,10 @@ from leaf.runtime_selection import read_runtime
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     PageClient,
-    build_pair,
-    copy_committed,
+    base_option,
+    choose_arms,
+    describe,
+    own_source,
     run_directory,
     served_page,
     serving_source,
@@ -3293,7 +3295,7 @@ def crop(
 
 
 @click.command()
-@click.argument("base_ref", required=False)
+@base_option(paired=True)
 @click.option(
     "--state",
     "names",
@@ -3304,19 +3306,20 @@ def crop(
 @click.option(
     "--authored",
     is_flag=True,
-    help="Compare each commit’s authored examples as well as its runtime.",
+    help="Build the base's pages from its own authored sources.",
 )
 @tab_options
 def stills(
-    base_ref: str | None,
+    base: str,
     names: tuple[str, ...],
     authored: bool,
     viewport: tuple[int, int] | None,
     scheme: str,
     touch: bool | None,
 ) -> None:
-    """Screenshot a catalogue of UI states on BASE_REF's runtime and HEAD's, and crop
-    each state that changed into a before/after pair under .tmp/stills/.
+    """Screenshot a catalogue of UI states on the base's runtime and this working
+    tree's, and crop each state that changed into a before/after pair under
+    .tmp/stills/.
 
     --viewport, --scheme and --touch set the window of every state captured; a state
     that names its own viewport or pointer keeps it unless --viewport or --touch is
@@ -3338,22 +3341,7 @@ def stills(
 
     with tempfile.TemporaryDirectory(prefix="leaf-stills-") as built:
         scratch = Path(built)
-        arms, commits = build_pair(base_ref, scratch)
-        source_roots = {arm: ROOT for arm in arms}
-        if authored:
-            for arm, commit in commits.items():
-                source_roots[arm] = scratch / f"{arm}-source"
-                source_roots[arm].mkdir()
-                copy_committed(
-                    (
-                        "examples",
-                        "tests/fixtures/pages",
-                        "docs/examples.html",
-                        "leaf-assets.json",
-                    ),
-                    source_roots[arm],
-                    commit,
-                )
+        arms = choose_arms(base, scratch)
         # Capture the scrollbars readers see, including the room a classic bar takes.
         with (
             headless_shell(ignore_default_args=["--hide-scrollbars"]) as browser,
@@ -3368,17 +3356,18 @@ def stills(
                 pages = {}
                 # Both arms stay open through the comparison, which reads their tabs.
                 with ExitStack() as held:
-                    for arm, arm_dir in arms.items():
+                    for arm, version in arms.items():
                         # Every state starts from its authored fixture. A prior Send
                         # or Resolve must not become the next state's initial event
                         # log. The base refuses a source written in vocabulary only
                         # the head declares; that state has no base still, and the
                         # head's still stands alone in its folder.
                         try:
+                            source = named_source(state.source)
                             address = held.enter_context(
                                 serving_source(
-                                    arm_dir,
-                                    named_source(state.source, root=source_roots[arm]),
+                                    version.directory,
+                                    own_source(version, source) if authored else source,
                                     scratch / f"{arm}-{state.name}",
                                 )
                             )
@@ -3419,7 +3408,7 @@ def stills(
                         read[state.name] = difference
                     except Exception as error:
                         failure(state, "comparison", error)
-    click.echo(f"base {commits['base'][:10]} vs head {commits['head'][:10]}")
+    click.echo(describe(arms))
     unchanged = 0
     for state in states:
         folder = out / state.name

@@ -127,7 +127,7 @@
 }
 :host(lf-file-editor) .cm-editor {
   height: 100%;
-  font-size: var(--lf-file-editor-size);
+  font-size: var(--code-size);
 }
 /* The scrollport clips a content outline on every side. Carry its one shared
  * focus cue inside the editor frame, above the scroller's own stacking context

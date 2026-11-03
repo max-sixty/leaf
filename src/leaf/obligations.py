@@ -35,6 +35,7 @@ as it ends one asked in words (`asked_in_a_message`)."""
 
 import hashlib
 import json
+from collections.abc import Callable
 from functools import partial
 from typing import TYPE_CHECKING, NamedTuple
 from urllib.parse import quote
@@ -51,6 +52,7 @@ from leaf.page_memory import Slot
 from leaf.projection import (
     FrozenThreadReading,
     StateProjection,
+    attribute_marks,
     enclosing_widgets,
     folded_value,
     markup_value,
@@ -223,11 +225,7 @@ def replayed_attrs(rec: dict, projection: StateProjection) -> dict:
     unit = attrs.get("id")
     if not unit:
         return attrs
-    held = [
-        winner
-        for coordinate, winner in projection.desired.items()
-        if coordinate[1] == unit
-    ]
+    held = projection.desired_by_unit.get(unit, [])
     for e, spec in sorted(held, key=lambda item: item[0]["seq"]):
         if (spec.get("record") or {}).get("kind") == "value":
             attrs = {**attrs, spec["record"]["attr"]: folded_value(e, spec)}
@@ -253,10 +251,10 @@ def previously_requested(
     document revisions; retracted actions cannot.
     """
     unit = record["attrs"].get("id")
-    for coordinate, (event, spec) in projection.classified.values():
+    for coordinate, (event, spec) in projection.classified_by_owner.get(unit, ()):
         effect = spec.get("record") or {}
         if (
-            coordinate[:2] != (unit, unit)
+            coordinate[1] != unit
             or (event["kind"] == "action" and event["id"] not in projection.in_force)
             or (revision is not None and event["revision"] != revision)
             or effect.get("kind") != "value"
@@ -291,7 +289,7 @@ def verb_answers(
     verb: str,
     projection: StateProjection,
     byid: dict,
-    spk: dict,
+    marks: dict,
     registry: dict,
     holders: dict[str, dict],
     unit: str | None = None,
@@ -300,9 +298,10 @@ def verb_answers(
 
     The condition reads current state and nothing else. `empty` asks the projected
     containment the verb's position records leave; an attribute or value record reads
-    through authored markup as well as the fold, so a version that honors the answer
-    keeps it answered and a cleared value opens the obligation again; any other verb answers
-    while one of its actions stands on the widget.
+    through authored markup (`marks`, the document's `projection.attribute_marks`) as
+    well as the fold, so a version that honors the answer keeps it answered and a
+    cleared value opens the obligation again; any other verb answers while one of its
+    actions stands on the widget.
     """
     condition = answer_verbs(entry)[verb]
     if not matches_when(replayed_attrs(rec, projection), condition.get("when")):
@@ -322,11 +321,7 @@ def verb_answers(
     spec = entry["x-state"][verb]
     record = spec.get("record")
     if record and record["kind"] in ("attribute", "value"):
-        value = (
-            folded_value(*held)
-            if held
-            else markup_value(unit, spec, byid, spk, registry)
-        )
+        value = folded_value(*held) if held else markup_value(unit, spec, byid, marks)
         return value not in (None, "", [])
     return held is not None
 
@@ -336,7 +331,7 @@ def obligation_answered(
     entry: dict,
     projection: StateProjection,
     byid: dict,
-    spk: dict,
+    marks: dict,
     registry: dict,
     holders: dict[str, dict] | None = None,
 ) -> bool:
@@ -345,7 +340,7 @@ def obligation_answered(
     if holders is None:
         holders = projected_action_holders(projection, byid, registry)
     return any(
-        verb_answers(rec, entry, verb, projection, byid, spk, registry, holders)
+        verb_answers(rec, entry, verb, projection, byid, marks, registry, holders)
         for verb in answer_verbs(entry)
     )
 
@@ -380,8 +375,9 @@ def anchors_with_agent(threads: dict, owed: list[dict]) -> list[dict]:
     ]
 
 
-def discussed_by(anchor: dict, records: list[dict], within: dict) -> list[dict]:
-    """The obligations among `records` a thread anchored at `anchor` is about.
+def discussed_by(records: list[dict], within: dict) -> Callable[[dict], list[dict]]:
+    """The reading of which obligations among `records` a thread anchored at a given
+    anchor is about, as a function of the anchor.
 
     A section is about the innermost obligation whose widget encloses it, answered or not;
     failing one, about every obligation whose widget it encloses; failing those, about
@@ -391,42 +387,50 @@ def discussed_by(anchor: dict, records: list[dict], within: dict) -> list[dict]:
     a section holding the frame is about them all. `within` is the document's
     containment (`Passages.enclosing`). A datum identity narrows an owning widget's
     record obligations to the exact case being discussed.
+
+    The records are indexed once by source, prompt target and each id enclosing
+    their source, so a caller asking for every thread on the page reads each
+    thread's anchor against the indexes rather than every record again.
     """
-    section = anchor["section"]
-    chain = within.get(section, ())
     items: dict[str, list[dict]] = {}
     framed: dict[str, list[dict]] = {}
+    enclosed: dict[str, list[dict]] = {}
     for record in records:
         items.setdefault(record["source"]["id"], []).append(record)
         framed.setdefault(record["prompt"]["target"], []).append(record)
-    item = next((items[i] for i in reversed(chain) if i in items), None)
-    about = (
-        item
-        if item is not None
-        else [
+        for around in set(within.get(record["source"]["id"], ())):
+            enclosed.setdefault(around, []).append(record)
+
+    def about(anchor: dict) -> list[dict]:
+        section = anchor["section"]
+        chain = within.get(section, ())
+        item = next((items[i] for i in reversed(chain) if i in items), None)
+        held = (
+            item
+            if item is not None
+            else enclosed.get(section)
+            or next((framed[i] for i in reversed(chain) if i in framed), [])
+        )
+        datum = anchor.get("identity", anchor.get("datum"))
+        return [
             record
-            for record in records
-            if section in within.get(record["source"]["id"], ())
+            for record in held
+            if datum is None
+            or record["source"]["id"] != section
+            or "unit" not in record["source"]
+            or record["source"]["unit"] == datum
         ]
-        or next((framed[i] for i in reversed(chain) if i in framed), [])
-    )
-    datum = anchor.get("identity", anchor.get("datum"))
-    return [
-        record
-        for record in about
-        if datum is None
-        or record["source"]["id"] != section
-        or "unit" not in record["source"]
-        or record["source"]["unit"] == datum
-    ]
+
+    return about
 
 
 def thread_topics(threads: dict, records: list[dict], within: dict) -> dict[str, list]:
     """Each thread's id → the page obligations among `records` it is about
     (`discussed_by`), by the section its anchor names now; a thread with no section
     is about none."""
+    about = discussed_by(records, within)
     return {
-        identity: discussed_by(anchor, records, within)
+        identity: about(anchor)
         if (anchor := thread["anchor"]) and "section" in anchor
         else []
         for identity, thread in threads.items()
@@ -465,8 +469,9 @@ def waiting_about(
 
 def discussed(records: list[dict], anchors: list[dict], within: dict) -> None:
     """Hand each open obligation discussed by `anchors` (`discussed_by`) to the agent."""
+    about = discussed_by(records, within)
     for anchor in anchors:
-        for record in discussed_by(anchor, records, within):
+        for record in about(anchor):
             if record["next_actor"] == "user":
                 record["next_actor"] = "agent"
 
@@ -577,7 +582,7 @@ def answering_action(
             verb,
             projection,
             byid,
-            spk,
+            attribute_marks(byid, spk, registry),
             registry,
             projected_action_holders(projection, byid, registry),
             unit,
@@ -652,6 +657,7 @@ class _ObligationReducer:
         self.projection = projection
         self.byid = byid
         self.spk = spk
+        self.marks = attribute_marks(byid, spk, registry)
         self.registry = registry
         self.revision = revision
         self.events = [] if events is None else events
@@ -689,7 +695,7 @@ class _ObligationReducer:
             self._entry(record),
             self.projection,
             self.byid,
-            self.spk,
+            self.marks,
             self.registry,
             self.positioned_holders,
         )
@@ -737,7 +743,7 @@ class _ObligationReducer:
                     verb,
                     self.projection,
                     self.byid,
-                    self.spk,
+                    self.marks,
                     self.registry,
                     self.positioned_holders,
                     unit,
@@ -750,7 +756,7 @@ class _ObligationReducer:
                 verb,
                 entry["x-state"][verb],
                 self.byid,
-                self.spk,
+                self.marks,
                 self.registry,
                 self.projection,
                 answered=answered,
@@ -848,6 +854,7 @@ class _ObligationReducer:
 
         for record in self.records:
             unit = record["attrs"].get("id")
+            owned = self.projection.actions_by_owner.get(unit, {})
             record_units = self._declaration(record).get("records")
             answered = False if record_units else self._answered(record)
             if not self.exists[id(record)] and not (unit in settled_away and answered):
@@ -867,8 +874,8 @@ class _ObligationReducer:
                     history_projections,
                 )
                 or any(
-                    coordinate[0] == unit and "answer" in (held[0].get("meaning") or {})
-                    for coordinate, held in self.projection.actions.items()
+                    "answer" in (held[0].get("meaning") or {})
+                    for held in owned.values()
                 )
             )
             if (
@@ -926,7 +933,7 @@ class _ObligationReducer:
                 value_verb,
                 entry["x-state"][value_verb],
                 self.byid,
-                self.spk,
+                self.marks,
                 self.registry,
                 self.projection,
                 answered=answered,
@@ -934,17 +941,16 @@ class _ObligationReducer:
             latest_value_seq = max(
                 (
                     held[0]["seq"]
-                    for coordinate, held in self.projection.actions.items()
-                    if coordinate[0] == unit and coordinate[2] == value_verb
+                    for coordinate, held in owned.items()
+                    if coordinate[2] == value_verb
                 ),
                 default=0,
             )
             provenance = max(
                 (
                     held[0]
-                    for coordinate, held in self.projection.actions.items()
-                    if coordinate[0] == unit
-                    and held[0]["seq"] >= latest_value_seq
+                    for held in owned.values()
+                    if held[0]["seq"] >= latest_value_seq
                     and "answer" in (held[0].get("meaning") or {})
                 ),
                 key=lambda event: event["seq"],

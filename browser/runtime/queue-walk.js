@@ -487,7 +487,7 @@ export function createQueueWalk({
     const intent = retainUserIntent({ available: () => Boolean(find()) });
     const where = find();
     if (!where) return Promise.resolve(false);
-    const departure = prepareNavigationStep({ landing: find, intent });
+    const departure = prepareNavigationStep();
     departure.plan(where);
     return arrive(
       () => {
@@ -572,10 +572,14 @@ export function createQueueWalk({
       : null;
 
   // The to-do Done ends now: the one the user is on. On a card that is the card's own,
-  // even where another to-do shares its place and so its stop.
+  // even where another to-do shares its place and so its stop. The keys ask this on
+  // every keystroke (the to-do stance's `at`), so the walk's stops, which On me's groups
+  // order, are read only where a to-do waits on the user and the user stands on a place.
   function doneTodo() {
+    if (!readQueues().on_user.some((item) => item.offers.done)) return null;
     const origin = currentLocationOrigin();
-    const shown = origin?.kind === "current-location" ? cardItem(origin) : undefined;
+    if (origin?.kind !== "current-location") return null;
+    const shown = cardItem(origin);
     if (shown !== undefined) return shown?.offers.done ? shown : null;
     return doneAt(currentLocationStop(stops(), origin));
   }

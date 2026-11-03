@@ -1436,6 +1436,58 @@ def test_kernel_selectors_name_no_package_tag():
     assert leaks == [], leaks
 
 
+def test_a_sheet_both_trees_take_names_the_widgets_it_styles():
+    """A package's widget-shadow.css goes into the document's lf-base as well as each
+    shadow tree, with no scope around it (`layer.py`, `compose`), so each rule names
+    the widgets it styles: an `lf-` element or class in the document, `:host(tag)` in
+    a tree. A rule that names neither reaches the page's own elements, as the diff's
+    rules for its renderer's `data-separator` rows set the code ground and muted ink
+    on a page's own `<p data-separator>`."""
+
+    def selectors(prelude):
+        """The complex selectors of a prelude, split at its own commas only."""
+        parts = [[]]
+        for token in prelude:
+            if token.type == "literal" and token.value == ",":
+                parts.append([])
+            else:
+                parts[-1].append(token)
+        return [tinycss2.serialize(part).strip() for part in parts]
+
+    def named(selector):
+        return re.search(r"(?<![\w-])lf-|:host\b", selector) is not None
+
+    def unnamed(rules, held=False):
+        for rule in rules:
+            if rule.type == "qualified-rule":
+                here = selectors(rule.prelude)
+                if not held:
+                    yield from (selector for selector in here if not named(selector))
+                inner = tinycss2.parse_blocks_contents(rule.content, skip_comments=True)
+                yield from unnamed(inner, held or all(map(named, here)))
+            elif rule.type == "at-rule" and rule.content is not None:
+                # A keyframe's `from` and `to` select no element.
+                if rule.lower_at_keyword == "keyframes":
+                    continue
+                inner = tinycss2.parse_blocks_contents(rule.content, skip_comments=True)
+                scope = rule.lower_at_keyword == "scope"
+                prelude = tinycss2.serialize(rule.prelude)
+                yield from unnamed(inner, held or (scope and named(prelude)))
+
+    sheets = sorted(schema_model.BUNDLED_PACKAGES.glob("*/widget-shadow.css"))
+    assert sheets, "no package ships a sheet both trees take: the reading is broken"
+    leaks = [
+        f"{sheet.parent.name}: {selector}"
+        for sheet in sheets
+        for selector in unnamed(
+            tinycss2.parse_stylesheet(
+                layer_model.stylesheet(sheet, sheet.parent), skip_comments=True
+            )
+        )
+    ]
+    assert leaks == [], leaks
+
+
 def test_layout_style_and_widgets_never_read_each_other():
     """Layouts own placement, styles own type, and widgets consume their own box.
 
@@ -2115,7 +2167,8 @@ def test_the_injected_control_face_is_one_default_in_both_trees():
     shadow = schema_model.ASSETS / "shadow.css"
     control_face = (
         ":where( :is(:root, :host) .lf-ui-face, :is(:root, :host) .button, "
-        ":is(:root, :host) .field, :root main :is(button, input, select, textarea), "
+        ":is(:root, :host) .field, "
+        ":root body :is(button, input, select, textarea):not(.lf-chrome *), "
         ":host :is(button, input, select, textarea) )"
     )
     control_ink = ":where(.lf-ui-face, .button, .field)"

@@ -1152,6 +1152,20 @@ export function neighbourhood(reading, at, want, before) {
     if ([...text].length >= want || (before ? lo === edge : hi === edge)) return text;
   }
 }
+// `reading` with fences at the edges of the words `element` holds, so a neighbourhood
+// read from inside it stops there.
+/** @param {PageReading} reading @param {Element} element @returns {PageReading} */
+export function fencedAt(reading, element) {
+  const inside = reading.segments.filter(({ node }) => under(node, element));
+  const first = inside[0];
+  const last = inside.at(-1);
+  if (!first || !last) return reading;
+  const edges = [first.rawStart, last.rawStart + last.end - last.start];
+  return {
+    ...reading,
+    fences: [...new Set([...reading.fences, ...edges])].sort((a, b) => a - b),
+  };
+}
 // The reading is a function of the document and the user's settlements, so those are
 // what say when it may change. Everything it is built out of is here: the page's words
 // and their shape, the markers those words are read through, the vocabulary the markers

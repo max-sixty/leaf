@@ -1,6 +1,6 @@
 import { J, LAYOUT, LENT_REACH_STOP, PAGE_PAINT_ATTRIBUTE, PRESSES, TEXT_BOX, WORKS, Z, afterScript, atScrollEnd, clamp, clippedContents, closestAcross, deepFocus, elementFrame, eventSource, focusDestination, headerCuts, inChrome, inUi, inlineStyle, installScrollerLookup, isElement, isHTML, isText, keeps, keepsHidden, landingBand, layoutChanged, layoutPx, layoutWindow, move, nativeLayerHolding, nearObserver, nearWindow, nextFrame, nextRender, onCurrentLocation, overlaps, pagePresented, pageScroller, pressing, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, renderedParent, renderedUnder, renderingState, revealRegisteredVisualPart, revealsVisualParts, scrollContainer, scrollToEnd, scrollersOf, scrollsBy, scrollsContent, shadowHost, shellRight, shownParts, shownRect, sizeObserver, skipped, tabStops, tick, uiInside, under, union, upFrom, userScrollport, visualPartAdmission, watchArrivals, watchScrolls, wearsLentStop, whileConnected } from "./bundle-portable.js";
 import { PRESSABLE, TEXT_BLOCK, anchorKey, applicationPresented, documentChanged, fragmentId, fragmentKey, hostIn, isElementName, marks, registry, removeRuntimeRootStyle, repaintPage, reportPageError, setRuntimeRootAttribute, setRuntimeRootStyle, shadowRootsIn, tagsDeclaring } from "./bundle-layer-client.js";
-import { DATUM, authoredScope, blockAt, contextAround, cut, elementById, elementReading, excerptWords, fileModelsPassage, findQuote, inPage, layoutBox, leafSurface, neighbourhood, pageDocument, pageQueryAll, pageText, quoteFrom, rangeOf, readingFrom, segmentsIn, settledAway, spanIn, textNodesUnder } from "./bundle-passages.js";
+import { DATUM, authoredScope, blockAt, contextAround, cut, elementById, elementReading, excerptWords, fencedAt, fileModelsPassage, findQuote, inPage, layoutBox, leafSurface, neighbourhood, pageDocument, pageQueryAll, pageText, quoteFrom, rangeOf, readingFrom, segmentsIn, settledAway, spanIn, textNodesUnder } from "./bundle-passages.js";
 
 //#region runtime/presence.js
 let clockSkew = 0;
@@ -1065,19 +1065,19 @@ function anchorForPassage(segments, node) {
 	const dataNodes = new Set(segments.map((seg) => closestAcross(seg.node, DATUM)).filter(Boolean));
 	const [onlyDatum] = dataNodes;
 	const datum = dataNodes.size === 1 && segments.every((seg) => closestAcross(seg.node, "[data-lf-projection][data-lf-datum]") === onlyDatum) ? onlyDatum : null;
-	if (datum) {
-		const anchor = anchorForDatum(datum, quote ? { quote } : {});
-		if (anchor) return anchor;
-	}
+	const projected = datum && anchorForDatum(datum);
+	if (projected && !quote) return projected;
 	const section = closestAcross(holder, "[id]:not(.lf-ui):not([id^=\"lf-\"])")?.id ?? null;
 	if (!quote) return section === null ? null : { section };
-	const reading = pageText();
-	const [start, stop] = spanIn(reading, segments);
+	const page = pageText();
+	const reading = datum && projected ? fencedAt(page, datum) : page;
+	const base = projected || { section };
+	const [start, stop] = spanIn(page, segments);
 	for (let width = 24;; width *= 2) {
 		const prefix = cut(neighbourhood(reading, start, width, true), -width, Infinity);
 		const suffix = cut(neighbourhood(reading, stop, width, false), 0, width);
 		const anchor = {
-			section,
+			...base,
 			quote,
 			...prefix && { prefix },
 			...suffix && { suffix }
@@ -1308,6 +1308,7 @@ function resolveAnchor(anchor) {
 		};
 		const segments = findQuote(pageText(), anchor.quote, anchor, datum);
 		const [first] = segments;
+		if (!first && (anchor.prefix || anchor.suffix)) return null;
 		return first ? {
 			...resolvedPassage({
 				place: annotationAt(first.node, () => datum),

@@ -75,7 +75,7 @@ import { closestAcross, inPage, pageQueryAll } from "../passages.js";
 
 import { claimsEsc, saying } from "./scopes.js";
 import { repaint } from "../repaint.js";
-import { pageScroller } from "../scrolling.js";
+import { glideTo, pageScroller, stopGlide } from "../scrolling.js";
 
 // The eye's copy of the go-to map. The layer is aria-hidden because the live region and
 // Tab walk provide the same map without asking a screen reader to traverse paint chrome.
@@ -97,9 +97,7 @@ goToHintLayer.setAttribute("aria-hidden", "true");
  * @property {ReturnType<typeof import("../anchor-travel.js").createAnchorTravel>["scrollToElement"]} scrollToElement
  * @property {() => boolean} leavesOffered
  * @property {{visibleMarginEntries: () => HTMLElement[], activateMarginEntry: (element: HTMLElement) => unknown, marginEntryKind: (element: Element) => string | null} | null} marginEntries
- * @property {typeof import("../navigation.js").glideTo} glideTo
  * @property {typeof import("../navigation.js").placeThreadEdge} placeThreadEdge
- * @property {typeof import("../navigation.js").stopGlide} stopGlide
  */
 /** @param {GoToOptions} options */
 export function createGoToSequence({
@@ -110,9 +108,7 @@ export function createGoToSequence({
   scrollToElement,
   leavesOffered,
   marginEntries,
-  glideTo,
   placeThreadEdge,
-  stopGlide,
 }) {
   // How a destination in this sequence is written where the sequence itself is not on screen —
   // a notice naming the way back to a draft that has just gone down, say. Spelled off the

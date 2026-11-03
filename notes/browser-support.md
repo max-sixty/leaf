@@ -359,6 +359,17 @@ Recheck a fixed anchored box against a part-named child after scrolling its
 shadow scroller, then repeat one host deeper through `exportparts` and with a
 name read through `attr()` before lifting those limits.
 
+### Keyboard modality after a click in Firefox
+
+A thread card opened by a click keeps no ring in Firefox however the user then
+types, so nothing marks the card the thread keys act on. Playwright Chromium
+156.0.8078.4 matched `:focus-visible` on the clicked thread at the next key, Shift
+included; Playwright Firefox 157.0 never did, on 2026-11-02. `focus.js`
+(`visibleFocus`) follows the browser's answer, and the open card is the only thread
+keys reach while it is seen (`thread/landing.js`). Recheck with a probe on
+`review-a-plan`: click the first margin marker, press Shift, and read whether the
+card's `.lf-page-thread` matches `:focus-visible`.
+
 ### A stuck sticky anchor in Firefox
 
 An anchored margin row, highlight, aim or floating card can disappear or stay

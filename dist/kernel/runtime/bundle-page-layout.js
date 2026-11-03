@@ -3036,6 +3036,7 @@ const fabSuggest = responseAction(offerAction("response", "lf-fab-suggest"), {
 });
 fabOptions.append(fabSuggest);
 const fabOptionsTrigger = offerAction("symbol", "lf-response-trigger", "Other responses", { action: "more" });
+fabOptionsTrigger.setAttribute("data-lf-disc", "");
 fabOptionsTrigger.setAttribute("aria-controls", fabOptions.id);
 fabOptionsTrigger.setAttribute("aria-expanded", "false");
 fabOptionsTrigger.popoverTargetElement = fabOptions;

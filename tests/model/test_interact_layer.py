@@ -1649,7 +1649,7 @@ def test_every_press_is_built_by_role():
 # (test_interface_fonts.py), its size the density tokens the face reads (`--lf-line`,
 # `--lf-icon-action-face`), its focus ring the shared ring, and whether it shows its
 # opacity.
-_FACE = re.compile(
+_PRESS_FACE = re.compile(
     r"color|fill|stroke|box-shadow|background(-color|-image)?"
     r"|border(-(top|right|bottom|left|block|inline)(-(start|end))?)?"
     r"(-(color|width|style|radius))?|border-(\w+-){0,2}radius"
@@ -1659,13 +1659,14 @@ _FACE = re.compile(
 def _face_overrides(sheets, faces, placed, home):
     """Each rule among `sheets` that draws a press's face anywhere but its role's own
     rules: `(sheet, selector, reason)`. A rule draws a press's face when it sets one of
-    `_FACE` on an element wearing a role's face class (`faces`) or a class a role's
-    builder writes beside it (`placed`); a role's own rules stand in `home` and name the
+    `_PRESS_FACE` on an element wearing a role's face class (`faces`) or a class a role's
+    builder writes beside it (`placed`). A role's own rules stand in `home` and name the
     press by its face class, refined only by attributes and pseudo-classes, which are
-    its states and the variants it declares, so a press looks one way wherever it
-    stands. A value of `currentColor` paints in the ink the face gives the press, as a
-    disclosure arrow does, and chooses no look of its own. A subject naming only
-    elements no press is, such as a link, draws no press."""
+    its states and the variants it declares, on the press or on what holds it, as a
+    margin row says it stands as a pin; a holder named by its class or tag would let
+    one place draw a role its own way. A value of `currentColor` paints in the ink the
+    face gives the press, as a disclosure arrow does, and chooses no look of its own. A
+    subject naming only elements no press is, such as a link, draws no press."""
 
     def classes(compound):
         """The classes `compound` gives its subject, `:is()` and `:where()` arguments
@@ -1687,11 +1688,23 @@ def _face_overrides(sheets, faces, placed, home):
             previous = token
         return found, tags
 
+    def declared(compound):
+        """Whether a compound the press stands in names its holder only by what the
+        holder declares, its attributes and states, rather than by which it is."""
+        tokens = tinycss2.parse_component_value_list(compound)
+        said = [getattr(token, "value", None) for token in tokens]
+        return all(
+            token.type == "[] block"
+            or (token.type == "literal" and token.value in (":", "*"))
+            or (token.type == "ident" and at > 0 and said[at - 1] == ":")
+            for at, token in enumerate(tokens)
+        )
+
     refused = []
     for sheet in sheets:
         for _conditions, _enclosing, selector, declarations in _style_rules(sheet):
             if not any(
-                _FACE.fullmatch(name) and value.lower() != "currentcolor"
+                _PRESS_FACE.fullmatch(name) and value.lower() != "currentcolor"
                 for name, value in declarations
             ):
                 continue
@@ -1704,7 +1717,7 @@ def _face_overrides(sheets, faces, placed, home):
             reasons = [
                 *(["away from its role's rules"] if sheet.name != home else []),
                 *(f"names {name}" for name in sorted(named & placed)),
-                *(["by where it stands"] if context else []),
+                *(["by where it stands"] if not all(map(declared, context)) else []),
             ]
             if reasons:
                 refused.append((sheet, selector, ", ".join(reasons)))
@@ -1783,6 +1796,7 @@ def test_the_face_reading_refuses_what_restyles_a_press(tmp_path):
         ":is(summary, .lf-dial-depth)::before { background-color: currentColor; }\n"
         '.lf-dial-depth.lf-btn[data-lf-tone="ok"] { color: var(--ok-ink); }\n'
         ".lf-page .lf-btn { border-color: var(--accent); }\n"
+        '[data-lf-place="pin"]:hover > .lf-btn { border-color: var(--accent); }\n'
     )
     away = tmp_path / "widget.css"
     away.write_text(
@@ -1792,12 +1806,23 @@ def test_the_face_reading_refuses_what_restyles_a_press(tmp_path):
         ".lf-dial > .lf-btn:hover { box-shadow: none; }\n"
     )
     refused = _face_overrides(
-        [home, away], {"lf-icon-action", "lf-btn", "lf-row"}, {"lf-dial-depth"}, home.name
+        [home, away],
+        {"lf-icon-action", "lf-btn", "lf-row"},
+        {"lf-dial-depth"},
+        home.name,
     )
     assert [(sheet.name, selector, reason) for sheet, selector, reason in refused] == [
-        ("controls.css", '.lf-dial-depth.lf-btn[data-lf-tone="ok"]', "names lf-dial-depth"),
+        (
+            "controls.css",
+            '.lf-dial-depth.lf-btn[data-lf-tone="ok"]',
+            "names lf-dial-depth",
+        ),
         ("controls.css", ".lf-page .lf-btn", "by where it stands"),
-        ("widget.css", ".lf-dial-depth", "away from its role's rules, names lf-dial-depth"),
+        (
+            "widget.css",
+            ".lf-dial-depth",
+            "away from its role's rules, names lf-dial-depth",
+        ),
         (
             "widget.css",
             ".lf-dial > .lf-btn:hover",

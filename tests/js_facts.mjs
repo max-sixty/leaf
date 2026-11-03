@@ -302,6 +302,9 @@ function words(node, parents, seen = new Set()) {
       if (seen.has(node)) return [];
       seen.add(node);
       return words(bound(node, parents), parents, seen);
+    // Trimming a string keeps its words.
+    case "CallExpression":
+      return method(node) === "trim" ? words(node.callee.object, parents, seen) : [];
     default:
       return [];
   }

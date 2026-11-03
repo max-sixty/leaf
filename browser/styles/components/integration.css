@@ -31,8 +31,9 @@ html[data-lf-draw-mode] main {
    `.lf-mark-action`) 1px inside it. It casts no shadow: it lies on one surface, which
    the ring alone sets it apart from. Its marks stand a reach apart, so neighbouring
    reaches meet rather than overlap and the finger's wider reach widens only the
-   toolbar. A code block's Copy is such a toolbar of one mark; a draft's toolbar
-   (draft.css) stands in the same seat. */
+   toolbar. A code block's Copy is such a toolbar of one mark (`data-lf-bar`,
+   controls.css); a draft's toolbar (draft.css) stands in the same seat, and its Copy
+   is one of its marks. */
 :root {
   --lf-block-control-inset: 4px;
 }
@@ -42,9 +43,6 @@ html[data-lf-draw-mode] main {
   display: flex;
   gap: max(2px, var(--aim-floor) - var(--mark-size));
   padding: 1px;
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  background: var(--card);
 }
 /* Copy stands over its code without changing the block's box or scrolling its text.
    Standing within its block, it shows whole wherever the block does: on the block's
@@ -105,8 +103,6 @@ html[data-lf-draw-mode] main {
   width: auto;
   height: auto;
   padding: 0;
-  border: 0;
-  background: none;
   opacity: 1;
   pointer-events: auto;
 }

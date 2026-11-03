@@ -232,7 +232,8 @@ function mediaTemplate({ drawing, media, sent, removeMedia }) {
           <span class="lf-composer-media-item lf-composer-drawing">
             <button
               type="button"
-              ${offeredAction("picture", "lf-media-open lf-composer-media-open lf-media-frame")}
+              ${offeredAction("picture", "lf-media-open lf-composer-media-open")}
+              data-lf-frame
               data-lf-media-canvas
               aria-label=${`Inspect drawing, ${strokes} ${strokes === 1 ? "stroke" : "strokes"}`}
               title="Inspect drawing"
@@ -249,19 +250,22 @@ function mediaTemplate({ drawing, media, sent, removeMedia }) {
 	})}
             </button>
             <button
-              ${offeredAction("mark", "lf-corner-mark lf-composer-drawing-undo", "Undo last stroke", { action: "undo" })}
+              ${offeredAction("mark", "lf-composer-drawing-undo", "Undo last stroke", { action: "undo" })}
+              data-lf-corner
               @mousedown=${(event) => event.preventDefault()}
               @click=${drawing.undoStroke}
             ></button>
             <button
-              ${offeredAction("mark", "lf-corner-mark", "Remove drawing", { action: "remove" })}
+              ${offeredAction("mark", "", "Remove drawing", { action: "remove" })}
+              data-lf-corner
               @mousedown=${(event) => event.preventDefault()}
               @click=${drawing.removeDrawing}
             ></button>
           </span>
         ` : null, media.map(({ index, url }) => {
 		const remove = html`<button
-        ${offeredAction("mark", "lf-corner-mark lf-composer-media-remove", `Remove attached image ${index + 1}`, { action: "remove" })}
+        ${offeredAction("mark", "lf-composer-media-remove", `Remove attached image ${index + 1}`, { action: "remove" })}
+        data-lf-corner
         @click=${() => removeMedia(index)}
       ></button>`;
 		return sent ? html`<p class="lf-composer-media-item">
@@ -276,7 +280,8 @@ function mediaTemplate({ drawing, media, sent, removeMedia }) {
           </p>` : html`<span class="lf-composer-media-item">
             <button
               type="button"
-              ${offeredAction("picture", "lf-media-open lf-composer-media-open lf-media-frame")}
+              ${offeredAction("picture", "lf-media-open lf-composer-media-open")}
+              data-lf-frame
               data-lf-media-url=${url}
               aria-label=${`View attached image ${index + 1}`}
             >
@@ -478,6 +483,8 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 				action: actionWord(),
 				title: sendKeys ? `${action} (${sendKeys})${newline}` : action
 			})}
+        ?data-lf-disc=${!submitIn}
+        data-lf-tone="accent"
         aria-disabled=${String(!canSend())}
         ?data-lf-empty=${!hasWords}
         ?hidden=${micShown}
@@ -519,6 +526,8 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 				title: live || !status ? micAction : `${micAction} (${status})`
 			})}
             ?hidden=${!micShown}
+            data-lf-disc
+            data-lf-tone=${dictationState === "failed" ? "negative" : nothing}
             data-dictation=${dictationState}
             aria-pressed=${String(live)}
             aria-description=${status || nothing}
@@ -5928,7 +5937,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
         ${peek?.content ?? nothing}
       </div>
       <button
-        ${offeredAction("mark", "lf-corner-mark lf-fp-minimize", "Fold to the leaf", { action: "minimize" })}
+        ${offeredAction("mark", "lf-fp-minimize", "Fold to the leaf", { action: "minimize" })}
+        data-lf-corner
         tabindex="-1"
         @click=${() => foldPanel()}
       ></button>
@@ -6197,7 +6207,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		});
 		return general;
 	}
-	const replyOutlet = el("div", "lf-fp-reply");
+	const replyOutlet = el("div", "lf-fp-reply-outlet");
 	const replyInput = () => replyOutlet.querySelector(TEXT_FIELD);
 	const replyOptions = /* @__PURE__ */ new Map();
 	const replyOptionsFor = (key) => {
@@ -8053,6 +8063,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
             ></button>` : nothing}<button
         type="button"
         ${offeredAction("symbol", `lf-fp-settle ${thread.resolved ? "lf-reopen" : "lf-resolve"}`, thread.resolved ? "Reopen" : "Resolve thread", { action: thread.resolved ? "reopen" : "resolve" })}
+        data-lf-disc
+        data-lf-tone=${thread.resolved ? "positive" : "ink"}
         @click=${() => {
 			if (!thread.resolved) dismissReply(thread.key);
 			settleThread({

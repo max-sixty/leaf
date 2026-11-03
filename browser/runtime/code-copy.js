@@ -90,6 +90,9 @@ function prepareCodeBlock(pre, source, noun) {
       success: `${noun.charAt(0).toUpperCase()}${noun.slice(1)} copied`,
       error: `Unable to copy ${noun}`,
     });
+    // Alone, the mark is a toolbar of its own (controls.css); a seat that holds it
+    // among other marks, as a draft's toolbar does, takes this away.
+    control.toggleAttribute("data-lf-bar", true);
     control.addEventListener(
       "click",
       (event) => {

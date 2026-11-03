@@ -393,13 +393,8 @@ lf-option > .lf-key-badge {
 lf-options:has(> lf-option > strong) > lf-option > .lf-key-badge {
   top: 8px;
 }
-/* Done completes a multiple-choice obligation. Its pressed state paints the answer without
- * writing into the author's markup; it is the joined control's final cell. */
-lf-options > lf-options-done > .lf-done[aria-pressed="true"] {
-  color: var(--ok-ink);
-  border-color: var(--ok);
-  background: var(--ok-tint);
-}
+/* Done completes a multiple-choice obligation; pressed, it wears the commit's ok tone
+ * (controls.css). It is the joined control's final cell. */
 lf-options > lf-options-done {
   position: relative;
   display: grid;

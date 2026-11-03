@@ -986,6 +986,8 @@ export class ThreadView {
       ${offeredAction("symbol", reopen ? "lf-reopen" : "lf-resolve", label, {
         action: reopen ? "reopen" : "resolve",
       })}
+      data-lf-disc
+      data-lf-tone=${reopen ? "positive" : "ink"}
       ${commandsOn(`On a thread's ${word} button`, (button) => [
         {
           id: reopen ? "thread.reopen" : "thread.resolve",

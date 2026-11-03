@@ -2306,6 +2306,7 @@ function prepareCodeBlock(pre, source, noun) {
 			success: `${noun.charAt(0).toUpperCase()}${noun.slice(1)} copied`,
 			error: `Unable to copy ${noun}`
 		});
+		control.toggleAttribute("data-lf-bar", true);
 		control.addEventListener("click", (event) => {
 			if (pressedElsewhere(event, control)) {
 				event.preventDefault();
@@ -6018,6 +6019,8 @@ var ThreadView = class {
 		const label = reopen && model.resolvedBy ? `${model.resolvedBy} · ${state.label}` : state.label;
 		return html`<button
       ${offeredAction("symbol", reopen ? "lf-reopen" : "lf-resolve", label, { action: reopen ? "reopen" : "resolve" })}
+      data-lf-disc
+      data-lf-tone=${reopen ? "positive" : "ink"}
       ${commandsOn(`On a thread's ${word} button`, (button) => [{
 			id: reopen ? "thread.reopen" : "thread.resolve",
 			keys: PRESS,

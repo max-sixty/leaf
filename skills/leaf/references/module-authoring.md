@@ -427,26 +427,33 @@ face, symbol and name to an existing node. The roles are:
 - `"symbol"`, a press showing the symbol of its `action`, one of Leaf's actions
   (`module-reading.md`, "Icons"). Its tooltip and accessible name are the action's
   name, or `label` where that says more; `title` replaces the tooltip where it says
-  more still, such as the key that does the same.
+  more still, such as the key that does the same. One that opens a menu keeps its
+  chip while `aria-expanded="true"`.
 - `"word"`, a press whose words, `label`, say what it does; a toggle adds
   `aria-pressed`.
-- `"commit"`, the one press on a surface that commits the user's work.
-- `"mark"`, a small symbol at a corner of the thing it acts on, naming its `action`.
+- `"commit"`, the one press on a surface that commits the user's work; pressed
+  (`aria-pressed="true"`) once that work is done.
+- `"mark"`, a small symbol at a corner of the thing it acts on, naming its `action`;
+  `data-lf-corner` stands it on a patch of its ground there.
 - `"inline"`, a press read as part of its line of words, such as a quote's "Full
   quote", drawn in the accent; one saying a warning takes `data-lf-tone="warn"`.
 - `"row"`, one row of a list or menu, washed under the pointer or the keys; the row the
-  list stands on, such as a timeline's step, takes `aria-current`, drawn in the accent.
+  list stands on, such as a timeline's step, takes `aria-current`, drawn in the accent,
+  and a step still ahead of it `data-lf-ahead`, muted.
 - `"answer"`, one of a question's answers; the chosen one takes `aria-pressed="true"`.
 - `"entry"`, a margin entry, which Leaf builds.
 - `"reaction"`, a message's reaction, `aria-pressed="true"` in force.
 - `"response"`, a response bar's choice, which Leaf builds.
 - `"gutter"`, a code line's number that takes a comment.
-- `"picture"`, a picture that opens in the media viewer.
+- `"picture"`, a picture that opens in the media viewer; `data-lf-frame` frames one
+  the press crops.
 - `"fold"`, the line a folded group stands as, which opens it (`aria-expanded`).
 - `"proxy"`, a hidden keyboard stand-in for something the pointer takes by itself, such
   as a phrase that explains; give that thing the ring its focus draws.
 
-`className` places the control; don't restyle its face. Use a symbol where a standard
+`className` places the control; don't restyle its face: its ink, ground, border and
+shadow are the role's, and differ only by the attributes above. A stylesheet may set
+its type, size and placement. Use a symbol where a standard
 symbol for the action exists, one readers know from other software, and words where
 none does.
 Shared control styles (`page-layout.md`, "Page CSS and Leaf's controls") apply to

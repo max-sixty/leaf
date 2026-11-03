@@ -288,7 +288,7 @@ export function render(host, current, model, layout) {
               tabindex="0"
               data-step=${index}
               aria-current=${index === current ? "step" : nothing}
-              ?data-past=${index < current}
+              ?data-lf-ahead=${index > current}
             >
               <span class="lf-timeline-step-time lf-row-lead">${clock(step.time)}</span>
               ${step.events.map((event, order) => {

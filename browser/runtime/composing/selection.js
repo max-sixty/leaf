@@ -125,6 +125,7 @@ export const fabOptionsTrigger = offerAction(
   "Other responses",
   { action: "more" },
 );
+fabOptionsTrigger.setAttribute("data-lf-disc", "");
 fabOptionsTrigger.setAttribute("aria-controls", fabOptions.id);
 fabOptionsTrigger.setAttribute("aria-expanded", "false");
 fabOptionsTrigger.popoverTargetElement = fabOptions;

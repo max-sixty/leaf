@@ -30,7 +30,7 @@
     --lf-fp-faint: color-mix(in srgb, var(--ink) 8%, transparent);
     --lf-fp-hover: color-mix(in srgb, var(--ink) 5%, transparent);
     /* What the panel raises, its corner marks and attached pictures, meets its ground
-       (controls.css, `.lf-corner-mark`; response.css, `.lf-composer-media`). */
+       (controls.css, `data-lf-corner`; response.css, `.lf-composer-media`). */
     --lf-ground: var(--lf-fp-surface);
     --lf-ring: var(--lf-fp-ring);
     --lf-fp-folded: 42px;
@@ -359,9 +359,9 @@
      the card's, so the panel leaves them out, matching the card's own selectors. */
   .lf-fp-editors,
   .lf-fp-box,
-  .lf-fp-reply,
-  .lf-fp-reply > .lf-primary-part,
-  .lf-fp-reply .lf-thread-reply,
+  .lf-fp-reply-outlet,
+  .lf-fp-reply-outlet > .lf-primary-part,
+  .lf-fp-reply-outlet .lf-thread-reply,
   .lf-fp-field .lf-compose-field {
     flex: 1;
     min-width: 0;
@@ -1313,11 +1313,6 @@
   :is(.lf-fp-thread, .lf-fp-on-line)[data-resolved] .lf-fp-label {
     color: var(--muted);
   }
-  /* The row half of the mark the pointer is indicating (anchor-paint.js, `markRow`):
-     its passage's hover wash, so the row and the lit words read as one thread. */
-  .lf-fp-thread.lf-mark-hover {
-    background: var(--mark-hover);
-  }
   /* The words a thread in the panel is about, over its messages, as a card's head
      quotes them (chrome.css, `.lf-quote`): three lines, the whole on Full quote, its
      press above the words it grows (floating-panel.js, `quoteHead`). */
@@ -1370,8 +1365,6 @@
     gap: 8px;
     min-height: 34px;
     padding: 5px 8px;
-    color: inherit;
-    text-decoration: none;
   }
   .lf-fp-page .lf-dot {
     --lf-mark-w: 14px;

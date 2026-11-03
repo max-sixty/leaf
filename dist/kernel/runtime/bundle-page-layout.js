@@ -6569,7 +6569,6 @@ function paintShape(host, geometry, { left, top, right, bottom }, options = {}) 
 function paintStand(box = null) {
 	const root = document.createElement("div");
 	root.className = "lf-ui lf-target-paint lf-paint-stand";
-	root.setAttribute("aria-hidden", "true");
 	root.style.position = "fixed";
 	const carrier = document.createElement("div");
 	carrier.className = "lf-paint-carrier";

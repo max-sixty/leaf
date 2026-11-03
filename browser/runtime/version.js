@@ -587,12 +587,17 @@ const diffMarked = new Set();
  * @typedef {Readonly<{blocks: readonly Element[], removed: readonly Removed[], at: Element, after: boolean}>} Change */
 /** @type {readonly Change[]} */
 let diffChanges = [];
+// Where each block a change took out stood among the base version's blocks, so its card
+// reads it in its place (`changeRedline`).
+/** @type {WeakMap<Removed, number>} */
+const stoodAt = new WeakMap();
 // The change whose card stands open (margin-bars.js), one at a time.
 /** @type {Change | null} */
 let cardOpen = null;
-// The marked blocks the base held an element of the same id for.
-/** @type {Set<Element>} */
-const diffPaired = new Set();
+// The marked blocks the base held an element of the same id for, each with where that
+// element stood among the base's blocks, or null where it is not one of them.
+/** @type {Map<Element, number | null>} */
+const diffPaired = new Map();
 // What each marked block said in the base version and says in this version's source.
 // The marks say a block changed; these say what it changed from, on its change's card,
 // so learning it costs no travel to the other version and back.
@@ -915,6 +920,7 @@ function changedSince(base, current = currentSource()) {
     kept,
     removedAt: new Map([...removedAt].map(([block, list]) => [block, takenOut(list)])),
     trailing: takenOut(pending),
+    order: new Map(baseBlocks.map(([block], i) => [block, i])),
   };
 }
 // The view a block stands in, which shows and hides as one: the nearest `details`
@@ -1046,7 +1052,7 @@ function applyDiff(doc, baseAuthored, baseRevision, baseReading) {
     throw new Error("A comparison revision must contain its authored document");
   const base = paintedSource(source, baseWidgets);
   const current = currentSource();
-  const { changed, kept, removedAt, trailing } = changedSince(base, current);
+  const { changed, kept, removedAt, trailing, order } = changedSince(base, current);
   for (const block of changed) mark(block);
   // The state half: block keys catch words, and a pure state change — a card
   // in a different column, a pick on a different option — has no text of its
@@ -1114,7 +1120,8 @@ function applyDiff(doc, baseAuthored, baseRevision, baseReading) {
   // would keep two more documents alive for the life of the comparison.
   const opaque = diffOpaqueSel();
   for (const block of diffMarked) {
-    if (block.id && base.doc.getElementById(block.id)) diffPaired.add(block);
+    const paired = block.id ? base.doc.getElementById(block.id) : null;
+    if (paired) diffPaired.set(block, order.get(paired) ?? null);
     if (!block.matches(ADDRESSABLE) || block.closest(opaque)) continue;
     const [was, is] = [base, current].map(({ doc }) => doc.getElementById(block.id));
     diffWordsOf.set(block, {
@@ -1124,14 +1131,16 @@ function applyDiff(doc, baseAuthored, baseRevision, baseReading) {
   }
   // What each base block a hunk took out said, read while its source is in hand.
   const takenOut = (/** @type {Element[]} */ blocks) =>
-    blocks.map((block) =>
-      Object.freeze({
+    blocks.map((block) => {
+      const record = Object.freeze({
         id: block.id,
         tag: block.localName,
         word: addressableWord(block),
         words: block.matches(opaque) ? "" : comparisonWords(block, opaque),
-      }),
-    );
+      });
+      stoodAt.set(record, /** @type {number} */ (order.get(block)));
+      return record;
+    });
   diffChanges = changeRuns(
     diffMarked,
     kept,
@@ -1206,35 +1215,46 @@ const shows = (/** @type {Change} */ { blocks, removed }) =>
 // A block's kind on the card, which keeps a heading and code recognisable.
 const kindOf = (/** @type {string} */ tag) =>
   /^h[1-6]$/.test(tag) ? "heading" : tag === "pre" ? "code" : "text";
-/** What a change's card reads: the base blocks it took out, struck; a block that kept its
- * id as the word diff of its two versions; and its other blocks as the page shows them.
+/** What a block of a change reads on its card: the word diff of its two versions where it
+ * kept its id and changed its words; inserted where the base had no element of its id;
+ * and otherwise as the page shows it.
+ * @param {Element} block @returns {RedlineBlock} */
+function redlineOf(block) {
+  const kind = kindOf(block.localName);
+  const words = blockWords(block);
+  if (words?.was != null && words.is != null && words.was !== words.is)
+    return { kind, runs: alignInlineText(words.was, words.is) };
+  const text = words?.is ?? (comparisonWords(block) || addressableWord(block));
+  return { kind, runs: [{ kind: diffPaired.has(block) ? "same" : "insert", text }] };
+}
+/** What a change's card reads: each of its blocks as `redlineOf` reads it, and each base
+ * block it took out, struck, after the last of its blocks whose base version stood
+ * before it, so the card reads in the base's order where the two versions share it.
  * Null where it has nothing to show, as for a pure state change, a card moved or an
  * option picked, which reads on the page itself.
  * @param {Change} change @returns {{account: string, versions: string, blocks: RedlineBlock[]} | null} */
 export function changeRedline(change) {
   const base = diffOn.value ? diffBase.value : null;
   if (!base || !shows(change)) return null;
-  const read = change.blocks.map((block) => ({ block, words: blockWords(block) }));
-  /** @type {RedlineBlock[]} */
-  const blocks = change.removed.map(({ tag, word, words }) => ({
-    kind: kindOf(tag),
-    runs: [{ kind: "delete", text: words || word }],
-  }));
-  for (const { block, words } of read) {
-    const kind = kindOf(block.localName);
-    if (words?.was != null && words.is != null && words.was !== words.is)
-      blocks.push({ kind, runs: alignInlineText(words.was, words.is) });
-    else
-      blocks.push({
-        kind,
-        runs: [
-          {
-            kind: "same",
-            text: words?.is ?? (comparisonWords(block) || addressableWord(block)),
-          },
-        ],
-      });
-  }
+  /** @param {Removed} record */
+  const placeOf = (record) =>
+    change.blocks.findLastIndex(
+      (block) =>
+        (diffPaired.get(block) ?? Infinity) <
+        /** @type {number} */ (stoodAt.get(record)),
+    ) + 1;
+  /** @param {number} place @returns {RedlineBlock[]} */
+  const struck = (place) =>
+    change.removed
+      .filter((record) => placeOf(record) === place)
+      .map(({ tag, word, words }) => ({
+        kind: kindOf(tag),
+        runs: [{ kind: "delete", text: words || word }],
+      }));
+  const blocks = [
+    ...change.blocks.flatMap((block, place) => [...struck(place), redlineOf(block)]),
+    ...struck(change.blocks.length),
+  ];
   return {
     account: changeAccount(change),
     versions: `${base.name} → ${currentVersionToken()}`,

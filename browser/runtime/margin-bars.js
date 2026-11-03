@@ -37,10 +37,12 @@
    (margin-projection.js, `refreshHighlight`), stands in one outline round all its blocks
    or its gap (`outlineChange`), which says how far the change reaches before the press.
    The open change's card (version.js, `changeRedline`) stands over the change, the
-   width of its blocks: what it took out struck, the words a block that kept its id lost
-   and gained, and its other blocks as the page shows them. It covers what follows the
-   change while it stands, and the page under it never moves. Escape or the entry's press
-   again closes it.
+   width of its blocks, and reads the change in order: what it took out struck, the words
+   a block that kept its id lost and gained, and a new block as inserted. It covers what
+   follows the change while it stands, and the page under it never moves; a redline
+   longer than the window scrolls inside it. Escape or the entry's press again closes it.
+   It is read, so assistive technology reaches it as the entry's disclosure, where the
+   bars and the outline are empty boxes it passes over.
 
    Each box is paint over the page (target-paint-geometry.js, `paintSet`), standing in
    the planes that carry its target, so a scroll moves it without a write and the

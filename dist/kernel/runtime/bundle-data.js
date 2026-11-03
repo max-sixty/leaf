@@ -8264,8 +8264,9 @@ const comparisonGeneration = Z(0);
 const diffPendingBase = Z(null);
 const diffMarked = /* @__PURE__ */ new Set();
 let diffChanges = [];
+const stoodAt = /* @__PURE__ */ new WeakMap();
 let cardOpen = null;
-const diffPaired = /* @__PURE__ */ new Set();
+const diffPaired = /* @__PURE__ */ new Map();
 const diffWordsOf = /* @__PURE__ */ new Map();
 let diffRequest = 0;
 const comparisonTextNodes = (root, opaque = diffOpaqueSel()) => textNodesUnder(root, "wrote", (child) => child.matches(opaque));
@@ -8462,7 +8463,8 @@ function changedSince(base, current = currentSource()) {
 		changed,
 		kept,
 		removedAt: new Map([...removedAt].map(([block, list]) => [block, takenOut(list)])),
-		trailing: takenOut(pending)
+		trailing: takenOut(pending),
+		order: new Map(baseBlocks.map(([block], i) => [block, i]))
 	};
 }
 function viewOf(block, controls) {
@@ -8558,7 +8560,7 @@ function applyDiff(doc, baseAuthored, baseRevision, baseReading) {
 	if (!source) throw new Error("A comparison revision must contain its authored document");
 	const base = paintedSource(source, baseWidgets);
 	const current = currentSource();
-	const { changed, kept, removedAt, trailing } = changedSince(base, current);
+	const { changed, kept, removedAt, trailing, order } = changedSince(base, current);
 	for (const block of changed) mark(block);
 	for (const [id, now] of readApplication().effective.widgets) {
 		const before = baseWidgets.get(id);
@@ -8590,7 +8592,8 @@ function applyDiff(doc, baseAuthored, baseRevision, baseReading) {
 	}
 	const opaque = diffOpaqueSel();
 	for (const block of diffMarked) {
-		if (block.id && base.doc.getElementById(block.id)) diffPaired.add(block);
+		const paired = block.id ? base.doc.getElementById(block.id) : null;
+		if (paired) diffPaired.set(block, order.get(paired) ?? null);
 		if (!block.matches("[id]:not(.lf-ui):not([id^=\"lf-\"])") || block.closest(opaque)) continue;
 		const [was, is] = [base, current].map(({ doc }) => doc.getElementById(block.id));
 		diffWordsOf.set(block, {
@@ -8598,12 +8601,16 @@ function applyDiff(doc, baseAuthored, baseRevision, baseReading) {
 			is: is ? comparisonWords(is, opaque) : null
 		});
 	}
-	const takenOut = (blocks) => blocks.map((block) => Object.freeze({
-		id: block.id,
-		tag: block.localName,
-		word: addressableWord(block),
-		words: block.matches(opaque) ? "" : comparisonWords(block, opaque)
-	}));
+	const takenOut = (blocks) => blocks.map((block) => {
+		const record = Object.freeze({
+			id: block.id,
+			tag: block.localName,
+			word: addressableWord(block),
+			words: block.matches(opaque) ? "" : comparisonWords(block, opaque)
+		});
+		stoodAt.set(record, order.get(block));
+		return record;
+	});
 	diffChanges = changeRuns(diffMarked, kept, new Map([...removedAt].map(([block, gone]) => [block, takenOut(gone)])), takenOut(trailing));
 	return diffChanges.length;
 }
@@ -8658,34 +8665,34 @@ const shows = ({ blocks, removed }) => removed.length > 0 || blocks.some((block)
 	return words && words.was !== words.is;
 });
 const kindOf = (tag) => /^h[1-6]$/.test(tag) ? "heading" : tag === "pre" ? "code" : "text";
+function redlineOf(block) {
+	const kind = kindOf(block.localName);
+	const words = blockWords(block);
+	if (words?.was != null && words.is != null && words.was !== words.is) return {
+		kind,
+		runs: alignInlineText(words.was, words.is)
+	};
+	const text = words?.is ?? (comparisonWords(block) || addressableWord(block));
+	return {
+		kind,
+		runs: [{
+			kind: diffPaired.has(block) ? "same" : "insert",
+			text
+		}]
+	};
+}
 function changeRedline(change) {
 	const base = diffOn.value ? diffBase.value : null;
 	if (!base || !shows(change)) return null;
-	const read = change.blocks.map((block) => ({
-		block,
-		words: blockWords(block)
-	}));
-	const blocks = change.removed.map(({ tag, word, words }) => ({
+	const placeOf = (record) => change.blocks.findLastIndex((block) => (diffPaired.get(block) ?? Infinity) < stoodAt.get(record)) + 1;
+	const struck = (place) => change.removed.filter((record) => placeOf(record) === place).map(({ tag, word, words }) => ({
 		kind: kindOf(tag),
 		runs: [{
 			kind: "delete",
 			text: words || word
 		}]
 	}));
-	for (const { block, words } of read) {
-		const kind = kindOf(block.localName);
-		if (words?.was != null && words.is != null && words.was !== words.is) blocks.push({
-			kind,
-			runs: alignInlineText(words.was, words.is)
-		});
-		else blocks.push({
-			kind,
-			runs: [{
-				kind: "same",
-				text: words?.is ?? (comparisonWords(block) || addressableWord(block))
-			}]
-		});
-	}
+	const blocks = [...change.blocks.flatMap((block, place) => [...struck(place), redlineOf(block)]), ...struck(change.blocks.length)];
 	return {
 		account: changeAccount(change),
 		versions: `${base.name} → ${currentVersionToken()}`,

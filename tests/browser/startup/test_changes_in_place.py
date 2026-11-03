@@ -226,6 +226,37 @@ def test_a_paragraph_removed_is_a_change_at_its_gap(browser, serve):
     expect(card).to_have_count(0)
 
 
+def test_a_change_s_card_reads_it_in_order(browser, serve):
+    """A change's card reads it in the order the reader met it: a paragraph the revision
+    took out between two it edited stands struck between their word diffs, and a new
+    paragraph reads as inserted. Assistive technology reaches the card as the entry's
+    disclosure, and a redline taller than the window scrolls inside the card."""
+    long = " ".join(["Beta reads one way."] * 150)
+    url = live_url(serve(PAGE.replace("Beta reads one way.", long)))
+    revise(
+        serve.page_dir,
+        ("Alpha stays as it was.", "Alpha reads another way."),
+        (f'<p id="b">{long}</p>\n', ""),
+        ("Gamma stays as it was.</p>", "Gamma reads another way.</p>\n<p>Epsilon.</p>"),
+    )
+    page = open_page(browser, url)
+    compare_with(page, 1)
+    page.keyboard.press("Escape")
+    page.locator('[data-lf-margin-for="a"] [data-lf-kinds~="change"]').click()
+    card = page.get_by_role("group", name="2 paragraphs edited, 1 replaced by 1")
+    expect(card).to_be_visible()
+    lines = card.locator(".lf-change-card-block")
+    expect(lines).to_have_count(4)
+    expect(lines.nth(0).locator("del")).to_have_text("Alpha stays as it was.")
+    expect(lines.nth(0).locator("ins")).to_have_text("Alpha reads another way.")
+    expect(lines.nth(1).locator("del")).to_have_text(long)
+    expect(lines.nth(2)).to_contain_text("Gamma")
+    expect(lines.nth(3).locator("ins")).to_have_text("Epsilon.")
+    assert card.evaluate(
+        "card => card.offsetHeight <= innerHeight && card.scrollHeight > card.clientHeight"
+    ), "the long redline doesn't scroll inside a card that fits the window"
+
+
 def _comment_on(d, section, words, revision=1):
     return append_command(
         d,

@@ -286,7 +286,7 @@
 
     "runtime/llm-api.js": "a1d45811caba7e683fca30326d7a5b0c6f483e6f90067d35e138f822b38780c1",
 
-    "runtime/margin-bars.js": "296797ed9f7c37d62a5e95d75c065bd1a744a6f08831ffa460f344402f258b2c",
+    "runtime/margin-bars.js": "3522b207a3b2529e7ac2b1da4c2da6370c3551fb56ca8201f0a81769959c5c45",
 
     "runtime/margin-map-model.js": "942b6caaba45dc8744c8164b631d1663875790ef71f0d56cf3926c2312a3b455",
 
@@ -456,7 +456,7 @@
 
     "runtime/tab-store.js": "a290fcf97023d587200d0efe7bd5e122d4d79ca4b77a058af25174824ca9d6e6",
 
-    "runtime/target-paint-geometry.js": "7f700bfb6446fa2706a8eaee3e04591c5b51bf61aa1eb98fd97ab8c3c0097926",
+    "runtime/target-paint-geometry.js": "a083fcd7e5d472e5db9e75c58ee4851e1a5b7e3b7041d92dd48a88a9628037f2",
 
     "runtime/target-paint.js": "d6f5bc9d5f464039b5ae9ddf654010cebabf6b22e6a905135243a6af01a1a4b4",
 
@@ -538,7 +538,7 @@
 
     "runtime/version-signal.js": "2fd7de64264ad0318dbb2e7e8e44ec4a576f84c4f8f128e240f57f595dbedbeb",
 
-    "runtime/version.js": "cf4b18dad0336082438afea459d1f129b6284dd4997e78ccfc2b197f02b7c923",
+    "runtime/version.js": "9349f70a3153d05e475d2e68d51ef44999214e5f26b2cd335ad2e03d39eebe36",
 
     "runtime/video-controls.js": "edeb26d5b544ecd5a1099a06146a6ce10baf214be6c172c66abe1fe535ec8f47",
 

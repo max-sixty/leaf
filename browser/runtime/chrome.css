@@ -1163,10 +1163,16 @@ html[data-lf-region-capture] main * {
   /* What a change replaced, over the change (margin-bars.js): a card lifted over the
      page, its words in the document's face, the old struck as an edit's deletion and the
      new tinted as its insertion. */
+  /* A long redline scrolls inside the card, which stays short enough to read whole
+     above the floating panel's room. */
   .lf-change-card {
     position: absolute;
     display: grid;
+    align-content: start;
     gap: 0.5em;
+    max-block-size: calc(100dvh - var(--lf-foot-room) - 2rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
     padding: 9px 12px 12px;
     border: 1px solid var(--border-2);
     border-radius: var(--r);

@@ -110,8 +110,8 @@ conversations:
         new_string: |-
           <p id="cache-findings-body">
                     LRU hits 81% of queries and stays under 1.9 GB, but a result can be 41
-                    minutes old at p95. TTL hits 74% and keeps results within four minutes, at
-                    up to 2.6 GB.
+                    minutes old at p95. TTL hits 74% and keeps every result under five minutes
+                    old, at up to 2.6 GB.
                   </p>
       result: The file {page}/index.html has been updated successfully.
   cache-chosen:
@@ -121,10 +121,7 @@ conversations:
       input:
         file_path: search/cache.py
         old_string: "        return self._search(query)"
-        new_string: |-
-          if flags.get("search.cache") == "lru":
-                      return self._lru.get_or_compute(query.key, lambda: self._search(query))
-                  return self._search(query)
+        new_string: "        if flags.get(\"search.cache\") == \"lru\":\n            return self._lru.get_or_compute(query.key, lambda: self._search(query))\n        return self._search(query)"
       result: The file search/cache.py has been updated successfully.
     - tool: Bash
       input:
@@ -138,8 +135,9 @@ conversations:
           Two eviction policies, simulated on last week's query log: LRU at 50,000
                   entries and TTL at five minutes.
         new_string: |-
-          The search API caches results with LRU eviction at 50,000 entries, since
-                  memory is the constraint on the search hosts.
+          The search API's result cache evicts by LRU at 50,000 entries, since memory is
+                  the constraint on the search hosts. It serves where the search.cache flag
+                  is lru.
       result: The file {page}/index.html has been updated successfully.
     - assistant: >-
         The LRU cache is in `search/cache.py`, behind the `search.cache` flag, and the
@@ -217,8 +215,8 @@ replies:
   cache: &cache-reply
     assistant: >-
       Both are on the page now. LRU hits 81% of queries and stays under 1.9 GB, but
-      at p95 a result is 41 minutes old; TTL hits 74% and keeps results within four
-      minutes, at up to 2.6 GB. Do you want the LRU cache, for its hit rate and
+      at p95 a result is 41 minutes old; TTL hits 74% and keeps every result under
+      five minutes old, at up to 2.6 GB. Do you want the LRU cache, for its hit rate and
       bounded memory, or the TTL cache, for fresher results? I'll wire up whichever
       you pick.
   flaky: &flaky-reply
@@ -258,8 +256,8 @@ cases:
         obligation: true
         text: >-
           LRU hits 81% of queries within 1.9 GB but serves results up to 41 minutes
-          old at p95; TTL hits 74% and keeps them within four minutes, at up to 2.6
-          GB. Which should I wire up?
+          old at p95; TTL hits 74% and keeps every result under five minutes old, at
+          up to 2.6 GB. Which should I wire up?
     conversation:
       - from: cache
       - tool: Bash
@@ -267,8 +265,8 @@ cases:
           command: >-
             leaf thread create {page} --obligation --title "LRU or TTL for the result
             cache" --text "LRU hits 81% of queries within 1.9 GB but serves results up
-            to 41 minutes old at p95; TTL hits 74% and keeps them within four minutes,
-            at up to 2.6 GB. Which should I wire up?"
+            to 41 minutes old at p95; TTL hits 74% and keeps every result under five
+            minutes old, at up to 2.6 GB. Which should I wire up?"
           description: Ask on the page which policy to wire up
         result: '{"kind": "comment", "id": "q1", "author": "agent", "title": "LRU or TTL for the result cache", "obligation": true}'
       - *cache-reply

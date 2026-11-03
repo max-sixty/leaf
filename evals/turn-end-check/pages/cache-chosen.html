@@ -7,15 +7,16 @@
     <main class="layout-column">
       <h1 id="cache-title">A result cache for the search API</h1>
       <p class="lede" id="cache-lede">
-        The search API caches results with LRU eviction at 50,000 entries, since memory
-        is the constraint on the search hosts.
+        The search API's result cache evicts by LRU at 50,000 entries, since memory is
+        the constraint on the search hosts. It serves where the search.cache flag is
+        lru.
       </p>
       <section id="cache-findings" class="layout-flow">
         <h2>What the simulation found</h2>
         <p id="cache-findings-body">
           LRU hits 81% of queries and stays under 1.9 GB, but a result can be 41 minutes
-          old at p95. TTL hits 74% and keeps results within four minutes, at up to 2.6
-          GB.
+          old at p95. TTL hits 74% and keeps every result under five minutes old, at up
+          to 2.6 GB.
         </p>
       </section>
       <section id="cache-change" class="layout-flow">

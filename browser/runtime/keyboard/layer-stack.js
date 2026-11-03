@@ -65,6 +65,7 @@ import {
   releaseFocus,
   closeLayer,
   focused,
+  focusDestination,
   handBack,
   canPlaceFocus,
 } from "../focus.js";
@@ -210,6 +211,20 @@ export function showNativeLayer(layer, { source, modal = true } = {}) {
   } finally {
     if (withholdFocus) layer.inert = false;
   }
+}
+
+// A press on the control that opens a popover, such as a menu of choices hung from a
+// trigger. While the popover is open, the press closes it. Otherwise it opens the
+// popover from the control and moves the user to `arrival`, the control inside it that
+// the user acts on next. Focus moves to the control first, since Safari and Firefox on
+// macOS leave a pressed button unfocused, so closing the popover returns the user to
+// the control.
+/** @param {HTMLElement} layer @param {HTMLElement} source @param {Element | null} [arrival] */
+export function toggleNativeLayer(layer, source, arrival = null) {
+  if (isNativeLayer(layer)) return closeNativeLayer(layer);
+  focusDestination(source, "press");
+  showNativeLayer(layer, { source });
+  if (arrival) focusDestination(arrival, "move");
 }
 
 // Native modal entry preserves its source popover only when the modal stands inside

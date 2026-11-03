@@ -543,7 +543,7 @@ export function createPlayground(host) {
             ${submitWords(chosen())}
           </button>
           <div
-            class="lf-playground-instruction"
+            class="lf-playground-instruction lf-popover"
             id=${instructionId}
             popover="auto"
             role="dialog"

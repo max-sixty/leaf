@@ -137,7 +137,9 @@ pass it as `trigger` instead. Set its `value` before it copies, and it reports
 
 `alignText(before, after)` aligns two texts by words and returns runs `{kind, text}`,
 with `kind` `same`, `delete` or `insert`. To align by sentences, pass an
-`Intl.Segmenter` with `granularity: "sentence"` as the third argument.
+`Intl.Segmenter` with `granularity: "sentence"` as the third argument. Its walk gives
+up after `MAX_EDIT_LENGTH` edits and returns the whole text replaced; a widget that
+walks its own units with jsdiff, such as a document's lines, passes the same cap.
 
 ### Media URLs
 

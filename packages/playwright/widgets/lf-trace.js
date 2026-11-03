@@ -83,7 +83,7 @@ import {
   keepsHidden,
   el,
   focusDestination,
-  showNativeLayer,
+  toggleNativeLayer,
   closeNativeLayer,
   isNativeLayer,
   holdFocus,
@@ -2451,17 +2451,12 @@ export class Trace extends LeafElement {
               @click=${(/** @type {Event} */ event) => {
                 event.preventDefault();
                 const options = this.#nodes.imageScaleOptions;
-                if (isNativeLayer(options)) closeNativeLayer(options);
-                else {
-                  focusDestination(this.#nodes.imageScale, "press");
-                  showNativeLayer(options, { source: this.#nodes.imageScale });
-                  const selected =
-                    options.querySelector('[aria-pressed="true"]') ??
-                    options.querySelector("button");
-                  if (!selected)
-                    throw new Error("The image scale menu needs its controls");
-                  focusDestination(selected, "move");
-                }
+                toggleNativeLayer(
+                  options,
+                  this.#nodes.imageScale,
+                  options.querySelector('[aria-pressed="true"]') ??
+                    options.querySelector("button"),
+                );
               }}
             >
               <span ${ref(this.#zoomLabel)}></span>${iconTemplate(
@@ -2471,7 +2466,7 @@ export class Trace extends LeafElement {
             </button>
             <div
               id=${`${this.id}-image-scale-options`}
-              class="lf-trace-scale-options"
+              class="lf-trace-scale-options lf-popover"
               popover="auto"
               role="group"
               aria-label="Image scale"

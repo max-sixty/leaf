@@ -25,7 +25,7 @@ export class ReactionStripView {
     this.node = document.createElement("div");
     this.node.classList.add("lf-react-strip", "lf-react-surface");
     this.#palette = document.createElement("span");
-    this.#palette.className = "lf-react-palette";
+    this.#palette.className = "lf-react-palette lf-popover";
     this.#palette.id = this.#paletteId;
     this.#palette.popover = "auto";
     this.#palette.setAttribute("role", "group");

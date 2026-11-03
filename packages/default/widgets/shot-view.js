@@ -420,7 +420,7 @@ export class ShotView {
               Outline
             </button>
             <div
-              ${offered("lf-shotoptions")}
+              ${offered("lf-shotoptions lf-popover")}
               id=${optionsId}
               popover="auto"
               role="group"

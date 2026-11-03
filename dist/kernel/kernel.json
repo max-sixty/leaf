@@ -260,7 +260,7 @@
 
     "runtime/keyboard/key-sequence.js": "8e8267e99d0a548b70bab70ae60322b5f014b8270c161faa2a6da71632c60fbd",
 
-    "runtime/keyboard/layer-stack.js": "0d6fae014252f1971cfd96dc3935119a29b9409b091fd5e032e8964cfdb94058",
+    "runtime/keyboard/layer-stack.js": "57787571735be00ec9a0700a9a7b732e269a6eeb6f417f4b325eb45e283d886b",
 
     "runtime/keyboard/page.js": "01dae6e54679ee95e73f3c8cc0459a732d7ae910b16a5b9a043784343514822f",
 
@@ -444,7 +444,7 @@
 
     "runtime/state-feed.js": "ed353569dc33eeb3a94c2ce06eadae105d925211269ccb4c0746a81afc95a526",
 
-    "runtime/storage.js": "bea6e37345b37a51c14ad0f2b51a73bf12be33f81d0ec5ab0ed6d557bfccaa8b",
+    "runtime/storage.js": "f4515599194ec52c8e84808f9ed5a7b48c79b5443011023b8e6a0ee3835bba91",
 
     "runtime/stylesheets.js": "8f1a41e66c8fed4cac331f2c8135769c8eb9823d8e59e90d8110f35c72a0e131",
 
@@ -460,7 +460,7 @@
 
     "runtime/target-paint.js": "d6f5bc9d5f464039b5ae9ddf654010cebabf6b22e6a905135243a6af01a1a4b4",
 
-    "runtime/text-alignment.js": "bb83ca5955c7aef58a8bf7b2321f847e758af72921c00a8e6316eb8f74a282b3",
+    "runtime/text-alignment.js": "ea9c5b19be87ac94c89e11af81fe071bfdc7892df2d3ac82e844463f710b3895",
 
     "runtime/thread/actions.js": "e07fccc2a5cb8979048ddb786eac2704c8c96a168b9e69b7724b9d21e1b62be1",
 
@@ -494,7 +494,7 @@
 
     "runtime/thread/primary-reader.js": "f68874ccc664cd0802e0ca93505dc49403ffd2eb6cf61df58735b142af4345b1",
 
-    "runtime/thread/reaction-strips.js": "c8bb5bcec0d637f75d2d17f4c5859e8382b92b9b6be519e9a9f30e4f79a59577",
+    "runtime/thread/reaction-strips.js": "a92d9dbd306d0368d8ac1aca0225243f73e0119144bd0a8df6494744d20d28de",
 
     "runtime/thread/read.js": "11e054c67fb5e54a54e297bd3f7589d30580c52759506af5b2bcf37db438b85f",
 
@@ -552,7 +552,7 @@
 
     "runtime/walk-position.js": "10a8e77ca0ac65bd53c6ba061e3a34188ea352638a1cf6ae0082bf34929295f4",
 
-    "runtime/widget-api.js": "e00863c3a222b850e6ef6d75f13761b925d8f60f2e97008ddcf6189ae8505202",
+    "runtime/widget-api.js": "a74cc2a4e2046a95cabb4ada3dce381bc4b862a51fe7850f14818165e5bbded3",
 
     "runtime/widget-controller.js": "78ac7b9c2508e204c1c8fed85849ff724cb968c704ac188a7c51f96c9965824a",
 

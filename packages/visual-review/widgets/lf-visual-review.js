@@ -31,7 +31,7 @@ import {
   readThreads,
   threadActions,
   threadSummary,
-  showNativeLayer,
+  toggleNativeLayer,
   closeNativeLayer,
   isNativeLayer,
   keeps,
@@ -290,12 +290,7 @@ customElements.define(
     #inspection() {
       if (!this.#selected) return;
       const { popup, source, close } = this.#selected.controls();
-      if (isNativeLayer(popup)) closeNativeLayer(popup);
-      else {
-        focusDestination(source, "press");
-        showNativeLayer(popup, { source });
-        focusDestination(close, "move");
-      }
+      toggleNativeLayer(popup, source, close);
     }
     /** @param {string | undefined} id @param {boolean} [land] */
     #select(id, land = false) {
@@ -529,7 +524,7 @@ customElements.define(
                         ${threads.length} ${threads.length === 1 ? "thread" : "threads"}
                       </button>
                       <div
-                        class="lf-vr-thread-list scroll"
+                        class="lf-vr-thread-list lf-popover scroll"
                         id=${`${this.id}-${record.id}-threads`}
                         popover
                       >
@@ -586,7 +581,7 @@ customElements.define(
                 Capture details
               </button>
               <div
-                class="lf-vr-details scroll"
+                class="lf-vr-details lf-popover scroll"
                 id=${`${this.id}-${record.id}-inspection`}
                 popover
               >

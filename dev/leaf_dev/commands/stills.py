@@ -2190,6 +2190,17 @@ def trace_controls(page: Page) -> None:
     )
 
 
+def trace_image_scale(page: Page) -> None:
+    """A recording's image scale with its choices open, hung below their trigger."""
+    trace = page.locator("#release-trace")
+    scale = trace.get_by_role("button", name="Image scale", exact=True)
+    expect(scale).to_be_enabled()
+    scale.evaluate("node => node.scrollIntoView({block: 'center'})")
+    scale.click()
+    expect(trace.locator(".lf-trace-scale-options:popover-open")).to_be_visible()
+    page.mouse.move(0, 0)
+
+
 def trace_comparison(page: Page) -> None:
     """Recording choice, transport and saved moments in the shared workspace."""
     page.get_by_role("radio", name="Before the fix", exact=True).click()
@@ -2554,6 +2565,7 @@ STATES = (
         trace_controls,
         region=".lf-trace-pace",
     ),
+    State("trace-image-scale", "playwright-trace-gallery", trace_image_scale),
     State(
         "motion-controls",
         "motion",

@@ -332,7 +332,7 @@ customElements.define(
             >
           </div>
           <div
-            ${offered("lf-file-editor-choices")}
+            ${offered("lf-file-editor-choices lf-popover")}
             id="lf-file-editor-choices"
             popover="auto"
             role="menu"

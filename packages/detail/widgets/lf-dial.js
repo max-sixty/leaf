@@ -48,6 +48,7 @@ import {
   scrollerFor,
   shownWindow,
   tabStore,
+  viewDocument,
   whileConnected,
   commandsChanged,
 } from "/runtime/widget-api.js";
@@ -110,7 +111,7 @@ customElements.define(
 
     // The document the dial governs.
     get #scope() {
-      return this.closest("[data-lf-views] > *, main") ?? this.ownerDocument.body;
+      return viewDocument(this) ?? this.ownerDocument.body;
     }
 
     setup() {

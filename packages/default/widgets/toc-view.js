@@ -1,4 +1,4 @@
-import { generatedElement, keeps } from "/runtime/widget-api.js";
+import { generatedElement, keeps, viewDocument } from "/runtime/widget-api.js";
 /* The contents view draws its frame and outline from the complete document.
  * The live widget supplies the canonical heading and chrome readings. */
 import { html, nothing, ref, repeat } from "/vendor/lit.js";
@@ -8,11 +8,9 @@ import { html, nothing, ref, repeat } from "/vendor/lit.js";
 /** @typedef {{start: {label: string, destination: Element, heading: Element | null} | null, items: OutlineItem[]}} Outline */
 const HEADING_SELECTOR = "h1, h2, h3, h4, h5, h6";
 
-// The outline belongs to the nearest declared view holding it, or the page's main.
-// Scope follows document ownership, not visibility: closed disclosures still contribute
-// headings that a native fragment link can reveal.
-/** @param {HTMLElement} host */
-const outlineDocument = (host) => host.closest("[data-lf-views] > *, main");
+// The outline belongs to the document holding it (`viewDocument`). Scope follows
+// document ownership, not visibility: closed disclosures still contribute headings that
+// a native fragment link can reveal.
 
 // Delivery and live behavior call this same template, retaining its native disclosure
 // and keyed links. Geometry readers collect the nodes only after its shared render.
@@ -42,7 +40,7 @@ export function drawToc(host, headingReading) {
   };
   const native = () => (frame ??= readFrame());
   return {
-    scope: () => outlineDocument(host),
+    scope: () => viewDocument(host),
     get nav() {
       return native().nav;
     },
@@ -153,7 +151,7 @@ const level = (heading) => Number(heading.localName.slice(1));
 // Read the complete outline before rendering; max-level bounds it before any id is lent.
 /** @param {HTMLElement} host @param {HeadingReading} reading @returns {Outline} */
 function readOutline(host, { label, chrome, lends }) {
-  const main = outlineDocument(host);
+  const main = viewDocument(host);
   if (!main) return { start: null, items: [] };
   const maxLevel = Number(host.getAttribute("max-level") ?? 6);
   const headings = [...main.querySelectorAll(HEADING_SELECTOR)]

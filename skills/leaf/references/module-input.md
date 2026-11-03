@@ -259,7 +259,11 @@ Open a native dialog or popover with `showNativeLayer(layer, {source})`, adding
 `modal: false` for a nonmodal dialog, and close it with `closeNativeLayer(layer)`.
 Inside a live sample they suppress the browser's own focus moves, so place the arrival
 with `focusDestination`. `isNativeLayer(node)` says whether a popover is open or a
-dialog modal.
+dialog modal. A control that opens a popover, such as a menu of choices, presses
+`toggleNativeLayer(popover, control, arrival)`, which closes it while it is open and
+otherwise opens it from the control and lands on `arrival`, the control inside it the
+user acts on next. The `lf-popover` class gives an open popover Leaf's raised surface;
+its own rule sets only its place, size and padding.
 
 ### Delayed work
 

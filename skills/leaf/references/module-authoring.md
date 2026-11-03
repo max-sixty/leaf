@@ -245,6 +245,9 @@ native disclosures, links and authored content need no such wait.
   the tab names a member, and choose then. A holder whose members share the
   surrounding page's flow declares `--lf-views-flow: page` in its stylesheet (the
   default is `box`), so Layouts can seat a member's sidebar in the page margin.
+  A widget that acts on the document around it, as a contents list or a depth dial
+  does, reads it with `viewDocument(node)`: the view member holding the node, else the
+  page's `main`, else null.
 
 ## Rendering
 

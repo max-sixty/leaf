@@ -996,23 +996,14 @@ lf-trace-compare lf-trace {
   inline-size: 10ch;
   font-variant-numeric: tabular-nums;
 }
+/* The scale's choices hang below their trigger, or above it where the window has no
+   room below, on the popover face (controls.css, `.lf-popover`). */
 .lf-trace-scale-options {
   position: fixed;
-  inset: 0;
-  margin: auto;
+  position-anchor: --lf-trace-scale;
+  position-area: bottom span-right;
+  position-try-fallbacks: flip-block;
+  inset: auto;
+  margin: var(--sp-2) 0;
   padding: var(--sp-2);
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  background: var(--paper);
-  color: var(--ink);
-  box-shadow: var(--raise-2);
-}
-@supports (position-area: bottom) {
-  .lf-trace-scale-options {
-    position-anchor: --lf-trace-scale;
-    position-area: bottom span-right;
-    inset: auto;
-    margin: var(--sp-2) 0;
-    position-try-fallbacks: flip-block;
-  }
 }

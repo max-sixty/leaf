@@ -48,6 +48,7 @@
   --wa-color-brand-fill-quiet: var(--accent-tint);
   --wa-color-brand-on-quiet: var(--accent);
   --wa-color-brand-border-quiet: var(--accent);
+  --wa-color-brand-border-loud: color-mix(in srgb, var(--accent) 45%, var(--card));
   /* A solid/active surface and its ink move together in either page scheme.
      Components own which state uses the pair, through their upstream tokens. */
   --wa-color-brand-fill-loud: var(--accent);

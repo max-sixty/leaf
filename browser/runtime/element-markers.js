@@ -104,6 +104,21 @@ const buildAction = (role, cls, label, options) => {
     node.textContent = label;
   return node;
 };
+// A press that is content of its own, such as a message's picture, which the page's
+// readings treat as the message's words rather than Leaf's apparatus: it wears its
+// role's face and the press's mark, and none of a generated control's (`lf-ui`,
+// `data-lf-gen`).
+/** @template {Element} T @param {T} node @param {LeafActionRole} role @param {string} [cls] @returns {T} */
+export const offerContentElement = (node, role, cls) => {
+  keeps(node, "class", actionClass(role, cls));
+  if (node instanceof HTMLButtonElement) keeps(node, "type", "button");
+  keeps(
+    node,
+    "data-lf-offer",
+    node instanceof HTMLButtonElement ? node.type : node.localName,
+  );
+  return node;
+};
 /** @param {Element} node @param {string} role @param {string} [cls] @param {LeafActionRole} [face] */
 const selectableOfferElement = (node, role, cls, face) => {
   keeps(node, "role", role);

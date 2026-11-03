@@ -2573,16 +2573,22 @@ def test_fold_reparenting_keeps_only_its_original_flow_credit(
         ), motions
 
 
-def test_absolute_size_animation_cannot_credit_an_independent_control_move(browser):
-    """Matching travel does not join an out-of-flow effect to a later control."""
+@pytest.mark.parametrize("barrier", ["absolute", "bounded-ancestor", "movement"])
+def test_size_animation_rejection_retains_its_geometry(browser, barrier):
+    """Rejected reflow keeps the source, receiver and first failing geometry check."""
+    source = '<div id="size" style="height:0;width:20px"></div>'
+    if barrier == "absolute":
+        source = source.replace("height:0", "position:absolute;height:0")
+    elif barrier == "bounded-ancestor":
+        source = '<div id="bound" style="height:100px">' + source + "</div>"
     page = browser.new_page()
     page.goto(
         "data:text/html,"
         + quote(
             '<!doctype html><body style="margin:0">'
             '<button id="start">Start</button>'
-            '<div id="size" style="position:absolute;height:0;width:20px"></div>'
-            '<button id="control" style="position:relative">Control</button>'
+            + source
+            + '<button id="control" style="position:relative">Control</button>'
             '<script>start.addEventListener("pointerdown", () => {'
             'window.effect = size.animate([{height:"0px"}, {height:"120px"}],'
             '{duration:400, fill:"forwards"});'
@@ -2593,12 +2599,39 @@ def test_absolute_size_animation_cannot_credit_an_independent_control_move(brows
     page.locator("#start").click()
     assert page.evaluate("effect.playState") == "running"
     paint(page)
-    page.evaluate("""() => {
+    page.evaluate(
+        """barrier => {
       effect.currentTime = 400;
-      control.style.top = '120px';
-    }""")
+      control.style.top = barrier === 'movement' ? '60px' : '120px';
+    }""",
+        barrier,
+    )
     judge_watches()
-    consume_browser_errors(page, moved_within("button#control"))
+    errors = consume_browser_errors(page, moved_within("button#control"))
+    proofs = [
+        proof
+        for error in errors
+        for comparison in shift_evidence(error)["comparisons"]
+        for proof in comparison["size_propagation"]
+        if within(proof["target"], "div#size") and proof["axis"] == "top"
+    ]
+    assert proofs, errors
+    reason = {
+        "absolute": "source-out-of-flow",
+        "bounded-ancestor": "ancestor-size-mismatch",
+        "movement": "receiver-movement-mismatch",
+    }[barrier]
+    proof = next(proof for proof in proofs if proof["rejection"]["reason"] == reason)
+    assert proof["after"]["height"] - proof["before"]["height"] == 120
+    assert proof["last"]["top"] - proof["first"]["top"] == (
+        180 if barrier == "movement" else 120
+    )
+    if barrier == "bounded-ancestor":
+        rejection = proof["rejection"]
+        assert within(rejection["node"], "div#bound")
+        assert rejection["before"]["height"] == rejection["after"]["height"] == 100
+    elif barrier == "absolute":
+        assert within(proof["rejection"]["node"], "div#size")
 
 
 def test_flex_row_size_animation_cannot_credit_independent_vertical_move(browser):

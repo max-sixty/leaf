@@ -11,8 +11,27 @@
  * Chrome's native restoration can lose the saved offset when Back interrupts a smooth
  * arrival; its pending compositor update can also overwrite an immediate restoration.
  * A traversal cancels the outgoing placement, waits for that cancellation's rendering
- * update, then restores the checkpoint. Nested reading regions stop with that placement
- * but keep their current offsets; these checkpoints restore the document viewport.
+ * update, then places the page. The browser applies the traversal some time after its
+ * navigate event, and Firefox and WebKit change the page as they do, even though the
+ * traversal is intercepted with `scroll: "manual"`. Both reveal the element the
+ * entry's fragment names, WebKit then scrolls to it, and Firefox restores the
+ * destination's saved offset (Firefox 157 and WebKit 27.2; Firefox's nsDocShell never
+ * reads the suppression the Navigation API sets). That overwrote the placement: Back
+ * to a since-hidden `#tabbed` left it 471px down in Firefox, where Chromium landed it
+ * at 59px. So once the browser has applied the traversal (`traversalApplied`), the
+ * page scrolls back by however far the first block on screen moved since the
+ * placement. Scroll anchoring holds that block still through a change above it, but a
+ * change inside it in that frame moves it as the browser does, and a pinned block
+ * stays put while the browser scrolls. The claimant and travel read the page before
+ * the browser applies the traversal, while it still hides what the user hid since.
+ * Rejected: placing only after the browser applies the traversal, which let Firefox
+ * and WebKit reveal a root view's target before travel read the page, and let a quick
+ * second Back save the entry between before it was placed; putting back the
+ * placement's own offset, which undid scroll anchoring; and
+ * `history.scrollRestoration = "manual"`, under which Firefox put a traversal Leaf had
+ * no checkpoint for at the top of the page.
+ * Nested reading regions stop with that placement but keep their current offsets;
+ * these checkpoints restore the document viewport.
  *
  * Without a captured checkpoint, the browser restores its saved offset, except that
  * Chrome answers a traversal to an entry whose fragment names an element by scrolling to that element
@@ -50,7 +69,9 @@ import { placeOf } from "./current-target.js";
 import { upFrom } from "./shadow.js";
 import { presented } from "./geometry.js";
 import { unconcealedReadingRegions } from "./reading-regions.js";
+import { readingBlock } from "./reading-place.js";
 import { pageScroller, stopScroll } from "./scrolling.js";
+import { nextRender } from "./rendering.js";
 
 /** @typedef {[WeakRef<Node>, number]} HeldSelectionEnd
  * @typedef {{focus: WeakRef<Element> | null, place: WeakRef<Element> | null,
@@ -216,6 +237,7 @@ export function mountHistory({ followFragment, returnToFragment }) {
       const claim = claimed(url);
       const place = places.get(event.destination.key);
       const mayReturn = retainUserIntent({ available: () => !event.signal.aborted });
+      const applied = traversalApplied(event.signal);
       event.intercept({
         scroll: "manual",
         focusReset: "manual",
@@ -246,16 +268,32 @@ export function mountHistory({ followFragment, returnToFragment }) {
           });
           if (work !== undefined) placed = (await work) !== false || placed;
           if (!mayReturn()) return;
-          if (!placed) {
-            if (place)
-              setScroll(pageScroller, {
-                left: place.offset[0],
-                top: place.offset[1],
-                behavior: "instant",
-              });
-            else event.scroll();
+          if (!placed && !place) {
+            event.scroll();
+            return;
           }
-          if (place) returnPlace(place);
+          if (!placed && place)
+            setScroll(pageScroller, {
+              left: place.offset[0],
+              top: place.offset[1],
+              behavior: "instant",
+            });
+          if (place) mayReturn.handoff(() => returnPlace(place));
+          // Firefox and WebKit may apply the traversal after this placement and move
+          // the page as they do (above). Once they have, the first block on screen goes
+          // back to where the placement stood it.
+          const mark = readingBlock() ?? document.documentElement;
+          const stood = mark.getBoundingClientRect().top;
+          await applied;
+          if (!mayReturn() || !mark.isConnected) return;
+          const moved = mark.getBoundingClientRect().top - stood;
+          if (moved)
+            mayReturn.handoff(() =>
+              setScroll(pageScroller, {
+                top: pageScroller.scrollTop + moved,
+                behavior: "instant",
+              }),
+            );
         },
       });
       return;
@@ -272,6 +310,22 @@ export function mountHistory({ followFragment, returnToFragment }) {
           await handler();
         },
       });
+  });
+}
+
+// Resolves in the first rendering update after the traversal's `popstate`, which every
+// engine fires as it applies a same-document traversal, or when the traversal is
+// aborted. Firefox restores the entry's saved offset just after that `popstate`, in
+// the same task, so the rendering update is the first point past it that comes
+// before the next paint.
+/** @param {AbortSignal} signal @returns {Promise<void>} */
+function traversalApplied(signal) {
+  return new Promise((resolve) => {
+    addEventListener("popstate", () => nextRender(() => resolve()), {
+      once: true,
+      signal,
+    });
+    signal.addEventListener("abort", () => resolve(), { once: true });
   });
 }
 

@@ -1,4 +1,4 @@
-export { namedAction, searchField } from "./control-labels.js";
+export { searchField } from "./control-labels.js";
 import { offer, offerAction } from "./element-markers.js";
 export {
   generatedElement,

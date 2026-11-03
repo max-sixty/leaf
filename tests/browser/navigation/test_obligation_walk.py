@@ -26,6 +26,7 @@ from render_harness import (
     open_page,
     open_threads,
     pane_scroll_behavior,
+    panel_field,
     panel_settled,
     regions_side_by_side,
     resized,
@@ -697,6 +698,54 @@ def test_obligations_sharing_context_keep_their_source_identity(browser, serve):
         expect(page.locator(f"#{source}")).to_be_focused()
 
 
+def test_digits_leave_an_obligation_the_user_scrolled_away_from(browser, serve):
+    """Focus stays in an ask the user has scrolled off screen, but its digits answer it
+    only while they can see it: scrolled away, `2` chooses nothing, and back in view the
+    digits show again and `2` chooses."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "An ask scrolled away",
+                '<h1>An ask scrolled away</h1><lf-ask id="route"><h2>Which route?</h2>'
+                '<lf-options id="routes" choose>'
+                '<lf-option id="left">Take the left route</lf-option>'
+                '<lf-option id="right">Take the right route</lf-option>'
+                '</lf-options></lf-ask><div style="height:4000px">Reading on</div>',
+            )
+        ),
+    )
+
+    def answer():
+        return page.evaluate(
+            """async () => (await window.__lfWidgetApi()).readObligations().all
+              .find((item) => item.id === "widget:routes").answer?.value ?? null"""
+        )
+
+    def scroll(down):
+        page.mouse.move(400, 400)
+        page.mouse.wheel(0, 3000 if down else -3000)
+        page.wait_for_function(
+            "(down) => (down ? scrollY > 2000 : scrollY === 0)", arg=down
+        )
+        scroll_settled(page)
+
+    page.keyboard.press("m")
+    page.keyboard.press("Tab")
+    digit = page.locator("#right > .lf-key-badge")
+    expect(digit).to_be_visible()
+    scroll(down=True)
+    expect(page.locator("#routes")).not_to_be_in_viewport()
+    page.keyboard.press("2")
+    rendered(page)
+    assert answer() is None
+    scroll(down=False)
+    expect(digit).to_be_visible()
+    with sending(page, "the answer"):
+        page.keyboard.press("2")
+    assert answer() == ["right"]
+
+
 def test_the_obligation_walk_uses_the_visible_reading_after_its_focus_is_released(
     browser, serve
 ):
@@ -899,24 +948,25 @@ OBLIGATION_THREAD_PAGE = leaf_page(
 )
 
 
-@pytest.mark.parametrize("width", [390, 1200])
+TALL_OBLIGATION_THREAD_PAGE = OBLIGATION_THREAD_PAGE.replace(
+    "<h2>Which cache should we keep?</h2>",
+    "<h2>Which cache should we keep?</h2>"
+    + "<p>Compare the memory and disk constraints carefully.</p>" * 14,
+)
+
+
 def test_walking_to_an_obligation_shows_its_discussion_clear_of_its_choices(
-    browser, serve, width
+    browser, serve
 ):
     """`m` lands on a tall obligation and its thread comes up in the card, which stands clear
-    of the obligation's choices at either width, so a digit still answers and `c` continues
-    the thread rather than starting another."""
-    source = OBLIGATION_THREAD_PAGE.replace(
-        "<h2>Which cache should we keep?</h2>",
-        "<h2>Which cache should we keep?</h2>"
-        + "<p>Compare the memory and disk constraints carefully.</p>" * 14,
-    )
-    url = serve(source)
+    of the obligation's choices, so a digit still answers and `c` continues the thread
+    rather than starting another."""
+    url = serve(TALL_OBLIGATION_THREAD_PAGE)
     root = answered_comment(
         serve.page_dir, "The disk cache costs more.", {"section": "cache-ask"}
     )
     page = open_page(browser, url)
-    page.set_viewport_size({"width": width, "height": 900})
+    page.set_viewport_size({"width": 1200, "height": 900})
     page.keyboard.press("m")
     expect(page.locator("#cache-ask")).to_be_focused()
     thread = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
@@ -935,6 +985,30 @@ def test_walking_to_an_obligation_shows_its_discussion_clear_of_its_choices(
     expect(page.locator("#cache-disk")).to_have_attribute("chosen", "")
     page.keyboard.press("c")
     expect(thread.locator("leaf-text")).to_be_focused()
+    expect(page.locator(".lf-fab-input")).to_be_hidden()
+
+
+def test_walking_to_an_obligation_on_a_phone_continues_its_discussion_in_the_panel(
+    browser, serve
+):
+    """A phone's window has no room for a margin card, so `m` leaves the obligation's
+    choices uncovered, a digit answers, and `c` continues its thread in the floating panel
+    rather than starting another (thread/destination.js)."""
+    url = serve(TALL_OBLIGATION_THREAD_PAGE)
+    root = answered_comment(
+        serve.page_dir, "The disk cache costs more.", {"section": "cache-ask"}
+    )
+    page = open_page(browser, url)
+    page.set_viewport_size({"width": 390, "height": 900})
+    page.keyboard.press("m")
+    expect(page.locator("#cache-ask")).to_be_focused()
+    expect(page.locator(".lf-margin-preview .lf-page-thread")).to_have_count(0)
+    page.keyboard.press("1")
+    expect(page.locator("#cache-disk")).to_have_attribute("chosen", "")
+    page.keyboard.press("c")
+    thread = page.locator(f'{PANEL_THREAD}[data-thread="{root}"]')
+    expect(thread).to_be_visible()
+    expect(panel_field(page)).to_be_focused()
     expect(page.locator(".lf-fab-input")).to_be_hidden()
 
 

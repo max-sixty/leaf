@@ -64,3 +64,42 @@ test("Enter continues the indented code a Markdown body reads, as a file does", 
     words: "Run:\n\n    code\n    ",
   });
 });
+
+test("read-only fields keep paragraph and list words when Return is pressed", async () => {
+  const { fieldState } = await loadFieldEditor();
+  for (const [source, message] of [
+    ["hello world", false],
+    ["- hello", true],
+  ]) {
+    for (const key of ["Enter", "Shift-Enter"]) {
+      const state = fieldState(
+        {
+          base: source,
+          text: source,
+          anchor: source.length,
+          head: source.length,
+          steps: [],
+        },
+        {
+          typed: (_native, insert) => insert(),
+          returned: () => true,
+          oneLine: () => false,
+          message: () => message,
+          revealed: () => {},
+          focused: () => {},
+          readOnly: true,
+          attributes: {},
+        },
+      );
+      const view = {
+        state,
+        dispatch(transaction) {
+          view.state = transaction.state ?? view.state.update(transaction).state;
+        },
+      };
+      for (const binding of state.facet(keymap).flat())
+        if (binding.key === key && binding.run?.(view)) break;
+      assert.equal(view.state.doc.toString(), source, `${key} in ${source}`);
+    }
+  }
+});

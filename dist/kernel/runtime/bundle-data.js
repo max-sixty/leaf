@@ -1827,14 +1827,13 @@ var MessageEditor = class {
 				title: "edit previous message",
 				when: () => {
 					const [start, end] = caretAtKey(this.input) ?? [this.input.selectionStart, this.input.selectionEnd];
-					return start === 0 && end === 0 && unchanged();
+					return start === 0 && end === 0 && unchanged() && Boolean(previous());
 				},
-				get run() {
+				run: () => {
 					const before = previous();
-					return before ? () => {
-						putAside();
-						before.openEdit();
-					} : void 0;
+					if (!before) return;
+					putAside();
+					before.openEdit();
 				}
 			}]
 		});
@@ -6418,12 +6417,27 @@ function obligationPlace(item, items = readObligations().all) {
 	const owner = elementById(item.source.id);
 	const source = item.source.unit ? projectedDatum(owner, item.source.unit) : owner;
 	const context = elementById(item.prompt.target);
-	const shared = items.some((other) => other.id !== item.id && other.source.kind === "widget" && other.prompt.target === item.prompt.target);
+	const sharing = contextsOf(items).get(item.prompt.target);
+	const shared = Boolean(sharing && (sharing.size > 1 || sharing.size === 1 && !sharing.has(item.id)));
 	return {
 		source,
 		context,
 		node: item.source.unit || shared ? source : context
 	};
+}
+const contexts = /* @__PURE__ */ new WeakMap();
+function contextsOf(items) {
+	let held = contexts.get(items);
+	if (held) return held;
+	held = /* @__PURE__ */ new Map();
+	for (const { id, source, prompt } of items) {
+		if (source.kind !== "widget") continue;
+		const ids = held.get(prompt.target);
+		if (ids) ids.add(id);
+		else held.set(prompt.target, /* @__PURE__ */ new Set([id]));
+	}
+	contexts.set(items, held);
+	return held;
 }
 const subjectPlace = (subject) => subject.kind === "page" || subject.kind === "thread" ? null : elementById(subject.id);
 function obligationsIn(region, items = readObligations().all) {

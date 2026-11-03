@@ -780,8 +780,7 @@ function scheduleMarginLayout() {
 	if (pending) return;
 	pending = nextRender(layoutMarginRows);
 }
-function observeLayout() {
-	const column = marginColumn();
+function observeLayout(column) {
 	if (!observer) {
 		observer = sizeObserver(layoutMarginRows);
 		observer.observe(document.body);
@@ -793,7 +792,6 @@ function observeLayout() {
 }
 function registerMarginRow(row, options) {
 	rows.set(row, options);
-	observeLayout();
 	scheduleMarginLayout();
 }
 function unregisterMarginRow(row) {
@@ -873,6 +871,7 @@ function layoutMountedRows(layer) {
 	laidOutScrollX = scrollX;
 	const present = [];
 	const main = marginColumn();
+	if (rows.size) observeLayout(main);
 	const columnRect = proseRect(main);
 	const columnHeight = main.scrollHeight;
 	const shell = shellRight();

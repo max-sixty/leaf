@@ -1223,8 +1223,10 @@ function scheduleMarginLayout() {
   pending = nextRender(layoutMarginRows);
 }
 
-function observeLayout() {
-  const column = marginColumn();
+// The column is read where the pass reads it rather than as each row registers: a
+// column read restyles the page, and a first paint registers every row.
+/** @param {Element} column */
+function observeLayout(column) {
   if (!observer) {
     observer = sizeObserver(layoutMarginRows);
     observer.observe(document.body);
@@ -1240,7 +1242,6 @@ function observeLayout() {
 /** @param {HTMLElement} row @param {RowOptions} options */
 export function registerMarginRow(row, options) {
   rows.set(row, options);
-  observeLayout();
   scheduleMarginLayout();
 }
 
@@ -1377,6 +1378,7 @@ function layoutMountedRows(layer) {
   laidOutScrollX = scrollX;
   const present = [];
   const main = marginColumn();
+  if (rows.size) observeLayout(main);
   const columnRect = proseRect(main);
   const columnHeight = main.scrollHeight;
   const shell = shellRight();

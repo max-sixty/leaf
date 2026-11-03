@@ -61,6 +61,17 @@ predict that reading: a prediction is a second copy of the server's rules, and
 each case it misses shows the wrong state until the reading arrives. Where the
 reading takes longer than 100 ms, make that path faster.
 
+These times hold on a large page too. A page's size is how much it holds:
+elements, widgets, headings, obligations, threads, events and revisions. The work
+an input does, such as a keystroke, a click or a wheel step, depends on what the
+input changes, and never grows faster than the page. Loading a page, and computing
+or applying a reading of it, grow no faster than the page times the logarithm of
+its size. A step that walks one of those collections for each member of another,
+as finding each obligation's heading by reading every heading did, grows with the
+square of the page. So does a style or layout pass forced once per element, since
+each pass can cover the whole page (`browser/AGENTS.md`, "Runtime ownership").
+`leaf-dev scaling` measures how each cost grows with the page.
+
 ## Pages across Leaf updates
 
 A page records its authored content, its log and the packages it selects. The Leaf

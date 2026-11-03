@@ -657,9 +657,9 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     reactions = suggestion_item.locator(":scope > .lf-margin-options")
     expect(preview).to_be_hidden()
     expect(suggestion_item.locator(".lf-margin-entry:visible")).to_have_count(6)
-    expect(reactions.locator(".lf-react").first).to_have_class(
-        re.compile(r"lf-margin-entry")
-    )
+    expect(
+        reactions.locator('[data-lf-margin-entry-owner="responses"]').first
+    ).to_have_class(re.compile(r"lf-margin-entry"))
     ok = reactions.get_by_role("button", name="keep", exact=True)
     expect(ok).to_have_attribute("aria-label", "keep")
     expect(ok).not_to_have_attribute("title", re.compile(".+"))
@@ -712,7 +712,9 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     expect(suggestion_item.locator(".lf-margin-entry:visible")).to_have_count(6)
 
     page.keyboard.press("Escape")
-    expect(suggestion_item.locator(".lf-react:visible")).to_have_count(0)
+    expect(
+        suggestion_item.locator('[data-lf-margin-entry-owner="responses"]:visible')
+    ).to_have_count(0)
     expect(options).to_be_visible()
     page.keyboard.press("Escape")
     expect(options).to_be_hidden()

@@ -643,14 +643,15 @@ def margin_reaction_choices(page: Page) -> None:
 
 
 def margin_reaction_mark(page: Page) -> None:
-    """The same row once a reaction stands on its target, which the row keeps as the
-    reaction's own margin entry."""
+    """The same row once a reaction stands on its target, unfolded to show the
+    reaction's own margin entry beside Reject."""
     margin_reaction_choices(page)
     row = page.locator(MARGIN_SUGGESTION)
     row.locator('[data-lf-margin-entry-owner="responses"]:visible').first.click()
-    expect(
-        row.locator('[data-lf-margin-entry-owner="reactions"]').first
-    ).to_be_visible()
+    mark = row.locator('[data-lf-margin-entry-owner="reactions"]')
+    expect(mark).to_have_count(1)
+    row.locator(".lf-margin-more").click()
+    expect(mark).to_be_visible()
     page.mouse.move(0, 0)
     settle(page)
 

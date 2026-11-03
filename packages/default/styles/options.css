@@ -494,7 +494,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
      * row stands its ring, and every mark on it, one band inside its edge (base.css,
      * "Where it stands"), so the joined group's clip leaves it whole. */
     & > lf-option {
-      outline-offset: var(--focus-ring-inset);
+      --lf-ring-at: var(--focus-ring-inset);
     }
     & > * {
       --fill: var(--card);
@@ -558,7 +558,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
      * on them, inside their edges (base.css, "Where it stands"), or the clip cuts
      * them. */
     & .lf-btn {
-      outline-offset: var(--focus-ring-inset);
+      --lf-ring-at: var(--focus-ring-inset);
     }
   }
   /* A group whose options hold a picture stands its cells apart, each framed as the
@@ -747,7 +747,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
     --lf-wears-ring: 1;
   }
   .lf-another {
-    outline-offset: var(--focus-ring-inset);
+    --lf-ring-at: var(--focus-ring-inset);
     --lf-option-add-seat-inset: var(--sp-1);
     /* Centre Add's face on the last text line, using the same inset that sizes its
        row, which holds its reach (below). */
@@ -966,7 +966,7 @@ lf-options[settled] > .lf-settled {
   cursor: pointer;
   border: 1px solid transparent;
   border-radius: var(--r);
-  outline-offset: var(--focus-ring-inset);
+  --lf-ring-at: var(--focus-ring-inset);
 }
 /* The row's gap parts its disclosure arrow from its words. */
 lf-options[settled] > .lf-settled::before {

@@ -1,4 +1,4 @@
-import { TEXT_FIELD, afterSettling, cancelRender, contentRides, inChrome, inlineStyle, keeps, motionEasing, motionPlays, motionTime, move, nextRender, onUserInput, playMotion } from "./bundle-portable.js";
+import { TEXT_FIELD, afterSettling, cancelRender, contentRides, inChrome, inlineStyle, keeps, locationStandsDown, motionEasing, motionPlays, motionTime, move, nativeLayerHolding, nextRender, onUserInput, playMotion, shownParts } from "./bundle-portable.js";
 import { el } from "./bundle-errors.js";
 import "./bundle-passages.js";
 import { SVG_NS, paintGeometry, paintShape, paintStand, placement, standBox, standOver, vacate } from "./bundle-page-layout.js";
@@ -6,10 +6,13 @@ import { SVG_NS, paintGeometry, paintShape, paintStand, placement, standBox, sta
 //#region runtime/target-paint.js
 const targetTraceBox = el("div", "lf-ui lf-target-trace");
 const aimBox = el("div", "lf-ui lf-aim");
+const locationBox = el("div", "lf-ui lf-location");
 const traceStand = paintStand(targetTraceBox);
 const aimStand = paintStand(aimBox);
+const locationStand = paintStand(locationBox);
 const targetTraceLayer = traceStand.root;
 const aimLayer = aimStand.root;
+const locationLayer = locationStand.root;
 const aimShape = document.createElementNS(SVG_NS, "svg");
 aimShape.classList.add("lf-aim-shape");
 aimShape.setAttribute("aria-hidden", "true");
@@ -25,6 +28,10 @@ let traceShapeKey = "";
 let placementFrame = 0;
 let geometryFrame = 0;
 let geometryDirty = false;
+let locationElement = null;
+let locationFrame = 0;
+let locationProjected = [];
+const PROJECTED_LOCATION = "lf-projected-location";
 function clearAim() {
 	aimed = null;
 	vacate(aimStand);
@@ -54,7 +61,7 @@ function paintAim(element, surface) {
 	if (!shaped) aimShape.replaceChildren();
 	keeps(aimBox, "data-for", element.id);
 	keeps(aimStand.root, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
-	const stood = standOver(aimStand, placed, shaped ? "0" : getComputedStyle(surface).borderRadius);
+	const stood = standOver(aimStand, placed, shaped ? null : getComputedStyle(surface).borderRadius);
 	aimed = {
 		placed: {
 			...placed,
@@ -125,7 +132,7 @@ function drawTrace(element = traceElement, surface = traceSurface, rebuildGeomet
 	targetTraceBox.classList.toggle("lf-shaped", shaped);
 	keeps(targetTraceBox, "data-for", element.id || null);
 	keeps(traceStand.root, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
-	standOver(traceStand, placed, shaped ? "0" : getComputedStyle(surface).borderRadius);
+	standOver(traceStand, placed, shaped ? null : getComputedStyle(surface).borderRadius);
 }
 function paintTrace(element, surface = element) {
 	if (!element) {
@@ -142,6 +149,7 @@ function paintTrace(element, surface = element) {
 	drawTrace(element, surface, rebuild);
 }
 function shifted$1() {
+	relocate();
 	if (placementFrame || geometryFrame || !traceElement) return;
 	placementFrame = nextRender(() => {
 		placementFrame = 0;
@@ -149,6 +157,7 @@ function shifted$1() {
 	});
 }
 function geometryChanged() {
+	relocate();
 	geometryDirty = true;
 	if (placementFrame) cancelRender(placementFrame);
 	placementFrame = 0;
@@ -158,6 +167,42 @@ function geometryChanged() {
 		if (!geometryDirty) return;
 		geometryDirty = false;
 		if (traceElement) drawTrace(traceElement, traceSurface, true);
+	});
+}
+function paintLocation(element) {
+	locationElement = element;
+	drawLocation();
+}
+const paintsOver = (element) => {
+	const layer = nativeLayerHolding(element);
+	return !layer || layer === nativeLayerHolding(locationStand.root);
+};
+function drawLocation() {
+	const element = locationElement;
+	const placed = element?.isConnected && !locationStandsDown(element) && paintsOver(element) ? placement(element, false, inChrome(element)) : null;
+	if (!element || !placed?.shown) {
+		projectLocation([]);
+		vacate(locationStand);
+		locationBox.style.display = "none";
+		locationBox.removeAttribute("data-for");
+		delete locationStand.root.dataset.lfPaintPlane;
+		return;
+	}
+	projectLocation([element, ...shownParts(element)]);
+	keeps(locationBox, "data-for", element.id || null);
+	keeps(locationStand.root, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
+	standOver(locationStand, placed, getComputedStyle(element).borderRadius);
+}
+function projectLocation(boxes) {
+	for (const box of locationProjected) if (!boxes.includes(box)) box.classList.toggle(PROJECTED_LOCATION, false);
+	for (const box of boxes) box.classList.toggle(PROJECTED_LOCATION, true);
+	locationProjected = boxes;
+}
+function relocate() {
+	if (locationFrame || !locationElement) return;
+	locationFrame = nextRender(() => {
+		locationFrame = 0;
+		drawLocation();
 	});
 }
 function mountTargetPaint() {
@@ -884,4 +929,4 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 }
 
 //#endregion
-export { aimLayer, boxMotion, clearAim, geometryChanged, labelAim, mountTargetPaint, paintAim, paintTrace, shifted$1 as shifted, targetTraceLayer };
+export { aimLayer, boxMotion, clearAim, geometryChanged, labelAim, locationLayer, mountTargetPaint, paintAim, paintLocation, paintTrace, shifted$1 as shifted, targetTraceLayer };

@@ -10,7 +10,7 @@ import { mediaViewer, readAttachedMedia, scopedMediaUrl, writeAttachedMedia } fr
 import { visibleTargetParts } from "./runtime/bundle-visible-target-parts.js";
 import { pageImage, pageRenderer } from "./runtime/bundle-page-image.js";
 import { pageIdentity, shownScheme } from "./runtime/bundle-page-identity.js";
-import { aimLayer, boxMotion, clearAim, geometryChanged, labelAim, mountTargetPaint, paintAim, shifted, targetTraceLayer } from "./runtime/bundle-box-motion.js";
+import { aimLayer, boxMotion, clearAim, geometryChanged, labelAim, locationLayer, mountTargetPaint, paintAim, paintLocation, shifted, targetTraceLayer } from "./runtime/bundle-box-motion.js";
 import "/vendor/webawesome-chrome.js";
 
 //#region runtime/keyboard/disclosure.js
@@ -9060,6 +9060,7 @@ function createObligationView({ prepareNavigationStep, arrive, openPageThread, f
 		const wearing = new Set(here ? [here, ...shownParts(here)] : []);
 		for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.obligation}]`)) if (!wearing.has(marked)) marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.obligation);
 		for (const marked of wearing) keeps(marked, PAGE_PAINT_ATTRIBUTE.obligation, "1");
+		paintLocation(here);
 	}
 	function arrivalFocus(record, review = false) {
 		const item = obligationNode(record);
@@ -9202,6 +9203,7 @@ function createObligationView({ prepareNavigationStep, arrive, openPageThread, f
 		stopContextScopes = null;
 		presenter.disconnect();
 		for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.obligation}]`)) marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.obligation);
+		paintLocation(null);
 	}
 	return {
 		mount,
@@ -11244,7 +11246,7 @@ async function boot() {
 			chromeSheet,
 			marksSheet
 		];
-		chromeForeground.append(targetTraceLayer, aimLayer, liveEl, mediaViewer, commandReferenceDialog, inspectEl);
+		chromeForeground.append(locationLayer, targetTraceLayer, aimLayer, liveEl, mediaViewer, commandReferenceDialog, inspectEl);
 		chromeRoot.append(legendRoot, marginBarLayer, ...visualMarkPaint ? [visualMarkPaint.layer] : [], drawingPaint.layer, fabBar, chromeForeground);
 		document.body.append(chromeRoot);
 		version.mount();

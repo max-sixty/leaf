@@ -1,7 +1,7 @@
 import { LAYOUT, LENT_REACH_STOP, TAB_STOP, afterScript, atLayoutPrecision, cancelRender, clamp, clippedContents, clippedRect, clippingAxes, coarsePointer, hoveringPointer, inChrome, inlineStyle, keeps, layoutPx, move, moveScrollerBy, nextRender, offeredActionElement, overlaps, overlapsAcross, pageScroller, renderedParent, renderedUnder, scrollAxes, scrollLimit, scrollsContent, shellRight, shownBand, shownExtent, shownParts, shownRect, shownWindow, sizeObserver, skipped, under, union, upFrom, visualViewport } from "./bundle-portable.js";
 import { renderedChildren } from "./bundle-errors.js";
 import { afterPresentation, anchorBox, anchorElement, anchorFor, anchorHolder, anchorName, anchorReading, blockControlBoxes, boundedBlockOf, carriedAnchor, containingReadingRegionFor, cutFrames, headerLevels, nameAnchor, passageBoxes, pointBand, proseMeasure, proseRect, railStands, scrollMisplacesAnchors, scrollerFor, scrollsWith, targetRange, targetSegments } from "./bundle-content-layout.js";
-import { layoutBox } from "./bundle-passages.js";
+import { layoutBox, pageDocument } from "./bundle-passages.js";
 import { visibleTargetParts } from "./bundle-visible-target-parts.js";
 
 //#region runtime/annotation-overlay/margin-placement.js
@@ -667,7 +667,7 @@ function standFolded(row, fold, on) {
 	fold?.changed();
 }
 function pinSeating(rows, { bands, shell, pinInset }) {
-	const main = marginColumn();
+	const page = pageDocument();
 	const rootBounds = /^(hidden|clip)$/.test(getComputedStyle(pageScroller).overflowY) ? shownWindow({ viewport: "layout" }) : { top: pageScroller.getBoundingClientRect().top };
 	let standing;
 	return rows.map((entry) => {
@@ -718,7 +718,7 @@ function pinSeating(rows, { bands, shell, pinInset }) {
 		};
 		const stop = read.scroller;
 		standing ??= blockControlBoxes();
-		const room = coverIn(stop === pageScroller ? main : stop, band, target, bands, stop, standing);
+		const room = coverIn(stop === pageScroller ? page : stop, band, target, bands, stop, standing);
 		const { cover, controls } = room;
 		const end = parts.at(-1);
 		const inline = Boolean(words) || !point && end !== void 0 && target instanceof HTMLElement && getComputedStyle(target).display.startsWith("inline");
@@ -780,8 +780,7 @@ function scheduleMarginLayout() {
 	if (pending) return;
 	pending = nextRender(layoutMarginRows);
 }
-function observeLayout() {
-	const column = marginColumn();
+function observeLayout(column) {
 	if (!observer) {
 		observer = sizeObserver(layoutMarginRows);
 		observer.observe(document.body);
@@ -793,7 +792,6 @@ function observeLayout() {
 }
 function registerMarginRow(row, options) {
 	rows.set(row, options);
-	observeLayout();
 	scheduleMarginLayout();
 }
 function unregisterMarginRow(row) {
@@ -873,6 +871,7 @@ function layoutMountedRows(layer) {
 	laidOutScrollX = scrollX;
 	const present = [];
 	const main = marginColumn();
+	if (rows.size) observeLayout(main);
 	const columnRect = proseRect(main);
 	const columnHeight = main.scrollHeight;
 	const shell = shellRight();

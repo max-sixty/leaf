@@ -111,9 +111,10 @@ export function createAim({
   function armChanged() {
     document.body.classList.toggle("lf-aiming", aiming || targetPicker.active());
     // Picker keys name the Design legend's corners while the picker owns the choice.
-    // Inherit through the paint stages, whose boxes may live in shadow roots.
+    // Inherit through the paint stages, whose boxes may live in shadow roots, and into
+    // the chrome after body, which holds the legend.
     setRuntimeRootStyle(
-      document.body,
+      document.documentElement,
       "--lf-design-tag-visibility",
       targetPicker.active() ? "hidden" : "visible",
     );

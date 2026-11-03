@@ -119,7 +119,9 @@ packages win ties. The page's own CSS is unlayered above these normal rules. Lay
 do not reach inside shadow trees. A theme's rules, like the page's own, reach the
 controls widgets build (`page-layout.md`, "Page CSS and Leaf's controls"). Being
 layered, they also outrank the layered faces of the controls in Leaf's panel and thread
-cards, so a theme's element rules name the content they style, such as `main button`. Use public inputs and selectors to customise a widget rather than
+cards, so a theme's element rules name the content they style, such as `body button`,
+which reaches the page and none of Leaf's panel or threads, since those stand after
+`body`. Use public inputs and selectors to customise a widget rather than
 `!important` or inline overrides.
 
 A package's sheet can be split into files: `@import "./styles/tabs.css";`, optionally

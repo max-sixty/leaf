@@ -4389,8 +4389,8 @@ const WITHOUT_QUEUES = /* @__PURE__ */ new Set([
 	"unreachable"
 ]);
 function statusModel(status, queues, agent) {
-	const { kind, tone, summary, asks = false, publication = null } = status;
-	let { explanation, adds } = status;
+	const { kind, tone, summary, adds, asks = false, publication = null } = status;
+	let { explanation } = status;
 	const explanationParts = [...status.explanationParts ?? textParts(explanation)];
 	const addsParts = [...status.addsParts ?? textParts(adds)];
 	const counted = WITHOUT_QUEUES.has(kind) ? [] : queueWords(queues, agent);
@@ -10808,11 +10808,9 @@ async function boot() {
 		remove: (anchor) => drawing.removeDrawing(anchor),
 		replace: replaceDrawing
 	};
-	let aim;
 	let targets;
 	let reactions;
 	let pageGeometry;
-	let goToSequence;
 	let floatingPanel;
 	const navigation = createNavigation({
 		placedAt: (id) => anchorPlacement.placedAt(id),
@@ -10857,7 +10855,7 @@ async function boot() {
 		announce,
 		repaint
 	});
-	aim = createAim({
+	const aim = createAim({
 		marginTargetAt: (...args) => app.overlay?.marginTargetAt(...args) ?? null,
 		refreshAim: () => pageGeometry.refreshAim(),
 		commentOnTarget: (...args) => responseSurface.commentOnTarget(...args),
@@ -11181,7 +11179,7 @@ async function boot() {
 		revealInThread: (context, intent) => app.threadDestinations.openThreadDraft(context, intent),
 		holdsThreadDraft: (context) => app.threadDestinations.holdsThreadDraft(context)
 	});
-	goToSequence = createGoToSequence({
+	const goToSequence = createGoToSequence({
 		doors: floatingPanel.doors,
 		hintChrome,
 		openPageMap: (...args) => pageMapDialog.openPageMap(...args),

@@ -234,16 +234,16 @@ customElements.define(
         const stops = this.#regions.map((region) => registerReadingRegion(region));
         stops.push(onPress((start) => this.#holdRangePreview(start, signal)));
         // The narrow layout places shared controls above the stage. Their actual
-        // height is also the landing inset for its content and any sticky toolbar.
+        // height is also the landing inset for its content and any sticky toolbar. A
+        // quoted playground draws only its authored markup, with neither.
         const controls = this.#regions.find((region) => region.name === "controls");
         /** @type {HTMLElement | null} */
         const split = this.querySelector(":scope > .lf-playground-split");
-        if (!split) throw new Error("The playground needs its rendered split view");
         const observer = sizeObserver((entries) => {
           for (const entry of entries) {
             const box = entry.borderBoxSize[0];
             if (!box) continue;
-            split.style.setProperty(
+            split?.style.setProperty(
               "--playground-controls-height",
               `${box.blockSize}px`,
             );

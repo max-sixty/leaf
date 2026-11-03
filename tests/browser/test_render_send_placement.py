@@ -1517,8 +1517,12 @@ def test_a_reply_written_in_a_card_keeps_its_line_breaks_once_sent(
         ((1440, 900), 0.4, False, False, False, False, "browser"),
         ((1024, 600), 0.75, False, False, False, False, "browser"),
         ((1024, 844), 0.12, False, False, False, False, "browser"),
-        ((1024, 600), 0.4, True, False, False, False, "browser"),
-        ((1024, 600), 0.4, "scrolled", False, False, False, "browser"),
+        # A draft that scrolls, read with its scrollbars shown: under the shared
+        # browser's `--hide-scrollbars` the box's `auto` bar takes no room while the
+        # card's `scrollbar-gutter: stable` still does, so the card wrapped narrower
+        # than the box on macOS, a pairing no user's browser makes.
+        ((1024, 600), 0.4, True, False, False, False, "scrollbar_browser"),
+        ((1024, 600), 0.4, "scrolled", False, False, False, "scrollbar_browser"),
         ((1440, 900), 0.4, "paragraphs", False, False, False, "browser"),
         ((1440, 900), 0.4, False, False, True, False, "browser"),
         ((1440, 900), 0.4, "passage", True, False, False, "browser"),

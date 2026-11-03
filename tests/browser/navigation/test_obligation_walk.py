@@ -840,7 +840,8 @@ def test_the_obligation_walk_uses_the_visible_reading_after_its_focus_is_release
         page.keyboard.press("Escape")
         page.keyboard.press(back)
         expect(page.locator("#question-2")).to_be_focused()
-    # Opening On me from there holds no other place, so the walk still returns.
+    # Opened by a key, On me stands on its first row, question 1, and the walk steps on
+    # from it.
     page.keyboard.press("Escape")
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")

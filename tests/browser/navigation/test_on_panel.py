@@ -355,7 +355,8 @@ def test_travel_reads_the_landing_through_every_region_it_scrolls(browser, serve
 def test_on_me_stays_over_only_the_items_it_lists(browser, serve):
     """On me stays open over a place `m` reaches, whose card it rings, and gives way to
     one it doesn't list: `t` to a thread at the page's foot, which On me would stand
-    over, puts it away (floating-panel.js, `clearFor`)."""
+    over, puts it away (floating-panel.js, `clearFor`). Opened by a key, On me stands on
+    its first row, the channel question, so `m` steps on from it to the second."""
     url = serve(UNDER_PANEL_PAGE, anchored=[("tail", "The notes go out")])
     page = open_page(browser, url)
     resized(page, 1280, 900)
@@ -365,8 +366,8 @@ def test_on_me_stays_over_only_the_items_it_lists(browser, serve):
     page.keyboard.press("Shift+m")
     panel_settled(page, view="queue")
     page.keyboard.press("m")
-    expect_walk_position(page, "1 of 2 waiting on me · Options")
-    expect(page.locator("#mid-ask")).to_be_focused()
+    expect_walk_position(page, "2 of 2 waiting on me · Options")
+    expect(page.locator("#foot-ask")).to_be_focused()
     expect(on_me).to_have_count(1)
     page.keyboard.press("t")
     expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
@@ -1027,7 +1028,9 @@ def test_m_lands_what_it_reaches_above_the_open_on_me_view(browser, serve):
     since every landing clears the panel's whole box rather than its row alone
     (base.css, `--lf-panel-reach`). The suggestion ends a paragraph whose start the
     arrival aligns, as the feature gallery's "A pencil is useful too." does; the asks
-    after it fill the list, so the view stands most of the window tall."""
+    after it fill the list, so the view stands most of the window tall. Opened by a
+    key, On me stands on its first row, the suggestion, so `m` steps on to the first
+    ask and `Shift+m` walks back to the suggestion."""
     filler = "".join(f"<p>Paragraph {n} of the release notes.</p>" for n in range(30))
     asks = "".join(
         f'<lf-ask id="ask-{n}"><h2>Question {n}</h2><lf-options id="pick-{n}" choose>'
@@ -1055,6 +1058,8 @@ def test_m_lands_what_it_reaches_above_the_open_on_me_view(browser, serve):
     card = page.locator(".lf-fp-card")
     suggestion = page.locator("#insert")
     page.keyboard.press("m")
+    expect(page.locator("#ask-0")).to_be_focused()
+    page.keyboard.press("Shift+m")
     expect(suggestion).to_be_focused()
     scroll_settled(page)
     box = suggestion.bounding_box()

@@ -54,7 +54,7 @@
    gestures request that same pass. Mount binds the overlay's mechanical lifecycle. */
 
 import { createThreadPreview } from "./thread-preview.js";
-import { windowHoldsRail } from "../content-layout.js";
+import { proseRect, windowHoldsRail } from "../content-layout.js";
 
 import { afterScript, cancelRender, nextRender } from "../rendering.js";
 import { spokenSubject } from "../contribution-model.js";
@@ -278,10 +278,13 @@ export function createMarginProjection({
       });
     });
   }
-  /** @param {readonly Entry[]} inventory @param {DOMRect} [mainRect] @param {number} [mainHeight] */
+  // The column is its prose box, as the margin's layout pass reads it and hands it to
+  // `lf-margin-layout`: names read against another box would change back and forth
+  // between a render and the layout pass after it.
+  /** @param {readonly Entry[]} inventory @param {import("../content-layout.js").ProseBox} [mainRect] @param {number} [mainHeight] */
   function readSpokenPositions(
     inventory,
-    mainRect = marginColumn().getBoundingClientRect(),
+    mainRect = proseRect(marginColumn()),
     mainHeight = marginColumn().scrollHeight,
   ) {
     spokenBasis = mainRect && { width: mainRect.width, height: mainHeight };

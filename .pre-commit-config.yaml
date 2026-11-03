@@ -58,8 +58,8 @@ repos:
         entry: depcruise --output-type err browser/runtime
         pass_filenames: false
         files: ^(browser/(leaf\.js|runtime/.*\.js)|\.dependency-cruiser\.mjs)$
-      # JavaScript's vulture: the modules, exports and types nothing reads
-      # (`knip.config.js`). Whole-tree; files only wakes it.
+      # JavaScript's vulture: the modules, exports and types nothing reads, and
+      # import cycles (`knip.config.js`). Whole-tree; files only wakes it.
       - id: knip
         name: knip
         language: node

@@ -1581,9 +1581,10 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
     for selector in ("#pulled", "#spilled"):
         assert boxes[selector]["left"] >= boxes["room"]["left"], boxes
         assert boxes[selector]["right"] <= boxes["room"]["right"], boxes
+    # The padded box's words stay on the prose and its padding is blank, so it stands
+    # in no margin; the window still clips the padding it carries past the page.
     misplaced = evaluate_probe(column, "misplacedBoxes")
     assert [(m["code"], m["at"]) for m in misplaced] == [
-        ("past-column", "<div id=padded>"),
         ("clipped-out", "<div id=padded>"),
     ], misplaced
 

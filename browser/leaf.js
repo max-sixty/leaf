@@ -242,16 +242,12 @@ async function boot() {
     remove: (anchor) => drawing.removeDrawing(anchor),
     replace: replaceDrawing,
   };
-  /** @type {ReturnType<typeof createAim>} */
-  let aim;
   /** @type {ReturnType<typeof createTargetPicker>} */
   let targets;
   /** @type {ReturnType<typeof createReactionController>} */
   let reactions;
   /** @type {ReturnType<typeof createPageGeometry>} */
   let pageGeometry;
-  /** @type {ReturnType<typeof createGoToSequence>} */
-  let goToSequence;
 
   /** @type {ReturnType<typeof createFloatingPanel>} */
   let floatingPanel;
@@ -309,7 +305,7 @@ async function boot() {
     announce,
     repaint,
   });
-  aim = createAim({
+  const aim = createAim({
     marginTargetAt: (...args) => app.overlay?.marginTargetAt(...args) ?? null,
     refreshAim: () => pageGeometry.refreshAim(),
     commentOnTarget: (...args) => responseSurface.commentOnTarget(...args),
@@ -673,7 +669,7 @@ async function boot() {
       app.threadDestinations.openThreadDraft(context, intent),
     holdsThreadDraft: (context) => app.threadDestinations.holdsThreadDraft(context),
   });
-  goToSequence = createGoToSequence({
+  const goToSequence = createGoToSequence({
     doors: floatingPanel.doors,
     hintChrome,
     openPageMap: (...args) => pageMapDialog.openPageMap(...args),

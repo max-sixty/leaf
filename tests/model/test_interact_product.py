@@ -1840,6 +1840,7 @@ def test_a_rewrite_lands_only_on_the_words_it_was_written_over(page_dir):
         "Heading south.",
         "Heading east.",
     ]
+    assert event_folds_model.unanswered_turns(thread) == []
 
 
 def test_edit_uses_the_captured_contract_when_the_candidate_registry_is_invalid(

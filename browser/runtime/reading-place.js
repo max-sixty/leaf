@@ -69,7 +69,7 @@ import {
   userScrollport,
   stuckBox,
 } from "./geometry.js";
-import { skipped } from "./shown-box.js";
+import { skipped, skipper } from "./shown-box.js";
 import {
   blockAt,
   closestAcross,
@@ -264,11 +264,19 @@ function* renderedBlocks(blocks, within = null) {
     const runs = [];
     /** @type {DrawnRun | null} */
     let run = null;
+    // The box skipping the last segment asked about, whose later segments pass unasked.
+    /** @type {Element | null} */
+    let hidden = null;
     for (const segment of segments) {
       const { node, start, end } = segment;
+      if (hidden?.contains(node)) {
+        run = null;
+        continue;
+      }
       const parent = renderedParent(node);
       if (!drawn.has(parent)) drawn.set(parent, drawsLandmark(parent));
       if (!drawn.get(parent)) {
+        hidden = parent && skipper(parent);
         run = null;
         continue;
       }

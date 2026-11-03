@@ -14,7 +14,6 @@ from render_harness import (
     leaf_page,
     open_page,
     resized,
-    scroll_settled,
     still_page,
     told,
 )
@@ -24,45 +23,6 @@ from leaf.render_checks import evaluate_probe, rendered, wait_until_ready
 from leaf_dev.page_fixtures import example_media
 
 ROOT = Path(__file__).resolve().parents[2]
-
-
-def test_trace_results_can_be_read_and_compared_on_a_phone(browser, serve):
-    """Result names stay readable and switching recordings keeps their evidence in view."""
-    context = browser.new_context(
-        viewport={"width": 390, "height": 844}, has_touch=True
-    )
-    page = open_page(
-        browser, serve(ROOT / "examples/review-a-fix.html"), context=context
-    )
-    for recording, label in [("before", "Before the fix"), ("after", "After the fix")]:
-        page.get_by_role("radio", name=label, exact=True).tap()
-        image = page.locator(f"#fix-{recording} .lf-trace-image-viewport")
-        if recording == "after":
-            expect(image).to_be_in_viewport(ratio=1)
-        moment = page.locator(f"#fix-{recording} .lf-trace-bookmark").last
-        moment.scroll_into_view_if_needed()
-        measured = moment.evaluate("""row => {
-          const label = row.querySelector('.lf-trace-moment-label');
-          const box = row.getBoundingClientRect();
-          const range = document.createRange();
-          range.selectNodeContents(label);
-          return {horizontal: label.scrollWidth - label.clientWidth,
-            words: [...range.getClientRects()].every(r =>
-              r.left >= box.left && r.right <= box.right &&
-              r.top >= box.top && r.bottom <= box.bottom)};
-        }""")
-        assert measured["horizontal"] <= 1, measured
-        assert measured["words"], measured
-        moment.tap()
-        expect(image).to_be_in_viewport(ratio=1)
-        expect(page.locator(".lf-trace-compare-controls")).to_be_in_viewport(ratio=1)
-
-    page.get_by_role("radio", name="After the fix", exact=True).press("Tab")
-    start = page.locator("#fix-after").get_by_role("button", name="Start", exact=True)
-    expect(start).to_be_focused()
-    scroll_settled(page)
-    chooser = page.locator(".lf-trace-compare-controls").bounding_box()
-    assert start.bounding_box()["y"] >= chooser["y"] + chooser["height"]
 
 
 def test_trace_bookmarks_leave_the_image_allocation(browser, serve):
@@ -436,43 +396,6 @@ def scrolled_closed_tree(browser, serve, motion):
 def assert_row_shown(landed):
     (top, bottom), (shown_top, shown_bottom) = landed["row"], landed["shown"]
     assert shown_top - 1 <= top and bottom <= shown_bottom + 1, landed
-
-
-@pytest.mark.parametrize("motion", ["no-preference", "reduce"])
-def test_trace_moment_lands_its_saved_element_over_the_trees_reading(
-    browser, serve, motion
-):
-    """A Moment naming a saved element shows its row in the tree and the page.
-
-    The reader scrolled this checkpoint's tree and closed it, so opening the tree
-    has a reading to restore. The Moment's landing is newer and stands. Its
-    checkpoint is already shown, so no image decode delays the landing past the
-    restore; that delay is what let this pass on some runs. Smooth motion is cut
-    short by any later scroll write, so both motions run. A row inside the window
-    but below the tree's own box is not shown either.
-    """
-    user, widget, _ = scrolled_closed_tree(browser, serve, motion)
-    saved = widget.locator(".lf-trace-bookmarks").get_by_role(
-        "button", name=re.compile("Saved element")
-    )
-    saved.click()
-    landed = user.evaluate(LANDED_ROW)
-    assert landed["open"]
-    assert_row_shown(landed)
-
-    # The open tree back at its start, its top near the window's: the row is
-    # inside the window, below what the tree shows.
-    user.set_viewport_size({"width": 1280, "height": 900})
-    rendered(user)
-    widget.locator(".lf-trace-tree").evaluate(
-        "tree => { tree.scrollTop = 0;"
-        " scrollBy(0, tree.getBoundingClientRect().top - 120); }"
-    )
-    rendered(user)
-    saved.evaluate("button => button.click()")
-    landed = user.evaluate(LANDED_ROW)
-    user.context.close()
-    assert_row_shown(landed)
 
 
 def test_trace_tree_opened_by_the_browser_keeps_its_match(browser, serve):

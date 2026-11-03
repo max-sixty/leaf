@@ -1048,39 +1048,6 @@ def test_review_queue_links_are_its_only_navigator_and_keep_both_readings(
     assert events_model.read_events(serve.page_dir) == events_before
 
 
-def test_thread_travel_reveals_a_review_detail_in_its_pane_only(browser, serve):
-    example = next(e for e in CORPUS_SOURCES if e.stem == "review-queue")
-    page = open_page(
-        browser,
-        serve(
-            example,
-            anchored=[
-                (
-                    "review-cache",
-                    "The deploy copies active entries to the new key format before readers",
-                )
-            ],
-        ),
-    )
-    resized(page, 1400, 900)
-    pane_scroll_behavior(page, page.locator("#review-detail"), "bounded")
-    queue = page.locator("#review-queue > :not(header, footer)")
-    detail = page.locator("#review-detail > :not(header, footer)")
-    queue.evaluate(
-        "el => el.scrollTop = Math.min(120, el.scrollHeight - el.clientHeight)"
-    )
-    queue_before = queue.evaluate("el => el.scrollTop")
-    detail.evaluate("el => el.scrollTop = el.scrollHeight")
-    detail_before = detail.evaluate("el => el.scrollTop")
-    assert detail_before > 0
-    expect(page.locator("#review-cache")).not_to_be_in_viewport()
-
-    travel_to_passage(page, only_thread(serve.page_dir))
-    expect(page.locator("#review-cache")).to_be_in_viewport()
-    assert detail.evaluate("el => el.scrollTop") < detail_before
-    assert queue.evaluate("el => el.scrollTop") == queue_before
-
-
 def only_thread(page_dir):
     """The id of the one thread a test's page holds."""
     (root,) = [

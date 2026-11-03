@@ -1280,3 +1280,6 @@ def test_a_page_seat_the_open_panel_stands_over_is_not_read(
     while not receipt() and time.monotonic() < deadline:
         page.wait_for_timeout(100)
     assert receipt(), "the answer shown whole was never marked read"
+
+
+import pytest

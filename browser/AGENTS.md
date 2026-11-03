@@ -482,7 +482,8 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Open or close a native modal or popover                                                               | `keyboard/layer-stack.js` `showNativeLayer`, `closeNativeLayer` (_lint_)           |
 | Whether a node is, or is inside, an open native layer, and of which kind                              | `shadow-tree.js` `nativeLayerKind`, `isNativeLayer`, `nativeLayerHolding` (_lint_) |
 | Which native layers are open, in opening order, and whether a modal admits a node                     | `keyboard/layer-stack.js` `nativeLayers`, `nativeModalAdmits`                      |
-| The element a URL fragment names                                                                      | `anchor-resolution.js` `fragmentTarget`                                            |
+| The element a URL fragment names, or the part of a widget its key names                               | `anchor-resolution.js` `fragmentTarget`, `fragmentAddress`                         |
+| This page's URL with a fragment naming an element, or a widget's key                                  | `anchor-coordinate.js` `fragmentUrl`                                               |
 | The address a heading's link names                                                                    | `heading-links.js` `headingAddress`                                                |
 | The language a file path means                                                                        | `language-paths.js` `langForPath`, from the registry's `$languages`                |
 | Paint on the next frame, or watch a size                                                              | `rendering.js` `nextRender`, `nextFrame`, `sizeObserver` (_lint_)                  |

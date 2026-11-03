@@ -406,7 +406,7 @@ def test_a_message_workflow_changes_phase_in_place_and_then_stands_still(
           return {
             authorVisible: contains(head, author),
             timeVisible: contains(head, time) && contains(metadata, time),
-            timeFixed: getComputedStyle(time).flexShrink === '0',
+            timeWhole: time.scrollWidth <= time.clientWidth,
           };
         }"""
     )

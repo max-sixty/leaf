@@ -921,6 +921,52 @@ def test_c_comments_and_g_t_navigates_to_threads(browser, serve):
     expect(comment).to_be_focused()
 
 
+# A deck's slides, each a section the page shows one at a time: two of words, and one
+# that is only a picture.
+DECK_SLIDES = {
+    "intro": "<h2>Where we started</h2><p>Three teams shared one build pipeline.</p>",
+    "results": "<h2>What it bought</h2><p>Release lead time fell from nine days.</p>",
+    "chart": (
+        '<svg viewBox="0 0 200 100" width="400" height="200" role="img" '
+        'aria-label="Lead time by quarter"><rect x="10" y="40" width="40" height="60">'
+        "</rect></svg>"
+    ),
+}
+
+
+@pytest.mark.parametrize("shown", ["results", "chart"])
+def test_a_page_comment_records_the_sections_on_screen(browser, serve, shown):
+    """A comment on the whole page has no passage, so on a deck that shows one slide at
+    a time, "drop this one" reached the agent without saying which slide (#5026). The
+    panel's send records the sections whose words or pictures are on screen: the
+    header's, read off the page, and the shown slide's, read in the workspace region
+    that scrolls the slides, but none of the slides the page hides. A slide that is
+    only a picture counts too, or the header alone would answer "this one"."""
+    slides = "".join(
+        f'<section id="{id}"{"" if id == shown else " hidden"}>{content}</section>'
+        for id, content in DECK_SLIDES.items()
+    )
+    html = leaf_page(
+        "Quarterly review",
+        '<header id="deck-title"><h1>Quarterly review, third quarter</h1></header>'
+        f'<div id="slides">{slides}</div>',
+        layout="workspace",
+    )
+    context = browser.new_context(viewport={"width": 1200, "height": 900})
+    page = open_page(browser, serve(html), context=context)
+    with sending(page, "the page comment"):
+        write(page_comment(page), "Drop this one")
+        page.keyboard.press("Enter")
+
+    [comment] = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    assert "anchor" not in comment
+    assert comment["viewing"] == ["deck-title", shown]
+
+
 def test_the_panels_own_c_answers_a_page_whose_log_has_not_arrived(browser, serve):
     """A page whose first poll cannot reach the server is a page the user still writes
     on: `c` opens the page comment, and the panel says only that a comment will not

@@ -56,7 +56,7 @@ import {
   word,
 } from "./bindings.js";
 import { nativeActivationAt, nativeClaimAt } from "./text-entry.js";
-import { renderedParent, under } from "../shadow.js";
+import { composedParentNode, renderedParent } from "../shadow.js";
 import { repaint } from "../repaint.js";
 import { keeps } from "../keeps.js";
 import { COMMANDS, commandsChangedOn, refuseCommands } from "../widget-upgrade.js";
@@ -923,6 +923,7 @@ function reflectAvailabilityReaders() {
   if (failure) throw failure;
 }
 function reflectButtonsTracked() {
+  claimPaintedRoots();
   if (!buttonsDirty && !dirtyButtons.size && !availabilityDirty) return;
   const every = buttonsDirty;
   buttonsDirty = false;
@@ -994,6 +995,7 @@ function reflectTracked(element) {
   if (failure) throw failure;
 }
 export function reflectKeys() {
+  claimPaintedRoots();
   if (!keysDirty && !dirtyElements.size) return;
   const every = keysDirty;
   keysDirty = false;
@@ -1021,15 +1023,32 @@ export const paintKeys = () => {
  * the hints among them, read the same rows. */
 /** @param {Node} root */
 export const paintKeysWithin = (root) => {
-  for (const ref of scopeRefs) {
-    const scoped = ref.deref();
-    if (scoped && under(scoped, root)) {
-      dirtyElements.add(scoped);
-      dirtyButtons.add(scoped);
-    }
-  }
+  paintedRoots.add(root);
   repaint();
 };
+// The roots renderers painted since the frame last reflected, resolved to the scoped
+// elements inside them as the frame reads the document: one climb per scoped element
+// however many renderers painted, where a scan per paint cost every widget's update
+// the whole page's scoped elements.
+/** @type {Set<Node>} */
+const paintedRoots = new Set();
+function claimPaintedRoots() {
+  if (!paintedRoots.size) return;
+  for (const ref of scopeRefs) {
+    const scoped = ref.deref();
+    for (
+      let at = /** @type {Node | null} */ (scoped ?? null);
+      at;
+      at = composedParentNode(at)
+    )
+      if (paintedRoots.has(at)) {
+        dirtyElements.add(/** @type {Element} */ (scoped));
+        dirtyButtons.add(/** @type {Element} */ (scoped));
+        break;
+      }
+  }
+  paintedRoots.clear();
+}
 /** What a scope answers right now, as a listener hears it read out — key names rather than
  * the chips the eye reads, since a screen reader renders "esc" literally. Off the register,
  * so an announcement cannot name a key the rows stopped binding.

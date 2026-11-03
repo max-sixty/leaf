@@ -555,8 +555,18 @@ export function createQueueWalk({
         ) ?? null)
       : null;
 
-  // The to-do Done ends now: the one the user is on.
-  const doneTodo = () => doneAt(currentLocationStop(stops()));
+  // The to-do Done ends now: the one the user is on. Which stop holds them needs the
+  // stops in page order, as a walk within a region reads them, not On me's groups: the
+  // keys ask this on every keystroke (the to-do stance's `at`), and grouping names
+  // each item's part of the page.
+  const doneTodo = () => {
+    const origin = currentLocationOrigin();
+    return origin?.kind === "current-location"
+      ? doneAt(
+          currentLocationStop(stopsAmong(inWalkOrder(readQueues().on_user)), origin),
+        )
+      : null;
+  };
 
   // The user's Done on a to-do on them: their `todo_end`, through the one append door.
   // The to-do leaves On me in the turn they press it (`framework/application.js`).

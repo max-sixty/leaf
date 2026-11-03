@@ -5532,7 +5532,10 @@ function createQueueWalk({ arriveAtRecord, arriveAtThread, threadPlace, prepareN
 		return ready;
 	}
 	const doneAt = (stop) => stop ? readQueues().on_user.find((item) => item.offers.done && sameStop(stopOf(item), stop)) ?? null : null;
-	const doneTodo = () => doneAt(currentLocationStop(stops()));
+	const doneTodo = () => {
+		const origin = currentLocationOrigin();
+		return origin?.kind === "current-location" ? doneAt(currentLocationStop(stopsAmong(inWalkOrder(readQueues().on_user)), origin)) : null;
+	};
 	function endTodo(id) {
 		return actions.done(queueItemKey({
 			kind: "todo",
@@ -10582,6 +10585,7 @@ function paintCloseRequests() {
 //#endregion
 //#region runtime/navigation.js
 const openThreads = (placedAt) => inPageOrder(threadList().filter((thread) => !thread.resolved), placedAt).map((thread) => thread.id);
+const anyOpenThread = () => threadList().some((thread) => !thread.resolved);
 const currentThread = (threads, origin) => {
 	const id = origin?.kind === "current-location" ? drawnThreadId(threadIn(origin.node)) : null;
 	return id !== null && threads.includes(id) ? id : null;
@@ -10750,7 +10754,7 @@ function createNavigation({ threadDestinations, placedAt }) {
 	const walkThreads = (dir) => stepThread(dir, threadDestinations, placedAt);
 	pageCommand({
 		id: "thread.walk",
-		ready: () => savedReadingSettled() || openThreads(placedAt).length > 0,
+		ready: () => savedReadingSettled() || anyOpenThread(),
 		touch: false,
 		keys: ["t", "Shift+t"],
 		routes: [{
@@ -10763,7 +10767,7 @@ function createNavigation({ threadDestinations, placedAt }) {
 			title: "Previous open thread"
 		}],
 		title: "threads",
-		when: () => openThreads(placedAt).length > 0,
+		when: anyOpenThread,
 		repeat: true,
 		travels: true,
 		runKey: (binding) => walkThreads(binding === "t" ? 1 : -1)

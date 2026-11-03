@@ -199,7 +199,7 @@ def admit_widget_event(sender, event: dict, readings: AdmissionReadings) -> dict
         )
         byid = reading.document.by_id if scope == "page" else reading.by_id
         admitted["meaning"]["among"] = authored_positions(
-            event["widget"], position, byid, reading.spoken, registry
+            event["widget"], position, byid, registry
         )[event["detail"]["value"]]
     answers, closes = answer_meaning(sender, record, admitted, readings)
     if answers:

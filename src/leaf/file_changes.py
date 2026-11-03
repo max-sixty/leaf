@@ -400,7 +400,10 @@ def _polling_observer() -> "BaseObserver":
     its platform selection picks polling and opens no instance. That leaves
     watchdog's `Observer` bound to polling for the rest of the process, so
     `_native_observer` names the inotify observer, whose import asks the kernel for
-    an instance again."""
+    an instance again.
+
+    TODO(2026-11-03): delete this repair, and import `PollingObserver` directly, once
+    a watchdog release fixes https://github.com/gorakhargosh/watchdog/issues/1389."""
     try:
         from watchdog.observers.polling import PollingObserver
     except OSError as error:

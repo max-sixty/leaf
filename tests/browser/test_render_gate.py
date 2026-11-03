@@ -3701,6 +3701,33 @@ def test_declared_space_names_containing_holders_as_advice(browser, serve):
     assert "put data-width on that holder" in str(advice[0])
 
 
+def test_the_sweep_reads_each_width_as_a_load_there_shows_it(browser, serve):
+    """A width the sweep steps to is read as it settles, not partway through a
+    transition the step started, which no load at that width shows. A sidebar's
+    contents map, once the window is wide enough to lay it in the margin, fades its
+    labels out at the places they take over the column; the sweep up from a phone's
+    window read them mid-fade and failed the page for words they covered for a fifth
+    of a second."""
+    source = leaf_page(
+        "Settling",
+        """<div id="stage"><p id="prose">Words a fading label passes over.</p>
+        <p id="label">A label that fades out</p></div>""",
+        head="""<style>
+#stage { position: relative; }
+#stage > p { margin: 0; }
+#label { transition: opacity 60s linear; }
+@media (min-width: 1000px) {
+  #label { position: absolute; inset: 0 auto auto 0; opacity: 0; }
+}
+</style>""",
+    )
+    # Loaded where the label stands in flow, so the step to 1200px starts the whole fade.
+    context = browser.new_context(viewport={"width": 800, "height": 720})
+    page = open_page(browser, serve(source), context=context)
+    readings = render_gate_readings.sweep(page, [1200], [])
+    assert render_gate_readings.swept_faults(readings) == []
+
+
 def test_unpainted_padding_can_hold_focus_rings_inside_the_page_gutter(browser, serve):
     """Blank padding may cross the content edge; paint and words still may not."""
     source = leaf_page(

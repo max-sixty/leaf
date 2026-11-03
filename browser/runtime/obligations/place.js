@@ -49,13 +49,31 @@ export function obligationPlace(item, items = readObligations().all) {
   const owner = elementById(item.source.id);
   const source = item.source.unit ? projectedDatum(owner, item.source.unit) : owner;
   const context = elementById(item.prompt.target);
-  const shared = items.some(
-    (other) =>
-      other.id !== item.id &&
-      other.source.kind === "widget" &&
-      other.prompt.target === item.prompt.target,
+  const sharing = contextsOf(items).get(item.prompt.target);
+  const shared = Boolean(
+    sharing && (sharing.size > 1 || (sharing.size === 1 && !sharing.has(item.id))),
   );
   return { source, context, node: item.source.unit || shared ? source : context };
+}
+
+// The ids of the widget obligations each context holds, read once per inventory, so
+// placing every obligation of an inventory costs one pass over it rather than one
+// per obligation.
+/** @type {WeakMap<readonly import("../framework/application.js").ObligationRecord[], Map<string | null, Set<string>>>} */
+const contexts = new WeakMap();
+/** @param {readonly import("../framework/application.js").ObligationRecord[]} items */
+function contextsOf(items) {
+  let held = contexts.get(items);
+  if (held) return held;
+  held = new Map();
+  for (const { id, source, prompt } of items) {
+    if (source.kind !== "widget") continue;
+    const ids = held.get(prompt.target);
+    if (ids) ids.add(id);
+    else held.set(prompt.target, new Set([id]));
+  }
+  contexts.set(items, held);
+  return held;
 }
 
 // Where a to-do's or an update's subject stands on the page: the element or widget it

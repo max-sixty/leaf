@@ -296,7 +296,8 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 `runtime/rendering.js` runs every rendering callback in one pass per frame. Schedule
 through its `nextRender`, `nextFrame`, `cancelRender` and `sizeObserver`; lint refuses
 the browser's own. A rendering callback does its layout reads before its writes, since
-a read after a write forces a synchronous layout.
+a read after a write forces a synchronous layout. `getComputedStyle` forces style, and
+in Chromium so can a read of the page's selection, such as `rangeCount`.
 
 A box that follows page content is positioned by CSS, with an anchor, a sticky offset
 or a scroll timeline, because a scroll handler trails the scroll by a frame. Paint over

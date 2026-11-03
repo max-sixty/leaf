@@ -677,11 +677,10 @@ def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve
     )
     if mode == "page":
         assert ".lf-margin-cluster" not in carrier
-        assert ".lf-visual-mark {" not in carrier
+        assert ".lf-mark-el {" not in carrier
         assert "::highlight(lf-mark)" not in carrier
         assert ".lf-margin-preview { position: fixed" not in carrier
-    assert ".lf-aim {" in selected["chrome"]
-    assert ".lf-target-trace {" in selected["chrome"]
+    assert ".lf-inspect {" in selected["chrome"]
     assert ".lf-drawing-mark path" in selected["chrome"]
     assert "::highlight(lf-version-insert)" in selected["marks"]
 

@@ -1570,7 +1570,8 @@ def test_every_ring_stands_at_a_kind_of_box():
     `--lf-ring-at` in Leaf's sheets names its kind's token rather than a length, so a
     change to a kind reaches every box of it, and so does every `outline-offset`, which
     otherwise reads that declaration: every box's (surfaces.css), the floor's, and the
-    overlay's boxes, which take the gap their placement writes (`--lf-mark-offset`)."""
+    marks a box draws round itself, which stand at their band's gap (`--lf-band-gap`),
+    itself read from `--lf-ring-at`."""
     kinds = {
         "0",
         "var(--focus-region-gap)",
@@ -1580,7 +1581,7 @@ def test_every_ring_stands_at_a_kind_of_box():
     reads = {
         "var(--lf-ring-at, 0px)",
         "var(--lf-ring-at, var(--focus-ring-gap))",
-        "var(--lf-mark-offset)",
+        "var(--lf-band-gap)",
     }
     allowed = {"--lf-ring-at": kinds, "outline-offset": kinds | reads}
     stated = [

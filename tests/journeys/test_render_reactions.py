@@ -1,8 +1,11 @@
 """Reactions: one-press tokens on a passage, an item, or a reply."""
 
+import re
+
 import pytest
 from browser.test_render_reactions import hint_code, painted
 from playwright.sync_api import expect
+from render_cases_layout import MARK
 from render_cases_navigation import (
     TARGETS_PAGE,
 )
@@ -39,13 +42,11 @@ def test_a_target_hint_opens_comment_and_a_token_seats_only_its_glyph(browser, s
     shown = painted(page, [["prose", "prioritize"]])
     assert shown["washed"] == "", shown
     expect(page.locator("#prose")).to_be_focused()
-    focus = page.locator('.lf-visual-mark-focus[data-for="prose"]')
-    expect(focus).to_be_visible()
-    assert (
-        focus.evaluate("node => getComputedStyle(node, '::after').outlineStyle")
-        == "solid"
-    )
+    prose = page.locator("#prose")
+    expect(prose).to_have_attribute("data-lf-mark", re.compile(r"\bfocus\b"))
+    ring = prose.evaluate(MARK)
+    assert ring and ring["style"] == "solid" and not ring["brackets"], ring
     assert shown["projected"] == 1, shown
     page.evaluate(RELEASE_FOCUS)
-    expect(page.locator(".lf-visual-mark")).to_have_count(0)
+    expect(page.locator("[data-lf-mark]")).to_have_count(0)
     assert painted(page, [["prose", "prioritize"]])["washed"] == ""

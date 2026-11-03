@@ -13,6 +13,7 @@ from render_cases_interaction import (
     panel_comment,
 )
 from render_cases_layout import (
+    MARK,
     button_radius,
 )
 from render_cases_navigation import (
@@ -74,7 +75,7 @@ PAINTED = """() => ({
   glyphs: [...document.querySelectorAll('.lf-margin-cluster .lf-react-mark')]
     .map(m => [m.closest('[data-lf-margin-for]').dataset.lfMarginFor,
                m.getAttribute('aria-label')]),
-  projected: [...document.querySelectorAll('.lf-visual-mark')].length,
+  projected: [...document.querySelectorAll('[data-lf-mark]')].length,
 })"""
 
 # Interaction state never adds a second mark to a margin entry; durable agent workflow
@@ -986,7 +987,7 @@ def test_a_reaction_on_a_visual_part_names_that_part(browser, serve):
     assert shown["washed"] == "", shown
     # Keyboard return may project focus; the reaction itself adds no contour.
     rendered(page)
-    assert page.locator(".lf-visual-mark:not(.lf-visual-mark-focus)").count() == 0
+    assert page.locator('[data-lf-mark]:not([data-lf-mark~="focus"])').count() == 0
 
 
 def test_a_whole_visual_reaction_does_not_stand_on_one_of_its_parts(browser, serve):
@@ -1203,10 +1204,10 @@ def test_a_visual_fallback_yields_to_stable_targets_inside_the_picture(browser, 
     nested_picture = page.locator('#outer svg[aria-label="Nested picture"]')
     nested_picture.hover()
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "outer")
-    assert page.locator(".lf-aim").bounding_box() == pytest.approx(
-        page.locator("#outer").bounding_box(), abs=1
-    ), "the aim promised the picture box while its anchor resolved to the section"
+    expect(
+        page.locator(".lf-aimed"),
+        "the aim promised the picture box while its anchor resolved to the section",
+    ).to_have_id("outer")
     page.keyboard.up("Alt")
     nested_picture.click(modifiers=["Alt"])
     expect(page.locator("#outer")).to_have_class(re.compile(r"\blf-pending\b"))
@@ -1524,17 +1525,18 @@ def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser,
     expect(control).to_be_focused()
     expect(page.locator("#folded")).to_have_attribute("open", "")
     expect(part).to_be_in_viewport()
-    # It shows nothing of its own: the part wears the focus ring, round its contour.
+    # It shows nothing of its own: the part wears the focus ring, whole, on its edge.
     assert control.evaluate("control => getComputedStyle(control).opacity") == "0"
-    ring = page.locator(".lf-proxy-ring")
-    expect(ring).to_have_count(1)
-    held, drawn = ring.bounding_box(), part.bounding_box()
-    # The ring stands round the part, at its gap.
+    expect(page.locator(".lf-proxied")).to_have_count(1)
+    expect(part).to_have_class(re.compile(r"\blf-proxied\b"))
+    ring = part.evaluate(MARK)
+    assert ring and ring["style"] == "solid" and not ring["brackets"], ring
+    held, drawn = ring["ring"], part.bounding_box()
     gaps = (
-        drawn["x"] - held["x"],
-        drawn["y"] - held["y"],
-        held["x"] + held["width"] - drawn["x"] - drawn["width"],
-        held["y"] + held["height"] - drawn["y"] - drawn["height"],
+        drawn["x"] - held["left"],
+        drawn["y"] - held["top"],
+        held["right"] - drawn["x"] - drawn["width"],
+        held["bottom"] - drawn["y"] - drawn["height"],
     )
     assert all(0 <= gap <= 4 for gap in gaps), (held, drawn)
 

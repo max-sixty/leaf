@@ -10,7 +10,7 @@ from click.testing import CliRunner
 from interact_support import append_carried_log_record, declare_idle, record_claim
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE, PANEL_PAGE, live_url
-from render_cases_layout import token_colour
+from render_cases_layout import MARK, token_colour
 from render_cases_navigation import go_to_address
 from render_cases_widgets import (
     GENERIC_VISUAL_LAYER,
@@ -1065,7 +1065,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
             expect(marker).to_have_attribute("data-identity-probe", "kept")
         page.evaluate("() => document.activeElement.blur()")
         page.mouse.move(0, 0)
-        expect(page.locator(".lf-target-trace")).to_be_hidden()
+        expect(page.locator(".lf-traced")).to_have_count(0)
         expect(control.locator(":scope > .lf-margin-entry-label")).to_be_hidden()
         words_still()
         current = face(control)
@@ -1103,8 +1103,8 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
             for key in ("background", "border", "ink", "iconInk", "opacity")
         }
         control.hover()
-        trace_box = page.locator('.lf-target-trace[data-for="jobs"]')
-        expect(trace_box).to_be_visible()
+        traced = page.locator("#jobs")
+        expect(traced).to_have_class(re.compile(r"\blf-traced\b"))
         label = control.locator(":scope > .lf-margin-entry-label")
         expect(label).to_be_visible()
         words_still()
@@ -1118,29 +1118,24 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         assert hovered["wordPosition"] == "absolute"
         assert hovered["wordBackground"] != "rgba(0, 0, 0, 0)"
         # A rectangular trace uses the same outside stroke as target focus, on the
-        # region's perimeter, in the trace's quiet ink. Read the painted bracket, not its transparent container.
-        trace = page.evaluate(
-            """() => {
-              const trace = document.querySelector('.lf-target-trace');
-              const box = getComputedStyle(trace, '::before');
-              return {
-                boxWidth: box.outlineWidth,
-                boxColor: box.outlineColor,
-                gap: box.outlineOffset,
-                region: getComputedStyle(document.documentElement)
-                  .getPropertyValue('--focus-region-gap').trim(),
-                leader: getComputedStyle(
-                  document.querySelector('.lf-margin-cluster'), '::before',
-                ).content,
-              };
-            }"""
+        # region's perimeter, in the trace's quiet ink, cut to brackets.
+        mark = traced.evaluate(MARK)
+        region = page.evaluate(
+            "() => parseFloat(getComputedStyle(document.documentElement)"
+            ".getPropertyValue('--focus-region-gap'))"
         )
-        assert trace.pop("gap") == trace.pop("region"), trace
-        assert trace == {
-            "boxWidth": "2px",
-            "boxColor": resolved_color("--target-trace-ink"),
-            "leader": "none",
-        }
+        leader = page.evaluate(
+            "() => getComputedStyle(document.querySelector('.lf-margin-cluster'),"
+            " '::before').content"
+        )
+        assert mark and mark["offset"] == region, (mark, region)
+        assert (mark["style"], mark["width"], mark["color"], mark["brackets"]) == (
+            "solid",
+            2,
+            resolved_color("--target-trace-ink"),
+            True,
+        ), mark
+        assert leader == "none"
 
     assert_status("Queued for Claude", "just now")
     result = Axe().run(
@@ -1358,41 +1353,29 @@ def test_status_hover_trace_uses_a_registered_visual_surface(browser, serve):
     expect(status).to_have_attribute("tabindex", "-1")
     assert status.evaluate("node => node.tagName") == "SPAN"
     status.hover()
-    trace = page.locator('.lf-target-trace[data-for="outer"]')
-    expect(trace).to_be_visible()
-    expect(trace).to_have_class(re.compile(r"\blf-shaped\b"))
-    assert trace.locator(".lf-target-trace-shape > g > *").evaluate_all(
-        "nodes => nodes.map(node => node.localName)"
-    ) == ["rect"]
-    geometry = page.evaluate(
+    # The surface draws the trace, on the edge of what it draws, whole, in the trace's
+    # ink; the part it stands for, which holds a decoration too, draws none.
+    traced = re.compile(r"\blf-traced\b")
+    surface = page.locator("#outer-surface")
+    expect(surface).to_have_class(traced)
+    expect(page.locator("#outer")).not_to_have_class(traced)
+    mark = surface.evaluate(MARK)
+    trace_ink = page.evaluate(
         """() => {
-          const surface = document.querySelector('#outer-surface').getBoundingClientRect();
-          const trace = document.querySelector('.lf-target-trace');
-          const box = trace.getBoundingClientRect();
-          const shape = trace.querySelector('rect');
-          const style = getComputedStyle(shape);
           const swatch = document.createElement('span');
           swatch.style.color = 'var(--target-trace-ink)';
           document.head.append(swatch);
-          const traceInk = getComputedStyle(swatch).color;
+          const ink = getComputedStyle(swatch).color;
           swatch.remove();
-          return {
-            sameCenter: Math.abs(box.x + box.width / 2 - (surface.x + surface.width / 2)) < .5
-              && Math.abs(box.y + box.height / 2 - (surface.y + surface.height / 2)) < .5,
-            surrounds: box.width > surface.width && box.height > surface.height,
-            stroke: style.stroke,
-            traceInk,
-            fill: style.fill,
-          };
+          return ink;
         }"""
     )
-    assert geometry == {
-        "sameCenter": True,
-        "surrounds": True,
-        "stroke": geometry["traceInk"],
-        "traceInk": geometry["stroke"],
-        "fill": "none",
-    }
+    assert mark and (mark["style"], mark["offset"], mark["brackets"]) == (
+        "solid",
+        0,
+        False,
+    ), mark
+    assert mark["color"] == trace_ink, (mark, trace_ink)
 
     page.mouse.move(0, 0)
-    expect(trace).to_be_hidden()
+    expect(page.locator(".lf-traced")).to_have_count(0)

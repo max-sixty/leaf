@@ -1,6 +1,8 @@
 """Which keyboard scope answers a key, and how Escape unwinds the layers in front of the
 user."""
 
+import re
+
 import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
@@ -1744,9 +1746,7 @@ def test_a_label_press_keeps_the_controls_current_keyboard_location(browser, ser
     assert offered_routes(page) == current_location
     held_obligation = page.locator("#first-question-decision[data-lf-obligation]")
     expect(held_obligation).to_have_count(1)
-    expect(
-        page.locator(".lf-location[data-for='first-question-decision']")
-    ).to_be_visible()
+    expect(held_obligation).to_have_class(re.compile(r"\blf-projected-location\b"))
     # Native label activation temporarily blurs the radio. Its logical input
     # destination remains in place until the label's click transfers focus. The
     # pointer press removes its keyboard cue without moving that location.

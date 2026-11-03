@@ -1227,8 +1227,8 @@ def test_a_live_version_retargets_an_open_margin_preview(browser, serve):
     close.focus()
     expect(close).to_be_focused()
     # The card's thread, which the user is located in, marks its element.
-    mark = page.locator('.lf-visual-mark-here[data-for="bracket"]')
-    expect(mark).to_be_visible()
+    marked, here = page.locator("#bracket"), re.compile(r"\bhere\b")
+    expect(marked).to_have_attribute("data-lf-mark", here)
 
     (serve.page_dir / "index.html").write_text(
         OBLIGATION_PAGE.replace("Three jobs", "Four jobs")
@@ -1237,7 +1237,7 @@ def test_a_live_version_retargets_an_open_margin_preview(browser, serve):
     expect(page.get_by_role("heading", name="Four jobs")).to_be_visible()
     expect(close).to_be_focused()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
-    expect(mark).to_be_visible()
+    expect(marked).to_have_attribute("data-lf-mark", here)
 
 
 def test_a_version_comparison_joins_the_same_map_and_leaves_with_it(browser, serve):

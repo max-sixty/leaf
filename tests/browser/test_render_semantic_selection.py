@@ -5,7 +5,7 @@ import re
 
 import pytest
 from playwright.sync_api import expect
-from render_cases_layout import DRAFT_MARK
+from render_cases_layout import AIMED, DRAFT_MARK
 from render_cases_navigation import (
     TARGETS_PAGE,
     pending_text,
@@ -119,11 +119,11 @@ def test_desktop_target_picker_arms_the_page_as_alt_does(browser, serve):
     )
     link = page.get_by_role("link", name="Follow this link")
     link.hover()
-    expect(page.locator(".lf-aim[data-for]")).to_have_count(0)
+    expect(page.locator(".lf-aimed")).to_have_count(0)
     # Opened under a still mouse, the promise paints without waiting for a move.
     page.keyboard.press("s")
     expect(page.locator(".lf-target-picker-hint")).not_to_have_count(0)
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "link")
+    expect(page.locator(".lf-aimed")).to_have_id("link")
     # A middle press is armed too: it opens no tab and chooses nothing, so the picker stands.
     link.click(button="middle")
     expect(page.locator(".lf-target-picker-hint")).not_to_have_count(0)
@@ -131,7 +131,7 @@ def test_desktop_target_picker_arms_the_page_as_alt_does(browser, serve):
     link.dblclick()
     expect(page.locator(".lf-fab-input")).to_be_focused()
     expect(page.locator(".lf-target-picker-hint")).to_have_count(0)
-    expect(page.locator(".lf-aim[data-for]")).to_have_count(0)
+    expect(page.locator(".lf-aimed")).to_have_count(0)
     assert not page.url.endswith("#elsewhere"), "the picker's press followed the link"
     assert page.context.pages == [page], "the picker's middle press opened the link"
 
@@ -146,7 +146,8 @@ def test_target_picker_takes_a_margin_press_as_the_target_it_stands_by(browser, 
     accept.scroll_into_view_if_needed()
     accept.hover()
     page.keyboard.press("s")
-    promised = page.locator(".lf-aim").get_attribute("data-for")
+    expect(page.locator(".lf-aimed")).not_to_have_count(0)
+    promised = page.evaluate(AIMED)
     assert promised, "the picker painted no target over the margin row"
     accept.click()
     expect(page.locator(".lf-fab-input")).to_be_focused()

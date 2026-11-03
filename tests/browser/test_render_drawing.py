@@ -70,7 +70,7 @@ def draw_over(page, locator, *, steps=8, points=STROKE):
     page.keyboard.press("w")
     expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
     assert locator.evaluate("el => getComputedStyle(el).cursor") == "crosshair"
-    expect(page.locator(".lf-aim")).to_be_hidden()
+    expect(page.locator(".lf-aimed")).to_have_count(0)
     return stroke_over(page, locator, steps=steps, points=points)
 
 
@@ -686,7 +686,7 @@ def test_a_margin_start_uses_the_addressable_element_alongside_it_as_context(
 
     page.mouse.move(point["x"], point["y"])
     page.keyboard.press("w")
-    expect(page.locator(".lf-aim")).to_be_hidden()
+    expect(page.locator(".lf-aimed")).to_have_count(0)
     page.mouse.down()
     page.mouse.move(box["x"] + box["width"] * 0.75, point["y"] - 30, steps=8)
     page.mouse.move(box["x"] + box["width"] * 0.35, point["y"] + 20, steps=8)
@@ -1699,7 +1699,7 @@ def test_a_draw_press_uses_the_exact_target_under_its_start(browser, serve):
     assert target in {"map-street", "map-trail"}
     page.mouse.move(*point)
     page.keyboard.press("w")
-    expect(page.locator(".lf-aim")).to_be_hidden()
+    expect(page.locator(".lf-aimed")).to_have_count(0)
 
     page.mouse.down()
     page.mouse.move(point[0] + 80, point[1], steps=8)

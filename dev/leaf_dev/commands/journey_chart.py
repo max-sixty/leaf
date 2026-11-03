@@ -252,8 +252,9 @@ def journey_chart(replies: bool, since: datetime | None) -> None:
         else []
     )
     if not chosen(samples, since):
+        kept = f" kept since {since.isoformat()}" if since is not None else ""
         raise click.ClickException(
-            f"{path} holds no sample with milestones to read; run `leaf-dev journey`"
+            f"{path} holds no sample with milestones{kept}; run `leaf-dev journey`"
         )
     print(
         reply_table(samples, since)

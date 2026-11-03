@@ -391,21 +391,19 @@ def base_ref(ref: str | None) -> str:
 def base_option(*, paired: bool = False):
     """The `--base [REF]` option of every command that runs Leaf at two versions.
 
-    A paired command, whose output sets the two versions side by side, always runs the
-    base; any other runs it only when given `--base`. The value is None for no base,
-    and empty for the merge base (`choose_arms`)."""
+    A paired command, whose readings mean something only beside the base's, always
+    runs the base; any other runs it only when given `--base`. The value is None for
+    no base, and empty for the merge base (`choose_arms`)."""
     return click.option(
         "--base",
         is_flag=False,
         flag_value="",
         default="" if paired else None,
         metavar="[REF]",
-        help=(
-            "Compare with the merge base with main, or with REF."
-            if paired
-            else "Also run the merge base with main, or REF."
-        )
-        + " Write --base=REF when an argument follows.",
+        help="Compare with REF instead of the merge base with main."
+        if paired
+        else "Also run the merge base with main, or REF. Without REF, put it after "
+        "any arguments.",
     )
 
 
@@ -418,12 +416,13 @@ class Arm(NamedTuple):
 
 
 def choose_arms(base: str | None, scratch: Path) -> dict[str, Arm]:
-    """The arms a command runs, keyed `base` and `head`, base first: `head` is this
-    working tree in place, uncommitted edits included, and unless `base` is None, `base`
-    is the whole tree at `base_ref(base)`, built under `scratch` (`build_arm`)."""
+    """The arms a command runs, keyed `base` and `head`, base first. `head` is this
+    working tree in place, uncommitted edits included, so an edit made during a run
+    reaches what the run reads after it. Unless `base` is None, `base` is the whole
+    tree at `base_ref(base)`, built under `scratch` in `arms/` (`build_arm`)."""
     arms = {}
     if base is not None:
-        directory = scratch / "base"
+        directory = scratch / "arms" / "base"
         commit = build_arm(base_ref(base), directory, paths=(".",))
         arms["base"] = Arm(directory, commit)
     return {**arms, "head": Arm(ROOT, arm_commit(None))}
@@ -437,12 +436,12 @@ def describe(arms: dict[str, Arm]) -> str:
 def own_source(arm: Arm, source: Path) -> Path:
     """`source`, an authored page in this checkout, as `arm`'s checkout has it, with
     that checkout's companions and asset pin beside it: `source` itself on the head,
-    the base commit's copy on the base. A generated source, such as the corpus, is
-    generated in that checkout first (`refresh_composition`)."""
-    if not source.is_relative_to(ROOT):
-        raise click.UsageError(f"{source} is outside this checkout, so no arm owns it")
+    the base commit's copy on the base. The base holds only tracked files, so a
+    generated source, such as the corpus, is generated there when it is missing
+    (`refresh_composition`); its readers regenerate it as they read it."""
     own = arm.directory / source.relative_to(ROOT)
-    refresh_composition(own)
+    if not own.exists():
+        refresh_composition(own)
     return own
 
 

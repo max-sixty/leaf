@@ -15,9 +15,9 @@ run: style and layout time and how much of it script forced, the forced style
 recalculations and the writes that invalidated style with the JS behind each, and JS
 by self and inclusive time.
 
---base also profiles the merge base with main (or REF), built as every command that
-runs two versions builds it (`leaf_dev.arms.choose_arms`), and prints the per-run
-detail for each arm followed by a side-by-side summary. --marks counts the user-timing
+--base also profiles the merge base with main (or REF), built by
+`leaf_dev.arms.choose_arms`, and prints the per-run detail for each arm followed by a
+side-by-side summary. --marks counts the user-timing
 marks and measures the page made inside the window, so a temporary
 `performance.mark('x')` in source shows how many times a path ran per transition on
 each arm.

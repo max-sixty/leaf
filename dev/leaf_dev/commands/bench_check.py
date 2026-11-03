@@ -1,14 +1,14 @@
-"""Time how long `leaf page check --render` takes, on this working tree and a base.
+"""Compare how long `leaf page check --render` takes, base vs this working tree.
 
-    uv run leaf-dev bench-check [--base [REF]]
+    uv run leaf-dev bench-check [--base REF]
 
-The head is this working tree, uncommitted edits included, and `--base` adds the merge
-base with `main`, or REF (`leaf_dev.arms.choose_arms`). Each page in PAGES is built
-from this checkout's example by the arm's own launcher, then checked RUNS times by that
-arm's `bin/leaf`, alternating arms so drift in machine load falls on both. Wall time is
-the child process's, launcher included. Other processes' load moves every run, so read
-the spread and the load average before the median; `leaf-dev profile` says where a
-browser transition's time goes.
+The base is the merge base with `main` unless `--base` names another commit, and the
+head is this working tree, uncommitted edits included (`leaf_dev.arms.choose_arms`).
+Each page in PAGES is built from this checkout's example by the arm's own launcher,
+then checked RUNS times by that arm's `bin/leaf`, alternating arms so drift in machine
+load falls on both. Wall time is the child process's, launcher included. Other
+processes' load moves every run, so read the spread and the load average before the
+median; `leaf-dev profile` says where a browser transition's time goes.
 
 Each invocation builds its base, pages, and state in a unique run directory under
 `.tmp/bench-check/` and prints that directory.
@@ -44,12 +44,12 @@ def spread(walls: list[float]) -> str:
 
 
 @click.command()
-@base_option()
-def bench_check(base: str | None) -> None:
-    """Time `page check --render` on this working tree, and on a base with --base.
+@base_option(paired=True)
+def bench_check(base: str) -> None:
+    """Time `page check --render`, base vs this working tree.
 
-    Runs `leaf page check --render` on a few examples with this working tree's
-    plugin, and the base's, with no model. Prints each arm's median (min-max) wall
+    Runs `leaf page check --render` on a few examples with the base's plugin and
+    this working tree's, with no model. Prints each arm's median (min-max) wall
     seconds per page.
     """
     out = run_directory(OUT)
@@ -78,14 +78,11 @@ def bench_check(base: str | None) -> None:
     click.echo(describe(arms))
     click.echo(f"load average {before} before, {load_average()} after")
     click.echo(f"wall seconds, median (min-max) of {RUNS} runs\n")
-    columns = [*arms, *(["change"] if base is not None else [])]
-    click.echo(f"| page | {' | '.join(columns)} |\n|---|{'---:|' * len(columns)}")
+    click.echo("| page | base | head | change |\n|---|---:|---:|---:|")
     for name in PAGES:
-        cells = [spread(walls[arm, name]) for arm in arms]
-        if base is not None:
-            base_wall, head_wall = (
-                statistics.median(walls[arm, name]) for arm in ("base", "head")
-            )
-            cells.append(f"{head_wall - base_wall:+.2f}")
-        click.echo(f"| {name} | {' | '.join(cells)} |")
+        base_walls, head_walls = walls["base", name], walls["head", name]
+        change = statistics.median(head_walls) - statistics.median(base_walls)
+        click.echo(
+            f"| {name} | {spread(base_walls)} | {spread(head_walls)} | {change:+.2f} |"
+        )
     click.echo(f"files in {out}")

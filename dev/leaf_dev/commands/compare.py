@@ -1,11 +1,12 @@
 """Serve a base runtime beside this working tree's as two live previews.
 
 The base is the merge base with `main` unless `--base` names another commit, and the
-head is this working tree (`leaf_dev.arms.choose_arms`), whose preview follows edits.
-Both read the head's authored source unless --authored has the base read its own
-copy (`leaf_dev.arms.own_source`). Each invocation owns fresh preview slots. User
-previews keep their base under .tmp/compare after startup because detached watchers
-still need its files. Foreground previews end together.
+head is this working tree (`leaf_dev.arms.choose_arms`), so its preview follows
+runtime edits too. Both read the head's authored source, following its edits, unless
+--authored has the base read its own copy (`leaf_dev.arms.own_source`). Each
+invocation owns fresh preview slots. User previews keep their base under .tmp/compare
+after startup because detached watchers still need its files. Foreground previews end
+together.
 """
 
 import signal
@@ -39,6 +40,8 @@ def compare(example, source, base, authored, user):
     if example and source:
         raise click.UsageError("choose an example name or --source, not both")
     source = authored_source(example, source)
+    if authored and not source.is_relative_to(ROOT):
+        raise click.UsageError("--authored needs a source inside this checkout")
     directory = run_directory(ROOT / ".tmp" / "compare")
     arms = choose_arms(base, directory)
     prefix = f"{source.stem}-{directory.name}"

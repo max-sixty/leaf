@@ -6,12 +6,12 @@
 The head is this working tree, uncommitted edits included, and `--base` adds the merge
 base with `main`, or REF (`leaf_dev.arms.choose_arms`). The working tree alone, with
 one page and transition, takes under a minute, cheap enough to run during a change;
-the full A/B takes many. Each arm
-builds and serves the triage board and the corpus from this checkout's examples, and
-both arms' tabs stay open in one headless shell, taking turns within each run. Each
-run reloads the page, opens the floating panel's Threads view, and times five
-transitions (`TRANSITIONS`): a passage comment and a card move, each ended by a key,
-and an agent reply, status, and revision, each by the arm's `leaf`. The agent
+the full A/B takes many. Each arm builds and serves the triage board and the corpus
+from this checkout's examples, and with `--base` both arms' tabs stay open in one
+headless shell, taking turns within each run. Each run reloads the page, opens the
+floating panel's Threads view, and times five transitions (`TRANSITIONS`): a passage
+comment and a card move, each ended by a key, and an agent reply, status, and
+revision, each by the arm's `leaf`. The agent
 conversation has enough history to scroll, and the reply measurement follows its
 latest turn in the panel's view of the thread, with the caret in the panel's field,
 which is the thread's reply box.
@@ -479,11 +479,11 @@ def bench_latency(
     """Time an open page's answers on this working tree, and on a base with --base.
 
     Times a page's answer to a gesture, an agent write, and a revision, on two
-    pages, taking turns between the base's runtime and this working tree's. Prints
-    a table of median [min-max] milliseconds to the painted frame, to the gesture's
-    POST answer, and to the painted frame of the server's reading (Sent), with the
-    requests and bytes each caused, then who held the main thread in that time.
-    Every run lands in .tmp/bench-latency/.
+    pages, with this working tree's runtime and with --base the base's, taking
+    turns. Prints a table of median [min-max] milliseconds to the painted frame, to
+    the gesture's POST answer, and to the painted frame of the server's reading
+    (Sent), with the requests and bytes each caused, then who held the main thread
+    in that time. Every run lands in .tmp/bench-latency/.
 
     To check a change as you make it, narrow it, for example
     `--page corpus --transition comment --runs 3`.

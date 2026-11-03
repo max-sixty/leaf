@@ -1,8 +1,10 @@
 """Run the eval catalog through Promptfoo on Claude Code and Codex.
 
-This command does only what Promptfoo cannot: it builds each Leaf arm (the working
-tree, and with `--base` a ref), gives each provider a home of its own seeded with the
-harness's login, and expands the catalog's task/context addresses into Promptfoo tests.
+This command does only what Promptfoo cannot: it builds each Leaf arm (`head` from the
+working tree, and with `--base` a `base` at the merge base or a ref, as
+`choose_arms(payload=True)` copies them), gives each provider a home of its own seeded
+with the harness's login, and expands the catalog's task/context addresses into
+Promptfoo tests.
 Native probes install the complete arm as a plugin and read it in fresh sessions;
 short authoring cases use isolated tool-capable children and grade the saved page;
 Codex shares one server per provider home while starting fresh ephemeral, read-only
@@ -10,13 +12,19 @@ threads for each test.
 Promptfoo owns the rest: repetition, concurrency, assertions, the console table, and
 the result database its viewer reads. Arguments after the cases go to `promptfoo eval`.
 
-A provider is one column of the results: a harness on one arm (`claude-code/candidate`),
+A provider is one column of the results: a harness on one arm (`claude-code/head`),
 suffixed `/authoring` for tool-capable short cases or `/workflow` for complete
 tasks, and on arm `html` for the plain HTML control. A workflow column names the
 Leaf transport its harness session takes where the harness has more than one
 (`codex:app-server/base/workflow`),
 since a workflow scores only that transport. A test is one catalog address under one
 condition.
+
+`--from RUN` grades a retained run's saved outputs again instead of authoring:
+each test replays one saved result in that result's column, graded by its case's
+assertions as this checkout states them, and `--judge` names a judgment to make of
+the saved samples instead (`regrade.py` owns the replay and the judgments). Its
+results join Promptfoo's store and viewer like any other run's.
 """
 
 import fnmatch
@@ -26,13 +34,16 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from collections.abc import Callable, Iterator
 from copy import deepcopy
 from datetime import datetime
+from functools import cache, partial
 from importlib import import_module
 from pathlib import Path
 
 import click
 import yaml
+from click.core import ParameterSource
 
 from leaf.harness import ClaudeCodeHarness
 from leaf_dev import ROOT
@@ -42,18 +53,21 @@ from leaf_dev.arms import (
     MODELS,
     TURN_LIMIT,
     WORKFLOW_LIMIT,
-    base_ref,
-    build_arm,
+    base_option,
     child_class,
+    choose_arms,
     claude_child,
     codex_home,
     codex_program,
+    describe,
     environment,
     install_codex_plugin,
     instruction_context,
 )
 from leaf_dev.eval_cases import DEFAULT_VIEWPORTS, VIEWPORTS, definition
+from leaf_dev.eval_records import run_samples
 from leaf_dev.leaf_assets import pinned_copy
+from leaf_dev.regrade import REPLAY, judgment
 from leaf_dev.screenshot_judge import screenshot_judge
 
 PROMPTFOO = ROOT / "node_modules/.bin/promptfoo"
@@ -297,6 +311,87 @@ def workflow_provider(
     }
 
 
+def grading(
+    test: dict, address: str, condition: str, judge: Callable[[], dict]
+) -> dict:
+    """A case's assertions and grading options under one condition, for a sample
+    authored now or one saved earlier.
+
+    `judge` returns the screenshot judge an agent rubric uses, made on first use.
+    """
+    metadata = test.get("metadata", {})
+    executor = metadata.get("executor")
+    options = {}
+    if executor:
+        checks = (
+            []
+            if "providerOutput" in test
+            else import_module(executor).expected_checks(
+                metadata["scenario"], condition=condition
+            )
+        )
+    elif metadata.get("authoring"):
+        checks = [
+            "completed",
+            *(["format-valid"] if condition in {"json", "adaptive"} else []),
+            "page-valid",
+            *(
+                ["interaction-proven"]
+                if address.split("/")[-1] in {"choice", "form"}
+                and address.split("/", 1)[0] == "widget-formats"
+                else []
+            ),
+        ]
+    else:
+        checks = []
+        options = {
+            "options": {
+                "rubricPrompt": definition("eval")["source_grading_prompt"],
+                **test.get("options", {}),
+            }
+        }
+    assertions = [
+        *(
+            {
+                "type": "javascript",
+                "value": f"context.providerResponse.metadata?.checks?.[{json.dumps(check)}] === true",
+                "metric": check,
+            }
+            for check in checks
+        ),
+        # Semantic answer rubrics and rendered screenshot rubrics.
+        *(
+            {
+                **rubric,
+                **(
+                    {"provider": judge()}
+                    if rubric["type"].endswith("agent-rubric")
+                    else {}
+                ),
+            }
+            for rubric in deepcopy(test["assert"])
+        ),
+    ]
+    for assertion in assertions:
+        value = assertion.get("value")
+        if isinstance(value, str) and value.endswith("/authoring_assertion.mjs"):
+            assert isinstance(assertion["config"], dict)
+            assertion["config"]["judge"] = {
+                "id": f"python:{ROOT / 'dev/leaf_dev/arrangement_eval.py'}",
+                "config": {
+                    "pythonExecutable": sys.executable,
+                    # Allow setup and retirement around the native judge's
+                    # 20-minute turn, for workflows and short authoring alike.
+                    "timeout": 30 * 60 * 1000,
+                },
+            }
+        if isinstance(value, str) and value.startswith("file://"):
+            assertion["value"] = (
+                f"file://{ROOT / 'evals' / value.removeprefix('file://')}"
+            )
+    return {"assert": assertions, **options}
+
+
 def prepare(
     cases: list[str],
     arms: dict[str, Path],
@@ -314,7 +409,7 @@ def prepare(
     tests = []
     # Judged screenshots sit apart from the rest of the evidence, for the judge.
     screenshots = samples.with_name("screenshots")
-    judge = None
+    judge = cache(lambda: screenshot_judge(screenshots, scratch / "judge-login"))
     for address in cases:
         test = definitions[address]
         metadata = test.get("metadata", {})
@@ -324,7 +419,7 @@ def prepare(
         for condition in conditions:
             if condition not in metadata.get("conditions", ["leaf"]):
                 continue
-            columns = arms if condition == "leaf" else {condition: arms["candidate"]}
+            columns = arms if condition == "leaf" else {condition: arms["head"]}
             labels = []
             for harness in harnesses:
                 if harness not in metadata.get("harnesses", HARNESSES):
@@ -372,45 +467,9 @@ def prepare(
                     labels.append(label)
             if not labels:
                 continue
-            sample = deepcopy(test)
+            sample = {**deepcopy(test), **grading(test, address, condition, judge)}
             task = address.split("/", 1)[0]
             if executor:
-                module = import_module(executor)
-                checks = (
-                    []
-                    if "providerOutput" in test
-                    else module.expected_checks(
-                        metadata["scenario"], condition=condition
-                    )
-                )
-                rubrics = sample["assert"]
-                if (
-                    any(r["type"].endswith("agent-rubric") for r in rubrics)
-                    and judge is None
-                ):
-                    judge = screenshot_judge(screenshots, scratch / "judge-login")
-                sample["assert"] = [
-                    *(
-                        {
-                            "type": "javascript",
-                            "value": f"context.providerResponse.metadata?.checks?.[{json.dumps(check)}] === true",
-                            "metric": check,
-                        }
-                        for check in checks
-                    ),
-                    # Semantic answer rubrics and rendered screenshot rubrics.
-                    *(
-                        {
-                            **rubric,
-                            **(
-                                {"provider": judge}
-                                if rubric["type"].endswith("agent-rubric")
-                                else {}
-                            ),
-                        }
-                        for rubric in rubrics
-                    ),
-                ]
                 sample["vars"] = {"prompt": address}
             else:
                 # A prompt may reuse another task's request, named under `evals/`.
@@ -424,10 +483,6 @@ def prepare(
                 now = sample["vars"].pop("now", NOW)
                 if not authoring:
                     prompt = f"It is now {now}.\n\n{prompt}"
-                    sample["options"] = {
-                        "rubricPrompt": definition("eval")["source_grading_prompt"],
-                        **sample.get("options", {}),
-                    }
                 sample["vars"] = {
                     **sample["vars"],
                     "prompt": (
@@ -437,39 +492,6 @@ def prepare(
                     )
                     + prompt,
                 }
-                if authoring:
-                    for assertion in sample["assert"]:
-                        if assertion["type"].endswith("agent-rubric"):
-                            if judge is None:
-                                judge = screenshot_judge(
-                                    screenshots, scratch / "judge-login"
-                                )
-                            assertion["provider"] = judge
-                    sample["assert"] = [
-                        *(
-                            {
-                                "type": "javascript",
-                                "value": f"context.providerResponse.metadata?.checks?.[{json.dumps(check)}] === true",
-                                "metric": check,
-                            }
-                            for check in (
-                                "completed",
-                                *(
-                                    ("format-valid",)
-                                    if condition in {"json", "adaptive"}
-                                    else ()
-                                ),
-                                "page-valid",
-                                *(
-                                    ("interaction-proven",)
-                                    if address.split("/")[-1] in {"choice", "form"}
-                                    and task == "widget-formats"
-                                    else ()
-                                ),
-                            )
-                        ),
-                        *sample["assert"],
-                    ]
                 images = None if authoring else pinned_copy(ROOT / "evals" / task)
                 if images is not None and images.is_dir():
                     for label in labels:
@@ -480,25 +502,6 @@ def prepare(
                             / task,
                             dirs_exist_ok=True,
                         )
-            for assertion in sample["assert"]:
-                value = assertion.get("value")
-                if isinstance(value, str) and value.endswith(
-                    "/authoring_assertion.mjs"
-                ):
-                    assert isinstance(assertion["config"], dict)
-                    assertion["config"]["judge"] = {
-                        "id": f"python:{ROOT / 'dev/leaf_dev/arrangement_eval.py'}",
-                        "config": {
-                            "pythonExecutable": sys.executable,
-                            # Allow setup and retirement around the native judge's
-                            # 20-minute turn, for workflows and short authoring alike.
-                            "timeout": 30 * 60 * 1000,
-                        },
-                    }
-                if isinstance(value, str) and value.startswith("file://"):
-                    assertion["value"] = (
-                        f"file://{ROOT / 'evals' / value.removeprefix('file://')}"
-                    )
             tests.append(
                 {
                     **sample,
@@ -511,6 +514,13 @@ def prepare(
             "selected cases have no requested harness/condition",
             param_hint="--harness/--condition",
         )
+    return promptfoo_config(list(providers.values()), tests, skills)
+
+
+def promptfoo_config(
+    providers: list[dict], tests: list[dict], skills: dict[str, str]
+) -> dict:
+    """A Promptfoo config of these columns and tests, with the pinned text judge."""
     return {
         "prompts": [
             {
@@ -521,7 +531,7 @@ def prepare(
                 "config": {"leaf_skills": skills},
             }
         ],
-        "providers": list(providers.values()),
+        "providers": providers,
         "tests": tests,
         "defaultTest": {
             "options": {
@@ -538,18 +548,146 @@ def prepare(
     }
 
 
-def describe(base: str | None, head: str, globs: tuple[str, ...]) -> str:
-    """The run's name in Promptfoo's viewer: branch, arms and the cases asked for."""
+def saved_config(
+    runs: tuple[Path, ...],
+    globs: tuple[str, ...],
+    judge: str | None,
+    out: Path,
+    scratch: Path,
+) -> dict:
+    """Tests that grade RUNS' saved outputs again, each replaying the saved results it
+    names: by its case's current assertions, or by the named judgment."""
+    selected: dict[str, dict[str, list[dict]]] = {}
+    unjudged = 0
+    matched = set()
+    for subject, columns in run_samples(runs).items():
+        for column, members in columns.items():
+            for sample in members:
+                case = sample["result"]["testCase"]["metadata"]["case"]
+                patterns = {g for g in globs if fnmatch.fnmatch(case, g)}
+                if globs and not patterns:
+                    continue
+                matched |= patterns
+                if judge and "comparison" not in sample["diagnostics"]:
+                    unjudged += 1
+                else:
+                    selected.setdefault(subject, {}).setdefault(column, []).append(
+                        sample
+                    )
+    for pattern in globs:
+        if pattern not in matched:
+            raise click.BadParameter(
+                f"no saved output matches {pattern!r}", param_hint="CASE"
+            )
+    if unjudged:
+        click.echo(f"{unjudged} results saved no task for a judge")
+    evidence = out / "judgments"
+    tests: list[dict] = []
+    if judge == "pair":
+        for subject, (first, x), (second, y), number in saved_pairs(selected):
+            orders = (((first, x), (second, y)), ((second, y), (first, x)))
+            for order, members in enumerate(orders, 1):
+                tests.append(
+                    {
+                        "description": f"{subject} · pair {number} · order {order}",
+                        "vars": x["result"]["testCase"]["vars"],
+                        "assert": [judgment("pair", evidence)],
+                        "providers": [f"{first} vs {second}"],
+                        "metadata": {
+                            "judgment": "pair",
+                            "subject": subject,
+                            "pair": number,
+                            "order": order,
+                            "saved": [saved(s, column) for column, s in members],
+                        },
+                    }
+                )
+    else:
+        definitions = catalog()
+        # An agent rubric's judge may read only the screenshots of the sample's run.
+        judges = cache(
+            lambda shots: screenshot_judge(
+                shots, Path(tempfile.mkdtemp(dir=scratch)) / "login"
+            )
+        )
+        for subject, columns in selected.items():
+            for column, members in columns.items():
+                for sample in members:
+                    test = sample["result"]["testCase"]
+                    if judge is None:
+                        case = test["metadata"]["case"]
+                        if case not in definitions:
+                            raise click.ClickException(
+                                f"{case} is no longer in the catalog; select other "
+                                "cases to grade by their current assertions"
+                            )
+                        metadata = test["metadata"]
+                        graded = grading(
+                            definitions[case],
+                            case,
+                            metadata["condition"],
+                            partial(judges, sample["shots"].parent),
+                        )
+                    else:
+                        metadata = {"judgment": judge, "subject": subject}
+                        graded = {"assert": [judgment(judge, evidence)]}
+                    tests.append(
+                        {
+                            "description": f"{test.get('description') or subject}"
+                            f" · {sample['sample']}",
+                            "vars": test["vars"],
+                            **graded,
+                            "providers": [column],
+                            "metadata": {**metadata, "saved": [saved(sample, column)]},
+                        }
+                    )
+    if not tests:
+        raise click.ClickException("the saved runs hold nothing to grade")
+    providers = [
+        {"id": REPLAY, "label": label}
+        for label in dict.fromkeys(test["providers"][0] for test in tests)
+    ]
+    return promptfoo_config(providers, tests, {})
+
+
+def saved(sample: dict, column: str) -> dict:
+    """What a test records of a saved result it replays."""
+    return {
+        "run": str(sample["runs"][0]),
+        "result": sample["result_id"],
+        "column": column,
+        "sample": sample["sample"],
+    }
+
+
+def saved_pairs(
+    selected: dict[str, dict[str, list[dict]]],
+) -> Iterator[tuple[str, tuple[str, dict], tuple[str, dict], int]]:
+    """Each task's Nth sample in one column beside its Nth in the other, in the order
+    the runs and their results list them."""
+    for subject, columns in sorted(selected.items()):
+        if len(columns) != 2:
+            click.echo(f"{subject}: {len(columns)} columns, not 2; not paired")
+            continue
+        (first, xs), (second, ys) = sorted(columns.items())
+        if len(xs) != len(ys):
+            click.echo(
+                f"{subject}: {first} has {len(xs)} samples and {second} has "
+                f"{len(ys)}; the extra ones are not paired"
+            )
+        for number, (x, y) in enumerate(zip(xs, ys, strict=False), 1):
+            yield subject, (first, x), (second, y), number
+
+
+def run_name(scope: str, globs: tuple[str, ...]) -> str:
+    """The run's name in Promptfoo's viewer: branch, what it grades and the cases."""
     branch = subprocess.run(
         ["git", "-C", ROOT, "rev-parse", "--abbrev-ref", "HEAD"],
         capture_output=True,
         text=True,
         check=True,
     ).stdout.strip()
-    arms = f"working tree on {head[:9]}"
-    if base:
-        arms = f"base {base[:9]} vs {arms}"
-    return f"{branch} ({arms}): {' '.join(globs) or 'all tasks'}"
+    return f"{branch} ({scope}): {' '.join(globs) or 'all tasks'}"
 
 
 @click.command(
@@ -557,16 +695,22 @@ def describe(base: str | None, head: str, globs: tuple[str, ...]) -> str:
 )
 @click.argument("args", metavar="[CASE]... [PROMPTFOO_OPTION]...", nargs=-1)
 @click.option(
-    "--base",
-    is_flag=False,
-    flag_value="",
-    default=None,
-    help="Also run the merge base with main, or the ref given.",
+    "--from",
+    "runs",
+    multiple=True,
+    type=click.Path(exists=True, file_okay=False, resolve_path=True, path_type=Path),
+    help="Grade this run's saved outputs again instead of authoring; repeat to add runs.",
 )
+@click.option(
+    "--judge",
+    type=click.Choice(["pair", "discovery"]),
+    help="Judge the --from samples pairwise, or explore each for observations, "
+    "instead of grading them by their cases' current assertions.",
+)
+@base_option()
 @click.option(
     "--harness",
     type=click.Choice([*HARNESSES, "both"]),
-    required=True,
     help="The harness the motivating failure came from, or the one you work in.",
 )
 @click.option(
@@ -588,48 +732,64 @@ def describe(base: str | None, head: str, globs: tuple[str, ...]) -> str:
     show_default=True,
     help="Window size for all authored-task comparisons in this run; repeat to check more.",
 )
+@click.pass_context
 def eval(
+    context: click.Context,
     args: tuple[str, ...],
+    runs: tuple[Path, ...],
+    judge: str | None,
     base: str | None,
-    harness: str,
+    harness: str | None,
     model: str | None,
     condition: str,
     viewports: tuple[str, ...],
 ):
-    """Score CASE globs or task/context addresses on the working tree.
+    """Score CASE globs or task/context addresses on the working tree, or grade a
+    saved run's outputs again with --from.
 
     Options Promptfoo takes follow the cases, such as `--repeat 3` or `-j 4`.
     `pnpm run eval:view` opens the results.
     """
     split = next((i for i, arg in enumerate(args) if arg.startswith("-")), len(args))
     globs, promptfoo_args = args[:split], args[split:]
-    cases = select_cases(globs)
-    if model is not None and harness != "codex":
-        raise click.BadParameter(
-            "--model currently requires --harness codex", param_hint="--model"
-        )
-    conditions = (
-        ("leaf", "html")
-        if condition == "both"
-        else ("leaf", "json", "adaptive")
-        if condition == "formats"
-        else (condition,)
-    )
-    preflight_formats(conditions)
-    # Only the Leaf condition runs on more than the working tree.
-    if base is not None and "leaf" in conditions:
-        base = base_ref(base)
-        # An optional value takes the next word, so `--base CASE` names a ref.
-        if subprocess.run(
-            ["git", "-C", ROOT, "rev-parse", "--verify", "-q", f"{base}^{{commit}}"],
-            capture_output=True,
-            check=False,
-        ).returncode:
-            raise click.BadParameter(
-                f"no commit {base!r}; put cases before --base", param_hint="--base"
+    if runs:
+        # Every other option chooses what to author.
+        authoring = [
+            option.opts[0]
+            for option in context.command.params
+            if isinstance(option, click.Option)
+            and option.name not in {"runs", "judge"}
+            and context.get_parameter_source(option.name) is not ParameterSource.DEFAULT
+        ]
+        if authoring:
+            raise click.UsageError(
+                f"{', '.join(authoring)} choose what to author; --from grades "
+                "saved outputs"
             )
+    elif judge is not None:
+        raise click.UsageError(
+            "--judge grades saved outputs; name their runs with --from"
+        )
+    elif harness is None:
+        raise click.UsageError("Missing option '--harness'.")
     else:
-        base = None
+        cases = select_cases(globs)
+        harnesses = HARNESSES if harness == "both" else (harness,)
+        if model is not None and harness != "codex":
+            raise click.BadParameter(
+                "--model currently requires --harness codex", param_hint="--model"
+            )
+        conditions = (
+            ("leaf", "html")
+            if condition == "both"
+            else ("leaf", "json", "adaptive")
+            if condition == "formats"
+            else (condition,)
+        )
+        preflight_formats(conditions)
+        # Only the Leaf condition runs on more than the working tree.
+        if "leaf" not in conditions:
+            base = None
     if not PROMPTFOO.is_file():
         raise click.ClickException(
             "Install development dependencies first: pnpm install --frozen-lockfile"
@@ -643,25 +803,29 @@ def eval(
     click.echo(f"evidence: {out}")
     with tempfile.TemporaryDirectory(prefix="leaf-eval-") as temporary:
         scratch = Path(temporary)
-        refs: dict[str, str | None] = {"base": base} if base else {}
-        refs["candidate"] = None
-        # Live regrading and pair comparisons must serve the original runtime
-        # after this invocation's private configuration directory is retired.
-        payloads = {arm: out / "arms" / arm for arm in refs}
-        commits = {arm: build_arm(ref, payloads[arm]) for arm, ref in refs.items()}
-        config = prepare(
-            cases,
-            payloads,
-            scratch,
-            HARNESSES if harness == "both" else (harness,),
-            conditions,
-            out / "samples",
-            viewports,
-            model,
-        )
-        config["description"] = describe(
-            commits.get("base"), commits["candidate"], globs
-        ) + (f" [{model}]" if model else "")
+        if runs:
+            config = saved_config(runs, globs, judge, out, scratch)
+            graded = f"{judge} judgment" if judge else "current assertions"
+            config["description"] = run_name(
+                f"{graded} of saved {' '.join(run.name for run in runs)}", globs
+            )
+        else:
+            # Grading again with --from must serve the original runtime after this
+            # invocation's private configuration directory is retired.
+            arms = choose_arms(base, out, payload=True)
+            config = prepare(
+                cases,
+                {name: arm.directory for name, arm in arms.items()},
+                scratch,
+                harnesses,
+                conditions,
+                out / "samples",
+                viewports,
+                model,
+            )
+            config["description"] = run_name(describe(arms), globs) + (
+                f" [{model}]" if model else ""
+            )
         config_file = out / "promptfooconfig.json"
         config_file.write_text(json.dumps(config, indent=2) + "\n")
         # Promptfoo resolves the agent SDK packages from the config's directory.

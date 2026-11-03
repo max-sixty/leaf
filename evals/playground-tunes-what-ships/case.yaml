@@ -7,7 +7,7 @@
 # Claude Code, 4 runs per arm, every run read the playground guide: on 1b8e30ef4
 # values-in-view passed 1/4 (three runs offered only multipliers such as
 # "Darkness x 1"; one showed the CSS in a disclosure) and subject-leads 0/4; with
-# "What the user is doing" in author.md, 4/4 and 2/4. All four candidate pages
+# "What the user is doing" in author.md, 4/4 and 2/4. All four head pages
 # edited the selected elevation's layers in pixels beside a CSS readout and
 # showed the cards in a list with a raised and an overlay card. subject-leads
 # failures on both arms are cards clipped at 1120-1280px.
@@ -18,7 +18,7 @@
 # judged on the page on arrival at the run's windows, and the prompt no longer
 # names a 1440x900 window that contradicted the run's 1280x800 one. On 81d3cda07,
 # 4 runs per condition: both checks 4/4 on both; 3 Leaf pages drew their own Save
-# with actions="page". eval-pairs preferred HTML in 7 of 8 orders (6 slight) for
+# with actions="page". The pair judge preferred HTML in 7 of 8 orders (6 slight) for
 # its comparison tools (hold to flip, zoom, preset swatches), and credited Leaf
 # with the card's supplied dimensions.
 description: playground-tunes-what-ships

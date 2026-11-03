@@ -247,15 +247,19 @@ export function declareThreadKeys(landIn, threadHere) {
           resolutionControl(cardThread())?.matches(".lf-reopen")
             ? "reopen"
             : "reply",
+        when: () =>
+          Boolean(threadInput(cardThread())) ||
+          Boolean(
+            resolutionControl(cardThread())?.matches(
+              '.lf-reopen:not(:disabled, [aria-disabled="true"])',
+            ),
+          ),
         // Find the thread's own compose row rather than a widget editor inside it.
-        get run() {
+        run: () => {
           const thread = cardThread();
           const box = threadInput(thread);
-          if (box) return () => landIn({ held: thread, box });
-          const control = resolutionControl(thread);
-          return control?.matches('.lf-reopen:not(:disabled, [aria-disabled="true"])')
-            ? () => control.click()
-            : undefined;
+          if (box) landIn({ held: thread, box });
+          else resolutionControl(thread)?.click();
         },
       },
       {
@@ -264,24 +268,21 @@ export function declareThreadKeys(landIn, threadHere) {
         keys: ["r"],
         title: () =>
           resolutionControl(threadHere())?.matches(".lf-reopen") ? "reopen" : "resolve",
-        get run() {
-          const control = resolutionControl(threadHere());
-          return control?.matches(':not(:disabled, [aria-disabled="true"])')
-            ? () => control.click()
-            : undefined;
-        },
+        when: () =>
+          Boolean(
+            resolutionControl(threadHere())?.matches(
+              ':not(:disabled, [aria-disabled="true"])',
+            ),
+          ),
+        run: () => resolutionControl(threadHere())?.click(),
       },
       {
         id: "message.copy",
         touch: false,
         keys: ["Mod+c"],
         title: "copy message as Markdown",
-        get run() {
-          const trigger = messageCopy(threadHere());
-          return trigger && getSelection()?.isCollapsed
-            ? () => trigger.click()
-            : undefined;
-        },
+        when: () => Boolean(messageCopy(threadHere()) && getSelection()?.isCollapsed),
+        run: () => messageCopy(threadHere())?.click(),
       },
     ],
   });

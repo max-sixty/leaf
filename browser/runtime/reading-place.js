@@ -55,10 +55,7 @@
  * `readingBlock` is the first block on screen in one region or the page;
  * `sectionsInView` names the sections of every block and drawing on screen, which a page
  * comment records; `pageReadingBlock` is the block the user is reading, where a walk starts, and
- * `landingPlace` is where a let-go puts them, beside what they let go of where they see it. `openingPassage`
- * gives travel the passage its destination draws first, using the same rendered words
- * as the visible landmarks. It is independent of the viewport, so scrolling through a tall landing
- * does not turn a later passage into the navigation step's original arrival.
+ * `landingPlace` is where a let-go puts them, beside what they let go of where they see it.
  */
 import { setScroll } from "./arrivals.js";
 import {
@@ -302,11 +299,9 @@ function* renderedBlocks(blocks, within = null) {
   }
 }
 
-// The passage grain is shared by reading input and travel's produced landing. A
-// containing destination opens at its first rendered passage, independently of the
-// viewport: scrolling through a tall destination cannot redefine where it landed.
+// The page block a node stands in.
 /** @param {Node} node */
-export function passageBlock(node) {
+function passageBlock(node) {
   const blocks = pageBlocks();
   for (
     let at = node instanceof Element ? node : node.parentElement;
@@ -315,13 +310,6 @@ export function passageBlock(node) {
   )
     if (blocks.includes(at)) return at;
   return null;
-}
-/** @param {Node | Range | null | undefined} where */
-export function openingPassage(where) {
-  if (where instanceof Range) return passageBlock(where.startContainer);
-  if (!where) return null;
-  const blocks = pageBlocks().filter((block) => under(block, where));
-  return renderedBlocks(blocks).next().value?.[0] ?? null;
 }
 
 // What the reader can see of a region, or with none given of the page: null where they
@@ -355,10 +343,20 @@ export function* blocksOnScreen(region = null, blocks = textBlocks(), band = nul
   }
 }
 // The first visible block in a reading region, or with none given in the page outside
-// the regions that bound themselves, for alignment when nothing is selected.
+// the regions that bound themselves, for alignment when nothing is selected. A stuck
+// box, such as a site header fixed over the page, rides along with every scroll, so
+// it is never the block the reader is on (geometry.js, `stuckBox`). Where every block
+// on screen reads as stuck, as in an app shell fixed over the window that scrolls its
+// own content, the first stands.
 /** @param {ReadingRegion | null} [region] */
-export const readingBlock = (region = null) =>
-  blocksOnScreen(region, textBlocks(region?.body)).next().value?.[0] ?? null;
+export const readingBlock = (region = null) => {
+  let first = null;
+  for (const [block] of blocksOnScreen(region, textBlocks(region?.body))) {
+    first ??= block;
+    if (!stuckBox(block, region?.body ?? null)) return block;
+  }
+  return first;
+};
 
 // The block the user is reading on the page, for a walk's origin, the keyboard
 // reference's hand-back and a let-go's landing: in the page region they last acted in

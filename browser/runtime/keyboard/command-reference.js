@@ -58,8 +58,8 @@ import {
   hasRows,
   commandPresentations,
   commandBinding,
-  commandRun,
   contextBindings,
+  declaresCommandHandler,
   allBindings,
   descriptionOf,
   titleOf,
@@ -399,10 +399,17 @@ function captureCommandReferenceCatalog() {
       ? routes.has(undefined)
       : alternatives.some((binding) => routes.has(binding));
   };
+  // Whether the reference can run a row is a fact of its declaration, and whether it
+  // can run it now is `available`'s. A `run` getter declares its capability even while
+  // it returns nothing (bindings.js, `checked`), so reading its value here would turn a
+  // command that waits on its scope, as Resolve waits on a thread, into a gesture
+  // with no command to run.
   /** @param {Command} row @param {CommandRoute | null} route */
   const actionable = (row, route) =>
     Boolean(
-      (commandRun(row, commandBinding(row, route), null) || routedCommand(route)) &&
+      (declaresCommandHandler(row, "run") ||
+        (commandBinding(row, route) != null && declaresCommandHandler(row, "runKey")) ||
+        routedCommand(route)) &&
       (routedCommand(route)?.row ?? row).runFromCommandReference !== false,
     );
 
@@ -873,7 +880,7 @@ function commandReferenceTemplate() {
       <div class="lf-dialog-title">Command reference</div>
       ${commandReferenceClose}
     </div>
-    <label class="lf-command-reference-preference">
+    <label class="choice lf-command-reference-preference">
       <input
         type="checkbox"
         name="quick-keyboard-shortcuts"

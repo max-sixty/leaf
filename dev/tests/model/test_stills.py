@@ -7,15 +7,20 @@ import pytest
 from click.testing import CliRunner
 from PIL import Image
 
+from leaf_dev import visits
+from leaf_dev.arms import Arm
+from leaf_dev.browser import DESKTOP
 from leaf_dev.commands import stills
+from leaf_dev.states import State
 
 
 @pytest.fixture
 def stills_catalogue(tmp_path, monkeypatch):
-    """Replace build/server/browser boundaries, retaining the command, capture,
-    drivers, screenshots, crops and style comparison. Image comparison stands in for
-    its browser module, and each arm's page computes and declares its name as the
-    root's colour, so this tests catalogue orchestration without launching a browser.
+    """Replace build/server/browser boundaries, retaining the command, the loop
+    through the arms, drivers, screenshots, crops and style comparison. Image
+    comparison stands in for its browser module, and each arm's page computes and
+    declares its name as the root's colour, so this tests catalogue orchestration
+    without launching a browser.
     """
     visited = []
 
@@ -34,34 +39,47 @@ def stills_catalogue(tmp_path, monkeypatch):
         visited.append(("healthy", page.url))
 
     states = (
-        stills.State("assertions", "fixture", assertions),
-        stills.State("partial", "fixture", partial),
-        stills.State("healthy", "fixture", healthy),
+        State("assertions", "fixture", assertions),
+        State("partial", "fixture", partial),
+        State("healthy", "fixture", healthy),
     )
     out = tmp_path / "stills"
     out.mkdir()
-    arms = {arm: tmp_path / arm for arm in ("base", "head")}
-    commits = {"base": "b" * 40, "head": "a" * 40}
+    arms = {
+        arm: Arm(tmp_path / arm, commit)
+        for arm, commit in (("base", "b" * 40), ("head", "a" * 40))
+    }
+
+    served = []
 
     @contextmanager
-    def serving_source(arm_dir, source, destination):
+    def serving_source(arm_dir, source, destination, log):
+        served.append(destination.parent.name)
         yield arm_dir.name
 
+    windows = []
+
     @contextmanager
-    def tab(browser, viewport, scheme, touch, *, scale):
+    def tab(browser, viewport, scheme, touch, *, motion, scale):
+        windows.append((viewport, scheme, touch))
         page = SimpleNamespace(
             url="",
             screenshot=lambda *, path: Image.new("RGB", (4, 4), "white").save(path),
+            on=lambda event, listener: None,
+            add_init_script=lambda *, path: None,
+            is_closed=lambda: False,
         )
 
-        def evaluate(script, argument):
+        def evaluate(script, argument=None):
             if script == stills.BASELINES:
                 return catalogue.splits.get(page.url, [])
-            return {
-                "faces": [[page.url, *[""] * (len(argument) - 1)]],
-                "elements": {"html": 0},
-                "texts": [],
-            }
+            if script == stills.STYLES:
+                return {
+                    "faces": [[page.url, *[""] * (len(stills.STYLED) - 1)]],
+                    "elements": {"html": 0},
+                }
+            # Probe's own readings, which stills doesn't read.
+            return {"supported": False}
 
         page.evaluate = evaluate
         yield page
@@ -71,13 +89,15 @@ def stills_catalogue(tmp_path, monkeypatch):
         out=out,
         states=states,
         visited=visited,
+        served=served,
+        windows=windows,
         compared=compared,
         compare=lambda name: {"changed": 1, "regions": []},
         splits={},
     )
 
     @contextmanager
-    def differences(browser, destination):
+    def differences(destination, browser):
         def compare(name):
             compared.append(name)
             return catalogue.compare(name)
@@ -86,16 +106,15 @@ def stills_catalogue(tmp_path, monkeypatch):
 
     monkeypatch.setattr(stills, "STATES", states)
     monkeypatch.setattr(stills, "run_directory", lambda path: out)
-    monkeypatch.setattr(stills, "build_pair", lambda base_ref, scratch: (arms, commits))
-    monkeypatch.setattr(stills, "serving_source", serving_source)
+    monkeypatch.setattr(stills, "choose_arms", lambda base, scratch: arms)
+    monkeypatch.setattr(stills, "named_source", lambda name: tmp_path / name)
+    monkeypatch.setattr(stills, "launch", lambda engine, scheme: nullcontext("browser"))
+    monkeypatch.setattr(visits, "serving_source", serving_source)
+    monkeypatch.setattr(visits, "tab", tab)
     monkeypatch.setattr(
-        stills, "headless_shell", lambda **options: nullcontext("browser")
+        visits, "load", lambda page, address: setattr(page, "url", address)
     )
-    monkeypatch.setattr(stills, "tab", tab)
-    monkeypatch.setattr(
-        stills, "load", lambda page, address: setattr(page, "url", address)
-    )
-    monkeypatch.setattr(stills, "settle", lambda page: None)
+    monkeypatch.setattr(visits, "settle", lambda page: None)
     monkeypatch.setattr(
         stills,
         "declarations",
@@ -165,18 +184,14 @@ def test_a_failed_driver_preserves_other_states_and_both_arm_diagnostics(
         "files in <stills>\n"
     )
 
-    monkeypatch.setattr(
-        stills, "STATES", (stills.State("clean", "fixture", stills.at_rest),)
-    )
+    monkeypatch.setattr(stills, "STATES", (State("clean", "fixture"),))
     result = CliRunner().invoke(stills.stills)
     assert result.exit_code == 0, result.output
 
     def interrupted(page):
         raise KeyboardInterrupt
 
-    monkeypatch.setattr(
-        stills, "STATES", (stills.State("interrupt", "fixture", interrupted),)
-    )
+    monkeypatch.setattr(stills, "STATES", (State("interrupt", "fixture", interrupted),))
     compared.clear()
     result = CliRunner().invoke(stills.stills)
     assert result.exit_code != 0
@@ -194,7 +209,7 @@ def test_a_failed_analysis_preserves_later_comparisons_and_crops(
         stills,
         "STATES",
         (
-            stills.State("broken", "fixture", stills.at_rest),
+            State("broken", "fixture"),
             stills_catalogue.states[-1],
         ),
     )
@@ -239,6 +254,37 @@ def test_a_failed_analysis_preserves_later_comparisons_and_crops(
         "0 of 2 states unchanged\n"
         "files in <stills>\n"
     )
+
+
+def test_the_run_opens_each_state_in_its_own_window_unless_told_another(
+    stills_catalogue, monkeypatch, tmp_path
+):
+    short = (1440, 480)
+    monkeypatch.setattr(
+        stills,
+        "STATES",
+        (
+            State("anywhere", "fixture"),
+            State("short", "fixture", viewport=short),
+            State("finger", "fixture", touch=True),
+        ),
+    )
+    windows = stills_catalogue.windows
+
+    assert CliRunner().invoke(stills.stills).exit_code == 0
+    assert windows[::2] == [
+        (DESKTOP, "light", False),
+        (short, "light", False),
+        (DESKTOP, "light", True),
+    ]
+
+    windows.clear()
+    monkeypatch.setattr(stills, "run_directory", lambda path: tmp_path)
+    result = CliRunner().invoke(
+        stills.stills, ["--viewport", "390x844", "--scheme", "dark", "--no-touch"]
+    )
+    assert result.exit_code == 0, result.output
+    assert set(windows) == {((390, 844), "dark", False)}
 
 
 def test_the_run_lists_lines_whose_words_split_their_baseline(
@@ -296,3 +342,23 @@ def test_the_run_lists_lines_whose_words_split_their_baseline(
         "lines whose words split their baseline: lines only head splits  x2,"
         " lines both arms split  x1, lines only base splits  x1 ->"
     ) in result.output
+
+
+def test_a_state_the_engine_cannot_reach_fails_before_its_page_is_built(
+    stills_catalogue, monkeypatch
+):
+    monkeypatch.setattr(
+        stills,
+        "STATES",
+        (State("held", "fixture", activated=False), stills_catalogue.states[-1]),
+    )
+    firefox = SimpleNamespace(browser_type=SimpleNamespace(name="firefox"))
+    monkeypatch.setattr(stills, "launch", lambda engine, scheme: nullcontext(firefox))
+
+    result = CliRunner().invoke(stills.stills, ["--browser", "firefox"])
+
+    assert result.exit_code == 1, result.output
+    refusal = "only Chromium shows a page whose runtime is held"
+    assert f"failed  held on base: {refusal}" in result.output
+    assert stills_catalogue.served == ["healthy", "healthy"]
+    assert stills_catalogue.compared == ["healthy"]

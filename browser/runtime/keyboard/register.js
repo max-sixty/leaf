@@ -85,6 +85,7 @@ const STACK = [
 // comes off before one they are not.
 const RUNG_LADDER = [
   "selection", // the selection, or the target a click captured
+  "change card", // what a change replaced, open over the change (margin-bars.js)
   "margin options", // the margin entry cluster the user unfolded
   "floating panel", // the menu or view the floating panel opened above its row
   "draw mode", // the drawing surface over the page
@@ -123,8 +124,9 @@ const PAGE_COMMANDS = [
   "annotations.toggle",
   "panel.floating.fold",
   COMMAND_REFERENCE,
-  // A real key the browser owns, and one gesture that is not a key at all.
+  // Real keys the browser owns, and one gesture that is not a key at all.
   "browser.caret",
+  "browser.history",
   "aim.comment",
 ];
 

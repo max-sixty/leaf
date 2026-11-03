@@ -294,7 +294,7 @@ def test_fixture_media_follows_versions_draft_assets_and_live_edits(
 def test_a_preview_subscribes_to_a_root_over_every_input_it_follows():
     """A path outside the subscribed roots is never reported, so it can never refresh.
 
-    watchfiles watches each root recursively and names the path that changed; the
+    The subscription watches each root and names the path that changed; the
     watcher decides from that name alone. Any watched path the roots do not cover is
     therefore an input the preview silently stops following. The page directory is the
     other half: its own writes are a user's feedback, and watching them would make
@@ -456,7 +456,6 @@ def test_corpus_preview_follows_authored_sources(tmp_path, monkeypatch, capsys):
     """Native source events regenerate the corpus before its live page is refreshed."""
     from leaf.data import read_data
     from leaf.registry.storage import load_registry
-    from leaf_dev.commands import corpus
     from leaf_dev.example_data import data_file, named_source, page_files
 
     examples = tmp_path / "examples"
@@ -466,7 +465,6 @@ def test_corpus_preview_follows_authored_sources(tmp_path, monkeypatch, capsys):
     docs.mkdir()
     (docs / "examples.html").write_text("")
     (tmp_path / "tests/fixtures/pages").mkdir(parents=True)
-    monkeypatch.setattr(corpus, "DEVELOPER_SOURCES", ())
     source = examples / "reading.html"
     source.write_text(
         "<html><head><title>Reading</title></head><body><main><h1>Before</h1>"

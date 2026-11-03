@@ -1,4 +1,4 @@
-import { TEXT_FIELD, afterSettling, cancelRender, contentRides, inChrome, inlineStyle, keeps, locationStandsDown, motionEasing, motionPlays, motionTime, move, nativeLayerHolding, nextRender, onUserInput, playMotion, shownParts } from "./bundle-portable.js";
+import { TEXT_FIELD, afterSettling, cancelRender, contentRides, inChrome, inlineStyle, keeps, locationStandsDown, motionEasing, motionPlays, motionTime, move, nativeLayerHolding, nextRender, onUserInput, playMotion, shownParts, sizeObserver } from "./bundle-portable.js";
 import { el } from "./bundle-errors.js";
 import "./bundle-passages.js";
 import { SVG_NS, paintGeometry, paintShape, paintStand, placement, standBox, standOver, vacate } from "./bundle-page-layout.js";
@@ -258,6 +258,10 @@ function listen() {
 		passive: true
 	});
 }
+const readers = /* @__PURE__ */ new WeakMap();
+const placedParts = sizeObserver((entries) => {
+	for (const read of new Set(entries.map(({ target }) => readers.get(target)))) read?.();
+});
 const liftReach = (element, level) => {
 	const lift = getComputedStyle(element);
 	return Number.parseFloat(lift.getPropertyValue(`--raise-${level}-drop`)) + 2 * Number.parseFloat(lift.getPropertyValue(`--raise-${level}-blur`));
@@ -289,8 +293,6 @@ const clipFrame = (sides, radius = 0) => ({
 	clipPath: `inset(var(--lf-box-cut) round ${radius}px)`,
 	"--lf-box-cut": sides.map((side) => `${side}px`).join(" ")
 });
-const connected = (anchor) => "scroller" in anchor ? anchor.scroller.isConnected : anchor.isConnected;
-const planeShare = (moved, limit) => moved * limit > 0 ? Math.sign(limit) * Math.min(Math.abs(moved), Math.abs(limit)) : 0;
 const radiusOf = (style) => Number.parseFloat(style.borderTopLeftRadius) || 0;
 const seeThrough = (color) => /^(transparent|rgba\(.*,\s*0\))$/.test(color);
 const paints = (style) => !seeThrough(style.backgroundColor) || style.backgroundImage !== "none" || style.boxShadow !== "none" || [
@@ -300,7 +302,12 @@ const paints = (style) => !seeThrough(style.backgroundColor) || style.background
 	"left"
 ].some((side) => Number.parseFloat(style.getPropertyValue(`border-${side}-width`)) > 0);
 const rings = (style) => style.outlineStyle !== "none" && Number.parseFloat(style.outlineWidth) > 0;
-function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, held = () => null }) {
+function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer: given, placement }) {
+	const held = () => placement?.held() ?? null;
+	const observer = given ?? placedParts;
+	const changed = () => {
+		if (!placement?.place()) follow();
+	};
 	listen();
 	const layer = (name) => {
 		const node = document.createElement("div");
@@ -336,7 +343,7 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 	const theirs = () => gesture !== null && sent === gestures ? "send" : gesture;
 	let rests = null;
 	let frame = null;
-	let besideAt = null;
+	let drawnFrom = null;
 	let timing = null;
 	let motions = /* @__PURE__ */ new Map();
 	let running = [];
@@ -370,22 +377,6 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 			riding.to += dy;
 		}
 	}
-	function beside(edges) {
-		const by = edges?.by;
-		const plane = edges?.plane ?? null;
-		if (!by || !connected(by) || plane && !connected(plane)) return null;
-		const at = by.getBoundingClientRect();
-		const origin = plane?.getBoundingClientRect() ?? {
-			left: 0,
-			top: 0
-		};
-		return {
-			by,
-			plane,
-			x: at.left - origin.left,
-			y: at.top - origin.top
-		};
-	}
 	function rebase() {
 		const at = boxOf(root.getBoundingClientRect());
 		const edges = held();
@@ -393,19 +384,7 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 		const dy = frame && edges ? at[edges.y] - frame[edges.y] : 0;
 		frame = at;
 		carryReadings(dx, dy);
-		const now = beside(edges);
-		const past = now && besideAt?.by === now.by && besideAt.plane === now.plane ? {
-			x: now.x - besideAt.x,
-			y: now.y - besideAt.y
-		} : {
-			x: 0,
-			y: 0
-		};
-		besideAt = now;
-		return {
-			at,
-			past
-		};
+		return at;
 	}
 	const interpolate = (from, to, progress) => {
 		const rect = between(from, to, progress);
@@ -498,7 +477,10 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 			]);
 			arrived.clear();
 			for (const element of observed) if (!parts.has(element)) observer.unobserve(element);
-			for (const element of parts) if (!observed.has(element)) observer.observe(element);
+			for (const element of parts) {
+				readers.set(element, changed);
+				if (!observed.has(element)) observer.observe(element);
+			}
 			observed = parts;
 		});
 	};
@@ -511,11 +493,17 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 		attributeFilter: ["hidden"]
 	});
 	function follow({ duration = motionTime("--lf-motion-box-resize", box), easing = motionEasing("--lf-motion-box-ease", box) } = {}, compact = false) {
+		if (placement && !held()) return forget();
 		timing = {
 			duration,
 			easing
 		};
 		rebase();
+		if (drawnFrom) {
+			rests = /* @__PURE__ */ new Map([[box, drawnFrom]]);
+			motions = /* @__PURE__ */ new Map();
+			drawnFrom = null;
+		}
 		const progress = running[0]?.effect?.getComputedTiming().progress ?? 1;
 		const carried = carriedBy(progress);
 		const parts = [];
@@ -923,15 +911,17 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 				});
 			}
 		},
-		placed(place) {
-			const { at, past } = rebase();
+		placed(place, anew = false) {
+			if (!held()) forget();
+			const at = rebase();
 			const read = rests?.get(root);
-			const resized = !read || !near(width(read), width(at)) || !near(height(read), height(at));
-			const moved = place();
-			besideAt = beside(held());
-			if (!resized) return;
-			carryReadings(planeShare(moved.x, past.x), planeShare(moved.y, past.y));
-			frame = shifted(at, moved.x, moved.y);
+			const { x, y, kept } = place();
+			const resized = read && !(near(width(read), width(at)) && near(height(read), height(at)));
+			if (read && (anew || resized)) {
+				if (!anew && kept) carryReadings(kept.x + at[kept.edges.x] - read[kept.edges.x], kept.y + at[kept.edges.y] - read[kept.edges.y]);
+				frame = shifted(at, x, y);
+			}
+			follow();
 		},
 		outline() {
 			const moving = motions.get(box);
@@ -940,11 +930,8 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 			return boxOf(box.getBoundingClientRect());
 		},
 		drawnAt(rect) {
-			frame = boxOf(root.getBoundingClientRect());
-			motions = /* @__PURE__ */ new Map();
-			rests = /* @__PURE__ */ new Map([[box, boxOf(rect)]]);
-		},
-		forget
+			drawnFrom = boxOf(rect);
+		}
 	};
 }
 

@@ -19,8 +19,8 @@ which Leaf sets to the `<pre>`'s text when the markup binds nothing
 (`package-data.md`, "External or derived data").
 
 An agent's message can carry markup that repeats ids on the page, so look up an id
-another element gives within `authoredScope(element)`: the page's `main`, or the body
-of the message holding the element. `elementById(id, root)` finds an id within `root`,
+another element gives within `authoredScope(element)`: the page's `body`, or, for
+markup in an agent's message, that message's own markup. `elementById(id, root)` finds an id within `root`,
 or the whole document, including the shadow trees `getElementById` misses.
 `under(node, root)` says whether `node` is in `root` across shadow boundaries, and
 `inChrome(node)` whether it is in Leaf's own interface, as a widget in a Thread reply
@@ -88,6 +88,12 @@ as `renderMarkdown(text, false)` does (below). Adopt the rendered `.lf-markdown-
 and repaint changing prose with `paintMarkdown(body, source)`.
 `markdownSourceOffset(body, node, offset)` maps a caret in the rendered body back to the
 source.
+
+An entry declaring `x-prepaint` names the attribute that gives the notation of the
+widget's written `<pre>`. Where that attribute says `markdown`, the `<pre>` arrives with
+its rendering as a file beside it, in a `.lf-markdown-body[data-lf-prepaint]`, so the
+page first paints at that rendering's size. The module still reads the `<pre>`, and
+replaces both when it draws.
 
 `inlineMarkdownFragment(text)` returns a fragment, `renderMarkdown(text)` a safe HTML
 string for `unsafeHTML`, and `markdownWords(text)` the words Markdown renders to. They
@@ -282,12 +288,16 @@ published, for showing how long a worker has been quiet.
 
 `comparisonChanges(owner)` returns the changes inside `owner` in the current version
 comparison, or every change with no owner, and an empty array with no comparison
-active. A change is a run of changed elements in one view, such as a tab, a
-`details`, or the content a disclosure control (`aria-expanded`) names in
-`aria-controls`, with no unchanged block between them, as a rewritten section is. Each
-change is an array of its elements inside `owner`, in page order, so the result's
-length counts changes as the reader does. Reading it during a `LeafElement` render
-subscribes that render to comparison changes.
+active. A change is one stretch of the comparison: a run of changed elements in one
+view, such as a tab, a `details`, or the content a disclosure control
+(`aria-expanded`) names in `aria-controls`, with no unchanged block between them, as a
+rewritten section is, together with the blocks the earlier version had there. A
+paragraph removed with nothing in its place is a change too, with no elements. Each
+change is an object: `blocks`, its elements inside `owner` in page order; `removed`,
+what the earlier version's blocks said (`{id, tag, word, words}`); and `at`, the
+element it stands by, its first block or the block after its gap. The result's length
+counts changes as the reader does. Reading it during a `LeafElement` render subscribes
+that render to comparison changes.
 
 `revisionLabel(event.revision)` is the page's name for the version an event was
 recorded in.

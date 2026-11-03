@@ -2,9 +2,9 @@
 # cue comparison offered the same four whole treatments as presets and a choice
 # control, after reading the playground instructions. The cold generation prompt
 # passed both arms; this case resumes from the duplicated draft before handoff.
-# On b5d0ad501, the final draft replay passed 0/2 baseline and 2/2 candidate runs
+# On b5d0ad501, the final draft replay passed 0/2 baseline and 2/2 head runs
 # across Claude Code and Codex. Both baseline runs kept a separate choice control;
-# Claude also duplicated it with candidate buttons. Both candidate runs selected
+# Claude also duplicated it with candidate buttons. Both head runs selected
 # the examples directly. This measures repeated selection surfaces, including
 # the preset/control duplication in the recorded draft.
 description: playground-choice-has-one-surface

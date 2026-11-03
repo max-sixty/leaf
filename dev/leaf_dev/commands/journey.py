@@ -31,7 +31,8 @@ reply and entered the session's context, and that the page's claim names the ses
 with its turn closed. A website target runs `release` alone, since only a terminal
 can start a turn or interrupt one. What the harnesses share lives here: their
 isolation and its evidence (`isolated`), the session the journey hears through every
-wait (`Terminal`), and the user (`User`). `--sandbox` runs the session's shell
+wait, with each step more than one harness takes written once over the primitives a
+harness module supplies (`Terminal`), and the user (`User`). `--sandbox` runs the session's shell
 commands in its harness's sandbox; `--preview` has Codex serve the page with the
 canonical `leaf-dev preview --user`; `--forks` lets forks of Claude Code's
 conversation answer the user's thread messages, and runs the steps that test them
@@ -54,10 +55,14 @@ Both ends share every check: the release ask waits on the same turn, title and a
 (`run_journey`), and each end only sends the user's comments and says what it saw of
 them (`reading`), the browser alone reloading the page and timing what it shows.
 
-The timings come from where each step happened. The page server records when it
-admitted a comment, recorded its pickup, titled its thread, activated the published
-revision and admitted the reply; `sinceAdmissionMs` reads those from the comment's
-admission, so every target and either end is timed on one clock, the page server's.
+The timings come from where each step happened. The page server's log records when
+it admitted a comment, recorded its pickup, titled its thread and admitted the
+reply, and its revision files when it published the revision the answer stands on.
+A comment's `milestones` are those `leaf-dev response-times` reads for it
+(`response_times.page_timings`), in seconds from the comment's admission, so every
+target and either end is timed on one clock, the page server's. A website's page
+directory is out of the journey's reach, so there it reads the log the page serves,
+which says nothing of when a revision was published.
 In Chrome the browser also sees the POST's answer and the reply showing, in the
 floating panel's view of its thread or on its card at its passage, which the page
 records itself (`shown_reply`); `sinceSendMs` reads those from the
@@ -102,7 +107,7 @@ from collections.abc import Callable, Generator
 from contextlib import ExitStack, contextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Literal, NamedTuple
+from typing import NamedTuple
 from urllib.parse import urljoin
 
 import click
@@ -111,20 +116,21 @@ from playwright.sync_api import BrowserContext, Locator, Page
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
 from leaf import inference, thread_titles
-from leaf.delivery import pickup_receipts
 from leaf.event_log import read_events
 from leaf.events import build_threads
 from leaf.files import revision_path
 from leaf.findings import Finding
 from leaf.interaction_log import read_interactions
+from leaf.leases import wait_is_live
 from leaf.server import running_server
-from leaf.service import page_claim
+from leaf.service import claim_is_active, page_claim
+from leaf.state import session_live, session_record, turn_open
 from leaf.structure import SourceDocument
 from leaf.thread import successful_replies
-from leaf.todos import start_reading
 from leaf_dev import ROOT
 from leaf_dev.arms import PAYLOAD, PageClient, extract_payload, run_directory, run_leaf
 from leaf_dev.browser import DESKTOP, headless_shell
+from leaf_dev.commands.response_times import page_timings
 from leaf_dev.commands.verify_site import (
     LocalWorker,
     agent_session,
@@ -140,8 +146,18 @@ from leaf_dev.commands.verify_site import (
     startup_profile,
 )
 from leaf_dev.page_fixtures import record_run_context
-from leaf_dev.reply_phases import instant, reply_breakdown
-from leaf_dev.review_scenario import COMMENTS, post
+from leaf_dev.reply_phases import reply_breakdown
+from leaf_dev.review_scenario import (
+    COMMENTS,
+    REQUEST,
+    USER_TURN,
+    activity,
+    claimed,
+    picked_up,
+    post,
+    require,
+    settled,
+)
 from leaf_dev.startup import startup_reading
 
 # A turn's wait ends at `TURN_PATIENCE` unless the page says a turn is still working on
@@ -165,13 +181,23 @@ TITLE_PATIENCE = thread_titles.RETRY_FOR + inference.TIMEOUT
 # must stay idle with a step's outcome before the step counts it settled.
 STEP_LIMIT = 300
 QUIET = 10
-# The harness targets, each named in a sample by its harness and, where the harness
-# has more than one, the Leaf transport its turns take.
+
+
+class HarnessTarget(NamedTuple):
+    """A harness target: the name a chart row gives it (`journey_chart`), and what
+    names it in a sample, its harness and, where the harness has more than one, the
+    Leaf transport its turns take."""
+
+    title: str
+    harness: str
+    transport: str | None = None
+
+
 HARNESS_TARGETS = {
-    "claude-code": {"harness": "claude-code"},
-    "codex-app-server": {"harness": "codex", "transport": "app-server"},
-    "codex-queue": {"harness": "codex", "transport": "queue"},
-    "pi": {"harness": "pi"},
+    "claude-code": HarnessTarget("Claude Code", "claude-code"),
+    "codex-app-server": HarnessTarget("Codex App Server", "codex", "app-server"),
+    "codex-queue": HarnessTarget("Codex queue", "codex", "queue"),
+    "pi": HarnessTarget("Pi", "pi"),
 }
 # Where the harness is when the release ask reaches it (`--case`).
 CASES = ("waiting", "working")
@@ -270,65 +296,18 @@ def title(events: list[dict], thread: str) -> str | None:
     return build_threads(events, {}).get(thread, {}).get("title")
 
 
-def pickup_at(
-    events: list[dict], comment: str, phase: Literal["queued", "opened", "failed"]
-) -> str | None:
-    """When the harness first recorded `comment` picked up in `phase`: `queued` held
-    by the harness, `opened` in its context (`leaf.delivery.pickup_receipts`)."""
-    return next(
-        (e["ts"] for e in pickup_receipts(events, phase=phase, input_id=comment)),
-        None,
-    )
+def input_rows(page: Path, until: datetime) -> dict[str, dict]:
+    """Each input on `page` with its milestones as `leaf-dev response-times` reads
+    them (`response_times.page_timings`), by its id, from what the page held before
+    `until` on its own clock."""
+    reading = page_timings(page, since=None, until=until)
+    return {row["input_id"]: row for row in reading["samples"]}
 
 
-def recorded_steps(events: list[dict], comment: dict, published: dict | None) -> dict:
-    """Seconds after `comment`'s admission for its recorded milestones.
-
-    Pickup records name exact inputs: queued is held by the harness, opened is in
-    its context. A start is an authored work claim for this input. Neither implies
-    visible feedback or that the model has begun reasoning. Title, explicit progress,
-    publication and answer retain their server timestamps; absent steps are None,
-    as is publication for a comment that asked for no revision.
-    """
-    admitted = instant(comment["ts"])
-    thread = comment["id"]
-    started = next(
-        (
-            e["ts"]
-            for e in events
-            if (start := start_reading(e)) and start["item"] == thread
-        ),
-        None,
-    )
-    titled = next(
-        (
-            event["ts"]
-            for index, event in enumerate(events)
-            if title(events[: index + 1], thread) is not None
-        ),
-        None,
-    )
-    replies = [e for e in events if e["kind"] == "reply" and e.get("parent") == thread]
-    progress = next((e["ts"] for e in replies if e.get("ephemeral")), None)
-    replied = deployment_answer(events, comment["id"])
-    return {
-        step: None if at is None else round(instant(at) - admitted, 3)
-        for step, at in (
-            ("queued", pickup_at(events, thread, "queued")),
-            ("pickedUp", pickup_at(events, thread, "opened")),
-            ("started", started),
-            ("titled", titled),
-            ("progress", progress),
-            ("published", published["activated_at"] if published is not None else None),
-            ("replied", replied["ts"] if replied is not None else None),
-        )
-    }
-
-
-def agent_profile(profile: AgentProfile, steps: dict) -> dict:
-    """One comment-to-answer profile in milliseconds: the page server's `steps` from
-    the answered comment's admission, and the browser's observations from the first
-    send."""
+def agent_profile(profile: AgentProfile, milestones: dict) -> dict:
+    """One comment-to-answer profile: its `milestones` on the page server's clock
+    from its admission (`input_rows`), and the browser's observations, in
+    milliseconds from the first send."""
 
     def ms(seconds: float | None) -> float | None:
         return None if seconds is None else seconds * 1000
@@ -337,7 +316,7 @@ def agent_profile(profile: AgentProfile, steps: dict) -> dict:
         "sessionReference": profile.reference,
         "eventIds": profile.event_ids,
         "asks": profile.ask_count,
-        "sinceAdmissionMs": {step: ms(seconds) for step, seconds in steps.items()},
+        "milestones": milestones,
         "sinceSendMs": {
             "acknowledged": [ms(at) for at in profile.acknowledged],
             "responseVisible": ms(profile.visible_reply_s),
@@ -405,12 +384,12 @@ def release_ask(marker: str) -> str:
 
 def board_names_release(html: str, marker: str) -> bool:
     """Read board text and widget labels, excluding release-scoped resource URLs."""
-    main = SourceDocument(html).tree.select_one("main")
-    return main is not None and (
-        marker in main.to_text()
+    body = SourceDocument(html).tree.select_one("body")
+    return body is not None and (
+        marker in body.to_text()
         or any(
             marker in (element.attrs.get("label") or "")
-            for element in main.find_all(True)
+            for element in body.find_all(True)
         )
     )
 
@@ -580,15 +559,14 @@ def await_turn(
     return TurnReading(current, published, replies, answer)
 
 
-def await_title(end: HttpEnd | BrowserEnd, thread: str, state: dict) -> dict:
-    """Read the page until it titles `thread` or `TITLE_PATIENCE` passes; return the
-    last reading. The page server names a thread beside the agent's turn rather than
-    within it, so the title can land after the reply that ended the turn."""
+def await_title(end: HttpEnd | BrowserEnd, thread: str, state: dict) -> None:
+    """Read the page until it titles `thread` or `TITLE_PATIENCE` passes. The page
+    server names a thread beside the agent's turn rather than within it, so the
+    title can land after the reply that ended the turn."""
     deadline = time.monotonic() + TITLE_PATIENCE
     while title(state["events"], thread) is None and time.monotonic() < deadline:
         end.pause(1)
         state = end.state()
-    return state
 
 
 def ask_until_answered(end: HttpEnd | BrowserEnd, marker: str) -> AgentAsks:
@@ -670,12 +648,9 @@ def run_journey(end: HttpEnd | BrowserEnd, version: str) -> dict:
     opening = end.opening()
     turn, asks, revision, profile = ask_until_answered(end, marker)
     published, answer = check_turn_answered(end.url, marker, turn, asks, revision)
-    answered_comment = next(
-        event for event in turn.state["events"] if event["id"] == answer["parent"]
-    )
-    events = await_title(end, answer["parent"], turn.state)["events"]
+    await_title(end, answer["parent"], turn.state)
     comment = end.reading(
-        profile, recorded_steps(events, answered_comment, published), answer
+        profile, end.timings()[answer["responds"]]["milestones"], answer
     )
     print(json.dumps(comment, indent=2), file=sys.stderr)
     print(
@@ -721,15 +696,23 @@ def website_session(
 
 
 class Terminal:
-    """A harness session the journey types into as the user at its terminal.
+    """A harness session the journey types into as the user at its terminal, and
+    each step more than one harness takes, written once over what a harness module
+    supplies: `session`, the harness's id for the session, which the page's claim
+    names, and its primitives `say`, `work`, `hear`, `idle`, `listening`, and, where
+    the harness has them, `press_escape` and `leave`. A harness module runs the
+    shared steps its harness takes among steps of its own, and records each with its
+    own checks between steps.
 
     Every wait in a harness journey goes through `hear`, the release ask's included
     (`Session.pause`), so whatever the user at the terminal answers is answered
     whichever wait meets it, and a session that has gone fails the wait. `records`
     is the session's tool and turn record, stamped `received_at`, which a harness
-    that reports it as it goes keeps in `trace`; `approved` holds the
-    permission prompts answered since the last step; `running_commands` and `commands` are the shell commands it is
-    running and has run, where the harness reports them."""
+    that reports it as it goes keeps in `trace`; `approved` holds the permission
+    prompts answered since the last step; `running_commands` and `commands` are the
+    shell commands it is running and has run, where the harness reports them."""
+
+    session: str
 
     def __init__(self) -> None:
         self.trace: list[dict] = []
@@ -745,10 +728,28 @@ class Terminal:
         """Whether no turn of the session is running."""
         raise NotImplementedError
 
-    def work(self) -> object:
-        """Type the user's own turn (`review_scenario.USER_TURN`) and return once its
-        shell command runs, with what names the turn where the harness says."""
+    def say(self, text: str) -> None:
+        """Type one prompt into the idle session."""
         raise NotImplementedError
+
+    def work(self, turn: str = USER_TURN) -> None:
+        """Type the user's own `turn` (`review_scenario.USER_TURN`) and return once
+        its shell command runs."""
+        raise NotImplementedError
+
+    def press_escape(self) -> None:
+        """Press Escape on the running turn, as the user at the terminal does, and
+        return once the turn has ended."""
+        raise NotImplementedError
+
+    def leave(self) -> None:
+        """End the session as its user does, and return once it has."""
+        raise NotImplementedError
+
+    def listening(self) -> bool:
+        """Whether Leaf listens for the session's input between its turns: whether a
+        watch holds its pages."""
+        return wait_is_live(None, self.session)
 
     def records(self) -> list[dict]:
         """The session's tool and turn record so far."""
@@ -783,18 +784,24 @@ class Terminal:
                     return
         raise self.failure(what, STEP_LIMIT)
 
-    def page_server_title(self, page: Path, thread: str) -> dict | None:
-        """The record `page`'s server made in its diagnostics of the title it
-        generated for `thread`, hearing the session for as long as the request may
-        take, or None where it made none. A thread's title says nothing of who made
-        it; this says the page server did."""
+    def titled(self, page: Path, name: str, thread: str) -> str:
+        """How `page`'s server titled `thread`, step `name`'s, from the record it made
+        in its diagnostics, hearing the session for as long as the request may take.
+        A thread's title says nothing of who made it; this says the page server
+        did."""
         deadline = time.monotonic() + TITLE_PATIENCE
         while True:
             for record in read_interactions(page, types=("thread_title_generated",)):
                 if record.get("thread") == thread:
-                    return record
+                    return (
+                        f"titled in {record['durationMs']} ms by {record['model']}, "
+                        f"{record['inputTokens']} input tokens"
+                        + (f", ${record['costUsd']:.5f}" if "costUsd" in record else "")
+                    )
             if time.monotonic() > deadline:
-                return None
+                raise click.ClickException(
+                    f"the page server did not title `{name}`'s thread"
+                )
             self.hear(0.5)
 
     def await_command(self, text: str, what: str) -> None:
@@ -803,6 +810,104 @@ class Terminal:
             lambda: any(text in command for command in self.running_commands.values()),
             what,
         )
+
+    def user_turn(self, page: Path, turn: str = USER_TURN) -> str:
+        """Type the user's own `turn` (`work`), and return its id once the page's
+        claim holds it open."""
+        self.work(turn)
+        self.until(
+            lambda: turn_open(page_claim(page)),
+            "the page's claim did not hold the user's turn open",
+        )
+        return claimed(page)["turn"]
+
+    def setup(self, page: Path, request: str = REQUEST) -> None:
+        """`setup`: the user asks for `page` to be served (`request`), and the session
+        serves it, ending its turn with Leaf listening for its input and the page
+        claimed by it, that turn closed."""
+        self.say(request)
+        self.settle(
+            lambda: running_server(page) is not None and self.listening(),
+            "setup: the page was not served with Leaf listening for the session",
+        )
+        settled(page, self.session, {})
+
+    def release(self, user: User) -> None:
+        """`release`: the journey's timed ask (`User.release`), sent while the session
+        is idle, which opens a turn that answers it, or with `--case working` during
+        the user's own turn's shell command, which answers it. The step ends once the
+        session settles."""
+        if user.case == "working":
+            self.work()
+        user.release()
+        self.settle(lambda: True, "release: the turn that answered did not end")
+
+    def mid_turn(self, user: User, page: Path) -> str:
+        """`mid-turn`: a comment sent during the user's turn's shell command is
+        picked up in that turn, at its next tool boundary, and answered before the
+        turn ends, with no turn of its own. Returns the comment's id."""
+        turn = self.user_turn(page)
+        comment = user.comment("mid-turn")
+        self.until(self.idle, "mid-turn: the user's turn did not end")
+        require(
+            user.answered("mid-turn"),
+            "mid-turn: the user's turn ended without answering the comment",
+        )
+        require(
+            turn in picked_up(page, comment),
+            f"mid-turn: the comment was not picked up in the user's turn {turn}",
+        )
+        self.settle(
+            lambda: user.answered("mid-turn"), "mid-turn: the comment was not answered"
+        )
+        require(
+            claimed(page)["turn"] == turn,
+            "mid-turn: the comment started a turn of its own",
+        )
+        return comment
+
+    def escape(self, user: User, page: Path) -> bool:
+        """`escape`: Escape during the user's turn's shell command ends that turn,
+        and the session stays idle, with Leaf listening for it, the page reading so
+        and no turn opening, until a comment sent afterwards opens a turn that
+        answers it. Returns whether the claim's turn stayed open after Escape: a
+        harness that runs no end-of-turn hook on an interruption leaves it open
+        until its next turn."""
+        turn = self.user_turn(page)
+        self.press_escape()
+        self.settle(
+            self.listening,
+            "escape: the session did not settle listened for after Escape",
+        )
+        require(
+            claimed(page)["turn"] == turn,
+            "escape: a turn opened after Escape with no new input",
+        )
+        reading = activity(page)
+        require(
+            reading == "listening",
+            f"escape: the page reads {reading}, not listening, after Escape",
+        )
+        stayed = turn_open(page_claim(page), turn)
+        user.comment("escape")
+        self.settle(
+            lambda: user.answered("escape"), "escape: the comment was not answered"
+        )
+        return stayed
+
+    def quit(self, page: Path) -> None:
+        """`quit`: the user ends the session (`leave`), so Leaf records its end, its
+        claim on the page is inactive and Leaf no longer listens for it."""
+        self.leave()
+        require(
+            not session_live(session_record(self.session)),
+            "quit: the session ended without Leaf's SessionEnd",
+        )
+        require(
+            not claim_is_active(page_claim(page)),
+            "quit: the ended session's claim on the page is still active",
+        )
+        require(not self.listening(), "quit: Leaf still listens for the ended session")
 
 
 class Isolation(NamedTuple):
@@ -920,7 +1025,9 @@ def user_at(
     end = (
         HttpEnd(url, place.page, terminal.hear)
         if browser is None
-        else BrowserEnd(local_session(browser, url)._replace(pause=terminal.hear))
+        else BrowserEnd(
+            local_session(browser, url)._replace(pause=terminal.hear), place.page
+        )
     )
 
     def commands() -> list[dict]:
@@ -1010,10 +1117,14 @@ class HttpEnd:
     def wait(self, comment: str) -> None:
         """Nothing: no page shows the reply."""
 
-    def reading(self, profile: AgentProfile, steps: dict, answer: dict) -> dict:
+    def timings(self) -> dict[str, dict]:
+        """Each input on the page with its milestones (`input_rows`)."""
+        return input_rows(self.page, datetime.now().astimezone())
+
+    def reading(self, profile: AgentProfile, milestones: dict, answer: dict) -> dict:
         """A comment's reading: its milestones on the page server's clock, with
         nothing a browser would have seen."""
-        reading = agent_profile(profile, steps)
+        reading = agent_profile(profile, milestones)
         del reading["sinceSendMs"], reading["responseShownBy"]
         return reading
 
@@ -1025,12 +1136,13 @@ class BrowserEnd:
     """The user's end in Chrome: every comment typed as a user types it, a page comment
     in the floating panel's field and an anchored one on its selected passage, its send and its reply showing timed by the page
     (`shown_reply`), and the release ask's reload checked and profiled. This is the
-    whole journey, what the page shows included."""
+    whole journey, what the page shows included. `page` is the page's directory, or
+    None on a website, whose page directory is out of reach."""
 
     name = "browser"
 
-    def __init__(self, session: Session) -> None:
-        self.session, self.url = session, session.url
+    def __init__(self, session: Session, page: Path | None) -> None:
+        self.session, self.url, self.page = session, session.url, page
         self.pause = session.pause
 
     def state(self) -> dict:
@@ -1102,7 +1214,12 @@ class BrowserEnd:
             )
             # `inner_text` applies the theme's text-transform, so a release recorded in
             # an uppercase eyebrow or panel heading reads `35B36571`. Compare ignoring case.
-            rendered = page.locator("main").inner_text()
+            # The page is body less Leaf's own elements (passages.js, `inPage`).
+            rendered = page.evaluate(
+                "() => [...document.body.children]"
+                ".filter((el) => !el.matches('.lf-chrome, [data-lf-runtime]'))"
+                ".map((el) => el.innerText).join('\\n')"
+            )
             check(
                 marker.casefold() in rendered.casefold(),
                 f"{url} rendered a page that never names ‘{marker}’, which the agent's "
@@ -1138,12 +1255,26 @@ class BrowserEnd:
         does. The page times what it shows, so when this runs changes no reading."""
         open_news(self.session.page, comment)
 
-    def reading(self, profile: AgentProfile, steps: dict, answer: dict) -> dict:
+    def timings(self) -> dict[str, dict]:
+        """Each input on the page with its milestones (`input_rows`), read on a
+        website from the log the page serves, up to the time it served it on its own
+        clock."""
+        if self.page is not None:
+            return input_rows(self.page, datetime.now().astimezone())
+        state = self.state()
+        with tempfile.TemporaryDirectory() as served:
+            log = Path(served)
+            (log / "events.jsonl").write_text(
+                "".join(json.dumps(event) + "\n" for event in state["events"])
+            )
+            return input_rows(log, datetime.fromisoformat(state["now"]))
+
+    def reading(self, profile: AgentProfile, milestones: dict, answer: dict) -> dict:
         """A comment's reading: its milestones on the page server's clock, and from
         its send, its acknowledgement and its reply showing, which must."""
         if profile.visible_reply_by is None:
             profile.show(await_reply_shown(self, answer))
-        return agent_profile(profile, steps)
+        return agent_profile(profile, milestones)
 
     def close(self) -> None:
         self.session.context.close()
@@ -1178,11 +1309,8 @@ class User:
         self.release_reading: dict = {}
 
     def release(self) -> None:
-        """The ask every target answers, timed (`run_journey`), in the journey's
-        `case`: in the working one, while the user's turn runs its command."""
-        if self.case == "working":
-            assert self.terminal is not None
-            self.terminal.work()
+        """The ask every target answers, timed (`run_journey`); a harness sends it in
+        the journey's `case` (`Terminal.release`)."""
         self.release_reading = run_journey(self.end, self.version)
         self.ids["release"] = self.release_reading["comment"]["eventIds"][-1]
 
@@ -1253,21 +1381,17 @@ class User:
 
     def timing(self, name: str) -> str:
         """When step `name`'s comment was picked up and answered, after its
-        admission (`recorded_steps`), and what a fork that decided on it did."""
-        assert self.events is not None
-        events = self.events()
-        comment = next(e for e in events if e["id"] == self.ids[name])
-        steps = recorded_steps(events, comment, None)
-        picked = steps["pickedUp"]
+        admission (`input_rows`), and what a fork that decided on it did."""
+        milestones = self.end.timings()[self.ids[name]]["milestones"]
         fork = self.fork(name)
         return (
             f"`{name}` "
             + (
-                "never picked up"
-                if picked is None
-                else f"picked up after {picked:.1f} s"
+                f"picked up after {milestones['opened']['elapsed_s']:.1f} s"
+                if "opened" in milestones
+                else "never picked up"
             )
-            + f", answered after {steps['replied']:.1f} s"
+            + f", answered after {milestones['answered']['elapsed_s']:.1f} s"
             + (f"; {fork_summary(fork)}" if fork is not None else "")
         )
 
@@ -1278,10 +1402,10 @@ class User:
         down here, from the session's whole record: the call that replied ends after
         the reply does, and a record read while the session writes it can end in a
         partial line."""
-        events = (
-            self.events()
+        events, rows = (
+            (self.events(), self.end.timings())
             if self.events is not None and (self.profiles or self.records)
-            else []
+            else ([], {})
         )
 
         def replied(name: str, comment: dict, answer: dict) -> dict:
@@ -1298,11 +1422,12 @@ class User:
                 fork is None or fork["outcome"] != "reply"
             ):
                 assert self.commands is not None
+                opened = rows[comment["id"]]["milestones"].get("opened")
                 reading["reply"] = reply_breakdown(
                     self.records(),
                     self.commands(),
                     comment["ts"],
-                    pickup_at(events, comment["id"], "opened"),
+                    None if opened is None else opened["at"],
                     answer["ts"],
                 )
             return reading
@@ -1313,7 +1438,7 @@ class User:
             answer = deployment_answer(events, comment["id"])
             answer = check(answer, f"`{name}` has no answer")
             reading = self.end.reading(
-                profile, recorded_steps(events, comment, None), answer
+                profile, rows[comment["id"]]["milestones"], answer
             )
             comments[name] = {**reading, **replied(name, comment, answer)}
         release = self.release_reading
@@ -1418,26 +1543,27 @@ def target_session(
     output (`target` the same across runs, as a local server's `origin` is not), and
     the journey's steps."""
     if target in HARNESS_TARGETS:
-        named: dict = {"target": target, **HARNESS_TARGETS[target]}
-        if target == "claude-code":
+        _, harness, transport = HARNESS_TARGETS[target]
+        named: dict = {"target": target, "harness": harness}
+        if harness == "claude-code":
             from leaf_dev.journey_claude_code import answering
 
-            harness = answering(browser, sandbox=sandbox, forks=forks)
+            answered = answering(browser, sandbox=sandbox, forks=forks)
             named |= {"sandbox": True} if sandbox else {}
             named |= {"forks": True} if forks else {}
-        elif target == "pi":
+        elif harness == "pi":
             from leaf_dev.journey_pi import answering
 
-            harness = answering(browser)
+            answered = answering(browser)
         else:
             from leaf_dev.journey_codex import answering
 
-            harness = answering(
-                browser, named["transport"], preview=preview, sandbox=sandbox
-            )
+            assert transport is not None
+            answered = answering(browser, transport, preview=preview, sandbox=sandbox)
+            named |= {"transport": transport}
             named |= {"preview": True} if preview else {}
             named |= {"sandbox": True} if sandbox else {}
-        with harness as (user, run):
+        with answered as (user, run):
             yield user, named, run
         return
     if target == "website-adapter":
@@ -1449,7 +1575,7 @@ def target_session(
         session, version = website_session(
             browser, release, origin=origin, direct_agent=False
         )
-        user = User(BrowserEnd(session), version)
+        user = User(BrowserEnd(session, None), version)
         yield (
             user,
             {"target": origin, "harness": "website", "origin": origin},
@@ -1468,7 +1594,7 @@ def target_session(
             origin=origin,
             direct_agent=target == "website-adapter",
         )
-        user = User(BrowserEnd(session), version)
+        user = User(BrowserEnd(session, None), version)
         yield (
             user,
             {"target": target, "harness": "website", "origin": origin},
@@ -1531,18 +1657,16 @@ def journey(
     or a website origin. A harness's user posts its comments over HTTP unless
     `--browser` puts them in Chrome.
     """
-    if sandbox and HARNESS_TARGETS.get(target, {}).get("harness") not in (
-        "claude-code",
-        "codex",
-    ):
+    harness = HARNESS_TARGETS[target].harness if target in HARNESS_TARGETS else None
+    if sandbox and harness not in ("claude-code", "codex"):
         raise click.UsageError("--sandbox is an option of claude-code and codex")
-    if preview and HARNESS_TARGETS.get(target, {}).get("harness") != "codex":
+    if preview and harness != "codex":
         raise click.UsageError("--preview is an option of the codex targets")
     if preview and sandbox:
         raise click.UsageError("--preview runs leaf-dev, which a sandbox refuses")
-    if forks and target != "claude-code":
+    if forks and harness != "claude-code":
         raise click.UsageError("--forks is an option of claude-code")
-    website = target not in HARNESS_TARGETS
+    website = harness is None
     if website and case == "working":
         raise click.UsageError("a website's journey has no terminal to start a turn")
     if website and browser is False:

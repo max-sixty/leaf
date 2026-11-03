@@ -10,9 +10,10 @@ second decision reader or repeated render/quality grader for every revision.
 
 Each phase retains its primary output, initialized pages and served addresses.
 The judge restores known page links in disposable copies; archived bytes stay exact.
-Reports capture those pages and retain native timing/token accounting. Optional eval-pairs
-judges compare saved samples without rerunning their authors. The run centrally
-selects its viewports, defaulting to one fullscreen desktop for every case.
+Reports capture those pages and retain native timing/token accounting.
+`eval --from --judge pair` compares saved samples without rerunning their authors.
+The run centrally selects its viewports, defaulting to one fullscreen desktop for
+every case.
 """
 
 import json
@@ -38,7 +39,7 @@ from leaf.service import requires_agent_attention
 from leaf.structure import source_index
 from leaf.thread import successful_replies
 from leaf.user_views import read_user_views
-from leaf_dev import ROOT, arrangement_plain, pane_readings
+from leaf_dev import ROOT, pane_readings, plain_html
 from leaf_dev.arms import (
     JUDGE_MODELS,
     TURN_LIMIT,
@@ -338,7 +339,7 @@ def restored_page(saved: dict):
             copied = work / entry["page"]
             shutil.copytree(source, copied)
             url = stack.enter_context(
-                arrangement_plain.serving(copied)
+                plain_html.serving(copied)
                 if saved["condition"] == "html"
                 else serving(Path(saved["payload"]), work / "state", copied)
             )
@@ -522,7 +523,7 @@ def decision_round(run: Run, live: LiveSession) -> None:
             return decide(
                 live.url, decision.task, run.directory / "user", viewport=viewport
             )
-        with arrangement_plain.serving(page) as url:
+        with plain_html.serving(page) as url:
             return decide(url, decision.task, run.directory / "user", viewport=viewport)
 
     made = live.during(deciding)
@@ -575,7 +576,7 @@ def capture_phase(run: Run, phase: int, page: Path | None = None) -> dict:
                     copied = Path(temporary) / "page"
                     shutil.copytree(page, copied)
                     server = (
-                        arrangement_plain.serving(copied)
+                        plain_html.serving(copied)
                         if html
                         else serving(run.payload, Path(temporary) / "state", copied)
                     )
@@ -583,7 +584,7 @@ def capture_phase(run: Run, phase: int, page: Path | None = None) -> dict:
                         server as url,
                         tab(browser, viewport=viewport, touch=name == "phone") as view,
                     ):
-                        (arrangement_plain.load if html else load)(view, url)
+                        (plain_html.load if html else load)(view, url)
                         image = run.shots / f"p{phase}-{name}-0.png"
                         view.screenshot(path=image)
                         captures[name] = [str(image)]

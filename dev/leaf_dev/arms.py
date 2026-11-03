@@ -1,10 +1,14 @@
 """Arms, served pages, and isolated CC, Codex and Pi sessions for the commands and eval
 harnesses that run a version of Leaf.
 
-An arm is the plugin payload (`PAYLOAD`) at one ref, or as the working tree has it, and
-nothing else: no `.git`, examples or notes, so a child cannot read its way to another
-arm's version. An A/B's base is the merge base with the local `main` unless the caller
-names another ref (`base_ref`).
+A command that runs Leaf at two versions, such as `stills`, `probe` or `compare`, runs
+`head`, this working tree in place with its uncommitted edits, and `base`, the merge
+base with the local `main` unless `--base REF` names another commit (`choose_arms`,
+`base_option`). The base is the whole tree at its commit, so it serves pages, runs the
+preview worker and reads its own authored sources (`own_source`) as this checkout does.
+An eval's `base` and `head` are instead each a copy of the plugin payload (`PAYLOAD`)
+at its version and nothing else: no `.git`, examples or notes, so a child cannot read
+its way to another arm's version.
 
 A child runs from a scratch cwd outside any repository, so no project instructions
 load, under a home of its own beside that cwd, so its bypassed permissions write to
@@ -255,7 +259,7 @@ class ServedPage(NamedTuple):
 
 
 # The page `serving_source` serves while it does, for an input that writes to it from
-# outside the tab, as the agent or another tab does (stills.py, `held_news`).
+# outside the tab, as the agent or another tab does (states.py, `held_news`).
 served_page: ContextVar[ServedPage] = ContextVar("served_page")
 
 
@@ -289,8 +293,8 @@ def serving_source(arm: Path, source: Path, scratch: Path, log: Path | None = No
 
 
 def merge_base(ref: str = "HEAD") -> str:
-    """The commit `ref` branched from the local `main`: the base an A/B command
-    compares HEAD against unless it is handed another."""
+    """The commit `ref` branched from the local `main`: the base a command compares
+    this working tree with unless it is handed another."""
     return subprocess.run(
         ["git", "-C", ROOT, "merge-base", ref, "main"],
         capture_output=True,
@@ -360,14 +364,6 @@ def arm_commit(ref: str | None) -> str:
     ).stdout.strip()
 
 
-def extract_arm(ref: str | None, dest: Path) -> str:
-    """Extract an arm's payload without building its environment, for a caller that
-    serves it through `serving_source`, whose first `uv run` in the arm builds one.
-    Return the commit."""
-    extract_payload(dest, ref)
-    return arm_commit(ref)
-
-
 def build_arm(ref: str | None, dest: Path, *, paths: Iterable[str] = PAYLOAD) -> str:
     """Extract `paths` at `ref`, or as the working tree has it when `ref` is None,
     into `dest`, replacing any earlier arm there, and build its environment; return
@@ -387,18 +383,92 @@ def build_arm(ref: str | None, dest: Path, *, paths: Iterable[str] = PAYLOAD) ->
     return arm_commit(ref)
 
 
-def base_ref(ref: str | None) -> str:
-    """The ref an A/B command compares HEAD against: the one it was handed, else
-    `merge_base()`."""
-    return ref or merge_base()
+def named_commit(_context, _parameter, ref: str | None) -> str | None:
+    """Refuse a REF that names no commit while the command line is read, before any
+    arm is built. An optional value takes the next word, so `--base` written before
+    an argument reads that argument as its REF."""
+    if (
+        ref
+        and subprocess.run(
+            ["git", "-C", ROOT, "rev-parse", "--verify", "-q", f"{ref}^{{commit}}"],
+            capture_output=True,
+            check=False,
+        ).returncode
+    ):
+        raise click.BadParameter(
+            f"no commit {ref!r}; without REF, put --base after any arguments"
+        )
+    return ref
 
 
-def build_pair(base: str | None, dest: Path) -> tuple[dict[str, Path], dict[str, str]]:
-    """Build an A/B's arms under `dest`: `base` at `base_ref(base)` and `head` at
-    HEAD. Return each arm's directory and its commit, both keyed `base` and `head`."""
-    refs = {"base": base_ref(base), "head": "HEAD"}
-    arms = {arm: dest / arm for arm in refs}
-    return arms, {arm: build_arm(ref, arms[arm]) for arm, ref in refs.items()}
+def base_option(*, paired: bool = False):
+    """The `--base [REF]` option of every command that runs Leaf at two versions.
+
+    A paired command, whose readings mean something only beside the base's, always
+    runs the base; any other runs it only when given `--base`. The value is None for
+    no base, and empty for the merge base (`choose_arms`)."""
+    return click.option(
+        "--base",
+        is_flag=False,
+        flag_value="",
+        default="" if paired else None,
+        metavar="[REF]",
+        callback=named_commit,
+        help="Compare with REF instead of the merge base with main."
+        if paired
+        else "Also run the merge base with main, or REF. Without REF, put it after "
+        "any arguments.",
+    )
+
+
+class Arm(NamedTuple):
+    """A version of Leaf a command runs: its checkout, and the commit that checkout
+    stands on, HEAD's for this working tree."""
+
+    directory: Path
+    commit: str
+
+
+def choose_arms(
+    base: str | None, scratch: Path, *, payload: bool = False
+) -> dict[str, Arm]:
+    """The arms a command runs, keyed `base` and `head`, base first. `head` is this
+    working tree in place, uncommitted edits included, so an edit made during a run
+    reaches what the run reads after it. Unless `base` is None, `base` is the whole
+    tree at `base`, or at the merge base when `base` is empty, built under `scratch`
+    in `arms/` (`build_arm`).
+
+    With `payload`, as for a command that installs each arm for child agents, both
+    arms are copies of the plugin payload alone in `scratch`'s `arms/`, the head's
+    taken from the working tree now: a child can't read its way to the other arm,
+    and a later edit changes neither."""
+    paths = PAYLOAD if payload else (".",)
+    arms = {}
+    if base is not None:
+        directory = scratch / "arms" / "base"
+        commit = build_arm(base or merge_base(), directory, paths=paths)
+        arms["base"] = Arm(directory, commit)
+    if not payload:
+        return {**arms, "head": Arm(ROOT, arm_commit(None))}
+    directory = scratch / "arms" / "head"
+    return {**arms, "head": Arm(directory, build_arm(None, directory))}
+
+
+def describe(arms: dict[str, Arm]) -> str:
+    """Name each arm and its commit, as a command's report heads its readings."""
+    return " vs ".join(f"{name} {arm.commit[:10]}" for name, arm in arms.items())
+
+
+def own_source(arm: Arm, source: Path) -> Path:
+    """`source`, an authored page in this checkout, as `arm`'s checkout has it, with
+    that checkout's companions and asset pin beside it: `source` itself on the head,
+    the base commit's copy on the base. The base holds only tracked files, so a
+    generated source, such as the corpus, is generated there when it is missing
+    (`refresh_composition`); its readers regenerate it as they read it."""
+    own = arm.directory / source.relative_to(ROOT)
+    if not own.exists():
+        refresh_composition(own)
+    return own
 
 
 def load_average() -> str:

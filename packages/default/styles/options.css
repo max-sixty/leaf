@@ -45,7 +45,6 @@ lf-options {
   display: block;
   margin: 14px 0;
   --lf-joined: 0;
-  --lf-option-font: var(--t-4)/1.6 var(--serif);
   --lf-option-line: 1lh;
   --lf-option-pad-min: 5px;
   --lf-option-pad-block: var(--lf-option-pad-min);
@@ -63,8 +62,7 @@ lf-options {
   }
 }
 lf-options:not(:has(> lf-option > strong)) {
-  --lf-option-font: var(--t-5)/1.5 var(--sans);
-  font: var(--lf-option-font);
+  font: var(--font-widget);
 }
 lf-options:has(> lf-option > strong) {
   --lf-option-pad-min: var(--sp-3);
@@ -176,15 +174,14 @@ lf-options:has(> lf-option > strong) {
   }
   & > lf-option > dl.facts dt {
     color: var(--muted);
-    font-size: var(--t-6);
+    font: var(--font-small);
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    font-weight: 400;
     margin-top: 6px;
     padding: 0;
   }
   & > lf-option > dl.facts dd {
-    font-size: var(--t-5);
+    font: var(--font-widget);
     margin: 0;
   }
 }
@@ -376,8 +373,7 @@ lf-option[chosen] > .lf-pick::before {
   lf-option[chosen]::after {
     content: "✓";
     color: var(--ok-ink);
-    font-family: var(--sans);
-    font-weight: 700;
+    font-weight: 600;
   }
 }
 lf-option .lf-pick[data-lf-focus-visible] {

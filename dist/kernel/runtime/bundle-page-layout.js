@@ -4,7 +4,7 @@ import { admitResponse, completeData, countTraffic, dataHeaders, layerHeaders, p
 import { activityTransitionDue, addressableLabel, addressableWord, afterPresentation, ago, anchorAt, anchorBox, anchorElement, anchorForRange, anchorReaches, anchorReading, anchoringIsReady, commitPoint, cutFrames, declaredName, livePoint, markStateApplied, nameAnchor, observeServerNow, observeWorkingGrace, reachScrollers, readingRegionFor, saidNow, scheduleDocumentLayout, scrollsWith, sectionOf, settlePageInterface, targetSegments, tickClock, visualPartLabel, widgetWord } from "./bundle-content-layout.js";
 import { elementById, excerptWords, labelWords, leafSurface, pageParts, pageReadingVersion, quoteFrom, quotedWords, textNodesUnder } from "./bundle-passages.js";
 import { aborted, authoredStates, commitWidgetDescriptors, descriptorStillMatches, quoted, widgetDescriptor, widgetElement } from "./bundle-abort.js";
-import { HeldNews, MessageView, NOT_ANSWERED, SAYS_IN, THREAD, ThreadView, Transcript, allButCommandReference, allThreads, anchorLabel, answeredInWords, authoredHolder, awaitsData, beginThreadSeats, bindsInput, bringBackSurfaceOf, claimed, clearDraft, commitThreadSeats, comparisonBase, comparisonChanges, completeReadingReturn, copyTrigger, createProjectionPresentation, createReplyView, dataReader, declareSide, dismissReplyAt, draftContexts, drawnThreadId, externalMark, focusThread, focusedThreadTarget, heldOut, heldThread, holdReplyCompositions, holdThreadPlace, inlineComparison, isBlockPlacement, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, loadDraft, loadMarkdown, loadMessageMarkdown, markdownReady, messageHolding, messageReading, messageText, mountFirstMessage, newsNotice, obligationHolding, obligationPlace, openMessageEditIn, opensElsewhere, pageCommand, pageScope, pageSelection, placeOf as placeOf$1, placePageThreads as placePageThreads$1, placedMarkdownTokens, prepareAuthoredMessage, progressFace, readObligations, readThreads, readingReturn, registerWritingDestination, rememberWriting, renderMarginThread, renderSeats, renderSurfaces, replyDraftContext, replyIsEditing, replyThreadKey, retainThreadSeats, revealHeld, saveDraft, sendLanding, sendMessage, settleAcceptedDrafts, showHeld, showHeldThread, strongestWorkflow, suppliedSnapshot, surfaceFocusTarget, threadAttention, threadDraft, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading as threadReading$1, threadReplyInput, threadRewrites, threadState, todoWord, toggleInlineComparison, transferDraft, watchDraft, watchDrafts, watchThreadSurfaces, wholeThread, workflowWord } from "./bundle-data.js";
+import { CHANGE_CARD, HeldNews, MessageView, NOT_ANSWERED, SAYS_IN, THREAD, ThreadView, Transcript, allButCommandReference, allThreads, anchorLabel, answeredInWords, authoredHolder, awaitsData, beginThreadSeats, bindsInput, bringBackSurfaceOf, changeAccount, changeCard, changeRedline, claimed, clearDraft, closeChangeCard, commitThreadSeats, comparisonBase, comparisonChanges, completeReadingReturn, copyTrigger, createProjectionPresentation, createReplyView, dataReader, declareSide, dismissReplyAt, draftContexts, drawnThreadId, externalMark, focusThread, focusedThreadTarget, heldOut, heldThread, holdReplyCompositions, holdThreadPlace, isBlockPlacement, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, loadDraft, loadMarkdown, loadMessageMarkdown, markdownReady, messageHolding, messageReading, messageText, mountFirstMessage, newsNotice, obligationHolding, obligationPlace, openMessageEditIn, openedChange, opensElsewhere, pageCommand, pageRung, pageScope, pageSelection, placeOf as placeOf$1, placePageThreads as placePageThreads$1, placedMarkdownTokens, prepareAuthoredMessage, progressFace, readObligations, readThreads, readingReturn, registerWritingDestination, rememberWriting, renderMarginThread, renderSeats, renderSurfaces, replyDraftContext, replyIsEditing, replyThreadKey, retainThreadSeats, revealHeld, saveDraft, sendLanding, sendMessage, settleAcceptedDrafts, showHeld, showHeldThread, strongestWorkflow, suppliedSnapshot, surfaceFocusTarget, threadAttention, threadDraft, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading as threadReading$1, threadReplyInput, threadRewrites, threadState, todoWord, toggleChangeCard, transferDraft, watchDraft, watchDrafts, watchThreadSurfaces, wholeThread, workflowWord } from "./bundle-data.js";
 import { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
 import { visibleTargetParts } from "./bundle-visible-target-parts.js";
 
@@ -3814,31 +3814,51 @@ const threadPlace = (t, placedAt) => {
 	return place?.isConnected && !leafSurface(place) ? place : null;
 };
 const inPageOrder = (threads, placedAt) => byRenderedOrder(threads, (t) => threadPlace(t, placedAt));
-let outlined = null;
-function pageOutline() {
+let outlined$1 = null;
+function readOutline() {
 	const key = [pageReadingVersion(), documentChanged()];
-	if (outlined?.key.every((part, index) => part === key[index])) return outlined.outline;
+	if (outlined$1?.key.every((part, index) => part === key[index])) return outlined$1;
 	const outline = Object.freeze(byRenderedOrder(pageParts("h1, h2, h3, h4, h5, h6"), (heading) => heading));
-	outlined = {
+	const heads = /* @__PURE__ */ new Map();
+	for (const heading of outline) {
+		const container = headed(heading);
+		const held = heads.get(container);
+		if (held) held.push(heading);
+		else heads.set(container, [heading]);
+	}
+	outlined$1 = {
 		key,
-		outline
+		outline,
+		heads
 	};
-	return outline;
+	return outlined$1;
 }
+const pageOutline = () => readOutline().outline;
 const HEADERS = "header, hgroup";
 const headed = (heading) => {
 	const at = upFrom(heading);
 	return at?.matches(HEADERS) ? upFrom(at) : at;
 };
-function partOver(node, outline = pageOutline()) {
-	const heads = /* @__PURE__ */ new Map();
-	for (const heading of outline) if (renderedOrder(heading, node) < 0) heads.set(headed(heading), heading);
+function partOver(node) {
+	const { heads } = readOutline();
 	for (let at = upFrom(node); at; at = upFrom(at)) {
-		const heading = heads.get(at);
+		const heading = lastBefore(heads.get(at), node);
 		if (heading) return heading;
 		if (declaredName(at)) return at;
 	}
 	return null;
+}
+function lastBefore(headings, node) {
+	if (!headings) return null;
+	let low = 0;
+	let high = headings.length;
+	while (low < high) {
+		const middle = low + high >> 1;
+		const heading = headings[middle];
+		if (renderedOrder(heading, node) < 0) low = middle + 1;
+		else high = middle;
+	}
+	return headings[low - 1] ?? null;
 }
 const subjectLabel = (target) => addressableLabel(target) || addressableWord(target);
 function outlineSubjectFor(target, peers = [target], outline = pageOutline()) {
@@ -3883,7 +3903,7 @@ function createAnnotationInventory({ readObligations, placedAt, openThread, goTo
 			if (!parent) break;
 			const siblings = [...parent.children].filter((candidate) => !candidate.classList.contains("lf-ui") && !candidate.hasAttribute("data-lf-gen"));
 			steps.push(`${node.localName}:${siblings.indexOf(node)}`);
-			if (node.localName === "main" || parent instanceof ShadowRoot) break;
+			if (node.localName === "body" || parent instanceof ShadowRoot) break;
 			node = parent;
 		}
 		return `${prefix}${from}${steps.reverse().join("/")}`;
@@ -3910,14 +3930,15 @@ function createAnnotationInventory({ readObligations, placedAt, openThread, goTo
 	};
 	const sourceItem = (item) => itemSources.get(item);
 	function captureItem(item) {
-		const { activate, discloses, ...data } = item;
+		const { activate, discloses, change, ...data } = item;
 		const snapshot = Object.freeze({
 			...data,
 			carriesWorkflow: Boolean(workflowReceipt([item]))
 		});
 		itemSources.set(snapshot, {
 			activate,
-			...discloses ? { discloses } : {}
+			...discloses ? { discloses } : {},
+			...change ? { change } : {}
 		});
 		return snapshot;
 	}
@@ -4113,31 +4134,24 @@ function createAnnotationInventory({ readObligations, placedAt, openThread, goTo
 		}
 		const base = comparisonBase();
 		comparisonChanges().forEach((change, index) => {
-			const [target] = change;
-			let holder = target.parentElement;
-			while (holder && !change.every((block) => holder?.contains(block))) holder = holder.parentElement;
-			const childOf = (block) => {
-				let at = block;
-				while (at.parentElement && at.parentElement !== holder) at = at.parentElement;
-				return at;
-			};
-			const more = new Set(change.map(childOf)).size - 1;
-			const what = more ? `${addressableWord(target)} and ${more} more` : addressableWord(target);
-			const account = `${what} changed${base == null ? "" : ` since ${base.name}`}`;
-			const inline = inlineComparison(change);
-			const mapAccount = inline ? `${what} changed` : account;
+			const target = change.at;
+			const did = changeAccount(change);
+			const account = `${did}${base == null ? "" : ` since ${base.name}`}`;
+			const card = changeCard(change);
+			const mapAccount = card ? did : account;
 			add(groups, target, {
 				kind: "change",
 				id: `change:${targetPath(target)}:${index}`,
 				text: labelWords([mapAccount, addressableLabel(target)].filter(Boolean).join(" · ")),
 				words: [leafSays(mapAccount), ...addressableLabel(target) ? [` · ${addressableLabel(target)}`] : []],
-				...inline ? {
-					context: inline.offer,
-					mapContext: inline.offer
+				...card ? {
+					context: account,
+					mapContext: card.offer
 				} : {},
-				discloses: () => inlineComparison(change),
+				discloses: () => changeCard(change),
+				change,
 				activate: () => {
-					const said = toggleInlineComparison(change);
+					const said = toggleChangeCard(change);
 					revealTarget(target, said ? `${account} · ${said}` : account, scrollToElement);
 				}
 			});
@@ -5392,10 +5406,7 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 			};
 			const mayPresent = () => !abort.signal.aborted && presentation === selected && selected.owner.isConnected && (focus === false ? intent.available() : intent());
 			const arriving = restrictUserIntent(intent, mayPresent);
-			const departure = focus !== false && navigationStep && history ? prepareNavigationStep({
-				landing: () => selected.reader.destination(thread.key, request),
-				intent: arriving
-			}) : null;
+			const departure = focus !== false && navigationStep && history ? prepareNavigationStep() : null;
 			if (last) lastResort.add(thread.key);
 			else lastResort.delete(thread.key);
 			const result = selected.open(thread.key, request);
@@ -6578,7 +6589,6 @@ function paintShape(host, geometry, { left, top, right, bottom }, options = {}) 
 function paintStand(box = null) {
 	const root = document.createElement("div");
 	root.className = "lf-ui lf-target-paint lf-paint-stand";
-	root.setAttribute("aria-hidden", "true");
 	root.style.position = "fixed";
 	const carrier = document.createElement("div");
 	carrier.className = "lf-paint-carrier";
@@ -7027,29 +7037,81 @@ const KINDS = {
 		className: "lf-at-work-bar"
 	}
 };
+const GAP_BAR = {
+	min: 8,
+	max: 20
+};
+const OUTLINE = {
+	x: 12,
+	y: 6
+};
+const CARD_INSET = 13;
 const marginBarLayer = el("div", "lf-ui lf-margin-bars");
+const outlined = Z(null);
+function outlineChange(change) {
+	outlined.value = change;
+}
+function barLeft(target, rect, gap) {
+	const edge = (target.closest("table") ?? target).getBoundingClientRect();
+	return target.matches(":dir(rtl)") ? Math.min(Math.max(rect.right, edge.right) + gap, document.documentElement.clientWidth - BAR) : Math.max(Math.min(rect.left, edge.left) - gap - BAR, 0);
+}
+function gapOf({ at, after }, rect) {
+	const other = (after ? at.nextElementSibling : at.previousElementSibling)?.getBoundingClientRect();
+	return after ? {
+		top: rect.bottom,
+		bottom: other && other.top > rect.bottom ? other.top : rect.bottom + GAP_BAR.max
+	} : {
+		top: other && other.bottom < rect.top ? other.bottom : rect.top - GAP_BAR.max,
+		bottom: rect.top
+	};
+}
+function extentOf(change, rect) {
+	if (!change.blocks.length) return {
+		left: rect.left,
+		right: rect.right,
+		...gapOf(change, rect)
+	};
+	const boxes = [rect, ...change.blocks.slice(1).map((block) => block.getBoundingClientRect())].filter((box) => box.right > box.left || box.bottom > box.top);
+	return {
+		left: Math.min(...boxes.map((box) => box.left)),
+		top: Math.min(...boxes.map((box) => box.top)),
+		right: Math.max(...boxes.map((box) => box.right)),
+		bottom: Math.max(...boxes.map((box) => box.bottom))
+	};
+}
+function cardFor(change) {
+	const redline = changeRedline(change);
+	if (!redline) return null;
+	const card = el("div", "lf-ui lf-change-card");
+	card.id = CHANGE_CARD;
+	card.setAttribute("role", "group");
+	card.setAttribute("aria-label", redline.account);
+	card.append(el("p", "lf-change-card-head", `${redline.account} · ${redline.versions}`));
+	for (const block of redline.blocks) {
+		const line = el("p", "lf-change-card-block");
+		line.dataset.kind = block.kind;
+		for (const run of block.runs) line.append(run.kind === "same" ? run.text : el(run.kind === "delete" ? "del" : "ins", "", run.text));
+		card.append(line);
+	}
+	return card;
+}
 function createMarginBars(inventory) {
 	const bars = paintSet(marginBarLayer);
 	const drawn = {
 		change: /* @__PURE__ */ new Map(),
 		work: /* @__PURE__ */ new Map()
 	};
-	const all = () => Object.entries(drawn).flatMap(([kind, targets]) => [...targets].map(([target, node]) => ({
-		kind,
-		target,
-		node
-	})));
+	const gaps = /* @__PURE__ */ new Map();
+	const outline = el("span", "lf-change-outline");
+	let card = null;
+	let pointed = null;
 	let frame = 0;
-	function place() {
-		frame = 0;
-		bars.place(all().map(({ kind, target, node }) => ({
+	function items() {
+		const barsOf = (kind) => [...drawn[kind]].map(([target, node]) => ({
 			node,
 			target,
-			cut: false,
 			rect: ({ rect }) => {
-				const { gap } = KINDS[kind];
-				const edge = (target.closest("table") ?? target).getBoundingClientRect();
-				const left = target.matches(":dir(rtl)") ? Math.max(rect.right, edge.right) + gap : Math.min(rect.left, edge.left) - gap - BAR;
+				const left = barLeft(target, rect, KINDS[kind].gap);
 				return {
 					left,
 					right: left + BAR,
@@ -7057,34 +7119,103 @@ function createMarginBars(inventory) {
 					bottom: rect.bottom
 				};
 			}
+		}));
+		const gapBars = [...gaps].map(([change, node]) => ({
+			node,
+			target: change.at,
+			rect: ({ rect }) => {
+				const { top, bottom } = gapOf(change, rect);
+				const tall = Math.min(Math.max(bottom - top, GAP_BAR.min), GAP_BAR.max);
+				const middle = (top + bottom) / 2;
+				const left = barLeft(change.at, rect, KINDS.change.gap);
+				return {
+					left,
+					right: left + BAR,
+					top: middle - tall / 2,
+					bottom: middle + tall / 2
+				};
+			}
+		}));
+		const reach = pointed;
+		const round = reach ? [{
+			node: outline,
+			target: reach.at,
+			rect: ({ rect }) => {
+				const box = extentOf(reach, rect);
+				return {
+					left: box.left - OUTLINE.x,
+					right: box.right + OUTLINE.x,
+					top: box.top - OUTLINE.y,
+					bottom: box.bottom + OUTLINE.y
+				};
+			}
+		}] : [];
+		const open = card;
+		const over = open ? [{
+			node: open.node,
+			target: open.change.at,
+			rect: ({ rect }) => {
+				const box = extentOf(open.change, rect);
+				const top = open.change.blocks.length ? box.top - CARD_INSET : box.top;
+				return {
+					left: box.left - CARD_INSET,
+					top
+				};
+			}
+		}] : [];
+		return [
+			...barsOf("work"),
+			...barsOf("change"),
+			...gapBars,
+			...round,
+			...over
+		];
+	}
+	function place() {
+		frame = 0;
+		if (card) {
+			const rect = card.change.at.getBoundingClientRect();
+			const box = extentOf(card.change, rect);
+			card.node.style.inlineSize = layoutPx(box.right - box.left + 26);
+		}
+		bars.place(items().map((item) => ({
+			...item,
+			cut: false
 		})));
 	}
 	const schedule = () => {
-		if (!frame && all().length) frame = nextRender(place);
+		if (!frame) frame = nextRender(place);
 	};
 	const sizes = sizeObserver(schedule, { counted: false });
+	let observed = /* @__PURE__ */ new Set();
+	function redraw() {
+		const targets = new Set(items().flatMap(({ target }) => target));
+		for (const target of card?.change.blocks ?? []) targets.add(target);
+		for (const target of pointed?.blocks ?? []) targets.add(target);
+		for (const target of observed) if (!targets.has(target)) sizes.unobserve(target);
+		for (const target of targets) if (!observed.has(target)) sizes.observe(target);
+		observed = targets;
+		if (targets.size) schedule();
+		else {
+			cancelRender(frame);
+			frame = 0;
+			bars.clear();
+		}
+	}
 	function show(kind, places) {
 		const targets = drawn[kind];
 		let changed = false;
 		for (const target of targets.keys()) if (!places.has(target)) {
 			targets.delete(target);
-			if (!all().some((bar) => bar.target === target)) sizes.unobserve(target);
 			changed = true;
 		}
 		for (const target of places) if (!targets.has(target)) {
 			const node = el("span", KINDS[kind].className);
 			keeps(node, "data-for", target.id || null);
 			targets.set(target, node);
-			sizes.observe(target);
 			changed = true;
 		}
-		if (!changed) return;
-		if (all().length) schedule();
-		else {
-			cancelRender(frame);
-			frame = 0;
-			bars.clear();
-		}
+		if (changed) redraw();
 	}
 	inventory.watch((entries) => {
 		const places = /* @__PURE__ */ new Set();
@@ -7094,7 +7225,42 @@ function createMarginBars(inventory) {
 		}
 		show("work", places);
 	});
-	x(() => show("change", new Set(comparisonChanges().flat())));
+	x(() => {
+		const changes = comparisonChanges();
+		show("change", new Set(changes.flatMap((change) => change.blocks)));
+		const empty = new Set(changes.filter((change) => !change.blocks.length));
+		let changed = false;
+		for (const change of gaps.keys()) if (!empty.has(change)) {
+			gaps.delete(change);
+			changed = true;
+		}
+		for (const change of empty) if (!gaps.has(change)) {
+			const node = el("span", "lf-change-bar");
+			keeps(node, "data-for", change.at.id || null);
+			node.dataset.gap = change.after ? "after" : "before";
+			gaps.set(change, node);
+			changed = true;
+		}
+		if (changed) redraw();
+	});
+	x(() => {
+		pointed = outlined.value;
+		redraw();
+	});
+	x(() => {
+		const change = openedChange();
+		if (card?.change === change) return;
+		const node = change ? cardFor(change) : null;
+		card = change && node ? {
+			change,
+			node
+		} : null;
+		redraw();
+	});
+	pageRung("change card", () => card ? {
+		title: "close the change",
+		out: closeChangeCard
+	} : null);
 	document.addEventListener(LAYOUT, schedule);
 	addEventListener("resize", schedule, { passive: true });
 }
@@ -8536,15 +8702,15 @@ function declareThreadKeys(landIn, threadHere) {
 				touch: false,
 				keys: ["Enter"],
 				title: () => !threadInput(cardThread()) && resolutionControl(cardThread())?.matches(".lf-reopen") ? "reopen" : "reply",
-				get run() {
+				when: () => Boolean(threadInput(cardThread())) || Boolean(resolutionControl(cardThread())?.matches(".lf-reopen:not(:disabled, [aria-disabled=\"true\"])")),
+				run: () => {
 					const thread = cardThread();
 					const box = threadInput(thread);
-					if (box) return () => landIn({
+					if (box) landIn({
 						held: thread,
 						box
 					});
-					const control = resolutionControl(thread);
-					return control?.matches(".lf-reopen:not(:disabled, [aria-disabled=\"true\"])") ? () => control.click() : void 0;
+					else resolutionControl(thread)?.click();
 				}
 			},
 			{
@@ -8552,20 +8718,16 @@ function declareThreadKeys(landIn, threadHere) {
 				touch: false,
 				keys: ["r"],
 				title: () => resolutionControl(threadHere())?.matches(".lf-reopen") ? "reopen" : "resolve",
-				get run() {
-					const control = resolutionControl(threadHere());
-					return control?.matches(":not(:disabled, [aria-disabled=\"true\"])") ? () => control.click() : void 0;
-				}
+				when: () => Boolean(resolutionControl(threadHere())?.matches(":not(:disabled, [aria-disabled=\"true\"])")),
+				run: () => resolutionControl(threadHere())?.click()
 			},
 			{
 				id: "message.copy",
 				touch: false,
 				keys: ["Mod+c"],
 				title: "copy message as Markdown",
-				get run() {
-					const trigger = messageCopy(threadHere());
-					return trigger && getSelection()?.isCollapsed ? () => trigger.click() : void 0;
-				}
+				when: () => Boolean(messageCopy(threadHere()) && getSelection()?.isCollapsed),
+				run: () => messageCopy(threadHere())?.click()
 			}
 		]
 	});
@@ -8670,4 +8832,4 @@ function createPageLayout({ scheduleThreadPreviewPosition, syncReactLayout, refr
 }
 
 //#endregion
-export { CONTRIBUTION_ENTRY_SCHEMA, DRAWING_COORDINATE_LIMIT, KINDS$1 as KINDS, MAX_DRAWING_FRAME_DEPTH, MAX_DRAWING_POINTS, MAX_DRAWING_SAYS_LENGTH, MAX_DRAWING_STROKES, SVG_NS, activateContributionControl, annotationItems, answerWords, awaitingUser, beginRead, canFold, choosePrimary, clearContributionControls, clusterProjection, composerOpen, composerQuote, consumeAnnotations, contributionEntry, contributionEntryRecord, contributionEntrySource, contributionHost, contributionItemKey, contributionReceipts, createPageLayout, createReactionController, createSelectionComposer, createThreadLanding, currentLocationThread, currentProjection, declareThreadKeys, dropStand, entryControls, entryEngaged, entryHasMarginHost, fabBar, fabInput, fabOptionsTrigger, focusedOfferOf, inPageOrder, landInThread, leafEditorView, leavesBox, marginBarLayer, markerFace, materializeContributionControls, mountApplication, navigateToDatum, obligationActions, obligationEnding, obligationWord, optionsOffered, ownedObligationControl, paintBarReactions, paintGeometry, paintSet, paintShape, paintStand, partOver, pendingAbout, pendingAnchor, pendingDrawing, placePageThreads, placement, presentContributionEntry, presentContributionReceipts, primaryReading, queueActions, queueItemKey, queueTitle, reactionAvailable, reactionTokens, readPlan, readQueues, readingBehavior, readingChoices, readingContext, readingFace, readingKey, readingLabel, readingState, registerContribution, registerRootHeader, registerThreadPresentation, sendReaction, spokenContext, spokenSubject, standBox, standOver, syncContributionSelection, syncContributionUnread, textField, threadActions, threadBox, threadInput, threadReading, unreadIn, vacate, visibleContributionEntryLabel, widgetController, wireInput };
+export { CONTRIBUTION_ENTRY_SCHEMA, DRAWING_COORDINATE_LIMIT, KINDS$1 as KINDS, MAX_DRAWING_FRAME_DEPTH, MAX_DRAWING_POINTS, MAX_DRAWING_SAYS_LENGTH, MAX_DRAWING_STROKES, SVG_NS, activateContributionControl, annotationItems, answerWords, awaitingUser, beginRead, canFold, choosePrimary, clearContributionControls, clusterProjection, composerOpen, composerQuote, consumeAnnotations, contributionEntry, contributionEntryRecord, contributionEntrySource, contributionHost, contributionItemKey, contributionReceipts, createPageLayout, createReactionController, createSelectionComposer, createThreadLanding, currentLocationThread, currentProjection, declareThreadKeys, dropStand, entryControls, entryEngaged, entryHasMarginHost, fabBar, fabInput, fabOptionsTrigger, focusedOfferOf, inPageOrder, landInThread, leafEditorView, leavesBox, marginBarLayer, markerFace, materializeContributionControls, mountApplication, navigateToDatum, obligationActions, obligationEnding, obligationWord, optionsOffered, outlineChange, ownedObligationControl, paintBarReactions, paintGeometry, paintSet, paintShape, paintStand, partOver, pendingAbout, pendingAnchor, pendingDrawing, placePageThreads, placement, presentContributionEntry, presentContributionReceipts, primaryReading, queueActions, queueItemKey, queueTitle, reactionAvailable, reactionTokens, readPlan, readQueues, readingBehavior, readingChoices, readingContext, readingFace, readingKey, readingLabel, readingState, registerContribution, registerRootHeader, registerThreadPresentation, sendReaction, spokenContext, spokenSubject, standBox, standOver, syncContributionSelection, syncContributionUnread, textField, threadActions, threadBox, threadInput, threadReading, unreadIn, vacate, visibleContributionEntryLabel, widgetController, wireInput };

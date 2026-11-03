@@ -50,7 +50,7 @@
 
     "runtime/annotation-overlay/thread-preview.js": "4a58bbd707a90647482c36cd69b624d38eb39e103d76e1dcccd030b94fee2521",
 
-    "runtime/annotation-overlay/visual-mark-paint.js": "4b72bf3501b2b7e62308bf4dad710cd91293f8c204d43070ffb8aec990be3f72",
+    "runtime/annotation-overlay/visual-mark-paint.js": "edc7a7cd4a6cc79b94977ac7a939c15aa2a67cfa81540f26ab95dd168cc5500e",
 
     "runtime/annotation-view.js": "7bad452ad8ec72d6c93b9604cce3d9a771233389ce6130b5f30f59a6f028bc03",
 
@@ -458,7 +458,7 @@
 
     "runtime/target-paint-geometry.js": "d241158165a6777ed447f4c58668e0702eae3802732aba4156259e61452c424a",
 
-    "runtime/target-paint.js": "a5a23732e0046dc7b5dd4d651aa6aa6ae32a79e0ad20931f1508821cfdb5d3e0",
+    "runtime/target-paint.js": "c08fa8a72d1740a7d36afb41cfa8e63835f78d8a6cbb38100d4768d9d1491b57",
 
     "runtime/text-alignment.js": "bb83ca5955c7aef58a8bf7b2321f847e758af72921c00a8e6316eb8f74a282b3",
 

@@ -2492,16 +2492,20 @@ const PROJECTED = "lf-projected-mark";
 function createVisualMarkPaint() {
 	const marked = /* @__PURE__ */ new Map();
 	function setTargets(next) {
-		const targets = new Map([...next].filter((target) => target.states?.size).map((target) => [target.element, target]));
-		for (const [element, surface] of marked) if (targets.get(element)?.surface !== surface) {
-			element.classList.toggle(PROJECTED, false);
-			surface.removeAttribute("data-lf-mark");
-			marked.delete(element);
+		const targets = new Map([...next].filter((target) => target.states?.size).map((target) => [target.element, {
+			boxes: shownParts(target.surface),
+			states: target.states
+		}]));
+		const wearing = new Set([...targets.values()].flatMap(({ boxes }) => boxes));
+		for (const [element, boxes] of marked) {
+			if (!targets.has(element)) element.classList.toggle(PROJECTED, false);
+			for (const box of boxes) if (!wearing.has(box)) box.removeAttribute("data-lf-mark");
 		}
-		for (const [element, { surface, states }] of targets) {
+		marked.clear();
+		for (const [element, { boxes, states }] of targets) {
 			element.classList.toggle(PROJECTED, true);
-			keeps(surface, "data-lf-mark", [...states].sort().join(" "));
-			marked.set(element, surface);
+			for (const box of boxes) keeps(box, "data-lf-mark", [...states].sort().join(" "));
+			marked.set(element, boxes);
 		}
 	}
 	return { setTargets };

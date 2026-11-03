@@ -232,6 +232,25 @@
   syntax: "*";
   inherits: false;
 }
+/* What a mark drawn on a box is drawn with (surfaces.css): its gap, band, ink and the
+ * room it reaches past the box. None inherits, so a box inside a marked one is marked
+ * only as it is itself. */
+@property --lf-band-gap {
+  syntax: "*";
+  inherits: false;
+}
+@property --lf-band-w {
+  syntax: "*";
+  inherits: false;
+}
+@property --lf-band-ink {
+  syntax: "*";
+  inherits: false;
+}
+@property --lf-band-room {
+  syntax: "*";
+  inherits: false;
+}
 /* The body's position and box are important against the page's own rules: Leaf's
  * document-anchored paint takes the initial containing block as its origin, so it may
  * not become a containing block, and the foot's room pads it, which the live body's

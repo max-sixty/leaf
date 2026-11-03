@@ -4,11 +4,12 @@ import { paintStand, placement, standAt, standBox } from "./bundle-page-layout.j
 
 //#region runtime/target-paint.js
 function markOne(className) {
-	let marked = null;
-	return (box) => {
-		if (marked && marked !== box) marked.classList.toggle(className, false);
-		box?.classList.toggle(className, true);
-		marked = box;
+	let marked = [];
+	return (element) => {
+		const boxes = element ? shownParts(element) : [];
+		for (const box of marked) if (!boxes.includes(box)) box.classList.toggle(className, false);
+		for (const box of boxes) box.classList.toggle(className, true);
+		marked = boxes;
 	};
 }
 const markAimed = markOne("lf-aimed");
@@ -41,8 +42,9 @@ function paintAim(element, surface) {
 function labelAim(node) {
 	if (!aimed) return;
 	const { placed, placed: { rect, shown, levels }, surface } = aimed;
-	const style = getComputedStyle(surface);
+	const style = getComputedStyle(shownParts(surface)[0] ?? surface);
 	const room = Math.max(0, Number.parseFloat(style.outlineOffset) + Number.parseFloat(style.outlineWidth));
+	keeps(labelStand.root, "data-lf-paint-plane", inChrome(surface) ? "chrome" : "page");
 	const stood = standAt(labelStand, placed);
 	const above = shown.top - node.offsetHeight - room;
 	const clear = Math.max(0, ...levels.filter(({ axes }) => axes.y).map(({ band }) => band.top));

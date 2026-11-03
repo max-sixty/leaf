@@ -10,21 +10,26 @@
 
 import { nextRender } from "./rendering.js";
 import { move } from "./dom-move.js";
+import { keeps } from "./keeps.js";
 import { inChrome } from "./passages.js";
 import { shownParts } from "./geometry.js";
 import { locationStandsDown } from "./page-paint.js";
 import { paintStand, placement, standAt, standBox } from "./target-paint-geometry.js";
 
-// One mark: a class on the one box it marks at a time.
+// One mark: a class on what it marks at a time, which is each box the element shows
+// through (`shownParts`), so an element with no box of its own, such as a section
+// styled `display: contents`, is marked on the boxes it shows.
 /** @param {string} className */
 function markOne(className) {
-  /** @type {Element | null} */
-  let marked = null;
-  /** @param {Element | null} box */
-  return (box) => {
-    if (marked && marked !== box) marked.classList.toggle(className, false);
-    box?.classList.toggle(className, true);
-    marked = box;
+  /** @type {Element[]} */
+  let marked = [];
+  /** @param {Element | null} element */
+  return (element) => {
+    const boxes = element ? shownParts(element) : [];
+    for (const box of marked)
+      if (!boxes.includes(box)) box.classList.toggle(className, false);
+    for (const box of boxes) box.classList.toggle(className, true);
+    marked = boxes;
   };
 }
 
@@ -73,11 +78,14 @@ export function labelAim(node) {
     placed: { rect, shown, levels },
     surface,
   } = aimed;
-  const style = getComputedStyle(surface);
+  const style = getComputedStyle(shownParts(surface)[0] ?? surface);
   const room = Math.max(
     0,
     Number.parseFloat(style.outlineOffset) + Number.parseFloat(style.outlineWidth),
   );
+  // The label stacks with what it names: over the chrome's surfaces where the aimed
+  // item stands in one, as a widget frozen in a reply does.
+  keeps(labelStand.root, "data-lf-paint-plane", inChrome(surface) ? "chrome" : "page");
   const stood = standAt(labelStand, placed);
   const above = shown.top - node.offsetHeight - room;
   // The frames cut the label too, so the room above is what every band leaves.

@@ -1,4 +1,4 @@
-/* CSS owns document tracks, wrapping sidebars and exhibit containment. This
+/* CSS owns the document's flow, wrapping sidebars and exhibit containment. This
  * document owner reads the sticky header height shared with landing geometry and
  * notifies annotation geometry after the document's native layout has changed. */
 import { setRuntimeRootStyle, removeRuntimeRootStyle } from "./root-state.js";
@@ -70,51 +70,35 @@ export function openDocumentLayout({ onRead }) {
   readDocumentLayout();
 }
 
-// Annotations read the browser's resolved prose track, never allocate it. A
-// sidebar's body may own that track; otherwise a custom page's actual box is its
-// reading region. Named lines keep this independent of Layout classes. CSSOM
-// resolves standalone tracks to named lines and pixel sizes:
-// https://www.w3.org/TR/css-grid/#resolved-track-list
+// Annotations read the browser's resolved prose, never allocate it. The box that
+// holds the prose declares its measure (`--lf-prose-measure`, layouts.css): the prose
+// starts at that box's content edge and runs the measure, or the content box where it
+// is narrower. A sidebar's body may hold it; otherwise a custom page's actual box is
+// its reading region. The declaration keeps this independent of Layout classes.
+/** @param {Element} node */
+export const proseMeasure = (node) =>
+  parseFloat(getComputedStyle(node).getPropertyValue("--lf-prose-measure")) || 0;
 /** @typedef {NonNullable<ReturnType<typeof union>>} ProseBox */
 /** @overload @param {Element} main @returns {ProseBox} */
 /** @overload @param {Element | null | undefined} [main] @returns {ProseBox | null} */
 /** @param {Element | null | undefined} [main] @returns {ProseBox | null} */
 export function proseRect(main = layoutBox()) {
   if (!main) return null;
-  const grid = [main, ...main.children].find((node) =>
-    getComputedStyle(node).gridTemplateColumns.includes("prose-start"),
-  );
-  if (!grid) return main.getBoundingClientRect();
-  const style = getComputedStyle(grid);
-  const frame = elementFrame(grid);
-  if (!frame) return grid.getBoundingClientRect();
-  const gap = parseFloat(style.columnGap) || 0;
-  let offset = 0;
-  let start;
-  let end;
-  for (const match of style.gridTemplateColumns.matchAll(
-    /\[([^\]]*)\]|(-?[\d.]+)px/g,
-  )) {
-    if (match[1] !== undefined) {
-      const names = match[1].split(/\s+/);
-      if (names.includes("prose-start")) start = offset;
-      if (names.includes("prose-end")) end = offset - gap;
-    } else offset += Number(match[2]) + gap;
-  }
-  // A single named edge does not declare a prose track; its grid's own box is
-  // still the native geometry, as where no named track or local frame exists.
-  if (start === undefined || end === undefined) return grid.getBoundingClientRect();
+  const holder = [main, ...main.children].find((node) => proseMeasure(node) > 0);
+  if (!holder) return main.getBoundingClientRect();
+  const style = getComputedStyle(holder);
+  const frame = elementFrame(holder);
+  if (!frame) return holder.getBoundingClientRect();
   /** @param {"Left" | "Right"} side */
   const edge = (side) =>
     parseFloat(style[`border${side}Width`]) + parseFloat(style[`padding${side}`]);
+  const width = Math.min(
+    proseMeasure(holder),
+    frame.width - edge("Left") - edge("Right"),
+  );
   const left =
-    style.direction === "rtl"
-      ? frame.width - edge("Right") - end
-      : edge("Left") + start;
-  const right =
-    style.direction === "rtl"
-      ? frame.width - edge("Right") - start
-      : edge("Left") + end;
+    style.direction === "rtl" ? frame.width - edge("Right") - width : edge("Left");
+  const right = left + width;
   /** @param {number} x @param {number} y */
   const corner = (x, y) => {
     const point = frame.matrix.transformPoint({ x, y });

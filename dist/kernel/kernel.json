@@ -234,7 +234,7 @@
 
     "runtime/kernel-registry.json": "fa727bbbbc3b8e99c031d96a350dbcf7bd67f9546ef13b09f18a086b067d0883",
 
-    "runtime/keyboard/bindings.js": "df27dc5618f49b0f81056b32b23687718447e90b075ae5a4f4cfafcc80038fe4",
+    "runtime/keyboard/bindings.js": "67c3dd0c589fc877dc7b84a00e03ce3599524455bc13984dd0be7f2637c8c837",
 
     "runtime/keyboard/chip-seats.js": "b1ebaa4d7e346ab3769db8b7621393f070c7be09826f0843d3b4e6bae51b7783",
 
@@ -262,9 +262,9 @@
 
     "runtime/keyboard/layer-stack.js": "0d6fae014252f1971cfd96dc3935119a29b9409b091fd5e032e8964cfdb94058",
 
-    "runtime/keyboard/page.js": "4dbe57e03c017452d898e8043ae6fc614bbf571a7bba6905ed36d767bc4e8dde",
+    "runtime/keyboard/page.js": "01dae6e54679ee95e73f3c8cc0459a732d7ae910b16a5b9a043784343514822f",
 
-    "runtime/keyboard/register.js": "b1ee127ef099ccb462992bcf9fa75af56573290a66f1422aefa773d77a6a2bc7",
+    "runtime/keyboard/register.js": "e3899176463d4b8e908c5f6d15edf1e92a1d0abaccd4714d0676e5c9fc38de02",
 
     "runtime/keyboard/scopes.js": "4989842c2fdfa345ece3afcad3b68fc8fa48d8d8ce810b4b774bce72e740c84d",
 

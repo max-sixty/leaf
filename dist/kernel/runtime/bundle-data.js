@@ -2498,6 +2498,7 @@ const PAGE_COMMANDS = [
 	"panel.floating.fold",
 	COMMAND_REFERENCE,
 	"browser.caret",
+	"browser.history",
 	"aim.comment"
 ];
 const scopes = /* @__PURE__ */ new Map();

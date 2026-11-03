@@ -10,7 +10,6 @@ from render_cases_layout import (
     SHOTS,
     current_location_ring,
     ring_faults,
-    ring_rule,
     rings_drawn,
 )
 from render_cases_navigation import (
@@ -1257,9 +1256,9 @@ def test_native_controls_need_no_generic_space_binding(browser, serve):
     page.keyboard.press("?")
     help_el = page.locator(".lf-command-reference")
     expect(help_el).not_to_contain_text("On a control")
-    expect(help_el.get_by_role("row").filter(has_text="Grab the card")).to_contain_text(
-        "space"
-    )
+    expect(
+        help_el.get_by_role("option").filter(has_text="Grab the card")
+    ).to_contain_text("space")
     page.keyboard.press("Escape")
 
     # And the key does what the reference says it does.
@@ -1745,7 +1744,9 @@ def test_a_label_press_keeps_the_controls_current_keyboard_location(browser, ser
     assert offered_routes(page) == current_location
     held_obligation = page.locator("#first-question-decision[data-lf-obligation]")
     expect(held_obligation).to_have_count(1)
-    assert "[data-lf-obligation]" in ring_rule(held_obligation, pseudo="after")
+    expect(
+        page.locator(".lf-location[data-for='first-question-decision']")
+    ).to_be_visible()
     # Native label activation temporarily blurs the radio. Its logical input
     # destination remains in place until the label's click transfers focus. The
     # pointer press removes its keyboard cue without moving that location.

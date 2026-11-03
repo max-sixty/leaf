@@ -100,7 +100,7 @@ fabInput.className = "lf-ui lf-response-control lf-fab-input";
 fabInput.name = "comment";
 fabInput.placeholder = "Comment…";
 fabInput.setAttribute("aria-label", "Comment");
-const fab = responseAction(el("button", "lf-ui lf-fab"), {
+const fab = responseAction(offerAction("response", "lf-fab"), {
   action: "comment",
   label: "Comment",
   behavior: "disclosure",
@@ -112,7 +112,7 @@ fabOptions.id = "lf-response-options";
 fabOptions.popover = "auto";
 fabOptions.setAttribute("role", "group");
 fabOptions.setAttribute("aria-label", "Other responses");
-const fabSuggest = responseAction(el("button", "lf-ui lf-fab-suggest"), {
+const fabSuggest = responseAction(offerAction("response", "lf-fab-suggest"), {
   action: "suggest",
   label: "Suggest",
   collapse: true,
@@ -137,7 +137,7 @@ composer.id = "lf-composer";
 // around it: this is the only injected chrome carrying an id, and "which section is this
 // in" is asked as `[id]:not(.lf-ui)` of the element rather than of its ancestors, so
 // without the class it answers that question with itself.
-export const composerQuote = el("blockquote", "lf-ui lf-quote detached");
+export const composerQuote = el("blockquote", "lf-ui lf-quote");
 composerQuote.id = "lf-composer-quote";
 composerQuote.hidden = true;
 // The page-anchored composer is the extended Comment control itself. The hidden

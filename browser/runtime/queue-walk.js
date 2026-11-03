@@ -81,7 +81,7 @@
 import { cycledRow, savedReadingSettled } from "./keyboard/bindings.js";
 import { pageCommand, pageScope } from "./keyboard/register.js";
 import { paintKeys } from "./keyboard/scopes.js";
-import { onCurrentLocation } from "./focus.js";
+import { focused, onCurrentLocation } from "./focus.js";
 import {
   obligationHolding,
   placeOf,
@@ -622,6 +622,7 @@ export function createQueueWalk({
     title: "On a to-do waiting on me",
     says: () => `To-do · ${doneTodo()?.obligation?.prompt.text ?? ""}`,
     ready: savedReadingSettled,
+    root: focused,
     at: () => Boolean(doneTodo()),
     rows: [
       {

@@ -193,13 +193,17 @@ class PageStateService:
             reading,
             source_error,
         ):
-            state = served_page.read_served_page(
+            served = served_page.read_served_page(
                 context,
                 preview=self.preview,
                 publication=self.publication,
                 source_error=source_error,
                 view_revision=view_revision,
             ).state
+            state = {
+                "layer": served_page.served_layer_identity(context, view_revision),
+                **served,
+            }
         state["others"] = self.source.other_pages()
         assert reading is not None
         state["reading"] = self.source.state_reading(reading, state)

@@ -10,7 +10,7 @@ so an id is not a global identifier. Each kind's record schema is `$events.kinds
 
 | Kind                                         | Author          | Door                                                                            | Fields                                                                                                                                                                 | Meaning                                                                                                                                                                                       |
 | -------------------------------------------- | --------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| <a id="kind-comment"></a>`comment`           | user or agent   | `POST /api/event`, `leaf thread create`                                         | `text`, `drawing` or `token`; optional `anchor`, `suggestion`, `about: "design"`, `title`, `markup` (CLI only)                                                         | opens a thread; with `token`, puts a reaction mark on the anchor                                                                                                                              |
+| <a id="kind-comment"></a>`comment`           | user or agent   | `POST /api/event`, `leaf thread create`                                         | `text`, `drawing` or `token`; optional `anchor`, `suggestion`, `about: "design"`, `title`, `viewing` (browser), `markup` (CLI only)                                    | opens a thread; with `token`, puts a reaction mark on the anchor                                                                                                                              |
 | <a id="kind-reply"></a>`reply`               | user or agent   | `POST /api/event`, `leaf thread reply`                                          | `parent`; `text` or `token`; `responds` on an agent's answer; `todo`, `markup` and a replacement or null `anchor` (CLI only)                                           | a message in the thread of `parent`; an agent's answer settles the update `responds` names, without closing the thread; an agent reply may also move or detach the thread                     |
 | <a id="kind-edit"></a>`edit`                 | user or agent   | `POST /api/event`, `leaf thread edit`                                           | `message`, `text`; `base` (browser)                                                                                                                                    | replaces the text of a message its own author wrote; the original stays in the log ("Messages")                                                                                               |
 | <a id="kind-read"></a>`read`                 | user            | `POST /api/event`                                                               | `messages: [{message, version}]`                                                                                                                                       | records the agent-content versions the user has read; bookkeeping ("Read state")                                                                                                              |
@@ -61,6 +61,15 @@ reply can choose a new passage. `events.build_threads` reads the latest reply
 transition or `reanchor` as the thread's location and keeps the old anchor as
 `rewritten_from` or `detached_from`; the opening message keeps its quote.
 
+A comment the user writes in the panel with nothing selected is about the whole page and
+has no anchor. The browser records with it `viewing`, the ids of the addressable
+elements around the words and pictures on the user's screen as they sent it, in page
+order (`runtime/reading-place.js`, `sectionsInView`), so that on a page showing one
+section at a time the agent can tell which section "this one" meant. Page chrome the
+author gave an id, such as a header, is among them. The thread still stands on the
+whole page, since the user chose to comment there; `viewing` records only what they saw.
+The browser read the ids off the rendered page, so the door checks only their shape.
+
 A `drawing` is up to 32 freehand strokes on a comment, and may be its only content. The
 browser anchors it on the element its first stroke starts on or nearest, and records
 with it `box`, the frame's size, `says`, the page's words under the ink, and the
@@ -81,10 +90,13 @@ and the anchor moves that depend on it land together.
 
 ## Undo
 
-The user may withdraw a resolve, unresolve, action, or Done on a to-do (the
-kinds `$events.kinds` marks `undoable`), and a reaction while nothing has answered it
-and its thread is unresolved. Spoken messages cannot be withdrawn. An undo cannot
-itself be undone. The door refuses an `undoes` naming anything but an unwithdrawn
+The user may withdraw a gesture of a kind `$events.kinds` marks `undoable`: a resolve,
+unresolve, action, or Done on a to-do, and an edit while the agent has not answered it,
+since an answer may have acted on the words it left. They may also withdraw a reaction
+while nothing has answered it and its thread is unresolved. Spoken messages cannot be
+withdrawn; their writer deletes one by rewriting it to no words, which leaves it in place
+("Messages"), and withdrawing that edit before an answer gives the message its words
+back. An undo cannot itself be undone. The door refuses an `undoes` naming anything but an unwithdrawn
 gesture of the user's own (`events.UndoReading`).
 
 `undo` names its gesture and nothing else. It withdraws rather than deletes: the event
@@ -319,8 +331,15 @@ to-do is made from an obligation.
   to revise. Readings show the latest text on the original message, labelled edited,
   and the message's `edited` names that edit and the text it replaced (`was`). Text the
   message already says is refused. A browser's edit names its `base`, the id of the
-  message or of its latest edit, and lands only while that is still the latest, so a
-  tab cannot silently replace words another tab has since rewritten.
+  message or of its latest edit still in force, and lands only while that is still the
+  latest, so a tab cannot silently replace words another tab has since rewritten. A
+  withdrawn edit no longer stands: the message says what its latest edit still in force
+  says, else its own words.
+- An `edit` whose `text` is empty deletes the message. Readings keep it in its place,
+  with empty `text` and `edited.was` holding what it said, since answers to it still
+  stand and name it; the browser draws it as Deleted, and offers no rewrite of it.
+  A user's deletion is a turn like any edit, and its answer says what the deletion
+  changes. A message carrying a drawing keeps the drawing.
 - An agent's `edit` corrects its words and hands nothing over. A user's `edit` is a
   turn of its own (`events.build_threads`, `revisions`): it reopens a resolved thread
   and is owed an answer, which names the edit as `responds` and the rewritten message

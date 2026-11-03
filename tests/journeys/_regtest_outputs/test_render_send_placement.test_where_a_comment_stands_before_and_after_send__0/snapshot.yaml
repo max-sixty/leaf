@@ -48,7 +48,7 @@ beside-element:
     across: still
     down: still
 
-phone-touch-passage:
+touch-passage:
   expected: below or above
   comment box:
     side: below or above

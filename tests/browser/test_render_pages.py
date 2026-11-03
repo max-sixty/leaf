@@ -348,8 +348,10 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
     expect_open_threads(page, 1)
     [root] = [e["id"] for e in events_model.read_events(d) if e["kind"] == "comment"]
     thread = open_panel_thread(page, root)
-    expect(thread.locator(".lf-msg.agent")).to_have_count(1)
-    expect(thread.locator(".lf-msg.agent > .lf-msg-head b")).to_have_text("Codex")
+    expect(thread.locator(".lf-msg[data-lf-author=agent]")).to_have_count(1)
+    expect(
+        thread.locator(".lf-msg[data-lf-author=agent] > .lf-msg-head b")
+    ).to_have_text("Codex")
     expect(thread.locator(".lf-fp-quote")).to_contain_text(
         "“Retries are capped at three”"
     )
@@ -357,7 +359,7 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
     write(panel_field(page), "three is the retry budget, not a guess")
     with sending(page, "the reply"):
         page.keyboard.press("ControlOrMeta+Enter")
-    expect(thread.locator(".lf-msg.user")).to_have_count(1)
+    expect(thread.locator(".lf-msg[data-lf-author=user]")).to_have_count(1)
     with sending(page, "the resolve"):
         page.locator(".lf-fp-settle").click()
 
@@ -1563,19 +1565,26 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
     # An obligation inside a breakout takes its holder's room, as any block
     # there does, however much room its own block asks for.
     assert at["wrapped"] == at["wrapper"], at
-    # Native grid owns the full page width: negative margins can leave the prose
-    # track without leaving the page. Only the padded box exceeds that actual room.
-    boxes = column.evaluate("""() => Object.fromEntries(
-      ['main', '#pulled', '#spilled'].map(selector => {
-        const box = document.querySelector(selector).getBoundingClientRect();
-        return [selector, {left: box.left, right: box.right}];
-      }))""")
+    # The column's room beside its prose is the page's: negative margins can leave the
+    # prose without leaving that room, the shell less a gutter each side. Only the
+    # padded box exceeds it.
+    boxes = column.evaluate("""() => {
+      const shell = document.body.getBoundingClientRect();
+      const gutter = parseFloat(getComputedStyle(document.querySelector('main'))
+        .getPropertyValue('--col-pad'));
+      return {room: {left: shell.left + gutter, right: shell.right - gutter},
+        ...Object.fromEntries(['#pulled', '#spilled'].map(selector => {
+          const box = document.querySelector(selector).getBoundingClientRect();
+          return [selector, {left: box.left, right: box.right}];
+        }))};
+    }""")
     for selector in ("#pulled", "#spilled"):
-        assert boxes[selector]["left"] >= boxes["main"]["left"], boxes
-        assert boxes[selector]["right"] <= boxes["main"]["right"], boxes
+        assert boxes[selector]["left"] >= boxes["room"]["left"], boxes
+        assert boxes[selector]["right"] <= boxes["room"]["right"], boxes
+    # The padded box's words stay on the prose and its padding is blank, so it stands
+    # in no margin; the window still clips the padding it carries past the page.
     misplaced = evaluate_probe(column, "misplacedBoxes")
     assert [(m["code"], m["at"]) for m in misplaced] == [
-        ("past-column", "<div id=padded>"),
         ("clipped-out", "<div id=padded>"),
     ], misplaced
 
@@ -2077,7 +2086,7 @@ INDENTED_PAGE = leaf_page(
 def test_a_breakout_grows_only_from_a_holder_that_spans_the_column(
     request, serve, direction, engine
 ):
-    """An explicit flow shares document tracks; ordinary holders contain their exhibits."""
+    """An explicit flow shares the column's room; ordinary holders contain their exhibits."""
     browser = request.getfixturevalue(engine)
     source = leaf_page(
         "Native exhibit tracks",
@@ -2335,7 +2344,9 @@ def test_a_drawing_the_room_can_hold_is_shown_whole(browser, serve):
         const el = document.getElementById('flow');
         const m = document.querySelector('main');
         const s = getComputedStyle(m);
-        const room = m.clientWidth - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight);
+        // The room an available block takes: the shell's width less a gutter each side.
+        const room = parseFloat(s.getPropertyValue('--lf-shell-width'))
+            - 2 * parseFloat(s.getPropertyValue('--col-pad'));
         return { shows: el.clientWidth, drawn: el.scrollWidth, room,
                  column: m.querySelector('h1').getBoundingClientRect().width };
     }""")
@@ -3461,8 +3472,8 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
     page.lf_errors.remove(console_finding(fault.value))
 
     view = open_panel_thread(page, root["id"])
-    expect(view.locator(".lf-msg.agent .lf-msg-body")).to_have_count(0)
-    expect(view.locator(".lf-msg.user .lf-msg-body")).to_have_text(
+    expect(view.locator(".lf-msg[data-lf-author=agent] .lf-msg-body")).to_have_count(0)
+    expect(view.locator(".lf-msg[data-lf-author=user] .lf-msg-body")).to_have_text(
         "which host answers?"
     )
     expect(panel_field(page)).to_have_js_property("value", "keep this unfinished reply")
@@ -3483,4 +3494,12 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
     expect(page.locator(".lf-live")).to_have_text("this one does")
     expect(field).not_to_have_attribute("placeholder", re.compile("this one does"))
     view = open_panel_thread(page, root["id"])
-    expect(view.locator(".lf-msg.agent .lf-msg-body")).to_have_text("this one does")
+    expect(view.locator(".lf-msg[data-lf-author=agent] .lf-msg-body")).to_have_text(
+        "this one does"
+    )
+
+
+import pytest
+from render_harness import (
+    leaf_page,
+)

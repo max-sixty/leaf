@@ -6,11 +6,16 @@ lf-text-document {
   margin: 14px 0;
   min-height: 2px;
 }
+/* The frame clips its rounded corners with `clip`, which makes no scroll container
+   (base.css, at `--lf-top`), so the Preview/Source strip sticks against the page's
+   scroller as every horizontal tab strip does. `hidden` made the frame the strip's
+   scroller, which held the strip at the page's stacked header height inside the frame,
+   below the caption and over the preview's first lines. */
 lf-text-document > .lf-text-document-view {
   margin: 0;
   border: 1px solid var(--code-border);
   border-radius: var(--r);
-  overflow: hidden;
+  overflow: clip;
   background: var(--pre-bg);
   --lf-block-frame: 1;
 }
@@ -56,6 +61,27 @@ lf-text-document .lf-text-document-listing {
 }
 lf-text-document [data-number]::before {
   content: attr(data-number);
+}
+/* A run of rows (lf-text-document.js, `inRuns`) spans the listing's grid and lays out
+   Pierre's two columns itself, and the browser draws it only while it is in view. Each
+   run sizes its number column to its own numbers, so every number takes the width of
+   the text's widest one (Pierre's `--diffs-min-number-column-width-default`), and
+   every run's lines start at the same x. */
+lf-text-document [data-number] {
+  display: inline-block;
+  min-inline-size: var(--diffs-min-number-column-width-default);
+}
+lf-text-document .lf-text-document-run {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: var(--diffs-code-grid);
+  grid-auto-flow: dense;
+  content-visibility: auto;
+}
+/* A short text is one run, which skipping would leave undrawn for the frames after the
+   document scrolls into view, and save nothing. */
+lf-text-document .lf-text-document-run:only-child {
+  content-visibility: visible;
 }
 /* The listing owns source scroll, including when Preview and Source have separate
    fixed viewports. Pierre's own horizontal trap must not swallow document scrolling. */

@@ -56,6 +56,7 @@ dependencies = [
   "playwright>=1.64",
   "psutil>=6",
   "pywhatwgurl>=0.1.2",
+  "referencing>=0.28.4",
   "regress>=2026.9",
   "starlette>=0.48",
   "tinycss2>=1.4",
@@ -104,6 +105,9 @@ dev = [
   "ty>=0.0.94",
   "ruff>=0.17.3",
   "datamodel-code-generator>=0.87.0",
+  # Draws the edits and placements that move a floating box
+  # (`journeys/test_floating_box_motion.py`).
+  "hypothesis>=6",
 ]
 
 # An install never syncs the members, but uv reads their `pyproject.toml` files to
@@ -139,6 +143,10 @@ select = [
 # Authored prose may intentionally use Unicode; collection construction and union
 # ordering are style choices rather than correctness requirements.
 ignore = ["E402", "E501", "E731", "RUF001", "RUF002", "RUF003", "RUF005", "RUF036"]
+# The selected rules' preview behaviour, such as F401 reporting an unused
+# `import http.cookiejar` beside a used `import http.client`; preview rules stay off.
+preview = true
+explicit-preview-rules = true
 
 [tool.ruff.lint.isort]
 known-first-party = ["leaf", "leaf_dev", "leaf_website"]

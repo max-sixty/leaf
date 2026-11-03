@@ -62,14 +62,12 @@ test("a thread card's output updates its commands without invalidating its prese
 
 test("a primary reply forwards the field's live hint and accessible name callbacks", async () => {
   const { createReplyView } = await import("/runtime/thread/replies.js");
-  const home = document.createElement("section");
   const hintParts = () => ["Waiting on the agent"];
   const hintLead = () => ["Reply"];
   const accessibleName = () => "Reply to this thread";
   let inputOptions;
   const view = createReplyView(
     "hint-forwarding",
-    home,
     {
       wireInput: (_input, options) => {
         inputOptions = options;

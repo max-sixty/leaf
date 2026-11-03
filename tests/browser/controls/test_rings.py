@@ -1357,6 +1357,7 @@ def test_an_obligations_margin_marker_keeps_its_location_ring_whole(browser, ser
         pytest.fail("Tab did not reach the obligation's margin marker")
     rendered(page)
     expect(page.locator(".lf-target-trace")).to_be_hidden()
+    expect(page.locator(".lf-location[data-for='decision']")).to_be_visible()
     drawn = rings_drawn(page)
-    assert any(ring["who"].startswith("lf-ask") for ring in drawn), drawn
+    assert any(".lf-location" in ring["who"] for ring in drawn), drawn
     assert not ring_faults(drawn, "on the obligation's margin marker")

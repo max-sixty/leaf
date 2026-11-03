@@ -286,10 +286,43 @@ def test_a_thread_walk_card_leaves_and_returns_with_its_anchor(browser, serve):
     page.keyboard.press("c")
     expect(reply).to_be_focused()
     page.wait_for_function(shown)
+    # A click from the card's thread into its Reply, cut off at the window's top, leaves
+    # the page and the box under the pointer still: the pointer found the box where it
+    # is. The first word typed there brings the card back, as a browser brings a field
+    # back for its caret.
+    page.keyboard.press("Escape")
+    expect(card.locator(".lf-page-thread")).to_be_focused()
+    reply.evaluate(
+        """async (box) => {
+          const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+          while (box.getBoundingClientRect().top >= 0) {
+            scrollBy(0, 2);
+            await frame();
+          }
+        }"""
+    )
+    rendered(page)
+    pressed = reply.bounding_box()
+    assert pressed["y"] < 0 < pressed["y"] + pressed["height"] - 8
+    held = page.evaluate("() => document.scrollingElement.scrollTop")
+    page.mouse.click(
+        pressed["x"] + pressed["width"] / 2, pressed["y"] + pressed["height"] - 6
+    )
+    expect(reply).to_be_focused()
+    rendered(page)
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == held
+    assert reply.bounding_box()["y"] == pytest.approx(pressed["y"], abs=0.5)
+    page.keyboard.type("S")
+    page.wait_for_function(
+        "() => document.querySelector('.lf-margin-preview leaf-text')"
+        ".getBoundingClientRect().top >= 0"
+    )
 
 
 def test_thread_navigation_lands_after_resizing_an_open_reply(browser, serve):
-    """A fixed card cannot reveal itself by scrolling its already-visible passage away."""
+    """A reply open in a card goes on in the floating panel once the window narrows to a
+    phone's, and the walk back lands in the panel's view of the previous thread, with
+    its reply in view."""
     page = open_page(
         browser,
         live_url(serve(WORKSHOP_THREADS_PAGE, events=WORKSHOP_THREAD_EVENTS)),
@@ -313,13 +346,15 @@ def test_thread_navigation_lands_after_resizing_an_open_reply(browser, serve):
     expect(page.get_by_role("textbox", name="Reply", exact=True)).to_be_focused()
     resized(page, 390, 844)
     scroll_settled(page)
+    expect(card).to_be_hidden()
+    reply = page.locator(".lf-fp-field leaf-text")
+    expect(reply).to_be_focused()
     page.keyboard.press("Escape")
     page.keyboard.press("Shift+t")
-    expect(thread).to_be_focused()
-    scroll_settled(page)
-    expect(thread).to_be_in_viewport(ratio=1)
+    view = page.locator(".lf-fp-view:not([data-leaving])")
+    expect(view).to_be_focused()
+    expect(view).to_contain_text("Is lunch provided")
     page.keyboard.press("c")
-    reply = page.get_by_role("textbox", name="Reply", exact=True)
     expect(reply).to_be_focused()
     scroll_settled(page)
     expect(reply).to_be_in_viewport(ratio=1)
@@ -413,3 +448,6 @@ def test_an_external_link_says_and_opens_where_it_goes(
     tab = opened_tab(page, destination, external.click)
     expect(tab).to_have_url(f"{other_url}/")
     expect(page).to_have_url(url.split("?", 1)[0])
+
+
+import pytest

@@ -50,3 +50,6 @@ def test_a_page_hears_again_when_its_server_comes_back(browser, serve):
     # The requests that failed while the server was down are the one thing the
     # console may hold; a page fault of the runtime's own would say something else.
     consume_browser_errors(page, "net::ERR")
+
+
+import pytest

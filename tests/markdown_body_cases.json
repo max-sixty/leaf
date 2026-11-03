@@ -2,16 +2,19 @@
   {
     "source": "**Keep** `--dry-run`.\n\n- One\n- Two",
     "words": "Keep --dry-run. One Two",
+    "blocks": ["p", "ul"],
     "links": []
   },
   {
     "source": "- [x] Done\n- [ ] Todo",
     "words": "Done Todo",
+    "blocks": ["ul"],
     "links": []
   },
   {
     "source": "https://example.com and reader@example.com",
     "words": "https://example.com and reader@example.com",
+    "blocks": ["p"],
     "links": [
       {
         "text": "https://example.com",
@@ -26,51 +29,73 @@
   {
     "source": "<div>\n**bold**\n</div>",
     "words": "<div> bold </div>",
+    "blocks": ["p"],
     "links": []
   },
   {
     "source": "<div>\nHeading\n---",
     "words": "<div> Heading",
+    "blocks": ["h2"],
+    "links": []
+  },
+  {
+    "source": "Title\n=====\n\nSection\n---",
+    "words": "Title Section",
+    "blocks": ["h1", "h2"],
     "links": []
   },
   {
     "source": "<span>**bold**</span>",
     "words": "<span>bold</span>",
+    "blocks": ["p"],
     "links": []
   },
   {
     "source": "| Column | Count |\n| --- | --- |\n| **Ready** | 2 |",
     "words": "Column Count Ready 2",
+    "blocks": ["table"],
     "links": []
   },
   {
     "source": "~~gone~~ and H~2~O",
     "words": "gone and H~2~O",
+    "blocks": ["p"],
     "links": []
   },
   {
     "source": "[unsafe label](javascript:alert(1)) ![unsafe alt](data:text/html,boom)",
     "words": "unsafe label unsafe alt",
+    "blocks": ["p"],
     "links": []
   },
   {
     "source": "first  \nsecond",
     "words": "first second",
+    "blocks": ["p"],
     "links": []
   },
   {
     "source": "```html\n<div>**literal**</div>\n```",
     "words": "<div>**literal**</div>",
+    "blocks": ["pre"],
+    "links": []
+  },
+  {
+    "source": "Change it with:\n\n    sed -i 's/^retries: 3$/retries: 5/' config/app.yaml",
+    "words": "Change it with: sed -i 's/^retries: 3$/retries: 5/' config/app.yaml",
+    "blocks": ["p", "pre"],
     "links": []
   },
   {
     "source": "> **Quoted** words\n>\n> - One\n> - Two",
     "words": "Quoted words One Two",
+    "blocks": ["blockquote"],
     "links": []
   },
   {
     "source": "www.example.com and reader@example.com",
     "words": "www.example.com and reader@example.com",
+    "blocks": ["p"],
     "links": [
       {
         "text": "reader@example.com",
@@ -81,31 +106,37 @@
   {
     "source": "![**alt**](data:text/html,unsafe)",
     "words": "alt",
+    "blocks": ["p"],
     "links": []
   },
   {
     "source": "![`alt`](javascript:boom)",
     "words": "alt",
+    "blocks": ["p"],
     "links": []
   },
   {
     "source": "![alt &amp; more](javascript:boom)",
     "words": "alt & more",
+    "blocks": ["p"],
     "links": []
   },
   {
     "source": "![*alt*](data:x)",
     "words": "alt",
+    "blocks": ["p"],
     "links": []
   },
   {
     "source": "![A ![B &amp; `code`](https://example.com/b.svg) C](data:text/html,unsafe)",
     "words": "A B & code C",
+    "blocks": ["p"],
     "links": []
   },
   {
     "source": "`AGENTS.md` `CLAUDE.md` `main.rs` `config.json` www.example.com https://AGENTS.md reader@example.com [instructions](CLAUDE.md)",
     "words": "AGENTS.md CLAUDE.md main.rs config.json www.example.com https://AGENTS.md reader@example.com instructions",
+    "blocks": ["p"],
     "links": [
       {
         "text": "https://AGENTS.md",
@@ -124,6 +155,7 @@
   {
     "source": "Read //example.com, <https://example.com>, or [AGENTS.md](AGENTS.md).",
     "words": "Read //example.com, https://example.com, or AGENTS.md.",
+    "blocks": ["p"],
     "links": [
       {
         "text": "//example.com",
@@ -142,16 +174,19 @@
   {
     "source": "Visit example.com, docs.example.org/guide and example.net#start.",
     "words": "Visit example.com, docs.example.org/guide and example.net#start.",
+    "blocks": ["p"],
     "links": []
   },
   {
     "source": "`README.md` `main.rs` `setup.py` `build.sh` github.io example.uk `config.json`",
     "words": "README.md main.rs setup.py build.sh github.io example.uk config.json",
+    "blocks": ["p"],
     "links": []
   },
   {
     "source": "www.readme.md/guide www.github.io https://main.rs //example.uk reader@readme.md [source](main.rs)",
     "words": "www.readme.md/guide www.github.io https://main.rs //example.uk reader@readme.md source",
+    "blocks": ["p"],
     "links": [
       {
         "text": "https://main.rs",
@@ -174,6 +209,7 @@
   {
     "source": "`example.com` and [example.com](https://other.example.org)",
     "words": "example.com and example.com",
+    "blocks": ["p"],
     "links": [
       {
         "text": "example.com",
@@ -184,11 +220,13 @@
   {
     "source": "AGENTS.md main.rs example.com",
     "words": "AGENTS.md main.rs example.com",
+    "blocks": ["p"],
     "links": []
   },
   {
     "source": "Edit setup.py and notes.md, then run install.sh.",
     "words": "Edit setup.py and notes.md, then run install.sh.",
+    "blocks": ["p"],
     "links": []
   }
 ]

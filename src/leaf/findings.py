@@ -635,7 +635,8 @@ _TEXT = {
     "past-column": lambda at, v: (
         f"{at} is set {v['past']}px past the column, out in the margin; to give it"
         ' more room, mark it data-width="wide" or "available" rather than sizing it'
-        " past the column"
+        " past the column, or scroll it sideways in a box of its own with"
+        ' overflow-x: auto and class="scroll"'
     ),
     "outside-frame": lambda at, v: (
         f"{at} stands {v['past']}px outside the {v['frame']} that frames it — declare"
@@ -690,17 +691,12 @@ _TEXT = {
         f"{at} keeps moving for a reader who asked for less motion; stop or shorten it"
         " under @media (prefers-reduced-motion: reduce)"
     ),
-    "flow-tracks": lambda at, v: (
-        f"{at} is a reading flow under {v['parent']}, but its columns are"
-        f" {v['columns']!r} and its span is {v['start']} / {v['end']}; share all"
-        " document columns with grid-template-columns: subgrid and grid-column: full;"
-        " data-width can narrow that span, and layout containment or container-type can prevent subgrid"
-    ),
     "contained-space": lambda at, v: (
         f"{at} declares {v['space']} space but stays inside "
         + ", ".join(v["holders"])
         + "; to widen the enclosing box, put data-width on that holder; to share"
-        ' document tracks through unframed section wrappers, give them class="layout-flow"'
+        " the document's space through unframed section wrappers, give them"
+        ' class="layout-flow"'
     ),
     "squeezed-table": _squeezed,
     "shrunk-labels": lambda at, v: (
@@ -1800,6 +1796,9 @@ _TEXT = {
     ),
     "answered-reaction": lambda at, v: (
         f"reaction {v['undoes']} has a reply or task attached; continue in its thread"
+    ),
+    "answered-edit": lambda at, v: (
+        f"edit {v['undoes']} has been answered; rewrite the message or reply instead"
     ),
     "resolved-reaction": lambda at, v: (
         f"reaction {v['undoes']} stands on a resolved thread"

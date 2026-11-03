@@ -513,6 +513,7 @@ def serve(tmp_path, monkeypatch, initialized_page, request):
     test that appends those events itself. `layer_registry` and `layer_widgets` add a
     project package, a registry and its widget modules, for a reading the layer makes
     from declarations, so the test does not depend on which shipped tag declares them.
+    `theme=False` initializes the page with no theme, as `page init --no-theme` does.
 
     Each call gets its own directory, reached through `serve.page_dir`. Sharing one
     meant a test that serves two examples in a single body re-initialised over the
@@ -539,6 +540,7 @@ def serve(tmp_path, monkeypatch, initialized_page, request):
         website_publication=None,
         seed_log=True,
         page_files=None,
+        theme=None,
     ):
         monkeypatch.chdir(tmp_path)  # resolve explicitly selected fixture packages
         project = tmp_path / ".leaf"
@@ -595,11 +597,7 @@ def serve(tmp_path, monkeypatch, initialized_page, request):
             template = ((example.resolve(), seed_log), prepare)
         else:
             template = None
-        initialized_page(
-            d,
-            selected_packages,
-            template,
-        )
+        initialized_page(d, selected_packages, template, theme=theme)
         if fixture:
             # The page pool can lend a copy hours after it stamped the template.
             # Its current publication is new to this test, so keep the timestamp
@@ -2600,11 +2598,14 @@ def any_suggestion_control(scope, key: str | None = None, *, visible=True):
 
 
 def command_reference_rows(page, heading):
-    """The rows of the command reference section titled `heading`."""
-    heading_id = page.get_by_role("heading", name=heading, exact=True).get_attribute(
-        "id"
+    """The rows of the command reference section titled `heading`. A heading names its
+    commands' groups, out of the accessibility tree itself (command-reference.js)."""
+    heading_id = (
+        page.locator(".lf-command-reference h3")
+        .filter(has_text=re.compile(rf"^{re.escape(heading)}$"))
+        .get_attribute("id")
     )
-    return page.locator(f'[role=rowgroup][aria-labelledby="{heading_id}"]')
+    return page.locator(f'[role=group][aria-labelledby="{heading_id}"]')
 
 
 # The page shell's box on screen: where the document's room starts and ends. The runtime

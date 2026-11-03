@@ -22,6 +22,9 @@ const ICONS = {
   // sheet at the bottom left, two squares read as a window's Restore button.
   copy: '<rect x="6" y="6" width="7" height="7" rx="1.25"/><path d="M10 6V4.25C10 3.56 9.44 3 8.75 3h-4.5C3.56 3 3 3.56 3 4.25v4.5C3 9.44 3.56 10 4.25 10H6"/>',
   cross: '<path d="m4 4 8 8M12 4l-8 8"/>',
+  // A bin with its lid: what a rewrite emptied of words does to its message.
+  delete:
+    '<path d="M3 4.5h10M6.25 4.5V3h3.5v1.5M4.5 4.5l.6 7.85c.05.65.6 1.15 1.25 1.15h3.3c.65 0 1.2-.5 1.25-1.15l.6-7.85M6.75 7v4M9.25 7v4"/>',
   dot: '<circle cx="8" cy="8" r="1.5" fill="currentColor" stroke="none"/>',
   down: '<path d="m4 6.25 4 4 4-4"/>',
   edit: '<path d="m3.25 10.75-.5 2.5 2.5-.5 6.9-6.9-2-2zM9.25 4.75l2 2"/>',
@@ -29,6 +32,11 @@ const ICONS = {
   collapse:
     '<path d="M13 3 9.25 6.75M9.25 3.25v3.5h3.5M3 13l3.75-3.75M3.25 9.25h3.5v3.5"/>',
   fit: '<path d="M6 3H3v3M10 3h3v3M3 10v3h3M13 10v3h-3"/>',
+  // Leaf's own mark, which a package may replace (`/icon.svg`): the square is filled
+  // in the text's colour and the stylesheet masks it with the mark (chrome.css).
+  leaf: '<rect width="16" height="16" fill="currentColor" stroke="none"/>',
+  // A drag handle's six dots, the grip a reader knows from lists they reorder.
+  grip: '<g fill="currentColor" stroke="none"><circle cx="6" cy="4" r="1.1"/><circle cx="10" cy="4" r="1.1"/><circle cx="6" cy="8" r="1.1"/><circle cx="10" cy="8" r="1.1"/><circle cx="6" cy="12" r="1.1"/><circle cx="10" cy="12" r="1.1"/></g>',
   fold: '<path d="M3 8h10M5.5 2.75 8 5.25l2.5-2.5M5.5 13.25 8 10.75l2.5 2.5"/>',
   more: '<circle cx="3.5" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="8" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="12.5" cy="8" r="1" fill="currentColor" stroke="none"/>',
   // What waits on the user, an inbox's tray: the On me mark. The question mark stays
@@ -115,6 +123,7 @@ export const ACTIONS = {
   comment: { name: "Comment", icon: "comment" },
   copy: { name: "Copy", icon: "copy" },
   "copy-link": { name: "Copy link", icon: "link" },
+  delete: { name: "Delete", icon: "delete" },
   dictate: { name: "Dictate", icon: "microphone" },
   discard: { name: "Discard", icon: "undo" },
   done: { name: "Done", icon: "checked" },
@@ -125,7 +134,10 @@ export const ACTIONS = {
   "expand-all": { name: "Expand all", icon: "unfold" },
   fit: { name: "Fit", icon: "fit" },
   minimize: { name: "Minimize", icon: "subtract" },
+  // The leaf: the page's menu, under Leaf's own mark in the page's status tone.
+  menu: { name: "Page menu", icon: "leaf" },
   more: { name: "More options", icon: "more" },
+  move: { name: "Move", icon: "grip" },
   next: { name: "Next", icon: "next" },
   // A find bar's steps run up and down its matches, as a browser's do.
   "next-match": { name: "Next match", icon: "down" },

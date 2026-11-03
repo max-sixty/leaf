@@ -127,6 +127,13 @@ SUGGESTED = (
 )
 
 
+REWRITTEN_TWICE = (
+    {"kind": "comment", "text": "Chart 2024."},
+    {"kind": "edit", "message": "e1", "text": "Chart 2025."},
+    {"kind": "edit", "message": "e1", "text": "Chart 2026."},
+)
+
+
 def build() -> dict:
     """A thread the agent answered and the user has read, which is nobody's turn,
     the workflow of a comment still waiting for the agent to pick it up, and the
@@ -186,6 +193,17 @@ def build() -> dict:
                     },
                 )
             ),
+            # The user rewrote their comment twice, then took the second rewrite back.
+            **{
+                name: _served(REWRITTEN_TWICE + tail)
+                for name, tail in (
+                    ("rewritten twice", ()),
+                    (
+                        "rewritten twice, the last taken back",
+                        ({"kind": "undo", "undoes": "e3"},),
+                    ),
+                )
+            },
             "queues on both sides": served_reading(
                 OBLIGATION_PAGE,
                 BOTH_SIDES,

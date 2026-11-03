@@ -84,16 +84,17 @@ def get_assert(output: str, context: dict) -> dict:
         evidence / "judge",
     )
     if "error" in judged:
-        return unscored(judged["error"])
+        return unscored(judged["error"], evidence)
     verdict = judged["output"]
     if verdict["status"] == "insufficient_evidence":
-        return unscored(verdict["reason"])
+        return unscored(verdict["reason"], evidence)
     readings, matching = match(verdict["defects"], response, evidence / "match")
     indices = [reading.pop("index") for reading in readings["defects"]]
     if sorted(indices) != list(range(len(verdict["defects"]))):
         return unscored(
             f"the check matcher read defects {sorted(indices)} of "
-            f"{len(verdict['defects'])}; see {evidence / 'match'}"
+            f"{len(verdict['defects'])}; see {evidence / 'match'}",
+            evidence,
         )
     by_index = dict(zip(indices, readings["defects"], strict=True))
     defects = [
@@ -129,10 +130,16 @@ def get_assert(output: str, context: dict) -> dict:
     }
 
 
-def unscored(reason: str) -> dict:
+def unscored(reason: str, evidence: Path | None = None) -> dict:
     return {
         "pass": False,
         "score": 0.0,
         "reason": f"unscored: {reason}",
-        "metadata": {"page_defects": {"status": "unscored", "reason": reason}},
+        "metadata": {
+            "page_defects": {
+                "status": "unscored",
+                "reason": reason,
+                **({"evidence": str(evidence)} if evidence else {}),
+            }
+        },
     }

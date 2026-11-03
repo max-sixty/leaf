@@ -144,7 +144,8 @@ phase roles and viewports before authoring in `comparison.json` and returned
 diagnostics. Saved inputs remain authoritative if the catalog changes; the judge
 methodology comes from the current checkout. Unlike task inputs fail the test.
 Unverified required observation is insufficient evidence; a failed judge, or an
-author that did not complete, leaves the pair unscored.
+author that did not complete, leaves the pair unscored. A result that saved no
+task at all, such as a provider timeout, is left out of the pairing.
 
 ```sh
 uv run leaf-dev eval --from .tmp/eval/<leaf-run> --from .tmp/eval/<html-run> --judge pair

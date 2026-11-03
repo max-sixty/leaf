@@ -1026,10 +1026,11 @@ class BrowserEnd:
             )
             await_presentation(page, url, failures, timeout=TURN_PRESENTATION)
             startup = startup_reading(page)
-            # Startup can present the offline authored fallback when its first read fails.
-            # A later answer brings the revision back, with its own wait and timing.
-            # The revision marker advances as the patch begins; its presentation proof
-            # must finish before the text below is a reading of that revision.
+            # Startup can present the offline authored fallback when its first read
+            # fails; the wait above then lasts until a later answer is applied. The
+            # first answer can still hold an older revision, and the revision marker
+            # advances as the patch begins; its presentation proof must finish
+            # before the text below is a reading of that revision.
             followed_at = time.monotonic()
             try:
                 page.wait_for_function(
@@ -1044,8 +1045,8 @@ class BrowserEnd:
             # revision it never reached.
             check(not failures, f"{url} reported browser errors: {said(failures)}")
             shown = page.evaluate("window.__leafVerifier.revision")
-            # The page's status separates a page whose first read answered with an old
-            # revision from one that presented offline and was never told.
+            # The page's status says whether a page left on an older revision still
+            # hears its server.
             status = page.evaluate("window.__leafVerifier.status")
             check(
                 (shown or "").isdigit() and int(shown) >= published["revision"],

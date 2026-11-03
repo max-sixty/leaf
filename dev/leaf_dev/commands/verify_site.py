@@ -46,9 +46,9 @@ import click
 import psutil
 from playwright.sync_api import APIRequestContext, APIResponse, BrowserContext, Page
 from playwright.sync_api import Error as PlaywrightError
-from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
 from leaf.findings import Finding
+from leaf.render_checks import PageNotReady, wait_until_ready
 from leaf.render_gate.scheme import collect_page_errors
 from leaf_dev import ROOT
 from leaf_dev.arms import (
@@ -163,16 +163,14 @@ def observe_startup(page: Page) -> list[Finding]:
 def await_presentation(
     page, url: str, failures: list[Finding], timeout: int = 30_000
 ) -> None:
-    """Wait for presentation; a page that never presents names the startup stamps it
-    reached (none: upgrade stalled; `upgraded` alone: the first state read did)."""
+    """Wait until the page has presented the state it read (`wait_until_ready`
+    through `presented`); a page that never does names the readiness stage it
+    stopped at and the browser errors it raised on the way."""
     try:
-        page.locator("body[data-lf-presented]").wait_for(timeout=timeout)
-    except PlaywrightTimeout:
-        reached = page.evaluate("window.__leafStartup.milestones")
+        wait_until_ready(page, through="presented", timeout_ms=timeout)
+    except PageNotReady as error:
         raise RuntimeError(
-            f"{url} never presented, reaching "
-            f"{', '.join(reached) or 'no startup milestone'}; browser errors: "
-            + said(failures)
+            f"{url} never presented: {error}; browser errors: " + said(failures)
         ) from None
 
 

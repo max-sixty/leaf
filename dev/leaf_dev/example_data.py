@@ -1,4 +1,5 @@
-"""Read the authored catalog, regression inputs, and page companions."""
+"""Read the authored pages, the catalog that selects among them, and their
+companions."""
 
 import json
 import re
@@ -11,8 +12,6 @@ from jsonschema import Draft202012Validator
 from leaf.structure import SourceDocument
 from leaf_dev import ROOT
 from leaf_dev.leaf_assets import pinned_copy
-
-TEST_PAGES = ROOT / "tests" / "fixtures" / "pages"
 
 # Captures are live authored inputs: an intermediate JSON save must fail through
 # the preview's refusal path, rather than a missing key stopping its watcher.
@@ -38,13 +37,13 @@ _DATA_COMPANION = Draft202012Validator(
 )
 
 
-# Where authored pages live: the examples, the developer galleries and the
-# full-page regression fixtures. A command line names a page by its file's stem.
-NAMED_SOURCE_DIRS = (ROOT / "examples", ROOT / "examples" / "developer", TEST_PAGES)
+# Where authored pages live in a checkout: the examples, the developer galleries and
+# the full-page regression fixtures. A command line names a page by its file's stem.
+SOURCE_DIRS = ("examples", "examples/developer", "tests/fixtures/pages")
 
 
 def source_directories(root: Path = ROOT) -> list[Path]:
-    return [root / path.relative_to(ROOT) for path in NAMED_SOURCE_DIRS]
+    return [root / directory for directory in SOURCE_DIRS]
 
 
 def authored_sources(root: Path = ROOT) -> list[Path]:
@@ -58,7 +57,7 @@ def authored_sources(root: Path = ROOT) -> list[Path]:
 
 
 def named_source(name: str, *, root: Path = ROOT) -> Path:
-    """The one authored source a name picks out of `NAMED_SOURCE_DIRS`; a ValueError
+    """The one authored source a name picks out of `SOURCE_DIRS`; a ValueError
     says why a name picks none, or several. The generated corpus is built on demand."""
     name = name.removesuffix(".html")
     if name == "corpus":

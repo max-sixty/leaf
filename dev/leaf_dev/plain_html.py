@@ -2,7 +2,7 @@
 
 The plain-HTML control of the authoring evals and the UI review fixtures are files a
 browser opens as written. `serving` is the one static file server for them: Python's
-own, on a thread, so a command or a Promptfoo hook can hold it open around its work.
+own, on a thread, so a command holds it open around its work.
 It serves the directory's files and nothing else: a directory listing would show a
 blinded reviewer every candidate, so it answers 404. A browser's own favicon request
 answers 204 when the page brings none, so a page's request failures are its own.

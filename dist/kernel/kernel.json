@@ -1,6 +1,6 @@
 {
   "inputs": {
-    "leaf.js": "88645cbe39e30d702ea697d6309e1a4466e180dbbcf3544c388d0b1b3c6b7354",
+    "leaf.js": "d3d148d90b9c46a4ee066fbd454e8ba9e18c52a6e31862e281eeedc2ad6459e0",
 
     "runtime/abort.js": "5ac3a80366571da2b98e2aae8cea84bbc2fa8befed9815a9e7d77e8a68445320",
 
@@ -20,7 +20,7 @@
 
     "runtime/anchor-travel.js": "187fbe97836671099bed09b7dc26736f63d8f832ce94e13c932f02855faf8825",
 
-    "runtime/annotation-inventory.js": "f85cda64cdf583a005bab2dd5e14983763d8ee2a55b26962d336b3bf359f5b87",
+    "runtime/annotation-inventory.js": "aba939efd41fa2d44469a66e9c69cf6b710cdca459daba4655598ccf8fa1940b",
 
     "runtime/annotation-overlay/anchor-paint.js": "3ead2423eb5280061cccc4f6cbb1706f1884a8637caa21d64aa6df36a129340d",
 
@@ -28,19 +28,19 @@
 
     "runtime/annotation-overlay/check-api.js": "e329869cd53d08ea0a8e423cc6a7fe1fbb22311cc172881aacc5f9274051b5c7",
 
-    "runtime/annotation-overlay/comment-placement.js": "ceeabfae577b423f6d518f493067d98d20206d00fbabffc00190173efd87fa31",
+    "runtime/annotation-overlay/comment-placement.js": "e0453305a1cc674d4e7d862ff44238fe101fb16fe5b659be0da3678ebf2329a0",
 
     "runtime/annotation-overlay/composing/drawing-paint.js": "f6572dc7150298b4589a708d55127a161777fbfb69058df1b099e6addcb4eb47",
 
-    "runtime/annotation-overlay/composing/floating-response.js": "8c404b009c482015c99c02c7fbbe4bcc261cfe486d00145439f4dcfb91df9291",
+    "runtime/annotation-overlay/composing/floating-response.js": "2f679769f2716534fa5de5d4a4139a25cc08cbdc66a652fc397b0347a7a11fa7",
 
-    "runtime/annotation-overlay/floating.js": "a75c29d6c336ff92cb2ffcadaf177dab4585252b780795dca6107bb216ddd307",
+    "runtime/annotation-overlay/floating.js": "a34bdc409e84210bb91579939cfa6122a6de848aa8c31ac89f95226d6fe10608",
 
     "runtime/annotation-overlay/index.js": "972d2a085dfbbaf3de835649bd4e9ee7b6b0dd2df18dbc2f2d2ebbd15a91d1e0",
 
     "runtime/annotation-overlay/margin-cluster-view.js": "a329209183a6255d8df0b87dadd4047b521d14f2dd33de52da7d47fadcb88e1c",
 
-    "runtime/annotation-overlay/margin-layout.js": "48ebaeed3fd8bf44a1954cef6f118a3810303d90cf42fa9c5cf5575d654f3e80",
+    "runtime/annotation-overlay/margin-layout.js": "c5a678c4664c1d1433b3c1d859bae54a2338ebf613ecbf0bdf847715317cd883",
 
     "runtime/annotation-overlay/margin-placement.js": "7eb32b30afc9432946f2ecd3ff60535ab3c1ff4ed4646fca1f5445bffb91de22",
 
@@ -48,7 +48,7 @@
 
     "runtime/annotation-overlay/surface-grip.js": "fcaae3d4a8967c133989238e9a284830e72fda427d2cf71ec6919d394e18fd00",
 
-    "runtime/annotation-overlay/thread-preview.js": "4a58bbd707a90647482c36cd69b624d38eb39e103d76e1dcccd030b94fee2521",
+    "runtime/annotation-overlay/thread-preview.js": "8fc40a52e02a1b5170b9a0dcccd502eb6f139d66be4ac84bf42e7211f4584ce8",
 
     "runtime/annotation-overlay/visual-mark-paint.js": "edc7a7cd4a6cc79b94977ac7a939c15aa2a67cfa81540f26ab95dd168cc5500e",
 
@@ -56,33 +56,33 @@
 
     "runtime/application.js": "5920ac15e6a37226d88a41812e11ee8000dd2cf191d69f01c9b1ee1b2d4b7b32",
 
-    "runtime/arrivals.js": "60bf10bffb0c1932c829818c658b509936ca9b601ac098fabb81733a25a17760",
+    "runtime/arrivals.js": "4dbff0053400a079d4623507055a35a0f32ba484852ff0fc8af350e7e1a48bbb",
 
     "runtime/base-layer.js": "7254e7c6c7df56faea13460dbbedc193593826d4bb4b79ef91ee98dc8bd4bc6c",
 
     "runtime/block-controls.js": "0385b74686947517ac721cc63f9fc0aeb2f458efb9eab5c8a82aa88258049ba4",
 
-    "runtime/bootstrap.js": "9e072378ef47b74da4cf95f11ef14c3174d35076d5078a3925235dc278766b79",
+    "runtime/bootstrap.js": "13612e808ab2f7c9e01c1c1008a38afa581598991d4daaed188e8474ca468286",
 
     "runtime/bounds.js": "742f1c9c975e07158a67af844f8cfc30a1ec62f5dd2aa79d0e59d7525c8b93c3",
 
-    "runtime/box-motion.js": "8d2fb5009a827be4cbfecbcabf8f6c80a6692ef9be83aa212222e4876a603bea",
+    "runtime/box-motion.js": "84fa197b914559ee910977d558e4b0f1475c10d11bc8bf979f1b92dedbbf58ec",
 
     "runtime/canvas.js": "4188e5964c5084984c95709501b31b380c6af31b38859820646704b1f03d09ae",
 
-    "runtime/carry.js": "7f2cffd6a3e7a9c877dbfefc76afe78e466400b5551cf8395f44d6c2155915fc",
+    "runtime/carry.js": "b56796dafceeb930b409af5c88e94d9c76f9833bd35d519d2513e449b578f20c",
 
     "runtime/change-walk.js": "d2f78a628550cd297e521297b7d66acf22fbcd1f5afdf78b48d6e679e5c01eeb",
 
-    "runtime/check-api.js": "46d7c9a230246ca35427b954912c8da3c98115a00aaa52d8d562f4885647bac2",
+    "runtime/check-api.js": "7ea2fd886611d70f6c9cacf93fea9bd8df257c3e5dfabb96639aa3c1bc683b4c",
 
-    "runtime/chrome.js": "9be28af4a639bf333748299dc0fa098af4be3949d7c63d181e034decbdfff64d",
+    "runtime/chrome.js": "02ec0cc1589d29ab2c2617c3bd5a6edeaa386371cfbf8159fae387122ef86797",
 
     "runtime/code-copy.js": "f1e079c4de9404069e6da7b2af9bb4ac4bd5879fd2bf7dec6440ede9ba769d1e",
 
     "runtime/color-scheme.js": "c90648b942064c9e33568e0314b36c1a784db88ecc5a53a346d0299ba419dfbb",
 
-    "runtime/composing/aim.js": "3eb5b996be9af0524d96544acf90927ebdb2628d03eb035c75bbe9f8383caad9",
+    "runtime/composing/aim.js": "6d3b71b857fcc4b882334223d7901ed5a8b0ac77c136c90fc659b6384d3806f3",
 
     "runtime/composing/capture.js": "c96305709b63eb0802409d682a43547ad588044ec1b080180bde3d1b46117c51",
 
@@ -110,7 +110,7 @@
 
     "runtime/composing/region-capture.js": "0497e183c37f85674e84a6eb459915b0f0670c83f63c686e605c4fe67251069d",
 
-    "runtime/composing/region-selector.js": "0bfebe31d5c136c57b472a7f2ee59ed8b16ae4941641fb17ab11a0af575b1d5b",
+    "runtime/composing/region-selector.js": "c192e12b3450b187507871286c784d12ce1a078a2552b36b1596d3f962a1a584",
 
     "runtime/composing/selection.js": "391bd9fb7f9c46e3374144f918866a2f6d5eaaea818fed9eff104c244644fc9b",
 
@@ -120,7 +120,7 @@
 
     "runtime/composing/text-field.js": "03fdc73a1f8fc983665cd34c0b1f1c8e1f3350148cbae042f92583ce8303d85b",
 
-    "runtime/content-layout.js": "b732b29769b531a8e38f4cab790e0f8deb2359450ca24ef9b24b308f3173c9b0",
+    "runtime/content-layout.js": "1e2658ebf10541a2b2730247d8663c1b7d57a107f15928521037f424df3fbfc8",
 
     "runtime/context.js": "aa77a03059c0685e20c61c865ce3647fa1327ca523116aa784903f4e35bf971f",
 
@@ -138,7 +138,7 @@
 
     "runtime/control-selectors.js": "1f8a7f80d1a3d33e1cef5e6f6af2fe3cda382a9c0af258c1ffc69d47db748d3e",
 
-    "runtime/copy-control.js": "2df48bfc46171195eba9f16ae015c92bc2a153f87346fa35cc4913cf668e5840",
+    "runtime/copy-control.js": "c5131c9f55f913f4b99cd5ec3fcaa71362fa58edd367993890fb6c57f10b2020",
 
     "runtime/copyable-text.js": "b4252f63a205ebd26d5e158c5127b3da844e61b553527350b69564bc71be04ef",
 
@@ -164,7 +164,7 @@
 
     "runtime/document-inputs.js": "f9fb632adccaec8860c3e94acb88bae7aa2d04bf43f671ee71008902736121ce",
 
-    "runtime/dom-children.js": "8f4138bcd31424db87ffd963b73bbf4d77fb1560dfc934d2c159897716d3dba2",
+    "runtime/dom-children.js": "f23cf8688ead43881e9e8ffbd90292d19aa270f655b0fab8c6edd08e4575177e",
 
     "runtime/dom-move.js": "3e29bdf4e537534989ade1ce1b19c6fa63d611766f0ba56badd8292a9161c27c",
 
@@ -206,13 +206,13 @@
 
     "runtime/framework/snapshot.js": "588a54ad43a4221a2659a1fa1ed019e2027cfdbcbac4c27f57d5e9dac5eefe30",
 
-    "runtime/geometry.js": "cd448f6468693a45d43ec809e9817416b3e5dbea84dcb98865064398076724ea",
+    "runtime/geometry.js": "b90354eac5bd8cd16a3cf891852604912c8f4118a8f00ffea08784e8a8c39449",
 
     "runtime/heading-links.js": "90bc9cde9e973a006ef7f8f09b8a3345e4957831a881af8872cfeffb5733ecaa",
 
     "runtime/held-word.js": "b19c912dfe1eb4ff99e52b5663e2f5a1bcbe069c507ca91adc2a385e40b60963",
 
-    "runtime/history.js": "8f9e3f78fbb06db5d1e1145c73e6f41a16ce10f248735ec6cd3015ae19a781c4",
+    "runtime/history.js": "df14ddc7ab11946d93954ce57ecce0ab8bf2dfcb7de16f56317f6398efce6e24",
 
     "runtime/http-api.js": "d898e1afac17f612a91aec8de608a81cea13125fd2818169ea209732a497ed26",
 
@@ -232,11 +232,11 @@
 
     "runtime/kernel-facts.js": "a115be58af0138cc01234a9d6c16caa066237d7988b94e056039810edcf9b53e",
 
-    "runtime/kernel-registry.json": "4b42ed86759e6086dd308f6ed1f91a147d64f0819a86724c35f0f3ded3ce084a",
+    "runtime/kernel-registry.json": "b9c23d88209129ffcc8221ac05a8bd308e9428eda34aaebfbd4bdd4c29e1f0c3",
 
     "runtime/keyboard/bindings.js": "67c3dd0c589fc877dc7b84a00e03ce3599524455bc13984dd0be7f2637c8c837",
 
-    "runtime/keyboard/chip-seats.js": "b1ebaa4d7e346ab3769db8b7621393f070c7be09826f0843d3b4e6bae51b7783",
+    "runtime/keyboard/chip-seats.js": "6928a33ada861aa8873b8791da4c34b90e5fc90408dd358b1f2be64f51d23f35",
 
     "runtime/keyboard/close-requests.js": "31c6ceca76e718b474c051e597d4ffd8cccc9b82569eb8969546cdd13181bca1",
 
@@ -252,7 +252,7 @@
 
     "runtime/keyboard/dispatch.js": "a8cd6a9ca0dd5ffae0765738bc75337e9d2d418e84fc2cfd359487b9cbc1334e",
 
-    "runtime/keyboard/go-to-sequence.js": "5a82bef5f4bb0fc811ce74d4fff629cf0b81c842db168841fc9020e037d54fe5",
+    "runtime/keyboard/go-to-sequence.js": "07bb2b6a49d991141a8d4f1829b7b4dbc46c2bf14989d0bd486c41ac497fa3f9",
 
     "runtime/keyboard/hints.js": "092f392138572a5587a91ab118807851ca40782dc299da45bc23247a493294d6",
 
@@ -266,7 +266,7 @@
 
     "runtime/keyboard/register.js": "e3899176463d4b8e908c5f6d15edf1e92a1d0abaccd4714d0676e5c9fc38de02",
 
-    "runtime/keyboard/scopes.js": "4989842c2fdfa345ece3afcad3b68fc8fa48d8d8ce810b4b774bce72e740c84d",
+    "runtime/keyboard/scopes.js": "90d5d52e93859ccc549ccc65587652dd87878cdda939614d07c8ee2872bf40ae",
 
     "runtime/keyboard/status-context.js": "7a513009193c1d885a2bfb7d2d7cbcf81de793fdec47ee5d19e5422c9c69aa8b",
 
@@ -286,13 +286,13 @@
 
     "runtime/llm-api.js": "a1d45811caba7e683fca30326d7a5b0c6f483e6f90067d35e138f822b38780c1",
 
-    "runtime/margin-bars.js": "b960fe7980cd4179ed620c4e0285732ba770ef27404312a1e2bb572da64063d7",
+    "runtime/margin-bars.js": "693fdcde8deadbb80723c7d9bb854b736fdee84d01a477713cb428f4e406c299",
 
     "runtime/margin-map-model.js": "942b6caaba45dc8744c8164b631d1663875790ef71f0d56cf3926c2312a3b455",
 
     "runtime/margin-model.js": "f917f259c8aa0f9d6f731559ec31dd8fa80d0f8c5d1cb002d7c8aeddeda5a60d",
 
-    "runtime/markdown.js": "bbc14d036c469733d826536af0ee0b334211b921b00e18a856d9104889911500",
+    "runtime/markdown.js": "24866dd8861d788c7f5a8616d3b27333807562fb1859f86e64861be9ef594bde",
 
     "runtime/media.js": "874a7395748ff7e478ee66d63a6087cf516d8efda9e5fadf1aafb2c44884eacc",
 
@@ -342,7 +342,7 @@
 
     "runtime/page-status.js": "2b3befc0ab94f7b6b82b05a0eac88d3fd7bcfac95157ba09776d8583d88a01cf",
 
-    "runtime/passages.js": "dc7ea345c2a7987960ca80fa844819bce139c2506bbbffefe3a4bd5dd2dffd01",
+    "runtime/passages.js": "e6fb4221e03c6ddb0214f777d7b162dfa6d3d4807722925cf6265fef2d8cbd05",
 
     "runtime/pending/dispatch.js": "92a7a67454957ebaa647751d5e55f0eefd7807fa0b5ebf4771f8b23f9a1167b7",
 
@@ -382,15 +382,15 @@
 
     "runtime/queues.js": "ed431de3191d02aea570f3045b75b4c5ada580629f29cae43721e02efe715601",
 
-    "runtime/reach.js": "ac35eb1364566a694d001d2bd760c3db54fa663219c7644d9ea752a78c4b9816",
+    "runtime/reach.js": "e6565499ceea22036471285b0f8df308de9a96c366442c1e6a62c968a9f231d0",
 
     "runtime/reactions.js": "edfb2b954e91fb5d36b496e698f4d8a848e92494a44dd891f796aefadd4d548f",
 
     "runtime/reading-continuity.js": "cef989af886deaa24e32727730263b4d522a3d33a8bfd9c87f4ca29b6f9e36c4",
 
-    "runtime/reading-place.js": "f96b375c648d6440fd0d7800d54f9bee4c8193ca428404617338e4b108b8afce",
+    "runtime/reading-place.js": "86f9d51c39b0818d5dd2a79383ecef9f63227cf23b6b997962cb174891271c85",
 
-    "runtime/reading-regions.js": "d136548d92891ed60edbb929c07ed5bc218218a6f6042feb7cd0b1e22786ef5b",
+    "runtime/reading-regions.js": "ddce82affdf1156d19a0e22e500e61c78291341fb66144406ac5f9272d51edde",
 
     "runtime/rect.js": "7bd177a1cb19af76f1b208577aedd686b86a5b80657b42a49671e6d3c99a7374",
 
@@ -538,7 +538,7 @@
 
     "runtime/version-signal.js": "2fd7de64264ad0318dbb2e7e8e44ec4a576f84c4f8f128e240f57f595dbedbeb",
 
-    "runtime/version.js": "11b1756debe92050992bf36a2a1d5409d59bc1ebf5c5511af4f09d73103994bf",
+    "runtime/version.js": "6ddb4561ff13c4b34c10d852a3b0aa7ae6b0047065ab0000be5e8afaa42fc9c4",
 
     "runtime/video-controls.js": "edeb26d5b544ecd5a1099a06146a6ce10baf214be6c172c66abe1fe535ec8f47",
 
@@ -552,7 +552,7 @@
 
     "runtime/walk-position.js": "10a8e77ca0ac65bd53c6ba061e3a34188ea352638a1cf6ae0082bf34929295f4",
 
-    "runtime/widget-api.js": "e00863c3a222b850e6ef6d75f13761b925d8f60f2e97008ddcf6189ae8505202",
+    "runtime/widget-api.js": "34cccaa9ec67e634f57ea6cce091015872f9119afc64f0e215ecdbd6f4ac24ac",
 
     "runtime/widget-controller.js": "78ac7b9c2508e204c1c8fed85849ff724cb968c704ac188a7c51f96c9965824a",
 
@@ -562,7 +562,7 @@
 
     "runtime/widget-imports.js": "8a51bbbdb8f9e063f29b432ea2dbb0b58a5037fc517d5e4dd488e5f211e209b8",
 
-    "runtime/widget-loader.js": "ea374c03d8679a1eb4f7e14cc075493dba317880784bf8844320b0c66659673a",
+    "runtime/widget-loader.js": "b699cc73fbe6b13e0cab7373fe486f2543333b91d3853155248ca14586b83386",
 
     "runtime/widget-output.js": "e26c4470f34e46a741da1a2b1700c9947f719da0cc13309667087cd44970d4d6",
 

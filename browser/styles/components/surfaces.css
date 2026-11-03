@@ -28,7 +28,7 @@
   :is(:root, :host) .lf-ui-face,
   :is(:root, :host) .button,
   :is(:root, :host) .field,
-  :root main :is(button, input, select, textarea),
+  :root body :is(button, input, select, textarea):not(.lf-chrome *),
   :host :is(button, input, select, textarea)
 ) {
   font: var(--font-ui);

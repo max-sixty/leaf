@@ -27,11 +27,14 @@ body.lf-over-mark {
 /* Armed, a press on a thread-marked element is the aim's, not the thread's, so the
    hand here is the aim's answer rather than the thread's: it stands where the aim has
    an item and comes off where it hasn't, which is the same promise the body is making
-   and not the mark's own "open this thread". */
-body:is(.lf-aiming, [data-lf-design-mode]) .lf-mark-el {
+   and not the mark's own "open this thread". The body carries the stamps, and the
+   chrome stands after it, so a mark in the chrome reads them as a sibling's. */
+body:is(.lf-aiming, [data-lf-design-mode]) .lf-mark-el,
+body:is(.lf-aiming, [data-lf-design-mode]) ~ .lf-chrome .lf-mark-el {
   cursor: default;
 }
-body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
+body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el,
+body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item ~ .lf-chrome .lf-mark-el {
   cursor: pointer;
 }
 
@@ -86,7 +89,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   /* Placement fits the finished thread before typing: the frame reserves the card's
      header and reply rows around the editor, and is at least as wide as the card
      (`--thread-card-min`), so the card Send opens stands in the frame and grows out of
-     the field (thread-preview.js, `followCard`). Only the field paints; the
+     the field (box-motion.js, `drawnAt`). Only the field paints; the
      transparent rows neither take document flow nor intercept presses. Its tracks
      shrink into that frame, and attached images hang outside it. */
   .lf-fab-bar:not([data-lf-target-only], [data-lf-presentation="inline"]) {

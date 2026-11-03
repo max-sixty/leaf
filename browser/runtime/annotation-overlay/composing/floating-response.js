@@ -24,7 +24,7 @@
    writes only whether the bar stands inline (`data-lf-presentation`), so neither leaves
    a visibility behind for the other to undo. */
 import { pageRange } from "../../native-selection.js";
-import { cancelRender, nextRender, sizeObserver } from "../../rendering.js";
+import { cancelRender, nextRender } from "../../rendering.js";
 import { boxMotion } from "../../box-motion.js";
 import { sameAnchor } from "../../anchor-coordinate.js";
 import { declareOffFlowSurface } from "../../off-flow.js";
@@ -43,7 +43,7 @@ import { coarsePointer } from "../../pointer.js";
 import { LAYOUT } from "../../widget-upgrade.js";
 import { under } from "../../shadow.js";
 import { union } from "../../rect.js";
-import { floatingPlacement, floatingUi, heldEdges } from "../floating.js";
+import { floatingPlacement, floatingUi } from "../floating.js";
 import { surfaceGrip } from "../surface-grip.js";
 import {
   commentAttachment,
@@ -124,31 +124,12 @@ export function createFloatingResponsePlacement({
   // it is"). The field's frame is the box, drawn by a surface behind it, and the
   // composer holding the field and the pictures hanging off it is what moves, so the
   // grip beside it, whose clip opens its middle to the field's presses, is never cut.
-  // It reads in the plane its placement stands it in (floating.js, `heldEdges`), so a
-  // scroll or a carry that moves it whole moves nothing in it. A box no placement
-  // stands has nothing to move from, and one seated in a widget's outlet stands in
-  // that widget's flow.
+  // It reads in the plane its placement stands it in, so a scroll or a carry that moves
+  // it whole moves nothing in it, and a change of the open box's size asks for its
+  // placement first (box-motion.js, `placed`). A box no placement stands has nothing
+  // to move from, and one seated in a widget's outlet stands in that widget's flow.
   /** @type {ReturnType<typeof boxMotion> | null} */
   let following = null;
-  const readFab = () => {
-    if (!following && !response.open) return;
-    if (!response.floating || !fabBar.hasAttribute("data-lf-placement"))
-      return following?.forget();
-    following ??= fabMotion();
-    following.follow();
-  };
-  // A change of the open box's size can move its placement too, as a line taking it
-  // past the window's edge shifts it. That placement lands asynchronously, but before
-  // this frame paints, so the reading waits for it and the box travels once, from
-  // where it was drawn to where it then stands. Read first, the box set out for where
-  // its old placement stood it and turned back a frame later.
-  const followed = sizeObserver(() => {
-    if (following && response.open && fabBar.hasAttribute("data-lf-placement")) {
-      nativeAttachment = false;
-      if (placeFab()) return;
-    }
-    readFab();
-  });
   function fabMotion() {
     const box = fabField();
     // The composer holding the composition is the root, since the composition's frame is
@@ -163,11 +144,16 @@ export function createFloatingResponsePlacement({
       surface: "lf-fab-ground",
       lift: 1,
       outset: 0,
-      observer: followed,
-      held: () => heldEdges(fabBar),
+      placement: {
+        held: fabPosition.held,
+        place: () => {
+          if (!response.open || !fabBar.hasAttribute("data-lf-placement")) return false;
+          nativeAttachment = false;
+          return placeFab();
+        },
+      },
     });
     fabBar.prepend(motion.ground);
-    followed.observe(composer);
     return motion;
   }
   // The browser's selected Range is a mechanical place even when its durable quote
@@ -201,7 +187,7 @@ export function createFloatingResponsePlacement({
         height * scaleY,
       ),
       placement: fabPlacement.capture(),
-      // The field the card grows out of (thread-preview.js, `followCard`).
+      // The field the card grows out of (box-motion.js, `drawnAt`).
       field: following?.outline() ?? field,
       // How far the words stand above their end: where the user was reading them,
       // which the card Send opens keeps (thread-preview.js, `showArrival`).
@@ -242,7 +228,6 @@ export function createFloatingResponsePlacement({
     cancelRender(fabPositionFrame);
     fabPositionFrame = 0;
     if (!reset) return;
-    following?.forget();
     editingAttachment = null;
     windowPosture = false;
     fabPlacement.forget();
@@ -538,11 +523,14 @@ export function createFloatingResponsePlacement({
               withholdFab();
           },
         });
+        // We could consider, in future, placing the open box again on every scroll, as
+        // the card is: it would then need no "page" here, and floating.js no exception
+        // for a box its owner keeps in the page's plane.
         return fabPosition.position(
           ui.computePosition,
           commentReference(place, reference),
           { placement, middleware },
-          response.open && seatedOwner ? () => "page" : plane,
+          response.open && seatedOwner ? "page" : plane,
           seatedOwner ?? document.documentElement,
         );
       })
@@ -552,21 +540,20 @@ export function createFloatingResponsePlacement({
         editingAttachment = response.open ? attachment : null;
         // A scroll carries the box by CSS anchors (`watchFabPosition`); what a placement
         // moves travels when it follows a change of the box's size (box-motion.js,
-        // `placed`).
-        // A drag the grip carried ends where the placement stands the box.
+        // `placed`). The open box's first spot is the first reading its motion follows
+        // from. A drag the grip carried ends where the placement stands the box.
         const stand = () => {
           keeps(fabBar, "data-lf-placement", position.placement);
           const moved = fabPosition.stand(position);
           carry.placed();
           return moved;
         };
+        if (response.open) following ??= fabMotion();
         if (following) following.placed(stand);
         else stand();
         nativeAttachment = response.open && fabPosition.follows();
         positioned(true);
         stoodAgain();
-        // The box's spot is the first reading its motion follows from.
-        readFab();
         return true;
       })
       .catch((error) => {

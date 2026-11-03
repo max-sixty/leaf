@@ -766,9 +766,27 @@
   }
   /* The root workspace reaches the window's foot. Its last reading region keeps
    * the panel's clearance inside its content; containers that pass the edge to a
-   * child pass --lf-end-room as well, rather than shortening that child's frame. */
+   * child pass --lf-end-room as well, rather than shortening that child's frame. What
+   * the page writes after `main`, such as a site footer, ends the page instead, so the
+   * body keeps the foot's room for it (base.css). What takes no room in the flow doesn't
+   * count: Leaf's hidden apparatus, and a dialog or popover, which stands in the top
+   * layer when open. */
   @media screen {
-    html[data-lf-live][data-lf-layout~="workspace"] body,
+    html[data-lf-live][data-lf-layout~="workspace"]
+      body:not(
+        :has(
+          > main
+            ~ :not(
+              [hidden],
+              [data-lf-runtime],
+              script,
+              style,
+              template,
+              dialog,
+              [popover]
+            )
+        )
+      ),
     html[data-lf-live][data-lf-layout~="workspace"] body > main.layout-workspace {
       padding-block-end: 0;
     }

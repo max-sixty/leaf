@@ -298,6 +298,12 @@ def native_code(page: Page) -> None:
     page.locator("#bg-javascript-code").scroll_into_view_if_needed()
 
 
+def annotated_code(page: Page) -> None:
+    """Syntax colours inside authored marks, line wrappers and link targets."""
+    native_code(page)
+    page.locator("#bg-annotated-code").scroll_into_view_if_needed()
+
+
 def native_code_copy_hover(page: Page) -> None:
     """A document code block under the pointer, which shows its Copy on its border."""
     native_code(page)
@@ -2147,6 +2153,19 @@ STATES = (
         "developer/feature-gallery",
         native_code,
         region="#bg-javascript-code",
+    ),
+    State(
+        "annotated-code",
+        "developer/feature-gallery",
+        annotated_code,
+        region="#bg-annotated-code",
+    ),
+    State(
+        "annotated-code-dark",
+        "developer/feature-gallery",
+        annotated_code,
+        scheme="dark",
+        region="#bg-annotated-code",
     ),
     State(
         "native-code-copy-hover",

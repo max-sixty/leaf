@@ -1655,24 +1655,56 @@ def test_native_code_uses_the_bundled_grammars_language_aliases(browser, serve):
         assert painted == full.evaluate(tokens)
 
 
-def test_a_block_its_author_marked_up_keeps_its_markup(browser, serve):
-    """A code block that holds elements was marked up by its author, as a page that
-    highlights its own code marks up every token, and colouring it would delete what
-    they wrote. Leaf colours the block beside it, which holds only text."""
+def test_code_colouring_preserves_inline_annotations(browser, serve):
+    """Annotations keep their nodes and text while tokens cross their boundaries."""
     page = open_page(
         browser,
         serve(
             leaf_page(
-                "Marked-up code",
-                '<pre id="own"><code class="language-python">'
-                '<span class="kw">def</span> f(): pass</code></pre>\n'
-                '<pre id="plain"><code class="language-python">def f(): pass</code></pre>',
+                "Annotated code",
+                '<pre id="marked"><code class="language-python">'
+                '<span id="target"></span>de<mark id="annotation">f load(path):\n'
+                '    return "rea</mark>d"</code></pre>'
+                '<pre id="lines"><code class="language-python">'
+                '<span class="line">def load(path):</span>\n'
+                '<span class="line">    return "read"</span></code></pre>'
+                '<pre id="breaks"><code class="language-python">'
+                'def load(path):<br>    return "read"</code></pre>',
             )
         ),
     )
-    expect(page.locator("#plain [data-lf-syn]").first).to_be_attached()
-    expect(page.locator("#own .kw")).to_have_text("def")
-    assert page.locator("#own [data-lf-syn]").count() == 0
+    marked = page.locator("#marked code")
+    expect(marked).to_have_attribute("data-lf-syntax", "python")
+    expect(page.locator("#annotation [data-lf-syn]").first).to_be_attached()
+    expect(page.locator("#lines .line [data-lf-syn]").first).to_be_attached()
+    expect(page.locator("#target")).to_be_empty()
+    assert marked.text_content() == 'def load(path):\n    return "read"'
+    # The string token crosses the mark's end, so both pieces keep its colour.
+    assert marked.evaluate("""code => {
+      const tokens = [...code.querySelectorAll('[data-lf-syn]')];
+      return tokens.some(t => t.textContent === '"rea' && t.style.color === 'var(--syn-string)')
+        && tokens.some(t => t.textContent === 'd"' && t.style.color === 'var(--syn-string)');
+    }""")
+    # A different language repaints Leaf's tokens inside the same annotations.
+    assert page.evaluate("""async () => {
+      const {highlightBlocks} = await window.__lfWidgetApi();
+      const code = document.querySelector('#marked code');
+      const mark = code.querySelector('mark');
+      const target = code.querySelector('#target');
+      const previous = [...code.querySelectorAll('[data-lf-syn]')];
+      code.className = 'language-javascript';
+      await highlightBlocks(code);
+      const tokens = [...code.querySelectorAll('[data-lf-syn]')];
+      await highlightBlocks(code);
+      return code.querySelector('mark') === mark
+        && code.querySelector('#target') === target
+        && mark.textContent === 'f load(path):\\n    return "rea'
+        && code.dataset.lfSyntax === 'javascript'
+        && previous.some(t => !code.contains(t))
+        && !code.querySelector('[data-lf-syn] [data-lf-syn]')
+        && tokens.every(t => code.contains(t));
+    }""")
+    assert page.locator("#breaks [data-lf-syn]").count() == 0
 
 
 def test_a_block_rewritten_while_it_is_colored_keeps_its_new_text(browser, serve):

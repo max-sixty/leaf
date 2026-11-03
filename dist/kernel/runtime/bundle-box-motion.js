@@ -1,44 +1,24 @@
-import { __exportAll } from "./bundle-rolldown-runtime.js";
-import { afterSettling, cancelRender, inlineStyle, keeps, motionEasing, motionPlays, motionTime, nextRender, playMotion } from "./bundle-portable.js";
-import { TEXT_FIELD, move, onUserInput } from "./bundle-layer-stack.js";
-import { el } from "./bundle-layer-client.js";
-import { contentRides } from "./bundle-content-layout.js";
-import { inChrome } from "./bundle-passages.js";
+import { TEXT_FIELD, afterSettling, cancelRender, contentRides, inChrome, inlineStyle, keeps, locationStandsDown, motionEasing, motionPlays, motionTime, move, nativeLayerHolding, nextRender, onUserInput, playMotion, shownParts } from "./bundle-portable.js";
+import { el } from "./bundle-errors.js";
+import "./bundle-passages.js";
 import { SVG_NS, paintGeometry, paintShape, paintStand, placement, standBox, standOver, vacate } from "./bundle-page-layout.js";
 
 //#region runtime/target-paint.js
-var target_paint_exports = /* @__PURE__ */ __exportAll({
-	aimLayer: () => aimLayer,
-	clearAim: () => clearAim,
-	geometryChanged: () => geometryChanged,
-	labelAim: () => labelAim,
-	mountTargetPaint: () => mountTargetPaint,
-	paintAim: () => paintAim,
-	paintTrace: () => paintTrace,
-	shifted: () => shifted$1,
-	targetTraceLayer: () => targetTraceLayer
-});
-const targetTraceBox = el("div", "lf-ui lf-target-trace");
 const aimBox = el("div", "lf-ui lf-aim");
-const traceStand = paintStand(targetTraceBox);
+const locationBox = el("div", "lf-ui lf-location");
 const aimStand = paintStand(aimBox);
-const targetTraceLayer = traceStand.root;
+const locationStand = paintStand(locationBox);
 const aimLayer = aimStand.root;
+const locationLayer = locationStand.root;
 const aimShape = document.createElementNS(SVG_NS, "svg");
 aimShape.classList.add("lf-aim-shape");
 aimShape.setAttribute("aria-hidden", "true");
 const aimMaskId = "lf-runtime-aim-shape-mask";
-const targetTraceShape = document.createElementNS(SVG_NS, "svg");
-targetTraceShape.classList.add("lf-target-trace-shape");
-targetTraceShape.setAttribute("aria-hidden", "true");
 let aimed = null;
-let traceElement = null;
-let traceSurface = null;
-let traceGeometry = null;
-let traceShapeKey = "";
-let placementFrame = 0;
-let geometryFrame = 0;
-let geometryDirty = false;
+let locationElement = null;
+let locationFrame = 0;
+let locationProjected = [];
+const PROJECTED_LOCATION = "lf-projected-location";
 function clearAim() {
 	aimed = null;
 	vacate(aimStand);
@@ -68,7 +48,7 @@ function paintAim(element, surface) {
 	if (!shaped) aimShape.replaceChildren();
 	keeps(aimBox, "data-for", element.id);
 	keeps(aimStand.root, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
-	const stood = standOver(aimStand, placed, shaped ? "0" : getComputedStyle(surface).borderRadius);
+	const stood = standOver(aimStand, placed, shaped ? null : getComputedStyle(surface).borderRadius);
 	aimed = {
 		placed: {
 			...placed,
@@ -104,79 +84,150 @@ function labelAim(node) {
 	if (node.parentElement !== aimStand.carrier) move(aimStand.carrier, node, null);
 	standBox(node, at, stood, stood.anchor, stood.at);
 }
-function clearTrace() {
-	traceElement = null;
-	traceSurface = null;
-	traceGeometry = null;
-	traceShapeKey = "";
-	vacate(traceStand);
-	targetTraceBox.style.display = "none";
-	targetTraceBox.classList.toggle("lf-shaped", false);
-	targetTraceShape.replaceChildren();
-	targetTraceBox.removeAttribute("data-for");
-	delete traceStand.root.dataset.lfPaintPlane;
+function createTrace(className) {
+	const box = el("div", `lf-ui ${className}`);
+	const stand = paintStand(box);
+	const shape = document.createElementNS(SVG_NS, "svg");
+	shape.classList.add(`${className}-shape`);
+	shape.setAttribute("aria-hidden", "true");
+	let traced = null;
+	let tracedSurface = null;
+	let tracedGeometry = null;
+	let shapeKeyDrawn = "";
+	let placementFrame = 0;
+	let geometryFrame = 0;
+	let geometryDirty = false;
+	function clear() {
+		traced = null;
+		tracedSurface = null;
+		tracedGeometry = null;
+		shapeKeyDrawn = "";
+		vacate(stand);
+		box.style.display = "none";
+		box.classList.toggle("lf-shaped", false);
+		shape.replaceChildren();
+	}
+	function draw(element = traced, surface = tracedSurface, rebuildGeometry = true) {
+		if (!(element instanceof Element) || !(surface instanceof Element) || !element.isConnected || !surface.isConnected) {
+			clear();
+			return;
+		}
+		const changed = element !== traced || surface !== tracedSurface;
+		const geometry = changed || rebuildGeometry ? paintGeometry(surface) : tracedGeometry;
+		const placed = placement(surface, Boolean(geometry), inChrome(element));
+		traced = element;
+		tracedSurface = surface;
+		tracedGeometry = geometry;
+		if (!placed.shown) {
+			box.style.display = "none";
+			return;
+		}
+		const { rect, shapeKey } = placed;
+		let shaped = Boolean(geometry);
+		if (shaped && (changed || rebuildGeometry || shapeKey !== shapeKeyDrawn)) shaped = paintShape(shape, geometry, rect);
+		if (!shaped) shape.replaceChildren();
+		shapeKeyDrawn = shaped ? shapeKey : "";
+		box.classList.toggle("lf-shaped", shaped);
+		keeps(box, "data-for", element.id || null);
+		keeps(stand.root, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
+		standOver(stand, placed, shaped ? null : getComputedStyle(surface).borderRadius);
+	}
+	return {
+		layer: stand.root,
+		paint(element, surface = element) {
+			if (!element) {
+				clear();
+				return;
+			}
+			const rebuild = geometryDirty || element !== traced || surface !== tracedSurface;
+			if (geometryDirty) {
+				if (geometryFrame) cancelRender(geometryFrame);
+				if (placementFrame) cancelRender(placementFrame);
+				geometryFrame = placementFrame = 0;
+				geometryDirty = false;
+			}
+			draw(element, surface, rebuild);
+		},
+		shifted() {
+			if (placementFrame || geometryFrame || !traced) return;
+			placementFrame = nextRender(() => {
+				placementFrame = 0;
+				if (traced) draw(traced, tracedSurface, false);
+			});
+		},
+		geometryChanged() {
+			geometryDirty = true;
+			if (placementFrame) cancelRender(placementFrame);
+			placementFrame = 0;
+			if (geometryFrame || !traced) return;
+			geometryFrame = nextRender(() => {
+				geometryFrame = 0;
+				if (!geometryDirty) return;
+				geometryDirty = false;
+				if (traced) draw(traced, tracedSurface, true);
+			});
+		},
+		mount() {
+			box.append(shape);
+		}
+	};
 }
-function drawTrace(element = traceElement, surface = traceSurface, rebuildGeometry = true) {
-	if (!(element instanceof Element) || !(surface instanceof Element) || !element.isConnected || !surface.isConnected) {
-		clearTrace();
-		return;
-	}
-	const changed = element !== traceElement || surface !== traceSurface;
-	const geometry = changed || rebuildGeometry ? paintGeometry(surface) : traceGeometry;
-	const placed = placement(surface, Boolean(geometry), inChrome(element));
-	traceElement = element;
-	traceSurface = surface;
-	traceGeometry = geometry;
-	if (!placed.shown) {
-		targetTraceBox.style.display = "none";
-		return;
-	}
-	const { rect, shapeKey } = placed;
-	let shaped = Boolean(geometry);
-	if (shaped && (changed || rebuildGeometry || shapeKey !== traceShapeKey)) shaped = paintShape(targetTraceShape, geometry, rect);
-	if (!shaped) targetTraceShape.replaceChildren();
-	traceShapeKey = shaped ? shapeKey : "";
-	targetTraceBox.classList.toggle("lf-shaped", shaped);
-	keeps(targetTraceBox, "data-for", element.id || null);
-	keeps(traceStand.root, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
-	standOver(traceStand, placed, shaped ? "0" : getComputedStyle(surface).borderRadius);
-}
-function paintTrace(element, surface = element) {
-	if (!element) {
-		clearTrace();
-		return;
-	}
-	const rebuild = geometryDirty || element !== traceElement || surface !== traceSurface;
-	if (geometryDirty) {
-		if (geometryFrame) cancelRender(geometryFrame);
-		if (placementFrame) cancelRender(placementFrame);
-		geometryFrame = placementFrame = 0;
-		geometryDirty = false;
-	}
-	drawTrace(element, surface, rebuild);
-}
+const targetTrace = createTrace("lf-target-trace");
+const proxyRing = createTrace("lf-proxy-ring");
+const targetTraceLayer = targetTrace.layer;
+const proxyRingLayer = proxyRing.layer;
+const paintTrace = targetTrace.paint;
+const paintProxyRing = proxyRing.paint;
 function shifted$1() {
-	if (placementFrame || geometryFrame || !traceElement) return;
-	placementFrame = nextRender(() => {
-		placementFrame = 0;
-		if (traceElement) drawTrace(traceElement, traceSurface, false);
-	});
+	relocate();
+	targetTrace.shifted();
+	proxyRing.shifted();
 }
 function geometryChanged() {
-	geometryDirty = true;
-	if (placementFrame) cancelRender(placementFrame);
-	placementFrame = 0;
-	if (geometryFrame || !traceElement) return;
-	geometryFrame = nextRender(() => {
-		geometryFrame = 0;
-		if (!geometryDirty) return;
-		geometryDirty = false;
-		if (traceElement) drawTrace(traceElement, traceSurface, true);
+	relocate();
+	targetTrace.geometryChanged();
+	proxyRing.geometryChanged();
+}
+function paintLocation(element) {
+	locationElement = element;
+	drawLocation();
+}
+const paintsOver = (element) => {
+	const layer = nativeLayerHolding(element);
+	return !layer || layer === nativeLayerHolding(locationStand.root);
+};
+function drawLocation() {
+	const element = locationElement;
+	const placed = element?.isConnected && !locationStandsDown(element) && paintsOver(element) ? placement(element, false, inChrome(element)) : null;
+	if (!element || !placed?.shown) {
+		projectLocation([]);
+		vacate(locationStand);
+		locationBox.style.display = "none";
+		locationBox.removeAttribute("data-for");
+		delete locationStand.root.dataset.lfPaintPlane;
+		return;
+	}
+	projectLocation([element, ...shownParts(element)]);
+	keeps(locationBox, "data-for", element.id || null);
+	keeps(locationStand.root, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
+	standOver(locationStand, placed, getComputedStyle(element).borderRadius);
+}
+function projectLocation(boxes) {
+	for (const box of locationProjected) if (!boxes.includes(box)) box.classList.toggle(PROJECTED_LOCATION, false);
+	for (const box of boxes) box.classList.toggle(PROJECTED_LOCATION, true);
+	locationProjected = boxes;
+}
+function relocate() {
+	if (locationFrame || !locationElement) return;
+	locationFrame = nextRender(() => {
+		locationFrame = 0;
+		drawLocation();
 	});
 }
 function mountTargetPaint() {
 	aimBox.append(aimShape);
-	targetTraceBox.append(targetTraceShape);
+	targetTrace.mount();
+	proxyRing.mount();
 }
 
 //#endregion
@@ -238,6 +289,8 @@ const clipFrame = (sides, radius = 0) => ({
 	clipPath: `inset(var(--lf-box-cut) round ${radius}px)`,
 	"--lf-box-cut": sides.map((side) => `${side}px`).join(" ")
 });
+const connected = (anchor) => "scroller" in anchor ? anchor.scroller.isConnected : anchor.isConnected;
+const planeShare = (moved, limit) => moved * limit > 0 ? Math.sign(limit) * Math.min(Math.abs(moved), Math.abs(limit)) : 0;
 const radiusOf = (style) => Number.parseFloat(style.borderTopLeftRadius) || 0;
 const seeThrough = (color) => /^(transparent|rgba\(.*,\s*0\))$/.test(color);
 const paints = (style) => !seeThrough(style.backgroundColor) || style.backgroundImage !== "none" || style.boxShadow !== "none" || [
@@ -283,6 +336,7 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 	const theirs = () => gesture !== null && sent === gestures ? "send" : gesture;
 	let rests = null;
 	let frame = null;
+	let besideAt = null;
 	let timing = null;
 	let motions = /* @__PURE__ */ new Map();
 	let running = [];
@@ -303,12 +357,7 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 		rests = null;
 	};
 	addEventListener("resize", forget);
-	function rebase() {
-		const at = boxOf(root.getBoundingClientRect());
-		const edges = held();
-		const dx = frame && edges ? at[edges.x] - frame[edges.x] : 0;
-		const dy = frame && edges ? at[edges.y] - frame[edges.y] : 0;
-		frame = at;
+	function carryReadings(dx, dy) {
 		if (near(dx, 0) && near(dy, 0)) return;
 		if (rests) rests = new Map([...rests].map(([element, rest]) => [element, shifted(rest, dx, dy)]));
 		for (const moving of motions.values()) {
@@ -320,6 +369,43 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 			riding.from += dy;
 			riding.to += dy;
 		}
+	}
+	function beside(edges) {
+		const by = edges?.by;
+		const plane = edges?.plane ?? null;
+		if (!by || !connected(by) || plane && !connected(plane)) return null;
+		const at = by.getBoundingClientRect();
+		const origin = plane?.getBoundingClientRect() ?? {
+			left: 0,
+			top: 0
+		};
+		return {
+			by,
+			plane,
+			x: at.left - origin.left,
+			y: at.top - origin.top
+		};
+	}
+	function rebase() {
+		const at = boxOf(root.getBoundingClientRect());
+		const edges = held();
+		const dx = frame && edges ? at[edges.x] - frame[edges.x] : 0;
+		const dy = frame && edges ? at[edges.y] - frame[edges.y] : 0;
+		frame = at;
+		carryReadings(dx, dy);
+		const now = beside(edges);
+		const past = now && besideAt?.by === now.by && besideAt.plane === now.plane ? {
+			x: now.x - besideAt.x,
+			y: now.y - besideAt.y
+		} : {
+			x: 0,
+			y: 0
+		};
+		besideAt = now;
+		return {
+			at,
+			past
+		};
 	}
 	const interpolate = (from, to, progress) => {
 		const rect = between(from, to, progress);
@@ -838,9 +924,14 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 			}
 		},
 		placed(place) {
-			rebase();
-			place();
-			frame = boxOf(root.getBoundingClientRect());
+			const { at, past } = rebase();
+			const read = rests?.get(root);
+			const resized = !read || !near(width(read), width(at)) || !near(height(read), height(at));
+			const moved = place();
+			besideAt = beside(held());
+			if (!resized) return;
+			carryReadings(planeShare(moved.x, past.x), planeShare(moved.y, past.y));
+			frame = shifted(at, moved.x, moved.y);
 		},
 		outline() {
 			const moving = motions.get(box);
@@ -858,4 +949,4 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 }
 
 //#endregion
-export { aimLayer, boxMotion, mountTargetPaint, paintTrace, targetTraceLayer, target_paint_exports };
+export { aimLayer, boxMotion, clearAim, geometryChanged, labelAim, locationLayer, mountTargetPaint, paintAim, paintLocation, paintProxyRing, paintTrace, proxyRingLayer, shifted$1 as shifted, targetTraceLayer };

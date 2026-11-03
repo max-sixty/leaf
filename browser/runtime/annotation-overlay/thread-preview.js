@@ -9,6 +9,10 @@
    Margin disclosure remains the margin's; selection records only whether a walk
    opened a cluster so its end can return that disclosure.
 
+   The card opens only on a window with room for the rail: on one without, its thread
+   opens in the floating panel (margin-projection.js, `showPreview`), and nothing here
+   places a card for a narrow window.
+
    ThreadView owns conversation rendering; comment-placement.js owns the side,
    frame adoption and opening-scroll policy. CardAnchor owns the place an interaction
    preserves. Floating UI follows
@@ -37,6 +41,7 @@
    and target landing; the card keeps Send's focus on the thread that received it. */
 import {
   atScrollEnd,
+  keepFoot,
   moveScrollerBy,
   pageScroller,
   scrollToEnd,
@@ -110,7 +115,7 @@ import { CardAnchor } from "../thread/card-anchor.js";
  * positionFrame: number, positionResult: PromiseWithResolvers<boolean> | null,
  * focusPending: {holding: Element | null} | null, withheldFocus: ReturnType<typeof holdFocus>,
  * transcript: HTMLElement | null, place: ReturnType<typeof placeKeeper> | null,
- * stopRegion: (() => void) | null, side: ReturnType<typeof commentPlacement>, anchor: CardAnchor,
+ * stopRegion: (() => void) | null, stopFoot: (() => void) | null, side: ReturnType<typeof commentPlacement>, anchor: CardAnchor,
  * reading: {input: number, scroll: number, end: boolean} | null, itemView: {node: HTMLElement, body: HTMLElement} | null, width: number | null, scroller: Element, followed: boolean}} Session
  * @typedef {{latest: boolean, end: boolean, scroll: number, keepTop: boolean, transcript: HTMLElement}} Reading
  */
@@ -130,6 +135,7 @@ const CUT_EDGES = [
  * placedAt: ReturnType<typeof import("../anchor-placement.js").createAnchorPlacement>["placedAt"],
  * scrollThreadIntoView: typeof import("../thread/reply-landing.js").scrollThreadIntoView,
  * scrollToElement: ReturnType<typeof import("../anchor-travel.js").createAnchorTravel>["scrollToElement"],
+ * openPageThread: ReturnType<typeof import("../thread/destination.js").createThreadDestinations>["openPageThread"],
  * openInPanel: (id: string) => unknown, onClose: (selection: Selection | null) => void}} dependencies */
 export function createThreadPreview({
   inventory,
@@ -137,6 +143,7 @@ export function createThreadPreview({
   placedAt,
   scrollThreadIntoView,
   scrollToElement,
+  openPageThread,
   openInPanel,
   onClose,
 }) {
@@ -211,7 +218,20 @@ export function createThreadPreview({
     if (!preview.hasAttribute("data-lf-thread-placement")) return following.forget();
     following.follow();
   };
-  const followed = sizeObserver(followCard);
+  // A change of the card's size can move its placement too, as a line taking it past
+  // the window's foot holds it there, so the reading waits for the placement it asks
+  // for, which lands before this frame paints (box-motion.js, `placed`). A card being
+  // carried stands where the pointer holds it.
+  const followed = sizeObserver(() => {
+    const session = previewSession;
+    if (
+      session &&
+      preview.hasAttribute("data-lf-thread-placement") &&
+      !preview.hasAttribute("data-lf-carried")
+    )
+      void placedThreadPreview(session).then((stands) => stands && followCard());
+    else followCard();
+  });
   const following = boxMotion({
     // The face is the root, so the grip beside it, whose clip opens its middle to
     // the card's own presses, is never cut by the motion.
@@ -339,6 +359,12 @@ export function createThreadPreview({
     session.stopRegion?.();
     session.stopRegion = null;
     session.transcript = transcript;
+    // The transcript stands on its foot beside the reply box: a reader at its end keeps
+    // the turn there beside the box as the box takes room from it or gives it back,
+    // whatever changed the box, and one read back keeps their offset, as the card hangs
+    // from its passage (scrolling.js, `keepFoot`).
+    session.stopFoot?.();
+    session.stopFoot = transcript ? keepFoot(transcript, { atEnd: true }) : null;
     session.place = transcript
       ? placeKeeper(transcript, {
           items: ".lf-msg[data-event]",
@@ -453,6 +479,7 @@ export function createThreadPreview({
     cancelRender(session.positionFrame);
     placementDriver.supersede();
     session.stopRegion?.();
+    session.stopFoot?.();
     preview.style.removeProperty("visibility");
     previewSession = null;
   }
@@ -556,10 +583,10 @@ export function createThreadPreview({
     const thread = threadCardThread(session);
     const words =
       !point && thread?.anchor?.quote ? passageGeometry(placedAt(thread.id)) : null;
-    return {
-      element: target,
-      place: commentAttachment({ target, point, passage: words }),
-    };
+    const place = commentAttachment({ target, point, passage: words });
+    // Floating UI follows the scrollers around what the card stands by, so a card on a
+    // row deep in a target follows the box that scrolls that row, not only the target's.
+    return { element: place?.element ?? target, place };
   }
   const THREAD_SIDES = { right: "right", left: "left", bottom: "below", top: "above" };
   // Feed the shared placement policy the current conversation and native draft;
@@ -707,9 +734,13 @@ export function createThreadPreview({
         const { scale } = session.side.landed(position);
         anchored.commit();
         // An unchanged declaration is the browser's own no-op, and `keeps` is the rest's.
-        placementDriver.stand(position);
+        // A drag the grip carried ends where the placement stands the card.
+        following.placed(() => {
+          const moved = placementDriver.stand(position);
+          carry.placed();
+          return moved;
+        });
         session.width ??= preview.getBoundingClientRect().width;
-        carry.placed();
         preview.style.removeProperty("visibility");
         session.withheldFocus?.();
         session.withheldFocus = null;
@@ -818,6 +849,7 @@ export function createThreadPreview({
       place: null,
       reading: null,
       stopRegion: null,
+      stopFoot: null,
       side: commentPlacement(),
       anchor: new CardAnchor(preview),
       // The width the card stands at for this selection, in client pixels: the box's
@@ -902,8 +934,9 @@ export function createThreadPreview({
       keepsHidden(previewNav, threadItems.length < 2);
       const selectedIndex = Math.max(0, threadItems.indexOf(selected));
       // Every other walk says "1 of 3" (walk-position.js). This one stands on the card's
-      // actions line, which on a 311px phone already leaves the message heads no room;
-      // " of " made it 12px wider, which pushed the actions past the card's start.
+      // actions line, which on a card near its least width (`--thread-card-min`) already
+      // leaves the message heads little room; " of " made it 12px wider, which on a
+      // 311px card pushed the actions past the card's start.
       keepsText(previewPosition, `${selectedIndex + 1}/${threadItems.length}`);
       previewPrevious.toggleAttribute("disabled", selectedIndex === 0);
       previewNext.toggleAttribute("disabled", selectedIndex === threadItems.length - 1);
@@ -939,8 +972,7 @@ export function createThreadPreview({
     const next = Math.max(0, Math.min(threadItems.length - 1, current + step));
     const item = threadItems[next];
     if (next === current || !item) return;
-    const positioned = show({ ...session, threadItem: item.id });
-    focusThread(positioned);
+    void openPageThread(item.thread.id, { part: "thread" });
   }
   /** @param {Item} item @param {Session} session */
   function previewItemNode(item, session) {
@@ -1161,10 +1193,12 @@ export function createThreadPreview({
       }
       const row =
         left && under(left, preview) && closestAcross(left, ".lf-thread-reply");
-      /** @type {HTMLTextAreaElement | null} */
-      const field = row ? row.querySelector(REPLY_BOX) : null;
-      if (row && !(node && under(node, row)) && !field?.value)
-        scheduleThreadPreviewPosition();
+      if (row && !(node && under(node, row))) {
+        previewSession?.anchor.leftReply();
+        /** @type {HTMLTextAreaElement | null} */
+        const field = row.querySelector(REPLY_BOX);
+        if (!field?.value) scheduleThreadPreviewPosition();
+      }
     });
     declareOffFlowSurface(preview, {
       bringBack: (behavior) =>

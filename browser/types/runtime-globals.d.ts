@@ -1,3 +1,13 @@
+/** Document input vocabulary and intent, from the earliest installed owner. */
+interface DocumentInputs {
+  readonly textField: "leaf-text";
+  readonly textBox: string;
+  typesText(node: EventTarget | null | undefined): boolean;
+  takesLetters(node: EventTarget | null | undefined): boolean;
+  readonly count: number;
+  observe(read: (event: Event) => void): () => boolean;
+}
+
 // What Leaf's classic scripts hang on the page's globals for its modules to read.
 // `prepaint.js` and `bootstrap.js` run before any module, so they cannot export
 // what they build. Required document-runtime capabilities belong to `window`;
@@ -28,7 +38,21 @@ interface LeafReading {
 }
 
 /** The closed set of control roles, each with one face (`control-faces.js`, `ACTION_FACES`). */
-type LeafActionRole = "symbol" | "word" | "commit" | "mark" | "inline" | "row";
+type LeafActionRole =
+  | "symbol"
+  | "word"
+  | "commit"
+  | "mark"
+  | "inline"
+  | "row"
+  | "answer"
+  | "entry"
+  | "reaction"
+  | "response"
+  | "gutter"
+  | "picture"
+  | "fold"
+  | "proxy";
 
 /** Root-state writers required by bootstrap before runtime modules load. */
 interface LeafRootState {
@@ -62,15 +86,6 @@ interface LeafSampleBridge {
 interface Window {
   /** Runs a fault report while this document is the one the browser keeps (prepaint.js). */
   lfDocumentLifetime: { whenActive(fault: string, report: () => void): void };
-  /** Text-entry vocabulary, input count and observation from the first script. */
-  lfInputs: {
-    readonly textField: "leaf-text";
-    readonly textBox: string;
-    typesText(node: EventTarget | null | undefined): boolean;
-    takesLetters(node: EventTarget | null | undefined): boolean;
-    readonly count: number;
-    observe(read: (event: Event) => void): () => boolean;
-  };
   lfViews: {
     members(holder: Element, selector?: string): Element[];
     opening(
@@ -194,7 +209,10 @@ interface DocumentEventMap {
     travels: boolean;
   }>;
   /** The reading column's box, once the margin has laid out against it. */
-  "lf-margin-layout": CustomEvent<{ column: DOMRect; height: number }>;
+  "lf-margin-layout": CustomEvent<{
+    column: import("../runtime/content-layout.js").ProseBox;
+    height: number;
+  }>;
   /** The keyboard owner's call for the keys the bootstrap held while the page loaded;
    * the bootstrap answers in the detail, where it held any (`bootstrap.js`). */
   "lf-held-keys": CustomEvent<

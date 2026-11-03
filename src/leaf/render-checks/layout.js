@@ -47,41 +47,13 @@ export function geometryReading(open) {
   };
 }
 
-// Advice about document tracks: flows directly inside another flow or column share
-// its tracks. A flow under an ordinary holder owns only that holder's room. Existing
-// containment may be deliberate, so these readings never refuse a page.
-export function containedSpace() {
+// Advice about a declared space a holder keeps in: a block breaks out only from the
+// column or a flow in it. Existing containment may be deliberate, so this reading never
+// refuses a page.
+function containedSpace() {
   const main = pageDocument();
   if (!main) return [];
-  /** @type {NodeListOf<Element & {parentElement: HTMLElement}>} */
-  const flowElements = main.querySelectorAll(".layout-flow");
-  const flows = [...flowElements].flatMap((el) => {
-    if (el.closest("[hidden]") || skipped(el) || !el.checkVisibility()) return [];
-    const parent = el.parentElement;
-    if (!parent.matches(".layout-column, .layout-flow")) return [];
-    if (!getComputedStyle(parent).getPropertyValue("--lf-measure").trim()) return [];
-    const style = getComputedStyle(el);
-    const start = style.gridColumnStart;
-    const end = style.gridColumnEnd;
-    if (
-      style.gridTemplateColumns.startsWith("subgrid") &&
-      ["full", "full-start", "1"].includes(start) &&
-      ["full", "full-end", "-1"].includes(end)
-    )
-      return [];
-    return [
-      {
-        code: "flow-tracks",
-        at: at(el),
-        place: place(el),
-        parent: at(parent),
-        columns: style.gridTemplateColumns,
-        start,
-        end,
-      },
-    ];
-  });
-  const contained = [...main.querySelectorAll("[data-lf-space]")].flatMap((el) => {
+  return [...main.querySelectorAll("[data-lf-space]")].flatMap((el) => {
     if (skipped(el) || !el.checkVisibility()) return [];
     const holders = [];
     for (let holder = el.parentElement; holder; holder = holder.parentElement) {
@@ -106,7 +78,6 @@ export function containedSpace() {
     }
     return [];
   });
-  return [...flows, ...contained];
 }
 
 // How the page's own arrangement stands: for each flex or grid box the page wrote (a
@@ -269,12 +240,21 @@ export function overflowingRegions() {
 // was drawn over one. Margin content is whatever answered for itself out there, so a
 // project hanging its own furniture in the margin is covered without declaring anything.
 
-/** @param {Element} main */
-function marginReading(main) {
+/** @param {Element} main @param {number} shellLeft @param {number} shellRight */
+function marginReading(main, shellLeft, shellRight) {
   const style = getComputedStyle(main);
   const box = main.getBoundingClientRect();
-  const left = box.left + parseFloat(style.paddingLeft);
-  const right = box.right - parseFloat(style.paddingRight);
+  // The column, its content box, sets what stands in the margin. What a block may
+  // reach before it spills is the page's room: where the column has room beside its
+  // prose (`--lf-shell-width`, layouts.css), its shell less a gutter each side.
+  const colLeft = box.left + parseFloat(style.paddingLeft);
+  const colRight = box.right - parseFloat(style.paddingRight);
+  const gutter =
+    (parseFloat(style.getPropertyValue("--lf-shell-width")) || 0) > 0
+      ? parseFloat(style.getPropertyValue("--col-pad")) || 0
+      : null;
+  const left = gutter === null ? colLeft : Math.min(colLeft, shellLeft + gutter);
+  const right = gutter === null ? colRight : Math.max(colRight, shellRight - gutter);
   // Logical floats compute to whichever physical or logical token was written, so
   // resolve them against the element's own direction.
   /** @param {CSSStyleDeclaration} s */
@@ -291,11 +271,11 @@ function marginReading(main) {
     b = el.getBoundingClientRect(),
   ) => {
     // An overlay at rest belongs to the margin it starts in.
-    if (restsOverPage(s)) return b.left < left - 1 || b.right > right + 1;
+    if (restsOverPage(s)) return b.left < colLeft - 1 || b.right > colRight + 1;
     if (s.position === "absolute" || s.position === "fixed")
-      return b.right <= left + 1 || b.left >= right - 1;
+      return b.right <= colLeft + 1 || b.left >= colRight - 1;
     if (s.float === "none") return false;
-    return floatSide(s) === "left" ? b.right <= left + 1 : b.left >= right - 1;
+    return floatSide(s) === "left" ? b.right <= colLeft + 1 : b.left >= colRight - 1;
   };
   const marginElements = [...main.querySelectorAll("*")].filter((el) => {
     // A map's labels have boxes while its spine is at rest, but opacity and
@@ -344,18 +324,6 @@ export function misplacedBoxes() {
   const pageBox = (el) =>
     !uiInside(el, main) ||
     el.checkVisibility({ opacityProperty: true, visibilityProperty: true });
-  const { isMarginContent, left, marginElements, right } = marginReading(main);
-  const wides = new Set(
-    [...main.querySelectorAll("[data-lf-space]")].filter(breaksOut),
-  );
-  // A widget the registry declares wide is answered for out here, the way
-  // absolutely-positioned margin content is: standing past the column is what it was
-  // declared for. What still has to hold is the page's own box — the room the layout
-  // measured is the column's leftover and the rail margin rows stand in, and an
-  // exhibit over that edge is in the margin whether or not the window happened to
-  // scroll for it. So the question is the same one, asked
-  // against the wider bound: this gate renders at one viewport with no panel open, and
-  // the user's window is free to be narrower than this one.
   // The shell the Layout's box stands in: `body`, or a `main` holding it.
   const shell = main.parentElement ?? document.body;
   const shellStyle = getComputedStyle(shell);
@@ -369,6 +337,22 @@ export function misplacedBoxes() {
     shellBox.left +
     (shell.clientLeft + shell.clientWidth - parseFloat(shellStyle.paddingRight)) *
       scale;
+  const { isMarginContent, left, marginElements, right } = marginReading(
+    main,
+    roomLeft,
+    roomRight,
+  );
+  const wides = new Set(
+    [...main.querySelectorAll("[data-lf-space]")].filter(breaksOut),
+  );
+  // A widget the registry declares wide is answered for out here, the way
+  // absolutely-positioned margin content is: standing past the column is what it was
+  // declared for. What still has to hold is the page's own box — the room the layout
+  // measured is the column's leftover and the rail margin rows stand in, and an
+  // exhibit over that edge is in the margin whether or not the window happened to
+  // scroll for it. So the question is the same one, asked
+  // against the wider bound: this gate renders at one viewport with no panel open, and
+  // the user's window is free to be narrower than this one.
   // Both readings that hand a box to an ancestor ask shownBand, or a box inside a
   // container that clips without saying so in `overflow` is named for a spill it is
   // drawn nowhere near and left unnamed for the loss it did take, the walk at the foot
@@ -383,7 +367,10 @@ export function misplacedBoxes() {
     if (isMarginContent(el) || pinned(el)) return true;
     for (let a = el.parentElement; a && a !== main; a = a.parentElement) {
       if (isMarginContent(a) || pinned(a)) return true;
-      if (shownBand(a)) return true;
+      const band = shownBand(a);
+      // A clip wholly inside the column answers for its contents. A clip whose
+      // blank padding crosses the edge still owes the content drawn in that gutter.
+      if (band && band.left >= left - 1 && band.right <= right + 1) return true;
     }
     return false;
   };
@@ -428,9 +415,31 @@ export function misplacedBoxes() {
     return null;
   };
   // How far a box stands past the band from `start` to `end`.
-  /** @param {DOMRectReadOnly} box @param {number} start @param {number} end */
+  /** @param {{left: number, right: number}} box @param {number} start @param {number} end */
   const outside = (box, start, end) =>
     Math.round(Math.max(box.right - end, start - box.left));
+  // Unpainted padding can hold an outward focus ring without putting content in the
+  // margin. Read the content box in that case, including direct text whose indent
+  // may carry it back into the padding. Descendant elements get their own readings.
+  /** @param {Element} el @param {DOMRectReadOnly} box */
+  const contentBounds = (el, box) => {
+    const s = getComputedStyle(el);
+    if (draws(el) || s.boxShadow !== "none") return box;
+    if (!parseFloat(s.paddingLeft) && !parseFloat(s.paddingRight)) return box;
+    const scale = box.width / /** @type {HTMLElement} */ (el).offsetWidth || 1;
+    let left = box.left + parseFloat(s.paddingLeft) * scale;
+    let right = box.right - parseFloat(s.paddingRight) * scale;
+    const range = document.createRange();
+    for (const node of el.childNodes) {
+      if (node.nodeType !== Node.TEXT_NODE || !node.textContent?.trim()) continue;
+      range.selectNodeContents(node);
+      for (const rect of range.getClientRects()) {
+        left = Math.min(left, rect.left);
+        right = Math.max(right, rect.right);
+      }
+    }
+    return { left, right };
+  };
   /** @type {Map<Element, [number, boolean, Element | null, Element | null]>} */
   const over = new Map();
   for (const el of descendants) {
@@ -448,10 +457,27 @@ export function misplacedBoxes() {
     const frame = wide ? framing(el) : null;
     const host = wide ? null : insideWide(el);
     const bound = (frame || host)?.getBoundingClientRect();
-    const past =
+    let past =
       wide || host
         ? outside(b, bound?.left ?? roomLeft, bound?.right ?? roomRight)
         : outside(b, left, right);
+    if (past > 1 && !wide && !host) {
+      // Only the part drawn through ancestor clips can occupy the column's margin.
+      // A clip extended by blank padding still contains its off-screen content.
+      let { left: visibleLeft, right: visibleRight } = contentBounds(el, b);
+      /** @type {Element | null} */
+      let ancestor = el.parentElement;
+      for (; ancestor && ancestor !== main; ancestor = ancestor.parentElement) {
+        const band = shownBand(ancestor);
+        if (!band) continue;
+        visibleLeft = Math.max(visibleLeft, band.left);
+        visibleRight = Math.min(visibleRight, band.right);
+      }
+      past =
+        visibleRight <= visibleLeft
+          ? 0
+          : outside({ left: visibleLeft, right: visibleRight }, left, right);
+    }
     if (past > 1) over.set(el, [past, wide, frame, host]);
   }
   // Each finding is a record (findings.py) carrying its element's place
@@ -473,7 +499,7 @@ export function misplacedBoxes() {
   }
   // Authored furniture may occupy room outside its parent, as an absolutely
   // positioned label does. Report a wide exhibit that crosses that occupied room.
-  // Notes and sidebars in native document tracks already own their boxes in flow;
+  // Notes and sidebars in the document's native flow already own their boxes;
   // this reading covers only furniture `marginReading` finds outside the column.
   for (const el of wides) {
     if (!el.checkVisibility()) continue;

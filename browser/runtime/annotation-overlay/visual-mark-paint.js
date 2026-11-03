@@ -103,7 +103,7 @@ export function createVisualMarkPaint() {
       standOver(
         stand,
         placed,
-        geometry ? "0" : getComputedStyle(target.surface).borderRadius,
+        geometry ? null : getComputedStyle(target.surface).borderRadius,
       );
     }
     syncStates();

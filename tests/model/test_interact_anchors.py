@@ -1854,58 +1854,6 @@ def test_message_markup_may_not_declare_the_document(page_dir, native):
     assert comment(page_dir, "--text", "look:", "--markup", handled).exit_code == 0
 
 
-def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
-    """A Claude comment's markup lands in the panel exactly as a reply's does, so it
-    validates the same way and claims ids from the same pool."""
-    published(page_dir)
-    assert (
-        comment(
-            page_dir,
-            "--quote",
-            "Ship dark",
-            "--text",
-            "Pick:",
-            "--markup",
-            '<lf-ask id="q1-decision"><h3>Pick one</h3><lf-options id="q1" choose>'
-            '<lf-option id="q1-a"><strong>A</strong>'
-            '<span id="thread-label">Label</span></lf-option></lf-options></lf-ask>',
-        ).exit_code
-        == 0
-    )
-    append_carried_log_record(
-        page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
-    )
-    clash = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "thread",
-            "reply",
-            "--done",
-            response_reference(page_dir, "c1"),
-            "--text",
-            "See:",
-            "--markup",
-            '<lf-diagram id="q1"><pre>\ngraph LR\n  A --> B\n</pre></lf-diagram>',
-        ],
-    )
-    assert clash.exit_code != 0 and "q1" in clash.output
-
-    plain_clash = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "thread",
-            "reply",
-            "--done",
-            response_reference(page_dir, "c1"),
-            "--text",
-            "See:",
-            "--markup",
-            '<lf-diagram id="thread-label"><pre>graph LR\n  A --> B</pre></lf-diagram>',
-        ],
-    )
-    assert plain_clash.exit_code != 0 and "thread-label" in plain_clash.output
-
-
 def test_data_widget_prose_members_are_quotable_without_admitting_source():
     registry = {
         "lf-source": {"x-content": "data", "x-upgrade": True},

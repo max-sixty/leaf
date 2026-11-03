@@ -116,8 +116,8 @@ def test_suggestions_sharing_a_block_keep_source_and_keyboard_order(browser, ser
 @pytest.mark.parametrize("reduced_motion", ["no-preference", "reduce"])
 def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_motion):
     """Suggestion chrome hangs in the page margin, so the prose keeps the full column
-    and reads as it will once the change is settled. The row is the column's own
-    child and takes its line from an anchor inside the change, so how deep the
+    and reads as it will once the change is settled. The row takes its line
+    from an anchor inside the change, so how deep the
     change sits costs it nothing: one inside a card — a positioned ancestor, which
     `left: 100%` used to resolve against, dropping the row back into the text —
     hangs in the rail beside its card like any other. What is left is a
@@ -125,7 +125,8 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
     it decides, over none of the change's words, and stays on the page."""
     page = open_page(browser, serve(SUGGESTION_PAGE), init_script=HOLD_MOTION)
     page.emulate_media(reduced_motion=reduced_motion)
-    column = page.locator("main").evaluate("el => el.getBoundingClientRect().right")
+    # main includes the grid's margins; this paragraph fills its prose track.
+    column = page.locator("#replace").evaluate("el => el.getBoundingClientRect().right")
     box = "el => el.getBoundingClientRect()"
 
     margin_rows = page.locator(
@@ -322,7 +323,7 @@ def test_a_row_waits_for_the_change_it_decides_to_be_on_screen(browser, serve):
     expect(waiting).to_be_visible()
     box = "el => el.getBoundingClientRect()"
     row = waiting.evaluate(box)
-    assert row["left"] > page.locator("main").evaluate(box)["right"], (
+    assert row["left"] > page.locator("#deferred").evaluate(box)["right"], (
         "the row must arrive in the margin, not over the prose that just opened"
     )
     assert (

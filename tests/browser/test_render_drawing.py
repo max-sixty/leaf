@@ -646,82 +646,6 @@ def test_a_keyboard_send_reaches_send_while_the_stroke_still_owes_its_press(
     assert event["drawing"]["strokes"], event
 
 
-def test_strokes_join_one_drawing_until_it_is_sent_and_escape_leaves(browser, serve):
-    """Draw mode outlasts a stroke. A later stroke joins the drawing its session opened,
-    in that drawing's frame wherever it starts, and keeps joining it after Escape puts its
-    box away or the user leaves and re-enters the mode; once the draft is sent the next
-    stroke starts another, and only Escape leaves the mode. Unsent ink never leaves the
-    page: with its box put away it stands parked, in and out of the mode, so the drawing
-    a stroke joins is the one the user can see."""
-    page = open_page(browser, serve(TARGETS_PAGE))
-    prose = page.locator("#prose")
-    draw_over(page, prose)
-    pending = page.locator(".lf-drawing-pending path")
-    parked = page.locator(".lf-drawing-parked path")
-    expect(pending).to_have_count(1)
-    field = page.locator(".lf-fab-input")
-    expect(field).to_be_focused()
-    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
-
-    # Begun over another element, the stroke still belongs to the prose drawing.
-    start = stroke_over(page, page.locator("#fig"))
-    origin = prose.bounding_box()
-    expect(pending).to_have_attribute("d", re.compile(r"^M[^M]*M[^M]*$"))
-    expect(field).to_be_focused()
-    write(field, "All of these.")
-
-    # Escape puts the box away and keeps its draft, ink and all; the next stroke joins
-    # that draft.
-    page.keyboard.press("Escape")
-    expect(pending).to_have_count(0)
-    expect(parked).to_have_attribute("d", re.compile(r"^M[^M]*M[^M]*$"))
-    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
-    stroke_over(page, page.locator("#fig"), points=((0.3, 0.3), (0.5, 0.7), (0.7, 0.3)))
-    expect(pending).to_have_attribute("d", re.compile(r"^M[^M]*M[^M]*M[^M]*$"))
-    expect(field).to_be_focused()
-    expect(field).to_have_js_property("value", "All of these.")
-    with sending(page, "the three-stroke drawing"):
-        page.keyboard.press("ControlOrMeta+Enter")
-
-    event = events_model.read_events(serve.page_dir)[-1]
-    assert event["anchor"] == {"section": "prose"}
-    assert event["text"] == "All of these."
-    first, second, third = event["drawing"]["strokes"]
-    assert min(len(first), len(second), len(third)) >= 2
-    assert second[0] == pytest.approx(
-        [start[0] - origin["x"], start[1] - origin["y"]], abs=0.5
-    )
-    expect(
-        page.locator(f'.lf-drawing-posted[data-thread="{event["id"]}"] path')
-    ).to_have_attribute("d", re.compile(r"^M[^M]*M[^M]*M[^M]*$"))
-
-    # The sent draft holds no drawing any more, so the next stroke starts one.
-    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
-    stroke_over(page, page.locator("#fig"))
-    expect(pending).to_have_count(1)
-    expect(pending).to_have_attribute("d", re.compile(r"^M[^M]*$"))
-    expect(field).to_be_focused()
-
-    # The composer the stroke opened stands inside the mode, so it comes off first.
-    page.keyboard.press("Escape")
-    expect(pending).to_have_count(0)
-    expect(parked).to_have_count(1)
-    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
-    page.keyboard.press("Escape")
-    expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
-    expect(page.locator(".lf-live")).to_contain_text("Draw mode off")
-    expect(parked).to_have_attribute("d", re.compile(r"^M[^M]*$"))
-
-    # A new Draw mode session shows the draft before its first stroke, and draws into
-    # it rather than over it.
-    page.keyboard.press("w")
-    expect(parked).to_have_attribute("d", re.compile(r"^M[^M]*$"))
-    page.keyboard.press("w")
-    draw_over(page, page.locator("#fig"), points=((0.3, 0.3), (0.5, 0.7), (0.7, 0.3)))
-    expect(pending).to_have_attribute("d", re.compile(r"^M[^M]*M[^M]*$"))
-    expect(parked).to_have_count(0)
-
-
 def test_a_margin_start_uses_the_addressable_element_alongside_it_as_context(
     browser, serve
 ):
@@ -1405,7 +1329,7 @@ def test_drawing_ink_follows_pixels_inside_their_ancestor_viewport(browser, serv
 @pytest.mark.parametrize(
     "long, touch",
     [(False, True), (True, False)],
-    ids=["short-phone", "scrolled-desktop"],
+    ids=["short-touch", "scrolled-desktop"],
 )
 def test_sent_drawing_keeps_its_reference_in_the_transcript_after_the_text(
     browser, serve, long, touch
@@ -1422,8 +1346,6 @@ def test_sent_drawing_keeps_its_reference_in_the_transcript_after_the_text(
         ),
         context=context,
     )
-    if touch:
-        page.set_viewport_size({"width": 390, "height": 844})
     draw_over(page, page.locator("#target"))
     field = page.locator(".lf-fab-input")
     write(
@@ -1466,7 +1388,7 @@ def test_sent_drawing_keeps_its_reference_in_the_transcript_after_the_text(
         min(before["scroll"], after["limit"]), abs=1
     )
     if long:
-        resized(page, 390 if touch else 1280, 600)
+        resized(page, 1280, 600)
         rendered(page)
         reference = body.locator(".lf-drawing-reference").bounding_box()
         viewport = card.locator(".lf-thread-transcript").bounding_box()

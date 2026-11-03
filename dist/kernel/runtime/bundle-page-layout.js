@@ -1,11 +1,10 @@
-import { LAYOUT, PENDING_TASK, actionIcon, afterScript, agentArrivalDuration, atLayoutPrecision, bindQueuedWork, byRenderedOrder, cancelRender, composedParentNode, dataBody, elementDirective, failSoft, failSoftUnreported, frameVisibility, generatedElement, holdRendering, iconTemplate, inlineStyle, isNativeLayer, keeps, keepsHidden, layoutPx, nextRender, offer, offerAction, onFrameVisibility, once, placesFailure, readSampleVisibility, reducedMotion, renderedOrder, renderedParent, renderedUnder, reportFailure, scrollBehavior, setScroll, shadowHost, sizeObserver, stagesFailure, under, upFrom, watchArrivalsIn, watchOwner, whileConnected } from "./bundle-portable.js";
-import { DRAFT_FORMAT, LitElement, PENDING, PRESENTATION_DOM, PRESSES, TEXT_FIELD, Z, actionForWidget, agentName, agentSays, anchorKey, annotationMarkSheets, annotationMode, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, blurFocused, canPlaceFocus, closeLayer, closeNativeLayer, currentLocationIn, d, discussed, documentChanged, drawingSchema, drawn, editable, eventSource, focusDestination, focused, handBack, hasObligationSource, holdFocus, html, inputCount, isMessageEvent, isThreadEvent, leafSays, marksSheet, matchesWhen, move, moved, nativeFocusTarget, offlineInteractive, offlineState, onCurrentLocation, onUserInput, openLayer, openerOf, pageUrl, presentDocument, pressIsKeyboardActivation, projectionOrigins, q, queueWidgetUpdate, reactionsAt, readApplication, readPart, registry, render, runtime, saidBy, setPresentationFailureReporter, shadowRootsIn, shadowRules, showNativeLayer, tagsDeclaring, takesLetters, threadKey, tokenChoices, turns, voiced, watchCurrentLocationIn, watchLayers, watchPresentation, whenApplicationRegionsPresented, whenDocumentPresented, whenLeft, whenWidgetsPresented, wordsText, x } from "./bundle-layer-stack.js";
-import { PRESS, TEXT_ENTRY, admitResponse, announce, claimsEsc, commandAvailable, commandBinding, commandRoutes, commandRun, completeData, controlAvailabilityOutput, countTraffic, cycledRow, dataHeaders, el, hasRows, holdingError, isCommandScope, keys, layerHeaders, nativePress, notice, paintKeys, paintKeysWithin, postEvent, projectCommandScope, raiseError, randomId, recordInteraction, removeRuntimeRootStyle, repaint, reportCarried, reportPageError, responseAction, reveal, rowArrows, sameLayer, savedReadingSettled, saying, sessionIsActive, setRuntimeRootStyle, watchCommandAvailability, watchPendingTraffic } from "./bundle-layer-client.js";
-import { activityTransitionDue, addressableLabel, addressableWord, afterPresentation, ago, anchorAt, anchorBox, anchorElement, anchorForRange, anchorReaches, anchorReading, anchoringIsReady, commitPoint, cutFrames, declaredName, livePoint, markStateApplied, moveScrollerBy, nameAnchor, observeServerNow, observeWorkingGrace, reachScrollers, readingRegionFor, saidNow, scheduleDocumentLayout, scrollsWith, sectionOf, settlePageInterface, targetSegments, tickClock, visualPartLabel, widgetWord } from "./bundle-content-layout.js";
-import { HOLDS_WORD, HeldNews, MessageView, NOT_ANSWERED, SAYS_IN, THREAD, ThreadView, Transcript, aborted, allButCommandReference, allThreads, anchorLabel, answeredInWords, authoredHolder, authoredStates, awaitsData, beginThreadSeats, beginWalk, bindsInput, bringBackSurfaceOf, claimed, clearDraft, commitThreadSeats, commitWidgetDescriptors, comparisonBase, comparisonChanges, completeReadingReturn, createProjectionPresentation, createReplyView, dataReader, declareSide, descriptorStillMatches, dismissReplyAt, draftContexts, drawnThreadId, externalMark, focusThread, focusedThreadTarget, heldOut, heldThread, holdReplyCompositions, holdThreadPlace, inlineComparison, isBlockPlacement, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, listWalkPosition, loadDraft, loadMarkdown, loadMessageMarkdown, markdownReady, messageHolding, messageReading, messageText, mountFirstMessage, newsNotice, obligationHolding, obligationPlace, openMessageEditIn, opensElsewhere, orderChildren, pageCommand, pageScope, pageSelection, placeOf as placeOf$1, placePageThreads as placePageThreads$1, placedMarkdownTokens, prepareAuthoredMessage, progressFace, quoted as quoted$1, readObligations, readThreads, readingReturn, registerWritingDestination, rememberWriting, renderMarginThread, renderSeats, renderSurfaces, replyDraftContext, replyIsEditing, replyThreadKey, retainThreadSeats, revealHeld, saveDraft, sendLanding, sendMessage, setChildren, settleAcceptedDrafts, showHeld, showHeldThread, strongestWorkflow, suppliedSnapshot, surfaceFocusTarget, threadAttention, threadDraft, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading as threadReading$1, threadReplyInput, threadRewrites, threadState, todoWord, toggleInlineComparison, transferDraft, watchDraft, watchDrafts, watchThreadSurfaces, wholeThread, widgetDescriptor, workflowWord } from "./bundle-data.js";
-import { clamp, clippedContents, clipsPastSurfaces, growthIsSeen, hasArea, headerCuts, intersect, layoutWindow, nearObserver, nearWindow, paintClips, placeBox, placeHolder, presented as presented$1, scrollsContent, seenRect, shownBox, shownWindow, union, watchRoom, whenNone } from "./bundle-geometry.js";
-import { closestAcross, elementById, excerptWords, inChrome, labelWords, leafSurface, pageParts, pageReadingVersion, quoteFrom, textNodesUnder, watchPassageRoot } from "./bundle-passages.js";
-import { alreadyShown, copyTrigger, fitsWhole, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView } from "./bundle-copy-control.js";
+import { HOLDS_WORD, LAYOUT, PENDING_TASK, PRESS, PRESSES, TEXT_FIELD, Z, actionIcon, afterScript, agentArrivalDuration, alreadyShown, atLayoutPrecision, beginWalk, bindQueuedWork, blurFocused, byRenderedOrder, canPlaceFocus, cancelRender, clamp, clippedContents, clipsPastSurfaces, closeLayer, closeNativeLayer, closestAcross, composedParentNode, currentLocationIn, d, dataBody, drawn, elementDirective, eventSource, failSoft, failSoftUnreported, fitsWhole, focusDestination, focused, frameVisibility, generatedElement, growthIsSeen, handBack, hasArea, headerCuts, holdFocus, holdRendering, iconTemplate, inChrome, inlineStyle, inputCount, installElementIntegration, intersect, isNativeLayer, keepFieldKeys, keeps, keepsHidden, layoutPx, layoutWindow, listWalkPosition, move, moveScrollerBy, nativeFocusTarget, nearObserver, nearWindow, nextRender, offer, offerAction, offeredActionElement, onCurrentLocation, onFrameVisibility, onUserInput, openLayer, openerOf, orderChildren, paintClips, placeBox, placeHolder, presented as presented$1, pressIsKeyboardActivation, readSampleVisibility, reducedMotion, renderedOrder, renderedParent, renderedUnder, restrictUserIntent, retainUserIntent, rowArrows, scrollBehavior, scrollIntoReadingBand, scrollIntoView, scrollsContent, seenRect, setChildren, setScroll, shadowHost, showNativeLayer, shownBox, shownWindow, sizeObserver, takesLetters, under, union, upFrom, watchOwner, watchRoom, whenLeft, whenNone, whileConnected, x } from "./bundle-portable.js";
+import { DRAFT_FORMAT, PENDING, PRESENTATION_DOM, TEXT_ENTRY, actionForWidget, agentName, agentSays, anchorKey, annotationMode, announce, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, claimsEsc, commandAvailable, commandBinding, commandRoutes, commandRun, controlAvailabilityOutput, cycledRow, discussed, documentChanged, drawingSchema, editable, el, hasObligationSource, hasRows, holdingError, html, isCommandScope, isMessageEvent, isThreadEvent, keys, leafSays, matchesWhen, moved, nativePress, notice, offlineInteractive, offlineState, pageUrl, paintKeys, paintKeysWithin, presentDocument, projectCommandScope, projectionOrigins, queueWidgetUpdate, raiseError, reactionsAt, readApplication, readPart, registry, render, repaint, responseAction, reveal, runtime, saidBy, savedReadingSettled, saying, setPresentationFailureReporter, shadowRootsIn, tagsDeclaring, threadKey, tokenChoices, turns, voiced, watchCommandAvailability, watchPresentation, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented, wordsText } from "./bundle-errors.js";
+import { admitResponse, completeData, countTraffic, dataHeaders, layerHeaders, postEvent, randomId, recordInteraction, removeRuntimeRootStyle, reportCarried, reportPageError, sameLayer, sessionIsActive, setRuntimeRootStyle, watchPendingTraffic } from "./bundle-layer-client.js";
+import { activityTransitionDue, addressableLabel, addressableWord, afterPresentation, ago, anchorAt, anchorBox, anchorElement, anchorForRange, anchorReaches, anchorReading, anchoringIsReady, commitPoint, cutFrames, declaredName, livePoint, markStateApplied, nameAnchor, observeServerNow, observeWorkingGrace, reachScrollers, readingRegionFor, saidNow, scheduleDocumentLayout, scrollsWith, sectionOf, settlePageInterface, targetSegments, tickClock, visualPartLabel, widgetWord } from "./bundle-content-layout.js";
+import { elementById, excerptWords, labelWords, leafSurface, pageParts, pageReadingVersion, quoteFrom, quotedWords, textNodesUnder } from "./bundle-passages.js";
+import { aborted, authoredStates, commitWidgetDescriptors, descriptorStillMatches, quoted, widgetDescriptor } from "./bundle-abort.js";
+import { HeldNews, MessageView, NOT_ANSWERED, SAYS_IN, THREAD, ThreadView, Transcript, allButCommandReference, allThreads, anchorLabel, answeredInWords, authoredHolder, awaitsData, beginThreadSeats, bindsInput, bringBackSurfaceOf, claimed, clearDraft, commitThreadSeats, comparisonBase, comparisonChanges, completeReadingReturn, copyTrigger, createProjectionPresentation, createReplyView, dataReader, declareSide, dismissReplyAt, draftContexts, drawnThreadId, externalMark, focusThread, focusedThreadTarget, heldOut, heldThread, holdReplyCompositions, holdThreadPlace, inlineComparison, isBlockPlacement, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, loadDraft, loadMarkdown, loadMessageMarkdown, markdownReady, messageHolding, messageReading, messageText, mountFirstMessage, newsNotice, obligationHolding, obligationPlace, openMessageEditIn, opensElsewhere, pageCommand, pageScope, pageSelection, placeOf as placeOf$1, placePageThreads as placePageThreads$1, placedMarkdownTokens, prepareAuthoredMessage, progressFace, readObligations, readThreads, readingReturn, registerWritingDestination, rememberWriting, renderMarginThread, renderSeats, renderSurfaces, replyDraftContext, replyIsEditing, replyThreadKey, retainThreadSeats, revealHeld, saveDraft, sendLanding, sendMessage, settleAcceptedDrafts, showHeld, showHeldThread, strongestWorkflow, suppliedSnapshot, surfaceFocusTarget, threadAttention, threadDraft, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading as threadReading$1, threadReplyInput, threadRewrites, threadState, todoWord, toggleInlineComparison, transferDraft, watchDraft, watchDrafts, watchThreadSurfaces, wholeThread, workflowWord } from "./bundle-data.js";
 import { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
 import { visibleTargetParts } from "./bundle-visible-target-parts.js";
 
@@ -231,11 +230,11 @@ function createDelivery({ ledger, applyAcceptedState, settleRejected, settlement
 	}
 	return { drain };
 }
-async function deliverBookkeeping(event, applyState, { keepalive = false } = {}) {
+async function deliverBookkeeping(event, applyState) {
 	const held = runtime.data;
 	let response;
 	try {
-		response = await postEvent(event, held, { keepalive });
+		response = await postEvent(event, held);
 	} catch {
 		return "unreached";
 	}
@@ -614,7 +613,7 @@ const records = /* @__PURE__ */ new WeakMap();
 const controlContributions = /* @__PURE__ */ new WeakMap();
 const contributorClasses = /* @__PURE__ */ new WeakMap();
 function createContributionControl(record, className = "") {
-	return offer(record.behavior === "status" ? "span" : "button", className);
+	return offeredActionElement(document.createElement(record.behavior === "status" ? "span" : "button"), "entry", className);
 }
 const contributionControlMatches = (control, record) => record.behavior === "status" ? control instanceof HTMLSpanElement : control instanceof HTMLButtonElement;
 function contributionEntryRecord(control) {
@@ -1021,8 +1020,16 @@ function registerContribution({ key, target, source = target, read, activate }) 
 	const landFocus = () => {
 		const key = owedFocus;
 		owedFocus = null;
-		offered.focusRequest = null;
-		if (key != null) registration.focus(key, "move");
+		const request = offered.focusRequest;
+		try {
+			if (key != null) {
+				settle({ immediate: true });
+				const destination = control(key, null, true);
+				if (destination) focusDestination(destination, "move");
+			}
+		} finally {
+			if (offered.focusRequest === request) offered.focusRequest = null;
+		}
 	};
 	const arrive = (entryKey, surface, move) => {
 		const request = {
@@ -1278,12 +1285,13 @@ function editorViewOver({ Compartment, Direction, EditorState, EditorView, State
 //#region runtime/composing/field-editor.js
 const indentation = (text) => text.length - text.replace(/^[ \t]*/, "").length;
 const trailingIndentation = (text) => text.length - text.replace(/[ \t]*$/, "").length;
+const isCode = (token) => token.type === "fence" || token.type === "code_block";
 const touches = (state, from, to) => state.selection.ranges.some((range) => range.from <= to && range.to >= from);
-const read = (state) => {
+const read = (state, message) => {
 	const source = state.doc.toString();
 	const last = state.doc.line(state.doc.lines).text;
-	if (!/^(?:[\s>]|(?:[-+*]|\d{1,9}[.)])[ \t])*$/.test(last)) return placedMarkdownTokens(source);
-	return placedMarkdownTokens(`${source}x`).filter(({ token, to }) => token.block || to <= source.length);
+	if (!/^(?:[\s>]|(?:[-+*]|\d{1,9}[.)])[ \t])*$/.test(last)) return placedMarkdownTokens(source, message);
+	return placedMarkdownTokens(`${source}x`, message).filter(({ token, to }) => token.block || to <= source.length);
 };
 const columns = (text) => {
 	let col = 0;
@@ -1438,6 +1446,7 @@ const DRAWN = /* @__PURE__ */ new Set([
 	"ordered_list_open",
 	"list_item_open",
 	"fence",
+	"code_block",
 	"hr",
 	"text",
 	"hardbreak",
@@ -1518,7 +1527,7 @@ function readFaces(field, display) {
 	rules.push(`.lf-face-gap { line-height: ${GAP} }`, `.lf-face-gap.lf-face-share-2 { line-height: calc(${GAP} / 2) }`, `.lf-face-gap.lf-face-share-3 { line-height: calc(${GAP} / 3) }`, `.lf-face-gap-above { padding-block-start: ${GAP} }`, `.lf-face-code { padding-inline: ${pre.inset} }`, `.lf-face-quote { margin-inline-start: ${quote.indent}; --quote-inset: ${quote.inset} }`, `.lf-face-quote-first { padding-block-start: ${quote.padStart}px }`, `.lf-face-gap-above.lf-face-quote-first { padding-block-start: calc(${GAP} + ${quote.padStart}px) }`, `.lf-face-quote-last { padding-block-end: ${quote.padEnd}px }`, `.lf-face-item { padding-block-start: ${collapsed(li.end, li.start)}px }`, `.lf-face-list-lead { padding-block-start: ${collapsed(0, li.start)}px }`, `.lf-face-list-tail { padding-block-end: ${collapsed(0, li.end)}px }`);
 	return rules.join("\n");
 }
-const blockTag = (token) => token.type === "fence" ? "pre" : token.tag;
+const blockTag = (token) => isCode(token) ? "pre" : token.tag;
 function standBlocks(state, blocks, out, line) {
 	const lines = (from, to, each) => {
 		for (let at = from; at < to;) {
@@ -1541,7 +1550,7 @@ function standBlocks(state, blocks, out, line) {
 		if (!token.block) continue;
 		const tag = blockTag(token);
 		if (token.type === "heading_open") lines(from, to, (each) => named(each.from, `lf-face-${tag}`));
-		else if (token.type === "fence") lines(from, to, (each) => named(each.from, "lf-face-code"));
+		else if (isCode(token)) lines(from, to, (each) => named(each.from, "lf-face-code"));
 		for (let last = open.at(-1); last && last.to <= from; last = open.at(-1)) {
 			before.length = last.level + 1;
 			open.pop();
@@ -1793,18 +1802,20 @@ function fieldEditor({ EditorView, EditorState, EditorSelection, Prec, StateEffe
 				const marks = start + indentation(state.doc.sliceString(start, rule.to));
 				add(start, marks, hide);
 				add(marks, rule.to, touches(state, rule.from, rule.to) ? dim : unseen);
-			} else if (isBlockPlacement(placement, "fence")) {
+			} else if (isCode(token)) {
 				whole.push([from, to]);
+				const markers = placement.markers ?? [];
 				const body = token.content.split("\n");
 				if (body.at(-1) === "") body.pop();
-				const opened = state.doc.lineAt(from).number + 1;
+				const opened = state.doc.lineAt(from).number + (markers.length ? 1 : 0);
 				lines(from, to, (each) => {
 					const first = each.from <= from;
 					const last = each.to + 1 >= to;
 					const ends = [
 						first ? " lf-md-code-first" : "",
+						first && !markers.length ? " lf-md-code-pad-start" : "",
 						last ? " lf-md-code-last" : "",
-						last && placement.markers.length < 2 ? " lf-md-code-pad-end" : ""
+						last && markers.length < 2 ? " lf-md-code-pad-end" : ""
 					].join("");
 					out.push(line(`lf-md-code-block${ends}`).range(each.from));
 					const kept = body[each.number - opened];
@@ -1813,7 +1824,7 @@ function fieldEditor({ EditorView, EditorState, EditorSelection, Prec, StateEffe
 					const lead = indentation(state.doc.sliceString(start, each.to));
 					add(start, start + lead - indentation(kept), hide);
 				});
-				for (const [a, b] of placement.markers) {
+				for (const [a, b] of markers) {
 					const fence = state.doc.lineAt(a);
 					add(a, b, touches(state, fence.from, fence.to) ? dim : unseen);
 				}
@@ -1941,18 +1952,14 @@ function fieldEditor({ EditorView, EditorState, EditorSelection, Prec, StateEffe
 		run: lineStep(true, false),
 		shift: lineStep(true, true)
 	}];
+	const message = Facet.define({ combine: (values) => values.every(Boolean) });
+	const readField = (state) => ({
+		placed: read(state, state.facet(message)),
+		judged: markdownReady()
+	});
 	const reading = StateField.define({
-		create: (state) => ({
-			placed: read(state),
-			judged: markdownReady()
-		}),
-		update(value, tr) {
-			const judged = markdownReady();
-			return tr.docChanged || judged !== value.judged ? {
-				placed: read(tr.state),
-				judged
-			} : value;
-		}
+		create: readField,
+		update: (value, tr) => tr.docChanged || markdownReady() !== value.judged ? readField(tr.state) : value
 	});
 	const container = (c) => isBlockPlacement(c, "blockquote_open") || isBlockPlacement(c, "list_item_open");
 	const item = (c) => c !== void 0 && isBlockPlacement(c, "list_item_open");
@@ -1960,10 +1967,9 @@ function fieldEditor({ EditorView, EditorState, EditorSelection, Prec, StateEffe
 	const markerOn = (c, l) => c.markers.find(([a]) => a >= l.from && a <= l.to);
 	const opened = (l, among) => Math.max(l.from, ...among.map((c) => markerOn(c, l)?.[1] ?? l.from));
 	const carried = (c) => isBlockPlacement(c, "blockquote_open") ? "> " : " ".repeat(c.token.lfSource.indent);
-	const joinsLines = Facet.define({ combine: (values) => values.some(Boolean) });
 	const joint = Decoration.replace({ widget: new Spelled(" ") });
 	const jointsOf = (state) => {
-		if (!state.facet(joinsLines)) return Decoration.none;
+		if (state.facet(message)) return Decoration.none;
 		const { placed } = state.field(reading);
 		const inline = placed.filter(({ token }) => !token.block);
 		const hard = inline.filter(({ token }) => token.type === "hardbreak");
@@ -1985,12 +1991,13 @@ function fieldEditor({ EditorView, EditorState, EditorSelection, Prec, StateEffe
 	};
 	const joints = StateField.define({
 		create: jointsOf,
-		update: (set, tr) => tr.state.field(reading) === tr.startState.field(reading) && tr.state.facet(joinsLines) === tr.startState.facet(joinsLines) ? set : jointsOf(tr.state),
+		update: (set, tr) => tr.state.field(reading) === tr.startState.field(reading) && tr.state.facet(message) === tr.startState.facet(message) ? set : jointsOf(tr.state),
 		provide: (field) => [EditorView.decorations.from(field), EditorView.atomicRanges.of((view) => view.state.field(field))]
 	});
 	function newLine(view) {
 		const { state } = view;
-		if (!state.facet(joinsLines)) return insertNewline(view);
+		if (state.readOnly) return false;
+		if (state.facet(message)) return insertNewline(view);
 		const { from, to } = state.selection.main;
 		const { placed } = state.field(reading);
 		const paragraph = placed.find(({ token, from: a, to: b }) => token.type === "paragraph_open" && a <= from && to <= b);
@@ -2075,7 +2082,7 @@ function fieldEditor({ EditorView, EditorState, EditorSelection, Prec, StateEffe
 		const containers = all.filter(holds);
 		const inner = containers.at(-1);
 		if (!inner) return false;
-		const code = placed.some((c) => c.token.type === "fence" && holds(c));
+		const code = placed.some((c) => isCode(c.token) && holds(c));
 		const bare = (l) => {
 			const rest = state.sliceDoc(opened(l, all), l.to).trim();
 			return !rest || `${rest} ` === CHECKBOX;
@@ -2201,7 +2208,7 @@ function fieldEditor({ EditorView, EditorState, EditorSelection, Prec, StateEffe
 				keymap.of([
 					{
 						key: "Shift-Enter",
-						run: () => field.oneLine()
+						run: (view) => field.oneLine() || view.state.readOnly
 					},
 					{
 						key: "Enter",
@@ -2209,7 +2216,7 @@ function fieldEditor({ EditorView, EditorState, EditorSelection, Prec, StateEffe
 					},
 					{
 						key: "Shift-Enter",
-						run: (view) => view.state.facet(joinsLines) && newLine(view)
+						run: (view) => !view.state.facet(message) && newLine(view)
 					},
 					{
 						key: "Shift-Enter",
@@ -2232,7 +2239,7 @@ function fieldEditor({ EditorView, EditorState, EditorSelection, Prec, StateEffe
 					...historyKeymap
 				]),
 				reading,
-				joinsLines.of(field.joined()),
+				message.of(field.message()),
 				joints,
 				livePreview,
 				EditorView.lineWrapping,
@@ -2417,9 +2424,10 @@ sheet.replaceSync(`
     user-select: none;
     -webkit-user-select: none; }
   /* A fence's line is a line of the code box, the sent pre's padding of one code line
-     (reading.css, \`.lf-msg-body pre\`), and the end of a fence its container or the
-     draft ends, where no fence line stands, takes that padding on the code's own line
-     instead. */
+     (reading.css, \`.lf-msg-body pre\`), and an end where no fence line stands, as
+     where a fence's container or the draft ends it and at both ends of an indented
+     block, takes that padding on the code's own line instead. */
+  .cm-line.lf-md-code-pad-start { padding-block-start: var(--code-line); }
   .cm-line.lf-md-code-pad-end { padding-block-end: var(--code-line); }
 `);
 let editor = null;
@@ -2587,6 +2595,7 @@ var LeafText = class extends HTMLElement {
 		this.addEventListener("scroll", () => this.#measureOverflow(), { passive: true });
 		this.#root.addEventListener("beforeinput", () => this.#beforeEdit(), { capture: true });
 		for (const type of ["input", "beforeinput"]) this.#root.addEventListener(type, (event) => event.stopPropagation());
+		keepFieldKeys(this);
 	}
 	#typeAtRest(event) {
 		if (this.#content.kind !== "draft") return;
@@ -2662,7 +2671,7 @@ var LeafText = class extends HTMLElement {
 			attributes: this.#contentAttributes(),
 			returned: () => this.#returned(),
 			oneLine: () => this.#oneLine,
-			joined: () => this.facesOf !== null,
+			message: () => this.facesOf === null,
 			focused: () => this.#measureOverflow(),
 			revealed: (view, pos) => moveScrollerBy(this, this.#rowTravel(module, view, pos)),
 			typed: (native, insert) => {
@@ -3008,7 +3017,7 @@ fabInput.className = "lf-ui lf-response-control lf-fab-input";
 fabInput.name = "comment";
 fabInput.placeholder = "Comment…";
 fabInput.setAttribute("aria-label", "Comment");
-const fab = responseAction(el("button", "lf-ui lf-fab"), {
+const fab = responseAction(offerAction("response", "lf-fab"), {
 	action: "comment",
 	label: "Comment",
 	behavior: "disclosure"
@@ -3020,7 +3029,7 @@ fabOptions.id = "lf-response-options";
 fabOptions.popover = "auto";
 fabOptions.setAttribute("role", "group");
 fabOptions.setAttribute("aria-label", "Other responses");
-const fabSuggest = responseAction(el("button", "lf-ui lf-fab-suggest"), {
+const fabSuggest = responseAction(offerAction("response", "lf-fab-suggest"), {
 	action: "suggest",
 	label: "Suggest",
 	collapse: true
@@ -3033,7 +3042,7 @@ fabOptionsTrigger.popoverTargetElement = fabOptions;
 fabBar.append(fab, fabOptions);
 const composer = el("div", "lf-ui lf-composer");
 composer.id = "lf-composer";
-const composerQuote = el("blockquote", "lf-ui lf-quote detached");
+const composerQuote = el("blockquote", "lf-ui lf-quote");
 composerQuote.id = "lf-composer-quote";
 composerQuote.hidden = true;
 const composerInput = fabInput;
@@ -4103,10 +4112,20 @@ function createAnnotationInventory({ readObligations, placedAt, openThread, goTo
 			});
 		}
 		const base = comparisonBase();
-		comparisonChanges().forEach((target, index) => {
-			const account = `${addressableWord(target)} changed${base == null ? "" : ` since ${base.name}`}`;
-			const inline = inlineComparison(target);
-			const mapAccount = inline ? `${addressableWord(target)} changed` : account;
+		comparisonChanges().forEach((change, index) => {
+			const [target] = change;
+			let holder = target.parentElement;
+			while (holder && !change.every((block) => holder?.contains(block))) holder = holder.parentElement;
+			const childOf = (block) => {
+				let at = block;
+				while (at.parentElement && at.parentElement !== holder) at = at.parentElement;
+				return at;
+			};
+			const more = new Set(change.map(childOf)).size - 1;
+			const what = more ? `${addressableWord(target)} and ${more} more` : addressableWord(target);
+			const account = `${what} changed${base == null ? "" : ` since ${base.name}`}`;
+			const inline = inlineComparison(change);
+			const mapAccount = inline ? `${what} changed` : account;
 			add(groups, target, {
 				kind: "change",
 				id: `change:${targetPath(target)}:${index}`,
@@ -4116,9 +4135,9 @@ function createAnnotationInventory({ readObligations, placedAt, openThread, goTo
 					context: inline.offer,
 					mapContext: inline.offer
 				} : {},
-				discloses: () => inlineComparison(target),
+				discloses: () => inlineComparison(change),
 				activate: () => {
-					const said = toggleInlineComparison(target);
+					const said = toggleInlineComparison(change);
 					revealTarget(target, said ? `${account} · ${said}` : account, scrollToElement);
 				}
 			});
@@ -4235,7 +4254,7 @@ const reactionTokens = () => Object.entries(reactionVocabulary());
 const reactionAvailable = () => readThreads().phase === "ready";
 const anchorChoices = (anchor) => reactionAvailable() ? tokenChoices(reactionVocabulary(), anchor ? reactionsAt(allThreads(), anchor) : []) : [];
 function reactionChip({ name, glyph, label }, pressed) {
-	const chip = offer("button", `lf-react ${HOLDS_WORD}`);
+	const chip = offerAction("response", `lf-react ${HOLDS_WORD}`);
 	chip.dataset.token = name;
 	chip.title = label;
 	chip.setAttribute("aria-label", label);
@@ -4639,20 +4658,19 @@ function reactionPlace(event) {
 //#endregion
 //#region runtime/undo.js
 const WAIT = "Wait for the current change to finish before undoing";
-const quoted = (words, cap = 60) => `“${excerptWords(words, cap)}”`;
 function widgetNamed(id) {
 	const element = elementById(id);
 	if (!element) return "a widget";
 	const label = addressableLabel(element);
-	return label ? quoted(label) : `the ${addressableWord(element)}`;
+	return label ? quotedWords(label) : `the ${addressableWord(element)}`;
 }
 function actionWords(event, gesture) {
 	const widget = widgetNamed(event.widget);
 	switch (gesture?.form) {
-		case "choice": return `chose ${gesture.chosen.map((words) => quoted(words)).join(", ") || "nothing"} in ${widget}`;
-		case "move": return `moved ${quoted(gesture.unit)} to ${quoted(gesture.to)} in ${widget}`;
+		case "choice": return `chose ${gesture.chosen.map((words) => quotedWords(words)).join(", ") || "nothing"} in ${widget}`;
+		case "move": return `moved ${quotedWords(gesture.unit)} to ${quotedWords(gesture.to)} in ${widget}`;
 		case "edit": return `edited ${widget}`;
-		case "add": return `added ${quoted(gesture.words)} to ${widget}`;
+		case "add": return `added ${quotedWords(gesture.words)} to ${widget}`;
 		case "verb": return `recorded “${gesture.verb}” on ${widget}`;
 		default: return `updated ${widget}`;
 	}
@@ -4668,12 +4686,12 @@ function gestureWords(event, gesture) {
 		case "resolve":
 		case "unresolve": {
 			const thread = threadNamed(event.parent);
-			const name = thread ? quoted(threadName(thread), 48) : "a thread";
+			const name = thread ? quotedWords(threadName(thread), 48) : "a thread";
 			return `${event.kind === "resolve" ? "resolved" : "reopened"} ${name}`;
 		}
 		case "todo_end": {
 			const todo = runtime.todos.find(({ id }) => id === event.todo);
-			return TODO_ENDINGS[event.outcome](todo ? quoted(todo.title) : "a to-do");
+			return TODO_ENDINGS[event.outcome](todo ? quotedWords(todo.title) : "a to-do");
 		}
 		default: return actionWords(event, gesture);
 	}
@@ -4710,12 +4728,16 @@ const KEYS_HELD = /* @__PURE__ */ new Set([
 ]);
 const UNDO_KEYS = ["z"];
 function createUndo({ post, stateApplying, unaccountedGesture, openThread, threadPlace }) {
+	function takeable() {
+		const { effective, unresolved } = readApplication();
+		if (!effective.view) return null;
+		return /* @__PURE__ */ new Set([...effective.view.undo.map(({ event }) => event.attempt), ...unresolved.flatMap((entry) => entry.state === "refused" ? [] : [entry.event.attempt])]);
+	}
 	const gestures = /* @__PURE__ */ new Map();
 	function retainGesture(attempt, facts) {
-		const { effective, unresolved } = readApplication();
-		if (effective.view) {
-			const liveAttempts = /* @__PURE__ */ new Set([...effective.view.undo.map(({ event }) => event.attempt), ...unresolved.map((entry) => entry.event.attempt)]);
-			for (const kept of gestures.keys()) if (!liveAttempts.has(kept)) gestures.delete(kept);
+		const live = takeable();
+		if (live) {
+			for (const kept of gestures.keys()) if (!live.has(kept)) gestures.delete(kept);
 		}
 		gestures.set(attempt, {
 			...gestures.get(attempt),
@@ -4838,14 +4860,13 @@ function createUndo({ post, stateApplying, unaccountedGesture, openThread, threa
 			});
 		});
 	}
-	function undoLast() {
-		if (stateApplying() || unaccountedGesture()) {
-			raiseError(WAIT);
-			return null;
-		}
-		const entry = headEntry();
-		if (!entry) return null;
-		const event = entry.event;
+	function settled() {
+		if (!stateApplying() && !unaccountedGesture()) return true;
+		raiseError(WAIT);
+		return false;
+	}
+	function walkTo(entry) {
+		const { event } = entry;
 		const heldArm = armedFor(event);
 		const taking = heldArm && !(heldArm.returns && entry.picked_up);
 		if (!taking && needsShowing(entry)) {
@@ -4859,6 +4880,23 @@ function createUndo({ post, stateApplying, unaccountedGesture, openThread, threa
 		if (returning) whenDocumentPresented().then(() => show(event, returning)).catch(() => {});
 		return answer;
 	}
+	function undoLast() {
+		if (!settled()) return null;
+		const promised = runtime.undo.find(({ event }) => armedFor(event));
+		if (promised) return walkTo(promised);
+		const entry = headEntry();
+		return entry ? walkTo(entry) : null;
+	}
+	const offerUndo = (attempt) => ({
+		action: "undo",
+		command: "history.undo",
+		run() {
+			if (!settled()) return null;
+			const entry = runtime.undo.find(({ event }) => event.attempt === attempt);
+			return entry ? walkTo(entry) : null;
+		},
+		stands: () => takeable()?.has(attempt) ?? true
+	});
 	pageCommand({
 		id: "history.undo",
 		ready: savedReadingSettled,
@@ -4882,6 +4920,7 @@ function createUndo({ post, stateApplying, unaccountedGesture, openThread, threa
 	});
 	return {
 		landedAway,
+		offerUndo,
 		returnToThread,
 		retainGesture,
 		undoable,
@@ -5274,6 +5313,10 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 		};
 	}
 	const threadTarget = (id) => placedAt(id)?.place ?? null;
+	const placeDrawn = (id) => {
+		const place = threadTarget(id);
+		return place !== null && visibleTargetParts(place).length > 0;
+	};
 	const threadPlace$1 = (id) => {
 		const thread = allThreads().find((candidate) => candidate.id === id);
 		return thread ? threadPlace(thread, placedAt) : null;
@@ -5301,10 +5344,10 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 		part,
 		message: part === "message" ? thread.msgs.find((message) => message.id === id)?.key ?? null : null
 	});
-	const threadFocusTarget = (id, { part = null } = {}) => {
+	const threadFocusTarget = (id, { part = null, page = false } = {}) => {
 		const thread = threadNamed(id);
 		const candidates = [
-			thread && presentation?.owner.isConnected ? presentation.reader.destination(thread.key, addressedPart(thread, id, part)) : null,
+			!page && thread && presentation?.owner.isConnected ? presentation.reader.destination(thread.key, addressedPart(thread, id, part)) : null,
 			surfaceFocusTarget(id, { part }),
 			preview?.focusTarget(id, { part })
 		].filter((candidate) => candidate != null);
@@ -5312,7 +5355,7 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 	};
 	const DECLINED = Symbol("declined");
 	const UNDRAWN = Symbol("undrawn");
-	async function openPageThread(id, { part = null, focus = true, travel = true, history = true, scroll = true, intent = retainUserIntent(), origin = null, returning = false } = {}) {
+	async function openPageThread(id, { part = null, focus = true, travel = true, history = true, scroll = true, intent = retainUserIntent(), origin = null, page = false } = {}) {
 		if (!intent()) return null;
 		const navigationStep = travel && scroll;
 		const selected = presentation?.owner.isConnected ? presentation : null;
@@ -5415,13 +5458,12 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 			if (surfaceFocusTarget(id, { part: localPart })) return openSurface();
 			if (showHeldThread(id) && surfaceFocusTarget(id, { part: localPart })) return openSurface();
 			const place = preview && !navigationStep ? threadTarget(id) : null;
-			const placeDrawn = () => place !== null && visibleTargetParts(place).length > 0;
-			if (place && scroll && !placeDrawn()) {
+			if (place && scroll && !placeDrawn(id)) {
 				await reveal(place, intent).ready;
 				if (!mayPresent()) return null;
 			}
 			const invocation = { opened: null };
-			if (preview && (!place || placeDrawn())) intent.handoff(() => {
+			if (preview && (!place || placeDrawn(id))) intent.handoff(() => {
 				invocation.opened = preview.open(id, { origin });
 			});
 			const opened = invocation.opened;
@@ -5437,7 +5479,10 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 				} else {
 					if (!await opened.presented || !mayPresent()) return null;
 					if (focus !== false && !await arrive(() => {
-						const current = threadFocusTarget(id, { part });
+						const current = threadFocusTarget(id, {
+							part,
+							page
+						});
 						return current && {
 							where: current,
 							focus: current,
@@ -5448,7 +5493,10 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 						};
 					}, { intent })) return null;
 				}
-				return threadFocusTarget(id, { part });
+				return threadFocusTarget(id, {
+					part,
+					page
+				});
 			}
 			const held = revealHeld([threadIdNamed(id)]);
 			if (held) {
@@ -5458,14 +5506,26 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 			if (surfaceFocusTarget(id, { part: localPart })) return openSurface();
 			return DECLINED;
 		}
-		const asked = primary && !returning ? inPrimary(primary, false) : DECLINED;
+		const asked = primary && !page ? inPrimary(primary, false) : DECLINED;
 		const first = asked instanceof Promise ? await asked : asked;
 		if (first !== DECLINED && first !== UNDRAWN) return first;
 		const shown = await onPage();
-		if (returning) {
-			if (!shown || shown === DECLINED) return null;
-			if (primary) await inPrimary(primary, false);
-			return shown;
+		if (page) {
+			if (shown && shown !== DECLINED) {
+				if (primary) await inPrimary(primary, false);
+				return shown;
+			}
+			if (!shown || !navigationStep || !placeDrawn(id)) return null;
+			const control = focus ? preview?.control(id) ?? null : null;
+			if (!await scrollToThread(id, {
+				part: null,
+				focus: focus && !control,
+				intent,
+				history
+			})) return null;
+			if (!control) return threadTarget(id);
+			intent.handoff(() => focusDestination(control, "move"));
+			return control;
 		}
 		if (shown !== DECLINED) return shown;
 		if (!primary || first !== DECLINED) return null;
@@ -5487,7 +5547,7 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 				focus: replyThreadKey(focused()) !== key && drawnThreadId(heldThread()) === thread.id,
 				travel: false,
 				scroll: false,
-				returning: true
+				page: true
 			});
 		}
 	}
@@ -5540,7 +5600,10 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 		openThreadSubject,
 		openThreadDraft,
 		returnToPage,
-		atLastResort: (key) => lastResort.has(key),
+		showsOnPage: (key) => {
+			const thread = lastResort.has(key) ? allThreads().find((each) => threadKey(each) === key) : null;
+			return !thread || placeDrawn(thread.id);
+		},
 		holdsThreadDraft: (context) => Boolean(threadHolding(context)),
 		threadFocusTarget,
 		threadHere,
@@ -5587,7 +5650,7 @@ function createThreadActions({ post, withdraw, sendReaction, currentRevision, op
 		const thread = find(key);
 		if (!thread) return null;
 		const message = thread.msgs.find((item) => item.id === messageId);
-		if (!message || !editable(message) || !text || text === message.text) return null;
+		if (!message || !editable(message) || text === message.text) return null;
 		return post({
 			kind: "edit",
 			message: messageId,
@@ -5993,7 +6056,7 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
 							for (const row of node.querySelectorAll(":scope > .lf-thread-reply")) if (row !== reply.node) row.remove();
 							move(node, reply.node, node.firstChild);
 						};
-						const reply = createReplyView(item.key, node, commands.reply, redraw, {
+						const reply = createReplyView(item.key, commands.reply, redraw, {
 							...item.options,
 							onChange: () => {
 								if (joined) update().catch(() => {});
@@ -6580,33 +6643,39 @@ function standOver(stand, placed, borderRadius) {
 	const at = anchor && anchorBox(anchor);
 	const stood = standIn(stand, placed, Boolean(anchor));
 	const style = stand.box.style;
-	standBox(stand.box, placed.rect, stood, anchor, at);
+	const band = token("--focus-ring-w");
+	const gaps = sideGaps(placed, band, markGap(placed.surface));
+	const gap = Math.min(gaps.top, gaps.right, gaps.bottom, gaps.left);
+	const { rect } = placed;
+	const box = borderRadius === null ? rect : {
+		left: rect.left - gaps.left + gap,
+		top: rect.top - gaps.top + gap,
+		right: rect.right + gaps.right - gap,
+		bottom: rect.bottom + gaps.bottom - gap
+	};
+	standBox(stand.box, box, stood, anchor, at);
 	Object.assign(style, {
 		display: "block",
-		borderRadius
+		borderRadius: borderRadius ?? "0"
 	});
-	const band = token("--focus-ring-w");
-	const outside = markGap(placed.surface);
-	const gap = cramped(placed, band + outside) ? -band : outside;
 	style.setProperty("--lf-mark-offset", layoutPx(gap));
-	const room = Math.max(0, band + gap);
 	for (const side of [
 		"top",
 		"right",
 		"bottom",
 		"left"
-	]) stand.root.style.setProperty(`--lf-paint-outset-${side}`, layoutPx(cutsAt(placed, side) ? 0 : room));
+	]) stand.root.style.setProperty(`--lf-paint-outset-${side}`, layoutPx(cutsAt(placed, side) ? 0 : Math.max(0, band + gaps[side])));
 	return {
 		...stood,
 		anchor,
 		at,
-		room
+		room: Math.max(0, band + gaps.top)
 	};
 }
 const token = (name) => Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
 function markGap(surface) {
-	const stated = Number.parseFloat(getComputedStyle(surface).outlineOffset);
-	if (stated) return stated;
+	const style = getComputedStyle(surface);
+	if (style.getPropertyValue("--lf-ring-at")) return Number.parseFloat(style.outlineOffset);
 	return token(surface.matches(PRESSES) ? "--focus-ring-gap" : "--focus-region-gap");
 }
 function cutsAt({ rect, levels }, side) {
@@ -6614,9 +6683,41 @@ function cutsAt({ rect, levels }, side) {
 	const low = side === "top" || side === "left";
 	return levels.some(({ band, axes }) => axes[axis] && (low ? rect[side] < band[side] : rect[side] > band[side]));
 }
-function cramped({ rect, levels }, room) {
-	const short = (band, low, high) => rect[low] >= band[low] && rect[low] - room < band[low] || rect[high] <= band[high] && rect[high] + room > band[high];
-	return levels.some(({ holder, band, axes }) => holder && (axes.x && short(band, "left", "right") || axes.y && short(band, "top", "bottom")));
+function sideGaps({ rect, levels, plane }, band, gap) {
+	const sides = [
+		"top",
+		"right",
+		"bottom",
+		"left"
+	];
+	const room = (edge, side) => {
+		const beyond = side === "left" || side === "top" ? rect[side] - edge[side] : edge[side] - rect[side];
+		return beyond > -1 ? beyond : Infinity;
+	};
+	const axis = (side) => side === "left" || side === "right" ? "x" : "y";
+	const packed = levels.some(({ holder, band: edge, axes }) => holder && sides.some((side) => axes[axis(side)] && room(edge, side) < band + gap));
+	const page = pageExtent(plane);
+	const stands = (side) => packed ? -band : Math.max(-band, Math.min(gap, room(page, side) - band));
+	return {
+		top: stands("top"),
+		right: stands("right"),
+		bottom: stands("bottom"),
+		left: stands("left")
+	};
+}
+function pageExtent(plane) {
+	const shown = layoutWindow();
+	const root = document.scrollingElement;
+	if (plane === "window" || !root) return shown;
+	const style = getComputedStyle(root);
+	const fixed = (overflow) => overflow === "hidden" || overflow === "clip";
+	const [x, y] = [!fixed(style.overflowX), !fixed(style.overflowY)];
+	return {
+		left: x ? -root.scrollLeft : shown.left,
+		top: y ? -root.scrollTop : shown.top,
+		right: x ? root.scrollWidth - root.scrollLeft : shown.right,
+		bottom: y ? root.scrollHeight - root.scrollTop : shown.bottom
+	};
 }
 function paintSet(root, { onNear = () => {} } = {}) {
 	const stands = /* @__PURE__ */ new Map();
@@ -6983,7 +7084,7 @@ function createMarginBars(inventory) {
 		}
 		show("work", places);
 	});
-	x(() => show("change", new Set(comparisonChanges())));
+	x(() => show("change", new Set(comparisonChanges().flat())));
 	document.addEventListener(LAYOUT, schedule);
 	addEventListener("resize", schedule, { passive: true });
 }
@@ -6991,7 +7092,7 @@ function createMarginBars(inventory) {
 //#endregion
 //#region runtime/thread/box.js
 const threadBox$1 = (el, hint, { createComment, onDraftChanged, wireInput }) => {
-	if (inChrome(el) || quoted$1(el)) return null;
+	if (inChrome(el) || quoted(el)) return null;
 	const declaration = registry[el.localName]?.["x-thread-seat"];
 	if (!declaration || !matchesWhen(el, declaration.when)) throw new TypeError(`<${el.localName}> placed a thread outside its x-thread-seat predicate`);
 	const box = Object.assign(offer("div", "lf-thread-seat"), { lfThreadSeatOwner: el });
@@ -7333,7 +7434,7 @@ async function readState(bound) {
 	countTraffic("asked");
 	try {
 		if (offlineInteractive) return {
-			state: offlineState(),
+			state: await offlineState(),
 			fault: null
 		};
 		const signal = globalThis.AbortSignal.timeout(bound);
@@ -7697,6 +7798,7 @@ function createApplication(dependencies) {
 		pendingEntries: ledger.snapshot,
 		actions: threadActions,
 		landedAway: undo.landedAway,
+		offerUndo: undo.offerUndo,
 		returnToThread: undo.returnToThread
 	};
 	const inlineView = {
@@ -7771,6 +7873,7 @@ function createApplication(dependencies) {
 		refreshInventory: refreshAnnotationInventory,
 		renderAnnotations,
 		openPageThread,
+		returnToPage: () => threadDestinations.returnToPage(),
 		designModeActive: dependencies.annotationCommands.designModeActive,
 		pointerModeActive: dependencies.annotationCommands.pointerModeActive,
 		leavePageMap: dependencies.annotationCommands.leavePageMap,
@@ -7780,6 +7883,7 @@ function createApplication(dependencies) {
 		renderMarginThread: (host, thread, controls) => renderMarginThread(host, thread, inlineView, controls),
 		placedAt: dependencies.anchorPlacement.placedAt,
 		marksFor: (id) => dependencies.anchorPaint?.marksFor(id) ?? [],
+		currentLocationObligation: dependencies.annotationCommands.currentLocationObligation,
 		scrollToElement: dependencies.anchorTravel.scrollToElement,
 		openInPanel: dependencies.annotationCommands.openInPanel
 	});
@@ -8054,6 +8158,253 @@ const queueActions = Object.freeze({
 const wireInput = (...args) => app().wireInput(...args);
 
 //#endregion
+//#region runtime/widget-controller.js
+const controllers = /* @__PURE__ */ new WeakMap();
+const ancestorRefreshes = /* @__PURE__ */ new Set();
+let ancestorRefreshQueued = false;
+const selfDrawn = /* @__PURE__ */ new WeakMap();
+const drawsItself = (owner, drawing) => selfDrawn.set(owner, drawing);
+function widgetMounted(owner, descriptor, parentChanged) {
+	if (parentChanged && applicationState.read().document.authored.has(descriptor.id)) refreshAncestors(owner);
+	invalidateDom();
+}
+function refreshAncestors(owner) {
+	for (let ancestor = owner.parentElement; ancestor; ancestor = ancestor.parentElement) {
+		const drawing = selfDrawn.get(ancestor);
+		if (drawing) ancestorRefreshes.add(drawing);
+	}
+	if (!ancestorRefreshes.size || ancestorRefreshQueued) return;
+	ancestorRefreshQueued = true;
+	queueMicrotask(() => {
+		ancestorRefreshQueued = false;
+		const pending = [...ancestorRefreshes];
+		ancestorRefreshes.clear();
+		for (const drawing of pending) drawing.refresh();
+	});
+}
+const immutable = (value) => {
+	if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
+		for (const child of Object.values(value)) immutable(child);
+		Object.freeze(value);
+	}
+	return value;
+};
+const unavailable = (reading) => immutable({
+	...structuredClone(reading),
+	actions: Object.fromEntries(Object.entries(reading.actions).map(([verb, entry]) => [verb, {
+		...entry,
+		available: false,
+		undo: []
+	}]))
+});
+function createWidgetController(owner) {
+	const descriptor = widgetDescriptor(owner);
+	if (!descriptor) throw new Error(`leaf: <${owner.localName}>#${owner.id || "(missing id)"} has no captured widget descriptor`);
+	const selected = applicationState.selectWidget(descriptor);
+	let preparationHandle = null;
+	const pendingPreparations = /* @__PURE__ */ new Map();
+	let preparation = null;
+	let preparationBatch = null;
+	const read = () => descriptorStillMatches(owner, descriptor) ? selected.read() : unavailable(selected.read());
+	const prepared = () => {
+		if (!preparationHandle && owner.isConnected) preparationHandle = attachWidgetPresentation(descriptor.id, "preparation");
+		return preparationHandle;
+	};
+	const holdPreparation = (promise) => {
+		if (pendingPreparations.has(promise)) {
+			if (owner.isConnected && !pendingPreparations.get(promise)) pendingPreparations.set(promise, holdRendering());
+			return;
+		}
+		pendingPreparations.set(promise, owner.isConnected ? holdRendering() : null);
+		const settled = () => {
+			pendingPreparations.get(promise)?.(owner.isConnected ? "settle" : "cancel");
+			pendingPreparations.delete(promise);
+		};
+		Promise.resolve(promise).then(settled, settled);
+	};
+	const presentPreparation = (handle, { completion }) => handle.present((reason) => failSoftUnreported(owner, reason)).resolve(completion);
+	const connect = () => d(() => {
+		if (!owner.isConnected) return;
+		for (const promise of pendingPreparations.keys()) holdPreparation(promise);
+		if (preparation && !preparationHandle) {
+			const handle = prepared();
+			if (handle) presentPreparation(handle, preparation);
+		}
+	});
+	const disconnect = () => {
+		preparationHandle?.disconnect();
+		preparationHandle = null;
+		for (const [promise, release] of pendingPreparations) {
+			release?.("cancel");
+			pendingPreparations.set(promise, null);
+		}
+	};
+	watchOwner(owner, {
+		connect,
+		disconnect
+	});
+	return Object.freeze({
+		read,
+		dispatch(command) {
+			if (!descriptorStillMatches(owner, descriptor)) return null;
+			const delivery = dispatchWidget(descriptor, command);
+			if (!delivery) return null;
+			return immutable({
+				reading: read(),
+				delivery
+			});
+		},
+		defer() {
+			const drawing = selfDrawn.get(owner);
+			if (!drawing) throw new Error(`<${owner.localName}> defers only a LeafElement's drawing`);
+			const release = drawing.hold();
+			let released = false;
+			return () => {
+				if (released) return read();
+				released = true;
+				release();
+				invalidateDom();
+				return read();
+			};
+		},
+		present(promise) {
+			const value = read();
+			if (!preparationBatch || preparationBatch.value !== value) preparationBatch = {
+				value,
+				promises: []
+			};
+			preparationBatch.promises.push(promise);
+			const batch = preparationBatch;
+			const completion = Promise.all(batch.promises);
+			batch.completion = completion;
+			preparation = { completion };
+			holdPreparation(promise);
+			const handle = prepared();
+			if (handle) presentPreparation(handle, preparation);
+			const clear = () => {
+				if (preparationBatch?.completion === completion) preparationBatch = null;
+			};
+			completion.then(clear, clear);
+			return promise;
+		}
+	});
+}
+function widgetController(owner) {
+	let controller = controllers.get(owner);
+	if (!controller) {
+		let implementation = null;
+		const resolve = () => implementation ??= createWidgetController(owner);
+		controller = Object.freeze({
+			read: () => resolve().read(),
+			dispatch: (command) => resolve().dispatch(command),
+			defer: () => resolve().defer(),
+			present: (promise) => resolve().present(promise)
+		});
+		controllers.set(owner, controller);
+	}
+	return controller;
+}
+document.addEventListener(PENDING_TASK, (event) => {
+	const owner = event.composedPath().filter((node) => node instanceof Element).find((node) => widgetDescriptor(node));
+	if (owner) widgetController(owner).present(event.complete);
+});
+
+//#endregion
+//#region runtime/element-data.js
+var ElementData = class {
+	#element;
+	#stage;
+	#inputs;
+	#sent = /* @__PURE__ */ new Map();
+	constructor(element, stage) {
+		this.#element = element;
+		this.#stage = stage;
+		const declaration = registry[element.localName];
+		this.#inputs = Object.entries(declaration?.["x-data"] ?? {}).flatMap(([input, declaration]) => declaration.property ? [{
+			input,
+			property: declaration.property,
+			bound: bindsInput(element, declaration),
+			read: null
+		}] : []);
+		if (this.#inputs.length) element.addEventListener("drawn", (event) => {
+			if (event.target === element) this.#drawn(event.detail);
+		});
+	}
+	initialize() {
+		const element = this.#element;
+		const declaration = registry[element.localName];
+		if (declaration?.["x-content"] === "data" && element.querySelector(":scope > pre") && !Object.values(declaration["x-data"] ?? {}).some((input) => bindsInput(element, input))) for (const { property } of this.#inputs) Object.assign(element, { [property]: dataBody(element) });
+	}
+	awaitsDelivery() {
+		return awaitsData(this.#element);
+	}
+	connect(region) {
+		return registry[this.#element.localName]?.["x-data"] ? joinDataDelivery(region) : null;
+	}
+	deliver() {
+		for (const entry of this.#inputs) {
+			if (!entry.bound) continue;
+			entry.read ??= dataReader(this.#element, entry.input, this.#stage);
+			const snapshot = entry.read();
+			const sent = this.#sent.get(entry.property);
+			if (sent && sent.snapshot === snapshot) continue;
+			const value = snapshot ? snapshot.value : null;
+			const primitives = sent?.primitives ?? /* @__PURE__ */ new Map();
+			if (value !== null && typeof value !== "object") {
+				primitives.delete(value);
+				primitives.set(value, snapshot);
+			}
+			this.#sent.set(entry.property, {
+				snapshot,
+				primitives
+			});
+			Object.assign(this.#element, { [entry.property]: value });
+		}
+	}
+	#drawn(detail) {
+		const element = this.#element;
+		try {
+			const named = this.#inputs.filter(({ property }) => detail && Object.hasOwn(detail, property));
+			const entry = named[0];
+			if (!entry || named.length !== 1 || Object.keys(detail).length !== 1) throw new Error(`<${element.localName}> drawn must name one bound property (${this.#inputs.map(({ property }) => property).join(", ")}) with the value it drew`);
+			const { property, bound } = entry;
+			const value = detail[property];
+			const snapshot = !bound || value === null ? null : typeof value === "object" ? suppliedSnapshot(value) : this.#retire(property, value);
+			if (snapshot === void 0) throw new Error(`<${element.localName} id=${element.id}> drew a ${property} Leaf did not set`);
+			projectMarked(element, snapshot);
+		} catch (error) {
+			failSoft(element, error);
+		}
+	}
+	#retire(property, value) {
+		const primitives = this.#sent.get(property)?.primitives;
+		if (!primitives?.has(value)) return void 0;
+		for (const earlier of primitives.keys()) {
+			if (earlier === value) break;
+			primitives.delete(earlier);
+		}
+		return primitives.get(value);
+	}
+};
+
+//#endregion
+//#region runtime/element-integration.js
+const elementIntegration = {
+	attachApplicationPresentation,
+	attachWidgetPresentation,
+	queueWidgetUpdate,
+	watchPresentation,
+	widgetDescriptor,
+	drawsItself,
+	widgetController,
+	widgetMounted,
+	paintKeysWithin,
+	data: (element, stage) => new ElementData(element, stage),
+	shadows: (element) => registry[element.localName]?.["x-shadow"]
+};
+installElementIntegration(elementIntegration);
+
+//#endregion
 //#region runtime/thread/landing.js
 const threadReturns = /* @__PURE__ */ new WeakMap();
 function threadInput(node) {
@@ -8211,525 +8562,6 @@ function declareThreadKeys(landIn, threadHere) {
 }
 
 //#endregion
-//#region runtime/widget-controller.js
-const controllers = /* @__PURE__ */ new WeakMap();
-const ancestorRefreshes = /* @__PURE__ */ new Set();
-let ancestorRefreshQueued = false;
-const selfDrawn = /* @__PURE__ */ new WeakMap();
-const drawsItself = (owner, drawing) => selfDrawn.set(owner, drawing);
-function widgetMounted(owner, descriptor, parentChanged) {
-	if (parentChanged && applicationState.read().document.authored.has(descriptor.id)) refreshAncestors(owner);
-	invalidateDom();
-}
-function refreshAncestors(owner) {
-	for (let ancestor = owner.parentElement; ancestor; ancestor = ancestor.parentElement) {
-		const drawing = selfDrawn.get(ancestor);
-		if (drawing) ancestorRefreshes.add(drawing);
-	}
-	if (!ancestorRefreshes.size || ancestorRefreshQueued) return;
-	ancestorRefreshQueued = true;
-	queueMicrotask(() => {
-		ancestorRefreshQueued = false;
-		const pending = [...ancestorRefreshes];
-		ancestorRefreshes.clear();
-		for (const drawing of pending) drawing.refresh();
-	});
-}
-const immutable = (value) => {
-	if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
-		for (const child of Object.values(value)) immutable(child);
-		Object.freeze(value);
-	}
-	return value;
-};
-const unavailable = (reading) => immutable({
-	...structuredClone(reading),
-	actions: Object.fromEntries(Object.entries(reading.actions).map(([verb, entry]) => [verb, {
-		...entry,
-		available: false,
-		undo: []
-	}]))
-});
-function createWidgetController(owner) {
-	const descriptor = widgetDescriptor(owner);
-	if (!descriptor) throw new Error(`leaf: <${owner.localName}>#${owner.id || "(missing id)"} has no captured widget descriptor`);
-	const selected = applicationState.selectWidget(descriptor);
-	let deferred = false;
-	let preparationHandle = null;
-	const pendingPreparations = /* @__PURE__ */ new Map();
-	let preparation = null;
-	let preparationBatch = null;
-	const read = () => descriptorStillMatches(owner, descriptor) ? selected.read() : unavailable(selected.read());
-	const prepared = () => {
-		if (!preparationHandle && owner.isConnected) preparationHandle = attachWidgetPresentation(descriptor.id, "preparation");
-		return preparationHandle;
-	};
-	const holdPreparation = (promise) => {
-		if (pendingPreparations.has(promise)) {
-			if (owner.isConnected && !pendingPreparations.get(promise)) pendingPreparations.set(promise, holdRendering());
-			return;
-		}
-		pendingPreparations.set(promise, owner.isConnected ? holdRendering() : null);
-		const settled = () => {
-			pendingPreparations.get(promise)?.(owner.isConnected ? "settle" : "cancel");
-			pendingPreparations.delete(promise);
-		};
-		Promise.resolve(promise).then(settled, settled);
-	};
-	const presentPreparation = (handle, { completion }) => handle.present((reason) => failSoftUnreported(owner, reason)).resolve(completion);
-	const connect = () => d(() => {
-		if (!owner.isConnected) return;
-		for (const promise of pendingPreparations.keys()) holdPreparation(promise);
-		if (preparation && !preparationHandle) {
-			const handle = prepared();
-			if (handle) presentPreparation(handle, preparation);
-		}
-	});
-	const disconnect = () => {
-		preparationHandle?.disconnect();
-		preparationHandle = null;
-		for (const [promise, release] of pendingPreparations) {
-			release?.("cancel");
-			pendingPreparations.set(promise, null);
-		}
-	};
-	watchOwner(owner, {
-		connect,
-		disconnect
-	});
-	return Object.freeze({
-		read,
-		dispatch(command) {
-			if (!descriptorStillMatches(owner, descriptor)) return null;
-			const delivery = dispatchWidget(descriptor, command);
-			if (!delivery) return null;
-			return immutable({
-				reading: read(),
-				delivery
-			});
-		},
-		defer() {
-			const drawing = selfDrawn.get(owner);
-			if (!drawing) throw new Error(`<${owner.localName}> defers only a LeafElement's drawing`);
-			if (deferred) throw new Error("Widget presentation is already deferred");
-			deferred = true;
-			const release = drawing.hold();
-			let released = false;
-			return () => {
-				if (released) return read();
-				released = true;
-				deferred = false;
-				release();
-				invalidateDom();
-				return read();
-			};
-		},
-		present(promise) {
-			const value = read();
-			if (!preparationBatch || preparationBatch.value !== value) preparationBatch = {
-				value,
-				promises: []
-			};
-			preparationBatch.promises.push(promise);
-			const batch = preparationBatch;
-			const completion = Promise.all(batch.promises);
-			batch.completion = completion;
-			preparation = { completion };
-			holdPreparation(promise);
-			const handle = prepared();
-			if (handle) presentPreparation(handle, preparation);
-			const clear = () => {
-				if (preparationBatch?.completion === completion) preparationBatch = null;
-			};
-			completion.then(clear, clear);
-			return promise;
-		}
-	});
-}
-function widgetController(owner) {
-	let controller = controllers.get(owner);
-	if (!controller) {
-		let implementation = null;
-		const resolve = () => implementation ??= createWidgetController(owner);
-		controller = Object.freeze({
-			read: () => resolve().read(),
-			dispatch: (command) => resolve().dispatch(command),
-			defer: () => resolve().defer(),
-			present: (promise) => resolve().present(promise)
-		});
-		controllers.set(owner, controller);
-	}
-	return controller;
-}
-document.addEventListener(PENDING_TASK, (event) => {
-	const owner = event.composedPath().filter((node) => node instanceof Element).find((node) => widgetDescriptor(node));
-	if (owner) widgetController(owner).present(event.complete);
-});
-
-//#endregion
-//#region runtime/keyboard/disclosure.js
-const disclosureWatch = new MutationObserver((records) => {
-	for (const r of records) if (r.target instanceof Element && r.attributeName !== null && r.target.getAttribute(r.attributeName) !== r.oldValue) paintKeysWithin(r.target);
-});
-const watchDisclosures = (root) => disclosureWatch.observe(root, {
-	subtree: true,
-	attributeFilter: ["open", "aria-expanded"],
-	attributeOldValue: true
-});
-const DISCLOSE = (el) => {
-	const disclosure = disclosureAt(el);
-	if (!disclosure) return [
-		...PRESS,
-		"ArrowLeft",
-		"ArrowRight"
-	];
-	const { element, open } = disclosure;
-	const [back, ahead] = rowArrows(element);
-	return inChrome(element) ? PRESS : [...PRESS, open ? back : ahead];
-};
-const DISCLOSURE_SELECTOR = "details > summary, :is(button, [role=\"button\"])[aria-expanded]";
-function disclosureAt(el) {
-	if (!el?.matches("details > summary, :is(button, [role=\"button\"])[aria-expanded]")) return null;
-	return {
-		element: el,
-		open: el.matches("details > summary") ? el.matches("details[open] > summary") : el.getAttribute("aria-expanded") === "true"
-	};
-}
-
-//#endregion
-//#region runtime/shadow-stage.js
-const stageStyles = /* @__PURE__ */ new WeakMap();
-function stageStyle(root) {
-	let style = stageStyles.get(root);
-	if (!style) {
-		style = document.createElement("style");
-		style.setAttribute("data-lf-gen", "1");
-		stageStyles.set(root, style);
-	}
-	return style;
-}
-function adoptShadowStage(root) {
-	watchArrivalsIn(root);
-	root.adoptedStyleSheets = [.../* @__PURE__ */ new Set([
-		...root.adoptedStyleSheets,
-		...annotationMarkSheets,
-		marksSheet
-	])];
-	watchDisclosures(root);
-	watchLayers(root);
-	watchCurrentLocationIn(root);
-	const style = stageStyle(root);
-	if (style.textContent !== shadowRules) style.textContent = shadowRules;
-	if (style.parentNode !== root) move(root, style, root.firstChild);
-	watchPassageRoot(root);
-	return root;
-}
-function shadowStage(host, nodes) {
-	const root = adoptShadowStage(host.shadowRoot ?? stageFor(host));
-	const style = stageStyle(root);
-	setChildren(root, [style, ...nodes]);
-	for (const child of [...host.childNodes]) child.remove();
-	watchPassageRoot(root);
-	return root;
-}
-function stageFor(host) {
-	stagesFailure(host, (box) => {
-		shadowStage(host, [box]);
-		return true;
-	});
-	return host.attachShadow({ mode: "open" });
-}
-
-//#endregion
-//#region runtime/leaf-element.js
-let regions = 0;
-var UpdateBoundary = class extends LitElement {
-	signalUpdateFailed(error) {
-		throw error;
-	}
-	performUpdate() {
-		try {
-			super.performUpdate();
-		} catch (error) {
-			this.signalUpdateFailed(error);
-		}
-	}
-};
-var LeafElement = class extends q(UpdateBoundary) {
-	#signalError = {};
-	#stopReadiness = null;
-	signalUpdateFailed(error) {
-		this.#signalError.error = error;
-	}
-	requestUpdate(...args) {
-		const wasPending = this.isUpdatePending;
-		const result = super.requestUpdate(...args);
-		if (this.hasUpdated && this.isUpdatePending && (!wasPending || !this.#updating)) d(() => {
-			if (this.#connected && this.#region && !this.#ticket) this.#ticket = this.#claim(this.#region);
-		});
-		return result;
-	}
-	whenReady(read) {
-		if (d(read)) return true;
-		if (!this.#stopReadiness) this.#stopReadiness = watchPresentation(() => {
-			if (!d(read)) return;
-			this.#stopReadiness?.();
-			this.#stopReadiness = null;
-			super.requestUpdate();
-		});
-		return false;
-	}
-	#descriptor = null;
-	#controller = null;
-	#verbs = [];
-	#region = null;
-	#regionName = null;
-	get #connected() {
-		return this.#region !== null;
-	}
-	#connectedParent = null;
-	#ticket = null;
-	#held = false;
-	#box = null;
-	#broken = false;
-	#drawing = null;
-	#updating = false;
-	#leaveData = null;
-	#scheduled = null;
-	#inputs = [];
-	#sent = /* @__PURE__ */ new Map();
-	createRenderRoot() {
-		if (!registry[this.localName]?.["x-shadow"]) return this;
-		const root = super.createRenderRoot();
-		if (!(root instanceof ShadowRoot)) throw new Error("A shadow widget needs a shadow render root");
-		return adoptShadowStage(root);
-	}
-	scheduleUpdate() {
-		return this.#scheduled ?? this.#queueUpdate();
-	}
-	#committed() {
-		return super.getUpdateComplete();
-	}
-	#queueUpdate() {
-		if (!this.#descriptor) return super.scheduleUpdate();
-		const scheduled = queueWidgetUpdate(this.#descriptor.id, () => {
-			if (this.#scheduled !== scheduled) return;
-			this.#scheduled = null;
-			return super.scheduleUpdate();
-		}, () => this.#committed());
-		this.#scheduled = scheduled;
-		return scheduled;
-	}
-	connectedCallback() {
-		if (once(this)) this.#setup();
-		super.connectedCallback();
-	}
-	#setup() {
-		this.#descriptor = widgetDescriptor(this);
-		if (this.#descriptor) {
-			this.#controller = widgetController(this);
-			drawsItself(this, {
-				hold: () => this.#hold(),
-				refresh: () => this.#refresh()
-			});
-			this.#verbs = Object.keys(this.#descriptor.declaration["x-state"] ?? {});
-		}
-		this.#regionName = this.#descriptor ? null : `element:${this.localName}#${this.id}:${++regions}`;
-		this.#inputs = Object.entries(registry[this.localName]?.["x-data"] ?? {}).flatMap(([input, declaration]) => declaration.property ? [{
-			input,
-			property: declaration.property,
-			bound: bindsInput(this, declaration),
-			read: null
-		}] : []);
-		if (this.#inputs.length) this.addEventListener("drawn", (event) => {
-			if (event.target === this) this.#drawn(event.detail);
-		});
-		placesFailure(this, (box) => {
-			const root = this.renderRoot ?? this;
-			if (root === this && this.shadowRoot) return false;
-			if (this.#box?.parentNode === root && this.#box.textContent === box.textContent) return true;
-			this.#box?.remove();
-			this.#box = box;
-			root.append(box);
-			return true;
-		});
-		try {
-			if (this.#writesInput()) for (const { property } of this.#inputs) Object.assign(this, { [property]: dataBody(this) });
-			this.setup();
-		} catch (error) {
-			this.#broken = true;
-			failSoft(this, error);
-		}
-		watchOwner(this, {
-			connect: () => d(() => this.#connect()),
-			disconnect: () => this.#disconnect()
-		});
-	}
-	setup() {}
-	#writesInput() {
-		const declaration = registry[this.localName];
-		return Boolean(declaration?.["x-content"] === "data" && this.querySelector(":scope > pre") && !Object.values(declaration["x-data"] ?? {}).some((input) => bindsInput(this, input)));
-	}
-	get reading() {
-		return this.#controller?.read() ?? null;
-	}
-	get state() {
-		return this.controller.read().state;
-	}
-	get controller() {
-		if (!this.#controller) throw new Error(`${this.localName} has no authored widget controller`);
-		return this.#controller;
-	}
-	#deliverInputs() {
-		for (const entry of this.#inputs) {
-			if (!entry.bound) continue;
-			entry.read ??= dataReader(this, entry.input, () => this.#stage());
-			const snapshot = entry.read();
-			const sent = this.#sent.get(entry.property);
-			if (sent && sent.snapshot === snapshot) continue;
-			const value = snapshot ? snapshot.value : null;
-			const primitives = sent?.primitives ?? /* @__PURE__ */ new Map();
-			if (value !== null && typeof value !== "object") {
-				primitives.delete(value);
-				primitives.set(value, snapshot);
-			}
-			this.#sent.set(entry.property, {
-				snapshot,
-				primitives
-			});
-			Object.assign(this, { [entry.property]: value });
-		}
-	}
-	#drawn(detail) {
-		try {
-			const named = this.#inputs.filter(({ property }) => detail && Object.hasOwn(detail, property));
-			const entry = named[0];
-			if (!entry || named.length !== 1 || Object.keys(detail).length !== 1) throw new Error(`<${this.localName}> drawn must name one bound property (${this.#inputs.map(({ property }) => property).join(", ")}) with the value it drew`);
-			const { property, bound } = entry;
-			const value = detail[property];
-			const snapshot = !bound || value === null ? null : typeof value === "object" ? suppliedSnapshot(value) : this.#retire(property, value);
-			if (snapshot === void 0) throw new Error(`<${this.localName} id=${this.id}> drew a ${property} Leaf did not set`);
-			projectMarked(this, snapshot);
-		} catch (error) {
-			failSoft(this, error);
-		}
-	}
-	#retire(property, value) {
-		const primitives = this.#sent.get(property)?.primitives;
-		if (!primitives?.has(value)) return void 0;
-		for (const earlier of primitives.keys()) {
-			if (earlier === value) break;
-			primitives.delete(earlier);
-		}
-		return primitives.get(value);
-	}
-	#hold() {
-		this.#held = true;
-		return () => {
-			this.#held = false;
-			this.#refresh();
-		};
-	}
-	#complete() {
-		if (!this.#controller) return true;
-		const { state } = this.#controller.read();
-		return this.#verbs.every((verb) => verb in state);
-	}
-	shouldUpdate(changed) {
-		if (!this.#region || !this.isConnected) return false;
-		if (this.#held) return false;
-		this.#drawing = this.#ticket ?? this.#claim(this.#region);
-		this.#ticket = null;
-		if (!this.#draws()) return false;
-		this.#deliverInputs();
-		return super.shouldUpdate(changed);
-	}
-	#draws() {
-		return !this.#broken && this.#complete() && !awaitsData(this);
-	}
-	update(changed) {
-		super.update(changed);
-		this.#box?.remove();
-		this.#box = null;
-	}
-	performUpdate() {
-		const outer = this.#drawing;
-		const updating = this.#updating;
-		this.#drawing = null;
-		this.#updating = true;
-		try {
-			const boundary = this.#signalError = {};
-			super.performUpdate();
-			if ("error" in boundary) throw boundary.error;
-			this.#settleDrawing();
-		} catch (error) {
-			if (outer && !this.#drawing) throw error;
-			this.#failed(error, this.#drawing);
-		} finally {
-			this.#drawing = outer;
-			this.#updating = updating;
-		}
-	}
-	#settleDrawing() {
-		this.#drawing?.resolve(this.updateComplete.then(() => void 0, (error) => {
-			reportFailure(this, error);
-			throw error;
-		}));
-	}
-	redraw() {
-		if (this.#draws()) render(this.render(), this.renderRoot, this.renderOptions);
-	}
-	updated(changed) {
-		super.updated(changed);
-		d(() => paintKeysWithin(this));
-	}
-	#failed(error, ticket) {
-		if (!ticket) return failSoft(this, error);
-		reportFailure(this, error);
-		ticket.reject(error);
-	}
-	#claim(region) {
-		return region.present((reason) => failSoftUnreported(this, reason));
-	}
-	#stage() {
-		if (this.#ticket || !this.#region) return;
-		this.#ticket = this.#claim(this.#region);
-	}
-	#present({ now = false } = {}) {
-		if (!this.#region) return;
-		this.#ticket = this.#claim(this.#region);
-		if (this.#held) return;
-		this.requestUpdate();
-		if (now) {
-			this.#scheduled = null;
-			this.performUpdate();
-		} else if (this.#descriptor) this.#queueUpdate();
-	}
-	#refresh() {
-		if (this.#connected) this.#present({ now: true });
-	}
-	#connect() {
-		const name = this.#descriptor ? `widget:${this.#descriptor.id}:render` : this.#regionName ??= `element:${this.localName}#${this.id}:${++regions}`;
-		this.#region = this.#descriptor ? attachWidgetPresentation(this.#descriptor.id, "render") : attachApplicationPresentation(name);
-		const parentChanged = this.#connectedParent !== this.parentElement;
-		this.#connectedParent = this.parentElement;
-		if (registry[this.localName]?.["x-data"]) this.#leaveData = joinDataDelivery(name);
-		this.#present();
-		if (this.#descriptor) widgetMounted(this, this.#descriptor, parentChanged);
-	}
-	#disconnect() {
-		const region = this.#region;
-		this.#region = null;
-		this.#stopReadiness?.();
-		this.#stopReadiness = null;
-		this.#leaveData?.();
-		this.#leaveData = null;
-		this.#ticket = null;
-		region?.disconnect();
-	}
-};
-
-//#endregion
 //#region runtime/queue-title.js
 function queueTitle(item) {
 	const thread = readThreads().threads.find((thread) => thread.id === item.thread);
@@ -8828,4 +8660,4 @@ function createPageLayout({ scheduleThreadPreviewPosition, syncReactLayout, refr
 }
 
 //#endregion
-export { CONTRIBUTION_ENTRY_SCHEMA, DISCLOSE, DISCLOSURE_SELECTOR, DRAWING_COORDINATE_LIMIT, KINDS$1 as KINDS, LeafElement, MAX_DRAWING_FRAME_DEPTH, MAX_DRAWING_POINTS, MAX_DRAWING_SAYS_LENGTH, MAX_DRAWING_STROKES, SVG_NS, activateContributionControl, annotationItems, answerWords, awaitingUser, beginRead, canFold, choosePrimary, clearContributionControls, clusterProjection, composerOpen, composerQuote, consumeAnnotations, contributionEntry, contributionEntryRecord, contributionEntrySource, contributionHost, contributionItemKey, contributionReceipts, createPageLayout, createReactionController, createSelectionComposer, createThreadLanding, currentLocationThread, currentProjection, declareThreadKeys, disclosureAt, dropStand, entryControls, entryEngaged, entryHasMarginHost, fabBar, fabInput, fabOptionsTrigger, focusedOfferOf, inPageOrder, landInThread, leafEditorView, leavesBox, marginBarLayer, markerFace, materializeContributionControls, mountApplication, navigateToDatum, obligationActions, obligationEnding, obligationWord, optionsOffered, ownedObligationControl, paintBarReactions, paintGeometry, paintSet, paintShape, paintStand, partOver, pendingAbout, pendingAnchor, pendingDrawing, placePageThreads, placement, presentContributionEntry, presentContributionReceipts, primaryReading, queueActions, queueItemKey, queueTitle, reactionAvailable, reactionTokens, readPlan, readQueues, readingBehavior, readingChoices, readingContext, readingFace, readingKey, readingLabel, readingState, registerContribution, registerRootHeader, registerThreadPresentation, sendReaction, shadowStage, spokenContext, spokenSubject, standBox, standOver, syncContributionSelection, syncContributionUnread, textField, threadActions, threadBox, threadInput, threadReading, unreadIn, vacate, visibleContributionEntryLabel, watchDisclosures, widgetController, wireInput };
+export { CONTRIBUTION_ENTRY_SCHEMA, DRAWING_COORDINATE_LIMIT, KINDS$1 as KINDS, MAX_DRAWING_FRAME_DEPTH, MAX_DRAWING_POINTS, MAX_DRAWING_SAYS_LENGTH, MAX_DRAWING_STROKES, SVG_NS, activateContributionControl, annotationItems, answerWords, awaitingUser, beginRead, canFold, choosePrimary, clearContributionControls, clusterProjection, composerOpen, composerQuote, consumeAnnotations, contributionEntry, contributionEntryRecord, contributionEntrySource, contributionHost, contributionItemKey, contributionReceipts, createPageLayout, createReactionController, createSelectionComposer, createThreadLanding, currentLocationThread, currentProjection, declareThreadKeys, dropStand, entryControls, entryEngaged, entryHasMarginHost, fabBar, fabInput, fabOptionsTrigger, focusedOfferOf, inPageOrder, landInThread, leafEditorView, leavesBox, marginBarLayer, markerFace, materializeContributionControls, mountApplication, navigateToDatum, obligationActions, obligationEnding, obligationWord, optionsOffered, ownedObligationControl, paintBarReactions, paintGeometry, paintSet, paintShape, paintStand, partOver, pendingAbout, pendingAnchor, pendingDrawing, placePageThreads, placement, presentContributionEntry, presentContributionReceipts, primaryReading, queueActions, queueItemKey, queueTitle, reactionAvailable, reactionTokens, readPlan, readQueues, readingBehavior, readingChoices, readingContext, readingFace, readingKey, readingLabel, readingState, registerContribution, registerRootHeader, registerThreadPresentation, sendReaction, spokenContext, spokenSubject, standBox, standOver, syncContributionSelection, syncContributionUnread, textField, threadActions, threadBox, threadInput, threadReading, unreadIn, vacate, visibleContributionEntryLabel, widgetController, wireInput };

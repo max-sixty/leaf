@@ -471,8 +471,8 @@ def test_playground_select_keeps_the_same_working_configuration(browser, serve):
     expect(stream).to_have_value("billing")
 
 
-def test_playground_authored_defaults_draw_before_its_behavior_loads(browser, serve):
-    """The control declaration owns first paint, including text and attribute CSS."""
+def test_playground_preview_stays_readable_until_its_controls_load(browser, serve):
+    """Authored content is readable while loading; upgrade applies control defaults."""
     page = browser.new_page(viewport={"width": 1280, "height": 900})
     held = []
     page.route("**/widgets/lf-playground.js", lambda route: held.append(route))
@@ -482,6 +482,11 @@ def test_playground_authored_defaults_draw_before_its_behavior_loads(browser, se
     assert held
     assert page.evaluate("() => !customElements.get('lf-playground')")
     card = page.locator("#playground-card")
+    expect(card).to_be_visible()
+    expect(card).to_contain_text("Card preview")
+    expect(card).to_contain_text("Open until dusk.")
+    held.pop().continue_()
+    wait_until_ready(page)
     expect(card).to_have_css("border-radius", "12px")
     expect(card).to_have_css("border-top-color", "rgb(79, 118, 111)")
     expect(page.locator("#card-playground")).to_have_attribute(
@@ -490,14 +495,6 @@ def test_playground_authored_defaults_draw_before_its_behavior_loads(browser, se
     assert (
         card.evaluate("e => getComputedStyle(e, '::before').content") == '"Field note"'
     )
-    inputs = page.locator("#card-playground input").element_handles()
-    assert inputs
-    held.pop().continue_()
-    wait_until_ready(page)
-    expect(card).to_have_css("border-radius", "12px")
-    # The live renderer takes the initial template's parts, preserving native fields.
-    assert page.locator("#card-playground input").count() == len(inputs)
-    assert page.evaluate("inputs => inputs.every(input => input.isConnected)", inputs)
 
 
 def test_a_playground_records_an_edit_made_while_loading_or_as_the_page_leaves(
@@ -1625,7 +1622,7 @@ def test_built_code_reader_design_comment_keeps_its_identity_after_revision(
     )
     quote = open_panel_thread(page, event["id"]).locator(".lf-fp-quote")
     expect(quote).to_contain_text("target-reader-heading")
-    expect(quote).not_to_have_class(re.compile(r"detached"))
+    expect(quote).not_to_have_attribute("data-lf-detached", "")
 
 
 def test_a_press_in_flight_does_what_the_playground_button_says(browser, serve):

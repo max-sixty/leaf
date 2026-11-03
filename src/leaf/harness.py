@@ -281,6 +281,12 @@ class Harness:
         (`commits_hook_context`) is asked (`delivery.confirm_entered`)."""
         return set()
 
+    def prompt_dropped(self, payload: dict, turn: str) -> bool:
+        """Whether the harness's own record, named in hook `payload`, shows that the
+        prompt of `turn` never reached the conversation: an interrupt dropped it
+        while its prompt hooks ran. False where the record can't tell."""
+        return False
+
     def offer_at_step(
         self, event: str, payload: dict, expected: dict | None
     ) -> tuple[str | None, dict | None]:
@@ -453,12 +459,14 @@ class ClaudeCodeHarness(EnvironmentHarness):
     @classmethod
     def hook_payload(cls, payload: dict) -> dict:
         """Claude Code names the turn by its prompt, `prompt_id`, in every hook but
-        SessionStart, and a prompt Escape dropped is submitted again under a new one
-        (measured at 2.1.310), so a handover into a dropped prompt belongs to a turn
-        that never ran. Releases before 2.1.196 send no `prompt_id` (found in each
-        npm release's hook input), so their turns are Leaf's, and a resubmitted
-        prompt renews the dropped one's; receipt then stops short of its handover
-        (`delivery.confirm_entered`), which is input again once the turn ends."""
+        SessionStart, and a queued prompt Escape dropped, such as a watch's wake, is
+        submitted again under a new one (measured at 2.1.310), so a handover into a
+        dropped prompt belongs to a turn that never ran. A typed prompt Escape drops
+        goes back to the composer instead (2.1.316). Releases before 2.1.196 send no
+        `prompt_id` (found in each npm release's hook input), so their turns are
+        Leaf's, and a resubmitted prompt renews the dropped one's; receipt then stops
+        short of its handover (`delivery.confirm_entered`), which is input again once
+        the turn ends."""
         prompt = payload.get("prompt_id")
         return {**payload, "turn_id": prompt} if prompt else payload
 
@@ -497,6 +505,12 @@ class ClaudeCodeHarness(EnvironmentHarness):
         entered the model's context (`claude_code_entered`)."""
         path = payload.get("transcript_path")
         return claude_code_entered(Path(path)) if path else set()
+
+    def prompt_dropped(self, payload: dict, turn: str) -> bool:
+        """Whether the transcript the payload names holds no record of the prompt
+        `turn` names (`claude_code_prompt_dropped`)."""
+        path = payload.get("transcript_path")
+        return bool(path) and claude_code_prompt_dropped(Path(path), turn)
 
     def escape_sandbox(self) -> None:
         """Leaf's bridge (`bridge.py`), which Claude Code's network proxy reaches."""
@@ -1075,6 +1089,39 @@ def claude_code_entered(transcript: Path) -> set[str]:
                 for event in batch["events"]
             )
     return entered
+
+
+def claude_code_prompt_dropped(transcript: Path, prompt: str) -> bool:
+    """Whether the Claude Code transcript at `transcript` holds no record of the
+    prompt whose `promptId` is `prompt`.
+
+    Claude Code writes a prompt's record, which names its `promptId`, once the
+    prompt's hooks let it through, and nothing of a prompt Escape dropped while they
+    ran (measured at 2.1.316). A missing or unreadable transcript shows nothing, so
+    the prompt reads as not dropped. Like `claude_code_entered`, this maps the file
+    and parses only the lines holding the id, reading back from the end, since the
+    prompt asked about is a recent one."""
+    marker = prompt.encode()
+    try:
+        with (
+            transcript.open("rb") as file,
+            mmap.mmap(file.fileno(), 0, access=mmap.ACCESS_READ) as mapped,
+        ):
+            before = len(mapped)
+            while (hit := mapped.rfind(marker, 0, before)) != -1:
+                start = mapped.rfind(b"\n", 0, hit) + 1
+                end = mapped.find(b"\n", hit)
+                line = mapped[start : len(mapped) if end == -1 else end]
+                try:
+                    if json.loads(line).get("promptId") == prompt:
+                        return False
+                except ValueError:
+                    pass
+                before = start
+    except (OSError, ValueError):
+        # mmap refuses an empty file with ValueError.
+        return False
+    return True
 
 
 def claude_code_config() -> Path:

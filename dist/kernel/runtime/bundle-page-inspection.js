@@ -1,8 +1,8 @@
-import { describeFailure, offerAction, offeredAction, scrollBehavior } from "./bundle-portable.js";
-import { closeLayer, closeNativeLayer, currentLocationIn, focusDestination, guard, handBack, html, nothing, offlineInteractive, openLayer, openerOf, pageUrl, render, runtime, showNativeLayer } from "./bundle-layer-stack.js";
-import { closeControl, el, requestJson, reveal, sessionIsActive } from "./bundle-layer-client.js";
+import { closeLayer, closeNativeLayer, currentLocationIn, describeFailure, focusDestination, handBack, offerAction, offeredAction, openLayer, openerOf, retainUserIntent, scrollBehavior, scrollIntoView, showNativeLayer } from "./bundle-portable.js";
+import { closeControl, el, guard, html, nothing, offlineInteractive, pageUrl, render, reveal, runtime } from "./bundle-errors.js";
+import { requestJson, sessionIsActive } from "./bundle-layer-client.js";
 import { chromeForeground, pageControls } from "./bundle-content-layout.js";
-import { copyControl, retainUserIntent, scrollIntoView } from "./bundle-copy-control.js";
+import { copyControl } from "./bundle-data.js";
 import { readCurrentUserView } from "./bundle-user-view.js";
 
 //#region runtime/copyable-text.js
@@ -31,13 +31,13 @@ const dialog = el("dialog", "lf-ui lf-inspection-dialog");
 dialog.setAttribute("aria-label", "About this page");
 const head = el("div", "lf-dialog-head");
 head.append(el("strong", "lf-dialog-title", "About this page"));
+const copyLabel = offerAction("word", "", "Copy diagnostics");
 const copy = copyControl("", {
 	label: "Copy diagnostics",
 	success: "Diagnostics copied",
-	error: "Diagnostics not copied. Select the report text to copy it manually."
+	error: "Diagnostics not copied. Select the report text to copy it manually.",
+	trigger: copyLabel
 });
-const copyLabel = offerAction("word", "", "Copy diagnostics");
-copy.append(copyLabel);
 const close = closeControl({
 	name: "Close about this page",
 	title: "Close about this page (Esc)"

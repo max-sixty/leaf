@@ -4,24 +4,37 @@ session hears once a fork has answered or handed the thread over."""
 
 import json
 import os
+import shutil
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+from pathlib import Path
+from threading import Event
 from types import SimpleNamespace
 
 import pytest
-from interact_support import append_carried_log_record, serving
+from interact_support import (
+    STATED_TIMEOUT,
+    append_carried_log_record,
+    lock_contention,
+    page_packages,
+    serving,
+    stamp,
+)
 
 from leaf import clerk as clerk_model
 from leaf import delivery as delivery_model
+from leaf import event_endpoint as endpoint_model
 from leaf import event_log as events_model
 from leaf import file_changes as file_changes_model
 from leaf import forks as forks_model
 from leaf import hooks as hooks_model
 from leaf import leases as leases_model
+from leaf import page_memory as page_memory_model
 from leaf import presence as presence_model
 from leaf import server_rows as server_rows_model
+from leaf import service as service_model
 from leaf import session as session_model
-from leaf import state as state_model
 from leaf import thread as thread_model
 from leaf.served_state.reading import outside_inputs
 from leaf.service import PageTransaction
@@ -362,31 +375,40 @@ def test_the_pages_follower_holds_the_lane_and_lists_held_threads(
     claimed, monkeypatch, capsys
 ):
     """Asked for forks, the follower is the session's lane while it runs and lists
-    each page's held threads for the module, without a native subscription; stopping
-    with a thread held, it nudges what the hold leaves, as a watch giving up its
-    lease does."""
+    each page's held threads for the module. It waits on the page's subscription,
+    so a message wakes it as it is admitted rather than at the next presence read.
+    Stopping with a thread held, it nudges what the hold leaves, as a watch giving
+    up its lease does."""
     serving(claimed, 1)
     server_rows_model.RowPublisher(claimed, "fixture-server").refresh()
     nudged = []
     monkeypatch.setattr(session_model, "nudge_pending", nudged.append)
     asked = []
+    waiting = file_changes_model.wait
 
     class Stopped(Exception):
         pass
 
-    def forbidden(*_args, **_kwargs):
-        pytest.fail("the page list allocated a native subscription")
-
-    def wait(_seconds):
+    def wait(marks, _timeout):
+        # A subscription a pass makes wakes those made before it once, and the
+        # follower looks again.
+        if waiting(marks, 0):
+            return True
         if asked:
             raise Stopped
+        heard, generation = file_changes_model.page_changes(claimed.resolve())
+        assert heard in [changes for changes, _generation in marks]
+        # Notifications of the fixture's own writes may still arrive.
+        while waiting([(heard, generation)], 0.2):
+            generation = heard.mark()
         past_the_take()
         asked.append(said(claimed, "Is anyone forking?"))
+        assert waiting([(heard, generation)], STATED_TIMEOUT), (
+            "the message woke nothing"
+        )
+        return True
 
-    monkeypatch.setattr(file_changes_model, "FileChanges", forbidden)
-    monkeypatch.setattr(
-        hooks_model, "time", SimpleNamespace(sleep=wait, time=time.time)
-    )
+    monkeypatch.setattr(file_changes_model, "wait", wait)
     with pytest.raises(Stopped):
         hooks_model.cmd_pages({"session_id": "s1", "forks": True})
     assert forks_model.lane_since("s1") is None
@@ -402,6 +424,72 @@ def test_the_pages_follower_holds_the_lane_and_lists_held_threads(
     assert nudged == ["s1"]
 
 
+def test_the_follower_keeps_open_the_subscription_of_every_page_it_holds(
+    claimed, initialized_page, tmp_path, monkeypatch
+):
+    """Each page's subscription lives in the page's memory, and a process keeps
+    the memories of only its most recent pages unless something holds them. The
+    follower holds those of every page it waits on, since with more pages than
+    that it would otherwise close its own subscriptions and wake at once, pass
+    after pass."""
+    for n in range(page_memory_model.PageMemories.LIMIT):
+        service_model.claim_page(
+            initialized_page(tmp_path / f"more-{n}", page_packages())
+        )
+
+    class Stopped(Exception):
+        pass
+
+    def wait(marks, _timeout):
+        assert len(marks) > page_memory_model.PageMemories.LIMIT
+        assert not any(changes.closed for changes, _generation in marks)
+        raise Stopped
+
+    monkeypatch.setattr(file_changes_model, "wait", wait)
+    with pytest.raises(Stopped):
+        hooks_model.cmd_pages({"session_id": "s1", "forks": True})
+
+
+def test_the_follower_forgets_the_bound_of_a_page_that_is_gone(claimed, monkeypatch):
+    """A page that is gone holds nothing, so the follower keeps no bound of its to
+    wake at: one kept past its hold would end every wait at once until the next
+    presence read."""
+    monkeypatch.setattr(session_model, "nudge_pending", lambda _sid: None)
+    later = 0.0
+    monkeypatch.setattr(
+        hooks_model,
+        "time",
+        SimpleNamespace(
+            time=lambda: time.time() + later,
+            monotonic=time.monotonic,
+            sleep=time.sleep,
+        ),
+    )
+    asked = []
+    timeouts = []
+
+    class Stopped(Exception):
+        pass
+
+    def wait(_marks, timeout):
+        nonlocal later
+        timeouts.append(timeout)
+        if not asked:
+            past_the_take()
+            asked.append(said(claimed, "Still there?"))
+        elif len(timeouts) == 2:
+            shutil.rmtree(claimed)
+            later = forks_model.BOUND_S + 1
+        else:
+            raise Stopped
+        return True
+
+    monkeypatch.setattr(file_changes_model, "wait", wait)
+    with pytest.raises(Stopped):
+        hooks_model.cmd_pages({"session_id": "s1", "forks": True})
+    assert timeouts[-1] > 0, "the follower kept a gone page's bound"
+
+
 def test_the_follower_keeps_the_bound_of_a_page_it_does_not_list(
     claimed, monkeypatch, capsys
 ):
@@ -414,17 +502,19 @@ def test_the_follower_keeps_the_bound_of_a_page_it_does_not_list(
     monkeypatch.setattr(session_model, "nudge_pending", nudged.append)
     asked = []
 
-    def wait(_seconds):
-        if not asked:
-            past_the_take()
-            asked.append(said(claimed, "Is anyone serving this?"))
-        else:
-            state_model.end_session("s1")
+    class Stopped(Exception):
+        pass
 
-    monkeypatch.setattr(
-        hooks_model, "time", SimpleNamespace(sleep=wait, time=time.time)
-    )
-    hooks_model.cmd_pages({"session_id": "s1", "forks": True})
+    def wait(_marks, _timeout):
+        if asked:
+            raise Stopped
+        past_the_take()
+        asked.append(said(claimed, "Is anyone serving this?"))
+        return True
+
+    monkeypatch.setattr(file_changes_model, "wait", wait)
+    with pytest.raises(Stopped):
+        hooks_model.cmd_pages({"session_id": "s1", "forks": True})
     assert capsys.readouterr().out.splitlines() == ["[]"]
     assert forks_model.handed_inputs("s1", claimed) == {asked[0]["id"]}
     assert nudged == []
@@ -434,9 +524,17 @@ def test_a_lane_counts_from_when_it_took_the_name(claimed, lane, monkeypatch):
     """A follower writes its lease before renaming it into place, and a message can
     arrive, and the earlier lane go down, in between: the new lane counts from the
     rename, so it leaves that message to the session and the earlier fork's reply
-    writes nothing."""
+    writes nothing, even when the filesystem clock trails the admission clock."""
     replace = os.replace
+    stat = Path.stat
+    lane_path = forks_model.lane_path("s1")
     asked = []
+
+    def coarse_clock(path, *args, **kwargs):
+        result = stat(path, *args, **kwargs)
+        if path == lane_path:
+            return os.stat_result((*result[:9], 0))
+        return result
 
     def publish(staged, path):
         monkeypatch.setattr(os, "replace", replace)
@@ -445,7 +543,8 @@ def test_a_lane_counts_from_when_it_took_the_name(claimed, lane, monkeypatch):
         replace(staged, path)
 
     monkeypatch.setattr(os, "replace", publish)
-    again = take_lane()
+    monkeypatch.setattr(Path, "stat", coarse_clock)
+    again = forks_model.take_lane("s1")
     try:
         assert held(claimed) == []
         assert deliverable(claimed) == [asked[0]["id"]]
@@ -460,3 +559,66 @@ def test_a_lane_counts_from_when_it_took_the_name(claimed, lane, monkeypatch):
         )
     finally:
         leases_model.release_lease(again)
+
+
+def test_admission_waits_for_the_lane_cutoff_to_be_published(claimed, monkeypatch):
+    """An event admitted after the cutoff waits for publication before deciding
+    whether to nudge the session. It cannot be deliverable now and held later."""
+    assert stamp(claimed).exit_code == 0
+    before = said(claimed, "Before the lane started")
+    write = forks_model.LANE_START.write
+    publishing, release = Event(), Event()
+    sampled = []
+    nudged = []
+
+    def publish(path, value):
+        sampled.append(value["since"])
+        publishing.set()
+        assert release.wait(STATED_TIMEOUT)
+        return write(path, value)
+
+    monkeypatch.setattr(forks_model.LANE_START, "write", publish)
+    monkeypatch.setattr(
+        endpoint_model, "nudge_unwatched", lambda page: nudged.append(page.page_dir)
+    )
+    monkeypatch.setattr(
+        endpoint_model,
+        "claim_harness",
+        lambda _claim: SimpleNamespace(title_generator=lambda: None),
+    )
+    blocked = lock_contention(monkeypatch, forks_model.lane_lock_path("s1"))
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        taking = executor.submit(forks_model.take_lane, "s1")
+        try:
+            assert publishing.wait(STATED_TIMEOUT)
+            after_cutoff = (
+                datetime.fromtimestamp(sampled[0] + 0.002)
+                .astimezone()
+                .isoformat(timespec="milliseconds")
+            )
+            monkeypatch.setattr(events_model, "now_iso", lambda: after_cutoff)
+            admitting = executor.submit(
+                endpoint_model.accept_event,
+                claimed,
+                {"kind": "comment", "revision": 1, "text": "During publication"},
+                dict,
+            )
+            assert blocked.wait(STATED_TIMEOUT), (
+                "admission did not wait for publication"
+            )
+        finally:
+            release.set()
+        lane = taking.result(timeout=STATED_TIMEOUT)
+        try:
+            status, answer = admitting.result(timeout=STATED_TIMEOUT)
+            assert status == 200, answer
+            [asked] = [
+                event
+                for event in events_model.read_events(claimed)
+                if event.get("text") == "During publication"
+            ]
+            assert nudged == []
+            assert held(claimed) == [(asked["id"], (asked["id"],))]
+            assert deliverable(claimed) == [before["id"]]
+        finally:
+            leases_model.release_lease(lane)

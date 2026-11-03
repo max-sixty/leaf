@@ -26,6 +26,7 @@ from render_harness import (
     open_page,
     open_threads,
     pane_scroll_behavior,
+    panel_field,
     panel_settled,
     regions_side_by_side,
     resized,
@@ -83,7 +84,7 @@ def test_an_obligation_walk_glides_within_a_view_and_opens_other_tabs_at_the_que
         )
     source = leaf_page(
         "Ask travel across tabs",
-        '<h1>Review the two proposals</h1><lf-tabs id="views">'
+        '<h1>Review the two proposals</h1><lf-tabs id="views" class="layout-flow">'
         '<lf-tab id="first" label="First">'
         '<div style="height: 1800px"></div>'
         + first
@@ -94,6 +95,12 @@ def test_an_obligation_walk_glides_within_a_view_and_opens_other_tabs_at_the_que
     )
     page = open_page(browser, serve(source))
     page.emulate_media(reduced_motion="reduce" if reduced else "no-preference")
+
+    def landing_top(target):
+        return page.locator(f"#ask-{target}").evaluate("""ask =>
+          parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop) +
+          parseFloat(getComputedStyle(ask).scrollMarginTop)
+        """)
 
     def start_trace():
         page.evaluate("""() => {
@@ -162,14 +169,12 @@ def test_an_obligation_walk_glides_within_a_view_and_opens_other_tabs_at_the_que
     assert bool(intermediate) == (not reduced and not nested_source), trace
     assert trace["cues"] == [], trace
     if nested_source:
-        edge = page.evaluate(
-            "parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)"
-        )
+        edge = landing_top("first")
         arrived = [
             frame for frame in trace["frames"] if frame["source"] == "source-answer"
         ]
         assert arrived, trace
-        assert all(abs(frame["top"] - (edge + 5)) <= 3 for frame in arrived), trace
+        assert all(abs(frame["top"] - edge) <= 3 for frame in arrived), trace
 
     for key, target, tab in [("m", "second", "Second"), ("Shift+m", "first", "First")]:
         before = page.evaluate("scrollY")
@@ -184,15 +189,13 @@ def test_an_obligation_walk_glides_within_a_view_and_opens_other_tabs_at_the_que
         after = page.evaluate("scrollY")
         trace = finish_trace()
         assert abs(after - before) > 1000, (before, after)
-        edge = page.evaluate(
-            "parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)"
-        )
+        edge = landing_top(target)
         arrived = [frame for frame in trace["frames"] if frame["selected"] == target]
         assert arrived, trace
-        assert all(abs(frame["top"] - (edge + 5)) <= 3 for frame in arrived), trace
+        assert all(abs(frame["top"] - edge) <= 3 for frame in arrived), trace
         assert trace["cues"] == [0 if reduced else 1], trace
         top = page.locator(f"#ask-{target}").bounding_box()["y"]
-        assert top == pytest.approx(edge + 5, abs=3), (top, edge)
+        assert top == pytest.approx(edge, abs=3), (top, edge)
 
     # Leave the previous arrival entirely: the next navigation step must preserve this reading
     # as its own Back destination, including the tab that owned the outgoing offset.
@@ -695,6 +698,54 @@ def test_obligations_sharing_context_keep_their_source_identity(browser, serve):
         expect(page.locator(f"#{source}")).to_be_focused()
 
 
+def test_digits_leave_an_obligation_the_user_scrolled_away_from(browser, serve):
+    """Focus stays in an ask the user has scrolled off screen, but its digits answer it
+    only while they can see it: scrolled away, `2` chooses nothing, and back in view the
+    digits show again and `2` chooses."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "An ask scrolled away",
+                '<h1>An ask scrolled away</h1><lf-ask id="route"><h2>Which route?</h2>'
+                '<lf-options id="routes" choose>'
+                '<lf-option id="left">Take the left route</lf-option>'
+                '<lf-option id="right">Take the right route</lf-option>'
+                '</lf-options></lf-ask><div style="height:4000px">Reading on</div>',
+            )
+        ),
+    )
+
+    def answer():
+        return page.evaluate(
+            """async () => (await window.__lfWidgetApi()).readObligations().all
+              .find((item) => item.id === "widget:routes").answer?.value ?? null"""
+        )
+
+    def scroll(down):
+        page.mouse.move(400, 400)
+        page.mouse.wheel(0, 3000 if down else -3000)
+        page.wait_for_function(
+            "(down) => (down ? scrollY > 2000 : scrollY === 0)", arg=down
+        )
+        scroll_settled(page)
+
+    page.keyboard.press("m")
+    page.keyboard.press("Tab")
+    digit = page.locator("#right > .lf-key-badge")
+    expect(digit).to_be_visible()
+    scroll(down=True)
+    expect(page.locator("#routes")).not_to_be_in_viewport()
+    page.keyboard.press("2")
+    rendered(page)
+    assert answer() is None
+    scroll(down=False)
+    expect(digit).to_be_visible()
+    with sending(page, "the answer"):
+        page.keyboard.press("2")
+    assert answer() == ["right"]
+
+
 def test_the_obligation_walk_uses_the_visible_reading_after_its_focus_is_released(
     browser, serve
 ):
@@ -724,7 +775,8 @@ def test_the_obligation_walk_uses_the_visible_reading_after_its_focus_is_release
         page.keyboard.press("Escape")
         page.keyboard.press(back)
         expect(page.locator("#question-2")).to_be_focused()
-    # Opening On me from there holds no other place, so the walk still returns.
+    # Opened by a key, On me stands on its first row, question 1, and the walk steps on
+    # from it.
     page.keyboard.press("Escape")
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
@@ -897,24 +949,25 @@ OBLIGATION_THREAD_PAGE = leaf_page(
 )
 
 
-@pytest.mark.parametrize("width", [390, 1200])
+TALL_OBLIGATION_THREAD_PAGE = OBLIGATION_THREAD_PAGE.replace(
+    "<h2>Which cache should we keep?</h2>",
+    "<h2>Which cache should we keep?</h2>"
+    + "<p>Compare the memory and disk constraints carefully.</p>" * 14,
+)
+
+
 def test_walking_to_an_obligation_shows_its_discussion_clear_of_its_choices(
-    browser, serve, width
+    browser, serve
 ):
     """`m` lands on a tall obligation and its thread comes up in the card, which stands clear
-    of the obligation's choices at either width, so a digit still answers and `c` continues
-    the thread rather than starting another."""
-    source = OBLIGATION_THREAD_PAGE.replace(
-        "<h2>Which cache should we keep?</h2>",
-        "<h2>Which cache should we keep?</h2>"
-        + "<p>Compare the memory and disk constraints carefully.</p>" * 14,
-    )
-    url = serve(source)
+    of the obligation's choices, so a digit still answers and `c` continues the thread
+    rather than starting another."""
+    url = serve(TALL_OBLIGATION_THREAD_PAGE)
     root = answered_comment(
         serve.page_dir, "The disk cache costs more.", {"section": "cache-ask"}
     )
     page = open_page(browser, url)
-    page.set_viewport_size({"width": width, "height": 900})
+    page.set_viewport_size({"width": 1200, "height": 900})
     page.keyboard.press("m")
     expect(page.locator("#cache-ask")).to_be_focused()
     thread = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
@@ -933,6 +986,30 @@ def test_walking_to_an_obligation_shows_its_discussion_clear_of_its_choices(
     expect(page.locator("#cache-disk")).to_have_attribute("chosen", "")
     page.keyboard.press("c")
     expect(thread.locator("leaf-text")).to_be_focused()
+    expect(page.locator(".lf-fab-input")).to_be_hidden()
+
+
+def test_walking_to_an_obligation_on_a_phone_continues_its_discussion_in_the_panel(
+    browser, serve
+):
+    """A phone's window has no room for a margin card, so `m` leaves the obligation's
+    choices uncovered, a digit answers, and `c` continues its thread in the floating panel
+    rather than starting another (thread/destination.js)."""
+    url = serve(TALL_OBLIGATION_THREAD_PAGE)
+    root = answered_comment(
+        serve.page_dir, "The disk cache costs more.", {"section": "cache-ask"}
+    )
+    page = open_page(browser, url)
+    page.set_viewport_size({"width": 390, "height": 900})
+    page.keyboard.press("m")
+    expect(page.locator("#cache-ask")).to_be_focused()
+    expect(page.locator(".lf-margin-preview .lf-page-thread")).to_have_count(0)
+    page.keyboard.press("1")
+    expect(page.locator("#cache-disk")).to_have_attribute("chosen", "")
+    page.keyboard.press("c")
+    thread = page.locator(f'{PANEL_THREAD}[data-thread="{root}"]')
+    expect(thread).to_be_visible()
+    expect(panel_field(page)).to_be_focused()
     expect(page.locator(".lf-fab-input")).to_be_hidden()
 
 
@@ -1266,40 +1343,70 @@ def test_an_obligation_landed_in_a_pane_keeps_its_ring_inside_the_pane(browser, 
     expect(item).to_be_focused()
     expect(item).to_have_attribute("data-lf-obligation", "1")
     scroll_settled(page, "#ask-detail > :not(header, footer)")
-    reading = item.evaluate(
+    ring = page.evaluate(LOCATION_RING)
+    pane_top = item.evaluate(
         """ask => {
           const body = ask.closest('lf-pane').querySelector(':scope > :not(header, footer)');
-          const style = getComputedStyle(ask);
-          const ring = parseFloat(style.outlineOffset) + parseFloat(style.outlineWidth);
-          return {ringTop: ask.getBoundingClientRect().top - ring,
-                  paneTop: body.getBoundingClientRect().top + body.clientTop};
+          return body.getBoundingClientRect().top + body.clientTop;
         }"""
     )
-    assert reading["ringTop"] >= reading["paneTop"] - 0.5, reading
+    assert ring["outer"]["top"] >= pane_top - 0.5, (ring, pane_top)
 
 
-ASK_RING_READING = """() => {
-  const ask = document.querySelector('lf-ask[data-lf-obligation]');
-  const ring = getComputedStyle(ask, '::after');
-  const box = ask.getBoundingClientRect();
-  const words = document.createRange();
-  words.selectNodeContents(ask.querySelector('h2'));
+# The location ring's band as drawn over the decision (target-paint.js,
+# `paintLocation`): its inner and outer edges in client coordinates.
+LOCATION_RING = """() => {
+  const box = document.querySelector('.lf-location');
+  const ring = getComputedStyle(box, '::after');
+  const at = box.getBoundingClientRect();
+  const edges = (out) => ({left: at.left - out, top: at.top - out,
+                           right: at.right + out, bottom: at.bottom + out});
   const offset = parseFloat(ring.outlineOffset);
-  const width = parseFloat(ring.outlineWidth);
-  return {
-    inner: box.left - offset,
-    outer: box.bottom + offset + width,
-    words: words.getClientRects()[0].left,
-    foot: innerHeight,
-  };
+  return {for: box.dataset.for, inner: edges(offset),
+          outer: edges(offset + parseFloat(ring.outlineWidth))};
 }"""
+
+ASK_WORDS = """() => {
+  const words = document.createRange();
+  words.selectNodeContents(document.querySelector('lf-ask[data-lf-obligation] h2'));
+  return {words: words.getClientRects()[0].left, foot: innerHeight};
+}"""
+
+
+def test_the_ring_round_a_clipped_question_stands_inside_it(browser, serve):
+    """A box that clips a question and leaves no room round it, such as a frame with
+    no padding, cuts a ring standing outside the question: drawn as the question's
+    outline, it lost its sides and kept a line across the top. There the ring stands
+    inside the question, as every mark does round a box its clip leaves no room
+    around."""
+    ask = (
+        '<div id="frame" style="overflow: clip">'
+        '<lf-ask id="rollout"><h2>Include self-hosted runners?</h2>'
+        "<p>They need administrator-configured namespaces.</p>"
+        '<lf-options id="rollout-options" choose>'
+        '<lf-option id="include">Include them</lf-option>'
+        '<lf-option id="later">Later</lf-option></lf-options></lf-ask></div>'
+    )
+    page = open_page(browser, serve(leaf_page("a clipped question", ask)))
+    resized(page, 1280, 800)
+    page.keyboard.press("m")
+    expect(page.locator(".lf-location[data-for='rollout']")).to_be_visible()
+    ring = page.evaluate(LOCATION_RING)
+    frame = page.locator("#frame").bounding_box()
+    assert frame is not None
+    assert ring["outer"]["left"] >= frame["x"] - 0.5, (ring, frame)
+    assert ring["outer"]["top"] >= frame["y"] - 0.5, (ring, frame)
+    assert ring["outer"]["right"] <= frame["x"] + frame["width"] + 0.5, (ring, frame)
+    assert ring["outer"]["bottom"] <= frame["y"] + frame["height"] + 0.5, (ring, frame)
 
 
 def test_the_ring_round_a_question_stands_clear_of_its_words(browser, serve):
     """The ring the user stands in goes round a question outside its box, as every
-    obligation's does, so it does not run over the first letter of each line. Only a
-    question that fills a full-height workspace, which can meet the window's foot with
-    no scroll left to show a ring outside it, draws the ring inside its box."""
+    obligation's does, so it does not run over the first letter of each line. A
+    question that fills a full-height workspace meets the window's foot with no scroll
+    left to show a ring outside it, so the ring stands inside along the foot, and stays
+    clear of the words on the sides the window leaves room beside: standing inside on
+    every side, it ran over the heading's first letter."""
     ask = (
         '<lf-ask id="rollout"><h2>Include self-hosted runners?</h2>'
         "<p>They need administrator-configured namespaces.</p>"
@@ -1310,14 +1417,15 @@ def test_the_ring_round_a_question_stands_clear_of_its_words(browser, serve):
     page = open_page(browser, serve(leaf_page("a question", ask)))
     resized(page, 1280, 800)
     page.keyboard.press("m")
-    expect(page.locator("#rollout")).to_have_attribute("data-lf-obligation", "1")
-    column = page.evaluate(ASK_RING_READING)
-    assert column["inner"] < column["words"], column
+    expect(page.locator(".lf-location[data-for='rollout']")).to_be_visible()
+    ring, column = page.evaluate(LOCATION_RING), page.evaluate(ASK_WORDS)
+    assert ring["inner"]["left"] < column["words"], (ring, column)
     page.close()
 
     page = open_page(browser, serve(leaf_page("a question", ask, layout="workspace")))
     resized(page, 1280, 800)
     page.keyboard.press("m")
-    expect(page.locator("#rollout")).to_have_attribute("data-lf-obligation", "1")
-    workspace = page.evaluate(ASK_RING_READING)
-    assert workspace["outer"] <= workspace["foot"], workspace
+    expect(page.locator(".lf-location[data-for='rollout']")).to_be_visible()
+    ring, workspace = page.evaluate(LOCATION_RING), page.evaluate(ASK_WORDS)
+    assert ring["outer"]["bottom"] <= workspace["foot"], (ring, workspace)
+    assert ring["inner"]["left"] < workspace["words"], (ring, workspace)

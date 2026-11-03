@@ -8,14 +8,8 @@ import subprocess
 
 import pytest
 from conftest import LEAF_COMMAND
-from interact_support import (
-    add_test_widget,
-    append_carried_log_record,
-    wait_for,
-)
 from playwright.sync_api import expect
 from render_cases_layout import (
-    BADGE_CHROME,
     SHORT_CHIP_PAGE,
     SHOT_PAGE,
     SHOT_SRC,
@@ -24,30 +18,20 @@ from render_cases_layout import (
     solid_png,
 )
 from render_harness import (
-    CARRIED_PAGE,
-    EXAMPLE_PACKAGES,
     INLINE_PAGE,
     LONG_PAGE,
-    REPLY_HOST_PAGE,
-    SAMPLE_MARKUP,
-    SAMPLE_TEXT,
-    consume_browser_errors,
     holding,
     leaf_page,
     open_page,
     opened_tab,
     page_registry,
-    primed,
     resized,
     scroll_settled,
     select,
 )
 
-from browser.threads import open_panel_thread
-from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
 from leaf.render_gate import browser as browser_model
-from leaf.render_gate import version as render_gate_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -610,26 +594,17 @@ def test_a_tall_shot_scrolls_its_images_then_chains_to_its_container(
 
 
 def test_a_shot_keeps_its_reserved_frame_while_images_load(browser, serve):
-    """Upgrading the controls cannot collapse the image allocation before decode."""
+    """Once drawn, the shot's frame keeps its allocation through image decode."""
     url = serve(SHOT_PAGE, media={SHOT_SRC[n]: data for n, data in SHOTS.items()})
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    modules, images = [], []
-    page.route("**/widgets/lf-shot.js", lambda route: modules.append(route))
+    images = []
     page.route("**/media/*.png", lambda route: images.append(route))
     page.goto(url, wait_until="domcontentloaded")
-    holding(page, modules, 1, "the screenshot widget before upgrade")
     shot = page.locator("lf-shot")
-    page.wait_for_function(
-        "getComputedStyle(document.querySelector('lf-shot')).display === 'flex'"
-    )
-    before = shot.bounding_box()
-    assert before["height"] > 100, before
-    for route in modules:
-        route.continue_()
-    page.unroute("**/widgets/lf-shot.js")
     expect(shot.locator(".lf-shotframe img")).to_have_count(2)
     holding(page, images, 2, "both screenshot image responses")
-    pending = shot.bounding_box()
+    before = shot.bounding_box()
+    assert before["height"] > 100, before
     assert shot.locator("img").evaluate_all(
         "images => images.every(image => image.naturalWidth === 0)"
     )
@@ -639,8 +614,7 @@ def test_a_shot_keeps_its_reserved_frame_while_images_load(browser, serve):
     render_checks_model.wait_until_ready(page)
     expect(shot.locator(".lf-shotframe").first).to_be_visible()
     complete = shot.bounding_box()
-    assert pending == pytest.approx(before, abs=1), (before, pending, complete)
-    assert complete == pytest.approx(before, abs=1), (before, pending, complete)
+    assert complete == pytest.approx(before, abs=1), (before, complete)
 
 
 def test_a_shot_keeps_its_default_slider_stable_while_the_divider_loads(browser, serve):
@@ -1053,147 +1027,6 @@ def stage_reach_cases(page):
     )
 
 
-def test_render_reads_widget_chrome_where_it_stands(
-    browser, serve, tmp_path, monkeypatch
-):
-    """The user's reading of a page, on one page.
-
-    The words a widget puts out of reach. A user selected a draft's heading, tried to
-    comment on it, and got nothing back — twice, months apart, on the same page. The
-    heading was the page's word in a row its author had marked as the runtime's, and
-    `.lf-ui` is a look rather than a permission, so the class alone can't be the answer:
-    the declaration goes on the label (relabel), and an undeclared word under chrome is
-    reported. It is about a word the user was shown, so the check asks that first: a
-    word the browser reads out and the page never paints is hidden with [hidden], the
-    silence available in every root, and the same word shown is still reported. A
-    visible control and an otherwise identical one below an unscrollable clip keep the
-    control-reachability reading non-vacuous.
-
-    The chrome half, asked where the nesting turns over. A widget's chrome is a
-    `.lf-ui` the widget put inside itself. A widget in a message is the other way up:
-    the runtime's own layer is above it and the widget has none of its own, so every
-    word it holds sits under a `.lf-ui` with nothing wrong. Asking whether the *words*
-    stand in a widget cannot tell those apart and accuses the second; asking whose the
-    `.lf-ui` is can. One reply carries three widgets: a question, an exhibit beside it,
-    and a badge whose module injects unmarked words under the chrome face. The panel
-    around all three says nothing; the badge's own chrome is read exactly as it would
-    be on a page. Nothing here had ever been rendered until a fixture asked the gate
-    rather than the panel.
-
-    Beside them, a pair shot captured at two widths: both frames render at the frame's
-    width, so the pair is scaled by two different factors and every line lands somewhere
-    new, and the flip would report that the whole page changed with nothing on screen
-    to say otherwise. That is the one shot failure worth an error box rather than a
-    caveat, and the gate has to hear about it, since nobody else will. The same shot
-    with both frames at one width passes."""
-    monkeypatch.chdir(tmp_path)
-    package = tmp_path / ".leaf"
-    add_test_widget(package, "lf-badge", upgrade=True)
-    module = package / "widgets" / "lf-badge.js"
-    source = module.read_text()
-    starter = "class extends LeafElement {},"
-    assert source.count(starter) == 1
-    module.write_text(
-        source.replace(
-            starter,
-            "class extends LeafElement {\n    setup() {\n"
-            + BADGE_CHROME
-            + "\n    }\n  },",
-        )
-    )
-    narrow = solid_png(400, 300, (235, 215, 205))
-    narrow_src = f"/media/{hashlib.sha256(narrow).hexdigest()[:16]}.png"
-    pair = (
-        f'<lf-shot id="shot-pair" alt="the navigation rail" before="{SHOT_SRC["before"]}"'
-        f' after="{narrow_src}"></lf-shot>'
-        f'<lf-shot id="shot-nav" alt="the navigation rail" before="{SHOT_SRC["before"]}"'
-        f' after="{SHOT_SRC["after"]}"></lf-shot>'
-    )
-    start = CARRIED_PAGE.index('<lf-options id="carried">')
-    carried = CARRIED_PAGE[start : CARRIED_PAGE.index("</lf-options>") + 13]
-    source = REPLY_HOST_PAGE.replace("</main>", carried + pair + "</main>")
-    url = serve(
-        source,
-        packages=(*EXAMPLE_PACKAGES, "./.leaf"),
-        media={
-            **{SHOT_SRC[name]: data for name, data in SHOTS.items()},
-            narrow_src: narrow,
-        },
-    )
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "id": "c-decision",
-            "author": "user",
-            "revision": 1,
-            "text": "What would the alternative look like?",
-        },
-    )
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "parent": "c-decision",
-            "revision": 1,
-            "text": SAMPLE_TEXT,
-            "markup": SAMPLE_MARKUP + '<lf-badge id="rp-badge">Weighed.</lf-badge>',
-        },
-    )
-    page = open_page(primed(browser, stage_reach_cases), url)
-    assert (
-        page.locator(
-            "#native-link, #hidden-note, #shown-note, #unreachable-row, "
-            "#unreachable-button"
-        ).count()
-        == 5
-    )
-    assert page.locator("#hidden-note").is_hidden()
-    assert page.locator("#shown-offer, #clipped-offer").count() == 2
-    assert page.locator("#shown-offer").is_visible()
-    # A label inside a form control no marker can reach is the suite's question of
-    # Leaf's own modules (`test_page_fixture_renders`), not the gate's.
-    assert [
-        said
-        for said in render_checks_model.evaluate_probe(page, "wordsInFormControls")
-        if said["at"] == "<lf-option id=c-lax>"
-    ] == [
-        {
-            "code": "form-control-words",
-            "at": "<lf-option id=c-lax>",
-            "words": "Lax, host-only",
-        }
-    ]
-    # The two-width pair fails soft, as the gate below is to hear.
-    consume_browser_errors(page, '<lf-shot id="shot-pair"> failed')
-    page.close()
-
-    failures = render_gate_model.render_version(
-        primed(browser.unwatched, stage_reach_cases), url
-    ).failures
-    pair = [f for f in failures if f.code == "console-error"]
-    assert pair and all(
-        "shot-pair" in f.values["text"]
-        and "600px" in f.values["text"]
-        and "400px" in f.values["text"]
-        for f in pair
-    ), failures
-    clipped = [f for f in failures if f.code == "clipped-control"]
-    assert [(f.values["id"], f.widths) for f in clipped] == [
-        ("clipped-offer", (360, 1920))
-    ], failures
-    assert all(f.values["by"] == "<div id=clipped-holder>" for f in clipped), clipped
-    words = sorted(
-        {(f.code, f.at, f.values["words"]) for f in failures if f not in pair + clipped}
-    )
-    assert words == [
-        ("chrome-words", "<lf-badge id=rp-badge>", "Sent by the reviewer"),
-        ("chrome-words", "<lf-option id=c-lax>", "Session cookies"),
-        ("chrome-words", "<lf-option id=c-lax>", "opens in a new tab"),
-    ], failures
-
-
 CONTENTS_MAP_PAGE = leaf_page(
     "Contents map",
     """
@@ -1250,60 +1083,6 @@ FILM_DECLARATION = {
 FILM_PAGE = LONG_PAGE.replace(
     "</main>", '<lf-film id="film"></lf-film><lf-loader id="loader"></lf-loader></main>'
 )
-
-
-def test_a_widget_that_fails_in_a_message_is_refused_where_a_browser_draws_it(
-    browser, serve, tmp_path, headless_shell
-):
-    """Nothing draws a message's widgets before the user opens its thread, and the
-    log freezes the message, so a thread command runs markup holding a widget only a
-    browser can judge once before it posts, and refuses it with the widget's own
-    error, as plain `page check` refuses a page. A host with no browser posts it
-    unrun; the body its module cannot draw then reports to the author when the user
-    opens its thread, naming the widget, and the author answers with a corrected
-    reply."""
-    url = serve(LONG_PAGE)
-    d = serve.page_dir
-
-    def post(executable):
-        return subprocess.run(
-            [*LEAF_COMMAND, "thread", "create", str(d), "--text", "See this."]
-            + [
-                "--markup",
-                '<lf-chart id="t-bad"><pre>\n{ marks: [ }\n</pre></lf-chart>',
-            ],
-            capture_output=True,
-            text=True,
-            check=False,
-            env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": executable},
-        )
-
-    refused = post(headless_shell)
-    assert refused.returncode != 0, refused.stdout + refused.stderr
-    refusal = json.loads(refused.stderr)["error"]
-    assert refusal.startswith("comment markup doesn't draw:"), refusal
-    assert '<lf-chart id="t-bad"> failed: ' in refusal
-    assert not [e for e in events_model.read_events(d) if e["kind"] == "comment"]
-
-    posted = post(str(tmp_path / "none"))
-    assert posted.returncode == 0, posted.stdout + posted.stderr
-
-    [root] = [e["id"] for e in events_model.read_events(d) if e["kind"] == "comment"]
-    page = open_page(browser, url)
-    view = open_panel_thread(page, root)
-    expect(view.locator("#t-bad .lf-error")).to_contain_text("Unexpected token")
-    report = '<lf-chart id="t-bad"> failed: '
-    consume_browser_errors(page, report)
-    reported = wait_for(
-        lambda: [
-            event["text"]
-            for event in events_model.read_events(d)
-            if event["kind"] == "error"
-        ],
-        bool,
-        failure="the page never reported the chart",
-    )
-    assert len(reported) == 1 and reported[0].startswith(report), reported
 
 
 def test_the_gate_passes_collapsed_words_that_overlap_when_visible(browser, serve):

@@ -356,7 +356,11 @@
   content: "-";
   color: var(--danger-ink);
 }
-.lf-diff-line-comment {
+/* A line's number stands over the gutter's width on its line, set against the code
+   in the code's muted ink, a press or not. Where it takes a comment it is a gutter
+   press (controls.css, `.lf-gutter`), with its + in the room before the number,
+   shown for the line the pointer is over. */
+.lf-diff-line-number {
   position: absolute;
   z-index: 2;
   inset-block: 0;
@@ -367,9 +371,6 @@
   min-width: 0;
   min-height: 0;
   padding: 0 1ch 0 2ch;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
   color: var(--code-muted);
   font: inherit;
   display: flex;
@@ -377,23 +378,8 @@
   justify-content: end;
   text-align: right;
   user-select: none;
-  cursor: pointer;
 }
-.lf-diff-line-comment::before {
-  content: "+";
-  position: absolute;
-  inset-inline-start: 1px;
-  inset-block-start: 0;
-  width: calc(2ch - 2px);
-  border-radius: var(--r-s);
-  background: var(--accent-tint);
-  color: var(--accent);
-  font-weight: 600;
-  text-align: center;
-  opacity: 0;
-}
-.lf-diff-line:hover > .lf-diff-line-comment::before,
-.lf-diff-line-comment[data-lf-focus]::before {
+.lf-diff-line:hover > .lf-diff-line-comment::before {
   opacity: 1;
 }
 /* A file the filter leaves out keeps the box until-found gives it, which spends no room
@@ -411,14 +397,14 @@
 }
 /* For the same reason its ring stands on its edge (base.css, "Where it stands"). */
 .lf-diff-comment {
-  outline-offset: 0;
+  --lf-ring-at: 0;
 }
 /* The file's own row, and the box it opens clips (overflow above), so the ring it wears
    is inset — base.css's rule for a control packed into something rather than standing
    on its own. Outside, its top run was drawn into the border the details draws and lost
    with it. */
 :host(lf-diff.lf-rendered) .lf-diff-file > details > summary {
-  outline-offset: var(--focus-ring-inset);
+  --lf-ring-at: var(--focus-ring-inset);
 }
 /* A row a hunk step lands on (lf-diff.js, `land`), inset for three reasons at once. The
    code box clips what it holds (Pierre's overflow and containment), and a row runs the
@@ -427,7 +413,7 @@
    a landing puts the row flush under the pinned header, which covered its upper run.
    Outset, a landed row showed no ring at all. */
 :host(lf-diff.lf-rendered) .lf-diff-line > [data-line] {
-  outline-offset: var(--focus-ring-inset);
+  --lf-ring-at: var(--focus-ring-inset);
 }
 /* The file header pins at the top of what scrolls it while its own rows go past: the name
    of the part you are reading has to be on screen for the whole of it, not only at its
@@ -575,7 +561,7 @@ pre[data-overflow="wrap"] .lf-diff-rows {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  outline-offset: var(--focus-ring-inset);
+  --lf-ring-at: var(--focus-ring-inset);
 }
 [data-lf-focus-visible] + .lf-diff-frame {
   outline: var(--focus-ring);
@@ -611,7 +597,7 @@ pre[data-overflow="wrap"] .lf-diff-rows {
   .lf-diff-file-thread-outlet
   > .lf-resolved-threads
   > .lf-resolved-summary {
-  outline-offset: var(--focus-ring-inset);
+  --lf-ring-at: var(--focus-ring-inset);
 }
 /* The outlet owns the review row's boundary. Shared conversation separators and
    focus treatment distinguish its threads without another card around each one. */

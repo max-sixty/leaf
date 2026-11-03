@@ -12,7 +12,7 @@ const HEADING_SELECTOR = "h1, h2, h3, h4, h5, h6";
 // Scope follows document ownership, not visibility: closed disclosures still contribute
 // headings that a native fragment link can reveal.
 /** @param {HTMLElement} host */
-export const outlineDocument = (host) => host.closest("[data-lf-views] > *, main");
+const outlineDocument = (host) => host.closest("[data-lf-views] > *, main");
 
 // Delivery and live behavior call this same template, retaining its native disclosure
 // and keyed links. Geometry readers collect the nodes only after its shared render.

@@ -257,23 +257,37 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
     assert external == []
 
 
-def test_interactive_export_hydrates_captured_deferred_values_offline(
+def test_an_interactive_export_reads_each_source_and_deferred_field_offline(
     browser, serve, tmp_path
 ):
-    """A frozen interactive copy keeps unopened deferred payloads usable."""
+    """Each source reaches the widget bound to it, an unopened tab's too, and each
+    unopened deferred payload loads, from one file with no host."""
     serve(
         leaf_page(
-            "offline deferred data",
-            '<h1>Review</h1><lf-diff id="patch" source="review-patch" collapsed>'
-            "</lf-diff>",
+            "offline data",
+            """<h1>Review</h1>
+<lf-tabs id="notes" list="side">
+  <lf-tab id="first" label="First"><lf-text-document id="one" source="notes-one" label="one.md"></lf-text-document></lf-tab>
+  <lf-tab id="second" label="Second"><lf-text-document id="two" source="notes-two" label="two.md"></lf-text-document></lf-tab>
+</lf-tabs>
+<lf-diff id="patch" source="review-patch" collapsed></lf-diff>""",
         )
     )
-    patch = (
-        "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
-        '@@ -1 +1 @@\n-return "old"\n+return "new"\n'
+    # Text a layer of escaping would mangle: a script end, quotes, a backslash, a
+    # line break and characters outside ASCII.
+    texts = {
+        "notes-one": 'First </script> "quoted" \\ back\nnext line é\n',
+        "notes-two": "Second, in the unopened tab ✓\n",
+    }
+    for source, text in texts.items():
+        data_model.cmd_data_set(serve.page_dir, source, text)
+    patch = "".join(
+        f"diff --git a/{name} b/{name}\n--- a/{name}\n+++ b/{name}\n"
+        f'@@ -1 +1 @@\n-return "old"\n+return "{name} new"\n'
+        for name in ("app.py", "lib.py")
     )
     data_model.cmd_data_set(serve.page_dir, "review-patch", patch_manifest(patch))
-    interactive = tmp_path / "deferred-interactive.html"
+    interactive = tmp_path / "data-interactive.html"
     result = CliRunner().invoke(
         cli_model.cli,
         [
@@ -301,10 +315,15 @@ def test_interactive_export_hydrates_captured_deferred_values_offline(
     )
     page.goto(document_url, wait_until="load")
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
-    page.locator("lf-diff summary").click()
-    expect(
-        page.locator('lf-diff [data-lf-datum=\'["app.py","new",1]\']')
-    ).to_have_count(1)
+    expect(page.locator("#second")).to_have_attribute("hidden", "until-found")
+    for widget, source in (("#one", "notes-one"), ("#two", "notes-two")):
+        assert page.locator(widget).evaluate("widget => widget.value") == texts[source]
+        expect(page.locator(f"{widget} code")).to_have_text(texts[source])
+    for name in ("app.py", "lib.py"):
+        page.locator("lf-diff summary", has_text=name).click()
+        expect(
+            page.locator(f'lf-diff [data-lf-datum=\'["{name}","new",1]\']')
+        ).to_contain_text(f"{name} new")
     assert external == []
 
 

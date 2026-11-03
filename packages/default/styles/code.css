@@ -99,10 +99,10 @@ lf-code .lf-code-elided > lf-note {
 lf-code .lf-code-elided > lf-note::before {
   content: "— ";
 }
-lf-code :is(.lf-code-line, .lf-code-elided).hi {
+lf-code :is(.lf-code-line, .lf-code-elided)[data-lf-hi] {
   background: var(--hi-tint);
 }
-lf-code :is(.lf-code-line, .lf-code-elided).hi::before {
+lf-code :is(.lf-code-line, .lf-code-elided)[data-lf-hi]::before {
   border-right-color: var(--warn);
 }
 /* A note is prose about a source line, not another source line. It follows the
@@ -142,11 +142,6 @@ lf-code > pre > lf-note {
       border-radius: var(--r);
       padding: var(--lf-code-inset-block) var(--lf-code-inset-inline)
         var(--lf-code-inset-block) calc(var(--lf-code-gutter) + var(--lf-code-gap));
-      /* Reserve the clearance that the numbered rows take after upgrade, so their
-         arrival keeps the code block's first box. */
-      padding-block-end: calc(
-        var(--lf-code-inset-block) + var(--lf-text-scroll-clearance)
-      );
       white-space: pre-wrap;
       overflow-wrap: anywhere;
     }

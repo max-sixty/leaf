@@ -47,6 +47,12 @@ for (const [name, read] of Object.entries({
 }))
   Object.defineProperty(viewport, name, { configurable: true, get: read });
 window.visualViewport ??= viewport;
+// States that each of `elements` stands in the window, for a test that focuses one and
+// presses a key: Leaf's keys act at a control only while the user sees it (dispatch.js).
+export function inView(...elements) {
+  for (const element of elements)
+    element.getBoundingClientRect = () => new DOMRect(0, 0, 100, 20);
+}
 // happy-dom's computed style is the declared style: no initial values, and no
 // shorthand expanded. The runtime names the values it acts on, so a property left
 // unset reads as its initial value, but it reads overflow per axis, which a test may
@@ -79,6 +85,7 @@ window.getComputedStyle = (element, pseudo) => {
 // What a delivered document's prepaint declares before any module runs
 // (`runtime/prepaint.js`): the page's storage scope, "" for a page at the origin's root.
 document.documentElement.dataset.lfPageScope = "";
+await import("../../browser/runtime/document-inputs.js");
 await import("../../browser/runtime/prepaint.js");
 // And the runtime sheets every delivery carries (`delivery_sheets` in
 // revision_delivery.py), which `runtime/stylesheets.js` constructs as it evaluates.

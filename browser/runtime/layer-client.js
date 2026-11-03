@@ -314,23 +314,25 @@ export const revealLayer = () => {
   layerRevealed();
 };
 
-// The page's one door to the log, spelled once. Two callers reach it — `post`, which
-// orders the user's own gestures through it, and the error report below, which
-// deliberately doesn't — and what they share is the request rather than anything about
-// the sending: same path, same method, same encoding, so a door that moved would move
-// for both. Whether a send waits on the one before it belongs to the caller, and so
-// whether it must outlive the document (`keepalive`), as a tab's last word does.
+const encoder = new window.TextEncoder();
+// Below the 64 KiB limit, so a message too long for it goes out as an ordinary
+// request; a gesture's body is far smaller.
+const KEEPALIVE_BYTES = 60_000;
+
+// The page's one door to the log, spelled once. Its callers — delivery.js, which
+// orders the user's own gestures through it and sends bookkeeping beside them, and the
+// error report below, which deliberately doesn't — share the request rather than
+// anything about the sending: same path, same method, same encoding, so a door that
+// moved would move for all of them. Whether a send waits on the one before it belongs
+// to the caller.
 /** @param {import("../types/contract.js").BrowserCommand} event */
-export const postEvent = async (
-  event,
-  held = runtime.data,
-  { keepalive = false } = {},
-) => {
+export const postEvent = async (event, held = runtime.data) => {
   if (offlineInteractive)
     throw new Error("no agent or server is available in an interactive export");
   if (!layerKnown) await layerReady;
   countTraffic("sends");
   recordInteraction("event_post", { kind: event.kind, attempt: event.attempt ?? null });
+  const body = JSON.stringify(event);
   let response;
   try {
     response = await fetch(pageUrl("api/event"), {
@@ -339,8 +341,13 @@ export const postEvent = async (
         "Content-Type": "application/json",
         ...dataHeaders(held),
       }),
-      body: JSON.stringify(event),
-      keepalive,
+      body,
+      // A gesture sent as the tab closes, such as the edit a playground records on
+      // leaving, still reaches the log: a keepalive request outlives its document,
+      // which Firefox otherwise drops before it leaves. A page may have 64 KiB of
+      // keepalive bodies in flight and the browser refuses a request past that, so a
+      // longer message goes out tied to its document.
+      keepalive: encoder.encode(body).byteLength < KEEPALIVE_BYTES,
     });
     recordInteraction("event_response", {
       kind: event.kind,

@@ -117,7 +117,7 @@ export async function loadIcon() {
 let tone = "";
 function paintTab() {
   if (!iconMark || !toneProbe.isConnected) return;
-  keeps(toneProbe, "class", tone ? `lf-dot ${tone}` : "lf-dot");
+  keeps(toneProbe, "data-lf-tone", tone || null);
   // Written only on change: an unchanged poll must not hand the browser its icon again
   // every two seconds.
   keeps(

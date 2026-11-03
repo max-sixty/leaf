@@ -168,7 +168,7 @@ def test_diff_news_waits_only_where_its_growth_would_be_seen(browser, serve, foo
     )
     told(page)
     rendered(page)
-    notice = thread.get_by_role("button", name="1 new reply", exact=True)
+    notice = thread.get_by_role("button", name="1 new", exact=True)
     messages = thread.locator(".lf-msg")
     if foot == "above the window":
         expect(messages).to_have_count(2)
@@ -318,11 +318,9 @@ def test_a_reopening_waits_where_the_reopened_thread_would_stand(
     append_agent_reply(serve.page_dir, first, "The check now covers both paths.")
     told(page)
     rendered(page)
-    expect(summary).to_have_text("Resolved · 1 · Reopened · 1 new reply")
+    expect(summary).to_have_text("Resolved · 1 · 2 new")
     # The news is Leaf's, in its face, as the thread's own held news is.
-    expect(summary.locator('[data-voice="leaf"]')).to_have_text(
-        "Reopened · 1 new reply"
-    )
+    expect(summary.locator('[data-voice="leaf"]')).to_have_text("2 new")
     assert open_thread.bounding_box()["y"] == pytest.approx(before, abs=0.5)
 
 
@@ -336,7 +334,7 @@ def test_a_reaction_list_closes_once_its_trigger_is_out_of_sight(browser, serve)
     page = open_page(browser, url)
     resized(page, 1280, 800)
     message = page.locator(
-        f'lf-diff .lf-page-thread[data-thread="{root}"] .lf-msg.agent'
+        f'lf-diff .lf-page-thread[data-thread="{root}"] .lf-msg[data-lf-author=agent]'
     )
     message.hover()
     trigger = message.locator(".lf-react-trigger")
@@ -480,7 +478,7 @@ def test_an_agent_turn_arriving_holds_still_the_page_box_being_typed_in(
         },
     )
     told(page)
-    expect(thread.get_by_role("button", name="1 new reply")).to_be_visible()
+    expect(thread.get_by_role("button", name="1 new", exact=True)).to_be_visible()
     rendered(page)
     expect(thread.locator(".lf-msg")).to_have_count(messages)
     expect(box).to_be_focused()
@@ -584,6 +582,7 @@ def test_a_turn_arriving_leaves_a_user_who_scrolled_away_from_their_box_reading(
     box = thread.locator(":scope > .lf-thread-reply leaf-text")
     box.scroll_into_view_if_needed()
     write(box, "Half a thought")
+    rendered(page)
     page.evaluate(
         """node => document.scrollingElement.scrollBy({
           top: node.getBoundingClientRect().top - innerHeight - 400,
@@ -592,6 +591,7 @@ def test_a_turn_arriving_leaves_a_user_who_scrolled_away_from_their_box_reading(
     )
     scroll_settled(page)
     expect(box).to_be_focused()
+    assert box.bounding_box()["y"] > page.evaluate("innerHeight")
     before = page.evaluate("() => document.scrollingElement.scrollTop")
     append_carried_log_record(
         serve.page_dir,

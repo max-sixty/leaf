@@ -350,8 +350,7 @@ def runs(pid: int, command: str) -> bool:
         try:
             if command in " ".join(child.cmdline()):
                 return True
-        # macOS refuses an exiting process's arguments as AccessDenied.
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
+        except psutil.Error:
             continue
     return False
 

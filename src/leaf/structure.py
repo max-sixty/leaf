@@ -133,9 +133,11 @@ def script_kind(attrs: dict) -> str:
 
 
 # Same-origin parents already share the page's DOM and request authority. Permit
-# embedding there; a different origin must not disguise a live decision under its
-# own controls, even when same-site cookies authorize the framed page. The server
-# sends this policy as a header and the site manifest carries it to the Worker.
+# embedding there; any other origin must not disguise a live decision under its
+# own controls, even when same-site cookies authorize the framed page. A page's
+# running server adds the other live Leaf servers under its key
+# (`http.PageEndpoint._frame_ancestors`); the site manifest carries this policy to
+# the Worker as it stands.
 FRAME_ANCESTORS_CSP = "frame-ancestors 'self'"
 # Non-painting document structure that may stand outside the authored main. Head
 # metadata is allowed only while the parser is actually inside head.

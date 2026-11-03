@@ -789,7 +789,7 @@ def test_obligation_contextual_bindings_are_independent_of_widget_bindings(
     page.keyboard.press("?")
     page.keyboard.press("?")
     inspect_reference = page.locator(
-        '.lf-command-reference [role=row][data-lf-command="test.inspect"]'
+        '.lf-command-reference [role=option][data-lf-command="test.inspect"]'
     )
     expect(inspect_reference.locator("kbd")).to_have_text("I")
     expect(inspect_reference.locator(".lf-binding-sequence")).to_have_attribute(
@@ -862,7 +862,7 @@ def test_obligation_contextual_bindings_are_independent_of_widget_bindings(
     page.keyboard.press("?")
     page.keyboard.press("?")
     focused_inspect = page.locator(
-        '.lf-command-reference [role=row][data-lf-command="test.inspect"]'
+        '.lf-command-reference [role=option][data-lf-command="test.inspect"]'
     )
     expect(focused_inspect.locator("kbd")).to_have_text("I")
 
@@ -1584,8 +1584,9 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
     # anchor its controls from — a 2px mark of its own beside the change is not the
     # promise.
     marks = page.evaluate("""() => [...document.querySelectorAll('main [data-lf-obligation]')].map(e => {
+      const ring = document.querySelector('.lf-location');
       return { what: e.id || e.tagName, fragments: e.getClientRects().length,
-               ring: getComputedStyle(e).outlineStyle !== 'none' };
+               ring: ring?.dataset.for === e.id && getComputedStyle(ring).display !== 'none' };
     })""")
     assert [m["what"] for m in marks] == ["sug-refill"]
     assert marks[0]["ring"]
@@ -1617,8 +1618,17 @@ def test_the_walk_travels_to_an_obligation_a_page_left_boxless(browser, serve):
     comment's outline gives, so the walk's mark and the thread's cannot disagree about
     where a boxless decision is. The outermost mark still names the decision, one place for the
     user to be located."""
-    styled = OBLIGATIONS_PAGE.replace(
-        "</head>", "<style>#sug-refill { display: contents; }</style>\n</head>"
+    # Keep the boxless element's slots in one prose cell. As direct children of
+    # main they become separate grid items, so the fixture no longer describes
+    # one decision below the preceding question.
+    styled = (
+        OBLIGATIONS_PAGE.replace(
+            '<lf-suggestion id="sug-refill">', '<div><lf-suggestion id="sug-refill">'
+        )
+        .replace("</lf-suggestion>", "</lf-suggestion></div>", 1)
+        .replace(
+            "</head>", "<style>#sug-refill { display: contents; }</style>\n</head>"
+        )
     )
     page = open_page(browser, serve(styled))
     resized(page, 900, 400)
@@ -1661,6 +1671,16 @@ def test_the_walk_travels_to_an_obligation_a_page_left_boxless(browser, serve):
         "LF-NEW",
     ], f"the mark went somewhere else than the decision and its shown boxes: {marks}"
     expect(page.locator(CURRENT_OBLIGATION)).to_have_count(1)
+    # One ring, round every box the decision shows through: rings on the pieces read
+    # as boxes touching rather than as the one decision the user is in.
+    assert page.evaluate("""() => {
+      const ring = document.querySelector('.lf-location[data-for="sug-refill"]');
+      const w = ring.getBoundingClientRect();
+      return ['refill-was', 'refill-now'].every(id => {
+        const r = document.getElementById(id).getBoundingClientRect();
+        return r.top >= w.top - 1 && r.bottom <= w.bottom + 1
+            && r.left >= w.left - 1 && r.right <= w.right + 1; });
+    }"""), "the location ring does not reach round both slots"
 
 
 def test_a_commented_obligation_does_not_wear_its_ring_on_the_runtime_s_own_note(

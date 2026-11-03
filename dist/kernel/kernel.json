@@ -166,7 +166,7 @@
 
     "runtime/dom-children.js": "8f4138bcd31424db87ffd963b73bbf4d77fb1560dfc934d2c159897716d3dba2",
 
-    "runtime/dom-move.js": "1416af3c91d279305fcea7b55c73c2bea39839b50ea7e2fee0569592771ab271",
+    "runtime/dom-move.js": "362d91000748b9d29db533692878419eb28f7cd6edae3db32409f93beba9a158",
 
     "runtime/drafts.js": "1dd083d56adb9a6c6785a530b371a44d895d635f9f5d6d463877162d887b6474",
 
@@ -266,7 +266,7 @@
 
     "runtime/keyboard/register.js": "b1ee127ef099ccb462992bcf9fa75af56573290a66f1422aefa773d77a6a2bc7",
 
-    "runtime/keyboard/scopes.js": "7b799aa4277fef464da375c06dcf429f21c6f7699b26ec79496b8ceaedf57b88",
+    "runtime/keyboard/scopes.js": "12eebb09d55c05ea457e4e5d50ad21e44fbe8624e2333b85f681cd593a3a480f",
 
     "runtime/keyboard/status-context.js": "7a513009193c1d885a2bfb7d2d7cbcf81de793fdec47ee5d19e5422c9c69aa8b",
 

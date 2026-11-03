@@ -1030,11 +1030,25 @@ export const paintKeysWithin = (root) => {
 // The roots renderers painted since the frame last reflected, resolved to the scoped
 // elements inside them in one climb per scoped element however many renderers
 // painted, where a scan per paint cost every widget's update the whole page's scoped
-// elements. They are resolved as the frame reflects, or before a placed node moves
-// (dom-move.js), so a control that leaves a painted root keeps its mark.
+// elements. A placed node about to move out of a painted root takes the marks of the
+// scoped elements it holds with it (dom-move.js), so the frame finds them wherever
+// they land.
 /** @type {Set<Node>} */
 const paintedRoots = new Set();
-installMoveKeys(claimPaintedRoots);
+installMoveKeys((node) => {
+  if (!paintedRoots.size) return;
+  for (let at = /** @type {Node | null} */ (node); at; at = composedParentNode(at))
+    if (paintedRoots.has(at)) return markScopedIn(node);
+});
+/** @param {Node} node */
+function markScopedIn(node) {
+  if (node instanceof Element && scopeRefFor.has(node)) {
+    dirtyElements.add(node);
+    dirtyButtons.add(node);
+  }
+  for (const child of node.childNodes) markScopedIn(child);
+  if (node instanceof Element && node.shadowRoot) markScopedIn(node.shadowRoot);
+}
 function claimPaintedRoots() {
   if (!paintedRoots.size) return;
   for (const ref of scopeRefs) {

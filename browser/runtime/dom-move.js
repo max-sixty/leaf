@@ -38,11 +38,11 @@ export const installMoveSelection = (owner) => {
 /** @param {Iterable<Node>} placed */
 export const holdSelection = (placed) => selectionOwner?.(placed) ?? null;
 // Leaf's keys mark what a renderer painted by its root and read the root's contents
-// at the frame (keyboard/scopes.js, `paintKeysWithin`); a node leaving its root first
-// has them read before it moves.
-/** @type {(() => void) | null} */
+// at the frame (keyboard/scopes.js, `paintKeysWithin`); a placed node is shown to
+// them before it moves, so a control leaving a painted root keeps its mark.
+/** @type {((node: Node) => void) | null} */
 let keysOwner = null;
-/** @param {() => void} owner */
+/** @param {(node: Node) => void} owner */
 export const installMoveKeys = (owner) => {
   keysOwner = owner;
 };
@@ -51,7 +51,7 @@ export const installMoveKeys = (owner) => {
 export function move(parent, node, before = null) {
   if (node.parentNode === parent && (before === node || node.nextSibling === before))
     return node;
-  if (node.isConnected) keysOwner?.();
+  if (node.isConnected) keysOwner?.(node);
   // A retained move can enter another shadow root without a focus event. Subscribe
   // before placement, so connectedMoveCallback and the caller's next move are heard.
   if (parent.isConnected) focusOwner?.watch(parent.getRootNode());

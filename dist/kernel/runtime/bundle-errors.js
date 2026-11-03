@@ -3509,7 +3509,18 @@ const paintKeysWithin = (root) => {
 	repaint();
 };
 const paintedRoots = /* @__PURE__ */ new Set();
-installMoveKeys(claimPaintedRoots);
+installMoveKeys((node) => {
+	if (!paintedRoots.size) return;
+	for (let at = node; at; at = composedParentNode(at)) if (paintedRoots.has(at)) return markScopedIn(node);
+});
+function markScopedIn(node) {
+	if (node instanceof Element && scopeRefFor.has(node)) {
+		dirtyElements.add(node);
+		dirtyButtons.add(node);
+	}
+	for (const child of node.childNodes) markScopedIn(child);
+	if (node instanceof Element && node.shadowRoot) markScopedIn(node.shadowRoot);
+}
 function claimPaintedRoots() {
 	if (!paintedRoots.size) return;
 	for (const ref of scopeRefs) {

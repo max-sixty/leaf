@@ -2037,7 +2037,7 @@ const installMoveKeys = (owner) => {
 };
 function move(parent, node, before = null) {
 	if (node.parentNode === parent && (before === node || node.nextSibling === before)) return node;
-	if (node.isConnected) keysOwner?.();
+	if (node.isConnected) keysOwner?.(node);
 	if (parent.isConnected) focusOwner?.watch(parent.getRootNode());
 	if (parent.moveBefore && node.getRootNode({ composed: true }) === parent.getRootNode({ composed: true })) parent.moveBefore(node, before);
 	else {

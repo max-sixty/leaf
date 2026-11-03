@@ -7332,6 +7332,15 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		}));
 		const next = wanted.length ? [...main?.children ?? []].filter((block) => !holding.has(block) && !block.matches("hgroup, header, h1")) : [];
 		host.toggleAttribute("data-onme-side", candidateOf("opens", "foot") === "side" && showing({ view: "queue" }) && queueTab === "you");
+		for (const [name, today] of [
+			["items", "space"],
+			["heads", "caption"],
+			["lone", "heading"]
+		]) {
+			const value = candidateOf(name, today);
+			if (value === today) host.removeAttribute(`data-onme-${name}`);
+			else host.setAttribute(`data-onme-${name}`, value);
+		}
 		if (next.length === folded.length && next.every((block, at) => block === folded[at])) return;
 		for (const block of folded) block.removeAttribute("hidden");
 		for (const block of next) block.setAttribute("hidden", "until-found");
@@ -7664,7 +7673,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const key = queueItemKey(item);
 		const opened = opening.openItem === key;
 		const stop = queueStop(item);
-		const kind = item.owner === "user" ? stop.noun : agentNoun(item);
+		const mine = item.owner === "user";
+		const kind = mine && list === "done" && candidateOf("done", "cards") === "fold" ? "" : mine ? stop.noun : agentNoun(item);
 		const where = says === "place" ? "" : onMe.place(item);
 		const walked = leads && queueTab === "you" && walkedStop() === stop.key;
 		const chosen_ = candidateOf("message", "whole");
@@ -7705,6 +7715,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
         data-key=${key}
         data-obligation=${record?.id ?? nothing}
         ?data-walked=${walked}
+        ?data-lone=${Boolean(group)}
         style=${opening.seatHeights.has(key) ? `min-height: ${opening.seatHeights.get(key)}px` : ""}
       >
         ${about.length ? html`<p class="lf-fp-on-place lf-rows-head">${about.join(" · ")}</p>` : nothing}${message ? html`${title ? html`<h3
@@ -7783,19 +7794,23 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 				key: group.key,
 				group
 			});
+			if (group.folds && !unfolded.has(String(group.key))) continue;
 			for (const item of group.items) rows.push({
 				key: queueItemKey(item),
 				item,
 				group
 			});
 		}
+		const heading = (group) => {
+			const count = group.count ?? group.items.length;
+			if (group.folds) return settledHeading(String(group.key), group.title, count);
+			return html`<h3 class="lf-rows-head">
+        <span class="lf-fp-label">${group.title}</span
+        ><span class="lf-row-end">${count}</span>
+      </h3>`;
+		};
 		return html`<div class="lf-fp-on-list lf-rows">
-      ${repeat(rows, (row) => row.key, (row) => row.rule ? html`<hr class="lf-fp-rule lf-fp-on-rule" />` : row.item ? line(row.item, row.group) : html`<h3 class="lf-rows-head">
-                  <span class="lf-fp-label">${row.group.title}</span
-                  ><span class="lf-row-end"
-                    >${row.group.count ?? row.group.items.length}</span
-                  >
-                </h3>`)}
+      ${repeat(rows, (row) => row.key, (row) => row.rule ? html`<hr class="lf-fp-rule lf-fp-on-rule" />` : row.item ? line(row.item, row.group) : heading(row.group))}
     </div>`;
 	}
 	declareSide((node) => {
@@ -7850,13 +7865,15 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			count: group.items.filter(waits).length
 		}));
 		const onPageWaiting = onPage.filter((item) => lists.you.includes(item)).length;
+		const foldsDone = candidateOf("done", "cards") === "fold";
 		return html`${onPage.length ? html`<p class="lf-rows-head lf-fp-on-page">
             ${voiced(onPageWaiting ? `${onPageWaiting} on the page, each at its own question` : "Nothing left on the page")}
           </p>` : nothing}${listed.length || onPage.length ? nothing : html`<p class="lf-rows-empty">Nothing waiting on me.</p>`}${keyed(grouping, groupedItems([...groups, ...finished.length ? [{
 			key: "done",
 			title: "Done",
-			items: finished
-		}] : []], (item, group) => !("leads" in group) ? onItemCard(item, "done", { card: true }) : onItemCard(item, listOf(item), {
+			items: finished,
+			folds: foldsDone
+		}] : []], (item, group) => !("leads" in group) ? onItemCard(item, "done", { card: !foldsDone }) : onItemCard(item, listOf(item), {
 			card: true,
 			says: group.headed ? says : null,
 			group: group.headed ? null : group.title,
@@ -7881,7 +7898,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			{
 				key: "done",
 				title: "Done",
-				items: lists.done
+				items: lists.done,
+				folds: candidateOf("done", "cards") === "fold"
 			}
 		].filter((group) => group.items.length);
 		forgetOpened([...lists.agent, ...lists.done]);

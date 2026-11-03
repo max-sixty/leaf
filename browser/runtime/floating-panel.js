@@ -3310,6 +3310,17 @@ export function createFloatingPanel({
         showing({ view: "queue" }) &&
         queueTab === "you",
     );
+    // PROTOTYPE: how the On lists part their items and groups, which the panel's sheet
+    // reads off the host (floating-panel.css, `data-onme-*`).
+    for (const [name, today] of /** @type {const} */ ([
+      ["items", "space"],
+      ["heads", "caption"],
+      ["lone", "heading"],
+    ])) {
+      const value = candidateOf(name, today);
+      if (value === today) host.removeAttribute(`data-onme-${name}`);
+      else host.setAttribute(`data-onme-${name}`, value);
+    }
     if (
       next.length === folded.length &&
       next.every((block, at) => block === folded[at])
@@ -3854,7 +3865,14 @@ export function createFloatingPanel({
     // A line says what its item is: what waits on the user in the walk's word for it,
     // so a suggestion says Insertion, Deletion or Rewrite as the field does after `m`,
     // and the agent's as the reply, answer or to-do it owes.
-    const kind = mine ? stop.noun : agentNoun(item);
+    // PROTOTYPE: a finished line of the user's under a folded Done says how it ended, a
+    // to-do's Done or a question's answer, so it names no kind before its title.
+    const kind =
+      mine && list === "done" && candidateOf("done", "cards") === "fold"
+        ? ""
+        : mine
+          ? stop.noun
+          : agentNoun(item);
     const where = says === "place" ? "" : onMe.place(item);
     const walked = leads && queueTab === "you" && walkedStop() === stop.key;
     // On me's card says only where its item stands over its question, after the name
@@ -3910,6 +3928,7 @@ export function createFloatingPanel({
         data-key=${key}
         data-obligation=${record?.id ?? nothing}
         ?data-walked=${walked}
+        ?data-lone=${Boolean(group)}
         style=${opening.seatHeights.has(key) ? `min-height: ${opening.seatHeights.get(key)}px` : ""}
       >
         ${
@@ -4031,7 +4050,9 @@ export function createFloatingPanel({
   // its node, and the focus and drawing in it. `line` draws an item, given the group it
   // stands in. A rule belongs to its group, so replacing the group's first item
   // does not replace the rule and make the keyed renderer move surviving cards.
-  /** @template {{key: string | Element, title: string, items: readonly PanelQueueItem[], headed?: boolean, count?: number}} G
+  // PROTOTYPE: a group that `folds` stands folded under its heading, as Threads'
+  // Resolved does (`settledHeading`), its items shown only once the user unfolds it.
+  /** @template {{key: string | Element, title: string, items: readonly PanelQueueItem[], headed?: boolean, count?: number, folds?: boolean}} G
    * @param {readonly G[]} groups @param {(item: PanelQueueItem, group: G) => unknown} line */
   function groupedItems(groups, line) {
     /** @type {({key: string | Element, rule: true} | {key: string | Element, rule?: false, group: G, item?: PanelQueueItem})[]} */
@@ -4043,9 +4064,19 @@ export function createFloatingPanel({
         rows.push({ key: `rule:${group.key}`, rule: true });
       running = !headed;
       if (headed) rows.push({ key: group.key, group });
+      if (group.folds && !unfolded.has(String(group.key))) continue;
       for (const item of group.items)
         rows.push({ key: queueItemKey(item), item, group });
     }
+    /** @param {G} group */
+    const heading = (group) => {
+      const count = group.count ?? group.items.length;
+      if (group.folds) return settledHeading(String(group.key), group.title, count);
+      return html`<h3 class="lf-rows-head">
+        <span class="lf-fp-label">${group.title}</span
+        ><span class="lf-row-end">${count}</span>
+      </h3>`;
+    };
     return html`<div class="lf-fp-on-list lf-rows">
       ${repeat(
         rows,
@@ -4055,12 +4086,7 @@ export function createFloatingPanel({
             ? html`<hr class="lf-fp-rule lf-fp-on-rule" />`
             : row.item
               ? line(row.item, row.group)
-              : html`<h3 class="lf-rows-head">
-                  <span class="lf-fp-label">${row.group.title}</span
-                  ><span class="lf-row-end"
-                    >${row.group.count ?? row.group.items.length}</span
-                  >
-                </h3>`,
+              : heading(row.group),
       )}
     </div>`;
   }
@@ -4175,6 +4201,8 @@ export function createFloatingPanel({
     // Another grouping draws the list afresh: every card moves, and moving each keyed
     // node in turn would stand some back where they were.
     const onPageWaiting = onPage.filter((item) => lists.you.includes(item)).length;
+    // PROTOTYPE: what left the list folded under Done, a line each once unfolded.
+    const foldsDone = candidateOf("done", "cards") === "fold";
     return html`${
       onPage.length
         ? html`<p class="lf-rows-head lf-fp-on-page">
@@ -4194,11 +4222,13 @@ export function createFloatingPanel({
       groupedItems(
         [
           ...groups,
-          ...(finished.length ? [{ key: "done", title: "Done", items: finished }] : []),
+          ...(finished.length
+            ? [{ key: "done", title: "Done", items: finished, folds: foldsDone }]
+            : []),
         ],
         (item, group) =>
           !("leads" in group)
-            ? onItemCard(item, "done", { card: true })
+            ? onItemCard(item, "done", { card: !foldsDone })
             : onItemCard(item, listOf(item), {
                 card: true,
                 says: group.headed ? says : null,
@@ -4220,7 +4250,12 @@ export function createFloatingPanel({
     const groups = [
       { key: "in-hand", title: "In hand", items: inHand },
       { key: "queued", title: "Up next", items: queued },
-      { key: "done", title: "Done", items: lists.done },
+      {
+        key: "done",
+        title: "Done",
+        items: lists.done,
+        folds: candidateOf("done", "cards") === "fold",
+      },
     ].filter((group) => group.items.length);
     forgetOpened([...lists.agent, ...lists.done]);
     return html`${opening.planShown ? planCards() : nothing}${

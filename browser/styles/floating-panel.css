@@ -1730,6 +1730,100 @@
     align-self: flex-start;
     margin-top: 2px;
   }
+  /* PROTOTYPE (on-me panel structure): how the On lists part their cards and groups,
+     each set on the host from the playground (floating-panel.js, `foldPage`). A card
+     after another card, rather than after its group's heading, is where one item ends
+     and the next begins. */
+  .lf-floating-panel[data-onme-items="rule"]
+    .lf-fp-on-list
+    > .lf-fp-on-item[data-card]:not(
+      :first-child,
+      .lf-rows-head + *,
+      .lf-fp-on-rule + *
+    ) {
+    border-top: 1px solid var(--lf-fp-faint);
+  }
+  .lf-floating-panel[data-onme-items="box"] .lf-fp-on-rule {
+    display: none;
+  }
+  .lf-floating-panel[data-onme-items="box"] .lf-fp-on-rule + .lf-fp-on-item[data-card] {
+    margin-top: 22px;
+  }
+  .lf-floating-panel[data-onme-items="box"] .lf-fp-on-item[data-card] {
+    border: 1px solid var(--lf-fp-faint);
+    border-radius: var(--r);
+    padding: 10px 7px 12px;
+  }
+  .lf-floating-panel[data-onme-items="box"]
+    .lf-fp-on-list
+    > .lf-fp-on-item[data-card]:not(:first-child) {
+    margin-top: 8px;
+  }
+  .lf-floating-panel[data-onme-items="box"] .lf-rows-head + .lf-fp-on-item[data-card] {
+    margin-top: 4px;
+  }
+  /* A group starts with room above it and a rule darker than an item's: under its
+     heading, set in the ink at a pane title's size, or over the card that stands alone
+     in it, which names the group itself. */
+  .lf-floating-panel[data-onme-heads="ruled"] {
+    --lf-fp-group-rule: color-mix(in srgb, var(--ink) 24%, transparent);
+  }
+  .lf-floating-panel[data-onme-heads="ruled"] .lf-fp-on-list > .lf-rows-head {
+    font: var(--font-title);
+    color: var(--ink);
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--lf-fp-group-rule);
+  }
+  .lf-floating-panel[data-onme-heads="ruled"] .lf-fp-on-rule {
+    display: none;
+  }
+  .lf-floating-panel[data-onme-heads="ruled"]
+    .lf-fp-on-list
+    > .lf-fp-on-item[data-lone]:not(:first-child) {
+    margin-top: 22px;
+  }
+  .lf-floating-panel[data-onme-heads="ruled"]:not([data-onme-items="box"])
+    .lf-fp-on-list
+    > .lf-fp-on-item[data-lone]:not(:first-child) {
+    border-top: 1px solid var(--lf-fp-group-rule);
+  }
+  .lf-floating-panel[data-onme-heads="ruled"]
+    .lf-fp-on-list
+    > .lf-rows-head:not(:first-child) {
+    margin-top: 22px;
+  }
+  .lf-floating-panel[data-onme-heads="ruled"]
+    .lf-fp-on-list
+    > .lf-rows-head
+    + .lf-fp-on-item[data-card] {
+    padding-top: 10px;
+  }
+  .lf-floating-panel[data-onme-heads="ruled"]
+    .lf-fp-on-list
+    > .lf-rows-head
+    .lf-row-end {
+    font: var(--font-small);
+    color: var(--muted);
+  }
+  /* Done folded in On me starts where the headings above it do, its arrow after its
+     count at the end, rather than in the lead column its lines' kinds widen. */
+  .lf-fp-on-list .lf-fp-settled {
+    display: flex;
+    align-items: baseline;
+  }
+  .lf-fp-on-list .lf-fp-settled > .lf-row-end {
+    margin-inline-start: auto;
+  }
+  .lf-fp-on-list .lf-fp-settled::before {
+    order: 1;
+    margin: 0 0 0 8px;
+  }
+  /* A card alone in its group names it as a line of its own card, in the small muted
+     face a qualifier takes, rather than in a heading's. */
+  .lf-floating-panel[data-onme-lone="caption"] .lf-fp-on-place {
+    font: var(--font-small);
+    color: var(--muted);
+  }
   /* PROTOTYPE: On me beside the page, at the window's end edge and nearly its full
      height, as wide as the room right of the column, where that room holds it; else at
      the foot as today. */

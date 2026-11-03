@@ -3319,6 +3319,25 @@ def test_the_panel_folds_to_the_leaf_and_stays_folded(browser, serve):
     expect(page.locator(panel_view("threads"))).to_be_visible()
 
 
+def test_folding_from_the_menu_draws_the_panel_folded_at_once(browser, serve):
+    """The menu's Fold row folds as `.` does, drawing the folded panel without first
+    drawing it open: open with an empty field, the field would say an error about
+    nothing and take the leaf's dot away, only for the fold to put it back. The
+    browser fixture fails the test on that restated write (write_watch.js)."""
+    page = floating(browser, serve(LONG_PAGE))
+    page.evaluate(
+        "async () => (await window.__lfWidgetApi()).raiseError('Link not copied')"
+    )
+    expect(field(page)).to_have_attribute("data-lf-says", "error")
+    dot = page.locator(".lf-fp-error-dot")
+    expect(dot).to_be_hidden()
+    page.locator(".lf-fp-leaf").click()
+    expect(dot).to_be_visible()
+    panel_menu(page).locator(".lf-fp-item", has_text="Fold to the leaf").click()
+    expect(page.locator(".lf-floating-panel")).to_have_attribute("data-lf-rest", "mark")
+    expect(dot).to_be_visible()
+
+
 @pytest.mark.parametrize("scheme", ["light", "dark"])
 def test_the_leaf_travels_with_its_fold_and_reverses_from_where_it_stands(
     browser, serve, scheme

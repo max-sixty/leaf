@@ -6835,6 +6835,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const route = OWN_VIEWS.find((route) => route.view === entry.key) ?? null;
 		return menuItem(entry.label, rowEnd(entry), () => {
 			if (route) open(route);
+			else if (entry.key === `command:${FOLD}`) entry.press?.(null);
 			else putAwayThen(() => entry.press?.(heldCurrentLocation));
 		}, {
 			urgent: Boolean(entry.urgent),

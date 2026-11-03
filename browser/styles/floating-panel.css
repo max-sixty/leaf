@@ -1645,7 +1645,7 @@
      `data-told`). */
   .lf-fp-answer[data-told] {
     flex: 1 0 100%;
-    line-height: 1.3;
+    padding-block: 7px;
   }
   .lf-fp-choice-name {
     font-weight: 600;

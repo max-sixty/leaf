@@ -52,6 +52,7 @@ from leaf import file_changes as file_changes_model
 from leaf import harness as harness_model
 from leaf import hook_transport as hook_transport_model
 from leaf import hooks as hooks_model
+from leaf import hosting as hosting_model
 from leaf import leases as leases_model
 from leaf import presence as presence_model
 from leaf import schema as schema_model
@@ -1908,6 +1909,17 @@ def test_a_prompt_re_vendors_a_page_an_older_leaf_vendored_and_hands_over_its_in
     assert session_runtime_model.selected_launcher("s1") is None
 
 
+def select_another_leaf(tmp_path) -> Path:
+    """Have session s1 deliver through another Leaf, as an installed plugin's or
+    another checkout's, and return its launcher."""
+    other = tmp_path / "installed" / "bin" / "leaf"
+    other.parent.mkdir(parents=True)
+    other.write_text("#!/bin/sh\n")
+    other.chmod(0o755)
+    session_runtime_model.select_launcher("s1", other)
+    return other.resolve()
+
+
 @pytest.mark.parametrize("selected", [False, True])
 def test_a_checkout_that_re_vendors_a_page_delivers_for_its_session(
     claimed, tmp_path, selected
@@ -1917,11 +1929,7 @@ def test_a_checkout_that_re_vendors_a_page_delivers_for_its_session(
     selection, as an installed plugin's doesn't, or had selected another, so its
     hooks and watch can still read the page."""
     if selected:
-        other = tmp_path / "installed" / "bin" / "leaf"
-        other.parent.mkdir(parents=True)
-        other.write_text("#!/bin/sh\n")
-        other.chmod(0o755)
-        session_runtime_model.select_launcher("s1", other)
+        select_another_leaf(tmp_path)
     vendored_at_another_protocol(claimed)
 
     vendoring_model.renew_layer(claimed, harness_model.session_harness(), command=True)
@@ -1931,26 +1939,52 @@ def test_a_checkout_that_re_vendors_a_page_delivers_for_its_session(
     assert session_runtime_model.selected_launcher("s1") == own
 
 
-def test_a_checkout_delivers_for_its_session_only_through_a_page_the_session_holds(
+def test_a_checkout_leaves_its_session_alone_for_a_page_the_session_doesnt_hold(
     claimed, tmp_path
 ):
     """A checkout's `page init` of a page its session doesn't hold, as a scratch page
     a subagent builds in its own worktree, which runs with its parent's session id,
-    leaves the session's hooks on the Leaf they run, since they never read that page.
-    Claiming the page makes the checkout the session's Leaf, since now they do."""
-    other = tmp_path / "installed" / "bin" / "leaf"
-    other.parent.mkdir(parents=True)
-    other.write_text("#!/bin/sh\n")
-    other.chmod(0o755)
-    session_runtime_model.select_launcher("s1", other)
-    scratch = tmp_path / "scratch"
+    leaves the session's hooks on the Leaf they run, since they never read that
+    page."""
+    other = select_another_leaf(tmp_path)
 
-    vendoring_model.cmd_init(scratch, ())
-    assert session_runtime_model.selected_launcher("s1") == other.resolve()
+    vendoring_model.cmd_init(tmp_path / "scratch", ())
 
-    service_model.cmd_claim(scratch, manual_delivery=True)
-    own = session_runtime_model.own_launcher()
-    assert session_runtime_model.selected_launcher("s1") == own
+    assert session_runtime_model.selected_launcher("s1") == other
+
+
+@pytest.mark.parametrize("command", ["page claim", "server start", "server run"])
+def test_a_claim_makes_its_checkout_the_sessions_leaf_before_preparing_delivery(
+    claimed, tmp_path, monkeypatch, command
+):
+    """A command from a checkout that takes a page for its session makes that
+    checkout the session's Leaf, so its hooks can read the page, and does so before
+    it prepares delivery: a Codex task's adapter starts from the selected Leaf, and
+    one running from another Leaf leaves once this one is selected, so a selection
+    made after preparing would retire the adapter that preparing had joined."""
+    select_another_leaf(tmp_path)
+    seen = []
+
+    class Prepared(Exception):
+        pass
+
+    def prepare(harness):
+        seen.append(session_runtime_model.selected_launcher(harness.session))
+        raise Prepared
+
+    monkeypatch.setattr(harness_model.ClaudeCodeHarness, "ensure_delivery", prepare)
+    with pytest.raises(Prepared):
+        if command == "page claim":
+            service_model.cmd_claim(claimed)
+        elif command == "server start":
+            with hosting_model.claim_and_start(claimed):
+                pass
+        else:
+            hosting_model.cmd_serve(
+                claimed, harness=harness_model.session_harness(), acquire=True
+            )
+
+    assert seen == [session_runtime_model.own_launcher()]
 
 
 def test_a_prompt_captures_again_an_update_whose_delivery_an_older_leaf_wrote(

@@ -796,10 +796,16 @@ def cmd_claim(page_dir: Path, *, manual_delivery: bool = False) -> dict:
     harness = session_harness()
     if harness is None:
         raise Refused("only an agent harness session can claim a page")
+    claim = prepare_claim(harness, page_dir)
+    # Before delivery prepares (`session_runtime.select_checkout`).
+    select_checkout(harness.session)
     preparation = nullcontext() if manual_delivery else harness.preparing_delivery()
-    with preparation, PageTransaction(page_dir) as page:
-        page.take_claim(harness)
-    select_checkout(page_dir, harness)
+    with (
+        preparation,
+        PageTransaction(page_dir) as page,
+        page.publishing_claim(claim),
+    ):
+        pass
     return {"session": harness.session}
 
 

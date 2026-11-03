@@ -353,36 +353,25 @@ a[data-lf-external]::after,
     -9999px -9999px
   );
 }
-/* A drawing's part takes the mark along its own path rather than round its box: each
-   shape it is or holds is stroked under its fill, so the band shows outside the shape,
-   and its labels are left as they are. A comment's mark there takes the quieter
-   contour ink. */
-:where(svg :is(g, a, rect, circle, ellipse, path, polygon, polyline, line)):where(
+/* A drawing's part, a shape or a group of them, takes the mark whole on the edge of
+   what it draws, since its box is its shapes' own: no brackets, veil or gap. A
+   drawing's own stroke rule outranks every rule here, so the mark is the part's
+   outline, which no drawing sets. A comment's mark there takes the quieter contour
+   ink. */
+:where(svg *):where(
   .lf-aimed,
   .lf-traced,
   .lf-proxied,
   [data-lf-mark],
   .lf-projected-location
 ) {
-  outline: none;
+  outline-offset: 0;
   clip-path: none;
   box-shadow: none;
 }
 :where(svg [data-lf-mark]:not([data-lf-mark~="focus"])) {
   --lf-mark-ink: var(--mark-contour-ink);
   --lf-mark-w: var(--mark-contour-w);
-}
-:where(svg :is(rect, circle, ellipse, path, polygon, polyline, line)):where(
-  .lf-aimed,
-  .lf-traced,
-  .lf-proxied,
-  [data-lf-mark],
-  .lf-projected-location,
-  :where(.lf-aimed, .lf-traced, .lf-proxied, [data-lf-mark], .lf-projected-location) *
-) {
-  stroke: var(--lf-mark-ink, var(--accent));
-  stroke-width: calc(2 * var(--lf-mark-w, var(--focus-ring-w)));
-  paint-order: stroke;
 }
 /* A landing clears the sticky headers stacked over what it lands on. Its scroller's
    `scroll-padding` clears those over the whole scroller (the head room, a page tab

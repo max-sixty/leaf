@@ -54,10 +54,14 @@ Both ends share every check: the release ask waits on the same turn, title and a
 (`run_journey`), and each end only sends the user's comments and says what it saw of
 them (`reading`), the browser alone reloading the page and timing what it shows.
 
-The timings come from where each step happened. The page server records when it
-admitted a comment, recorded its pickup, titled its thread, activated the published
-revision and admitted the reply; `sinceAdmissionMs` reads those from the comment's
-admission, so every target and either end is timed on one clock, the page server's.
+The timings come from where each step happened. The page server's log records when
+it admitted a comment, recorded its pickup, titled its thread and admitted the
+reply, and its revision files when it published the revision the answer stands on.
+A comment's `milestones` are those `leaf-dev response-times` reads for it
+(`response_times.page_timings`), in seconds from the comment's admission, so every
+target and either end is timed on one clock, the page server's. A website's page
+directory is out of the journey's reach, so there it reads the log the page serves,
+which says nothing of when a revision was published.
 In Chrome the browser also sees the POST's answer and the reply showing, in the
 floating panel's view of its thread or on its card at its passage, which the page
 records itself (`shown_reply`); `sinceSendMs` reads those from the
@@ -102,7 +106,7 @@ from collections.abc import Callable, Generator
 from contextlib import ExitStack, contextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Literal, NamedTuple
+from typing import NamedTuple
 from urllib.parse import urljoin
 
 import click
@@ -111,7 +115,6 @@ from playwright.sync_api import BrowserContext, Locator, Page
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
 from leaf import inference, thread_titles
-from leaf.delivery import pickup_receipts
 from leaf.event_log import read_events
 from leaf.events import build_threads
 from leaf.files import revision_path
@@ -121,10 +124,10 @@ from leaf.server import running_server
 from leaf.service import page_claim
 from leaf.structure import SourceDocument
 from leaf.thread import successful_replies
-from leaf.todos import start_reading
 from leaf_dev import ROOT
 from leaf_dev.arms import PAYLOAD, PageClient, extract_payload, run_directory, run_leaf
 from leaf_dev.browser import DESKTOP, headless_shell
+from leaf_dev.commands.response_times import page_timings
 from leaf_dev.commands.verify_site import (
     LocalWorker,
     agent_session,
@@ -140,7 +143,7 @@ from leaf_dev.commands.verify_site import (
     startup_profile,
 )
 from leaf_dev.page_fixtures import record_run_context
-from leaf_dev.reply_phases import instant, reply_breakdown
+from leaf_dev.reply_phases import reply_breakdown
 from leaf_dev.review_scenario import COMMENTS, post
 from leaf_dev.startup import startup_reading
 
@@ -270,65 +273,18 @@ def title(events: list[dict], thread: str) -> str | None:
     return build_threads(events, {}).get(thread, {}).get("title")
 
 
-def pickup_at(
-    events: list[dict], comment: str, phase: Literal["queued", "opened", "failed"]
-) -> str | None:
-    """When the harness first recorded `comment` picked up in `phase`: `queued` held
-    by the harness, `opened` in its context (`leaf.delivery.pickup_receipts`)."""
-    return next(
-        (e["ts"] for e in pickup_receipts(events, phase=phase, input_id=comment)),
-        None,
-    )
+def input_rows(page: Path, until: datetime) -> dict[str, dict]:
+    """Each input on `page` with its milestones as `leaf-dev response-times` reads
+    them (`response_times.page_timings`), by its id, from what the page held before
+    `until` on its own clock."""
+    reading = page_timings(page, since=None, until=until)
+    return {row["input_id"]: row for row in reading["samples"]}
 
 
-def recorded_steps(events: list[dict], comment: dict, published: dict | None) -> dict:
-    """Seconds after `comment`'s admission for its recorded milestones.
-
-    Pickup records name exact inputs: queued is held by the harness, opened is in
-    its context. A start is an authored work claim for this input. Neither implies
-    visible feedback or that the model has begun reasoning. Title, explicit progress,
-    publication and answer retain their server timestamps; absent steps are None,
-    as is publication for a comment that asked for no revision.
-    """
-    admitted = instant(comment["ts"])
-    thread = comment["id"]
-    started = next(
-        (
-            e["ts"]
-            for e in events
-            if (start := start_reading(e)) and start["item"] == thread
-        ),
-        None,
-    )
-    titled = next(
-        (
-            event["ts"]
-            for index, event in enumerate(events)
-            if title(events[: index + 1], thread) is not None
-        ),
-        None,
-    )
-    replies = [e for e in events if e["kind"] == "reply" and e.get("parent") == thread]
-    progress = next((e["ts"] for e in replies if e.get("ephemeral")), None)
-    replied = deployment_answer(events, comment["id"])
-    return {
-        step: None if at is None else round(instant(at) - admitted, 3)
-        for step, at in (
-            ("queued", pickup_at(events, thread, "queued")),
-            ("pickedUp", pickup_at(events, thread, "opened")),
-            ("started", started),
-            ("titled", titled),
-            ("progress", progress),
-            ("published", published["activated_at"] if published is not None else None),
-            ("replied", replied["ts"] if replied is not None else None),
-        )
-    }
-
-
-def agent_profile(profile: AgentProfile, steps: dict) -> dict:
-    """One comment-to-answer profile in milliseconds: the page server's `steps` from
-    the answered comment's admission, and the browser's observations from the first
-    send."""
+def agent_profile(profile: AgentProfile, milestones: dict) -> dict:
+    """One comment-to-answer profile: its `milestones` on the page server's clock
+    from its admission (`input_rows`), and the browser's observations, in
+    milliseconds from the first send."""
 
     def ms(seconds: float | None) -> float | None:
         return None if seconds is None else seconds * 1000
@@ -337,7 +293,7 @@ def agent_profile(profile: AgentProfile, steps: dict) -> dict:
         "sessionReference": profile.reference,
         "eventIds": profile.event_ids,
         "asks": profile.ask_count,
-        "sinceAdmissionMs": {step: ms(seconds) for step, seconds in steps.items()},
+        "milestones": milestones,
         "sinceSendMs": {
             "acknowledged": [ms(at) for at in profile.acknowledged],
             "responseVisible": ms(profile.visible_reply_s),
@@ -580,15 +536,14 @@ def await_turn(
     return TurnReading(current, published, replies, answer)
 
 
-def await_title(end: HttpEnd | BrowserEnd, thread: str, state: dict) -> dict:
-    """Read the page until it titles `thread` or `TITLE_PATIENCE` passes; return the
-    last reading. The page server names a thread beside the agent's turn rather than
-    within it, so the title can land after the reply that ended the turn."""
+def await_title(end: HttpEnd | BrowserEnd, thread: str, state: dict) -> None:
+    """Read the page until it titles `thread` or `TITLE_PATIENCE` passes. The page
+    server names a thread beside the agent's turn rather than within it, so the
+    title can land after the reply that ended the turn."""
     deadline = time.monotonic() + TITLE_PATIENCE
     while title(state["events"], thread) is None and time.monotonic() < deadline:
         end.pause(1)
         state = end.state()
-    return state
 
 
 def ask_until_answered(end: HttpEnd | BrowserEnd, marker: str) -> AgentAsks:
@@ -670,12 +625,9 @@ def run_journey(end: HttpEnd | BrowserEnd, version: str) -> dict:
     opening = end.opening()
     turn, asks, revision, profile = ask_until_answered(end, marker)
     published, answer = check_turn_answered(end.url, marker, turn, asks, revision)
-    answered_comment = next(
-        event for event in turn.state["events"] if event["id"] == answer["parent"]
-    )
-    events = await_title(end, answer["parent"], turn.state)["events"]
+    await_title(end, answer["parent"], turn.state)
     comment = end.reading(
-        profile, recorded_steps(events, answered_comment, published), answer
+        profile, end.timings()[answer["responds"]]["milestones"], answer
     )
     print(json.dumps(comment, indent=2), file=sys.stderr)
     print(
@@ -920,7 +872,9 @@ def user_at(
     end = (
         HttpEnd(url, place.page, terminal.hear)
         if browser is None
-        else BrowserEnd(local_session(browser, url)._replace(pause=terminal.hear))
+        else BrowserEnd(
+            local_session(browser, url)._replace(pause=terminal.hear), place.page
+        )
     )
 
     def commands() -> list[dict]:
@@ -1010,10 +964,14 @@ class HttpEnd:
     def wait(self, comment: str) -> None:
         """Nothing: no page shows the reply."""
 
-    def reading(self, profile: AgentProfile, steps: dict, answer: dict) -> dict:
+    def timings(self) -> dict[str, dict]:
+        """Each input on the page with its milestones (`input_rows`)."""
+        return input_rows(self.page, datetime.now().astimezone())
+
+    def reading(self, profile: AgentProfile, milestones: dict, answer: dict) -> dict:
         """A comment's reading: its milestones on the page server's clock, with
         nothing a browser would have seen."""
-        reading = agent_profile(profile, steps)
+        reading = agent_profile(profile, milestones)
         del reading["sinceSendMs"], reading["responseShownBy"]
         return reading
 
@@ -1025,12 +983,13 @@ class BrowserEnd:
     """The user's end in Chrome: every comment typed as a user types it, a page comment
     in the floating panel's field and an anchored one on its selected passage, its send and its reply showing timed by the page
     (`shown_reply`), and the release ask's reload checked and profiled. This is the
-    whole journey, what the page shows included."""
+    whole journey, what the page shows included. `page` is the page's directory, or
+    None on a website, whose page directory is out of reach."""
 
     name = "browser"
 
-    def __init__(self, session: Session) -> None:
-        self.session, self.url = session, session.url
+    def __init__(self, session: Session, page: Path | None) -> None:
+        self.session, self.url, self.page = session, session.url, page
         self.pause = session.pause
 
     def state(self) -> dict:
@@ -1138,12 +1097,26 @@ class BrowserEnd:
         does. The page times what it shows, so when this runs changes no reading."""
         open_news(self.session.page, comment)
 
-    def reading(self, profile: AgentProfile, steps: dict, answer: dict) -> dict:
+    def timings(self) -> dict[str, dict]:
+        """Each input on the page with its milestones (`input_rows`), read on a
+        website from the log the page serves, up to the time it served it on its own
+        clock."""
+        if self.page is not None:
+            return input_rows(self.page, datetime.now().astimezone())
+        state = self.state()
+        with tempfile.TemporaryDirectory() as served:
+            log = Path(served)
+            (log / "events.jsonl").write_text(
+                "".join(json.dumps(event) + "\n" for event in state["events"])
+            )
+            return input_rows(log, datetime.fromisoformat(state["now"]))
+
+    def reading(self, profile: AgentProfile, milestones: dict, answer: dict) -> dict:
         """A comment's reading: its milestones on the page server's clock, and from
         its send, its acknowledgement and its reply showing, which must."""
         if profile.visible_reply_by is None:
             profile.show(await_reply_shown(self, answer))
-        return agent_profile(profile, steps)
+        return agent_profile(profile, milestones)
 
     def close(self) -> None:
         self.session.context.close()
@@ -1253,21 +1226,17 @@ class User:
 
     def timing(self, name: str) -> str:
         """When step `name`'s comment was picked up and answered, after its
-        admission (`recorded_steps`), and what a fork that decided on it did."""
-        assert self.events is not None
-        events = self.events()
-        comment = next(e for e in events if e["id"] == self.ids[name])
-        steps = recorded_steps(events, comment, None)
-        picked = steps["pickedUp"]
+        admission (`input_rows`), and what a fork that decided on it did."""
+        milestones = self.end.timings()[self.ids[name]]["milestones"]
         fork = self.fork(name)
         return (
             f"`{name}` "
             + (
-                "never picked up"
-                if picked is None
-                else f"picked up after {picked:.1f} s"
+                f"picked up after {milestones['opened']['elapsed_s']:.1f} s"
+                if "opened" in milestones
+                else "never picked up"
             )
-            + f", answered after {steps['replied']:.1f} s"
+            + f", answered after {milestones['answered']['elapsed_s']:.1f} s"
             + (f"; {fork_summary(fork)}" if fork is not None else "")
         )
 
@@ -1278,10 +1247,10 @@ class User:
         down here, from the session's whole record: the call that replied ends after
         the reply does, and a record read while the session writes it can end in a
         partial line."""
-        events = (
-            self.events()
+        events, rows = (
+            (self.events(), self.end.timings())
             if self.events is not None and (self.profiles or self.records)
-            else []
+            else ([], {})
         )
 
         def replied(name: str, comment: dict, answer: dict) -> dict:
@@ -1298,11 +1267,12 @@ class User:
                 fork is None or fork["outcome"] != "reply"
             ):
                 assert self.commands is not None
+                opened = rows[comment["id"]]["milestones"].get("opened")
                 reading["reply"] = reply_breakdown(
                     self.records(),
                     self.commands(),
                     comment["ts"],
-                    pickup_at(events, comment["id"], "opened"),
+                    None if opened is None else opened["at"],
                     answer["ts"],
                 )
             return reading
@@ -1313,7 +1283,7 @@ class User:
             answer = deployment_answer(events, comment["id"])
             answer = check(answer, f"`{name}` has no answer")
             reading = self.end.reading(
-                profile, recorded_steps(events, comment, None), answer
+                profile, rows[comment["id"]]["milestones"], answer
             )
             comments[name] = {**reading, **replied(name, comment, answer)}
         release = self.release_reading
@@ -1449,7 +1419,7 @@ def target_session(
         session, version = website_session(
             browser, release, origin=origin, direct_agent=False
         )
-        user = User(BrowserEnd(session), version)
+        user = User(BrowserEnd(session, None), version)
         yield (
             user,
             {"target": origin, "harness": "website", "origin": origin},
@@ -1468,7 +1438,7 @@ def target_session(
             origin=origin,
             direct_agent=target == "website-adapter",
         )
-        user = User(BrowserEnd(session), version)
+        user = User(BrowserEnd(session, None), version)
         yield (
             user,
             {"target": target, "harness": "website", "origin": origin},

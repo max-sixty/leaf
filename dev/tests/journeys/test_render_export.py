@@ -51,9 +51,7 @@ from leaf_dev.commands import preview as preview_model
 def end_preview(process) -> None:
     """Stop a preview the way a harness's runner stops a task.
 
-    The exit status is not the evidence: a signal that lands while `watchfiles`
-    waits comes back out of it as `KeyboardInterrupt`, so the same stop exits 130
-    or 143 depending on where it lands. What the stop left running is.
+    The exit status is not the evidence; what the stop left running is.
     """
     os.killpg(process.pid, signal.SIGTERM)
     process.wait(timeout=STATED_TIMEOUT)

@@ -6,8 +6,9 @@
 SOURCE is a page name (`leaf_dev.example_data.named_source`) or an authored `.html`
 path, built fresh with the checkout's own launcher, so the working tree runs,
 uncommitted edits included. `--base` adds the same page on an arm at the merge base
-with `main`, or at the ref it names. An arm that fails prints the stage and error and
-the next arm still runs, since a probe is most often run where one version is broken.
+with `main`, or at the ref it names (`leaf_dev.arms.choose_arms`). An arm that fails
+prints the stage and error and the next arm still runs, since a probe is most often
+run where one version is broken.
 
 `--log` starts the page from a log that already holds given events: threads, replies,
 resolutions, a message still waiting for its delivery. Each arm admits them through its
@@ -32,7 +33,7 @@ from leaf.findings import Finding
 from leaf.render_checks import PageNotReady
 from leaf.render_gate.scheme import collect_page_exceptions, console_finding
 from leaf_dev import ROOT, ios_safari
-from leaf_dev.arms import base_ref, extract_arm, served_page, serving_source
+from leaf_dev.arms import base_option, choose_arms, served_page, serving_source
 from leaf_dev.browser import (
     DESKTOP,
     headless_engine,
@@ -152,13 +153,7 @@ def source_path(value: str) -> Path | str:
     type=click.FloatRange(min=1),
     help="Slow Chromium's CPU this many times from before the page loads.",
 )
-@click.option(
-    "--base",
-    is_flag=False,
-    flag_value="",
-    default=None,
-    help="Also probe the merge base with main, or the ref given.",
-)
+@base_option()
 def probe(
     source,
     steps,
@@ -195,8 +190,6 @@ def probe(
 
     Controls and reading destinations follow browser focus-visible; use keyboard
     input to inspect their rings. Text editors retain their entry cue.
-    --base takes an optional ref, so put
-    SOURCE before it or give it one (--base=REF).
 
     --log FILE admits each line, one event as its writer would hand it to the
     log, after the source's own history and before the page loads, so a user's
@@ -212,7 +205,8 @@ def probe(
     history: drive:card-held-news on review-a-plan, drive:seat-held-news on
     command-hub, or a --journey that writes as stills.py's held_news does.
 
-    Prints one JSON line per arm: startup phases and resources; native layout shifts
+    Prints one JSON line per arm, `base` before `head` (this working tree), each with
+    its commit: startup phases and resources; native layout shifts
     through the journey, including recent input and affected node rectangles;
     long animation frames during startup and input steps, with script
     entry points and forced layout; `result`, what --js or --journey returned when
@@ -230,11 +224,11 @@ def probe(
 
     --journey loads a Python file with run(page), using the full Playwright API
     for clicks, typing, scrolling and assertions. --record DIR saves trace.zip
-    and video.webm under DIR/worktree (and DIR/base with --base); --gif adds
+    and video.webm under DIR/head (and DIR/base with --base); --gif adds
     recording.gif. View the action timeline, filmstrip, DOM, console and network:
 
     \b
-      uv run leaf-dev trace-server DIR/worktree/trace.zip
+      uv run leaf-dev trace-server DIR/head/trace.zip
 
     The server prints its viewer URL and opens no browser window.
 
@@ -288,10 +282,7 @@ def probe(
     failed = False
     with tempfile.TemporaryDirectory(prefix="leaf-probe-") as built:
         scratch = Path(built)
-        arms = {"worktree": ("worktree", ROOT)}
-        if base is not None:
-            commit = extract_arm(base_ref(base), scratch / "base-arm")
-            arms = {"base": (commit, scratch / "base-arm"), **arms}
+        arms = choose_arms(base, scratch)
         with (
             ios_safari.ios_safari(scheme)
             if ios
@@ -299,13 +290,15 @@ def probe(
             if engine == "chromium"
             else headless_engine(engine)
         ) as browser:
-            for arm, (ran, arm_dir) in arms.items():
+            for arm, version in arms.items():
                 reading, doing = {}, "build"
                 try:
                     with (
                         nullcontext(source)
                         if isinstance(source, str)
-                        else serving_source(arm_dir, source, scratch / arm, log)
+                        else serving_source(
+                            version.directory, source, scratch / arm, log
+                        )
                     ) as address:
                         if ios:
                             try:
@@ -406,7 +399,9 @@ def probe(
                 failed |= "failed" in reading
                 if "console" in reading:
                     reading["console"] = list(map(str, reading["console"]))
-                click.echo(json.dumps({"arm": arm, "ran": ran, **reading}))
+                click.echo(
+                    json.dumps({"arm": arm, "commit": version.commit, **reading})
+                )
     if failed:
         raise click.ClickException("probe failed; see the arm's reading and recording")
 

@@ -10,6 +10,12 @@
  * the reply's own message, or a news notice, on a thread holding the reply back so as
  * not to move what the user reads, changing once the page's applied state holds the
  * reply. The notice's change and the reply's arrival are both on the page's clock.
+ *
+ * The runtime records agent words coming into view itself (`reply_visible`,
+ * runtime/thread/read.js), which `leaf-dev response-times` reads from the page's
+ * diagnostics, but it cannot stand in for this reading: it records nothing while a
+ * thread holds the reply behind its notice, and a website's diagnostics stay in its
+ * page's container, out of the journey's reach.
  */
 (() => {
   const startedKey = "leaf-visible-reply-started";

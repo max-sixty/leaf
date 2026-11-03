@@ -163,15 +163,8 @@ lf-visual-review {
   gap: 8px 12px;
 }
 .lf-vr-approval {
-  display: inline-flex;
-  align-items: center;
   gap: 7px;
-  min-block-size: var(--aim-floor);
   font: var(--font-compact);
-  cursor: pointer;
-}
-.lf-vr-approval input {
-  margin: 0;
 }
 .lf-vr-inspect {
   anchor-name: --review-inspect;

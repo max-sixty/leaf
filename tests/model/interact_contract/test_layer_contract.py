@@ -853,7 +853,9 @@ def test_each_route_hands_the_agent_what_the_snapshot_shows(
     cleanup_model.close_session_turn(session)
     harness_2 = harness_model.session_harness()
     assert harness_2 is not None
-    woke = session_model.watch_between_turns(harness_2)
+    woke = session_model.watch_between_turns(
+        harness_2, {"hook_event_name": "Stop", "session_id": session}
+    )
     assert woke is not None
     hooks_model.cmd_hook(
         "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": session}

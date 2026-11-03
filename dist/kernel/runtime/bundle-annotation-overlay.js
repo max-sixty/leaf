@@ -1,7 +1,7 @@
 import { LAYOUT, TEXT_FIELD, Z, afterScript, atScrollEnd, beginWalk, cancelAnimation, cancelRender, clamp, closeLayer, closestAcross, coarsePointer, currentLocationIn, declareRelease, drawn, focusDestination, focused, generatedElement, handBack, holdFocus, inChrome, inputCount, keepFoot, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, listWalkPosition, move, moveScrollerBy, nativeLayerHolding, nextAnimation, nextRender, offerAction, offeredActionElement, onCurrentLocation, onPressAway, onUserInput, pageScroller, pressLed, renderedOrder, renderedUnder, retainUserIntent, rightCover, ringBox, roomPx, rove, rowArrows, scrollLimit, scrollToEnd, seenRect, setChildLists, setChildren, shownBox, shownParts, shownWindow, showsContents, sizeObserver, skipped, slotTop, tabStops, tabStore, under, union, visibleFocus, watchRoom } from "./bundle-portable.js";
 import { bareReaction, closeControl, cycledRow, el, hostIn, html, keys, nativePress, notice, pageRange, paintKeys, paintKeysWithin, render, repaint, sameAnchor, turns } from "./bundle-errors.js";
 import { setRuntimeRootAttribute } from "./bundle-layer-client.js";
-import { chromeForeground, chromeRoot, exactTarget, passageGeometry, pointBand, rangeGeometry, readingRegionFor, registerReadingRegion, scrollerFor, targetElement, targetParts, targetRange, targetSegments, targetSurface, visualAt, windowHoldsRail } from "./bundle-content-layout.js";
+import { chromeForeground, chromeRoot, exactTarget, passageGeometry, pointBand, proseRect, rangeGeometry, readingRegionFor, registerReadingRegion, scrollerFor, targetElement, targetParts, targetRange, targetSegments, targetSurface, visualAt, windowHoldsRail } from "./bundle-content-layout.js";
 import { ANNOTATIONS_KEY } from "./bundle-restore-state.js";
 import { blockAt, elementFromPointAcross, labelWords, pageWords, quoteFrom, rangeOf, segmentsIn } from "./bundle-passages.js";
 import { anchorLabel, arrivalOf, carryingThreadPlace, claimSeatReplies, claimed, currentLocationThreadId, declareOffFlowSurface, declareSide, keepThreadLanding, pageCommand, pageRung, pageScope, pageSelection, placeKeeper, releaseAuthoredUnder, releaseReplies, revealHeld, rowWalk, selectionAnchor, showReturnTurn, threadFocusDestination, threadIdNamed, threadNamed } from "./bundle-data.js";
@@ -487,13 +487,14 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 		}
 		const thread = threadCardThread(session);
 		const words = !point && thread?.anchor?.quote ? passageGeometry(placedAt(thread.id)) : null;
+		const place = commentAttachment({
+			target,
+			point,
+			passage: words
+		});
 		return {
-			element: target,
-			place: commentAttachment({
-				target,
-				point,
-				passage: words
-			})
+			element: place?.element ?? target,
+			place
 		};
 	}
 	const THREAD_SIDES = {
@@ -1232,7 +1233,7 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 			});
 		});
 	}
-	function readSpokenPositions(inventory, mainRect = marginColumn().getBoundingClientRect(), mainHeight = marginColumn().scrollHeight) {
+	function readSpokenPositions(inventory, mainRect = proseRect(marginColumn()), mainHeight = marginColumn().scrollHeight) {
 		spokenBasis = mainRect && {
 			width: mainRect.width,
 			height: mainHeight

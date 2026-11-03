@@ -623,7 +623,10 @@ summary,
  * and a finger's floor is the button's reach (surfaces.css), so a rule restating the
  * padding restates the line with it. */
 :is(.lf-btn, .button) {
-  padding: max(4px, (var(--lf-line) - 1lh) / 2 - 1px) 10px;
+  /* How far its words stand in from its edge, which a seat that sets a word at the
+     start of a line hangs into the margin, so the words align with the line's. */
+  --lf-word-inset: 11px;
+  padding: max(4px, (var(--lf-line) - 1lh) / 2 - 1px) calc(var(--lf-word-inset) - 1px);
   border: 1px solid transparent;
   border-radius: var(--r);
   background: transparent;

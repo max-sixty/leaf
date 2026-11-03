@@ -1622,6 +1622,11 @@
   .lf-fp-show {
     margin-inline-start: auto;
   }
+  /* Reply leading the line hangs its inset (controls.css, `--lf-word-inset`), so its
+     word stands on the card's edge, as the card's heading and an answered line do. */
+  .lf-fp-answers > .lf-fp-reply:first-child {
+    margin-inline-start: calc(-1 * var(--lf-word-inset));
+  }
   /* A commit among the answers, a group's Done (floating-panel.js, `commits`), stands
      as tall as the answers beside it, inside its one-pixel contour. */
   .lf-fp-answers > .lf-fp-commit {

@@ -69,9 +69,8 @@ SOURCES = sorted((ROOT / "tests" / "fixtures" / "plain").glob("*.html"))
 # The obstacles a decision has yet to lift, and below, each page's findings they
 # explain, by pin (`differences`, `checked`).
 OBSTACLES = {
-    "sideways-clip": (
-        "Leaf's live root clips what runs past the window sideways (base.css), and the"
-        " render gate refuses a page that scrolls sideways, so a table wider than a"
+    "sideways-refusal": (
+        "the render gate refuses a page that scrolls sideways, so a table wider than a"
         " narrow window, which the open web lets the page scroll to, is refused"
     ),
     "class-vocabulary": (
@@ -83,10 +82,9 @@ OBSTACLES = {
 }
 KNOWN = {
     "dashboard": {
-        "sideways-clip": {
+        "sideways-refusal": {
             "page-scrolls ",
             "past-column <table> in <section id=shards>",
-            "clipped-out <table> in <section id=shards>",
         },
     },
     "editorial": {"class-vocabulary": {"size of main and 4 more #4bebaf86"}},

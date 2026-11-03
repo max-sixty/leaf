@@ -13,7 +13,10 @@
    - focus moving from one of its controls to another, as sequential navigation reveals
      the control it reaches. Only a move within it: focus arriving from outside is a
      landing, and a return (focus.js, `onCurrentLocation`), such as a node the runtime
-     replaced handing focus to its successor, is no move of the user's.
+     replaced handing focus to its successor, is no move of the user's. Nor is a press:
+     the pointer found the control where it stands, so a click into a card's reply
+     leaves the page, and the box under the pointer, still. The first word typed
+     there is an edit, which brings the card back if the window doesn't show the box.
 
    Each asks what the browser asks of an ordinary control: whether the window shows all of
    it, above the floating panel's row. A surface waiting hidden for room to stand says so
@@ -82,7 +85,7 @@ export function declareOffFlowSurface(
 }
 // A move within a surface, a widget's shadow tree inside it included.
 onCurrentLocation((node, cause, left) => {
-  if (!node || !left || cause === "return") return;
+  if (!node || !left || cause === "return" || cause === "press") return;
   for (const reading of surfaces.values()) {
     const { surface } = reading;
     if (under(node, surface) && under(left, surface))

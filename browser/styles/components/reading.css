@@ -28,8 +28,9 @@
  * holds its rows to their content whatever width, border or ground the author gave
  * the table, and a code block keeps room under its last line whatever padding the
  * author gave it. A page without the face keeps the browser's layout. Where that runs
- * past the window, which the live root clips (base.css), `page check --render` refuses
- * the page (`page-scrolls`), so its author fixes it in the page's own CSS.
+ * past the window, the page scrolls sideways (base.css) and `page check --render`
+ * refuses the page (`page-scrolls`), so its author fixes the overflow in the page's
+ * own CSS.
  */
 /* Markup Leaf renders from Markdown, a message's or a widget's (`markdown.js`: a block's
    `.lf-markdown-body`, inline words' `.lf-markdown-words`), is Leaf's reading of it, so

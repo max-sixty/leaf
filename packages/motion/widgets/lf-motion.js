@@ -293,11 +293,16 @@ class MotionStudy extends HTMLElement {
     this.#frame = nextAnimation(() => this.#tick());
   }
 
+  // Seeks every video once any is off the clock's time: a seek lands on the media's
+  // own precision (Chromium truncates to whole microseconds), so a video left
+  // unseeked could sit a microsecond from the ones moved to the same time.
   #seekVideos() {
-    for (const video of this.#videos) {
-      const time = Math.min(this.#time / 1000, video.duration || Infinity);
-      if (video.currentTime !== time) video.currentTime = time;
-    }
+    const seeks = this.#videos.map((video) => ({
+      video,
+      time: Math.min(this.#time / 1000, video.duration || Infinity),
+    }));
+    if (seeks.every(({ video, time }) => video.currentTime === time)) return;
+    for (const { video, time } of seeks) video.currentTime = time;
   }
 
   #readVideoTime() {

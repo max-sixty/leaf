@@ -190,6 +190,27 @@ def test_motion_recordings_share_native_playback_and_a_sticky_transport(browser,
             abs=0.002,
         )
 
+    # Pausing aligns every recording to the furthest one's time. Chromium truncates
+    # a seek to whole microseconds, which moves about one playback position in fifty
+    # back by one, so a recording left unseeked would stay a microsecond ahead.
+    play.tap()
+    page.evaluate(
+        """async () => {
+          const [leading, trailing] = document.querySelectorAll('video');
+          const seekMoves = time => Math.trunc(time * 1e6) !== Math.round(time * 1e6);
+          trailing.pause();
+          for (let tries = 0; tries < 500; tries++) {
+            leading.pause();
+            if (seekMoves(leading.currentTime)) return;
+            await leading.play();
+            await new Promise(resolve => setTimeout(resolve, 3));
+          }
+        }"""
+    )
+    play.tap()
+    moments = videos.evaluate_all("vs => vs.map(v => v.currentTime)")
+    assert moments[0] == moments[1]
+
     page.get_by_role("combobox", name="Speed").select_option("0.25")
     assert videos.evaluate_all("vs => vs.every(v => v.playbackRate === 0.25)")
     time.press("End")

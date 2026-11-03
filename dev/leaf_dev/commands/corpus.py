@@ -19,9 +19,7 @@ from pathlib import Path
 
 import click
 import turbohtml
-from click.testing import CliRunner
 
-from leaf.cli import cli
 from leaf.event_log import read_events
 from leaf.registry.contract import is_element_name
 from leaf.registry.kernel import kernel_event_ownership
@@ -39,7 +37,7 @@ from leaf_dev.example_data import (
     regression_sources,
     seed_log,
 )
-from leaf_dev.page_fixtures import prepare_page, read_fixture
+from leaf_dev.page_fixtures import leaf_in_process, prepare_page, read_fixture
 
 # Focused chrome galleries with several live child pages stay separate; their
 # underlying widget and thread states already stand in the feature gallery.
@@ -293,20 +291,12 @@ def build_page(inputs: list[Path]) -> dict[str, bytes]:
     return {"registry.json": registry.encode(), **files}
 
 
-def _run_leaf(*args: str, input_text: str | None = None) -> None:
-    result = CliRunner().invoke(cli, list(args), input=input_text)
-    if result.exit_code:
-        raise ValueError(f"leaf {' '.join(args)}: {result.output}") from (
-            result.exception
-        )
-
-
 def admitted_history(source: Path) -> list[dict]:
     """The log a page built from `source` holds: its seed as the door admitted it,
     with the fields admission derives, which a thread closure reads."""
     with tempfile.TemporaryDirectory(prefix="leaf-corpus-") as scratch:
         page = Path(scratch) / "page"
-        prepare_page(page, read_fixture(source), _run_leaf, final_status=None)
+        prepare_page(page, read_fixture(source), leaf_in_process, final_status=None)
         return read_events(page)
 
 

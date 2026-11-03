@@ -13,13 +13,13 @@ from interact_support import (
     fragment_errors,
     publish,
 )
-from model.test_interact_product import CORPUS_SOURCES, PAGE_FIXTURES, run_leaf
+from model.test_interact_product import CORPUS_SOURCES, PAGE_FIXTURES
 
 import leaf.validation.command as checking_command
 from leaf import cli as cli_model
 from leaf.registry import storage as registry_storage
 from leaf_dev.example_data import named_source
-from leaf_dev.page_fixtures import prepare_page, read_fixture
+from leaf_dev.page_fixtures import leaf_in_process, prepare_page, read_fixture
 
 
 def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(page_dir):
@@ -88,7 +88,7 @@ def test_page_fixtures_pass_check(example, tmp_path, monkeypatch, initialized_pa
     prepare_page(
         d,
         fixture,
-        run_leaf,
+        leaf_in_process,
         initialize=False,
         final_status=None,
         each_version=checked,
@@ -137,7 +137,7 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
         # holding — which is the state every one of these seeds is written for.
         # The seed itself stays out: its fragments go through the door below.
         prepare_page(
-            d, read_fixture(example), run_leaf, seed_log=False, final_status=None
+            d, read_fixture(example), leaf_in_process, seed_log=False, final_status=None
         )
         opened = comment(d, "--text", "what a user would ask")
         assert opened.exit_code == 0, opened.output
@@ -248,14 +248,14 @@ def test_a_seed_no_writer_could_send_stops_the_page_it_seeds(tmp_path, monkeypat
     )
     with pytest.raises(click.ClickException, match="attention"):
         prepare_page(
-            tmp_path / "page", read_fixture(source), run_leaf, final_status=None
+            tmp_path / "page", read_fixture(source), leaf_in_process, final_status=None
         )
     del stored["attention"]
     source.with_suffix(".jsonl").write_text(
         json.dumps(stored, ensure_ascii=False) + "\n"
     )
     page = tmp_path / "admitted"
-    prepare_page(page, read_fixture(source), run_leaf, final_status=None)
+    prepare_page(page, read_fixture(source), leaf_in_process, final_status=None)
     [seeded] = [e for e in events_model.read_events(page) if e["kind"] == "comment"]
     assert seeded["attention"] is True
     assert seeded["text"] == stored["text"]

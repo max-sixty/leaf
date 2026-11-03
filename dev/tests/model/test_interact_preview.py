@@ -46,7 +46,7 @@ from leaf.registry.storage import layer_record, load_registry, selected
 from leaf.structure import SourceDocument
 from leaf_dev import arms, page_fixtures
 from leaf_dev.commands import preview, record_demo, site
-from leaf_dev.page_fixtures import prepare_page, read_fixture
+from leaf_dev.page_fixtures import leaf_in_process, prepare_page, read_fixture
 
 LEAF_S_THEME = {"name": "reading", "source": "default"}
 
@@ -195,12 +195,7 @@ def test_product_previews_prepare_the_authored_layer_and_media(
     source = ROOT / "docs" / f"{name}.html"
     page = tmp_path / "preview"
     monkeypatch.chdir(ROOT)
-
-    def run_leaf(*args, input_text=None):
-        result = CliRunner().invoke(cli_model.cli, list(args), input=input_text)
-        assert result.exit_code == 0, result.output
-
-    prepare_page(page, read_fixture(source), run_leaf, final_status=None)
+    prepare_page(page, read_fixture(source), leaf_in_process, final_status=None)
     served = SourceDocument((page / "index.html").read_text())
     assert served.tree.select("nav.sitenav a[aria-current=page]")
     assert all(
@@ -274,19 +269,16 @@ def test_fixture_media_follows_versions_draft_assets_and_live_edits(
     (versions / "index.v1.html").write_text(markup(previous))
     source.write_text(markup(current))
     page = tmp_path / "page"
-
-    def run_leaf(*args, input_text=None):
-        result = CliRunner().invoke(cli_model.cli, list(args), input=input_text)
-        assert result.exit_code == 0, result.output
-
-    prepare_page(page, read_fixture(source), run_leaf, assets=assets, final_status=None)
+    prepare_page(
+        page, read_fixture(source), leaf_in_process, assets=assets, final_status=None
+    )
     expected = {
         media_name(path.read_bytes(), path.suffix) for path in (previous, current)
     }
     assert {path.name for path in (page / "media").iterdir()} == expected
     source.write_text(markup(revised, kind="inline"))
     monkeypatch.setattr(page_fixtures, "pinned_assets", lambda root: assets)
-    preview.refresh_media(source, page, run_leaf)
+    preview.refresh_media(source, page, leaf_in_process)
     expected.add(media_name(revised.read_bytes(), revised.suffix))
     assert {path.name for path in (page / "media").iterdir()} == expected
 

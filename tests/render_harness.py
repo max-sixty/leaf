@@ -84,6 +84,7 @@ from leaf_dev.browser import ON_ME_MARK, scroll_settled, slow_cpu, threads_tab
 from leaf_dev.example_data import regression_sources
 from leaf_dev.page_fixtures import (
     example_media,
+    leaf_in_process,
     prepare_page,
     read_fixture,
     record_run_context,
@@ -572,16 +573,12 @@ def serve(tmp_path, monkeypatch, initialized_page, request):
         )
         d = tmp_path / f"page{len(servers)}"
 
-        def run_leaf(*args, input_text=None):
-            result = CliRunner().invoke(cli_model.cli, list(args), input=input_text)
-            assert result.exit_code == 0, result.output
-
         def prepare(target):
             assert fixture is not None
             prepare_page(
                 target,
                 fixture,
-                run_leaf,
+                leaf_in_process,
                 initialize=False,
                 seed_log=seed_log,
                 final_status=None,

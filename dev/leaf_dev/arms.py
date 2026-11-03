@@ -384,8 +384,21 @@ def build_arm(ref: str | None, dest: Path, *, paths: Iterable[str] = PAYLOAD) ->
 
 
 def base_ref(ref: str | None) -> str:
-    """The ref the base arm is built at: the one named, else `merge_base()`."""
-    return ref or merge_base()
+    """The ref the base arm is built at: the one named, else `merge_base()`.
+
+    A bare `--base` takes the next word as its REF, so an argument written after it
+    arrives here; a name that is no commit is refused as that mistake."""
+    ref = ref or merge_base()
+    verified = subprocess.run(
+        ["git", "-C", ROOT, "rev-parse", "--verify", "-q", f"{ref}^{{commit}}"],
+        capture_output=True,
+        check=False,
+    )
+    if verified.returncode:
+        raise click.BadParameter(
+            f"no commit {ref!r}; put arguments before --base", param_hint="--base"
+        )
+    return ref
 
 
 def base_option(*, paired: bool = False):

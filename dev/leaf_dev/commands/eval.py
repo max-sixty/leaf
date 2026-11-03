@@ -10,7 +10,7 @@ threads for each test.
 Promptfoo owns the rest: repetition, concurrency, assertions, the console table, and
 the result database its viewer reads. Arguments after the cases go to `promptfoo eval`.
 
-A provider is one column of the results: a harness on one arm (`claude-code/candidate`),
+A provider is one column of the results: a harness on one arm (`claude-code/head`),
 suffixed `/authoring` for tool-capable short cases or `/workflow` for complete
 tasks, and on arm `html` for the plain HTML control. A workflow column names the
 Leaf transport its harness session takes where the harness has more than one
@@ -51,12 +51,15 @@ from leaf_dev.arms import (
     MODELS,
     TURN_LIMIT,
     WORKFLOW_LIMIT,
+    Arm,
+    base_option,
     base_ref,
     build_arm,
     child_class,
     claude_child,
     codex_home,
     codex_program,
+    describe,
     environment,
     install_codex_plugin,
     instruction_context,
@@ -416,7 +419,7 @@ def prepare(
         for condition in conditions:
             if condition not in metadata.get("conditions", ["leaf"]):
                 continue
-            columns = arms if condition == "leaf" else {condition: arms["candidate"]}
+            columns = arms if condition == "leaf" else {condition: arms["head"]}
             labels = []
             for harness in harnesses:
                 if harness not in metadata.get("harnesses", HARNESSES):
@@ -676,7 +679,7 @@ def saved_pairs(
             yield subject, (first, x), (second, y), number
 
 
-def describe(scope: str, globs: tuple[str, ...]) -> str:
+def description(scope: str, globs: tuple[str, ...]) -> str:
     """The run's name in Promptfoo's viewer: branch, what it grades and the cases."""
     branch = subprocess.run(
         ["git", "-C", ROOT, "rev-parse", "--abbrev-ref", "HEAD"],
@@ -704,13 +707,7 @@ def describe(scope: str, globs: tuple[str, ...]) -> str:
     help="Judge the --from samples pairwise, or explore each for observations, "
     "instead of grading them by their cases' current assertions.",
 )
-@click.option(
-    "--base",
-    is_flag=False,
-    flag_value="",
-    default=None,
-    help="Also run the merge base with main, or the ref given.",
-)
+@base_option()
 @click.option(
     "--harness",
     type=click.Choice([*HARNESSES, "both"]),
@@ -791,27 +788,7 @@ def eval(
         )
         preflight_formats(conditions)
         # Only the Leaf condition runs on more than the working tree.
-        if base is not None and "leaf" in conditions:
-            base = base_ref(base)
-            # An optional value takes the next word, so `--base CASE` names a ref.
-            if subprocess.run(
-                [
-                    "git",
-                    "-C",
-                    ROOT,
-                    "rev-parse",
-                    "--verify",
-                    "-q",
-                    f"{base}^{{commit}}",
-                ],
-                capture_output=True,
-                check=False,
-            ).returncode:
-                raise click.BadParameter(
-                    f"no commit {base!r}; put cases before --base", param_hint="--base"
-                )
-        else:
-            base = None
+        base = base_ref(base) if base is not None and "leaf" in conditions else None
     if not PROMPTFOO.is_file():
         raise click.ClickException(
             "Install development dependencies first: pnpm install --frozen-lockfile"
@@ -828,16 +805,20 @@ def eval(
         if runs:
             config = saved_config(runs, globs, judge, out, scratch)
             graded = f"{judge} judgment" if judge else "current assertions"
-            config["description"] = describe(
+            config["description"] = description(
                 f"{graded} of saved {' '.join(run.name for run in runs)}", globs
             )
         else:
+            # Each arm is a copy of its payload alone, the head's too: a child agent
+            # must not read another arm's files, and grading again with --from must
+            # serve the original runtime after this invocation's scratch is retired.
             refs: dict[str, str | None] = {"base": base} if base else {}
-            refs["candidate"] = None
-            # Grading again with --from must serve the original runtime after this
-            # invocation's private configuration directory is retired.
+            refs["head"] = None
             payloads = {arm: out / "arms" / arm for arm in refs}
-            commits = {arm: build_arm(ref, payloads[arm]) for arm, ref in refs.items()}
+            arms = {
+                arm: Arm(payloads[arm], build_arm(ref, payloads[arm]))
+                for arm, ref in refs.items()
+            }
             config = prepare(
                 cases,
                 payloads,
@@ -848,10 +829,7 @@ def eval(
                 viewports,
                 model,
             )
-            arms = f"working tree on {commits['candidate'][:9]}"
-            if "base" in commits:
-                arms = f"base {commits['base'][:9]} vs {arms}"
-            config["description"] = describe(arms, globs) + (
+            config["description"] = description(describe(arms), globs) + (
                 f" [{model}]" if model else ""
             )
         config_file = out / "promptfooconfig.json"

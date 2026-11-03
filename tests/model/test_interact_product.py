@@ -78,12 +78,6 @@ def authored_tags(document: SourceDocument) -> set[str]:
     )
 
 
-def run_leaf(*args, input_text=None):
-    """One `leaf` command in-process, for `prepare_page`."""
-    result = CliRunner().invoke(cli_model.cli, list(args), input=input_text)
-    assert result.exit_code == 0, f"leaf {' '.join(args)}: {result.output}"
-
-
 def test_valid_source_activates_once_and_a_bad_save_keeps_it_live(page_dir):
     source = page_dir / "index.html"
     source.write_text(PAGE)

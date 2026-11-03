@@ -50,7 +50,7 @@ pnpm run eval:view
 ## Reading the results
 
 Promptfoo prints a table with a row per test and a column per provider: a harness on
-one arm (`claude-code/candidate`, `codex/base`), suffixed `/authoring` for short
+one arm (`claude-code/head`, `codex/base`), suffixed `/authoring` for short
 authoring cases or `/workflow` for complete tasks, and `claude-code/html/workflow`
 for the HTML control. A Codex authoring or workflow column
 reads `codex:app-server/...`: its session takes Leaf's App Server transport, and the
@@ -247,7 +247,7 @@ recorded labels.
   "title": "Hill-climbing journey",
   "arm_labels": {
     "codex:app-server/base/workflow": "Original guidance",
-    "codex:app-server/candidate/workflow": "Latest guidance"
+    "codex:app-server/head/workflow": "Latest guidance"
   },
   "latest": {
     "title": "Latest validation",

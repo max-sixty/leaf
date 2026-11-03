@@ -232,7 +232,7 @@ def test_catalog_builds_native_and_workflow_promptfoo_tests(tmp_path, monkeypatc
             "parent-keeps-leaf-responsive/during-work",
             "page-reads-at-every-width/queue",
         ],
-        {"candidate": tmp_path / "arm"},
+        {"head": tmp_path / "arm"},
         tmp_path / "scratch",
         ("claude-code",),
         ("leaf", "html"),
@@ -338,7 +338,7 @@ def test_catalog_builds_native_and_workflow_promptfoo_tests(tmp_path, monkeypatc
 def test_widget_format_matrix_uses_one_model_and_separate_checks(tmp_path):
     config = module.prepare(
         ["widget-formats/choice"],
-        {"candidate": tmp_path / "arm"},
+        {"head": tmp_path / "arm"},
         tmp_path / "scratch",
         ("codex",),
         ("leaf", "json", "adaptive"),
@@ -415,7 +415,7 @@ def saved_run(run: Path) -> Path:
 
     comparison = comparison_inputs("document-live-status", ("phone",))
     providers, results = [], []
-    for arm in ("base", "candidate", "base", "candidate"):
+    for arm in ("base", "head", "base", "head"):
         label = f"codex:app-server/{arm}/workflow"
         providers.append(
             {
@@ -492,7 +492,7 @@ def test_from_replays_saved_outputs_under_current_grading(tmp_path, monkeypatch)
     )
     assert [p["label"] for p in config["providers"]] == [
         "codex:app-server/base/workflow",
-        "codex:app-server/candidate/workflow",
+        "codex:app-server/head/workflow",
     ]
     assert {p["id"] for p in config["providers"]} == {regrade.REPLAY}
     current = module.grading(
@@ -526,9 +526,9 @@ def test_judgments_of_saved_samples_reach_the_report(tmp_path, monkeypatch):
     from leaf_dev.commands import eval_report
 
     run = saved_run(tmp_path / "saved")
-    base, candidate = (
+    base, head = (
         "codex:app-server/base/workflow",
-        "codex:app-server/candidate/workflow",
+        "codex:app-server/head/workflow",
     )
     judged = []
 
@@ -545,8 +545,8 @@ def test_judgments_of_saved_samples_reach_the_report(tmp_path, monkeypatch):
                 },
                 "metadata": {"evidence": str(evidence)},
             }
-        # The judge prefers the candidate's page in whichever position it stands.
-        better = "A" if pages["A"]["payload"].name == "candidate" else "B"
+        # The judge prefers the head's page in whichever position it stands.
+        better = "A" if pages["A"]["payload"].name == "head" else "B"
         worse = {"A": "B", "B": "A"}[better]
         return {
             "output": {
@@ -555,7 +555,7 @@ def test_judgments_of_saved_samples_reach_the_report(tmp_path, monkeypatch):
                 "margin": "clear",
                 f"defects_{worse}": ["Clipped table"],
                 f"defects_{better}": [],
-                "reason": "The candidate keeps the table readable.",
+                "reason": "The head keeps the table readable.",
             },
             "metadata": {"evidence": str(evidence)},
         }
@@ -598,8 +598,8 @@ def test_judgments_of_saved_samples_reach_the_report(tmp_path, monkeypatch):
     assert [
         [reference["column"] for reference in result["testCase"]["metadata"]["saved"]]
         for result in results
-    ] == [[base, candidate], [candidate, base]] * 2
-    assert candidate in results[1]["gradingResult"]["componentResults"][0]["reason"]
+    ] == [[base, head], [head, base]] * 2
+    assert head in results[1]["gradingResult"]["componentResults"][0]["reason"]
     assert judged[0][0] == {
         f"{position}{suffix}"
         for position in "AB"
@@ -607,8 +607,8 @@ def test_judgments_of_saved_samples_reach_the_report(tmp_path, monkeypatch):
     }
     (source, pair), (_, unscored) = eval_report.pair_records((judging,))
     assert source == judging / "results.json"
-    assert pair["status"] == "complete" and pair["winner"] == candidate
-    assert pair["orders"][1]["defects"] == {base: ["Clipped table"], candidate: []}
+    assert pair["status"] == "complete" and pair["winner"] == head
+    assert pair["orders"][1]["defects"] == {base: ["Clipped table"], head: []}
     assert unscored["status"] == "unscored" and unscored["orders"] == [None, None]
     assert eval_report.run_samples((judging,)) == {}
 

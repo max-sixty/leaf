@@ -123,6 +123,7 @@ def get_assert(output: str, context: dict) -> dict:
                 "session_findings": readings["session_findings"],
                 "judge": judged["metadata"]["trace"],
                 "matcher": matching,
+                "evidence": str(evidence),
             }
         },
     }

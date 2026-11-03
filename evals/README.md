@@ -124,8 +124,11 @@ uv run leaf-dev eval --from .tmp/eval/<run> page-reads-at-every-width/dashboard
 The grading is a run like any other, in Promptfoo's store and viewer, with its
 config and `results.json` in a new directory under `.tmp/eval/`. A judge that an
 assertion runs keeps its evidence beside the sample, in a directory of its own, so
-the earlier judge's stays. A result whose provider failed saved no output and is
-skipped, and a case gone from the catalog has no current assertions to grade by.
+the earlier judge's stays. A result whose provider failed, such as an author that
+did not complete, replays its error and stays ungraded, as it was the first time.
+A case gone from the catalog has no current assertions to grade by. To read the
+new grades in a report, render the grading run in place of the run it graded;
+rendered together, each output appears once for each grading.
 
 ### Compare saved samples
 
@@ -163,10 +166,11 @@ which Promptfoo's `--var focus=TEXT` sets, and what it observes.
 uv run leaf-dev eval --from .tmp/eval/<run> --judge discovery --filter-pattern <sample-directory-name> --var focus='Explore short desktop windows and decision undo.'
 ```
 
-Each test's assertion metadata keeps the observations, viewport, reproduction
-steps, evidence, unverified work and a proposed next check under `discovery`, and
-its native traces and captures go under `judgments/` in the new run. The test
-passes when the exploration finished, whatever it found.
+Each test's assertion metadata keeps the judge's response as `judge`, with the
+observations, viewport, reproduction steps, evidence, unverified work and a
+proposed next check in its output, and the native traces and captures go under
+`judgments/` in the new run. The test passes when the exploration finished,
+whatever it found.
 
 ### Render a report
 

@@ -1142,13 +1142,14 @@ def discovery_section(
     attempts = []
     for run, result, recorded in records:
         anchor = "discovery-" + hashlib.sha256(result["id"].encode()).hexdigest()[:12]
-        output = recorded.get("metadata", {}).get("discovery")
+        judge = recorded.get("metadata", {}).get("judge", {})
+        output = judge.get("output")
         sample = result["testCase"]["metadata"]["saved"][0]["sample"]
         observations = []
         summaries = []
         if output:
             # The judge names its evidence relative to the directory it was given.
-            directory = Path(recorded["metadata"]["judge"]["metadata"]["evidence"])
+            directory = Path(judge["metadata"]["evidence"])
             status = output["status"].replace("_", " ")
             for index, observation in enumerate(output["observations"], 1):
                 width, height = observation["viewport"]
@@ -1351,13 +1352,13 @@ def by_column(verdict: dict | None, columns: dict[str, str]) -> dict | None:
 
 def pair_records(runs: tuple[Path, ...]) -> list[tuple[Path, dict]]:
     """Each saved pair's two presentation-order judgments from `eval --judge pair`
-    runs, with the results file holding them. A winner counts only where both
-    completed orders name it."""
+    runs, with the results file holding them, once per Promptfoo repetition. A
+    winner counts only where both completed orders name it."""
     pairs: dict[tuple, dict] = {}
     for run, result, recorded in judgments(runs, "pair"):
         test = result["testCase"]["metadata"]
         pair = pairs.setdefault(
-            (run, test["subject"], test["pair"]),
+            (run, test["subject"], test["pair"], result.get("repeatIndex", 0)),
             {"subject": test["subject"], "pair": test["pair"], "orders": {}},
         )
         pair["samples"] = {
@@ -1365,11 +1366,11 @@ def pair_records(runs: tuple[Path, ...]) -> list[tuple[Path, dict]]:
             for ref in sorted(test["saved"], key=lambda ref: ref["column"])
         }
         pair["orders"][test["order"]] = by_column(
-            recorded.get("metadata", {}).get("pair"),
+            recorded.get("metadata", {}).get("judge", {}).get("output"),
             {p: ref["column"] for p, ref in zip("AB", test["saved"], strict=True)},
         )
     records = []
-    for (run, _, _), pair in pairs.items():
+    for (run, *_), pair in pairs.items():
         orders = [pair["orders"].get(order) for order in (1, 2)]
         complete = all(o and o["status"] == "complete" for o in orders)
         winners = {o["overall"] for o in orders if o}

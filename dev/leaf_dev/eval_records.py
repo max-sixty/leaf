@@ -35,11 +35,8 @@ def run_record(run: Path) -> dict:
 
 def saved_result(reference: dict) -> dict:
     """The saved result a regrade names."""
-    return next(
-        result
-        for result in run_record(Path(reference["run"]))["results"]["results"]
-        if result["id"] == reference["result"]
-    )
+    results = run_record(Path(reference["run"]))["results"]["results"]
+    return {result["id"]: result for result in results}[reference["result"]]
 
 
 def origin(run: Path, result: dict) -> tuple[Path, dict]:

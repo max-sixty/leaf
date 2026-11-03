@@ -409,13 +409,13 @@ def test_eval_command_delegates_configuration_and_status_to_promptfoo(
 
 
 def saved_run(run: Path) -> Path:
-    """A retained run of one complete task: a saved sample in each of two columns,
-    and a sample whose provider failed."""
+    """A retained run of one complete task: two saved samples in each of two
+    columns, the last from an author that did not complete."""
     from leaf_dev.arrangement_eval import comparison_inputs
 
     comparison = comparison_inputs("document-live-status", ("phone",))
     providers, results = [], []
-    for arm in ("base", "candidate", "candidate"):
+    for arm in ("base", "candidate", "base", "candidate"):
         label = f"codex:app-server/{arm}/workflow"
         providers.append(
             {
@@ -455,8 +455,7 @@ def saved_run(run: Path) -> Path:
                     "metadata": {"case": "configuration", "condition": "leaf"},
                 },
                 "response": response
-                if len(results) < 2
-                else {"error": "Native transport failed"},
+                | ({"error": "Author did not complete"} if len(results) == 3 else {}),
             }
         )
     run.mkdir(parents=True)
@@ -485,7 +484,7 @@ def test_from_replays_saved_outputs_under_current_grading(tmp_path, monkeypatch)
     original = (run / "results.json").read_bytes()
 
     # Each saved output is graded by its case's current assertions in its own
-    # column; the result whose provider failed saved nothing to grade.
+    # column, and a failed response fails again without being graded.
     result = CliRunner().invoke(module.eval, ["--from", str(run)])
     assert result.exit_code == 0, result.output
     config = json.loads(
@@ -506,6 +505,14 @@ def test_from_replays_saved_outputs_under_current_grading(tmp_path, monkeypatch)
         replayed = regrade.replay("", {}, {"test": test})
         assert replayed["output"] == f"{reference['sample'].split('-')[1]} summary"
         assert replayed["metadata"]["work"].endswith(reference["sample"])
+    assert [
+        regrade.replay("", {}, {"test": t}).get("error") for t in config["tests"]
+    ] == [
+        None,
+        None,
+        None,
+        "Author did not complete",
+    ]
 
     result = CliRunner().invoke(module.eval, ["--from", str(run), "--harness", "codex"])
     assert result.exit_code != 0 and "--harness" in result.output
@@ -560,24 +567,23 @@ def test_judgments_of_saved_samples_reach_the_report(tmp_path, monkeypatch):
         config = module.saved_config((run,), (), name, tmp_path / "out", tmp_path)
         results = []
         for index, test in enumerate(config["tests"]):
-            (assertion,) = test["assert"]
-            outcome = getattr(regrade, name)(
-                None,
-                {
-                    "providerResponse": regrade.replay("", {}, {"test": test}),
-                    "test": test,
-                    "vars": {**test["vars"], **variables},
-                    "config": assertion["config"],
-                },
-            )
-            assert outcome["pass"], outcome["reason"]
-            results.append(
-                {
-                    "id": f"{name}-{index}",
-                    "testCase": test,
-                    "gradingResult": {"componentResults": [outcome]},
-                }
-            )
+            result = {"id": f"{name}-{index}", "testCase": test}
+            response = regrade.replay("", {}, {"test": test})
+            # Promptfoo grades no response that failed.
+            if "error" not in response:
+                (assertion,) = test["assert"]
+                outcome = getattr(regrade, name)(
+                    None,
+                    {
+                        "providerResponse": response,
+                        "test": test,
+                        "vars": {**test["vars"], **variables},
+                        "config": assertion["config"],
+                    },
+                )
+                assert outcome["pass"], outcome["reason"]
+                result["gradingResult"] = {"componentResults": [outcome]}
+            results.append(result)
         judging = tmp_path / name
         judging.mkdir()
         (judging / "results.json").write_text(
@@ -586,22 +592,24 @@ def test_judgments_of_saved_samples_reach_the_report(tmp_path, monkeypatch):
         return judging, results
 
     # Each pair is judged in both presentation orders, and the report counts a
-    # winner both orders name, by column.
+    # winner both orders name, by column. The author that did not complete keeps
+    # its place, and its pair is unscored.
     judging, results = graded("pair", {})
     assert [
         [reference["column"] for reference in result["testCase"]["metadata"]["saved"]]
         for result in results
-    ] == [[base, candidate], [candidate, base]]
+    ] == [[base, candidate], [candidate, base]] * 2
     assert candidate in results[1]["gradingResult"]["componentResults"][0]["reason"]
     assert judged[0][0] == {
         f"{position}{suffix}"
         for position in "AB"
         for suffix in ("", "_before_decision", "_before_revision")
     }
-    ((source, pair),) = eval_report.pair_records((judging,))
+    (source, pair), (_, unscored) = eval_report.pair_records((judging,))
     assert source == judging / "results.json"
     assert pair["status"] == "complete" and pair["winner"] == candidate
     assert pair["orders"][1]["defects"] == {base: ["Clipped table"], candidate: []}
+    assert unscored["status"] == "unscored" and unscored["orders"] == [None, None]
     assert eval_report.run_samples((judging,)) == {}
 
     judging, _ = graded("discovery", {"focus": "Investigate long decision premises"})
@@ -609,7 +617,7 @@ def test_judgments_of_saved_samples_reach_the_report(tmp_path, monkeypatch):
     assert pages == {"page", "page_before_decision", "page_before_revision"}
     assert "Investigate long decision premises" in prompt
     section = eval_report.discovery_section(tmp_path / "report", (judging,))
-    assert section.count("Desktop navigation.") == 2
+    assert section.count("Desktop navigation.") == 3
 
 
 def test_arrangement_retains_linked_pages_per_phase(tmp_path, monkeypatch):

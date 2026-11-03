@@ -32,7 +32,6 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from collections import Counter
 from collections.abc import Callable, Iterator
 from copy import deepcopy
 from datetime import datetime
@@ -556,7 +555,7 @@ def saved_config(
     """Tests that grade RUNS' saved outputs again, each replaying the saved results it
     names: by its case's current assertions, or by the named judgment."""
     selected: dict[str, dict[str, list[dict]]] = {}
-    skipped: Counter[str] = Counter()
+    unjudged = 0
     matched = set()
     for subject, columns in run_samples(runs).items():
         for column, members in columns.items():
@@ -566,11 +565,8 @@ def saved_config(
                 if globs and not patterns:
                     continue
                 matched |= patterns
-                response = sample["result"].get("response")
-                if not response or response.get("error"):
-                    skipped["saved no output to grade"] += 1
-                elif judge and "comparison" not in sample["diagnostics"]:
-                    skipped["recorded no task for a judge"] += 1
+                if judge and "comparison" not in sample["diagnostics"]:
+                    unjudged += 1
                 else:
                     selected.setdefault(subject, {}).setdefault(column, []).append(
                         sample
@@ -580,8 +576,8 @@ def saved_config(
             raise click.BadParameter(
                 f"no saved output matches {pattern!r}", param_hint="CASE"
             )
-    for reason, count in skipped.items():
-        click.echo(f"{count} results {reason}")
+    if unjudged:
+        click.echo(f"{unjudged} results saved no task for a judge")
     evidence = out / "judgments"
     tests: list[dict] = []
     if judge == "pair":

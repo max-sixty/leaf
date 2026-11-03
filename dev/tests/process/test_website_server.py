@@ -333,7 +333,7 @@ class _DeployedContainer:
                 "active": {"revision": 1, "url": "revisions/1.html"},
                 "layer": {"generation": "generation-1"},
                 "release": self.release,
-                "events": [],
+                "events": TURN_LOG,
             },
             headers=answered,
         )
@@ -437,14 +437,23 @@ ACTIVATION = "https://leaf.page/examples/triage-board/api/view?revision=1&throug
 def run_browser_journey(website):
     """The release ask at the user's browser end on `website`'s session and release."""
     session, version = website
-    return journey.run_journey(journey.BrowserEnd(session), version)
+    return journey.run_journey(journey.BrowserEnd(session, None), version)
 
 
-TURN_LOG = [
-    {"kind": "comment", "id": "test-comment", "ts": "2026-10-04T12:00:00.000-07:00"},
+TURN_LOG: list[dict] = [
+    {
+        "kind": "comment",
+        "id": "test-comment",
+        "seq": 1,
+        "author": "user",
+        "attention": True,
+        "ts": "2026-10-04T12:00:00.000-07:00",
+    },
     {
         "kind": "thread_title",
         "id": "test-title",
+        "seq": 2,
+        "author": "agent",
         "thread": "test-comment",
         "title": "Deployment heading",
         "ts": "2026-10-04T12:00:02.250-07:00",
@@ -452,6 +461,7 @@ TURN_LOG = [
     {
         "kind": "reply",
         "id": "test-answer",
+        "seq": 3,
         "author": "agent",
         "parent": "test-comment",
         "responds": "test-comment",
@@ -570,15 +580,18 @@ def test_the_journey_chart_draws_each_targets_latest_version_from_kept_samples()
     no transcription: each target's latest version only, each sign a sample saw."""
 
     def sample(target, version, titled, picked_up, progress, replied, **named):
+        seconds = {
+            "opened": picked_up,
+            "titled": titled,
+            "progress": progress,
+            "published": replied - 500,
+            "answered": replied,
+        }
         comment = {
-            "sinceAdmissionMs": {
-                "queued": None,
-                "pickedUp": picked_up,
-                "started": None,
-                "titled": titled,
-                "progress": progress,
-                "published": replied - 500,
-                "replied": replied,
+            "milestones": {
+                name: {"elapsed_s": ms / 1000}
+                for name, ms in seconds.items()
+                if ms is not None
             },
             "sinceSendMs": {"responseVisible": replied + 1000},
         }
@@ -604,17 +617,18 @@ def test_the_journey_chart_draws_each_targets_latest_version_from_kept_samples()
         sample(adapter, old, 900, 300, None, 30000, origin="http://127.0.0.1:8080"),
         sample(adapter, new, 800, 300, None, 25000, origin="http://127.0.0.1:9090"),
     ]
-    # A sample kept before the journey ran its steps is left out.
-    unstepped = sample("codex", new, 900, 300, None, 9000)
-    del unstepped["steps"]
+    # A sample kept before the journey read its milestones as response-times does
+    # is left out.
+    unread = sample("codex", new, 900, 300, None, 9000)
+    unread["comment"] = {"sinceAdmissionMs": {"replied": 9000}}
     path = journey.samples_path()
     path.parent.mkdir(parents=True)
-    path.write_text("".join(json.dumps(s) + "\n" for s in [*samples, unstepped]))
+    path.write_text("".join(json.dumps(s) + "\n" for s in [*samples, unread]))
     result = CliRunner().invoke(journey_chart.journey_chart)
     assert result.exit_code == 0, result.output
     markup = result.stdout
     assert markup.startswith('<lf-chart id="journey-signs"')
-    rows = journey_chart.chart_rows([*samples, unstepped])
+    rows = journey_chart.chart_rows([*samples, unread])
     assert {r["row"] for r in rows} == {
         "Claude Code at bbbbbbbb+working-tree",
         "Claude Code over HTTP at aaaaaaaa",
@@ -919,7 +933,7 @@ def test_the_deploy_gate_stops_on_the_first_failure(failure):
         {"Leaf-Layer": "layer", "Leaf-Release": "release"},
         None,
     )
-    asked = journey.ask_until_answered(journey.BrowserEnd(session), "abcd1234")
+    asked = journey.ask_until_answered(journey.BrowserEnd(session, None), "abcd1234")
     assert asked.asks == 1
     assert asked.turn.answer is None
     assert asked.turn.replies[0]["failure"] == failure
@@ -1040,7 +1054,7 @@ def test_the_deploy_gate_stops_reading_a_turn_the_container_has_closed(
         None,
     )
     turn = journey.await_turn(
-        journey.BrowserEnd(session),
+        journey.BrowserEnd(session, None),
         comment,
         1,
         "abcd1234",
@@ -1114,91 +1128,11 @@ def test_a_title_written_after_the_reply_is_still_timed(tmp_path):
             None,
             pause=pause,
         )
-        events = journey.await_title(
-            journey.BrowserEnd(session), comment["id"], untitled
-        )["events"]
+        journey.await_title(journey.BrowserEnd(session, None), comment["id"], untitled)
     assert paused == [1]
-    assert journey.title(events, comment["id"]) == "Release recorded"
-    steps = journey.recorded_steps(events, comment, None)
-    assert steps["titled"] is not None and steps["titled"] > 0
-    assert steps["published"] is None
-
-
-def test_a_progress_update_is_timed_apart_from_the_answer():
-    """Transport and work milestones name this exact input; unrelated earlier
-    pickups and starts cannot count. Ephemeral progress is timed separately from
-    the durable reply that answers."""
-    comment, _title, reply = TURN_LOG
-    progress = {
-        "kind": "reply",
-        "author": "agent",
-        "id": "test-progress",
-        "parent": comment["id"],
-        "text": "Recording the release on the board.",
-        "ephemeral": True,
-        "ts": "2026-10-04T12:00:03.000-07:00",
-    }
-    assert journey.deployment_answer([progress], comment["id"]) is None
-    assert journey.deployment_answer([progress, reply], comment["id"]) is reply
-    published = {"activated_at": "2026-10-04T19:00:12+00:00"}
-    transport = [
-        {
-            "kind": "pickup",
-            "events": ["other-input"],
-            "phase": "opened",
-            "ts": "2026-10-04T12:00:00.500-07:00",
-        },
-        {"kind": "start", "item": "other-input", "ts": "2026-10-04T12:00:00.750-07:00"},
-        {
-            "kind": "pickup",
-            "events": [comment["id"]],
-            "phase": "queued",
-            "ts": "2026-10-04T12:00:01.000-07:00",
-        },
-        {
-            "kind": "pickup",
-            "events": [comment["id"]],
-            "phase": "opened",
-            "ts": "2026-10-04T12:00:02.000-07:00",
-        },
-        {"kind": "start", "item": comment["id"], "ts": "2026-10-04T12:00:02.500-07:00"},
-    ]
-    for index, event in enumerate(transport):
-        event["id"] = f"transport-{index}"
-    assert journey.recorded_steps(
-        [comment, *transport, progress, reply], comment, published
-    ) == {
-        "queued": 1.0,
-        "pickedUp": 2.0,
-        "started": 2.5,
-        "titled": None,
-        "progress": 3.0,
-        "published": 12.0,
-        "replied": 12.5,
-    }
-
-    # Addressed progress takes the input in hand atomically in the current log.
-    inline = {**progress, "start": {"item": comment["id"]}}
-    # Progress on another input, in that input's own thread.
-    other = {**comment, "id": "other-input", "ts": "2026-10-04T12:00:00.900-07:00"}
-    unrelated = {
-        **inline,
-        "id": "other-progress",
-        "parent": "other-input",
-        "start": {"item": "other-input"},
-        "ts": "2026-10-04T12:00:01.000-07:00",
-    }
-    assert journey.recorded_steps(
-        [comment, other, unrelated, inline, reply], comment, published
-    ) == {
-        "queued": None,
-        "pickedUp": None,
-        "started": 3.0,
-        "titled": None,
-        "progress": 3.0,
-        "published": 12.0,
-        "replied": 12.5,
-    }
+    milestones = journey.input_rows(page_dir)[comment["id"]]["milestones"]
+    assert milestones["titled"]["elapsed_s"] > 0
+    assert "published" not in milestones
 
 
 def test_an_agent_turn_splits_into_delivery_model_and_tool_phases():
@@ -1453,13 +1387,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
                 },
                 published,
                 [{"kind": "reply", "text": "deployment verified"}],
-                {
-                    "kind": "reply",
-                    "id": "test-answer",
-                    "parent": "test-comment",
-                    "text": "deployment verified",
-                    "ts": "2026-10-04T12:00:12.500-07:00",
-                },
+                TURN_LOG[-1],
             ),
             1,
             1,
@@ -1498,6 +1426,14 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
     reported = capsys.readouterr().err
     assert "followed it 2500 ms after presentation" in reported
     assert '"responseVisible": 12500.0' in reported
+    # On a website the journey reads the log the page serves, which says when the
+    # thread was titled and the reply admitted, but not when a revision was published.
+    milestones = benchmark["comment"]["milestones"]
+    assert {name: reading["elapsed_s"] for name, reading in milestones.items()} == {
+        "titled": 2.25,
+        "first_reply": 12.5,
+        "answered": 12.5,
+    }
     assert benchmark == {
         "version": release,
         "page": {
@@ -1520,15 +1456,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
             "sessionReference": None,
             "eventIds": ["test-comment"],
             "asks": 1,
-            "sinceAdmissionMs": {
-                "queued": None,
-                "pickedUp": None,
-                "started": None,
-                "titled": 2250.0,
-                "progress": None,
-                "published": 12000.0,
-                "replied": 12500.0,
-            },
+            "milestones": milestones,
             "sinceSendMs": {
                 "acknowledged": [250.0],
                 "responseVisible": 12500.0,
@@ -1640,13 +1568,7 @@ def test_a_reload_that_presented_offline_reports_the_status_it_presented_under(
                 },
                 published,
                 [{"kind": "reply", "text": "deployment verified"}],
-                {
-                    "kind": "reply",
-                    "id": "test-answer",
-                    "parent": "test-comment",
-                    "text": "deployment verified",
-                    "ts": "2026-10-04T12:00:12.500-07:00",
-                },
+                TURN_LOG[-1],
             ),
             1,
             1,
@@ -1698,45 +1620,6 @@ def test_a_reload_that_presented_offline_reports_the_status_it_presented_under(
     assert "Claude is handling 1 update" in str(named.value)
     assert "Server offline" not in str(named.value)
     assert told.revision_waits == [(2, journey.TURN_PRESENTATION)]
-
-
-def test_journey_reads_and_times_inline_message_title():
-    comment, _title, reply = TURN_LOG
-    titled_reply = {**reply, "title": "Release recorded"}
-    assert journey.title([comment, titled_reply], comment["id"]) == "Release recorded"
-    assert (
-        journey.recorded_steps(
-            [comment, titled_reply], comment, {"activated_at": reply["ts"]}
-        )["titled"]
-        == 12.5
-    )
-    titled_comment = {**comment, "title": "Initial release"}
-    assert (
-        journey.recorded_steps(
-            [titled_comment, titled_reply],
-            titled_comment,
-            {"activated_at": reply["ts"]},
-        )["titled"]
-        == 0
-    )
-
-
-def test_journey_title_timing_accepts_admitted_action_dependencies():
-    comment, _title, reply = TURN_LOG
-    action = {
-        "kind": "action",
-        "id": "test-pick",
-        "widget": "options",
-        "action": "choose",
-        "revision": 1,
-        "ts": "2026-10-04T12:00:01.000-07:00",
-        "meaning": {"unit": "options", "depends": ["child"], "scope": "page"},
-    }
-    events = [comment, action, {**reply, "title": "Release recorded"}]
-    assert (
-        journey.recorded_steps(events, comment, {"activated_at": reply["ts"]})["titled"]
-        == 12.5
-    )
 
 
 def test_saved_state_verifier_fixture_returns_the_admitted_event_ids(

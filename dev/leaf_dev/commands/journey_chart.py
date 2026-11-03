@@ -18,13 +18,14 @@ import click
 
 from leaf_dev.commands.journey import CASES, samples_path
 
-# Exact-input milestones on the page server's clock, from comment admission.
+# The milestones the chart draws (`response_times.page_timings`), on the page
+# server's clock from the comment's admission.
 SIGNS = (
-    ("title", "sinceAdmissionMs", "titled", "var(--series-2)"),
-    ("picked up", "sinceAdmissionMs", "pickedUp", "var(--series-5)"),
-    ("work started", "sinceAdmissionMs", "started", "var(--series-1)"),
-    ("progress", "sinceAdmissionMs", "progress", "var(--series-4)"),
-    ("reply", "sinceAdmissionMs", "replied", "var(--series-3)"),
+    ("title", "titled", "var(--series-2)"),
+    ("picked up", "opened", "var(--series-5)"),
+    ("work started", "started", "var(--series-1)"),
+    ("progress", "progress", "var(--series-4)"),
+    ("reply", "answered", "var(--series-3)"),
 )
 TARGET_NAMES = {
     "claude-code": "Claude Code",
@@ -50,13 +51,13 @@ def chart_target(sample: dict) -> str:
 
 def latest(samples: list[dict]) -> list[dict]:
     """The samples of the latest version each chart row's target ran in each case.
-    Samples kept before the journey ran its steps (`steps`) are left out: their
-    targets had other names, and their Claude Code ran headless."""
+    Samples kept before the journey read its milestones as `response-times` does
+    (`milestones`) are left out."""
 
     def row(sample: dict) -> tuple[str, str]:
         return chart_target(sample), sample.get("case", "waiting")
 
-    samples = [sample for sample in samples if "steps" in sample]
+    samples = [sample for sample in samples if "milestones" in sample["comment"]]
     versions = {row(sample): sample["version"] for sample in samples}
     return [s for s in samples if s["version"] == versions[row(s)]]
 
@@ -69,7 +70,8 @@ def chosen(samples: list[dict], since: datetime | None) -> list[dict]:
     return [
         sample
         for sample in samples
-        if "steps" in sample and datetime.fromisoformat(sample["at"]) >= since
+        if "milestones" in sample["comment"]
+        and datetime.fromisoformat(sample["at"]) >= since
     ]
 
 
@@ -179,9 +181,11 @@ def chart_rows(samples: list[dict], since: datetime | None = None) -> list[dict]
             " after a permission prompt" if sample["comment"].get("approved") else ""
         )
         row = f"{name}{prompted} at {version}"
-        for sign, clock, step, _ in SIGNS:
-            if (ms := sample["comment"][clock].get(step)) is not None:
-                rows.append({"row": row, "sign": sign, "s": round(ms / 1000, 2)})
+        for sign, key, _ in SIGNS:
+            if milestone := sample["comment"]["milestones"].get(key):
+                rows.append(
+                    {"row": row, "sign": sign, "s": round(milestone["elapsed_s"], 2)}
+                )
     return rows
 
 

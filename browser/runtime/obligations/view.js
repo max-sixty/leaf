@@ -39,6 +39,7 @@ import { decisionControls, nativePress } from "../keyboard/bindings.js";
 import { closestAcross, elementById, inChrome, showsWords } from "../passages.js";
 import { TEXT_BLOCK } from "../kernel-facts.js";
 import { scrollerFor } from "../reading-regions.js";
+import { scrollGoal } from "../scrolling.js";
 import { keeps } from "../keeps.js";
 import { decisionFor, registry, tagsDeclaring } from "../registry.js";
 import { hasObligationSource } from "./source.js";
@@ -51,6 +52,7 @@ import {
   contextScopes,
 } from "../keyboard/scopes.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
+import { paintLocation } from "../target-paint.js";
 import { scrollBehavior } from "../motion.js";
 import { OBLIGATION_CONTROL } from "./view-elements.js";
 import { obligationWord, ownedObligationControl } from "./answer.js";
@@ -374,20 +376,14 @@ export function createObligationView({
   // focused control's ring. An On me row's press lands the focus by script
   // after a click, and the obligation it brought the user to must show where they are.
   //
-  // The obligation wears it, and so does every box it shows through (shownParts): the obligation is
-  // what carries the id captureView writes down and the place the queue walk measures from,
-  // while an outline needs a box to hang on. Every widget in the vocabulary draws one
-  // box now — the wrapper that declined to took a form instead, in its own stylesheet,
-  // after the ring went out over its pieces and read as two boxes touching rather than
-  // as the one obligation the user is in — so on shipped pages the parts are the
-  // obligation itself, and the fallback answers the wrapper any page can still style boxless
-  // in a line, the same way the thread's mark does (paintAnchors).
-  //
-  // On me's row for the obligation is a second surface showing this one fact, so it
-  // is painted from this one reading rather than from a mark the panel keeps for itself —
-  // and the ring is the chrome's as much as the page's (the [data-lf-obligation] rule in the
-  // stylesheet is written against the attribute, not against the page), so wearing the
-  // attribute is the whole of what the row needs.
+  // The obligation wears the mark, and so does every box it shows through (shownParts):
+  // the obligation is what carries the id captureView writes down and the place the
+  // queue walk measures from, while a landing keeps the ring's room at a scroller's edge
+  // round each box it lands on (chrome.css). The ring itself is drawn over the
+  // obligation, round every box it shows through at once (target-paint.js,
+  // `paintLocation`), so a wrapper a page styles boxless in a line wears one ring, as the
+  // thread's mark does (paintAnchors). Drawn as an outline on each part, it read as two
+  // boxes touching rather than as the one obligation the user is in.
   function markHere() {
     const record = currentLocationObligation();
     const here = obligationNode(record);
@@ -397,6 +393,7 @@ export function createObligationView({
     ))
       if (!wearing.has(marked)) marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.obligation);
     for (const marked of wearing) keeps(marked, PAGE_PAINT_ATTRIBUTE.obligation, "1");
+    paintLocation(here);
   }
   // Where an arrival lands: on the obligation, which is what the scroll has just brought to
   // the top of the window and what the ring is about to name. Its controls are then the
@@ -577,7 +574,8 @@ export function createObligationView({
   // board's own scroller, or reaching under the floating panel, is not in front of the
   // user for having a box inside the window. This adds the one thing that reading
   // cannot know: the arrival is the region's start, so the start has to be standing
-  // clear of the window's head too.
+  // clear of the window's head too, read like the obligation where the motion of its box
+  // will leave it (`scrollGoal`).
   /** @param {Obligation} record @param {Element} region @param {Element} item
    * @param {Element} box @param {(node: Element) => boolean} readable */
   function framed(record, region, item, box, readable) {
@@ -585,7 +583,7 @@ export function createObligationView({
     return (
       !!band &&
       readable(item) &&
-      shownBox(region).top >= band.top &&
+      shownBox(region).top - (scrollGoal(box) - box.scrollTop) >= band.top &&
       actionsOf(record).every(({ control }) =>
         readable(presentedActionControl(control)),
       )
@@ -747,6 +745,7 @@ export function createObligationView({
       `[${PAGE_PAINT_ATTRIBUTE.obligation}]`,
     ))
       marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.obligation);
+    paintLocation(null);
   }
 
   return {

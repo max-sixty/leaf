@@ -607,27 +607,32 @@ def test_embedded_tab_selection_preserves_the_document_reading_position(browser,
     assert page.evaluate("scrollY") == pytest.approx(before, abs=2)
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 @pytest.mark.parametrize("target_id", ["x", "two"])
 def test_back_to_a_fragment_the_page_has_hidden_since_lands_on_it(
-    browser, serve, target_id
+    request, serve, engine, target_id
 ):
     """Back restores the offset an entry was left at, unless the element its fragment
-    names is no longer shown: the user closed its tab since, so that offset belongs to
-    a page that has changed, and landing the fragment, which opens the tab, is the
-    answer. The fragment may name the panel itself or its contents. The tab set is
-    embedded, so it keeps no history of its own."""
+    names is no longer shown: the user closed its tab since, and opened a disclosure
+    above it, so that offset belongs to a page that has changed, and landing the
+    fragment, which opens the tab, is the answer. The fragment may name the panel
+    itself or its contents. The tab set is embedded, so it keeps no history of its own.
+    Firefox restores the stale offset itself as it applies the traversal, after Leaf
+    has landed, so Leaf puts its landing back once the traversal has applied."""
     filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(60))
     url = serve(
         leaf_page(
             "Back to a hidden fragment",
             f'<h1 id="top">Hidden fragment</h1><p><a href="#{target_id}">To target</a></p>'
+            f"<details><summary>More</summary>{filler}</details>"
             '<section><lf-tabs id="views">'
             '<lf-tab id="one" label="One"><p>One is short.</p></lf-tab>'
             f'<lf-tab id="two" label="Two">{filler}<p id="x">The target.</p></lf-tab>'
-            '</lf-tabs></section><p><a href="#top">To top</a></p>',
+            '</lf-tabs></section><p><a href="#top">To top</a></p>'
+            '<div style="height: 1200px"></div>',
         )
     )
-    page = open_page(browser, url)
+    page = open_page(request.getfixturevalue(engine), url)
     resized(page, 1280, 720)
     tabs = page.locator("#views")
     one = tabs.get_by_role("tab", name="One", exact=True)
@@ -637,14 +642,23 @@ def test_back_to_a_fragment_the_page_has_hidden_since_lands_on_it(
     page.get_by_role("link", name="To target").click()
     expect(two).to_have_attribute("aria-selected", "true")
     expect(target).to_be_in_viewport()
-    one.click()
-    expect(one).to_have_attribute("aria-selected", "true")
     page.get_by_role("link", name="To top").click()
     page.wait_for_url(re.compile("#top$"))
+    page.get_by_text("More", exact=True).click()
+    one.click()
+    expect(one).to_have_attribute("aria-selected", "true")
 
     page.go_back()
     expect(two).to_have_attribute("aria-selected", "true")
-    expect(target).to_be_in_viewport()
+    scroll_settled(page)
+    landed = target.evaluate(
+        """el => ({
+          top: el.getBoundingClientRect().top,
+          edge: parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)
+            + parseFloat(getComputedStyle(el).scrollMarginTop),
+        })"""
+    )
+    assert landed["top"] == pytest.approx(landed["edge"], abs=1), landed
 
 
 def test_page_tabs_take_the_page_width_and_its_one_left_edge(browser, serve):
@@ -846,7 +860,7 @@ def test_wide_evidence_in_a_page_tab_takes_the_room_it_would_outside_one(
         '</lf-tab><lf-tab id="boxed-other" label="Other"><p>Other.</p></lf-tab></lf-tabs>'
         "</section>"
     )
-    # A sidebar's reading body owns the shared document tracks, including its tabs.
+    # A sidebar's reading body owns the document's flow, including its tabs.
     if layout == "sidebar":
         content = f'<div class="layout-column">{content}</div>'
     source = leaf_page(
@@ -1970,7 +1984,8 @@ def test_side_list_history_restores_the_reading_offset_of_each_entry(
 def test_authored_page_tabs_share_sidebar_tracks_beside_boxed_tabs(
     browser, serve, subtests
 ):
-    """Shared document tracks and a boxed neighbor keep their own width and face."""
+    """A flow tab set shares the document's prose, and a boxed neighbor keeps its own width
+    and face."""
     source = leaf_page(
         "Authored tab flow",
         '<aside><div class="layout-track"><p>Reading route</p></div></aside>'
@@ -1997,9 +2012,6 @@ def test_authored_page_tabs_share_sidebar_tracks_beside_boxed_tabs(
             expect(boxed).to_have_css("border-left-width", "1px")
             active = flow.locator(":scope > lf-tab:not([hidden])")
             expect(active).to_have_css("container-type", "normal")
-            assert active.evaluate(
-                "el => getComputedStyle(el).gridTemplateColumns.startsWith('subgrid')"
-            )
             prose = active.locator("p").bounding_box()
             reading = page.locator("#reading").bounding_box()
             assert (prose["x"], prose["width"]) == pytest.approx(

@@ -93,9 +93,10 @@ import {
 } from "./margin-placement.js";
 import { clamp, clippingAxes, overlaps, union } from "../rect.js";
 import { passageBoxes, targetRange, targetSegments } from "../resolved-target.js";
-import { proseRect, railStands } from "../content-layout.js";
+import { proseMeasure, proseRect, railStands } from "../content-layout.js";
 import { keeps, layoutPx, inlineStyle } from "../keeps.js";
 import { move } from "../dom-move.js";
+import { offerActionElement } from "../widget-elements.js";
 import { coarsePointer, hoveringPointer } from "../pointer.js";
 import { LAYOUT } from "../widget-upgrade.js";
 import { inChrome } from "../passages.js";
@@ -210,8 +211,8 @@ let layer = null;
 // scroll, so its carrier follows its anchor's block axis alone and stands across the
 // page where the window holds it. A box follows only its default anchor through a
 // scroll, not a second anchor `anchor()` names, so the column cannot carry it across;
-// the document scrolls sideways only by script (`overflow-x: hidden`, base.css), and
-// the pass that scroll brings places it again.
+// the document scrolls sideways only on a page wider than the window, which the render
+// check refuses, and the pass that scroll brings places it again.
 // A carrier holds one run of consecutive rows, so rows keep document order across
 // carriers; a second run on the same anchor takes a second carrier. Carriers are kept
 // by what holds them, a lane or the frames a header cuts, so a row never takes over a
@@ -382,9 +383,11 @@ railMeasureRow.dataset.lfPlace = "rail";
 railMeasureRow.inert = true;
 railMeasureRow.setAttribute("aria-hidden", "true");
 railMeasureRow.style.visibility = "hidden";
-const railMeasureEntry = document.createElement("button");
-railMeasureEntry.className = "lf-margin-entry";
-railMeasureEntry.type = "button";
+const railMeasureEntry = offerActionElement(
+  document.createElement("button"),
+  "entry",
+  "lf-margin-entry",
+);
 railMeasureEntry.dataset.lfBehavior = "disclosure";
 railMeasureRow.append(railMeasureEntry);
 /** @param {Layer} layer */
@@ -624,14 +627,15 @@ function placeMarginEntryLabel(control) {
 }
 
 // What reveals a margin entry's label, as the theme's rules for it say: a press held on
-// it (held-word.js), the selected obligation, and focus or hover where the pointer
-// really hovers. Elsewhere a tap leaves the entry hovered and focused, so only the
-// keyboard's focus reveals a label on an unselected entry.
+// it (held-word.js), and focus or hover where the pointer really hovers. Elsewhere a
+// tap leaves the entry hovered and focused, so only the keyboard's focus reveals it.
+// Arriving at the entry's target, as `m` does, leaves the label hidden. An ask's
+// heading already says its question, and `m` opens On me on a to-do, whose card shows
+// the title its subject doesn't (queue-walk.js).
 const revealsLabel = () =>
-  '[data-lf-kinds~="on-me"][data-lf-target-selected], ' +
-  (hoveringPointer.matches
+  hoveringPointer.matches
     ? ':is(:hover, [data-lf-focus]):not([aria-expanded="true"]), [data-lf-held-word]'
-    : '[data-lf-focus]:focus-visible:not([aria-expanded="true"]), [data-lf-held-word]');
+    : '[data-lf-focus]:focus-visible:not([aria-expanded="true"]), [data-lf-held-word]';
 // Only a label this owner has placed and its control currently reveals paints a
 // footprint. Placement consumers read that same native geometry when the user holds
 // the control, so an arriving row does not make its existing label change sides.
@@ -805,15 +809,11 @@ function reach(anchor, box, main, reaches) {
     if (edge === undefined) {
       const b = el.getBoundingClientRect();
       const style = getComputedStyle(el);
-      // Named document tracks include free margins; a subgrid carrying those
-      // tracks is the page's flow, not a figure extending into its rail. The
+      // A box holding the page's prose, the column or a flow in it, is the page's
+      // flow, not a figure extending into its rail, however wide its box. The
       // target's own box and ordinary framed ancestors still count in full.
-      const tracks =
-        style.gridTemplateColumns.includes("prose-start") ||
-        (style.gridTemplateColumns.startsWith("subgrid") &&
-          style.gridColumnStart === "full");
       edge = {
-        right: tracks ? -Infinity : b.right,
+        right: proseMeasure(el) > 0 ? -Infinity : b.right,
         clip:
           style.overflowX === "visible"
             ? null

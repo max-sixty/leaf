@@ -1,7 +1,7 @@
 import { J, LAYOUT, LENT_REACH_STOP, PAGE_PAINT_ATTRIBUTE, PRESSES, TEXT_BOX, WORKS, Z, afterScript, atScrollEnd, clamp, clippedContents, closestAcross, deepFocus, elementFrame, eventSource, focusDestination, headerCuts, inChrome, inUi, inlineStyle, installScrollerLookup, isElement, isHTML, isText, keeps, keepsHidden, landingBand, layoutChanged, layoutPx, layoutWindow, move, nativeLayerHolding, nearObserver, nearWindow, nextFrame, nextRender, onCurrentLocation, overlaps, pagePresented, pageScroller, pressing, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, renderedParent, renderedUnder, renderingState, revealRegisteredVisualPart, revealsVisualParts, scrollContainer, scrollToEnd, scrollersOf, scrollsBy, scrollsContent, shadowHost, shellRight, shownParts, shownRect, sizeObserver, skipped, tabStops, tick, uiInside, under, union, upFrom, userScrollport, visualPartAdmission, watchArrivals, watchScrolls, wearsLentStop, whileConnected } from "./bundle-portable.js";
 import { PRESSABLE, TEXT_BLOCK, anchorKey, applicationPresented, documentChanged, fragmentId, fragmentKey, hostIn, isElementName, marks, registry, repaintPage, shadowRootsIn, tagsDeclaring } from "./bundle-errors.js";
 import { removeRuntimeRootStyle, reportPageError, setRuntimeRootAttribute, setRuntimeRootStyle } from "./bundle-layer-client.js";
-import { DATUM, authoredScope, blockAt, contextAround, cut, elementById, elementReading, excerptWords, fileModelsPassage, findQuote, layoutBox, leafSurface, neighbourhood, pageDocument, pageQueryAll, pageText, quoteFrom, rangeOf, readingFrom, segmentsIn, settledAway, spanIn, textNodesUnder } from "./bundle-passages.js";
+import { DATUM, authoredScope, blockAt, contextAround, cut, elementById, elementReading, excerptWords, fencedAt, fileModelsPassage, findQuote, layoutBox, leafSurface, neighbourhood, pageDocument, pageQueryAll, pageText, quoteFrom, rangeOf, readingFrom, segmentsIn, settledAway, spanIn, textNodesUnder } from "./bundle-passages.js";
 
 //#region runtime/presence.js
 let clockSkew = 0;
@@ -1066,19 +1066,19 @@ function anchorForPassage(segments, node) {
 	const dataNodes = new Set(segments.map((seg) => closestAcross(seg.node, DATUM)).filter(Boolean));
 	const [onlyDatum] = dataNodes;
 	const datum = dataNodes.size === 1 && segments.every((seg) => closestAcross(seg.node, "[data-lf-projection][data-lf-datum]") === onlyDatum) ? onlyDatum : null;
-	if (datum) {
-		const anchor = anchorForDatum(datum, quote ? { quote } : {});
-		if (anchor) return anchor;
-	}
+	const projected = datum && anchorForDatum(datum);
+	if (projected && !quote) return projected;
 	const section = closestAcross(holder, "[id]:not(.lf-ui):not([id^=\"lf-\"])")?.id ?? null;
 	if (!quote) return section === null ? null : { section };
-	const reading = pageText();
-	const [start, stop] = spanIn(reading, segments);
+	const page = pageText();
+	const reading = datum && projected ? fencedAt(page, datum) : page;
+	const base = projected || { section };
+	const [start, stop] = spanIn(page, segments);
 	for (let width = 24;; width *= 2) {
 		const prefix = cut(neighbourhood(reading, start, width, true), -width, Infinity);
 		const suffix = cut(neighbourhood(reading, stop, width, false), 0, width);
 		const anchor = {
-			section,
+			...base,
 			quote,
 			...prefix && { prefix },
 			...suffix && { suffix }
@@ -1309,6 +1309,7 @@ function resolveAnchor(anchor) {
 		};
 		const segments = findQuote(pageText(), anchor.quote, anchor, datum);
 		const [first] = segments;
+		if (!first && (anchor.prefix || anchor.suffix)) return null;
 		return first ? {
 			...resolvedPassage({
 				place: annotationAt(first.node, () => datum),
@@ -2230,26 +2231,18 @@ function openDocumentLayout({ onRead }) {
 	window.addEventListener("resize", scheduleDocumentLayout);
 	readDocumentLayout();
 }
+const proseMeasure = (node) => parseFloat(getComputedStyle(node).getPropertyValue("--lf-prose-measure")) || 0;
 function proseRect(main = layoutBox()) {
 	if (!main) return null;
-	const grid = [main, ...main.children].find((node) => getComputedStyle(node).gridTemplateColumns.includes("prose-start"));
-	if (!grid) return main.getBoundingClientRect();
-	const style = getComputedStyle(grid);
-	const frame = elementFrame(grid);
-	if (!frame) return grid.getBoundingClientRect();
-	const gap = parseFloat(style.columnGap) || 0;
-	let offset = 0;
-	let start;
-	let end;
-	for (const match of style.gridTemplateColumns.matchAll(/\[([^\]]*)\]|(-?[\d.]+)px/g)) if (match[1] !== void 0) {
-		const names = match[1].split(/\s+/);
-		if (names.includes("prose-start")) start = offset;
-		if (names.includes("prose-end")) end = offset - gap;
-	} else offset += Number(match[2]) + gap;
-	if (start === void 0 || end === void 0) return grid.getBoundingClientRect();
+	const holder = [main, ...main.children].find((node) => proseMeasure(node) > 0);
+	if (!holder) return main.getBoundingClientRect();
+	const style = getComputedStyle(holder);
+	const frame = elementFrame(holder);
+	if (!frame) return holder.getBoundingClientRect();
 	const edge = (side) => parseFloat(style[`border${side}Width`]) + parseFloat(style[`padding${side}`]);
-	const left = style.direction === "rtl" ? frame.width - edge("Right") - end : edge("Left") + start;
-	const right = style.direction === "rtl" ? frame.width - edge("Right") - start : edge("Left") + end;
+	const width = Math.min(proseMeasure(holder), frame.width - edge("Left") - edge("Right"));
+	const left = style.direction === "rtl" ? frame.width - edge("Right") - width : edge("Left");
+	const right = left + width;
 	const corner = (x, y) => {
 		const point = frame.matrix.transformPoint({
 			x,
@@ -2303,4 +2296,4 @@ const readDocumentHeaders = () => {
 };
 
 //#endregion
-export { ADDRESSABLE, PAGE_CONTROL_RANK, PAGE_INTERFACE, PRESENTATION, UPGRADE, activityTransitionDue, addressableLabel, addressableName, addressableSays, addressableWord, addressedElements, afterPresentation, ago, aimControl, aimTargetAt, aimTargets, anchorAt, anchorBox, anchorControl, anchorElement, anchorFor, anchorForPassage, anchorForRange, anchorHolder, anchorName, anchorReaches, anchorReading, anchoringIsReady, annotationAt, blockControlBoxes, boundedBlockOf, carriedAnchor, chromeForeground, chromeRoot, claimReachStop, clockValue, commitPoint, compoundReadingRegionId, containingReadingRegionFor, cutFrames, datumAimTarget, datumLabel, declaredName, deferredArrival, designPressAt, effectiveScroller, exactTarget, followingItsEnd, fragmentAddress, fragmentTarget, headerLevels, holdArrivingBounds, isAddressable, leadingTitle, lightSeat, livePoint, markPagePresented, markPageUpgraded, markStateApplied, nameAnchor, nameable, observeServerNow, observeWorkingGrace, onReadingInput, openDocumentLayout, pageControls, pageControlsChanged, pageReadiness, pageReadingRegion, passageBoxes, passageGeometry, placePoints, pointBand, pointInto, preserveReadingRegions, pressedElsewhere, projectedDatum, proseRect, quietSince, railStands, rangeGeometry, reachScrollers, readInsets, readingRegion, readingRegionFor, readingRegions, recentReadingRegion, regionScrollBehavior, regionsSettled, registerPageControl, registerReadingRegion, releaseControl, releaseReachStop, resolveAnchor, resolvedInMessage, revealAddressed, revealControl, saidNow, scheduleDocumentLayout, scrollChainOf, scrollMisplacesAnchors, scrollerFor, scrollsWith, sectionLabel, sectionOf, setAnchoringReady, settleDocumentLayout, settlePageInterface, shortAgo, showReadingSubject, shownRegionBounds, standInChrome, tabFromBlock, targetElement, targetParts, targetPlace, targetRange, targetSegments, targetSurface, tickClock, unclaimedVisualGesture, unconcealedReadingRegions, userReadingRegion, visualAt, visualPartLabel, visualParts, visualSelector, watchReadingRegionTransitions, whenArrived, whileInterfaceConnected, widgetWord, windowHoldsRail, writeInsets };
+export { ADDRESSABLE, PAGE_CONTROL_RANK, PAGE_INTERFACE, PRESENTATION, UPGRADE, activityTransitionDue, addressableLabel, addressableName, addressableSays, addressableWord, addressedElements, afterPresentation, ago, aimControl, aimTargetAt, aimTargets, anchorAt, anchorBox, anchorControl, anchorElement, anchorFor, anchorForPassage, anchorForRange, anchorHolder, anchorName, anchorReaches, anchorReading, anchoringIsReady, annotationAt, blockControlBoxes, boundedBlockOf, carriedAnchor, chromeForeground, chromeRoot, claimReachStop, clockValue, commitPoint, compoundReadingRegionId, containingReadingRegionFor, cutFrames, datumAimTarget, datumLabel, declaredName, deferredArrival, designPressAt, effectiveScroller, exactTarget, followingItsEnd, fragmentAddress, fragmentTarget, headerLevels, holdArrivingBounds, isAddressable, leadingTitle, lightSeat, livePoint, markPagePresented, markPageUpgraded, markStateApplied, nameAnchor, nameable, observeServerNow, observeWorkingGrace, onReadingInput, openDocumentLayout, pageControls, pageControlsChanged, pageReadiness, pageReadingRegion, passageBoxes, passageGeometry, placePoints, pointBand, pointInto, preserveReadingRegions, pressedElsewhere, projectedDatum, proseMeasure, proseRect, quietSince, railStands, rangeGeometry, reachScrollers, readInsets, readingRegion, readingRegionFor, readingRegions, recentReadingRegion, regionScrollBehavior, regionsSettled, registerPageControl, registerReadingRegion, releaseControl, releaseReachStop, resolveAnchor, resolvedInMessage, revealAddressed, revealControl, saidNow, scheduleDocumentLayout, scrollChainOf, scrollMisplacesAnchors, scrollerFor, scrollsWith, sectionLabel, sectionOf, setAnchoringReady, settleDocumentLayout, settlePageInterface, shortAgo, showReadingSubject, shownRegionBounds, standInChrome, tabFromBlock, targetElement, targetParts, targetPlace, targetRange, targetSegments, targetSurface, tickClock, unclaimedVisualGesture, unconcealedReadingRegions, userReadingRegion, visualAt, visualPartLabel, visualParts, visualSelector, watchReadingRegionTransitions, whenArrived, whileInterfaceConnected, widgetWord, windowHoldsRail, writeInsets };

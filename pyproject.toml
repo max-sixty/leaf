@@ -57,6 +57,7 @@ dependencies = [
   "playwright>=1.64",
   "psutil>=6",
   "pywhatwgurl>=0.1.2",
+  "referencing>=0.28.4",
   "regress>=2026.9",
   "starlette>=0.48",
   "tinycss2>=1.4",
@@ -143,6 +144,10 @@ select = [
 # Authored prose may intentionally use Unicode; collection construction and union
 # ordering are style choices rather than correctness requirements.
 ignore = ["E402", "E501", "E731", "RUF001", "RUF002", "RUF003", "RUF005", "RUF036"]
+# The selected rules' preview behaviour, such as F401 reporting an unused
+# `import http.cookiejar` beside a used `import http.client`; preview rules stay off.
+preview = true
+explicit-preview-rules = true
 
 [tool.ruff.lint.isort]
 known-first-party = ["leaf", "leaf_dev", "leaf_website"]

@@ -201,7 +201,7 @@ import {
   repeat,
   signal,
 } from "/runtime/framework.js";
-import { el, namedAction, offeredAction, reveal } from "./widget-elements.js";
+import { el, offeredAction, reveal } from "./widget-elements.js";
 import { actionTemplate, iconTemplate } from "./icons.js";
 import { actionName } from "./icon-paths.js";
 import { commandSteps } from "./keyboard/control-keys.js";
@@ -269,6 +269,7 @@ import { userChoice } from "./storage.js";
 import { obligationEnding } from "./obligations/answer.js";
 import { answeredInWords, readObligations } from "./obligations/model.js";
 import { obligationPlace } from "./obligations/place.js";
+import { ON_CARD } from "./obligations/view-elements.js";
 import { declareSide, holdPagePlace } from "./current-target.js";
 import { versionPicker } from "./version-picker.js";
 import { versionsReading } from "./version.js";
@@ -320,6 +321,7 @@ import {
   placeHolder,
 } from "./geometry.js";
 import { registerReadingRegion } from "./reading-regions.js";
+import { sectionsInView } from "./reading-place.js";
 import { agentName, documentChanged } from "./semantic-state.js";
 import { runtime } from "./context.js";
 import { renderedOrder, renderedUnder, under } from "./shadow.js";
@@ -523,11 +525,13 @@ export function createFloatingPanel({
       .join(", ");
     const quick = html`<button
       type="button"
-      class=${`lf-fp-face lf-fp-chip ${exit ? "lf-fp-exit" : "lf-fp-on-user"}`}
+      ${offeredAction(
+        "symbol",
+        exit ? "lf-fp-exit" : "lf-fp-on-user",
+        exit ? exit.label : onUserName,
+        { action: exit ? (exit.action ?? "close") : "on-me" },
+      )}
       ?data-due=${!exit && onUser > 0}
-      ${namedAction(exit ? (exit.action ?? "close") : "on-me", {
-        label: exit ? exit.label : onUserName,
-      })}
       ?disabled=${Boolean(exit?.disabled)}
       @mousedown=${exit ? (/** @type {MouseEvent} */ event) => event.preventDefault() : nothing}
       @click=${exit ? () => exit.press() : pressMark}
@@ -541,8 +545,7 @@ export function createFloatingPanel({
     </button>`;
     const viewClose = html`<button
       type="button"
-      class="lf-fp-face lf-fp-chip lf-fp-exit lf-fp-close"
-      ${namedAction("close", { label: "Close" })}
+      ${offeredAction("symbol", "lf-fp-exit lf-fp-close", "Close", { action: "close" })}
       ?data-unoffered=${Boolean(search) && !menuSearching() && closeAtFoot}
       @mousedown=${(/** @type {MouseEvent} */ event) => event.preventDefault()}
       @click=${() => close()}
@@ -609,9 +612,16 @@ export function createFloatingPanel({
             ></button>
             <button
               type="button"
-              class="lf-fp-face lf-fp-leaf"
+              ${offeredAction(
+                "symbol",
+                "lf-fp-leaf",
+                `${folded ? "Unfold Leaf" : "Page menu"} · ${statusModel.summary}`,
+                // The peek says the leaf's state on hover and focus (`showPeek`),
+                // so the leaf takes no tooltip of its own.
+                { action: "menu", title: "" },
+              )}
+              data-lf-tone=${statusModel.tone || nothing}
               aria-describedby="lf-fp-peek"
-              aria-label=${`${folded ? "Unfold Leaf" : "Page menu"} · ${statusModel.summary}`}
               aria-expanded=${folded ? nothing : String(!initial && menuStands())}
               @click=${pressLeaf}
               @pointerenter=${() => showPeek(true)}
@@ -619,7 +629,6 @@ export function createFloatingPanel({
               @focus=${() => showPeek(leaf.matches(":focus-visible"))}
               @blur=${() => showPeek(false)}
             >
-              <span class="lf-dot" data-lf-tone=${statusModel.tone || nothing}></span>
               <span
                 class="lf-fp-error-dot"
                 aria-hidden="true"
@@ -646,7 +655,7 @@ export function createFloatingPanel({
               >
                 ${initial ? nothing : (pageSearch?.input ?? nothing)}<input
                   type="search"
-                  class="lf-fp-face lf-fp-search"
+                  class="lf-fp-search"
                   name="thread-search"
                   placeholder=${prompt}
                   aria-label=${prompt}
@@ -1104,7 +1113,7 @@ export function createFloatingPanel({
           ? "Comment on the selection"
           : "Comment on the page",
       sends: "send",
-      sendClass: "lf-fp-face lf-fp-send",
+      sendClass: "lf-fp-send",
       save: (text) => {
         saveDraft(PAGE_DRAFT, text);
         tellDraft(PAGE_DRAFT, text);
@@ -1113,11 +1122,18 @@ export function createFloatingPanel({
       send: (_text, raw, owns) => {
         let flight = null;
         streamSend();
+        // A page comment has no passage, so it records the sections on screen as the
+        // user sends it (reading-place.js, `sectionsInView`).
+        const viewing = sectionsInView();
         const handle = sendMessage(
           PAGE_DRAFT,
           owns,
           (attempt) =>
-            (flight = threadActions.create({ attempt, text: raw })?.delivery),
+            (flight = threadActions.create({
+              attempt,
+              text: raw,
+              ...(viewing.length && { viewing }),
+            })?.delivery),
         );
         if (!handle) return;
         // The box empties as the send leaves; the row reads it again once it has.
@@ -2245,7 +2261,7 @@ export function createFloatingPanel({
       type="button"
       data-row=${row ?? nothing}
       title=${title ?? nothing}
-      ${offeredAction("row", "lf-fp-face lf-fp-item")}
+      ${offeredAction("row", "lf-fp-item")}
       aria-current=${current ? "true" : nothing}
       ?disabled=${disabled}
       ?data-lf-urgent=${urgent}
@@ -2276,9 +2292,11 @@ export function createFloatingPanel({
   function copyItem(entry) {
     let copy = copyItems.get(entry.key);
     if (!copy) {
+      // The trigger is the row this renders into the control below.
       copy = copyControl("lf-fp-copy-item", {
         success: `${capital(entry.label)} copied`,
         error: `${capital(entry.label)} not copied · select it to copy`,
+        trigger: true,
       });
       copy.addEventListener("wa-copy", () => putAwayThen(() => {}));
       copy.addEventListener("wa-error", () => {
@@ -2443,15 +2461,9 @@ export function createFloatingPanel({
     const explains = publication
       ? html`${said}${adds ? " " : nothing}${voiced(leafSays(publication.copy))}${
             publication.examplesUrl
-              ? html`<a class="lf-fp-face" href=${publication.examplesUrl}
-                  >${publication.examples}</a
-                > `
+              ? html`<a href=${publication.examplesUrl}>${publication.examples}</a> `
               : nothing
-          }<a
-            class="lf-fp-face"
-            href=${publication.installUrl}
-            target="_blank"
-            rel="noopener"
+          }<a href=${publication.installUrl} target="_blank" rel="noopener"
             >${publication.install}</a
           >`
       : said;
@@ -2581,7 +2593,7 @@ export function createFloatingPanel({
                 entry.comparable
                   ? html`<button
                       type="button"
-                      class="lf-fp-face lf-fp-quiet lf-fp-compare"
+                      ${offeredAction("word", "lf-fp-compare")}
                       aria-pressed=${String(
                         selection.on && selection.base === entry.revision,
                       )}
@@ -2664,7 +2676,7 @@ export function createFloatingPanel({
           </p>
           <button
             type="button"
-            class="lf-fp-face lf-fp-quiet"
+            ${offeredAction("word", "lf-fp-dismiss")}
             ?disabled=${!live.has(error.id)}
             aria-label=${`Dismiss: ${error.message}, ${clock(error.at)}`}
             @click=${() => dismiss(error.id)}
@@ -2831,7 +2843,7 @@ export function createFloatingPanel({
     return html`<h3 class="lf-rows-head">
       <button
         type="button"
-        ${offeredAction("row", "lf-fp-face lf-fp-settled lf-disclosure-marker")}
+        ${offeredAction("row", "lf-fp-settled lf-disclosure-marker")}
         aria-expanded=${open ? "true" : "false"}
         @click=${() => {
           if (open) unfolded.delete(key);
@@ -2857,7 +2869,7 @@ export function createFloatingPanel({
     const row = (thread) =>
       html`<button
         type="button"
-        ${offeredAction("row", "lf-fp-face lf-fp-thread")}
+        ${offeredAction("row", "lf-fp-thread")}
         data-key=${thread.key}
         ?data-unread=${isNews(thread)}
         ?data-resolved=${thread.resolved}
@@ -3174,7 +3186,8 @@ export function createFloatingPanel({
           ? html`<div class="lf-fp-foot">
               <button
                 type="button"
-                class="lf-fp-face lf-fp-new-reply"
+                ${offeredAction("inline", "lf-fp-new-reply")}
+                data-lf-news
                 @click=${() => showAnswer(waiting)}
               >
                 ${iconTemplate("down", "lf-action-icon")}${waiting.label}
@@ -3254,11 +3267,22 @@ export function createFloatingPanel({
     else open({ view: "queue" });
   }
   // On me standing open on the user's list, as the `m` walk asks where it arrives at a
-  // to-do (queue-walk.js), with focus left where the walk put it.
-  function showOnMe() {
+  // to-do (queue-walk.js), with focus left where the walk put it; or, given a to-do with
+  // no place on the page, with focus on that to-do's card. Answers whether the card was
+  // there to land on.
+  /** @param {string} [obligation] */
+  function showOnMe(obligation) {
     const turned = chooseQueueTab("you");
     if (!showing({ view: "queue" })) open({ view: "queue" }, { focus: false });
     else if (turned) paint();
+    if (obligation === undefined) return true;
+    const row = listRows().find(
+      (candidate) =>
+        closestAcross(candidate, ON_CARD)?.getAttribute("data-obligation") ===
+        obligation,
+    );
+    if (row) focusDestination(row, "move");
+    return Boolean(row);
   }
   // The mark opens On me, or Threads where nothing waits on the user but a reply they
   // have not read, as the Threads mark it replaced opened on its Unread filter. It
@@ -3388,7 +3412,7 @@ export function createFloatingPanel({
         step.owner === "user" && step.state === "open"
           ? html`<button
               type="button"
-              class="lf-fp-face lf-fp-plan-tag"
+              ${offeredAction("inline", "lf-fp-plan-tag")}
               @click=${() => {
                 chooseQueueTab("you");
                 paint();
@@ -3439,7 +3463,7 @@ export function createFloatingPanel({
   const planHead = ({ done, total }) =>
     html`<button
       type="button"
-      class="lf-fp-face lf-fp-plan-head"
+      ${offeredAction("word", "lf-fp-plan-head")}
       aria-expanded=${String(opening.planShown)}
       @click=${() => {
         opening.planShown = !opening.planShown;
@@ -3606,7 +3630,7 @@ export function createFloatingPanel({
     const discuss = conversation
       ? html`<button
           type="button"
-          class="lf-fp-face lf-fp-quiet"
+          ${offeredAction("word", "lf-fp-discuss")}
           @click=${() => open({ view: "thread", thread: conversation.key })}
         >
           Discuss
@@ -3668,7 +3692,7 @@ export function createFloatingPanel({
           waiting
             ? html`<button
                 type="button"
-                class="lf-fp-face lf-fp-answer"
+                ${offeredAction("word", "lf-fp-reply")}
                 @click=${() => open({ view: "thread", thread: waiting.thread.key })}
               >
                 Reply
@@ -3704,7 +3728,7 @@ export function createFloatingPanel({
         const told = Boolean(choice.description || choice.recommended);
         return html`<button
           type="button"
-          class="lf-fp-face lf-fp-answer"
+          ${offeredAction("answer", "lf-fp-answer")}
           ?data-told=${told}
           aria-pressed=${String(choice.chosen)}
           @click=${press}
@@ -3729,15 +3753,14 @@ export function createFloatingPanel({
     else if (item.offers?.done)
       answers = html`<button
         type="button"
-        class="lf-fp-face lf-fp-answer"
-        ${namedAction("done")}
+        ${offeredAction("symbol", "", undefined, { action: "done" })}
         @click=${() => queueActions.done(queueItemKey(item))}
       ></button>`;
     else if (inWords && thread) {
       discussHere = false;
       answers = html`<button
         type="button"
-        class="lf-fp-face lf-fp-answer"
+        ${offeredAction("word", "lf-fp-reply")}
         @click=${() => open({ view: "thread", thread: thread.key })}
       >
         Reply
@@ -3846,7 +3869,7 @@ export function createFloatingPanel({
     >
       <button
         type="button"
-        ${offeredAction("row", "lf-fp-face lf-fp-item lf-fp-on-line")}
+        ${offeredAction("row", "lf-fp-item lf-fp-on-line")}
         aria-expanded=${String(opened)}
         ?data-resolved=${!opened && (list === "done" || Boolean(answered))}
         @click=${() => toggleItem(key)}
@@ -3936,9 +3959,7 @@ export function createFloatingPanel({
       const thread = part && openIn(part);
       if (thread) return placedAt(thread.id)?.place ?? null;
       const id = under(node, stage)
-        ? closestAcross(node, ".lf-fp-on-item[data-obligation]")?.getAttribute(
-            "data-obligation",
-          )
+        ? closestAcross(node, ON_CARD)?.getAttribute("data-obligation")
         : null;
       const record = id && readObligations().all.find((item) => item.id === id);
       return record ? obligationPlace(record).node : null;
@@ -4154,7 +4175,7 @@ export function createFloatingPanel({
           return row.self
             ? html`<div class="lf-fp-page" title=${row.account}>${face}</div>`
             : html`<a
-                ${offeredAction("row", "lf-fp-face lf-fp-page")}
+                ${offeredAction("row", "lf-fp-page")}
                 data-key=${row.key}
                 href=${row.href}
                 target="_blank"
@@ -4183,20 +4204,22 @@ export function createFloatingPanel({
         const counted = count(name);
         return html`<button
           type="button"
-          class="lf-fp-face"
+          ${offeredAction("word", "lf-fp-tab")}
           aria-pressed=${String(current === name)}
           @click=${() => {
             refit();
             choose(name);
           }}
         >
-          ${label(name)}${
-            counted === null
-              ? nothing
-              : html` <span class="lf-fp-count" ?data-zero=${!counted}
-                  >${counted}</span
-                >`
-          }
+          <span class="lf-fp-tab-words"
+            >${label(name)}${
+              counted === null
+                ? nothing
+                : html` <span class="lf-fp-count" ?data-zero=${!counted}
+                    >${counted}</span
+                  >`
+            }</span
+          >
         </button>`;
       })}
     </div>`;
@@ -4673,29 +4696,27 @@ export function createFloatingPanel({
   }
   /** @param {RowNotice} notice */
   function rowNoticeTemplate({ says, tone, press = null, passing = false }) {
-    const face = html`<span class="lf-fp-row-notice-face" data-tone=${tone ?? nothing}
+    return html`<span class="lf-fp-row-notice-face" data-tone=${tone ?? nothing}
       ><span class="lf-fp-row-notice-says">${says}</span>${
         press
           ? html` <span class="lf-fp-row-notice-sep" aria-hidden="true">·</span>
-              <span class="lf-fp-row-notice-act">${press.label}</span>${
-                press.keys?.length && advertisesKeys()
-                  ? html` ${keySequenceTemplate(keySequenceModel(neutralSteps(press.keys)))}`
-                  : nothing
-              }`
+              <button
+                type="button"
+                ${offeredAction("inline", "lf-fp-row-notice-press")}
+                title=${press.title ?? nothing}
+                ?disabled=${press.disabled}
+                ?data-lf-notice-press=${Boolean(passing)}
+                @click=${press.run}
+              >
+                ${press.label}${
+                  press.keys?.length && advertisesKeys()
+                    ? html` ${keySequenceTemplate(keySequenceModel(neutralSteps(press.keys)))}`
+                    : nothing
+                }
+              </button>`
           : nothing
       }</span
     >`;
-    if (!press) return face;
-    return html`<button
-      type="button"
-      class="lf-fp-face lf-fp-chip lf-fp-row-notice-press"
-      title=${press.title ?? nothing}
-      ?disabled=${press.disabled}
-      ?data-lf-notice-press=${Boolean(passing)}
-      @click=${press.run}
-    >
-      ${face}
-    </button>`;
   }
 
   // ---------- gestures ----------

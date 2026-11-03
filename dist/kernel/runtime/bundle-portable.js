@@ -1778,6 +1778,7 @@ const PAGE_PAINT_ATTRIBUTE = Object.freeze({
 });
 const pagePresented = () => document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented);
 const pageUpgraded = () => document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.upgraded);
+const locationStandsDown = (element) => getComputedStyle(element).getPropertyValue("--lf-obligation-ring").trim() === "none";
 
 //#endregion
 //#region runtime/arrivals.js
@@ -2057,7 +2058,15 @@ const ACTION_FACES = {
 	commit: "lf-btn primary",
 	mark: "lf-mark-action",
 	inline: "lf-inline-action",
-	row: "lf-row"
+	row: "lf-row",
+	answer: "lf-answer",
+	entry: "lf-margin-face",
+	reaction: "lf-reaction",
+	response: "lf-response-face",
+	gutter: "lf-gutter",
+	picture: "lf-picture",
+	fold: "lf-fold",
+	proxy: "lf-proxy"
 };
 function actionClass(role, className = "") {
 	const face = ACTION_FACES[role];
@@ -2084,6 +2093,8 @@ const ICONS = {
 	expand: "<path d=\"M9.5 3H13v3.5M13 3 9.25 6.75M6.5 13H3V9.5M3 13l3.75-3.75\"/>",
 	collapse: "<path d=\"M13 3 9.25 6.75M9.25 3.25v3.5h3.5M3 13l3.75-3.75M3.25 9.25h3.5v3.5\"/>",
 	fit: "<path d=\"M6 3H3v3M10 3h3v3M3 10v3h3M13 10v3h-3\"/>",
+	leaf: "<rect width=\"16\" height=\"16\" fill=\"currentColor\" stroke=\"none\"/>",
+	grip: "<g fill=\"currentColor\" stroke=\"none\"><circle cx=\"6\" cy=\"4\" r=\"1.1\"/><circle cx=\"10\" cy=\"4\" r=\"1.1\"/><circle cx=\"6\" cy=\"8\" r=\"1.1\"/><circle cx=\"10\" cy=\"8\" r=\"1.1\"/><circle cx=\"6\" cy=\"12\" r=\"1.1\"/><circle cx=\"10\" cy=\"12\" r=\"1.1\"/></g>",
 	fold: "<path d=\"M3 8h10M5.5 2.75 8 5.25l2.5-2.5M5.5 13.25 8 10.75l2.5 2.5\"/>",
 	more: "<circle cx=\"3.5\" cy=\"8\" r=\"1\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"8\" cy=\"8\" r=\"1\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"12.5\" cy=\"8\" r=\"1\" fill=\"currentColor\" stroke=\"none\"/>",
 	inbox: "<path d=\"M2.75 9.25h2.9l1 1.6h2.7l1-1.6h2.9M2.75 9.25 4.4 4h7.2l1.65 5.25v2.75H2.75z\"/>",
@@ -2212,9 +2223,17 @@ const ACTIONS = {
 		name: "Minimize",
 		icon: "subtract"
 	},
+	menu: {
+		name: "Page menu",
+		icon: "leaf"
+	},
 	more: {
 		name: "More options",
 		icon: "more"
+	},
+	move: {
+		name: "Move",
+		icon: "grip"
 	},
 	next: {
 		name: "Next",
@@ -2305,13 +2324,13 @@ const ACTIONS = {
 		icon: "subtract"
 	}
 };
-const namedAction$1 = (action) => {
+const namedAction = (action) => {
 	const named = ACTIONS[action];
 	if (!named) throw new TypeError(`Unknown Leaf action: ${action}`);
 	return named;
 };
-const actionIcon = (action) => namedAction$1(action).icon;
-const actionName = (action) => namedAction$1(action).name;
+const actionIcon = (action) => namedAction(action).icon;
+const actionName = (action) => namedAction(action).name;
 const actionElement = (action, className) => iconElement(actionIcon(action), className);
 const SYMBOLIC = /* @__PURE__ */ new Set(["symbol", "mark"]);
 function actionFace(role, label, action) {
@@ -2421,6 +2440,12 @@ const buildAction = (role, cls, label, options) => {
 	if (label !== void 0 && role !== "symbol" && role !== "mark") node.textContent = label;
 	return node;
 };
+const offerContentElement = (node, role, cls) => {
+	keeps(node, "class", actionClass(role, cls));
+	if (node instanceof HTMLButtonElement) keeps(node, "type", "button");
+	keeps(node, "data-lf-offer", node instanceof HTMLButtonElement ? node.type : node.localName);
+	return node;
+};
 const selectableOfferElement = (node, role, cls, face) => {
 	keeps(node, "role", role);
 	keeps(node, "class", [
@@ -2500,7 +2525,6 @@ function nameAction(control, action, { label, title, className } = {}) {
 	keeps(control, "title", title ?? name);
 	showAction(control, action, className);
 }
-const namedAction = elementDirective("namedAction", nameAction);
 function relabel(node, label, options = {}) {
 	generatedElement(node, options);
 	keepsText(node, label);
@@ -4338,6 +4362,7 @@ const nativeScroller = document.scrollingElement;
 if (!(nativeScroller instanceof HTMLElement)) throw new Error("Leaf requires an active HTML document scrollport");
 const pageScroller = nativeScroller;
 const moving = /* @__PURE__ */ new WeakMap();
+const headed = /* @__PURE__ */ new WeakMap();
 const ended = /* @__PURE__ */ new WeakMap();
 const scrollSteps = /* @__PURE__ */ new WeakMap();
 const layoutMoved = /* @__PURE__ */ new WeakSet();
@@ -4397,7 +4422,12 @@ function watchLayout(box) {
 watchLayout(pageScroller);
 ended.set(pageScroller, pageScroller.scrollTop);
 function stopScroll(boxes) {
-	const stopped = [...boxes].flatMap((box) => {
+	const all = [...boxes];
+	for (const box of all) {
+		stopGlide(box);
+		headed.delete(box);
+	}
+	const stopped = all.flatMap((box) => {
 		const sequence = moving.get(box);
 		return sequence ? [{
 			box,
@@ -4421,7 +4451,9 @@ const kept = /* @__PURE__ */ new WeakMap();
 const scrollChoices = () => choices;
 const chosenSince = (box, count) => (chosen.get(box) ?? 0) > count;
 const chooseScroll = (box) => chosen.set(box, ++choices);
-function startScroll(box) {
+function startScroll(box, top) {
+	stopGlide(box);
+	headed.set(box, top);
 	moving.set(box, { glide: true });
 	chooseScroll(box);
 }
@@ -4455,6 +4487,7 @@ function placeKept(...boxes) {
 document.addEventListener("scrollend", ({ target }) => {
 	const box = eventScroller(target);
 	if (!box) return;
+	headed.delete(box);
 	if (skipped(box)) {
 		moving.delete(box);
 		scrollSteps.delete(box);
@@ -4490,9 +4523,9 @@ function laidOutHeight(box) {
 }
 const scrollLimit = (box) => Math.max(0, (riding.has(box) ? laidOutHeight(box) : box.scrollHeight) - box.clientHeight);
 const SCROLL_SLACK = 2;
-const atScrollEnd = (box) => scrollLimit(box) - box.scrollTop <= 2;
+const atScrollEnd = (box, top = box.scrollTop) => scrollLimit(box) - top <= 2;
 const scrollToEnd = (box, behavior = "instant") => {
-	if (behavior !== "instant" && !atScrollEnd(box)) startScroll(box);
+	if (behavior !== "instant" && !atScrollEnd(box)) startScroll(box, scrollLimit(box));
 	setScroll(box, {
 		top: scrollLimit(box),
 		behavior
@@ -4502,7 +4535,7 @@ const aims = /* @__PURE__ */ new WeakMap();
 const moveScrollerBy = (box, top, behavior = "instant") => {
 	const aim = box.scrollTop + top;
 	if (Math.abs(top) >= .5) {
-		if (behavior !== "instant" && reachable(box, top)) startScroll(box);
+		if (behavior !== "instant" && reachable(box, top)) startScroll(box, aim);
 		setScroll(box, {
 			top: aim,
 			behavior
@@ -4519,6 +4552,63 @@ const aimedTop = (box) => {
 	return kept?.at === box.scrollTop ? kept.aim : box.scrollTop;
 };
 const reachable = (box, top) => Math.max(-box.scrollTop, Math.min(scrollLimit(box) - box.scrollTop, top));
+const SCROLL_MS = 140;
+let glide = null;
+const setGlide = (next) => {
+	glide = next;
+	scrollGlides(Boolean(next));
+};
+const holding = (box) => glide?.box === box && (glide.wrote === null || Math.abs(box.scrollTop - glide.wrote) <= 1) ? glide : null;
+const scrollGoal = (box) => Math.max(0, Math.min(scrollLimit(box), holding(box)?.goal ?? headed.get(box) ?? box.scrollTop));
+function glideTo(box, top) {
+	const takesLanding = headed.delete(box) || glide?.box === box && glide.wrote === null;
+	const goal = Math.max(0, Math.min(scrollLimit(box), top));
+	if (reducedMotion()) {
+		setScroll(box, {
+			top: goal,
+			behavior: "instant"
+		});
+		return;
+	}
+	cancelRender(glide?.raf);
+	let start = box.scrollTop;
+	const t0 = performance.now();
+	const tick = (now) => {
+		const current = holding(box);
+		if (!current) {
+			setGlide(null);
+			return;
+		}
+		if (reducedMotion()) {
+			setScroll(box, {
+				top: current.goal,
+				behavior: "instant"
+			});
+			setGlide(null);
+			return;
+		}
+		const t = Math.max(0, Math.min(1, (now - t0) / SCROLL_MS));
+		if (current.wrote === null) start = box.scrollTop;
+		setScroll(box, {
+			top: goal - (goal - start) * (1 - t) ** 3,
+			behavior: "instant"
+		});
+		if (current.wrote !== null || box.scrollTop !== start) current.wrote = box.scrollTop;
+		if (t < 1) current.raf = nextFrame(tick);
+		else setGlide(null);
+	};
+	setGlide({
+		box,
+		goal,
+		wrote: takesLanding ? null : box.scrollTop,
+		raf: nextFrame(tick)
+	});
+}
+function stopGlide(box) {
+	if (glide?.box !== box) return;
+	cancelRender(glide.raf);
+	setGlide(null);
+}
 function keepFoot(box, { atEnd = false, kept } = {}) {
 	let foot = null;
 	const observer = sizeObserver((entries) => {
@@ -4839,9 +4929,10 @@ function localScrollBy(source, { x, y }) {
 //#endregion
 //#region runtime/landing-scroll.js
 const land = (box, by, behavior) => {
-	startScroll(box);
+	const top = box.scrollTop + (by.top ?? 0);
+	startScroll(box, top);
 	setScroll(box, {
-		top: box.scrollTop + (by.top ?? 0),
+		top,
 		left: box.scrollLeft + (by.left ?? 0),
 		behavior
 	});
@@ -5017,8 +5108,8 @@ onCurrentLocation((node, cause) => {
 		if (!ringShown(node)) scrollIntoView(node, { block: "nearest" });
 		let box = node;
 		for (; box; box = renderedParent(box)) {
-			if (!box.matches("[data-lf-obligation]")) continue;
-			if (getComputedStyle(box).outlineStyle === "none") continue;
+			if (!box.matches(`[${PAGE_PAINT_ATTRIBUTE.obligation}]`)) continue;
+			if (locationStandsDown(box)) continue;
 			if (!ringShown(box)) scrollIntoView(box, { block: "nearest" });
 			break;
 		}
@@ -5424,4 +5515,4 @@ function textWidth(text, font) {
 }
 
 //#endregion
-export { ANNOUNCE, CARET_KEYS, COMMANDS, DISCLOSE, DISCLOSURE_SELECTOR, HOLDS_WORD, J, LAYOUT, LENT_REACH_STOP, LeafElement, MODIFIER_KEYS, OUTPUT, PAGE_PAINT_ATTRIBUTE, PENDING_TASK, PRESS, PRESSES, PendingTaskEvent, ROLE_BUTTON_OFFER, RUNTIME_PAINT_ATTRIBUTE, SAID, SourcePairs, TAB_STOP, TEXT_BOX, TEXT_FIELD, UI_MARKS, W, WALK, WORKS, Z, actionClass, actionElement, actionIcon, actionName, actionTemplate, afterScript, afterSettling, agentArrivalDuration, aimedTop, alreadyShown, announce, assignRows, atLayoutPrecision, atScrollEnd, attachDeferredLoader, axisTicks, backgroundFlash, beginWalk, bindQueuedWork, blurFocused, bodyText, byRenderedOrder, canPlaceFocus, cancelAnimation, cancelRender, canvas2D, caretAtKey, chosenSince, claimReleaseClick, clamp, clippedContents, clippedPlace, clippedRect, clippingAxes, clipsPastSurfaces, closeLayer, closeNativeLayer, closestAcross, coarsePointer, commandsChanged, commandsChangedOn, composedParentNode, contentRides, controlNavigationKeys, coveredShare, currentLocationIn, currentLocationNodes, currentLocationTouches, d, dataBody, declareOccluder, declareReading, declareRelease, declareWindowChrome, deepFocus, describeFailure, disclosureAt, dismissPopoversOutside, drawn$1 as drawn, elementDirective, elementFrame, ensureSyntaxLanguage, eventSource, exceptionRecord, exceptionText, excludedByInert, failSoft, failSoftUnreported, failureContext, failureOf, fitsWhole, flashDuration, focusDestination, focusRevision, focused, foldBlock, foldDuration, frameFor, frameView, frameVisibility, generated, generatedElement, growthAfterIsSeen, growthIsSeen, handBack, hasArea, headerCuts, headerInset, holdCurrentLocation, holdFocus, holdRendering, holdToRead, hoveringPointer, iconElement, iconTemplate, inBaseLayer, inChrome, inUi, inWindowChrome, inlineStyle, inputCount, inputInFrame, installElementIntegration, installLanguagePaths, installLayerStyleIntegration, installMoveFocus, installMoveSelection, installScrollerLookup, installStageIntegration, intersect, isElement, isHTML, isNativeLayer, isNode, isStage, isText, keepFieldKeys, keepFoot, keeps, keepsHidden, keepsText, landedBox, landingBand, landingInsets, landingRoom, langForPath, layerLanding, layoutChanged, layoutPx, layoutWindow, letGo, listWalkPosition, liveStages, loadDeferred, measure, motion, motionEasing, motionPlays, motionTime, move, moveScrollerBy, nameAction, namedAction, nativeFocusTarget, nativeLayerHolding, nativeLayers, nativeModalAdmits, nearObserver, nearWindow, nextAnimation, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offerElement, offered, offeredAction, offeredActionElement, onCurrentLocation, onFocusVisibility, onFrameVisibility, onLetGo, onMotionPreferenceChange, onPress, onPressAway, onUserInput, once, openLayer, openerOf, orderChildren, outputProducer, overIn, overlaps, overlapsAcross, pagePresented, pageScroller, pageUpgraded, paintClips, passOn, patchRetains, patchTree, placeBox, placeHolder, placeKept, placesFailure, plainPress, playMotion, pointerAt, presented, pressHolds, pressIsKeyboardActivation, pressLed, pressRecords, pressing, publishOutput, q, readCaret, readLeavingKeys, readSampleVisibility, recentPlaceInput, recoveredLabelFocus, reducedMotion, refuseCommands, refuseOutput, registerVisualParts, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, registrations, relabel, release, releaseFocus, releaseOutlets, renderedOrder, renderedParent, renderedUnder, renderingState, reportFailure, restorePointer, restrictUserIntent, retainUserIntent, returnDuration, revealRegisteredVisualPart, revealsVisualParts, rightCover, ringBox, roomPx, rove, rowArrows, scrollAxes, scrollBehavior, scrollChoices, scrollContainer, scrollGlides, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollToEnd, scrollersOf, scrolling, scrollsBy, scrollsContent, searchField, seenRect, selectableOffer, selectableOffered, selectsAll, setChildLists, setChildren, setRegistration, setRenderedChildren, setScroll, shadowHost, shadowStage, shellRight, showNativeLayer, shownBand, shownBox, shownExtent, shownParts, shownRect, shownWindow, showsContents, sizeObserver, skipped, skipper, slotTop, stackLevel, startsAt, stopScroll, stuckBox, synNodes, syntax, syntaxLanguageNames, tabStops, tabStore, takesLetters, textWidth, threadSurface, tick, tokenLines, typesText, uiInside, under, underOccluder, union, upFrom, updateSurface, userScrollport, visibleBand, visibleFocus, visualPartAdmission, visualPartProblems, visualViewport, walkPosition, walkPositionLabel, watchArrivals, watchCurrentLocationIn, watchFrame, watchLayerChanges, watchOwner, watchRoom, watchScrollEnds, watchScrolls, wearsLentStop, whenLeft, whenNone, whileConnected, windowChromeBoxes, x$1 as x };
+export { ANNOUNCE, CARET_KEYS, COMMANDS, DISCLOSE, DISCLOSURE_SELECTOR, HOLDS_WORD, J, LAYOUT, LENT_REACH_STOP, LeafElement, MODIFIER_KEYS, OUTPUT, PAGE_PAINT_ATTRIBUTE, PENDING_TASK, PRESS, PRESSES, PendingTaskEvent, ROLE_BUTTON_OFFER, RUNTIME_PAINT_ATTRIBUTE, SAID, SourcePairs, TAB_STOP, TEXT_BOX, TEXT_FIELD, UI_MARKS, W, WALK, WORKS, Z, actionClass, actionElement, actionIcon, actionName, actionTemplate, afterScript, afterSettling, agentArrivalDuration, aimedTop, alreadyShown, announce, assignRows, atLayoutPrecision, atScrollEnd, attachDeferredLoader, axisTicks, backgroundFlash, beginWalk, bindQueuedWork, blurFocused, bodyText, byRenderedOrder, canPlaceFocus, cancelAnimation, cancelRender, canvas2D, caretAtKey, chosenSince, claimReleaseClick, clamp, clippedContents, clippedPlace, clippedRect, clippingAxes, clipsPastSurfaces, closeLayer, closeNativeLayer, closestAcross, coarsePointer, commandsChanged, commandsChangedOn, composedParentNode, contentRides, controlNavigationKeys, coveredShare, currentLocationIn, currentLocationNodes, currentLocationTouches, d, dataBody, declareOccluder, declareReading, declareRelease, declareWindowChrome, deepFocus, describeFailure, disclosureAt, dismissPopoversOutside, drawn$1 as drawn, elementDirective, elementFrame, ensureSyntaxLanguage, eventSource, exceptionRecord, exceptionText, excludedByInert, failSoft, failSoftUnreported, failureContext, failureOf, fitsWhole, flashDuration, focusDestination, focusRevision, focused, foldBlock, foldDuration, frameFor, frameView, frameVisibility, generated, generatedElement, glideTo, growthAfterIsSeen, growthIsSeen, handBack, hasArea, headerCuts, headerInset, holdCurrentLocation, holdFocus, holdRendering, holdToRead, hoveringPointer, iconElement, iconTemplate, inBaseLayer, inChrome, inUi, inWindowChrome, inlineStyle, inputCount, inputInFrame, installElementIntegration, installLanguagePaths, installLayerStyleIntegration, installMoveFocus, installMoveSelection, installScrollerLookup, installStageIntegration, intersect, isElement, isHTML, isNativeLayer, isNode, isStage, isText, keepFieldKeys, keepFoot, keeps, keepsHidden, keepsText, landedBox, landingBand, landingInsets, landingRoom, langForPath, layerLanding, layoutChanged, layoutPx, layoutWindow, letGo, listWalkPosition, liveStages, loadDeferred, locationStandsDown, measure, motion, motionEasing, motionPlays, motionTime, move, moveScrollerBy, nameAction, nativeFocusTarget, nativeLayerHolding, nativeLayers, nativeModalAdmits, nearObserver, nearWindow, nextAnimation, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offerContentElement, offerElement, offered, offeredAction, offeredActionElement, onCurrentLocation, onFocusVisibility, onFrameVisibility, onLetGo, onMotionPreferenceChange, onPress, onPressAway, onUserInput, once, openLayer, openerOf, orderChildren, outputProducer, overIn, overlaps, overlapsAcross, pagePresented, pageScroller, pageUpgraded, paintClips, passOn, patchRetains, patchTree, placeBox, placeHolder, placeKept, placesFailure, plainPress, playMotion, pointerAt, presented, pressHolds, pressIsKeyboardActivation, pressLed, pressRecords, pressing, publishOutput, q, readCaret, readLeavingKeys, readSampleVisibility, recentPlaceInput, recoveredLabelFocus, reducedMotion, refuseCommands, refuseOutput, registerVisualParts, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, registrations, relabel, release, releaseFocus, releaseOutlets, renderedOrder, renderedParent, renderedUnder, renderingState, reportFailure, restorePointer, restrictUserIntent, retainUserIntent, returnDuration, revealRegisteredVisualPart, revealsVisualParts, rightCover, ringBox, roomPx, rove, rowArrows, scrollAxes, scrollBehavior, scrollChoices, scrollContainer, scrollGlides, scrollGoal, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollToEnd, scrollersOf, scrolling, scrollsBy, scrollsContent, searchField, seenRect, selectableOffer, selectableOffered, selectsAll, setChildLists, setChildren, setRegistration, setRenderedChildren, setScroll, shadowHost, shadowStage, shellRight, showNativeLayer, shownBand, shownBox, shownExtent, shownParts, shownRect, shownWindow, showsContents, sizeObserver, skipped, skipper, slotTop, stackLevel, startsAt, stopGlide, stopScroll, stuckBox, synNodes, syntax, syntaxLanguageNames, tabStops, tabStore, takesLetters, textWidth, threadSurface, tick, tokenLines, typesText, uiInside, under, underOccluder, union, upFrom, updateSurface, userScrollport, visibleBand, visibleFocus, visualPartAdmission, visualPartProblems, visualViewport, walkPosition, walkPositionLabel, watchArrivals, watchCurrentLocationIn, watchFrame, watchLayerChanges, watchOwner, watchRoom, watchScrollEnds, watchScrolls, wearsLentStop, whenLeft, whenNone, whileConnected, windowChromeBoxes, x$1 as x };

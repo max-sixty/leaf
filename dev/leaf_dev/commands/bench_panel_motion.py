@@ -44,7 +44,7 @@ def sample(page):
             expect(leaf).to_be_focused()
         colours = leaf.evaluate("""node => ({
           ring: getComputedStyle(node).outlineColor,
-          mark: getComputedStyle(node.querySelector('.lf-dot')).backgroundColor
+          mark: getComputedStyle(node.querySelector('svg[data-lf-icon=leaf]')).color
         })""")
         colours = {name: ImageColor.getrgb(value) for name, value in colours.items()}
         before = leaf.bounding_box()

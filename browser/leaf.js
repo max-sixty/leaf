@@ -77,8 +77,10 @@ import {
   clearAim,
   geometryChanged,
   labelAim,
+  locationLayer,
   mountTargetPaint,
   paintAim,
+  proxyRingLayer,
   shifted,
   targetTraceLayer,
 } from "./runtime/target-paint.js";
@@ -141,12 +143,7 @@ import {
 import { watchDisclosures } from "./runtime/keyboard/disclosure.js";
 import { mountRepaint, repaint, repaintPage } from "./runtime/repaint.js";
 import { openDocumentLayout } from "./runtime/content-layout.js";
-import {
-  createNavigation,
-  placeThreadEdge,
-  glideTo,
-  stopGlide,
-} from "./runtime/navigation.js";
+import { createNavigation, placeThreadEdge } from "./runtime/navigation.js";
 import {
   declareReading,
   focusDestination,
@@ -245,16 +242,12 @@ async function boot() {
     remove: (anchor) => drawing.removeDrawing(anchor),
     replace: replaceDrawing,
   };
-  /** @type {ReturnType<typeof createAim>} */
-  let aim;
   /** @type {ReturnType<typeof createTargetPicker>} */
   let targets;
   /** @type {ReturnType<typeof createReactionController>} */
   let reactions;
   /** @type {ReturnType<typeof createPageGeometry>} */
   let pageGeometry;
-  /** @type {ReturnType<typeof createGoToSequence>} */
-  let goToSequence;
 
   /** @type {ReturnType<typeof createFloatingPanel>} */
   let floatingPanel;
@@ -312,7 +305,7 @@ async function boot() {
     announce,
     repaint,
   });
-  aim = createAim({
+  const aim = createAim({
     marginTargetAt: (...args) => app.overlay?.marginTargetAt(...args) ?? null,
     refreshAim: () => pageGeometry.refreshAim(),
     commentOnTarget: (...args) => responseSurface.commentOnTarget(...args),
@@ -498,7 +491,7 @@ async function boot() {
     prepareNavigationStep: anchorTravel.prepareNavigationStep,
     arrive: anchorTravel.arrive,
     readableDestination: anchorTravel.readableDestination,
-    showOnMe: () => floatingPanel.showOnMe(),
+    showOnMe: (obligation) => floatingPanel.showOnMe(obligation),
     announce,
   });
   const changeWalk = createChangeWalk();
@@ -676,7 +669,7 @@ async function boot() {
       app.threadDestinations.openThreadDraft(context, intent),
     holdsThreadDraft: (context) => app.threadDestinations.holdsThreadDraft(context),
   });
-  goToSequence = createGoToSequence({
+  const goToSequence = createGoToSequence({
     doors: floatingPanel.doors,
     hintChrome,
     openPageMap: (...args) => pageMapDialog.openPageMap(...args),
@@ -691,9 +684,7 @@ async function boot() {
     scrollToElement: anchorTravel.scrollToElement,
     leavesOffered,
     marginEntries: app.overlay ?? null,
-    glideTo,
     placeThreadEdge,
-    stopGlide,
   });
   const currentLocationPainters = {
     markHere: items.markHere,
@@ -726,7 +717,9 @@ async function boot() {
     // One permanent home for the chrome's foreground; none of these live descendants is
     // reparented.
     chromeForeground.append(
+      locationLayer,
       targetTraceLayer,
+      proxyRingLayer,
       aimLayer,
       liveEl,
       mediaViewer,

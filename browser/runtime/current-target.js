@@ -60,6 +60,7 @@ import { closestAcross, inChrome } from "./passages.js";
 import { THREAD } from "./thread/selectors.js";
 import { readObligations } from "./obligations/model.js";
 import { obligationPlace } from "./obligations/place.js";
+import { ON_CARD } from "./obligations/view-elements.js";
 import { renderedOrder, renderedUnder, under } from "./shadow.js";
 import { eventSource } from "./pointer.js";
 import { pageReadingBlock } from "./reading-place.js";
@@ -134,6 +135,10 @@ function placeFrom(node, visited, countBeside) {
   return inChrome(at) ? null : at;
 }
 
+// The panel's views of one thread or one obligation, where a user stands even when the
+// thread or obligation has no place on the page.
+const PLACELESS = `${THREAD}, ${ON_CARD}`;
+
 // The page place a surface beside the page holds while the user stands in it, as the
 // floating panel holds where they stepped in from (`readPlace`, history.js). It is still
 // their place on the page, so `z` aligns it and a walk pressed there starts on it.
@@ -154,9 +159,9 @@ export const heldPagePlace = () => heldPlace()?.focus?.deref() ?? null;
 /** @returns {WalkOrigin | null} */
 export function currentLocationOrigin() {
   for (const [node, place] of locations()) {
-    // A thread with no page place, such as a general thread open in the panel, is still
-    // where a user in it is.
-    if (place?.isConnected || closestAcross(node, THREAD)) {
+    // A thread or an obligation with no page place, such as a general thread open in the
+    // panel or a to-do on the whole page on its On card, is still where a user in it is.
+    if (place?.isConnected || closestAcross(node, PLACELESS)) {
       const tab = place?.closest('[role="tab"][aria-selected="true"]');
       const panel = tab?.ariaControlsElements?.[0];
       return panel

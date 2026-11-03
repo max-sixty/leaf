@@ -14,6 +14,7 @@ from render_cases_interaction import (
     LIVE_KEYS_V1,
     LIVE_KEYS_V2,
     LIVE_KEYS_V3,
+    LOCATION_RING,
     OBLIGATIONS_IN_ORDER,
     OBLIGATIONS_PAGE,
     RING,
@@ -578,15 +579,18 @@ def test_a_bare_choice_hands_its_ring_to_the_row_the_user_tabs_to(browser, serve
     choice = page.locator("#ship")
     page.keyboard.press("m")
     expect(choice).to_have_attribute("data-lf-obligation", "1")
-    arrived = choice.evaluate(
-        "el => { const s = getComputedStyle(el); return [s.outlineStyle, s.outlineOffset,"
-        " getComputedStyle(document.documentElement).getPropertyValue('--focus-region-gap').trim()]; }"
+    assert choice.evaluate(LOCATION_RING)[0] == "solid"
+    arrived = page.evaluate(
+        "() => [document.querySelector('.lf-location').style.getPropertyValue('--lf-mark-offset'),"
+        " getComputedStyle(document.documentElement).getPropertyValue('--focus-region-gap').trim()]"
     )
-    assert arrived[0] == "solid" and arrived[1] == arrived[2], arrived
+    assert arrived[0] == arrived[1], arrived
 
     page.keyboard.press("Tab")
     expect(page.locator("#ship-monday .lf-pick")).to_be_focused()
-    assert choice.evaluate(RING)[0] == "none", (
+    # The ring is painted in the frame the focus move asks for (repaint.js).
+    rendered(page)
+    assert choice.evaluate(LOCATION_RING)[0] == "none", (
         "the decision kept its ring round the row"
     )
     assert page.locator("#ship-monday").evaluate(RING)[0] == "solid"
@@ -617,10 +621,7 @@ def test_the_ring_says_where_the_user_is_located(browser, serve):
     question = page.locator("#live-question-decision")
     page.keyboard.press("m")
     expect(question).to_have_attribute("data-lf-obligation", "1")
-    arrival_ring = question.evaluate(
-        "ask => { const s = getComputedStyle(ask, '::after'); "
-        "return [s.outlineStyle, s.outlineWidth, s.outlineColor]; }"
-    )
+    arrival_ring = question.evaluate(LOCATION_RING)
     assert arrival_ring == [
         "solid",
         "2px",
@@ -630,9 +631,8 @@ def test_the_ring_says_where_the_user_is_located(browser, serve):
     # One press in, and the band moves to the row rather than doubling: the frame is the
     # control, and a ring around it as well would come and go with the question.
     page.keyboard.press("Tab")
-    question_overlay_ring = question.evaluate(
-        "ask => getComputedStyle(ask, '::after').outlineStyle"
-    )
+    rendered(page)
+    question_overlay_ring = question.evaluate(LOCATION_RING)[0]
     assert question_overlay_ring == "none", (
         "the decision drew its own ring around a control that is already a frame: "
         f"{question_overlay_ring}"
@@ -667,7 +667,7 @@ def test_the_ring_says_where_the_user_is_located(browser, serve):
     # band the page settles on rather than whichever side of that frame the read lands on.
     page.keyboard.press("Tab")
     rendered(page)
-    decision_ring = suggestion.evaluate(RING)
+    decision_ring = suggestion.evaluate(LOCATION_RING)
     assert decision_ring == row_ring, (
         "the decision lost its ring while the user held one of its own margin "
         f"controls: {decision_ring} against {row_ring}"
@@ -681,7 +681,7 @@ def test_the_ring_says_where_the_user_is_located(browser, serve):
     expect(accept).to_be_focused()
     # A decision that is not a joined control wears the ring itself, and it is the band
     # the row above wore: the two shapes say one thing about the user.
-    decision_ring = suggestion.evaluate(RING)
+    decision_ring = suggestion.evaluate(LOCATION_RING)
     assert decision_ring == row_ring, (
         "a decision and an options row are drawn in two different bands for the one "
         f"fact: {decision_ring} against {row_ring}"
@@ -885,7 +885,7 @@ def test_escape_lets_go_of_the_obligation_the_users_current_location_names(
     page.keyboard.press("?")
     expect(
         page.locator(
-            '.lf-command-reference [role=row][data-lf-command="navigation.release"]'
+            '.lf-command-reference [role=option][data-lf-command="navigation.release"]'
         )
     ).to_contain_text("Let go")
     page.keyboard.press("Escape")  # the reference's own rung, which hands focus back

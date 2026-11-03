@@ -40,6 +40,9 @@
      colour of the ground they sit on; --chip is the hover fill .lf-btn uses. */
   --wa-color-neutral-fill-normal: var(--chip);
   --wa-color-neutral-border-normal: var(--border-2);
+  /* A control's outline, an unchosen radio's or checkbox's (controls.css, `.choice`):
+     upstream's mid grey in Leaf's warm ink, at least 3:1 against a card. */
+  --wa-color-neutral-border-loud: color-mix(in oklab, var(--muted) 75%, var(--card));
   --wa-color-neutral-on-quiet: var(--ink-2);
   --wa-color-neutral-on-normal: var(--ink);
   --wa-color-brand-fill-quiet: var(--accent-tint);
@@ -124,7 +127,7 @@ wa-select::part(combobox lf-focus-visible-within) {
    the option the user is on, the layer's focus floor (surfaces.css), is inset: outside
    its box, three of its sides were cut by the listbox's edge. */
 wa-option {
-  outline-offset: var(--focus-ring-inset);
+  --lf-ring-at: var(--focus-ring-inset);
 }
 
 /* A single slider focuses its rail and paints the thumb; a range slider focuses

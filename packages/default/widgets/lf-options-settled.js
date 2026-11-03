@@ -21,7 +21,12 @@ const SETTLED_KEY = "lf-settled:";
 export class SettledOptions {
   #host;
   #label;
-  #row = selectableOffer("button", "lf-settled lf-disclosure-marker");
+  #row = selectableOffer(
+    "button",
+    "lf-settled lf-disclosure-marker",
+    undefined,
+    "fold",
+  );
   #isOpen = false;
 
   /** @param {HTMLElement} host @param {{label: (option: Element) => string}} options */

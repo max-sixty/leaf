@@ -1,16 +1,16 @@
-import { CARET_KEYS, DISCLOSE, DISCLOSURE_SELECTOR, J, LAYOUT, LeafElement, MODIFIER_KEYS, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSES, TEXT_BOX, TEXT_FIELD, WORKS, Z, actionName, actionTemplate, alreadyShown, atScrollEnd, beginWalk, bindQueuedWork, blurFocused, byRenderedOrder, cancelRender, canvas2D, claimReleaseClick, clamp, clippedContents, closeLayer, closeNativeLayer, closestAcross, coarsePointer, coveredShare, currentLocationIn, d, declareOccluder, declareReading, declareWindowChrome, describeFailure, disclosureAt, dismissPopoversOutside, drawn, elementFrame, eventSource, focusDestination, focusRevision, focused, handBack, holdFocus, holdRendering, holdToRead, iconTemplate, inChrome, inUi, inlineStyle, installLayerStyleIntegration, installMoveSelection, installStageIntegration, intersect, isElement, isHTML, keepFieldKeys, keepFoot, keeps, keepsHidden, keepsText, landedBox, landingBand, landingRoom, layerLanding, layoutPx, layoutWindow, letGo, listWalkPosition, motionEasing, motionPlays, motionTime, move, moveScrollerBy, namedAction, nativeLayers, nativeModalAdmits, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offered, offeredAction, onCurrentLocation, onPress, onPressAway, onUserInput, openLayer, openerOf, overlaps, overlapsAcross, pagePresented, pageScroller, pageUpgraded, placeHolder, playMotion, pointerAt, presented, pressHolds, pressIsKeyboardActivation, pressRecords, q, readLeavingKeys, reducedMotion, release, releaseFocus, renderedOrder, renderedUnder, renderingState, restrictUserIntent, retainUserIntent, rove, scrollBehavior, scrollGlides, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollToEnd, scrollersOf, scrolling, searchField, seenRect, selectsAll, setScroll, shadowHost, showNativeLayer, shownBox, shownParts, shownRect, sizeObserver, skipped, stackLevel, startsAt, tabStore, takesLetters, tick, typesText, under as under$1, underOccluder, union, upFrom, walkPosition, walkPositionLabel, watchCurrentLocationIn, watchLayerChanges, watchScrollEnds, watchScrolls, whileConnected, windowChromeBoxes, x } from "./runtime/bundle-portable.js";
+import { CARET_KEYS, DISCLOSE, DISCLOSURE_SELECTOR, J, LAYOUT, LeafElement, MODIFIER_KEYS, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSES, TEXT_BOX, TEXT_FIELD, WORKS, Z, actionName, actionTemplate, alreadyShown, atScrollEnd, beginWalk, bindQueuedWork, blurFocused, byRenderedOrder, cancelRender, canvas2D, claimReleaseClick, clamp, clippedContents, closeLayer, closeNativeLayer, closestAcross, coarsePointer, coveredShare, currentLocationIn, d, declareOccluder, declareReading, declareWindowChrome, describeFailure, disclosureAt, dismissPopoversOutside, drawn, elementFrame, eventSource, focusDestination, focusRevision, focused, glideTo, handBack, holdFocus, holdRendering, holdToRead, iconTemplate, inChrome, inUi, inlineStyle, installLayerStyleIntegration, installMoveSelection, installStageIntegration, intersect, isElement, isHTML, keepFieldKeys, keepFoot, keeps, keepsHidden, keepsText, landedBox, landingBand, landingRoom, layerLanding, layoutPx, layoutWindow, letGo, listWalkPosition, motionEasing, motionPlays, motionTime, move, moveScrollerBy, nativeLayers, nativeModalAdmits, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offeredAction, onCurrentLocation, onPress, onPressAway, onUserInput, openLayer, openerOf, overlaps, overlapsAcross, pagePresented, pageScroller, pageUpgraded, placeHolder, playMotion, pointerAt, presented, pressHolds, pressIsKeyboardActivation, pressRecords, q, readLeavingKeys, release, releaseFocus, renderedOrder, renderedUnder, renderingState, restrictUserIntent, retainUserIntent, rove, scrollBehavior, scrollGoal, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollToEnd, scrollersOf, scrolling, searchField, seenRect, selectsAll, setScroll, shadowHost, showNativeLayer, shownBox, shownParts, shownRect, sizeObserver, skipped, stackLevel, startsAt, stopGlide, tabStore, takesLetters, tick, typesText, under as under$1, underOccluder, union, upFrom, walkPosition, walkPositionLabel, watchCurrentLocationIn, watchLayerChanges, watchScrollEnds, watchScrolls, whileConnected, windowChromeBoxes, x } from "./runtime/bundle-portable.js";
 import { COLLAPSE, EVERYTHING, LINK, LitElement, PRESENTATION_DOM, PRESSABLE, SHARE_ROOT, TEXT_BLOCK, WEBSITE_DELIVERY, advertisesKeys, agentName, agentSays, allBindings, annotationMode, announce, applicationPresenter, applicationState, bareReaction, bindingEnabled, bindings, buttonCommand, carriesObligation, claimsEsc, clampedRow, closeControl, commandBinding, commandDeclarationsWithin, commandPresentations, commandRoutes, commandRun, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, decisionFor, declaredBindings, descriptionOf, dismissError, dismissErrors, documentChanged, dragHeld, el, errorsReading, fragmentId, guard, hasObligationSource, hasRows, holdSelection, holdingError, hostIn, html, isNews, itemNoun, itemOutcome, keyed, keys, labelOf, leafSays, live, live$1, liveEl, mountRepaint, nativePress, noChange, nothing, notice, noticeReading, noticeWords, offlineInteractive, pageRange, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, programmaticSelection, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, readPart, ref, reflectFirstScopes, reflectKeys, registry, render, repaint, repaintPage, repeat, reveal, routedCommand, runtime, runtimeResource, saidBy, sameAnchor, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, seeErrors, selectEnds, selectionBackward, setNoticeContext, setQuickShortcuts, shadowRules, shareUrl, spell, spokenBinding, submitBindings, tagsDeclaring, threadCounts, threadKey, threadNames, titleOf, tokenEntry, voiceOf, voiced, watchCommandAvailability, whenApplicationPresented, word, wordsText } from "./runtime/bundle-errors.js";
 import { reportPageError, setRuntimeRootStyle, uploadMedia } from "./runtime/bundle-layer-client.js";
 import { ADDRESSABLE, PAGE_CONTROL_RANK, PRESENTATION, UPGRADE, addressableLabel, addressableSays, addressableWord, afterPresentation, ago, aimTargetAt, aimTargets, anchorFor, anchoringIsReady, annotationAt, chromeForeground, chromeRoot, designPressAt, effectiveScroller, exactTarget, fragmentTarget, holdArrivingBounds, isAddressable, lightSeat, livePoint, markPagePresented, markPageUpgraded, openDocumentLayout, pageControls, pageControlsChanged, pageReadiness, placePoints, pointInto, railStands, reachScrollers, readingRegionFor, registerPageControl, registerReadingRegion, resolveAnchor, resolvedInMessage, revealAddressed, scrollChainOf, scrollerFor, sectionLabel, sectionOf, setAnchoringReady, settlePageInterface, shortAgo, targetElement, targetParts, targetPlace, targetRange, targetSegments, unclaimedVisualGesture, userReadingRegion, visualAt, visualParts, visualSelector, whenArrived } from "./runtime/bundle-content-layout.js";
 import { activeCommandLabel, annotationMarkSheets, annotationSheets, answerCloseRequest, availableCommandRoutes, chromeSheet, dispatchKey, escapeTakesAStep, executeCommand, innermostStance, invokePress, keyReady, marksSheet, onSampleNotice, registerSampleCommand, restoreUserView, sampleNotice, userIn } from "./runtime/bundle-restore-state.js";
 import { LEAF_SURFACE, authoredScope, blockAt, contextAround, elementById, elementFromPointAcross, elementOver, excerptWords, findText, leafSurface, pageDocument, pageParts, pageQueryAll, pageReadingVersion, pageText, pageWords, quoteFrom, rangeOf, says, segmentBlock, showsWords, watchPassageRoot } from "./runtime/bundle-passages.js";
-import { DESIGN_MODE_KEY, ELEMENTS, PAGE_DRAFT, RESOLVED, THREAD, acceptData, allButCommandReference, allThreads, anchorLabel, answeredInWords, bringBackSurfaceOf, claimTraversals, commandSteps, comparisonBase, comparisonChanges, copyControl, createAnchorTravel, createPassageSelection, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareSide, declareThreadParts, designName, dismissReply, draftHasContent, drawnThreadId, focusedThreadTarget, followBoxGrowth, gesturedOn, heldObligation, heldPagePlace, heldThread, holdPagePlace, initializeServedDocument, isExternalPageLink, landingPlace, leftThePage, loadDraft, messageHolding, messageReading, messageText, mirrorDraft, mountHistory, newsCount, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, placeKeeper, placeOf, prepareDocument, quoteReading, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, releaseReplies, rememberWriting, replaceEntry, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, returnPlace, rowWalk, saveDraft, scrollThreadIntoView, selectionAnchor, sendMessage, settleThread, showHeld, showReturnTurn, snapSelection, stepFrom, subjectPlace, takeInitialDocument, tellDraft, threadAttention, threadHeading, threadIn, threadList, threadName, threadNamed, threadTodos, titlePending, todoWord, touchPresses, upgradeWidgets, userChoice, versionPicker, versionsReading, walkOrigin, workflowStep, workflowWord } from "./runtime/bundle-data.js";
+import { DESIGN_MODE_KEY, ELEMENTS, OBLIGATION_CONTROL, ON_CARD, PAGE_DRAFT, RESOLVED, THREAD, acceptData, allButCommandReference, allThreads, anchorLabel, answeredInWords, bringBackSurfaceOf, claimTraversals, commandSteps, comparisonBase, comparisonChanges, copyControl, createAnchorTravel, createPassageSelection, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareSide, declareThreadParts, designName, dismissReply, draftHasContent, drawnThreadId, focusScrolledAway, focusedThreadTarget, followBoxGrowth, gesturedOn, heldObligation, heldPagePlace, heldThread, holdPagePlace, initializeServedDocument, isExternalPageLink, landingPlace, leftThePage, loadDraft, messageHolding, messageReading, messageText, mirrorDraft, mountHistory, newsCount, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, placeKeeper, placeOf, prepareDocument, quoteReading, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, releaseReplies, rememberWriting, replaceEntry, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, returnPlace, rowWalk, saveDraft, scrollThreadIntoView, sectionsInView, selectionAnchor, sendMessage, settleThread, showHeld, showReturnTurn, snapSelection, stepFrom, subjectPlace, takeInitialDocument, tellDraft, threadAttention, threadHeading, threadIn, threadList, threadName, threadNamed, threadTodos, titlePending, todoWord, touchPresses, upgradeWidgets, userChoice, versionPicker, versionsReading, walkOrigin, workflowStep, workflowWord } from "./runtime/bundle-data.js";
 import { DRAWING_COORDINATE_LIMIT, KINDS, MAX_DRAWING_FRAME_DEPTH, MAX_DRAWING_POINTS, MAX_DRAWING_SAYS_LENGTH, MAX_DRAWING_STROKES, annotationItems, beginRead, clearContributionControls, composerOpen, composerQuote, contributionHost, contributionItemKey, contributionReceipts, createPageLayout, createReactionController, createSelectionComposer, createThreadLanding, currentLocationThread, declareThreadKeys, entryControls, fabBar, fabInput, fabOptionsTrigger, inPageOrder, leavesBox, marginBarLayer, mountApplication, obligationEnding, obligationWord, ownedObligationControl, paintBarReactions, paintSet, partOver, pendingAbout, pendingAnchor, pendingDrawing, queueItemKey, queueTitle, reactionAvailable, reactionTokens, readPlan, readQueues, registerContribution, sendReaction, spokenSubject, textField, threadInput, visibleContributionEntryLabel } from "./runtime/bundle-page-layout.js";
 import { mediaViewer, readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "./runtime/media.js";
 import { visibleTargetParts } from "./runtime/bundle-visible-target-parts.js";
 import { pageImage, pageRenderer } from "./runtime/bundle-page-image.js";
 import { pageIdentity, shownScheme } from "./runtime/bundle-page-identity.js";
-import { aimLayer, boxMotion, clearAim, geometryChanged, labelAim, mountTargetPaint, paintAim, shifted, targetTraceLayer } from "./runtime/bundle-box-motion.js";
+import { aimLayer, boxMotion, clearAim, geometryChanged, labelAim, locationLayer, mountTargetPaint, paintAim, paintLocation, paintProxyRing, proxyRingLayer, shifted, targetTraceLayer } from "./runtime/bundle-box-motion.js";
 import "/vendor/webawesome-chrome.js";
 
 //#region runtime/keyboard/disclosure.js
@@ -232,7 +232,7 @@ function mediaTemplate({ drawing, media, sent, removeMedia }) {
           <span class="lf-composer-media-item lf-composer-drawing">
             <button
               type="button"
-              class="lf-media-open lf-composer-media-open lf-media-frame"
+              ${offeredAction("picture", "lf-media-open lf-composer-media-open lf-media-frame")}
               data-lf-media-canvas
               aria-label=${`Inspect drawing, ${strokes} ${strokes === 1 ? "stroke" : "strokes"}`}
               title="Inspect drawing"
@@ -267,7 +267,7 @@ function mediaTemplate({ drawing, media, sent, removeMedia }) {
 		return sent ? html`<p class="lf-composer-media-item">
             <button
               type="button"
-              class="lf-media-open lf-message-media"
+              ${offeredAction("picture", "lf-media-open lf-message-media")}
               data-lf-media-url=${url}
               aria-label=${`View attached image ${index + 1}`}
             >
@@ -276,7 +276,7 @@ function mediaTemplate({ drawing, media, sent, removeMedia }) {
           </p>` : html`<span class="lf-composer-media-item">
             <button
               type="button"
-              class="lf-media-open lf-composer-media-open lf-media-frame"
+              ${offeredAction("picture", "lf-media-open lf-composer-media-open lf-media-frame")}
               data-lf-media-url=${url}
               aria-label=${`View attached image ${index + 1}`}
             >
@@ -474,9 +474,8 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 			const micAction = live ? "Stop dictation" : phase === "stopping" ? "Finishing dictation" : failed ? "Retry dictation" : "Dictate";
 			const submitControl = html`<button
         type="button"
-        ${offered(`${sendClass} lf-compose-submit`)}
-        ${namedAction(actionWord(), {
-				label: action,
+        ${offeredAction("symbol", `${sendClass} lf-compose-submit`.trim(), action, {
+				action: actionWord(),
 				title: sendKeys ? `${action} (${sendKeys})${newline}` : action
 			})}
         aria-disabled=${String(!canSend())}
@@ -515,13 +514,12 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 			const dictationState = phase !== "idle" ? phase : failed && dictation?.failure?.error !== "no-speech" ? "failed" : nothing;
 			const dictationControl = offersDictation ? html`<button
             type="button"
-            ${offered("lf-compose-dictate")}
-            ?hidden=${!micShown}
-            data-dictation=${dictationState}
-            ${namedAction("dictate", {
-				label: micAction,
+            ${offeredAction("symbol", "lf-compose-dictate", micAction, {
+				action: "dictate",
 				title: live || !status ? micAction : `${micAction} (${status})`
 			})}
+            ?hidden=${!micShown}
+            data-dictation=${dictationState}
             aria-pressed=${String(live)}
             aria-description=${status || nothing}
             @mousedown=${(event) => event.preventDefault()}
@@ -3458,10 +3456,6 @@ function createTargetPicker({ scrollToRange, hintChrome, commentOnTarget, update
 }
 
 //#endregion
-//#region runtime/obligations/view-elements.js
-const OBLIGATION_CONTROL = ":is(button[data-lf-offer], [data-lf-offer][tabindex])";
-
-//#endregion
 //#region runtime/composing/current-target.js
 function frameHolding(node) {
 	const framed = readObligations().all.map((item) => obligationPlace(item)).filter(({ source, context }) => source && context && context !== source && under$1(node, context));
@@ -3567,13 +3561,33 @@ function createAnchorPlacement() {
 const records = /* @__PURE__ */ new Map();
 const owners = /* @__PURE__ */ new WeakMap();
 let shelf = null;
-declareSide((node) => {
+function standsFor(node) {
 	let at = node;
 	for (; at && at !== shelf; at = upFrom(at)) {
-		const element = owners.get(at);
-		if (element) return element;
+		const owner = owners.get(at);
+		if (owner) return owner.standsFor(node) ?? owner.element;
 	}
 	return null;
+}
+declareSide(standsFor);
+let ringed = null;
+function ring() {
+	const node = focused();
+	const target = node && standsFor(node);
+	if (target === ringed && (!target || target.isConnected)) return;
+	ringed = target;
+	const part = target && visualAt(target, { unclaimed: false })?.part;
+	paintProxyRing(target, part?.element === target ? part.surface : target);
+}
+onCurrentLocation((node) => {
+	if (node && standsFor(node)) {
+		reveal(standsFor(node), retainUserIntent());
+		scrollIntoView(standsFor(node), {
+			behavior: "instant",
+			block: "nearest"
+		});
+	}
+	ring();
 });
 const same$2 = (left, right) => left.length === right.length && left.every((node, index) => node === right[index]);
 const authoredDetails = (element, value) => {
@@ -3591,11 +3605,16 @@ function name(element, record) {
 	if (written(element) && same$2(element.ariaDetailsElements ?? [], wanted)) return;
 	element.ariaDetailsElements = wanted;
 }
-function shelve(element, note) {
+function shelve(element, note, standsFor = () => null) {
 	shelf ??= offer("div", "lf-details-shelf");
 	if (!shelf.isConnected) chromeRoot.append(shelf);
 	if (note.parentNode !== shelf) move(shelf, note, null);
-	owners.set(note, element);
+	const before = owners.get(note)?.element;
+	if (before && before !== element) forget(before, note);
+	owners.set(note, {
+		element,
+		standsFor
+	});
 	let record = records.get(element);
 	if (!record) {
 		record = {
@@ -3606,8 +3625,14 @@ function shelve(element, note) {
 	}
 	if (!record.notes.includes(note)) record.notes.push(note);
 	name(element, record);
+	ring();
 }
 function unshelve(element, note) {
+	forget(element, note);
+	note.remove();
+	owners.delete(note);
+}
+function forget(element, note) {
 	const record = records.get(element);
 	if (record?.notes.includes(note)) {
 		record.notes = record.notes.filter((held) => held !== note);
@@ -3620,8 +3645,6 @@ function unshelve(element, note) {
 			records.delete(element);
 		}
 	}
-	note.remove();
-	owners.delete(note);
 }
 
 //#endregion
@@ -3630,7 +3653,7 @@ const label = (count) => `${count} comment${count === 1 ? "" : "s"}`;
 function createAnchorNoteProjection({ openThread, labelAnchor }) {
 	const claims = /* @__PURE__ */ new Map();
 	function claim(firstThreadId) {
-		const note = offer("button", "lf-mark-note");
+		const note = offerAction("proxy", "lf-mark-note");
 		note.tabIndex = -1;
 		const record = {
 			note,
@@ -3644,10 +3667,18 @@ function createAnchorNoteProjection({ openThread, labelAnchor }) {
 		claims.delete(holder);
 	}
 	function present(notes) {
-		for (const [holder, record] of claims) if (!notes.has(holder) || !holder.isConnected) release(holder, record);
+		const left = /* @__PURE__ */ new Map();
+		for (const [holder, record] of claims) if (!notes.has(holder) || !holder.isConnected) {
+			claims.delete(holder);
+			const waiting = left.get(record.firstThreadId) ?? [];
+			left.set(record.firstThreadId, [...waiting, [holder, record]]);
+		}
 		for (const [holder, threadIds] of notes) {
 			let record = claims.get(holder);
-			if (!record) claims.set(holder, record = claim(threadIds[0]));
+			if (!record) {
+				record = left.get(threadIds[0])?.shift()?.[1] ?? claim(threadIds[0]);
+				claims.set(holder, record);
+			}
 			shelve(holder, record.note);
 			record.firstThreadId = threadIds[0];
 			const count = label(threadIds.length);
@@ -3655,6 +3686,7 @@ function createAnchorNoteProjection({ openThread, labelAnchor }) {
 			keepsText(record.note, count);
 			keeps(record.note, "aria-label", anchor ? `${count} on ${spokenSubject(labelAnchor(anchor))}` : count);
 		}
+		for (const [holder, record] of [...left.values()].flat()) release(holder, record);
 	}
 	function destroy() {
 		for (const [holder, record] of claims) release(holder, record);
@@ -3736,18 +3768,11 @@ function createAnchorControls({ commentOnTarget, openThread, withdrawReaction, l
 		}
 		return groups;
 	}
-	function focusVisualAction(event) {
-		const control = event.currentTarget;
-		let current = resolveAnchor(control.lfAnchor);
-		let element = targetParts(current)[0] ?? targetElement(current);
-		if (!element) return;
-		reveal(element, retainUserIntent());
-		current = resolveAnchor(control.lfAnchor);
-		element = targetParts(current)[0] ?? targetElement(current);
-		scrollIntoView(element, {
-			behavior: "instant",
-			block: "nearest"
-		});
+	function visualActionTarget(node) {
+		const control = node.closest(".lf-visual-action");
+		if (!control) return null;
+		const current = resolveAnchor(control.lfAnchor);
+		return targetParts(current)[0] ?? targetElement(current);
 	}
 	function activateVisualAction(event) {
 		const control = event.currentTarget;
@@ -3755,11 +3780,10 @@ function createAnchorControls({ commentOnTarget, openThread, withdrawReaction, l
 	}
 	const visualActionTemplate = ({ anchor, label }) => html`
     <button
-      ${offered("lf-visual-action lf-quiet")}
+      ${offeredAction("proxy", "lf-visual-action")}
       tabindex="-1"
       .lfAnchor=${anchor}
       .textContent=${`Respond to ${label}`}
-      @focus=${focusVisualAction}
       @click=${activateVisualAction}
     ></button>
   `;
@@ -3778,7 +3802,7 @@ function createAnchorControls({ commentOnTarget, openThread, withdrawReaction, l
 			const restoreFocus = holdFocus(holder);
 			keeps(holder, "aria-label", `Responses to ${first.label}`);
 			render(html`${repeat(targets, ({ key }) => key, visualActionTemplate)}`, holder);
-			shelve(seat, holder);
+			shelve(seat, holder, visualActionTarget);
 			restoreFocus?.();
 		}
 		for (const [seat, holder] of visualActionHolders) if (!kept.has(seat)) {
@@ -4361,8 +4385,8 @@ const WITHOUT_QUEUES = /* @__PURE__ */ new Set([
 	"unreachable"
 ]);
 function statusModel(status, queues, agent) {
-	const { kind, tone, summary, asks = false, publication = null } = status;
-	let { explanation, adds } = status;
+	const { kind, tone, summary, adds, asks = false, publication = null } = status;
+	let { explanation } = status;
 	const explanationParts = [...status.explanationParts ?? textParts(explanation)];
 	const addsParts = [...status.addsParts ?? textParts(adds)];
 	const counted = WITHOUT_QUEUES.has(kind) ? [] : queueWords(queues, agent);
@@ -4917,45 +4941,47 @@ function activateCommandEntry(entry) {
 }
 function commandEntryTemplate(entry, promoted = false, shown = true) {
 	const selected = commandReferenceView.selectedCommandId === entry.id;
-	const action = entry.actionable ? html`<button
-        type="button"
-        class="lf-command-reference-command"
-        data-lf-command=${entry.id}
-        data-lf-available=${String(entry.available)}
-        data-lf-selected=${String(selected)}
-        aria-describedby=${[entry.keySequence ? entry.keyId : null, entry.description ? entry.descriptionId : null].filter(Boolean).join(" ")}
-        title=${[entry.description, entry.available ? "" : entry.unavailableMessage].filter(Boolean).join("\n") || nothing}
-        @click=${() => activateCommandEntry(entry)}
-        .textContent=${entry.title}
-      ></button>` : entry.title;
+	const titleId = `${entry.rowId}-title`;
 	const scope = promoted ? html`<span class="lf-command-reference-scope">${entry.sectionTitle}</span>` : nothing;
-	const actionCell = html`<div role="gridcell" class="lf-command-reference-action">${action}${scope}</div>`;
-	const descriptionCell = entry.description ? html`<div role="gridcell" id=${entry.descriptionId} class="lf-command-reference-description">${entry.description}</div>` : nothing;
-	return html`
-    <div
-      id=${entry.rowId}
-      role="row"
-      ${offeredAction("row", `lf-command-reference-row${entry.sequenceControl ? " lf-sequence-command" : ""}`)}
-      data-lf-command=${entry.id}
-      aria-selected=${entry.actionable ? String(selected) : nothing}
-      ?hidden=${!shown}
-    >
-      ${actionCell}
-      <div role="gridcell" class="lf-command-reference-key">
-        ${entry.keySequence ? keySequenceTemplate(entry.keySequence, {
+	const cells = html`<span class="lf-command-reference-action"><span id=${titleId} class="lf-command-reference-title-words">${entry.title}</span>${scope}</span><span class="lf-command-reference-key">${entry.keySequence ? keySequenceTemplate(entry.keySequence, {
 		id: entry.keyId,
 		label: entry.keyLabel
-	}) : nothing}
-      </div>
-      ${descriptionCell}
-    </div>
-  `;
+	}) : nothing}</span>${entry.description ? html`<span id=${entry.descriptionId} class="lf-command-reference-description">${entry.description}</span>` : nothing}`;
+	const rowClass = `lf-command-reference-row${entry.sequenceControl ? " lf-sequence-command" : ""}`;
+	const describedBy = [entry.keySequence ? entry.keyId : null, entry.description ? entry.descriptionId : null].filter(Boolean).join(" ") || nothing;
+	if (!entry.actionable) return html`<div
+      id=${entry.rowId}
+      role="option"
+      ${offeredAction("row", rowClass)}
+      data-lf-command=${entry.id}
+      aria-disabled="true"
+      aria-labelledby=${titleId}
+      aria-describedby=${describedBy}
+      ?hidden=${!shown}
+    >
+      ${cells}
+    </div>`;
+	return html`<button
+    type="button"
+    id=${entry.rowId}
+    role="option"
+    ${offeredAction("row", `${rowClass} lf-command-reference-command`)}
+    data-lf-command=${entry.id}
+    data-lf-available=${String(entry.available)}
+    data-lf-selected=${String(selected)}
+    aria-selected=${String(selected)}
+    aria-labelledby=${titleId}
+    aria-describedby=${describedBy}
+    title=${[entry.description, entry.available ? "" : entry.unavailableMessage].filter(Boolean).join("\n") || nothing}
+    ?hidden=${!shown}
+    @click=${() => activateCommandEntry(entry)}
+  >
+    ${cells}
+  </button>`;
 }
 const headingRow = (id, title, hidden = false) => html`
-  <div role="rowgroup" ?hidden=${hidden}>
-    <div role="row">
-      <div role="gridcell"><h3 class="lf-rows-head" id=${id}>${title}</h3></div>
-    </div>
+  <div role="none" ?hidden=${hidden}>
+    <h3 class="lf-rows-head" id=${id} aria-hidden="true">${title}</h3>
   </div>
 `;
 const commandReferenceItems = () => {
@@ -5009,7 +5035,7 @@ const commandReferenceItems = () => {
 function commandReferenceItemTemplate(item) {
 	if (item.kind === "heading") return headingRow(item.id, item.title, item.hidden);
 	return html`<div
-    role="rowgroup"
+    role="group"
     aria-labelledby=${item.promoted ? "lf-command-reference-binding-matches" : item.entry.sectionId}
     class=${item.promoted ? "lf-command-reference-binding-matches" : nothing}
     ?hidden=${item.hidden}
@@ -5024,7 +5050,7 @@ function commandReferenceTemplate() {
       <div class="lf-dialog-title">Command reference</div>
       ${commandReferenceClose}
     </div>
-    <label class="lf-command-reference-preference">
+    <label class="choice lf-command-reference-preference">
       <input
         type="checkbox"
         name="quick-keyboard-shortcuts"
@@ -5053,12 +5079,17 @@ function commandReferenceTemplate() {
     <div
       id="lf-command-reference-results"
       class="lf-command-reference-results"
-      role="grid"
+      role="listbox"
       aria-label="Command reference"
     >
       ${repeat(items, (item) => item.key, commandReferenceItemTemplate)}
-      <div role="row" ?hidden=${commandReferenceView.shown !== 0}>
-        <div class="lf-rows-empty" role="gridcell">No matching commands.</div>
+      <div
+        class="lf-rows-empty"
+        role="option"
+        aria-disabled="true"
+        ?hidden=${commandReferenceView.shown !== 0}
+      >
+        No matching commands.
       </div>
     </div>
   `;
@@ -5075,7 +5106,7 @@ function presentCommandReference() {
 	keeps(search, "role", "combobox");
 	keeps(search, "aria-autocomplete", "list");
 	keeps(search, "aria-expanded", "true");
-	keeps(search, "aria-haspopup", "grid");
+	keeps(search, "aria-haspopup", "listbox");
 	const results = referenceElement(".lf-command-reference-results");
 	if (search.ariaControlsElements?.[0] !== results) search.ariaControlsElements = [results];
 	const selected = commandReferenceView.visibleCommands.find(({ entry }) => entry.id === commandReferenceView.selectedCommandId);
@@ -5174,10 +5205,9 @@ function moveCommandReferenceSelection(dir) {
 		metaOverride: selectionMeta(nextRecord.entry)
 	};
 	presentCommandReference();
-	const row = referenceElement(`#${nextRecord.entry.rowId}`);
-	const next = referenceElement(`#${nextRecord.entry.rowId} .lf-command-reference-command`);
+	const next = referenceElement(`#${nextRecord.entry.rowId}`);
 	if (focusedId) focusDestination(next, "move");
-	scrollIntoView(row, { block: "nearest" });
+	scrollIntoView(next, { block: "nearest" });
 	beginWalk("shortcut-command", "Command", () => {
 		const current = focusedCommandId() ?? commandReferenceState.selectedCommandId;
 		return listWalkPosition(commandReferenceView.visibleCommands.map(({ entry }) => entry.id), current);
@@ -5424,7 +5454,13 @@ function createQueueWalk({ arriveAtRecord, arriveAtThread, threadPlace, prepareN
 	function currentLocationStop(list, origin = currentLocationOrigin()) {
 		if (origin?.kind !== "current-location") return null;
 		const thread = drawnThreadId(threadIn(origin.node));
-		return thread && list.find((candidate) => candidate.kind === "thread" && candidate.id === thread) || placeStop(list, origin);
+		const shown = cardItem(origin);
+		return thread && list.find((candidate) => candidate.kind === "thread" && candidate.id === thread) || shown && list.find((candidate) => candidate.key === queueStop(shown).key) || placeStop(list, origin);
+	}
+	function cardItem(origin) {
+		const card = closestAcross(origin.node, ON_CARD)?.getAttribute("data-key");
+		if (card == null) return void 0;
+		return readQueues().on_user.find((item) => queueItemKey(item) === card) ?? null;
 	}
 	function placeStop(list, { place: here }) {
 		const listed = list.filter((stop) => stop.kind === "obligation");
@@ -5469,7 +5505,8 @@ function createQueueWalk({ arriveAtRecord, arriveAtThread, threadPlace, prepareN
 	function arriveAt(stop) {
 		if (stop.kind === "obligation") {
 			const record = readObligations().all.find((item) => item.id === stop.id);
-			return record && !hasObligationSource(record, "update") ? arriveAtRecord(record) : Promise.resolve(false);
+			if (!record || hasObligationSource(record, "update")) return Promise.resolve(false);
+			return hasObligationSource(record, "todo") && !obligationPlace(record).node ? Promise.resolve(showOnMe(record.id)) : arriveAtRecord(record);
 		}
 		if (stop.kind === "thread") return arriveAtThread(stop.id, stop.message);
 		return arriveAtElement(() => stopElement(stop));
@@ -5498,7 +5535,12 @@ function createQueueWalk({ arriveAtRecord, arriveAtThread, threadPlace, prepareN
 		return ready;
 	}
 	const doneAt = (stop) => stop ? readQueues().on_user.find((item) => item.offers.done && sameStop(stopOf(item), stop)) ?? null : null;
-	const doneTodo = () => doneAt(currentLocationStop(stops()));
+	function doneTodo() {
+		const origin = currentLocationOrigin();
+		const shown = origin?.kind === "current-location" ? cardItem(origin) : void 0;
+		if (shown !== void 0) return shown?.offers.done ? shown : null;
+		return doneAt(currentLocationStop(stops(), origin));
+	}
 	function endTodo(id) {
 		return actions.done(queueItemKey({
 			kind: "todo",
@@ -5542,6 +5584,7 @@ function createQueueWalk({ arriveAtRecord, arriveAtThread, threadPlace, prepareN
 		title: "On a to-do waiting on me",
 		says: () => `To-do · ${doneTodo()?.obligation?.prompt.text ?? ""}`,
 		ready: savedReadingSettled,
+		root: focused,
 		at: () => Boolean(doneTodo()),
 		rows: [{
 			id: "queue.todo.done",
@@ -5740,9 +5783,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const onUserName = [onUser ? `On me: ${onUser}` : "On me", newsName].filter(Boolean).join(", ");
 		const quick = html`<button
       type="button"
-      class=${`lf-fp-face lf-fp-chip ${exit ? "lf-fp-exit" : "lf-fp-on-user"}`}
+      ${offeredAction("symbol", exit ? "lf-fp-exit" : "lf-fp-on-user", exit ? exit.label : onUserName, { action: exit ? exit.action ?? "close" : "on-me" })}
       ?data-due=${!exit && onUser > 0}
-      ${namedAction(exit ? exit.action ?? "close" : "on-me", { label: exit ? exit.label : onUserName })}
       ?disabled=${Boolean(exit?.disabled)}
       @mousedown=${exit ? (event) => event.preventDefault() : nothing}
       @click=${exit ? () => exit.press() : pressMark}
@@ -5752,8 +5794,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
     </button>`;
 		const viewClose = html`<button
       type="button"
-      class="lf-fp-face lf-fp-chip lf-fp-exit lf-fp-close"
-      ${namedAction("close", { label: "Close" })}
+      ${offeredAction("symbol", "lf-fp-exit lf-fp-close", "Close", { action: "close" })}
       ?data-unoffered=${Boolean(search) && !menuSearching() && closeAtFoot}
       @mousedown=${(event) => event.preventDefault()}
       @click=${() => close()}
@@ -5803,9 +5844,12 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
             ></button>
             <button
               type="button"
-              class="lf-fp-face lf-fp-leaf"
+              ${offeredAction("symbol", "lf-fp-leaf", `${folded ? "Unfold Leaf" : "Page menu"} · ${statusModel.summary}`, {
+			action: "menu",
+			title: ""
+		})}
+              data-lf-tone=${statusModel.tone || nothing}
               aria-describedby="lf-fp-peek"
-              aria-label=${`${folded ? "Unfold Leaf" : "Page menu"} · ${statusModel.summary}`}
               aria-expanded=${folded ? nothing : String(!initial && menuStands())}
               @click=${pressLeaf}
               @pointerenter=${() => showPeek(true)}
@@ -5813,7 +5857,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
               @focus=${() => showPeek(leaf.matches(":focus-visible"))}
               @blur=${() => showPeek(false)}
             >
-              <span class="lf-dot" data-lf-tone=${statusModel.tone || nothing}></span>
               <span
                 class="lf-fp-error-dot"
                 aria-hidden="true"
@@ -5840,7 +5883,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
               >
                 ${initial ? nothing : pageSearch?.input ?? nothing}<input
                   type="search"
-                  class="lf-fp-face lf-fp-search"
+                  class="lf-fp-search"
                   name="thread-search"
                   placeholder=${prompt}
                   aria-label=${prompt}
@@ -6113,7 +6156,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			hintParts: () => fieldHint(null, input),
 			accessibleName: () => general && fieldReading(null, input).says === "selection" ? "Comment on the selection" : "Comment on the page",
 			sends: "send",
-			sendClass: "lf-fp-face lf-fp-send",
+			sendClass: "lf-fp-send",
 			save: (text) => {
 				saveDraft(PAGE_DRAFT, text);
 				tellDraft(PAGE_DRAFT, text);
@@ -6122,9 +6165,11 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			send: (_text, raw, owns) => {
 				let flight = null;
 				streamSend();
+				const viewing = sectionsInView();
 				const handle = sendMessage(PAGE_DRAFT, owns, (attempt) => flight = threadActions.create({
 					attempt,
-					text: raw
+					text: raw,
+					...viewing.length && { viewing }
 				})?.delivery);
 				if (!handle) return;
 				queueMicrotask(paint);
@@ -6744,7 +6789,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
       type="button"
       data-row=${row ?? nothing}
       title=${title ?? nothing}
-      ${offeredAction("row", "lf-fp-face lf-fp-item")}
+      ${offeredAction("row", "lf-fp-item")}
       aria-current=${current ? "true" : nothing}
       ?disabled=${disabled}
       ?data-lf-urgent=${urgent}
@@ -6763,7 +6808,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		if (!copy) {
 			copy = copyControl("lf-fp-copy-item", {
 				success: `${capital(entry.label)} copied`,
-				error: `${capital(entry.label)} not copied · select it to copy`
+				error: `${capital(entry.label)} not copied · select it to copy`,
+				trigger: true
 			});
 			copy.addEventListener("wa-copy", () => putAwayThen(() => {}));
 			copy.addEventListener("wa-error", () => {
@@ -6840,13 +6886,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const groups = GROUPS.filter((group) => all.some((entry) => groupOf(entry) === group.name && listed(entry)));
 		const { summaryParts, adds, addsParts, publication } = status();
 		const said = adds ? statusParts(addsParts) : "";
-		const explains = publication ? html`${said}${adds ? " " : nothing}${voiced(leafSays(publication.copy))}${publication.examplesUrl ? html`<a class="lf-fp-face" href=${publication.examplesUrl}
-                  >${publication.examples}</a
-                > ` : nothing}<a
-            class="lf-fp-face"
-            href=${publication.installUrl}
-            target="_blank"
-            rel="noopener"
+		const explains = publication ? html`${said}${adds ? " " : nothing}${voiced(leafSays(publication.copy))}${publication.examplesUrl ? html`<a href=${publication.examplesUrl}>${publication.examples}</a> ` : nothing}<a href=${publication.installUrl} target="_blank" rel="noopener"
             >${publication.install}</a
           >` : said;
 		const held = opening.menuLines;
@@ -6923,7 +6963,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
                         >${entry.note}</span
                       >` : nothing}`, nothing, () => showVersion(entry), { current: entry.current })}${entry.current ? html`<span class="lf-fp-showing" aria-hidden="true">Showing</span>` : nothing}${entry.comparable ? html`<button
                       type="button"
-                      class="lf-fp-face lf-fp-quiet lf-fp-compare"
+                      ${offeredAction("word", "lf-fp-compare")}
                       aria-pressed=${String(selection.on && selection.base === entry.revision)}
                       aria-label=${`Compare with ${entry.name}`}
                       @click=${() => putAwayThen(() => versionPicker.compare(entry.version))}
@@ -6969,7 +7009,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
           </p>
           <button
             type="button"
-            class="lf-fp-face lf-fp-quiet"
+            ${offeredAction("word", "lf-fp-dismiss")}
             ?disabled=${!live.has(error.id)}
             aria-label=${`Dismiss: ${error.message}, ${clock(error.at)}`}
             @click=${() => dismiss(error.id)}
@@ -7075,7 +7115,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		return html`<h3 class="lf-rows-head">
       <button
         type="button"
-        ${offeredAction("row", "lf-fp-face lf-fp-settled lf-disclosure-marker")}
+        ${offeredAction("row", "lf-fp-settled lf-disclosure-marker")}
         aria-expanded=${open ? "true" : "false"}
         @click=${() => {
 			if (open) unfolded.delete(key);
@@ -7095,7 +7135,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const resolved = rows.filter(({ section }) => section === "resolved").map(({ thread }) => thread);
 		const row = (thread) => html`<button
         type="button"
-        ${offeredAction("row", "lf-fp-face lf-fp-thread")}
+        ${offeredAction("row", "lf-fp-thread")}
         data-key=${thread.key}
         ?data-unread=${isNews(thread)}
         ?data-resolved=${thread.resolved}
@@ -7266,7 +7306,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
       ${waiting?.key === key ? html`<div class="lf-fp-foot">
               <button
                 type="button"
-                class="lf-fp-face lf-fp-new-reply"
+                ${offeredAction("inline", "lf-fp-new-reply")}
+                data-lf-news
                 @click=${() => showAnswer(waiting)}
               >
                 ${iconTemplate("down", "lf-action-icon")}${waiting.label}
@@ -7304,10 +7345,14 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		if (chooseQueueTab("you") && showing({ view: "queue" })) paint();
 		else open({ view: "queue" });
 	}
-	function showOnMe() {
+	function showOnMe(obligation) {
 		const turned = chooseQueueTab("you");
 		if (!showing({ view: "queue" })) open({ view: "queue" }, { focus: false });
 		else if (turned) paint();
+		if (obligation === void 0) return true;
+		const row = listRows().find((candidate) => closestAcross(candidate, ON_CARD)?.getAttribute("data-obligation") === obligation);
+		if (row) focusDestination(row, "move");
+		return Boolean(row);
 	}
 	function pressMark() {
 		if (!onUserCount() && newCount()) {
@@ -7398,7 +7443,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
         >${mark ? iconTemplate(mark, "lf-action-icon") : nothing}</span
       ><span class="lf-fp-plan-title">${step.title ?? ""}</span>${step.owner === "user" && step.state === "open" ? html`<button
               type="button"
-              class="lf-fp-face lf-fp-plan-tag"
+              ${offeredAction("inline", "lf-fp-plan-tag")}
               @click=${() => {
 			chooseQueueTab("you");
 			paint();
@@ -7424,7 +7469,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
         </section>`);
 	const planHead = ({ done, total }) => html`<button
       type="button"
-      class="lf-fp-face lf-fp-plan-head"
+      ${offeredAction("word", "lf-fp-plan-head")}
       aria-expanded=${String(opening.planShown)}
       @click=${() => {
 		opening.planShown = !opening.planShown;
@@ -7517,7 +7562,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const gesture = answered ? answerGesture(record) : null;
 		const discuss = conversation ? html`<button
           type="button"
-          class="lf-fp-face lf-fp-quiet"
+          ${offeredAction("word", "lf-fp-discuss")}
           @click=${() => open({
 			view: "thread",
 			thread: conversation.key
@@ -7553,7 +7598,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
                 @click=${() => withdraw(gesture)}
               ></button>` : nothing}${waiting ? html`<button
                 type="button"
-                class="lf-fp-face lf-fp-answer"
+                ${offeredAction("word", "lf-fp-reply")}
                 @click=${() => open({
 				view: "thread",
 				thread: waiting.thread.key
@@ -7577,7 +7622,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			const told = Boolean(choice.description || choice.recommended);
 			return html`<button
           type="button"
-          class="lf-fp-face lf-fp-answer"
+          ${offeredAction("answer", "lf-fp-answer")}
           ?data-told=${told}
           aria-pressed=${String(choice.chosen)}
           @click=${press}
@@ -7589,15 +7634,14 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		})}`;
 		else if (item.offers?.done) answers = html`<button
         type="button"
-        class="lf-fp-face lf-fp-answer"
-        ${namedAction("done")}
+        ${offeredAction("symbol", "", void 0, { action: "done" })}
         @click=${() => queueActions.done(queueItemKey(item))}
       ></button>`;
 		else if (inWords && thread) {
 			discussHere = false;
 			answers = html`<button
         type="button"
-        class="lf-fp-face lf-fp-answer"
+        ${offeredAction("word", "lf-fp-reply")}
         @click=${() => open({
 				view: "thread",
 				thread: thread.key
@@ -7667,7 +7711,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
     >
       <button
         type="button"
-        ${offeredAction("row", "lf-fp-face lf-fp-item lf-fp-on-line")}
+        ${offeredAction("row", "lf-fp-item lf-fp-on-line")}
         aria-expanded=${String(opened)}
         ?data-resolved=${!opened && (list === "done" || Boolean(answered))}
         @click=${() => toggleItem(key)}
@@ -7726,7 +7770,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		].find((at) => at && under$1(node, at));
 		const thread = part && openIn(part);
 		if (thread) return placedAt(thread.id)?.place ?? null;
-		const id = under$1(node, stage) ? closestAcross(node, ".lf-fp-on-item[data-obligation]")?.getAttribute("data-obligation") : null;
+		const id = under$1(node, stage) ? closestAcross(node, ON_CARD)?.getAttribute("data-obligation") : null;
 		const record = id && readObligations().all.find((item) => item.id === id);
 		return record ? obligationPlace(record).node : null;
 	}, { beside: true });
@@ -7846,7 +7890,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
               >${row.self ? "This page" : voiced(row.parts)}</span
             >`;
 			return row.self ? html`<div class="lf-fp-page" title=${row.account}>${face}</div>` : html`<a
-                ${offeredAction("row", "lf-fp-face lf-fp-page")}
+                ${offeredAction("row", "lf-fp-page")}
                 data-key=${row.key}
                 href=${row.href}
                 target="_blank"
@@ -7862,16 +7906,18 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const counted = count(name);
 		return html`<button
           type="button"
-          class="lf-fp-face"
+          ${offeredAction("word", "lf-fp-tab")}
           aria-pressed=${String(current === name)}
           @click=${() => {
 			refit();
 			choose(name);
 		}}
         >
-          ${label(name)}${counted === null ? nothing : html` <span class="lf-fp-count" ?data-zero=${!counted}
-                  >${counted}</span
-                >`}
+          <span class="lf-fp-tab-words"
+            >${label(name)}${counted === null ? nothing : html` <span class="lf-fp-count" ?data-zero=${!counted}
+                    >${counted}</span
+                  >`}</span
+          >
         </button>`;
 	})}
     </div>`;
@@ -8202,21 +8248,19 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		};
 	}
 	function rowNoticeTemplate({ says, tone, press = null, passing = false }) {
-		const face = html`<span class="lf-fp-row-notice-face" data-tone=${tone ?? nothing}
+		return html`<span class="lf-fp-row-notice-face" data-tone=${tone ?? nothing}
       ><span class="lf-fp-row-notice-says">${says}</span>${press ? html` <span class="lf-fp-row-notice-sep" aria-hidden="true">·</span>
-              <span class="lf-fp-row-notice-act">${press.label}</span>${press.keys?.length && advertisesKeys() ? html` ${keySequenceTemplate(keySequenceModel(neutralSteps(press.keys)))}` : nothing}` : nothing}</span
+              <button
+                type="button"
+                ${offeredAction("inline", "lf-fp-row-notice-press")}
+                title=${press.title ?? nothing}
+                ?disabled=${press.disabled}
+                ?data-lf-notice-press=${Boolean(passing)}
+                @click=${press.run}
+              >
+                ${press.label}${press.keys?.length && advertisesKeys() ? html` ${keySequenceTemplate(keySequenceModel(neutralSteps(press.keys)))}` : nothing}
+              </button>` : nothing}</span
     >`;
-		if (!press) return face;
-		return html`<button
-      type="button"
-      class="lf-fp-face lf-fp-chip lf-fp-row-notice-press"
-      title=${press.title ?? nothing}
-      ?disabled=${press.disabled}
-      ?data-lf-notice-press=${Boolean(passing)}
-      @click=${press.run}
-    >
-      ${face}
-    </button>`;
 	}
 	function pressLeaf() {
 		if (host.dataset.rest === "mark") {
@@ -9060,6 +9104,7 @@ function createObligationView({ prepareNavigationStep, arrive, openPageThread, f
 		const wearing = new Set(here ? [here, ...shownParts(here)] : []);
 		for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.obligation}]`)) if (!wearing.has(marked)) marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.obligation);
 		for (const marked of wearing) keeps(marked, PAGE_PAINT_ATTRIBUTE.obligation, "1");
+		paintLocation(here);
 	}
 	function arrivalFocus(record, review = false) {
 		const item = obligationNode(record);
@@ -9102,7 +9147,7 @@ function createObligationView({ prepareNavigationStep, arrive, openPageThread, f
 	}
 	function framed(record, region, item, box, readable) {
 		const band = landingBand(box);
-		return !!band && readable(item) && shownBox(region).top >= band.top && actionsOf(record).every(({ control }) => readable(presentedActionControl(control)));
+		return !!band && readable(item) && shownBox(region).top - (scrollGoal(box) - box.scrollTop) >= band.top && actionsOf(record).every(({ control }) => readable(presentedActionControl(control)));
 	}
 	async function arriveAtRecordNow(next) {
 		const mayArrive = retainUserIntent({ available: () => hasObligation(readObligations().all, next) });
@@ -9202,6 +9247,7 @@ function createObligationView({ prepareNavigationStep, arrive, openPageThread, f
 		stopContextScopes = null;
 		presenter.disconnect();
 		for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.obligation}]`)) marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.obligation);
+		paintLocation(null);
 	}
 	return {
 		mount,
@@ -9340,6 +9386,7 @@ function hintRoutes(available) {
 function createCommandHints({ presentedControl }) {
 	let mounted = false;
 	let hasRoutes = false;
+	let paintedAway = false;
 	const wornBindingBadges = /* @__PURE__ */ new Map();
 	const CONTROL_ROUTES = Symbol("Control binding routes");
 	const routedControls = /* @__PURE__ */ new Set();
@@ -9395,6 +9442,7 @@ function createCommandHints({ presentedControl }) {
 		withdrawRoutes();
 	}
 	function paint() {
+		paintedAway = focusScrolledAway();
 		const routes = hintRoutes(availableCommandRoutes());
 		const controlKeys = /* @__PURE__ */ new Map();
 		for (const { control, keys } of routes) {
@@ -9482,7 +9530,7 @@ function createCommandHints({ presentedControl }) {
 		if (moving) seats.keepOnly(new Set(chips.map(({ owner }) => owner)));
 		else placement.paint(seats, chips);
 	}
-	const scrollEnded = () => hasRoutes && repaint();
+	const scrollEnded = () => (hasRoutes || paintedAway) && repaint();
 	let stopScrollEnds = () => {};
 	function mount() {
 		if (mounted) return;
@@ -9871,7 +9919,7 @@ registerPageControl({
 //#region runtime/keyboard/go-to-sequence.js
 const goToHintLayer = el("div", "lf-ui lf-key-chips lf-go-to-hints");
 goToHintLayer.setAttribute("aria-hidden", "true");
-function createGoToSequence({ doors, hintChrome, openPageMap, directDestinations, scrollToElement, leavesOffered, marginEntries, glideTo, placeThreadEdge, stopGlide }) {
+function createGoToSequence({ doors, hintChrome, openPageMap, directDestinations, scrollToElement, leavesOffered, marginEntries, placeThreadEdge }) {
 	const formatGoToAddress = (row) => [...sequencePrefix(), labelOf(row)].filter(Boolean).join(" ");
 	const pageLinks = () => {
 		return pageQueryAll("a[href]").filter((link) => closestAcross(link, "main"));
@@ -10315,14 +10363,14 @@ pageCommand({
 	title: "Caret browsing",
 	description: "Select text with the keyboard caret to comment on it"
 });
-const holding$1 = () => {
+const holding = () => {
 	const active = focused(document);
 	return Boolean(active) && active !== document.body;
 };
 let currentLocationFloor = () => null;
 function declareCurrentLocation({ pageState }) {
 	currentLocationFloor = () => {
-		if (!holding$1()) return null;
+		if (!holding()) return null;
 		if (nativeLayers().length) return null;
 		if (leavesBox()) return null;
 		if (claimsEsc(focused())) return null;
@@ -10335,7 +10383,7 @@ function declareCurrentLocation({ pageState }) {
 		title: "Current location",
 		root: focused,
 		escape: "inner",
-		at: holding$1,
+		at: holding,
 		rows: [{
 			id: "navigation.release",
 			touch: false,
@@ -10348,7 +10396,7 @@ function declareCurrentLocation({ pageState }) {
 }
 pageRung("page", () => {
 	if (nativeLayers().length) return null;
-	if (holding$1()) return currentLocationFloor() ? null : {
+	if (holding()) return currentLocationFloor() ? null : {
 		title: "back to the page",
 		out: letGo
 	};
@@ -10582,13 +10630,6 @@ function placeThreadEdge(thread, edge) {
 		block: edge
 	});
 }
-const SCROLL_MS = 140;
-let glide = null;
-const setGlide = (next) => {
-	glide = next;
-	scrollGlides(Boolean(next));
-};
-const holding = (box) => glide?.box === box && Math.abs(box.scrollTop - glide.wrote) <= 1 ? glide : null;
 const readingStep = (box, clips) => {
 	const shown = shownRect(box, clips);
 	const band = shown && landingBand(box);
@@ -10614,10 +10655,10 @@ function stepAlong(from, amount, unit) {
 	for (const box of scrollChainOf(from)) {
 		if (!nativeModalAdmits(box)) return;
 		const step = readingStep(box, clips);
-		const canMove = amount > 0 ? !atScrollEnd(box) : box.scrollTop > 0;
+		const goal = scrollGoal(box);
+		const canMove = amount > 0 ? !atScrollEnd(box, goal) : goal > 0;
 		if (step && canMove) {
-			const distance = unit === "page" ? amount * step.height : amount;
-			glideTo(box, (holding(box)?.goal ?? box.scrollTop) + distance);
+			glideTo(box, goal + (unit === "page" ? amount * step.height : amount));
 			return;
 		}
 		if (getComputedStyle(box).overscrollBehaviorY !== "auto") return;
@@ -10629,53 +10670,6 @@ function stepAlong(from, amount, unit) {
 			unit
 		}
 	});
-}
-function glideTo(box, goal) {
-	goal = Math.max(0, Math.min(scrollLimit(box), goal));
-	if (reducedMotion()) {
-		setScroll(box, {
-			top: goal,
-			behavior: "instant"
-		});
-		return;
-	}
-	cancelRender(glide?.raf);
-	const start = box.scrollTop;
-	const t0 = performance.now();
-	const tick = (now) => {
-		const current = holding(box);
-		if (!current) {
-			setGlide(null);
-			return;
-		}
-		if (reducedMotion()) {
-			setScroll(box, {
-				top: goal,
-				behavior: "instant"
-			});
-			setGlide(null);
-			return;
-		}
-		const t = Math.max(0, Math.min(1, (now - t0) / SCROLL_MS));
-		setScroll(box, {
-			top: goal - (goal - start) * (1 - t) ** 3,
-			behavior: "instant"
-		});
-		current.wrote = box.scrollTop;
-		if (t < 1) current.raf = nextFrame(tick);
-		else setGlide(null);
-	};
-	setGlide({
-		box,
-		goal,
-		wrote: start,
-		raf: nextFrame(tick)
-	});
-}
-function stopGlide(box) {
-	if (glide?.box !== box) return;
-	cancelRender(glide.raf);
-	setGlide(null);
 }
 function createNavigation({ threadDestinations, placedAt }) {
 	const currentItem = () => {
@@ -10826,11 +10820,9 @@ async function boot() {
 		remove: (anchor) => drawing.removeDrawing(anchor),
 		replace: replaceDrawing
 	};
-	let aim;
 	let targets;
 	let reactions;
 	let pageGeometry;
-	let goToSequence;
 	let floatingPanel;
 	const navigation = createNavigation({
 		placedAt: (id) => anchorPlacement.placedAt(id),
@@ -10875,7 +10867,7 @@ async function boot() {
 		announce,
 		repaint
 	});
-	aim = createAim({
+	const aim = createAim({
 		marginTargetAt: (...args) => app.overlay?.marginTargetAt(...args) ?? null,
 		refreshAim: () => pageGeometry.refreshAim(),
 		commentOnTarget: (...args) => responseSurface.commentOnTarget(...args),
@@ -11040,7 +11032,7 @@ async function boot() {
 		prepareNavigationStep: anchorTravel.prepareNavigationStep,
 		arrive: anchorTravel.arrive,
 		readableDestination: anchorTravel.readableDestination,
-		showOnMe: () => floatingPanel.showOnMe(),
+		showOnMe: (obligation) => floatingPanel.showOnMe(obligation),
 		announce
 	});
 	const changeWalk = createChangeWalk();
@@ -11199,7 +11191,7 @@ async function boot() {
 		revealInThread: (context, intent) => app.threadDestinations.openThreadDraft(context, intent),
 		holdsThreadDraft: (context) => app.threadDestinations.holdsThreadDraft(context)
 	});
-	goToSequence = createGoToSequence({
+	const goToSequence = createGoToSequence({
 		doors: floatingPanel.doors,
 		hintChrome,
 		openPageMap: (...args) => pageMapDialog.openPageMap(...args),
@@ -11214,9 +11206,7 @@ async function boot() {
 		scrollToElement: anchorTravel.scrollToElement,
 		leavesOffered,
 		marginEntries: app.overlay ?? null,
-		glideTo,
-		placeThreadEdge,
-		stopGlide
+		placeThreadEdge
 	});
 	const currentLocationPainters = {
 		markHere: items.markHere,
@@ -11244,7 +11234,7 @@ async function boot() {
 			chromeSheet,
 			marksSheet
 		];
-		chromeForeground.append(targetTraceLayer, aimLayer, liveEl, mediaViewer, commandReferenceDialog, inspectEl);
+		chromeForeground.append(locationLayer, targetTraceLayer, proxyRingLayer, aimLayer, liveEl, mediaViewer, commandReferenceDialog, inspectEl);
 		chromeRoot.append(legendRoot, marginBarLayer, ...visualMarkPaint ? [visualMarkPaint.layer] : [], drawingPaint.layer, fabBar, chromeForeground);
 		document.body.append(chromeRoot);
 		version.mount();

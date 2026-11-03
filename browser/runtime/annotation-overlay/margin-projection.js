@@ -54,7 +54,7 @@
    gestures request that same pass. Mount binds the overlay's mechanical lifecycle. */
 
 import { createThreadPreview } from "./thread-preview.js";
-import { windowHoldsRail } from "../content-layout.js";
+import { proseRect, windowHoldsRail } from "../content-layout.js";
 
 import { afterScript, cancelRender, nextRender } from "../rendering.js";
 import { spokenSubject } from "../contribution-model.js";
@@ -122,7 +122,7 @@ import {
   currentLocationIn,
 } from "../focus.js";
 
-import { el, generatedElement, offer } from "../widget-elements.js";
+import { el, generatedElement, offerActionElement } from "../widget-elements.js";
 import { keeps, keepsHidden } from "../keeps.js";
 
 import { cycledRow, rowArrows, nativePress } from "../keyboard/bindings.js";
@@ -278,10 +278,13 @@ export function createMarginProjection({
       });
     });
   }
-  /** @param {readonly Entry[]} inventory @param {DOMRect} [mainRect] @param {number} [mainHeight] */
+  // The column is its prose box, as the margin's layout pass reads it and hands it to
+  // `lf-margin-layout`: names read against another box would change back and forth
+  // between a render and the layout pass after it.
+  /** @param {readonly Entry[]} inventory @param {import("../content-layout.js").ProseBox} [mainRect] @param {number} [mainHeight] */
   function readSpokenPositions(
     inventory,
-    mainRect = marginColumn().getBoundingClientRect(),
+    mainRect = proseRect(marginColumn()),
     mainHeight = marginColumn().scrollHeight,
   ) {
     spokenBasis = mainRect && { width: mainRect.width, height: mainHeight };
@@ -350,7 +353,8 @@ export function createMarginProjection({
   // commands remain native buttons. While it is a press, Enter and Space press it as
   // they would a button (role-button-press.js), and as a status nothing presses it.
   /** @param {string} className */
-  const readingControl = (className) => offer("span", className);
+  const readingControl = (className) =>
+    offerActionElement(document.createElement("span"), "entry", className);
 
   // The one writer over a reading's disclosure relation, settling `aria-controls` and
   // `aria-expanded` together because a control that says it opens something has to say
@@ -1699,7 +1703,6 @@ export function createMarginProjection({
       if (!selected.has(control)) syncContributionSelection(control, false);
     for (const control of selected) syncContributionSelection(control, true);
     selectedReadingCarriers = selected;
-    scheduleMarginEntryLabels();
   }
 
   // ---------- the card goes where the user is ----------

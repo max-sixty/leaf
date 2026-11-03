@@ -903,7 +903,7 @@ def test_claude_and_codex_load_the_same_plugin_payload():
 def test_page_authoring_names_the_theme_s_largest_spacing_step():
     """Authors read the spacing scale's ends in page-authoring.md rather than the
     theme, so a step the theme adds is one they can find."""
-    theme = (PLUGIN_ROOT / "browser/base.css").read_text()
+    theme = (PLUGIN_ROOT / "browser/styles/tokens.css").read_text()
     largest = max(int(step) for step in re.findall(r"--sp-(\d+):", theme))
     prose = (PLUGIN_ROOT / "skills/leaf/references/page-authoring.md").read_text()
     assert f"`--sp-1` to `--sp-{largest}`" in " ".join(prose.split())
@@ -1462,6 +1462,11 @@ def test_layout_style_and_widgets_never_read_each_other():
     }
     assert {"layout-column", "layout-workspace"} <= owned[layouts], owned[layouts]
     assert owned[theme] == {"density-working"}, owned[theme]
+    # The theme's tokens restate the type ladder's derived fonts for its density class.
+    homes = {
+        layouts: {layouts},
+        theme: {theme, *layer_model.imported_sheets(theme, schema_model.ASSETS)},
+    }
     roots = (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES)
     readers = []
     for source in sorted(path for root in roots for path in root.rglob("*.[cj]s*")):
@@ -1470,7 +1475,7 @@ def test_layout_style_and_widgets_never_read_each_other():
         foreign = [
             names
             for home, names in owned.items()
-            if home != source
+            if source not in homes[home]
             and not (
                 home == layouts
                 and source
@@ -1533,27 +1538,26 @@ def test_controls_are_built_by_role_and_never_by_face():
     words = {name for name in faces if not name.startswith("lf-")} | {"button"}
     assert words == {"primary", "button"}, words
     spelled = []
-    for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES):
-        for source in sorted(root.rglob("*.js")):
-            if "vendor" in source.parts or source == owner:
-                continue
-            text = source.read_text()
-            where = source.relative_to(ROOT)
-            spelled += [f"{where}: {match[1]}" for match in named.finditer(text)]
-            code = re.sub(r"/\*.*?\*/|(?<![:\w\"'])//[^\n]*", "", text, flags=re.DOTALL)
-            for literal in re.findall(r"([\"'`])((?:(?!\1).)*)\1", code):
-                classes = literal[1].split()
-                if (
-                    len(classes) > 1
-                    and all(re.fullmatch(r"[a-z][\w-]*", name) for name in classes)
-                    and words & set(classes)
-                ):
-                    spelled.append(f"{where}: {literal[1]}")
-            spelled += [
-                f"{where}: class={value[1]}"
-                for value in re.findall(r"class=([\"'])(.*?)\1", code)
-                if words & set(value[1].split())
-            ]
+    for source in _bundled_modules():
+        if source == owner:
+            continue
+        text = source.read_text()
+        where = source.relative_to(ROOT)
+        spelled += [f"{where}: {match[1]}" for match in named.finditer(text)]
+        code = re.sub(r"/\*.*?\*/|(?<![:\w\"'])//[^\n]*", "", text, flags=re.DOTALL)
+        for literal in re.findall(r"([\"'`])((?:(?!\1).)*)\1", code):
+            classes = literal[1].split()
+            if (
+                len(classes) > 1
+                and all(re.fullmatch(r"[a-z][\w-]*", name) for name in classes)
+                and words & set(classes)
+            ):
+                spelled.append(f"{where}: {literal[1]}")
+        spelled += [
+            f"{where}: class={value[1]}"
+            for value in re.findall(r"class=([\"'])(.*?)\1", code)
+            if words & set(value[1].split())
+        ]
     assert not spelled, (
         "build these controls with offerAction or offeredAction by role:\n"
         + "\n".join(spelled)
@@ -1563,27 +1567,81 @@ def test_controls_are_built_by_role_and_never_by_face():
 def test_every_ring_stands_at_a_kind_of_box():
     """Where a box's marks stand is one of the kinds base.css names ("Where it
     stands"): a region's gap, a control's, the box's edge, or one band inside it. Every
-    `outline-offset` in Leaf's sheets names its kind's token rather than a length, so
-    a change to a kind reaches every box of it and the overlay marks, which read the
-    gap a box states, stand where its rings do. The overlay's own boxes take the gap
-    their placement writes (`--lf-mark-offset`)."""
+    `--lf-ring-at` in Leaf's sheets names its kind's token rather than a length, so a
+    change to a kind reaches every box of it, and so does every `outline-offset`, which
+    otherwise reads that declaration: every box's (surfaces.css), the floor's, and the
+    overlay's boxes, which take the gap their placement writes (`--lf-mark-offset`)."""
     kinds = {
         "0",
         "var(--focus-region-gap)",
         "var(--focus-ring-gap)",
         "var(--focus-ring-inset)",
+    }
+    reads = {
+        "var(--lf-ring-at, 0px)",
+        "var(--lf-ring-at, var(--focus-ring-gap))",
         "var(--lf-mark-offset)",
     }
+    allowed = {"--lf-ring-at": kinds, "outline-offset": kinds | reads}
     stated = [
-        f"{sheet.relative_to(ROOT)}: {selector} {{ outline-offset: {value} }}"
+        f"{sheet.relative_to(ROOT)}: {selector} {{ {name}: {value} }}"
         for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES)
         for sheet in sorted(root.rglob("*.css"))
         if "vendor" not in sheet.parts
         for _conditions, _enclosing, selector, declarations in _style_rules(sheet)
         for name, value in declarations
-        if name == "outline-offset" and value not in kinds
+        if name in allowed and value not in allowed[name]
     ]
     assert not stated, "a ring stands at a length of its own:\n" + "\n".join(stated)
+
+
+def _bundled_modules():
+    """Each module the runtime and the bundled packages ship, their vendored bundles
+    aside."""
+    return [
+        source
+        for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES)
+        for source in sorted(root.rglob("*.js"))
+        if "vendor" not in source.parts
+    ]
+
+
+def test_every_press_is_built_by_role():
+    """Every press a bundled module builds wears a role's face (browser/AGENTS.md, "A
+    control wears its role's face"). `js_facts.mjs presses` reads the presses and says
+    what they are and how a role dresses them.
+
+    Before this check only a role's classes were watched, so a press drawn with a face
+    of its own passed: the floating panel's symbols and a message's Edit and Add
+    reaction each drew a 26px face beside the thread's 28px symbols. Drawing a press's
+    symbol from its action gives it no face, so a press that does only that still needs
+    a role."""
+    reached, unbuilt = set(), []
+    for module, presses in json.loads(js_facts("presses", _bundled_modules())).items():
+        for press in presses:
+            reached |= {press["kind"], press["built"]}
+            if not press["built"]:
+                where = Path(module).relative_to(ROOT)
+                unbuilt.append(f"{where}:{press['line']}: {press['site']}")
+    assert reached - {None} == {
+        "template",
+        "made",
+        "copy control",
+        "role in its tag",
+        "role through a name",
+        "role as it is made",
+        "role in its options",
+        "trigger in its options",
+        "selectable",
+    }, f"the reading missed a kind of press: {reached}"
+    assert not unbuilt, (
+        "these presses draw a face of their own:\n"
+        + "\n".join(unbuilt)
+        + "\nBuild each by role with offerAction, offeredAction, offerActionElement,"
+        " copyControl's `role` or a selectable offer's face (control-faces.js,"
+        " `ACTION_FACES`). A press no role serves is a new role, for a reviewer to"
+        " weigh."
+    )
 
 
 def test_no_rule_rounds_a_box_edged_on_one_side(tmp_path):
@@ -4832,3 +4890,18 @@ def test_instruction_reading_uses_the_candidate_vocabulary_before_html_changes(
     assert "Use the new candidate contract." in instructions["author"]
     assert "Choose the owner's inputs" not in instructions["author"]
     assert source.read_text() == original_html
+
+
+def test_portable_css_carries_the_widgets_look_and_no_theme():
+    """A page without Leaf links portable.css for its widgets' look, not a Leaf page's:
+    a theme in the layer, as `reading` is in every new page's, styles a page's own
+    markup, so its rules stay out while a widget package's come in."""
+    reading = schema_model.BUNDLED_PACKAGES / "reading"
+    timeline = schema_model.BUNDLED_PACKAGES / "timeline"
+    layer = layer_model.compose_layer(layer_model.layer_inputs(("reading", "timeline")))
+    sheet = layer.top_files["portable.css"].decode()
+    assert layer_model.stylesheet(timeline / "defaults.css", timeline) in sheet
+    assert layer_model.stylesheet(reading / "defaults.css", reading) in (
+        layer.top_files["theme.css"].decode()
+    )
+    assert layer_model.stylesheet(reading / "defaults.css", reading) not in sheet

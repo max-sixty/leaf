@@ -1,4 +1,4 @@
-/* Browser-side latency measurement for leaf-dev bench-latency and profile.
+/* Browser-side latency measurement for leaf-dev bench-latency.
  *
  * Installed before each document. The goals stay in sessionStorage so a revision
  * that reloads the page is sampled by the document that replaces it. Sampling

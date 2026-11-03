@@ -35,10 +35,10 @@ from the page's. Compare the numbers with the objectives in
 a median.
 
 `--profile` says where that time goes. Each transition runs under a V8 CPU profile and
-a Chrome trace with style invalidation tracking, and its window runs from the last
-keydown (or the profile's start, for an agent write) to the last frame the probe marks
-as painting one of its goals: for a gesture, Sent, so the window holds the local draw,
-the wait for the POST's answer and the answer's application. After the table come,
+a Chrome trace with style invalidation tracking, read over the benchmark's own window:
+from the input or the write to the last frame the probe marks as painting one of its
+goals. For a gesture that is Sent, so the window holds the local draw, the wait for
+the POST's answer and the answer's application. After the table come,
 for each page, transition and arm, when each goal was painted and each run's
 main-thread tasks with the JS that dominated them, then per run: style and layout time
 and how much of it script forced, the forced style recalculations and the writes that
@@ -264,7 +264,7 @@ class Session:
                 self.profiling(transition, self.profiled)
                 if self.profiled
                 else nullcontext()
-            ):
+            ) as profiled:
                 start = act()
                 watch = until(
                     self.page,
@@ -277,6 +277,9 @@ class Session:
             frames = self.page.evaluate("() => window.__leafBench.frames()")
         finally:
             self.page.evaluate("() => window.__leafBench.disarm()")
+        if profiled:
+            runs = self.attributed.setdefault(transition, [])
+            runs.append(attribute(*profiled, start, watch["goals"]))
         end = max(goal["at"] for goal in watch["goals"])
         # The gesture's own POST: the attempt the probe bound its `delivered` goal to.
         answered = next(
@@ -300,10 +303,10 @@ class Session:
 
     @contextmanager
     def profiling(self, transition: str, directory: Path):
-        """Profile and trace the page into `directory` for the life of the block, then
-        attribute it."""
-        runs = self.attributed.setdefault(transition, [])
-        name = f"{self.arm}-{self.source}-{transition}-{len(runs) + 1}"
+        """Profile and trace the page into `directory` for the life of the block, and
+        yield a list that then holds the trace's path and the CPU profile."""
+        run = len(self.attributed.get(transition, ())) + 1
+        name = f"{self.arm}-{self.source}-{transition}-{run}"
         trace = directory / f"{name}.trace.json"
         browser = self.page.context.browser
         assert browser is not None  # `served` opens a context of a launched browser
@@ -312,14 +315,15 @@ class Session:
         cdp.send("Profiler.setSamplingInterval", {"interval": 100})
         browser.start_tracing(page=self.page, path=str(trace), categories=CATEGORIES)
         cdp.send("Profiler.start")
+        recorded = []
         try:
-            yield
+            yield recorded
         finally:
             profile = cdp.send("Profiler.stop")["profile"]
             browser.stop_tracing()
             cdp.detach()
         (directory / f"{name}.cpuprofile").write_text(json.dumps(profile))
-        runs.append(attribute(trace, Profile(profile)))
+        recorded.extend((trace, Profile(profile)))
 
     def gesture(self, transition: str, goals: dict, press) -> dict:
         def act():
@@ -572,9 +576,10 @@ def renderer_main(events: list) -> list:
     )
 
 
-def attribute(trace: Path, profile: Profile) -> dict:
-    """What the main thread did from the input (or the recording's start) to the frame
-    the benchmark's probe marked as painting the transition's first goal."""
+def attribute(trace: Path, profile: Profile, began: float, goals: list[dict]) -> dict:
+    """What the main thread did in the benchmark's window: from the transition's start,
+    `began` in epoch milliseconds, to the frame the probe marked as painting its last
+    goal."""
     everything = json.loads(trace.read_text())
     everything = (
         everything["traceEvents"] if isinstance(everything, dict) else everything
@@ -584,16 +589,12 @@ def attribute(trace: Path, profile: Profile) -> dict:
         for e in everything
         if e.get("name", "").startswith("lf-bench:")
     }
+    # A goal's `at` and its mark name the same frame, one in epoch milliseconds and
+    # one in the trace's microseconds, which places the start on the trace's clock.
+    start = marks[goals[0]["name"]] + (began - goals[0]["at"]) * 1000
     end = max(marks.values())
     events = [e for e in renderer_main(everything) if e["ts"] <= end]
     spans = [e for e in events if e.get("ph") == "X"]
-    keys = [
-        e["ts"]
-        for e in spans
-        if e["name"] == "EventDispatch"
-        and e["args"].get("data", {}).get("type") == "keydown"
-    ]
-    start = keys[-1] if keys else spans[0]["ts"]
 
     # A task or a render step can straddle either end; only its part inside counts.
     def inside(e):

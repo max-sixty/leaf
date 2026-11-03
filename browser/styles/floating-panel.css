@@ -147,7 +147,6 @@
   .lf-fp-on-item {
     --lf-ring-at: var(--focus-ring-inset);
   }
-  .lf-fp-on-item:focus-visible,
   .lf-fp-on-item[data-walked] {
     outline: var(--focus-ring);
   }

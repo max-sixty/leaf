@@ -6456,7 +6456,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const route = trail.value.at(-1);
 		const fromThreads = trail.value.at(-2)?.view === "threads";
 		const at = openThreads().indexOf(thread);
-		const height = openView()?.getBoundingClientRect().height ?? null;
 		const mayLand = retainUserIntent();
 		return () => {
 			if (!mayLand() || trail.value.at(-1) !== route) return false;
@@ -6470,7 +6469,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 					replace: true,
 					focus: false
 				});
-				if (holdThread(height)) paint();
 				const view = shownView();
 				if (view) focusDestination(view, "move");
 			} else back();

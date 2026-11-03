@@ -253,11 +253,10 @@ class Watch:
             if self.session_id:
                 targets.add(session_file(self.session_id, SESSION_SUFFIX).resolve())
             targets.update(path.resolve() for path in self.lease_paths)
-            roots = {self.claims: False}
-            roots.update({target.parent: False for target in targets})
+            roots = {self.claims} | {target.parent for target in targets}
             for page in pages:
-                roots.update(page_roots(page))
-            return discovery, (pages, frozenset(targets)), roots
+                roots |= page_roots(page)
+            return discovery, (pages, frozenset(targets)), dict.fromkeys(roots, False)
 
         def holds(key, roots):
             return (
@@ -267,9 +266,8 @@ class Watch:
             )
 
         def install(key, roots):
-            if self.changes is not None:
-                self.changes.close()
             watched = target_paths(key[1])
+            previous = self.changes
             self.changes = FileChanges(
                 roots,
                 lambda changed: (
@@ -280,6 +278,8 @@ class Watch:
                 ),
             )
             self.change_pages = key
+            if previous is not None:
+                previous.close()
 
         while True:
             discovery, key, roots = plan()

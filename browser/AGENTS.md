@@ -58,7 +58,7 @@ own (`../SOUL.md`, "Keep the foundation small and extensible").
   controls sit over the page and take no space, and no rule pads or widens a block to
   make room for them. The rail sits right of `main` when the window is wide enough and
   never moves or narrows the column (`../skills/leaf/references/page-layout.md`, "The
-  rail and the margin"). Native document tracks and wrapping rows place the page's own
+  rail and the margin"). Native block flow and wrapping rows place the page's own
   sidebars and notes from the first paint, and `runtime/content-layout.js` reads their
   CSS geometry for annotations and never reallocates document space. The chrome opens
   over the page too, in the
@@ -482,9 +482,10 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Open or close a native modal or popover                                                               | `keyboard/layer-stack.js` `showNativeLayer`, `closeNativeLayer` (_lint_)           |
 | Whether a node is, or is inside, an open native layer, and of which kind                              | `shadow-tree.js` `nativeLayerKind`, `isNativeLayer`, `nativeLayerHolding` (_lint_) |
 | Which native layers are open, in opening order, and whether a modal admits a node                     | `keyboard/layer-stack.js` `nativeLayers`, `nativeModalAdmits`                      |
-| The element a URL fragment names                                                                      | `anchor-resolution.js` `fragmentTarget`                                            |
+| The element a URL fragment names, or the part of a widget its key names                               | `anchor-resolution.js` `fragmentTarget`, `fragmentAddress`                         |
+| This page's URL with a fragment naming an element, or a widget's key                                  | `anchor-coordinate.js` `fragmentUrl`                                               |
 | The address a heading's link names                                                                    | `heading-links.js` `headingAddress`                                                |
-| The language a file path means                                                                        | `syntax.js` `langForPath`, from the registry's `$languages`                        |
+| The language a file path means                                                                        | `language-paths.js` `langForPath`, from the registry's `$languages`                |
 | Paint on the next frame, or watch a size                                                              | `rendering.js` `nextRender`, `nextFrame`, `sizeObserver` (_lint_)                  |
 | Write a DOM value only when it changed                                                                | `keeps.js` `keeps`                                                                 |
 | Threads, workflow, attention, obligations, and whether they are answered                              | the server's state, under "One writer for each fact"                               |

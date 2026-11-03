@@ -901,7 +901,9 @@ def serve_preview(
                 # the canonical input reading as well as the subscription.
                 changes.close()
                 changes = watch_changes(watched)
-            if not replaced:
+            # A batch of None says the process's watcher was replaced and may have
+            # taken edits with it, which invalidates the reading in the same way.
+            if not replaced and reported is not None:
                 if not reported:
                     continue  # lifetime and root checks need no input discovery
                 if not any(watched.relevant(path) for path in reported):

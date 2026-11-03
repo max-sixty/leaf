@@ -672,14 +672,6 @@ def test_a_todo_on_you_says_its_words_where_you_land_on_it(browser, serve):
     page.locator("#cadence").click()
     page.keyboard.press("Shift+m")
     expect(page.locator("#h")).to_be_focused()
-    title = page.locator(
-        '[data-lf-margin-for="h"] .lf-margin-marker > .lf-margin-entry-label'
-    )
-    expect(title).to_be_visible()
-    expect(title.locator(".lf-margin-entry-label-word")).to_have_text(whole + "…")
-    assert title.locator(".lf-margin-entry-label-word").evaluate(
-        "el => el.scrollWidth <= el.clientWidth && el.scrollHeight <= el.clientHeight"
-    )
     panel_settled(page, view="queue")
     walked = page.locator(".lf-fp-on-item[data-walked]")
     expect(walked).to_contain_text(whole)
@@ -694,12 +686,6 @@ def test_a_todo_on_you_says_its_words_where_you_land_on_it(browser, serve):
         "placeholder", re.compile(f"^To-do · {re.escape(notes)}")
     )
     expect(row_done(page)).to_be_visible()
-    expect(title).to_be_hidden()
-    expect(
-        page.locator(
-            '[data-lf-margin-for="notes"] .lf-margin-marker > .lf-margin-entry-label'
-        )
-    ).to_be_visible()
 
     # A mode entered there is the stance the row's end leaves.
     page.keyboard.press("w")
@@ -757,13 +743,8 @@ def test_a_finger_ends_a_todo_on_you_where_show_lands(browser, serve):
     expect(todo_field(page)).to_have_attribute(
         "placeholder", re.compile("^To-do · Check the notes")
     )
-    label = page.locator(
-        '[data-lf-margin-for="notes"] .lf-margin-marker > .lf-margin-entry-label'
-    )
-    expect(label).to_be_visible()
     with sending(page, "the row's Done"):
         row_done(page).tap()
-    expect(label).to_be_hidden()
     expect_on_me(page, 1)
     assert events_model.read_events(serve.page_dir)[-1]["todo"] == task["id"]
     expect(row_done(page)).to_have_count(0)

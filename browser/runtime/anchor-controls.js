@@ -415,7 +415,7 @@ export function createAnchorControls({
       if (href === null) throw new Error("A message fragment reference has no href");
       const id = fragmentId(href);
       const alive = Boolean(fragmentTarget(href));
-      anchor.classList.toggle("detached", !alive);
+      anchor.toggleAttribute("data-lf-detached", !alive);
       keeps(anchor, "aria-disabled", alive ? null : "true");
       keeps(anchor, "title", alive ? `Jump to § ${id}` : missingReference(id));
     }

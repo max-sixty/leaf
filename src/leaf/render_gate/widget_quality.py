@@ -353,7 +353,7 @@ def widget_findings(browser, package: Path) -> list[Finding]:
     composition = compose_layer(roots)
     pages = [
         (layout, SourceDocument(html), data)
-        for layout, html, data in example_pages(composition.registry, tags)
+        for layout, html, data in example_pages(composition.vocabulary.registry, tags)
     ]
     shown = {record["tag"] for _, page, _ in pages for record in page.lf_elements}
     findings = [_finding("example", tag) for tag in tags if tag not in shown]

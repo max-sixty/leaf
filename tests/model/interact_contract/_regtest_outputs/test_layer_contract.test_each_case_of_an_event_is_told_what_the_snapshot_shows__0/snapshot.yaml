@@ -850,13 +850,15 @@ reaction on a message:
 rewritten message:
   event:
     kind: edit
+    text: Tuesdays, after the report run
     thread:
       title: Tuesday backfill
     answer:
       kind: reply
       writer: agent
   told:
-    - text: >-
+    - when: {"properties": {"text": {"minLength": 1}}}
+      text: >-
         The user rewrote their message `message`: `text` is the new wording and
         `was` the old, and the thread shows only the new. Answer it as it now reads.
         If your earlier answer or work depended on what changed, say what that changes
@@ -890,9 +892,53 @@ rewritten message:
         short paragraph or list item, link a page section as `[its name](#section-id)`,
         and fence code or markup.
 
+deleted message:
+  event:
+    kind: edit
+    text: ''
+    thread:
+      title: Tuesday backfill
+    answer:
+      kind: reply
+      writer: agent
+  told:
+    - when: {"properties": {"text": {"maxLength": 0}}}
+      text: >-
+        The user deleted their message `message`: `was` is what it said, and the
+        thread now shows it as deleted. Treat what it said as withdrawn. If your
+        earlier answer or work depended on it, say what that changes and undo or
+        redo the work; if nothing did, acknowledge the deletion in a line.
+    - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
+      text: >-
+        If the event asks for work, first post one line in its thread saying what
+        you will do, before any other command, even a read: `leaf thread reply <answer.ref>
+        --ephemeral --text "<what you will do, in a line>"`. Then do the work, put
+        the result on the page with what shows it (captures, a figure, the numbers),
+        and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`:
+        what changed, in a sentence or two, linking the section that shows it. If
+        the event asks for no work, answer it with that reply at once. The reply
+        checks your saved page edit and makes it live before posting. The declaration
+        says whose move your answer leaves, which delivering what was asked doesn't
+        settle. `--obligation` when it is the user's: it leaves them a decision,
+        or something to try or review before making one, or asks them for an answer
+        or permission. That puts your answer on their On me list until they reply
+        or resolve the thread, even where the decision itself is already there.
+        Where your answer asks a question of its own whose answers you can list,
+        such as which of two ways to proceed or whether to take an action, put them
+        in `--markup` in place of `--obligation`, as `<lf-options id="…" choose>`
+        holding an `<lf-option id="…">` for each answer: the user answers with a
+        press, and the choice waits on them by itself (`references/threads.md`,
+        "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
+        work beyond this turn. `--done` when it leaves nobody a move.
+    - text: >-
+        Your reply renders as Markdown in a narrow column: give each point its own
+        short paragraph or list item, link a page section as `[its name](#section-id)`,
+        and fence code or markup.
+
 rewritten suggestion:
   event:
     kind: edit
+    text: moves to Wednesdays
     suggestion: true
     thread:
       title: Tuesday backfill
@@ -900,17 +946,62 @@ rewritten suggestion:
       kind: reply
       writer: agent
   told:
-    - text: >-
+    - when: {"properties": {"text": {"minLength": 1}}}
+      text: >-
         The user rewrote their message `message`: `text` is the new wording and
         `was` the old, and the thread shows only the new. Answer it as it now reads.
         If your earlier answer or work depended on what changed, say what that changes
         and redo the work; if it didn't, say so. If `message` opens the thread and
         the title no longer fits, retitle it with `leaf thread edit <page> <message>
         --title "<a few words>"`.
-    - when: {"required": ["suggestion"], "properties": {"suggestion": {"const": true}}}
+    - when: {"required": ["suggestion"], "properties": {"suggestion": {"const": true}, "text": {"minLength": 1}}}
       text: >-
         The message is a suggestion, so `text` is now its exact replacement text.
         Apply it verbatim, or reply with your reason for declining.
+    - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
+      text: >-
+        If the event asks for work, first post one line in its thread saying what
+        you will do, before any other command, even a read: `leaf thread reply <answer.ref>
+        --ephemeral --text "<what you will do, in a line>"`. Then do the work, put
+        the result on the page with what shows it (captures, a figure, the numbers),
+        and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`:
+        what changed, in a sentence or two, linking the section that shows it. If
+        the event asks for no work, answer it with that reply at once. The reply
+        checks your saved page edit and makes it live before posting. The declaration
+        says whose move your answer leaves, which delivering what was asked doesn't
+        settle. `--obligation` when it is the user's: it leaves them a decision,
+        or something to try or review before making one, or asks them for an answer
+        or permission. That puts your answer on their On me list until they reply
+        or resolve the thread, even where the decision itself is already there.
+        Where your answer asks a question of its own whose answers you can list,
+        such as which of two ways to proceed or whether to take an action, put them
+        in `--markup` in place of `--obligation`, as `<lf-options id="…" choose>`
+        holding an `<lf-option id="…">` for each answer: the user answers with a
+        press, and the choice waits on them by itself (`references/threads.md`,
+        "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
+        work beyond this turn. `--done` when it leaves nobody a move.
+    - text: >-
+        Your reply renders as Markdown in a narrow column: give each point its own
+        short paragraph or list item, link a page section as `[its name](#section-id)`,
+        and fence code or markup.
+
+deleted suggestion:
+  event:
+    kind: edit
+    text: ''
+    suggestion: true
+    thread:
+      title: Tuesday backfill
+    answer:
+      kind: reply
+      writer: agent
+  told:
+    - when: {"properties": {"text": {"maxLength": 0}}}
+      text: >-
+        The user deleted their message `message`: `was` is what it said, and the
+        thread now shows it as deleted. Treat what it said as withdrawn. If your
+        earlier answer or work depended on it, say what that changes and undo or
+        redo the work; if nothing did, acknowledge the deletion in a line.
     - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
       text: >-
         If the event asks for work, first post one line in its thread saying what

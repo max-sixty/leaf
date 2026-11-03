@@ -8,9 +8,13 @@ import { html, nothing, ref, repeat } from "/vendor/lit.js";
 /** @typedef {{start: {label: string, destination: Element, heading: Element | null} | null, items: OutlineItem[]}} Outline */
 const HEADING_SELECTOR = "h1, h2, h3, h4, h5, h6";
 
-// The outline belongs to the document holding it (`viewDocument`). Scope follows
-// document ownership, not visibility: closed disclosures still contribute headings that
-// a native fragment link can reveal.
+// The outline belongs to the document holding it (`viewDocument`), or for contents
+// standing beside the page's main, that main. Scope follows document ownership, not
+// visibility: closed disclosures still contribute headings that a native fragment link
+// can reveal.
+/** @param {HTMLElement} host */
+const outlineDocument = (host) =>
+  viewDocument(host) ?? host.closest("body")?.querySelector(":scope > main") ?? null;
 
 // Delivery and live behavior call this same template, retaining its native disclosure
 // and keyed links. Geometry readers collect the nodes only after its shared render.
@@ -40,7 +44,7 @@ export function drawToc(host, headingReading) {
   };
   const native = () => (frame ??= readFrame());
   return {
-    scope: () => viewDocument(host),
+    scope: () => outlineDocument(host),
     get nav() {
       return native().nav;
     },
@@ -151,7 +155,7 @@ const level = (heading) => Number(heading.localName.slice(1));
 // Read the complete outline before rendering; max-level bounds it before any id is lent.
 /** @param {HTMLElement} host @param {HeadingReading} reading @returns {Outline} */
 function readOutline(host, { label, chrome, lends }) {
-  const main = viewDocument(host);
+  const main = outlineDocument(host);
   if (!main) return { start: null, items: [] };
   const maxLevel = Number(host.getAttribute("max-level") ?? 6);
   const headings = [...main.querySelectorAll(HEADING_SELECTOR)]

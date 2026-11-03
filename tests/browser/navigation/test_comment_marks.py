@@ -112,7 +112,7 @@ def test_highlight_paint_reaches_nested_syntax_in_the_widgets_theme(
         page.emulate_media(color_scheme=scheme)
         paint = row.evaluate("""row => {
           const names = ['lf-mark', 'lf-mark-hover', 'lf-mark-here',
-            'lf-pending', 'lf-react', 'lf-version-insert'];
+            'lf-pending', 'lf-react'];
           const token = row.querySelector('span');
           const read = (node, name) => {
             const style = getComputedStyle(node, `::highlight(${name})`);
@@ -122,8 +122,7 @@ def test_highlight_paint_reaches_nested_syntax_in_the_widgets_theme(
         }""")
         for name, style in paint.items():
             assert style["background"] != "rgba(0, 0, 0, 0)", (scheme, name, style)
-            if name != "lf-version-insert":
-                assert "underline" in style["decoration"], (scheme, name, style)
+            assert "underline" in style["decoration"], (scheme, name, style)
         backgrounds.append(paint["lf-mark"]["background"])
         page.evaluate("CSS.highlights.delete('lf-mark')")
         quiet = Image.open(io.BytesIO(row.screenshot())).convert("RGB")

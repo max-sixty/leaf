@@ -477,7 +477,7 @@ def test_unchanged_markdown_option_is_not_a_version_change(browser, serve):
     ) == ["job-camera"]
 
 
-def test_markdown_option_state_change_has_no_inline_text_diff(browser, serve):
+def test_markdown_option_state_change_offers_no_card(browser, serve):
     source = OBLIGATION_PAGE.replace(
         "Replace the <code>M8</code> mounts", "Ask the _widget_ to decide"
     )

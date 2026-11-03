@@ -33,6 +33,7 @@
  * the reader can turn it wherever they are reading rather than only at the top, which
  * is where keeping their place matters. */
 import {
+  authoredScope,
   focusDestination,
   foldDuration,
   keeps,
@@ -109,9 +110,16 @@ customElements.define(
       return `lf-dial:${this.id}`;
     }
 
-    // The document the dial governs.
+    // The document the dial governs: the view or `main` holding it, the page's `main`
+    // for a dial standing beside it, and in an agent's message that message's markup.
     get #scope() {
-      return viewDocument(this) ?? this.ownerDocument.body;
+      const scope = authoredScope(this);
+      return (
+        viewDocument(this) ??
+        (scope === this.ownerDocument.body
+          ? scope.querySelector(":scope > main")
+          : scope)
+      );
     }
 
     setup() {
@@ -178,6 +186,7 @@ customElements.define(
     /** @param {string} name @param {{moving: boolean}} options */
     #apply(name, { moving }) {
       const scope = this.#scope;
+      if (!scope) return;
       const before = moving ? this.#positions(scope) : null;
       const change = () => {
         this.#restore();
@@ -310,6 +319,7 @@ customElements.define(
       const run = this.#runs.get(marker);
       if (!run) return;
       const scope = this.#scope;
+      if (!scope) return;
       const before = pressed ? this.#positions(scope) : null;
       for (const block of run.blocks) this.#unfoldBlock(block);
       this.#runs.delete(marker);

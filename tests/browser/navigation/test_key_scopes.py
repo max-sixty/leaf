@@ -681,7 +681,7 @@ def test_a_text_box_keeps_its_keys_from_the_widget_around_it(browser, serve):
             {id: 'test.widget',
              keys: ['a', 'Enter', 'Shift+ArrowLeft', 'Mod+z', 'Escape'],
              title: 'Work the widget', line: 'work widget',
-             run: (binding) => host.dataset.fired = binding},
+             runKey: (binding) => host.dataset.fired = binding},
           ] };
           commandsChanged(host);
           box.focus();
@@ -717,7 +717,7 @@ def test_radio_and_slider_keys_stay_with_the_control_inside_a_modal(browser, ser
           dialog.lfCommands = { title: 'Around native controls', rows: [{id: 'test.ancestor',
             keys: ['ArrowDown', 'Shift+ArrowRight', 'Home'],
             title: 'Work the widget', line: 'work widget',
-            run: (binding) => dialog.dataset.fired = binding}] };
+            runKey: (binding) => dialog.dataset.fired = binding}] };
           commandsChanged(dialog);
           dialog.showModal();
         }"""
@@ -1261,10 +1261,10 @@ def test_a_focused_scope_owns_its_declared_key_while_the_command_is_unavailable(
     )
     page.keyboard.press("?")
     reference = page.locator(".lf-command-reference")
-    expect(reference.get_by_role("button", name="Run outer F2")).to_have_attribute(
+    expect(reference.get_by_role("option", name="Run outer F2")).to_have_attribute(
         "data-lf-available", "false"
     )
-    expect(reference.get_by_role("button", name="Run outer F3")).to_have_attribute(
+    expect(reference.get_by_role("option", name="Run outer F3")).to_have_attribute(
         "data-lf-available", "true"
     )
     page.keyboard.press("Escape")
@@ -2038,7 +2038,7 @@ def test_a_command_button_owns_activation_and_the_native_form_default(browser, s
             routes: [{id: 'test.form-one', title: 'First', binding: '1',
               when: () => commandForm.firstRouteAvailable},
               {id: 'test.form-two', title: 'Second', binding: '2', control: two}],
-            run: binding => commandForm.routes.push(binding),
+            runKey: binding => commandForm.routes.push(binding),
           }] };
           commandsChanged(one.form);
           commandForm.invalidate();

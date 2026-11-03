@@ -5,6 +5,7 @@ import {
   commandDeclarationsWithin,
   commandRoutes,
   pageDocument,
+  inPage,
   upFrom,
   userScrollport,
   visualPartProblems,
@@ -92,7 +93,7 @@ export function invalidPaints() {
 // A widget this page uses whose module never defined its element. The page's own
 // occurrences are the population, because a page imports the modules its markup asks for
 // and no others (widget-loader.js) — asked of the whole declared vocabulary this reports
-// every tag the page simply does not contain. `document`, not `main`, so a widget frozen
+// every tag the page simply does not contain. `document`, not the page, so a widget frozen
 // into an agent's reply answers here too. That a declared module exists at all is a layer
 // fact and `package check` holds it; this is the page's half.
 /** @param {Readonly<Record<string, import("../../../browser/types/contract.js").WidgetDeclaration>>} declarations */
@@ -400,13 +401,14 @@ const overflowsVertically = (box) => box.scrollHeight > box.clientHeight + ROUND
 // page of worked examples, is read this way.
 /** @param {string[]} tags */
 export function heldScrollers(tags) {
-  const main = pageDocument();
-  if (!main) return [];
+  const page = pageDocument();
+  if (!page) return [];
   const own = new Set(tags);
   const found = [];
-  for (const tree of openRoots(main))
+  for (const tree of openRoots(page))
     for (const box of tree.querySelectorAll("*")) {
       if (
+        !inPage(box) ||
         !(box instanceof HTMLElement) ||
         box.matches(WRITTEN_IN) ||
         box.isContentEditable

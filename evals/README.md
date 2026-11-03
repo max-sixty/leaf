@@ -27,10 +27,10 @@ pnpm run eval:view
 - **Cases.** Each argument is a case name or glob. A bare task (`document`) runs
   its complete workflow; `task/context` (`document/resume`) runs one of its
   diagnostic contexts, declared under `variants`. No argument runs every task.
-- **Arms.** The working tree always runs. `--base` adds the merge base with `main`
-  as a second arm, and `--base REF` adds that ref; put cases before it. An arm
-  holds only the plugin payload, with no git history, so an agent can't look up
-  another version of Leaf through it. The hosted `website-replies` experiment
+- **Arms.** `head`, the working tree, always runs. `--base` adds the merge base
+  with `main` as a second arm, `base`, and `--base REF` adds that ref; put cases
+  before it. An arm holds only the plugin payload, with no git history, so an agent
+  can't look up another version of Leaf through it. The hosted `website-replies` experiment
   requires producer-owned hosted-turn diagnostics in each arm; an arm without
   them is refused before a native turn starts.
 - **Harnesses.** `--harness claude-code`, `codex` or `both`, with no default. Author
@@ -50,7 +50,7 @@ pnpm run eval:view
 ## Reading the results
 
 Promptfoo prints a table with a row per test and a column per provider: a harness on
-one arm (`claude-code/candidate`, `codex/base`), suffixed `/authoring` for short
+one arm (`claude-code/head`, `codex/base`), suffixed `/authoring` for short
 authoring cases or `/workflow` for complete tasks, and `claude-code/html/workflow`
 for the HTML control. A Codex authoring or workflow column
 reads `codex:app-server/...`: its session takes Leaf's App Server transport, and the
@@ -247,7 +247,7 @@ recorded labels.
   "title": "Hill-climbing journey",
   "arm_labels": {
     "codex:app-server/base/workflow": "Original guidance",
-    "codex:app-server/candidate/workflow": "Latest guidance"
+    "codex:app-server/head/workflow": "Latest guidance"
   },
   "latest": {
     "title": "Latest validation",

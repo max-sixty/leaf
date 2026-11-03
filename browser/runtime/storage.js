@@ -65,8 +65,9 @@ export function markViews(holder) {
   keeps(holder, PAGE_PAINT_ATTRIBUTE.viewMembers, declaration.members);
 }
 // The document a node stands in, which is the view member holding it, such as a tab's
-// panel, or else the page's main; null outside both. A widget that acts on the document
-// around it, such as a contents list or a depth dial, reads it here.
+// panel, or else the `main` holding it; null outside both. A widget that acts on the
+// document around it, such as a contents list or a depth dial, reads it here, and
+// chooses for itself where a node beside `main` or in a message looks.
 /** @param {Element} node @returns {HTMLElement | null} */
 export const viewDocument = (node) =>
   node.closest(`[${marks["x-views"].paint}] > *, main`);

@@ -125,8 +125,8 @@ reaches the tab by one of two routes, depending on which comes first:
 
 `uv run leaf-dev bench-latency --base --page corpus --transition revision` reads both;
 `results.json` gives each request's start and end beside the transition's, which
-says which route a run took, and `uv run leaf-dev profile corpus revision` gives
-the browser's tasks. Fifteen paired runs over three invocations at load 4–7 on 18
+says which route a run took, and `--profile` on the same command gives the
+browser's tasks. Fifteen paired runs over three invocations at load 4–7 on 18
 cores, on `e440ca191` against its merge base `f38882d51`:
 
 | Route | Merge base  | Head        | Head's parts                                                     |

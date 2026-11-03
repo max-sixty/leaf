@@ -1,8 +1,8 @@
-import { CARET_KEYS, HOLDS_WORD, J, OUTPUT, PAGE_PAINT_ATTRIBUTE, PRESS, RUNTIME_PAINT_ATTRIBUTE, SourcePairs, TEXT_BOX, TEXT_FIELD, W, WALK, Z, actionElement, actionTemplate, afterScript, aimedTop, alreadyShown, atScrollEnd, attachDeferredLoader, backgroundFlash, beginWalk, bindQueuedWork, blurFocused, byRenderedOrder, cancelRender, caretAtKey, chosenSince, clippedContents, clippedPlace, closestAcross, currentLocationIn, currentLocationNodes, currentLocationTouches, d, dataBody, deepFocus, describeFailure, drawn as drawn$2, eventSource, fitsWhole, flashDuration, focusDestination, focused, foldBlock, frameFor, generatedElement, growthAfterIsSeen, growthIsSeen, headerInset, holdCurrentLocation, holdFocus, iconElement, inChrome, inUi, inWindowChrome, inlineStyle, inputCount, isElement, isHTML, keeps, keepsHidden, keepsText, landedBox, landingBand, layoutChanged, layoutPx, listWalkPosition, measure, motion, motionPlays, move, moveScrollerBy, nativeLayerHolding, nextAnimation, nextFrame, nextRender, offer, offerAction, offerContentElement, offered, offeredAction, offeredActionElement, onCurrentLocation, onLetGo, onPress, onPressAway, onUserInput, outputProducer, pagePresented, pageScroller, passOn, patchRetains, patchTree, placeBox, placeHolder, placeKept, plainPress, pointerAt, presented, readCaret, recentPlaceInput, refuseOutput, registrations, renderedOrder, renderedParent, renderedUnder, renderingState, restorePointer, restrictUserIntent, retainUserIntent, roomPx, scrollBehavior, scrollChoices, scrollGoal, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollToEnd, scrollersOf, seenRect, selectsAll, setChildren, setRegistration, setScroll, shownBox, shownRect, shownWindow, showsContents, sizeObserver, skipped, skipper, slotTop, stopScroll, stuckBox, synNodes, syntax, syntaxLanguageNames, tabStore, takesLetters, tick, under, union, upFrom, updateSurface, userScrollport, visibleBand, watchArrivals, watchOwner, watchScrollEnds, whenNone, x } from "./bundle-portable.js";
+import { CARET_KEYS, HOLDS_WORD, J, OUTPUT, PAGE_PAINT_ATTRIBUTE, PRESS, RUNTIME_PAINT_ATTRIBUTE, SourcePairs, TEXT_BOX, TEXT_FIELD, W, WALK, Z, actionElement, actionTemplate, afterScript, aimedTop, alreadyShown, atScrollEnd, attachDeferredLoader, backgroundFlash, beginWalk, bindQueuedWork, blurFocused, byRenderedOrder, cancelRender, caretAtKey, chosenSince, clippedContents, clippedPlace, closestAcross, currentLocationIn, currentLocationNodes, currentLocationTouches, d, dataBody, deepFocus, describeFailure, drawn as drawn$2, eventSource, fitsWhole, flashDuration, focusDestination, focused, foldBlock, frameFor, generatedElement, growthAfterIsSeen, growthIsSeen, headerInset, holdCurrentLocation, holdFocus, iconElement, inChrome, inUi, inWindowChrome, inlineStyle, inputCount, isElement, isHTML, keeps, keepsHidden, keepsText, landedBox, landingBand, layoutPx, listWalkPosition, measure, motion, motionPlays, move, moveScrollerBy, nativeLayerHolding, nextAnimation, nextFrame, nextRender, offer, offerAction, offerContentElement, offered, offeredAction, offeredActionElement, onCurrentLocation, onLetGo, onPress, onPressAway, onUserInput, outputProducer, pagePresented, pageScroller, passOn, patchRetains, patchTree, placeBox, placeHolder, placeKept, plainPress, pointerAt, presented, readCaret, recentPlaceInput, refuseOutput, registrations, renderedOrder, renderedParent, renderedUnder, renderingState, restorePointer, restrictUserIntent, retainUserIntent, roomPx, scrollBehavior, scrollChoices, scrollGoal, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollToEnd, scrollersOf, seenRect, selectsAll, setChildren, setRegistration, setScroll, shownBox, shownRect, shownWindow, showsContents, sizeObserver, skipped, skipper, slotTop, stopScroll, stuckBox, synNodes, syntax, syntaxLanguageNames, tabStore, takesLetters, tick, under, union, upFrom, updateSurface, userScrollport, visibleBand, watchArrivals, watchOwner, watchScrollEnds, whenNone, x } from "./bundle-portable.js";
 import { COLLAPSE, LIVE_ROOT, PENDING, PRESENTATION_DOM, TEXT_BLOCK, adoptRegistry, agentName, agentSays, announce, applicationPresenter, applicationState, ariaShortcuts, attachApplicationPresentation, authoredBody, bindings, buttonCommand, checked, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, decisionFor, declarationFor, declareCommandReadiness, declaresCommandHandler, deleted, descriptionOf, editable, el, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, fragmentUrl, hasObligationSource, holdStatus, holdingError, html, isElementName, isReaction, keyed, keys, labelOf, lastMovedAt, layerRoot, leafSays, live as live$1, live$1 as live, loadShadowRules, marks, messageKey, nothing, notice, obligationValue, offlineDeferred, offlineInteractive, pageClaimed, pageRange, pageUrl, paintKeys, passErrorsAt, projectCommandScope, projectView, projectionOrigins, projectionRegionsPresented, pruneScopedElements, raiseError, readApplication, readPart, ref, registry, render as render$1, repaint, repeat, reveal, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, savedReadingSettled, seatRoot, selectEnds, selectionBackward, share, spell, tagsDeclaring, threadKey, threadNames, titleOf, tokenEntry, touchPresses as touchPresses$1, turns, voiced, watchCommandScopes, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented, word } from "./bundle-errors.js";
 import { LayerRefused, admitReading, admitResponse, randomId, reportPageError, requestJson, revealLayer, runtimeRootState, sameLayer, setRuntimeRootAttribute } from "./bundle-layer-client.js";
 import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableWord, addressedElements, ago, aimControl, aimTargetAt, anchorControl, anchorForPassage, anchorForRange, anchoringIsReady, chromeForeground, chromeRoot, claimReachStop, containingReadingRegionFor, datumAimTarget, datumLabel, deferredArrival, effectiveScroller, followingItsEnd, fragmentAddress, fragmentTarget, headerLevels, isAddressable, leadingTitle, livePoint, nameable, onReadingInput, pageReadingRegion, pressedElsewhere, projectedDatum, reachScrollers, readInsets, readingRegionFor, readingRegions, recentReadingRegion, regionScrollBehavior, regionsSettled, registerPageControl, releaseControl, releaseReachStop, resolveAnchor, revealAddressed, revealControl, scrollChainOf, scrollerFor, sectionLabel, sectionOf, settleDocumentLayout, shortAgo, shownRegionBounds, standInChrome, tabFromBlock, targetElement, targetPlace, targetSegments, unconcealedReadingRegions, visualPartLabel, watchReadingRegionTransitions, writeInsets } from "./bundle-content-layout.js";
-import { alignInlineText, alignText, authored, authoredScope, blockAt, elementById, excerptWords, fencePassageParts, labelWords, leafSurface, pageBlocks, pageDocument, pageQueryAll, pageText, pageWords, pointAt as pointAt$1, quoteFrom, quotedWords, rangeOf, readingFrom, renderRetired, segmentBlock, segmentsIn, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
+import { LEAF_SURFACE, alignInlineText, alignText, authored, authoredScope, blockAt, elementById, excerptWords, fencePassageParts, inPage, labelWords, leafSurface, pageBlocks, pageDocument, pageQueryAll, pageText, pageWords, pointAt, quoteFrom, quotedWords, rangeOf, readingFrom, renderRetired, segmentBlock, segmentsIn, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
 import { aborted, authoredStates, commitWidgetDescriptors, quoted, rememberAuthoredParents, stageAuthoredStates, stageWidgetDescriptors, widgetElement } from "./bundle-abort.js";
 import { isCanonicalMediaUrl, readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "./media.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
@@ -1828,14 +1828,13 @@ var MessageEditor = class {
 				title: "edit previous message",
 				when: () => {
 					const [start, end] = caretAtKey(this.input) ?? [this.input.selectionStart, this.input.selectionEnd];
-					return start === 0 && end === 0 && unchanged();
+					return start === 0 && end === 0 && unchanged() && Boolean(previous());
 				},
-				get run() {
+				run: () => {
 					const before = previous();
-					return before ? () => {
-						putAside();
-						before.openEdit();
-					} : void 0;
+					if (!before) return;
+					putAside();
+					before.openEdit();
 				}
 			}]
 		});
@@ -2245,6 +2244,7 @@ function copyThroughSelection(value, trigger) {
 	const field = document.createElement("textarea");
 	field.value = value;
 	field.style.cssText = "position: fixed; left: -9999px; top: 0";
+	field.dataset.lfRuntime = "";
 	(nativeLayerHolding(trigger) ?? document.body).append(field);
 	try {
 		focusDestination(field, "return");
@@ -2479,6 +2479,7 @@ const STACK = [
 ];
 const RUNG_LADDER = [
 	"selection",
+	"change card",
 	"margin options",
 	"floating panel",
 	"draw mode",
@@ -3812,7 +3813,7 @@ function createPassageSelection({ restore }) {
 const leftThePage = (sel = getSelection()) => drawn(sel) && !pageWords(sel.focusNode);
 const sameRun = (left, right) => left !== null && right !== null && segmentBlock(left.segment) === segmentBlock(right.segment) && left.segment.gen === right.segment.gen;
 const sentenceUnits = new Intl.Segmenter(void 0, { granularity: "sentence" });
-const edgeAt = (reading, i) => i >= 0 && i < reading.raw.length && pointAt$1(reading, i) === null;
+const edgeAt = (reading, i) => i >= 0 && i < reading.raw.length && pointAt(reading, i) === null;
 function rawOffset(positions, at) {
 	const offset = positions[at];
 	if (offset === void 0) throw new Error("A snapped passage boundary left its source reading");
@@ -3828,7 +3829,7 @@ function snapOut(reading, at, back) {
 		while (edgeAt(reading, a)) a--;
 		let b = i + 1;
 		while (edgeAt(reading, b)) b++;
-		return sameRun(pointAt$1(reading, a), pointAt$1(reading, b));
+		return sameRun(pointAt(reading, a), pointAt(reading, b));
 	};
 	const inRun = (i) => !/\s/.test(raw.charAt(i)) && joined(i);
 	let lo = at;
@@ -3850,7 +3851,7 @@ function snapOut(reading, at, back) {
 }
 function snapSentence(reading, lo, hi) {
 	const { raw, fences } = reading;
-	const point = (i) => pointAt$1(reading, i);
+	const point = (i) => pointAt(reading, i);
 	const first = point(lo);
 	const last = point(hi - 1);
 	if (!first || !last) return [lo, hi];
@@ -3933,7 +3934,7 @@ function snapSelection() {
 	[lo, hi] = snapSentence(reading, lo, hi);
 	if (lo === start && hi === stop) return;
 	const boundary = (offset, end) => {
-		const point = pointAt$1(reading, offset);
+		const point = pointAt(reading, offset);
 		if (!point) throw new Error("A snapped passage boundary no longer names page text");
 		return [point.node, point.offset + Number(end)];
 	};
@@ -6418,12 +6419,27 @@ function obligationPlace(item, items = readObligations().all) {
 	const owner = elementById(item.source.id);
 	const source = item.source.unit ? projectedDatum(owner, item.source.unit) : owner;
 	const context = elementById(item.prompt.target);
-	const shared = items.some((other) => other.id !== item.id && other.source.kind === "widget" && other.prompt.target === item.prompt.target);
+	const sharing = contextsOf(items).get(item.prompt.target);
+	const shared = Boolean(sharing && (sharing.size > 1 || sharing.size === 1 && !sharing.has(item.id)));
 	return {
 		source,
 		context,
 		node: item.source.unit || shared ? source : context
 	};
+}
+const contexts = /* @__PURE__ */ new WeakMap();
+function contextsOf(items) {
+	let held = contexts.get(items);
+	if (held) return held;
+	held = /* @__PURE__ */ new Map();
+	for (const { id, source, prompt } of items) {
+		if (source.kind !== "widget") continue;
+		const ids = held.get(prompt.target);
+		if (ids) ids.add(id);
+		else held.set(prompt.target, /* @__PURE__ */ new Set([id]));
+	}
+	contexts.set(items, held);
+	return held;
 }
 const subjectPlace = (subject) => subject.kind === "page" || subject.kind === "thread" ? null : elementById(subject.id);
 function obligationsIn(region, items = readObligations().all) {
@@ -6575,7 +6591,14 @@ function* blocksOnScreen(region = null, blocks = textBlocks(), band = null) {
 		];
 	}
 }
-const readingBlock = (region = null) => blocksOnScreen(region, textBlocks(region?.body)).next().value?.[0] ?? null;
+const readingBlock = (region = null) => {
+	let first = null;
+	for (const [block] of blocksOnScreen(region, textBlocks(region?.body))) {
+		first ??= block;
+		if (!stuckBox(block, region?.body ?? null)) return block;
+	}
+	return first;
+};
 function pageReading({ bodies }) {
 	for (let region = pageReadingRegion(); region; region = readingRegionFor(region.host.parentElement)) {
 		const block = readingBlock(region);
@@ -7386,6 +7409,7 @@ function captureCarry(root, authored) {
 	const held = /* @__PURE__ */ new Map();
 	const regionBodies = new Set(readingRegions().map(({ body }) => body));
 	for (const node of root.querySelectorAll("[id]")) {
+		if (!inPage(node)) continue;
 		const wrote = authored.querySelector(`#${CSS.escape(node.id)}`);
 		if (wrote?.localName !== node.localName) continue;
 		const record = {
@@ -7424,7 +7448,7 @@ function captureCarry(root, authored) {
 function restoreCarry(records, held = /* @__PURE__ */ new Map(), handoffFocus = (move) => move()) {
 	const positions = [];
 	for (const record of records ?? []) {
-		const arrived = document.getElementById(record.id);
+		const arrived = elementById(record.id, pageDocument());
 		if (!arrived || arrived === held.get(record.id)) continue;
 		if (arrived.localName !== record.name) continue;
 		if (record.open !== void 0 && isHTML(arrived, "details")) arrived.open = record.open;
@@ -8110,12 +8134,19 @@ const authoredMarkup = (root) => {
 	for (const member of root.querySelectorAll(`[${RUNTIME_PAINT_ATTRIBUTE.viewMember}]`)) member.removeAttribute("hidden");
 	for (const name of Object.values(RUNTIME_PAINT_ATTRIBUTE)) for (const element of root.querySelectorAll(`[${name}]`)) element.removeAttribute(name);
 	for (const preview of root.querySelectorAll("[data-lf-prepaint]")) preview.remove();
+	const body = root instanceof Document ? root.body : root instanceof Element && root.localName === "body" ? root : null;
+	if (body) {
+		for (const surface of body.querySelectorAll(LEAF_SURFACE)) surface.remove();
+		const attributes = authoredAttributes(body);
+		for (const { name } of [...body.attributes]) body.removeAttribute(name);
+		for (const [name, value] of attributes) body.setAttribute(name, value);
+	}
 	return root;
 };
 const pairSources = (source, live, pairs) => {
 	pairs.pair(source, live);
 	const held = source instanceof HTMLTemplateElement ? source.content : source;
-	const children = [...(live instanceof HTMLTemplateElement ? live.content : live).childNodes].filter((child) => !(child instanceof Element && child.matches("[data-lf-prepaint]")));
+	const children = [...(live instanceof HTMLTemplateElement ? live.content : live).childNodes].filter((child) => !(child instanceof Element && child.matches(`[data-lf-prepaint], ${".lf-chrome, [data-lf-runtime]"}`)));
 	for (const [at, child] of [...held.childNodes].entries()) {
 		const peer = children[at];
 		if (peer) pairSources(child, peer, pairs);
@@ -8123,9 +8154,9 @@ const pairSources = (source, live, pairs) => {
 	return pairs;
 };
 function captureInitialDocument() {
-	const main = pageDocument();
+	const body = pageDocument();
 	const inert = document.implementation.createHTMLDocument("");
-	const source = main ? authoredMarkup(inert.importNode(main, true)) : null;
+	const source = authoredMarkup(inert.importNode(body, true));
 	for (const input of source?.querySelectorAll("input") ?? []) {
 		if (![
 			"file",
@@ -8135,13 +8166,12 @@ function captureInitialDocument() {
 		input.checked = input.defaultChecked;
 	}
 	for (const textarea of source?.querySelectorAll("textarea") ?? []) textarea.value = textarea.defaultValue;
-	const pairs = main && source ? pairSources(source, main, new SourcePairs()) : new SourcePairs();
+	const pairs = pairSources(source, body, new SourcePairs());
 	for (const disclosure of source?.querySelectorAll("details") ?? []) {
 		const open = window.lfStorage.initialDisclosureOpen(pairs.require(disclosure));
 		if (open !== void 0) disclosure.toggleAttribute("open", open);
 	}
 	return {
-		authoredBodyAttributes: authoredAttributes(document.body),
 		authoredHeadNodes: new Set([...document.head.children].filter(versionedHeadNode)),
 		authoredHtmlAttributes: authoredAttributes(document.documentElement),
 		source,
@@ -8281,8 +8311,10 @@ const comparisonGeneration = Z(0);
 const diffPendingBase = Z(null);
 const diffMarked = /* @__PURE__ */ new Set();
 let diffChanges = [];
+const stoodAt = /* @__PURE__ */ new WeakMap();
+let cardOpen = null;
+const diffPaired = /* @__PURE__ */ new Map();
 const diffWordsOf = /* @__PURE__ */ new Map();
-const inlineOpen = /* @__PURE__ */ new Map();
 let diffRequest = 0;
 const comparisonTextNodes = (root, opaque = diffOpaqueSel()) => textNodesUnder(root, "wrote", (child) => child.matches(opaque));
 const comparisonWords = (root, opaque) => quoteFrom(comparisonTextNodes(root, opaque));
@@ -8388,7 +8420,7 @@ function paintedSource(source, widgets) {
 	const doc = document.implementation.createHTMLDocument("");
 	const root = doc.importNode(source, true);
 	const sourceOf = pairSources(root, source, new SourcePairs());
-	doc.body.replaceChildren(root);
+	doc.body.replaceWith(root);
 	formatDeclaredMarkdown(root);
 	paintBodies(doc, widgets);
 	placeCreated(doc, widgets);
@@ -8435,28 +8467,51 @@ const heldAnywhere = (before, after) => {
 	});
 };
 function changedSince(base, current = currentSource()) {
-	const before = diffBlocks(base.root).map(([, key]) => key);
+	const baseBlocks = diffBlocks(base.root);
+	const before = baseBlocks.map(([, key]) => key);
 	const after = diffBlocks(current.root);
 	const parts = diffArrays(before, after.map(([, key]) => key), { maxEditLength: MAX_BLOCK_EDITS }) ?? heldAnywhere(before, after);
 	const removed = /* @__PURE__ */ new Map();
 	for (const part of parts) if (part.removed) for (const key of part.value) removed.set(key, (removed.get(key) ?? 0) + 1);
 	const changed = /* @__PURE__ */ new Set();
 	const kept = /* @__PURE__ */ new Set();
+	const moved = /* @__PURE__ */ new Map();
+	const removedAt = /* @__PURE__ */ new Map();
+	let pending = [];
 	let next = 0;
+	let gone = 0;
 	for (const part of parts) {
-		if (part.removed) continue;
+		if (part.removed) {
+			pending.push(...baseBlocks.slice(gone, gone += part.value.length));
+			continue;
+		}
+		if (!part.added) gone += part.value.length;
 		const blocks = after.slice(next, next += part.value.length).map(([block]) => standingFor(block, current));
 		part.value.forEach((key, i) => {
 			const block = blocks[i];
 			if (!block) return;
 			if (!part.added) kept.add(block);
-			else if (removed.get(key)) removed.set(key, (removed.get(key) ?? 0) - 1);
-			else changed.add(block);
+			else if (removed.get(key)) {
+				removed.set(key, (removed.get(key) ?? 0) - 1);
+				moved.set(key, (moved.get(key) ?? 0) + 1);
+				return;
+			} else changed.add(block);
+			if (pending.length) removedAt.set(block, [...removedAt.get(block) ?? [], ...pending]);
+			pending = [];
 		});
 	}
+	const takenOut = (list) => list.flatMap(([block, key]) => {
+		const left = moved.get(key) ?? 0;
+		if (!left) return [block];
+		moved.set(key, left - 1);
+		return [];
+	});
 	return {
 		changed,
-		kept
+		kept,
+		removedAt: new Map([...removedAt].map(([block, list]) => [block, takenOut(list)])),
+		trailing: takenOut(pending),
+		order: new Map(baseBlocks.map(([block], i) => [block, i]))
 	};
 }
 function viewOf(block, controls) {
@@ -8469,16 +8524,56 @@ function viewOf(block, controls) {
 	}
 	return null;
 }
-function changeRuns(marked, kept) {
+function changeRuns(marked, kept, removedAt, trailing) {
 	const runs = [];
 	let run = null;
 	const controls = /* @__PURE__ */ new Map();
 	for (const control of document.querySelectorAll("[aria-expanded][aria-controls]")) for (const id of (control.getAttribute("aria-controls") ?? "").split(/\s+/)) controls.set(id, control);
-	for (const node of byRenderedOrder([.../* @__PURE__ */ new Set([...marked, ...kept])], (n) => n)) if (marked.has(node)) {
-		if (run && viewOf(node, controls) === viewOf(run[0], controls)) run.push(node);
-		else runs.push(run = [node]);
-	} else if (!run?.some((block) => under(node, block))) run = null;
-	return runs.map((each) => Object.freeze(each));
+	const ordered = byRenderedOrder([.../* @__PURE__ */ new Set([...marked, ...kept])], (n) => n);
+	for (const node of ordered) {
+		const gone = removedAt.get(node) ?? [];
+		const joins = run && viewOf(node, controls) === viewOf(run.at, controls);
+		if (marked.has(node)) {
+			if (run && joins) {
+				run.blocks.push(node);
+				run.removed.push(...gone);
+			} else runs.push(run = {
+				blocks: [node],
+				removed: [...gone],
+				at: node,
+				after: false
+			});
+			continue;
+		}
+		if (gone.length) {
+			if (run && joins) run.removed.push(...gone);
+			else runs.push({
+				blocks: [],
+				removed: [...gone],
+				at: node,
+				after: false
+			});
+		}
+		if (!run?.blocks.some((block) => under(node, block))) run = null;
+	}
+	const last = ordered.at(-1);
+	if (trailing.length && last) {
+		if (run) run.removed.push(...trailing);
+		else runs.push({
+			blocks: [],
+			removed: [...trailing],
+			at: last,
+			after: true
+		});
+	}
+	return runs.map((each) => {
+		const ids = new Set(each.blocks.map((block) => block.id).filter(Boolean));
+		return Object.freeze({
+			...each,
+			blocks: Object.freeze(each.blocks),
+			removed: Object.freeze(each.removed.filter(({ id }) => !id || !ids.has(id)))
+		});
+	});
 }
 function servedElements() {
 	const served = /* @__PURE__ */ new Set();
@@ -8512,7 +8607,7 @@ function applyDiff(doc, baseAuthored, baseRevision, baseReading) {
 	if (!source) throw new Error("A comparison revision must contain its authored document");
 	const base = paintedSource(source, baseWidgets);
 	const current = currentSource();
-	const { changed, kept } = changedSince(base, current);
+	const { changed, kept, removedAt, trailing, order } = changedSince(base, current);
 	for (const block of changed) mark(block);
 	for (const [id, now] of readApplication().effective.widgets) {
 		const before = baseWidgets.get(id);
@@ -8544,6 +8639,8 @@ function applyDiff(doc, baseAuthored, baseRevision, baseReading) {
 	}
 	const opaque = diffOpaqueSel();
 	for (const block of diffMarked) {
+		const paired = block.id ? base.doc.getElementById(block.id) : null;
+		if (paired) diffPaired.set(block, order.get(paired) ?? null);
 		if (!block.matches("[id]:not(.lf-ui):not([id^=\"lf-\"])") || block.closest(opaque)) continue;
 		const [was, is] = [base, current].map(({ doc }) => doc.getElementById(block.id));
 		diffWordsOf.set(block, {
@@ -8551,134 +8648,128 @@ function applyDiff(doc, baseAuthored, baseRevision, baseReading) {
 			is: is ? comparisonWords(is, opaque) : null
 		});
 	}
-	diffChanges = changeRuns(diffMarked, kept);
+	const takenOut = (blocks) => blocks.map((block) => {
+		const record = Object.freeze({
+			id: block.id,
+			tag: block.localName,
+			word: addressableWord(block),
+			words: block.matches(opaque) ? "" : comparisonWords(block, opaque)
+		});
+		stoodAt.set(record, order.get(block));
+		return record;
+	});
+	diffChanges = changeRuns(diffMarked, kept, new Map([...removedAt].map(([block, gone]) => [block, takenOut(gone)])), takenOut(trailing));
 	return diffChanges.length;
 }
-const inlineId = (target) => `lf-version-inline-${target.id}`;
-const authoredReading = (target) => {
-	const segments = comparisonTextNodes(target);
-	return {
-		...readingFrom(segments),
-		segments
-	};
+function blockWords(target) {
+	const words = diffWordsOf.get(target);
+	return words && words.is === comparisonWords(target) ? words : null;
+}
+const plural = (word, n) => `${n} ${n === 1 ? word : `${word}s`}`;
+const nounOf = (words) => {
+	const [first = "block", ...rest] = words.map((word) => word === "code" ? "code block" : word);
+	return rest.every((word) => word === first) ? first : "block";
 };
-function pointAt(target, reading, offset) {
-	if (!reading.units.length) return {
-		node: target,
-		offset: 0
-	};
-	const unit = offset === reading.units.length ? reading.units.at(-1) : reading.units[offset];
-	if (!unit) throw new Error("An inline edit named a position outside its passage");
-	return offset === reading.units.length ? unit.end : unit.start;
-}
-function insertAt(target, reading, offset, node) {
-	const point = pointAt(target, reading, offset);
-	if (point.node instanceof Element) {
-		move(point.node, node, point.node.childNodes[point.offset] ?? null);
-		return;
-	}
-	const text = point.node;
-	const parent = text.parentNode;
-	if (!parent) throw new Error("An inline edit requires its passage to remain in a tree");
-	if (point.offset === 0) move(parent, node, text);
-	else if (point.offset === text.data.length) move(parent, node, text.nextSibling);
-	else move(parent, node, text.splitText(point.offset));
-}
-function rangesAt(reading, start, end) {
-	const first = reading.units[start];
-	const last = reading.units[end - 1];
-	if (!first || !last) return [];
-	return reading.segments.slice(reading.segments.findIndex(({ node }) => node === first.start.node), reading.segments.findIndex(({ node }) => node === last.end.node) + 1).map((segment) => ({
-		...segment,
-		start: segment.node === first.start.node ? first.start.offset : segment.start,
-		end: segment.node === last.end.node ? last.end.offset : segment.end
-	})).filter(({ start, end }) => end > start).map((segment) => rangeOf([segment]));
-}
-function paintInlineInsertions() {
-	const ranges = [...inlineOpen.values()].flatMap((entry) => entry.ranges);
-	if (ranges.length) CSS.highlights.set("lf-version-insert", new Highlight(...ranges));
-	else CSS.highlights.delete("lf-version-insert");
-}
-function openInlineComparison(target, base, words) {
-	const before = words.was;
-	const reading = authoredReading(target);
-	const current = currentVersionToken();
-	const label = el("span", "lf-ui lf-quiet lf-version-inline-label", before === null ? `New since ${base.name}` : `${base.name} → ${current}`);
-	label.id = inlineId(target);
-	label.setAttribute("aria-label", before === null ? `New since ${base.name}` : `Inline comparison from ${base.name} to ${current}`);
-	const nodes = [label];
-	const additions = [];
-	const insertions = [{
-		offset: 0,
-		node: label
-	}];
-	let afterOffset = 0;
-	for (const run of before === null ? [] : alignInlineText(before, reading.text)) if (run.kind === "delete") {
-		const dropped = el("span", "lf-ui lf-version-inline-deletion");
-		dropped.append(el("del", "", run.text));
-		nodes.push(dropped);
-		insertions.push({
-			offset: afterOffset,
-			node: dropped
-		});
-	} else {
-		const length = [...run.text].length;
-		if (run.kind === "insert") additions.push([afterOffset, afterOffset + length]);
-		afterOffset += length;
-	}
-	insertions.sort((left, right) => right.offset - left.offset).forEach(({ offset, node }) => insertAt(target, reading, offset, node));
-	const currentReading = authoredReading(target);
-	const ranges = additions.flatMap(([start, end]) => rangesAt(currentReading, start, end));
-	inlineOpen.set(target, {
-		nodes,
-		ranges
+function changeAccount({ blocks, removed }) {
+	const added = blocks.filter((block) => !diffPaired.has(block));
+	const edited = blocks.filter((block) => {
+		const words = diffPaired.has(block) && blockWords(block);
+		return words && words.was !== words.is;
 	});
-	paintInlineInsertions();
-	layoutChanged(target);
+	const changed = blocks.filter((block) => diffPaired.has(block) && !edited.includes(block));
+	const out = removed.map(({ word }) => word);
+	const into = added.map(addressableWord);
+	const parts = [];
+	if (edited.length) parts.push([
+		edited.length,
+		nounOf(edited.map(addressableWord)),
+		"edited"
+	]);
+	if (out.length && into.length) parts.push([
+		out.length,
+		nounOf([...out, ...into]),
+		`replaced by ${into.length}`
+	]);
+	else if (out.length) parts.push([
+		out.length,
+		nounOf(out),
+		"removed"
+	]);
+	else if (into.length) parts.push([
+		into.length,
+		nounOf(into),
+		"added"
+	]);
+	if (changed.length) parts.push([
+		changed.length,
+		nounOf(changed.map(addressableWord)),
+		"changed"
+	]);
+	return parts.map(([n, noun, verb], i) => parts[i - 1]?.[1] === noun ? `${n} ${verb}` : `${plural(noun, n)} ${verb}`).join(", ");
 }
-function closeInlineComparison(target) {
-	const entry = inlineOpen.get(target);
-	inlineOpen.delete(target);
-	for (const node of entry?.nodes ?? []) node.remove();
-	paintInlineInsertions();
-	layoutChanged(target);
+const shows = ({ blocks, removed }) => removed.length > 0 || blocks.some((block) => {
+	const words = blockWords(block);
+	return words && words.was !== words.is;
+});
+const kindOf = (tag) => /^h[1-6]$/.test(tag) ? "heading" : tag === "pre" ? "code" : "text";
+function redlineOf(block) {
+	const kind = kindOf(block.localName);
+	const words = blockWords(block);
+	if (words?.was != null && words.is != null && words.was !== words.is) return {
+		kind,
+		runs: alignInlineText(words.was, words.is)
+	};
+	const text = words?.is ?? (comparisonWords(block) || addressableWord(block));
+	return {
+		kind,
+		runs: [{
+			kind: diffPaired.has(block) ? "same" : "insert",
+			text
+		}]
+	};
 }
-function inlineReading(target) {
+function changeRedline(change) {
 	const base = diffOn.value ? diffBase.value : null;
-	const words = base ? diffWordsOf.get(target) : void 0;
-	return base && words && words.was !== words.is && words.is === comparisonWords(target) ? {
-		base,
-		words
-	} : null;
+	if (!base || !shows(change)) return null;
+	const placeOf = (record) => change.blocks.findLastIndex((block) => (diffPaired.get(block) ?? Infinity) < stoodAt.get(record)) + 1;
+	const struck = (place) => change.removed.filter((record) => placeOf(record) === place).map(({ tag, word, words }) => ({
+		kind: kindOf(tag),
+		runs: [{
+			kind: "delete",
+			text: words || word
+		}]
+	}));
+	const blocks = [...change.blocks.flatMap((block, place) => [...struck(place), redlineOf(block)]), ...struck(change.blocks.length)];
+	return {
+		account: changeAccount(change),
+		versions: `${base.name} → ${currentVersionToken()}`,
+		blocks
+	};
 }
-const inlineComparison = (change) => {
+const changeCard = (change) => {
+	comparisonGeneration.value;
 	const base = diffOn.value ? diffBase.value : null;
-	const blocks = change.filter((block) => inlineReading(block));
-	return base && blocks.length ? {
-		id: blocks.map(inlineId).join(" "),
-		open: blocks.every((block) => inlineOpen.has(block)),
+	return base && shows(change) ? {
+		id: CHANGE_CARD,
+		open: cardOpen === change,
 		offer: `${base.name} → ${currentVersionToken()}`
 	} : null;
 };
-function toggleInlineComparison(change) {
-	const readings = change.flatMap((block) => {
-		const reading = inlineReading(block);
-		return reading ? [{
-			block,
-			...reading
-		}] : [];
-	});
-	const [first] = readings;
-	if (!first) return null;
-	const opening = !readings.every(({ block }) => inlineOpen.has(block));
-	for (const { block, base, words } of readings) if (inlineOpen.has(block) !== opening) {
-		if (opening) openInlineComparison(block, base, words);
-		else closeInlineComparison(block);
-	}
+const openedChange = () => {
+	comparisonGeneration.value;
+	return diffOn.value ? cardOpen : null;
+};
+const CHANGE_CARD = "lf-change-card";
+function toggleChangeCard(change) {
+	if (!changeCard(change)) return null;
+	cardOpen = cardOpen === change ? null : change;
 	tick(comparisonGeneration);
-	const { name } = first.base;
-	if (!opening) return `inline diff from ${name} hidden`;
-	return readings.some(({ words }) => words.was !== null) ? `showing an inline diff from ${name}` : `${name} had nothing here`;
+	return cardOpen ? "showing the change" : "change hidden";
+}
+function closeChangeCard() {
+	if (!cardOpen) return;
+	cardOpen = null;
+	tick(comparisonGeneration);
 }
 const comparable = (revision) => runtime.currentRevision !== null && revision < runtime.currentRevision;
 function setDiff(on, base = null, pendingBase = null) {
@@ -8688,8 +8779,9 @@ function setDiff(on, base = null, pendingBase = null) {
 		if (on) diffBase.value = base;
 		if (!on) {
 			diffRequest++;
-			for (const target of [...inlineOpen.keys()]) closeInlineComparison(target);
+			cardOpen = null;
 			diffWordsOf.clear();
+			diffPaired.clear();
 			for (const b of diffMarked) b.classList.remove("lf-ins-block");
 			diffMarked.clear();
 			diffChanges = [];
@@ -8742,9 +8834,16 @@ function comparisonChanges(owner = null) {
 	comparisonGeneration.value;
 	const changes = diffOn.value ? diffChanges : [];
 	if (!owner) return changes;
+	const inside = (node) => node !== owner && under(node, owner);
 	return changes.flatMap((change) => {
-		const [first, ...rest] = change.filter((block) => block !== owner && under(block, owner));
-		return first ? [Object.freeze([first, ...rest])] : [];
+		if (!change.blocks.length) return inside(change.at) ? [change] : [];
+		const blocks = change.blocks.filter(inside);
+		const [at] = blocks;
+		return at ? [Object.freeze({
+			...change,
+			blocks: Object.freeze(blocks),
+			at
+		})] : [];
 	});
 }
 async function authoredDocument(url) {
@@ -8765,7 +8864,7 @@ function revisionDocument(revision) {
 	return arriving;
 }
 function createVersionController({ initialDocument, compositionInput, openThread, refreshThread, midComposition, hasPending, readAndApply, syncLayout, captureRetainedCurrentLocation, restoreRetainedCurrentLocation, captureObligationCurrentLocation, restoreObligationCurrentLocation, versions }) {
-	let { authoredBodyAttributes, authoredHeadNodes, authoredHtmlAttributes, source: authoredSource } = initialDocument;
+	let { authoredHeadNodes, authoredHtmlAttributes, source: authoredSource } = initialDocument;
 	const sourcePairs = initialDocument.pairs;
 	versionSource = () => ({
 		source: authoredSource,
@@ -8891,7 +8990,7 @@ function createVersionController({ initialDocument, compositionInput, openThread
 		const arrivingRoot = layerRoot(doc);
 		return {
 			pairs: sourcePairs,
-			contains: under,
+			contains: (node, owner) => owner === pageDocument() ? inPage(node) : under(node, owner),
 			declared: upgraded,
 			body: authoredBody,
 			reaches: (before, after) => reachesMembers(before, after, arrivingRoot),
@@ -8946,7 +9045,7 @@ function createVersionController({ initialDocument, compositionInput, openThread
 		const rules = patchRules(doc);
 		revisionDocuments.delete(target.revision);
 		const isAuthored = authored(live);
-		const generated = (node) => (node.nodeType === Node.ELEMENT_NODE || node.parentElement !== null) && !isAuthored(node);
+		const generated = (node) => (node.nodeType === Node.ELEMENT_NODE || node.parentElement !== null) && (Boolean(leafSurface(node)) || !isAuthored(node));
 		const arrived = [];
 		const arrivedDescriptors = /* @__PURE__ */ new Map();
 		const prior = readApplication().document;
@@ -8983,7 +9082,6 @@ function createVersionController({ initialDocument, compositionInput, openThread
 		const { restoreCarryScroll } = await patchDocument(live, () => {
 			authoredHtmlAttributes = replaceAuthoredAttributes(document.documentElement, doc.documentElement, authoredHtmlAttributes);
 			keeps(document.documentElement, "data-lf-layout", doc.documentElement.getAttribute("data-lf-layout"));
-			authoredBodyAttributes = replaceAuthoredAttributes(document.body, doc.body, authoredBodyAttributes);
 			activateHead(doc, target);
 			sourcePairs.set(source, live);
 			patchTree(outgoing, source, {
@@ -9234,7 +9332,7 @@ function createVersionController({ initialDocument, compositionInput, openThread
 		for (const box of boxes) {
 			const region = regionForBox(box);
 			if (region === void 0 || held(box)) continue;
-			if (region && !(under(region.host, pageDocument()) && shownRegionBounds(region))) continue;
+			if (region && !(inPage(region.host) && shownRegionBounds(region))) continue;
 			const before = places.get(region ? region.id : PAGE);
 			const acted = currentLocation || readerChose(box, before?.choices ?? 0) || inputSince(box, before?.inputs ?? 0);
 			if (before && !acted) continue;
@@ -9498,7 +9596,7 @@ function createVersionController({ initialDocument, compositionInput, openThread
 		for (const type of ["popstate", "hashchange"]) addEventListener(type, releaseHolds);
 		const recordCurrentLocation = () => {
 			const at = focused();
-			if (!at || !under(at, pageDocument())) return;
+			if (!at || !inPage(at)) return;
 			const box = boxOf(at);
 			recordPlaces([box], { currentLocation: true });
 			nextRender(() => recordPlaces([box], { currentLocation: true }));
@@ -9814,4 +9912,4 @@ async function readDeferred(manifest, key) {
 }
 
 //#endregion
-export { DESIGN_MODE_KEY, ELEMENTS, HeldNews, HeldReading, MessageView, NOT_ANSWERED, OBLIGATION_CONTROL, ON_CARD, PAGE_DRAFT, PAGE_SCOPE, RESOLVED, SAYS_IN, SAY_BOX, THREAD, ThreadView, Transcript, acceptData, allButCommandReference, allThreads, anchorLabel, answeredInWords, arrivalOf, authoredHolder, awaitsData, beginThreadSeats, bindsInput, blocksOnScreen, bringBackSurfaceOf, captureDraftEditing, capturePlace, carryingThreadPlace, claimSeatReplies, claimTraversals, claimed$1 as claimed, clearDraft, commandSteps, commitThreadSeats, comparisonBase, comparisonChanges, completeReadingReturn, copyBlock, copyControl, copyTrigger, createAnchorTravel, createPassageSelection, createProjectionPresentation, createReplyView, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, dataReader, declareOffFlowSurface, declareSide, declareThreadParts, designName, dismissReply, dismissReplyAt, draftContexts, draftHasContent, draftStore, drawnThreadId, externalMark, focusScrolledAway, focusThread, focusedThreadTarget, followBoxGrowth, gesturedOn, heldGrowth, heldObligation, heldOut, heldPagePlace, heldThread, highlightBlocks, holdPagePlace, holdReplyCompositions, holdThreadPlace, initializeServedDocument, inlineComparison, inlineMarkdownFragment, isBlockPlacement, isExternalPageLink, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, keepThreadLanding, keepView, landingPlace, leftThePage, loadDraft, loadMarkdown, loadMessageMarkdown, markdownReady, markdownSourceOffset, markdownWords, messageHolding, messageReading, messageText, mirrorDraft, mountFirstMessage, mountHistory, newsCount, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, observeOutputs, onReadingInterrupted, openMessageEditIn, openingView, opensElsewhere, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, paintMarkdown, placeKeeper, placeNode, placeOf, placePageThreads, placedMarkdownTokens, prepareAuthoredMessage, prepareDocument, progressFace, pushEntry, quoteReading, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, readingReturn, registerWritingDestination, releaseAuthoredUnder, releaseReplies, rememberWriting, renderMarginThread, renderMarkdown, renderSeats, renderSurfaces, replaceEntry, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, replyIsEditing, replyThreadKey, restorePlace, retainThreadSeats, returnPlace, revealHeld, rowWalk, saveDraft, scrollThreadIntoView, sectionsInView, selectionAnchor, sendDraft, sendLanding, sendMessage, servedElements, settleAcceptedDrafts, settleThread, shallowSigs, showHeld, showHeldThread, showReturnTurn, snapSelection, stances, stepFrom, storedDraft, strongestWorkflow, subjectPlace, suppliedSnapshot, surfaceFocusTarget, takeInitialDocument, tellDraft, textEntryScopes, threadAttention, threadDraft, threadFocusDestination, threadHeading, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, threadSummary, threadTodos, titlePending, todoWord, toggleInlineComparison, touchPresses, transferDraft, universalCommandReference, upgradeWidgets, userChoice, userStore, versionPicker, versionsReading, viewDocument, viewMembers, walkOrigin, watchDraft, watchDrafts, watchThreadSurfaces, whereDraft, wholeThread, workflowStep, workflowWord };
+export { CHANGE_CARD, DESIGN_MODE_KEY, ELEMENTS, HeldNews, HeldReading, MessageView, NOT_ANSWERED, OBLIGATION_CONTROL, ON_CARD, PAGE_DRAFT, PAGE_SCOPE, RESOLVED, SAYS_IN, SAY_BOX, THREAD, ThreadView, Transcript, acceptData, allButCommandReference, allThreads, anchorLabel, answeredInWords, arrivalOf, authoredHolder, awaitsData, beginThreadSeats, bindsInput, blocksOnScreen, bringBackSurfaceOf, captureDraftEditing, capturePlace, carryingThreadPlace, changeAccount, changeCard, changeRedline, claimSeatReplies, claimTraversals, claimed$1 as claimed, clearDraft, closeChangeCard, commandSteps, commitThreadSeats, comparisonBase, comparisonChanges, completeReadingReturn, copyBlock, copyControl, copyTrigger, createAnchorTravel, createPassageSelection, createProjectionPresentation, createReplyView, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, dataReader, declareOffFlowSurface, declareSide, declareThreadParts, designName, dismissReply, dismissReplyAt, draftContexts, draftHasContent, draftStore, drawnThreadId, externalMark, focusScrolledAway, focusThread, focusedThreadTarget, followBoxGrowth, gesturedOn, heldGrowth, heldObligation, heldOut, heldPagePlace, heldThread, highlightBlocks, holdPagePlace, holdReplyCompositions, holdThreadPlace, initializeServedDocument, inlineMarkdownFragment, isBlockPlacement, isExternalPageLink, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, keepThreadLanding, keepView, landingPlace, leftThePage, loadDraft, loadMarkdown, loadMessageMarkdown, markdownReady, markdownSourceOffset, markdownWords, messageHolding, messageReading, messageText, mirrorDraft, mountFirstMessage, mountHistory, newsCount, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, observeOutputs, onReadingInterrupted, openMessageEditIn, openedChange, openingView, opensElsewhere, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, paintMarkdown, placeKeeper, placeNode, placeOf, placePageThreads, placedMarkdownTokens, prepareAuthoredMessage, prepareDocument, progressFace, pushEntry, quoteReading, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, readingReturn, registerWritingDestination, releaseAuthoredUnder, releaseReplies, rememberWriting, renderMarginThread, renderMarkdown, renderSeats, renderSurfaces, replaceEntry, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, replyIsEditing, replyThreadKey, restorePlace, retainThreadSeats, returnPlace, revealHeld, rowWalk, saveDraft, scrollThreadIntoView, sectionsInView, selectionAnchor, sendDraft, sendLanding, sendMessage, servedElements, settleAcceptedDrafts, settleThread, shallowSigs, showHeld, showHeldThread, showReturnTurn, snapSelection, stances, stepFrom, storedDraft, strongestWorkflow, subjectPlace, suppliedSnapshot, surfaceFocusTarget, takeInitialDocument, tellDraft, textEntryScopes, threadAttention, threadDraft, threadFocusDestination, threadHeading, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, threadSummary, threadTodos, titlePending, todoWord, toggleChangeCard, touchPresses, transferDraft, universalCommandReference, upgradeWidgets, userChoice, userStore, versionPicker, versionsReading, viewDocument, viewMembers, walkOrigin, watchDraft, watchDrafts, watchThreadSurfaces, whereDraft, wholeThread, workflowStep, workflowWord };

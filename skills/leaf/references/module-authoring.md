@@ -247,7 +247,7 @@ native disclosures, links and authored content need no such wait.
   default is `box`), so Layouts can seat a member's sidebar in the page margin.
   A widget that acts on the document around it, as a contents list or a depth dial
   does, reads it with `viewDocument(node)`: the view member holding the node, else the
-  page's `main`, else null.
+  `main` holding it, else null.
 
 ## Rendering
 

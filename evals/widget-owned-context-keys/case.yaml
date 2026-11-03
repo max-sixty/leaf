@@ -1,5 +1,5 @@
 # User-requested widget digits exposed Ask-owned allocation and duplicated hints.
-# One run on each host separated baseline synthetic clicks from candidate direct
+# One run on each host separated baseline synthetic clicks from head direct
 # callbacks and removal of separate handlers; this is narrow two-host evidence.
 description: widget-owned-context-keys
 metadata:

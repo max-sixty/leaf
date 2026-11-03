@@ -259,7 +259,7 @@ lf-event::before {
  * reduced-motion guards suppress this transition when the page must appear at rest. */
 @media screen {
   .lf-timeline-playhead-line {
-    transition: left 160ms ease;
+    transition: left var(--lf-motion-mark) ease;
   }
 }
 

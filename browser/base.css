@@ -1265,8 +1265,8 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
  * stands flush with the scrollport of the workspace body holding it, so that ring lost
  * its right and bottom sides to the scrollport's edge and ran over the header's rule.
  * The body's ring is drawn inset instead, on a later box sharing its grid cell, as the
- * Threads list draws its own (chrome.css, .lf-threads-frame): an outline on the body
- * itself paints under whatever positioned content scrolls across its edges. */
+ * floating panel draws its view's (floating-panel.css, `.lf-fp-stage`): an outline on
+ * the body itself paints under whatever positioned content scrolls across its edges. */
 [data-lf-reading-role="pane"] > :not(header, footer)[data-lf-focus-visible] {
   outline: none;
 }

@@ -53,10 +53,11 @@
  * Travel into a hidden panel briefly highlights its selected name, without moving
  * focus from the destination or delaying it. Reduced motion keeps the selected state
  * without the highlight; switching again or disconnecting cancels an unfinished cue.
- * Adjacent pointer choices along a horizontal strip move only the selection underline
- * for 160ms. Content and accessible selection change at once; keyboard and vertical
- * navigation stay immediate. A reversed choice continues from the line's painted place,
- * and scrolling or resizing the strip ends the cue at its selected tab.
+ * Adjacent pointer choices along a horizontal strip move only the selection underline,
+ * in a mark's time (`--lf-motion-mark`). Content and accessible selection change at
+ * once; keyboard and vertical navigation stay immediate. A reversed choice continues
+ * from the line's painted place, and scrolling or resizing the strip ends the cue at
+ * its selected tab.
  * Every tab's accessible name is its label; what else the tab shows describes it. A
  * side list stands each run of neighbouring panels that share a `group` under a label
  * of that group, which each of their tabs' descriptions names. A side list's row adds

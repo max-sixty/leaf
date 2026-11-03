@@ -14,6 +14,7 @@ from pathlib import Path
 
 from .data import data_manifest, deferred_records, source_file
 from .projection import (
+    AuthoredOrders,
     StateProjection,
     attribute_marks,
     folded_positions,
@@ -210,8 +211,9 @@ def constructed_content(
 
     # Each container lists its units in the fold's order, in the slots its authored
     # units held and after them.
+    orders = AuthoredOrders(members, registry)
     for (widget, verb), record in placed.items():
-        order = folded_positions(widget, verb, record, members, registry, projection)
+        order = folded_positions(widget, verb, record, orders, projection)
         units = {unit for listed in order.values() for unit in listed}
         for container, listed in order.items():
             content = by_id[container]["content"]

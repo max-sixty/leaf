@@ -29,7 +29,7 @@ from leaf.obligations import (
 from leaf.page_view import CandidatePageView, PageView
 from leaf.plans import plan_error
 from leaf.projection import (
-    authored_positions,
+    AuthoredOrders,
     generated_children,
     projected_action_holders,
     record_members,
@@ -436,9 +436,9 @@ def stale_move_error(view, event: dict, spec: dict, reading, readings):
     owner, container = event["widget"], event["detail"]["value"]
     registry = readings.registry
     now = readings.page(newest)
-    if authored_positions(owner, record, reading.document.by_id, registry).get(
+    if AuthoredOrders(reading.document.by_id, registry).of(owner, record).get(
         container
-    ) == authored_positions(owner, record, now.document.by_id, registry).get(container):
+    ) == AuthoredOrders(now.document.by_id, registry).of(owner, record).get(container):
         return None
     return Finding(
         "stale-move",

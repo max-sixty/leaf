@@ -170,8 +170,9 @@ class StateProjection:
 
     A reading that asks about each widget in turn, such as the obligation
     inventory, reads that widget's coordinates through an index built once per
-    projection (`actions_by_owner`, `desired_by_unit`, `classified_by_unit`), so
-    its cost grows with the page rather than with the page times its widgets."""
+    projection (`actions_by_owner`, `desired_by_owner`, `desired_by_unit`,
+    `classified_by_unit`), so its cost grows with the page rather than with the page
+    times its widgets."""
 
     actions: dict
     reports: dict
@@ -188,6 +189,15 @@ class StateProjection:
         index = {}
         for coordinate, held in self.actions.items():
             index.setdefault(coordinate[0], {})[coordinate] = held
+        return index
+
+    @cached_property
+    def desired_by_owner(self) -> dict[str, list]:
+        """Owner id → each of its coordinates in `desired` with the state standing
+        there, `(coordinate, entry)`, in `desired`'s order."""
+        index = {}
+        for coordinate, entry in self.desired.items():
+            index.setdefault(coordinate[0], []).append((coordinate, entry))
         return index
 
     @cached_property
@@ -357,13 +367,17 @@ def state_projection(
     }
     desired = {coordinate: entries[-1] for coordinate, entries in reports.items()}
     desired.update(actions)
-    orders = {}
-    absorbed = frozenset(
-        event["id"]
+    moves = [
+        (event, spec)
         for _coordinate, (event, spec) in classified.values()
-        if event["kind"] == "action"
-        and move_absorbed(event, spec, byid, registry, orders)
-    )
+        if event["kind"] == "action" and event["meaning"].get("among") is not None
+    ]
+    absorbed = frozenset()
+    if moves:
+        orders = AuthoredOrders(byid, registry)
+        absorbed = frozenset(
+            event["id"] for event, spec in moves if move_absorbed(event, spec, orders)
+        )
     return StateProjection(
         actions,
         reports,
@@ -514,85 +528,108 @@ def markup_value(unit: str, spec: dict, byid: dict, marks: dict):
     return rec["body"] if rec else ""  # "body"
 
 
-def authored_positions(
-    owner: str, record: dict, byid: dict, registry: dict
-) -> dict[str, list[str]]:
-    """Container id → the ids of its units in one version's markup order, for each
-    `within` container `owner` records positions in."""
-    containers = {
-        cid: rec
-        for cid, rec in byid.items()
-        if rec["tag"] == record["within"]
-        and recorded_owner(cid, record, byid, registry) == owner
-    }
-    order = {cid: [] for cid in containers}
-    for uid, rec in byid.items():
-        holder = rec["holder"]
-        cid = holder["attrs"].get("id") if holder else None
-        if cid in containers and containers[cid] is holder:
-            order[cid].append(uid)
-    return order
+_POSITION = {"kind": "position"}
 
 
-def move_absorbed(
-    event: dict, spec: dict, byid: dict, registry: dict, orders: dict
-) -> bool:
-    """Whether this document authors a move's container differently from the
-    revision the move was made on: other units, or the same in another order, than
-    the move's `meaning.among`. The rank lies among those authored units, so it lands
-    in the gap the user chose only while they stand as they did; a document that
-    changes them has written the unit itself (`page check`). `orders` caches each
-    owner's authored order across the calls one reading makes."""
+class AuthoredOrders:
+    """Where one version's markup puts every position owner's units, read in one
+    pass over the document, so a reading that asks about many owners, such as a page
+    of boards, reads the page once rather than once per owner.
+
+    A container belongs to its nearest ancestor recording positions
+    (`recorded_owner`). Every caller reads the lists `of` returns and none changes
+    them."""
+
+    def __init__(self, byid: dict, registry: dict):
+        within = {
+            record["within"]
+            for tag, entry in registry.items()
+            if not tag.startswith("$")
+            for _verb, spec in state_specs(entry)
+            if (record := spec.get("record") or {}).get("kind") == "position"
+        }
+        containers = {}
+        for cid, rec in byid.items():
+            if rec["tag"] in within and (
+                owner := recorded_owner(cid, _POSITION, byid, registry)
+            ):
+                containers[cid] = (rec, owner)
+        self._orders: dict[tuple[str, str], dict[str, list[str]]] = {}
+        for cid, (rec, owner) in containers.items():
+            self._orders.setdefault((owner, rec["tag"]), {})[cid] = []
+        for uid, rec in byid.items():
+            holder = rec["holder"]
+            held = containers.get(holder["attrs"].get("id")) if holder else None
+            if held is not None and held[0] is holder:
+                self._orders[held[1], holder["tag"]][holder["attrs"]["id"]].append(uid)
+
+    def of(self, owner: str, record: dict) -> dict[str, list[str]]:
+        """Container id → the ids of its units in markup order, for each
+        `record["within"]` container `owner` records positions in."""
+        return self._orders.get((owner, record["within"]), {})
+
+
+def move_absorbed(event: dict, spec: dict, orders: AuthoredOrders) -> bool:
+    """Whether this document, whose `AuthoredOrders` are `orders`, authors a move's
+    container differently from the revision the move was made on: other units, or
+    the same in another order, than the move's `meaning.among`. The rank lies among
+    those authored units, so it lands in the gap the user chose only while they
+    stand as they did; a document that changes them has written the unit itself
+    (`page check`)."""
     among = event["meaning"].get("among")
     if among is None:
         return False
-    record = spec["record"]
-    owner = event["widget"]
-    if owner not in orders:
-        orders[owner] = authored_positions(owner, record, byid, registry)
-    return orders[owner].get(event["detail"]["value"]) != among
+    container = event["detail"]["value"]
+    return orders.of(event["widget"], spec["record"]).get(container) != among
 
 
 def folded_positions(
     owner: str,
     verb: str,
     record: dict,
-    byid: dict,
-    registry: dict,
+    orders: AuthoredOrders,
     projection: StateProjection,
 ) -> dict[str, list[str]]:
-    """Container id → its units in the order the fold leaves on this markup.
+    """Container id → its units in the order the fold leaves on the markup whose
+    `AuthoredOrders` are `orders`.
 
     Authored units rank by authored index; each move in force this markup has not
     absorbed (`move_absorbed`) puts its unit in its container at the rank it names,
     and a container lists its units by rank, ties by id. `projection/model.js`'s
     `foldWidgetStates` is the browser's reading of the same rule."""
-    order = authored_positions(owner, record, byid, registry)
+    order = orders.of(owner, record)
     ranks = {
         unit: authored_rank(index)
         for units in order.values()
         for index, unit in enumerate(units)
     }
-    in_force = sorted(projection.desired.items(), key=lambda item: item[1][0]["seq"])
-    orders = {owner: authored_positions(owner, record, byid, registry)}
-    for (widget, unit, action), (event, spec) in in_force:
+    where = {unit: container for container, units in order.items() for unit in units}
+    moves = sorted(
+        (
+            (unit, entry)
+            for (_owner, unit, action), entry in projection.desired_by_owner.get(
+                owner, ()
+            )
+            if action == verb
+        ),
+        key=lambda item: item[1][0]["seq"],
+    )
+    for unit, (event, spec) in moves:
+        destination = event["detail"]["value"]
         if (
-            widget != owner
-            or action != verb
-            or move_absorbed(event, spec, byid, registry, orders)
+            destination not in order
+            or unit not in ranks
+            or move_absorbed(event, spec, orders)
         ):
             continue
-        destination = order.get(event["detail"]["value"])
-        if destination is None or unit not in ranks:
-            continue
-        for units in order.values():
-            if unit in units:
-                units.remove(unit)
-        destination.append(unit)
+        where[unit] = destination
         ranks[unit] = event["detail"]["rank"]
+    placed = {container: [] for container in order}
+    for unit, container in where.items():
+        placed[container].append(unit)
     return {
         container: sorted(units, key=lambda unit: (ranks[unit], unit))
-        for container, units in order.items()
+        for container, units in placed.items()
     }
 
 
@@ -621,36 +658,38 @@ def recorded_state(
     event: dict,
     spec: dict,
     markup: tuple,
-    folded: dict,
-    registry: dict,
     projection: StateProjection,
-    orders: dict,
+    placements: dict,
 ):
     """What one version's markup shows at a coordinate in force, beside the state
     the fold leaves there: a pair the caller compares, or NO_RECORD for a verb with
-    no record form. `markup` is a document's `(byid, attribute_marks)`, `folded`
-    another's `byid`; the fold is `projection` read on `folded`.
+    no record form. `markup` is a document's `(byid, attribute_marks,
+    AuthoredOrders)`, and the fold is `projection` read on that document.
 
     Most record forms are the event's own detail. A position is a `Placement`,
     read on both sides from the whole fold: the unit's container and the nearest
     unit both documents list before it, which is the gap the user dropped it into.
     A version may add or drop cards around it, or rearrange cards away from it, and
-    still say the same. `orders` caches each owner's placements on both sides
+    still say the same. `placements` caches each owner's placements on both sides
     across the calls one reading makes."""
     widget, unit, verb = coordinate
     record = spec.get("record")
     if not record:
         return NO_RECORD
+    byid, marks, orders = markup
     if record["kind"] != "position":
-        return markup_value(unit, spec, *markup), folded_value(event, spec)
-    if (widget, verb) not in orders:
-        shown = authored_positions(widget, record, markup[0], registry)
-        left = folded_positions(widget, verb, record, folded, registry, projection)
+        return markup_value(unit, spec, byid, marks), folded_value(event, spec)
+    if (widget, verb) not in placements:
+        shown = orders.of(widget, record)
+        left = folded_positions(widget, verb, record, orders, projection)
         shared = {i for units in shown.values() for i in units} & {
             i for units in left.values() for i in units
         }
-        orders[widget, verb] = (_placements(shown, shared), _placements(left, shared))
-    shown, left = orders[widget, verb]
+        placements[widget, verb] = (
+            _placements(shown, shared),
+            _placements(left, shared),
+        )
+    shown, left = placements[widget, verb]
     nowhere = Placement(None, None)
     return shown.get(unit, nowhere), left.get(unit, nowhere)
 
@@ -671,10 +710,10 @@ def folded_value(e: dict, spec: dict):
 
 
 def obligation_value(
-    owner, verb, spec, byid, marks, registry, projection, *, answered=False, unit=None
+    owner, verb, spec, byid, marks, orders, projection, *, answered=False, unit=None
 ):
     """Read an obligation's typed value and presence from the canonical state fold.
-    `marks` is the document's `attribute_marks`.
+    `marks` and `orders` are the document's `attribute_marks` and `AuthoredOrders`.
 
     Widget units use their declared record or custom action detail. Member units
     form one mapping, or the exact member when `unit` is supplied; positions retain
@@ -704,7 +743,7 @@ def obligation_value(
             else markup_value(owner, spec, byid, marks)
         )
     elif (record or {}).get("kind") == "position":
-        value = folded_positions(owner, verb, record, byid, registry, projection)
+        value = folded_positions(owner, verb, record, orders, projection)
     else:
         value = {
             coordinate[1]: folded_value(*held) if record else held[0]["detail"]

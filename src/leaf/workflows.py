@@ -76,6 +76,7 @@ from .events import (
 from .obligations import collection, update_obligation
 from .projection import (
     NO_RECORD,
+    AuthoredOrders,
     PageReading,
     attribute_marks,
     generated_children,
@@ -168,21 +169,25 @@ def agent_inputs(work) -> set[str]:
 class PageSettlement:
     """What settles the page's actions, read once for all the actions in force one
     reading weighs, so each action costs what it touches rather than the page: the
-    document's `(by_id, attribute_marks)`, the children each owner's creating actions
-    supply, each position owner's orders (`recorded_state`), and the newest revision
-    a version's note stamped after each point in the log."""
+    document's `(by_id, attribute_marks, AuthoredOrders)`, the children each owner's
+    creating actions supply, each position owner's placements (`recorded_state`), and
+    the newest revision a version's note stamped after each point in the log."""
 
     def __init__(self, page: PageReading):
         self.page = page
         byid = page.document.by_id
-        self.markup = (byid, attribute_marks(byid, page.spoken, page.registry))
+        self.markup = (
+            byid,
+            attribute_marks(byid, page.spoken, page.registry),
+            AuthoredOrders(byid, page.registry),
+        )
         self.added = {
             owner: {child["id"] for child in children}
             for owner, children in generated_children(
                 page.projection.desired, set(byid)
             ).items()
         }
-        self.orders: dict = {}
+        self.placements: dict = {}
         notes = sorted(
             (event["seq"], event["revision"])
             for event in page.events
@@ -239,10 +244,8 @@ def page_action_unsettled(
         source,
         spec,
         settlement.markup,
-        byid,
-        page.registry,
         page.projection,
-        settlement.orders,
+        settlement.placements,
     )
     versioned = settlement.versioned(source)
     if reading is NO_RECORD:

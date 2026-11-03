@@ -51,6 +51,7 @@ from leaf.events import (
 from leaf.gesture_words import element_name
 from leaf.page_memory import Slot
 from leaf.projection import (
+    AuthoredOrders,
     FrozenThreadReading,
     StateProjection,
     attribute_marks,
@@ -670,6 +671,7 @@ class _ObligationReducer:
         self.byid = byid
         self.spk = spk
         self.marks = attribute_marks(byid, spk, registry)
+        self.orders = AuthoredOrders(byid, registry)
         self.registry = registry
         self.revision = revision
         self.events = [] if events is None else events
@@ -769,7 +771,7 @@ class _ObligationReducer:
                 entry["x-state"][verb],
                 self.byid,
                 self.marks,
-                self.registry,
+                self.orders,
                 self.projection,
                 answered=answered,
                 unit=unit,
@@ -944,7 +946,7 @@ class _ObligationReducer:
                 entry["x-state"][value_verb],
                 self.byid,
                 self.marks,
-                self.registry,
+                self.orders,
                 self.projection,
                 answered=answered,
             )

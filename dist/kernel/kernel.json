@@ -232,7 +232,7 @@
 
     "runtime/kernel-facts.js": "a115be58af0138cc01234a9d6c16caa066237d7988b94e056039810edcf9b53e",
 
-    "runtime/kernel-registry.json": "4b42ed86759e6086dd308f6ed1f91a147d64f0819a86724c35f0f3ded3ce084a",
+    "runtime/kernel-registry.json": "0a3f30e9babe768cc6135f1508575202a4ab19b4701f476c1d25ac8f86c4df04",
 
     "runtime/keyboard/bindings.js": "df27dc5618f49b0f81056b32b23687718447e90b075ae5a4f4cfafcc80038fe4",
 
@@ -482,7 +482,7 @@
 
     "runtime/thread/landing.js": "a89ef487ace28afd5aac96261a3bed32318df6aca327b1a5eb6ab5c98ff55f9e",
 
-    "runtime/thread/message-edit.js": "405d6f4dc3065caff393c81fcf42d8b7fb8d3b549987396c740c8a5b74a5745e",
+    "runtime/thread/message-edit.js": "6cc8450945a7031183eba36986471e26f3de247ec4b9c9e7f1141577b18801c3",
 
     "runtime/thread/messages.js": "77ba95dd7380946dd5a39aa1859985fec396e756582d1413f9118020f9fb38d2",
 
@@ -524,7 +524,7 @@
 
     "runtime/traffic.js": "fe8f837580f221f033af888c3e7870b3cdc69664a5466f825756af1722625364",
 
-    "runtime/undo.js": "226d62cf32048508bb7add30182032973a37680016e167dbf1c856e1f8e73090",
+    "runtime/undo.js": "723aff5393f85de4c5348f648ffa5ea201ec2e480976017499623ba2a2bf7f2c",
 
     "runtime/user-intent.js": "91a05c1dc0c6061110958f2715488e62a68088e9d807545c5796d85f7c8cf9f7",
 

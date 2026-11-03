@@ -23,13 +23,13 @@
 
    `z` leaves the user at what it takes back, the gesture's place: the thread a
    settlement or reaction is in, the message a rewrite changed, the message holding a
-   widget an agent sent, or the element changed. A to-do's Done changes only the leaf's own rows, which stand in
-   front of the user, so it has none. A press reaches the place one of three ways:
+   widget an agent sent, or the element changed. A to-do's Done changes only the leaf's
+   own rows, which stand in front of the user, so it has none. A press reaches the place
+   one of three ways:
 
    - Where the user sees it, the press takes the gesture there.
-   - Where the place is out of view, or the agent has picked the gesture up
-     (`picked_up`, served from the opened pickups), the press shows it and takes
-     nothing, so `z` never takes back what the user cannot see. It shows the place the
+   - Where the place is out of view, the press shows it and takes nothing, so `z`
+     never takes back what the user cannot see. It shows the place the
      way an `lf-activity` row's link does, a thread opening and an element travelled
      to as its fragment, and arms, saying "Press again to undo: …". The second press
      takes it back. Any key between, a press on the page, or a scroll taking what the
@@ -42,6 +42,12 @@
      page presents the withdrawal, shows the place under the press's intent. The
      gesture arms the press as a showing press does, and the same inputs clear it;
      after one, the rules above apply.
+
+   Only what the user sees decides which: what the agent has received or done with the
+   gesture doesn't, so `z` works the same before and after the agent reads it (the
+   user's decision, 3 November 2026). Rejected: showing a gesture the agent had picked
+   up first wherever it stood, part of the design chosen on 21 October, which made `z`
+   depend on delivery the user can't see happen.
 
    Showing is a navigation step, so Back returns to where the user pressed. The rule is
    the same for every gesture; only a place's kind decides how it is shown. An exact
@@ -382,7 +388,6 @@ export function createUndo({
   // Whether `z` shows the gesture of the undo list's `entry` before taking it.
   /** @param {UndoEntry} entry */
   function needsShowing(entry) {
-    if (entry.picked_up) return true;
     const place = placeOf(entry.event);
     return place !== null && !inView(place);
   }
@@ -477,14 +482,12 @@ export function createUndo({
   /** @param {UndoEntry} entry */
   function walkTo(entry) {
     const { event } = entry;
-    // A landing's arm never stands in for showing what the agent has picked up.
     const heldArm = armedFor(event);
-    const taking = heldArm && !(heldArm.returns && entry.picked_up);
-    if (!taking && needsShowing(entry)) {
+    if (!heldArm && needsShowing(entry)) {
       arm(event);
       return null;
     }
-    const returning = taking && heldArm.returns && retainUserIntent();
+    const returning = heldArm?.returns && retainUserIntent();
     const answer = withdraw(event);
     if (!answer) return null;
     disarm();

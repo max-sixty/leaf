@@ -882,6 +882,11 @@ def admitted_event(view, events: list, event: dict) -> dict:
     ):
         raise EventRefused(error, event)
     attention = settled_attention(event, contracts[kind])
+    if attention is None and kind == "undo":
+        # The agent was told of the gesture, so it is told of the withdrawal, whether
+        # it has yet to read the gesture or has already acted on it.
+        withdrawn = next(logged for logged in events if logged["id"] == event["undoes"])
+        attention = True if withdrawn["attention"] else None
     if attention is None:
         candidate = {
             **APPEND_STAMPED,

@@ -4815,7 +4815,6 @@ function createUndo({ post, stateApplying, unaccountedGesture, openThread, threa
 	const drawingsOf = (id) => [...[...document.querySelectorAll(THREAD)].filter((node) => drawnThreadId(node) === id), surfaceFocusTarget(id, { part: "thread" })];
 	const inView = (place) => [...place.thread ? [threadPlace(place.thread), ...drawingsOf(place.thread)] : [], ...place.nodes].some(seen);
 	function needsShowing(entry) {
-		if (entry.picked_up) return true;
 		const place = placeOf(entry.event);
 		return place !== null && !inView(place);
 	}
@@ -4878,12 +4877,11 @@ function createUndo({ post, stateApplying, unaccountedGesture, openThread, threa
 	function walkTo(entry) {
 		const { event } = entry;
 		const heldArm = armedFor(event);
-		const taking = heldArm && !(heldArm.returns && entry.picked_up);
-		if (!taking && needsShowing(entry)) {
+		if (!heldArm && needsShowing(entry)) {
 			arm(event);
 			return null;
 		}
-		const returning = taking && heldArm.returns && retainUserIntent();
+		const returning = heldArm?.returns && retainUserIntent();
 		const answer = withdraw(event);
 		if (!answer) return null;
 		disarm();

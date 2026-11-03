@@ -1764,8 +1764,8 @@ def test_a_rewrite_lands_only_on_the_words_it_was_written_over(page_dir):
     revision it was written over, and the door refuses it once that revision is not the
     message's latest, telling the user to edit again. Words the message already says are
     no rewrite. Undoing a rewrite gives the message back the words it replaced, and the
-    rewrite before it is the one the next lands on. Once the agent has answered a
-    rewrite, its answer stands on those words, and the door refuses to take it back."""
+    rewrite before it is the one the next lands on. A rewrite the agent has answered
+    is taken back too, and the agent is told, since it may have acted on its words."""
     publish(page_dir)
     said = append_command(
         page_dir,
@@ -1810,23 +1810,36 @@ def test_a_rewrite_lands_only_on_the_words_it_was_written_over(page_dir):
     }
     with pytest.raises(events_model.EventRefused):
         rewrite("East.", west["id"])
-    east = rewrite("East.", south["id"])
-    append_command(
-        page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "agent": "Codex",
-            "parent": said["id"],
-            "responds": east["id"],
-            "text": "Heading east.",
-        },
-    )
-    with pytest.raises(events_model.EventRefused) as answered:
+
+    def answer(turn, text):
         append_command(
-            page_dir, {"kind": "undo", "author": "user", "undoes": east["id"]}
+            page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Codex",
+                "parent": said["id"],
+                "responds": turn["id"],
+                "text": text,
+            },
         )
-    assert [finding.code for finding in answered.value.findings] == ["answered-edit"]
+
+    # Answered either way, the undo leaves nothing owed, and still reaches the agent.
+    answer(south, "Heading south.")
+    east = rewrite("East.", south["id"])
+    answer(east, "Heading east.")
+    took_back = append_command(
+        page_dir, {"kind": "undo", "author": "user", "undoes": east["id"]}
+    )
+    assert took_back["attention"] is True
+    thread = event_folds_model.build_threads(events_model.read_events(page_dir), {})[
+        said["id"]
+    ]
+    assert [message["text"] for message in thread["msgs"]] == [
+        "South.",
+        "Heading south.",
+        "Heading east.",
+    ]
 
 
 def test_edit_uses_the_captured_contract_when_the_candidate_registry_is_invalid(

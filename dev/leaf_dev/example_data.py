@@ -37,11 +37,13 @@ _DATA_COMPANION = Draft202012Validator(
 )
 
 
-# Where authored pages live in a checkout: the worked examples, the developer galleries
-# and the full-page regression fixtures. A command line names a page by its file's stem.
+# Where authored pages live in a checkout: the worked examples and the developer
+# galleries, which the public site publishes, and the full-page regression fixtures.
+# A command line names a page by its file's stem.
 WORKED_EXAMPLES = Path("examples")
 DEVELOPER_GALLERIES = WORKED_EXAMPLES / "developer"
-SOURCE_DIRS = (WORKED_EXAMPLES, DEVELOPER_GALLERIES, Path("tests/fixtures/pages"))
+PUBLISHED_DIRS = (WORKED_EXAMPLES, DEVELOPER_GALLERIES)
+SOURCE_DIRS = (*PUBLISHED_DIRS, Path("tests/fixtures/pages"))
 
 # `leaf-dev corpus` composes every authored page into this ignored path among the
 # worked examples, so it is a source a name picks but never an authored page.
@@ -65,26 +67,26 @@ def authored_sources(
 
 
 def published_sources(root: Path = ROOT) -> list[Path]:
-    """The authored pages the public site publishes: all but the regression fixtures."""
-    return authored_sources(root, (WORKED_EXAMPLES, DEVELOPER_GALLERIES))
+    """The authored pages the public site publishes."""
+    return authored_sources(root, PUBLISHED_DIRS)
 
 
 def named_source(name: str, *, root: Path = ROOT) -> Path:
-    """The one authored source a name picks out of `SOURCE_DIRS`; a ValueError
-    says why a name picks none, or several. The generated corpus is built on demand."""
+    """The one source a name picks out of the authored pages and the corpus; a
+    ValueError says why a name picks none, or several. The corpus is generated on
+    demand."""
     name = name.removesuffix(".html")
-    if name == CORPUS.stem:
-        from leaf_dev.commands.corpus import generate
-
-        return generate(root)
-    found = [path for path in authored_sources(root) if path.stem == name]
+    sources = [root / CORPUS, *authored_sources(root)]
+    found = [path for path in sources if path.stem == name]
     if len(found) > 1:
         raise ValueError(f"{name} names more than one source: {found}")
     if not found:
-        names = {CORPUS.stem} | {path.stem for path in authored_sources(root)}
-        raise ValueError(
-            f"no source named {name}; available: {', '.join(sorted(names))}"
-        )
+        names = sorted({path.stem for path in sources})
+        raise ValueError(f"no source named {name}; available: {', '.join(names)}")
+    if found[0] == root / CORPUS:
+        from leaf_dev.commands.corpus import generate
+
+        return generate(root)
     return found[0]
 
 
@@ -103,9 +105,8 @@ def catalog_sources(root: Path = ROOT) -> list[Path]:
     for link in document.tree.select("a.example-link"):
         href = link.attrs["href"]
         assert isinstance(href, str)
-        sources.append(
-            root / "examples" / f"{href.removeprefix('/examples/').strip('/')}.html"
-        )
+        stem = href.removeprefix("/examples/").strip("/")
+        sources.append(root / WORKED_EXAMPLES / f"{stem}.html")
     return sources
 
 

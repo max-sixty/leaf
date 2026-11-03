@@ -2,6 +2,8 @@
 
 import json
 
+import pytest
+
 from leaf.structure import SourceDocument
 from leaf_dev.commands import corpus
 from leaf_dev.example_data import (
@@ -108,3 +110,10 @@ def test_only_the_generated_corpus_is_not_an_authored_page(tmp_path):
     assert published_sources(tmp_path) == [pages["notes"], pages["gallery"]]
     assert named_source("corpus-notes", root=tmp_path) == pages["notes"]
     assert corpus.source_root(pages["notes"]) is None
+
+    # A page that shares the corpus's name is authored, so the name picks two sources.
+    shadow = tmp_path / "examples" / "developer" / "corpus.html"
+    shadow.write_text(pages["gallery"].read_text())
+    assert shadow in published_sources(tmp_path)
+    with pytest.raises(ValueError, match="corpus names more than one source"):
+        named_source("corpus", root=tmp_path)

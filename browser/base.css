@@ -194,7 +194,7 @@
      node stacks, could not answer for a page node inside a stacking context it did not
      read. */
   --lf-z-page-paint: 8890; /* paint on a page element */
-  --lf-z-margin-raised: 8895; /* the margin item under pointer or focus */
+  --lf-z-margin-raised: 8895; /* the margin item under pointer or focus, or at the user's location */
   --lf-z-page-hints: 8898; /* page-target key chips, under the chrome */
   --lf-z-margin-preview: 8920; /* the thread card, under the panel it scrolls beneath */
   --lf-z-region-capture: 8930; /* viewport crop selection, over the thread card */

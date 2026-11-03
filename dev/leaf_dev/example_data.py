@@ -37,30 +37,43 @@ _DATA_COMPANION = Draft202012Validator(
 )
 
 
-# Where authored pages live in a checkout: the examples, the developer galleries and
-# the full-page regression fixtures. A command line names a page by its file's stem.
-SOURCE_DIRS = ("examples", "examples/developer", "tests/fixtures/pages")
+# Where authored pages live in a checkout: the worked examples, the developer galleries
+# and the full-page regression fixtures. A command line names a page by its file's stem.
+WORKED_EXAMPLES = Path("examples")
+DEVELOPER_GALLERIES = WORKED_EXAMPLES / "developer"
+SOURCE_DIRS = (WORKED_EXAMPLES, DEVELOPER_GALLERIES, Path("tests/fixtures/pages"))
+
+# `leaf-dev corpus` composes every authored page into this ignored path among the
+# worked examples, so it is a source a name picks but never an authored page.
+CORPUS = WORKED_EXAMPLES / "corpus.html"
 
 
 def source_directories(root: Path = ROOT) -> list[Path]:
     return [root / directory for directory in SOURCE_DIRS]
 
 
-def authored_sources(root: Path = ROOT) -> list[Path]:
-    """Every authored page, by directory and then name; the corpus is generated."""
+def authored_sources(
+    root: Path = ROOT, directories: tuple[Path, ...] = SOURCE_DIRS
+) -> list[Path]:
+    """Every authored page in `directories`, by directory and then name."""
     return [
         path
-        for directory in source_directories(root)
-        for path in sorted(directory.glob("*.html"))
-        if path != root / "examples" / "corpus.html"
+        for directory in directories
+        for path in sorted((root / directory).glob("*.html"))
+        if path != root / CORPUS
     ]
+
+
+def published_sources(root: Path = ROOT) -> list[Path]:
+    """The authored pages the public site publishes: all but the regression fixtures."""
+    return authored_sources(root, (WORKED_EXAMPLES, DEVELOPER_GALLERIES))
 
 
 def named_source(name: str, *, root: Path = ROOT) -> Path:
     """The one authored source a name picks out of `SOURCE_DIRS`; a ValueError
     says why a name picks none, or several. The generated corpus is built on demand."""
     name = name.removesuffix(".html")
-    if name == "corpus":
+    if name == CORPUS.stem:
         from leaf_dev.commands.corpus import generate
 
         return generate(root)
@@ -68,8 +81,10 @@ def named_source(name: str, *, root: Path = ROOT) -> Path:
     if len(found) > 1:
         raise ValueError(f"{name} names more than one source: {found}")
     if not found:
-        available = sorted({"corpus"} | {path.stem for path in authored_sources(root)})
-        raise ValueError(f"no source named {name}; available: {', '.join(available)}")
+        names = {CORPUS.stem} | {path.stem for path in authored_sources(root)}
+        raise ValueError(
+            f"no source named {name}; available: {', '.join(sorted(names))}"
+        )
     return found[0]
 
 

@@ -81,7 +81,7 @@ from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import scheme as render_gate_model
 from leaf_dev import browser as dev_browser
 from leaf_dev.browser import ON_ME_MARK, scroll_settled, slow_cpu, threads_tab
-from leaf_dev.example_data import authored_sources
+from leaf_dev.example_data import WORKED_EXAMPLES, authored_sources
 from leaf_dev.page_fixtures import (
     example_media,
     prepare_page,
@@ -177,14 +177,12 @@ def shift_watch_source():
 
 
 EXAMPLE_PACKAGES = json.loads((ROOT / "examples" / "layer.json").read_text())
-EXAMPLES = sorted(p for p in (ROOT / "examples").glob("*.html") if p.stem != "corpus")
+EXAMPLES = authored_sources(directories=(WORKED_EXAMPLES,))
 assert EXAMPLES, "no examples found — parametrizing over an empty list tests nothing"
 FEATURE_GALLERY = ROOT / "examples" / "developer" / "feature-gallery.html"
 assert FEATURE_GALLERY.is_file(), "the developer feature gallery is missing"
-DEVELOPER_PAGES = tuple(sorted((ROOT / "examples" / "developer").glob("*.html")))
 # The inputs `leaf-dev corpus` composes. Every authored-content sweep uses this
-# source set, while public-site tests read the top-level glob.
-PUBLIC_EXAMPLES = tuple(EXAMPLES)
+# source set, while public-site tests read the pages the site publishes.
 CORPUS_SOURCES = tuple(authored_sources())
 
 PASSAGE_SOURCES = (

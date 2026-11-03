@@ -192,7 +192,7 @@
 
     "runtime/file-api.js": "f3b92db21e51b8e6537c73e015c63e388234e8d1be210e60ebcb48015ca46eae",
 
-    "runtime/floating-panel.js": "766cce4ef0a39b1e1f723b67217e6cd0d7686f3a445d57292b648bba262ef974",
+    "runtime/floating-panel.js": "0a96dac113bcea11aed61bba791b8242f148ff51afa8e7cac28482850f60487f",
 
     "runtime/focus.js": "4ce1d8d253d0651bf8e3181dfc821011a5b3ee24d692cc9ab8a3a69364a96345",
 
@@ -242,7 +242,7 @@
 
     "runtime/keyboard/command-hints.js": "714f348b1dc4a7cead047972031b7fbacf31dc38c7a22cf128400b7d0132196b",
 
-    "runtime/keyboard/command-reference.js": "a5c118da375d4414efff13c0f0337cd902c38484c81b726d6e1f97cbd86c9512",
+    "runtime/keyboard/command-reference.js": "bb7ca6aadd4980fd1badf67f504324595a164497890a08353215532d064cbd3d",
 
     "runtime/keyboard/control-keys.js": "019cfd871b5f9b8aa49c21f17a0753e9b7dd57c811b8e6f00c5eaafa9ea55614",
 
@@ -480,9 +480,9 @@
 
     "runtime/thread/inline.js": "6ffa1f46514fb02cf2aa33eda5964a1a277065eb04b2d0a6ec82253a8e6324fd",
 
-    "runtime/thread/landing.js": "a89ef487ace28afd5aac96261a3bed32318df6aca327b1a5eb6ab5c98ff55f9e",
+    "runtime/thread/landing.js": "6d43ce70e92f906d4cada3f4a222bb9b124ee362d344da18de279ebe55a6e840",
 
-    "runtime/thread/message-edit.js": "405d6f4dc3065caff393c81fcf42d8b7fb8d3b549987396c740c8a5b74a5745e",
+    "runtime/thread/message-edit.js": "063f42b2981bf9950eed8bfd589ba0224e002ff0eca089cf90f1071051ea4629",
 
     "runtime/thread/messages.js": "77ba95dd7380946dd5a39aa1859985fec396e756582d1413f9118020f9fb38d2",
 

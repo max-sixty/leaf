@@ -1827,14 +1827,13 @@ var MessageEditor = class {
 				title: "edit previous message",
 				when: () => {
 					const [start, end] = caretAtKey(this.input) ?? [this.input.selectionStart, this.input.selectionEnd];
-					return start === 0 && end === 0 && unchanged();
+					return start === 0 && end === 0 && unchanged() && Boolean(previous());
 				},
-				get run() {
+				run: () => {
 					const before = previous();
-					return before ? () => {
-						putAside();
-						before.openEdit();
-					} : void 0;
+					if (!before) return;
+					putAside();
+					before.openEdit();
 				}
 			}]
 		});

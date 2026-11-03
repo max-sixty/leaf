@@ -64,6 +64,43 @@ const selectionEnds = (selection) => {
     range?.endOffset,
   ];
 };
+
+// The page selection where moving `placed` would reset it, and what puts it back.
+// Moving a node resets any live range with an end inside it, `moveBefore` included,
+// as the DOM's move algorithm runs the live range pre-remove steps. So a selection
+// with an end inside one of the nodes about to move is read before they move, and its
+// ends go back through `selectEnds` once both stand again. An end inside a shadow tree
+// lies outside every placed node, and stays its editor's to keep (`connectedMoveCallback`).
+/** @param {Iterable<Node>} placed @returns {(() => void) | null} */
+export function holdSelection(placed) {
+  const selection = getSelection();
+  if (!selection?.rangeCount) return null;
+  const { anchorNode, anchorOffset, focusNode, focusOffset } = selection;
+  if (!anchorNode || !focusNode) return null;
+  const moving = new Set(placed);
+  /** @param {Node} node */
+  const inside = (node) => {
+    for (let at = /** @type {Node | null} */ (node); at; at = at.parentNode)
+      if (moving.has(at)) return true;
+    return false;
+  };
+  if (!inside(anchorNode) && !inside(focusNode)) return null;
+  /** @param {Node} node @param {number} offset */
+  const stands = (node, offset) =>
+    node.isConnected &&
+    offset <= (node instanceof CharacterData ? node.length : node.childNodes.length);
+  return () => {
+    const kept =
+      selection.anchorNode === anchorNode &&
+      selection.anchorOffset === anchorOffset &&
+      selection.focusNode === focusNode &&
+      selection.focusOffset === focusOffset;
+    if (kept || !stands(anchorNode, anchorOffset) || !stands(focusNode, focusOffset))
+      return;
+    selectEnds([anchorNode, anchorOffset], [focusNode, focusOffset]);
+  };
+}
+
 /** @param {Selection | null} selection */
 export function programmaticSelection(selection) {
   if (!selection) {

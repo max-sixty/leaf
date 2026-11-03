@@ -244,14 +244,21 @@ def test_marks_stand_on_a_widened_table_in_every_engine(request, serve, engine):
     after = page.evaluate(reading)
     assert after["header"][2] == pytest.approx(before["header"][2] - 120, abs=1), after
     assert after["pin"] == pytest.approx(before["pin"], abs=1), (before, after)
-    page.locator("#grid thead th").nth(2).hover()
+    _outline_and_copy_stand_on(page, page.locator("#grid thead th").nth(2), "#grid")
+
+
+def _outline_and_copy_stand_on(page, hovered, outlined):
+    """The outline Alt raises over `hovered` stands on `outlined`, and the Copy of the
+    `#command` code block, which CSS anchors alone, stands inside the block's top-right
+    corner."""
+    hovered.hover()
     page.keyboard.down("Alt")
     aim = page.locator(".lf-aim")
     expect(aim).to_be_visible()
-    table, outline = page.locator("#grid").bounding_box(), aim.bounding_box()
+    target, outline = page.locator(outlined).bounding_box(), aim.bounding_box()
     page.keyboard.up("Alt")
-    assert outline["x"] == pytest.approx(table["x"], abs=1), (outline, table)
-    assert outline["y"] == pytest.approx(table["y"], abs=1), (outline, table)
+    assert outline["x"] == pytest.approx(target["x"], abs=1), (outline, target)
+    assert outline["y"] == pytest.approx(target["y"], abs=1), (outline, target)
     code = page.locator("#command").bounding_box()
     page.mouse.move(code["x"] + 5, code["y"] + code["height"] / 2)
     copy = page.locator(".lf-code-copy")
@@ -260,6 +267,408 @@ def test_marks_stand_on_a_widened_table_in_every_engine(request, serve, engine):
     inset = code["x"] + code["width"] - corner["x"] - corner["width"]
     assert 0 <= inset <= 8, (corner, code)
     assert 0 <= corner["y"] - code["y"] <= 8, (corner, code)
+
+
+SCALED_DECK_PAGE = leaf_page(
+    "a scaled deck",
+    '<h1>Deck</h1><div style="position: relative; height: 480px">'
+    '<div style="position: absolute; left: 50%; top: 50%; width: 960px; height: 700px;'
+    ' padding: 40px; transform: translate(-50%, -50%) scale(0.6)">'
+    '<div id="words" style="height: 240px; overflow: auto">'
+    + "A line of the slide's notes.<br>" * 4
+    + "Words on a slide the deck has translated and scaled to fit its stage."
+    + "<br>A further line of the slide's notes." * 30
+    + '</div><pre id="command"><code>uv run pytest '
+    "tests/browser/margin/test_scrollers.py</code></pre></div></div>"
+    + "<p>Prose after the deck, so the page scrolls.</p>"
+    * 40,
+)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+def test_marks_stand_on_a_scaled_slide_in_every_engine(request, serve, engine):
+    """A deck such as reveal.js translates and scales its slides to fit its stage, and
+    Firefox leaves the anchor's transforms out of `anchor()` and `anchor-size()`, so a
+    comment's row stood 257px below the words it marked and Copy stood past the right
+    edge of its code block. A scroll inside the slide moves the words by less than the
+    scroll, and Firefox moved the row by all of it until something else placed the
+    rows again. In each engine the row stands level with its words and keeps that place
+    through a scroll of the page and, once it ends, through a scroll of the box holding
+    the words; the outline Alt raises stands on that box, and Copy stands inside its
+    block's top-right corner."""
+    browser = request.getfixturevalue(engine)
+    comment = _comment_on("words", quote="translated and scaled")
+    page = open_page(browser, serve(SCALED_DECK_PAGE, events=[comment]))
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    reading = """() => {
+      const text = [...document.getElementById('words').childNodes]
+        .find((node) => node.data?.includes('translated and scaled'));
+      const at = text.data.indexOf('translated and scaled');
+      const range = document.createRange();
+      range.setStart(text, at);
+      range.setEnd(text, at + 10);
+      const row = document.querySelector('[data-lf-margin-for="words"]');
+      const top = range.getClientRects()[0].top;
+      return {offset: row.getBoundingClientRect().top - top, words: top,
+              shown: !row.classList.contains('lf-withheld')};
+    }"""
+    before = page.evaluate(reading)
+    assert before["shown"] and abs(before["offset"]) <= 2, before
+    page.evaluate("() => document.scrollingElement.scrollBy(0, 120)")
+    margins_laid_out(page)
+    after = page.evaluate(reading)
+    assert after["words"] == pytest.approx(before["words"] - 120, abs=1), after
+    assert after["offset"] == pytest.approx(before["offset"], abs=1), (before, after)
+    # No layout announcement after this scroll: the margin's own reading of its end
+    # is what has to place the row.
+    page.evaluate(
+        """async () => {
+          const box = document.getElementById('words');
+          const ended = new Promise((done) =>
+            box.addEventListener('scrollend', done, {once: true}));
+          box.scrollTop = 60;
+          await ended;
+        }"""
+    )
+    rendered(page)
+    scrolled = page.evaluate(reading)
+    assert scrolled["words"] == pytest.approx(after["words"] - 36, abs=1), scrolled
+    assert scrolled["shown"], scrolled
+    assert scrolled["offset"] == pytest.approx(before["offset"], abs=1), (
+        before,
+        scrolled,
+    )
+    _outline_and_copy_stand_on(page, page.locator("#words"), "#words")
+
+
+def _listing(lines, layout="workspace"):
+    """A page holding `lines` in a code block that scrolls inside its `pre`, as
+    reveal.js's theme makes every long one."""
+    return leaf_page(
+        "a code block that scrolls",
+        "<div><h1>Listing</h1><p>A paragraph above the block, long enough to fill the "
+        'column it stands in from one edge to the other.</p><pre id="listing"><code>'
+        + "\n".join(lines)
+        + "</code></pre></div>",
+        head="<style>pre code { display: block; overflow: auto; max-height: 400px; }"
+        "</style>",
+        layout=layout,
+    )
+
+
+# Short lines around the commented one, and lines as long as it is, the shape of a
+# reveal.js deck's code; at a phone's width those lines reach past the code's edge.
+SHORT_NEIGHBOURS = [
+    "    total = sum(weights)  # the commented line"
+    if i == 8
+    else f"def step_{i}(x):"
+    if i % 2
+    else f"    return x + {i}"
+    for i in range(1, 41)
+]
+LONG_NEIGHBOURS = [
+    f"    total += step_{i:02d}(sample_values, weight={i})" for i in range(1, 41)
+]
+# Where a row's pin stands against its quoted words' first line and the code box.
+PIN_ON_LINE = """quote => {
+  const code = document.querySelector('#listing code');
+  const text = code.firstChild;
+  const at = text.data.indexOf(quote);
+  const range = document.createRange();
+  range.setStart(text, at);
+  range.setEnd(text, at + quote.length);
+  const line = range.getClientRects()[0];
+  const box = code.getBoundingClientRect();
+  const row = document.querySelector('[data-lf-margin-for="listing"]');
+  const pin = row.getBoundingClientRect();
+  const middle = (pin.top + pin.bottom) / 2;
+  return {offset: [pin.left - box.left, pin.top - line.top],
+          onLine: middle >= line.top && middle <= line.bottom,
+          inBox: pin.left >= box.left && pin.right <= box.right,
+          pin: pin.toJSON(), line: line.toJSON(), box: box.toJSON(),
+          shown: !row.classList.contains('lf-withheld')};
+}"""
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+@pytest.mark.parametrize(
+    ("lines", "quote", "width", "layout"),
+    [
+        (SHORT_NEIGHBOURS, "total = sum(weights)", 1280, "workspace"),
+        (LONG_NEIGHBOURS, "step_09(sample_values, weight=9)", 1280, "workspace"),
+        (LONG_NEIGHBOURS, "step_09(sample_values, weight=9)", 390, "column"),
+    ],
+    ids=["short-neighbours", "long-neighbours", "phone"],
+)
+def test_a_pin_on_a_line_of_a_scrolling_code_block_marks_that_line(
+    request, serve, engine, lines, quote, width, layout
+):
+    """reveal.js's theme scrolls every long code block inside its `pre` (`pre code {
+    overflow: auto; max-height: 400px }`). A comment on one of its lines stood its pin
+    above the block's corner after a layout pass, and a scroll of the code then carried
+    the pin away with the lines, so where it stood depended on what moved it last; it
+    also kept standing while its line was scrolled out of the code's view. Seated as
+    prose, it then hung off the end of the line above, and at a phone's width it slid to
+    the window's edge. The pin stands level with its line inside the code box, in the
+    same place after a scroll of the code as after a fresh pass, and is withheld while
+    the line is out of the code's view."""
+    browser = request.getfixturevalue(engine)
+    comment = _comment_on("listing", quote=quote)
+    page = open_page(browser, serve(_listing(lines, layout), events=[comment]))
+    resized(page, width, 800)
+    margins_laid_out(page)
+    before = page.evaluate(PIN_ON_LINE, quote)
+    assert before["shown"] and before["onLine"] and before["inBox"], before
+    laid_out = page.evaluate(
+        """async () => {
+          let laidOut = 0;
+          document.addEventListener('lf-margin-layout', () => laidOut++);
+          const code = document.querySelector('#listing code');
+          const ended = new Promise((done) =>
+            code.addEventListener('scrollend', done, {once: true}));
+          code.scrollTop = 40;
+          await ended;
+          await new Promise((done) =>
+            requestAnimationFrame(() => requestAnimationFrame(done)));
+          return laidOut;
+        }"""
+    )
+    carried = page.evaluate(PIN_ON_LINE, quote)
+    # The scroll alone moved the pin; the pass that follows has to agree with it.
+    assert laid_out == 0, carried
+    margins_laid_out(page)
+    placed = page.evaluate(PIN_ON_LINE, quote)
+    assert carried["offset"] == pytest.approx(before["offset"], abs=1), (
+        before,
+        carried,
+    )
+    assert placed["offset"] == pytest.approx(carried["offset"], abs=1), (
+        carried,
+        placed,
+    )
+    row = page.locator('[data-lf-margin-for="listing"]')
+    code = page.locator("#listing code")
+    code.evaluate("code => { code.scrollTop = 400; }")
+    expect(row).to_have_class(re.compile(r"\blf-withheld\b"))
+    code.evaluate("code => { code.scrollTop = 0; }")
+    expect(row).not_to_have_class(re.compile(r"\blf-withheld\b"))
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+@pytest.mark.parametrize(("edge", "first"), [("top", 4), ("bottom", 24)])
+def test_a_pin_on_lines_partly_scrolled_away_stands_by_one_still_shown(
+    request, serve, engine, edge, first
+):
+    """A comment can quote several lines of a code block that scrolls. Once the block
+    scrolls the first of them out past an edge of its box, the pin stands level with
+    the first quoted line still in view, at the block's right edge, the same after a
+    fresh pass, and the row hides only once none of them shows. Seated by its first line
+    wherever that line had gone, the pin stood above the code box with five quoted
+    lines in view, or below it with one line just showing at its foot."""
+    browser = request.getfixturevalue(engine)
+    quote = "\n".join(LONG_NEIGHBOURS[first - 1 : first + 7]).strip()
+    comment = _comment_on("listing", quote=quote)
+    page = open_page(browser, serve(_listing(LONG_NEIGHBOURS), events=[comment]))
+    resized(page, 1280, 800)
+    margins_laid_out(page)
+    # The boxes of the quoted lines, as JavaScript taking the quote.
+    lines = """(quote) => {
+      const text = document.querySelector('#listing code').firstChild;
+      const at = text.data.indexOf(quote);
+      const range = document.createRange();
+      range.setStart(text, at);
+      range.setEnd(text, at + quote.length);
+      return [...range.getClientRects()].filter((box) => box.width);
+    }"""
+    reading = f"""quote => {{
+      const lines = ({lines})(quote);
+      const code = document.querySelector('#listing code');
+      const box = code.getBoundingClientRect();
+      const top = box.top + code.clientTop;
+      const band = {{top, bottom: top + code.clientHeight}};
+      const row = document.querySelector('[data-lf-margin-for="listing"]');
+      const pin = row.getBoundingClientRect();
+      const middle = (pin.top + pin.bottom) / 2;
+      return {{shown: !row.classList.contains('lf-withheld'),
+              beside: middle >= Math.max(lines[0].top, band.top)
+                && middle <= Math.min(lines.at(-1).bottom, band.bottom),
+              inBox: pin.left >= box.left && pin.right <= box.right,
+              pin: pin.toJSON(), band, first: lines[0].toJSON()}};
+    }}"""
+    page.evaluate(
+        f"""async ([quote, edge]) => {{
+          const first = ({lines})(quote)[0];
+          const code = document.querySelector('#listing code');
+          const top = code.getBoundingClientRect().top + code.clientTop;
+          const ended = new Promise((done) =>
+            code.addEventListener('scrollend', done, {{once: true}}));
+          // Two quoted lines and part of a third above the box, or the first line's
+          // top 6px showing at its foot.
+          code.scrollTop += edge === 'top'
+            ? first.top - top + 50 : first.top - (top + code.clientHeight - 6);
+          await ended;
+        }}""",
+        [quote, edge],
+    )
+    rendered(page)
+    scrolled = page.evaluate(reading, quote)
+    assert scrolled["shown"] and scrolled["beside"] and scrolled["inBox"], scrolled
+    margins_laid_out(page)
+    placed = page.evaluate(reading, quote)
+    assert placed["shown"] and placed["beside"] and placed["inBox"], placed
+    page.locator("#listing code").evaluate(
+        "(code, edge) => { code.scrollTop = edge === 'top' ? code.scrollTop + 400 : 0; }",
+        edge,
+    )
+    expect(page.locator('[data-lf-margin-for="listing"]')).to_have_class(
+        re.compile(r"\blf-withheld\b")
+    )
+
+
+FIRST_LINE = "configuration = load_settings(path, defaults, overrides, environment, profile_name)"
+FIRST_LINE_LISTING = [FIRST_LINE, "short_second = 1", "third = 2"]
+# The same block on a slide a deck translates and scales, as reveal.js does.
+SLIDE_PAGE = leaf_page(
+    "a code block on a slide",
+    '<div><h1>Deck</h1><div style="position: relative; height: 420px">'
+    '<div id="slide" style="position: absolute; left: 50%; top: 50%; width: 960px;'
+    ' transform: translate(-50%, -50%) scale(0.6)"><pre id="listing"><code>'
+    + "\n".join(FIRST_LINE_LISTING)
+    + "</code></pre></div></div></div>",
+    layout="workspace",
+)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+@pytest.mark.parametrize("where", ["column", "moved-slide"])
+def test_a_pin_on_a_code_block_s_first_line_leaves_copy_pressable(
+    request, serve, engine, where
+):
+    """Copy stands just inside a code block's top-right corner, over the first line's
+    last words. A pin on that line stands level with it and clear of where Copy shows,
+    so a press on Copy reaches Copy, also on a slide a deck moves after the page loads,
+    where Firefox read Copy's place at rest from before the move."""
+    browser = request.getfixturevalue(engine)
+    source = (
+        _listing(FIRST_LINE_LISTING, layout="column")
+        if where == "column"
+        else SLIDE_PAGE
+    )
+    comment = _comment_on("listing", quote="profile_name)")
+    page = open_page(browser, serve(source, events=[comment]))
+    resized(page, 760 if where == "column" else 1280, 800)
+    margins_laid_out(page)
+    if where == "moved-slide":
+        page.locator("#slide").evaluate(
+            "slide => { slide.style.transform = 'translate(-35%, -50%) scale(0.6)'; }"
+        )
+        margins_laid_out(page)
+    row = page.locator('[data-lf-margin-for="listing"]')
+    expect(row).not_to_have_class(re.compile(r"\blf-withheld\b"))
+    pin = row.bounding_box()
+    page.locator("#listing code").hover()
+    copy = page.locator(".lf-code-copy")
+    expect(copy).to_have_css("opacity", "1")
+    shows = copy.bounding_box()
+    assert (
+        pin["x"] + pin["width"] <= shows["x"]
+        or pin["x"] >= shows["x"] + shows["width"]
+        or pin["y"] + pin["height"] <= shows["y"]
+        or pin["y"] >= shows["y"] + shows["height"]
+    ), (pin, shows)
+    copy.click(timeout=5000)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+def test_a_code_block_s_own_pin_stands_above_its_corner(request, serve, engine):
+    """A comment on a whole code block stands its pin above the block's top-right
+    corner, outside the block, so it reads apart from the pins of the block's lines,
+    which stand inside it level with their lines, and keeps clear of Copy."""
+    browser = request.getfixturevalue(engine)
+    events = [
+        _comment_on("listing"),
+        _comment_on("listing", text="On a line.", quote="short_second = 1"),
+    ]
+    page = open_page(
+        browser, serve(_listing(FIRST_LINE_LISTING, layout="column"), events=events)
+    )
+    resized(page, 760, 800)
+    margins_laid_out(page)
+    reading = page.evaluate(
+        """() => {
+          const block = document.getElementById('listing').getBoundingClientRect();
+          const text = document.querySelector('#listing code').firstChild;
+          const at = text.data.indexOf('short_second = 1');
+          const range = document.createRange();
+          range.setStart(text, at);
+          range.setEnd(text, at + 16);
+          const line = range.getClientRects()[0];
+          const rows = [...document.querySelectorAll('[data-lf-margin-for="listing"]')]
+            .map((row) => ({quoted: row.getAttribute('aria-label').includes('short_second'),
+                            box: row.getBoundingClientRect()}));
+          const own = rows.find((row) => !row.quoted).box;
+          const lined = rows.find((row) => row.quoted).box;
+          const middle = (lined.top + lined.bottom) / 2;
+          return {above: own.bottom <= block.top, atCorner: block.right - own.right < 24,
+                  onLine: middle >= line.top && middle <= line.bottom,
+                  own: own.toJSON(), lined: lined.toJSON(), block: block.toJSON()};
+        }"""
+    )
+    assert reading["above"] and reading["atCorner"] and reading["onLine"], reading
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+def test_wrapped_prose_that_keeps_its_spaces_seats_its_pin_as_prose(
+    request, serve, engine
+):
+    """Prose that keeps its spaces and wraps, as a quoted message or a transcript might
+    (`white-space: pre-wrap`), reaches the column's edge on every line, so its pin
+    stands by its words as an ordinary paragraph's does, not at the edge as a line of
+    code's does."""
+    browser = request.getfixturevalue(engine)
+    words = (
+        "This paragraph keeps its spaces, as a quoted message might. It runs long "
+        "enough to wrap across several lines of the column, and a reader comments on "
+        "a phrase in its middle so the pin's seat shows how wrapped prose is treated."
+    )
+    # Each paragraph between the same neighbours, so where its pin stands differs only
+    # by how its spaces are kept.
+    body = (
+        "<div><h1>Prose</h1>"
+        + "".join(
+            f'<h2>{section.title()}</h2><p id="{section}"{style}>{words}</p>'
+            "<p>Words after the paragraph, so the room below it is the same.</p>"
+            for section, style in (
+                ("kept", ' style="white-space: pre-wrap"'),
+                ("plain", ""),
+            )
+        )
+        + "</div>"
+    )
+    events = [
+        _comment_on(section, quote="a phrase in its middle")
+        for section in ("kept", "plain")
+    ]
+    page = open_page(
+        browser, serve(leaf_page("Prose", body, layout="workspace"), events=events)
+    )
+    resized(page, 900, 800)
+    margins_laid_out(page)
+    offsets = page.evaluate(
+        """() => ['kept', 'plain'].map((id) => {
+          const text = document.getElementById(id).firstChild;
+          const at = text.data.indexOf('a phrase in its middle');
+          const range = document.createRange();
+          range.setStart(text, at);
+          range.setEnd(text, at + 22);
+          const words = range.getClientRects()[0];
+          const pin = document.querySelector(`[data-lf-margin-for="${id}"]`)
+            .getBoundingClientRect();
+          return [pin.left - words.left, pin.top - words.top];
+        })"""
+    )
+    assert offsets[0] == pytest.approx(offsets[1], abs=1), offsets
 
 
 def test_a_pin_in_a_pane_paints_in_the_frame_its_target_scrolls(browser, serve):

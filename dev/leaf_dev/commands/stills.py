@@ -298,6 +298,12 @@ def native_code(page: Page) -> None:
     page.locator("#bg-javascript-code").scroll_into_view_if_needed()
 
 
+def annotated_code(page: Page) -> None:
+    """Syntax colours inside authored marks, line wrappers and link targets."""
+    native_code(page)
+    page.locator("#bg-annotated-code").scroll_into_view_if_needed()
+
+
 def native_code_copy_hover(page: Page) -> None:
     """A document code block under the pointer, which shows its Copy on its border."""
     native_code(page)
@@ -891,7 +897,8 @@ def on_me(page: Page) -> None:
 
 
 def on_me_todo(page: Page) -> None:
-    """The full to-do title beside its subject after the On me walk arrives."""
+    """On me opened on a to-do's card, its whole title over its Done, after the On me
+    walk arrives at the to-do's subject."""
     as_agent(
         "task",
         "create",
@@ -1903,6 +1910,36 @@ def draft_edit(page: Page) -> None:
     page.locator("#rn-cli .lf-draft-edit").focus()
 
 
+def draft_long_edit(page: Page) -> None:
+    """Open a visible word after scrolling through a long Markdown draft."""
+    page.locator("#rn-cli .lf-draft-body").click()
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.insert_text(
+        "\n".join(
+            f"Line {i}: The **release note** remains `editable`." for i in range(60)
+        )
+    )
+    page.keyboard.press("ControlOrMeta+Enter")
+    expect(page.locator("#rn-cli .lf-draft-edit")).to_have_count(0)
+    body = page.locator("#rn-cli .lf-draft-body")
+    expect(body).to_contain_text("Line 59:")
+    word = """el => {
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      let node;
+      while ((node = walker.nextNode()) && !node.data.includes('Line 30:')) {}
+      const at = node.data.indexOf('Line 30:');
+      const range = document.createRange();
+      range.setStart(node, at + 3); range.setEnd(node, at + 4);
+      const box = range.getBoundingClientRect();
+      return [box.x + box.width / 2, box.y + box.height / 2];
+    }"""
+    point = body.evaluate(word)
+    page.evaluate("y => window.scrollBy(0, y - 350)", point[1])
+    scroll_settled(page)
+    page.mouse.click(*body.evaluate(word))
+    expect(page.locator("#rn-cli .lf-draft-edit")).to_be_focused()
+
+
 def draft_hover(page: Page) -> None:
     """A draft under the pointer, which shows its toolbar of marks on its border."""
     page.locator("#rn-cli .lf-draft-body").hover()
@@ -2117,6 +2154,19 @@ STATES = (
         "developer/feature-gallery",
         native_code,
         region="#bg-javascript-code",
+    ),
+    State(
+        "annotated-code",
+        "developer/feature-gallery",
+        annotated_code,
+        region="#bg-annotated-code",
+    ),
+    State(
+        "annotated-code-dark",
+        "developer/feature-gallery",
+        annotated_code,
+        scheme="dark",
+        region="#bg-annotated-code",
     ),
     State(
         "native-code-copy-hover",
@@ -2709,6 +2759,7 @@ STATES = (
         touch=True,
     ),
     State("release-draft", "release-notes", draft_edit),
+    State("release-draft-long", "release-notes", draft_long_edit),
     State("release-draft-hover", "release-notes", draft_hover, region="#rn-cli"),
     State(
         "release-draft-phone",
@@ -3415,7 +3466,6 @@ STATES = (
         touch=True,
     ),
     State("on-me-todo", "review-a-plan", on_me_todo),
-    State("on-me-todo-dark", "review-a-plan", on_me_todo, scheme="dark"),
     State("on-me", "corpus", on_me),
     State("on-me-dark", "corpus", on_me, scheme="dark"),
     State("on-agent", "corpus", on_agent),

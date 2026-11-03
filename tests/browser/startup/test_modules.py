@@ -543,11 +543,12 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
             ),
         ),
         serve(LONG_PAGE),
+        upgraded=False,
     )
+    # The editor preloads Markdown after presentation. Waiting for arrival would
+    # wait on the very request this test releases after arranging the state race.
+    wait_until_ready(page, through="presented")
     open_threads(page)
-    page.evaluate(
-        "() => { window.__lfWidgetApi().then((markdown) => markdown.loadMarkdown()); }"
-    )
     holding(page, marked, 1, "the Markdown module")
     assert len(marked) == 1
 

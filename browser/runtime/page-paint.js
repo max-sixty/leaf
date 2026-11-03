@@ -59,3 +59,11 @@ export const pagePresented = () =>
 // Whether widgets and anchor preparation have finished, independently of state.
 export const pageUpgraded = () =>
   document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.upgraded);
+
+// Whether the decision `element`, which wears the location mark (`obligation`), has a
+// control inside that carries the location itself, which it says on the decision with
+// `--lf-obligation-ring: none`. The location ring (target-paint.js) and a landing that
+// reveals it (landing-scroll.js) read it here.
+/** @param {Element} element */
+export const locationStandsDown = (element) =>
+  getComputedStyle(element).getPropertyValue("--lf-obligation-ring").trim() === "none";

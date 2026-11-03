@@ -1565,16 +1565,22 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
     # An obligation inside a breakout takes its holder's room, as any block
     # there does, however much room its own block asks for.
     assert at["wrapped"] == at["wrapper"], at
-    # Native grid owns the full page width: negative margins can leave the prose
-    # track without leaving the page. Only the padded box exceeds that actual room.
-    boxes = column.evaluate("""() => Object.fromEntries(
-      ['main', '#pulled', '#spilled'].map(selector => {
-        const box = document.querySelector(selector).getBoundingClientRect();
-        return [selector, {left: box.left, right: box.right}];
-      }))""")
+    # The column's room beside its prose is the page's: negative margins can leave the
+    # prose without leaving that room, the shell less a gutter each side. Only the
+    # padded box exceeds it.
+    boxes = column.evaluate("""() => {
+      const shell = document.body.getBoundingClientRect();
+      const gutter = parseFloat(getComputedStyle(document.querySelector('main'))
+        .getPropertyValue('--col-pad'));
+      return {room: {left: shell.left + gutter, right: shell.right - gutter},
+        ...Object.fromEntries(['#pulled', '#spilled'].map(selector => {
+          const box = document.querySelector(selector).getBoundingClientRect();
+          return [selector, {left: box.left, right: box.right}];
+        }))};
+    }""")
     for selector in ("#pulled", "#spilled"):
-        assert boxes[selector]["left"] >= boxes["main"]["left"], boxes
-        assert boxes[selector]["right"] <= boxes["main"]["right"], boxes
+        assert boxes[selector]["left"] >= boxes["room"]["left"], boxes
+        assert boxes[selector]["right"] <= boxes["room"]["right"], boxes
     misplaced = evaluate_probe(column, "misplacedBoxes")
     assert [(m["code"], m["at"]) for m in misplaced] == [
         ("past-column", "<div id=padded>"),
@@ -2079,7 +2085,7 @@ INDENTED_PAGE = leaf_page(
 def test_a_breakout_grows_only_from_a_holder_that_spans_the_column(
     request, serve, direction, engine
 ):
-    """An explicit flow shares document tracks; ordinary holders contain their exhibits."""
+    """An explicit flow shares the column's room; ordinary holders contain their exhibits."""
     browser = request.getfixturevalue(engine)
     source = leaf_page(
         "Native exhibit tracks",
@@ -2337,7 +2343,9 @@ def test_a_drawing_the_room_can_hold_is_shown_whole(browser, serve):
         const el = document.getElementById('flow');
         const m = document.querySelector('main');
         const s = getComputedStyle(m);
-        const room = m.clientWidth - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight);
+        // The room an available block takes: the shell's width less a gutter each side.
+        const room = parseFloat(s.getPropertyValue('--lf-shell-width'))
+            - 2 * parseFloat(s.getPropertyValue('--col-pad'));
         return { shows: el.clientWidth, drawn: el.scrollWidth, room,
                  column: m.querySelector('h1').getBoundingClientRect().width };
     }""")
@@ -3488,3 +3496,9 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
     expect(view.locator(".lf-msg[data-lf-author=agent] .lf-msg-body")).to_have_text(
         "this one does"
     )
+
+
+import pytest
+from render_harness import (
+    leaf_page,
+)

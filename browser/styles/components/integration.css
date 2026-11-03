@@ -72,7 +72,7 @@ html[data-lf-draw-mode] main {
   );
   left: calc(
     anchor(right, -9999px) - var(--lf-block-control-inset) - var(--lf-code-copy-box) +
-      var(--lf-block-control-dx, 0px)
+      var(--lf-block-control-dx, 0px) + var(--lf-block-control-dw, 0px)
   );
   width: var(--lf-code-copy-box);
   height: var(--lf-code-copy-box);
@@ -157,7 +157,7 @@ html[data-lf-draw-mode] main {
   right: calc(
     anchor(left, 9999px) - var(--lf-block-control-dx, 0px) +
       (1 - clamp(0, sign(var(--lf-heading-link-room)) + 1, 1)) *
-      (anchor(right, 9999px) - anchor(left, 9999px))
+      (anchor(right, 9999px) - anchor(left, 9999px) - var(--lf-block-control-dw, 0px))
   );
   --lf-icon-action-face: var(--lf-heading-link-size);
   width: var(--lf-heading-link-size);
@@ -182,13 +182,16 @@ html[data-lf-draw-mode] main {
   position: absolute;
   top: calc(
     anchor(bottom, -9999px) - var(--lf-video-bar-h) - var(--lf-block-control-inset) +
-      var(--lf-block-control-dy, 0px)
+      var(--lf-block-control-dy, 0px) + var(--lf-block-control-dh, 0px)
   );
   left: calc(
     anchor(left, -9999px) + var(--lf-block-control-inset) +
       var(--lf-block-control-dx, 0px)
   );
-  width: calc(anchor-size(width, 0px) - 2 * var(--lf-block-control-inset));
+  width: calc(
+    anchor-size(width, 0px) + var(--lf-block-control-dw, 0px) - 2 *
+      var(--lf-block-control-inset)
+  );
   height: var(--lf-video-bar-h);
   box-sizing: border-box;
   display: flex;
@@ -224,7 +227,7 @@ html[data-lf-draw-mode] main {
 :is(.lf-video-play, .lf-video-full-screen) {
   flex: none;
   /* Flush with the bar's edge, the ring stays inside the press. */
-  outline-offset: var(--focus-ring-inset);
+  --lf-ring-at: var(--focus-ring-inset);
 }
 .lf-video-play > .lf-action-icon {
   grid-area: 1 / 1;

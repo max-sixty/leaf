@@ -16,6 +16,10 @@
    Each message header text item keeps its allocated width while news waits, so a later
    receipt grows only inside its own clipped box. The first notice may use spare
    room for its new receipt without moving the author or time already shown.
+   The panel's thread view gives its controls a line of their own above the messages.
+   The card tried that and dropped it: the line made the card 36px taller for little
+   more than its presses, which cost the card too much density. A title could fill the
+   line, but the passage the card points at already says what the thread is about.
 
    Immutable descriptors contain generated presentation only. Retained native editors,
    margin controls and frozen message widgets keep their mechanical lifetime outside

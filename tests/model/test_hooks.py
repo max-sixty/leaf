@@ -105,7 +105,9 @@ def test_pages_follower_reads_on_its_timer_without_a_native_subscription(
         cleanup_model.end_session("s1")
 
     monkeypatch.setattr(file_changes_model, "FileChanges", forbidden)
-    monkeypatch.setattr(hooks_model, "time", SimpleNamespace(sleep=release))
+    monkeypatch.setattr(
+        hooks_model, "time", SimpleNamespace(sleep=release, monotonic=time.monotonic)
+    )
     hooks_model.cmd_pages({"session_id": "s1"})
     first, last = map(json.loads, capsys.readouterr().out.splitlines())
     assert len(first) == 1

@@ -2040,7 +2040,6 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 		for (const control of selectedReadingCarriers) if (!selected.has(control)) syncContributionSelection(control, false);
 		for (const control of selected) syncContributionSelection(control, true);
 		selectedReadingCarriers = selected;
-		scheduleMarginEntryLabels();
 	}
 	const threadIdOf = (choice) => choice.items[0].thread.id;
 	const entryThread = (node) => {
@@ -2555,7 +2554,7 @@ function createVisualMarkPaint() {
 				record.shapeKey = shapeKey;
 			}
 			keeps(stand.root, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
-			standOver(stand, placed, geometry ? "0" : getComputedStyle(target.surface).borderRadius);
+			standOver(stand, placed, geometry ? null : getComputedStyle(target.surface).borderRadius);
 		}
 		syncStates();
 	}

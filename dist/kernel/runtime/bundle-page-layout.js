@@ -1020,8 +1020,16 @@ function registerContribution({ key, target, source = target, read, activate }) 
 	const landFocus = () => {
 		const key = owedFocus;
 		owedFocus = null;
-		offered.focusRequest = null;
-		if (key != null) registration.focus(key, "move");
+		const request = offered.focusRequest;
+		try {
+			if (key != null) {
+				settle({ immediate: true });
+				const destination = control(key, null, true);
+				if (destination) focusDestination(destination, "move");
+			}
+		} finally {
+			if (offered.focusRequest === request) offered.focusRequest = null;
+		}
 	};
 	const arrive = (entryKey, surface, move) => {
 		const request = {
@@ -6634,33 +6642,39 @@ function standOver(stand, placed, borderRadius) {
 	const at = anchor && anchorBox(anchor);
 	const stood = standIn(stand, placed, Boolean(anchor));
 	const style = stand.box.style;
-	standBox(stand.box, placed.rect, stood, anchor, at);
+	const band = token("--focus-ring-w");
+	const gaps = sideGaps(placed, band, markGap(placed.surface));
+	const gap = Math.min(gaps.top, gaps.right, gaps.bottom, gaps.left);
+	const { rect } = placed;
+	const box = borderRadius === null ? rect : {
+		left: rect.left - gaps.left + gap,
+		top: rect.top - gaps.top + gap,
+		right: rect.right + gaps.right - gap,
+		bottom: rect.bottom + gaps.bottom - gap
+	};
+	standBox(stand.box, box, stood, anchor, at);
 	Object.assign(style, {
 		display: "block",
-		borderRadius
+		borderRadius: borderRadius ?? "0"
 	});
-	const band = token("--focus-ring-w");
-	const outside = markGap(placed.surface);
-	const gap = cramped(placed, band + outside) ? -band : outside;
 	style.setProperty("--lf-mark-offset", layoutPx(gap));
-	const room = Math.max(0, band + gap);
 	for (const side of [
 		"top",
 		"right",
 		"bottom",
 		"left"
-	]) stand.root.style.setProperty(`--lf-paint-outset-${side}`, layoutPx(cutsAt(placed, side) ? 0 : room));
+	]) stand.root.style.setProperty(`--lf-paint-outset-${side}`, layoutPx(cutsAt(placed, side) ? 0 : Math.max(0, band + gaps[side])));
 	return {
 		...stood,
 		anchor,
 		at,
-		room
+		room: Math.max(0, band + gaps.top)
 	};
 }
 const token = (name) => Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
 function markGap(surface) {
-	const stated = Number.parseFloat(getComputedStyle(surface).outlineOffset);
-	if (stated) return stated;
+	const style = getComputedStyle(surface);
+	if (style.getPropertyValue("--lf-ring-at")) return Number.parseFloat(style.outlineOffset);
 	return token(surface.matches(PRESSES) ? "--focus-ring-gap" : "--focus-region-gap");
 }
 function cutsAt({ rect, levels }, side) {
@@ -6668,9 +6682,41 @@ function cutsAt({ rect, levels }, side) {
 	const low = side === "top" || side === "left";
 	return levels.some(({ band, axes }) => axes[axis] && (low ? rect[side] < band[side] : rect[side] > band[side]));
 }
-function cramped({ rect, levels }, room) {
-	const short = (band, low, high) => rect[low] >= band[low] && rect[low] - room < band[low] || rect[high] <= band[high] && rect[high] + room > band[high];
-	return levels.some(({ holder, band, axes }) => holder && (axes.x && short(band, "left", "right") || axes.y && short(band, "top", "bottom")));
+function sideGaps({ rect, levels, plane }, band, gap) {
+	const sides = [
+		"top",
+		"right",
+		"bottom",
+		"left"
+	];
+	const room = (edge, side) => {
+		const beyond = side === "left" || side === "top" ? rect[side] - edge[side] : edge[side] - rect[side];
+		return beyond > -1 ? beyond : Infinity;
+	};
+	const axis = (side) => side === "left" || side === "right" ? "x" : "y";
+	const packed = levels.some(({ holder, band: edge, axes }) => holder && sides.some((side) => axes[axis(side)] && room(edge, side) < band + gap));
+	const page = pageExtent(plane);
+	const stands = (side) => packed ? -band : Math.max(-band, Math.min(gap, room(page, side) - band));
+	return {
+		top: stands("top"),
+		right: stands("right"),
+		bottom: stands("bottom"),
+		left: stands("left")
+	};
+}
+function pageExtent(plane) {
+	const shown = layoutWindow();
+	const root = document.scrollingElement;
+	if (plane === "window" || !root) return shown;
+	const style = getComputedStyle(root);
+	const fixed = (overflow) => overflow === "hidden" || overflow === "clip";
+	const [x, y] = [!fixed(style.overflowX), !fixed(style.overflowY)];
+	return {
+		left: x ? -root.scrollLeft : shown.left,
+		top: y ? -root.scrollTop : shown.top,
+		right: x ? root.scrollWidth - root.scrollLeft : shown.right,
+		bottom: y ? root.scrollHeight - root.scrollTop : shown.bottom
+	};
 }
 function paintSet(root, { onNear = () => {} } = {}) {
 	const stands = /* @__PURE__ */ new Map();

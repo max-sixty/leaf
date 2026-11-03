@@ -947,6 +947,14 @@ WRAP_TOP = """() => { const r = document.createRange();
 # that matched in width and not in colour would be two rings that look like one.
 RING = """(el) => { const s = getComputedStyle(el);
     return [s.outlineStyle, s.outlineWidth, s.outlineColor]; }"""
+# The location ring drawn over the decision `el` (target-paint.js, `paintLocation`), read
+# as RING reads an outline: its band's style, width and colour, or "none" where no ring
+# stands over `el`.
+LOCATION_RING = """(el) => { const box = document.querySelector('.lf-location');
+    if (!box || box.dataset.for !== el.id || getComputedStyle(box).display === 'none')
+      return ['none'];
+    const s = getComputedStyle(box, '::after');
+    return [s.outlineStyle, s.outlineWidth, s.outlineColor]; }"""
 # One parent over two leaves, so a status report has to move both the marker and
 # the parent's computed done-fraction — the state a stylesheet cannot recount.
 REPORT_PAGE = leaf_page(

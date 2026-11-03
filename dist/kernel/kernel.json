@@ -1,6 +1,6 @@
 {
   "inputs": {
-    "leaf.js": "8c8a943a0e76e927a128a0ea53a27a1c647127e309ec4310dcc75222d9e51222",
+    "leaf.js": "f589d980fd4fbb7b7eb38ecc193307e53db08f3f88752349b3e438b835998cbb",
 
     "runtime/abort.js": "5ac3a80366571da2b98e2aae8cea84bbc2fa8befed9815a9e7d77e8a68445320",
 
@@ -16,7 +16,7 @@
 
     "runtime/anchor-placement.js": "3bb7695bb000da18b06f4aca8668b38db70d9e2646fb52fcee08304c680c9ab0",
 
-    "runtime/anchor-resolution.js": "fc81f15f6fd8bfd5f444e5ba5c46ceffbe9949d1fef651f4a7763d1ab26c94dd",
+    "runtime/anchor-resolution.js": "30d3c8c079d4d737ddcf103baccd23e68c16fd9b3409a7a1890f92405576240d",
 
     "runtime/anchor-travel.js": "ec4f63fec7bb07f608c3c402b012d7e9f9b372a01caddd17ec7dc8d707ff23c5",
 
@@ -144,7 +144,7 @@
 
     "runtime/css-anchors.js": "03fabbdc0604c9624e56185521831b6b416d2e5f3272cfd5fe78e17b4b9631eb",
 
-    "runtime/current-target.js": "03c34f5d7934e859370c65b4466ff8a5a56fa9f259d5805ba2041077deab88fc",
+    "runtime/current-target.js": "157c79d43897e2f4d219bfc71ddf02b734f164f53cac16fa64336bd5ac576082",
 
     "runtime/data.js": "c80e810fbf3d964e4f20027b817256e0c5074f9c17aaa22dddac5b8e389d293d",
 
@@ -192,7 +192,7 @@
 
     "runtime/file-api.js": "f3b92db21e51b8e6537c73e015c63e388234e8d1be210e60ebcb48015ca46eae",
 
-    "runtime/floating-panel.js": "ee3b3ac8a83b9ece6d68b6b9eeba38ace10c3c3df3dc1737d74653c543e32dd0",
+    "runtime/floating-panel.js": "766cce4ef0a39b1e1f723b67217e6cd0d7686f3a445d57292b648bba262ef974",
 
     "runtime/focus.js": "4ce1d8d253d0651bf8e3181dfc821011a5b3ee24d692cc9ab8a3a69364a96345",
 
@@ -310,13 +310,13 @@
 
     "runtime/obligations/model.js": "c9f92b4c07e39bc6e55c3046a3016a38098275554f71fcc8a8a3b25559448166",
 
-    "runtime/obligations/place.js": "20576b014ef0f8263ea1915d6bbd81c7ad94bdb8419df02f3cefb31a9c860ae1",
+    "runtime/obligations/place.js": "be4e5eb217afae9a0977362ed50e1e2984c6fb791d7bec438f0b95a1e9727be4",
 
     "runtime/obligations/source.js": "45abdbfe58cfc0bb25cb99c1a36be355602a34416251823a6306c16a44bd93f0",
 
     "runtime/obligations/tally.js": "10cfd50ae5554bda539f046216a67c69a1010b69dd94df2d9af7e3de183302e2",
 
-    "runtime/obligations/view-elements.js": "8dcb50af3cd2a4e2d57dfd37e134ceddc7688acd53bc62c3fece85e225927123",
+    "runtime/obligations/view-elements.js": "ecac61c91f4693beedffc5fe6b704db41834caeb530b9fea0774a24f4be9d30e",
 
     "runtime/obligations/view.js": "2e9bc6711d462664d071eb9019c7eb58d1342c680e5101f7ab3421395e2e998c",
 
@@ -342,7 +342,7 @@
 
     "runtime/page-status.js": "2b3befc0ab94f7b6b82b05a0eac88d3fd7bcfac95157ba09776d8583d88a01cf",
 
-    "runtime/passages.js": "e587250be4ea5a968056fb5fa9005d8fbddb7466e0932363f8ca09058a113bb7",
+    "runtime/passages.js": "dc7ea345c2a7987960ca80fa844819bce139c2506bbbffefe3a4bd5dd2dffd01",
 
     "runtime/pending/dispatch.js": "92a7a67454957ebaa647751d5e55f0eefd7807fa0b5ebf4771f8b23f9a1167b7",
 
@@ -364,7 +364,7 @@
 
     "runtime/projection/authored.js": "86560a5839cffdbde971e52d79ce321b09d69f4270160f183e51b65f362daa54",
 
-    "runtime/projection/data.js": "8aea34b0216713ad11f4eafcc0978b8922332d03450fc679780fefa8e5e1658d",
+    "runtime/projection/data.js": "45801dd52abd2a3b2967373bb4e2c1e4249cd2ae1dbf0d5c3e3de450548cdeec",
 
     "runtime/projection/model.js": "c936918e0cef2691ba7a1e8f7fe4847e7d2e88c818e1b3f17d8f847693dff972",
 
@@ -376,7 +376,7 @@
 
     "runtime/queue-title.js": "af4eaec486fe0c3d52681945e13ede7fbfa7ab48e1a861ca9260480c685aa5b0",
 
-    "runtime/queue-walk.js": "1eca6c44b38406910b126155ed670354b2a3ba49d8186bb275392a952b22c889",
+    "runtime/queue-walk.js": "efe05fa9abaf0be134dad3a53d1953e46079da1beef3cf80b443fefccfba0017",
 
     "runtime/queued-work.js": "4e4b2fcc68487261fd56e9ac17e59f1b62e9fc7b58bc8afe9a4eac2a8bc4262a",
 

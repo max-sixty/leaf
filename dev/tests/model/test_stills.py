@@ -7,15 +7,16 @@ import pytest
 from click.testing import CliRunner
 from PIL import Image
 
+from leaf_dev import visits
 from leaf_dev.arms import Arm
 from leaf_dev.browser import DESKTOP
-from leaf_dev.commands import probe, stills
+from leaf_dev.commands import stills
 from leaf_dev.states import State
 
 
 @pytest.fixture
 def stills_catalogue(tmp_path, monkeypatch):
-    """Replace build/server/browser boundaries, retaining the command, probe's loop
+    """Replace build/server/browser boundaries, retaining the command, the loop
     through the arms, drivers, screenshots, crops and style comparison. Image
     comparison stands in for its browser module, and each arm's page computes and
     declares its name as the root's colour, so this tests catalogue orchestration
@@ -104,12 +105,12 @@ def stills_catalogue(tmp_path, monkeypatch):
     monkeypatch.setattr(stills, "choose_arms", lambda base, scratch: arms)
     monkeypatch.setattr(stills, "named_source", lambda name: tmp_path / name)
     monkeypatch.setattr(stills, "launch", lambda engine, scheme: nullcontext("browser"))
-    monkeypatch.setattr(probe, "serving_source", serving_source)
-    monkeypatch.setattr(probe, "tab", tab)
+    monkeypatch.setattr(visits, "serving_source", serving_source)
+    monkeypatch.setattr(visits, "tab", tab)
     monkeypatch.setattr(
-        probe, "load", lambda page, address: setattr(page, "url", address)
+        visits, "load", lambda page, address: setattr(page, "url", address)
     )
-    monkeypatch.setattr(probe, "settle", lambda page: None)
+    monkeypatch.setattr(visits, "settle", lambda page: None)
     monkeypatch.setattr(
         stills,
         "declarations",

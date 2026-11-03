@@ -5,8 +5,8 @@ changed.
         [--viewport WIDTHxHEIGHT] [--scheme dark] [--touch] [--browser ENGINE]
 
 Each state of `leaf_dev.states` (all of them unless `--state` names some) is visited on
-both arms through `leaf-dev probe`'s loop (`probe.visits`), which brings a fresh tab
-on each to the state, in the engine `--browser` names. The base is the merge base with
+both arms through the loop `leaf-dev probe` runs too (`leaf_dev.visits`), which brings
+a fresh tab on each to the state, in the engine `--browser` names. The base is the merge base with
 `main` unless `--base` names another commit, and the head is this working tree,
 uncommitted edits included (`leaf_dev.arms.choose_arms`). Each page is built from
 this working tree's example source and served by the arm's own launcher, so only the
@@ -63,8 +63,8 @@ the eye reads that box rather than their baseline.
 Capture and comparison failures are reported per state, with tracebacks in its
 directory; the remaining states still run. A state whose input the engine can't run,
 such as any input on the iOS simulator, is such a failure. Only complete pairs enter
-the comparison. Arm construction, browser setup failures, a state whose page can't be
-found, and interrupts end the command. Once the whole report is written, the command
+the comparison. Arm construction, browser setup failures and interrupts end the
+command, and a state whose page can't be found ends it before any capture. Once the whole report is written, the command
 exits 1 if any state failed, so a caller that reads only the exit status still learns
 that a state went uncaptured.
 """
@@ -89,9 +89,9 @@ from leaf.runtime_selection import read_runtime
 from leaf_dev import ROOT
 from leaf_dev.arms import base_option, choose_arms, describe, run_directory
 from leaf_dev.browser import engine_option, headless_shell, launch, tab_options
-from leaf_dev.commands.probe import Visit, said, visits
 from leaf_dev.example_data import named_source
 from leaf_dev.states import STATES, State
+from leaf_dev.visits import Visit, said, visits
 
 OUT = ROOT / ".tmp" / "stills"
 CROP_MARGIN = 32
@@ -534,6 +534,7 @@ def stills(
     given. The iPhone sets its own window, and its Safari takes no input, so only a
     state at rest captures there."""
     states = [state for state in STATES if not names or state.name in names]
+    sources = {state.name: named_source(state.source) for state in states}
     out = run_directory(OUT)
     failed: dict[str, list[str]] = {}
     read: dict[str, dict] = {}
@@ -564,13 +565,14 @@ def stills(
                 browser,
                 arms,
                 state,
-                named_source(state.source),
+                sources[state.name],
                 scratch / state.name,
                 window=state.window(viewport, scheme, touch),
                 read=partial(capture, state, folder),
                 scale=SCALE,
                 authored=authored,
-            ) as found:
+            ) as each:
+                found = dict(each)
                 for arm, visit in found.items():
                     if visit.error:
                         failure(state, arm, visit.error)

@@ -14,9 +14,9 @@ A state may name a region whose before/after bounds frame stills' comparison,
 retaining related controls without shrinking their details behind unrelated viewport
 changes.
 
-`leaf_dev.commands.probe.visits` brings each arm's tab to a state, in the engine the
-run chose. A driver that engine can't run, such as any input on the iOS simulator or a
-touch state in Firefox, fails that state with the engine's reason.
+`leaf_dev.visits` brings each arm's tab to a state, in the engine the run chose. A
+state that engine can't reach, such as one with an input on the iOS simulator, whose
+Safari takes none, fails with the reason.
 """
 
 import json

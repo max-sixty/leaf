@@ -127,9 +127,29 @@ def cmd_init(
                     page_dir.rmdir()
                 raise
     if harness is not None:
-        # The copy the session loaded may not read the page at this protocol.
-        select_checkout(harness.session)
+        _deliver_from_here(page_dir, harness)
     return {"page": str(page_dir)}
+
+
+def _deliver_from_here(page_dir: Path, harness: Harness) -> None:
+    """Where the session holds the page this command initialized, make this Leaf
+    its delivering Leaf (`session_runtime.select_checkout`), since the copy the
+    session loaded may not read the page at this protocol. Where that changed the
+    selection, start delivery again: a Codex task's adapter running from the former
+    Leaf leaves once another is selected.
+
+    The session's hooks read only the pages it holds, so a page it doesn't hold
+    leaves the selection alone: one a plain preview or a scratch `page init`
+    builds, or one another session holds. That includes a scratch page a Claude
+    Code subagent builds in its own worktree, whose commands act for the session
+    (`ClaudeCodeHarness`)."""
+    claim = page_claim(page_dir)
+    if (
+        claim_is_active(claim)
+        and claimant_matches(claim, harness)
+        and select_checkout(harness.session)
+    ):
+        harness.ensure_delivery()
 
 
 def renew_layer(
@@ -153,7 +173,8 @@ def renew_layer(
     initialized, which `_plan_page` refuses.
 
     A `command` from a checkout also selects that checkout to deliver for the
-    session (`session_runtime.select_checkout`); a hook leaves the selection alone.
+    session, where the session holds the page (`_deliver_from_here`); a hook leaves
+    the selection alone.
 
     What it finds is why the renewal was refused, or the `page check` errors that
     keep index.html from activating under the new layer, since a source an older
@@ -192,7 +213,7 @@ def renew_layer(
             "renewal-refused", values={"page": str(page_dir), "error": str(error)}
         )
     if command and harness is not None:
-        select_checkout(harness.session)
+        _deliver_from_here(page_dir, harness)
     return _unready(page_dir, errors)
 
 

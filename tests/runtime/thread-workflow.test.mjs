@@ -261,6 +261,21 @@ test("a pending reply shows on its message and leaves whose turn it is to the lo
   assert.deepEqual(record.attention, thread.attention);
 });
 
+test("taking back a rewrite draws its message as the log's answer will", () => {
+  const [rewritten] = servedReading("rewritten twice").threads;
+  const [answered] = servedReading("rewritten twice, the last taken back").threads;
+  /** @param {{text?: string, edited?: object, content_version: string}} message */
+  const words = ({ text, edited, content_version }) => ({
+    text,
+    edited,
+    content_version,
+  });
+  const [folded] = foldThreads([rewritten], [{ kind: "undo", undoes: "e3" }]);
+  assert.equal(folded.root.text, "Chart 2025.");
+  assert.deepEqual(folded.msgs.map(words), answered.msgs.map(words));
+  assert.deepEqual(words(folded.root), words(answered.root));
+});
+
 test("a local rewrite shows on its message and reopens a closed thread", () => {
   const asked = {
     id: "root",

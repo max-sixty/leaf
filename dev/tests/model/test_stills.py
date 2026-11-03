@@ -7,6 +7,7 @@ import pytest
 from click.testing import CliRunner
 from PIL import Image
 
+from leaf_dev.arms import Arm
 from leaf_dev.commands import stills
 
 
@@ -40,15 +41,20 @@ def stills_catalogue(tmp_path, monkeypatch):
     )
     out = tmp_path / "stills"
     out.mkdir()
-    arms = {arm: tmp_path / arm for arm in ("base", "head")}
-    commits = {"base": "b" * 40, "head": "a" * 40}
+    arms = {
+        arm: Arm(tmp_path / arm, commit)
+        for arm, commit in (("base", "b" * 40), ("head", "a" * 40))
+    }
 
     @contextmanager
     def serving_source(arm_dir, source, destination):
         yield arm_dir.name
 
+    windows = []
+
     @contextmanager
     def tab(browser, viewport, scheme, touch, *, scale):
+        windows.append((viewport, scheme, touch))
         page = SimpleNamespace(
             url="",
             screenshot=lambda *, path: Image.new("RGB", (4, 4), "white").save(path),
@@ -60,7 +66,6 @@ def stills_catalogue(tmp_path, monkeypatch):
             return {
                 "faces": [[page.url, *[""] * (len(argument) - 1)]],
                 "elements": {"html": 0},
-                "texts": [],
             }
 
         page.evaluate = evaluate
@@ -71,6 +76,7 @@ def stills_catalogue(tmp_path, monkeypatch):
         out=out,
         states=states,
         visited=visited,
+        windows=windows,
         compared=compared,
         compare=lambda name: {"changed": 1, "regions": []},
         splits={},
@@ -86,7 +92,8 @@ def stills_catalogue(tmp_path, monkeypatch):
 
     monkeypatch.setattr(stills, "STATES", states)
     monkeypatch.setattr(stills, "run_directory", lambda path: out)
-    monkeypatch.setattr(stills, "build_pair", lambda base_ref, scratch: (arms, commits))
+    monkeypatch.setattr(stills, "choose_arms", lambda base, scratch: arms)
+    monkeypatch.setattr(stills, "named_source", lambda name: tmp_path / name)
     monkeypatch.setattr(stills, "serving_source", serving_source)
     monkeypatch.setattr(
         stills, "headless_shell", lambda **options: nullcontext("browser")
@@ -239,6 +246,37 @@ def test_a_failed_analysis_preserves_later_comparisons_and_crops(
         "0 of 2 states unchanged\n"
         "files in <stills>\n"
     )
+
+
+def test_the_run_opens_each_state_in_its_own_window_unless_told_another(
+    stills_catalogue, monkeypatch, tmp_path
+):
+    short = (1440, 480)
+    monkeypatch.setattr(
+        stills,
+        "STATES",
+        (
+            stills.State("anywhere", "fixture", stills.at_rest),
+            stills.State("short", "fixture", stills.at_rest, viewport=short),
+            stills.State("finger", "fixture", stills.at_rest, touch=True),
+        ),
+    )
+    windows = stills_catalogue.windows
+
+    assert CliRunner().invoke(stills.stills).exit_code == 0
+    assert windows[::2] == [
+        (stills.DESKTOP, "light", False),
+        (short, "light", False),
+        (stills.DESKTOP, "light", True),
+    ]
+
+    windows.clear()
+    monkeypatch.setattr(stills, "run_directory", lambda path: tmp_path)
+    result = CliRunner().invoke(
+        stills.stills, ["--viewport", "390x844", "--scheme", "dark", "--no-touch"]
+    )
+    assert result.exit_code == 0, result.output
+    assert set(windows) == {((390, 844), "dark", False)}
 
 
 def test_the_run_lists_lines_whose_words_split_their_baseline(

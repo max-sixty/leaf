@@ -890,6 +890,11 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
 
     # Parent view commands never borrow child focus, nor the field the child's user
     # stands in: a panel view would stand the thread's reply there, so it is declined.
+    # The click's stability check waits on the child's animation frames, which a
+    # cross-origin frame below the fold doesn't get.
+    page.locator("#on-you-sample").evaluate(
+        "sample => sample.scrollIntoView({block: 'start', behavior: 'instant'})"
+    )
     child_field = views["you"].locator(".lf-fp-field leaf-text")
     child_field.click()
     expect(child_field).to_be_focused()

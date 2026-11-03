@@ -20,6 +20,7 @@ from leaf_dev import arms
 from leaf_dev.arms import LiveSession, private_program
 from leaf_dev.commands import eval as module
 from leaf_dev.eval_codex import records_for
+from leaf_dev.eval_records import run_samples
 
 
 def test_live_session_drains_output_while_observing_the_page(tmp_path, monkeypatch):
@@ -273,8 +274,6 @@ def test_catalog_builds_native_and_workflow_promptfoo_tests(tmp_path, monkeypatc
 
     # A saved run can contain the same Python provider on different models. The
     # report must join labels and keep the saved model, even after pins change.
-    from leaf_dev.commands.eval_report import report_samples
-
     providers = [
         provider
         for provider in config["providers"]
@@ -318,7 +317,7 @@ def test_catalog_builds_native_and_workflow_promptfoo_tests(tmp_path, monkeypatc
     (run / "results.json").write_text(
         json.dumps({"config": config, "results": {"results": records}})
     )
-    reported = report_samples((run,))
+    reported = run_samples((run,))
     native_execution = reported["todo-outlasts-the-turn"][native["label"]][0][
         "execution_metadata"
     ]
@@ -407,6 +406,218 @@ def test_eval_command_delegates_configuration_and_status_to_promptfoo(
     assert len(config["providers"]) == 1
     assert config["providers"][0]["config"]["viewports"] == ["phone", "desktop"]
     assert "--viewport" not in calls.read_text()
+
+
+def saved_run(run: Path) -> Path:
+    """A retained run of one complete task: two saved samples in each of two
+    columns, the last from an author that did not complete."""
+    from leaf_dev.arrangement_eval import comparison_inputs
+
+    comparison = comparison_inputs("document-live-status", ("phone",))
+    providers, results = [], []
+    for arm in ("base", "candidate", "base", "candidate"):
+        label = f"codex:app-server/{arm}/workflow"
+        providers.append(
+            {
+                "id": "file://provider.py",
+                "label": label,
+                "config": {"harness": "codex", "model": arm},
+            }
+        )
+        work = run / "samples" / f"document-{arm}-{len(results)}"
+        response = {
+            "output": f"{arm} summary",
+            "metadata": {
+                "work": str(work),
+                "checks": {"completed": True},
+                "diagnostics": {
+                    "subject": "document-live-status",
+                    "comparison": comparison,
+                    "payload": f"/original/{arm}",
+                    "condition": "leaf",
+                    "phases": {
+                        version: {
+                            "page": str(work / f"page-phase{version}"),
+                            "trace": {"reply": f"{arm} phase {version}"},
+                        }
+                        for version in comparison["phases"].values()
+                    },
+                },
+            },
+        }
+        results.append(
+            {
+                "id": f"result-{len(results)}",
+                "provider": {"id": "file://provider.py", "label": label},
+                "testCase": {
+                    "description": "Live status document",
+                    "vars": {"prompt": "configuration"},
+                    "metadata": {"case": "configuration", "condition": "leaf"},
+                },
+                "response": response
+                | ({"error": "Author did not complete"} if len(results) == 3 else {}),
+            }
+        )
+    run.mkdir(parents=True)
+    (run / "results.json").write_text(
+        json.dumps(
+            {"config": {"providers": providers}, "results": {"results": results}}
+        )
+    )
+    return run
+
+
+def test_from_replays_saved_outputs_under_current_grading(tmp_path, monkeypatch):
+    """`--from` builds Promptfoo tests that replay saved results, with no author."""
+    from leaf_dev import regrade
+
+    login = tmp_path / "login"
+    login.mkdir()
+    (login / "auth.json").write_text("{}")
+    monkeypatch.setenv("CODEX_HOME", str(login))
+    promptfoo = tmp_path / "promptfoo"
+    promptfoo.write_text("#!/bin/sh\nexit 0\n")
+    promptfoo.chmod(0o755)
+    monkeypatch.setattr(module, "PROMPTFOO", promptfoo)
+    monkeypatch.setattr(module, "RUNS", tmp_path / "runs")
+    run = saved_run(tmp_path / "saved")
+    original = (run / "results.json").read_bytes()
+
+    # Each saved output is graded by its case's current assertions in its own
+    # column, and a failed response fails again without being graded.
+    result = CliRunner().invoke(module.eval, ["--from", str(run)])
+    assert result.exit_code == 0, result.output
+    config = json.loads(
+        next((tmp_path / "runs").glob("*/promptfooconfig.json")).read_text()
+    )
+    assert [p["label"] for p in config["providers"]] == [
+        "codex:app-server/base/workflow",
+        "codex:app-server/candidate/workflow",
+    ]
+    assert {p["id"] for p in config["providers"]} == {regrade.REPLAY}
+    current = module.grading(
+        module.catalog()["configuration"], "configuration", "leaf", lambda: {}
+    )
+    for test in config["tests"]:
+        assert test["assert"] == current["assert"]
+        assert test["vars"] == {"prompt": "configuration"}
+        (reference,) = test["metadata"]["saved"]
+        replayed = regrade.replay("", {}, {"test": test})
+        assert replayed["output"] == f"{reference['sample'].split('-')[1]} summary"
+        assert replayed["metadata"]["work"].endswith(reference["sample"])
+    assert [
+        regrade.replay("", {}, {"test": t}).get("error") for t in config["tests"]
+    ] == [
+        None,
+        None,
+        None,
+        "Author did not complete",
+    ]
+
+    result = CliRunner().invoke(module.eval, ["--from", str(run), "--harness", "codex"])
+    assert result.exit_code != 0 and "--harness" in result.output
+    assert (run / "results.json").read_bytes() == original
+
+
+def test_judgments_of_saved_samples_reach_the_report(tmp_path, monkeypatch):
+    """Only the live judge is replaced: the tests, their replayed samples, page
+    roles, evidence and the report's reading of both orders are real."""
+    from leaf_dev import regrade
+    from leaf_dev.commands import eval_report
+
+    run = saved_run(tmp_path / "saved")
+    base, candidate = (
+        "codex:app-server/base/workflow",
+        "codex:app-server/candidate/workflow",
+    )
+    judged = []
+
+    def judge(pages, widths, prompt, schema, evidence, *, handovers):
+        assert evidence.parent == tmp_path / "out" / "judgments"
+        judged.append((set(pages), prompt))
+        if "overall" not in schema["properties"]:
+            return {
+                "output": {
+                    "status": "complete",
+                    "explored": "Desktop navigation.",
+                    "observations": [],
+                    "unverified": [],
+                },
+                "metadata": {"evidence": str(evidence)},
+            }
+        # The judge prefers the candidate's page in whichever position it stands.
+        better = "A" if pages["A"]["payload"].name == "candidate" else "B"
+        worse = {"A": "B", "B": "A"}[better]
+        return {
+            "output": {
+                "status": "complete",
+                **{aspect: better for aspect in (*regrade.ASPECTS, "overall")},
+                "margin": "clear",
+                f"defects_{worse}": ["Clipped table"],
+                f"defects_{better}": [],
+                "reason": "The candidate keeps the table readable.",
+            },
+            "metadata": {"evidence": str(evidence)},
+        }
+
+    monkeypatch.setattr(regrade, "judge_pages", judge)
+
+    def graded(name: str, variables: dict) -> tuple[Path, list[dict]]:
+        """Run the named judgment's tests as Promptfoo would, and save the run."""
+        config = module.saved_config((run,), (), name, tmp_path / "out", tmp_path)
+        results = []
+        for index, test in enumerate(config["tests"]):
+            result = {"id": f"{name}-{index}", "testCase": test}
+            response = regrade.replay("", {}, {"test": test})
+            # Promptfoo grades no response that failed.
+            if "error" not in response:
+                (assertion,) = test["assert"]
+                outcome = getattr(regrade, name)(
+                    None,
+                    {
+                        "providerResponse": response,
+                        "test": test,
+                        "vars": {**test["vars"], **variables},
+                        "config": assertion["config"],
+                    },
+                )
+                assert outcome["pass"], outcome["reason"]
+                result["gradingResult"] = {"componentResults": [outcome]}
+            results.append(result)
+        judging = tmp_path / name
+        judging.mkdir()
+        (judging / "results.json").write_text(
+            json.dumps({"config": config, "results": {"results": results}})
+        )
+        return judging, results
+
+    # Each pair is judged in both presentation orders, and the report counts a
+    # winner both orders name, by column. The author that did not complete keeps
+    # its place, and its pair is unscored.
+    judging, results = graded("pair", {})
+    assert [
+        [reference["column"] for reference in result["testCase"]["metadata"]["saved"]]
+        for result in results
+    ] == [[base, candidate], [candidate, base]] * 2
+    assert candidate in results[1]["gradingResult"]["componentResults"][0]["reason"]
+    assert judged[0][0] == {
+        f"{position}{suffix}"
+        for position in "AB"
+        for suffix in ("", "_before_decision", "_before_revision")
+    }
+    (source, pair), (_, unscored) = eval_report.pair_records((judging,))
+    assert source == judging / "results.json"
+    assert pair["status"] == "complete" and pair["winner"] == candidate
+    assert pair["orders"][1]["defects"] == {base: ["Clipped table"], candidate: []}
+    assert unscored["status"] == "unscored" and unscored["orders"] == [None, None]
+    assert eval_report.run_samples((judging,)) == {}
+
+    judging, _ = graded("discovery", {"focus": "Investigate long decision premises"})
+    pages, prompt = judged[-1]
+    assert pages == {"page", "page_before_decision", "page_before_revision"}
+    assert "Investigate long decision premises" in prompt
+    section = eval_report.discovery_section(tmp_path / "report", (judging,))
+    assert section.count("Desktop navigation.") == 3
 
 
 def test_arrangement_retains_linked_pages_per_phase(tmp_path, monkeypatch):

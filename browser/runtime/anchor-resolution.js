@@ -33,6 +33,7 @@ import {
   closestAcross,
   cut,
   contextAround,
+  fencedAt,
   neighbourhood,
   pageText,
   readingFrom,
@@ -405,22 +406,24 @@ export function anchorForPassage(segments, node) {
     segments.every((seg) => closestAcross(seg.node, DATUM) === onlyDatum)
       ? onlyDatum
       : null;
-  // Identity is the context for projected data. Neighbouring display values may reorder
-  // or repeat, so storing their words as prefix/suffix would make incidental layout a
-  // second, conflicting answer to which datum the user selected.
-  if (datum) {
-    const anchor = anchorForDatum(datum, quote ? { quote } : {});
-    if (anchor) return anchor;
-  }
+  const projected = datum && anchorForDatum(datum);
+  if (projected && !quote) return projected;
   const section = closestAcross(holder, ADDRESSABLE)?.id ?? null;
   if (!quote) return section === null ? null : { section };
-  const reading = pageText();
-  const [start, stop] = spanIn(reading, segments);
+  const page = pageText();
+  // Identity is the context for projected data: the display values beside a datum may
+  // reorder or repeat, so their words would make incidental layout a second,
+  // conflicting answer to which datum the user selected. Its own words still tell
+  // repeats within it apart, as the lines around each copy tell apart a line a text
+  // document holds twice, so a datum's context stops at its edges.
+  const reading = datum && projected ? fencedAt(page, datum) : page;
+  const base = projected || { section };
+  const [start, stop] = spanIn(page, segments);
   for (let width = CONTEXT; ; width *= 2) {
     const prefix = cut(neighbourhood(reading, start, width, true), -width, Infinity);
     const suffix = cut(neighbourhood(reading, stop, width, false), 0, width);
     const anchor = {
-      section,
+      ...base,
       quote,
       ...(prefix && { prefix }),
       ...(suffix && { suffix }),
@@ -781,7 +784,11 @@ export function resolveAnchor(anchor) {
       };
     }
     // A projection/key pair identifies exactly one current fact. Disappearance detaches
-    // and duplicates refuse to guess. Changed text falls back to the same datum element.
+    // and duplicates refuse to guess. Changed text falls back to the same datum element
+    // where the quote was all of the datum's words, so it named the datum, as a row's
+    // label does. A quote with datum words around it named a passage in the datum, such
+    // as a line of a text document, and once its words are gone it stands nowhere on the
+    // page, rather than at the top of the datum.
     if (datums.length > 1) return null;
     const [datum] = datums;
     if (!datum) {
@@ -803,6 +810,7 @@ export function resolveAnchor(anchor) {
       };
     const segments = findQuote(pageText(), anchor.quote, anchor, datum);
     const [first] = segments;
+    if (!first && (anchor.prefix || anchor.suffix)) return null;
     return first
       ? {
           ...resolvedPassage({

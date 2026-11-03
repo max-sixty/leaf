@@ -71,8 +71,8 @@ Reproduce the recovered grading from this session's local result copies, which r
 references to the original saved pages:
 
 ```sh
-uv run leaf-dev eval-pairs .tmp/comparison/phase-aware-runs/*
-uv run leaf-dev eval-report .tmp/comparison/report .tmp/comparison/phase-aware-runs/*
+uv run leaf-dev eval --judge pair $(printf -- '--from %s ' .tmp/comparison/phase-aware-runs/*)
+uv run leaf-dev eval-report .tmp/comparison/report .tmp/eval/<judging-run> .tmp/comparison/phase-aware-runs/*
 ```
 
 The audit is `.tmp/comparison/audit.json`; the original saved runs are under
@@ -651,7 +651,7 @@ and pair judges, on the arrangement tasks at 1600×1000. The runs named in the t
 sections above no longer existed, so every control was authored fresh. Each repair
 was compared on its own task against the commit before it (`--base`), then on a
 dissimilar task, then against HTML controls through an index of chosen samples, since
-`eval-pairs` pairs only the two columns inside its runs.
+a pair judge pairs only the two columns inside its runs.
 
 Retained, in commit order on the campaign branch:
 

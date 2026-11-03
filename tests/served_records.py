@@ -20,7 +20,12 @@ from model_folds import NOW, UNCLAIMED, leaf_page, served_reading
 
 from leaf.event_log import EventRefused
 from leaf.passages import SourceReading
-from leaf.projection import StateProjection, authored_rank, obligation_value
+from leaf.projection import (
+    StateProjection,
+    attribute_marks,
+    authored_rank,
+    obligation_value,
+)
 from leaf.registry.contract import state_definition
 from leaf.structure import SourceDocument
 
@@ -400,7 +405,7 @@ def obligation_value_cases():
             "set",
             spec,
             source.document.by_id,
-            source.spoken,
+            attribute_marks(source.document.by_id, source.spoken, registry),
             registry,
             projection,
             answered=answered,

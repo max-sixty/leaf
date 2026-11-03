@@ -73,11 +73,16 @@ const selectionEnds = (selection) => {
 // lies outside every placed node, and stays its editor's to keep (`connectedMoveCallback`).
 /** @param {Iterable<Node>} placed @returns {(() => void) | null} */
 export function holdSelection(placed) {
+  // The selection's ends stand in the document, so only a connected node can hold one.
+  // Reading the selection lays the page out in Chromium, so a placement of nodes not yet
+  // in the document, as a renderer's first paint makes, does not read it: a first paint
+  // per widget would otherwise lay out the whole page once per widget.
+  const moving = new Set([...placed].filter((node) => node.isConnected));
+  if (!moving.size) return null;
   const selection = getSelection();
   if (!selection?.rangeCount) return null;
   const { anchorNode, anchorOffset, focusNode, focusOffset } = selection;
   if (!anchorNode || !focusNode) return null;
-  const moving = new Set(placed);
   /** @param {Node} node */
   const inside = (node) => {
     for (let at = /** @type {Node | null} */ (node); at; at = at.parentNode)

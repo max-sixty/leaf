@@ -269,7 +269,7 @@ lf-event::before {
   padding: 0;
   font: var(--font-compact);
 }
-/* Each step is a row (faces.css, `.lf-row`), led by its time, the step shown its
+/* Each step is a row (controls.css, `.lf-row`), led by its time, the step shown its
  * current row; a step still ahead of it stands in the muted ink. */
 .lf-timeline-step {
   cursor: pointer;

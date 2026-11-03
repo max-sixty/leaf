@@ -86,7 +86,7 @@ own (`../SOUL.md`, "Keep the foundation small and extensible").
   generated interface appears in its final position. A state that may never come, such
   as a failed save, shows in a slot already on screen, as a message's head carries its
   delivery status, and the user's gesture makes the room it needs. Feedback may repaint
-  a control or change its label, but never its size: `data-room` (`faces.css`) sizes
+  a control or change its label, but never its size: `data-room` (`controls.css`) sizes
   a label to the widest of the words it can show. Adjacent actions keep their hit areas
   apart.
 - **Shared containers determine control dimensions.** When several modes share a

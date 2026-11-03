@@ -647,6 +647,18 @@ html:not([data-lf-live]) {
     --rail-hang: calc(var(--col-pad) + 10px);
   }
 }
+/* A symbol's face (`.lf-icon-action`), and the inset the composer stands its actions
+   in (styles/components/response.css). */
+:root {
+  --lf-icon-action-face: 28px;
+  --lf-compose-action-inset: 6px;
+}
+/* The room a box of text that can scroll sideways keeps below its content for an
+   overlay scrollbar's track (styles/components/reading.css). */
+:root {
+  --lf-text-scroll-clearance: 8px;
+  --lf-text-scroll-track: 15px;
+}
 /* The body supplies the ground a widget's opaque controls paint (`--lf-ground`): the
  * canvas the browser draws, until a theme or the page paints its own
  * (package-themes.md). */

@@ -25,7 +25,7 @@
 }
 /* A stacked panel's name takes the label font (base.css, `.lf-label`), which a
  * generated name can't wear as a class. A side list's group label is a list's group
- * heading (faces.css, `.lf-rows-head`). */
+ * heading (controls.css, `.lf-rows-head`). */
 :is(lf-tab, lf-part)::before {
   content: attr(label);
   display: block;

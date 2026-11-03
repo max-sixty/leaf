@@ -1604,7 +1604,7 @@ def test_no_rule_rounds_a_box_edged_on_one_side(tmp_path):
     `<style>` and the sheets shipped beside it, the corpus's merged copy aside, and a
     stripe is a side's border of 2px or more or an inset shadow offset
     along one axis only. A transparent side draws no edge: it keeps a stripe's room,
-    as every row does for the current row's stripe (faces.css, `.lf-row`). The
+    as every row does for the current row's stripe (controls.css, `.lf-row`). The
     reading is per rule, so a radius another rule gives the same box passes it."""
     sides = re.compile(
         r"border-(?:left|right|top|bottom|inline-start|inline-end|block-start|"
@@ -4842,3 +4842,18 @@ def test_instruction_reading_uses_the_candidate_vocabulary_before_html_changes(
     assert "Use the new candidate contract." in instructions["author"]
     assert "Choose the owner's inputs" not in instructions["author"]
     assert source.read_text() == original_html
+
+
+def test_portable_css_carries_the_widgets_look_and_no_theme():
+    """A page without Leaf links portable.css for its widgets' look, not a Leaf page's:
+    a theme in the layer, as `reading` is in every new page's, styles a page's own
+    markup, so its rules stay out while a widget package's come in."""
+    reading = schema_model.BUNDLED_PACKAGES / "reading"
+    timeline = schema_model.BUNDLED_PACKAGES / "timeline"
+    layer = layer_model.compose_layer(layer_model.layer_inputs(("reading", "timeline")))
+    sheet = layer.top_files["portable.css"].decode()
+    assert layer_model.stylesheet(timeline / "defaults.css", timeline) in sheet
+    assert layer_model.stylesheet(reading / "defaults.css", reading) in (
+        layer.top_files["theme.css"].decode()
+    )
+    assert layer_model.stylesheet(reading / "defaults.css", reading) not in sheet

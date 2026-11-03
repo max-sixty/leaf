@@ -276,7 +276,7 @@ lf-playground-control > input[type="range"] {
  * choices into rows of 2 and 3, and four thresholds in a 262px card into 2 and 2.
  * Rejected before it: equal grid cells, which wrapped every label longer than its
  * share. Columns the author sets replace the list (below). A focused face draws its
- * ring inside its own padding (`.choice`, faces.css), so lines of faces need no
+ * ring inside its own padding (`.choice`, controls.css), so lines of faces need no
  * gap between them. */
 .lf-playground-choices {
   display: flex;
@@ -307,7 +307,7 @@ lf-playground-choice {
  * choices, plain or rich, in the author's grid columns. Authors set it on a row of
  * threshold choices, saw nothing change, and wrote rules against the generated class
  * instead (13 of 78 pages in 24 configuration samples). A plain face starts its cell
- * at its words' width (`.choice`, faces.css), so its label wraps only where the
+ * at its words' width (`.choice`, controls.css), so its label wraps only where the
  * column is narrower. No `var()` fallback can turn the plain list's flex box into a
  * grid, so a style query asks the group's parent, the control, whether the property is
  * set; naming the rich control's class weighs as much as the rich default above, and

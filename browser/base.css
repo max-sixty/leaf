@@ -47,7 +47,7 @@
  * Live pages reserve thread room at the wide layout's existing floors, so the
  * first comment and the last resolution leave the document column in place. */
 
-/* Leaf's controls wear the faces of their roles (components/faces.css), in
+/* Leaf's controls wear the faces of their roles (components/controls.css), in
    shadow.css so they also reach declared shadow trees. Packages may set placement and
    density, but keep each face's shape, border, hover, and disabled treatment. Margin
    entries, reaction chips, and status labels retain their own forms.
@@ -669,7 +669,7 @@ main {
  * live root clips what overflows sideways (html[data-lf-live], above), so an image wider
  * than its container would otherwise lose its far side with no way to scroll to it.
  * Leaf's icons are not the page's media: they take their size from the icon rule
- * (faces.css), which this one would outrank, unsizing a 16px icon's height. */
+ * (controls.css), which this one would outrank, unsizing a 16px icon's height. */
 img,
 svg:where(:not([data-lf-icon])),
 video {
@@ -709,7 +709,7 @@ img {
    the chrome draws, by wearing `.lf-label`; a wearer keeps only where it stands, and a
    label that can't wear the class, a generated or authored one, states these four
    declarations itself. A group of a list's rows is named by the list's group heading
-   instead (faces.css, `.lf-rows-head`), whose author's capitals these would mangle. */
+   instead (controls.css, `.lf-rows-head`), whose author's capitals these would mangle. */
 .lf-label,
 :where([data-lf-reading-role="pane"]) > header > :is(h2, h3, h4, h5, h6) {
   font: var(--font-label);

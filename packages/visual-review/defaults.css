@@ -85,7 +85,7 @@ lf-visual-review {
   --lf-pane-top: 0px;
   container-type: normal;
 }
-/* A case is a row (faces.css, `.lf-row`), the case shown its current row: its
+/* A case is a row (controls.css, `.lf-row`), the case shown its current row: its
  * number, its title, and a check in the ok ink at its end once it looks right. A
  * case not yet checked shows nothing there, since the header's count and the case's
  * own Looks right box say so, and the check keeps its room, so checking a case moves

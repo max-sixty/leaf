@@ -18,7 +18,7 @@ export {
    same writers through element directives built by `elementDirective`. A behavior module
    reads a box from inside `measure` (shown-box.js). A label
    whose words change holds one room for all of them with `data-room`, which the
-   theme sizes without script and which cuts words past it (faces.css). A module that
+   theme sizes without script and which cuts words past it (controls.css). A module that
    rearranges what it holds inside an unchanged box says so with `layoutChanged`
    (widget-upgrade.js).
 

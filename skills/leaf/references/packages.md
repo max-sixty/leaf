@@ -102,15 +102,14 @@ adding a widget does not change its theme styling.
 | `overrides.css`     | Page-wide in `lf-overrides`        | —                     | —                   |
 | `chrome.css`        | Leaf's chrome, above its own rules | —                     | —                   |
 
-A page without Leaf links the layer's `portable.css` for its widgets' look
-(`module-authoring.md`, "A widget that also runs off Leaf"). It holds the theme's
-tokens, the faces of the controls, icons and failure box that widgets build, and each
-package's `defaults.css` and `widget-shadow.css`, all in `lf-base`. The page's own
-unlayered CSS outranks every rule in it, so the page restyles its widgets by restating
-a token such as `--accent`, and its `color-scheme` picks their colours. Of the page's
-own markup, `portable.css` styles only the control classes Leaf gives authors
-(`.button`, `.field`, `.choice` and `data-room`) and the element rules of a theme the
-layer selects.
+A page without Leaf links the layer's `portable.css`, served beside `/widgets/`, for
+its widgets' look (`module-authoring.md`, "A widget that also runs off Leaf"). It holds
+the theme's tokens, Leaf's faces for what widgets build, kept to the widgets' insides,
+and the `defaults.css` and `widget-shadow.css` of each package that ships widgets, so
+a theme's rules stay out and the page's own markup keeps its look. The rules stand in `lf-base`, so the page's
+own unlayered CSS outranks them and restyles its widgets by restating a token such as
+`--accent`, and its `color-scheme` picks their colours. A page that paints its own
+background sets `--lf-ground` to it, the ground a widget's opaque controls paint.
 
 Defaults, a widget's own and a theme's element rules and idioms, go in `defaults.css`,
 below Layouts; overrides, in `overrides.css`, rank above them. Leaf orders

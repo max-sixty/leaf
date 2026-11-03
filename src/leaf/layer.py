@@ -420,7 +420,7 @@ def chrome_restyle(sheet: str, source: Path) -> str:
 
 
 def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
-    """The layer's four stylesheets: each contribution in its role's cascade tier,
+    """The layer's three stylesheets: each contribution in its role's cascade tier,
     in input order. Leaf places sheets and rewrites none of their rules but
     chrome.css's, which it nests in the chrome (`chrome_restyle`).
 
@@ -439,14 +439,6 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
 
     The kernel supplies the base and shared shadow defaults. Its Layouts and semantic
     state retain their own tiers. Page CSS remains unlayered.
-
-    portable.css is the look a page without Leaf links for the widgets it runs
-    (module-authoring.md, "A widget that also runs off Leaf"): the kernel's
-    portable.css, then each package's widget-shadow.css and defaults.css, in input
-    order, all in lf-base, the tier a widget module's adopted rules take off Leaf too
-    (runtime/base-layer.js), so the host's own unlayered rules outrank all of it. It
-    takes none of base.css's page shell, the Layouts, semantic state, overrides or
-    chrome, which style a Leaf page around its widgets.
     """
     kernel, *packages = inputs
     if not (kernel / "base.css").is_file():
@@ -455,7 +447,6 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     theme = [order]
     shadow = [order]
     chrome = []
-    portable = []
 
     def place(sheets, tier, root, name):
         source = root / name
@@ -467,13 +458,10 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     place(theme, "lf-base", kernel, "shadow.css")
     place(shadow, "lf-shadow", kernel, "shadow.css")
     place(theme, "lf-base", kernel, "base.css")
-    place(portable, "lf-base", kernel, "portable.css")
     for root in packages:
         place(theme, "lf-base", root, "widget-shadow.css")
         place(shadow, "lf-shadow", root, "widget-shadow.css")
-        place(portable, "lf-base", root, "widget-shadow.css")
         place(theme, "lf-base", root, "defaults.css")
-        place(portable, "lf-base", root, "defaults.css")
         place(theme, "lf-overrides", root, "overrides.css")
         if (source := root / "chrome.css").is_file():
             chrome.append(chrome_restyle(stylesheet(source, root), source))
@@ -487,8 +475,43 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
         "theme.css": "".join(theme).encode(),
         "shadow.css": "".join(shadow).encode(),
         "chrome.css": "".join(chrome).encode(),
-        "portable.css": "".join(portable).encode(),
     }
+
+
+def portable_sheet(inputs: list[Path], tags: list[str]) -> bytes:
+    """The look a page without Leaf links for the widgets it runs (module-authoring.md,
+    "A widget that also runs off Leaf"), served as the layer's portable.css.
+
+    It holds the kernel's tokens, then the kernel's shared sheet (shadow.css) nested
+    under `:where(<the layer's tags>)`, then the sheets of each package that ships
+    widgets (widget-shadow.css and defaults.css), all in lf-base, the tier a widget
+    module's adopted rules take off Leaf too (runtime/base-layer.js). The nesting keeps
+    the shared sheet's page-wide control faces (`.button`, `.field`, a native control's
+    font) to the widgets' insides, so the host's own markup keeps its look; it adds no
+    specificity and keeps each rule's order, so a widget's insides rank as on a Leaf
+    page. A rule there that reaches the widget element itself, or declares on `:root`,
+    reaches nothing on the host, which is why the tokens stand outside it. A package
+    that ships no widgets, such as a theme, styles a page rather than its widgets, so
+    it stays out, as do base.css's page shell, the Layouts, semantic state and every
+    overrides.css and chrome.css. The host's unlayered rules outrank all of it.
+    """
+    kernel, *packages = inputs
+    parts = []
+
+    def place(sheet):
+        parts.append(f"@layer lf-base {{\n{sheet}}}\n")
+
+    if (tokens := kernel / "styles/tokens.css").is_file():
+        place(stylesheet(tokens, kernel))
+    if (shared := kernel / "shadow.css").is_file() and tags:
+        place(f":where({', '.join(tags)}) {{\n{stylesheet(shared, kernel)}}}\n")
+    for root in packages:
+        if not (root / "widgets").is_dir():
+            continue
+        for name in ("widget-shadow.css", "defaults.css"):
+            if (source := root / name).is_file():
+                place(stylesheet(source, root))
+    return "".join(parts).encode()
 
 
 def composed_instructions(inputs: list[Path]) -> dict[str, bytes]:
@@ -944,7 +967,11 @@ def _composition(roots: list[Path], vocabulary: LayerVocabulary) -> LayerComposi
         )
         for sub in BROWSER_DIRS
     }
-    top_files = composed_sheets(roots)
+    top_files = composed_sheets(roots) | {
+        "portable.css": portable_sheet(
+            roots, sorted(filter(is_element_name, vocabulary.registry))
+        )
+    }
     for name in LAYER_TOP_FILES:
         if name == "registry.json" or name in top_files:
             continue

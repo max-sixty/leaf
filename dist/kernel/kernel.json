@@ -192,7 +192,7 @@
 
     "runtime/file-api.js": "f3b92db21e51b8e6537c73e015c63e388234e8d1be210e60ebcb48015ca46eae",
 
-    "runtime/floating-panel.js": "a29887ae21e4a15e8990ac4f01cba724fc26ba3d14be4bdaa211a8a08cc78537",
+    "runtime/floating-panel.js": "05f567305f7ea2387449c4ab2ab7220bbb917a2c77a520917e6a4ec67031ed5b",
 
     "runtime/focus.js": "4ce1d8d253d0651bf8e3181dfc821011a5b3ee24d692cc9ab8a3a69364a96345",
 
@@ -474,7 +474,7 @@
 
     "runtime/thread/folding.js": "d3ee0b9bfa919bc62fe82b33c89423841edb002f14d1366a91a083ddeee86baf",
 
-    "runtime/thread/held-news.js": "07b59297df67c4c95e70efc4932743ef075b478117b4c1180279989cfb676752",
+    "runtime/thread/held-news.js": "46126f1c9ac9d3b910fdcbbec44a80d64af19d8c345d117f53d9fe18dacdd4df",
 
     "runtime/thread/identity.js": "a108cf62a230a32aa426de09e2dcd11a5102ee0c8c40817585e40a9f97f7c00c",
 
@@ -558,7 +558,7 @@
 
     "runtime/widget-descriptors.js": "eead710f96907bfe2185ca39b62537d08d21cf6ca6638338b2185cbc594eee1c",
 
-    "runtime/widget-elements.js": "8702b1f5e11018c93540480960672a40212d3ca8640776954564923fdd294c86",
+    "runtime/widget-elements.js": "604eca76c957a439f740862d14d213888abea97402a4750479e329ae318eed24",
 
     "runtime/widget-imports.js": "8a51bbbdb8f9e063f29b432ea2dbb0b58a5037fc517d5e4dd488e5f211e209b8",
 

@@ -34,6 +34,7 @@ from typing import Literal
 import pytest
 from interact_support import running_http_server
 from playwright.sync_api import expect
+from render_harness import consume_browser_errors, leaf_page, open_page
 
 from leaf.layer import compose_layer, layer_inputs
 from leaf.revision_artifact import Resource, resource_type
@@ -118,39 +119,87 @@ PORTABLE = [
 # lifecycle's (`failSoft`), so one widget answers for every portable one.
 REFUSED = '<lf-chart id="refused"><pre>\n{ marks: [ }\n</pre></lf-chart>'
 ROOT = "/leaf"
-# The host's own markup, above the widgets so their drawing moves none of it, which
-# portable.css leaves as the host drew it: none of its rules names an element by its
-# tag alone.
-HOST = (
-    '<div id="host"><p>Words</p><button>Press</button><details><summary>More'
-    "</summary></details><pre>code</pre><select><option>One</option></select>"
-    '<svg width="20" height="20" viewBox="0 0 10 10"></svg></div>'
+# Two widgets to a row, aligned at their tops, so one growing as it draws moves no other.
+GRID = (
+    "display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));"
+    " align-items: start; gap: 16px;"
 )
-SHOWN = (
+# The host's own markup beside the widgets, a row of its own above them so their drawing
+# moves none of it, which portable.css leaves as the host drew it: none of its rules
+# reaches past the widgets, so a host's `.button`, `.choice`, `.field` or `data-room`,
+# names a Leaf page gives its own controls, keeps the host's look.
+HOST = (
+    '<section id="host" style="grid-column: 1 / -1"><p>Words</p><button>Press</button>'
+    '<button class="button">Go</button><a class="button" href="#host">Link</a>'
+    '<label class="choice"><input type="checkbox"> Pick</label>'
+    '<input class="field" value="typed">'
+    '<span data-room="longer words"><span>short</span></span>'
+    "<details><summary>More</summary></details><pre>code</pre>"
+    "<select><option>One</option></select>"
+    '<svg width="20" height="20" viewBox="0 0 10 10"></svg></section>'
+)
+# The faces the readings compare: what an element looks like, and its size.
+FACE = (
     "background-color",
-    "border-top-style",
+    "background-image",
+    "block-size",
+    "border-block-start-color",
+    "border-block-start-style",
+    "border-block-start-width",
+    "border-inline-start-color",
+    "border-inline-start-style",
+    "border-inline-start-width",
+    "border-start-start-radius",
+    "box-shadow",
     "color",
+    "cursor",
     "display",
+    "fill",
     "font-family",
     "font-size",
-    "height",
+    "font-style",
+    "font-weight",
+    "gap",
+    "inline-size",
+    "letter-spacing",
+    "line-height",
     "list-style-type",
-    "margin-top",
-    "padding-top",
-    "width",
+    "margin-block-start",
+    "margin-inline-start",
+    "opacity",
+    "outline-style",
+    "padding-block-start",
+    "padding-inline-start",
+    "stroke",
+    "text-align",
+    "text-decoration-line",
+    "visibility",
+    "white-space",
 )
-# What portable.css draws, a part of each kind and properties it sets there: the
-# theme's tokens through a package's rules, a control's face and its icon, a row's
-# face, and the box a refused body leaves.
-LOOK = {
-    "#lf-chart .lf-chart-drawing": ("color", "font-family", "font-size"),
-    "#lf-code .lf-code-line[data-lf-hi]": ("background-color",),
-    "#lf-timeline .lf-timeline-next": ("width", "height", "border-top-left-radius"),
-    "#lf-timeline .lf-timeline-next svg": ("width", "height", "stroke"),
-    "#lf-timeline [aria-current=step]": ("background-color",),
-    "#lf-motion .lf-motion-controls": ("display", "font-size"),
-    "#refused .lf-error": ("border-top-style", "background-color", "color"),
-}
+# Every element below each widget's root, keyed by its path of tags and classes, with
+# its faces. Leaf adds parts of its own to a widget, such as a Copy control, which the
+# host lacks and the comparison skips by key.
+FACES_BELOW = """([ids, names]) => Object.fromEntries(ids.map(id => {
+  const root = document.getElementById(id), faces = {};
+  const visit = (node, path) => {
+    const seen = {};
+    for (const child of node.children) {
+      const sign = child.localName + [...child.classList].filter(c => c.startsWith("lf-"))
+        .sort().map(c => "." + c).join("");
+      const key = `${path}/${sign}:${seen[sign] = (seen[sign] ?? 0) + 1}`;
+      const style = getComputedStyle(child);
+      faces[key] = Object.fromEntries(names.map(name => [name, style.getPropertyValue(name)]));
+      visit(child, key);
+    }
+  };
+  visit(root, "");
+  return [id, faces];
+}))"""
+# What each widget's root inherits from the page around it, the same on both pages.
+STAGE = (
+    "inline-size: 860px; font: 16px/1.5 Georgia, serif; color: rgb(28, 27, 24);"
+    " --lf-ground: rgb(250, 249, 245)"
+)
 
 
 def install(*packages: str) -> Mapping[str, Resource]:
@@ -183,8 +232,7 @@ def plain_page() -> str:
 <html><head><meta charset="utf-8"><title>Plain page</title>
 <link rel="stylesheet" href="{ROOT}/portable.css">
 <script type="importmap">{json.dumps(layer_import_map(ROOT))}</script>
-<style>main {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-items: start; gap: 16px; }}
+<style>main {{ {GRID} }}
 {tags} {{ display: flow-root; }}
 :is({tags}):not(:defined) {{ visibility: hidden; }}</style>
 <script>
@@ -194,7 +242,7 @@ def plain_page() -> str:
   }}));
 </script>
 <script type="module">{imports}</script>
-</head><body>{HOST}<main>{sections}</main></body></html>"""
+</head><body><main>{HOST}{sections}</main></body></html>"""
 
 
 @contextmanager
@@ -316,39 +364,82 @@ def test_a_display_widget_draws_on_a_page_without_leaf(browser, subtests):
         # reaches the console of a page that runs no Leaf.
         assert console == [], console
 
-        # The one stylesheet draws each kind of part in the theme's look and nothing of
-        # the host's own: read without it, in the same task, so nothing paints between,
-        # every part it draws changes and no element of the host's does.
-        host = {
-            f"#host {tag}": SHOWN
-            for tag in ("p", "button", "summary", "pre", "select", "svg")
-        }
+        # The stylesheet styles nothing of the host's own markup: read without it, in
+        # the same task, so nothing paints between, no element of the host's changes.
         linked, bare = page.evaluate(
-            """parts => lfUnwatched(() => {
-              const read = () => Object.fromEntries(Object.entries(parts).map(
-                ([part, names]) => {
-                  const style = getComputedStyle(document.querySelector(part));
-                  return [part, Object.fromEntries(names.map(
-                    name => [name, style.getPropertyValue(name)]))];
-                }));
+            f"""parts => lfUnwatched(() => {{
+              const read = {FACES_BELOW};
               const sheet = document.querySelector('link[rel="stylesheet"]').sheet;
-              const linked = read();
+              const linked = read(parts);
               sheet.disabled = true;
-              const bare = read();
+              const bare = read(parts);
               sheet.disabled = false;
               return [linked, bare];
-            })""",
-            LOOK | host,
+            }})""",
+            [["host"], list(FACE)],
         )
-        for part, names in LOOK.items():
-            with subtests.test(drawn=part):
-                kept = [
-                    name for name in names if linked[part][name] == bare[part][name]
-                ]
-                assert not kept, (part, linked[part], bare[part])
-        with subtests.test(drawn="#host"):
-            moved = {part: (linked[part], bare[part]) for part in host}
-            assert all(was == now for was, now in moved.values()), moved
+        assert len(linked["host"]) == HOST.count("<") - HOST.count("</") - 1, linked
+        changed = {
+            key: {
+                name: (faces[name], bare["host"][key][name])
+                for name in FACE
+                if faces[name] != bare["host"][key][name]
+            }
+            for key, faces in linked["host"].items()
+        }
+        assert not any(changed.values()), changed
+
+
+def test_a_host_draws_each_widget_as_a_leaf_page_does(browser, serve):
+    """With portable.css linked, every element below a widget's root takes the faces it
+    takes on a Leaf page that takes no theme, given the same markup and the same text
+    and ground inherited at the root. Leaf's faces stand nested under the layer's tags
+    there, so this holds that they still reach every part below the root and still rank
+    below a package's rule of equal weight, as on a Leaf page. The parts only Leaf adds,
+    such as a Copy control and a quiet word, the comparison skips by key."""
+    ids = {"refused": "refused"} | {w.tag: w.tag.replace("lf-", "w-") for w in PORTABLE}
+    sections = [REFUSED, *(widget.markup for widget in PORTABLE)]
+    markup = "".join(f"<section>{part}</section>" for part in sections)
+    leaf = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Parity",
+                f'<div class="stage" style="{STAGE}">'
+                + markup.replace('id="lf-', 'id="w-')
+                + "</div>",
+                head=f"<style>.stage {{ {GRID} }}</style>",
+                layout=None,
+            ),
+            packages=tuple(sorted({w.package for w in PORTABLE} - {"default"})),
+            theme=False,
+        ),
+    )
+    for widget in PORTABLE:
+        expect(leaf.locator(f"#{ids[widget.tag]} {widget.drawn}")).to_be_visible()
+    expect(leaf.locator("#refused .lf-error")).to_be_visible()
+    on_leaf = leaf.evaluate(FACES_BELOW, [list(ids.values()), list(FACE)])
+    consume_browser_errors(leaf, '<lf-chart id="refused"> failed')
+    with host_page(
+        plain_page().replace("<main>", f'<main style="{STAGE}">'), install()
+    ) as url:
+        page = browser.new_page(viewport={"width": 1280, "height": 1200})
+        page.goto(url)
+        for widget in PORTABLE:
+            expect(page.locator(f"#{widget.tag} {widget.drawn}")).to_be_visible()
+        hosted = page.evaluate(FACES_BELOW, [list(ids), list(FACE)])
+    differ = {}
+    for host_id, leaf_id in ids.items():
+        here, there = hosted[host_id], on_leaf[leaf_id]
+        assert here and not here.keys() - there.keys(), (host_id, here.keys() - there)
+        for key, faces in here.items():
+            for name in FACE:
+                if faces[name] != there[key][name]:
+                    differ.setdefault(f"#{host_id} {key}", {})[name] = (
+                        there[key][name],
+                        faces[name],
+                    )
+    assert not differ, json.dumps(differ, indent=1)
 
 
 def test_a_host_sets_a_diff_value_and_reads_its_drawn_marks(browser):

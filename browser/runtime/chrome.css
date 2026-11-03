@@ -26,10 +26,13 @@
    The response bar (`.lf-fab-bar`): `.lf-response-control` keeps the field and every
    choice on one baseline with one type, border, corner and elevation; the bar keeps its
    DOM owner and accessible name while its contents change. */
-/* Page-attached chrome is absolute against the initial containing block, not against
-   body. Body is the page shell and may move or narrow, as margin content moves it;
-   the document coordinate system does neither, and root scrolling still carries
-   absolute chrome with the passage it stands beside. */
+/* Page-attached chrome is absolute against the chrome's root, which stands at the
+   initial containing block's origin and takes no room (base.css), so its coordinates
+   are the document's, not body's. Body is the page shell and may move or narrow, as
+   margin content moves it; the document coordinate system does neither, and root
+   scrolling still carries absolute chrome with the passage it stands beside. Chrome
+   placed with CSS anchors on page content is fixed instead, since an anchor outside
+   the root cannot place a box the root contains (integration.css, `.lf-block-controls`). */
 /* Shared vocabulary. This sheet is adopted after the theme and every package, so a
    shared face stated here would outrank each component's own rule. The vocabulary's
    faces are therefore stated page-side (the margin entries in base.css; .lf-key-badge,
@@ -108,8 +111,9 @@ html[data-lf-draw-mode],
 html[data-lf-draw-mode] body {
   touch-action: pinch-zoom;
 }
-html[data-lf-region-capture] main,
-html[data-lf-region-capture] main * {
+html[data-lf-region-capture]
+  body
+  :not(.lf-chrome, .lf-chrome *, [data-lf-runtime], [data-lf-runtime] *) {
   cursor: crosshair !important;
 }
 /* The glyphs of the reactions in force on a target — a margin entry per reaction,
@@ -242,13 +246,14 @@ html[data-lf-region-capture] main * {
   }
   /* What the layer would inherit from the document, answered at its root:
      position, so a page's broad positioning cannot make the wrapper or the legend's
-     paint host a containing block for document-attached floats; cursor, since the body
-     may be armed for ⌥ aiming; the whole face, since the guard keeps light page rules
+     paint host a containing block for document-attached floats, except the root after
+     `body`, which stands at the origin to stack over the page (base.css); cursor,
+     since the body may be armed for ⌥ aiming; the whole face, since the guard keeps light page rules
      off the chrome (chrome-guard.css) but inheritance still reaches it; and user-select, because a
      drag that reaches any selectable part of the chrome extends the range through
      everything between, so the root answers for every surface and what may still be
      copied says so itself (.lf-quote, .lf-msg-body). */
-  :scope,
+  :scope:not(:root > *),
   .lf-legend {
     position: static;
   }

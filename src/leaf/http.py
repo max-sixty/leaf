@@ -1477,16 +1477,17 @@ class SampleEndpoint(PageEndpoint):
 
     def _delivery(self, artifact: RevisionArtifact, revision: int) -> Delivery:
         # Every child arrives inert, so its startup cannot take focus from the page;
-        # the host releases it once it presents. Whether the child lays out as a
-        # block or a window is its frame's to say (sample.js), which its bootstrap
-        # asks before it paints.
+        # the host releases it once it presents. The root carries it, since Leaf's
+        # chrome stands after the body. Whether the child lays out as a block or a
+        # window is its frame's to say (sample.js), which its bootstrap asks before it
+        # paints.
         return replace(
             super()._delivery(artifact, revision),
             html_attributes={
                 "data-lf-user-scope": self.page_root + "/",
                 "data-lf-sample": "",
+                "inert": "",
             },
-            body_attributes={"inert": ""},
         )
 
 

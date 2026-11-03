@@ -227,7 +227,7 @@ lf-playground-control {
   gap: var(--sp-2);
   min-width: 0;
   color: var(--ink-2);
-  font: var(--t-5)/1.35 var(--sans);
+  font: var(--font-ui);
 }
 
 .lf-playground-control-label {
@@ -393,7 +393,7 @@ lf-playground-output {
   display: block;
   margin: 0;
   color: var(--ink-2);
-  font: var(--t-5)/1.55 var(--sans);
+  font: var(--font-widget);
 }
 
 /* A provider supplies plain text; authored output keeps ordinary HTML whitespace. */

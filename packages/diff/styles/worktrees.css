@@ -8,9 +8,7 @@
   min-width: 0;
   max-width: 100%;
   margin-block: var(--sp-4);
-  font-family: var(--sans);
-  font-size: var(--t-5);
-  line-height: 1.5;
+  font: var(--font-widget);
   container-type: inline-size;
 }
 
@@ -29,9 +27,7 @@
   border-radius: var(--r);
   background: var(--paper);
   color: var(--ink);
-  font-family: var(--sans);
-  font-size: var(--t-5);
-  line-height: 1.5;
+  font: var(--font-widget);
 }
 
 /* Slots distribute the authored members through the same shared grid. No wrapper
@@ -214,7 +210,7 @@ lf-worktree > details {
   margin-block: var(--sp-2) var(--sp-3);
   padding: 0;
   color: var(--muted);
-  font-size: var(--t-6);
+  font: var(--font-small);
 }
 
 lf-worktree > details > summary {

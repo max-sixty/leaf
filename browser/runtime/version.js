@@ -107,6 +107,9 @@ import {
   authored,
   elementById,
   inChrome,
+  inPage,
+  LEAF_SURFACE,
+  leafSurface,
   pageDocument,
   quoteFrom,
   rangeOf,
@@ -252,6 +255,18 @@ const authoredMarkup = (root) => {
     for (const element of root.querySelectorAll(`[${name}]`))
       element.removeAttribute(name);
   for (const preview of root.querySelectorAll("[data-lf-prepaint]")) preview.remove();
+  const body =
+    root instanceof Document
+      ? root.body
+      : root instanceof Element && root.localName === "body"
+        ? root
+        : null;
+  if (body) {
+    for (const surface of body.querySelectorAll(LEAF_SURFACE)) surface.remove();
+    const attributes = authoredAttributes(body);
+    for (const { name } of [...body.attributes]) body.removeAttribute(name);
+    for (const [name, value] of attributes) body.setAttribute(name, value);
+  }
   return root;
 };
 /** @param {Node} source @param {Node} live @param {SourcePairs} pairs @returns {SourcePairs} */
@@ -260,7 +275,10 @@ const pairSources = (source, live, pairs) => {
   const held = source instanceof HTMLTemplateElement ? source.content : source;
   const shown = live instanceof HTMLTemplateElement ? live.content : live;
   const children = [...shown.childNodes].filter(
-    (child) => !(child instanceof Element && child.matches("[data-lf-prepaint]")),
+    (child) =>
+      !(
+        child instanceof Element && child.matches(`[data-lf-prepaint], ${LEAF_SURFACE}`)
+      ),
   );
   for (const [at, child] of [...held.childNodes].entries()) {
     const peer = children[at];
@@ -272,9 +290,9 @@ const pairSources = (source, live, pairs) => {
 // its source and the source/live node pairs together.
 /** @typedef {ReturnType<typeof captureInitialDocument>} InitialDocument */
 function captureInitialDocument() {
-  const main = pageDocument();
+  const body = pageDocument();
   const inert = document.implementation.createHTMLDocument("");
-  const source = main ? authoredMarkup(inert.importNode(main, true)) : null;
+  const source = authoredMarkup(inert.importNode(body, true));
   // Cloning transfers native dirty properties too. Read the initial condition from
   // the defaults, leaving markup and its exact text intact (reparsing drops a leading
   // newline in pre/textarea). Native setters apply each control's sanitization.
@@ -288,8 +306,7 @@ function captureInitialDocument() {
   }
   for (const textarea of source?.querySelectorAll("textarea") ?? [])
     textarea.value = textarea.defaultValue;
-  const pairs =
-    main && source ? pairSources(source, main, new SourcePairs()) : new SourcePairs();
+  const pairs = pairSources(source, body, new SourcePairs());
   // Native disclosures can already have been used while modules were loading.
   // Their parse-time owner supplies the authored default for the source baseline;
   // the live node keeps the user's choice, as it does for every later revision.
@@ -298,7 +315,6 @@ function captureInitialDocument() {
     if (open !== undefined) disclosure.toggleAttribute("open", open);
   }
   return {
-    authoredBodyAttributes: authoredAttributes(document.body),
     authoredHeadNodes: new Set([...document.head.children].filter(versionedHeadNode)),
     authoredHtmlAttributes: authoredAttributes(document.documentElement),
     source,
@@ -783,7 +799,7 @@ function paintedSource(source, widgets) {
   const doc = document.implementation.createHTMLDocument("");
   const root = doc.importNode(source, true);
   const sourceOf = pairSources(root, source, new SourcePairs());
-  doc.body.replaceChildren(root);
+  doc.body.replaceWith(root);
   formatDeclaredMarkdown(root);
   paintBodies(doc, widgets);
   placeCreated(doc, widgets);
@@ -1421,7 +1437,6 @@ export function createVersionController({
   versions,
 }) {
   let {
-    authoredBodyAttributes,
     authoredHeadNodes,
     authoredHtmlAttributes,
     source: authoredSource,
@@ -1672,7 +1687,11 @@ export function createVersionController({
     const arrivingRoot = layerRoot(doc);
     return {
       pairs: sourcePairs,
-      contains: under,
+      // Body owns page content and shares its DOM with runtime surfaces. A source
+      // descendant still owns everything removed with it, including an inline
+      // runtime editor; only the body's shared boundary excludes Leaf's surfaces.
+      contains: (node, owner) =>
+        owner === pageDocument() ? inPage(node) : under(node, owner),
       declared: upgraded,
       body: authoredBody,
       reaches: (before, after) => reachesMembers(before, after, arrivingRoot),
@@ -1769,7 +1788,7 @@ export function createVersionController({
     const isAuthored = authored(live);
     const generated = (/** @type {Node} */ node) =>
       (node.nodeType === Node.ELEMENT_NODE || node.parentElement !== null) &&
-      !isAuthored(node);
+      (Boolean(leafSurface(node)) || !isAuthored(node));
     // Step 5 of the startup order, for the markup this revision brings: read while it is
     // still what its author wrote, because connecting a widget is what hands its children
     // to a controller. The nodes read here are the nodes that end up in the page, and the
@@ -1836,14 +1855,9 @@ export function createVersionController({
         "data-lf-layout",
         doc.documentElement.getAttribute("data-lf-layout"),
       );
-      authoredBodyAttributes = replaceAuthoredAttributes(
-        document.body,
-        doc.body,
-        authoredBodyAttributes,
-      );
       activateHead(doc, target);
       // The patch pairs what it walks into, and what it is handed stands outside that
-      // walk: `main` is the one node whose pairing has to be stated rather than found,
+      // walk: `body` is the one node whose pairing has to be stated rather than found,
       // and the revision after this one is the patch that reads it.
       sourcePairs.set(source, live);
       patchTree(outgoing, source, {
@@ -2371,8 +2385,7 @@ export function createVersionController({
     for (const box of boxes) {
       const region = regionForBox(box);
       if (region === undefined || held(box)) continue;
-      if (region && !(under(region.host, pageDocument()) && shownRegionBounds(region)))
-        continue;
+      if (region && !(inPage(region.host) && shownRegionBounds(region))) continue;
       const before = places.get(region ? region.id : PAGE);
       const acted =
         currentLocation ||
@@ -2735,7 +2748,7 @@ export function createVersionController({
     // Record again after any seat or layout commits.
     const recordCurrentLocation = () => {
       const at = focused();
-      if (!at || !under(at, pageDocument())) return;
+      if (!at || !inPage(at)) return;
       const box = boxOf(at);
       recordPlaces([box], { currentLocation: true });
       nextRender(() => recordPlaces([box], { currentLocation: true }));

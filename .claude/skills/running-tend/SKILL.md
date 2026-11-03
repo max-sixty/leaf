@@ -18,8 +18,8 @@ commit message; hold its claims to the standard the diff is held to.
 
 ## Review threshold
 
-Apply `AGENTS.md`'s **Stage** and **Fix the underlying issue** sections and
-`/developing-leaf`'s **Weigh what a change adds** to the verdict; most of Tend's own
+Load `/developing-leaf`, and apply its **Weigh what a change adds** and `AGENTS.md`'s
+**Stage** and **Fix the underlying issue** sections to the verdict; most of Tend's own
 pull requests land on this review alone. Once a change moves Leaf toward a coherent
 architecture, its claimed path works and what it adds is worth keeping, the review
 is done. Reserve findings for architectural seams, cross-runtime invariants, public

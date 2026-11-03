@@ -396,8 +396,12 @@ there. Size says little: a two-line selector can reach every page.
 
 - **What it adds**: a mode, branch or special case; one more member of a set,
   allowlist or tolerance; a wait, retry or timer; a public option; room reserved for a
-  state that may not come; a second statement of a rule with an owner; a reliance on a
-  dependency's internals.
+  state that may not come; a reliance on a dependency's internals.
+- **What it repeats**: code the change writes may already exist under another name, in
+  another directory, language or package. Search for the question each new helper,
+  constant, selector, style rule or inline check answers, not for its name. A copy is a
+  second home even when a comment names its source. Where the change couldn't reach
+  the owner, export, move or generate the owner rather than copy it.
 - **What it buys**: a behavior a user sees, a request the maintainer made, or a
   measured cost. A green test buys what the test protects, so name that.
 - **Where its cost lands**: read the change's reach rather than its claim, such as a
@@ -432,7 +436,9 @@ makes Leaf harder to develop than it is worth:
   including Leaf's interface guarantees. Taking a feature away is the maintainer's
   call, so propose the removal with what users lose and what it deletes.
 - **Several implementations of one capability.** Consolidate them into one home and
-  move every caller to it (root `AGENTS.md`, "Fix the underlying issue").
+  move every caller to it (root `AGENTS.md`, "Fix the underlying issue"). The other
+  copies seldom sit beside the file you're reading, so search for them as **What it
+  repeats** says.
 - **A mechanism a dependency or the platform already provides.** Delegate it (root
   `AGENTS.md`, "Use dependencies").
 

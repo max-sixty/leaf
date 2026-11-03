@@ -103,7 +103,9 @@ def test_code_wrapping_keeps_source_copy_and_reader_choice(browser, serve):
         "aria-keyshortcuts", re.compile(r"^w$", re.IGNORECASE)
     )
     expect(host.locator(":scope > pre + .lf-code-copy")).to_have_count(1)
-    expect(host.locator(".lf-code-line.hi > .lf-quiet")).to_have_text("highlighted")
+    expect(host.locator(".lf-code-line[data-lf-hi] > .lf-quiet")).to_have_text(
+        "highlighted"
+    )
     before = pre.evaluate("e => ({text:e.textContent, height:e.clientHeight})")
     page.evaluate(
         "window.sourceRows = [...document.querySelectorAll('#code .lf-code-line')]"

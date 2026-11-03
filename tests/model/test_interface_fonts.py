@@ -1,4 +1,4 @@
-"""Leaf's interface sets its words in the fonts base.css declares (`--font-*`)."""
+"""Leaf's interface sets its words in the theme's fonts (`--font-*`, tokens.css)."""
 
 import re
 
@@ -86,7 +86,8 @@ def test_every_rule_of_the_interface_names_a_declared_font():
     pixel under whatever row held it, line heights from 1.2 to 1.5, weights of 450, 650
     and 700. Each looked deliberate where it was written. A rule of the interface, one
     that names an `lf-` class, now names a font, so a new face is a new font in
-    base.css's one list of them, where it is seen beside the others.
+    the theme's one list of them (styles/tokens.css), where it is seen beside the
+    others.
 
     Asked of the source rather than of a rendered page, because that is where the face
     is chosen, and every sheet is read whether or not a page draws its rules: the
@@ -95,12 +96,12 @@ def test_every_rule_of_the_interface_names_a_declared_font():
     fonts = {
         item.name
         for _, item, _ in declarations(
-            tinycss2.parse_stylesheet((ASSETS / "base.css").read_text())
+            tinycss2.parse_stylesheet((ASSETS / "styles/tokens.css").read_text())
         )
         if item.name.startswith("--font-")
     }
     assert {"--font-ui", "--font-small", "--font-message"} <= fonts, (
-        f"base.css declares the fonts {sorted(fonts)}: this reading has stopped "
+        f"tokens.css declares the fonts {sorted(fonts)}: this reading has stopped "
         f"finding them and the assertion below is about nothing"
     )
     named = re.compile(r"var\((--font-[\w-]+)\)")
@@ -127,5 +128,5 @@ def test_every_rule_of_the_interface_names_a_declared_font():
                 own.append(f"{where} {' { '.join(context)} — {item.name}: {said(item)}")
     assert not own, (
         f"{len(own)} rules of the interface set a face of their own rather than naming "
-        f"a font (base.css, `--font-*`):\n  " + "\n  ".join(own)
+        f"a font (styles/tokens.css, `--font-*`):\n  " + "\n  ".join(own)
     )

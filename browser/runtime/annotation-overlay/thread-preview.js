@@ -9,6 +9,10 @@
    Margin disclosure remains the margin's; selection records only whether a walk
    opened a cluster so its end can return that disclosure.
 
+   The card opens only on a window with room for the rail: on one without, its thread
+   opens in the floating panel (margin-projection.js, `showPreview`), and nothing here
+   places a card for a narrow window.
+
    ThreadView owns conversation rendering; comment-placement.js owns the side,
    frame adoption and opening-scroll policy. CardAnchor owns the place an interaction
    preserves. Floating UI follows
@@ -579,10 +583,10 @@ export function createThreadPreview({
     const thread = threadCardThread(session);
     const words =
       !point && thread?.anchor?.quote ? passageGeometry(placedAt(thread.id)) : null;
-    return {
-      element: target,
-      place: commentAttachment({ target, point, passage: words }),
-    };
+    const place = commentAttachment({ target, point, passage: words });
+    // Floating UI follows the scrollers around what the card stands by, so a card on a
+    // row deep in a target follows the box that scrolls that row, not only the target's.
+    return { element: place?.element ?? target, place };
   }
   const THREAD_SIDES = { right: "right", left: "left", bottom: "below", top: "above" };
   // Feed the shared placement policy the current conversation and native draft;
@@ -930,8 +934,9 @@ export function createThreadPreview({
       keepsHidden(previewNav, threadItems.length < 2);
       const selectedIndex = Math.max(0, threadItems.indexOf(selected));
       // Every other walk says "1 of 3" (walk-position.js). This one stands on the card's
-      // actions line, which on a 311px phone already leaves the message heads no room;
-      // " of " made it 12px wider, which pushed the actions past the card's start.
+      // actions line, which on a card near its least width (`--thread-card-min`) already
+      // leaves the message heads little room; " of " made it 12px wider, which on a
+      // 311px card pushed the actions past the card's start.
       keepsText(previewPosition, `${selectedIndex + 1}/${threadItems.length}`);
       previewPrevious.toggleAttribute("disabled", selectedIndex === 0);
       previewNext.toggleAttribute("disabled", selectedIndex === threadItems.length - 1);
@@ -1188,10 +1193,12 @@ export function createThreadPreview({
       }
       const row =
         left && under(left, preview) && closestAcross(left, ".lf-thread-reply");
-      /** @type {HTMLTextAreaElement | null} */
-      const field = row ? row.querySelector(REPLY_BOX) : null;
-      if (row && !(node && under(node, row)) && !field?.value)
-        scheduleThreadPreviewPosition();
+      if (row && !(node && under(node, row))) {
+        previewSession?.anchor.leftReply();
+        /** @type {HTMLTextAreaElement | null} */
+        const field = row.querySelector(REPLY_BOX);
+        if (!field?.value) scheduleThreadPreviewPosition();
+      }
     });
     declareOffFlowSurface(preview, {
       bringBack: (behavior) =>

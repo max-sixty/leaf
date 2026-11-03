@@ -265,8 +265,8 @@ function batch(start, maxBytes) {
   };
 }
 
-/** @param {string} body @param {string} destination */
-function post(body, destination) {
+/** @param {string} body @param {string} destination @param {boolean} keepalive */
+function post(body, destination, keepalive) {
   // Beacon always includes credentials; explicit fetch semantics also work from
   // an opaque sample, whose capability URL is its authority rather than cookies.
   return fetch(destination, {
@@ -274,7 +274,7 @@ function post(body, destination) {
     headers: { "Content-Type": "application/json" },
     body,
     credentials: "same-origin",
-    keepalive: encoder.encode(body).length < 60_000,
+    keepalive,
   });
 }
 
@@ -285,7 +285,10 @@ async function flush() {
   inFlightCount = count;
   let delay = 250;
   try {
-    const response = await post(body, url);
+    // Tied to the document: if the page leaves first, the closeout sends the oldest
+    // of these entries again, and the 64 KiB a page may keep in flight past leaving
+    // stays free for the user's gestures (`postEvent`, layer-client.js).
+    const response = await post(body, url, false);
     if (response.status >= 400 && response.status < 500) {
       // A rejected batch cannot become valid by retrying. Its sequence gap is
       // visible in later batches, and the console carries the immediate fault.
@@ -417,12 +420,12 @@ if (url !== null) {
     "pagehide",
     () => {
       // Keep the in-flight entries in the queue until their fetch is acknowledged.
-      // A closeout may duplicate a batch, identified by session and sequence.
-      for (let start = 0; start < queue.length;) {
-        const { count, body } = batch(start, 48_000);
-        start += count;
-        void post(body, url).catch(() => {});
-      }
+      // A closeout may duplicate a batch, identified by session and sequence. It is
+      // one batch of up to 32,000 bytes, or a single record of up to 40,000, so a
+      // gesture the page sends after it, as a playground does on Firefox's pagehide,
+      // still fits in the 64 KiB a page may keep in flight past leaving. Entries past
+      // that batch leave with the page.
+      if (queue.length) void post(batch(0, 32_000).body, url, true).catch(() => {});
     },
     true,
   );

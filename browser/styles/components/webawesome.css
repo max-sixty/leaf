@@ -124,7 +124,7 @@ wa-select::part(combobox lf-focus-visible-within) {
    the option the user is on, the layer's focus floor (surfaces.css), is inset: outside
    its box, three of its sides were cut by the listbox's edge. */
 wa-option {
-  outline-offset: var(--focus-ring-inset);
+  --lf-ring-at: var(--focus-ring-inset);
 }
 
 /* A single slider focuses its rail and paints the thumb; a range slider focuses

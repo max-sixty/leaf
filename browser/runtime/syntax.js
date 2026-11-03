@@ -15,19 +15,83 @@ import { synNodes, syntax } from "./syntax-tokens.js";
 // The spans change no text: a <span> is no text block, so the anchor pass reads exactly
 // the run of characters it read before. That is what lets this run over the document
 // without the file's reading of the same page needing to know it happened.
-// An authored styling boundary owns token spans and colours as well as CSS.
-// Check on every reading, including after an asynchronous grammar load.
 const LANGUAGE_CLASS = /(?:^|\s)language-([\w+.#-]+)(?=\s|$)/;
 const BLOCK = "pre > code[class]";
-// A block's declared language where the registry colours it.
+// The language Leaf colours a block in, or none, read again when its tokens land. A
+// block is coloured when its declared language is one the registry colours, it holds
+// text and inline annotations, and it wears the reading face.
+//
+// Tokens are cut at the text nodes' boundaries, so authored elements keep their
+// identity, attributes and listeners. A <br> supplies a line break absent from
+// textContent; leave those blocks alone rather than tokenize a different source.
+// A page that supplies its own token palette turns off the reading face, as for its
+// other personally themed content.
+//
+// The token palette is the face's, drawn for the face's code ground (reading.css), so a
+// block that doesn't wear it, as on a page that takes no theme, keeps the colours its
+// page gives it. Only a block in the document has a face to read: one not yet placed is
+// a surface Leaf is building, such as a message, and all of those wear the face.
 /** @param {Element} code */
-const languageOf = (code) => {
+const colouredAs = (code) => {
   const lang = code.getAttribute("class")?.match(LANGUAGE_CLASS)?.[1];
-  if (!lang || code.closest('[data-style="own"]')) return undefined;
-  return Object.hasOwn(syntaxLanguageNames, lang)
-    ? syntaxLanguageNames[lang]
-    : undefined;
+  if (!lang || !Object.hasOwn(syntaxLanguageNames, lang)) return undefined;
+  if (code.querySelector("br")) return undefined;
+  if (
+    code.isConnected &&
+    getComputedStyle(code).getPropertyValue("--lf-reading-face").trim() !== "1"
+  )
+    return undefined;
+  return syntaxLanguageNames[lang];
 };
+// Partition the whole-source token stream over text nodes and our earlier token
+// spans. Authored elements are traversed, never replaced; a token crossing one is
+// cut into pieces with the same style. Equal pieces keep their nodes on a repaint.
+/** @param {Element} code
+ * @param {Parameters<typeof synNodes>[0]} tokens */
+function colourText(code, tokens) {
+  /** @type {(Text | Element)[]} */
+  const nodes = [];
+  /** @param {Node} parent */
+  const collect = (parent) => {
+    for (const node of parent.childNodes) {
+      if (
+        node instanceof Text ||
+        (node instanceof Element && node.matches("[data-lf-syn]"))
+      )
+        nodes.push(node);
+      else collect(node);
+    }
+  };
+  collect(code);
+  let index = 0;
+  let offset = 0;
+  for (const node of nodes) {
+    let remaining = node.textContent.length;
+    /** @type {Parameters<typeof synNodes>[0][number][]} */
+    const pieces = [];
+    while (remaining) {
+      const token = /** @type {Parameters<typeof synNodes>[0][number]} */ (
+        tokens[index]
+      );
+      const length = Math.min(remaining, token.text.length - offset);
+      if (length)
+        pieces.push({
+          text: token.text.slice(offset, offset + length),
+          style: token.style,
+        });
+      remaining -= length;
+      offset += length;
+      if (offset === token.text.length) {
+        index++;
+        offset = 0;
+      }
+    }
+    const painted = synNodes(pieces);
+    if (painted.length === 1 && painted.every((piece) => node.isEqualNode(piece)))
+      continue;
+    if (painted.length) node.replaceWith(...painted);
+  }
+}
 // Blocks whose tokens are on their way. A pass that reaches one again before they land,
 // as a message that renders twice in a turn does, would tokenize the same text and
 // write the same spans over the ones the first pass wrote. So the pass in flight
@@ -46,7 +110,7 @@ export async function highlightBlocks(root) {
     // A block already tokenized for this language keeps its spans: a live revision
     // that rewrote an ancestor's attribute dresses the ancestor again, and the user
     // may be holding a selection in the block beneath it.
-    const lang = languageOf(code);
+    const lang = colouredAs(code);
     if (lang && code.getAttribute("data-lf-syntax") !== lang && !tokenizing.has(code)) {
       tokenizing.add(code);
       blocks.push(code);
@@ -54,18 +118,16 @@ export async function highlightBlocks(root) {
   }
   if (!blocks.length) return;
   for (const code of blocks) {
-    let lang = languageOf(code);
+    let lang = colouredAs(code);
     try {
       while (lang) {
         const source = code.textContent;
         const tokens = await syntax(source, lang);
-        if (code.textContent !== source || languageOf(code) !== lang) {
-          lang = languageOf(code);
+        if (code.textContent !== source || colouredAs(code) !== lang) {
+          lang = colouredAs(code);
           continue;
         }
-        // Tokens that colour nothing are the text the block already holds.
-        if (tokens.some(({ style }) => Object.keys(style).length))
-          code.replaceChildren(...synNodes(tokens));
+        colourText(code, tokens);
         code.setAttribute("data-lf-syntax", lang);
         break;
       }

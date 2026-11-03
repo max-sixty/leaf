@@ -28,7 +28,15 @@ A press goes to scopes from the focused element outward, ending at the page and 
 the browser. A scope owns every binding it declares while the user is in it, so when its
 command is unavailable the press reaches no other Leaf command. A text field keeps
 characters, composition, caret movement and deletion, and a native control keeps its
-activation press, ahead of any widget or page scope around it (`dispatch.js`).
+activation press, ahead of any widget or page scope around it (`dispatch.js`). While
+the user has scrolled the focused control out of sight, a key other than typing or
+Escape skips the scopes focus puts them in and reaches only the page's own, so no Leaf
+command acts on what they can't see; the browser still activates a native control
+(`dispatch.js`). A key
+typed into one of Leaf's fields, a `leaf-text` or a search box, stops at the field once
+the field and the dispatcher have read it there (`field-keys.js`), so the page never
+hears it bubble, and any other Leaf listener that needs keys typed into a field listens
+in capture.
 
 ## Escape
 
@@ -50,9 +58,10 @@ same step, through its row's `keep` where `run` would throw away unsent words
 - A composer, reply box or find box returns to its container: an element comment's
   composer to its element, a reply box to its thread, a find box to its panel. A layer
   opened from the floating panel's menu returns to the panel.
-- After Send, a reply or a thread's first comment leaves focus on the thread's card or
-  title, never on the page. The panel's field, and a box that stays open for more
-  messages such as a widget's thread box (`x-thread-seat`), keep focus.
+- After Send, a reply box keeps the caret for the next message, in a card, a seat and
+  the panel's field alike (`thread/replies.js`), and so does a box that stays open for
+  more messages such as a widget's thread box (`x-thread-seat`). A thread's first
+  comment leaves focus on the thread's card or title, never on the page.
 - A selected destination (a thread, an obligation, a heading) steps back to the document
   through `letGo` (`focus.js`), landing beside it while it is in view, else on the
   visible block, rather than on the control that opened it, so Tab carries on from it.

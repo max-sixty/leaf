@@ -99,7 +99,7 @@ def test_an_open_card_takes_news_without_moving_its_controls(browser, serve):
         "heading in both schemes.",
     )
     told(page)
-    expect(notice).to_contain_text("new reply")
+    expect(notice).to_contain_text("1 new")
     # It reads whole in the head row, before the card's actions.
     expect(
         preview.locator(".lf-margin-thread-controls .lf-thread-news")
@@ -134,7 +134,7 @@ def test_a_press_in_the_card_keeps_the_pressed_spot_still(browser, serve, how):
         serve.page_dir, "Make the banner quieter", {"section": "h-how"}
     )
     address = {"parent": root, "responds": root}
-    for words in ("Comparing the banner.", "Checking both schemes.", "Measuring."):
+    for words in ("Comparing the banner.", "Checking both schemes."):
         thread_model.post_reply(serve.page_dir, address, words, ephemeral=True)
     append_carried_log_record(
         serve.page_dir,
@@ -150,7 +150,7 @@ def test_a_press_in_the_card_keeps_the_pressed_spot_still(browser, serve, how):
     page.locator(".lf-margin-marker").first.click()
     preview = page.locator(".lf-margin-preview")
     disclosure = preview.locator(".lf-summary-expand")
-    expect(disclosure).to_have_text("Show 3 progress messages")
+    expect(disclosure).to_have_text("Show 2 progress messages")
     rendered(page)
     pressed = disclosure.bounding_box()
     compact = preview.bounding_box()
@@ -181,7 +181,7 @@ def test_a_press_in_the_card_keeps_the_pressed_spot_still(browser, serve, how):
         page.keyboard.press("Enter")
     else:
         disclosure.click()
-    expect(disclosure).to_have_text("Hide 3 progress messages")
+    expect(disclosure).to_have_text("Hide 2 progress messages")
     expect(preview).to_contain_text("Checking both schemes")
     rendered(page)
     expect_pressed_spot()
@@ -192,7 +192,7 @@ def test_a_press_in_the_card_keeps_the_pressed_spot_still(browser, serve, how):
         page.keyboard.press("Enter")
     else:
         disclosure.click()
-    expect(disclosure).to_have_text("Show 3 progress messages")
+    expect(disclosure).to_have_text("Show 2 progress messages")
     rendered(page)
     assert preview.bounding_box()["height"] == pytest.approx(compact["height"], abs=0.5)
     expect(disclosure).to_be_focused()
@@ -494,14 +494,16 @@ SWEEP_AIM = """([id, where, outer]) => {
 }"""
 
 
-@pytest.mark.parametrize("width", [1440, 820])
+@pytest.mark.parametrize("width", [1440, 1000])
 @pytest.mark.parametrize("kind", ["column", "workspace", "screenshot"])
 def test_every_card_keeps_the_placement_rules(browser, serve, kind, width):
     """A sweep of the places a commented row stands in (the page's flow, a bounded log,
     a flowing pane, a log inside another, a workspace pane, a log inside one, a short
-    pane beside a long one, a screenshot) at a width with the margin rail and one
-    without, through the scrolls that carry the row to the window's foot and out of the
-    box that scrolls it, against each rule placement-rules.json says it sweeps."""
+    pane beside a long one, a screenshot) at a wide window and at one just wide enough
+    for the margin rail, the narrowest that opens a card (a narrower one opens the
+    thread in the floating panel), through the scrolls that carry the row to the
+    window's foot and out of the box that scrolls it, against each rule
+    placement-rules.json says it sweeps."""
     assert set(SWEEP_RULE) == SWEEP_REPORTS, (
         "rules name findings the sweep never reports",
         set(SWEEP_RULE) - SWEEP_REPORTS,

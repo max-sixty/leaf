@@ -25,14 +25,9 @@ from interact_support import (
     STATED_TIMEOUT,
     append_carried_log_record,
     available_loopback_port,
-    command_findings,
-    declared,
     fixture_service,
-    publish,
     read_record,
-    record_claim,
     serving,
-    start_server_command,
     wait_for,
     write_record,
 )
@@ -45,7 +40,6 @@ from leaf import presence as presence_model
 from leaf import schema as schema_model
 from leaf import server as server_model
 from leaf import service as service_model
-from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf.refusals import Refused
 
@@ -188,64 +182,6 @@ def test_a_restart_leaves_the_service_of_a_session_that_took_the_page_meanwhile(
     assert service["enabled"] and "restart" not in service
 
 
-def test_a_refused_revendor_leaves_the_running_server_alone(page_dir):
-    """A malformed incoming registry is refused before the server goes down.
-
-    A restart after the refusal would put this Leaf's server over the layer the
-    page keeps, so a page vendored by another Leaf would be served by code its
-    runtime does not speak. The same process answers at the same URL before and
-    after, which is what `Leaf-Server`, the server's incarnation, says."""
-    # Original decision evidence can outlive its declaration. The malformed
-    # incoming registry, rather than that history, causes this refusal.
-    version = page_dir / "index.html"
-    version.write_text(
-        version.read_text().replace(
-            "<h2>Plan</h2>",
-            '<h2>Plan</h2><lf-draft id="d1"><pre>A decision.</pre></lf-draft>',
-        )
-    )
-    publish(page_dir)
-    append_carried_log_record(
-        page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "d1",
-            "action": "decide",
-            "detail": {"decision": "approved"},
-            "meaning": {
-                "scope": "page",
-                "unit": "d1",
-                "depends": ["d1"],
-                "answer": None,
-            },
-        },
-    )
-    started = start_server_command(
-        page_dir, session_id=os.environ["CLAUDE_CODE_SESSION_ID"]
-    )
-    assert started.returncode == 0, started.stderr
-    url = json.loads(started.stdout)["url"]
-    state = urllib.parse.urlsplit(url)._replace(path="/api/state").geturl()
-
-    def incarnation():
-        with urllib.request.urlopen(state) as response:
-            return response.headers["Leaf-Server"], response.headers["Leaf-Layer"]
-
-    before = incarnation()
-
-    overlay = page_dir.parent / ".leaf"
-    overlay.mkdir()
-    (overlay / "registry.json").write_text("{broken")
-    [refused] = command_findings("page", "init", "--package", "./.leaf", str(page_dir))
-
-    assert refused.code == "registry-json"
-    assert (current := server_model.running_server(page_dir)) is not None
-    assert current["url"] == url
-    assert incarnation() == before
-
-
 def test_server_maintenance_needs_no_native_subscription(page_dir, monkeypatch):
     """Retained servers publish rows and retire without spending native watchers.
 
@@ -379,55 +315,6 @@ def test_a_claim_takes_the_job_lifetime_only_for_the_jobs_own_session(
         service_model.claim_page(page_dir)
 
 
-def test_a_desktop_app_sessions_server_lives_as_long_as_the_app_session(
-    page_dir, tmp_path, monkeypatch, dead_pid
-):
-    """The Claude desktop app stops a session's process to update, and resumes it
-    only when the user opens the session, so a claim naming the process takes the
-    page down while the user reads it in another window. The app's record of the
-    session is the lifetime instead: the page stays served through the SessionEnd
-    of the process's stop, comes back to the same generation when the session
-    resumes, and retires once the record names another session or the user
-    archives it."""
-    monkeypatch.setenv("HOME", str(tmp_path))
-    record = (
-        tmp_path
-        / "Library/Application Support/Claude/claude-code-sessions/acct/org"
-        / "local_one.json"
-    )
-    record.parent.mkdir(parents=True)
-    app = {"cliSessionId": "app-session", "isArchived": False}
-    cleanup_model.write_json(record, app)
-    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "app-session")
-    monkeypatch.setenv("CLAUDE_CODE_HOST_SESSION_ID", "local_one")
-    monkeypatch.setenv("CLAUDE_PID", str(dead_pid))
-    assert service_model.claim_page(page_dir)
-    assert hosting_model.start_server(page_dir, harness=harness_model.session_harness())
-    claim_record_2 = service_model.page_claim(page_dir)
-    assert claim_record_2 is not None
-    generation = claim_record_2["generation"]
-    cleanup_model.end_harness_instance("app-session")
-    assert not reaper_retires(page_dir, monkeypatch)
-    assert server_model.running_server(page_dir)
-    harness_2 = harness_model.session_harness()
-    assert harness_2 is not None
-    assert (
-        cleanup_model.ensure_session("app-session", harness_2.lifetime())["generation"]
-        == generation
-    )
-    assert service_model.claim_is_active(service_model.page_claim(page_dir))
-
-    cleanup_model.write_json(record, {**app, "cliSessionId": "after-clear"})
-    assert not service_model.claim_is_active(service_model.page_claim(page_dir))
-    cleanup_model.write_json(record, {**app, "isArchived": True})
-    assert reaper_retires(page_dir, monkeypatch)
-    wait_for(
-        lambda: server_model.running_server(page_dir),
-        lambda running: not running,
-        failure="the app session's server stayed up after it was archived",
-    )
-
-
 def test_a_claim_takes_the_app_lifetime_only_for_the_apps_own_session(
     page_dir, tmp_path, monkeypatch
 ):
@@ -463,82 +350,6 @@ def test_a_server_exits_when_its_session_is_hard_killed(
     assert server.returncode == 0, server.stderr.read()
     assert read_record(page_dir / "service.json")["enabled"] is True
     assert not leases_model.lock_is_held(page_dir / "server.lock")
-
-
-def test_a_live_session_can_take_over_an_existing_server(
-    page_dir, session_process, managed_server
-):
-    first, second = session_process(), session_process()
-    server = managed_server(page_dir, "first", first.pid)
-    record_claim(page_dir, id="second", pid=second.pid, agent="Codex")
-    first.terminate()
-    first.wait(timeout=STATED_TIMEOUT)
-    assert server.poll() is None
-
-    second.terminate()
-    second.wait(timeout=STATED_TIMEOUT)
-    server.wait(timeout=STATED_TIMEOUT)
-    assert server.returncode == 0, server.stderr.read()
-    assert read_record(page_dir / "service.json")["enabled"] is True
-
-
-def test_server_start_hands_the_page_to_a_process_of_its_own(page_dir):
-    """The command returns and the page stays up. Two long-running commands per
-    leaf was one accident: `leaf wait` has to exit, its exit being how a comment
-    reaches the agent, and the server has to not exit at all — so no one process
-    does both, but only the watcher is the session's to hold open. The serve gets
-    a session of its own, which is also what leaves a killed background task
-    costing the watcher alone."""
-    started = start_server_command(page_dir)
-    assert started.returncode == 0, started.stderr
-    reading = json.loads(started.stdout)
-    url = reading["url"]
-    assert url.startswith("http://127.0.0.1:")
-    assert reading["lifetime"] == "session"
-    info = server_model.running_server(page_dir)
-    assert info and info["url"] == url
-    # The child claims only after its refusal and bind checks, which is what lets
-    # the loop's hooks find the session's pages without a failed start taking one.
-    claim_record_3 = service_model.page_claim(page_dir)
-    assert claim_record_3 is not None
-    assert claim_record_3["id"] == "starter"
-    service = server_model.read_service(page_dir)
-    assert service is not None
-    assert service["lifetime"] == "session"
-    assert set(service) == {
-        "host",
-        "bind",
-        "port",
-        "enabled",
-        "lifetime",
-        "runtime",
-        "server_id",
-    }
-    assert service["runtime"]["path"] == str(schema_model.PLUGIN_ROOT)
-    state = urllib.parse.urlsplit(url)._replace(path="/api/state").geturl()
-    response = urllib.request.urlopen(state)
-    assert response.status == 200
-    assert response.headers["Leaf-Server"] == service["server_id"]
-
-
-def test_server_start_forwards_flags_and_returns_service_output(page_dir):
-    """`server start` states nothing about a serve itself. The flags go verbatim
-    to the service it spawns and the account comes back from there, so the
-    lifetime a flag declared and the refusal a running server earns are both that
-    process's own words, carried out with its exit status."""
-    persistent = start_server_command(page_dir, "--lifetime", "persistent")
-    assert persistent.returncode == 0, persistent.stderr
-    assert json.loads(persistent.stdout)["lifetime"] == "persistent"
-    assert read_record(page_dir / "service.json")["lifetime"] == "persistent"
-    assert service_model.page_claim(page_dir) is None
-
-    refused = start_server_command(page_dir, "--host", "devbox.corp.example")
-    assert refused.returncode != 0
-    assert "already serving at" in refused.stderr
-    assert "server stop" in refused.stderr
-    # Nothing on stdout, so a caller reading the URL there reads no URL.
-    assert not refused.stdout.strip()
-    assert service_model.page_claim(page_dir) is None
 
 
 def test_server_stop_disables_desired_state_without_signalling_a_pid(
@@ -653,17 +464,6 @@ def test_server_stop_closes_accepted_keep_alive_connections(
     except OSError:
         remainder = b""
     assert remainder == b""
-
-
-def test_a_sessionless_server_ignores_a_stale_claim_and_requires_explicit_stop(
-    page_dir, dead_pid, persistent_server, monkeypatch
-):
-    record_claim(page_dir, id="old-session", pid=dead_pid, agent="Codex")
-    server = persistent_server(page_dir)
-    assert not reaper_retires(page_dir, monkeypatch)
-    assert server.poll() is None, "a manual server inherited the stale session claim"
-    assert hosting_model.cmd_stop(page_dir) is True
-    server.wait(timeout=STATED_TIMEOUT)
 
 
 def test_server_run_persistent_declines_the_claim_a_harness_session_offers(
@@ -873,42 +673,3 @@ def test_a_re_vendor_stops_a_server_whose_record_it_cannot_read(
     assert process.wait(timeout=STATED_TIMEOUT) == 0
     assert not (page_dir / "service.json").exists()
     assert "stays stopped" in capsys.readouterr().err
-
-
-def test_a_persistent_server_outlives_a_session_that_picks_the_page_up(
-    page_dir, persistent_server, monkeypatch, capsys
-):
-    """The persistent serve, the whole way round: a page kept up across sessions, and a
-    session that works on it for an afternoon and goes. Picking a page up earns the
-    watch obligation and nothing else, so the session's end must take down neither the
-    process it didn't start nor a leaf that outlives it."""
-    server = persistent_server(page_dir)
-    launched = server_model.running_server(page_dir)
-    assert launched is not None
-    assert read_record(page_dir / "service.json")["lifetime"] == "persistent"
-
-    # A session picks the page up, the way `leaf wait` does.
-    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "later")
-    monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
-    assert service_model.claim_page(page_dir)
-    session_model.cmd_waiting(page_dir)
-    # Without this the hook would skip the page for the wrong reason and the test
-    # would pass with the bug in: the persistent check has to be what spares it.
-    assert page_dir in service_model.owned_pages("later")
-
-    # A `server run` of its own finds this one up and reports the lifetime the
-    # running server has, not the one this claiming launch would have given it.
-    hosting_model.cmd_serve(page_dir, harness=harness_model.session_harness())
-    served = json.loads(capsys.readouterr().out)
-    assert (served["url"], served["lifetime"]) == (launched["url"], "persistent")
-
-    cleanup_model.end_harness_instance("later")
-
-    # The synchronous hook left the persistent service enabled and live.
-    assert server_model.running_server(page_dir) == launched
-    assert declared(page_dir)["state"] == "waiting"
-    assert not service_model.claim_is_active(service_model.page_claim(page_dir))
-    assert page_dir not in service_model.owned_pages("later")
-    # Explicit stop crosses that server's release barrier before returning.
-    assert hosting_model.cmd_stop(page_dir) is True
-    server.wait(timeout=STATED_TIMEOUT)

@@ -61,19 +61,34 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     cursor: auto;
   }
   /* The rail cannot trap a raised item below the page paint it summons. Only the item
-     under pointer or focus crosses that paint; the full-page toolbar stays at rest. */
+     under pointer or focus crosses that paint, and the obligation the user stands in,
+     whose question shows at rest beside the location ring (base.css), which ran through
+     it; the full-page toolbar stays at rest. */
   .lf-margin-projection {
     z-index: auto;
   }
-  .lf-margin-cluster:is(:hover, [data-lf-focus-within]) {
+  .lf-margin-cluster:is(
+    :hover,
+    [data-lf-focus-within],
+    :has(> [data-lf-kinds~="on-me"][data-lf-target-selected])
+  ) {
     z-index: var(--lf-z-margin-raised);
   }
   /* A pane's lane and the frames a sticky header cuts are stacking contexts of their own
      (their clips make them so), so each rises with the row the pointer or the keyboard
      is on. */
-  .lf-margin-lane:has(.lf-margin-cluster:is(:hover, [data-lf-focus-within])),
-  .lf-margin-cut:has(.lf-margin-cluster:is(:hover, [data-lf-focus-within])),
-  .lf-margin-carrier:has(.lf-margin-cluster:is(:hover, [data-lf-focus-within])) {
+  .lf-margin-lane:has(
+    .lf-margin-cluster:is(:hover, [data-lf-focus-within]),
+    [data-lf-kinds~="on-me"][data-lf-target-selected]
+  ),
+  .lf-margin-cut:has(
+    .lf-margin-cluster:is(:hover, [data-lf-focus-within]),
+    [data-lf-kinds~="on-me"][data-lf-target-selected]
+  ),
+  .lf-margin-carrier:has(
+    .lf-margin-cluster:is(:hover, [data-lf-focus-within]),
+    [data-lf-kinds~="on-me"][data-lf-target-selected]
+  ) {
     z-index: var(--lf-z-margin-raised);
   }
   /* Placement fits the finished thread before typing: the frame reserves the card's
@@ -353,7 +368,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     .lf-page-thread .lf-msg[data-lf-focus-visible]
   ) {
     outline: var(--focus-ring);
-    outline-offset: var(--focus-ring-inset);
+    --lf-ring-at: var(--focus-ring-inset);
   }
   .lf-margin-preview-close {
     flex: none;
@@ -747,21 +762,20 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   }
   /* The notice takes at most a notice's room beside a head's words (`--lf-news-width`,
      surfaces.css), and no more than the heads leave beside each one's name and time
-     (`--lf-news-room`, thread-card.js, `#fitMarginNews`). It drops whole the facts
-     past it and counts them in the room it keeps at its end, and where even its first
-     fact doesn't fit it says one count of all that waits (held-news.js, `newsNotice`).
-     A desktop card's heads keep their names and times whole beside it. On a phone's
-     card, whose three controls, notice and Edit each take a finger's width, a head
-     still lacks room for both, and gives up its parts in their order (surfaces.css).
-     Drawn whole, the notice stood over the head of the user's message, which read
-     "M51d ago". Rejected: the notice wrapping beneath the actions, which would stand
-     over the first message's words in the actions' track. */
+     (`--lf-news-room`, thread-card.js, `#fitMarginNews`), and it says one count of
+     all that waits (held-news.js, `newsNotice`).
+     A card's heads keep their names and times whole beside it under a fine pointer. A
+     touch screen's card near its least width, whose three controls, notice and Edit
+     each take a finger's width, can leave a head short of room for both, and it gives
+     up its parts in their order (surfaces.css). Drawn whole, the notice stood over the
+     head of the user's message on a phone's card, which read "M51d ago".
+     Rejected: the notice wrapping beneath the actions, which would stand over the
+     first message's words in the actions' track. */
   .lf-margin-thread .lf-margin-thread-controls .lf-thread-news {
     max-inline-size: min(
       var(--lf-news-width),
       var(--lf-news-room, var(--lf-news-width))
     );
-    padding-inline-end: var(--lf-news-count-room);
   }
   /* A sticky head and its words paint the message's one animated ground.
      Shared message rules own wrapping, including progress disclosures below the
@@ -886,8 +900,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
    Chromium carries a native caret reveal through a CSS-anchored fixed box and applies
    that padding to it, moving the document beneath an already visible editor. */
 html:has(
-  .lf-margin-preview:focus-within,
-  .lf-fab-bar:not([data-lf-presentation="inline"]):focus-within
+  .lf-margin-preview leaf-text:focus-within,
+  .lf-fab-bar:not([data-lf-presentation="inline"]) leaf-text:focus-within
 ) {
   scroll-padding: 0;
 }

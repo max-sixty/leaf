@@ -70,8 +70,8 @@
   .lf-margin-cluster[data-lf-place="pin"]:not([data-lf-revealed]) {
   visibility: hidden;
 }
-/* A pin's count stands on its left, over the block it is about: at the window's edge the
- * page's `overflow-x: hidden` would clip one on the right. */
+/* A pin's count stands on its left, over the block it is about: at the window's edge one
+ * on the right would stand past the window. */
 .lf-margin-cluster[data-lf-place="pin"] .lf-margin-count {
   right: auto;
   left: -7px;

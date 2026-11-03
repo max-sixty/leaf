@@ -406,9 +406,10 @@ export function createResponseSurface({
   // anchor, so c from an obligation and an aimed press on the same obligation unwind alike.
   // There is no saved pre-command focus: being on an option comments on its obligation,
   // and closing returns to the obligation itself. A drawing's proxy is the fallback, not
-  // the parent, even for a user who pressed it: focused, its face stands at the
-  // window's head, away from the drawing it is about (chrome.css). A quoted selection clears to
-  // the page; a removed subject has no parent to land on.
+  // the parent, even for a user who pressed it: it is a hidden stand-in for the drawing
+  // (control-faces.js, `proxy`), so the drawing, which the user sees, is where they
+  // return. A quoted selection clears to the page; a removed subject has no parent to
+  // land on.
   /** @param {Anchor | null} anchor */
   const returnPlaces = (anchor) =>
     anchor && !anchor.quote ? [anchorTargetAt(anchor), visualActionAnchor(anchor)] : [];

@@ -5,7 +5,7 @@ import { isHTML } from "../shadow-tree.js";
    message's other controls at its head (messages.js), which draws `trigger`. */
 import { html, ref, render, repeat } from "/runtime/framework.js";
 import { HOLDS_WORD } from "../held-word.js";
-import { offered, offeredAction } from "../widget-elements.js";
+import { offeredAction } from "../widget-elements.js";
 
 /** @typedef {{registerSurface: ReturnType<typeof import("../reactions.js").createReactionController>["registerReactSurface"],
  * actions: Pick<ReturnType<typeof import("./actions.js").createThreadActions>, "setReaction">,
@@ -43,7 +43,7 @@ export class ReactionStripView {
           (choice) => choice.name,
           (choice) =>
             html` <button
-              ${offered(`lf-react ${HOLDS_WORD}`)}
+              ${offeredAction("reaction", `lf-react ${HOLDS_WORD}`)}
               data-token=${choice.name}
               title=${choice.label}
               aria-label=${choice.label}

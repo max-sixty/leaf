@@ -995,10 +995,10 @@ function currentLocationTouches(node) {
 let restoring = false;
 let placements = 0;
 let lastLocation = null;
-const readers = /* @__PURE__ */ new Set();
+const readers$1 = /* @__PURE__ */ new Set();
 const onCurrentLocation = (read) => {
-	readers.add(read);
-	return () => readers.delete(read);
+	readers$1.add(read);
+	return () => readers$1.delete(read);
 };
 let published = null;
 let departed = false;
@@ -1098,7 +1098,7 @@ function publish(node, cause) {
 	};
 	[placing, restoring] = [null, false];
 	try {
-		for (const read of readers) {
+		for (const read of readers$1) {
 			try {
 				read(node, cause, left);
 			} catch (error) {
@@ -1778,6 +1778,7 @@ const PAGE_PAINT_ATTRIBUTE = Object.freeze({
 });
 const pagePresented = () => document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented);
 const pageUpgraded = () => document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.upgraded);
+const locationStandsDown = (element) => getComputedStyle(element).getPropertyValue("--lf-obligation-ring").trim() === "none";
 
 //#endregion
 //#region runtime/arrivals.js
@@ -2025,6 +2026,11 @@ let focusOwner = null;
 const installMoveFocus = (owner) => {
 	focusOwner = owner;
 };
+let selectionOwner = null;
+const installMoveSelection = (owner) => {
+	selectionOwner = owner;
+};
+const holdSelection = (placed) => selectionOwner?.(placed) ?? null;
 function move(parent, node, before = null) {
 	if (node.parentNode === parent && (before === node || node.nextSibling === before)) return node;
 	if (parent.isConnected) focusOwner?.watch(parent.getRootNode());
@@ -2052,7 +2058,15 @@ const ACTION_FACES = {
 	commit: "lf-btn primary",
 	mark: "lf-mark-action",
 	inline: "lf-inline-action",
-	row: "lf-row"
+	row: "lf-row",
+	answer: "lf-answer",
+	entry: "lf-margin-face",
+	reaction: "lf-reaction",
+	response: "lf-response-face",
+	gutter: "lf-gutter",
+	picture: "lf-picture",
+	fold: "lf-fold",
+	proxy: "lf-proxy"
 };
 function actionClass(role, className = "") {
 	const face = ACTION_FACES[role];
@@ -2072,12 +2086,15 @@ const ICONS = {
 	comment: "<path d=\"M3 3.25h10v7H7.25L4 12.75v-2H3z\"/>",
 	copy: "<rect x=\"6\" y=\"6\" width=\"7\" height=\"7\" rx=\"1.25\"/><path d=\"M10 6V4.25C10 3.56 9.44 3 8.75 3h-4.5C3.56 3 3 3.56 3 4.25v4.5C3 9.44 3.56 10 4.25 10H6\"/>",
 	cross: "<path d=\"m4 4 8 8M12 4l-8 8\"/>",
+	delete: "<path d=\"M3 4.5h10M6.25 4.5V3h3.5v1.5M4.5 4.5l.6 7.85c.05.65.6 1.15 1.25 1.15h3.3c.65 0 1.2-.5 1.25-1.15l.6-7.85M6.75 7v4M9.25 7v4\"/>",
 	dot: "<circle cx=\"8\" cy=\"8\" r=\"1.5\" fill=\"currentColor\" stroke=\"none\"/>",
 	down: "<path d=\"m4 6.25 4 4 4-4\"/>",
 	edit: "<path d=\"m3.25 10.75-.5 2.5 2.5-.5 6.9-6.9-2-2zM9.25 4.75l2 2\"/>",
 	expand: "<path d=\"M9.5 3H13v3.5M13 3 9.25 6.75M6.5 13H3V9.5M3 13l3.75-3.75\"/>",
 	collapse: "<path d=\"M13 3 9.25 6.75M9.25 3.25v3.5h3.5M3 13l3.75-3.75M3.25 9.25h3.5v3.5\"/>",
 	fit: "<path d=\"M6 3H3v3M10 3h3v3M3 10v3h3M13 10v3h-3\"/>",
+	leaf: "<rect width=\"16\" height=\"16\" fill=\"currentColor\" stroke=\"none\"/>",
+	grip: "<g fill=\"currentColor\" stroke=\"none\"><circle cx=\"6\" cy=\"4\" r=\"1.1\"/><circle cx=\"10\" cy=\"4\" r=\"1.1\"/><circle cx=\"6\" cy=\"8\" r=\"1.1\"/><circle cx=\"10\" cy=\"8\" r=\"1.1\"/><circle cx=\"6\" cy=\"12\" r=\"1.1\"/><circle cx=\"10\" cy=\"12\" r=\"1.1\"/></g>",
 	fold: "<path d=\"M3 8h10M5.5 2.75 8 5.25l2.5-2.5M5.5 13.25 8 10.75l2.5 2.5\"/>",
 	more: "<circle cx=\"3.5\" cy=\"8\" r=\"1\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"8\" cy=\"8\" r=\"1\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"12.5\" cy=\"8\" r=\"1\" fill=\"currentColor\" stroke=\"none\"/>",
 	inbox: "<path d=\"M2.75 9.25h2.9l1 1.6h2.7l1-1.6h2.9M2.75 9.25 4.4 4h7.2l1.65 5.25v2.75H2.75z\"/>",
@@ -2162,6 +2179,10 @@ const ACTIONS = {
 		name: "Copy link",
 		icon: "link"
 	},
+	delete: {
+		name: "Delete",
+		icon: "delete"
+	},
 	dictate: {
 		name: "Dictate",
 		icon: "microphone"
@@ -2202,9 +2223,17 @@ const ACTIONS = {
 		name: "Minimize",
 		icon: "subtract"
 	},
+	menu: {
+		name: "Page menu",
+		icon: "leaf"
+	},
 	more: {
 		name: "More options",
 		icon: "more"
+	},
+	move: {
+		name: "Move",
+		icon: "grip"
 	},
 	next: {
 		name: "Next",
@@ -2295,13 +2324,13 @@ const ACTIONS = {
 		icon: "subtract"
 	}
 };
-const namedAction$1 = (action) => {
+const namedAction = (action) => {
 	const named = ACTIONS[action];
 	if (!named) throw new TypeError(`Unknown Leaf action: ${action}`);
 	return named;
 };
-const actionIcon = (action) => namedAction$1(action).icon;
-const actionName = (action) => namedAction$1(action).name;
+const actionIcon = (action) => namedAction(action).icon;
+const actionName = (action) => namedAction(action).name;
 const actionElement = (action, className) => iconElement(actionIcon(action), className);
 const SYMBOLIC = /* @__PURE__ */ new Set(["symbol", "mark"]);
 function actionFace(role, label, action) {
@@ -2411,6 +2440,12 @@ const buildAction = (role, cls, label, options) => {
 	if (label !== void 0 && role !== "symbol" && role !== "mark") node.textContent = label;
 	return node;
 };
+const offerContentElement = (node, role, cls) => {
+	keeps(node, "class", actionClass(role, cls));
+	if (node instanceof HTMLButtonElement) keeps(node, "type", "button");
+	keeps(node, "data-lf-offer", node instanceof HTMLButtonElement ? node.type : node.localName);
+	return node;
+};
 const selectableOfferElement = (node, role, cls, face) => {
 	keeps(node, "role", role);
 	keeps(node, "class", [
@@ -2453,6 +2488,21 @@ const selectableOffered = elementDirective("selectableOffered", selectableOfferE
 const generated = elementDirective("generated", generatedElement);
 
 //#endregion
+//#region runtime/field-keys.js
+const readers = /* @__PURE__ */ new Set();
+const readLeavingKeys = (read) => void readers.add(read);
+function keepFieldKeys(host) {
+	for (const type of [
+		"keydown",
+		"keypress",
+		"keyup"
+	]) host.addEventListener(type, (event) => {
+		for (const read of readers) read(event);
+		event.stopPropagation();
+	});
+}
+
+//#endregion
 //#region runtime/control-labels.js
 function searchField(cls, { name, label, placeholder = label }) {
 	const field = offer("wa-input", `lf-search-field lf-label-hidden ${cls}`);
@@ -2466,6 +2516,7 @@ function searchField(cls, { name, label, placeholder = label }) {
 	field.placeholder = placeholder;
 	field.autocomplete = "off";
 	field.spellcheck = false;
+	keepFieldKeys(field);
 	return field;
 }
 function nameAction(control, action, { label, title, className } = {}) {
@@ -2474,7 +2525,6 @@ function nameAction(control, action, { label, title, className } = {}) {
 	keeps(control, "title", title ?? name);
 	showAction(control, action, className);
 }
-const namedAction = elementDirective("namedAction", nameAction);
 function relabel(node, label, options = {}) {
 	generatedElement(node, options);
 	keepsText(node, label);
@@ -2927,11 +2977,16 @@ function setChildren(parent, nodes) {
 	setChildLists([[parent, nodes]]);
 }
 function setChildLists(lists) {
-	for (const [parent, nodes] of lists) orderChildren(parent, nodes);
-	for (const [parent, nodes] of lists) {
+	const placed = lists.map(([parent, nodes]) => [parent, [...nodes]]);
+	const restore = holdSelection((function* () {
+		for (const [, nodes] of placed) yield* nodes;
+	})());
+	for (const [parent, nodes] of placed) orderChildren(parent, nodes);
+	for (const [parent, nodes] of placed) {
 		const keep = new Set(nodes);
 		for (const child of [...parent.childNodes]) if (!keep.has(child)) child.remove();
 	}
+	restore?.();
 }
 function orderChildren(parent, nodes) {
 	const owned = new Set(nodes);
@@ -3669,19 +3724,20 @@ const clippingAxes = (style) => {
 
 //#endregion
 //#region runtime/shown-box.js
-const skipped = (element) => {
-	if (element.checkVisibility({ contentVisibilityAuto: true })) return false;
-	if (element.checkVisibility()) return true;
+const skipper = (element) => {
+	const drawn = (box) => box.checkVisibility({ contentVisibilityAuto: true });
+	if (drawn(element)) return null;
 	let child = element;
 	let box = renderedParent(element);
-	while (box && !box.checkVisibility()) {
+	while (box && !drawn(box)) {
 		child = box;
 		box = renderedParent(box);
 	}
-	if (!box) return false;
-	if (box.localName === "details") return !box.hasAttribute("open") && child.localName !== "summary";
-	return getComputedStyle(box).contentVisibility === "hidden";
+	if (!box) return null;
+	if (box.localName === "details") return !box.hasAttribute("open") && child.localName !== "summary" ? box : null;
+	return getComputedStyle(box).contentVisibility !== "visible" ? box : null;
 };
+const skipped = (element) => Boolean(skipper(element));
 function elementBox(el) {
 	const r = el.getBoundingClientRect();
 	if (r.width || r.height || skipped(el) || getComputedStyle(el).display !== "contents") return r;
@@ -4985,8 +5041,8 @@ onCurrentLocation((node, cause) => {
 		if (!ringShown(node)) scrollIntoView(node, { block: "nearest" });
 		let box = node;
 		for (; box; box = renderedParent(box)) {
-			if (!box.matches("[data-lf-obligation]")) continue;
-			if (getComputedStyle(box).outlineStyle === "none") continue;
+			if (!box.matches(`[${PAGE_PAINT_ATTRIBUTE.obligation}]`)) continue;
+			if (locationStandsDown(box)) continue;
 			if (!ringShown(box)) scrollIntoView(box, { block: "nearest" });
 			break;
 		}
@@ -5245,66 +5301,6 @@ function beginWalk(key, noun, read) {
 }
 
 //#endregion
-//#region runtime/canvas.js
-function canvas2D(canvas, options) {
-	const context = canvas.getContext("2d", options);
-	if (!context) throw new Error("The browser could not create a 2D canvas context");
-	return context;
-}
-
-//#endregion
-//#region runtime/time-axis.js
-const TICK_SPACING = 84;
-const STEPS = [
-	1,
-	2,
-	5
-];
-function tickStep(pxPerMs) {
-	for (let power = 1; power < 1e9; power *= 10) for (const step of STEPS) if (step * power * pxPerMs >= TICK_SPACING) return step * power;
-	return 1e9;
-}
-function tickLabel(time, step) {
-	if (time === 0) return "0 s";
-	const digits = step >= 1e3 ? 0 : step >= 100 ? 1 : step >= 10 ? 2 : 3;
-	return `${(time / 1e3).toFixed(digits)} s`;
-}
-function axisTicks(from, to, duration, pxPerMs) {
-	const step = tickStep(pxPerMs);
-	const minor = step / (String(step)[0] === "2" ? 4 : 5);
-	const ticks = [];
-	for (let time = Math.floor(from / minor) * minor; time <= to; time += minor) {
-		const rounded = Math.round(time * 1e3) / 1e3;
-		if (rounded < 0 || rounded > duration) continue;
-		const major = Math.abs(rounded / step - Math.round(rounded / step)) < 1e-6;
-		ticks.push({
-			time: rounded,
-			major,
-			label: major ? tickLabel(rounded, step) : null,
-			step
-		});
-	}
-	return ticks;
-}
-function assignRows(items, start, end) {
-	const rows = [];
-	const rowOf = /* @__PURE__ */ new Map();
-	for (const item of items.toSorted((a, b) => start(a) - start(b))) {
-		let row = rows.findIndex((last) => last <= start(item));
-		if (row < 0) row = rows.push(-Infinity) - 1;
-		rows[row] = end(item);
-		rowOf.set(item.id, row);
-	}
-	return rowOf;
-}
-let measuring = null;
-function textWidth(text, font) {
-	measuring ??= canvas2D(document.createElement("canvas"));
-	measuring.font = font;
-	return measuring.measureText(text).width;
-}
-
-//#endregion
 //#region runtime/thread/surface-handles.js
 const registrations = /* @__PURE__ */ new Map();
 const registrationVersion = Z(0);
@@ -5392,4 +5388,64 @@ async function loadDeferred(value, key) {
 }
 
 //#endregion
-export { ANNOUNCE, CARET_KEYS, COMMANDS, DISCLOSE, DISCLOSURE_SELECTOR, HOLDS_WORD, J, LAYOUT, LENT_REACH_STOP, LeafElement, MODIFIER_KEYS, OUTPUT, PAGE_PAINT_ATTRIBUTE, PENDING_TASK, PRESS, PRESSES, PendingTaskEvent, ROLE_BUTTON_OFFER, RUNTIME_PAINT_ATTRIBUTE, SAID, SourcePairs, TAB_STOP, TEXT_BOX, TEXT_FIELD, UI_MARKS, W, WALK, WORKS, Z, actionClass, actionElement, actionIcon, actionName, actionTemplate, afterScript, afterSettling, agentArrivalDuration, aimedTop, alreadyShown, announce, assignRows, atLayoutPrecision, atScrollEnd, attachDeferredLoader, axisTicks, backgroundFlash, beginWalk, bindQueuedWork, blurFocused, bodyText, byRenderedOrder, canPlaceFocus, cancelAnimation, cancelRender, canvas2D, caretAtKey, chosenSince, claimReleaseClick, clamp, clippedContents, clippedPlace, clippedRect, clippingAxes, clipsPastSurfaces, closeLayer, closeNativeLayer, closestAcross, coarsePointer, commandsChanged, commandsChangedOn, composedParentNode, contentRides, controlNavigationKeys, coveredShare, currentLocationIn, currentLocationNodes, currentLocationTouches, d, dataBody, declareOccluder, declareReading, declareRelease, declareWindowChrome, deepFocus, describeFailure, disclosureAt, dismissPopoversOutside, drawn$1 as drawn, elementDirective, elementFrame, ensureSyntaxLanguage, eventSource, exceptionRecord, exceptionText, excludedByInert, failSoft, failSoftUnreported, failureContext, failureOf, fitsWhole, flashDuration, focusDestination, focusRevision, focused, foldBlock, foldDuration, frameFor, frameView, frameVisibility, generated, generatedElement, growthAfterIsSeen, growthIsSeen, handBack, hasArea, headerCuts, headerInset, holdCurrentLocation, holdFocus, holdRendering, holdToRead, hoveringPointer, iconElement, iconTemplate, inBaseLayer, inChrome, inUi, inWindowChrome, inlineStyle, inputCount, inputInFrame, installElementIntegration, installLanguagePaths, installLayerStyleIntegration, installMoveFocus, installScrollerLookup, installStageIntegration, intersect, isElement, isHTML, isNativeLayer, isNode, isStage, isText, keepFoot, keeps, keepsHidden, keepsText, landedBox, landingBand, landingInsets, landingRoom, langForPath, layerLanding, layoutChanged, layoutPx, layoutWindow, letGo, listWalkPosition, liveStages, loadDeferred, measure, motion, motionEasing, motionPlays, motionTime, move, moveScrollerBy, nameAction, namedAction, nativeFocusTarget, nativeLayerHolding, nativeLayers, nativeModalAdmits, nearObserver, nearWindow, nextAnimation, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offerElement, offered, offeredAction, offeredActionElement, onCurrentLocation, onFocusVisibility, onFrameVisibility, onLetGo, onMotionPreferenceChange, onPress, onPressAway, onUserInput, once, openLayer, openerOf, orderChildren, outputProducer, overIn, overlaps, overlapsAcross, pagePresented, pageScroller, pageUpgraded, paintClips, passOn, patchRetains, patchTree, placeBox, placeHolder, placeKept, placesFailure, plainPress, playMotion, pointerAt, presented, pressHolds, pressIsKeyboardActivation, pressLed, pressRecords, pressing, publishOutput, q, readCaret, readSampleVisibility, recentPlaceInput, recoveredLabelFocus, reducedMotion, refuseCommands, refuseOutput, registerVisualParts, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, registrations, relabel, release, releaseFocus, releaseOutlets, renderedOrder, renderedParent, renderedUnder, renderingState, reportFailure, restorePointer, restrictUserIntent, retainUserIntent, returnDuration, revealRegisteredVisualPart, revealsVisualParts, rightCover, ringBox, roomPx, rove, rowArrows, scrollAxes, scrollBehavior, scrollChoices, scrollContainer, scrollGlides, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollToEnd, scrollersOf, scrolling, scrollsBy, scrollsContent, searchField, seenRect, selectableOffer, selectableOffered, selectsAll, setChildLists, setChildren, setRegistration, setRenderedChildren, setScroll, shadowHost, shadowStage, shellRight, showNativeLayer, shownBand, shownBox, shownExtent, shownParts, shownRect, shownWindow, showsContents, sizeObserver, skipped, slotTop, stackLevel, startsAt, stopScroll, stuckBox, synNodes, syntax, syntaxLanguageNames, tabStops, tabStore, takesLetters, textWidth, threadSurface, tick, tokenLines, typesText, uiInside, under, underOccluder, union, upFrom, updateSurface, userScrollport, visibleBand, visibleFocus, visualPartAdmission, visualPartProblems, visualViewport, walkPosition, walkPositionLabel, watchArrivals, watchCurrentLocationIn, watchFrame, watchLayerChanges, watchOwner, watchRoom, watchScrollEnds, watchScrolls, wearsLentStop, whenLeft, whenNone, whileConnected, windowChromeBoxes, x$1 as x };
+//#region runtime/canvas.js
+function canvas2D(canvas, options) {
+	const context = canvas.getContext("2d", options);
+	if (!context) throw new Error("The browser could not create a 2D canvas context");
+	return context;
+}
+
+//#endregion
+//#region runtime/time-axis.js
+const TICK_SPACING = 84;
+const STEPS = [
+	1,
+	2,
+	5
+];
+function tickStep(pxPerMs) {
+	for (let power = 1; power < 1e9; power *= 10) for (const step of STEPS) if (step * power * pxPerMs >= TICK_SPACING) return step * power;
+	return 1e9;
+}
+function tickLabel(time, step) {
+	if (time === 0) return "0 s";
+	const digits = step >= 1e3 ? 0 : step >= 100 ? 1 : step >= 10 ? 2 : 3;
+	return `${(time / 1e3).toFixed(digits)} s`;
+}
+function axisTicks(from, to, duration, pxPerMs) {
+	const step = tickStep(pxPerMs);
+	const minor = step / (String(step)[0] === "2" ? 4 : 5);
+	const ticks = [];
+	for (let time = Math.floor(from / minor) * minor; time <= to; time += minor) {
+		const rounded = Math.round(time * 1e3) / 1e3;
+		if (rounded < 0 || rounded > duration) continue;
+		const major = Math.abs(rounded / step - Math.round(rounded / step)) < 1e-6;
+		ticks.push({
+			time: rounded,
+			major,
+			label: major ? tickLabel(rounded, step) : null,
+			step
+		});
+	}
+	return ticks;
+}
+function assignRows(items, start, end) {
+	const rows = [];
+	const rowOf = /* @__PURE__ */ new Map();
+	for (const item of items.toSorted((a, b) => start(a) - start(b))) {
+		let row = rows.findIndex((last) => last <= start(item));
+		if (row < 0) row = rows.push(-Infinity) - 1;
+		rows[row] = end(item);
+		rowOf.set(item.id, row);
+	}
+	return rowOf;
+}
+let measuring = null;
+function textWidth(text, font) {
+	measuring ??= canvas2D(document.createElement("canvas"));
+	measuring.font = font;
+	return measuring.measureText(text).width;
+}
+
+//#endregion
+export { ANNOUNCE, CARET_KEYS, COMMANDS, DISCLOSE, DISCLOSURE_SELECTOR, HOLDS_WORD, J, LAYOUT, LENT_REACH_STOP, LeafElement, MODIFIER_KEYS, OUTPUT, PAGE_PAINT_ATTRIBUTE, PENDING_TASK, PRESS, PRESSES, PendingTaskEvent, ROLE_BUTTON_OFFER, RUNTIME_PAINT_ATTRIBUTE, SAID, SourcePairs, TAB_STOP, TEXT_BOX, TEXT_FIELD, UI_MARKS, W, WALK, WORKS, Z, actionClass, actionElement, actionIcon, actionName, actionTemplate, afterScript, afterSettling, agentArrivalDuration, aimedTop, alreadyShown, announce, assignRows, atLayoutPrecision, atScrollEnd, attachDeferredLoader, axisTicks, backgroundFlash, beginWalk, bindQueuedWork, blurFocused, bodyText, byRenderedOrder, canPlaceFocus, cancelAnimation, cancelRender, canvas2D, caretAtKey, chosenSince, claimReleaseClick, clamp, clippedContents, clippedPlace, clippedRect, clippingAxes, clipsPastSurfaces, closeLayer, closeNativeLayer, closestAcross, coarsePointer, commandsChanged, commandsChangedOn, composedParentNode, contentRides, controlNavigationKeys, coveredShare, currentLocationIn, currentLocationNodes, currentLocationTouches, d, dataBody, declareOccluder, declareReading, declareRelease, declareWindowChrome, deepFocus, describeFailure, disclosureAt, dismissPopoversOutside, drawn$1 as drawn, elementDirective, elementFrame, ensureSyntaxLanguage, eventSource, exceptionRecord, exceptionText, excludedByInert, failSoft, failSoftUnreported, failureContext, failureOf, fitsWhole, flashDuration, focusDestination, focusRevision, focused, foldBlock, foldDuration, frameFor, frameView, frameVisibility, generated, generatedElement, growthAfterIsSeen, growthIsSeen, handBack, hasArea, headerCuts, headerInset, holdCurrentLocation, holdFocus, holdRendering, holdToRead, hoveringPointer, iconElement, iconTemplate, inBaseLayer, inChrome, inUi, inWindowChrome, inlineStyle, inputCount, inputInFrame, installElementIntegration, installLanguagePaths, installLayerStyleIntegration, installMoveFocus, installMoveSelection, installScrollerLookup, installStageIntegration, intersect, isElement, isHTML, isNativeLayer, isNode, isStage, isText, keepFieldKeys, keepFoot, keeps, keepsHidden, keepsText, landedBox, landingBand, landingInsets, landingRoom, langForPath, layerLanding, layoutChanged, layoutPx, layoutWindow, letGo, listWalkPosition, liveStages, loadDeferred, locationStandsDown, measure, motion, motionEasing, motionPlays, motionTime, move, moveScrollerBy, nameAction, nativeFocusTarget, nativeLayerHolding, nativeLayers, nativeModalAdmits, nearObserver, nearWindow, nextAnimation, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offerContentElement, offerElement, offered, offeredAction, offeredActionElement, onCurrentLocation, onFocusVisibility, onFrameVisibility, onLetGo, onMotionPreferenceChange, onPress, onPressAway, onUserInput, once, openLayer, openerOf, orderChildren, outputProducer, overIn, overlaps, overlapsAcross, pagePresented, pageScroller, pageUpgraded, paintClips, passOn, patchRetains, patchTree, placeBox, placeHolder, placeKept, placesFailure, plainPress, playMotion, pointerAt, presented, pressHolds, pressIsKeyboardActivation, pressLed, pressRecords, pressing, publishOutput, q, readCaret, readLeavingKeys, readSampleVisibility, recentPlaceInput, recoveredLabelFocus, reducedMotion, refuseCommands, refuseOutput, registerVisualParts, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, registrations, relabel, release, releaseFocus, releaseOutlets, renderedOrder, renderedParent, renderedUnder, renderingState, reportFailure, restorePointer, restrictUserIntent, retainUserIntent, returnDuration, revealRegisteredVisualPart, revealsVisualParts, rightCover, ringBox, roomPx, rove, rowArrows, scrollAxes, scrollBehavior, scrollChoices, scrollContainer, scrollGlides, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollToEnd, scrollersOf, scrolling, scrollsBy, scrollsContent, searchField, seenRect, selectableOffer, selectableOffered, selectsAll, setChildLists, setChildren, setRegistration, setRenderedChildren, setScroll, shadowHost, shadowStage, shellRight, showNativeLayer, shownBand, shownBox, shownExtent, shownParts, shownRect, shownWindow, showsContents, sizeObserver, skipped, skipper, slotTop, stackLevel, startsAt, stopScroll, stuckBox, synNodes, syntax, syntaxLanguageNames, tabStops, tabStore, takesLetters, textWidth, threadSurface, tick, tokenLines, typesText, uiInside, under, underOccluder, union, upFrom, updateSurface, userScrollport, visibleBand, visibleFocus, visualPartAdmission, visualPartProblems, visualViewport, walkPosition, walkPositionLabel, watchArrivals, watchCurrentLocationIn, watchFrame, watchLayerChanges, watchOwner, watchRoom, watchScrollEnds, watchScrolls, wearsLentStop, whenLeft, whenNone, whileConnected, windowChromeBoxes, x$1 as x };

@@ -1,12 +1,14 @@
 /* Control construction and labels are document-local. Leaf reads their generated
    word and action markers; an ordinary host needs no page services to build them. */
-import { offer, generatedElement, elementDirective } from "./element-markers.js";
+import { offer, generatedElement } from "./element-markers.js";
 import { actionName, showAction } from "./icon-paths.js";
 import { keeps, keepsText } from "./keeps.js";
+import { keepFieldKeys } from "./field-keys.js";
 
 // Runtime searches share the vendor's native editor, frame and focus band. Callers
 // own their query and results; an auxiliary reading, such as a match count, belongs
-// in the control's `end` slot so it stays inside that same frame.
+// in the control's `end` slot so it stays inside that same frame. Keys typed into it
+// stop at it (field-keys.js).
 /** @param {string} cls @param {{name: string, label: string, placeholder?: string}} options */
 export function searchField(cls, { name, label, placeholder = label }) {
   const field = offer("wa-input", `lf-search-field lf-label-hidden ${cls}`);
@@ -22,14 +24,14 @@ export function searchField(cls, { name, label, placeholder = label }) {
   field.placeholder = placeholder;
   field.autocomplete = "off";
   field.spellcheck = false;
+  keepFieldKeys(field);
   return field;
 }
 
-// A press whose face its surface draws rather than a role, such as the floating
-// panel's or a message's controls, still takes its symbol and name from its action:
-// `nameAction(button, action, {label, title, className})`, or in a template
-// `<button class="…" ${namedAction(action)}></button>`. It shows `action`'s symbol
-// first and says the action's name as tooltip and accessible name unless `label` says
+// A role's symbol whose action follows its state, as Expand all turns to Collapse
+// all, takes its new symbol and name from its action:
+// `nameAction(button, action, {label, title, className})`. It shows `action`'s symbol
+// and says the action's name as tooltip and accessible name unless `label` says
 // more, as a symbol role does, so the name and the symbol can't drift apart.
 /**
  * @param {Element} control @param {string} action
@@ -41,7 +43,6 @@ export function nameAction(control, action, { label, title, className } = {}) {
   keeps(control, "title", title ?? name);
   showAction(control, action, className);
 }
-export const namedAction = elementDirective("namedAction", nameAction);
 
 // A control's label, and which kind of word it is. Most are things to do — "Save",
 // "choose", a grip — and go with the rest of the UI on paper, out of reach of a

@@ -108,6 +108,12 @@ const exactClosures = {
     "repaint.js",
     "shadow.js",
     "arrivals.js",
+    // Whether the user scrolled away from the focused control, whose scopes then leave.
+    "user-place.js",
+    "geometry.js",
+    "scrolling.js",
+    "rect.js",
+    "shown-box.js",
     // A widget's declared commands arrive by the event it dispatches, and a malformed
     // declaration is reported as its failure.
     "widget-upgrade.js",

@@ -1,5 +1,4 @@
 import {
-  offerElement,
   offerActionElement,
   fragmentTarget,
   generatedElement,
@@ -64,7 +63,7 @@ export function createActivity(host) {
         ${ref(
           (node) =>
             node &&
-            generatedElement(offerElement(node, "lf-activity-target"), {
+            generatedElement(offerActionElement(node, "inline", "lf-activity-target"), {
               says: "echo",
             }),
         )}

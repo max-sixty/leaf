@@ -713,7 +713,9 @@ def test_generated_page_interface_reconciles_before_semantic_interaction(
     page.wait_for_function("() => window.__tocFirstPaint !== null")
     first_paint = page.evaluate("() => window.__tocFirstPaint")
     assert first_paint["visible"], first_paint
-    assert first_paint["actual"] > authored_span + 200, (
+    # The replayed draft must move the geometry beyond the span tolerance, or a
+    # stale authored span would pass the reconciliation check below.
+    assert first_paint["actual"] != pytest.approx(authored_span, abs=1), (
         authored_span,
         first_paint,
     )

@@ -7,75 +7,82 @@ observation retains writes arriving during it. Clock-only lifetime and activity
 transitions still have bounded timed reads. A page's subscription watches the
 directories that report the inputs its reading stamps, and accepts exactly those
 inputs (`served_state.reading`), so diagnostics never wake it and the history under
-`revisions/` costs it nothing. watchfiles' public `watch` owns platform
-notifications and polling.
+`revisions/` costs it nothing.
 
-A process holds one native watcher for each recursion mode its subscriptions use,
-however many subscriptions it holds, and a directory a subscription wants in one
-mode only that mode's watcher serves. Page subscriptions are all non-recursive, so a
-process following any number of pages holds one watcher. The watcher hands each
-batch to every subscription that accepts a path in it. On Linux a watcher is one
-inotify instance and each directory it covers one watch. The per-user instance
-limit (`fs.inotify.max_user_instances`, 128 unless raised) is the one that ran out
-when Leaf held a watcher per page (issue #4812); the watch limit is far larger.
+A process holds one watchdog observer. Each directory its subscriptions want is
+scheduled on it once per recursion mode, however many subscriptions want it, and
+the observer hands each event to every subscription that accepts a path it names.
+Directories join and leave the observer while it runs, so subscribing disturbs no
+other subscription. On Linux watchdog shares one inotify instance across the
+process, and each directory takes one watch, each directory of a recursive tree
+included. The per-user instance limit (`fs.inotify.max_user_instances`, 128 unless
+raised) is the one that ran out when Leaf held a watcher per page (issue #4812);
+the watch limit is far larger. Each scheduled directory costs the process an idle
+thread.
 
-watchfiles fixes a watcher's directories when it starts. A subscription that needs
-a directory its process's watcher lacks therefore starts a replacement covering
-every open subscription, and every other subscription wakes once, since the retired
-watcher drops any batch it had not yet reported. On macOS notify restarts its
-FSEvents stream for each directory it adds, so the time to start a watcher grows
-with the square of its directories beyond a few dozen: 0.1 s for 100 and 3.6 s for
-1,000, measured on 2026-11-01. A directory made deep in a page's tree is one more
-directory, so it starts a replacement.
+Page subscriptions take no tree. The page's reading stamps every directory in its
+trees, so a new one moves the reading, its owner subscribes again, and the
+directory joins the observer. watchdog 7.0's recursive watch on Linux never
+watches a directory moved into its tree from outside, and skips without raising a
+directory beneath its root that the kernel refuses a watch, so nothing falls back
+to polling, and reporting what that directory holds can then raise on the thread
+that reads for every watch in the process, which stops them all. A recursive
+subscription suits only an owner that can afford to stop hearing changes and whose
+trees can be too large for a thread per directory, such as a developer's
+preview.
 
-A page server is a process per page, so a watcher there would still be one per
-retained page; its maintenance keeps its liveness timers (`server_rows`,
+An event reaches a subscription as the platform reports it: at once from inotify,
+but for a file moved out of a watched directory, which watchdog holds up to 500 ms
+to pair with its arrival elsewhere, and within watchdog's 10 ms FSEvents latency on
+macOS. watchfiles, which this replaced, checked its own buffer on a 50 ms step and
+ended a batch a step after its last change, so every wake waited 50–100 ms. It
+also fixed a watcher's directories when the watcher started, so a subscription
+needing a new directory restarted the process's watcher over every subscription
+and woke them all.
+
+A subscription hears what changes a file's content, metadata, name or presence.
+Opening and closing a file change none of those. watchdog also reports a directory
+as modified whenever an entry in it changes, beside the entry's own event; a page's
+directory is one of its inputs, so hearing that report would let every diagnostic
+the server writes wake the page's followers.
+
+A page server is a process per page, so a subscription there would still be one
+per retained page; its maintenance keeps its liveness timers (`server_rows`,
 `server.stop_when_service_ends`) instead.
 
 The kernel's inotify limits are per user and shared with every program the user
-runs, so Leaf can't count on a native watcher however few it holds. When the
-kernel refuses one because a limit ran out, that watcher polls instead and names
-the limit its refusal points to in a note, so the process notices changes later
-rather than exiting.
+runs, so Leaf can't count on a native watch however few it holds. When the kernel
+refuses one because a limit ran out, that directory is polled instead, and a note
+names the limit, so the process notices its changes later rather than exiting.
 """
 
 import errno
 import os
+import sys
 import threading
 import weakref
 from collections.abc import Iterable
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from .findings import Finding, note
 from .page_memory import memo
 from .served_state.reading import outside_inputs, page_input, page_roots
 
-
-class _Started:
-    """The stop event a `watch` generator reads, which also says it has started.
-
-    `watch` installs its native watcher when the generator first runs and only then
-    looks up its stop event's `is_set`, so that first lookup marks the watcher
-    installed, a step sooner than its first call would."""
-
-    def __init__(self, stop: threading.Event):
-        self.stop = stop
-        self.installed = threading.Event()
-
-    @property
-    def is_set(self):
-        self.installed.set()
-        return self.stop.is_set
+if TYPE_CHECKING:
+    from watchdog.events import FileSystemEventHandler
+    from watchdog.observers.api import BaseObserver
 
 
 class FileChanges:
-    """One owner's requested directories, watched by its process's native watchers.
+    """One owner's requested directories, watched through its process's observer.
 
     Missing directories subscribe their nearest existing ancestor, without its
     tree; if a selected root disappears while installing, the subscription
     replans before it is returned. An owner whose roots can change takes a new
-    subscription when `matches` says the installed one no longer fits, and lets
-    the old one go after it, so the process's watcher runs on across the swap.
+    subscription when `matches` says the installed one no longer fits, and closes
+    the old one after it, so the directories both want stay scheduled across the
+    swap.
     """
 
     def __init__(self, roots: dict[Path, bool], accepts, *, collect: bool = False):
@@ -85,17 +92,14 @@ class FileChanges:
         self.error: BaseException | None = None
         self.closed = False
         self.pending: set[str] | None = set() if collect else None
-        # Whether a replaced watcher may have taken unreported paths with it.
-        self.lost = False
         self.roots: dict[Path, bool] = {}
         self.native.subscribe(self, roots)
 
     def matches(self, roots: dict[Path, bool]) -> bool:
-        """Whether this open subscription has these roots, and its process's
-        watchers still hold the directories now at their paths."""
+        """Whether this open subscription has these roots, and its process still
+        watches the directories now at their paths."""
         roots = _existing_roots(roots)
-        with self.native.condition:
-            return not self.closed and roots == self.roots and self.native.holds(roots)
+        return not self.closed and roots == self.roots and self.native.holds(roots)
 
     def mark(self) -> int:
         with self.native.condition:
@@ -108,24 +112,21 @@ class FileChanges:
 
     def close(self) -> None:
         self.native.unsubscribe(self)
+        self.native.sweep()
 
-    def batch(self, timeout: float) -> set[str] | None:
-        """Consume retained paths for a single batch reader, the empty set after an
-        idle timeout, or None once a replaced watcher may have lost some, when the
-        reader reads every input again."""
+    def batch(self, timeout: float) -> set[str]:
+        """Consume retained paths for a single batch reader, or the empty set after
+        an idle timeout."""
         if self.pending is None:
             raise RuntimeError("path batches require a collecting subscription")
         with self.native.condition:
             self.native.condition.wait_for(
-                lambda: (
-                    self.error is not None or self.closed or self.lost or self.pending
-                ),
+                lambda: self.error is not None or self.closed or self.pending,
                 timeout=timeout,
             )
             if self.error:
                 raise self.error
-            paths = None if self.lost else self.pending.copy()
-            self.lost = False
+            paths = self.pending.copy()
             self.pending.clear()
             return paths
 
@@ -133,7 +134,7 @@ class FileChanges:
 def wait(marks: Iterable[tuple[FileChanges, int]], timeout: float | None) -> bool:
     """Whether any of these subscriptions, each paired with the generation to wait
     from, has heard a change since or was closed, waiting up to `timeout` for one.
-    They share their process's watchers, so one wait covers them all."""
+    They share their process's observer, so one wait covers them all."""
     marks = list(marks)
     condition = marks[0][0].native.condition
     with condition:
@@ -152,166 +153,178 @@ def wait(marks: Iterable[tuple[FileChanges, int]], timeout: float | None) -> boo
         return moved
 
 
-class _Watcher:
-    """One native watcher over directories in one recursion mode, each pinned by an
-    open descriptor, and the thread passing its batches to its process's
-    subscriptions."""
+class _Watch:
+    """One directory scheduled in one recursion mode, pinned by an open
+    descriptor."""
 
-    def __init__(self, paths: list[Path], recursive: bool, native: "_Native"):
-        self.recursive = recursive
-        self.error: BaseException | None = None
-        self.stopping = threading.Event()
-        self.roots: dict[Path, int] = {}
-        self.thread: threading.Thread | None = None
+    def __init__(self, path: Path, recursive: bool, native: "_Native"):
+        # Keep the directory object alive for exactly this watch. Linux can reuse a
+        # deleted directory's inode after an inotify watch is revoked; an open
+        # descriptor prevents that identity alias.
+        self.descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
         try:
-            # Keep the directory objects alive for exactly this watcher. Linux can
-            # reuse a deleted directory's inode after an inotify watch is revoked;
-            # an open descriptor prevents that identity alias.
-            for path in paths:
-                self.roots[path] = os.open(
-                    path, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC
-                )
-            started = _Started(self.stopping)
-            self.thread = threading.Thread(
-                target=self._run, args=(list(self.roots), native, started), daemon=True
-            )
-            self.thread.start()
-            started.installed.wait()
-            if self.error:  # ty: ignore[redundant-condition] -- the watcher thread may set it while installation waits
-                raise self.error
+            self.observer, self.watch, self.emitter = native.schedule(path, recursive)
         except BaseException:
-            self.stop(join=True)
+            os.close(self.descriptor)
             raise
 
-    def _run(self, paths, native, started):
-        try:
-            for changes in _changes(paths, self.recursive, started):
-                native.dispatch(changes)
-            if not self.stopping.is_set():
-                raise RuntimeError("the filesystem subscription was interrupted")
-        except Exception as error:
-            self.error = error
-            native.fail(self, error)
-        finally:
-            started.installed.set()
-
     def holds(self, path: Path) -> bool:
-        """Whether this running watcher covers the directory now at `path`."""
-        descriptor = self.roots.get(path)
-        if descriptor is None or self.error is not None:
+        """Whether this watch still covers the directory now at `path`."""
+        if not self.emitter.is_alive():
             return False
-        held = os.fstat(descriptor)
+        held = os.fstat(self.descriptor)
         try:
             current = path.stat()
         except FileNotFoundError:
             return False
         return (held.st_dev, held.st_ino) == (current.st_dev, current.st_ino)
 
-    def stop(self, *, join: bool = False) -> None:
-        """Stop the watcher and unpin its directories. Its thread ends within a
-        step; only a caller that can't be that thread, or hold what it waits on,
-        joins it."""
-        self.stopping.set()
-        if join and self.thread is not None:
-            self.thread.join()
-        while self.roots:
-            _path, descriptor = self.roots.popitem()
-            os.close(descriptor)
+    def stop(self) -> None:
+        self.observer.unschedule(self.watch)
+        os.close(self.descriptor)
 
 
 class _Native:
-    """A process's native watchers, one per recursion mode, and the subscriptions
-    they serve."""
+    """A process's observers, the directories scheduled on them, and the
+    subscriptions they serve.
+
+    An observer's thread dispatches holding the observer's own lock and then takes
+    `condition`, so nothing calls an observer while holding `condition`. Directories
+    are scheduled and unscheduled holding `subscribing` instead, on the thread of an
+    owner subscribing or closing. A subscription a finalizer releases leaves its
+    directories scheduled for the next of those to unschedule, since a finalizer can
+    run on any thread, the observer's own or one inside these locks included."""
 
     def __init__(self):
-        # Held while a subscription is checked against the watchers or replaces
-        # them, so two subscribers never start competing replacements.
         self.subscribing = threading.Lock()
-        # Guards the watchers, the subscriptions and every subscription's
-        # generation. Reentrant, since a finalizer can close a subscription on a
-        # thread that already holds it.
+        # Guards the subscriptions and every subscription's generation. Reentrant,
+        # since a finalizer can release a subscription on a thread that already
+        # holds it.
         self.condition = threading.Condition(threading.RLock())
         self.subscriptions: list[FileChanges] = []
-        self.watchers: dict[bool, _Watcher] = {}
+        self.watches: dict[tuple[Path, bool], _Watch] = {}
+        # The native observer, and the polling one, each by whether it polls.
+        self.observers: dict[bool, BaseObserver] = {}
+        self.handler: FileSystemEventHandler | None = None
 
     def holds(self, roots: dict[Path, bool]) -> bool:
-        """Whether the watcher of each root's recursion mode holds the directory now
-        at it. Called holding `condition`."""
-        return all(
-            recursive in self.watchers and self.watchers[recursive].holds(path)
-            for path, recursive in roots.items()
-        )
+        """Whether a watch in each root's recursion mode covers the directory now at
+        it."""
+        with self.subscribing:
+            return all(
+                key in self.watches and self.watches[key].holds(key[0])
+                for key in roots.items()
+            )
 
     def subscribe(self, subscription: FileChanges, requested: dict[Path, bool]):
         with self.subscribing:
-            while True:
-                roots = _existing_roots(requested)
-                with self.condition:
-                    if self.holds(roots):
+            try:
+                while True:
+                    roots = _existing_roots(requested)
+                    try:
+                        for key in roots.items():
+                            self._ensure(*key)
+                    except FileNotFoundError:
+                        # Selecting, pinning and scheduling are one operation: a
+                        # rename can retire a root between any two steps, so plan
+                        # again.
+                        continue
+                    with self.condition:
                         subscription.roots = roots
                         self.subscriptions.append(subscription)
-                        return
-                    wanted = {False: set(), True: set()}
-                    for held in (roots, *(other.roots for other in self.subscriptions)):
-                        for path, recursive in held.items():
-                            wanted[recursive].add(path)
-                try:
-                    self._replace(wanted)
-                except FileNotFoundError:
-                    # Selecting, pinning and watching are one operation: a rename
-                    # can retire a root between any two steps, so plan again.
-                    continue
+                    return
+            finally:
+                self._sweep()
 
-    def _replace(self, wanted: dict[bool, set[Path]]) -> None:
-        """Replace the watcher of each recursion mode that doesn't hold every
-        directory wanted in that mode with one that does, then stop the old one.
+    def _ensure(self, path: Path, recursive: bool) -> None:
+        """Schedule `path` unless a watch already covers the directory now there.
+        Called holding `subscribing`."""
+        key = (path, recursive)
+        watch = self.watches.get(key)
+        if watch is not None and watch.holds(path):
+            return
+        if watch is not None:
+            # The directory at this path was replaced, and the watch follows the
+            # one it replaced. watchdog keys a watch by its path, so the old one
+            # leaves before the new one is scheduled.
+            del self.watches[key]
+            watch.stop()
+        self.watches[key] = _Watch(path, recursive, self)
 
-        A directory another subscription wanted that is gone now is watched through
-        its nearest existing ancestor in non-recursive mode, and not at all in
-        recursive mode, where the ancestor's tree would be everything beneath it.
-        Either way the wake below sends its owner to subscribe again."""
-        with self.condition:
-            modes = [
-                recursive
-                for recursive, paths in wanted.items()
-                if not self.holds(dict.fromkeys(paths, recursive))
-            ]
-        started: dict[bool, _Watcher | None] = {}
+    def schedule(self, path: Path, recursive: bool):
+        """Schedule a directory on the native observer, or on the polling one when
+        the kernel has no native watch left to give."""
         try:
-            for recursive in modes:
-                roots = _existing_roots(dict.fromkeys(wanted[recursive], recursive))
-                paths = [path for path, nested in roots.items() if nested == recursive]
-                started[recursive] = _Watcher(paths, recursive, self) if paths else None
-        except BaseException:
-            for watcher in started.values():
-                if watcher is not None:
-                    watcher.stop(join=True)
-            raise
-        with self.condition:
-            for recursive, watcher in started.items():
-                retired = self.watchers.pop(recursive, None)
-                if retired is not None:
-                    retired.stop()
-                if watcher is not None:
-                    self.watchers[recursive] = watcher
-            for subscription in list(self.subscriptions):
-                subscription.generation += 1
-                subscription.lost = True
-            self.condition.notify_all()
+            return self._schedule(path, recursive, polling=False)
+        except OSError as error:
+            limit = _LIMITS.get(error.errno)
+            if limit is None:
+                raise
+        note(
+            Finding(
+                "watch-limit",
+                values={"limit": limit, "roots": [str(path)]},
+                severity="advice",
+            )
+        )
+        return self._schedule(path, recursive, polling=True)
+
+    def _schedule(self, path: Path, recursive: bool, *, polling: bool):
+        from watchdog import events
+
+        observer = self.observers.get(polling)
+        if observer is None:
+            observer = _polling_observer() if polling else _native_observer()
+            observer.start()
+            self.observers[polling] = observer
+        if self.handler is None:
+            self.handler = _handler(self)
+        watch = observer.schedule(
+            self.handler,
+            str(path),
+            recursive=recursive,
+            event_filter=[
+                events.FileCreatedEvent,
+                events.DirCreatedEvent,
+                events.FileDeletedEvent,
+                events.DirDeletedEvent,
+                events.FileModifiedEvent,
+                events.FileMovedEvent,
+                events.DirMovedEvent,
+                events.FileAttribEvent,
+                events.DirAttribEvent,
+            ],
+        )
+        emitter = next(each for each in observer.emitters if each.watch == watch)
+        return observer, watch, emitter
 
     def unsubscribe(self, subscription: FileChanges) -> None:
+        """Release a subscription, leaving its directories for the next sweep."""
         with self.condition:
             if subscription in self.subscriptions:
                 self.subscriptions.remove(subscription)
             subscription.closed = True
-            if not self.subscriptions:
-                for watcher in self.watchers.values():
-                    watcher.stop()
-                self.watchers.clear()
             self.condition.notify_all()
 
-    def dispatch(self, changes: set[tuple[int, str]]) -> None:
-        paths = [(Path(path), path) for _change, path in changes]
+    def sweep(self) -> None:
+        with self.subscribing:
+            self._sweep()
+
+    def _sweep(self) -> None:
+        """Unschedule the directories no open subscription wants. Called holding
+        `subscribing`."""
+        with self.condition:
+            wanted = {key for each in self.subscriptions for key in each.roots.items()}
+        for key in [key for key in self.watches if key not in wanted]:
+            self.watches.pop(key).stop()
+
+    def dispatch(self, event) -> None:
+        """Hand one event to every subscription that accepts a path it names.
+        watchdog calls this on its observer's thread."""
+        names = [os.fsdecode(event.src_path)]
+        if event.dest_path:
+            names.append(os.fsdecode(event.dest_path))
+        paths = [(Path(name), name) for name in names]
         with self.condition:
             for subscription in list(self.subscriptions):
                 try:
@@ -328,64 +341,92 @@ class _Native:
                         subscription.pending.update(accepted)
             self.condition.notify_all()
 
-    def fail(self, watcher: _Watcher, error: BaseException) -> None:
-        """Hand a running watcher's failure to every subscription it served."""
-        with self.condition:
-            if self.watchers.get(watcher.recursive) is watcher:
-                for subscription in list(self.subscriptions):
-                    if watcher.recursive in subscription.roots.values():
-                        subscription.error = error
-                self.condition.notify_all()
+
+def _native_observer() -> "BaseObserver":
+    """The platform's observer.
+
+    watchdog 7.0's FSEvents emitter drops a non-recursive watch's events for a
+    directory created, removed or renamed in it, since it compares a directory
+    event's own path with the watched directory rather than the path's parent. The
+    macOS observer here keeps an event whose path, or whose path's parent, is the
+    watched directory, as inotify reports it."""
+    if sys.platform != "darwin":
+        from watchdog.observers.inotify import InotifyObserver
+
+        return InotifyObserver()
+    from watchdog.observers.api import BaseObserver, EventEmitter
+    from watchdog.observers.fsevents import FSEventsEmitter, FSEventsObserver
+
+    class Emitter(FSEventsEmitter):
+        def queue_event(self, event) -> None:
+            watched = os.path.realpath(self.watch.path)
+            paths = (
+                [event.src_path, event.dest_path]
+                if event.dest_path
+                else [event.src_path]
+            )
+            if self.watch.is_recursive or any(
+                watched in (path, os.path.dirname(path))
+                for path in map(os.fsdecode, paths)
+            ):
+                EventEmitter.queue_event(self, event)
+
+    class Fixed(FSEventsObserver):
+        def __init__(self):
+            BaseObserver.__init__(self, Emitter)
+
+    return Fixed()
+
+
+def _polling_observer() -> "BaseObserver":
+    """watchdog's polling observer.
+
+    On Linux watchdog 7.0 opens its process's inotify instance as its
+    `watchdog.observers` package is imported, so where the kernel has none left to
+    give, that import fails, and the polling observer's with it. The package is
+    then imported again with watchdog's platform check saying this isn't Linux, so
+    its platform selection picks polling and opens no instance. That leaves
+    watchdog's `Observer` bound to polling for the rest of the process, so
+    `_native_observer` names the inotify observer, whose import asks the kernel for
+    an instance again."""
+    try:
+        from watchdog.observers.polling import PollingObserver
+    except OSError as error:
+        if error.errno != errno.EMFILE:
+            raise
+        from watchdog.utils import platform
+
+        linux = platform.is_linux
+        platform.is_linux = lambda: False  # ty: ignore[invalid-assignment] -- restored below
+        try:
+            from watchdog.observers.polling import PollingObserver
+        finally:
+            platform.is_linux = linux
+    return PollingObserver()
+
+
+def _handler(native: _Native) -> "FileSystemEventHandler":
+    """The handler watchdog calls with each event, which hands it to `native`."""
+    from watchdog.events import FileSystemEventHandler
+
+    class Handler(FileSystemEventHandler):
+        def dispatch(self, event) -> None:
+            native.dispatch(event)
+
+    return Handler()
 
 
 _native = _Native()
 
 
-# What watchfiles 1.3.0 (on notify 8) says when the kernel refuses a native watcher
-# because a limit ran out, and the limits each can mean. It raises
-# `WatchfilesRustInternalError` when the inotify instance can't be created (EMFILE)
-# and a bare `OSError` when a watch can't be added (ENOSPC, which notify renames).
-# Neither carries an errno, so these words are all a reader has. inotify_init gives
-# EMFILE for the per-user instance limit and the process's open-file limit alike,
-# so that refusal names both.
+# The limits each refusal can mean. watchdog raises the kernel's errno: inotify_init
+# gives EMFILE for the per-user instance limit and the process's open-file limit
+# alike, so that refusal names both, and inotify_add_watch gives ENOSPC for the
+# watch limit.
 _LIMITS = {
-    f"(os error {errno.EMFILE})": "fs.inotify.max_user_instances or RLIMIT_NOFILE",
-    "OS file watch limit reached": "fs.inotify.max_user_watches",
+    errno.EMFILE: "fs.inotify.max_user_instances or RLIMIT_NOFILE",
+    errno.ENOSPC: "fs.inotify.max_user_watches",
 }
-
-
-def _changes(paths, recursive, started):
-    """The batches `watch` reports for these roots, polled when the kernel has no
-    native watcher left to give. Exhaustion arises only while the watcher is
-    created, before `started` reports it installed (notify drops a later watch it
-    can't add), so the polling watcher misses no change the native one reported."""
-    from watchfiles import watch
-
-    options: dict = {
-        "watch_filter": None,
-        "debounce": 25,
-        "step": 50,
-        "stop_event": started,
-        "rust_timeout": 0,
-        "raise_interrupt": False,
-        "recursive": recursive,
-    }
-    try:
-        yield from watch(*paths, **options)
-    except Exception as error:
-        limit = next(
-            (name for words, name in _LIMITS.items() if words in str(error)), None
-        )
-        if limit is None:
-            raise
-        note(
-            Finding(
-                "watch-limit",
-                values={"limit": limit, "roots": [str(path) for path in paths]},
-                severity="advice",
-            )
-        )
-        yield from watch(*paths, **options, force_polling=True)
 
 
 def _existing_roots(requested: dict[Path, bool]) -> dict[Path, bool]:
@@ -429,7 +470,7 @@ class _PageChanges:
                     self._install(page, targets, roots)
                 assert self.changes is not None
                 generation = self.changes.mark()
-                # The roots follow the page's directories, so a plan taken after
+                # The roots follow the page's subdirectories, so a plan taken after
                 # the generation must still match: one created before it is
                 # subscribed now, and one created after it wakes the owner.
                 if self._holds(*_page_plan(page)):
@@ -450,10 +491,11 @@ class _PageChanges:
         )
         if self.release is not None:
             self.release()
+            changes.native.sweep()
         self.changes = changes
-        # The process's watchers retain FileChanges, never this memo owner.
-        # Discarding an unheld page memory therefore closes its subscription.
-        self.release = weakref.finalize(self, changes.close)
+        # The process's observer retains FileChanges, never this memo owner.
+        # Discarding an unheld page memory therefore releases its subscription.
+        self.release = weakref.finalize(self, changes.native.unsubscribe, changes)
         self.targets = targets
 
 
@@ -465,7 +507,7 @@ def _page_plan(page: Path) -> tuple[set[Path], dict[Path, bool]]:
 
 def page_changes(page: Path) -> tuple[FileChanges, int]:
     """The process's subscription for a page, refreshed when the page's
-    directories, its claim or its file grants move what it watches, and the
+    subdirectories, its claim or its file grants move what it watches, and the
     generation to wait from. An owner reads the page after taking both, and takes
-    them again after each wake, which is how a new directory joins the watch."""
+    them again after each wake, which is how a new subdirectory joins the watch."""
     return memo(page, _PageChanges).connect(page)

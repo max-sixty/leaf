@@ -587,7 +587,7 @@ def test_the_hook_transport_imports_no_page_model():
         "tinycss2",
         "tree_sitter",
         "turbohtml",
-        "watchfiles",
+        "watchdog",
     } & loaded == set()
 
 

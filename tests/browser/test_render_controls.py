@@ -222,8 +222,11 @@ def test_sample_host_view_changes_leave_its_scroll_and_keyboard_position(
 ):
     """Page, panel and Reset arrive inside a child without moving its host reader."""
     page = open_page(browser, serve(_sample_containment_page()))
-    resized(page, 1000, 720)
+    resized(page, 1400, 720)
     sample = page.locator("#practice")
+    # The child's window holds a rail, so its page surface is a margin card; a
+    # narrower one opens every thread in its panel.
+    sample.evaluate("sample => { sample.style.width = '1100px'; }")
     sample.evaluate("async sample => { await sample.ready; }")
     frame = sample.locator("iframe")
     completed = 0

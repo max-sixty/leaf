@@ -259,7 +259,7 @@ class ServedPage(NamedTuple):
 
 
 # The page `serving_source` serves while it does, for an input that writes to it from
-# outside the tab, as the agent or another tab does (stills.py, `held_news`).
+# outside the tab, as the agent or another tab does (states.py, `held_news`).
 served_page: ContextVar[ServedPage] = ContextVar("served_page")
 
 

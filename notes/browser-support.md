@@ -21,7 +21,7 @@ status changes rather than appending the investigation's chronology.
 `uv run leaf-dev probe SOURCE --browser firefox` (or `webkit`) runs a probe or
 journey in Playwright's Firefox or WebKit, and `--browser ios` runs a probe in
 Safari on an iPhone simulator, whose WebKit can differ from Playwright's desktop
-build.
+build. `leaf-dev stills --browser` compares a change's states in any of them.
 
 Minor visual differences are acceptable when content remains readable and
 controls remain usable. Lost drafts, broken actions, inaccessible controls, and

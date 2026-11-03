@@ -194,17 +194,21 @@ def test_motion_recordings_share_native_playback_and_a_sticky_transport(browser,
     # a seek to whole microseconds, which moves about one playback position in fifty
     # back by one, so a recording left unseeked would stay a microsecond ahead.
     play.tap()
-    page.evaluate(
-        """async () => {
-          const [leading, trailing] = document.querySelectorAll('video');
-          const seekMoves = time => Math.trunc(time * 1e6) !== Math.round(time * 1e6);
-          trailing.pause();
-          for (let tries = 0; tries < 500; tries++) {
-            leading.pause();
-            if (seekMoves(leading.currentTime)) return;
-            await leading.play();
-            await new Promise(resolve => setTimeout(resolve, 3));
-          }
+    videos.last.evaluate("trailing => trailing.pause()")
+    # Pause and resume the leading recording natively until it stops on such a
+    # position; without one the step cannot tell the fix from the old seek loop, so
+    # the wait's deadline fails the test rather than letting it pass.
+    page.wait_for_function(
+        """() => {
+          if (window.resumingLeader) return false;
+          const leading = document.querySelector('video');
+          leading.pause();
+          const time = leading.currentTime;
+          if (Math.trunc(time * 1e6) !== Math.round(time * 1e6)) return true;
+          window.resumingLeader = leading.play().finally(() => {
+            window.resumingLeader = null;
+          });
+          return false;
         }"""
     )
     play.tap()

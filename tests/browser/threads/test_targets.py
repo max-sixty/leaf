@@ -485,7 +485,7 @@ def test_original_quoted_words_remain_readable_after_the_page_rewrites_them(
     quote = card.locator(".lf-quote")
     expect(quote).to_contain_text("FINAL IMPORTANT WORDS")
     if not removed:
-        expect(quote.locator(".lf-anchor-status")).to_have_text("Changed")
+        expect(quote).to_have_attribute("data-lf-detached", "")
     # A margin card's quote returns to the passage where it still stands; the panel's
     # names no jump.
     in_panel = card.evaluate("node => node.matches('.lf-fp-view')")
@@ -545,7 +545,8 @@ def test_original_quoted_words_remain_readable_after_the_page_rewrites_them(
 
 
 def test_a_long_quote_of_replaced_data_has_a_local_reading(browser, serve):
-    """A surviving widget is a destination, but cannot show the old data's words."""
+    """A quote whose words a replacement took names no place on the page, and its card
+    still reads the whole quote in place."""
     old = "The earlier deployment required a manual review before rollout. " * 12
     url = serve(
         leaf_page(
@@ -570,7 +571,7 @@ def test_a_long_quote_of_replaced_data_has_a_local_reading(browser, serve):
     )
     card = open_from_threads(page, root["id"])
     quote = card.locator(".lf-quote")
-    expect(quote.locator(".lf-anchor-status")).to_have_text("Earlier data")
+    expect(quote).to_have_attribute("data-lf-detached", "")
     assert quote.evaluate("el => el.scrollHeight > el.clientHeight")
     disclosure = card.get_by_role("button", name="Full quote", exact=True)
     expect(disclosure).to_be_visible()
@@ -701,7 +702,7 @@ customElements.define('lf-quote-subject', class extends LeafElement {
     card = open_from_threads(page, comment["id"])
     quote = card.locator(".lf-quote")
     expect(quote).not_to_have_attribute("title", "Jump to this passage")
-    expect(quote.locator(".lf-anchor-status")).to_have_text("Changed")
+    expect(quote).to_have_attribute("data-lf-detached", "")
     disclosure = card.get_by_role("button", name="Full quote", exact=True)
     disclosure.click()
     expect(disclosure).to_have_attribute("aria-expanded", "true")

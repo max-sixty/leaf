@@ -545,36 +545,38 @@ def test_a_todo_on_you_ends_at_its_done_where_m_lands_and_in_the_panel(
         scroll_settled(page)
         assert page.evaluate("scrollY") == 0
 
-    # The page as a whole is arrived at its head, which comes first.
+    # The page as a whole has no place on the page, so its to-do comes after every
+    # placed item, and the walk lands on its card in On me, the one place it stands.
     page.locator("#cadence").click()
     page.evaluate("""() => {
       document.addEventListener('keydown', function read(event) {
         if (event.key.toLowerCase() !== 'm') return;
         document.removeEventListener('keydown', read, true);
         requestAnimationFrame(() => {
-          window.todoAtFirstFrame = document.activeElement.id;
+          window.todoAtFirstFrame =
+            document.activeElement.closest('.lf-fp-on-item')?.textContent ?? null;
         });
       }, true);
     }""")
     page.keyboard.press("Shift+m")
-    expect_walk_position(page, "1 of 3 waiting on me · To-do")
-    expect(page.locator("#h")).to_be_focused()
-    assert page.evaluate("todoAtFirstFrame") == "h", (
+    expect_walk_position(page, "3 of 3 waiting on me · To-do")
+    expect(page.locator(".lf-fp-on-item:focus-within")).to_contain_text(
+        "Read it through"
+    )
+    assert "Read it through" in page.evaluate("todoAtFirstFrame"), (
         "an idle arrival paints in its first frame"
     )
-    assert x_ends(page), "the page's head as current location selects the page task"
-    # The page's head holds nothing that answers the task, so On me opens on its card,
-    # leaving the user on the head.
+    assert page.evaluate("scrollY") == 0, "an arrival at no place moves the page"
+    assert x_ends(page), "the to-do's card as current location selects the page task"
     panel_settled(page, view="queue")
     expect(page.locator(".lf-fp-on-item[data-walked]")).to_contain_text(
         "Read it through"
     )
-    expect(page.locator("#h")).to_be_focused()
     page.keyboard.press("m")
-    expect_walk_position(page, "2 of 3 waiting on me · Options")
+    expect_walk_position(page, "1 of 3 waiting on me · Options")
     assert not x_ends(page)
     page.keyboard.press("m")
-    expect_walk_position(page, "3 of 3 waiting on me · To-do")
+    expect_walk_position(page, "2 of 3 waiting on me · To-do")
     expect(page.locator("#notes")).to_be_focused()
     assert x_ends(page)
 
@@ -650,8 +652,8 @@ def test_a_todo_on_you_says_its_words_where_you_land_on_it(browser, serve):
     """A to-do's subject carries an On me mark named by its title before anything takes
     the user there. Where `m` lands them on it, On me opens on its card, its whole title
     over its Done; where Show does, the panel's empty field names it and the row's end
-    offers its Done. A to-do on the page as a whole stands at the page's heading, which
-    its own words say nothing about."""
+    offers its Done. A to-do on the page as a whole stands nowhere on the page, so no
+    mark collects at its top: `m` lands on its card, which offers no Show."""
     url = serve(QUEUE_PAGE)
     whole = (
         "Review the change or name a reviewer, then merge it after checking the build"
@@ -662,20 +664,24 @@ def test_a_todo_on_you_says_its_words_where_you_land_on_it(browser, serve):
     page = open_page(browser, url)
     resized(page, 1440, 900)
     expect_on_me(page, 3)
-    for item, title in (("h", whole), ("notes", notes)):
-        marker = page.locator(
-            f'[data-lf-margin-for="{item}"] .lf-margin-marker[data-lf-kinds~="on-me"]'
-        )
-        expect(marker).to_have_attribute("aria-label", re.compile(re.escape(title)))
+    marker = page.locator(
+        '[data-lf-margin-for="notes"] .lf-margin-marker[data-lf-kinds~="on-me"]'
+    )
+    expect(marker).to_have_attribute("aria-label", re.compile(re.escape(notes)))
+    expect(page.locator("[data-lf-margin-for=h]")).to_have_count(0)
+    expect(
+        page.locator(f'.lf-margin-marker[aria-label*="{whole[:20]}"]')
+    ).to_have_count(0)
     expect(row_done(page)).to_have_count(0)
 
     page.locator("#cadence").click()
     page.keyboard.press("Shift+m")
-    expect(page.locator("#h")).to_be_focused()
     panel_settled(page, view="queue")
     walked = page.locator(".lf-fp-on-item[data-walked]")
     expect(walked).to_contain_text(whole)
+    expect(page.locator(".lf-fp-on-item:focus-within")).to_contain_text(whole)
     expect(walked.get_by_role("button", name="Done", exact=True)).to_be_visible()
+    expect(walked.get_by_role("button", name="Show")).to_have_count(0)
 
     page.locator('.lf-fp-on-item[data-list="you"]').filter(has_text=notes).get_by_role(
         "button", name="Show"
@@ -697,12 +703,15 @@ def test_a_todo_on_you_says_its_words_where_you_land_on_it(browser, serve):
 
 def test_two_todos_on_one_element_are_one_stop_ended_in_turn(browser, serve):
     """`m` reaches an element holding two to-dos once. The user there is on the first,
-    which `x` ends, and then on the second, so the field names each in turn."""
+    which `x` ends, and then on the second, so the field names each in turn. On the
+    second's card in On me, the user is on the second, whose place the first shares."""
     url = serve(QUEUE_PAGE)
     first = put_todo_on_user(
         serve.page_dir, {"kind": "element", "id": "notes"}, "Check the notes"
     )
-    put_todo_on_user(serve.page_dir, {"kind": "element", "id": "notes"}, "Fix a title")
+    second = put_todo_on_user(
+        serve.page_dir, {"kind": "element", "id": "notes"}, "Fix a title"
+    )
     page = open_page(browser, url)
     expect_on_me(page, 3)
     page.locator("#cadence").click()
@@ -714,14 +723,25 @@ def test_two_todos_on_one_element_are_one_stop_ended_in_turn(browser, serve):
     expect(todo_field(page)).to_have_attribute(
         "placeholder", re.compile("^To-do · Check the notes")
     )
-    with sending(page, "the first Done"):
-        page.keyboard.press("x")
-    assert events_model.read_events(serve.page_dir)[-1]["todo"] == first["id"]
+    panel_settled(page, view="queue")
+    page.locator(".lf-fp-on-item", has_text="Fix a title").locator(
+        ".lf-fp-prompt"
+    ).click()
     expect(todo_field(page)).to_have_attribute(
         "placeholder", re.compile("^To-do · Fix a title")
     )
+    with sending(page, "the second's Done on its card"):
+        page.keyboard.press("x")
+    assert events_model.read_events(serve.page_dir)[-1]["todo"] == second["id"]
+    page.locator("#notes").click()
+    expect(todo_field(page)).to_have_attribute(
+        "placeholder", re.compile("^To-do · Check the notes")
+    )
+    with sending(page, "the first Done"):
+        page.keyboard.press("x")
+    assert events_model.read_events(serve.page_dir)[-1]["todo"] == first["id"]
     page.keyboard.press("m")
-    expect_walk_position(page, "1 of 2 waiting on me · Options")
+    expect_walk_position(page, "1 of 1 waiting on me · Options")
 
 
 def test_a_finger_ends_a_todo_on_you_where_show_lands(browser, serve):
@@ -759,9 +779,9 @@ NESTED_TODOS_PAGE = leaf_page(
 
 
 def test_x_ends_the_innermost_todo_the_user_stands_on(browser, serve):
-    """Located on a task inside another, `x` ends the inner one: a task on a section
-    inside the page, with no heading for the page's own task to stand at, and a task
-    on a paragraph inside that section."""
+    """Located on a task inside another, `x` ends the inner one: a task on a paragraph
+    inside a section that holds a task of its own. The page's own task stands at no
+    element, so neither is inside it."""
     url = serve(NESTED_TODOS_PAGE)
     d = serve.page_dir
 
@@ -799,7 +819,7 @@ def test_x_ends_the_innermost_todo_the_user_stands_on(browser, serve):
     assert events_model.read_events(d)[-1]["todo"] == plan["id"]
 
     # Off every section, nothing the user is located on is the page's own task, which `m`
-    # arrives at its head.
+    # arrives at on its card.
     page.locator("#tail").click()
     assert not x_ends(page)
     page.keyboard.press("Shift+m")

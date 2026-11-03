@@ -269,6 +269,7 @@ import { userChoice } from "./storage.js";
 import { obligationEnding } from "./obligations/answer.js";
 import { answeredInWords, readObligations } from "./obligations/model.js";
 import { obligationPlace } from "./obligations/place.js";
+import { ON_CARD } from "./obligations/view-elements.js";
 import { declareSide, holdPagePlace } from "./current-target.js";
 import { versionPicker } from "./version-picker.js";
 import { versionsReading } from "./version.js";
@@ -3254,11 +3255,22 @@ export function createFloatingPanel({
     else open({ view: "queue" });
   }
   // On me standing open on the user's list, as the `m` walk asks where it arrives at a
-  // to-do (queue-walk.js), with focus left where the walk put it.
-  function showOnMe() {
+  // to-do (queue-walk.js), with focus left where the walk put it; or, given a to-do with
+  // no place on the page, with focus on that to-do's card. Answers whether the card was
+  // there to land on.
+  /** @param {string} [obligation] */
+  function showOnMe(obligation) {
     const turned = chooseQueueTab("you");
     if (!showing({ view: "queue" })) open({ view: "queue" }, { focus: false });
     else if (turned) paint();
+    if (obligation === undefined) return true;
+    const row = listRows().find(
+      (candidate) =>
+        closestAcross(candidate, ON_CARD)?.getAttribute("data-obligation") ===
+        obligation,
+    );
+    if (row) focusDestination(row, "move");
+    return Boolean(row);
   }
   // The mark opens On me, or Threads where nothing waits on the user but a reply they
   // have not read, as the Threads mark it replaced opened on its Unread filter. It
@@ -3936,9 +3948,7 @@ export function createFloatingPanel({
       const thread = part && openIn(part);
       if (thread) return placedAt(thread.id)?.place ?? null;
       const id = under(node, stage)
-        ? closestAcross(node, ".lf-fp-on-item[data-obligation]")?.getAttribute(
-            "data-obligation",
-          )
+        ? closestAcross(node, ON_CARD)?.getAttribute("data-obligation")
         : null;
       const record = id && readObligations().all.find((item) => item.id === id);
       return record ? obligationPlace(record).node : null;

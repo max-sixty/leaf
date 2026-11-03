@@ -499,7 +499,7 @@ async function boot() {
     prepareNavigationStep: anchorTravel.prepareNavigationStep,
     arrive: anchorTravel.arrive,
     readableDestination: anchorTravel.readableDestination,
-    showOnMe: () => floatingPanel.showOnMe(),
+    showOnMe: (obligation) => floatingPanel.showOnMe(obligation),
     announce,
   });
   const changeWalk = createChangeWalk();

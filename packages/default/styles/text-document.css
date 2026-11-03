@@ -105,9 +105,9 @@ lf-text-document code[data-code] {
 
    A Markdown preview of written text is the exception the first paint allows: Leaf
    draws its rendering beside the `<pre>` before the module does (`x-prepaint`), so the
-   page first paints at the preview's own height, and each tab takes its own height up
-   to the bound. A one-paragraph quote in a 28rem box drew a 530px frame around 156px
-   of text.
+   page first paints at the preview's own height up to the bound, which the Source tab
+   takes too. A one-paragraph quote in a 28rem box drew a 530px frame around 156px of
+   text.
 
    The module draws the figure once it loads, after first paint, so until then the
    host wears the figure's frame in place of its written `<pre>`, draws its label as the
@@ -208,8 +208,8 @@ lf-text-document .lf-text-document-listing:has(> pre[data-lf-focus-visible]) {
   --lf-wears-ring: 1;
 }
 
-/* Source and preview share one inspection viewport. Its height is independent of
-   either reading's length, so switching keeps the strip and following page still. */
+/* Source and preview share one inspection viewport. Its height doesn't follow the tab
+   shown, so switching keeps the strip and following page still. */
 lf-text-document[preview] > .lf-text-document-view {
   background: var(--paper);
 }
@@ -244,12 +244,32 @@ lf-text-document iframe.lf-text-document-preview {
     block-size: var(--lf-bound, 28rem);
     overscroll-behavior: auto;
   }
+  /* A written Markdown preview sets the height both tabs take, its rendering's up to
+     the bound, which the module gives the Source tab (lf-text-document.js,
+     `holdSource`). A source that height cuts ends in a fade and a press showing the
+     rest (`cut`), after which the Source takes its own height in the page. */
   lf-text-document[preview="markdown"]:not([source], [for])
     .lf-text-document-view
-    > lf-tabs
-    > lf-tab:not([hidden]) {
-    block-size: auto;
-    max-block-size: var(--lf-bound, 28rem);
+    > lf-tabs {
+    & > lf-tab:not([hidden]) {
+      block-size: auto;
+      max-block-size: var(--lf-bound, 28rem);
+    }
+    & > lf-tab:has(> .lf-text-document-listing):not([data-lf-all]) {
+      block-size: min(var(--lf-preview-block), var(--lf-bound, 28rem));
+      overflow: hidden;
+    }
+    & > lf-tab[data-lf-all] {
+      max-block-size: none;
+      overflow: visible;
+    }
+  }
+  lf-text-document .lf-text-document-cut {
+    position: absolute;
+    inset: auto 0 0;
+    padding: calc(2 * var(--sp-5)) var(--sp-4) var(--sp-2);
+    background: linear-gradient(transparent, var(--pre-bg) 70%);
+    text-align: center;
   }
   lf-text-document iframe.lf-text-document-preview {
     block-size: 100%;

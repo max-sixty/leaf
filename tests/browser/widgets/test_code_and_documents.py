@@ -141,6 +141,58 @@ def test_a_written_markdown_passage_reads_rendered_over_its_exact_source(
     assert document.locator("code[data-code]").text_content() == text
 
 
+def test_a_written_markdown_source_keeps_the_preview_height_until_shown_whole(
+    browser, serve
+):
+    """A written Markdown preview's Source tab takes the preview's height, so neither
+    switching to it nor reloading on it moves what follows the document. Where that
+    height cuts the source, a press shows every line and puts focus on them."""
+    links = "".join(f"[#{n}]: https://example.com/pull/{n}\n" for n in range(800, 812))
+    text = (
+        "## 2.4.0\n\n- Fixed a crash when `--config` is missing ([#800]).\n\n" + links
+    )
+    url = serve(
+        leaf_page(
+            "Release notes",
+            '<h1>Release notes</h1><lf-text-document id="notes" '
+            f'label="CHANGELOG.md" preview="markdown"><pre>\n{text}</pre>'
+            '</lf-text-document><p id="after">After the notes.</p>',
+        )
+    )
+    page = open_page(browser, url)
+    document = page.locator("#notes")
+    read = """() => [document.getElementById('notes').getBoundingClientRect().height,
+      document.getElementById('after').getBoundingClientRect().top]"""
+    preview = page.evaluate(read)
+    document.get_by_role("tab", name="Source", exact=True).click()
+    assert page.evaluate(read) == preview
+    lines = len(text.split("\n"))
+    press = document.get_by_role("button", name=f"Show all {lines} lines")
+    expect(press).to_be_visible()
+    held = []
+    page.route("**/leaf.js", lambda route: held.append(route))
+    page.reload(wait_until="commit")
+    page.locator("#after").wait_for(state="attached")
+    holding(page, held, 1, "the runtime")
+    assert page.evaluate(read) == preview
+    for route in held:
+        route.continue_()
+    page.unroute("**/leaf.js")
+    wait_until_ready(page)
+    expect(document.get_by_role("tab", name="Source", exact=True)).to_have_attribute(
+        "aria-selected", "true"
+    )
+    expect(press).to_be_visible()
+    assert page.evaluate(read) == preview
+    press.click()
+    expect(press).to_be_hidden()
+    expect(document.locator(".lf-text-document-listing > pre")).to_be_focused()
+    whole = document.locator("lf-tab:not([hidden])").evaluate(
+        "tab => [tab.clientHeight, tab.scrollHeight]"
+    )
+    assert whole[0] == whole[1] and whole[0] > preview[0] - 80, (whole, preview)
+
+
 def test_a_widget_document_updates_both_readings_and_keeps_the_selected_view(
     browser, serve
 ):

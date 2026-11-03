@@ -903,7 +903,7 @@ def test_claude_and_codex_load_the_same_plugin_payload():
 def test_page_authoring_names_the_theme_s_largest_spacing_step():
     """Authors read the spacing scale's ends in page-authoring.md rather than the
     theme, so a step the theme adds is one they can find."""
-    theme = (PLUGIN_ROOT / "browser/base.css").read_text()
+    theme = (PLUGIN_ROOT / "browser/styles/tokens.css").read_text()
     largest = max(int(step) for step in re.findall(r"--sp-(\d+):", theme))
     prose = (PLUGIN_ROOT / "skills/leaf/references/page-authoring.md").read_text()
     assert f"`--sp-1` to `--sp-{largest}`" in " ".join(prose.split())
@@ -1462,6 +1462,11 @@ def test_layout_style_and_widgets_never_read_each_other():
     }
     assert {"layout-column", "layout-workspace"} <= owned[layouts], owned[layouts]
     assert owned[theme] == {"density-working"}, owned[theme]
+    # The theme's tokens restate the type ladder's derived fonts for its density class.
+    homes = {
+        layouts: {layouts},
+        theme: {theme, *layer_model.imported_sheets(theme, schema_model.ASSETS)},
+    }
     roots = (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES)
     readers = []
     for source in sorted(path for root in roots for path in root.rglob("*.[cj]s*")):
@@ -1470,7 +1475,7 @@ def test_layout_style_and_widgets_never_read_each_other():
         foreign = [
             names
             for home, names in owned.items()
-            if home != source
+            if source not in homes[home]
             and not (
                 home == layouts
                 and source
@@ -4885,3 +4890,18 @@ def test_instruction_reading_uses_the_candidate_vocabulary_before_html_changes(
     assert "Use the new candidate contract." in instructions["author"]
     assert "Choose the owner's inputs" not in instructions["author"]
     assert source.read_text() == original_html
+
+
+def test_portable_css_carries_the_widgets_look_and_no_theme():
+    """A page without Leaf links portable.css for its widgets' look, not a Leaf page's:
+    a theme in the layer, as `reading` is in every new page's, styles a page's own
+    markup, so its rules stay out while a widget package's come in."""
+    reading = schema_model.BUNDLED_PACKAGES / "reading"
+    timeline = schema_model.BUNDLED_PACKAGES / "timeline"
+    layer = layer_model.compose_layer(layer_model.layer_inputs(("reading", "timeline")))
+    sheet = layer.top_files["portable.css"].decode()
+    assert layer_model.stylesheet(timeline / "defaults.css", timeline) in sheet
+    assert layer_model.stylesheet(reading / "defaults.css", reading) in (
+        layer.top_files["theme.css"].decode()
+    )
+    assert layer_model.stylesheet(reading / "defaults.css", reading) not in sheet

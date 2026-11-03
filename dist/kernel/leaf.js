@@ -5533,8 +5533,9 @@ function createQueueWalk({ arriveAtRecord, arriveAtThread, threadPlace, prepareN
 	}
 	const doneAt = (stop) => stop ? readQueues().on_user.find((item) => item.offers.done && sameStop(stopOf(item), stop)) ?? null : null;
 	const doneTodo = () => {
+		if (!readQueues().on_user.some((item) => item.offers.done)) return null;
 		const origin = currentLocationOrigin();
-		return origin?.kind === "current-location" ? doneAt(currentLocationStop(stopsAmong(inWalkOrder(readQueues().on_user)), origin)) : null;
+		return origin?.kind === "current-location" ? doneAt(currentLocationStop(stops(), origin)) : null;
 	};
 	function endTodo(id) {
 		return actions.done(queueItemKey({

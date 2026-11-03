@@ -37,6 +37,7 @@ import click
 from leaf_dev import ROOT
 from leaf_dev.arms import base_ref, extract_arm, run_directory, serving_source
 from leaf_dev.browser import headless_shell, settle, tab
+from leaf_dev.commands.profile import Profile
 
 OUT = ROOT / ".tmp" / "scaling"
 SIZES = (32, 64, 128, 256)
@@ -202,7 +203,12 @@ def measure(browser, address: str, profiles: Path | None) -> dict:
         option = tab_page.locator("lf-option").first
 
         def click():
-            option.click()
+            # Each click posts its event; the server's answer arrives before the
+            # quiet that lets the page apply it.
+            with tab_page.expect_response(
+                lambda response: response.url.endswith("/api/event")
+            ):
+                option.click()
             quiet(400)
 
         posted = len(tab_page.evaluate(EVENT_POSTS))
@@ -275,30 +281,10 @@ def table(axis: str, arm: str, rows: list[dict]) -> str:
 def function_times(path: Path) -> dict[str, float]:
     """Inclusive ms per function in a CPU profile, each sample counted once per
     function on its stack."""
-    profile = json.loads(path.read_text())
-    nodes = {node["id"]: node for node in profile["nodes"]}
-    parent = {
-        child: node["id"]
-        for node in profile["nodes"]
-        for child in node.get("children", ())
-    }
-
-    def label(node_id: int) -> str:
-        frame = nodes[node_id]["callFrame"]
-        where = frame["url"].rsplit("/", 1)[-1]
-        return f"{frame['functionName'] or '(anon)'} {where}:{frame['lineNumber'] + 1}"
-
-    deltas = [*profile["timeDeltas"][1:], 0]
     times: dict[str, float] = {}
-    for sample, delta in zip(profile["samples"], deltas, strict=True):
-        seen = set()
-        node_id = sample
-        while node_id is not None:
-            name = label(node_id)
-            if name not in seen:
-                seen.add(name)
-                times[name] = times.get(name, 0) + delta / 1000
-            node_id = parent.get(node_id)
+    for _, duration, chain in Profile(json.loads(path.read_text())).samples:
+        for name in set(chain):
+            times[name] = times.get(name, 0) + duration / 1000
     return times
 
 

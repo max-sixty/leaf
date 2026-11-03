@@ -166,7 +166,7 @@
 
     "runtime/dom-children.js": "8f4138bcd31424db87ffd963b73bbf4d77fb1560dfc934d2c159897716d3dba2",
 
-    "runtime/dom-move.js": "3e29bdf4e537534989ade1ce1b19c6fa63d611766f0ba56badd8292a9161c27c",
+    "runtime/dom-move.js": "1416af3c91d279305fcea7b55c73c2bea39839b50ea7e2fee0569592771ab271",
 
     "runtime/drafts.js": "1dd083d56adb9a6c6785a530b371a44d895d635f9f5d6d463877162d887b6474",
 
@@ -266,7 +266,7 @@
 
     "runtime/keyboard/register.js": "b1ee127ef099ccb462992bcf9fa75af56573290a66f1422aefa773d77a6a2bc7",
 
-    "runtime/keyboard/scopes.js": "57e8c538b262faff41f6720e09aa14950265f9f591829f14eb03229202bcab8e",
+    "runtime/keyboard/scopes.js": "7b799aa4277fef464da375c06dcf429f21c6f7699b26ec79496b8ceaedf57b88",
 
     "runtime/keyboard/status-context.js": "7a513009193c1d885a2bfb7d2d7cbcf81de793fdec47ee5d19e5422c9c69aa8b",
 
@@ -310,7 +310,7 @@
 
     "runtime/obligations/model.js": "c9f92b4c07e39bc6e55c3046a3016a38098275554f71fcc8a8a3b25559448166",
 
-    "runtime/obligations/place.js": "90a43bf64ba16cdf9c00682705378234b51cd7a09afb4bc64fbcd7ae46748903",
+    "runtime/obligations/place.js": "908262ebf8e4c6d5f912f1c098ad15589d549761bf99f91e2fcddac5a754b788",
 
     "runtime/obligations/source.js": "45abdbfe58cfc0bb25cb99c1a36be355602a34416251823a6306c16a44bd93f0",
 
@@ -376,7 +376,7 @@
 
     "runtime/queue-title.js": "af4eaec486fe0c3d52681945e13ede7fbfa7ab48e1a861ca9260480c685aa5b0",
 
-    "runtime/queue-walk.js": "d4264928561c4f6011e9bb67df3082adf795a4078a5d307824227432c8ec8fdb",
+    "runtime/queue-walk.js": "02ae3d731b2b687c73e607f3c583e133d9d01a28a0bf34a54eaaaef83037468e",
 
     "runtime/queued-work.js": "4e4b2fcc68487261fd56e9ac17e59f1b62e9fc7b58bc8afe9a4eac2a8bc4262a",
 

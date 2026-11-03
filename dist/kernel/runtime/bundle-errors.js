@@ -1,5 +1,5 @@
 import { __exportAll } from "./bundle-rolldown-runtime.js";
-import { ANNOUNCE, CARET_KEYS, COMMANDS, J, PRESS, PRESSES, ROLE_BUTTON_OFFER, W, WORKS, Z, actionTemplate, bindQueuedWork, coarsePointer, commandsChangedOn, composedParentNode, controlNavigationKeys, d, focusDestination, focusRevision, holdFocus, installLanguagePaths, installMoveFocus, isElement, isHTML, isNativeLayer, isStage, keeps, liveStages, move, nextRender, offer, offerAction, onCurrentLocation, onFocusVisibility, onUserInput, pressIsKeyboardActivation, refuseCommands, renderedParent, renderedUnder, shadowHost, showNativeLayer, takesLetters, tick, watchCurrentLocationIn, x } from "./bundle-portable.js";
+import { ANNOUNCE, CARET_KEYS, COMMANDS, J, PRESS, PRESSES, ROLE_BUTTON_OFFER, W, WORKS, Z, actionTemplate, bindQueuedWork, coarsePointer, commandsChangedOn, composedParentNode, controlNavigationKeys, d, focusDestination, focusRevision, holdFocus, installLanguagePaths, installMoveFocus, installMoveKeys, isElement, isHTML, isNativeLayer, isStage, keeps, liveStages, move, nextRender, offer, offerAction, onCurrentLocation, onFocusVisibility, onUserInput, pressIsKeyboardActivation, refuseCommands, renderedParent, renderedUnder, shadowHost, showNativeLayer, takesLetters, tick, watchCurrentLocationIn, x } from "./bundle-portable.js";
 import { AsyncDirective, LitElement as LitElement$1, PartType as PartType$1, directive as directive$1, guard, html, html as html$1, keyed, live as live$1, noChange, nothing as nothing$1, ref, render as render$1, repeat } from "/vendor/lit.js";
 
 //#region runtime/move-focus.js
@@ -3509,6 +3509,7 @@ const paintKeysWithin = (root) => {
 	repaint();
 };
 const paintedRoots = /* @__PURE__ */ new Set();
+installMoveKeys(claimPaintedRoots);
 function claimPaintedRoots() {
 	if (!paintedRoots.size) return;
 	for (const ref of scopeRefs) {

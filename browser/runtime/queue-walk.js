@@ -555,16 +555,14 @@ export function createQueueWalk({
         ) ?? null)
       : null;
 
-  // The to-do Done ends now: the one the user is on. Which stop holds them needs the
-  // stops in page order, as a walk within a region reads them, not On me's groups: the
-  // keys ask this on every keystroke (the to-do stance's `at`), and grouping names
-  // each item's part of the page.
+  // The to-do Done ends now: the one the user is on. The keys ask this on every
+  // keystroke (the to-do stance's `at`), so the walk's stops, which On me's groups
+  // order, are read only where a to-do waits on the user and the user stands on a place.
   const doneTodo = () => {
+    if (!readQueues().on_user.some((item) => item.offers.done)) return null;
     const origin = currentLocationOrigin();
     return origin?.kind === "current-location"
-      ? doneAt(
-          currentLocationStop(stopsAmong(inWalkOrder(readQueues().on_user)), origin),
-        )
+      ? doneAt(currentLocationStop(stops(), origin))
       : null;
   };
 

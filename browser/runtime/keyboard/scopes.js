@@ -58,6 +58,7 @@ import {
 import { nativeActivationAt, nativeClaimAt } from "./text-entry.js";
 import { composedParentNode, renderedParent } from "../shadow.js";
 import { repaint } from "../repaint.js";
+import { installMoveKeys } from "../dom-move.js";
 import { keeps } from "../keeps.js";
 import { COMMANDS, commandsChangedOn, refuseCommands } from "../widget-upgrade.js";
 
@@ -1027,11 +1028,13 @@ export const paintKeysWithin = (root) => {
   repaint();
 };
 // The roots renderers painted since the frame last reflected, resolved to the scoped
-// elements inside them as the frame reads the document: one climb per scoped element
-// however many renderers painted, where a scan per paint cost every widget's update
-// the whole page's scoped elements.
+// elements inside them in one climb per scoped element however many renderers
+// painted, where a scan per paint cost every widget's update the whole page's scoped
+// elements. They are resolved as the frame reflects, or before a placed node moves
+// (dom-move.js), so a control that leaves a painted root keeps its mark.
 /** @type {Set<Node>} */
 const paintedRoots = new Set();
+installMoveKeys(claimPaintedRoots);
 function claimPaintedRoots() {
   if (!paintedRoots.size) return;
   for (const ref of scopeRefs) {

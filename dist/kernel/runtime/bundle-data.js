@@ -6400,7 +6400,7 @@ function obligationPlace(item, items = readObligations().all) {
 	const source = item.source.unit ? projectedDatum(owner, item.source.unit) : owner;
 	const context = elementById(item.prompt.target);
 	const sharing = contextsOf(items).get(item.prompt.target);
-	const shared = Boolean(sharing && [...sharing].some((id) => id !== item.id));
+	const shared = Boolean(sharing && (sharing.size > 1 || sharing.size === 1 && !sharing.has(item.id)));
 	return {
 		source,
 		context,

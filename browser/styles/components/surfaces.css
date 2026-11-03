@@ -287,12 +287,12 @@ a[data-lf-external]::after,
   outline-offset: var(--lf-mark-gap);
 }
 :where(a[href], button, input, select, textarea, summary, [role]):where(
-    .lf-aimed,
-    .lf-traced,
-    .lf-proxied,
-    [data-lf-mark],
-    .lf-projected-location
-  ) {
+  .lf-aimed,
+  .lf-traced,
+  .lf-proxied,
+  [data-lf-mark],
+  .lf-projected-location
+) {
   --lf-mark-gap: var(--lf-ring-at, var(--focus-ring-gap));
 }
 :where(.lf-traced) {
@@ -303,13 +303,13 @@ a[data-lf-external]::after,
   --lf-mark-w: var(--mark-contour-w);
 }
 :where(
-    [data-lf-mark~="action"]:not(
-        [data-lf-mark~="pending"],
-        [data-lf-mark~="hover"],
-        [data-lf-mark~="here"],
-        [data-lf-mark~="focus"]
-      )
-  ) {
+  [data-lf-mark~="action"]:not(
+    [data-lf-mark~="pending"],
+    [data-lf-mark~="hover"],
+    [data-lf-mark~="here"],
+    [data-lf-mark~="focus"]
+  )
+) {
   --lf-mark-w: 1px;
 }
 :where([data-lf-mark~="focus"]) {
@@ -329,13 +329,13 @@ a[data-lf-external]::after,
    that stands inside the box draws whole, and the box's own paint is never cut. A
    focused or arrived-at box draws its ring whole. */
 :where(
-    :is(.lf-aimed, .lf-traced, [data-lf-mark]):not(
-        .lf-projected-location,
-        .lf-proxied,
-        [data-lf-mark~="focus"],
-        [data-lf-focus-visible]
-      )
-  ) {
+  :is(.lf-aimed, .lf-traced, [data-lf-mark]):not(
+    .lf-projected-location,
+    .lf-proxied,
+    [data-lf-mark~="focus"],
+    [data-lf-focus-visible]
+  )
+) {
   --lf-mark-room: calc(var(--lf-mark-gap) + var(--lf-mark-w, var(--focus-ring-w)));
   clip-path: polygon(
     evenodd,
@@ -345,8 +345,7 @@ a[data-lf-external]::after,
     -9999px calc(100% + 9999px),
     -9999px -9999px,
     calc(8px - var(--lf-mark-room)) min(0px, calc(-0.5px - var(--lf-mark-room))),
-    calc(100% + var(--lf-mark-room) - 8px)
-      min(0px, calc(-0.5px - var(--lf-mark-room))),
+    calc(100% + var(--lf-mark-room) - 8px) min(0px, calc(-0.5px - var(--lf-mark-room))),
     calc(100% + var(--lf-mark-room) - 8px) min(0px, calc(0.5px - var(--lf-mark-gap))),
     calc(8px - var(--lf-mark-room)) min(0px, calc(0.5px - var(--lf-mark-gap))),
     calc(8px - var(--lf-mark-room)) min(0px, calc(-0.5px - var(--lf-mark-room))),
@@ -361,15 +360,15 @@ a[data-lf-external]::after,
     -9999px -9999px
   );
 }
-/* A drawing's part takes the mark along its own path: a stroke under its fill, so the
-   band shows outside the shape. */
-:where(svg *):where(
-    .lf-aimed,
-    .lf-traced,
-    .lf-proxied,
-    [data-lf-mark],
-    .lf-projected-location
-  ) {
+/* A drawing's shape takes the mark along its own path: a stroke under its fill, so the
+   band shows outside the shape. A group or a label takes the outline round its box. */
+:where(svg :is(rect, circle, ellipse, path, polygon, polyline, line)):where(
+  .lf-aimed,
+  .lf-traced,
+  .lf-proxied,
+  [data-lf-mark],
+  .lf-projected-location
+) {
   outline: none;
   clip-path: none;
   box-shadow: none;

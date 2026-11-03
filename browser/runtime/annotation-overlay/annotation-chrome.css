@@ -39,9 +39,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
    while a reference is projected. Native visibility covers the return before the
    focus owner has reflected its attribute. :root outranks field focus rules even
    when their sheet arrives later. */
-:root .lf-projected-mark:is(:focus-visible, [data-lf-focus-visible]) {
-  outline: none;
-}
 
 @scope (.lf-chrome) {
   /* The hand only where the press lands. An element anchor draws its contour
@@ -247,40 +244,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     .lf-composer-media:not([hidden])
     > * {
     pointer-events: auto;
-  }
-  .lf-visual-marks {
-    display: contents;
-  }
-  /* Rectangles use the shared brackets in chrome.css; focus draws that perimeter
-     whole. SVG marks retain their actual contour instead of a rectangular frame. */
-  .lf-visual-mark {
-    position: absolute;
-    display: none;
-    pointer-events: none;
-    --lf-shape-ink: var(--mark-contour-ink);
-    --lf-shape-stroke: var(--mark-contour-w);
-    /* This layer is above the target's children, so its interior paints nothing over
-       them. */
-    background: none;
-  }
-  .lf-visual-mark.lf-visual-mark-focus {
-    --lf-shape-ink: var(--accent);
-    --lf-shape-stroke: var(--focus-ring-w);
-  }
-  .lf-visual-mark.lf-visual-mark-action:not(
-      .lf-visual-mark-pending,
-      .lf-visual-mark-hover,
-      .lf-visual-mark-focus,
-      .lf-visual-mark-here
-    ) {
-    --lf-shape-stroke: 1px;
-    --lf-target-outline: 1px solid var(--mark-contour-ink);
-  }
-  .lf-visual-mark-shape {
-    display: block;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
   }
   /* thread-preview.js writes the width and height cap the card's placement gives it
      (comment-placement.js); these are the fallbacks for a card no placement has sized

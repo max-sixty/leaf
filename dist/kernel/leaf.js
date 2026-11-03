@@ -10,7 +10,7 @@ import { mediaViewer, readAttachedMedia, scopedMediaUrl, writeAttachedMedia } fr
 import { visibleTargetParts } from "./runtime/bundle-visible-target-parts.js";
 import { pageImage, pageRenderer } from "./runtime/bundle-page-image.js";
 import { pageIdentity, shownScheme } from "./runtime/bundle-page-identity.js";
-import { aimLayer, boxMotion, clearAim, geometryChanged, labelAim, locationLayer, mountTargetPaint, paintAim, paintLocation, paintProxyRing, proxyRingLayer, shifted, targetTraceLayer } from "./runtime/bundle-box-motion.js";
+import { aimLayer, boxMotion, clearAim, geometryChanged, labelAim, paintAim, paintLocation, paintProxyRing } from "./runtime/bundle-box-motion.js";
 import "/vendor/webawesome-chrome.js";
 
 //#region runtime/keyboard/disclosure.js
@@ -4039,7 +4039,7 @@ function createAnchorControls({ commentOnTarget, openThread, withdrawReaction, l
 
 //#endregion
 //#region runtime/page-geometry.js
-function createPageGeometry({ refreshAnchorHover, aim, pointer, designMode, targetPaint, visualMarkPaint, shiftDrawings, queueLegend, legendScrolled, activeActionAnchor, refreshActionBar }) {
+function createPageGeometry({ refreshAnchorHover, aim, pointer, designMode, targetPaint, shiftDrawings, queueLegend, legendScrolled, activeActionAnchor, refreshActionBar }) {
 	let actionFrame = 0;
 	let mounted = null;
 	function aimTarget() {
@@ -4078,7 +4078,6 @@ function createPageGeometry({ refreshAnchorHover, aim, pointer, designMode, targ
 		refreshAnchorHover?.();
 		refreshAim();
 		targetPaint.shifted();
-		visualMarkPaint?.shifted();
 		shiftDrawings();
 		legendScrolled();
 		if (activeActionAnchor()) queueActionPlacement();
@@ -4089,7 +4088,6 @@ function createPageGeometry({ refreshAnchorHover, aim, pointer, designMode, targ
 	}
 	function invalidate() {
 		targetPaint.geometryChanged();
-		visualMarkPaint?.geometryChanged();
 	}
 	const onResize = () => {
 		invalidate();
@@ -10933,9 +10931,8 @@ async function boot() {
 			geometryChanged,
 			labelAim,
 			paintAim,
-			shifted
+			shifted: geometryChanged
 		},
-		visualMarkPaint,
 		shiftDrawings: drawingPaint.shifted,
 		queueLegend: designMode.queueLegend,
 		legendScrolled: designMode.legendScrolled,
@@ -11278,8 +11275,8 @@ async function boot() {
 			chromeSheet,
 			marksSheet
 		];
-		chromeForeground.append(locationLayer, targetTraceLayer, proxyRingLayer, aimLayer, liveEl, mediaViewer, commandReferenceDialog, inspectEl);
-		chromeRoot.append(legendRoot, marginBarLayer, ...visualMarkPaint ? [visualMarkPaint.layer] : [], drawingPaint.layer, fabBar, chromeForeground);
+		chromeForeground.append(aimLayer, liveEl, mediaViewer, commandReferenceDialog, inspectEl);
+		chromeRoot.append(legendRoot, marginBarLayer, drawingPaint.layer, fabBar, chromeForeground);
 		document.body.append(chromeRoot);
 		version.mount();
 		mountPageStatus();
@@ -11290,7 +11287,6 @@ async function boot() {
 		targets.mount();
 		drawing.mount();
 		aim.mount();
-		mountTargetPaint();
 		anchorPaint?.mount();
 		anchorControls.mount();
 		pageGeometry.mount();

@@ -5,7 +5,7 @@ import { chromeForeground, chromeRoot, exactTarget, passageGeometry, pointBand, 
 import { ANNOTATIONS_KEY } from "./bundle-restore-state.js";
 import { blockAt, elementFromPointAcross, labelWords, pageWords, quoteFrom, rangeOf, segmentsIn } from "./bundle-passages.js";
 import { anchorLabel, arrivalOf, carryingThreadPlace, claimSeatReplies, claimed, currentLocationThreadId, declareOffFlowSurface, declareSide, keepThreadLanding, pageCommand, pageRung, pageScope, pageSelection, placeKeeper, releaseAuthoredUnder, releaseReplies, revealHeld, rowWalk, selectionAnchor, showReturnTurn, threadFocusDestination, threadIdNamed, threadNamed } from "./bundle-data.js";
-import { SVG_NS, activateContributionControl, awaitingUser, canFold, choosePrimary, clearContributionControls, clusterProjection, contributionEntry, contributionEntryRecord, contributionEntrySource, dropStand, entryEngaged, entryHasMarginHost, focusedOfferOf, markerFace, materializeContributionControls, optionsOffered, paintGeometry, paintShape, paintStand, placement, presentContributionEntry, presentContributionReceipts, primaryReading, readingBehavior, readingChoices, readingContext, readingFace, readingKey, readingLabel, readingState, spokenContext, spokenSubject, standOver, syncContributionSelection, syncContributionUnread, threadReading, unreadIn } from "./bundle-page-layout.js";
+import { activateContributionControl, awaitingUser, canFold, choosePrimary, clearContributionControls, clusterProjection, contributionEntry, contributionEntryRecord, contributionEntrySource, entryEngaged, entryHasMarginHost, focusedOfferOf, markerFace, materializeContributionControls, optionsOffered, presentContributionEntry, presentContributionReceipts, primaryReading, readingBehavior, readingChoices, readingContext, readingFace, readingKey, readingLabel, readingState, spokenContext, spokenSubject, syncContributionSelection, syncContributionUnread, threadReading, unreadIn } from "./bundle-page-layout.js";
 import { boxMotion, paintTrace } from "./bundle-box-motion.js";
 import { THREAD_CARD, cardMeasure, cardMinimum, commentAttachment, commentBoundary, commentPlacement, commentReference, floatingGeometry, floatingPlacement, floatingSelections, floatingUi, heldEdges, layoutMarginRows, makeRoom, marginColumn, mountMarginLayer, paintedBox, registerMarginRow, scheduleMarginEntryLabels, scheduleMarginLayout, standsFolded, standsWithheld, syncMarginContentLayout, unregisterMarginRow } from "./bundle-comment-placement.js";
 
@@ -2489,114 +2489,22 @@ function createAnchorPaint({ targetPaint, pointer, currentLocationThreadId, curr
 //#endregion
 //#region runtime/annotation-overlay/visual-mark-paint.js
 const PROJECTED = "lf-projected-mark";
-const STATE_CLASSES = {
-	pending: "lf-visual-mark-pending",
-	action: "lf-visual-mark-action",
-	hover: "lf-visual-mark-hover",
-	focus: "lf-visual-mark-focus",
-	here: "lf-visual-mark-here"
-};
 function createVisualMarkPaint() {
-	const layer = el("div", "lf-ui lf-visual-marks");
-	layer.setAttribute("aria-hidden", "true");
-	let targets = /* @__PURE__ */ new Map();
-	const overlays = /* @__PURE__ */ new Map();
-	let placementFrame = 0;
-	let geometryFrame = 0;
-	let geometryDirty = false;
-	function syncStates() {
-		for (const [element, { overlay }] of overlays) {
-			const states = targets.get(element)?.states ?? /* @__PURE__ */ new Set();
-			for (const [state, className] of Object.entries(STATE_CLASSES)) overlay.classList.toggle(className, states.has(state));
-		}
-	}
-	function paintTargets(rebuildGeometry = true) {
-		for (const [element, record] of overlays) if (!targets.has(element)) {
-			element.classList.toggle(PROJECTED, false);
-			dropStand(record.stand);
-			overlays.delete(element);
-		}
-		for (const [element, target] of targets) {
-			let record = overlays.get(element);
-			const geometry = rebuildGeometry || !record ? paintGeometry(target.surface) : record.geometry;
-			const placed = placement(target.surface, Boolean(geometry), inChrome(element));
-			if (!placed.shown) {
-				element.classList.toggle(PROJECTED, false);
-				if (record) {
-					record.geometry = geometry;
-					record.shapeKey = "";
-					record.overlay.style.display = "none";
-				}
-				continue;
-			}
-			if (!record) {
-				const overlay = el("div", "lf-ui lf-visual-mark");
-				const shape = document.createElementNS(SVG_NS, "svg");
-				shape.classList.add("lf-visual-mark-shape");
-				overlay.append(shape);
-				const stand = paintStand(overlay);
-				layer.append(stand.root);
-				record = {
-					overlay,
-					shape,
-					stand,
-					geometry: null,
-					shapeKey: ""
-				};
-				overlays.set(element, record);
-			}
-			const { overlay, shape, stand } = record;
-			const { rect, shapeKey } = placed;
-			element.classList.toggle(PROJECTED, true);
-			keeps(overlay, "data-for", element.id || null);
-			overlay.classList.toggle("lf-shaped", Boolean(geometry));
-			if (rebuildGeometry || record.geometry !== geometry || record.shapeKey !== shapeKey) {
-				if (geometry) paintShape(shape, geometry, rect);
-				else shape.replaceChildren();
-				record.geometry = geometry;
-				record.shapeKey = shapeKey;
-			}
-			keeps(stand.root, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
-			standOver(stand, placed, geometry ? null : getComputedStyle(target.surface).borderRadius);
-		}
-		syncStates();
-	}
+	const marked = /* @__PURE__ */ new Map();
 	function setTargets(next) {
-		const nextTargets = new Map([...next].filter((target) => target.states?.size).map((target) => [target.element, target]));
-		const identitiesChanged = nextTargets.size !== targets.size || [...nextTargets].some(([element, target]) => targets.get(element)?.surface !== target.surface);
-		targets = nextTargets;
-		const rebuild = identitiesChanged || geometryDirty;
-		if (rebuild && geometryFrame) cancelRender(geometryFrame);
-		if (rebuild && placementFrame) cancelRender(placementFrame);
-		if (rebuild) geometryFrame = placementFrame = 0;
-		geometryDirty = false;
-		paintTargets(rebuild);
+		const targets = new Map([...next].filter((target) => target.states?.size).map((target) => [target.element, target]));
+		for (const [element, surface] of marked) if (targets.get(element)?.surface !== surface) {
+			element.classList.toggle(PROJECTED, false);
+			surface.removeAttribute("data-lf-mark");
+			marked.delete(element);
+		}
+		for (const [element, { surface, states }] of targets) {
+			element.classList.toggle(PROJECTED, true);
+			keeps(surface, "data-lf-mark", [...states].sort().join(" "));
+			marked.set(element, surface);
+		}
 	}
-	function shifted() {
-		if (placementFrame || geometryFrame || !targets.size) return;
-		placementFrame = nextRender(() => {
-			placementFrame = 0;
-			paintTargets(false);
-		});
-	}
-	function geometryChanged() {
-		geometryDirty = true;
-		if (placementFrame) cancelRender(placementFrame);
-		placementFrame = 0;
-		if (geometryFrame || !targets.size) return;
-		geometryFrame = nextRender(() => {
-			geometryFrame = 0;
-			if (!geometryDirty) return;
-			geometryDirty = false;
-			paintTargets(true);
-		});
-	}
-	return {
-		layer,
-		setTargets,
-		shifted,
-		geometryChanged
-	};
+	return { setTargets };
 }
 
 //#endregion

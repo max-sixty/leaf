@@ -77,12 +77,8 @@ import {
   clearAim,
   geometryChanged,
   labelAim,
-  locationLayer,
-  mountTargetPaint,
   paintAim,
-  proxyRingLayer,
   shifted,
-  targetTraceLayer,
 } from "./runtime/target-paint.js";
 import { pointerAt } from "./runtime/pointer.js";
 import { createWritingResume } from "./runtime/drafts.js";
@@ -327,7 +323,6 @@ async function boot() {
     pointer: pointerAt,
     designMode,
     targetPaint: { clearAim, geometryChanged, labelAim, paintAim, shifted },
-    visualMarkPaint,
     shiftDrawings: drawingPaint.shifted,
     queueLegend: designMode.queueLegend,
     legendScrolled: designMode.legendScrolled,
@@ -724,9 +719,6 @@ async function boot() {
     // One permanent home for the chrome's foreground; none of these live descendants is
     // reparented.
     chromeForeground.append(
-      locationLayer,
-      targetTraceLayer,
-      proxyRingLayer,
       aimLayer,
       liveEl,
       mediaViewer,
@@ -736,7 +728,6 @@ async function boot() {
     chromeRoot.append(
       legendRoot,
       marginBarLayer,
-      ...(visualMarkPaint ? [visualMarkPaint.layer] : []),
       drawingPaint.layer,
       fabBar,
       chromeForeground,
@@ -751,7 +742,6 @@ async function boot() {
     targets.mount();
     drawing.mount();
     aim.mount();
-    mountTargetPaint();
     anchorPaint?.mount();
     anchorControls.mount();
     pageGeometry.mount();

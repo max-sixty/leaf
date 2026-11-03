@@ -1,4 +1,4 @@
-import { LAYOUT, LENT_REACH_STOP, TAB_STOP, afterScript, atLayoutPrecision, cancelRender, clamp, clippedContents, clippedRect, clippingAxes, coarsePointer, hoveringPointer, inChrome, inlineStyle, keeps, layoutPx, move, moveScrollerBy, nextRender, overlaps, overlapsAcross, pageScroller, renderedParent, renderedUnder, scrollAxes, scrollLimit, scrollsContent, shellRight, shownBand, shownExtent, shownParts, shownRect, shownWindow, sizeObserver, skipped, under, union, upFrom, visualViewport } from "./bundle-portable.js";
+import { LAYOUT, LENT_REACH_STOP, TAB_STOP, afterScript, atLayoutPrecision, cancelRender, clamp, clippedContents, clippedRect, clippingAxes, coarsePointer, hoveringPointer, inChrome, inlineStyle, keeps, layoutPx, move, moveScrollerBy, nextRender, offeredActionElement, overlaps, overlapsAcross, pageScroller, renderedParent, renderedUnder, scrollAxes, scrollLimit, scrollsContent, shellRight, shownBand, shownExtent, shownParts, shownRect, shownWindow, sizeObserver, skipped, under, union, upFrom, visualViewport } from "./bundle-portable.js";
 import { renderedChildren } from "./bundle-errors.js";
 import { afterPresentation, anchorBox, anchorElement, anchorFor, anchorHolder, anchorName, anchorReading, blockControlBoxes, boundedBlockOf, carriedAnchor, containingReadingRegionFor, cutFrames, headerLevels, nameAnchor, passageBoxes, pointBand, proseMeasure, proseRect, railStands, scrollMisplacesAnchors, scrollerFor, scrollsWith, targetRange, targetSegments } from "./bundle-content-layout.js";
 import { layoutBox } from "./bundle-passages.js";
@@ -309,9 +309,7 @@ railMeasureRow.dataset.lfPlace = "rail";
 railMeasureRow.inert = true;
 railMeasureRow.setAttribute("aria-hidden", "true");
 railMeasureRow.style.visibility = "hidden";
-const railMeasureEntry = document.createElement("button");
-railMeasureEntry.className = "lf-margin-entry";
-railMeasureEntry.type = "button";
+const railMeasureEntry = offeredActionElement(document.createElement("button"), "entry", "lf-margin-entry");
 railMeasureEntry.dataset.lfBehavior = "disclosure";
 railMeasureRow.append(railMeasureEntry);
 function restingRail(layer) {

@@ -169,10 +169,10 @@ def test_a_board_says_which_column_each_card_is_in(browser, serve):
         '- list "Todo":\n'
         "  - listitem:\n"
         "    - strong: Heated perch\n"
-        "    - 'button \"Move: Heated perch — Todo\"': ⠿\n"
+        "    - 'button \"Move: Heated perch — Todo\"'\n"
         "  - listitem:\n"
         "    - strong: Squirrel baffle\n"
-        "    - 'button \"Move: Squirrel baffle — Todo\"': ⠿\n"
+        "    - 'button \"Move: Squirrel baffle — Todo\"'\n"
         '- list "Done"'  # empty, and still announced: it is a drop target
     )
 
@@ -195,12 +195,12 @@ def test_a_board_says_which_column_each_card_is_in(browser, serve):
         '- list "Todo":\n'
         "  - listitem:\n"
         "    - strong: Heated perch\n"
-        "    - 'button \"Move: Heated perch — Todo\"': ⠿\n"
+        "    - 'button \"Move: Heated perch — Todo\"'\n"
         '- list "Done":\n'
         "  - listitem:\n"
         "    - strong: Squirrel baffle\n"
         "    - text: my change\n"
-        "    - 'button \"Move: Squirrel baffle — Done\"': ⠿"
+        "    - 'button \"Move: Squirrel baffle — Done\"'"
     )
 
 

@@ -1,11 +1,15 @@
-/* Aim, target-trace and location paint in Leaf's chrome layer.
+/* Aim, target-trace, proxy-ring and location paint in Leaf's chrome layer, which
+ * every page mounts.
  *
  * Aim draws synchronously for the gesture that arms it. A trace retains its current
- * target and drawn geometry, and the location ring the decision it stands round. Each
- * box stands in a paint stand that the browser moves with every scroll around its
- * target (target-paint-geometry.js), so a scroll places it again without writing, while
- * layout and resize rebuild its shape. Persistent annotations have their own optional
- * painter. */
+ * target and drawn geometry: the target trace, the quiet contour a margin control
+ * draws round the content it concerns, and the proxy ring, the focus ring a focused
+ * proxy draws round what it stands for (control-faces.js, `proxy`), where neither the
+ * proxy nor that thing can wear it. The location ring retains the decision it stands
+ * round. Each box stands in a paint stand that the browser moves with every scroll
+ * around its target (target-paint-geometry.js), so a scroll places it again without
+ * writing, while layout and resize rebuild its shape. Persistent annotations have
+ * their own optional painter. */
 
 import { cancelRender, nextRender } from "./rendering.js";
 import { el } from "./widget-elements.js";
@@ -26,14 +30,11 @@ import {
   vacate,
 } from "./target-paint-geometry.js";
 
-const targetTraceBox = el("div", "lf-ui lf-target-trace");
 const aimBox = el("div", "lf-ui lf-aim");
 const locationBox = el("div", "lf-ui lf-location");
-const traceStand = paintStand(targetTraceBox);
 const aimStand = paintStand(aimBox);
 const locationStand = paintStand(locationBox);
 // What leaf.js mounts in the chrome: each box in the stand that carries it.
-export const targetTraceLayer = traceStand.root;
 export const aimLayer = aimStand.root;
 export const locationLayer = locationStand.root;
 
@@ -41,23 +42,10 @@ const aimShape = document.createElementNS(SVG_NS, "svg");
 aimShape.classList.add("lf-aim-shape");
 aimShape.setAttribute("aria-hidden", "true");
 const aimMaskId = "lf-runtime-aim-shape-mask";
-const targetTraceShape = document.createElementNS(SVG_NS, "svg");
-targetTraceShape.classList.add("lf-target-trace-shape");
-targetTraceShape.setAttribute("aria-hidden", "true");
 // The aim's last placement and how its box stood, which a label at its corner is
 // written from (`labelAim`).
 /** @type {{placed: import("./target-paint-geometry.js").Placement & {shown: import("./rect.js").Box}, stood: ReturnType<typeof standOver>} | null} */
 let aimed = null;
-/** @type {Element | null} */
-let traceElement = null;
-/** @type {Element | null} */
-let traceSurface = null;
-/** @type {ReturnType<typeof paintGeometry>} */
-let traceGeometry = null;
-let traceShapeKey = "";
-let placementFrame = 0;
-let geometryFrame = 0;
-let geometryDirty = false;
 /** @type {Element | null} */
 let locationElement = null;
 let locationFrame = 0;
@@ -156,92 +144,133 @@ export function labelAim(node) {
   standBox(node, at, stood, stood.anchor, stood.at);
 }
 
-function clearTrace() {
-  traceElement = null;
-  traceSurface = null;
-  traceGeometry = null;
-  traceShapeKey = "";
-  vacate(traceStand);
-  targetTraceBox.style.display = "none";
-  targetTraceBox.classList.toggle("lf-shaped", false);
-  targetTraceShape.replaceChildren();
-  targetTraceBox.removeAttribute("data-for");
-  delete traceStand.root.dataset.lfPaintPlane;
+// One trace: a box drawn round one target at a time, in the target's contour where it
+// is a drawn shape, standing in the planes of what carries it.
+/** @param {string} className */
+function createTrace(className) {
+  const box = el("div", `lf-ui ${className}`);
+  const stand = paintStand(box);
+  const shape = document.createElementNS(SVG_NS, "svg");
+  shape.classList.add(`${className}-shape`);
+  shape.setAttribute("aria-hidden", "true");
+  /** @type {Element | null} */
+  let traced = null;
+  /** @type {Element | null} */
+  let tracedSurface = null;
+  /** @type {ReturnType<typeof paintGeometry>} */
+  let tracedGeometry = null;
+  let shapeKeyDrawn = "";
+  let placementFrame = 0;
+  let geometryFrame = 0;
+  let geometryDirty = false;
+
+  function clear() {
+    traced = null;
+    tracedSurface = null;
+    tracedGeometry = null;
+    shapeKeyDrawn = "";
+    vacate(stand);
+    box.style.display = "none";
+    box.classList.toggle("lf-shaped", false);
+    shape.replaceChildren();
+    // What the box was for and the plane it stood in stay until it stands again: a
+    // target the page draws anew is drawn round in the next pass, and writing them off
+    // and back would be two writes for no change.
+  }
+
+  function draw(element = traced, surface = tracedSurface, rebuildGeometry = true) {
+    if (
+      !(element instanceof Element) ||
+      !(surface instanceof Element) ||
+      !element.isConnected ||
+      !surface.isConnected
+    ) {
+      clear();
+      return;
+    }
+    const changed = element !== traced || surface !== tracedSurface;
+    const geometry =
+      changed || rebuildGeometry ? paintGeometry(surface) : tracedGeometry;
+    const placed = placement(surface, Boolean(geometry), inChrome(element));
+    traced = element;
+    tracedSurface = surface;
+    tracedGeometry = geometry;
+    if (!placed.shown) {
+      box.style.display = "none";
+      return;
+    }
+    const { rect, shapeKey } = placed;
+    let shaped = Boolean(geometry);
+    if (shaped && (changed || rebuildGeometry || shapeKey !== shapeKeyDrawn))
+      shaped = paintShape(shape, geometry, rect);
+    if (!shaped) shape.replaceChildren();
+    shapeKeyDrawn = shaped ? shapeKey : "";
+    box.classList.toggle("lf-shaped", shaped);
+    keeps(box, "data-for", element.id || null);
+    keeps(stand.root, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
+    standOver(stand, placed, shaped ? null : getComputedStyle(surface).borderRadius);
+  }
+
+  return {
+    layer: stand.root,
+    /** @param {Element | null} element @param {Element | null} [surface] */
+    paint(element, surface = element) {
+      if (!element) {
+        clear();
+        return;
+      }
+      const rebuild = geometryDirty || element !== traced || surface !== tracedSurface;
+      if (geometryDirty) {
+        if (geometryFrame) cancelRender(geometryFrame);
+        if (placementFrame) cancelRender(placementFrame);
+        geometryFrame = placementFrame = 0;
+        geometryDirty = false;
+      }
+      draw(element, surface, rebuild);
+    },
+    shifted() {
+      if (placementFrame || geometryFrame || !traced) return;
+      placementFrame = nextRender(() => {
+        placementFrame = 0;
+        if (traced) draw(traced, tracedSurface, false);
+      });
+    },
+    geometryChanged() {
+      geometryDirty = true;
+      if (placementFrame) cancelRender(placementFrame);
+      placementFrame = 0;
+      if (geometryFrame || !traced) return;
+      geometryFrame = nextRender(() => {
+        geometryFrame = 0;
+        if (!geometryDirty) return;
+        geometryDirty = false;
+        if (traced) draw(traced, tracedSurface, true);
+      });
+    },
+    mount() {
+      box.append(shape);
+    },
+  };
 }
 
-function drawTrace(
-  element = traceElement,
-  surface = traceSurface,
-  rebuildGeometry = true,
-) {
-  if (
-    !(element instanceof Element) ||
-    !(surface instanceof Element) ||
-    !element.isConnected ||
-    !surface.isConnected
-  ) {
-    clearTrace();
-    return;
-  }
-  const changed = element !== traceElement || surface !== traceSurface;
-  const geometry = changed || rebuildGeometry ? paintGeometry(surface) : traceGeometry;
-  const placed = placement(surface, Boolean(geometry), inChrome(element));
-  traceElement = element;
-  traceSurface = surface;
-  traceGeometry = geometry;
-  if (!placed.shown) {
-    targetTraceBox.style.display = "none";
-    return;
-  }
-  const { rect, shapeKey } = placed;
-  let shaped = Boolean(geometry);
-  if (shaped && (changed || rebuildGeometry || shapeKey !== traceShapeKey))
-    shaped = paintShape(targetTraceShape, geometry, rect);
-  if (!shaped) targetTraceShape.replaceChildren();
-  traceShapeKey = shaped ? shapeKey : "";
-  targetTraceBox.classList.toggle("lf-shaped", shaped);
-  keeps(targetTraceBox, "data-for", element.id || null);
-  keeps(traceStand.root, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
-  standOver(traceStand, placed, shaped ? null : getComputedStyle(surface).borderRadius);
-}
-
-/** @param {Element | null} element @param {Element | null} [surface] */
-export function paintTrace(element, surface = element) {
-  if (!element) {
-    clearTrace();
-    return;
-  }
-  const rebuild = geometryDirty || element !== traceElement || surface !== traceSurface;
-  if (geometryDirty) {
-    if (geometryFrame) cancelRender(geometryFrame);
-    if (placementFrame) cancelRender(placementFrame);
-    geometryFrame = placementFrame = 0;
-    geometryDirty = false;
-  }
-  drawTrace(element, surface, rebuild);
-}
+const targetTrace = createTrace("lf-target-trace");
+const proxyRing = createTrace("lf-proxy-ring");
+// What leaf.js mounts in the chrome: each box in the stand that carries it.
+export const targetTraceLayer = targetTrace.layer;
+export const proxyRingLayer = proxyRing.layer;
+export const paintTrace = targetTrace.paint;
+export const paintProxyRing = proxyRing.paint;
 
 export function shifted() {
   relocate();
-  if (placementFrame || geometryFrame || !traceElement) return;
-  placementFrame = nextRender(() => {
-    placementFrame = 0;
-    if (traceElement) drawTrace(traceElement, traceSurface, false);
-  });
+  targetTrace.shifted();
+  proxyRing.shifted();
 }
 
 export function geometryChanged() {
   relocate();
-  geometryDirty = true;
-  if (placementFrame) cancelRender(placementFrame);
-  placementFrame = 0;
-  if (geometryFrame || !traceElement) return;
-  geometryFrame = nextRender(() => {
-    geometryFrame = 0;
-    if (!geometryDirty) return;
-    geometryDirty = false;
-    if (traceElement) drawTrace(traceElement, traceSurface, true);
-  });
+  targetTrace.geometryChanged();
+  proxyRing.geometryChanged();
 }
 
 // The location ring round `element`, the decision the user stands in, or none
@@ -314,5 +343,6 @@ function relocate() {
 // The transient shapes are mounted into their boxes from leaf.js.
 export function mountTargetPaint() {
   aimBox.append(aimShape);
-  targetTraceBox.append(targetTraceShape);
+  targetTrace.mount();
+  proxyRing.mount();
 }

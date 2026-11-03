@@ -490,7 +490,11 @@ def portable_sheet(inputs: list[Path], tags: list[str]) -> bytes:
     font) to the widgets' insides, so the host's own markup keeps its look; it adds no
     specificity and keeps each rule's order, so a widget's insides rank as on a Leaf
     page. A rule there that reaches the widget element itself, or declares on `:root`,
-    reaches nothing on the host, which is why the tokens stand outside it. A package
+    reaches nothing on the host, which is why the tokens stand outside it. The shared
+    sheet's `@property` and `@keyframes` rules can't nest, so they never reach a host
+    either: a thread's sheen and the registration of custom properties a widget's look
+    there doesn't rest on, as tests/smoke/test_plain_page.py holds.
+    A package
     that ships no widgets, such as a theme, styles a page rather than its widgets, so
     it stays out, as do base.css's page shell, the Layouts, semantic state and every
     overrides.css and chrome.css. The host's unlayered rules outrank all of it.

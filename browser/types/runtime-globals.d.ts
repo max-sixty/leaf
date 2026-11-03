@@ -38,7 +38,21 @@ interface LeafReading {
 }
 
 /** The closed set of control roles, each with one face (`control-faces.js`, `ACTION_FACES`). */
-type LeafActionRole = "symbol" | "word" | "commit" | "mark" | "inline" | "row";
+type LeafActionRole =
+  | "symbol"
+  | "word"
+  | "commit"
+  | "mark"
+  | "inline"
+  | "row"
+  | "answer"
+  | "entry"
+  | "reaction"
+  | "response"
+  | "gutter"
+  | "picture"
+  | "fold"
+  | "proxy";
 
 /** Root-state writers required by bootstrap before runtime modules load. */
 interface LeafRootState {

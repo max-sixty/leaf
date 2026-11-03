@@ -414,10 +414,11 @@ customElements.define(
         // opened, after a Tab had passed it by. A page that draws its own actions
         // shows the instruction where it was written, with no popover to copy from.
         if (instruction) {
-          const copy = copyControl("lf-quiet-action lf-playground-copy", {
+          const copy = copyControl("lf-playground-copy", {
             label: "Copy instruction",
             success: "Instruction copied",
             error: "Unable to copy instruction",
+            role: "symbol",
           });
           copy.addEventListener(
             "click",

@@ -833,11 +833,11 @@ def proxy_note_row(page: Page) -> None:
 def proxy_note_own_annotations(page: Page) -> None:
     """A paragraph's comment note focused on a page that presents its own annotations,
     where no annotation overlay is loaded, which still rings the paragraph."""
-    comment_on("plan")
+    comment_on("rollout-plan")
     page.wait_for_function(
-        "() => document.getElementById('plan').ariaDetailsElements?.length"
+        "() => document.getElementById('rollout-plan').ariaDetailsElements?.length"
     )
-    focus_proxy(page, NOTE_OF, "plan")
+    focus_proxy(page, NOTE_OF, "rollout-plan")
 
 
 def proxy_drawing(page: Page) -> None:

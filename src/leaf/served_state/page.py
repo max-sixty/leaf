@@ -62,13 +62,7 @@ def read_served_page(
     )
     if active is not None:
         assert selected_registry is not None
-    identity = (
-        context.serve_layer(selected_registry["$layer"])
-        if active is not None and selected_registry is not None
-        else context.layer
-    )
     state = {
-        "layer": identity,
         "now": context.now,
         "working_grace_ms": WORKING_GRACE // timedelta(milliseconds=1),
         "taken": context.taken,
@@ -114,3 +108,17 @@ def read_served_page(
         ),
     }
     return ServedPage(state, reading, context.data)
+
+
+def served_layer_identity(context: PageRead, view_revision: int | None) -> dict:
+    """The identity of the layer the shown revision was read under, or the page's
+    before a revision exists, with the fingerprint of the layer this Leaf composes to
+    serve it (`registry.storage.served_layer`). The serving route adds it to the
+    page's reading (`read_served_page`), because the fingerprint digests every file
+    the layer serves, and a reader of the page's state such as `leaf page state` has
+    no use for it."""
+    active = context.active
+    if active is None:
+        return context.layer
+    shown = context.revision(view_revision or active["revision"]).registry
+    return context.serve_layer(shown["$layer"])

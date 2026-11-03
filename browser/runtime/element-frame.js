@@ -7,7 +7,7 @@
 import { shownBox } from "./geometry.js";
 import { elementAxes, scrollAxes } from "./element-axes.js";
 import { isHTML } from "./shadow-tree.js";
-export { elementAxes, scrollAxes } from "./element-axes.js";
+export { scrollAxes } from "./element-axes.js";
 
 // Resolve the browser's computed two-component <position> in the free space left
 // around replaced content. Only percentage units acquire a signed pixel basis here;

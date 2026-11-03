@@ -158,8 +158,18 @@ export function registerContribution({ key, target, source = target, read, activ
   const landFocus = () => {
     const key = owedFocus;
     owedFocus = null;
-    offered.focusRequest = null;
-    if (key != null) registration.focus(key, "move");
+    const request = offered.focusRequest;
+    try {
+      if (key != null) {
+        // The update already requested its surface. Finish that render and use its
+        // retained control; an explicit arrival would publish the same reading again.
+        settle({ immediate: true });
+        const destination = control(key, null, true);
+        if (destination) focusDestination(destination, "move");
+      }
+    } finally {
+      if (offered.focusRequest === request) offered.focusRequest = null;
+    }
   };
   // An explicit arrival materializes the current surface before its retained control
   // is read. The request is mechanical and never enters the immutable contribution.

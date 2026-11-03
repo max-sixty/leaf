@@ -1,7 +1,7 @@
 import { canPlaceFocus, composedParentNode, exceptionRecord, excludedByInert, focusDestination, focused, nativeLayers, onCurrentLocation, onUserInput, pagePresented, pageUpgraded, recoveredLabelFocus, renderedUnder, sizeObserver, tabStore, takesLetters } from "./bundle-portable.js";
 import { EVERYTHING, allBindings, answers, bindingEnabledFor, bindings, commandEntries, commandReady, commandRoutes, commandRun, declaredBindings, descriptionOf, live, nativeActivationAt, nativeClaimAt, quickShortcuts, referencedCommandEntry, routedCommand, runLanding, scopeAvailable, scopeIdentity, scopesAt, scopesFor, spell, titleOf, word } from "./bundle-errors.js";
 import { whenArrived } from "./bundle-content-layout.js";
-import { DESIGN_MODE_KEY, ELEMENTS, pageScopes, stances, textEntryScopes, universalCommandReference } from "./bundle-data.js";
+import { DESIGN_MODE_KEY, ELEMENTS, focusScrolledAway, pageScopes, stances, textEntryScopes, universalCommandReference } from "./bundle-data.js";
 
 //#region runtime/sample-child.js
 const child = document.documentElement.lfSample;
@@ -153,10 +153,8 @@ const chromeSharedClasses = Object.freeze([
 	"lf-aiming",
 	"lf-over-item",
 	"lf-react-mark",
-	"lf-mark-note",
 	"lf-ui",
-	"lf-version-inline-deletion",
-	"lf-visual-action"
+	"lf-version-inline-deletion"
 ]);
 const marksSheet = constructSheet(sheets.marks);
 const annotationMarkSheets = sheets.annotations ? [constructSheet(sheets.annotations.marks)] : [];
@@ -236,8 +234,10 @@ function stack(binding = null) {
 		claims: nativeClaims,
 		activation
 	} : null;
+	const unseen = !typing && binding !== "Escape" && focusScrolledAway();
 	const expanded = pageScopes().flatMap((scope) => {
 		if (scope === ELEMENTS) {
+			if (unseen) return controlScope ? [controlScope] : [];
 			if (!typing && !controlScope) return elementStack;
 			const own = elementStack.filter(({ el, contextual }) => el === active && !contextual);
 			const ancestors = elementStack.filter(({ el, contextual }) => el !== active || contextual);
@@ -248,6 +248,7 @@ function stack(binding = null) {
 			];
 		}
 		if (typing && TYPING.includes(scope)) return [];
+		if (unseen && scopeRoot(scope) === active) return [];
 		return scope;
 	});
 	const ordered = (scopes) => {

@@ -7,9 +7,9 @@
    out is the thread it belongs to whichever of them put the user in it. A page-owned
    first-message seat has no current location of its own; a widget control that explicitly
    enters its box supplies the caller-owned return target through `landInThread`.
-   Sending from a conversation's own box leaves focus on its card (`landSent`); the
-   floating panel's field, which stands for the thread open above it, keeps focus for
-   the next turn. Returning to the page is a separate navigation gesture. */
+   A reply's box keeps the caret through its send (replies.js); a first message, or a
+   rewrite, whose box goes with the send leaves focus on its thread's card or title
+   (`landSent`). Returning to the page is a separate navigation gesture. */
 import { alreadyShown, fitsWhole, scrollIntoView } from "../landing-scroll.js";
 import { seenRect } from "../geometry.js";
 import {
@@ -203,8 +203,9 @@ export function createThreadLanding() {
   };
   /** @param {Element} box @param {ReturnRoute | null} route */
   const landInThread = (box, route = null) => landIn({ box, route });
-  // Sending ends text entry while keeping the user in the conversation. Every surface
-  // uses its thread's focus stop; leaving the card belongs to navigation, not Send.
+  // A send whose box goes, a first message's or a rewrite's, ends text entry while
+  // keeping the user in the conversation, on its thread's focus stop; leaving the card
+  // belongs to navigation, not Send.
   const landSent = returnToThread;
   return { landIn, landInThread, landSent };
 }

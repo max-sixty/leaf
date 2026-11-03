@@ -38,11 +38,13 @@
  * removed in the same task. The rules it yields go in a sheet of the field's own, which
  * the classes of the lines and of the quotes' boxes name, so the field draws nothing
  * differently without one. A list's inner gaps, a quote's inner blocks, a rule, a code
- * fence's lines and a table keep the source's lines. Rejected: rules the theme states
- * for each element also stated for parts the field exposes, which can set type but not
- * the gaps, since CodeMirror measures a line without its margins and a gap collapses
- * two blocks'; and a style attribute on each line, which CodeMirror writes again on
- * every redraw.
+ * fence's lines and a table keep the source's lines. So does a setext heading's
+ * underline, for which the display draws no line, so opening the editor over one moves
+ * the words below it down a line; a draft rarely holds one. Rejected: rules the theme
+ * states for each element also stated for parts the field exposes, which can set type
+ * but not the gaps, since CodeMirror measures a line without its margins and a gap
+ * collapses two blocks'; and a style attribute on each line, which CodeMirror writes
+ * again on every redraw.
  *
  * Focus is the field's own, as a textarea's is. `focus()` puts the user in the words
  * with the caret where it stood, `blur()` takes them out, and a press anywhere in the
@@ -134,6 +136,9 @@
  * for what its draft holds beside them (`record`), such as a composer's drawing, each
  * taken back or redone in the order it was made.
  *
+ * A key typed in the field stops at the host once the editor and Leaf's key dispatcher
+ * have handled it, so the page's listeners never hear it bubble (field-keys.js).
+ *
  * The host is the textarea's scrollport. CodeMirror's content-sized inner scroller
  * never clips the words; the page sizes the host. The field reveals the caret's whole
  * row, its leading as well as the caret, inside the host's padding, so typing on the
@@ -153,6 +158,7 @@ import { TEXT_FIELD } from "../control-selectors.js";
 import { afterPresentation } from "../presentation.js";
 import { loadFieldEditor, readFaces } from "./field-editor.js";
 import { holdRendering, sizeObserver } from "../rendering.js";
+import { keepFieldKeys } from "../field-keys.js";
 
 const sheet = new CSSStyleSheet();
 sheet.replaceSync(`
@@ -283,9 +289,10 @@ sheet.replaceSync(`
     user-select: none;
     -webkit-user-select: none; }
   /* A fence's line is a line of the code box, the sent pre's padding of one code line
-     (reading.css, \`.lf-msg-body pre\`), and the end of a fence its container or the
-     draft ends, where no fence line stands, takes that padding on the code's own line
-     instead. */
+     (reading.css, \`.lf-msg-body pre\`), and an end where no fence line stands, as
+     where a fence's container or the draft ends it and at both ends of an indented
+     block, takes that padding on the code's own line instead. */
+  .cm-line.lf-md-code-pad-start { padding-block-start: var(--code-line); }
   .cm-line.lf-md-code-pad-end { padding-block-end: var(--code-line); }
 `);
 
@@ -569,6 +576,7 @@ class LeafText extends HTMLElement {
     // announce every edit twice. The host's is the one the page hears.
     for (const type of ["input", "beforeinput"])
       this.#root.addEventListener(type, (event) => event.stopPropagation());
+    keepFieldKeys(this);
   }
 
   // What the user types before the editor has loaded lands natively in the empty line's
@@ -684,7 +692,7 @@ class LeafText extends HTMLElement {
       returned: () => this.#returned(),
       oneLine: () => this.#oneLine,
       // Words edited where a Markdown body shows them read as that body does.
-      joined: () => this.facesOf !== null,
+      message: () => this.facesOf === null,
       // The caret counts toward the corner only while it shows.
       focused: () => this.#measureOverflow(),
       revealed: (view, pos) => moveScrollerBy(this, this.#rowTravel(module, view, pos)),

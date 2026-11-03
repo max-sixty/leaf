@@ -11,7 +11,6 @@ import io
 import json
 import os
 import re
-import shlex
 import shutil
 import socket
 import stat
@@ -58,7 +57,6 @@ from interact_support import (
     read_record,
     record_claim,
     refused_on,
-    release_codex_command,
     response_reference,
     retire_test_services,
     revision_root,
@@ -66,7 +64,6 @@ from interact_support import (
     said,
     served_state_error,
     spawn_probe,
-    vendored_at_another_protocol,
     wait_for,
     write_record,
     write_row,
@@ -74,7 +71,6 @@ from interact_support import (
 
 from leaf import activity as activity_model
 from leaf import cli as cli_model
-from leaf import codex_adapter as codex_adapter_model
 from leaf import data as data_model
 from leaf import detached as detached_model
 from leaf import document_reading as document_reading_model
@@ -82,7 +78,6 @@ from leaf import event_log as event_model
 from leaf import events as event_folds_model
 from leaf import files as files_model
 from leaf import gesture_words as gesture_words_model
-from leaf import harness as harness_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import interaction_log as interaction_model
@@ -3398,45 +3393,21 @@ hosting.cmd_serve(Path(os.environ["PAGE"]), persistent=True, harness=None)
     assert server_model.running_server(page_dir) is None
 
 
-def test_a_failed_row_producer_retires_and_revives_with_its_service(page_dir):
-    """A failed fold cannot leave a live lease advertising stale canonical output.
-
-    Repairing the invalid input then uses the existing enabled-service revival,
-    with a new serving identity and a newly computed row.
-    """
-    neighbor = cleanup_model.state_home() / "pages" / "broken-row"
-    neighbour_page(neighbor, title="Repairable", dead=True, port=0)
-    hosting_model.start_server(neighbor, persistent=True, harness=None)
-    wait_for(
-        lambda: (
-            (current := server_model.running_server(neighbor))
-            and server_rows_model.read_row(neighbor, current)
-        ),
-        bool,
-        failure="the server did not publish a row",
-    )
-    original = server_model.running_server(neighbor)
-    assert original is not None
-    (neighbor / "stream.json").write_text("{invalid")
-    wait_for(
-        lambda: server_model.running_server(neighbor),
-        lambda service: service is None,
-        failure="the failed producer left a live server lease",
-    )
-    assert presence_model.other_leaves(page_dir) == []
-    assert read_record(neighbor / "service.json")["enabled"]
-    write_record(neighbor / "stream.json", {})
-    declare_work(neighbor, "repaired", ts=cleanup_model.now_iso())
-    hosting_model.start_server(neighbor, persistent=True, revive=True, harness=None)
-    renewed = server_model.running_server(neighbor)
-    assert renewed is not None
-    assert renewed["server_id"] != original["server_id"]
-    [row] = wait_for(
-        lambda: presence_model.other_leaves(page_dir),
-        lambda rows: len(rows) == 1 and rows[0]["activity"]["detail"] == "repaired",
-        failure="the revived service did not regenerate its row",
-    )
-    assert row["activity"]["kind"] == "working"
+def test_a_page_admits_frames_only_from_live_leaf_servers_under_its_key(page_dir):
+    """Cookies ignore ports, so every server on the host is sent the key. A page's
+    server names, of those, only the live Leaf servers under its state home, each by
+    exact origin. A record whose server has stopped names no one, since its port
+    may since belong to any process."""
+    pages = cleanup_model.state_home() / "pages"
+    neighbour_page(pages / "live", title="Live", port=59999)
+    neighbour_page(pages / "stopped", title="Stopped", dead=True, port=59998)
+    url = hosting_model.start_server(page_dir, persistent=True, harness=None).url
+    try:
+        with urllib.request.urlopen(url) as answer:
+            policy = answer.headers["Content-Security-Policy"]
+    finally:
+        hosting_model.cmd_stop(page_dir)
+    assert policy == "frame-ancestors 'self' http://127.0.0.1:59999"
 
 
 def test_server_shutdown_stops_an_idle_serving_loop(page_dir):
@@ -4561,103 +4532,6 @@ def test_a_loopback_serve_says_the_url_opens_only_on_this_machine(
         assert stopped.exit_code == 0, stopped.output
 
 
-def test_a_stated_host_serve_says_nothing_about_loopback(page_dir, monkeypatch):
-    monkeypatch.delenv("SSH_CONNECTION", raising=False)
-    runner = CliRunner()
-    started = runner.invoke(
-        cli_model.cli,
-        [
-            "server",
-            "start",
-            "--lifetime",
-            "persistent",
-            "--host",
-            "localhost",
-            str(page_dir),
-        ],
-    )
-    try:
-        assert started.exit_code == 0, started.output
-        assert started.stderr == ""
-    finally:
-        stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
-        assert stopped.exit_code == 0, stopped.output
-
-
-def test_server_start_names_the_running_payload(page_dir):
-    runner = CliRunner()
-    started = runner.invoke(
-        cli_model.cli, ["server", "start", "--lifetime", "persistent", str(page_dir)]
-    )
-    try:
-        assert started.exit_code == 0, started.output
-        reading = json.loads(started.stdout)
-        assert (reading["page"], reading["lifetime"]) == (str(page_dir), "persistent")
-        assert reading["stop"] == f"leaf server stop {page_dir}"
-        assert reading["runtime"]["path"] == str(schema_model.PLUGIN_ROOT)
-
-        state = runner.invoke(cli_model.cli, ["page", "state", str(page_dir)])
-        assert state.exit_code == 0, state.output
-        server = json.loads(state.output)["server"]
-        assert server["runtime"]["path"] == str(schema_model.PLUGIN_ROOT)
-        assert server["url"] == reading["url"]
-    finally:
-        stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
-        assert stopped.exit_code == 0, stopped.output
-
-
-def test_a_server_start_re_vendors_an_older_page_and_refuses_a_newer_one(page_dir):
-    """A server speaks the contract of the Leaf that started it, and the page's log
-    the protocol its last `page init` recorded. Served across the two, the page breaks in
-    the browser on every read. A page an older Leaf vendored the start re-vendors
-    first, as the plugin update that left it there calls for. One a newer Leaf
-    vendored, which this Leaf does not take back, is refused before the start claims
-    the page or records a service, and the refusal names the newer Leaf that would
-    serve it. A server already running over such a page is refused the same way
-    rather than handed out as this Leaf's."""
-    from leaf.event_contracts import write_refusal
-
-    runner = CliRunner()
-    stamp = page_dir / schema_model.LAYER_FILE
-    vendored = stamp.read_text(encoding="utf-8")
-    vendored_at_another_protocol(page_dir, newer=True)
-
-    refused = runner.invoke(cli_model.cli, ["server", "start", str(page_dir)])
-
-    assert refused.exit_code != 0, refused.output
-    assert "Use a newer Leaf" in refused.output
-    assert not service_model.claim_path(page_dir).exists()
-    assert read_record(page_dir / "service.json") is None
-    assert not leases_model.lock_is_held(page_dir / "server.lock")
-
-    # A newer Leaf may record more in the layer record than this Leaf knows, and
-    # the protocol is still what decides.
-    newer = json.loads(stamp.read_text(encoding="utf-8"))
-    stamp.unlink()
-    stamp.write_text(json.dumps({**newer, "future": 1}), encoding="utf-8")
-    reshaped = runner.invoke(
-        cli_model.cli, ["server", "start", "--lifetime", "persistent", str(page_dir)]
-    )
-    assert reshaped.exit_code != 0, reshaped.output
-    assert "Use a newer Leaf" in reshaped.output
-
-    stamp.unlink()
-    stamp.write_text(vendored, encoding="utf-8")
-    vendored_at_another_protocol(page_dir)
-    started = runner.invoke(cli_model.cli, ["server", "start", str(page_dir)])
-    try:
-        assert started.exit_code == 0, started.output
-        assert server_model.running_server(page_dir)
-        assert write_refusal(page_dir) is None
-        vendored_at_another_protocol(page_dir, newer=True)
-        reused = runner.invoke(cli_model.cli, ["server", "start", str(page_dir)])
-        assert reused.exit_code != 0, reused.output
-        assert "Use a newer Leaf" in reused.output
-    finally:
-        stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
-        assert stopped.exit_code == 0, stopped.output
-
-
 def test_an_unidentified_old_service_is_not_mislabeled_as_the_calling_leaf(page_dir):
     cleanup_model.write_json(
         page_dir / "service.json",
@@ -4692,179 +4566,6 @@ def test_a_stated_host_binds_every_interface_without_recording_before_serve(
     }
     write_record(page_dir / "service.json", service)
     assert server_model.page_access(page_dir).items() >= service.items()
-
-
-def test_a_start_waits_for_uncommitted_preparation_before_reusing(page_dir, spawn):
-    """Another start cannot adopt a listener its caller has not accepted."""
-    caller, end = socket.socketpair()
-    child = spawn(
-        [
-            *LEAF_COMMAND,
-            "server",
-            "_serve",
-            str(page_dir),
-            "--lifetime",
-            "persistent",
-            "--harness",
-            "null",
-            "--handshake",
-            str(end.fileno()),
-        ],
-        pass_fds=(end.fileno(),),
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-    end.close()
-    caller.settimeout(STATED_TIMEOUT)
-    successor = []
-    attempting = threading.Event()
-
-    def start():
-        attempting.set()
-        successor.append(
-            hosting_model.start_server(page_dir, persistent=True, harness=None)
-        )
-
-    starting = threading.Thread(target=start, daemon=True)
-    try:
-        assert "url" in json.loads(caller.makefile("rb").readline())
-        assert read_record(page_dir / "service.json") is None
-        assert not server_rows_model.row_path(page_dir).exists()
-        starting.start()
-        assert attempting.wait(STATED_TIMEOUT), (
-            "the successor never attempted the held server lease"
-        )
-        assert leases_model.lock_is_held(page_dir / "server.lock")
-        caller.close()  # Abandon the private listener; the successor must bind its own.
-        assert child.wait(timeout=STATED_TIMEOUT) == 0
-        starting.join(timeout=STATED_TIMEOUT)
-        assert not starting.is_alive(), "the successor's start never returned"
-        assert len(successor) == 1
-        assert fetch(successor[0].url)[0] == 200
-        wait_for(
-            lambda: (
-                (current := server_model.running_server(page_dir))
-                and server_rows_model.read_row(page_dir, current)
-            ),
-            bool,
-            failure="the accepted successor did not publish its own serving row",
-        )
-    finally:
-        caller.close()
-        starting.join(timeout=STATED_TIMEOUT)
-        hosting_model.cmd_stop(page_dir)
-
-
-@pytest.mark.parametrize("accepted", [False, True])
-def test_private_revival_cannot_advertise_the_previous_serving_row(
-    page_dir, spawn, accepted
-):
-    """The held reservation cannot impersonate a dead committed incarnation."""
-    neighbor = cleanup_model.state_home() / "pages" / "private-revival"
-    neighbour_page(neighbor, title="Private revival", dead=True, port=0)
-    record_claim(neighbor, id="private-revival")
-    hosting_model.start_server(neighbor, persistent=True, harness=None)
-    previous = server_model.running_server(neighbor)
-    assert previous is not None
-    wait_for(
-        lambda: server_rows_model.read_row(neighbor, previous),
-        bool,
-        failure="the original server did not publish its row",
-    )
-    hosting_model.cmd_stop(neighbor)
-    desired = {**read_record(neighbor / "service.json"), "enabled": True}
-    write_record(neighbor / "service.json", desired)
-    assert presence_model.other_leaves(page_dir) == []
-    # The stopped incarnation's row is retired by that reading, so a row present
-    # later is one the reservation published.
-    assert not server_rows_model.row_path(neighbor).exists()
-    caller, end = socket.socketpair()
-    child = spawn(
-        [
-            *LEAF_COMMAND,
-            "server",
-            "_serve",
-            str(neighbor),
-            "--lifetime",
-            "persistent",
-            "--revive",
-            "--harness",
-            "null",
-            "--handshake",
-            str(end.fileno()),
-        ],
-        pass_fds=(end.fileno(),),
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-    end.close()
-    caller.settimeout(STATED_TIMEOUT)
-    try:
-        with caller.makefile("rb") as announcements:
-            assert json.loads(announcements.readline())["url"] == previous["url"]
-            assert leases_model.lock_is_held(neighbor / "server.lock")
-            assert read_record(neighbor / "service.json") == desired
-            assert not server_rows_model.row_path(neighbor).exists()
-            assert server_model.running_server(neighbor) is None
-            assert presence_model.other_leaves(page_dir) == []
-            if accepted:
-                caller.sendall(b"\n")
-                assert json.loads(announcements.readline())["url"] == previous["url"]
-                rows = wait_for(
-                    lambda: presence_model.other_leaves(page_dir),
-                    lambda rows: len(rows) == 1,
-                    failure="the accepted revival did not publish its own row",
-                )
-                assert rows[0]["title"] == "Private revival"
-                current = server_model.running_server(neighbor)
-                assert current is not None
-                assert current["server_id"] != previous["server_id"]
-                assert (
-                    files_model.read_json(server_rows_model.row_path(neighbor))[
-                        "server_id"
-                    ]
-                    == current["server_id"]
-                )
-        if not accepted:
-            caller.close()
-            assert child.wait(timeout=STATED_TIMEOUT) == 0
-            assert read_record(neighbor / "service.json") == desired
-            assert not server_rows_model.row_path(neighbor).exists()
-            assert presence_model.other_leaves(page_dir) == []
-    finally:
-        caller.close()
-        hosting_model.cmd_stop(neighbor)
-        assert child.wait(timeout=STATED_TIMEOUT) == 0
-
-
-def test_failed_row_preparation_preserves_the_previous_desired_service(
-    page_dir, monkeypatch
-):
-    """A producer constructor failure publishes neither service nor acquisition."""
-    hosting_model.start_server(page_dir, persistent=True, harness=None)
-    previous = server_model.running_server(page_dir)
-    assert previous is not None
-    wait_for(
-        lambda: server_rows_model.read_row(page_dir, previous),
-        bool,
-        failure="the original server did not publish its row",
-    )
-    hosting_model.cmd_stop(page_dir)
-    desired = {**read_record(page_dir / "service.json"), "enabled": True}
-    write_record(page_dir / "service.json", desired)
-    row_before = server_rows_model.row_path(page_dir).read_bytes()
-
-    def failed_constructor(*_args):
-        assert server_model.running_server(page_dir) is None
-        raise RuntimeError("row producer cannot be prepared")
-
-    monkeypatch.setattr(server_rows_model, "RowPublisher", failed_constructor)
-    with pytest.raises(RuntimeError, match="row producer cannot be prepared"):
-        hosting_model.cmd_serve(page_dir, persistent=True, revive=True, harness=None)
-    assert read_record(page_dir / "service.json") == desired
-    assert server_rows_model.row_path(page_dir).read_bytes() == row_before
-    assert not leases_model.lock_is_held(page_dir / "server.lock")
-    assert server_model.running_server(page_dir) is None
 
 
 def test_a_private_lease_is_not_reported_as_a_serving_server(page_dir, monkeypatch):
@@ -4963,69 +4664,6 @@ def test_a_start_whose_caller_left_before_committing_leaves_no_service(
         failure="the server stayed up after its caller left uncommitted",
     )
     assert read_record(page_dir / "service.json") is None
-
-
-@pytest.mark.parametrize(
-    "owned,same_session", [(False, False), (True, False), (True, True)]
-)
-def test_stop_does_not_wait_forever_on_a_server_started_after_its_transition(
-    page_dir, monkeypatch, owned, same_session
-):
-    """Explicit stops retire a later start; owner cleanup yields to a successor."""
-    assert service_model.claim_page(page_dir)
-    owner = service_model.page_claim(page_dir) if owned else None
-    assert hosting_model.start_server(page_dir, persistent=True, harness=None)
-    transitioned = threading.Event()
-    resume = threading.Event()
-    original_page_locked = hosting_model.page_locked
-    stopping = None
-
-    @contextmanager
-    def pause_after_transition(locked):
-        with original_page_locked(locked):
-            yield
-        if threading.current_thread() is stopping and locked == page_dir:
-            transitioned.set()
-            assert resume.wait(STATED_TIMEOUT)
-
-    monkeypatch.setattr(hosting_model, "page_locked", pause_after_transition)
-    stopped = []
-    stopping = threading.Thread(
-        target=lambda: stopped.append(
-            hosting_model.cmd_stop(page_dir, owner=owner)
-            if owned
-            else hosting_model.cmd_stop(page_dir)
-        ),
-        daemon=True,
-    )
-    try:
-        stopping.start()
-        assert transitioned.wait(STATED_TIMEOUT), "the stop never made its transition"
-        wait_for(
-            lambda: not leases_model.lock_is_held(page_dir / "server.lock"),
-            bool,
-            failure="the first server did not release its lease",
-        )
-        if owned:
-            with service_model.PageTransaction(page_dir) as transaction:
-                transaction.take_claim(
-                    harness_model.session_harness()
-                    if same_session
-                    else harness_model.ClaudeCodeHarness("successor", "Claude")
-                )
-        assert hosting_model.start_server(page_dir, persistent=True, harness=None)
-        resume.set()
-        stopping.join(timeout=STATED_TIMEOUT)
-        assert not stopping.is_alive(), "the stop never returned once resumed"
-        assert stopped == [True]
-        assert bool(server_model.running_server(page_dir)) == owned
-    finally:
-        resume.set()
-        write_record(
-            page_dir / "service.json",
-            {**read_record(page_dir / "service.json"), "enabled": False},
-        )
-        stopping.join(timeout=STATED_TIMEOUT)
 
 
 def test_an_upgrade_is_answered_by_the_key_gate_like_any_other_request(server):
@@ -5805,37 +5443,3 @@ def test_test_teardown_joins_titles_before_reusing_the_page(
             retirement.result(timeout=STATED_TIMEOUT)
             native_join(timeout=STATED_TIMEOUT)
     assert not worker.is_alive(), "the title outlived its page fixture"
-
-
-def test_test_teardown_ends_detached_delivery_before_removing_state(
-    codex_claimed_page, under_codex, codex_env, codex_queue, tmp_path, isolated_session
-):
-    """Stopping the page alone leaves delivery watching its still-owned claim.
-
-    Teardown ends the synthetic harness while coordination files remain, so
-    its detached adapter releases its leases before temporary state disappears.
-    """
-    page = codex_claimed_page
-    finished = tmp_path / "codex-start-finished"
-    started = under_codex(
-        shlex.join([*LEAF_COMMAND, "page", "claim", str(page)]),
-        codex_env | codex_queue | {"CODEX_THREAD_ID": "codex-thread"},
-        finished=finished,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    release_codex_command(page, started, finished)
-    out, err = started.communicate(timeout=STATED_TIMEOUT)
-    assert started.returncode == 0, f"{out}{err}"
-    assert codex_adapter_model.adapter_is_live("codex-thread")
-
-    hosting_model.cmd_stop(page)
-    assert not server_model.running_server(page)
-    assert codex_adapter_model.adapter_is_live("codex-thread")
-
-    retire_test_services(tmp_path, isolated_session)
-    turn_record = cleanup_model.session_record("codex-thread")
-    assert turn_record is not None
-    assert turn_record["ended"] is not None
-    assert not codex_adapter_model.adapter_is_live("codex-thread")

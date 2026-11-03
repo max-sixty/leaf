@@ -9,8 +9,8 @@
      refusal. Escape, Discard and Save settle them; words left by a reload or a refusal
      wait in the draft, the message saying it holds them (`keptRewrite`), and opening the
      rewrite again finds them. Words the message already says, and no words at all, are
-     no rewrite: neither is kept, and a box with no draft holds the message's own words,
-     in this tab and in every other.
+     no rewrite to keep: neither is kept, and a box with no draft holds the message's own
+     words, in this tab and in every other.
    - That an editor stands open is disclosure, this document's mechanical state, held
      here by message id. One view of the message draws it: the one it was opened in,
      or, once that view is gone, the next view of the message, which takes the editor as
@@ -80,7 +80,15 @@
    they stand. Until the user changes them, the editor follows the message: a rewrite
    the reader draws on it, such as one held back as news until the editor opened,
    moves the editor's words and revision too. Words the message already says are no
-   rewrite, so saving them closes the editor and sends nothing. */
+   rewrite, so saving them closes the editor and sends nothing. Saving no words at all
+   deletes the message (events.md, "Messages"), which then reads Deleted in its place
+   (messages.js): a box emptied of words says so before the press, its field reading
+   Delete message and its Save turning to Delete, so no dialog asks again.
+   Rejected: refusing an empty rewrite, which left a Save that drew as live and did
+   nothing, so the user typed a placeholder such as "[removed]" over their words; and
+   withdrawing the message (`undo`), which the log admits only while nothing answers
+   it, so a message the agent had answered couldn't be deleted (the user's decision,
+   1 November 2026). */
 import {
   clearDraft,
   draftHasContent,
@@ -422,20 +430,22 @@ export class MessageEditor {
     // the log refuses.
     // The rewrite whole, its words and its pictures, as the box holds it: `.value` is
     // the words alone (input.js, `sync.value`), so a picture taken off changes only this.
-    const whole = () => sync.value();
+    // Until the box is wired, its field holds them whole.
+    /** @type {ReturnType<typeof wireInput> | null} */
+    let sync = null;
+    const whole = () => sync?.value() ?? this.input.value;
     /** @type {string | null} */
     let opened = null;
     this.#follow = () => {
       if (base === currentBase() || draftHasContent(ctx) || whole() !== opened) return;
       base = currentBase();
-      sync.load((opened = said()));
+      sync?.load((opened = said()));
     };
-    // What the message already says, exactly, and nothing at all, are no change. Leading
-    // and trailing space is part of what a rewrite sends, as a suggestion's newline is.
-    const unchanged = () => {
-      const now = whole();
-      return !now.trim() || now === said();
-    };
+    // What the message already says, exactly, and nothing at all, leave no rewrite to
+    // keep, restore or walk past. Leading and trailing space is part of what a rewrite
+    // sends, as a suggestion's newline is.
+    const emptied = () => !whole().trim();
+    const unchanged = () => emptied() || whole() === said();
     /** @param {boolean} discard @param {{landing?: boolean, says?: string | null, painting?: boolean}} [options] */
     const leave = (discard, { landing = true, says = null, painting = true } = {}) => {
       if (landing) land();
@@ -478,12 +488,14 @@ export class MessageEditor {
       afterScript(paint);
     };
     this.#putAside = putAside;
-    const sync = wireInput(this.input, {
-      hint: "Edit message",
+    const wired = wireInput(this.input, {
+      // The field shows its hint only once emptied, when saving deletes the message.
+      hint: "Delete message",
       accessibleName: () => `Edit message: ${said().slice(0, 60)}`,
-      sends: "save",
+      sends: () => (emptied() ? "delete" : "save"),
       sendClass: "lf-msg-control lf-msg-edit-save",
-      action: "save",
+      action: () => (emptied() ? "delete" : "save"),
+      hasContent: () => true,
       submitIn: actions,
       sentMedia: true,
       save: (value) => {
@@ -491,13 +503,16 @@ export class MessageEditor {
         tellDraft(ctx, value, { over: base });
       },
       send: async (_text, raw, owns) => {
-        if (unchanged()) return leave(true, { says: "No change to save" });
+        if (whole() === said()) return leave(true, { says: "No change to save" });
+        const deleting = emptied();
         sending.add(id);
         // The send's own paint, which draws the new words on the message, closes the
         // editor too, so the message changes once: a paint of its own here drew the old
         // words between the box and the new ones.
-        const flight = sendDraft(ctx, owns, (attempt) => send(raw, { attempt, base }));
-        leave(false, { painting: false });
+        const flight = sendDraft(ctx, owns, (attempt) =>
+          send(deleting ? "" : raw, { attempt, base }),
+        );
+        leave(false, { painting: false, says: deleting ? "Message deleted" : null });
         let sent;
         try {
           sent = await flight;
@@ -541,6 +556,7 @@ export class MessageEditor {
         },
       ],
     });
+    sync = wired;
     opened = whole();
     // The foot follows the words, ahead of the message's pictures under them.
     this.input.after(this.foot);
@@ -564,7 +580,7 @@ export class MessageEditor {
       );
     cancel.addEventListener("mousedown", (event) => event.preventDefault());
     cancel.addEventListener("click", () => close());
-    this.#stop = mirrorDraft(this.input, sync, ctx, { retained: true, blank: said });
+    this.#stop = mirrorDraft(this.input, wired, ctx, { retained: true, blank: said });
   }
 
   // Put the user on the words with the caret after them, where a rewrite usually starts,

@@ -51,7 +51,7 @@
     const observed = new WeakSet();
     // A message names its event by `data-mid` or `data-event`, as the reader drawing
     // it does (thread/messages.js).
-    const message = ".lf-msg.agent:is([data-mid], [data-event])";
+    const message = ".lf-msg[data-lf-author=agent]:is([data-mid], [data-event])";
     const selector = `${message}, .lf-thread-news`;
     const note = (table, key, now) => {
       if (table[key] !== undefined) return;

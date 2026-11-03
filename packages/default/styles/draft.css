@@ -13,10 +13,14 @@ lf-draft {
   background: var(--card);
   font-size: max(var(--entry-floor), 1em);
   /* The frame wears its editor's ring, inside its edge (base.css, "Where it stands"). */
-  outline-offset: var(--focus-ring-inset);
+  --lf-ring-at: var(--focus-ring-inset);
 }
 @media screen {
   lf-draft {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: max-content;
+    align-items: start;
     box-sizing: border-box;
     max-inline-size: var(--lf-measure);
   }
@@ -66,6 +70,12 @@ lf-draft > pre {
 @media screen {
   lf-draft:not(:where([data-lf-exhibit], [data-lf-exhibit] *)) {
     position: relative;
+  }
+  /* The reading and its editor share a place while the field connects. Stacking
+     them in flow lets native scroll anchoring follow the editor upward when the
+     ready field replaces the reading, taking the reader away from the clicked word. */
+  lf-draft > :is(.lf-draft-body, .lf-markdown-body, .lf-draft-edit) {
+    grid-area: 1 / 1;
   }
   lf-draft:has(.lf-draft-edit) {
     border-color: var(--muted);

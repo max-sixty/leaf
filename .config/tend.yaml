@@ -1,8 +1,4 @@
 bot_name: leaf-agent
-harness: codex
-model: gpt-6.1-sol
-codex:
-  auth_refresh: false
 merge: yolo
 
 # Use the same toolchain and dependency setup as the test job and local checkouts.

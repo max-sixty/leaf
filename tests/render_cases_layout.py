@@ -892,7 +892,12 @@ PAGE_MARKUP = r"""() => [...document.body.children]
         for (const g of c.querySelectorAll("[data-lf-gen]")) g.textContent = "";
         if (c.dataset && c.dataset.lfGen !== undefined) c.textContent = "";
         for (const el of [c, ...c.querySelectorAll("*")]) {
-            el.classList?.remove("lf-mark-hover", "lf-projected-mark", "lf-binding-seat");
+            el.classList?.remove(
+                "lf-mark-hover",
+                "lf-projected-mark",
+                "lf-projected-location",
+                "lf-binding-seat",
+            );
             // Anchor naming is presentation state. The layout may copy a name
             // from a stylesheet into inline style while positioning a comment.
             el.style?.removeProperty("anchor-name");

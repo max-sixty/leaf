@@ -1119,3 +1119,30 @@ def test_a_state_read_never_materializes_a_revision_bundle(page_dir, monkeypatch
     marker = files_model.revision_path(page_dir, active).name
     assert set(active_metadata) == {marker, "manifest.json"}
     assert active_metadata[marker] == 1
+
+
+import gc
+
+from leaf import page_memory as page_memory_model
+from leaf import samples as samples_model
+
+
+def test_a_page_keeps_its_readings_while_its_samples_live(page_dir):
+    """A page serving samples keeps its readings while they live, so its own samples,
+    each a page of their own, cannot push them out and leave every state answer to
+    check and capture the whole source again."""
+    template = '<template id="practice" data-sample><p>Child text.</p></template>'
+    (page_dir / "index.html").write_text(PAGE.replace("</main>", template + "</main>"))
+    revision = revisioning_model.activate_source(page_dir).revision
+    with fresh_process():
+        assert revision is not None
+        held = artifact_model.read_revision(page_dir, revision)
+        samples = samples_model.Samples()
+        artifact = artifact_model.read_artifact(page_dir, revision)
+        for _ in range(page_memory_model.PageMemories.LIMIT):
+            samples.create(
+                page_dir, artifact, held.document, [], {"sources": {}},
+                "practice", None, None,
+            )  # fmt: skip
+        gc.collect()
+        assert artifact_model.read_revision(page_dir, revision) is held

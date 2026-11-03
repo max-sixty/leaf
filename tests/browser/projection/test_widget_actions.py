@@ -692,7 +692,7 @@ def test_a_pending_suggestion_can_be_discussed_instead_of_decided(browser, serve
     expect(inline.locator(".lf-msg-body")).to_have_text("Half-empty by whose reading?")
     thread = thread_quote(page, serve.page_dir)
     expect(thread).to_be_visible()
-    expect(thread).not_to_have_class(re.compile(r"\bdetached\b"))
+    expect(thread).not_to_have_attribute("data-lf-detached", "")
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
     assert (
@@ -703,9 +703,7 @@ def test_a_pending_suggestion_can_be_discussed_instead_of_decided(browser, serve
     unfolded_button(
         suggestion_control(page, "sug-refill", "reject", visible=False)
     ).click()
-    expect(thread_quote(page, serve.page_dir)).to_have_class(
-        re.compile(r"\bdetached\b")
-    )
+    expect(thread_quote(page, serve.page_dir)).to_have_attribute("data-lf-detached", "")
     assert painted(page, "lf-mark") == "", (
         "a mark stayed painted on text the user's own decision removed"
     )
@@ -736,9 +734,7 @@ def test_a_decision_already_in_the_log_retires_its_slot_at_load(browser, serve):
     )
     page = open_page(browser, url)
     expect(page.locator("#sug-refill lf-old")).to_be_hidden()
-    expect(thread_quote(page, serve.page_dir)).to_have_class(
-        re.compile(r"\bdetached\b")
-    )
+    expect(thread_quote(page, serve.page_dir)).to_have_attribute("data-lf-detached", "")
     assert painted(page, "lf-mark") == "", (
         "the first pass anchored inside a slot the user's decision had retired"
     )
@@ -767,8 +763,8 @@ def test_a_slot_naming_two_holders_retires_under_neither_until_decided(
     )
     page = open_page(browser, url)
     expect(page.locator("#th-cache lf-proposed")).to_be_visible()
-    expect(thread_quote(page, serve.page_dir)).not_to_have_class(
-        re.compile(r"\bdetached\b")
+    expect(thread_quote(page, serve.page_dir)).not_to_have_attribute(
+        "data-lf-detached", ""
     )
     assert painted(page, "lf-mark") != "", (
         "the quote found nothing to paint: an undecided holder read as a retired slot, "
@@ -958,9 +954,7 @@ def test_a_label_in_a_retired_slot_leaves_the_page_with_the_slot(browser, serve)
         )
         == "Settled: Lax cookie"
     ), "fixture is not exercising the case — the label the slot hides never rendered"
-    expect(thread_quote(page, serve.page_dir)).to_have_class(
-        re.compile(r"\bdetached\b")
-    )
+    expect(thread_quote(page, serve.page_dir)).to_have_attribute("data-lf-detached", "")
     assert painted(page, "lf-mark") == "", (
         "a quote matched inside the half the user accepted away, because the "
         "label there declared itself the page speaking"
@@ -985,8 +979,8 @@ def test_a_decision_that_empties_its_widget_detaches_the_element_anchor(browser,
         },
     )
     page = open_page(browser, url)
-    expect(thread_quote(page, serve.page_dir)).not_to_have_class(
-        re.compile(r"\bdetached\b")
+    expect(thread_quote(page, serve.page_dir)).not_to_have_attribute(
+        "data-lf-detached", ""
     )
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
@@ -1005,9 +999,7 @@ def test_a_decision_that_empties_its_widget_detaches_the_element_anchor(browser,
     unfolded_button(
         suggestion_control(page, "sug-thistle", "reject", visible=False)
     ).click()
-    expect(thread_quote(page, serve.page_dir)).to_have_class(
-        re.compile(r"\bdetached\b")
-    )
+    expect(thread_quote(page, serve.page_dir)).to_have_attribute("data-lf-detached", "")
     expect(page.locator("#sug-thistle.lf-mark-el")).to_have_count(0)
 
 

@@ -19,6 +19,7 @@ from leaf.registry.storage import load_registry
 from leaf.state import kernel_registry
 from leaf.structure import SourceDocument
 from leaf.validation import composition as validation_model
+from leaf_dev import declared_records, docs
 from leaf_dev.page_fixtures import authored_markup
 
 ROOT = Path(__file__).parents[2]
@@ -406,3 +407,28 @@ def test_every_command_the_docs_show_is_one_leaf_has():
     assert not unknown, "these pages show commands leaf hasn't got:\n  " + "\n  ".join(
         unknown
     )
+
+
+def test_data_structures_page_lists_every_declared_schema():
+    """Each served definition, event kind and record gets an entry, and every link
+    between entries lands on one."""
+    source = DOCS / "data-structures.html"
+    tree = SourceDocument(docs.compose(source, source.read_text())).tree
+    entries = {entry.attrs["id"] for entry in tree.select("section.schema-entry")}
+    registry = docs.read_json(docs.KERNEL_REGISTRY)["$events"]
+    expected = {
+        "served-state",
+        "event-envelope",
+        "interaction-batch",
+        "record-draft",
+        *(f"served-{name}" for name in docs.read_json(docs.SERVED_SCHEMA)["$defs"]),
+        *(f"event-{kind}" for kind in registry["kinds"]),
+        *(f"record-{kind}" for kind in declared_records()),
+    }
+    assert entries == expected
+    targets = set()
+    for link in tree.select('a[href^="#"]'):
+        href = link.attrs["href"]
+        assert isinstance(href, str)
+        targets.add(href[1:])
+    assert targets - entries <= {"events"}

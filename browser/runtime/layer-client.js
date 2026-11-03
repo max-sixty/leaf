@@ -314,6 +314,11 @@ export const revealLayer = () => {
   layerRevealed();
 };
 
+const encoder = new window.TextEncoder();
+// Below the 64 KiB limit, so a message too long for it goes out as an ordinary
+// request; a gesture's body is far smaller.
+const KEEPALIVE_BYTES = 60_000;
+
 // The page's one door to the log, spelled once. Its callers — delivery.js, which
 // orders the user's own gestures through it and sends bookkeeping beside them, and the
 // error report below, which deliberately doesn't — share the request rather than
@@ -327,6 +332,7 @@ export const postEvent = async (event, held = runtime.data) => {
   if (!layerKnown) await layerReady;
   countTraffic("sends");
   recordInteraction("event_post", { kind: event.kind, attempt: event.attempt ?? null });
+  const body = JSON.stringify(event);
   let response;
   try {
     response = await fetch(pageUrl("api/event"), {
@@ -335,7 +341,13 @@ export const postEvent = async (event, held = runtime.data) => {
         "Content-Type": "application/json",
         ...dataHeaders(held),
       }),
-      body: JSON.stringify(event),
+      body,
+      // A gesture sent as the tab closes, such as the edit a playground records on
+      // leaving, still reaches the log: a keepalive request outlives its document,
+      // which Firefox otherwise drops before it leaves. A page may have 64 KiB of
+      // keepalive bodies in flight and the browser refuses a request past that, so a
+      // longer message goes out tied to its document.
+      keepalive: encoder.encode(body).byteLength < KEEPALIVE_BYTES,
     });
     recordInteraction("event_response", {
       kind: event.kind,

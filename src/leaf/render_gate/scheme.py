@@ -9,6 +9,7 @@ from leaf.data_contracts import output_findings
 from leaf.event_endpoint import event_rejection
 from leaf.files import version_num
 from leaf.findings import Finding
+from leaf.presence import live_servers
 from leaf.refusals import Refused
 from leaf.registry.contract import element_declarations
 from leaf.registry.kernel import kinds_declaring
@@ -24,8 +25,45 @@ from leaf.render_checks import (
     wait_for_probe,
     wait_until_ready,
 )
+from leaf.server import page_origin
 
 from .readings import DevtoolsIssues, _scheme_findings, _SchemeContext, thread_findings
+
+# What a frame of another live Leaf page shows during a check (`stand_in_other_leaves`).
+OTHER_LEAF = "<!doctype html><p>Another Leaf page, checked on its own.</p>"
+
+
+def stand_in_other_leaves(target) -> None:
+    """Answer a frame of each other live Leaf page on this machine with a stand-in
+    in `target`, a page or a browser context.
+
+    A page may frame another live Leaf page (validation.md, "Delivery policy"),
+    whose faults are its own check's. The gate's browser holds no key for that page,
+    and its server refuses the gate's origin as a framer, so the frame would report
+    a refusal the framing page's author can't fix by editing it. Only a child
+    frame's navigation stands in: a script, stylesheet, image or fetch the page
+    loads from that server is one of the page's own dependencies and reaches the
+    server as it would. A frame of any other address, a mistyped port included,
+    loads and fails as it would."""
+    origins = sorted(
+        {
+            page_origin(service["host"], service["port"])
+            for *_, service in live_servers()
+        }
+    )
+
+    def frame_or_fallback(route) -> None:
+        request = route.request
+        if request.is_navigation_request() and request.frame.parent_frame is not None:
+            route.fulfill(content_type="text/html", body=OTHER_LEAF)
+        else:
+            route.fallback()
+
+    if origins:
+        target.route(
+            re.compile(f"^(?:{'|'.join(map(re.escape, origins))})/"),
+            frame_or_fallback,
+        )
 
 
 def served(page, url: str, path: str, timeout_ms: int | None = None):
@@ -196,6 +234,7 @@ def _render_scheme(
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
     page = browser.new_page(viewport=viewport, color_scheme=scheme)
+    stand_in_other_leaves(page)
     opened_pages.append(page)
     page._leaf_probe_timeout_ms = served_timeout_ms
     errors = []

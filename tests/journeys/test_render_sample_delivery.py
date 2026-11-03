@@ -35,7 +35,9 @@ def test_sample_upgrade_does_not_wait_for_child_saved_state(
     source = leaf_page(
         "Independent sample startup",
         '<h1>Independent sample startup</h1><p id="outer">Parent passage.</p>'
-        '<lf-sample id="practice" label="Practice" window>'
+        # The child's window holds a rail, so its page surface is a margin card; a
+        # narrower one opens every thread in its panel.
+        '<lf-sample id="practice" label="Practice" window style="width: 1100px">'
         '<template id="practice-source" data-sample data-sample-events="history">'
         '<h1>Practice</h1><p id="inner">Child passage.</p>'
         "</template></lf-sample>",
@@ -44,7 +46,7 @@ def test_sample_upgrade_does_not_wait_for_child_saved_state(
             "text":"A saved child conversation."}]
         </script>""",
     )
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page = browser.new_page(viewport={"width": 1400, "height": 900})
     held = []
     route_pattern = re.compile(r"/api/samples/[^/]+/api/state")
     page.route(route_pattern, lambda route: held.append(route))

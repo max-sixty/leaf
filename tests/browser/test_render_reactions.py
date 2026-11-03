@@ -942,6 +942,10 @@ def test_the_response_field_grows_across_its_bar(browser, serve):
     assert narrow_field["x"] + narrow_field["width"] == pytest.approx(
         content_right, abs=1
     ), narrow_field
+    # A phone has no room for a card, so the draft is sent on a window that has.
+    resized(page, 1200, 900)
+    rendered(page)
+    expect(field).to_be_focused()
     page.keyboard.press("Enter")
     card = page.locator(".lf-margin-preview")
     expect(card).to_have_css("opacity", "1")
@@ -1378,8 +1382,8 @@ def test_a_declared_visual_part_can_raise_the_same_bar_from_the_keyboard(
     assert page.evaluate("() => getSelection().toString().trim()") == ""
     expect(page.locator(".lf-fab-input")).to_be_focused()
 
-    # Escape hands the user back to the part itself, not the proxy they pressed:
-    # focused, a proxy's face stands at the window's head, away from the drawing.
+    # Escape hands the user back to the part itself, not the proxy they pressed, which
+    # shows nothing of its own.
     page.keyboard.press("Escape")
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
     expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
@@ -1484,7 +1488,8 @@ def test_a_bar_re_placed_by_its_own_controls_still_hands_back_its_subject(
 
 def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser, serve):
     """A retained proxy resolves its stable anchor when focused. It does not keep a
-    renderer node that has been replaced, and it opens the container before scrolling."""
+    renderer node that has been replaced, it opens the container before scrolling, and
+    the part it stands for wears its focus ring."""
     folded = PART_DIAGRAM_PAGE.replace(
         '<lf-diagram id="flow"',
         '<details id="folded" open><summary>Flow</summary>'
@@ -1514,16 +1519,31 @@ def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser,
     expect(part).not_to_be_in_viewport()
     page.locator("#folded").evaluate("fold => { fold.open = false; }")
 
+    page.keyboard.press("Tab")
     control.evaluate("control => control.focus({ preventScroll: true })")
     expect(control).to_be_focused()
     expect(page.locator("#folded")).to_have_attribute("open", "")
     expect(part).to_be_in_viewport()
+    # It shows nothing of its own: the part wears the focus ring, round its contour.
+    assert control.evaluate("control => getComputedStyle(control).opacity") == "0"
+    ring = page.locator(".lf-proxy-ring")
+    expect(ring).to_have_count(1)
+    held, drawn = ring.bounding_box(), part.bounding_box()
+    # The ring stands round the part, at its gap.
+    gaps = (
+        drawn["x"] - held["x"],
+        drawn["y"] - held["y"],
+        held["x"] + held["width"] - drawn["x"] - drawn["width"],
+        held["y"] + held["height"] - drawn["y"] - drawn["height"],
+    )
+    assert all(0 <= gap <= 4 for gap in gaps), (held, drawn)
 
 
 def test_a_visual_proxy_keeps_user_current_location_across_provider_updates(
     browser, serve
 ):
-    """A keyed proxy retains a held press and focus while its label and order change."""
+    """A keyed proxy retains focus while its label and order change. It takes no
+    pointer (control-faces.js, `proxy`), so the press that follows is its keys'."""
     page = open_page(
         browser,
         serve(
@@ -1537,13 +1557,6 @@ def test_a_visual_proxy_keeps_user_current_location_across_provider_updates(
     )
     control.focus()
     control.evaluate("control => { window.lfRetainedVisualControl = control; }")
-    bounds = control.bounding_box()
-    assert bounds is not None
-    page.mouse.move(
-        bounds["x"] + bounds["width"] / 2,
-        bounds["y"] + bounds["height"] / 2,
-    )
-    page.mouse.down()
     page.evaluate(
         """() => {
           const visual = document.querySelector('#flow');
@@ -1559,7 +1572,7 @@ def test_a_visual_proxy_keeps_user_current_location_across_provider_updates(
         """() => window.lfRetainedVisualControl.isConnected &&
           document.activeElement === window.lfRetainedVisualControl"""
     )
-    page.mouse.up()
+    page.keyboard.press("Enter")
     expect(page.locator(".lf-fab-input")).to_be_focused()
     page.keyboard.press("Escape")
     expect(page.locator("#flow #outer")).to_be_focused()

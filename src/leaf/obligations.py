@@ -226,12 +226,7 @@ def replayed_attrs(rec: dict, projection: StateProjection) -> dict:
     unit = attrs.get("id")
     if not unit:
         return attrs
-    return _overlaid(attrs, projection.desired_by_unit.get(unit, []))
-
-
-def _overlaid(attrs: dict, held) -> dict:
-    """`attrs` overlaid with each value record among `held`, the states standing at
-    the element's coordinates, oldest first."""
+    held = projection.desired_by_unit.get(unit, [])
     for e, spec in sorted(held, key=lambda item: item[0]["seq"]):
         if (spec.get("record") or {}).get("kind") == "value":
             attrs = {**attrs, spec["record"]["attr"]: folded_value(e, spec)}
@@ -252,40 +247,41 @@ def previously_requested(
     its floors and withdrawals from the whole log, so it admits the actions
     `projection`, the fold of the whole log in `revision`, holds in force; and it
     settles only the reports a note through the write settles (`settled`, from
-    `events.report_settled_at` through `revision`). So one walk of the entries at the
-    element's unit reads every prefix by the rule `state_projection` builds `desired`
-    by: a coordinate stands at its newest action in force so far, else at its newest
-    report not yet settled. Surviving actions and reports can originate a
-    conditional request between document revisions; retracted actions cannot.
+    `events.report_settled_at` through `revision`). So one walk of the value writes
+    at the element's unit reads every prefix by the rule `state_projection` builds
+    `desired` by: a coordinate stands at its newest action in force so far, else at
+    its newest report not yet settled. An attribute then reads the newest write
+    standing at any of its coordinates (`replayed_attrs`), which is its newest write
+    no note has settled: a newer write at a coordinate is a newer write of its
+    attribute. So each attribute keeps its writes in log order, and a write reads
+    each attribute `when` names from the newest of them. Surviving actions and
+    reports can originate a conditional request between document revisions;
+    retracted actions cannot.
     """
     unit = record["attrs"].get("id")
-    actions = {}
-    reports = {}
+    writes: dict[str, list] = {}
     for coordinate, (event, spec) in projection.classified_by_unit.get(unit, ()):
-        in_force = event["kind"] != "action" or event["id"] in projection.in_force
-        if event["kind"] == "action":
-            if in_force:
-                actions[coordinate] = (event, spec)
-        else:
-            reports.setdefault(coordinate, []).append((event, spec))
         effect = spec.get("record") or {}
+        if effect.get("kind") != "value" or (
+            event["kind"] == "action" and event["id"] not in projection.in_force
+        ):
+            continue
+        writes.setdefault(effect["attr"], []).append((event, spec))
         if (
             coordinate[0] != unit
-            or not in_force
             or (revision is not None and event["revision"] != revision)
-            or effect.get("kind") != "value"
             or effect["attr"] not in when
         ):
             continue
-        standing = {}
-        for at, live in reports.items():
+        attrs = dict(record["attrs"])
+        for attr in when:
+            held = writes.get(attr)
             # A report a note has settled stays settled on every longer prefix.
-            while live and settled.get(live[-1][0]["id"], inf) <= event["seq"]:
-                live.pop()
-            if live:
-                standing[at] = live[-1]
-        standing.update(actions)
-        if matches_when(_overlaid(record["attrs"], standing.values()), when):
+            while held and settled.get(held[-1][0]["id"], inf) <= event["seq"]:
+                held.pop()
+            if held:
+                attrs[attr] = folded_value(*held[-1])
+        if matches_when(attrs, when):
             return True
     return False
 

@@ -79,7 +79,12 @@ export function clippedControls() {
     // viewport so the panel has room beside it, which leaves <html> clipping and
     // with nothing of its own to scroll — so a walk that ran to the root reported
     // every control below the fold as hidden by the page it is on.
-    for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) {
+    // Leaf's chrome stands after the body (base.css), so its controls stop at the root.
+    for (
+      let a = el.parentElement;
+      a && a !== document.body && a !== document.documentElement;
+      a = a.parentElement
+    ) {
       const s = getComputedStyle(a);
       const { across, down } = sealedAxes(s);
       if (across || down) {
@@ -225,8 +230,8 @@ export function unmarkableElements() {
 export function unreachableWords() {
   const found = [];
   // The lf-* element something stands in, if any. A .lf-ui is a widget's own
-  // chrome by standing in one of these, and the runtime's layer is appended to
-  // body and stands in none — but a widget riding a message stands in the
+  // chrome by standing in one of these, and the runtime's layer stands after
+  // body in none — but a widget riding a message stands in the
   // layer, so which of the two a .lf-ui is has to be asked of the .lf-ui and
   // never of the words beneath it, which are inside a widget either way.
   /** @param {Element | null} el */
@@ -246,7 +251,12 @@ export function unreachableWords() {
   // whose script is gone. The line counting a passage's comments is one of these too —
   // the runtime builds it through `offer`, as a widget builds its own.
   const CONTROL = `button, ${TEXT_BOX}, input, select, label, a[href], [data-lf-offer]`;
-  const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  // The whole document, since a widget riding a message stands in the chrome after
+  // body; text outside any .lf-ui, the head's included, is passed over below.
+  const walk = document.createTreeWalker(
+    document.documentElement,
+    NodeFilter.SHOW_TEXT,
+  );
   // A text walk visits text nodes.
   for (
     let n = /** @type {Text} */ (walk.nextNode());

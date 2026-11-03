@@ -26,24 +26,21 @@ A fork of the conversation answers a thread message the session hasn't received
 place, so by default the session runs with forks off (`LEAF_FORK_REPLIES=off`).
 `--forks` turns them on, and runs the fork steps in place of the delivery steps.
 
-The steps, in order:
+The steps, in order; `setup`, `release`, `mid-turn`, `escape` and `quit` are those
+more than one harness takes, as `journey.Terminal` has them:
 
-- `setup`: the user asks for a page to review; Claude Code serves it, and a watch
-  holds the session's pages once its turn ends;
-- `release`: the journey's timed ask, sent while the session is idle, opens a turn
-  that answers it (`journey.run_journey`); with `--case working` it is sent during
-  the user's own turn's shell command, which answers it. It asks for work, so with
-  `--forks` a fork hands it over and the session answers it as before.
+- `setup`;
+- `release`, which asks for work, so with `--forks` a fork hands it over and the
+  session answers it as before.
 
 Then the delivery steps:
 
-- `mid-turn`: a comment sent during a shell command is picked up in that turn;
-  its PostToolBatch context carries the exact input before another model call,
-  rather than waiting for Stop;
+- `mid-turn`, whose PostToolBatch context carries the exact input before another
+  model call, rather than waiting for Stop;
 - `ending`: two comments sent during a shell command, the second after the turn
   picked up the first, both enter that turn at its tool boundaries;
-- `escape`: Escape during a shell command ends the turn; a comment sent afterwards
-  opens a turn that answers it;
+- `escape`, whose line says the claim's turn stayed open, since Escape runs no
+  Stop hook;
 - `woken`: a comment sent during a shell command waits for the running turn, and
   Escape ends that turn while the command still runs, before the turn reads the
   comment at its next tool boundary. The watch after Escape wakes for that comment
@@ -84,10 +81,7 @@ diagnostics (`fork_reply`):
   command, is handed over by its fork, and the session picks it up and answers it
   in that turn or the next.
 
-Then:
-
-- `quit`: `/exit` ends the session, so its claim on the page is inactive and its
-  watch has ended.
+Then `quit`, by `/exit`.
 
 Between steps every comment sent so far has exactly one reply and a pickup, the
 page's claim names the session with its turn closed, no Stop hook has continued a
@@ -99,9 +93,9 @@ so it leaves the turn open, and the watch its prompt started, which waits while 
 turn runs, still running.
 
 Each step also prints the rows Leaf put in the conversation the user reads, a nudge
-among them, and, with an Escape, whether it left the turn open, a
-watch running, and what the page's status read; the sample keeps the rows as each
-step's `shown`. The session's screen at the end of each step and Claude Code's
+among them, and, with an Escape, whether it left the turn open; `woken`'s also says
+whether a watch was running and what the page's status read. The sample keeps the
+rows as each step's `shown`. The session's screen at the end of each step and Claude Code's
 debug log join the run's evidence. It needs tmux, and spends a few model turns on
 the host's Claude Code login, so CI does not run it.
 """
@@ -120,26 +114,18 @@ from pathlib import Path
 import click
 import psutil
 
-from leaf.delivery import DELIVERY, delivery_pointer_prompt, pickup_receipts
-from leaf.event_log import read_events
+from leaf.delivery import DELIVERY, delivery_pointer_prompt
 from leaf.harness import (
     ClaudeCodeHarness,
     claude_code_live_turn,
     claude_code_registry,
 )
 from leaf.hook_transport import ATTENTION_OPENING, INLINE_OPENING
-from leaf.leases import wait_is_live
 from leaf.server import running_server
-from leaf.service import claim_is_active, page_claim
-from leaf.state import session_live, session_record, turn_open
+from leaf.service import page_claim
+from leaf.state import turn_open
 from leaf_dev import ROOT
-from leaf_dev.arms import (
-    MODELS,
-    PageClient,
-    claude_environment,
-    claude_home,
-    run_leaf,
-)
+from leaf_dev.arms import MODELS, PageClient, claude_environment, claude_home
 from leaf_dev.commands.journey import (
     QUIET,
     Isolation,
@@ -157,10 +143,12 @@ from leaf_dev.reply_phases import (
     transcript_records,
 )
 from leaf_dev.review_scenario import (
-    REQUEST,
     SLEEP,
     USER_TURN,
+    activity,
     attempt,
+    claimed,
+    picked_up,
     post,
     prepare,
     require,
@@ -181,13 +169,15 @@ DEFERRING_TURN = USER_TURN.replace(
 class ClaudeCode(Terminal):
     """One interactive Claude Code session in a tmux pane, and the user at it."""
 
-    def __init__(self, place: Isolation, argv: list[str], env: dict) -> None:
+    def __init__(
+        self, place: Isolation, session: str, argv: list[str], env: dict
+    ) -> None:
         super().__init__()
+        self.session = session
         self.pane = f"leaf-journey-claude-code-{os.getpid()}"
         self.home = place.root / "home"
         self.exited, self.kept = place.root / "exited", place.evidence / "screen.txt"
         self.debug = place.evidence / "debug.log"
-        self.session: str | None = None
         # The environment's values reach the pane through tmux, so no file holds
         # them; the script names them, and drops whatever else the tmux server's
         # own environment adds.
@@ -244,12 +234,13 @@ class ClaudeCode(Terminal):
         time.sleep(0.5)
         self.tmux("send-keys", "-t", self.pane, "Enter")
 
-    def escape(self, ended: Callable[[], bool]) -> None:
-        """Press Escape until `ended` says the turn has, waiting up to 5 s after
-        each press before pressing again. A press after the turn ended does harm:
-        on an idle prompt it opens Claude Code's rewind menu, and otherwise it
-        interrupts the turn a watch or a nudge opened next, which can start before
-        Claude Code's record reads idle."""
+    def press_escape(self, ended: Callable[[], bool] | None = None) -> None:
+        """Press Escape until `ended` says the turn has, by default once Claude Code
+        reads idle, waiting up to 5 s after each press before pressing again. A press
+        after the turn ended does harm: on an idle prompt it opens Claude Code's
+        rewind menu, and otherwise it interrupts the turn a watch or a nudge opened
+        next, which can start before Claude Code's record reads idle."""
+        ended = ended or self.idle
         for _ in range(3):
             self.tmux("send-keys", "-t", self.pane, "Escape")
             deadline = time.monotonic() + 5
@@ -300,8 +291,6 @@ class ClaudeCode(Terminal):
     def records(self) -> list[dict]:
         """The transcript's records, with the requests, first outputs and Leaf's
         hooks of the debug log Claude Code writes (`--debug-file`)."""
-        if self.session is None:
-            return []
         logged = self.debug.read_text() if self.debug.exists() else ""
         return sorted(
             claude_code_records(native_records(self.home, self.session))
@@ -311,6 +300,11 @@ class ClaudeCode(Terminal):
 
     def failure(self, what: str, limit: float) -> click.ClickException:
         return click.ClickException(f"{what} within {limit:.0f} s\n{self.screen()}")
+
+    def leave(self) -> None:
+        """Exit with `/exit`, as the user at the pane does."""
+        self.say("/exit")
+        self.until(self.exited.exists, "quit: Claude Code did not exit", 60)
 
     def approve(self) -> None:
         """Answer the dialog a turn holds open, which Claude Code's record reports
@@ -357,21 +351,12 @@ def runs(pid: int, command: str) -> bool:
 def steps(cc: ClaudeCode, user: User, place: Isolation, *, forks: bool) -> None:
     """The steps after setup, as the module docstring lists them: with `forks` the
     fork steps, else the delivery steps."""
-    page, sent = place.page, []
-    session = require(cc.session, "the session has no id")
+    page, session, sent = place.page, cc.session, []
     # The native records the steps so far have counted (`leaf_rows`).
     read: list[dict] = []
 
-    def activity() -> str:
-        """What the page's status reads: its canonical activity's kind."""
-        served = run_leaf(ROOT, place.state, "page", "state", str(page), check=True)
-        return json.loads(served.stdout)["activity"]["kind"]
-
     def answered(*names: str) -> Callable[[], bool]:
         return lambda: all(user.answered(name) for name in names) and cc.idle()
-
-    def watched() -> bool:
-        return wait_is_live(None, cc.session)
 
     def step(
         name: str,
@@ -400,7 +385,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, *, forks: bool) -> None:
             f"{name}: a delivery was printed in the terminal",
         )
         # The turn that answers ends with a watch running.
-        cc.until(watched, f"{name}: no watch holds the session's pages", 60)
+        cc.until(cc.listening, f"{name}: no watch holds the session's pages", 60)
         details = [detail] if detail else []
         records = native_records(cc.home, session)
         rows = leaf_rows(records[len(read) :])
@@ -421,29 +406,6 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, *, forks: bool) -> None:
         """Whether the page's claim has closed `turn`, or opened another after it."""
         return not turn_open(page_claim(page), turn)
 
-    def escape(turn: str) -> None:
-        """Press Escape on `turn` until Claude Code is idle or the claim has moved
-        past it."""
-        cc.escape(lambda: cc.idle() or closed(turn))
-
-    def after_escape(name: str, turn: str) -> str:
-        """What an Escape that ended `turn` left: the turn open, since Escape runs no
-        Stop hook, and a watch running, which may already have woken a turn of its
-        own."""
-        cc.until(
-            lambda: (
-                watched()
-                or require(page_claim(page), "the page has no claim")["turn"] != turn
-            ),
-            f"{name}: no watch after Escape",
-            30,
-        )
-        return (
-            f"after Escape: turn {'closed' if closed(turn) else 'open'}, "
-            f"{'a' if watched() else 'no'} watch running, the page reads "
-            f"{activity()}"
-        )
-
     def hook_contexts(event: str) -> list[str]:
         """The contexts the hooks of `event` put in the conversation, one a hook."""
         return [
@@ -456,19 +418,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, *, forks: bool) -> None:
     def delivered() -> None:
         """The delivery steps, from `mid-turn` to `compacting`."""
         started = time.monotonic()
-        cc.work()
-        turn = require(page_claim(page), "the page has no claim")["turn"]
-        mid_turn = user.comment("mid-turn")
-        cc.until(answered("mid-turn"), "mid-turn: the comment was not answered")
-        require(
-            any(
-                event["turn"] == turn
-                for event in pickup_receipts(
-                    read_events(page), phase="opened", input_id=mid_turn
-                )
-            ),
-            f"mid-turn: the comment was not picked up in the user's turn {turn}",
-        )
+        mid_turn = cc.mid_turn(user, page)
         require(
             any(
                 event["id"] == mid_turn
@@ -485,56 +435,53 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, *, forks: bool) -> None:
         step("mid-turn", started, "mid-turn")
 
         started = time.monotonic()
-        cc.work()
-        turn = require(page_claim(page), "the page has no claim")["turn"]
+        turn = cc.user_turn(page)
         first = user.comment("first")
         cc.until(
-            lambda: bool(
-                pickup_receipts(read_events(page), phase="opened", input_id=first)
-            ),
-            "ending: `first` was not picked up",
+            lambda: bool(picked_up(page, first)), "ending: `first` was not picked up"
         )
         # The watch woke for `first` and its handover is done, so nothing watches
         # until this turn ends. Its next tool boundary carries input arriving now.
         ending = user.comment("ending")
         cc.until(answered("first", "ending"), "ending: the comments were not answered")
-        picked = [
-            event["turn"]
-            for event in pickup_receipts(
-                read_events(page), phase="opened", input_id=ending
-            )
-        ]
         require(
-            turn in picked,
+            turn in picked_up(page, ending),
             "ending: the running turn did not pick up `ending`",
         )
         step("ending", started, "first", "ending")
 
         started = time.monotonic()
-        cc.work()
-        turn = require(page_claim(page), "the page has no claim")["turn"]
-        escape(turn)
-        escaped = after_escape("escape", turn)
-        user.comment("escape")
-        cc.until(answered("escape"), "escape: the comment was not answered")
-        step("escape", started, "escape", detail=escaped)
+        stayed = cc.escape(user, page)
+        step(
+            "escape",
+            started,
+            "escape",
+            detail=f"after Escape: turn {'open' if stayed else 'closed'}",
+        )
 
         started = time.monotonic()
-        cc.work()
-        turn = require(page_claim(page), "the page has no claim")["turn"]
+        turn = cc.user_turn(page)
         woken = user.comment("woken")
         # The turn reads the comment only at its next tool boundary, once its command
         # ends, so a watch that held the session's lease as the comment arrived leaves
         # it to the turn.
         time.sleep(2)
         require(
-            cc.sleeping()
-            and watched()
-            and not pickup_receipts(read_events(page), phase="opened", input_id=woken),
+            cc.sleeping() and cc.listening() and not picked_up(page, woken),
             "woken: the comment did not wait for the running turn",
         )
-        escape(turn)
-        escaped = after_escape("woken", turn)
+        cc.press_escape(lambda: cc.idle() or closed(turn))
+        # Escape runs no Stop hook, so the turn stays open, and the watch its prompt
+        # started, which waited while that turn ran, may already have woken a turn of
+        # its own for the comment.
+        cc.until(
+            lambda: cc.listening() or closed(turn), "woken: no watch after Escape", 30
+        )
+        escaped = (
+            f"after Escape: turn {'closed' if closed(turn) else 'open'}, "
+            f"{'a' if cc.listening() else 'no'} watch running, the page reads "
+            f"{activity(page)}"
+        )
         # The stopped turn never read the comment, so the watch after Escape wakes for
         # it, and a turn of its own answers it.
         cc.until(answered("woken"), "woken: the watch after Escape did not answer it")
@@ -552,11 +499,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, *, forks: bool) -> None:
             slow_prompt(place).touch()
             try:
                 cc.until(
-                    lambda: bool(
-                        pickup_receipts(
-                            read_events(page), phase="opened", input_id=update
-                        )
-                    ),
+                    lambda: bool(picked_up(page, update)),
                     f"{update}: no hook handed it over",
                     90,
                 )
@@ -608,9 +551,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, *, forks: bool) -> None:
         started = time.monotonic()
         first = user.comment("first-wake")
         cc.until(
-            lambda: bool(
-                pickup_receipts(read_events(page), phase="opened", input_id=first)
-            ),
+            lambda: bool(picked_up(page, first)),
             "boundary: the wake was not handed its comment",
         )
         boundary = user.comment("boundary")
@@ -630,8 +571,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, *, forks: bool) -> None:
         step("boundary", started, "first-wake", "boundary")
 
         started = time.monotonic()
-        cc.work(DEFERRING_TURN)
-        turn = require(page_claim(page), "the page has no claim")["turn"]
+        turn = cc.user_turn(page, DEFERRING_TURN)
         deferred = user.comment("deferred")
         cc.until(lambda: closed(turn), "deferred: the user's turn did not end")
         require(
@@ -671,12 +611,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, *, forks: bool) -> None:
 
         def picked(name: str) -> list[str]:
             """The turns that picked up step `name`'s comment."""
-            return [
-                event["turn"]
-                for event in pickup_receipts(
-                    read_events(page), phase="opened", input_id=user.ids[name]
-                )
-            ]
+            return picked_up(page, user.ids[name])
 
         def decided(name: str, outcome: str) -> None:
             """Require the fork that decided on step `name`'s comment to have come
@@ -720,7 +655,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, *, forks: bool) -> None:
             )
 
         started = time.monotonic()
-        turn = require(page_claim(page), "the page has no claim")["turn"]
+        turn = claimed(page)["turn"]
         user.comment("fork-idle")
         cc.until(
             idle(lambda: user.fork("fork-idle")),
@@ -735,15 +670,13 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, *, forks: bool) -> None:
             QUIET + 5,
         )
         require(
-            require(page_claim(page), "the page has no claim")["turn"] == turn
-            and not picked("fork-idle"),
+            claimed(page)["turn"] == turn and not picked("fork-idle"),
             "fork-idle: a turn took the comment the fork answered",
         )
         step("fork-idle", started)
 
         started = time.monotonic()
-        cc.work()
-        turn = require(page_claim(page), "the page has no claim")["turn"]
+        turn = cc.user_turn(page)
         user.comment("fork-busy")
         cc.until(
             lambda: user.fork("fork-busy") or not cc.sleeping(),
@@ -770,8 +703,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, *, forks: bool) -> None:
         step("fork-busy", started, "fork-idle", "fork-busy")
 
         started = time.monotonic()
-        cc.work()
-        turn = require(page_claim(page), "the page has no claim")["turn"]
+        turn = cc.user_turn(page)
         work = user.comment("fork-work")
         cc.until(
             lambda: user.fork("fork-work"), "fork-work: no fork decided on the comment"
@@ -779,7 +711,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, *, forks: bool) -> None:
         decided("fork-work", "hand_over")
         cc.until(answered("fork-work"), "fork-work: the session did not answer it")
         # The session's turn once it answered, which is the user's own or the next.
-        last = require(page_claim(page), "the page has no claim")["turn"]
+        last = claimed(page)["turn"]
         took = picked("fork-work")
         require(
             bool(took) and took[0] in (turn, last),
@@ -795,8 +727,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, *, forks: bool) -> None:
         )
 
     started = time.monotonic()
-    user.release()
-    cc.until(cc.idle, "release: the turn that answered did not end")
+    cc.release(user)
     fork = user.fork("release")
     step(
         "release",
@@ -810,17 +741,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, *, forks: bool) -> None:
         delivered()
 
     started = time.monotonic()
-    cc.say("/exit")
-    cc.until(cc.exited.exists, "quit: Claude Code did not exit", 60)
-    require(
-        not session_live(session_record(session)),
-        "quit: the session ended without Leaf's SessionEnd",
-    )
-    require(
-        not claim_is_active(page_claim(page)),
-        "quit: the ended session's claim on the page is still active",
-    )
-    require(not watched(), "quit: the ended session's watch still runs")
+    cc.quit(page)
     user.passed("quit", started)
 
 
@@ -1001,30 +922,10 @@ def answering(
             "--allowedTools", "Bash Read Write Edit Glob Grep Skill",
             "--debug-file", str(place.evidence / "debug.log"),
         ]  # fmt: skip
-        cc = ClaudeCode(place, argv, dict(os.environ))
-        cc.session = session
+        cc = ClaudeCode(place, session, argv, dict(os.environ))
         try:
             started = time.monotonic()
-            cc.say(REQUEST)
-            cc.until(
-                lambda: page_claim(place.page) is not None,
-                "setup: the page was not claimed",
-            )
-            require(
-                require(page_claim(place.page), "the page has no claim")["id"]
-                == session,
-                "setup: the page's claim names another session",
-            )
-            cc.until(
-                lambda: (
-                    running_server(place.page) is not None
-                    and cc.idle()
-                    and wait_is_live(None, cc.session)
-                ),
-                "setup: the page was not served with the session idle and a watch "
-                "running",
-            )
-            settled(place.page, cc.session, {})
+            cc.setup(place.page)
             require(
                 DELIVERY.format not in cc.shown(),
                 "setup: a delivery was printed in the terminal",

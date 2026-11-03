@@ -555,7 +555,7 @@ const queries = sizeObserver(
   },
   { counted: false },
 );
-addEventListener("resize", () => reread(document.body));
+addEventListener("resize", () => reread(document.documentElement));
 // A widget can rearrange descendants without changing its outer box. ResizeObserver
 // cannot hear that case; the layer's shared geometry signal can. One repaint updates
 // every candidate and registered reading region after the new layout is stated, and

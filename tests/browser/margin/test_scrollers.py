@@ -860,6 +860,60 @@ def test_a_pin_in_a_pane_takes_one_seat_at_every_scroll(browser, serve):
     ), (far, top)
 
 
+STICKY_HEADER_PAGE = leaf_page(
+    "a pin on a block with a sticky header",
+    '<h1 id="t">Sticky header</h1>'
+    '<section id="sticky-target"><div id="sticky-head">'
+    "<button>Fit the evidence to the window</button></div>"
+    + _PARAGRAPH * 12
+    + "</section>"
+    + _PARAGRAPH * 6,
+    head="<style>#sticky-head { position: sticky; top: 0; display: flex;"
+    " gap: var(--sp-2); background: var(--paper); }"
+    " #sticky-head button { flex: 1; } #sticky-target { padding-right: 48px; }"
+    " #sticky-head { margin-right: -48px; }</style>",
+)
+
+
+def test_a_pin_by_a_sticky_header_takes_one_seat_at_every_scroll(browser, serve):
+    """A pin's seat is read once against the target's room, so the document's scroll
+    never moves it (margin-layout.js: remeasuring after a scroll writes the same
+    insets). A sticky header inside the target stands where its scroll holds it, so read
+    as cover where it stands, a pass made while the header stuck far down the target left
+    the seat by its top clear, and the next unrelated pass after scrolling back found
+    the header's control there and moved the pin, with no input (#5165)."""
+    page = open_page(
+        browser, serve(STICKY_HEADER_PAGE, events=[_comment_on("sticky-target")])
+    )
+    resized(page, 700, 600)
+    row = page.locator('[data-lf-margin-for="sticky-target"]')
+    expect(row).to_have_attribute("data-lf-place", "pin")
+
+    def seat_at(scroll):
+        """The pin's offset from its target, laid out with the document at `scroll`."""
+        page.evaluate("(y) => scrollTo(0, y)", scroll)
+        margins_laid_out(page)
+        return page.evaluate(
+            """() => {
+              const row = document.querySelector('[data-lf-margin-for="sticky-target"]');
+              const target = document.getElementById('sticky-target')
+                .getBoundingClientRect();
+              const pin = row.getBoundingClientRect();
+              return {dx: Math.round(pin.right - target.right),
+                      dy: Math.round(pin.top - target.top)};
+            }"""
+        )
+
+    top = seat_at(0)
+    # Scrolled 400px past the target's top, the header sticks 400px down inside it.
+    stuck = page.evaluate(
+        "() => document.getElementById('sticky-target').getBoundingClientRect().top"
+        " + scrollY + 400"
+    )
+    assert seat_at(stuck) == top
+    assert seat_at(0) == top
+
+
 @pytest.mark.parametrize("target_tree", ["shadow", "slotted"])
 def test_a_row_follows_its_target_through_a_scroller_inside_a_shadow_tree(
     browser, serve, target_tree

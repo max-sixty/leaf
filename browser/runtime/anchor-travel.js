@@ -64,7 +64,7 @@ import { renderedParent } from "./shadow-tree.js";
 import { nextFrame } from "./rendering.js";
 import { scrollersOf, unconcealedReadingRegions } from "./reading-regions.js";
 import { prepareEntry, replaceEntry } from "./history.js";
-import { pageScroller, stopScroll } from "./scrolling.js";
+import { pageScroller, scrollGoal, stopScroll } from "./scrolling.js";
 import { landedBox, scrollIntoView } from "./landing-scroll.js";
 import { reveal } from "./widget-elements.js";
 import { threadNamed } from "./thread/state.js";
@@ -530,7 +530,12 @@ export function createAnchorTravel({
   // Whether travel to `where` would leave the page as it stands: the destination stands
   // whole inside the band a landing aims for (`landingBand`) and nothing cuts it. Being
   // in front of the user (`seenRect`) is not enough, since a destination half cut off or
-  // pressed against the window's head is one a landing still moves.
+  // pressed against the window's head is one a landing still moves. A key pressed while
+  // Leaf still moves the destination's box acts as if the motion had landed, so the band
+  // is asked of where that box's motion will leave the destination (scrolling.js,
+  // `scrollGoal`): `Shift+m` pressed just after `m` finds the obligation `m` is leaving
+  // already gone. What cuts the destination is read where it stands, so one the motion
+  // would bring in from beyond the window's edge still counts as one travel moves to.
   /** @param {Destination} where */
   function readableDestination(where) {
     const shown = seenOf(where);
@@ -539,11 +544,12 @@ export function createAnchorTravel({
     const box = scrollingBoxFor(holder);
     const band = box ? landingBand(box) : shownBox(pageScroller);
     if (!band) return false;
+    const rise = box ? scrollGoal(box) - box.scrollTop : 0;
     /** @param {number} a @param {number} b */
     const close = (a, b) => Math.abs(a - b) <= 0.5;
     return (
-      destination.top >= band.top - 0.5 &&
-      destination.bottom <= band.bottom + 0.5 &&
+      destination.top - rise >= band.top - 0.5 &&
+      destination.bottom - rise <= band.bottom + 0.5 &&
       close(seen.top, destination.top) &&
       close(seen.right, destination.right) &&
       close(seen.bottom, destination.bottom) &&

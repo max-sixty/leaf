@@ -16,3 +16,6 @@ evals/results/
 /examples/corpus.data.json
 /examples/corpus.jsonl
 /examples/corpus.page/
+
+# Hypothesis example database (journeys/test_floating_box_motion.py).
+.hypothesis/

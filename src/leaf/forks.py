@@ -85,8 +85,7 @@ from .state import (
 
 # How long Leaf holds a thread's waiting messages from the session, counted from the
 # newest one's admission, before the lane hands them to it whatever the fork does
-# (`look`). Forks that answered rightly on recorded thread messages took 5–24 s, and
-# the follower takes up to a quarter second to see the message.
+# (`look`). Forks that answered rightly on recorded thread messages took 5–24 s.
 BOUND_S = 30.0
 
 ANSWER = {

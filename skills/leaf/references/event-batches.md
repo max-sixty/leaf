@@ -41,9 +41,9 @@ Events keep their stored fields and log order, and add:
   choice separately from its tag labels and explanation.
 - `threads`: every thread the event belongs to. The event appears once in the batch
   however many threads it is in.
-- `was`: on the user's rewrite of their own message, the words it replaced.
-  `suggestion: true` beside it means the message is a suggestion, so its new `text`
-  is the exact replacement it proposes.
+- `was`: on the user's rewrite of their own message, the words it replaced. An empty
+  `text` beside it means they deleted the message. `suggestion: true` beside it means
+  the message is a suggestion, so its new `text` is the exact replacement it proposes.
 - `unsent`: on the user's message or edit in a thread anchored in a widget or one that
   sent it, the work they had made there without sending it, such as a playground's
   settings, as it stood when they wrote. It is what the widget showed them; page state

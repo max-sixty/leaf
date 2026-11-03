@@ -1,6 +1,6 @@
 /* Lit view for the margin-entry exhibit, constructed during widget setup. */
 import { html, ref } from "/runtime/widget-api.js";
-import { offerElement, generatedElement } from "/runtime/widget-api.js";
+import { offerActionElement, generatedElement } from "/runtime/widget-api.js";
 const GROUPS = [
   {
     heading: "Rank and behavior",
@@ -218,7 +218,11 @@ export function createView(host) {
   const face = (entry) =>
     ref((node) => {
       if (node)
-        entry.control = offerElement(node, "margin-entry-gallery-face lf-margin-entry");
+        entry.control = offerActionElement(
+          node,
+          "entry",
+          "margin-entry-gallery-face lf-margin-entry",
+        );
     });
   const sampleView = (entry) => {
     const { sample, key } = entry;

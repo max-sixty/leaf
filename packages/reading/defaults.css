@@ -125,18 +125,6 @@ dl.facts dt {
 .eyebrow + :is(h1, h2, h3) {
   margin-top: 10px;
 }
-/* A column item opening with the pair takes the pair's gap as its own margin, as one
-   opening with its heading does (browser/styles/components/reading.css). */
-@container style(--lf-items-keep-margins: 1) {
-  :where(:has(> .eyebrow:first-child + h2)) {
-    margin-block-start: var(--h2-start);
-    --lf-frame-start: 1;
-  }
-  :where(:has(> .eyebrow:first-child + h3)) {
-    margin-block-start: var(--h3-start);
-    --lf-frame-start: 1;
-  }
-}
 /* The one paragraph a user is guaranteed to read, so it is set as one: larger
    than the body, looser, and in the ink the body isn't. */
 h1 + .lede {

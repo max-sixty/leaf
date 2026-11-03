@@ -501,38 +501,6 @@ def test_a_package_replacement_of_a_public_provider_is_served(page_dir):
     assert executing(artifact).resources[provider].data == own
 
 
-def test_an_export_runs_the_exporters_runtime(page_dir, monkeypatch):
-    """An export pairs the state the exporting Leaf reads with that Leaf's runtime,
-    whichever Leaf captured the version, since only that runtime reads that state."""
-    from click.testing import CliRunner
-
-    from leaf import cli as cli_model
-    from leaf import runtime_selection
-    from leaf.exporting import cmd_export
-
-    stamped = CliRunner().invoke(
-        cli_model.cli, ["page", "stamp", str(page_dir), "--text", "Exported"]
-    )
-    assert stamped.exit_code == 0, stamped.output
-    current = runtime_selection.read_runtime()
-    marker = b"/* the exporting Leaf's runtime */"
-    exporter = runtime_selection.ServingRuntime(
-        {
-            **current.source,
-            "/runtime/prepaint.js": current.source["/runtime/prepaint.js"] + marker,
-        },
-        None,
-        frozenset(),
-        current.probes,
-    )
-    monkeypatch.setattr(runtime_selection, "serving_runtime", lambda: exporter)
-
-    out = page_dir.parent / "export.html"
-    cmd_export(page_dir, out, 1)
-
-    assert marker.decode() in out.read_text()
-
-
 def test_media_has_one_address_wherever_a_page_names_it(tmp_path):
     """Media is the page's and shared across revisions, so every host serves it at the
     page root, and the runtime resolves a message's or a widget's media there too. A

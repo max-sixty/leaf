@@ -568,7 +568,7 @@ lf-trace[hidden="until-found"] {
 /* The scroller and the rows it holds stand their rings inside their edges, which the
    scroller clips (base.css, "Where it stands"). */
 :is(.lf-trace-metadata, .lf-trace-metadata > details > summary) {
-  outline-offset: var(--focus-ring-inset);
+  --lf-ring-at: var(--focus-ring-inset);
 }
 .lf-trace-readout {
   margin-block: var(--sp-1) var(--sp-2);
@@ -777,7 +777,7 @@ lf-trace-bookmark {
 }
 /* These adjacent targets keep the shared ring inside their own allocation. */
 .lf-trace-transport-button {
-  outline-offset: var(--focus-ring-inset);
+  --lf-ring-at: var(--focus-ring-inset);
 }
 .lf-trace-play {
   inline-size: var(--lf-trace-control-size);

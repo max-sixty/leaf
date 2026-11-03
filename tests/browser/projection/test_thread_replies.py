@@ -70,7 +70,7 @@ def test_a_reply_renders_the_markdown_it_was_written_in(browser, serve):
     )
     page = open_page(browser, url)
     view = open_panel_thread(page, "c-decision")
-    body = view.locator(".lf-msg.agent .lf-msg-body")
+    body = view.locator(".lf-msg[data-lf-author=agent] .lf-msg-body")
     expect(body.locator("li")).to_have_count(2)
     expect(body.locator("strong")).to_have_text("behind")
     expect(body.locator("blockquote")).to_have_text("which one wins?")

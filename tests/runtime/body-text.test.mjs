@@ -36,6 +36,8 @@ test("a rendered Markdown caret keeps its exact source position in long and stru
     "| First | Second |\n| --- | --- |\n| other | **word300** |",
     "\\* literal, &amp; then word300 and *later*.",
     "```text\nword300\n```",
+    "Run:\n\n    make word300\n\tlint",
+    "Title **word300**\n===",
     "![word300](data:text/html,unsafe)",
     "- first\n\tcontinued **word300**",
     "1. first\n\tcontinued **word300**",
@@ -84,9 +86,14 @@ test("Markdown body readings share file dialect, safe destinations and native st
   const cases = JSON.parse(
     readFileSync(new URL("../markdown_body_cases.json", import.meta.url)),
   );
-  for (const { source, words, links } of cases) {
+  for (const { source, words, blocks, links } of cases) {
     const body = document.createElement("div");
     body.innerHTML = renderMarkdown(source, false);
+    assert.deepEqual(
+      [...body.children].map((block) => block.localName),
+      blocks,
+      source,
+    );
     assert.deepEqual(
       [...body.querySelectorAll("a")].map((link) => ({
         text: link.textContent,
@@ -102,11 +109,14 @@ test("Markdown body readings share file dialect, safe destinations and native st
     );
   }
   const body = document.createElement("div");
-  // A `---` under a line is a rule: Setext headings are off.
-  body.innerHTML = renderMarkdown("<div>\n**bold**\n</div>\n\n<div>\nHeading\n---");
+  // A message reads a `---` under a line as a rule and a line's leading spaces as
+  // typed, where a file reads a heading and code.
+  body.innerHTML = renderMarkdown(
+    "<div>\n**bold**\n</div>\n\n<div>\nHeading\n---\n\n    leading spaces",
+  );
   assert.equal(
     body.innerHTML,
-    '<p data-lf-gap="0">&lt;div&gt;<br><strong>bold</strong><br>&lt;/div&gt;</p>\n<p data-lf-gap="1">&lt;div&gt;<br>Heading</p>\n<hr data-lf-gap="0">\n',
+    '<p data-lf-gap="0">&lt;div&gt;<br><strong>bold</strong><br>&lt;/div&gt;</p>\n<p data-lf-gap="1">&lt;div&gt;<br>Heading</p>\n<hr data-lf-gap="0">\n<p data-lf-gap="1">leading spaces</p>\n',
   );
   body.innerHTML = renderMarkdown("- [x] Done\n- [ ] Todo");
   assert.deepEqual(
@@ -140,6 +150,21 @@ test("Markdown body readings share file dialect, safe destinations and native st
     assert.equal(renderInlineMarkdown(source), "first<br>second");
     assert.equal(renderedWords(renderInlineMarkdown(source)), "first\nsecond");
   }
+});
+
+test("a draft's answer reads its words as its body draws them, as a file", async () => {
+  const { loadMarkdown, paintMarkdown } = await import("/runtime/markdown.js");
+  assert.equal(await loadMarkdown(), true);
+  await import("../../packages/default/widgets/lf-draft.js");
+  const source = "Title\n=====\n\nRun:\n\n    make";
+  const body = document.createElement("div");
+  paintMarkdown(body, source);
+  const collapsed = (text) => text.replace(/\s+/g, " ").trim();
+  assert.equal(collapsed(body.textContent), "Title Run: make");
+  assert.equal(
+    collapsed(customElements.get("lf-draft").answerWords(source)),
+    collapsed(body.textContent),
+  );
 });
 
 test("bare file names in Markdown stay text while explicit links remain links", async () => {

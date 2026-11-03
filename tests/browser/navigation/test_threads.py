@@ -280,7 +280,7 @@ def test_a_reply_link_moves_the_thread_walk_to_its_destination(
         )
         expect(source).to_be_focused()
 
-    message = source.locator(".lf-msg.agent")
+    message = source.locator(".lf-msg[data-lf-author=agent]")
     message.get_by_text("Consider this reference.", exact=True).click()
     assert message.evaluate("el => el.contains(getSelection()?.focusNode)")
     link = message.get_by_role("link", name="Read the conclusion")
@@ -337,6 +337,8 @@ def test_a_tap_on_a_reply_link_to_a_missing_section_says_why(browser, serve):
     view = open_panel_thread(page, root)
     link = view.get_by_role("link", name="see the old section")
     expect(link).to_have_attribute("aria-disabled", "true")
+    # It reads as going nowhere too: muted, its underline dashed.
+    expect(link).to_have_css("text-decoration-style", "dashed")
     link.tap(force=True)  # Playwright taps no aria-disabled control by itself.
     expect(panel_field(page)).to_have_attribute("data-says", "error")
     expect(panel_field(page)).to_have_attribute(
@@ -926,7 +928,7 @@ def test_submitting_a_reply_reveals_its_new_message(browser, serve):
     write(box, "First point. " * 5 + "\n\nSecond point. " * 4)
     box.press("Enter")
     round_trip(page)
-    message = view.locator(".lf-msg.user").last
+    message = view.locator(".lf-msg[data-lf-author=user]").last
     expect(message).to_contain_text("Second point.")
     page.wait_for_function(
         """([view, message]) => {
@@ -941,7 +943,7 @@ def test_submitting_a_reply_reveals_its_new_message(browser, serve):
     write(box, "Long reply. " * 90)
     box.press("Enter")
     round_trip(page)
-    long_message = view.locator(".lf-msg.user").last
+    long_message = view.locator(".lf-msg[data-lf-author=user]").last
     expect(long_message).to_contain_text("Long reply.")
     page.wait_for_function(
         """([view, message]) => {

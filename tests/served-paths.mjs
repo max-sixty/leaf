@@ -13,7 +13,8 @@ import { fileURLToPath } from "node:url";
 
 const at = (path) => fileURLToPath(new URL(path, import.meta.url));
 const PACKAGES = at("../packages");
-const ROOTS = [
+// The composed directories' roots, the last to hold a name winning.
+export const ROOTS = [
   at("../browser"),
   ...readdirSync(PACKAGES, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())

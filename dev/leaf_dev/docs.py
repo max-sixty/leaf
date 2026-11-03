@@ -192,12 +192,13 @@ def schema_reference(ref: str) -> str:
     uri, _, pointer = ref.partition("#")
     if not uri:
         name = pointer.removeprefix("/$defs/")
-        return f'<a href="#served-{name or "state"}">{name or "served state"}</a>'
+        target = name.split("/", 1)[0]
+        return f'<a href="#served-{target or "state"}">{name or "served state"}</a>'
     if uri == "leaf:verb":
         return '<a href="/registry/#x-state">x-state verb</a>'
     if uri == "leaf:event":
         return '<a href="#events">event</a>'
-    kind = uri.removeprefix("leaf:event/")
+    kind = uri.removeprefix("leaf:event/").removeprefix("leaf:message/")
     field = pointer.removeprefix("/properties/")
     named = (
         f"<code>{kind}</code>'s <code>{field}</code>"

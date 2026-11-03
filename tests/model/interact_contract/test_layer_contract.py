@@ -455,6 +455,12 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     cases = {
         "comment": {"kind": "comment", **untitled, **owes("reply")},
         "comment over App Server": {"kind": "comment", **untitled, **owes("turn")},
+        "comment on the page, written while slides showed": {
+            "kind": "comment",
+            "viewing": ["results"],
+            **untitled,
+            **owes("reply"),
+        },
         "comment with a drawing": {
             "kind": "comment",
             "drawing": {
@@ -500,9 +506,23 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
             **owes("reply"),
         },
         "reaction on a message": {"kind": "reply", "token": "+1"},
-        "rewritten message": {"kind": "edit", **titled, **owes("reply")},
+        "rewritten message": {
+            "kind": "edit",
+            "text": "Tuesdays, after the report run",
+            **titled,
+            **owes("reply"),
+        },
+        "deleted message": {"kind": "edit", "text": "", **titled, **owes("reply")},
         "rewritten suggestion": {
             "kind": "edit",
+            "text": "moves to Wednesdays",
+            "suggestion": True,
+            **titled,
+            **owes("reply"),
+        },
+        "deleted suggestion": {
+            "kind": "edit",
+            "text": "",
             "suggestion": True,
             **titled,
             **owes("reply"),
@@ -833,7 +853,9 @@ def test_each_route_hands_the_agent_what_the_snapshot_shows(
     cleanup_model.close_session_turn(session)
     harness_2 = harness_model.session_harness()
     assert harness_2 is not None
-    woke = session_model.watch_between_turns(harness_2)
+    woke = session_model.watch_between_turns(
+        harness_2, {"hook_event_name": "Stop", "session_id": session}
+    )
     assert woke is not None
     hooks_model.cmd_hook(
         "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": session}

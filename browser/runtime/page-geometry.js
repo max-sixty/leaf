@@ -24,7 +24,7 @@ import { keepsText } from "./keeps.js";
  * target: ReturnType<typeof import("./composing/aim.js").createAim>["aimedTarget"]},
  * pointer: typeof import("./pointer.js").pointerAt,
  * designMode: Pick<DesignMode, "active" | "target" | "inspectElement" | "name">,
- * targetPaint: typeof import("./target-paint.js"),
+ * targetPaint: Pick<typeof import("./target-paint.js"), "clearAim" | "geometryChanged" | "labelAim" | "paintAim" | "shifted">,
  * visualMarkPaint: ReturnType<typeof import("./annotation-overlay/visual-mark-paint.js").createVisualMarkPaint> | null | undefined,
  * shiftDrawings: () => unknown, queueLegend: DesignMode["queueLegend"],
  * legendScrolled: DesignMode["legendScrolled"],

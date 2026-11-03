@@ -19,8 +19,8 @@
    - `inline`: a press read as part of the line of words it stands in, such as a
      thread's held news or a quote's Full quote, drawn as words in the accent at the
      line's size with no frame. One that announces news waiting says so with
-     `data-lf-news`, which draws it in the danger ink, and one whose words say a
-     warning with `data-lf-tone="warn"`, in the warning's.
+     `data-lf-news` and keeps the accent the unread dot wears, and one whose words say
+     a warning with `data-lf-tone="warn"` takes the warning's ink.
    - `row`: one row of a list or menu, whose words are what the reader scans, so they
      stand in the ink; the row under the pointer or the keys is washed, and the row
      the list stands on (`aria-current`) wears the accent's stripe and tint.

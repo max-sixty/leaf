@@ -7898,9 +7898,11 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			choose(name);
 		}}
         >
-          ${label(name)}${counted === null ? nothing : html` <span class="lf-fp-count" ?data-zero=${!counted}
-                  >${counted}</span
-                >`}
+          <span class="lf-fp-tab-words"
+            >${label(name)}${counted === null ? nothing : html` <span class="lf-fp-count" ?data-zero=${!counted}
+                    >${counted}</span
+                  >`}</span
+          >
         </button>`;
 	})}
     </div>`;

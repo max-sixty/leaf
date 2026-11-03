@@ -356,10 +356,10 @@
   content: "-";
   color: var(--danger-ink);
 }
-/* A line's number stands over the gutter's width on its line, set against the code.
-   Where it takes a comment it is a gutter press (controls.css, `.lf-gutter`), with its
-   + in the room before the number, shown for the line the pointer is over; where it
-   takes none it is a number alone, read as the press's is. */
+/* A line's number stands over the gutter's width on its line, set against the code
+   in the code's muted ink, a press or not. Where it takes a comment it is a gutter
+   press (controls.css, `.lf-gutter`), with its + in the room before the number,
+   shown for the line the pointer is over. */
 .lf-diff-line-number {
   position: absolute;
   z-index: 2;
@@ -371,8 +371,6 @@
   min-width: 0;
   min-height: 0;
   padding: 0 1ch 0 2ch;
-}
-.lf-diff-line-number:not(.lf-gutter) {
   color: var(--code-muted);
   font: inherit;
   display: flex;

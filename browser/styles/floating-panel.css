@@ -926,9 +926,12 @@
      one the user is nearer. */
   .lf-fp-controls {
     --lf-line: var(--lf-fp-press);
+    /* The room the line keeps for a press and Close after the tabs (below). */
+    --lf-fp-aux-room: calc(2 * max(var(--lf-fp-press), var(--aim-floor)) + 2px);
+    --lf-fp-controls-gap: 4px;
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--lf-fp-controls-gap);
     min-height: 40px;
     padding: 3px 6px var(--lf-reach-room) calc(6px + var(--lf-fp-inset));
     box-sizing: border-box;
@@ -1017,13 +1020,22 @@
   .lf-fp-controls {
     flex-wrap: wrap-reverse;
   }
-  /* The tabs' line stands as tall with the presses as without them. */
+  /* The tabs' line stands as tall with the presses as without them. It breaks only
+     where the tabs at their narrowest don't fit beside the room kept for the presses,
+     and takes that room's width whether the presses stand beside it or, as On
+     <agent>'s plan head does, on a line of their own, so the tabs' insets
+     (`.lf-fp-tab`) and every tab stand alike on each view. */
   .lf-fp-controls > .lf-fp-crumb {
     min-height: var(--lf-fp-press);
     align-items: center;
   }
+  .lf-fp-controls > .lf-fp-crumb:has(> .lf-fp-filters) {
+    flex-basis: 0;
+    min-width: min-content;
+    max-width: calc(100% - var(--lf-fp-aux-room) - var(--lf-fp-controls-gap));
+  }
   .lf-fp-controls > .lf-fp-aux {
-    min-width: calc(2 * max(var(--lf-fp-press), var(--aim-floor)) + 2px);
+    min-width: var(--lf-fp-aux-room);
     justify-content: flex-end;
     margin-inline-start: auto;
   }
@@ -1040,23 +1052,35 @@
       var(--focus-ring-room),
       (var(--aim-floor) - var(--lf-fp-tab)) / 2
     );
-    display: flex;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(min-content, max-content);
+    justify-content: start;
     min-width: 0;
     overflow-x: auto;
-    gap: 2px;
     padding: var(--lf-fp-filter-reach) var(--focus-ring-room);
     margin: calc(-1 * var(--lf-fp-filter-reach)) calc(-1 * var(--focus-ring-room));
   }
-  .lf-fp-tab {
-    flex-shrink: 0;
+  /* A tab's inset, and the room between tabs, give way before the line does: its
+     words stand between two rooms that shrink to nothing as the strip narrows, each
+     tab giving up the same, so the tabs take only their words' width (and a
+     finger's, `--aim-floor`) before the presses beside them go to a line of their
+     own, and the line breaks on the tabs' narrowest form (`.lf-fp-crumb`, below),
+     whatever faces the words are set in. On a phone, where the user chose the tabs to
+     share one line with a press and Close at 390px, that is how they fit, in the
+     wider faces Linux ships too. */
+  .lf-fp-filters > .lf-fp-tab {
+    display: grid;
+    grid-template-columns: minmax(0, 11px) max-content minmax(0, 11px);
+    min-width: auto;
+    padding-inline: 0;
     font: var(--font-small);
   }
-  /* On a phone the tabs keep less of their inset, so in the faces phones ship they
-     share one line with a press and Close at 390px. */
-  @media (max-width: 420px) {
-    .lf-fp-filters button {
-      padding-inline: 3px;
-    }
+  .lf-fp-tab-words {
+    grid-column: 2;
+    min-inline-size: calc(var(--aim-floor) - 2px);
+    white-space: nowrap;
+    text-align: center;
   }
   /* Room for two digits, so news changing a count moves no tab beside it; a count of
      nothing says 0 in the quieter ink, so the room never stands blank. */
@@ -1184,8 +1208,8 @@
     padding: 10px 0 6px;
     background: linear-gradient(transparent, var(--lf-fp-surface) 10px);
   }
-  /* New reply announces news waiting, an inline press in the danger's ink
-     (controls.css, `data-lf-news`), centred on the foot's ground a press tall. */
+  /* New reply announces news waiting, an inline press in the accent the unread dot
+     wears (controls.css, `data-lf-news`), centred on the foot's ground a press tall. */
   .lf-fp-new-reply {
     display: flex;
     align-items: center;

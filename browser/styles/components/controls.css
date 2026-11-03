@@ -845,22 +845,17 @@ wa-copy-button.lf-icon-action {
   content: "✓";
   margin-inline-end: 6px;
 }
-/* The gutter face: a line's number in a code view's gutter, which takes a comment on
-   its line, as a diff's do (lf-diff.js). It is the number in the code's muted ink,
-   set against the code, with no frame, and a + in the accent's tint standing before
-   it once the keys stand on it; its seat shows the + for the line under the pointer
-   too, and places it over the gutter's width. */
+/* The gutter face: what makes a line's number in a code view's gutter a press that
+   takes a comment on its line, as a diff's do (lf-diff.js). The number keeps the look
+   its code view gives every line's number, a press or not (widget-shadow.css,
+   `.lf-diff-line-number`); the face adds no frame or ground of its own, the hand,
+   and a + in the accent's tint standing before the number once the keys stand on
+   it. Its seat shows the + for the line under the pointer too, and places it over
+   the gutter's width. */
 .lf-gutter {
   border: 0;
   border-radius: 0;
   background: transparent;
-  color: var(--code-muted);
-  font: inherit;
-  display: flex;
-  align-items: start;
-  justify-content: end;
-  text-align: right;
-  user-select: none;
   cursor: pointer;
 }
 .lf-gutter::before {

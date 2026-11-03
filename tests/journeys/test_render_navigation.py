@@ -592,14 +592,12 @@ def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, s
     # Disabling the key makes the command actionable even from the text field where
     # that key was previously reserved for typing.
     page.get_by_role("combobox", name="Search commands").fill("Comment on the page")
-    expect(
-        comment.get_by_role("button", name="Comment on the page", exact=True)
-    ).to_have_attribute("data-lf-available", "true")
+    expect(comment).to_have_attribute("data-lf-available", "true")
     page.get_by_role("button", name="Close the command reference").click()
     page.locator("body").focus()
     settings()
     page.get_by_role("combobox", name="Search commands").fill("Comment on the page")
-    comment.get_by_role("button", name="Comment on the page", exact=True).click()
+    comment.click()
     field = page.get_by_role("textbox", name="Comment on the page", exact=True)
     expect(field).to_be_focused()
     page.keyboard.type("Sent with quick shortcuts off")

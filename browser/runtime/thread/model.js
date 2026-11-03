@@ -212,13 +212,14 @@ function unedited(thread, message, withdrawn) {
 }
 
 // The messages taken back, by the user now or the log already, that something left in
-// the thread stands on, a message naming one as its parent, which keep their place with
-// nothing in them (`events.standing_withdrawn`); the log's answer adds one a to-do is
-// attached to. A parent is older than its message, so one pass from the newest finds a
-// chain of them.
-/** @param {Thread} thread @param {(message: Thread["msgs"][number]) => boolean} gone */
-function standingIn(thread, gone) {
-  const standing = new Set();
+// the thread stands on, a message naming one as its parent or a to-do attached to the
+// thread its opening message, which keep their place with nothing in them
+// (`events.standing_withdrawn`). A parent is older than its message, so one pass from
+// the newest finds a chain of them.
+/** @param {Thread} thread @param {(message: Thread["msgs"][number]) => boolean} gone
+ * @param {ReadonlySet<string>} attached */
+function standingIn(thread, gone, attached) {
+  const standing = new Set(attached.has(thread.id) ? [thread.root.id] : []);
   for (const message of thread.msgs.toReversed())
     if ("parent" in message && (!gone(message) || standing.has(message.id)))
       standing.add(message.parent);
@@ -238,9 +239,10 @@ function takenBack(message) {
 // parent went by, and each undo.
 /** @param {readonly Thread[]} threads
  * @param {readonly import("../../types/domain.js").ThreadGesture[]} gestures
+ * @param {ReadonlySet<string>} attached the threads a to-do is attached to
  * @returns {Thread[]}
  */
-export function foldThreads(threads, gestures) {
+export function foldThreads(threads, gestures, attached) {
   if (!gestures.length) return [...threads];
   const withdrawn = new Set(
     gestures.flatMap((gesture) => (gesture.kind === "undo" ? [gesture.undoes] : [])),
@@ -253,19 +255,12 @@ export function foldThreads(threads, gestures) {
   const gone = (message) => withdrawn.has(message.id) || Boolean(message.withdrawn);
   /** @type {Thread[]} */
   const copies = threads.flatMap((thread) => {
-    // A place the log kept that no message here explains is held by what the browser
-    // doesn't fold, a to-do attached to the thread, so it stays.
-    const explained = standingIn(thread, (message) => Boolean(message.withdrawn));
-    const standing = standingIn(thread, gone);
-    /** @param {Thread["msgs"][number]} message */
-    const kept = (message) =>
-      standing.has(message.id) ||
-      (Boolean(message.withdrawn) && !explained.has(message.id));
-    if (gone(thread.root) && !kept(thread.root)) return [];
+    const standing = standingIn(thread, gone, attached);
+    if (gone(thread.root) && !standing.has(thread.root.id)) return [];
     const msgs = thread.msgs.flatMap((message) =>
       !gone(message)
         ? [unedited(thread, message, withdrawn)]
-        : !kept(message)
+        : !standing.has(message.id)
           ? []
           : message.withdrawn
             ? [message]

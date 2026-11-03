@@ -345,32 +345,37 @@ def message_reading(event: dict, undo: dict | None) -> dict:
 def active_summaries(events: list, threads: dict) -> dict[str, list[dict]]:
     """Current presentation summaries for every thread, by thread id.
 
-    Summaries replace overlapping summaries whole. Editing a covered message,
-    undoing an edit of it, or taking back a reaction on a covered message
-    invalidates a summary containing prose. A fold without prose keeps showing the
-    revised originals. Progress completion is separate (`progress_completions`), so
-    opening a summary never restores completed progress.
+    Summaries replace overlapping summaries whole. Editing a covered message, or
+    undoing an edit of it, invalidates a summary containing prose, and so does
+    taking back a reaction its thread held when the summary was written, which the
+    prose may report wherever the reaction stood. A fold without prose keeps showing
+    the revised originals. Progress completion is separate (`progress_completions`),
+    so opening a summary never restores completed progress.
     """
     edits = {}
     edited = {}
-    messages = {}
-    taken = []
+    said = {}
+    taken = {}
     written = {}
     for event in events:
         if event["kind"] in kinds_declaring("message"):
-            messages[event["id"]] = event
+            # The thread a message was said in, and when, whatever became of it since.
+            thread = said[event["parent"]][0] if "parent" in event else event["id"]
+            said[event["id"]] = (thread, event["seq"])
         elif event["kind"] == "edit":
             edited[event["id"]] = event["message"]
             edits[event["message"]] = event["seq"]
         elif event["kind"] == "undo" and event["undoes"] in edited:
             edits[edited[event["undoes"]]] = event["seq"]
-        elif event["kind"] == "undo" and event["undoes"] in messages:
-            edits[event["undoes"]] = event["seq"]
-            taken.append(messages[event["undoes"]])
+        elif event["kind"] == "undo" and event["undoes"] in said:
+            thread, made = said[event["undoes"]]
+            taken.setdefault(thread, []).append((made, event["seq"]))
         elif event["kind"] == "summary" and event["thread"] in threads:
             written.setdefault(event["thread"], []).append(event)
     return {
-        thread_id: _thread_summaries(thread, written.get(thread_id, []), edits, taken)
+        thread_id: _thread_summaries(
+            thread, written.get(thread_id, []), edits, taken.get(thread_id, [])
+        )
         for thread_id, thread in threads.items()
     }
 
@@ -415,19 +420,9 @@ def _thread_summaries(
         active = [
             summary for summary in active if covered.isdisjoint(summary["covers"])
         ]
-        # A reaction taken back leaves the thread unless something stands on it, so
-        # one the summary may report is found by the message it was on, or by where
-        # it was made: on a covered message, or within the range, before the summary.
-        low, high = thread["msgs"][start]["seq"], thread["msgs"][end]["seq"]
-        marks = [
-            mark["id"]
-            for mark in taken
-            if mark.get("parent") in positions
-            and mark["seq"] < event["seq"]
-            and (mark["parent"] in covered or low <= mark["seq"] <= high)
-        ]
-        if event["text"] and any(
-            edits.get(identity, 0) > event["seq"] for identity in [*covers, *marks]
+        if event["text"] and (
+            any(edits.get(identity, 0) > event["seq"] for identity in covers)
+            or any(made < event["seq"] < undone for made, undone in taken)
         ):
             continue
         active.append(

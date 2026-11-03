@@ -78,37 +78,39 @@ def test_summaries_replace_overlaps_and_edits_do_not_resurrect_them():
     ]
 
 
-def test_a_reaction_taken_back_from_a_summarized_range_retires_the_summary():
-    """A summary in words may report what a reaction said, so taking back one it may
-    have seen retires the summary, as rewriting a message in its range does: one
-    made within its range, whatever message it was on, or on a message it covers. A
-    reaction made after the summary leaves it standing when taken back."""
+def test_a_reaction_taken_back_retires_the_summaries_written_after_it():
+    """A summary in words may report what a reaction said, wherever the reaction
+    stood, so taking back one its thread held when the summary was written retires
+    the summary, as rewriting a message in its range does, and taking back what it
+    stood on later doesn't restore it. A reaction made after the summary leaves it
+    standing when taken back."""
     identity = {"author": "agent", "agent": "Agent", "session": "session-1"}
     log = (
         {"kind": "comment", "text": "Ship it?"},
-        {"kind": "reply", **identity, "parent": "e1", "text": "Ready when you are."},
         {"kind": "reply", "parent": "e1", "token": "keep"},
-        {"kind": "reply", **identity, "parent": "e1", "text": "Shipping."},
+        {"kind": "reply", **identity, "parent": "e1", "text": "Ready when you are."},
         {"kind": "reply", "parent": "e2", "token": "keep"},
+        {"kind": "reply", **identity, "parent": "e1", "text": "Shipping."},
         {
             "kind": "summary",
             **identity,
             "thread": "e1",
-            "from": "e2",
-            "through": "e4",
+            "from": "e3",
+            "through": "e5",
             "text": "The user approved shipping.",
         },
-        {"kind": "reply", "parent": "e4", "token": "keep"},
+        {"kind": "reply", "parent": "e5", "token": "keep"},
     )
 
-    def summaries(*tail):
+    def summaries(*undone):
+        tail = tuple({"kind": "undo", "undoes": event} for event in undone)
         state = model.reading(HUB, (*log, *tail))
         return [summary["id"] for summary in model.threads(state)["e1"]["summaries"]]
 
     assert summaries() == ["e6"]
-    assert summaries({"kind": "undo", "undoes": "e7"}) == ["e6"]
-    assert summaries({"kind": "undo", "undoes": "e3"}) == []
-    assert summaries({"kind": "undo", "undoes": "e5"}) == []
+    assert summaries("e7") == ["e6"]
+    assert summaries("e2") == []
+    assert summaries("e4", "e2") == []
 
 
 def test_summary_leaves_messages_after_its_range_visible():

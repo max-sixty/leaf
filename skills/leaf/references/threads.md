@@ -262,5 +262,5 @@ leaf thread summarize <page> --from <first-message-id> --through <last-message-i
 ```
 
 Editing a message inside a summary with prose, or the user taking back a reaction
-on one, cancels that summary, so stale prose cannot hide the change; a fold without
-prose stays.
+the thread held when you wrote it, cancels that summary, so stale prose cannot hide
+the change; a fold without prose stays.

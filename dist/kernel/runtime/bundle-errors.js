@@ -648,8 +648,8 @@ function unedited(thread, message, withdrawn) {
 		}
 	};
 }
-function standingIn(thread, gone) {
-	const standing = /* @__PURE__ */ new Set();
+function standingIn(thread, gone, attached) {
+	const standing = new Set(attached.has(thread.id) ? [thread.root.id] : []);
 	for (const message of thread.msgs.toReversed()) if ("parent" in message && (!gone(message) || standing.has(message.id))) standing.add(message.parent);
 	return standing;
 }
@@ -664,16 +664,14 @@ function takenBack(message) {
 		}
 	};
 }
-function foldThreads(threads, gestures) {
+function foldThreads(threads, gestures, attached) {
 	if (!gestures.length) return [...threads];
 	const withdrawn = new Set(gestures.flatMap((gesture) => gesture.kind === "undo" ? [gesture.undoes] : []));
 	const gone = (message) => withdrawn.has(message.id) || Boolean(message.withdrawn);
 	const copies = threads.flatMap((thread) => {
-		const explained = standingIn(thread, (message) => Boolean(message.withdrawn));
-		const standing = standingIn(thread, gone);
-		const kept = (message) => standing.has(message.id) || Boolean(message.withdrawn) && !explained.has(message.id);
-		if (gone(thread.root) && !kept(thread.root)) return [];
-		const msgs = thread.msgs.flatMap((message) => !gone(message) ? [unedited(thread, message, withdrawn)] : !kept(message) ? [] : message.withdrawn ? [message] : [takenBack(message)]);
+		const standing = standingIn(thread, gone, attached);
+		if (gone(thread.root) && !standing.has(thread.root.id)) return [];
+		const msgs = thread.msgs.flatMap((message) => !gone(message) ? [unedited(thread, message, withdrawn)] : !standing.has(message.id) ? [] : message.withdrawn ? [message] : [takenBack(message)]);
 		return [{
 			...thread,
 			root: msgs.find(({ id }) => id === thread.root.id) ?? thread.root,
@@ -1375,7 +1373,8 @@ function createSemanticApplication({ presentation } = {}) {
 			...event,
 			...namedParent ? { localParent: namedParent } : {}
 		}] : event.kind === "undo" ? [event] : []);
-		const folded = foldThreads(view?.thread.threads ?? [], gestures);
+		const attached = new Set((state?.browser.todos ?? []).flatMap(({ subject }) => subject.kind === "thread" ? [subject.id] : []));
+		const folded = foldThreads(view?.thread.threads ?? [], gestures, attached);
 		const widgets = foldWidgetStates(document.authored, projection);
 		const { parents: widgetParents, memberships } = currentWidgetRelations(document, widgets, projection);
 		const todos = ready ? localTodos(state, local) : {

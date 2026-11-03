@@ -2442,7 +2442,7 @@ function chipSeats(root) {
 			})));
 			const kept = new Set(seated.map(({ seat }) => seat));
 			for (const [key, seat] of seats) if (!kept.has(seat)) seats.delete(key);
-			else if (seat.style.visibility) seat.style.removeProperty("visibility");
+			else seat.style.removeProperty("visibility");
 		},
 		clear() {
 			set.clear();
@@ -2902,9 +2902,8 @@ function keyBadgePlacement() {
 				return Object.assign(place, { held: Math.abs(place.top - top) >= .5 });
 			};
 			const box = corners.map(placeAt).find((place) => free(place) && !coversAnotherControl(place, owner)) ?? placeAt([corner.left, corner.top]);
-			if (!reserve(box)) {
-				if (chip.style.visibility !== "hidden") chip.style.visibility = "hidden";
-			} else if (chip.style.visibility) chip.style.removeProperty("visibility");
+			if (!reserve(box)) chip.style.visibility = "hidden";
+			else chip.style.removeProperty("visibility");
 			seated.push({
 				seat,
 				target: owner,

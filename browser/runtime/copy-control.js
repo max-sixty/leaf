@@ -35,12 +35,16 @@ function copyThroughSelection(value, trigger) {
   const before = focused();
   const field = document.createElement("textarea");
   field.value = value;
-  field.style.cssText = "position: fixed; left: -9999px; top: 0";
+  // iOS Safari raises the keyboard for an editable field and zooms into one set
+  // smaller than 16px, and its `select()` can select nothing, so the field is read-only
+  // at 16px and selected by range, as clipboard.js and copy-text-to-clipboard do.
+  field.readOnly = true;
+  field.style.cssText = "position: fixed; left: -9999px; top: 0; font-size: 16px";
   // A modal makes the rest of the document inert, including a field at body level.
   (nativeLayerHolding(trigger) ?? document.body).append(field);
   try {
     focusDestination(field, "return");
-    field.select();
+    field.setSelectionRange(0, value.length);
     return document.execCommand("copy");
   } catch {
     return false;

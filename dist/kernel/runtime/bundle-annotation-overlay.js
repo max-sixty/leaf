@@ -21,7 +21,7 @@ function surfaceGrip({ surface, bounds, dropped }) {
 	};
 	const placed = () => {
 		if (held) return;
-		if (surface.style.translate) surface.style.removeProperty("translate");
+		surface.style.removeProperty("translate");
 		surface.removeAttribute("data-lf-carried");
 		offset = {
 			x: 0,
@@ -1531,7 +1531,7 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 		if (!(standsFoldedNow || optionsOffered(current, primary))) return;
 		if (expandedOptionsKey === current.key && expandedOptionsOwner) return;
 		if (entryEngaged(current)) return;
-		const back = Boolean(left && renderedOrder(host, left) < 0);
+		const back = Boolean(left?.isConnected && renderedOrder(host, left) < 0);
 		setOptionsOpen(current, true, { focusOption: control === host.more ? standsFoldedNow && !back ? "first" : "last" : null });
 	}
 	onCurrentLocation((node, cause, left) => {

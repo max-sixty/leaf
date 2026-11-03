@@ -44,9 +44,9 @@
 
     "runtime/annotation-overlay/margin-placement.js": "7eb32b30afc9432946f2ecd3ff60535ab3c1ff4ed4646fca1f5445bffb91de22",
 
-    "runtime/annotation-overlay/margin-projection.js": "09393770b3b57b44f89606a1503fca05b3a15e0e68c3e1b6a6e378012740d12a",
+    "runtime/annotation-overlay/margin-projection.js": "a08a78e8babe3f1cd8eb9207afaf185f7da8f0d24220a90f792462010513d9c5",
 
-    "runtime/annotation-overlay/surface-grip.js": "fcaae3d4a8967c133989238e9a284830e72fda427d2cf71ec6919d394e18fd00",
+    "runtime/annotation-overlay/surface-grip.js": "2c7e6cdcd1ca97709f44a400b01c369b4ec21515cc9886561e50e6cc8808a721",
 
     "runtime/annotation-overlay/thread-preview.js": "8fc40a52e02a1b5170b9a0dcccd502eb6f139d66be4ac84bf42e7211f4584ce8",
 
@@ -138,7 +138,7 @@
 
     "runtime/control-selectors.js": "1f8a7f80d1a3d33e1cef5e6f6af2fe3cda382a9c0af258c1ffc69d47db748d3e",
 
-    "runtime/copy-control.js": "43c8983bfc1cfeb83bb81d2e6bf0b65f80eb50671b5c184d447e492ac534a5ff",
+    "runtime/copy-control.js": "82ed8b2b5edb415441e4baa386cab7922ee42ef628cc19cd3928d0492242a4fd",
 
     "runtime/copyable-text.js": "34be8971258953eb56f76babbe2d4a3ea3e57b3fca3d247031c0aaaa8da2291c",
 
@@ -236,7 +236,7 @@
 
     "runtime/keyboard/bindings.js": "67c3dd0c589fc877dc7b84a00e03ce3599524455bc13984dd0be7f2637c8c837",
 
-    "runtime/keyboard/chip-seats.js": "b1ebaa4d7e346ab3769db8b7621393f070c7be09826f0843d3b4e6bae51b7783",
+    "runtime/keyboard/chip-seats.js": "518cbab3a043c13443620a4306c021f23694ed4c6a1c43bcfc3e3375279e2169",
 
     "runtime/keyboard/close-requests.js": "31c6ceca76e718b474c051e597d4ffd8cccc9b82569eb8969546cdd13181bca1",
 
@@ -256,7 +256,7 @@
 
     "runtime/keyboard/hints.js": "092f392138572a5587a91ab118807851ca40782dc299da45bc23247a493294d6",
 
-    "runtime/keyboard/key-badge-placement.js": "3acdd9673aa68dc4bc4d20ae8b33c9c09e0e47eb304fd44524d9d768c2b24a88",
+    "runtime/keyboard/key-badge-placement.js": "bcb5cf47293b2560974b7de0a0e8fe47e49615b5ff5340b338ed50e6afc42adf",
 
     "runtime/keyboard/key-sequence.js": "8e8267e99d0a548b70bab70ae60322b5f014b8270c161faa2a6da71632c60fbd",
 
@@ -500,7 +500,7 @@
 
     "runtime/thread/replies.js": "44effb4b737247d9c297d27d467aaecebae7f328cbc25c81a41f52f056b564a3",
 
-    "runtime/thread/reply-continuity.js": "5f0a637cd1ef37f97a67c2e81389044d77b81b9f1a780cc184f5d44593b496fc",
+    "runtime/thread/reply-continuity.js": "dc19b8ae0fdd6a4fb7c4be0fee94e0b011fe9b06681c8de1afa59785eb242c86",
 
     "runtime/thread/reply-landing.js": "636594942cec86cb8a0def3f8c0c491b4b41cd79df0d3c32638a05824d05ab1f",
 

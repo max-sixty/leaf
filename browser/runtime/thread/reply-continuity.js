@@ -118,7 +118,6 @@ export class ReplyContinuity {
     this.#departure?.();
     this.#departure = null;
     this.#space = 0;
-    if (this.gap.style.getPropertyValue("--lf-reply-space"))
-      this.gap.style.removeProperty("--lf-reply-space");
+    this.gap.style.removeProperty("--lf-reply-space");
   }
 }

@@ -831,7 +831,8 @@ export function createMarginProjection({
     if (!(standsFoldedNow || optionsOffered(current, primary))) return;
     if (expandedOptionsKey === current.key && expandedOptionsOwner) return;
     if (entryEngaged(current)) return;
-    const back = Boolean(left && renderedOrder(host, left) < 0);
+    // The node the user left may have left the page, and stands in no order then.
+    const back = Boolean(left?.isConnected && renderedOrder(host, left) < 0);
     setOptionsOpen(current, true, {
       focusOption:
         control === host.more ? (standsFoldedNow && !back ? "first" : "last") : null,

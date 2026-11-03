@@ -2245,11 +2245,12 @@ function copyThroughSelection(value, trigger) {
 	const before = focused();
 	const field = document.createElement("textarea");
 	field.value = value;
-	field.style.cssText = "position: fixed; left: -9999px; top: 0";
+	field.readOnly = true;
+	field.style.cssText = "position: fixed; left: -9999px; top: 0; font-size: 16px";
 	(nativeLayerHolding(trigger) ?? document.body).append(field);
 	try {
 		focusDestination(field, "return");
-		field.select();
+		field.setSelectionRange(0, value.length);
 		return document.execCommand("copy");
 	} catch {
 		return false;
@@ -5110,7 +5111,7 @@ var ReplyContinuity = class {
 		this.#departure?.();
 		this.#departure = null;
 		this.#space = 0;
-		if (this.gap.style.getPropertyValue("--lf-reply-space")) this.gap.style.removeProperty("--lf-reply-space");
+		this.gap.style.removeProperty("--lf-reply-space");
 	}
 };
 

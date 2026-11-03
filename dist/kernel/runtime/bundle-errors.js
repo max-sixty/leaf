@@ -1,5 +1,5 @@
 import { __exportAll } from "./bundle-rolldown-runtime.js";
-import { ANNOUNCE, CARET_KEYS, COMMANDS, J, PRESS, PRESSES, ROLE_BUTTON_OFFER, W, WORKS, Z, actionTemplate, bindQueuedWork, coarsePointer, commandsChangedOn, controlNavigationKeys, d, focusDestination, focusRevision, holdFocus, installLanguagePaths, installMoveFocus, isElement, isHTML, isNativeLayer, isStage, keeps, liveStages, move, nextRender, offer, offerAction, onCurrentLocation, onFocusVisibility, pressIsKeyboardActivation, refuseCommands, renderedParent, renderedUnder, shadowHost, showNativeLayer, takesLetters, tick, under, watchCurrentLocationIn, x } from "./bundle-portable.js";
+import { ANNOUNCE, CARET_KEYS, COMMANDS, J, PRESS, PRESSES, ROLE_BUTTON_OFFER, W, WORKS, Z, actionTemplate, bindQueuedWork, coarsePointer, commandsChangedOn, controlNavigationKeys, d, focusDestination, focusRevision, holdFocus, installLanguagePaths, installMoveFocus, isElement, isHTML, isNativeLayer, isStage, keeps, liveStages, move, nextRender, offer, offerAction, onCurrentLocation, onFocusVisibility, onUserInput, pressIsKeyboardActivation, refuseCommands, renderedParent, renderedUnder, shadowHost, showNativeLayer, takesLetters, tick, under, watchCurrentLocationIn, x } from "./bundle-portable.js";
 import { AsyncDirective, LitElement as LitElement$1, PartType as PartType$1, directive as directive$1, guard, html as html$1, keyed, live as live$1, noChange, nothing as nothing$1, ref, render as render$1, repeat } from "/vendor/lit.js";
 
 //#region runtime/move-focus.js
@@ -537,14 +537,28 @@ const anchorKey = (anchor) => {
 	return JSON.stringify(Object.entries(anchor ?? {}).filter(([key, value]) => PRIMITIVE.has(typeof value) && !(identified && RENDERING.has(key))).sort(([left], [right]) => left.localeCompare(right)));
 };
 const sameAnchor = (a, b) => a === b || Boolean(a) && Boolean(b) && anchorKey(a) === anchorKey(b);
-const fragmentId = (fragment) => {
-	const raw = fragment.slice(1);
+const decoded = (raw) => {
 	try {
 		return decodeURIComponent(raw);
 	} catch {
 		return raw;
 	}
 };
+const fragmentId = (fragment) => decoded(fragment.slice(1));
+function fragmentKey(fragment) {
+	const raw = fragment.slice(1);
+	const at = raw.indexOf(":");
+	if (at < 1 || at === raw.length - 1) return null;
+	return {
+		id: decoded(raw.slice(0, at)),
+		key: decoded(raw.slice(at + 1))
+	};
+}
+function fragmentUrl(element, key = null) {
+	const id = encodeURIComponent(element.id);
+	const part = key === null ? "" : `:${key.replaceAll("%", "%25")}`;
+	return new URL(`#${id}${part}`, location.href).href;
+}
 
 //#endregion
 //#region runtime/thread/identity.js
@@ -588,6 +602,7 @@ function threadNames(threads) {
 	return byName;
 }
 const editable = (message) => message.author === "user" && !message.pending && !message.token && Boolean(message.text);
+const deleted = (message) => Boolean(message.edited) && !message.text && !message.drawing;
 const bareReaction = (thread) => thread.bare_reaction;
 const discussed = (thread) => !thread.bare_reaction;
 const hasUnread = (thread) => thread.unread.length > 0;
@@ -2155,7 +2170,7 @@ var context_exports = /* @__PURE__ */ __exportAll({
 	WEBSITE_DELIVERY: () => WEBSITE_DELIVERY,
 	annotationMode: () => annotationMode,
 	layerRoot: () => layerRoot,
-	offlineData: () => offlineData,
+	offlineDeferred: () => offlineDeferred,
 	offlineInteractive: () => offlineInteractive,
 	offlineState: () => offlineState,
 	pageUrl: () => pageUrl,
@@ -2195,8 +2210,24 @@ const offlinePayload = offlineMarker ? JSON.parse(offlineMarker.textContent || "
 const allocation = (name) => document.body.getAttribute(name);
 const annotationMode = allocation("data-annotations") ?? "overlay";
 const offlineInteractive = offlinePayload !== null;
-const offlineState = () => offlineInteractive ? structuredClone(offlinePayload.state) : null;
-const offlineData = () => offlineInteractive ? offlinePayload.data : null;
+const readDataFile = () => fetch(offlinePayload.data).then((response) => response.arrayBuffer());
+let deferredFile;
+const decodeSpan = (file, [start, length]) => new Response(new Response(new Uint8Array(file, start, length)).body.pipeThrough(new globalThis.DecompressionStream("gzip"))).json();
+const offlineState = async () => {
+	if (!offlineInteractive) return null;
+	const state = structuredClone(offlinePayload.state);
+	const file = await readDataFile();
+	await Promise.all(Object.entries(offlinePayload.values).map(async ([source, span]) => {
+		state.data.sources[source].value = await decodeSpan(file, span);
+	}));
+	return state;
+};
+const offlineDeferred = (source, key) => {
+	const fields = Object.hasOwn(offlinePayload.deferred, source) ? offlinePayload.deferred[source] : {};
+	if (!Object.hasOwn(fields, key)) return void 0;
+	deferredFile ??= readDataFile();
+	return deferredFile.then((file) => decodeSpan(file, fields[key]));
+};
 const runtimeModule = (path) => offlineInteractive ? `leaf:${path.startsWith("/") ? path : `/${path}`}` : path;
 const servedLayerRoot = layerRoot(document);
 const runtimeResource = (path) => {
@@ -2412,6 +2443,23 @@ const selectionEnds = (selection) => {
 		range?.endOffset
 	];
 };
+function holdSelection(placed) {
+	const selection = getSelection();
+	if (!selection?.rangeCount) return null;
+	const { anchorNode, anchorOffset, focusNode, focusOffset } = selection;
+	if (!anchorNode || !focusNode) return null;
+	const moving = new Set(placed);
+	const inside = (node) => {
+		for (let at = node; at; at = at.parentNode) if (moving.has(at)) return true;
+		return false;
+	};
+	if (!inside(anchorNode) && !inside(focusNode)) return null;
+	const stands = (node, offset) => node.isConnected && offset <= (node instanceof CharacterData ? node.length : node.childNodes.length);
+	return () => {
+		if (selection.anchorNode === anchorNode && selection.anchorOffset === anchorOffset && selection.focusNode === focusNode && selection.focusOffset === focusOffset || !stands(anchorNode, anchorOffset) || !stands(focusNode, focusOffset)) return;
+		selectEnds([anchorNode, anchorOffset], [focusNode, focusOffset]);
+	};
+}
 function programmaticSelection(selection) {
 	if (!selection) {
 		writtenSelection = null;
@@ -3574,21 +3622,24 @@ const liveEl = el("div", "lf-ui lf-live");
 liveEl.setAttribute("aria-live", "polite");
 const NOTICE_MS = 4e3;
 let noticeTimer = 0;
+let stopWatchingPress = () => {};
 let showingBackground = null;
 const waitingBackground = [];
 let userContext = false;
 let userHoldTimer = 0;
 const noticePresentation = Z(Object.freeze({
 	message: "",
-	visible: false
+	visible: false,
+	press: null
 }));
 const noticeReading = () => noticePresentation.value;
 const noticeVisible = () => noticePresentation.peek().visible;
 const noticeWords = (message) => typeof message === "string" ? [leafSays(message)] : message;
-const presentNotice = (message, visible) => {
+const presentNotice = (message, visible, press = null) => {
 	noticePresentation.value = Object.freeze({
 		message,
-		visible
+		visible,
+		press
 	});
 };
 function announce(msg) {
@@ -3599,16 +3650,28 @@ function announce(msg) {
 	}, 30);
 }
 addEventListener(ANNOUNCE, (event) => announce(event.detail));
-function showNotice(msg, background = null) {
-	presentNotice(msg, true);
+function showNotice(msg, background = null, press = null) {
+	presentNotice(msg, true, press);
 	showingBackground = background;
 	clearTimeout(noticeTimer);
-	noticeTimer = setTimeout(() => {
-		if (!userContext && !userHoldTimer && showBackground(waitingBackground.shift())) return;
-		presentNotice(noticePresentation.peek().message, false);
-		showingBackground = null;
-	}, NOTICE_MS);
+	stopWatchingPress();
+	if (!press) noticeTimer = setTimeout(retireNotice, NOTICE_MS);
+	else stopWatchingPress = x(() => {
+		if (!press.stands() && noticePresentation.peek().press === press) d(retireNotice);
+	});
 }
+function retireNotice() {
+	stopWatchingPress();
+	if (!userContext && !userHoldTimer && showBackground(waitingBackground.shift())) return;
+	presentNotice(noticePresentation.peek().message, false);
+	showingBackground = null;
+}
+const NOTICE_PRESS = "data-lf-notice-press";
+onUserInput((event) => {
+	if (!noticePresentation.peek().press) return;
+	if ((event.composedPath?.() ?? []).some((node) => node instanceof Element && node.hasAttribute(NOTICE_PRESS))) return;
+	retireNotice();
+});
 function showBackground(entry) {
 	while (entry) {
 		const message = entry.key === "text" ? entry.value : entry.format(entry.value);
@@ -3637,7 +3700,7 @@ function queueBackground(entry, front = false) {
 	if (front) waitingBackground.unshift(entry);
 	else waitingBackground.push(entry);
 }
-function notice(msg, { background = false, announce: speak = true, group = null } = {}) {
+function notice(msg, { background = false, announce: speak = true, group = null, press = null } = {}) {
 	if (speak) announce(msg);
 	if (background) {
 		const entry = group ?? textBackground(msg);
@@ -3645,11 +3708,12 @@ function notice(msg, { background = false, announce: speak = true, group = null 
 		return showBackground(entry);
 	}
 	if (showingBackground) queueBackground(showingBackground, true);
-	showNotice(msg);
+	showNotice(msg, null, press);
 }
 function yieldNotice() {
 	if (showingBackground) queueBackground(showingBackground, true);
 	clearTimeout(noticeTimer);
+	stopWatchingPress();
 	presentNotice(noticePresentation.peek().message, false);
 	showingBackground = null;
 }
@@ -3737,4 +3801,4 @@ function dismissErrors() {
 }
 
 //#endregion
-export { COLLAPSE, DELIVERY, DRAFT_FORMAT, EVERYTHING, LINK, LIVE_ROOT, LitElement$1 as LitElement, PAGE_ROOT, PENDING, PRESENTATION_DOM, PRESSABLE, SHARE_ROOT, TEXT_BLOCK, TEXT_ENTRY, WEBSITE_DELIVERY, actionForWidget, adoptRegistry, advertisesKeys, agentName, agentSays, allBindings, anchorKey, annotationMode, announce, answers, applicationPresented, applicationPresenter, applicationRegionsPresented, applicationState, ariaShortcuts, attachApplicationPresentation, attachWidgetPresentation, authoredBody, authoredRank, bareReaction, bindingEnabled, bindingEnabledFor, bindings, buttonCommand, carriesObligation, checked, claimsEsc, clampedRow, closeControl, commandAvailable, commandBinding, commandDeclarationsWithin, commandEntries, commandPresentations, commandReady, commandRoutes, commandRun, commandScope, commandsOn, commandsWithin, contextBindings, contextScopes, controlAvailabilityOutput, createPresentationSchedule, cycledRow, decisionControls, decisionFor, declarationFor, declareCommandReadiness, declaredBindings, declaredRoot, declaresCommandHandler, descriptionOf, discussed, dismissError, dismissErrors, documentChanged, dragHeld, dragging, drawingSchema, editable, el, elementDeclarations, elementsDeclaring, errorsReading, exhibits, foldWidgetStates, fragmentId, guard, hasObligationSource, hasRows, holdAuthoredBody, holdStatus, holdingError, hostIn, html$1 as html, isCommandScope, isElementName, isMessageEvent, isNews, isReaction, isThreadEvent, itemNoun, itemOutcome, keyed, keys, labelOf, lastMovedAt, layerFact, layerRoot, leafSays, live, live$1, liveEl, loadShadowRules, marks, matchesWhen, messageKey, motionPreview, mountRepaint, moved, nativeActivationAt, nativeClaimAt, nativePress, noChange, nothing$1 as nothing, notice, noticeReading, noticeWords, obligationValue, offlineData, offlineInteractive, offlineState, pageClaimed, pageRange, pageShadowRoots, pageUrl, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, presentDocument, programmaticSelection, projectCommandScope, projectView, projectionOrigins, projectionRegionsPresented, pruneScopedElements, queueWidgetUpdate, quickShortcuts, raiseError, rankAt, reachedForWords, reactionsAt, readApplication, readApplicationPresentation, readPart, recordedWidgetSelector, ref, referencedCommandEntry, reflectFirstScopes, reflectKeys, refuseShadowRoot, registry, render$1 as render, renderedChildren, repaint, repaintPage, repeat, responseAction, reveal, revisionLabel, routedCommand, runLanding, runtime, runtimeModule, runtimeResource, saidBy, sameAnchor, savedReadingSettled, saying, scopeAvailable, scopeIdentity, scopeRefs, scopesAt, scopesFor, seatRoot, seeErrors, selectEnds, selectWidgets, selectionBackward, setNoticeContext, setPresentationFailureReporter, setQuickShortcuts, shadowRootsIn, shadowRules, share, shareUrl, spell, spokenBinding, stateSpecs, submitBindings, tagsDeclaring, threadCounts, threadKey, threadNames, titleOf, tokenChoices, tokenEntry, touchPresses, turns, voiceOf, voiced, watchCommandAvailability, watchCommandScopes, watchPresentation, watchSemantic, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented, word, wordsText, worksInside };
+export { COLLAPSE, DELIVERY, DRAFT_FORMAT, EVERYTHING, LINK, LIVE_ROOT, LitElement$1 as LitElement, PAGE_ROOT, PENDING, PRESENTATION_DOM, PRESSABLE, SHARE_ROOT, TEXT_BLOCK, TEXT_ENTRY, WEBSITE_DELIVERY, actionForWidget, adoptRegistry, advertisesKeys, agentName, agentSays, allBindings, anchorKey, annotationMode, announce, answers, applicationPresented, applicationPresenter, applicationRegionsPresented, applicationState, ariaShortcuts, attachApplicationPresentation, attachWidgetPresentation, authoredBody, authoredRank, bareReaction, bindingEnabled, bindingEnabledFor, bindings, buttonCommand, carriesObligation, checked, claimsEsc, clampedRow, closeControl, commandAvailable, commandBinding, commandDeclarationsWithin, commandEntries, commandPresentations, commandReady, commandRoutes, commandRun, commandScope, commandsOn, commandsWithin, contextBindings, contextScopes, controlAvailabilityOutput, createPresentationSchedule, cycledRow, decisionControls, decisionFor, declarationFor, declareCommandReadiness, declaredBindings, declaredRoot, declaresCommandHandler, deleted, descriptionOf, discussed, dismissError, dismissErrors, documentChanged, dragHeld, dragging, drawingSchema, editable, el, elementDeclarations, elementsDeclaring, errorsReading, exhibits, foldWidgetStates, fragmentId, fragmentKey, fragmentUrl, guard, hasObligationSource, hasRows, holdAuthoredBody, holdSelection, holdStatus, holdingError, hostIn, html$1 as html, isCommandScope, isElementName, isMessageEvent, isNews, isReaction, isThreadEvent, itemNoun, itemOutcome, keyed, keys, labelOf, lastMovedAt, layerFact, layerRoot, leafSays, live, live$1, liveEl, loadShadowRules, marks, matchesWhen, messageKey, motionPreview, mountRepaint, moved, nativeActivationAt, nativeClaimAt, nativePress, noChange, nothing$1 as nothing, notice, noticeReading, noticeWords, obligationValue, offlineDeferred, offlineInteractive, offlineState, pageClaimed, pageRange, pageShadowRoots, pageUrl, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, presentDocument, programmaticSelection, projectCommandScope, projectView, projectionOrigins, projectionRegionsPresented, pruneScopedElements, queueWidgetUpdate, quickShortcuts, raiseError, rankAt, reachedForWords, reactionsAt, readApplication, readApplicationPresentation, readPart, recordedWidgetSelector, ref, referencedCommandEntry, reflectFirstScopes, reflectKeys, refuseShadowRoot, registry, render$1 as render, renderedChildren, repaint, repaintPage, repeat, responseAction, reveal, revisionLabel, routedCommand, runLanding, runtime, runtimeModule, runtimeResource, saidBy, sameAnchor, savedReadingSettled, saying, scopeAvailable, scopeIdentity, scopeRefs, scopesAt, scopesFor, seatRoot, seeErrors, selectEnds, selectWidgets, selectionBackward, setNoticeContext, setPresentationFailureReporter, setQuickShortcuts, shadowRootsIn, shadowRules, share, shareUrl, spell, spokenBinding, stateSpecs, submitBindings, tagsDeclaring, threadCounts, threadKey, threadNames, titleOf, tokenChoices, tokenEntry, touchPresses, turns, voiceOf, voiced, watchCommandAvailability, watchCommandScopes, watchPresentation, watchSemantic, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented, word, wordsText, worksInside };

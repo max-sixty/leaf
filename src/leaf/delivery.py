@@ -166,6 +166,7 @@ _THREAD_DIGEST = object_schema(
                             "True where the comment is a suggestion.",
                             {"type": "boolean"},
                         ),
+                        "viewing": {"$ref": "leaf:event/comment#/properties/viewing"},
                         "edited": described(
                             "The user's latest rewrite, and the words it replaced.",
                             object_schema(
@@ -1188,7 +1189,8 @@ def deliverable(
     `received=False` and hands over only what the cursor has not passed, answered
     without loading the page's layer where nothing is pending; the adapter, or the
     Stop hook where no adapter runs, hands over the rest
-    (`harness.CodexHarness.offer_at_step`)."""
+    (`harness.CodexHarness.offer_at_step`). Claude Code's tool-boundary hook asks
+    the same before it folds its pages (`hook_transport.new_input`)."""
     pending = unacknowledged(page.events, page.cursor)
     if pending and (held := awaiting_receipt(page)):
         pending = [event for event in pending if event["id"] not in held]

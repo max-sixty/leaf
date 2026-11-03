@@ -1470,11 +1470,14 @@ def test_comments_pointed_within_one_line_share_its_row(browser, serve, case):
         assert "“Row 30 first cell Row 30" in name, name
 
 
-def test_a_reflow_keeps_a_pointed_comment_in_its_row_and_its_card_open(browser, serve):
+def test_a_reflow_keeps_a_pointed_comment_in_its_row_and_its_reply_going(
+    browser, serve
+):
     """Which margin row a pointed comment stands in is the document's to say, so a
     reflow that moves its line further from the target's top moves the row with it and
-    changes nothing else: the row is the same element, and the card the user is
-    writing in stays up with the words and the focus in it."""
+    changes nothing else: the row is the same element, and the reply the user is
+    writing keeps its words and the focus, in the floating panel once a phone's window
+    leaves no room for the card."""
     page = open_page(
         browser,
         serve(
@@ -1507,6 +1510,7 @@ def test_a_reflow_keeps_a_pointed_comment_in_its_row_and_its_card_open(browser, 
     page.keyboard.press("c")
     expect(reply).to_be_focused()
     page.keyboard.type("Still writing")
+    reply.evaluate("el => { window.lfTypedIn = el; }")
 
     # A phone's column is narrower than the opening line in any font; at 560px whether
     # it wraps depends on the font's width (Linux's did not).
@@ -1519,8 +1523,10 @@ def test_a_reflow_keeps_a_pointed_comment_in_its_row_and_its_card_open(browser, 
     assert [index for index, _ in after] == [index for index, _ in rows], (
         f"the reflow moved the comment to another margin row: {rows} then {after}"
     )
-    expect(reply).to_be_focused()
-    expect(reply).to_have_js_property("value", "Still writing")
+    typed = page.locator(".lf-fp-field leaf-text")
+    expect(typed).to_be_focused()
+    assert typed.evaluate("el => el === window.lfTypedIn")
+    expect(typed).to_have_js_property("value", "Still writing")
 
 
 def test_undoing_a_settle_brings_a_pointed_comment_back_to_its_row(browser, serve):
@@ -2072,7 +2078,7 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     reference = page.locator(".lf-command-reference")
     expect(reference).to_be_visible()
     expect(
-        reference.locator('[role=row][data-lf-command="aim.comment"]')
+        reference.locator('[role=option][data-lf-command="aim.comment"]')
     ).to_have_count(0)
     page.keyboard.press("Escape")
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
@@ -3776,6 +3782,69 @@ def test_the_aim_and_a_comment_stand_inside_a_cell_their_frame_leaves_no_room(
     assert pending.evaluate(inner) == "-2px"
 
 
+def test_the_aim_on_a_row_a_clip_packs_stays_inside_the_row(browser, serve):
+    """A box that clips its rows holds them edge to edge, so the aim on a row whose
+    sides the box meets stands inside the row on every side. Standing outside above
+    and below, where the box leaves room, it ran over the neighbouring rows' words."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Packed rows",
+                """<h1 id="h">Packed rows</h1>
+<div id="rows" style="overflow: clip">
+  <p id="row-1" style="margin: 0">First row</p>
+  <p id="row-2" style="margin: 0">Second row</p>
+  <p id="row-3" style="margin: 0">Third row</p>
+</div>""",
+            )
+        ),
+    )
+    row = page.locator("#row-2")
+    row.hover(position={"x": 20, "y": 5})
+    page.keyboard.down("Alt")
+    aim = page.locator(".lf-aim")
+    expect(aim).to_have_attribute("data-for", "row-2")
+    drawn = aim.evaluate(
+        """node => {
+          const ring = getComputedStyle(node, '::before');
+          const out = parseFloat(ring.outlineOffset) + parseFloat(ring.outlineWidth);
+          const box = node.getBoundingClientRect();
+          return {top: box.top - out, bottom: box.bottom + out};
+        }"""
+    )
+    box = row.bounding_box()
+    assert box is not None
+    assert drawn["top"] >= box["y"] - 0.5, (drawn, box)
+    assert drawn["bottom"] <= box["y"] + box["height"] + 0.5, (drawn, box)
+    page.keyboard.up("Alt")
+
+
+def test_the_aim_round_a_field_stands_on_its_edge_where_its_ring_does(browser, serve):
+    """A field's ring replaces its border, so it stands on the field's edge, and the aim
+    over the field stands there too. It stood a control's gap outside, because the
+    field's edge, 0, read as no place stated: 0 is also where the outline of a box that
+    states nothing stands."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Field",
+                '<h1 id="h">Field</h1><p><label for="name">Name</label> '
+                '<input id="name" class="field" type="text" value="Ada"></p>',
+            )
+        ),
+    )
+    field = page.locator("#name")
+    field.hover(position={"x": 8, "y": 6})
+    page.keyboard.down("Alt")
+    aim = page.locator(".lf-aim")
+    expect(aim).to_have_attribute("data-for", "name")
+    gap = "node => getComputedStyle(node, '::before').outlineOffset"
+    assert aim.evaluate(gap) == "0px"
+    assert field.evaluate("node => getComputedStyle(node).outlineOffset") == "0px"
+
+
 def test_focus_projection_follows_modality_and_leaves_private_controls_their_ring(
     browser, serve, subtests
 ):
@@ -4243,7 +4312,7 @@ def _draft_in_view(page, words, field=None):
     return (
         field.is_visible()
         and field.evaluate("el => el.value") == words
-        and field.evaluate("el => el.matches(':focus-within')")
+        and field.evaluate("el => el.matches(':focus')")
         and (box is not None)
         and (
             box["x"] >= 0

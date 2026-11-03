@@ -37,6 +37,7 @@ export {
   shownParts,
 } from "./geometry.js";
 export { skipped } from "./shown-box.js";
+export { windowHoldsRail } from "./content-layout.js";
 export { renderedParent, uiInside, upFrom } from "./shadow.js";
 export { authoredBody } from "./widget-elements.js";
 export {

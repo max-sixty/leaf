@@ -86,8 +86,11 @@ function workingView(working, controls = nothing, observe = null) {
                 working.timestamp
                   ? html`<time datetime=${working.timestamp}>${working.age}</time>`
                   : nothing
-              }
-              ${working.condition ? voiced(working.condition) : nothing}</span
+              }${
+                working.condition
+                  ? html`<span>${voiced(working.condition)}</span>`
+                  : nothing
+              }</span
             >`
           : nothing
       }

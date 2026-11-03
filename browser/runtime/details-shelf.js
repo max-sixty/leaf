@@ -27,32 +27,74 @@
  *
  * Nothing on the shelf is a Tab stop: from the chrome it would come after the whole
  * page, away from the element it is about, so each owner takes its controls out of the
- * Tab order. The shelf stands fixed at the window's head, so a note focused at rest moves
- * nothing (chrome.css). Focus on a note stands at its element (current-target.js).
+ * Tab order, and builds each as a proxy (control-faces.js, `proxy`), which shows
+ * nothing of its own. Focus on a note stands at what it stands for (`standsFor`): the
+ * user's place is there (current-target.js), and the focus brings it into view,
+ * nearest, as a focus move to it would, opening what folds it away. The focus ring
+ * stands round it, in a drawn part's own contour (target-paint.js, the proxy ring), on
+ * any focus, visible or not: nothing but the keys or assistive technology reaches the
+ * shelf. The ring follows what the note stands for while focus stays, so a target the
+ * page draws anew, which shelves the note under the new element, takes it with it.
+ * The shelf stands fixed, so the focus moves the page no other way (chrome.css).
  */
 import { chromeRoot } from "./chrome.js";
 import { move } from "./dom-move.js";
 import { declareSide } from "./current-target.js";
+import { focused, onCurrentLocation } from "./focus.js";
+import { visualAt } from "./anchor-resolution.js";
+import { paintProxyRing } from "./target-paint.js";
+import { scrollIntoView } from "./landing-scroll.js";
 import { upFrom } from "./shadow.js";
-import { offer } from "./widget-elements.js";
+import { retainUserIntent } from "./user-intent.js";
+import { offer, reveal } from "./widget-elements.js";
 
-// element -> { notes, authored }; a note's element, read back.
+// element -> { notes, authored }; a note -> its element and the reading of what a
+// node in it stands for.
 /** @typedef {{notes: Element[], authored: string | null}} ShelfRecord */
+/** @typedef {(node: Element) => Element | null} StandsFor */
 /** @type {Map<Element, ShelfRecord>} */
 const records = new Map();
-/** @type {WeakMap<Node, Element>} */
+/** @type {WeakMap<Node, {element: Element, standsFor: StandsFor}>} */
 const owners = new WeakMap();
 /** @type {HTMLDivElement | null} */
 let shelf = null;
 
-declareSide((node) => {
+// What a node on the shelf stands for: what its note's owner reads for the node, such as
+// one of a picture's parts for that part's proxy, else the element naming the note.
+// Null for a node off the shelf.
+/** @param {Element} node */
+function standsFor(node) {
   /** @type {Element | null} */
   let at = node;
   for (; at && at !== shelf; at = upFrom(at)) {
-    const element = owners.get(at);
-    if (element) return element;
+    const owner = owners.get(at);
+    if (owner) return owner.standsFor(node) ?? owner.element;
   }
   return null;
+}
+declareSide(standsFor);
+
+// The element the proxy ring stands round, null while it stands nowhere.
+/** @type {Element | null} */
+let ringed = null;
+// Ring what the focused node on the shelf stands for, or nothing where focus is off
+// it. Asked on each focus move and each shelving, which is where what a focused note
+// stands for can change.
+function ring() {
+  const node = focused();
+  const target = node && standsFor(node);
+  if (target === ringed && (!target || target.isConnected)) return;
+  ringed = target;
+  const part = target && visualAt(target, { unclaimed: false })?.part;
+  paintProxyRing(target, part?.element === target ? part.surface : target);
+}
+onCurrentLocation((node) => {
+  if (node && standsFor(node)) {
+    reveal(standsFor(node), retainUserIntent());
+    // What the reveal opened may have drawn the target anew.
+    scrollIntoView(standsFor(node), { behavior: "instant", block: "nearest" });
+  }
+  ring();
 });
 
 /** @template T @param {readonly T[]} left @param {readonly T[]} right */
@@ -87,13 +129,17 @@ function name(element, record) {
 }
 
 // Stand `note` on the shelf and have `element` name it. Idempotent, and meant to be asked
-// on every pass that finds the note still owed.
-/** @param {Element} element @param {Element} note */
-export function shelve(element, note) {
+// on every pass that finds the note still owed. `standsFor` reads what a node in the
+// note stands for where that is not `element` itself. A note shelved under another
+// element moves to it, keeping its node, so a user on it stays there.
+/** @param {Element} element @param {Element} note @param {StandsFor} [standsFor] */
+export function shelve(element, note, standsFor = () => null) {
   shelf ??= offer("div", "lf-details-shelf");
   if (!shelf.isConnected) chromeRoot.append(shelf);
   if (note.parentNode !== shelf) move(shelf, note, null);
-  owners.set(note, element);
+  const before = owners.get(note)?.element;
+  if (before && before !== element) forget(before, note);
+  owners.set(note, { element, standsFor });
   let record = records.get(element);
   if (!record) {
     record = { notes: [], authored: null };
@@ -101,12 +147,21 @@ export function shelve(element, note) {
   }
   if (!record.notes.includes(note)) record.notes.push(note);
   name(element, record);
+  ring();
 }
 
-// Take `note` off the shelf and out of `element`'s relation. The element's authored
-// `aria-details` comes back with its last note.
+// Take `note` off the shelf and out of `element`'s relation.
 /** @param {Element} element @param {Element} note */
 export function unshelve(element, note) {
+  forget(element, note);
+  note.remove();
+  owners.delete(note);
+}
+
+// Take `note` out of `element`'s relation. The element's authored `aria-details` comes
+// back with its last note.
+/** @param {Element} element @param {Element} note */
+function forget(element, note) {
   const record = records.get(element);
   if (record?.notes.includes(note)) {
     record.notes = record.notes.filter((held) => held !== note);
@@ -119,6 +174,4 @@ export function unshelve(element, note) {
       records.delete(element);
     }
   }
-  note.remove();
-  owners.delete(note);
 }

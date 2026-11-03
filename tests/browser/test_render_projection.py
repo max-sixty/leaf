@@ -666,7 +666,7 @@ def test_atlas_send_and_pause_is_one_thread_fold(browser, serve):
     told(page)
     expect(goal).to_have_attribute("data-lf-held", root["id"])
     # The reply landed where the user was looking, so it waits for them to open it.
-    seat.get_by_role("button", name="1 new reply").click()
+    seat.get_by_role("button", name="1 new", exact=True).click()
     inline_link = seat.locator('a[href="https://example.com/run"]')
     expect(inline_link).to_have_attribute("target", "_blank")
     expect(inline_link).to_have_attribute("data-lf-external", "")

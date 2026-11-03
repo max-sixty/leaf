@@ -253,15 +253,16 @@ export function createAim({
     else if (claimedPress.designMode) designMode.open(claimedPress.designMode);
   }
   function mount() {
-    addEventListener("keydown", keyDown);
-    addEventListener("keyup", keyUp);
+    // In capture, since ⌥ pressed while writing stops at the field (field-keys.js).
+    addEventListener("keydown", keyDown, true);
+    addEventListener("keyup", keyUp, true);
     addEventListener("blur", blur);
     document.addEventListener("pointermove", pointerMove);
     for (const type of PRESS_EVENTS) document.addEventListener(type, claimPress, true);
   }
   function destroy() {
-    globalThis.removeEventListener("keydown", keyDown);
-    globalThis.removeEventListener("keyup", keyUp);
+    globalThis.removeEventListener("keydown", keyDown, true);
+    globalThis.removeEventListener("keyup", keyUp, true);
     globalThis.removeEventListener("blur", blur);
     document.removeEventListener("pointermove", pointerMove);
     for (const type of PRESS_EVENTS)

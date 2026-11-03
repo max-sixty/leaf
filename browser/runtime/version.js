@@ -159,8 +159,15 @@ import { LayerRefused, admitReading, reportPageError } from "./layer-client.js";
 import { projectView, readApplication } from "./semantic-state.js";
 import { batch, effect, signal } from "/runtime/framework.js";
 
-import { ADDRESSABLE, anchoringIsReady, fragmentTarget } from "./anchor-resolution.js";
-import { scrollToFragment } from "./anchor-travel.js";
+import {
+  ADDRESSABLE,
+  anchoringIsReady,
+  fragmentAddress,
+  fragmentTarget,
+  revealAddressed,
+} from "./anchor-resolution.js";
+import { fragmentShown, scrollToFragment } from "./anchor-travel.js";
+import { deferredArrival } from "./presentation.js";
 import { rememberAuthoredParents, stageAuthoredStates } from "./projection/authored.js";
 import { foldWidgetStates, obligationValue } from "./projection/model.js";
 import { runtimeRootState } from "./root-state.js";
@@ -2821,15 +2828,21 @@ export function createVersionController({
   // adds controls above it; so the arrival lands it again at each step that changes
   // the page's geometry: once widgets upgrade, before the first state read, once
   // the page presents, and after declared deferred arrivals settle. Each landing is
-  // the browser's own rule (`scrollToFragment`), the
-  // target's start at its scroller's landing edge, taken in the geometry of that step,
-  // so a target nothing moved stays where it is. The fragment is read before widgets
-  // upgrade, since a widget may write its own view into the URL (a root tab set names
-  // its open panel), and that is display state, not a destination. A reload or history
-  // traversal keeps the browser's restored offset instead, and input during the arrival
-  // ends it. A fragment followed once the page is here is travel's (anchor-travel.js,
-  // `followFragment`), as is Back or Forward to one the page has hidden since
-  // (`returnToFragment`); both read the same destination and reveal it the same way.
+  // the browser's own rule (`scrollToFragment`), the target's start at its scroller's
+  // landing edge, taken in the geometry of that step, so a target nothing moved stays
+  // where it is. The fragment is read before widgets upgrade, since a widget may write
+  // its own view into the URL (a root tab set names its open panel), and that is
+  // display state, not a destination. A reload or history traversal keeps the
+  // browser's restored offset instead, and input during the arrival ends it. However
+  // the page arrived, a URL naming a widget's key asks the widget to draw the key's
+  // part (`revealAddressed`) where the page doesn't show it once widgets upgrade
+  // (anchor-travel.js, `fragmentShown`), so the widget shows the state the URL names:
+  // the one a reload's restored offset was read over. The answer counts as a deferred
+  // arrival, and a fresh URL lands on the part once it is drawn, or on the widget where
+  // it draws none. A fragment followed once the page is here is travel's
+  // (anchor-travel.js, `followFragment`), as is Back or Forward to one the page has
+  // hidden since (`returnToFragment`); both read the same destination and reveal it the
+  // same way.
   /** @type {Element | false | null} */
   let aimedAt = null;
   function aimArrival() {
@@ -2839,11 +2852,24 @@ export function createVersionController({
       )?.type === "navigate";
     const arrivedAt = location.hash;
     const currentIntent = retainUserIntent({ since: 0 });
+    /** @type {PromiseLike<unknown> | null} */
+    let drawing = null;
+    const land = () => {
+      const where = aimedAt && currentIntent() && fragmentTarget(arrivedAt);
+      if (!where) return;
+      reveal(where, currentIntent);
+      scrollToFragment(where);
+    };
     return function landFragment() {
-      aimedAt ??= fresh && fragmentTarget(arrivedAt);
-      if (!aimedAt || !currentIntent()) return;
-      reveal(aimedAt, currentIntent);
-      scrollToFragment(aimedAt);
+      const address = fragmentAddress(arrivedAt);
+      aimedAt ??= fresh && (address?.element ?? null);
+      if (!currentIntent()) return;
+      if (address?.key != null && !fragmentShown(address) && !drawing) {
+        const asked = revealAddressed(address.element, address.key);
+        if (asked?.then)
+          drawing = deferredArrival(Promise.resolve(asked).then(land, land));
+      }
+      land();
     };
   }
 

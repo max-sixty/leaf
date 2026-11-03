@@ -35,6 +35,7 @@ from browser.threads import open_panel_thread
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
+from leaf.schema import ELEMENT_ID
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -224,6 +225,176 @@ def test_history_returns_only_a_visible_caret(browser, serve, close_source):
       return s.focusNode && {at: s.focusNode.parentElement.id, offset: s.focusOffset};
     }""")
     assert returned == (None if close_source else before)
+
+
+# A widget that draws one item at a time, as one fetching each item when it is picked
+# does, so a part of another item is in no element until its item is drawn, and every
+# item's parts would share their ids. It answers keys such as `b/3`, part 3 of item b,
+# through the hooks every route reads (anchor-resolution.js, `revealAddressed` and
+# `addressedElements`); a referrer travels to one with `navigateToDatum`.
+ITEMS_LAYER = {
+    "lf-items": {
+        "description": "Items drawn one at a time, each part addressed by item/part.",
+        "type": "object",
+        "properties": {"id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"}},
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "empty",
+        "x-upgrade": True,
+        "x-example": '<lf-items id="items"></lf-items>',
+    },
+    "lf-item-link": {
+        "description": "A button that travels to one part of the items it refers to.",
+        "type": "object",
+        "properties": {
+            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
+            "for": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
+            "key": {"type": "string", "minLength": 1},
+        },
+        "required": ["id", "for", "key"],
+        "additionalProperties": False,
+        "x-content": "empty",
+        "x-refers": {"for": {}},
+        "x-upgrade": True,
+        "x-example": '<lf-item-link id="jump" for="items" key="a/1"></lf-item-link>',
+    },
+}
+ITEMS_WIDGETS = {
+    "lf-items.js": """
+import {once} from '/runtime/widget-api.js';
+customElements.define('lf-items', class extends HTMLElement {
+  #item = null;
+  connectedCallback() {
+    if (once(this)) this.#draw('a');
+  }
+  #draw(item) {
+    this.#item = item;
+    this.replaceChildren(...[1, 2, 3, 4].map((part) => {
+      const p = document.createElement('p');
+      p.dataset.item = item;
+      p.dataset.part = String(part);
+      p.style.minHeight = '400px';
+      p.textContent = `Item ${item}, part ${part}.`;
+      return p;
+    }));
+  }
+  lfRevealDatum(key) {
+    const [item] = key.split('/');
+    if (!['a', 'b'].includes(item) || item === this.#item) return null;
+    return new Promise((resolve) => setTimeout(resolve, 50)).then(() => this.#draw(item));
+  }
+  lfElementsFor(key) {
+    const [item, part] = key.split('/');
+    return item === this.#item ? [...this.querySelectorAll(`[data-part="${part}"]`)] : [];
+  }
+});
+""",
+    "lf-item-link.js": """
+import {navigateToDatum, once} from '/runtime/widget-api.js';
+customElements.define('lf-item-link', class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    const button = document.createElement('button');
+    button.textContent = `Open ${this.getAttribute('key')}`;
+    button.addEventListener('click', () =>
+      navigateToDatum(this, 'for', this.getAttribute('key')));
+    this.append(button);
+  }
+});
+""",
+}
+
+
+def test_a_url_naming_a_widget_key_reaches_its_part(browser, serve):
+    """A URL fragment names a part of a widget by the widget's id and a key, which the
+    widget draws however the URL is reached. A fresh load, a followed link, and Back and
+    Forward to an entry whose item the user has since left land on the part; a reload of
+    the URL `navigateToDatum` writes draws its item under the restored offset."""
+    url = live_url(
+        serve(
+            leaf_page(
+                "Items",
+                """
+<h1 id="top">Items</h1>
+<p><a id="to-part" href="#items:a/2">Part 2 of item a</a></p>
+<lf-item-link id="jump" for="items" key="b/1"></lf-item-link>
+<lf-items id="items"></lf-items>
+<div style="height:1600px"></div>
+""",
+            ),
+            layer_registry=ITEMS_LAYER,
+            layer_widgets=ITEMS_WIDGETS,
+        )
+    )
+
+    def part(item, number):
+        return page.locator(f'#items [data-item="{item}"][data-part="{number}"]')
+
+    def landed(item, number):
+        # At the window's top, where the fragment rule lands a target, rather than a
+        # 400px part or more below it, where landing on the widget's top leaves it.
+        target = part(item, number)
+        expect(target).to_be_in_viewport()
+        scroll_settled(page)
+        assert 0 <= target.bounding_box()["y"] < 200
+
+    page = open_page(browser, url + "#items:b/3")
+    landed("b", 3)
+
+    page.locator("#top").scroll_into_view_if_needed()
+    page.locator("#to-part").click()
+    page.wait_for_url(re.compile(r"#items:a/2$"))
+    expect(part("a", 2)).to_be_focused()
+    landed("a", 2)
+
+    page.go_back()
+    page.wait_for_url(re.compile(r"#items:b/3$"))
+    landed("b", 3)
+    page.go_forward()
+    page.wait_for_url(re.compile(r"#items:a/2$"))
+    landed("a", 2)
+
+    page.locator("#top").scroll_into_view_if_needed()
+    page.locator("#jump button").click()
+    page.wait_for_url(re.compile(r"#items:b/1$"))
+    expect(part("b", 1)).to_be_focused()
+    # A reload keeps the browser's restored offset, over the item the URL names.
+    page.reload()
+    expect(part("b", 1)).to_be_in_viewport()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_back_across_root_tabs_draws_the_key_the_entry_names(request, serve, engine):
+    """A root tab set takes Back to an entry in another of its views and opens that
+    view; the widget inside it still draws the item the entry's key names, though the
+    user picked another item before leaving the view."""
+    url = live_url(
+        serve(
+            leaf_page(
+                "Items in tabs",
+                '<lf-tabs id="views"><lf-tab id="first" label="First">'
+                '<p><a id="to-part" href="#items:b/3">Part 3 of item b</a></p>'
+                '<lf-items id="items"></lf-items><div style="height:1600px"></div>'
+                '</lf-tab><lf-tab id="second" label="Second"><p>Elsewhere.</p>'
+                "</lf-tab></lf-tabs>",
+            ),
+            layer_registry=ITEMS_LAYER,
+            layer_widgets=ITEMS_WIDGETS,
+        )
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    b3 = page.locator('#items [data-item="b"][data-part="3"]')
+    page.locator("#to-part").click()
+    expect(b3).to_be_in_viewport()
+    # The user picks another item inside the widget, which leaves the URL alone.
+    page.locator("#items").evaluate("items => items.lfRevealDatum('a/1')")
+    expect(b3).to_have_count(0)
+    page.locator("#views").get_by_role("tab", name="Second", exact=True).click()
+    page.wait_for_url(re.compile(r"#second$"))
+
+    page.go_back()
+    page.wait_for_url(re.compile(r"#items:b/3$"))
+    expect(b3).to_be_in_viewport()
 
 
 @pytest.mark.parametrize(
@@ -898,9 +1069,9 @@ def test_align_current_item_keeps_obligation_control_heading_selection_and_histo
     reference = page.locator(".lf-command-reference")
     expect(reference).to_be_visible()
     page.get_by_role("combobox", name="Search commands").fill("g z")
-    alignment = reference.locator('[role=row][data-lf-command="reading.align.top"]')
+    alignment = reference.locator('[role=option][data-lf-command="reading.align.top"]')
     expect(alignment.locator(".lf-binding-sequence > kbd")).to_have_text(["g", "z"])
-    alignment.get_by_role("button").click()
+    alignment.click()
     expect(reference).to_be_hidden()
     # The reference hands focus back before the current-location paint. Its command can align
     # before the ring supplies a scroll margin; either landing clears the pinned band.

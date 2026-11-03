@@ -1,6 +1,6 @@
 /* Retained DOM child reconciliation. */
 import { diffArrays } from "/vendor/jsdiff.esm.js";
-import { move } from "./dom-move.js";
+import { holdSelection, move } from "./dom-move.js";
 
 /** Source/live correspondence retains the native kind established by capture and matching.
  * @extends {WeakMap<Node, Node>} */
@@ -62,14 +62,25 @@ export function setChildren(parent, nodes) {
 // it. Ordering walks past a stale node, so no survivor moves for it; once every list is
 // placed, what still stands in a list's parent is a node no list holds, and is removed.
 // Lists are placed in the order given, so name a parent before any list inside it: a
-// node then moves into a parent that is already connected.
+// node then moves into a parent that is already connected. A page selection inside a
+// moved node goes back once the nodes have landed (`holdSelection`), before anything
+// the caller does next edits their text.
 /** @param {readonly (readonly [Node & ParentNode, Iterable<Node>])[]} lists */
 export function setChildLists(lists) {
-  for (const [parent, nodes] of lists) orderChildren(parent, nodes);
-  for (const [parent, nodes] of lists) {
+  const placed = lists.map(
+    ([parent, nodes]) => /** @type {const} */ ([parent, [...nodes]]),
+  );
+  const restore = holdSelection(
+    (function* () {
+      for (const [, nodes] of placed) yield* nodes;
+    })(),
+  );
+  for (const [parent, nodes] of placed) orderChildren(parent, nodes);
+  for (const [parent, nodes] of placed) {
     const keep = new Set(nodes);
     for (const child of [...parent.childNodes]) if (!keep.has(child)) child.remove();
   }
+  restore?.();
 }
 
 // Order this renderer's children without taking ownership of their siblings.

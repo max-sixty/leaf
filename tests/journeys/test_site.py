@@ -1481,9 +1481,7 @@ def test_a_published_example_has_no_agent_claim(served_example, browser):
     page.locator(".lf-fp-leaf").click()
     expect(page.locator(".sitenote")).to_have_count(0)
     # Unclaimed, the copy's agent is still on call: a comment starts it.
-    assert page.locator(".lf-fp-leaf .lf-dot").evaluate(
-        "dot => [...dot.classList]"
-    ) == ["lf-dot", "listening"]
+    assert page.locator(".lf-fp-leaf").get_attribute("data-lf-tone") == "listening"
     state = page.evaluate("() => fetch('api/state').then(r => r.json())")
     assert state["publication"] == {
         "kind": "example",
@@ -1549,7 +1547,7 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
     row.click()
     thread = page.locator(PANEL_THREAD)
     expect(thread.locator(".lf-fp-quote")).to_have_text("“One reconnect in about 40”")
-    assert thread.locator(".lf-fp-quote.detached").count() == 0, (
+    assert thread.locator(".lf-fp-quote[data-lf-detached]").count() == 0, (
         "the shipped anchor found nothing on the page it was captured from"
     )
     # Painted, not merely resolved: the mark is what puts the user at the passage.
@@ -1628,13 +1626,13 @@ def test_a_comment_persists_without_inventing_an_agent_reply(served_example, bro
     thread = written()
     expect(thread).to_contain_text("Can the migration fix ship first?")
     expect(thread.locator(".lf-fp-quote")).to_contain_text(selected.strip()[:40])
-    expect(thread.locator(".lf-msg.agent")).to_have_count(0)
+    expect(thread.locator(".lf-msg[data-lf-author=agent]")).to_have_count(0)
     page.reload(wait_until="load")
     wait_until_ready(page)
     thread = written()
     expect(thread).to_contain_text("Can the migration fix ship first?")
     expect(thread.locator(".lf-fp-quote")).to_contain_text(selected.strip()[:40])
-    expect(thread.locator(".lf-msg.agent")).to_have_count(0)
+    expect(thread.locator(".lf-msg[data-lf-author=agent]")).to_have_count(0)
 
 
 def test_a_published_decision_survives_reload(served_example, browser):

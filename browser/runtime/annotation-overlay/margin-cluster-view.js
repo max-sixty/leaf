@@ -16,7 +16,12 @@ import {
   presentContributionEntry,
   presentContributionReceipts,
 } from "../contribution-controls.js";
-import { el, generatedElement, offer } from "../widget-elements.js";
+import {
+  el,
+  generatedElement,
+  offerAction,
+  offerActionElement,
+} from "../widget-elements.js";
 import { keeps, keepsHidden } from "../keeps.js";
 import { holdFocus } from "../focus.js";
 
@@ -38,7 +43,7 @@ class MarginClusterView extends HTMLElement {
   /** @type {string | null} */
   #entryKey = null;
   #marker = presentContributionEntry(
-    offer("span", "lf-margin-marker"),
+    offerActionElement(document.createElement("span"), "entry", "lf-margin-marker"),
     contributionEntry({
       key: "reading",
       icon: "dot",
@@ -48,7 +53,7 @@ class MarginClusterView extends HTMLElement {
     }),
     { writesRelation: false, writesSeat: false },
   );
-  #more = offer("button", "lf-margin-more");
+  #more = offerAction("entry", "lf-margin-more");
   /** @type {HTMLElement | null} */
   #options = null;
   /** @type {string | null} */
@@ -234,7 +239,7 @@ function createMarginClusterViewsOwner({
     }
     let spill = spills.get(model.entryKey);
     if (!spill) {
-      spill = offer("button", "lf-margin-spill");
+      spill = offerAction("entry", "lf-margin-spill");
       spill.type = "button";
       spills.set(model.entryKey, spill);
     }

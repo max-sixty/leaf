@@ -232,11 +232,12 @@ const unmark = (node) => {
 
 /** @param {SourceLine} line @param {boolean} canComment */
 function lineNumber(line, canComment) {
-  const number = offer(canComment ? "button" : "span", "lf-diff-line-number");
+  const number = canComment
+    ? offerAction("gutter", "lf-diff-line-number lf-diff-comment lf-diff-line-comment")
+    : offer("span", "lf-diff-line-number");
   if (number instanceof HTMLButtonElement) {
     number.type = "button";
     number.tabIndex = -1;
-    number.classList.add("lf-diff-comment", "lf-diff-line-comment");
     number.setAttribute("aria-label", `Comment on ${lineLabel(line)}`);
     number.setAttribute(LINE_KEY, diffDatumKey(line));
   }

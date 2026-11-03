@@ -1744,11 +1744,12 @@ def _no_page_outlives_its_test(tmp_path, isolated_session):
 def _each_test_composes_its_own_layers():
     """Each test composes the layers its pages select afresh, as a new process does.
 
-    A process holds each selection's composition for its life
-    (`layer.selected_layer`), and a test may rewrite a package at a path an
-    earlier test's package held."""
+    A process holds each selection's composition and vocabulary for its life
+    (`layer.selected_layer`, `layer.selected_vocabulary`), and a test may rewrite
+    a package at a path an earlier test's package held."""
     yield
     layer_model._composed.cache_clear()
+    layer_model._vocabulary.cache_clear()
 
 
 def retire_bridge(lock):
@@ -2054,9 +2055,10 @@ def comment_once_served():
 
 
 class ContextRecord:
-    """Claude Code's transcript, as tests stand it in (`Harness.entered_context`):
-    every inline handover a hook printed reached the model's context, except those
-    into the turns a test has `dropped`, as Escape during a prompt hook drops them."""
+    """Claude Code's transcript, as tests stand it in (`Harness.entered_context`,
+    `Harness.prompt_dropped`): every prompt and every inline handover a hook printed
+    reached the model's context, except the turns a test has `dropped`, as Escape
+    during a prompt hook drops them."""
 
     def __init__(self):
         self.dropped: set[str] = set()
@@ -2082,6 +2084,11 @@ def context_record(monkeypatch):
         harness_model.ClaudeCodeHarness,
         "entered_context",
         lambda harness, payload: record.entered(harness),
+    )
+    monkeypatch.setattr(
+        harness_model.ClaudeCodeHarness,
+        "prompt_dropped",
+        lambda harness, payload, turn: turn in record.dropped,
     )
     return record
 

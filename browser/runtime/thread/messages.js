@@ -22,7 +22,7 @@ import {
   renderedWords,
 } from "../markdown.js";
 import { reportPageError } from "../layer-client.js";
-import { editable, isReaction, lastMovedAt, messageKey } from "./model.js";
+import { deleted, editable, isReaction, lastMovedAt, messageKey } from "./model.js";
 import { labelWords } from "../words.js";
 import {
   MessageEditor,
@@ -46,7 +46,7 @@ import {
   workflowTitle,
   workflowWord,
 } from "./workflow.js";
-import { voiced } from "../voice.js";
+import { leafSays, voiced } from "../voice.js";
 import { markDeclared, renderQuiet, renderSaid } from "../declared-words.js";
 import { highlightBlocks } from "../syntax.js";
 import { ago } from "../presence.js";
@@ -106,6 +106,9 @@ function proseReading(message) {
 
 // Authored messages hold the complete captured reading of prose and islands.
 // Other messages and summaries still need their prose rendered here.
+// What a deleted message reads in its place, in Leaf's voice, as what the user did.
+const DELETED = leafSays("Deleted");
+
 /** @param {{readonly id?: string, readonly attempt?: string, readonly text?: string | undefined, readonly token?: string, readonly suggestion?: boolean, readonly body?: {readonly kind: string, readonly text: string}, readonly edited?: {readonly id?: string} | null | undefined}} message @returns {string} */
 export function messageText(message) {
   if (message.body?.kind === "authored") return message.body.text;
@@ -125,7 +128,7 @@ export function threadName(thread) {
   if (thread.title != null) return thread.title;
   const { root } = thread;
   const words = labelWords(messageText(root));
-  return words || (root.drawing ? "Drawing" : "");
+  return words || (root.drawing ? "Drawing" : deleted(root) ? "Deleted message" : "");
 }
 
 // Whether a title is on its way to an untitled thread. Leaf asks the claimant's
@@ -313,9 +316,11 @@ export function messageReading(
   const token = message.token ? tokenEntry(message.token) : null;
   const kind = isReaction(message)
     ? "reaction"
-    : message.suggestion
-      ? "suggestion"
-      : "prose";
+    : deleted(message)
+      ? "deleted"
+      : message.suggestion
+        ? "suggestion"
+        : "prose";
   const prose = kind === "prose" ? proseReading(message) : null;
   return Object.freeze({
     key: messageKey(message),
@@ -339,10 +344,10 @@ export function messageReading(
     by: message.author === "agent" ? message.agent : "Me",
     timestamp: message.ts,
     age: ago(message.ts),
-    // What the message said before its last rewrite is the edited mark's to tell, since
-    // answers above may have been about those words.
+    // What the message said before its last rewrite is the edited mark's to tell, or a
+    // deleted message's, since answers above may have been about those words.
     edited: message.edited
-      ? `Edited ${ago(message.edited.ts)}. Before, it said: “${message.edited.was}”`
+      ? `${kind === "deleted" ? "Deleted" : "Edited"} ${ago(message.edited.ts)}. Before, it said: “${message.edited.was}”`
       : null,
     editable: editable(message),
     failure: message.failure ?? null,
@@ -493,9 +498,7 @@ export class MessageView {
         if (keptRewrite(presentation.model.id) !== this.#kept)
           this.#commands.edit.paint(this.node);
       });
-    if (prior && prior.author !== model.author)
-      this.node.classList.toggle(prior.author, false);
-    this.node.classList.toggle(model.author, true);
+    keeps(this.node, "data-lf-author", model.author);
     keeps(this.node, "data-event", model.id);
     this.node.classList.toggle("lf-unread", Boolean(model.unread));
     keeps(this.node, "data-attempt", model.attempt || null);
@@ -586,7 +589,7 @@ export class MessageView {
               : nothing
           }
           ${
-            model.edited
+            model.edited && model.body.kind !== "deleted"
               ? html`<span class="lf-edited" title=${model.edited}>edited</span>`
               : nothing
           }
@@ -614,7 +617,7 @@ export class MessageView {
             if (body) this.#stopRead = this.#commands.read.observeMessage(body, model);
           })}
         >
-          ${editor ? editor.node : this.#body(model.body)}
+          ${editor ? editor.node : this.#body(model.body, model.edited)}
           ${
             model.body.drawing
               ? html`<span class="lf-drawing-reference">Drawing comment</span>`
@@ -708,8 +711,12 @@ export class MessageView {
     return this.#copy;
   }
 
-  /** @param {ReturnType<typeof messageReading>["body"]} body */
-  #body(body) {
+  /** @param {ReturnType<typeof messageReading>["body"]} body @param {string | null} edited */
+  #body(body, edited) {
+    if (body.kind === "deleted")
+      return html`<div class="lf-msg-text lf-msg-deleted" title=${edited ?? ""}>
+        ${voiced(DELETED)}
+      </div>`;
     if (body.kind === "reaction")
       return html`<div class="lf-msg-text">
         <span class="lf-react-said">${`${body.glyph} ${body.token}`.trim()}</span>
@@ -790,6 +797,13 @@ function coordinateLabel(anchor, about) {
   }
   return `§ ${addressable ? sectionLabel(addressable) : anchor.section}`;
 }
+
+// The words a thread is about, as its head quotes them: those a version's rewrite took
+// from it (`rewritten_from`, events.md), else those it was detached from, else its
+// anchor.
+/** @param {Pick<import("../../types/domain.js").Thread, "rewritten_from" | "detached_from" | "anchor">} thread */
+export const threadPassage = (thread) =>
+  thread.rewritten_from ?? thread.detached_from ?? thread.anchor;
 
 // A named control part belongs to the coordinate in every reading, not just Design.
 /** @param {import("../../types/domain.js").Anchor | null | undefined} anchor @param {string | null | undefined} [about] */

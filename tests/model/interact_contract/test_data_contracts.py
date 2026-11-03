@@ -399,7 +399,9 @@ def test_a_contracts_item_schema_decides_whether_a_record_has_deferred_content(
         )["value"]
         == "source evidence"
     )
-    with pytest.raises(data_model.DataError, match="deferred"):
+    with pytest.raises(
+        data_model.DataError, match="defers no field of record 'metadata'"
+    ):
         data_model.deferred_value(
             reading,
             registry,

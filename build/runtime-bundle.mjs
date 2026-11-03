@@ -368,8 +368,11 @@ async function layerModules(layerRoot) {
  *
  * The record's `inputs` map every file the build reads, `leaf.js`, each `.js` under
  * `runtime/`, `vendor/` and `widgets/`, and each other file it compiles in, such as
- * the kernel registry `kernelFacts` inlines as values, to the SHA-256 of its bytes,
- * one line each, so branches that change different modules change different lines.
+ * the kernel registry `kernelFacts` inlines as values, to the SHA-256 of its bytes.
+ * A blank line separates the entries, as prettier keeps them. Git merges two changes
+ * cleanly only when an unchanged line lies between them, so branches that change
+ * neighbouring modules merge without a conflict. Branches that change the same module
+ * still conflict on its line, since the merged module is source no build has read.
  * The guard hashes each `.js` module and each other file the record names, so it
  * follows what this build read.
  * `replaces` lists the files compiled into the kernel, the kernel registry among them,
@@ -407,8 +410,14 @@ export async function kernelOutputs(layerRoot) {
     inputs[module] = createHash("sha256")
       .update(await readFile(join(layerRoot, module)))
       .digest("hex");
-  const record = { inputs, replaces: [...replaces].sort() };
-  files.set("kernel.json", Buffer.from(`${JSON.stringify(record, null, 2)}\n`));
+  /** @param {string[]} items */
+  const spaced = (items) => `\n${items.map((item) => `    ${item}`).join(",\n\n")}\n  `;
+  const hashes = Object.entries(inputs).map(
+    ([path, hash]) => `${JSON.stringify(path)}: "${hash}"`,
+  );
+  const compiled = [...replaces].sort().map((path) => JSON.stringify(path));
+  const record = `{\n  "inputs": {${spaced(hashes)}},\n  "replaces": [${spaced(compiled)}]\n}\n`;
+  files.set("kernel.json", Buffer.from(record));
   return files;
 }
 

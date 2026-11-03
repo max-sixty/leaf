@@ -417,7 +417,10 @@ def mark_declared(
     module clones it, and a declarative shadow tree's content is its host's to style, so
     neither is marked.
 
-    A mark is declared by the element's tag, so a selector idiom declares none.
+    A mark is declared by the element's tag, so a selector idiom declares none. An
+    element whose written `<pre>` is Markdown, as `x-text-format` or `x-prepaint`
+    declares, is painted with its rendering, so the page first paints the words, at
+    the size, its module will show.
     """
     tree = turbohtml.parse(source, scripting=True, source_locations=True)
     index = source_index(source)
@@ -469,25 +472,32 @@ def mark_declared(
             marks["data-lf-media-height"] = str(max(height for _, height in sizes))
         if marks:
             edits.append((attribute_insertion(element, index), _attributes(marks)))
-        if registry.get(element.tag, {}).get("x-text-format") == "markdown":
-            pre = element.select_one(":scope > pre")
-            if pre is not None:
-                body = "".join(
-                    child.data
-                    for child in pre.children
-                    if isinstance(child, turbohtml.Text)
-                )
-                text = body
-                edits.append(
+        # Declared Markdown words, and a written file whose notation an attribute names
+        # (`x-prepaint`), first paint as the rendering their module will draw.
+        words = declaration.get("x-text-format") == "markdown"
+        prepaint = declaration.get("x-prepaint")
+        file = bool(prepaint) and attrs.get(prepaint) == "markdown"
+        pre = element.select_one(":scope > pre") if words or file else None
+        if pre is not None:
+            text = "".join(
+                child.data
+                for child in pre.children
+                if isinstance(child, turbohtml.Text)
+            )
+            source_words = (
+                f' data-lf-source-words="{html.escape(text, quote=True)}"'
+                if words
+                else ""
+            )
+            edits.append(
+                (
+                    index(location.start_tag.end_line, location.start_tag.end_col),
                     (
-                        index(location.start_tag.end_line, location.start_tag.end_col),
-                        (
-                            '<div class="lf-markdown-body" data-lf-prepaint data-lf-gen="1" '
-                            f'data-lf-source-words="{html.escape(text, quote=True)}">'
-                            f"{markdown_markup(text)}</div>"
-                        ),
-                    )
+                        '<div class="lf-markdown-body" data-lf-prepaint data-lf-gen="1"'
+                        f"{source_words}>{markdown_markup(text)}</div>"
+                    ),
                 )
+            )
     return _spliced(source, [(offset, offset, text) for offset, text in edits])
 
 

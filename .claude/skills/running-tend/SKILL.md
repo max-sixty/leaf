@@ -64,7 +64,7 @@ when the change causes it: confirm an inherited failure against current `main` p
 change has no other findings; "Run what the change needs" governs landing despite that
 failure. Where a test itself is at issue, `tests/AGENTS.md` says
 which boundary it belongs at. For a change that can alter browser startup, apply
-`AGENTS.md`'s **Working on the repository** performance rule to the candidate and base
+`AGENTS.md`'s **Working on the repository** performance rule to the head and base
 profiles from CI.
 
 A CI repair that changes what a page draws, such as its CSS, layout or a widget's

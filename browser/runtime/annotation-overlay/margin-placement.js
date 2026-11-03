@@ -19,7 +19,7 @@ import { clamp, overlaps, overlapsAcross, union } from "../rect.js";
 /** @typedef {{rect: Box, came?: number | undefined, held?: boolean | Box | null, pushed?: number | undefined}} Row */
 /** @typedef {{came?: number | undefined, held: Box | null, seats: SeatSet, floor: number,
  * cover: readonly Box[], controls: readonly Box[], bounds: Box,
- * folds: {seats: SeatSet, open: number} | null, folded: boolean}} Pin */
+ * folds: {seats: SeatSet, open: number} | null, folded: boolean, level?: boolean}} Pin */
 
 // A row stands in the rail when the page has one, the rail stands beside the box that
 // scrolls its target (the document, or a bounded block in its flow; never a pane), and
@@ -194,10 +194,17 @@ export function seatsBy(parts, home, inline, passage, { cover, beside }, size, g
 // inside `bounds`, the toggle is seated only where the open width fits to its left: the
 // search's bounds give up that width on the left.
 //
+// A pin kept `level` on a block of preformatted lines, such as a code block, has its
+// home seat alone (margin-layout.js says where): seats beside words that reach as far as
+// their neighbours' leave the line, and a seat slid left past the words lands at the
+// window's edge. It stands there whatever words it covers, as Copy covers the first
+// line's last ones, or where a control or a pin already seated stands there, slid left
+// past those alone, so a line's pin stays level with its line.
+//
 // Each pin is `{ held, seats, floor, cover, controls, bounds, folds,
-// folded }`: `held` the rect it holds or null, `seats` its candidate rects, null where
-// one is not offered, `home` the nonnull one inside its target's corner, and `floor`
-// its target's bottom,
+// folded, level }`: `held` the rect it holds or null, `seats` its candidate rects, null
+// where one is not offered, `home` the nonnull one inside its target's corner, and
+// `floor` its target's bottom,
 // `cover` what it keeps
 // off (words, controls, media), `controls` the controls among them, `folds` the same pin
 // folded, `{ seats, open }` with `open` its width opened, where it can fold, and `folded`
@@ -206,6 +213,16 @@ export function seatsBy(parts, home, inline, passage, { cover, beside }, size, g
 // The answer is its seat, `{ rect, folded }`.
 /** @param {Pin} pin @param {{gap: number, occupied?: readonly Box[]}} options */
 export function seatRow(pin, { gap, occupied = [] }) {
+  if (pin.level) {
+    const home = boundedHome(pin.seats.home, pin.bounds);
+    const pressed = [...pin.controls, ...occupied];
+    const rect =
+      (pin.held && inside(pin.held, pin.bounds) ? pin.held : null) ??
+      leastCovering([home], [], pressed, pin.bounds) ??
+      slid(home, pressed, gap, "left", pin.bounds.left) ??
+      home;
+    return { rect, folded: false };
+  }
   const open = { seats: pin.seats, bounds: pin.bounds, folded: false };
   const fold = pin.folds;
   const closed = fold && {

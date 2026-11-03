@@ -36,9 +36,17 @@
 #    and may have a `when`, a JSON Schema that must hold for the clause to apply.
 #    It is tested against the log line together with its `answer` and its
 #    `thread`'s entry in the delivery's `threads` (step 4). There are
-#    10; here they all are, with whether the comment satisfies each `when`:
+#    11; here they all are, with whether the comment satisfies each `when`:
 #
 #      clause 1, does not apply:
+#        when: {"required": ["viewing"]}
+#        text: The user wrote this with no passage selected, so it has no anchor.
+#              `viewing` holds the ids of the elements whose words or pictures were on
+#              their screen as they sent it, page chrome such as a header included.
+#              Use it to resolve a pointer such as "this one"; a comment that reads as
+#              about the whole page still is, and where `viewing` doesn't settle what
+#              a pointer means, ask.
+#      clause 2, does not apply:
 #        when: {"required": ["drawing"]}
 #        text: The user drew on the page. `drawing.says`, when present, is the page's
 #              text inside the ink's bounding box, from its first word to its last; it
@@ -51,16 +59,16 @@
 #              comment's `id`; it prints the path of a PNG of the revision as the user
 #              saw it, with the ink drawn over it. Answer it like any comment; its
 #              `text`, if any, explains the mark.
-#      clause 2, does not apply:
+#      clause 3, does not apply:
 #        when: {"required": ["text"], "properties": {"text": {"pattern": "\\]\\(/media/"}}}
 #        text: The message links an image in Markdown, as `/media/<digest>.<ext>`
 #              under the page directory the batch names. Open the image before
 #              answering; its alt text is only a label.
-#      clause 3, does not apply:
+#      clause 4, does not apply:
 #        when: {"required": ["suggestion"], "properties": {"suggestion": {"const": true}}}
 #        text: A suggestion proposes exact replacement text. Apply it verbatim, or
 #              reply with your reason for declining.
-#      clause 4, does not apply:
+#      clause 5, does not apply:
 #        when: {"required": ["about"], "properties": {"about": {"const": "design"}}}
 #        text: A design comment is about how the page looks or behaves. Its anchor's
 #              `section` is an authored element's id or, if it starts `lf-`, a part of
@@ -72,16 +80,16 @@
 #              change on the stamp. A fix to Leaf itself is the user's to raise; offer
 #              to file it (SKILL.md, "Improve Leaf through use"). Your reply names the
 #              stamped version that carries the fix.
-#      clause 5, applies:
+#      clause 6, applies:
 #        when: {"required": ["thread", "answer"], "properties": {"thread": {"required": ["title"], "properties": {"title": {"type": "null"}}}, "answer": {"properties": {"kind": {"const": "reply"}, "writer": {"const": "agent"}}}}}
 #        text: The thread has no title yet. Name its subject with `--title "<a few
 #              words>"` on your reply.
-#      clause 6, does not apply:
+#      clause 7, does not apply:
 #        when: {"required": ["token"]}
 #        text: A reaction owes no answer. Act on the token if it calls for a change,
 #              and reply only if its meaning is unclear. Once the page reflects it,
 #              close it with `leaf thread resolve <page> <message>`.
-#      clause 7, applies:
+#      clause 8, applies:
 #        when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
 #        text: If the event asks for work, first post one line in its thread saying
 #              what you will do, before any other command, even a read: `leaf thread
@@ -105,7 +113,7 @@
 #              them by itself (`references/threads.md`, "Ask for a pick"). `--todo
 #              "<what you owe>"` when it is yours, promising work beyond this turn.
 #              `--done` when it leaves nobody a move.
-#      clause 8, does not apply:
+#      clause 9, does not apply:
 #        when: {"properties": {"answer": {"properties": {"writer": {"const": "turn"}}}}}
 #        text: Leaf posts your opening message in the thread as your progress line and
 #              your final message as the reply, unless an explicit reply already
@@ -125,12 +133,12 @@
 #              other widgets, work promised beyond this turn (`--todo`), a title or
 #              moving the thread (`references/threads.md`); an explicit reply posts at
 #              once, and your final message is then not posted.
-#      clause 9, applies:
+#      clause 10, applies:
 #        (no `when`, so it always applies)
 #        text: Your reply renders as Markdown in a narrow column: give each point its
 #              own short paragraph or list item, link a page section as `[its
 #              name](#section-id)`, and fence code or markup.
-#      clause 10, does not apply:
+#      clause 11, does not apply:
 #        when: {"required": ["meaning"], "properties": {"meaning": {"required": ["scope"], "properties": {"scope": {"const": "thread"}}}}}
 #        text: The widget is in a thread message: continue the work the user's answer
 #              selects or unblocks, and answer in that thread.
@@ -358,6 +366,54 @@ comment over App Server:
         "Ask for a pick"). Reply explicitly too for other widgets, work promised
         beyond this turn (`--todo`), a title or moving the thread (`references/threads.md`);
         an explicit reply posts at once, and your final message is then not posted.
+    - text: >-
+        Your reply renders as Markdown in a narrow column: give each point its own
+        short paragraph or list item, link a page section as `[its name](#section-id)`,
+        and fence code or markup.
+
+comment on the page, written while slides showed:
+  event:
+    kind: comment
+    viewing: [results]
+    thread:
+      title: null
+    answer:
+      kind: reply
+      writer: agent
+  told:
+    - when: {"required": ["viewing"]}
+      text: >-
+        The user wrote this with no passage selected, so it has no anchor. `viewing`
+        holds the ids of the elements whose words or pictures were on their screen
+        as they sent it, page chrome such as a header included. Use it to resolve
+        a pointer such as "this one"; a comment that reads as about the whole page
+        still is, and where `viewing` doesn't settle what a pointer means, ask.
+    - when: {"required": ["thread", "answer"], "properties": {"thread": {"required": ["title"], "properties": {"title": {"type": "null"}}}, "answer": {"properties": {"kind": {"const": "reply"}, "writer": {"const": "agent"}}}}}
+      text: >-
+        The thread has no title yet. Name its subject with `--title "<a few words>"`
+        on your reply.
+    - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
+      text: >-
+        If the event asks for work, first post one line in its thread saying what
+        you will do, before any other command, even a read: `leaf thread reply <answer.ref>
+        --ephemeral --text "<what you will do, in a line>"`. Then do the work, put
+        the result on the page with what shows it (captures, a figure, the numbers),
+        and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`:
+        what changed, in a sentence or two, linking the section that shows it. If
+        the event asks for no work, answer it with that reply at once. The reply
+        checks your saved page edit and makes it live before posting. The declaration
+        says whose move your answer leaves, which delivering what was asked doesn't
+        settle. `--obligation` when it is the user's: it leaves them a decision,
+        or something to try or review before making one, or asks them for an answer
+        or permission. That puts your answer on their On me list until they reply
+        or resolve the thread, even where the decision itself is already there.
+        Where your answer asks a question of its own whose answers you can list,
+        such as which of two ways to proceed or whether to take an action, put them
+        in `--markup` in place of `--obligation`, as `<lf-options id="…" choose>`
+        holding an `<lf-option id="…">` for each answer: the user answers with a
+        press, and the choice waits on them by itself (`references/threads.md`,
+        "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
+        work beyond this turn. `--done` when it leaves nobody a move.
     - text: >-
         Your reply renders as Markdown in a narrow column: give each point its own
         short paragraph or list item, link a page section as `[its name](#section-id)`,

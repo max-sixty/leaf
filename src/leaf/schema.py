@@ -634,6 +634,7 @@ LAYER_TOP_FILES = (
     "theme.css",
     "shadow.css",
     "chrome.css",
+    "portable.css",
     "registry.json",
     "icon.svg",
 )

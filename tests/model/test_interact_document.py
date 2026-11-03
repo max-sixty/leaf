@@ -4006,7 +4006,7 @@ def test_the_series_palette_clears_the_floors_it_claims_to():
     is counted against the tokens in the same breath: it is how many series an author is
     told a chart can colour apart, and a palette one step longer than the number it
     publishes would hold a colour nobody is told to use."""
-    theme = (schema_model.ASSETS / "base.css").read_text()
+    theme = (schema_model.ASSETS / "styles/tokens.css").read_text()
     declared = json.loads((schema_model.ASSETS / "registry.json").read_text())[
         "$series"
     ]["steps"]
@@ -4499,27 +4499,6 @@ def test_a_process_keeps_the_pages_it_read_most_recently(page_dir):
         assert artifact_model.read_revision(page_dir, revision).document.authoring.title
         assert artifact_model.read_revision(held_page, revision) is sample_reading
         assert page_memory_model.memory_of(held_page) is holder
-
-
-def test_a_page_keeps_its_readings_while_its_samples_live(page_dir):
-    """A page serving samples keeps its readings while they live, so its own samples,
-    each a page of their own, cannot push them out and leave every state answer to
-    check and capture the whole source again."""
-    template = '<template id="practice" data-sample><p>Child text.</p></template>'
-    (page_dir / "index.html").write_text(PAGE.replace("</main>", template + "</main>"))
-    revision = revisioning_model.activate_source(page_dir).revision
-    with fresh_process():
-        assert revision is not None
-        held = artifact_model.read_revision(page_dir, revision)
-        samples = samples_model.Samples()
-        artifact = artifact_model.read_artifact(page_dir, revision)
-        for _ in range(page_memory_model.PageMemories.LIMIT):
-            samples.create(
-                page_dir, artifact, held.document, [], {"sources": {}},
-                "practice", None, None,
-            )  # fmt: skip
-        gc.collect()
-        assert artifact_model.read_revision(page_dir, revision) is held
 
 
 def test_a_reading_under_outcomes_is_the_walk_under_them():

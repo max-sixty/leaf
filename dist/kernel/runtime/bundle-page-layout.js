@@ -1,4 +1,4 @@
-import { HOLDS_WORD, LAYOUT, PENDING_TASK, PRESS, PRESSES, TEXT_FIELD, Z, actionIcon, afterScript, agentArrivalDuration, alreadyShown, atLayoutPrecision, beginWalk, bindQueuedWork, blurFocused, byRenderedOrder, canPlaceFocus, cancelRender, clamp, clippedContents, clipsPastSurfaces, closeLayer, closeNativeLayer, closestAcross, composedParentNode, currentLocationIn, d, dataBody, drawn, elementDirective, eventSource, failSoft, failSoftUnreported, fitsWhole, focusDestination, focused, frameVisibility, generatedElement, growthIsSeen, handBack, hasArea, headerCuts, holdFocus, holdRendering, iconTemplate, inChrome, inlineStyle, inputCount, installElementIntegration, intersect, isNativeLayer, keepFieldKeys, keeps, keepsHidden, layoutPx, layoutWindow, listWalkPosition, move, moveScrollerBy, nativeFocusTarget, nearObserver, nearWindow, nextRender, offer, offerAction, onCurrentLocation, onFrameVisibility, onUserInput, openLayer, openerOf, orderChildren, paintClips, placeBox, placeHolder, presented as presented$1, pressIsKeyboardActivation, readSampleVisibility, reducedMotion, renderedOrder, renderedParent, renderedUnder, restrictUserIntent, retainUserIntent, rowArrows, scrollBehavior, scrollIntoReadingBand, scrollIntoView, scrollsContent, seenRect, setChildren, setScroll, shadowHost, showNativeLayer, shownBox, shownWindow, sizeObserver, takesLetters, under, union, upFrom, watchOwner, watchRoom, whenLeft, whenNone, whileConnected, x } from "./bundle-portable.js";
+import { HOLDS_WORD, LAYOUT, PENDING_TASK, PRESS, PRESSES, TEXT_FIELD, Z, actionIcon, afterScript, agentArrivalDuration, alreadyShown, atLayoutPrecision, beginWalk, bindQueuedWork, blurFocused, byRenderedOrder, canPlaceFocus, cancelRender, clamp, clippedContents, clipsPastSurfaces, closeLayer, closeNativeLayer, closestAcross, composedParentNode, currentLocationIn, d, dataBody, drawn, elementDirective, eventSource, failSoft, failSoftUnreported, fitsWhole, focusDestination, focused, frameVisibility, generatedElement, growthIsSeen, handBack, hasArea, headerCuts, holdFocus, holdRendering, iconTemplate, inChrome, inlineStyle, inputCount, installElementIntegration, intersect, isNativeLayer, keepFieldKeys, keeps, keepsHidden, layoutPx, layoutWindow, listWalkPosition, move, moveScrollerBy, nativeFocusTarget, nearObserver, nearWindow, nextRender, offer, offerAction, offeredActionElement, onCurrentLocation, onFrameVisibility, onUserInput, openLayer, openerOf, orderChildren, paintClips, placeBox, placeHolder, presented as presented$1, pressIsKeyboardActivation, readSampleVisibility, reducedMotion, renderedOrder, renderedParent, renderedUnder, restrictUserIntent, retainUserIntent, rowArrows, scrollBehavior, scrollIntoReadingBand, scrollIntoView, scrollsContent, seenRect, setChildren, setScroll, shadowHost, showNativeLayer, shownBox, shownWindow, sizeObserver, takesLetters, under, union, upFrom, watchOwner, watchRoom, whenLeft, whenNone, whileConnected, x } from "./bundle-portable.js";
 import { DRAFT_FORMAT, PENDING, PRESENTATION_DOM, TEXT_ENTRY, actionForWidget, agentName, agentSays, anchorKey, annotationMode, announce, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, claimsEsc, commandAvailable, commandBinding, commandRoutes, commandRun, controlAvailabilityOutput, cycledRow, discussed, documentChanged, drawingSchema, editable, el, hasObligationSource, hasRows, holdingError, html, isCommandScope, isMessageEvent, isThreadEvent, keys, leafSays, matchesWhen, moved, nativePress, notice, offlineInteractive, offlineState, pageUrl, paintKeys, paintKeysWithin, presentDocument, projectCommandScope, projectionOrigins, queueWidgetUpdate, raiseError, reactionsAt, readApplication, readPart, registry, render, repaint, responseAction, reveal, runtime, saidBy, savedReadingSettled, saying, setPresentationFailureReporter, shadowRootsIn, tagsDeclaring, threadKey, tokenChoices, turns, voiced, watchCommandAvailability, watchPresentation, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented, wordsText } from "./bundle-errors.js";
 import { admitResponse, completeData, countTraffic, dataHeaders, layerHeaders, postEvent, randomId, recordInteraction, removeRuntimeRootStyle, reportCarried, reportPageError, sameLayer, sessionIsActive, setRuntimeRootStyle, watchPendingTraffic } from "./bundle-layer-client.js";
 import { activityTransitionDue, addressableLabel, addressableWord, afterPresentation, ago, anchorAt, anchorBox, anchorElement, anchorForRange, anchorReaches, anchorReading, anchoringIsReady, commitPoint, cutFrames, declaredName, livePoint, markStateApplied, nameAnchor, observeServerNow, observeWorkingGrace, reachScrollers, readingRegionFor, saidNow, scheduleDocumentLayout, scrollsWith, sectionOf, settlePageInterface, targetSegments, tickClock, visualPartLabel, widgetWord } from "./bundle-content-layout.js";
@@ -613,7 +613,7 @@ const records = /* @__PURE__ */ new WeakMap();
 const controlContributions = /* @__PURE__ */ new WeakMap();
 const contributorClasses = /* @__PURE__ */ new WeakMap();
 function createContributionControl(record, className = "") {
-	return offer(record.behavior === "status" ? "span" : "button", className);
+	return offeredActionElement(document.createElement(record.behavior === "status" ? "span" : "button"), "entry", className);
 }
 const contributionControlMatches = (control, record) => record.behavior === "status" ? control instanceof HTMLSpanElement : control instanceof HTMLButtonElement;
 function contributionEntryRecord(control) {
@@ -1020,8 +1020,16 @@ function registerContribution({ key, target, source = target, read, activate }) 
 	const landFocus = () => {
 		const key = owedFocus;
 		owedFocus = null;
-		offered.focusRequest = null;
-		if (key != null) registration.focus(key, "move");
+		const request = offered.focusRequest;
+		try {
+			if (key != null) {
+				settle({ immediate: true });
+				const destination = control(key, null, true);
+				if (destination) focusDestination(destination, "move");
+			}
+		} finally {
+			if (offered.focusRequest === request) offered.focusRequest = null;
+		}
 	};
 	const arrive = (entryKey, surface, move) => {
 		const request = {
@@ -1988,6 +1996,7 @@ function fieldEditor({ EditorView, EditorState, EditorSelection, Prec, StateEffe
 	});
 	function newLine(view) {
 		const { state } = view;
+		if (state.readOnly) return false;
 		if (state.facet(message)) return insertNewline(view);
 		const { from, to } = state.selection.main;
 		const { placed } = state.field(reading);
@@ -2199,7 +2208,7 @@ function fieldEditor({ EditorView, EditorState, EditorSelection, Prec, StateEffe
 				keymap.of([
 					{
 						key: "Shift-Enter",
-						run: () => field.oneLine()
+						run: (view) => field.oneLine() || view.state.readOnly
 					},
 					{
 						key: "Enter",
@@ -3008,7 +3017,7 @@ fabInput.className = "lf-ui lf-response-control lf-fab-input";
 fabInput.name = "comment";
 fabInput.placeholder = "Comment…";
 fabInput.setAttribute("aria-label", "Comment");
-const fab = responseAction(el("button", "lf-ui lf-fab"), {
+const fab = responseAction(offerAction("response", "lf-fab"), {
 	action: "comment",
 	label: "Comment",
 	behavior: "disclosure"
@@ -3020,7 +3029,7 @@ fabOptions.id = "lf-response-options";
 fabOptions.popover = "auto";
 fabOptions.setAttribute("role", "group");
 fabOptions.setAttribute("aria-label", "Other responses");
-const fabSuggest = responseAction(el("button", "lf-ui lf-fab-suggest"), {
+const fabSuggest = responseAction(offerAction("response", "lf-fab-suggest"), {
 	action: "suggest",
 	label: "Suggest",
 	collapse: true
@@ -4245,7 +4254,7 @@ const reactionTokens = () => Object.entries(reactionVocabulary());
 const reactionAvailable = () => readThreads().phase === "ready";
 const anchorChoices = (anchor) => reactionAvailable() ? tokenChoices(reactionVocabulary(), anchor ? reactionsAt(allThreads(), anchor) : []) : [];
 function reactionChip({ name, glyph, label }, pressed) {
-	const chip = offer("button", `lf-react ${HOLDS_WORD}`);
+	const chip = offerAction("response", `lf-react ${HOLDS_WORD}`);
 	chip.dataset.token = name;
 	chip.title = label;
 	chip.setAttribute("aria-label", label);
@@ -6644,33 +6653,39 @@ function standOver(stand, placed, borderRadius) {
 	const at = anchor && anchorBox(anchor);
 	const stood = standIn(stand, placed, Boolean(anchor));
 	const style = stand.box.style;
-	standBox(stand.box, placed.rect, stood, anchor, at);
+	const band = token("--focus-ring-w");
+	const gaps = sideGaps(placed, band, markGap(placed.surface));
+	const gap = Math.min(gaps.top, gaps.right, gaps.bottom, gaps.left);
+	const { rect } = placed;
+	const box = borderRadius === null ? rect : {
+		left: rect.left - gaps.left + gap,
+		top: rect.top - gaps.top + gap,
+		right: rect.right + gaps.right - gap,
+		bottom: rect.bottom + gaps.bottom - gap
+	};
+	standBox(stand.box, box, stood, anchor, at);
 	Object.assign(style, {
 		display: "block",
-		borderRadius
+		borderRadius: borderRadius ?? "0"
 	});
-	const band = token("--focus-ring-w");
-	const outside = markGap(placed.surface);
-	const gap = cramped(placed, band + outside) ? -band : outside;
 	style.setProperty("--lf-mark-offset", layoutPx(gap));
-	const room = Math.max(0, band + gap);
 	for (const side of [
 		"top",
 		"right",
 		"bottom",
 		"left"
-	]) stand.root.style.setProperty(`--lf-paint-outset-${side}`, layoutPx(cutsAt(placed, side) ? 0 : room));
+	]) stand.root.style.setProperty(`--lf-paint-outset-${side}`, layoutPx(cutsAt(placed, side) ? 0 : Math.max(0, band + gaps[side])));
 	return {
 		...stood,
 		anchor,
 		at,
-		room
+		room: Math.max(0, band + gaps.top)
 	};
 }
 const token = (name) => Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
 function markGap(surface) {
-	const stated = Number.parseFloat(getComputedStyle(surface).outlineOffset);
-	if (stated) return stated;
+	const style = getComputedStyle(surface);
+	if (style.getPropertyValue("--lf-ring-at")) return Number.parseFloat(style.outlineOffset);
 	return token(surface.matches(PRESSES) ? "--focus-ring-gap" : "--focus-region-gap");
 }
 function cutsAt({ rect, levels }, side) {
@@ -6678,9 +6693,41 @@ function cutsAt({ rect, levels }, side) {
 	const low = side === "top" || side === "left";
 	return levels.some(({ band, axes }) => axes[axis] && (low ? rect[side] < band[side] : rect[side] > band[side]));
 }
-function cramped({ rect, levels }, room) {
-	const short = (band, low, high) => rect[low] >= band[low] && rect[low] - room < band[low] || rect[high] <= band[high] && rect[high] + room > band[high];
-	return levels.some(({ holder, band, axes }) => holder && (axes.x && short(band, "left", "right") || axes.y && short(band, "top", "bottom")));
+function sideGaps({ rect, levels, plane }, band, gap) {
+	const sides = [
+		"top",
+		"right",
+		"bottom",
+		"left"
+	];
+	const room = (edge, side) => {
+		const beyond = side === "left" || side === "top" ? rect[side] - edge[side] : edge[side] - rect[side];
+		return beyond > -1 ? beyond : Infinity;
+	};
+	const axis = (side) => side === "left" || side === "right" ? "x" : "y";
+	const packed = levels.some(({ holder, band: edge, axes }) => holder && sides.some((side) => axes[axis(side)] && room(edge, side) < band + gap));
+	const page = pageExtent(plane);
+	const stands = (side) => packed ? -band : Math.max(-band, Math.min(gap, room(page, side) - band));
+	return {
+		top: stands("top"),
+		right: stands("right"),
+		bottom: stands("bottom"),
+		left: stands("left")
+	};
+}
+function pageExtent(plane) {
+	const shown = layoutWindow();
+	const root = document.scrollingElement;
+	if (plane === "window" || !root) return shown;
+	const style = getComputedStyle(root);
+	const fixed = (overflow) => overflow === "hidden" || overflow === "clip";
+	const [x, y] = [!fixed(style.overflowX), !fixed(style.overflowY)];
+	return {
+		left: x ? -root.scrollLeft : shown.left,
+		top: y ? -root.scrollTop : shown.top,
+		right: x ? root.scrollWidth - root.scrollLeft : shown.right,
+		bottom: y ? root.scrollHeight - root.scrollTop : shown.bottom
+	};
 }
 function paintSet(root, { onNear = () => {} } = {}) {
 	const stands = /* @__PURE__ */ new Map();

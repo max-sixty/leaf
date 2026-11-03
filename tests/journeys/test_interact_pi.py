@@ -194,3 +194,103 @@ def test_a_reload_keeps_the_pi_session_and_its_watch(page_dir, pi):
         page_dir, {"kind": "comment", "author": "user", "text": "after reload"}
     )
     assert pi.delivered(until=comment["id"]) == [comment["id"]]
+
+
+from interact_support import (
+    HELD_LEASES,
+    available_loopback_port,
+    write_record,
+)
+
+from leaf import server as server_model
+
+
+def test_the_pi_watch_restarts_a_session_server_that_died(page_dir, pi):
+    """The watch the extension runs revives the session's server as `leaf wait`
+    would. The server it starts must serve as the Pi session the hook names,
+    though nothing in the hook's environment names that session."""
+    leases_model.release_lease(HELD_LEASES.pop())
+    write_record(
+        page_dir / "service.json",
+        {
+            "host": "127.0.0.1",
+            "bind": "127.0.0.1",
+            "port": available_loopback_port(),
+            "enabled": True,
+            "lifetime": "session",
+        },
+    )
+    wait_for(
+        lambda: server_model.running_server(page_dir),
+        bool,
+        failure="the Pi watch never restarted the dead session server",
+    )
+    claim = service_model.page_claim(page_dir)
+    assert claim is not None
+    assert (claim["harness"], claim["id"]) == ("pi", "pi-s1")
+
+
+def test_input_arriving_as_a_tui_run_ends_waits_for_a_run_of_its_own(page_dir, pi):
+    """In the TUI a watch follows each run, so the Stop hook hands no input over
+    and the run settles on the answer it wrote; the watch then starts a run that
+    takes the input (`hook_transport`)."""
+    pi.emit("before_agent_start")
+    pi.emit("agent_start")
+    comment = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "one more"}
+    )
+    assert pi.emit("agent_before_settle") is None
+    pi.emit("agent_settled", idle=True)
+    assert comment["id"] in pi.delivered(comment["id"])
+
+
+def test_an_escape_leaves_input_handed_to_the_run_for_the_next_prompt(page_dir, pi):
+    """Input handed to a run the user then stops with Escape is not handed to a
+    new run of its own (`session.watch_between_turns`). The Escape settles the
+    run without going on from there, and the watch the extension starts then
+    closes the turn. The hook confirmed the input as it handed it over, so the
+    user's next prompt carries it as a move still owed its answer, picked up
+    again in that run."""
+    pi.emit("before_agent_start")
+    pi.emit("agent_start")
+    comment = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "handed over"}
+    )
+    # The watch wakes, and the run's next turn end adds the delivery to the
+    # session and keeps the run going to read it.
+    handed = wait_for(
+        lambda: pi.emit("turn_end"), bool, failure="no turn end took the input"
+    )
+    assert handed["continue"] is True
+    [entry] = handed["entries"]
+    [batch] = json.loads(entry["content"].split("\n")[1])["batches"]
+    assert [event["id"] for event in batch["events"]] == [comment["id"]]
+    ref = batch["events"][0]["answer"]["ref"]
+    pi.emit("agent_settled", idle=True)
+
+    def turn_closed():
+        record = cleanup_model.session_record("pi-s1")
+        assert record is not None
+        return record["turn_closed"]
+
+    wait_for(
+        turn_closed,
+        bool,
+        failure="the Escape left the turn open",
+    )
+
+    assert pi.emit("before_agent_start", idle=True) is None
+    pi.emit("agent_start")
+    continued = pi.emit("turn_end")
+    [entry] = continued["entries"]
+    assert f"`leaf thread reply {ref}`" in entry["content"]
+    *_, pickup = (
+        e for e in events_model.read_events(page_dir) if e["kind"] == "pickup"
+    )
+    turn_record = cleanup_model.session_record("pi-s1")
+    assert turn_record is not None
+    assert (pickup["kind"], pickup["events"], pickup["turn"]) == (
+        "pickup",
+        [comment["id"]],
+        turn_record["turn"],
+    )

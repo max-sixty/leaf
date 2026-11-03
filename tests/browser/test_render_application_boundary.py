@@ -784,14 +784,27 @@ def test_a_returning_widget_repaints_to_restore_subscriptions(browser, serve):
     assert page.evaluate(leave_and_return) == {"drawn": 1, "failed": 0, "pending": []}
 
     # Resuming a deferral draws the same reading again, and this draw fails.
-    page.evaluate(
-        "globalThis.__failLocalRender = true; "
-        "document.querySelector('#page-local').controller.defer()(); true"
-    )
+    # Fault reporting waits until after the native operation; presentation completion
+    # alone does not mean the console has received the report.
+    failure = 'leaf: <lf-local id="page-local"> failed: deliberate render failure'
+    with page.expect_console_message(
+        predicate=lambda message: message.text.startswith(failure)
+    ):
+        page.evaluate(
+            "globalThis.__failLocalRender = true; "
+            "document.querySelector('#page-local').controller.defer()(); true"
+        )
     expect(page.locator("#page-local .lf-error")).to_have_text(
         "<lf-local> failed: deliberate render failure"
     )
-    assert page.evaluate(leave_and_return) == {"drawn": 0, "failed": 2, "pending": []}
+    with page.expect_console_message(
+        predicate=lambda message: message.text.startswith(failure)
+    ):
+        assert page.evaluate(leave_and_return) == {
+            "drawn": 0,
+            "failed": 2,
+            "pending": [],
+        }
     errors = take_browser_errors(page)
     assert [said(error) for error in errors] == [
         'leaf: <lf-local id="page-local"> failed: deliberate render failure'
@@ -1879,7 +1892,9 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
     assert reply["body"]["document"] == {"thread": "question", "message": "answer"}
     assert reply["body"]["kind"] == "authored"
     assert "North" in reply["body"]["text"]
-    assert '"markup"' not in json.dumps(record) and '"html"' not in json.dumps(record)
+    assert reply["body"]["markup"] == event["markup"]
+    assert "markup" not in root and "markup" not in reply
+    assert '"html"' not in json.dumps(record)
     open_threads(page)
     # The agent answered without naming the thread, so it reads its opening words.
     expect(page.locator(".lf-fp-thread")).to_contain_text("Decision")
@@ -2490,3 +2505,6 @@ def test_primary_parts_keep_identity_and_nomination_order_through_admission(
     assert page.evaluate("""() => pendingPart.isConnected &&
       document.querySelector('.lf-msg[data-attempt="' + created.key + '"]') === pendingPart &&
       !pendingPart.dataset.event.startsWith('pending:')""")
+
+
+import pytest

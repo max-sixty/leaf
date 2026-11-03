@@ -25,8 +25,10 @@ export { aborted } from "./abort.js";
 export { rankAt } from "./projection/model.js";
 
 // `fragmentTarget(hash)` is the page element a URL fragment names, read as Leaf's own
-// arrivals and links read it.
+// arrivals and links read it; `fragmentUrl(element, key)` is this page's URL with a
+// fragment naming the element, or the part of it a key names.
 export { fragmentTarget, projectedDatum } from "./anchor-resolution.js";
+export { fragmentUrl } from "./anchor-coordinate.js";
 export { addressableLabel, addressableWord } from "./addressable-names.js";
 // The name Threads, the margin, and reactions give a comment's anchor.
 export { anchorLabel } from "./thread/messages.js";

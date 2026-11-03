@@ -26,7 +26,8 @@ A fork of the conversation answers a thread message the session hasn't received
 place, so by default the session runs with forks off (`LEAF_FORK_REPLIES=off`).
 `--forks` turns them on, and runs the fork steps in place of the delivery steps.
 
-The steps, in order, those every harness shares as `journey.Terminal` has them:
+The steps, in order; `setup`, `release`, `mid-turn`, `escape` and `quit` are those
+more than one harness takes, as `journey.Terminal` has them:
 
 - `setup`;
 - `release`, which asks for work, so with `--forks` a fork hands it over and the
@@ -38,7 +39,8 @@ Then the delivery steps:
   model call, rather than waiting for Stop;
 - `ending`: two comments sent during a shell command, the second after the turn
   picked up the first, both enter that turn at its tool boundaries;
-- `escape`, whose line says the turn stayed open, since Escape runs no Stop hook;
+- `escape`, whose line says the claim's turn stayed open, since Escape runs no
+  Stop hook;
 - `woken`: a comment sent during a shell command waits for the running turn, and
   Escape ends that turn while the command still runs, before the turn reads the
   comment at its next tool boundary. The watch after Escape wakes for that comment
@@ -449,8 +451,13 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, *, forks: bool) -> None:
         step("ending", started, "first", "ending")
 
         started = time.monotonic()
-        escaped = cc.escape(user, page)
-        step("escape", started, "escape", detail=escaped)
+        stayed = cc.escape(user, page)
+        step(
+            "escape",
+            started,
+            "escape",
+            detail=f"after Escape: turn {'open' if stayed else 'closed'}",
+        )
 
         started = time.monotonic()
         turn = cc.user_turn(page)

@@ -696,8 +696,8 @@ def website_session(
 
 
 class Terminal:
-    """A harness session the journey types into as the user at its terminal, and the
-    steps every harness shares, each written once over what a harness module
+    """A harness session the journey types into as the user at its terminal, and
+    each step more than one harness takes, written once over what a harness module
     supplies: `session`, the harness's id for the session, which the page's claim
     names, and its primitives `say`, `work`, `hear`, `idle`, `listening`, and, where
     the harness has them, `press_escape` and `leave`. A harness module runs the
@@ -842,56 +842,58 @@ class Terminal:
         user.release()
         self.settle(lambda: True, "release: the turn that answered did not end")
 
-    def mid_turn(self, user: User, page: Path, *, enters: bool = True) -> str:
+    def mid_turn(self, user: User, page: Path) -> str:
         """`mid-turn`: a comment sent during the user's turn's shell command is
-        answered once. Where comments enter the turn they arrive in (`enters`), it
-        is picked up in the user's turn and answered before that turn ends, with no
-        turn of its own. Returns the comment's id."""
+        picked up in that turn, at its next tool boundary, and answered before the
+        turn ends, with no turn of its own. Returns the comment's id."""
         turn = self.user_turn(page)
         comment = user.comment("mid-turn")
         self.until(self.idle, "mid-turn: the user's turn did not end")
-        if enters:
-            require(
-                user.answered("mid-turn"),
-                "mid-turn: the user's turn ended without answering the comment",
-            )
-            require(
-                turn in picked_up(page, comment),
-                f"mid-turn: the comment was not picked up in the user's turn {turn}",
-            )
+        require(
+            user.answered("mid-turn"),
+            "mid-turn: the user's turn ended without answering the comment",
+        )
+        require(
+            turn in picked_up(page, comment),
+            f"mid-turn: the comment was not picked up in the user's turn {turn}",
+        )
         self.settle(
             lambda: user.answered("mid-turn"), "mid-turn: the comment was not answered"
         )
         require(
-            not enters or claimed(page)["turn"] == turn,
+            claimed(page)["turn"] == turn,
             "mid-turn: the comment started a turn of its own",
         )
         return comment
 
-    def escape(self, user: User, page: Path) -> str:
+    def escape(self, user: User, page: Path) -> bool:
         """`escape`: Escape during the user's turn's shell command ends that turn,
-        and the session stays idle with Leaf listening for it and the page reading
-        so, until a comment sent afterwards opens a turn that answers it. Returns
-        whether Escape left the claim's turn open, for the step to print: a harness
-        that runs no end-of-turn hook on an interruption leaves it open until its
-        next turn."""
+        and the session stays idle, with Leaf listening for it, the page reading so
+        and no turn opening, until a comment sent afterwards opens a turn that
+        answers it. Returns whether the claim's turn stayed open after Escape: a
+        harness that runs no end-of-turn hook on an interruption leaves it open
+        until its next turn."""
         turn = self.user_turn(page)
         self.press_escape()
         self.settle(
             self.listening,
             "escape: the session did not settle listened for after Escape",
         )
+        require(
+            claimed(page)["turn"] == turn,
+            "escape: a turn opened after Escape with no new input",
+        )
         reading = activity(page)
         require(
             reading == "listening",
             f"escape: the page reads {reading}, not listening, after Escape",
         )
-        left = "open" if turn_open(page_claim(page), turn) else "closed"
+        stayed = turn_open(page_claim(page), turn)
         user.comment("escape")
         self.settle(
             lambda: user.answered("escape"), "escape: the comment was not answered"
         )
-        return f"after Escape: turn {left}"
+        return stayed
 
     def quit(self, page: Path) -> None:
         """`quit`: the user ends the session (`leave`), so Leaf records its end, its

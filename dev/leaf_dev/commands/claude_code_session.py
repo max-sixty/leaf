@@ -31,7 +31,7 @@ from leaf_dev import ROOT
 from leaf_dev.arms import claude_environment, claude_home
 from leaf_dev.commands.journey import Isolation, stop_left_running
 from leaf_dev.journey_claude_code import ClaudeCode
-from leaf_dev.review_scenario import REQUEST, prepare
+from leaf_dev.review_scenario import prepare
 
 # The model answers only setup and the developer's turns, so a fast one does.
 MODEL = "claude-sonnet-5-5"
@@ -96,11 +96,7 @@ def claude_code_session(stopping: bool) -> None:
     RECORD.write_text(
         json.dumps({"pane": cc.pane, "root": str(root), "state": str(place.state)})
     )
-    cc.say(REQUEST)
-    cc.until(
-        lambda: running_server(place.page) is not None and cc.idle(),
-        "the page was not served with the session idle",
-    )
+    cc.setup(place.page)
     server = running_server(place.page)
     assert server is not None
     click.echo(

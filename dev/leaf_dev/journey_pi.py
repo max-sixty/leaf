@@ -12,12 +12,13 @@ Escape as Pi's own terminal does (`clear_queue`, then `abort`), and sends the
 user's comments at the journey's user end. It reads the page's log and claim in
 process, and stops at the first check that fails.
 
-The steps, in order, those every harness shares as `journey.Terminal` has them:
+The steps, in order, those more than one harness takes as `journey.Terminal` has
+them:
 
 - `setup`, the extension watching the session's pages as the run settles;
 - `release`;
 - `mid-turn`;
-- `escape`, whose line says Pi's abort closed the turn;
+- `escape`, whose abort closes the claim's turn;
 - `held-escape`: a comment held during a shell command is not received before
   Escape, then enters a fresh run and is answered automatically;
 - `quit`, by closing Pi's stdin.
@@ -223,7 +224,7 @@ def steps(pi: Pi, user: User, page: Path) -> None:
 
     def step(name: str, started: float) -> None:
         """Record step `name` once what holds between steps does, with how the page
-        server titled the last comment's thread."""
+        server titled the step's comment's thread."""
         sent.append(name)
         settled(page, pi.session, {each: user.ids[each] for each in sent})
         require(pi.listening(), "no watch holds the session's pages between runs")
@@ -238,7 +239,7 @@ def steps(pi: Pi, user: User, page: Path) -> None:
     step("mid-turn", started)
 
     started = time.monotonic()
-    pi.escape(user, page)
+    require(not pi.escape(user, page), "escape: Pi's abort left the claim's turn open")
     step("escape", started)
 
     started = time.monotonic()

@@ -14,8 +14,8 @@ journey is then the terminal: it opens the task and types the user's turns, and
 sends the user's comments at the journey's user end. It reads the page's log and
 claim in process, and stops at the first check that fails.
 
-The steps, in order, those every harness shares as `journey.Terminal` has them, with
-the task's adapter as what listens for it between turns:
+The steps, in order, those more than one harness takes as `journey.Terminal` has
+them, with the task's adapter as what listens for it between turns:
 
 - `setup`, serving the page connecting delivery through this journey's transport.
   With `--sandbox`, the task's shell commands run in Codex's `workspace-write`
@@ -26,8 +26,8 @@ the task's adapter as what listens for it between turns:
 - `rich-choice` and `rich-question`: comments asking, in the author's own words, for
   clickable choices in the thread and for a question awaiting the user's answer, each
   moving its thread to the release rationale, are answered so;
-- `mid-turn`, whose comment, on `codex-queue`, enters the user's turn and is
-  answered before that turn's first final response, with no turn of its own;
+- `mid-turn`, whose comment, on `codex-queue`, is answered before the user's
+  turn's first final response rather than at its Stop;
 - `resume`: a turn interrupted during its shell command is resumed with empty input,
   as the desktop app resumes one, to report the interruption, so its first boundary is
   its Stop. On `codex-app-server` a comment sent as it starts doesn't enter it, since
@@ -381,15 +381,15 @@ def steps(
         # The comment enters the user's turn at a tool boundary, so its answer comes
         # before the turn's final response, not after it at the turn's Stop.
         def answered_first(turn: str) -> None:
+            comment = user.ids.get("mid-turn")
             require(
-                bool(answers(page, user.ids["mid-turn"])),
+                comment is not None and answers(page, comment),
                 "mid-turn: the agent sent its final response before answering the "
                 "comment",
             )
 
         task.on_final = answered_first
-    # Over App Server the Stop hook leaves input to the adapter's own turn.
-    codex.mid_turn(user, page, enters=transport == "queue")
+    codex.mid_turn(user, page)
     task.on_final = None
     require(
         transport != "queue" or task.started[-1] in task.final_answers,
@@ -401,7 +401,7 @@ def steps(
     started = time.monotonic()
     interrupted = task.say(RESUME_TURN)
     codex.await_command(SLEEP, "the turn to interrupt did not start its command")
-    task.request("turn/interrupt", {"threadId": task.thread, "turnId": interrupted})
+    task.request("turn/interrupt", {"threadId": codex.session, "turnId": interrupted})
     codex.until(
         lambda: interrupted not in task.running, "the interrupted turn did not end"
     )
@@ -416,7 +416,7 @@ def steps(
     resumed = task.request(
         "turn/start",
         {
-            "threadId": task.thread,
+            "threadId": codex.session,
             "input": [],
             "turnTrigger": "resume_interrupted_task",
         },
@@ -451,7 +451,7 @@ def steps(
     started = time.monotonic()
     if transport == "queue":
         previous_records = len(codex.trace)
-        task.request("thread/unsubscribe", {"threadId": task.thread})
+        task.request("thread/unsubscribe", {"threadId": codex.session})
         # SessionEnd runs before shutdown completes; only thread/closed makes
         # the unloaded thread ready to resume.
         codex.until(
@@ -464,10 +464,10 @@ def steps(
         # The instance's SessionEnd retires the evidence that Leaf's hooks run in
         # it (`state.end_harness_instance`).
         require(
-            not hooks_ran(task.thread),
+            not hooks_ran(codex.session),
             "the task left by its last client did not end its instance",
         )
-        task.request("thread/resume", {"threadId": task.thread, **codex.settings})
+        task.request("thread/resume", {"threadId": codex.session, **codex.settings})
     previous_turns = len(task.started)
     early = task.say(UNLOAD_TURN)
     codex.await_command(UNLOAD_READY, "the resumed turn did not reach its checkpoint")

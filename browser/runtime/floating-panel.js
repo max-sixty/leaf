@@ -2332,7 +2332,9 @@ export function createFloatingPanel({
     return copy;
   }
   // A row leading to a list of the panel's own opens that list over the menu, whose way
-  // back returns there; any other row runs its command.
+  // back returns there. Folding takes the menu away with the rest of the panel, as its
+  // key does (`setRest`), so the panel is drawn once, folded, rather than first open
+  // and then folded. Any other row runs its command.
   /** @param {ReturnType<typeof pageControls>[number]} entry */
   function rowFor(entry) {
     if (entry.copies) return copyItem(entry);
@@ -2342,6 +2344,7 @@ export function createFloatingPanel({
       rowEnd(entry),
       () => {
         if (route) open(route);
+        else if (entry.key === `command:${FOLD}`) entry.press?.(null);
         else putAwayThen(() => entry.press?.(heldCurrentLocation));
       },
       {

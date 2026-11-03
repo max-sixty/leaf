@@ -62,6 +62,29 @@ def test_declared_markdown_body_is_delivered_formatted_with_exact_source_retaine
     assert "data-lf-prepaint" in body.attrs
 
 
+def test_a_written_markdown_file_is_delivered_rendered_as_a_file():
+    """A written <pre> whose notation an attribute names (`x-prepaint`) first paints
+    as the Markdown its module will draw: a file's soft breaks are spaces, not the
+    hard breaks Leaf's own words keep. Another notation, or no written text, paints
+    nothing."""
+    registry = {"lf-doc": {"x-prepaint": "preview"}}
+    written = "**Fixed** a crash\nwhen `--config` is missing."
+    source = (
+        f'<lf-doc id="md" preview="markdown"><pre>{written}</pre></lf-doc>'
+        '<lf-doc id="page" preview="html"><pre>&lt;p&gt;Hi&lt;/p&gt;</pre></lf-doc>'
+        '<lf-doc id="bound" preview="markdown" source="notes"></lf-doc>'
+    )
+    tree = SourceDocument(mark_declared(source, registry, {})).tree
+    [body] = tree.select("#md > .lf-markdown-body")
+    assert len(tree.select(".lf-markdown-body")) == 1
+    assert "data-lf-prepaint" in body.attrs
+    assert "data-lf-source-words" not in body.attrs
+    assert not body.find_all("br")
+    select_one_result = body.select_one("strong")
+    assert select_one_result is not None
+    assert select_one_result.text == "Fixed"
+
+
 def test_delivered_markdown_refuses_unsafe_links_and_images_before_runtime_loads():
     source = '<lf-editable id="note"><pre>[unsafe link](javascript:alert(1)) ![unsafe image](data:text/html,boom) [safe link](https://example.com)</pre></lf-editable>'
     delivered = mark_declared(

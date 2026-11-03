@@ -387,6 +387,7 @@ EXTENSION_SCHEMA = {
         "x-inline": {"type": "boolean"},
         "x-encloses": {"const": True},
         "x-language": _ATTRIBUTE_NAME,
+        "x-prepaint": _ATTRIBUTE_NAME,
         "x-reading-role": {"enum": ["pane"]},
         "x-measured": MEASURED_SCHEMA,
         "x-patch": {"enum": ["members"]},
@@ -617,6 +618,7 @@ LAYER_FACTS = {
 ATTRIBUTE_KEYS = (
     "x-language",
     "x-name",
+    "x-prepaint",
     "x-refers",
     "x-says",
     "x-tone",

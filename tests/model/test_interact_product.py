@@ -2074,6 +2074,11 @@ def test_a_reaction_something_answered_is_taken_back_into_its_place(page_dir):
             "token": "keep",
         },
     )
+    # The agent closes the thread by the reaction it acted on, as its instructions say.
+    resolved = CliRunner().invoke(
+        cli_model.cli, ["thread", "resolve", str(page_dir), loose["id"]]
+    )
+    assert resolved.exit_code == 0, resolved.output
     undos = [
         append_command(
             page_dir, {"kind": "undo", "author": "user", "undoes": gesture["id"]}
@@ -2099,6 +2104,8 @@ def test_a_reaction_something_answered_is_taken_back_into_its_place(page_dir):
         assert placed["withdrawn"] == {"id": undo["id"], "ts": undo["ts"], "was": said}
     assert not event_folds_model.bare_reaction(thread)
     assert event_folds_model.unanswered_turns(thread) == []
+    # Taking back the reaction the resolve named leaves the thread closed.
+    assert thread["resolved"]["kind"] == "resolve"
     state = state_json(page_dir)
     assert [t["id"] for t in state["threads"]] == [mark["id"]]
     assert state["reactions"] == []

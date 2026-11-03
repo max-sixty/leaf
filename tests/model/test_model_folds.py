@@ -78,6 +78,36 @@ def test_summaries_replace_overlaps_and_edits_do_not_resurrect_them():
     ]
 
 
+def test_a_reaction_taken_back_from_a_summarized_range_retires_the_summary():
+    """A summary in words may report what a reaction in its range said, so taking the
+    reaction back retires the summary, as rewriting a message in its range does. A
+    reaction made after the summary leaves it standing when taken back."""
+    identity = {"author": "agent", "agent": "Agent", "session": "session-1"}
+    log = (
+        {"kind": "comment", "text": "Ship it?"},
+        {"kind": "reply", **identity, "parent": "e1", "text": "Ready when you are."},
+        {"kind": "reply", "parent": "e2", "token": "keep"},
+        {"kind": "reply", **identity, "parent": "e1", "text": "Shipping."},
+        {
+            "kind": "summary",
+            **identity,
+            "thread": "e1",
+            "from": "e1",
+            "through": "e4",
+            "text": "The user approved shipping.",
+        },
+        {"kind": "reply", "parent": "e4", "token": "keep"},
+    )
+
+    def summaries(*tail):
+        state = model.reading(HUB, (*log, *tail))
+        return [summary["id"] for summary in model.threads(state)["e1"]["summaries"]]
+
+    assert summaries() == ["e5"]
+    assert summaries({"kind": "undo", "undoes": "e6"}) == ["e5"]
+    assert summaries({"kind": "undo", "undoes": "e3"}) == []
+
+
 def test_summary_leaves_messages_after_its_range_visible():
     identity = {"author": "agent", "agent": "Agent", "session": "session-1"}
     state = model.reading(

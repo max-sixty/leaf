@@ -309,6 +309,16 @@ test("taking back an answered reaction keeps its place as the log's answer will"
   assert.equal(folded.bare_reaction, taken.bare_reaction);
 });
 
+test("taking back the mark that kept a taken-back reaction's place takes the thread", () => {
+  const [kept] = servedReading("a reaction on a reaction taken back").threads;
+  assert.equal(kept.root.withdrawn?.was, "change");
+  assert.deepEqual(
+    servedReading("a reaction on a reaction, both taken back").threads,
+    [],
+  );
+  assert.deepEqual(foldThreads([kept], [{ kind: "undo", undoes: "e2" }]), []);
+});
+
 test("a local rewrite shows on its message and reopens a closed thread", () => {
   const asked = {
     id: "root",

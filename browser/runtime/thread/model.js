@@ -211,15 +211,16 @@ function unedited(thread, message, withdrawn) {
   };
 }
 
-// The messages the user is taking back that something left in the thread stands on, a
-// message naming one as its parent, which keep their place with nothing in them
-// (`events.standing_withdrawn`); the log's answer adds one a to-do is attached to. A
-// parent is older than its message, so one pass from the newest finds a chain of them.
-/** @param {Thread} thread @param {ReadonlySet<string>} withdrawn */
-function standingIn(thread, withdrawn) {
+// The messages taken back, by the user now or the log already, that something left in
+// the thread stands on, a message naming one as its parent, which keep their place with
+// nothing in them (`events.standing_withdrawn`); the log's answer adds one a to-do is
+// attached to. A parent is older than its message, so one pass from the newest finds a
+// chain of them.
+/** @param {Thread} thread @param {(message: Thread["msgs"][number]) => boolean} gone */
+function standingIn(thread, gone) {
   const standing = new Set();
   for (const message of thread.msgs.toReversed())
-    if ("parent" in message && (!withdrawn.has(message.id) || standing.has(message.id)))
+    if ("parent" in message && (!gone(message) || standing.has(message.id)))
       standing.add(message.parent);
   return standing;
 }
@@ -248,16 +249,20 @@ export function foldThreads(threads, gestures) {
   // reply written against the first: the one this page gave it, and the one the log
   // gave back. Both reach the one thread, so a reply written into the card a
   // send had just drawn stays in it when the answer arrives.
+  /** @param {Thread["msgs"][number]} message */
+  const gone = (message) => withdrawn.has(message.id) || Boolean(message.withdrawn);
   /** @type {Thread[]} */
   const copies = threads.flatMap((thread) => {
-    const standing = standingIn(thread, withdrawn);
-    if (withdrawn.has(thread.root.id) && !standing.has(thread.root.id)) return [];
+    const standing = standingIn(thread, gone);
+    if (gone(thread.root) && !standing.has(thread.root.id)) return [];
     const msgs = thread.msgs.flatMap((message) =>
-      !withdrawn.has(message.id)
+      !gone(message)
         ? [unedited(thread, message, withdrawn)]
-        : standing.has(message.id)
-          ? [takenBack(message)]
-          : [],
+        : !standing.has(message.id)
+          ? []
+          : message.withdrawn
+            ? [message]
+            : [takenBack(message)],
     );
     return [
       {

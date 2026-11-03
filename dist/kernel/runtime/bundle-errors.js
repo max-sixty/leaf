@@ -648,9 +648,9 @@ function unedited(thread, message, withdrawn) {
 		}
 	};
 }
-function standingIn(thread, withdrawn) {
+function standingIn(thread, gone) {
 	const standing = /* @__PURE__ */ new Set();
-	for (const message of thread.msgs.toReversed()) if ("parent" in message && (!withdrawn.has(message.id) || standing.has(message.id))) standing.add(message.parent);
+	for (const message of thread.msgs.toReversed()) if ("parent" in message && (!gone(message) || standing.has(message.id))) standing.add(message.parent);
 	return standing;
 }
 function takenBack(message) {
@@ -667,10 +667,11 @@ function takenBack(message) {
 function foldThreads(threads, gestures) {
 	if (!gestures.length) return [...threads];
 	const withdrawn = new Set(gestures.flatMap((gesture) => gesture.kind === "undo" ? [gesture.undoes] : []));
+	const gone = (message) => withdrawn.has(message.id) || Boolean(message.withdrawn);
 	const copies = threads.flatMap((thread) => {
-		const standing = standingIn(thread, withdrawn);
-		if (withdrawn.has(thread.root.id) && !standing.has(thread.root.id)) return [];
-		const msgs = thread.msgs.flatMap((message) => !withdrawn.has(message.id) ? [unedited(thread, message, withdrawn)] : standing.has(message.id) ? [takenBack(message)] : []);
+		const standing = standingIn(thread, gone);
+		if (gone(thread.root) && !standing.has(thread.root.id)) return [];
+		const msgs = thread.msgs.flatMap((message) => !gone(message) ? [unedited(thread, message, withdrawn)] : !standing.has(message.id) ? [] : message.withdrawn ? [message] : [takenBack(message)]);
 		return [{
 			...thread,
 			root: msgs.find(({ id }) => id === thread.root.id) ?? thread.root,

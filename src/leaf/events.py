@@ -238,6 +238,10 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
         # A gesture the user took back settles nothing, whichever way it settled:
         # the log holds it and no reading of the log stands on it.
         if e["id"] in withdrawn and e["id"] not in standing:
+            # A resolve may name a reaction since taken back from its thread, and
+            # still closes that thread.
+            if e["kind"] == "reply" and e["parent"] in thread_for:
+                thread_for[e["id"]] = thread_for[e["parent"]]
             continue
         if e["kind"] == "comment":
             message = message_reading(e, undos.get(e["id"]))
@@ -309,8 +313,8 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                 thread["anchor"] = e["anchor"]
                 thread["rewritten_from"] = None
             thread_for[e["id"]] = thread
-        # A resolve names a message the user may later take back — a reaction opening
-        # its thread, withdrawn once the thread reopened — and then closes nothing.
+        # A resolve naming a reaction that opened a thread nothing else stands in
+        # closes nothing once the user takes the reaction back: the thread is gone.
         elif e["kind"] == "resolve" and (thread := thread_for.get(e["parent"])):
             thread["resolved"] = e
         elif e["kind"] == "unresolve" and (thread := thread_for.get(e["parent"])):
@@ -334,24 +338,32 @@ def message_reading(event: dict, undo: dict | None) -> dict:
 def active_summaries(events: list, threads: dict) -> dict[str, list[dict]]:
     """Current presentation summaries for every thread, by thread id.
 
-    Summaries replace overlapping summaries whole. Editing a covered message, or
-    undoing an edit of it, invalidates a summary containing prose. A fold without
-    prose keeps showing the revised originals. Progress completion is separate
-    (`progress_completions`), so opening a summary never restores completed progress.
+    Summaries replace overlapping summaries whole. Editing a covered message,
+    undoing an edit of it, or taking back a reaction on a covered message
+    invalidates a summary containing prose. A fold without prose keeps showing the
+    revised originals. Progress completion is separate (`progress_completions`), so
+    opening a summary never restores completed progress.
     """
     edits = {}
     edited = {}
+    messages = {}
+    taken = []
     written = {}
     for event in events:
-        if event["kind"] == "edit":
+        if event["kind"] in kinds_declaring("message"):
+            messages[event["id"]] = event
+        elif event["kind"] == "edit":
             edited[event["id"]] = event["message"]
             edits[event["message"]] = event["seq"]
         elif event["kind"] == "undo" and event["undoes"] in edited:
             edits[edited[event["undoes"]]] = event["seq"]
+        elif event["kind"] == "undo" and event["undoes"] in messages:
+            edits[event["undoes"]] = event["seq"]
+            taken.append(messages[event["undoes"]])
         elif event["kind"] == "summary" and event["thread"] in threads:
             written.setdefault(event["thread"], []).append(event)
     return {
-        thread_id: _thread_summaries(thread, written.get(thread_id, []), edits)
+        thread_id: _thread_summaries(thread, written.get(thread_id, []), edits, taken)
         for thread_id, thread in threads.items()
     }
 
@@ -380,7 +392,9 @@ def progress_completions(thread: dict) -> dict[str, dict]:
     return completed
 
 
-def _thread_summaries(thread: dict, summaries: list, edits: dict) -> list[dict]:
+def _thread_summaries(
+    thread: dict, summaries: list, edits: dict, taken: list
+) -> list[dict]:
     message_ids = [message["id"] for message in thread["msgs"]]
     positions = {identity: index for index, identity in enumerate(message_ids)}
     active = []
@@ -394,8 +408,15 @@ def _thread_summaries(thread: dict, summaries: list, edits: dict) -> list[dict]:
         active = [
             summary for summary in active if covered.isdisjoint(summary["covers"])
         ]
+        # A reaction taken back leaves the thread unless something stands on it, so
+        # one the summary saw is found by the message it was on.
+        marks = [
+            mark["id"]
+            for mark in taken
+            if mark.get("parent") in covered and mark["seq"] < event["seq"]
+        ]
         if event["text"] and any(
-            edits.get(identity, 0) > event["seq"] for identity in covers
+            edits.get(identity, 0) > event["seq"] for identity in [*covers, *marks]
         ):
             continue
         active.append(

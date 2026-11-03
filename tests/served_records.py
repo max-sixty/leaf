@@ -231,6 +231,24 @@ def build() -> dict:
                     ),
                 )
             },
+            # A reaction the user marked with another, the first taken back, then both.
+            **{
+                name: _served(
+                    (
+                        {"kind": "comment", "token": "change"},
+                        {"kind": "reply", "parent": "e1", "token": "keep"},
+                        {"kind": "undo", "undoes": "e1"},
+                        *tail,
+                    )
+                )
+                for name, tail in (
+                    ("a reaction on a reaction taken back", ()),
+                    (
+                        "a reaction on a reaction, both taken back",
+                        ({"kind": "undo", "undoes": "e2"},),
+                    ),
+                )
+            },
             "queues on both sides": served_reading(
                 OBLIGATION_PAGE,
                 BOTH_SIDES,

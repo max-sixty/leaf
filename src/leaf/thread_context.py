@@ -446,11 +446,19 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
     structure = thread_structure(events)
     widgets = thread_widgets(structure, names)
     memberships = thread_memberships(events, names, widgets, within)
-    named = []
+    named = dict.fromkeys(
+        thread for event in batch for thread in memberships[event["id"]]
+    )
+    # The widgets in each thread that the batch's own actions name, and the messages
+    # whose markup declares each id.
+    acted_in: dict[str, set] = {}
     for event in batch:
-        for thread in memberships[event["id"]]:
-            if thread not in named:
-                named.append(thread)
+        if event["kind"] == "action" and (thread := widgets.get(event["widget"])):
+            acted_in.setdefault(thread, set()).add(event["widget"])
+    declaring: dict[str, list] = {}
+    for sent, fragment in structure.fragments.items():
+        for identity in fragment.by_id:
+            declaring.setdefault(identity, []).append(sent)
     threads = build_threads(events, within)
     delivered = frozenset(event["seq"] for event in batch)
     withdrawn = taken_back(events)
@@ -477,16 +485,9 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
         if t not in threads:
             continue
         acted = ends_kept(gestures.get(t, []))
-        spoken_for = {a["widget"] for a in acted}
-        spoken_for |= {
-            e["widget"]
-            for e in batch
-            if e["kind"] == "action" and widgets.get(e["widget"]) == t
-        }
+        spoken_for = {a["widget"] for a in acted} | acted_in.get(t, set())
         pin = frozenset(
-            sent
-            for sent, fragment in structure.fragments.items()
-            if fragment.by_id.keys() & spoken_for
+            sent for widget in spoken_for for sent in declaring.get(widget, ())
         )
         digest = thread_digest(threads[t], delivered, pin)
         summaries = summaries_for[t]

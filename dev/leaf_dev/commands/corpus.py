@@ -162,6 +162,16 @@ def main_body(source: Path, parsed: SourceDocument) -> str:
     if len(mains) != 1:
         raise ValueError(f"{source.name}: expected exactly one <main>…</main>")
     [main] = mains
+    beside = [
+        f"<{element.tag}>"
+        for element in parsed.tree.select("body > *")
+        if element.tag not in {"main", "script", "template"}
+    ]
+    if beside:
+        raise ValueError(
+            f"{source.name}: a corpus tab carries only what <main> holds, not"
+            f" {', '.join(beside)} beside it"
+        )
     text = parsed.html
     assert main.source_location is not None
     _, start = parsed.offsets(main.source_location.start_tag)

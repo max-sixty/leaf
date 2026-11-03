@@ -761,7 +761,8 @@ def test_back_returns_from_an_obligation_the_walk_travelled_to(browser, serve):
     """Each step of the obligation walk somewhere else adds a history entry where the user
     stood, as each trip to a thread does, so Back returns to the obligation the user was
     on, though answering it took it out of On me, and then to where they were reading.
-    `m` from a thread `t` reached comes back to the thread."""
+    `m` from a thread `t` reached comes back to the thread, its card open again beside
+    its passage."""
     filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(60))
     url = serve(
         leaf_page(
@@ -811,7 +812,9 @@ def test_back_returns_from_an_obligation_the_walk_travelled_to(browser, serve):
 
     # `t` travels to the thread just below the first obligation, and `m` from there to
     # the second leaves that thread, so it adds an entry of its own: Back returns to the
-    # thread's landing, and Back again to the bottom.
+    # thread's landing, its card open beside the passage again, and Back again to the
+    # bottom.
+    card = page.locator(".lf-margin-thread .lf-page-thread")
     start = entry()
     page.keyboard.press("t")
     page.wait_for_function("() => document.activeElement?.closest('[data-thread]')")
@@ -820,10 +823,12 @@ def test_back_returns_from_an_obligation_the_walk_travelled_to(browser, serve):
     assert thread < reading - 1000
     page.keyboard.press("m")
     expect(page.locator("#second-decision")).to_be_focused()
+    expect(card).to_be_hidden()
     scroll_settled(page)
     assert entry() == start + 2
     back_to(thread)
     expect(page.locator("#above")).to_be_in_viewport()
+    expect(card).to_be_visible()
     back_to(reading)
 
     # From the bottom again, the obligation walk upward.

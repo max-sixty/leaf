@@ -1,7 +1,7 @@
 import { LAYOUT, LENT_REACH_STOP, TAB_STOP, afterScript, atLayoutPrecision, cancelRender, clamp, clippedContents, clippedRect, clippingAxes, coarsePointer, hoveringPointer, inChrome, inlineStyle, keeps, layoutPx, move, moveScrollerBy, nextRender, offeredActionElement, overlaps, overlapsAcross, pageScroller, renderedParent, renderedUnder, scrollAxes, scrollLimit, scrollsContent, shellRight, shownBand, shownExtent, shownParts, shownRect, shownWindow, sizeObserver, skipped, under, union, upFrom, visualViewport } from "./bundle-portable.js";
 import { renderedChildren } from "./bundle-errors.js";
 import { afterPresentation, anchorBox, anchorElement, anchorFor, anchorHolder, anchorName, anchorReading, blockControlBoxes, boundedBlockOf, carriedAnchor, containingReadingRegionFor, cutFrames, headerLevels, nameAnchor, passageBoxes, pointBand, proseMeasure, proseRect, railStands, scrollMisplacesAnchors, scrollerFor, scrollsWith, targetRange, targetSegments } from "./bundle-content-layout.js";
-import { layoutBox } from "./bundle-passages.js";
+import { layoutBox, pageDocument } from "./bundle-passages.js";
 import { visibleTargetParts } from "./bundle-visible-target-parts.js";
 
 //#region runtime/annotation-overlay/margin-placement.js
@@ -667,7 +667,7 @@ function standFolded(row, fold, on) {
 	fold?.changed();
 }
 function pinSeating(rows, { bands, shell, pinInset }) {
-	const main = marginColumn();
+	const page = pageDocument();
 	const rootBounds = /^(hidden|clip)$/.test(getComputedStyle(pageScroller).overflowY) ? shownWindow({ viewport: "layout" }) : { top: pageScroller.getBoundingClientRect().top };
 	let standing;
 	return rows.map((entry) => {
@@ -718,7 +718,7 @@ function pinSeating(rows, { bands, shell, pinInset }) {
 		};
 		const stop = read.scroller;
 		standing ??= blockControlBoxes();
-		const room = coverIn(stop === pageScroller ? main : stop, band, target, bands, stop, standing);
+		const room = coverIn(stop === pageScroller ? page : stop, band, target, bands, stop, standing);
 		const { cover, controls } = room;
 		const end = parts.at(-1);
 		const inline = Boolean(words) || !point && end !== void 0 && target instanceof HTMLElement && getComputedStyle(target).display.startsWith("inline");
@@ -1409,15 +1409,6 @@ const INSETS = [
 ];
 const stood = /* @__PURE__ */ new Map();
 const floatingSelections = () => [...stood.values()];
-const heldEdges = (floating) => {
-	const placed = stood.get(floating);
-	return placed ? {
-		x: placed.edges.left,
-		y: placed.edges.top,
-		by: placed.anchor,
-		plane: placed.frame
-	} : null;
-};
 const physicalContext = (context) => context instanceof Element ? context : context?.parentElement;
 function floatingGeometry(contexts) {
 	const anchors = /* @__PURE__ */ new Map();
@@ -1468,6 +1459,9 @@ function floatingPlacement({ floating, update }) {
 	};
 	let stand = placedAt;
 	let placementProof = null;
+	let holding = null;
+	let stoodSize = null;
+	const atStoodSize = /* @__PURE__ */ new WeakMap();
 	let stopScrollInvalidation = null;
 	function clientBox(answer) {
 		const { offset, scale } = answer.middlewareData.anchorAt;
@@ -1536,7 +1530,7 @@ function floatingPlacement({ floating, update }) {
 			});
 			if (placement !== epoch) return null;
 			const { offset, scale } = answer.middlewareData.anchorAt;
-			const wanted = planeOf(answer);
+			const wanted = planeOf === "page" ? planeOf : planeOf(answer);
 			const holder = offset && physical && typeof wanted === "object" ? holderOf(wanted, physical, getOverflowAncestors(physical)) : null;
 			const plane = wanted === "page" && anchorStood && offset ? "page" : holder ? "region" : "window";
 			const frameAnchor = plane === "page" ? anchor : holder ? anchorElement(holder) : null;
@@ -1564,22 +1558,51 @@ function floatingPlacement({ floating, update }) {
 				plane,
 				at
 			} : null;
+			const { width, height } = answer.middlewareData.held;
+			if (planeOf !== "page" && stoodSize && (Math.abs(width - stoodSize.width) >= .5 || Math.abs(height - stoodSize.height) >= .5)) {
+				const size = stoodSize;
+				const before = await computePosition(measured, floating, {
+					...options,
+					strategy: "fixed",
+					platform: { getDimensions: () => size },
+					middleware: [
+						...options.middleware.filter((middleware) => middleware && middleware.name !== "size"),
+						held,
+						anchorAt(measured)
+					]
+				});
+				if (placement !== epoch) return null;
+				atStoodSize.set(answer, before);
+			}
 			return answer;
 		},
 		stand(answer) {
 			const from = floating.getBoundingClientRect();
 			stand(answer);
 			const to = clientBox(answer);
+			const before = atStoodSize.get(answer);
+			const kept = before?.middlewareData.anchorAt.offset && clientBox(before);
+			const keptEdges = before?.middlewareData.held.edges;
 			const moved = {
 				x: to.left - from.left,
-				y: to.top - from.top
+				y: to.top - from.top,
+				kept: kept && keptEdges ? {
+					edges: keptEdges,
+					x: kept[keptEdges.x] - from[keptEdges.x],
+					y: kept[keptEdges.y] - from[keptEdges.y]
+				} : null
+			};
+			const { edges, width, height, block } = answer.middlewareData.held;
+			holding = { ...edges };
+			stoodSize = {
+				width,
+				height
 			};
 			if (!placementProof) {
 				stood.delete(floating);
 				tenure = Object.freeze({});
 				return moved;
 			}
-			const { edges, width, height, block } = answer.middlewareData.held;
 			const { offset, scale } = answer.middlewareData.anchorAt;
 			const { subject, anchor, frame: frameAnchor, plane, at } = placementProof;
 			const axisPoint = (coordinate, start, length, extent) => {
@@ -1611,6 +1634,7 @@ function floatingPlacement({ floating, update }) {
 			return moved;
 		},
 		clientBox,
+		held: () => holding,
 		supersede() {
 			epoch += 1;
 		},
@@ -1625,6 +1649,8 @@ function floatingPlacement({ floating, update }) {
 			observer = null;
 			tenure = Object.freeze({});
 			placementProof = null;
+			holding = null;
+			stoodSize = null;
 			stood.delete(floating);
 			delete floating.dataset.lfPlane;
 			for (const property of ["position-anchor", ...INSETS]) floating.style.removeProperty(property);
@@ -2047,4 +2073,4 @@ function commentPlacement() {
 }
 
 //#endregion
-export { COMMENT_GAP, THREAD_CARD, cardMeasure, cardMinimum, commentAttachment, commentBoundary, commentPlacement, commentReference, floatingGeometry, floatingPlacement, floatingSelections, floatingUi, heldEdges, layoutMarginRows, makeRoom, marginColumn, marginSpot, mountMarginLayer, paintedBox, registerMarginRow, scheduleMarginEntryLabels, scheduleMarginLayout, standsFolded, standsWithheld, syncMarginContentLayout, unregisterMarginRow };
+export { COMMENT_GAP, THREAD_CARD, cardMeasure, cardMinimum, commentAttachment, commentBoundary, commentPlacement, commentReference, floatingGeometry, floatingPlacement, floatingSelections, floatingUi, layoutMarginRows, makeRoom, marginColumn, marginSpot, mountMarginLayer, paintedBox, registerMarginRow, scheduleMarginEntryLabels, scheduleMarginLayout, standsFolded, standsWithheld, syncMarginContentLayout, unregisterMarginRow };

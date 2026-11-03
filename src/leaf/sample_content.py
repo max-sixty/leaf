@@ -23,8 +23,7 @@ from .findings import Finding, Rejected
 from .page_view import InitialPageView
 from .projection import generated_children, retirement_outcomes, rewritten_bodies
 from .registry.kernel import kernel_event_kinds
-from .registry.schema import aware_instant
-from .state import now_iso
+from .state import aware_instant, now_iso
 from .structure import SourceDocument
 from .thread_context import sample_events, thread_names, thread_structure
 from .validation.admission import message_markup_errors

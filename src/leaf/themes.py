@@ -22,8 +22,6 @@ import tomllib
 from pathlib import Path
 from typing import Literal
 
-from jsonschema import Draft202012Validator
-
 from .layer import named_package
 from .refusals import Refused
 from .schema import HTML_NAME
@@ -34,21 +32,19 @@ type ThemeChoice = str | Literal[False] | None
 # holds Leaf's reading look, its element and idiom defaults.
 DEFAULT_THEME = "reading"
 
-_CATALOGUE = Draft202012Validator(
-    {
-        "type": "object",
-        "properties": {
-            "themes": {
-                "type": "array",
-                "items": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-                "uniqueItems": True,
-            },
-            "default": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+_CATALOGUE = {
+    "type": "object",
+    "properties": {
+        "themes": {
+            "type": "array",
+            "items": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+            "uniqueItems": True,
         },
-        "required": ["themes"],
-        "additionalProperties": False,
-    }
-)
+        "default": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+    },
+    "required": ["themes"],
+    "additionalProperties": False,
+}
 
 
 def catalogue() -> tuple[Path, dict]:
@@ -64,7 +60,9 @@ def catalogue() -> tuple[Path, dict]:
         return path, {"themes": []}
     except (OSError, tomllib.TOMLDecodeError) as error:
         raise Refused(f"{path}: {error}") from None
-    if error := next(iter(_CATALOGUE.iter_errors(config)), None):
+    from .registry.schema import json_validator
+
+    if error := next(iter(json_validator(_CATALOGUE).iter_errors(config)), None):
         raise Refused(f"{path}: {error.message}")
     if (default := config.get("default")) is not None and default not in config[
         "themes"

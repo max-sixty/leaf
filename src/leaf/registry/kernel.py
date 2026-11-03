@@ -32,6 +32,15 @@ def kernel_event_kinds() -> dict:
     return _kernel_events()["kinds"]
 
 
+def title_limit() -> int:
+    """The most characters a title holds: a thread's, a to-do's or a plan step's,
+    which every title field in `$events.kinds` declares alike, read off the
+    `thread_title` event's."""
+    return kernel_event_kinds()["thread_title"]["record"]["properties"]["title"][
+        "maxLength"
+    ]
+
+
 def kernel_protocol() -> int:
     """The number of the contract between a page and the Leaf serving it, which a
     page's layer record names as `protocol` (`layer.incompatible_layer`). It

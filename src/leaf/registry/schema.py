@@ -17,8 +17,6 @@ and the `regex` format checks a value, with the same engine.
 
 import functools
 import json
-import re
-from datetime import datetime
 
 import jsonschema._keywords
 import jsonschema._utils
@@ -31,10 +29,9 @@ from referencing import Registry
 from referencing.exceptions import Unresolvable
 from referencing.jsonschema import DRAFT202012
 
+from leaf.state import aware_instant
+
 FORMAT_CHECKER = FormatChecker()
-RFC3339_DATE_TIME = re.compile(
-    r"^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[Zz]|[+-]\d{2}:\d{2})$"
-)
 
 
 @FORMAT_CHECKER.checks("date-time")
@@ -57,18 +54,6 @@ def is_browser_url(value) -> bool:
     if not isinstance(value, str):
         return True  # the declared JSON Schema owns the type complaint
     return URL.can_parse(value)
-
-
-def aware_instant(value: str):
-    """The one parse of Leaf's date-time format, or None where the spelling fails."""
-    if not RFC3339_DATE_TIME.fullmatch(value):
-        return None
-    normalized = value[:-1] + "+00:00" if value[-1] in "Zz" else value
-    try:
-        parsed = datetime.fromisoformat(normalized)
-    except ValueError:
-        return None
-    return parsed if parsed.utcoffset() is not None else None
 
 
 @functools.cache

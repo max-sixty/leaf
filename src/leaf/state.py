@@ -163,37 +163,61 @@ def flocked(path: Path, *, deadline: float | None = None):
     to them, since the files themselves are replaced by rename and a lock on a
     replaced inode holds nothing.
 
-    The event log is the successful-init marker as well as a lease. A transaction
-    racing page deletion must not recreate it and turn a deleted directory back into
-    an initialized page, so it is opened, never created, and it outlives the lock.
+    The event log is a lease as well as the page's init marker
+    (`event_log.initialized`). A transaction racing page deletion must not recreate
+    it and turn a deleted directory back into a page, so it is opened, never
+    created, and it outlives the lock.
 
     A purpose lock's file is created on first use and remains after release.
-    The block's end unlocks it before closing, since a subprocess another thread
-    starts meanwhile holds a copy of the descriptor until its exec, and closing
-    alone would keep the next taker waiting on that child (`release_lease`).
-    Every acquired descriptor is checked
-    against its path, since a shared-path replacement while a taker waits must
-    never let it enter a transaction on an inode other takers can no longer find.
-    This also covers a page replaced with a new event log.
+    What the block wrote through the file is flushed before the lock is let go
+    (`flocked_descriptor`).
 
     A `deadline`, a `time.monotonic()` reading, bounds the wait: a lock not taken
     by then raises TimeoutError, for a taker that must finish by a harness's
     deadline more than it must take the lock."""
-    mode = "r+b" if path.name == EVENTS_FILE else "a+b"
+    events = path.name == EVENTS_FILE
+    flags = os.O_RDWR if events else os.O_RDWR | os.O_CREAT | os.O_APPEND
+    with (
+        flocked_descriptor(path, flags, deadline=deadline) as held,
+        open(held, "r+b" if events else "a+b", closefd=False) as f,
+    ):
+        yield f
+
+
+@contextlib.contextmanager
+def flocked_descriptor(path: Path, flags: int, *, deadline: float | None = None):
+    """The descriptor `os.open` gives `path` under `flags`, exclusively locked while
+    the block runs (`flocked`, `leases.page_locked`).
+
+    Every acquired descriptor is checked against its path, since a shared-path
+    replacement while a taker waits must never let it enter a transaction on an
+    inode other takers can no longer find; one that lost its path is let go and
+    the path opened again. This also covers a page replaced with a new event log.
+    Each descriptor is unlocked before it is closed, since a subprocess another
+    thread starts meanwhile holds a copy of the descriptor until its exec, and
+    closing alone would keep the next taker waiting on that child
+    (`release_lease`)."""
     while True:
-        with open(path, mode) as f:
-            acquire(f, path, deadline)
-            if still_named(f.fileno(), path):
-                try:
-                    yield f
-                finally:
-                    fcntl.flock(f, fcntl.LOCK_UN)
-                return
+        held = os.open(path, flags, 0o666)
+        try:
+            acquire(held, path, deadline)
+            if still_named(held, path):
+                break
+            fcntl.flock(held, fcntl.LOCK_UN)
+        except BaseException:
+            os.close(held)
+            raise
+        os.close(held)
+    try:
+        yield held
+    finally:
+        fcntl.flock(held, fcntl.LOCK_UN)
+        os.close(held)
 
 
 def acquire(f, path: Path, deadline: float | None) -> None:
-    """Take `f`'s exclusive lock before `deadline` where one is given
-    (`flocked`); a deadline already past takes no lock at all."""
+    """Take `f`'s exclusive lock, `f` a file or a descriptor, before `deadline`
+    where one is given (`flocked`); a deadline already past takes no lock at all."""
     if deadline is None:
         fcntl.flock(f, fcntl.LOCK_EX)
         return
@@ -219,7 +243,27 @@ def still_named(held: int, path: Path) -> bool:
 
 
 def now_iso() -> str:
+    """Now in Leaf's date-time format, which `aware_instant` reads."""
     return datetime.now().astimezone().isoformat(timespec="milliseconds")
+
+
+# Leaf's date-time format: one absolute RFC 3339 instant, with its offset.
+RFC3339_DATE_TIME = re.compile(
+    r"^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[Zz]|[+-]\d{2}:\d{2})$"
+)
+
+
+def aware_instant(value: str):
+    """The one parse of Leaf's date-time format, or None where the spelling fails.
+    Schemas check the `date-time` format by it (`registry.schema`)."""
+    if not RFC3339_DATE_TIME.fullmatch(value):
+        return None
+    normalized = value[:-1] + "+00:00" if value[-1] in "Zz" else value
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        return None
+    return parsed if parsed.utcoffset() is not None else None
 
 
 def fsync_parents(paths) -> None:
@@ -821,9 +865,16 @@ def end_harness_instance(session_id: str) -> None:
         _end_session(session_id)
 
 
+def claims_home() -> Path:
+    """The state home's `claims/`, resolved, as notifications name it: each page's
+    claim payload (`service.claim_path`), and each session's locators
+    (`session_claims`)."""
+    return state_home().resolve() / "claims"
+
+
 def session_claims(session_id: str) -> Path:
     """This session's discovery locators; payloads remain canonical by page."""
-    return state_home().resolve() / "claims" / session_file(session_id, "claims").stem
+    return claims_home() / session_file(session_id, "claims").stem
 
 
 def held_claims(session_id: str) -> list[Path]:
@@ -851,7 +902,7 @@ def standing_claims() -> list[Path]:
     """Every claim payload on this machine whose page still stands, retiring those
     whose page is gone (`retire_claim`), whichever Leaf wrote them."""
     standing = []
-    for payload in (state_home().resolve() / "claims").glob("*.json"):
+    for payload in claims_home().glob("*.json"):
         stored = stored_record(payload)
         if stored is not None and pages_gone(named_pages(stored)):
             retire_claim(payload, stored)

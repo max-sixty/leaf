@@ -48,7 +48,7 @@ inventory and lands in no Done.
 """
 
 from ..obligations import answered_in_words, thread_topics
-from ..registry.schema import aware_instant
+from ..state import aware_instant
 
 
 def _todo_item(todo: dict) -> dict:

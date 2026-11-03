@@ -23,7 +23,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import NamedTuple
 
-from .event_log import start_log
+from .event_log import initialized, start_log
 from .findings import Finding, note
 from .harness import Harness, session_harness
 from .hosting import restarting_server
@@ -58,7 +58,6 @@ from .service import (
 )
 from .session_runtime import select_checkout
 from .state import (
-    EVENTS_FILE,
     SESSION_SUFFIX,
     remove_claim,
     session_file,
@@ -107,7 +106,7 @@ def cmd_init(
         )
         page_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     harness = session_harness()
-    if (page_dir / EVENTS_FILE).is_file():
+    if initialized(page_dir):
         if dry_run:
             with page_locked(page_dir):
                 plan = _plan_page(page_dir, selected, theme=theme, fresh=False)
@@ -295,11 +294,10 @@ def _init_page(
             f"a server started on {page_dir} while it was being re-initialized; "
             f"re-run `leaf page init {page_dir}`"
         )
-    # Successful init creates the append-only log's stable inode. A directory
-    # the caller prepared is still a fresh page until that marker exists: it
-    # keeps the caller's chosen mode, takes no PageTransaction yet, and a failed
-    # validation leaves it untouched.
-    if not (page_dir / EVENTS_FILE).is_file():
+    # A directory the caller prepared is still a fresh page until it is
+    # `initialized`: it keeps the caller's chosen mode, takes no PageTransaction
+    # yet, and a failed validation leaves it untouched.
+    if not initialized(page_dir):
         plan = _plan_page(page_dir, selected, theme=theme, fresh=True)
         # A page's claim lives outside its directory. Recreating a deleted path
         # creates a new page, so it must not inherit the deleted page's owner.

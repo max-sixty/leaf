@@ -55,6 +55,7 @@ import click
 
 from leaf.codex import APP_SERVER_ENV
 from leaf.delivery import opened_input_ids
+from leaf.event_log import initialized
 from leaf.harness import IDENTITY_VARIABLES, ClaudeCodeHarness, CodexHarness
 from leaf.render_gate import browser as browser_model
 from leaf.render_gate import command as render_command_model
@@ -662,7 +663,7 @@ def authoring_sandbox(*owned: Path) -> str:
     uid = os.getuid()
     names = (
         rf"claude-{uid}(/|$)|claude-[0-9a-f]+-cwd$|cc-socks(/|$)|zsh[^/]+$"
-        rf"|leaf-package-locks-{uid}(/|$)|leaf-codex-[^/]+(/|$)"
+        rf"|leaf-path-locks-{uid}(/|$)|leaf-codex-[^/]+(/|$)"
         rf"|codex-daemon-{uid}(/|$)"
     )
     host_plugins = (
@@ -1072,7 +1073,7 @@ class LiveSession:
 
     def _observe(self, record: dict) -> None:
         # An agent authoring the page has not made it yet.
-        if self.watch is None or not (self.watch[2] / "events.jsonl").exists():
+        if self.watch is None or not initialized(self.watch[2]):
             return
         if not self.url and record.get("type") in ("user", "result"):
             state = read_page_state(*self.watch)

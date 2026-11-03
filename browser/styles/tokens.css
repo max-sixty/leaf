@@ -277,10 +277,12 @@
   /* The ladder, body at --t-4. Measured on Charter at 17px: 7.9px a character, so
      the column below holds about 74 of them. The numbered rungs are the prose's hierarchy;
      --t-working-label is the shared compact heading between its two smallest rungs, and
-     Leaf's interface sets its words in them through its fonts (`--font-*`, below). A size
-     that has to fit something states its own number where it is set, as a code block
-     does against the characters it takes across. Rem units retain these sizes at
-     the browser's default 16px while following a reader's chosen default font size.
+     Leaf's interface sets its words in them through its fonts (`--font-*`, below). Every
+     font size in Leaf's sheets names a token declared in this file or scales the size it
+     inherits (tests/model/test_interface_fonts.py), so a size that has to fit something
+     is a token here, as --code-size is for the characters a code block takes across.
+     Rem units retain these sizes at the browser's default 16px while following a
+     reader's chosen default font size.
      --t-7 is smaller than any prose size, for the words on a margin mark or the
      panel's leaf: a count on its badge, a cluster's position, the second line of a
      mark's label. No density restates it, because a count must stay legible on its

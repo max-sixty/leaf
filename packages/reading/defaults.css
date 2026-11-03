@@ -53,15 +53,12 @@ html {
   }
 }
 /* A page as wide as the window (`--lf-wide-page`, set by the sidebar Layout)
- * sets its title a size up and tighter, to hold its line above panels as wide as the
- * window. The Layout says how wide the page is; the size is answered here. A page at
- * working density keeps the working title, since it is a surface the reader operates
- * or glances at, such as a rollout dashboard, whose first window the panels need: a
- * 46px title and its air took a tenth of a 1000px window above them. */
+ * sets its title tighter, to hold its line above panels as wide as the window. The
+ * Layout says how wide the page is; the tracking is answered here. A page at working
+ * density keeps the working title, since it is a surface the reader operates or
+ * glances at, such as a rollout dashboard, whose first window the panels need. */
 @container style(--lf-wide-page: 1) and (not style(--lf-density: working)) {
   h1 {
-    font-size: clamp(36px, 3.2cqi, 46px);
-    font-weight: 700;
     letter-spacing: -0.02em;
     line-height: 1.1;
   }
@@ -269,8 +266,10 @@ ol.steps > li {
 
 /* A schematic drawing the page makes itself: every mark takes a theme token, so the
    figure follows the palette as the prose does, which an SVG loaded as an image cannot.
-   Sizes are in the drawing's own units and scale with its viewBox. One without a width
-   of its own fills its figure; a thumbnail states one.
+   Its words take the ladder's two smallest rungs, read in the drawing's own units, so
+   they scale with its viewBox. They also follow a density's rungs and the reader's
+   default size, which the shapes around them do not. One without a width of its own
+   fills its figure; a thumbnail states one.
 
    TODO: revisit whether this set is too specific. It ships as taken from one page's
    drawings of Leaf's own layout, less the marks only that subject used (its rail, pins
@@ -280,7 +279,7 @@ svg.drawing {
   display: block;
   height: auto;
   font-family: var(--sans);
-  font-size: 11px;
+  font-size: var(--t-6);
 }
 svg.drawing:not([width]) {
   width: 100%;
@@ -291,14 +290,13 @@ svg.drawing text {
 svg.drawing .strong {
   fill: var(--ink);
   font-weight: 600;
-  font-size: 12px;
 }
 svg.drawing .small {
-  font-size: 10px;
+  font-size: var(--t-7);
 }
 svg.drawing .mono {
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: var(--t-7);
   fill: var(--ink-2);
 }
 svg.drawing .frame {
@@ -354,7 +352,7 @@ svg.drawing .tip.hot {
 }
 svg.drawing .glyph {
   fill: var(--paper);
-  font-size: 9px;
+  font-size: var(--t-7);
   font-weight: 700;
   text-anchor: middle;
   dominant-baseline: central;

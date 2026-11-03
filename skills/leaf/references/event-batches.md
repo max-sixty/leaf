@@ -47,7 +47,8 @@ Events keep their stored fields and log order, and add:
 - `unsent`: on the user's message or edit in a thread anchored in a widget or one that
   sent it, the work they had made there without sending it, such as a playground's
   settings, as it stood when they wrote. It is what the widget showed them; page state
-  may already hold later work.
+  may already hold later work. `leaf page state <page> <message>` prints the same
+  `unsent` on each message of the thread, as it stood at the message's latest edit.
 - `waiting`: your questions the event may have answered, each its obligation `id` and
   the `text` that asked it: on a widget action, those still waiting on the user's
   words in a thread about that widget; on the user's reply, those still waiting on a

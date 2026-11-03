@@ -662,7 +662,7 @@ def state(
     MESSAGE_OR_WIDGET narrows the output to what it names. A message, or a widget
     frozen into one, names its thread: the output is that thread with a page of its
     messages, their frozen markup, and the state of its widgets, paged by --after
-    and --limit. A widget on the page names itself: its element, its current
+    and --limit. Each message carries the `unsent` its delivery carried. A widget on the page names itself: its element, its current
     actions and reports, its obligations and to-dos, and its workflows."""
     from leaf.agent_state import cmd_page_state
 

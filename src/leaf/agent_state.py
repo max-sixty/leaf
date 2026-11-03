@@ -28,9 +28,11 @@ from .delivery import current_responses
 from .document_reading import DocumentReading
 from .events import bare_reaction, is_reaction
 from .files import revision_path
+from .gesture_words import GestureWords, revisions_on_disk
 from .passages import page_passages
 from .projection import FrozenThreadReading, retirement_outcomes
 from .publishing import authored_digest, authored_files
+from .read_state import content_version
 from .refusals import Refused
 from .registry.storage import layer_metadata
 from .revision_artifact import active_enclosing
@@ -40,6 +42,7 @@ from .served_state.context import read_page
 from .served_state.page import read_served_page
 from .server import running_server
 from .service import PageTransaction, unacknowledged
+from .thread_context import unsent_at_messages
 from .user_views import read_user_views, viewed_at
 from .validation.admission import logged_id
 from .work import page_subject
@@ -499,6 +502,17 @@ def page_state(
             "limit": limit,
             "next_after": shown[-1]["seq"] if len(matching) > limit else None,
         }
+        # The work the user hadn't sent when they wrote each message's current words,
+        # as its delivery carried it, so a session that never got that delivery reads
+        # it too.
+        by_id = {event["id"]: event for event in events}
+        words = GestureWords(events, registry, revisions_on_disk(page_dir))
+        unsent = unsent_at_messages(
+            events,
+            [by_id[content_version(event)] for event in shown],
+            active_enclosing(page_dir),
+            words.records_unsent,
+        )
         for event in shown:
             fragment = thread_reading.structure.fragments.get(event["id"])
             message = {
@@ -531,6 +545,8 @@ def page_state(
                 message["text"] = event["text"]
             if "drawing" in event:
                 message["drawing"] = event["drawing"]
+            if work := unsent.get(content_version(event)):
+                message["unsent"] = work
             content.append(message)
             if fragment is None:
                 continue

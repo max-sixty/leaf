@@ -1335,7 +1335,8 @@ def test_a_message_on_a_playground_carries_the_settings_it_showed(
     as `unsent`, the work in force when the user wrote it: an undo before it takes a
     setting back and one after it doesn't, a thread later moved to another
     playground keeps what its earlier messages were about, a playground sent in a
-    thread counts for that thread, and a message elsewhere carries none."""
+    thread counts for that thread, and a message elsewhere carries none. `page state`
+    prints the same work on each message of a thread it reads."""
     page_dir = initialized_page(tmp_path / "page", ("playground",))
 
     def playground(ident, card):
@@ -1423,6 +1424,26 @@ def test_a_message_on_a_playground_carries_the_settings_it_showed(
         **on_page,
         answered["id"]: [{key: sent[key] for key in fields}],
     }
+
+    # A session that never got those deliveries reads the same work on each message
+    # of the thread, an edited message reading what stood at its latest edit.
+    def read(thread):
+        result = CliRunner().invoke(
+            cli_model.cli, ["page", "state", str(page_dir), thread]
+        )
+        assert result.exit_code == 0, result.output
+        return {
+            message["message"]: message.get("unsent")
+            for message in json.loads(result.output)["content"]
+            if message["author"] == "user"
+        }
+
+    assert read(opened["id"]) == {
+        opened["id"]: on_page[opened["id"]],
+        reply["id"]: on_page[edit["id"]],
+    }
+    assert read(asked["id"]) == {answered["id"]: [{key: sent[key] for key in fields}]}
+
     # The version the user wrote on says what its verbs recorded, so a later one
     # redeclaring the verb leaves what the earlier messages were about.
     declare_on_page(

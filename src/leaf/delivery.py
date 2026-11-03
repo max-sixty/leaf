@@ -542,7 +542,6 @@ def batch_data(
     from .events import build_threads
     from .gesture_words import GestureWords, revisions_on_disk
     from .obligations import waiting_about, waiting_in_thread
-    from .registry.contract import event_spec
     from .revision_artifact import active_enclosing
     from .served_state.context import read_page
     from .thread_context import (
@@ -589,17 +588,10 @@ def batch_data(
     }
     by_id = {event["id"]: event for event in events}
     words = GestureWords(events, registry, revisions_on_disk(page_dir))
-
-    def records_unsent(action: dict) -> bool:
-        # Which verbs record unsent work is the vocabulary's word, as `says` is, and
-        # the word of the document the user acted in.
-        spec = event_spec(words.declaration(action), action)
-        return bool(spec and spec.get("unsent"))
-
     unsent = (
         {}
         if registry is None
-        else unsent_at_messages(events, batch, within, records_unsent)
+        else unsent_at_messages(events, batch, within, words.records_unsent)
     )
 
     captured = []

@@ -7624,6 +7624,7 @@ function mountHistory({ followFragment, returnToFragment }) {
 			const claim = claimed(url);
 			const place = places.get(event.destination.key);
 			const mayReturn = retainUserIntent({ available: () => !event.signal.aborted });
+			const applied = traversalApplied(event.signal);
 			event.intercept({
 				scroll: "manual",
 				focusReset: "manual",
@@ -7644,15 +7645,25 @@ function mountHistory({ followFragment, returnToFragment }) {
 					});
 					if (work !== void 0) placed = await work !== false || placed;
 					if (!mayReturn()) return;
-					if (!placed) {
-						if (place) setScroll(pageScroller, {
-							left: place.offset[0],
-							top: place.offset[1],
-							behavior: "instant"
-						});
-						else event.scroll();
+					if (!placed && !place) {
+						event.scroll();
+						return;
 					}
-					if (place) returnPlace(place);
+					if (!placed && place) setScroll(pageScroller, {
+						left: place.offset[0],
+						top: place.offset[1],
+						behavior: "instant"
+					});
+					if (place) mayReturn.handoff(() => returnPlace(place));
+					const mark = readingBlock() ?? document.documentElement;
+					const stood = mark.getBoundingClientRect().top;
+					await applied;
+					if (!mayReturn() || !mark.isConnected) return;
+					const moved = mark.getBoundingClientRect().top - stood;
+					if (moved) mayReturn.handoff(() => setScroll(pageScroller, {
+						top: pageScroller.scrollTop + moved,
+						behavior: "instant"
+					}));
 				}
 			});
 			return;
@@ -7666,6 +7677,15 @@ function mountHistory({ followFragment, returnToFragment }) {
 				await handler();
 			}
 		});
+	});
+}
+function traversalApplied(signal) {
+	return new Promise((resolve) => {
+		addEventListener("popstate", () => nextRender(() => resolve()), {
+			once: true,
+			signal
+		});
+		signal.addEventListener("abort", () => resolve(), { once: true });
 	});
 }
 function claimed(url) {

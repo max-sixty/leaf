@@ -605,3 +605,25 @@ short. To recheck, draw a `content-visibility: auto` box with
 `contain-intrinsic-size: auto 100px`, scroll it out of view, write
 `contain-intrinsic-size: 300px` and read its height a few frames later: 300 px is the
 specified behaviour.
+
+### A traversal's own scroll restoration under the Navigation API
+
+Firefox 157 (Playwright build 1555, macOS) applies a same-document traversal after
+its `navigate` event, and restores the destination entry's saved offset just after
+the traversal's `popstate` even when a handler intercepted it with
+`scroll: "manual"`: `nsDocShell::HandleSameDocumentNavigation` never reads the
+`mSuppressNormalScrollRestorationDuringOngoingNavigation` flag `Navigation.cpp` sets.
+It can also blur the focused element then. Firefox and WebKit 27.2 (build 2370) both
+reveal the fragment's `hidden="until-found"` target as they apply the traversal,
+firing `beforematch`, and WebKit scrolls to it; Chromium 156 does none of this. On
+2026-11-02, Back to a code block in a tab the user had closed since, with a
+disclosure opened above it, landed it 471 px down in Firefox, at the offset the entry
+was left at, where Chromium landed it at 59. So `browser/runtime/history.js` places
+the page before the browser applies the traversal, reading what is hidden before the
+browser reveals it. In the rendering update after the traversal's `popstate`
+(`traversalApplied`), it scrolls the first block on screen back to where its
+placement stood it; Firefox's blur still leaves focus on `body` after Back.
+`test_back_to_a_fragment_the_page_has_hidden_since_lands_on_it` covers it in Chromium
+and Firefox. To recheck, intercept a traversal with `scroll: "manual"`, scroll in the
+handler, and read the offset after `popstate`; once Firefox keeps the handler's offset
+and neither engine reveals or scrolls to the target, that step can go.

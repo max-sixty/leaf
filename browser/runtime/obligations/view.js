@@ -39,6 +39,7 @@ import { decisionControls, nativePress } from "../keyboard/bindings.js";
 import { closestAcross, elementById, inChrome, showsWords } from "../passages.js";
 import { TEXT_BLOCK } from "../kernel-facts.js";
 import { scrollerFor } from "../reading-regions.js";
+import { scrollGoal } from "../scrolling.js";
 import { keeps } from "../keeps.js";
 import { decisionFor, registry, tagsDeclaring } from "../registry.js";
 import { hasObligationSource } from "./source.js";
@@ -573,7 +574,8 @@ export function createObligationView({
   // board's own scroller, or reaching under the floating panel, is not in front of the
   // user for having a box inside the window. This adds the one thing that reading
   // cannot know: the arrival is the region's start, so the start has to be standing
-  // clear of the window's head too.
+  // clear of the window's head too, read like the obligation where the motion of its box
+  // will leave it (`scrollGoal`).
   /** @param {Obligation} record @param {Element} region @param {Element} item
    * @param {Element} box @param {(node: Element) => boolean} readable */
   function framed(record, region, item, box, readable) {
@@ -581,7 +583,7 @@ export function createObligationView({
     return (
       !!band &&
       readable(item) &&
-      shownBox(region).top >= band.top &&
+      shownBox(region).top - (scrollGoal(box) - box.scrollTop) >= band.top &&
       actionsOf(record).every(({ control }) =>
         readable(presentedActionControl(control)),
       )

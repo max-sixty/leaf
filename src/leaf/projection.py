@@ -603,12 +603,16 @@ class Placement(NamedTuple):
     after: str | None
 
 
-def _placement(unit: str, order: dict, shared: set) -> Placement:
+def _placements(order: dict, shared: set) -> dict[str, Placement]:
+    """Each unit of an order → its `Placement` there."""
+    placements = {}
     for container, units in order.items():
-        if unit in units:
-            before = [i for i in units[: units.index(unit)] if i in shared]
-            return Placement(container, before[-1] if before else None)
-    return Placement(None, None)
+        after = None
+        for unit in units:
+            placements.setdefault(unit, Placement(container, after))
+            if unit in shared:
+                after = unit
+    return placements
 
 
 def recorded_state(
@@ -619,6 +623,7 @@ def recorded_state(
     folded: dict,
     registry: dict,
     projection: StateProjection,
+    orders: dict,
 ):
     """What one version's markup shows at a coordinate in force, beside the state
     the fold leaves there: a pair the caller compares, or NO_RECORD for a verb with
@@ -629,19 +634,24 @@ def recorded_state(
     read on both sides from the whole fold: the unit's container and the nearest
     unit both documents list before it, which is the gap the user dropped it into.
     A version may add or drop cards around it, or rearrange cards away from it, and
-    still say the same."""
+    still say the same. `orders` caches each owner's placements on both sides
+    across the calls one reading makes."""
     widget, unit, verb = coordinate
     record = spec.get("record")
     if not record:
         return NO_RECORD
     if record["kind"] != "position":
         return markup_value(unit, spec, *markup), folded_value(event, spec)
-    shown = authored_positions(widget, record, markup[0], registry)
-    left = folded_positions(widget, verb, record, folded, registry, projection)
-    shared = {i for units in shown.values() for i in units} & {
-        i for units in left.values() for i in units
-    }
-    return _placement(unit, shown, shared), _placement(unit, left, shared)
+    if (widget, verb) not in orders:
+        shown = authored_positions(widget, record, markup[0], registry)
+        left = folded_positions(widget, verb, record, folded, registry, projection)
+        shared = {i for units in shown.values() for i in units} & {
+            i for units in left.values() for i in units
+        }
+        orders[widget, verb] = (_placements(shown, shared), _placements(left, shared))
+    shown, left = orders[widget, verb]
+    nowhere = Placement(None, None)
+    return shown.get(unit, nowhere), left.get(unit, nowhere)
 
 
 def folded_value(e: dict, spec: dict):

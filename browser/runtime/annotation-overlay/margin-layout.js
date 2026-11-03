@@ -129,7 +129,7 @@ import {
  * words: DOMRect[] | null, passageNode: Text | null, block: {node: Element, box: Box} | null,
  * shownWords: Box[], preformatted: Box | null, anchor: Element,
  * scroller: Element, lane: HTMLElement | null, shown: boolean,
- * place: "pin" | "rail", box: DOMRect, extent: Box | null, top: number | undefined,
+ * place: "pin" | "rail", box: DOMRect, subject: DOMRect, extent: Box | null, top: number | undefined,
  * carrier: Anchor | null, cuts: HeaderLevel[], cutKey: string,
  * carrierStand: {box: DOMRect, reading: ReturnType<typeof anchorReading>} | null,
  * carrierPaint: {node: Element, box: DOMRect, reading: ReturnType<typeof anchorReading>} | null,
@@ -292,8 +292,9 @@ let laidOutScrollX = 0;
 // carrier's anchor, as the pass measured it (`anchorBox`), on the axes the carrier
 // follows it (`across` where both, the window's left edge otherwise), or, for a row in
 // the root lane, the document's origin, and whether the pass kept it `level` with its
-// passage's lines (`targetShown`).
-/** @type {WeakMap<HTMLElement, {anchor: Anchor | null, across: boolean, top: number, bottom: number, right: number, level: boolean}>} */
+// passage's lines (`targetShown`); and where the box it stands by stood (`subject`),
+// from the same origin on both axes (`subjectMoved`).
+/** @type {WeakMap<HTMLElement, {anchor: Anchor | null, across: boolean, top: number, bottom: number, right: number, level: boolean, subject: {top: number, left: number}}>} */
 const standsBy = new WeakMap();
 // Where `row` stands now, by those offsets from where what carries it stands now: the
 // place the browser moved it to in the frame that scrolled it, which reading the row's own
@@ -312,6 +313,20 @@ function standsNow(row) {
     right: left + by.right,
     level: by.level,
   };
+}
+
+// Whether the box `row` stands by, `subject` now, has moved from where the pass stood the
+// row by it, measured from what carries the row: a transform moves words without
+// layout, and carries the row with them only where it stands in a carrier anchored to
+// them, in an engine whose anchors follow transforms (Chromium and WebKit).
+/** @param {HTMLElement} row @param {DOMRect} subject */
+function subjectMoved(row, subject) {
+  const by = standsBy.get(row);
+  if (!by || (by.anchor && !anchorHolder(by.anchor).isConnected)) return false;
+  const at = by.anchor && anchorBox(by.anchor);
+  const top = subject.top - (at ? at.top : -scrollY);
+  const left = subject.left - (at ? at.left : -scrollX);
+  return Math.abs(top - by.subject.top) > 1 || Math.abs(left - by.subject.left) > 1;
 }
 
 // Every actual scrollport, including an inner table and a shadow root's scroller.
@@ -340,10 +355,16 @@ function scrollSources(node) {
 // them (`anchorFor`).
 //
 // A row takes a carrier only where the root lane can't carry it. Layout moves the root
-// lane in the task that scrolls the document, but a carrier only once the next frame
-// renders. Until then a script reading the row's box or hit-testing it with
-// `elementFromPoint` finds it where it stood (`paintedBox`), and Chromium keeps giving
-// that stale answer at a point tested meanwhile for about half a second.
+// lane in the task that scrolls the document, but a carrier only as the next frame
+// renders, so until then a script reading the row's box or hit-testing it finds it where
+// it stood (`paintedBox`; notes/browser-support.md, "A cached `elementFromPoint` answer
+// in Chromium"). Painting and the user's presses are right either way, so what the root
+// lane buys is a row scripts, Playwright's actions and probes find where it is drawn.
+// Rejected: a carrier anchored to every passage's words, as #3091 had it, which in
+// Chromium and WebKit also carried a row through a transform moving its words while the
+// transform ran. A row in the root lane trails such a transform, as a row on an element
+// does, and both are placed again once a CSS transition or animation ends
+// (`subjectMoved`).
 /** @param {Node} node */
 const stuckOrFixed = (node) => {
   /** @type {Node | null} */
@@ -1321,7 +1342,8 @@ let came = new Map();
 // them. What it can change is which of them still have somewhere to stand, so only rows
 // under a box that scrolled are read again, once a frame, and a row that changes answer
 // brings the whole pass, which places it, scrollers inside shadow trees included. A
-// transition or animation ending is read the same way (`hearTargetChanges`).
+// transition or animation ending is read the same way (`hearTargetChanges`), and a row
+// whose subject it moved brings the pass too (`subjectMoved`).
 const stirred = new Set();
 let stirReading = 0;
 function scheduleStirReading() {
@@ -1358,6 +1380,17 @@ function scheduleStirReading() {
       // The document carries ordinary rows and their lanes together.
       const withheld = row.classList.contains("lf-withheld");
       if (!withheld && boxes.every((box) => box === pageScroller)) continue;
+      // A transform that moved the row's subject brings the pass, which stands the row
+      // by it again.
+      const point = options.point?.() ?? null;
+      const subject =
+        point?.getBoundingClientRect() ??
+        words[0] ??
+        targetBox(target).getBoundingClientRect();
+      if (!withheld && subjectMoved(row, subject)) {
+        scheduleMarginLayout();
+        return;
+      }
       // The row's own box is not read: a carried row's box is read a frame late
       // after a scroll, which is not where it is painted.
       const now = withheld ? null : standsNow(row);
@@ -1539,6 +1572,7 @@ function layoutMountedRows(layer) {
       shown,
       place,
       box,
+      subject: line ?? box,
       extent,
       top,
       carrier: null,
@@ -1922,6 +1956,10 @@ function layoutMountedRows(layer) {
       bottom: rect.bottom + push - fromTop,
       right: rect.right - (at ? (across ? at.left : 0) : -scrollX),
       level,
+      subject: {
+        top: read.subject.top - fromTop,
+        left: read.subject.left - (at ? at.left : -scrollX),
+      },
     });
     if (read.carrierPaint) {
       // The carrier stands at the window's origin as this pass measured its anchor,

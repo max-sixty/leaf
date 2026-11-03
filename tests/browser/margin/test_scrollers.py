@@ -1200,6 +1200,54 @@ def test_rows_follow_slides_a_transition_shows_and_hides(browser, serve):
     expect(row["note"]).to_be_visible()
 
 
+def test_rows_stand_by_words_a_transition_moved_once_it_ends(browser, serve):
+    """A transform moves words without layout, so nothing resizes or mutates after the
+    class change that starts it. Once the transition ends, the rows by those words stand
+    by them again, a quoted row and a row on the moved box alike, without waiting for an
+    unrelated pass."""
+    filler = "".join(
+        f"<p>Filler paragraph {n}, a line of reading.</p>" for n in range(8)
+    )
+    body = (
+        f'<h1>Moved words</h1>{filler}<div id="mover"><p id="moving">Moving words to'
+        f" quote, which a transition carries down.</p></div>{filler}{filler}"
+    )
+    head = (
+        "<style>#mover { transition: transform 0.2s; }"
+        " #mover.moved { transform: translateY(160px); }</style>"
+    )
+    events = [_comment_on("moving", quote="Moving words"), _comment_on("mover")]
+    page = open_page(
+        browser, serve(leaf_page("Moved words", body, head=head), events=events)
+    )
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    # Each row's marker, from the words it stands by.
+    offsets = """() => {
+      const words = document.getElementById('moving').getBoundingClientRect().top;
+      const marker = (row) => document.querySelector(row + ' .lf-margin-marker')
+        .getBoundingClientRect().top - words;
+      return {
+        quoted: marker('[data-lf-margin-for="moving"]'),
+        box: marker('[data-lf-margin-for="mover"]'),
+      };
+    }"""
+    before = page.evaluate(offsets)
+    # Read two frames after the transition ends, not polled: some unrelated pass would
+    # place the rows eventually, which is the bug.
+    moved = """async () => {
+      const mover = document.getElementById('mover');
+      const ended = new Promise((resolve) => mover.addEventListener('transitionend',
+        (event) => event.target === mover && resolve()));
+      mover.classList.add('moved');
+      await ended;
+      for (const _ of [1, 2]) await new Promise(requestAnimationFrame);
+      return (OFFSETS)();
+    }"""
+    after = page.evaluate(moved.replace("OFFSETS", offsets))
+    assert after == pytest.approx(before, abs=1), (before, after)
+
+
 STRIP_FILL = "".join(
     f"<p>Filler paragraph {n}, a line of reading.</p>" for n in range(40)
 )

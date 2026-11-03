@@ -273,6 +273,14 @@ function standsNow(row) {
 		level: by.level
 	};
 }
+function subjectMoved(row, subject) {
+	const by = standsBy.get(row);
+	if (!by || by.anchor && !anchorHolder(by.anchor).isConnected) return false;
+	const at = by.anchor && anchorBox(by.anchor);
+	const top = subject.top - (at ? at.top : -scrollY);
+	const left = subject.left - (at ? at.left : -scrollX);
+	return Math.abs(top - by.subject.top) > 1 || Math.abs(left - by.subject.left) > 1;
+}
 function scrollSources(node) {
 	const sources = [];
 	for (let at = renderedParent(node); at && at !== pageScroller; at = renderedParent(at)) if (scrollsContent(at)) sources.push(at);
@@ -852,6 +860,11 @@ function scheduleStirReading() {
 			})) continue;
 			const withheld = row.classList.contains("lf-withheld");
 			if (!withheld && boxes.every((box) => box === pageScroller)) continue;
+			const subject = (options.point?.() ?? null)?.getBoundingClientRect() ?? words[0] ?? targetBox(target).getBoundingClientRect();
+			if (!withheld && subjectMoved(row, subject)) {
+				scheduleMarginLayout();
+				return;
+			}
 			const now = withheld ? null : standsNow(row);
 			const stands = now && (row.dataset.lfPlace === "pin" ? now : { top: now.top });
 			if (targetShown(target, start ? union(wordsShown(words, start, bands, pageScroller)) : shownExtent(target), stands, bands) === withheld) {
@@ -994,6 +1007,7 @@ function layoutMountedRows(layer) {
 			shown,
 			place,
 			box,
+			subject: line ?? box,
 			extent,
 			top,
 			carrier: null,
@@ -1292,7 +1306,11 @@ function layoutMountedRows(layer) {
 			top: top - fromTop,
 			bottom: rect.bottom + push - fromTop,
 			right: rect.right - (at ? across ? at.left : 0 : -scrollX),
-			level
+			level,
+			subject: {
+				top: read.subject.top - fromTop,
+				left: read.subject.left - (at ? at.left : -scrollX)
+			}
 		});
 		if (read.carrierPaint) {
 			const { node: carrier, box: carrierBox, reading } = read.carrierPaint;

@@ -12,10 +12,13 @@ looks for, which would inflate their measured recall.
 The assertion passes when the judge finds no defect. Its metadata carries a
 status and reason for every outcome, including an unscored run, and on completion
 the defects with their check readings and the findings the author's checks raised,
-so a run's defect rate and the checks' recall read from `results.json`.
+so a run's defect rate and the checks' recall read from `results.json`. Each
+grading keeps its evidence in a fresh `defects-*` directory under the sample, so
+grading the sample again with `eval --from` keeps the earlier judge's.
 """
 
 import json
+import tempfile
 from pathlib import Path
 
 from leaf_dev.arms import observed_sum, run_agent, scratch, trace_result, trace_summary
@@ -64,6 +67,7 @@ def get_assert(output: str, context: dict) -> dict:
         return unscored(
             f"No authored page to inspect at {work / 'page' / 'index.html'}"
         )
+    evidence = Path(tempfile.mkdtemp(prefix="defects-", dir=work))
     judged = judge_pages(
         {
             "final": {
@@ -77,19 +81,19 @@ def get_assert(output: str, context: dict) -> dict:
             request=context["vars"]["prompt"].removeprefix(SKILL_PREFIX)
         ),
         DEFINITION["schemas"]["defects"],
-        work / "defects" / "judge",
+        evidence / "judge",
     )
     if "error" in judged:
         return unscored(judged["error"])
     verdict = judged["output"]
     if verdict["status"] == "insufficient_evidence":
         return unscored(verdict["reason"])
-    readings, matching = match(verdict["defects"], response, work / "defects" / "match")
+    readings, matching = match(verdict["defects"], response, evidence / "match")
     indices = [reading.pop("index") for reading in readings["defects"]]
     if sorted(indices) != list(range(len(verdict["defects"]))):
         return unscored(
             f"the check matcher read defects {sorted(indices)} of "
-            f"{len(verdict['defects'])}; see {work / 'defects' / 'match'}"
+            f"{len(verdict['defects'])}; see {evidence / 'match'}"
         )
     by_index = dict(zip(indices, readings["defects"], strict=True))
     defects = [

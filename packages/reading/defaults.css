@@ -31,9 +31,9 @@
 :root {
   color-scheme: light dark;
   --lf-reading-face: 1;
+  --lf-ground: var(--paper);
 }
 body {
-  --lf-ground: var(--paper);
   background: var(--lf-ground);
   color: var(--ink);
   font: var(--t-4)/1.6 var(--serif);

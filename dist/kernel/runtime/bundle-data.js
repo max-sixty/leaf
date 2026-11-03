@@ -614,7 +614,7 @@ const storedDraft = (ctx) => {
 	const read = draftStore.read(DRAFT + ctx);
 	return read.available ? parseDraftRecord(read.value) : null;
 };
-const attemptAccepted = (attempt) => runtime.receipts.some((event) => event.attempt === attempt);
+const attemptAccepted = (attempt) => runtime.events.some((event) => event.attempt === attempt);
 const writeDraftRecord = (ctx, record) => draftStore.set(DRAFT + ctx, JSON.stringify(record));
 const rawDraftRecord = (ctx) => {
 	const cached = draftCache.get(ctx);
@@ -3711,7 +3711,7 @@ function createProjectionPresentation() {
 		const root = applicationState.read();
 		if (root.phase === "waiting" || root.authoritative === null || !projectionRegionsPresented([])) return;
 		const projection = root.effective.projection;
-		const records = root.effective.view?.coverage ?? [];
+		const records = root.effective.coverage;
 		if (records.every((record) => {
 			if (record.coordinate === null) return true;
 			const e = record.event;

@@ -31,7 +31,6 @@ const state = (reading) => ({
   activity: null,
   browser: {
     basis: { through_seq: 0 },
-    receipts: [],
     views: {
       1: {
         basis: { revision: 1, through_seq: 0 },
@@ -40,7 +39,6 @@ const state = (reading) => ({
           projection: emptyProjection(),
           obligations: noObligations(),
         },
-        coverage: [],
         undo: [],
         document: { obligations: noObligations(), projection: emptyProjection() },
       },

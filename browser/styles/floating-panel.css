@@ -1702,15 +1702,15 @@
     font: var(--font-small);
     color: var(--muted);
   }
-  /* By space alone: a group's cards stand close, a third of the room that parts one
-     group from the next, as a document's paragraphs under its headings. */
+  /* By space alone: a group's cards stand close, at most a third of the room that
+     parts one group from the next, as a document's paragraphs under its headings. */
   .lf-floating-panel[data-onme-groups="space"] .lf-fp-on-item[data-card] {
-    padding-block: 5px 7px;
+    padding-block: 4px 6px;
   }
   .lf-floating-panel[data-onme-groups="space"]
     .lf-fp-on-list
     > .lf-rows-head:not(:first-child) {
-    margin-top: 30px;
+    margin-top: 44px;
   }
   .lf-floating-panel[data-onme-groups="space"]
     .lf-rows-head
@@ -1728,7 +1728,7 @@
   .lf-floating-panel[data-onme-groups="box"] .lf-fp-on-list > .lf-rows-head {
     padding: 8px 10px;
     border: 1px solid var(--lf-fp-box);
-    border-radius: var(--r) var(--r) 0 0;
+    border-radius: var(--r-s) var(--r-s) 0 0;
   }
   .lf-floating-panel[data-onme-groups="box"]
     .lf-fp-on-list
@@ -1738,7 +1738,7 @@
   .lf-floating-panel[data-onme-groups="box"]
     .lf-fp-on-list
     > .lf-rows-head:has(+ .lf-fp-on-group-end) {
-    border-radius: var(--r);
+    border-radius: var(--r-s);
   }
   /* Done's heading is a press whose own padding stands its name where the other
      headings' names start. */
@@ -1762,14 +1762,15 @@
     height: 0;
     border: 1px solid var(--lf-fp-box);
     border-top: 0;
-    border-radius: 0 0 var(--r) var(--r);
-    padding-top: calc(var(--r) - 1px);
+    border-radius: 0 0 var(--r-s) var(--r-s);
+    padding-top: calc(var(--r-s) - 1px);
   }
   .lf-floating-panel[data-onme-groups="box"] .lf-rows-head + .lf-fp-on-group-end {
     display: none;
   }
-  /* Done folded in On me starts where the headings above it do, its arrow after its
-     count at the end, rather than in the lead column its lines' kinds widen. */
+  /* Done folded in On me: its arrow before its name, as Threads' Resolved, at the
+     list's edge rather than in the lead column its lines' kinds widen, and its name in
+     the muted ink, since what it holds is finished. */
   .lf-fp-on-list .lf-fp-settled {
     display: flex;
     align-items: baseline;
@@ -1778,8 +1779,14 @@
     margin-inline-start: auto;
   }
   .lf-fp-on-list .lf-fp-settled::before {
-    order: 1;
-    margin: 0 0 0 8px;
+    margin: 0 6px 0 0;
+  }
+  .lf-floating-panel[data-onme-groups] .lf-fp-on-list > .lf-rows-head > .lf-fp-settled {
+    color: var(--muted);
+  }
+  /* A finished line that names no kind gives the lead column no room. */
+  .lf-fp-on-noun:empty {
+    display: none;
   }
   /* PROTOTYPE: On me beside the page, at the window's end edge and nearly its full
      height, as wide as the room right of the column, where that room holds it; else at

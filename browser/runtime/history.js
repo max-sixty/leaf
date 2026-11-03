@@ -70,7 +70,7 @@ import { upFrom } from "./shadow.js";
 import { presented } from "./geometry.js";
 import { unconcealedReadingRegions } from "./reading-regions.js";
 import { readingBlock } from "./reading-place.js";
-import { pageScroller, stopScroll } from "./scrolling.js";
+import { pageScroller, scrollGoal, stopScroll } from "./scrolling.js";
 import { nextRender } from "./rendering.js";
 
 /** @typedef {[WeakRef<Node>, number]} HeldSelectionEnd
@@ -90,7 +90,10 @@ const places = new Map();
 // the node they had focused, when the reading comes after focus has left it. Plain endpoints
 // keep a removed passage from being silently retargeted by a live Range. pageRange
 // shares the declared-shadow reading used for commenting; the selection's direction also
-// keeps its working end.
+// keeps its working end. The offset is where the page is headed (`scrollGoal`), as a
+// key pressed while Leaf still moves the page acts as if the motion had landed: a second
+// `m` pressed while the first still glides leaves the obligation the first landed on,
+// so Back returns there rather than to wherever the glide had reached.
 /** @param {Element | null} focus @returns {WorkingPlace} */
 export function readPlace(focus = deepFocus()) {
   const place = placeOf(focus);
@@ -107,7 +110,7 @@ export function readPlace(focus = deepFocus()) {
     place: place && new WeakRef(place),
     caret: readCaret(focus),
     ends,
-    offset: [scrollX, scrollY],
+    offset: [scrollX, scrollGoal(pageScroller)],
   };
 }
 
@@ -186,22 +189,14 @@ export function prepareEntry() {
   const offset = place.offset;
   const sourceUrl = window.location.href;
   const sourceState = history.state;
-  return /** @param {string | URL} url @param {unknown} state @param {boolean} replace */ (
-    url,
-    state,
-    replace,
-  ) => {
-    if (replace) {
-      replaceEntry(url, state);
-      return;
-    }
+  return /** @param {string | URL} url */ (url) => {
     const arrival = { left: scrollX, top: scrollY };
     // Exposing another view renames this entry. Its original URL and state belong to
     // the outgoing checkpoint; the exposed destination belongs to the new entry.
     if (window.location.href !== sourceUrl || history.state !== sourceState)
       replaceEntry(sourceUrl, sourceState);
     setScroll(pageScroller, { left: offset[0], top: offset[1], behavior: "instant" });
-    pushEntry(url, state);
+    pushEntry(url);
     setScroll(pageScroller, { ...arrival, behavior: "instant" });
     if (key) places.set(key, place);
   };

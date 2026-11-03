@@ -75,6 +75,7 @@ from .obligations import collection, update_obligation
 from .projection import (
     NO_RECORD,
     PageReading,
+    attribute_marks,
     generated_children,
     recorded_state,
 )
@@ -191,9 +192,9 @@ def page_action_unsettled(
         (spec.get("record") or spec.get("creates")) and unit not in byid
     ):
         return False
-    document = (byid, page.spoken)
+    markup = (byid, attribute_marks(byid, page.spoken, page.registry))
     reading = recorded_state(
-        coordinate, source, spec, document, document, page.registry, page.projection
+        coordinate, source, spec, markup, byid, page.registry, page.projection
     )
     versioned = any(
         event["kind"] == "note"

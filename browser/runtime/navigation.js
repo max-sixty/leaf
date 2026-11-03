@@ -2,14 +2,12 @@
  * Alignment reads the browser's current selection/focus and the owning reading region;
  * it changes only vertical scroll, retaining focus, selection and browser history. */
 import { pageRange } from "./native-selection.js";
-import { cancelRender, nextFrame } from "./rendering.js";
-import { scrollGlides, setScroll } from "./arrivals.js";
 import { cycledRow } from "./keyboard/bindings.js";
 import { pageCommand } from "./keyboard/register.js";
 import { nativeModalAdmits } from "./keyboard/layer-stack.js";
 import { sampleNotice } from "./sample-child.js";
-import { reducedMotion, scrollBehavior } from "./motion.js";
-import { atScrollEnd, scrollLimit } from "./scrolling.js";
+import { scrollBehavior } from "./motion.js";
+import { atScrollEnd, glideTo, scrollGoal, stopGlide } from "./scrolling.js";
 import { landingBand, shownRect } from "./geometry.js";
 import { intersect } from "./rect.js";
 import {
@@ -45,7 +43,6 @@ import { savedReadingSettled } from "./keyboard/bindings.js";
 /** @typedef {import("./thread/placement.js").PlacedAt} PlacedAt
  * @typedef {Pick<ReturnType<typeof import("./thread/destination.js").createThreadDestinations>, "openPageThread" | "threadAtCurrentLocation" | "threadPlace">} ThreadDestinations
  * @typedef {import("./keyboard/bindings.js").Step} Step
- * @typedef {{box: Element, goal: number, wrote: number, raf: ReturnType<typeof nextFrame>}} Glide
  */
 
 // The walk's threads: the open ones, in the page's order (thread/placement.js), read
@@ -135,32 +132,19 @@ export function placeThreadEdge(thread, edge) {
 }
 
 // j/k take small pixel steps; d/u move 60% of the visible reading page. Both follow
-// the active region and share one glide, so mixed or repeated presses add up from
-// the pending goal. At a region's edge they follow its CSS scroll chain
-// (`scrollChainOf`, `stepAlong`), stopping at the same task or modal boundary as
-// native input, so a floating thread's turns, once spent, hand the step to the
-// document, and a sample's to its containing page, as the wheel does. Space,
-// Home/End and PageUp/Down stay the browser's own keys.
+// the active region and share one glide (scrolling.js, `glideTo`). A press steps from
+// where the box is headed (`scrollGoal`), so presses made while Leaf still moves the
+// page, whether after another step or after a landing such as `m`'s, add up as if each
+// had landed. At a region's edge
+// they follow its CSS scroll chain (`scrollChainOf`, `stepAlong`), stopping at the
+// same task or modal boundary as native input, so a floating thread's turns, once
+// spent, hand the step to the document, and a sample's to its containing page, as the
+// wheel does. Space, Home/End and PageUp/Down stay the browser's own keys.
 //
 // They move the region the user is reading. A view the floating panel opens is that
 // region when focus stands in it; a nested region keeps its own scrollport. Scrolling a
 // region the user is not in reads to them as the key doing nothing, and then the
 // document is somewhere else when they look back at it.
-//
-// The step moves at the pace of the browser's own paging keys. Native paging is a quick
-// glide — PageDown covers a page here in ~140ms, and Space and the arrows ride the same
-// animator — but that animator is the compositor's and JS cannot ask for it, while
-// scrollTo's smooth takes three times as long over the same distance and has no dial,
-// which is what read as gradual when the step rode it. So the runtime drives the step
-// itself: SCROLL_MS of easing out, each write `instant` rather than `auto` since a page is
-// free to set `scroll-behavior: smooth` on the box it scrolls (moveScrollerBy says the
-// same) and
-// a glide built from smooth writes would never land. A press mid-flight retargets from
-// the goal, so quick presses add their full distances; the goal is clamped, so pressing on
-// at the foot banks no debt for u to press back through; and the step stands down the
-// moment the box moves under another hand — a wheel, a centering — because the user's
-// own gesture outranks a key's. Under reduced motion the step is a jump, the answer the
-// rest of the runtime's motion already gives (scrollBehavior()).
 //
 // The page the step measures is the visible part of the scroller's landing band.
 // The document's box lends its bottom edge to the floating panel's row, and its
@@ -168,22 +152,7 @@ export function placeThreadEdge(thread, edge) {
 // how much of itself stands covered, so a reading-page step is 60% of what is left
 // rather than 60% of the box, which is the answer the user wants — a step that landed
 // them under the panel would be a step onto words they cannot read.
-const SCROLL_MS = 140;
-/** @type {Glide | null} */
-let glide = null;
-// A glide is one scroll however many frames write it (arrivals.js, `scrolling`).
-/** @param {Glide | null} next */
-const setGlide = (next) => {
-  glide = next;
-  scrollGlides(Boolean(next));
-};
-// The glide's claim on the box: it holds only while the box is where the glide last
-// wrote it. The tick asks before every write, and a press asks the same question before
-// trusting the goal — the user can take the box between frames, and a press landing
-// in that gap otherwise measures from a goal the box has already left.
-/** @param {Element} box */
-const holding = (box) =>
-  glide?.box === box && Math.abs(box.scrollTop - glide.wrote) <= 1 ? glide : null;
+//
 // Reading-page keys follow the region the user is working in (`userReadingRegion`), so
 // `d` after a click in a pane scrolls that pane as PageDown does. Focus can put them in
 // a panel or anchored thread beside the page. Focus on a region's
@@ -229,66 +198,15 @@ function stepAlong(from, amount, unit) {
   for (const box of scrollChainOf(from)) {
     if (!nativeModalAdmits(box)) return;
     const step = readingStep(box, clips);
-    const canMove = amount > 0 ? !atScrollEnd(box) : box.scrollTop > 0;
+    const goal = scrollGoal(box);
+    const canMove = amount > 0 ? !atScrollEnd(box, goal) : goal > 0;
     if (step && canMove) {
-      const distance = unit === "page" ? amount * step.height : amount;
-      const from = holding(box)?.goal ?? box.scrollTop;
-      glideTo(box, from + distance);
+      glideTo(box, goal + (unit === "page" ? amount * step.height : amount));
       return;
     }
     if (getComputedStyle(box).overscrollBehaviorY !== "auto") return;
   }
   sampleNotice({ type: "step", detail: { amount, unit } });
-}
-// One eased travel to a goal, shared by the reading-page step and the sequence's edges. The
-// goal is clamped here, so a step pressed on at the foot banks no debt for u to press
-// back through, and an edge may be asked for as the height it cannot exceed.
-/** @param {Element} box @param {number} goal */
-export function glideTo(box, goal) {
-  goal = Math.max(0, Math.min(scrollLimit(box), goal));
-  if (reducedMotion()) {
-    setScroll(box, { top: goal, behavior: "instant" });
-    return;
-  }
-  cancelRender(glide?.raf);
-  const start = box.scrollTop;
-  const t0 = performance.now();
-  /** @param {number} now */
-  const tick = (now) => {
-    const current = holding(box);
-    if (!current) {
-      setGlide(null); // the box moved under another hand; theirs wins
-      return;
-    }
-    if (reducedMotion()) {
-      setScroll(box, { top: goal, behavior: "instant" });
-      setGlide(null);
-      return;
-    }
-    // Floored as well as capped: a rAF timestamp is its frame's start, which can precede
-    // the press that scheduled the tick, and an unfloored t walks the ease out past the
-    // start — to a write the box clamps, which the next tick then read as another hand.
-    const t = Math.max(0, Math.min(1, (now - t0) / SCROLL_MS));
-    setScroll(box, {
-      top: goal - (goal - start) * (1 - t) ** 3,
-      behavior: "instant",
-    });
-    // Where the write left the box, not what it asked for: the box clamps at its ends
-    // and snaps to pixels, and the claim the next tick tests is about the box.
-    current.wrote = box.scrollTop;
-    if (t < 1) current.raf = nextFrame(tick);
-    else setGlide(null);
-  };
-  setGlide({ box, goal, wrote: start, raf: nextFrame(tick) });
-}
-
-// A spatial command takes the page where it is now. Stop only the travel this owner is
-// driving; native paging belongs to the platform and reports its motion through scroll.
-/** @param {Element} box */
-export function stopGlide(box) {
-  if (glide?.box !== box) return;
-  cancelRender(glide.raf);
-  setGlide(null);
 }
 
 /** @param {{threadDestinations: ThreadDestinations, placedAt: PlacedAt}} dependencies */

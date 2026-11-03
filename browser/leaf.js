@@ -143,12 +143,7 @@ import {
 import { watchDisclosures } from "./runtime/keyboard/disclosure.js";
 import { mountRepaint, repaint, repaintPage } from "./runtime/repaint.js";
 import { openDocumentLayout } from "./runtime/content-layout.js";
-import {
-  createNavigation,
-  placeThreadEdge,
-  glideTo,
-  stopGlide,
-} from "./runtime/navigation.js";
+import { createNavigation, placeThreadEdge } from "./runtime/navigation.js";
 import {
   declareReading,
   focusDestination,
@@ -496,7 +491,7 @@ async function boot() {
     prepareNavigationStep: anchorTravel.prepareNavigationStep,
     arrive: anchorTravel.arrive,
     readableDestination: anchorTravel.readableDestination,
-    showOnMe: () => floatingPanel.showOnMe(),
+    showOnMe: (obligation) => floatingPanel.showOnMe(obligation),
     announce,
   });
   const changeWalk = createChangeWalk();
@@ -689,9 +684,7 @@ async function boot() {
     scrollToElement: anchorTravel.scrollToElement,
     leavesOffered,
     marginEntries: app.overlay ?? null,
-    glideTo,
     placeThreadEdge,
-    stopGlide,
   });
   const currentLocationPainters = {
     markHere: items.markHere,

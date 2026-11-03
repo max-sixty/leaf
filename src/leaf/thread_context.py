@@ -153,6 +153,26 @@ def thread_names(events: list) -> dict:
     return names
 
 
+def placed_thread(event: dict, names: dict) -> str | None:
+    """The thread this event places at its `anchor`, or None for one that leaves
+    every thread where it stands. `names` is `thread_names`.
+
+    A comment opens its thread where it points, a `reanchor` moves the thread it
+    names, and an agent's reply carrying `anchor` moves its own thread. Of these,
+    only the opening comment can be taken back, as a reaction (`$events`): a reply's
+    `anchor` is the agent's, and a `reanchor` is bookkeeping. (`build_threads` makes
+    the same moves along with what each changes about the thread, so it keeps its
+    own walk.)"""
+    kind = event["kind"]
+    if kind == "comment":
+        return event["id"]
+    if kind == "reanchor":
+        return event["thread"]
+    if kind == "reply" and "anchor" in event:
+        return names[event["parent"]]
+    return None
+
+
 class ThreadStructure(NamedTuple):
     ids: set
     by_id: dict
@@ -521,45 +541,66 @@ def unsent_at_messages(
     action's verb declares it, which takes the page's vocabulary.
 
     A message is about the widgets enclosing its thread's anchor as it stood then,
-    by `build_threads`' rule, in the live page's containment, and about the widgets
-    sent in its thread. An edit is the user speaking again, so it reads its message's
-    thread at its own position. The walk is the one `thread_memberships` makes, read
-    at each input rather than at the end, so an action undone after it still counts
-    and one undone before it doesn't."""
+    in the live page's containment, and about the widgets sent in its thread. An
+    edit is the user speaking again, so it reads its message's thread at its own
+    position. Two walks read the log at each input rather than at the end. The first
+    reads where the input's thread was anchored: at the last event that placed it
+    (`placed_thread`). No undo before the input can have taken that event back: the
+    only placement an undo withdraws is a reaction's opening comment, and admission
+    keeps an input's thread in force (`event_contracts._parent_error`,
+    `_edit_error`). A reaction withdrawn after the input still counts, as it stood
+    then. The second walk is the one `thread_memberships` makes, so an action undone
+    after an input still counts and one undone before it doesn't. Each input reads
+    only the coordinates of the widgets it is about, in the order `InForce.winners`
+    keeps them."""
     names = thread_names(events)
-    sent_in = thread_widgets(thread_structure(events), names)
-    position = {event["id"]: index for index, event in enumerate(events)}
-    about = {}
+    sent = {}
+    for widget, holder in thread_widgets(thread_structure(events), names).items():
+        sent.setdefault(holder, set()).add(widget)
+    inputs = {}
     for event in batch:
         if event["author"] != "user":
             continue
         if event["kind"] in kinds_declaring("message"):
-            thread = names.get(event["id"])
+            inputs[event["id"]] = names.get(event["id"])
         elif event["kind"] == "edit":
-            thread = names.get(event["message"])
-        else:
-            continue
-        then = build_threads(events[: position[event["id"]] + 1], within).get(thread)
-        anchor = (then and then["anchor"]) or {}
-        about[event["id"]] = set(within.get(anchor.get("section"), ())) | {
-            widget for widget, holder in sent_in.items() if holder == thread
-        }
+            inputs[event["id"]] = names.get(event["message"])
+    anchors = {}
+    about = {}
+    for event in events:
+        if (thread := placed_thread(event, names)) is not None:
+            anchors[thread] = event.get("anchor") or {}
+        if event["id"] in inputs:
+            thread = inputs[event["id"]]
+            section = anchors.get(thread, {}).get("section")
+            about[event["id"]] = set(within.get(section, ())) | sent.get(thread, set())
     if not any(about.values()):
         return {}
     in_force = InForce(within)
+    first = {}
+    coordinates = {}
     found = {}
     for event in events:
-        if about.get(event["id"]) and (
-            work := [
-                {key: action[key] for key in ACTION_FIELDS}
-                for (widget, _, _), action in in_force.winners().items()
-                if widget in about[event["id"]] and unsent(action)
-            ]
-        ):
-            found[event["id"]] = work
+        if widgets := about.get(event["id"]):
+            on_widgets = sorted(
+                (c for widget in widgets for c in coordinates.get(widget, ())),
+                key=first.__getitem__,
+            )
+            if work := [
+                {key: winner[key] for key in ACTION_FIELDS}
+                for coordinate in on_widgets
+                if (winner := in_force.winner(coordinate)) is not None
+                and unsent(winner)
+            ]:
+                found[event["id"]] = work
         kind = event["kind"]
         if kind == "action":
-            in_force.admit(event)
+            change = in_force.admit(event)
+            if change is not None and change.coordinate not in first:
+                first[change.coordinate] = len(first)
+                coordinates.setdefault(change.coordinate[0], []).append(
+                    change.coordinate
+                )
         elif kind == "undo":
             in_force.withdraw(event["undoes"])
         elif kind == "note":

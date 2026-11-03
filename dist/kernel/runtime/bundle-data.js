@@ -7526,7 +7526,7 @@ function readPlace(focus = deepFocus()) {
 		place: place && new WeakRef(place),
 		caret: readCaret(focus),
 		ends,
-		offset: [scrollX, scrollY]
+		offset: [scrollX, scrollGoal(pageScroller)]
 	};
 }
 function returnPlace(checkpoint) {

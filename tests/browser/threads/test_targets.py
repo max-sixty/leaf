@@ -485,7 +485,7 @@ def test_original_quoted_words_remain_readable_after_the_page_rewrites_them(
     quote = card.locator(".lf-quote")
     expect(quote).to_contain_text("FINAL IMPORTANT WORDS")
     if not removed:
-        expect(quote).to_have_attribute("data-lf-detached", "")
+        expect(quote.locator(".lf-anchor-status")).to_have_text("Changed")
     # A margin card's quote returns to the passage where it still stands; the panel's
     # names no jump.
     in_panel = card.evaluate("node => node.matches('.lf-fp-view')")
@@ -702,7 +702,7 @@ customElements.define('lf-quote-subject', class extends LeafElement {
     card = open_from_threads(page, comment["id"])
     quote = card.locator(".lf-quote")
     expect(quote).not_to_have_attribute("title", "Jump to this passage")
-    expect(quote).to_have_attribute("data-lf-detached", "")
+    expect(quote.locator(".lf-anchor-status")).to_have_text("Changed")
     disclosure = card.get_by_role("button", name="Full quote", exact=True)
     disclosure.click()
     expect(disclosure).to_have_attribute("aria-expanded", "true")

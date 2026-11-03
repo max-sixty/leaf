@@ -80,6 +80,7 @@ import {
   locationLayer,
   mountTargetPaint,
   paintAim,
+  proxyRingLayer,
   shifted,
   targetTraceLayer,
 } from "./runtime/target-paint.js";
@@ -729,6 +730,7 @@ async function boot() {
     chromeForeground.append(
       locationLayer,
       targetTraceLayer,
+      proxyRingLayer,
       aimLayer,
       liveEl,
       mediaViewer,

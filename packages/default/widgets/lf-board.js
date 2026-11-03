@@ -47,6 +47,7 @@ import {
   nothing,
   move,
   offer,
+  offerAction,
   generatedElement,
   quoted,
   says,
@@ -406,7 +407,7 @@ customElements.define(
     }
     /** @param {BoardCard} card */
     #grip(card) {
-      const grip = offer("button", "lf-grip", "⠿");
+      const grip = offerAction("symbol", "lf-grip", undefined, { action: "move" });
       this.#keys(card, grip);
       // Leaving the grip drops the grab: restore the origin. Native moves retain
       // focus, so only a real departure still lacks focus when this settles.
@@ -433,10 +434,10 @@ customElements.define(
       label.textContent = "Move to";
       group.append(label);
       for (const column of columns) {
-        const button = offer(
-          "button",
+        const button = offerAction(
+          "word",
           "lf-board-destination",
-          column.getAttribute("label"),
+          column.getAttribute("label") ?? undefined,
         );
         button.dataset.lfBoardTarget = column.id;
         button.setAttribute(

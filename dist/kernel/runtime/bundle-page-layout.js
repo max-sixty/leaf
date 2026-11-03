@@ -1,4 +1,4 @@
-import { HOLDS_WORD, LAYOUT, PENDING_TASK, PRESS, PRESSES, TEXT_FIELD, Z, actionIcon, afterScript, agentArrivalDuration, alreadyShown, atLayoutPrecision, beginWalk, bindQueuedWork, blurFocused, byRenderedOrder, canPlaceFocus, cancelRender, clamp, clippedContents, clipsPastSurfaces, closeLayer, closeNativeLayer, closestAcross, composedParentNode, currentLocationIn, d, dataBody, drawn, elementDirective, eventSource, failSoft, failSoftUnreported, fitsWhole, focusDestination, focused, frameVisibility, generatedElement, growthIsSeen, handBack, hasArea, headerCuts, holdFocus, holdRendering, iconTemplate, inChrome, inlineStyle, inputCount, installElementIntegration, intersect, isNativeLayer, keepFieldKeys, keeps, keepsHidden, layoutPx, layoutWindow, listWalkPosition, move, moveScrollerBy, nativeFocusTarget, nearObserver, nearWindow, nextRender, offer, offerAction, onCurrentLocation, onFrameVisibility, onUserInput, openLayer, openerOf, orderChildren, paintClips, placeBox, placeHolder, presented as presented$1, pressIsKeyboardActivation, readSampleVisibility, reducedMotion, renderedOrder, renderedParent, renderedUnder, restrictUserIntent, retainUserIntent, rowArrows, scrollBehavior, scrollIntoReadingBand, scrollIntoView, scrollsContent, seenRect, setChildren, setScroll, shadowHost, showNativeLayer, shownBox, shownWindow, sizeObserver, takesLetters, under, union, upFrom, watchOwner, watchRoom, whenLeft, whenNone, whileConnected, x } from "./bundle-portable.js";
+import { HOLDS_WORD, LAYOUT, PENDING_TASK, PRESS, PRESSES, TEXT_FIELD, Z, actionIcon, afterScript, agentArrivalDuration, alreadyShown, atLayoutPrecision, beginWalk, bindQueuedWork, blurFocused, byRenderedOrder, canPlaceFocus, cancelRender, clamp, clippedContents, clipsPastSurfaces, closeLayer, closeNativeLayer, closestAcross, composedParentNode, currentLocationIn, d, dataBody, drawn, elementDirective, eventSource, failSoft, failSoftUnreported, fitsWhole, focusDestination, focused, frameVisibility, generatedElement, growthIsSeen, handBack, hasArea, headerCuts, holdFocus, holdRendering, iconTemplate, inChrome, inlineStyle, inputCount, installElementIntegration, intersect, isNativeLayer, keepFieldKeys, keeps, keepsHidden, layoutPx, layoutWindow, listWalkPosition, move, moveScrollerBy, nativeFocusTarget, nearObserver, nearWindow, nextRender, offer, offerAction, offeredActionElement, onCurrentLocation, onFrameVisibility, onUserInput, openLayer, openerOf, orderChildren, paintClips, placeBox, placeHolder, presented as presented$1, pressIsKeyboardActivation, readSampleVisibility, reducedMotion, renderedOrder, renderedParent, renderedUnder, restrictUserIntent, retainUserIntent, rowArrows, scrollBehavior, scrollIntoReadingBand, scrollIntoView, scrollsContent, seenRect, setChildren, setScroll, shadowHost, showNativeLayer, shownBox, shownWindow, sizeObserver, takesLetters, under, union, upFrom, watchOwner, watchRoom, whenLeft, whenNone, whileConnected, x } from "./bundle-portable.js";
 import { DRAFT_FORMAT, PENDING, PRESENTATION_DOM, TEXT_ENTRY, actionForWidget, agentName, agentSays, anchorKey, annotationMode, announce, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, claimsEsc, commandAvailable, commandBinding, commandRoutes, commandRun, controlAvailabilityOutput, cycledRow, discussed, documentChanged, drawingSchema, editable, el, hasObligationSource, hasRows, holdingError, html, isCommandScope, isMessageEvent, isThreadEvent, keys, leafSays, matchesWhen, moved, nativePress, notice, offlineInteractive, offlineState, pageUrl, paintKeys, paintKeysWithin, presentDocument, projectCommandScope, projectionOrigins, queueWidgetUpdate, raiseError, reactionsAt, readApplication, readPart, registry, render, repaint, responseAction, reveal, runtime, saidBy, savedReadingSettled, saying, setPresentationFailureReporter, shadowRootsIn, tagsDeclaring, threadKey, tokenChoices, turns, voiced, watchCommandAvailability, watchPresentation, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented, wordsText } from "./bundle-errors.js";
 import { admitResponse, completeData, countTraffic, dataHeaders, layerHeaders, postEvent, randomId, recordInteraction, removeRuntimeRootStyle, reportCarried, reportPageError, sameLayer, sessionIsActive, setRuntimeRootStyle, watchPendingTraffic } from "./bundle-layer-client.js";
 import { activityTransitionDue, addressableLabel, addressableWord, afterPresentation, ago, anchorAt, anchorBox, anchorElement, anchorForRange, anchorReaches, anchorReading, anchoringIsReady, commitPoint, cutFrames, declaredName, livePoint, markStateApplied, nameAnchor, observeServerNow, observeWorkingGrace, reachScrollers, readingRegionFor, saidNow, scheduleDocumentLayout, scrollsWith, sectionOf, settlePageInterface, targetSegments, tickClock, visualPartLabel, widgetWord } from "./bundle-content-layout.js";
@@ -613,7 +613,7 @@ const records = /* @__PURE__ */ new WeakMap();
 const controlContributions = /* @__PURE__ */ new WeakMap();
 const contributorClasses = /* @__PURE__ */ new WeakMap();
 function createContributionControl(record, className = "") {
-	return offer(record.behavior === "status" ? "span" : "button", className);
+	return offeredActionElement(document.createElement(record.behavior === "status" ? "span" : "button"), "entry", className);
 }
 const contributionControlMatches = (control, record) => record.behavior === "status" ? control instanceof HTMLSpanElement : control instanceof HTMLButtonElement;
 function contributionEntryRecord(control) {
@@ -3016,7 +3016,7 @@ fabInput.className = "lf-ui lf-response-control lf-fab-input";
 fabInput.name = "comment";
 fabInput.placeholder = "Comment…";
 fabInput.setAttribute("aria-label", "Comment");
-const fab = responseAction(el("button", "lf-ui lf-fab"), {
+const fab = responseAction(offerAction("response", "lf-fab"), {
 	action: "comment",
 	label: "Comment",
 	behavior: "disclosure"
@@ -3028,7 +3028,7 @@ fabOptions.id = "lf-response-options";
 fabOptions.popover = "auto";
 fabOptions.setAttribute("role", "group");
 fabOptions.setAttribute("aria-label", "Other responses");
-const fabSuggest = responseAction(el("button", "lf-ui lf-fab-suggest"), {
+const fabSuggest = responseAction(offerAction("response", "lf-fab-suggest"), {
 	action: "suggest",
 	label: "Suggest",
 	collapse: true
@@ -4253,7 +4253,7 @@ const reactionTokens = () => Object.entries(reactionVocabulary());
 const reactionAvailable = () => readThreads().phase === "ready";
 const anchorChoices = (anchor) => reactionAvailable() ? tokenChoices(reactionVocabulary(), anchor ? reactionsAt(allThreads(), anchor) : []) : [];
 function reactionChip({ name, glyph, label }, pressed) {
-	const chip = offer("button", `lf-react ${HOLDS_WORD}`);
+	const chip = offerAction("response", `lf-react ${HOLDS_WORD}`);
 	chip.dataset.token = name;
 	chip.title = label;
 	chip.setAttribute("aria-label", label);

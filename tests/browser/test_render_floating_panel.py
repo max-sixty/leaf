@@ -852,7 +852,7 @@ def test_on_shows_an_obligation_as_its_message_and_reply_comes_back(browser, ser
     expect(card.locator("li")).to_have_count(2)
     expect(card).to_contain_text("#4812 manual")
 
-    card.locator(".lf-fp-answer", has_text="Reply").click()
+    card.locator(".lf-fp-answers button", has_text="Reply").click()
     expect(page.locator(panel_view("thread"))).to_be_visible()
     back = page.locator(".lf-fp-back")
     expect(back).to_have_attribute("aria-label", "Back to On me")
@@ -1086,9 +1086,10 @@ def test_on_a_phone_a_thread_s_presses_take_a_line_beside_next_unread(browser, s
 
 def test_on_a_phone_turning_on_s_tabs_moves_nothing(browser, serve, subtests):
     """On a phone the On view's four tabs keep their words whole, and turning between
-    them moves no tab, whether the presses share the tabs' line or, narrower or in
-    wider faces, stand on a line of their own over them; On Claude's plan head may take
-    that line alone. Close stays put on every other tab."""
+    them moves no tab. At 390px they share their line with Close, giving up their
+    insets to fit rather than sending Close to a line of its own; narrower, the presses
+    may stand on a line over them. On Claude's plan head may take that line alone.
+    Close stays put on every other tab."""
     url = serve(LONG_PAGE)
     panel_comment(serve.page_dir, "Is the window long enough?")
     steps = [
@@ -1131,6 +1132,14 @@ def test_on_a_phone_turning_on_s_tabs_moves_nothing(browser, serve, subtests):
                 box = close.bounding_box()
                 assert closed in (None, box), (tab, closed, box)
                 closed = box
+                if width == 390:
+                    line = strip.bounding_box()
+                    middle = box["y"] + box["height"] / 2
+                    assert line["y"] <= middle <= line["y"] + line["height"], (
+                        f"Close left the tabs' line on {tab}",
+                        line,
+                        box,
+                    )
 
 
 def test_held_news_reads_whole_among_the_thread_s_controls(browser, serve):
@@ -3337,7 +3346,7 @@ def test_the_leaf_travels_with_its_fold_and_reverses_from_where_it_stands(
     page.evaluate("() => {" + HOLD_MOTION + "}")
     panel = page.locator(".lf-floating-panel")
     leaf = page.locator(".lf-fp-leaf")
-    mark = panel.locator(".lf-dot")
+    mark = panel.locator(".lf-fp-leaf > svg[data-lf-icon=leaf]")
 
     def reading():
         return mark.evaluate("""node => {
@@ -3553,7 +3562,7 @@ def test_the_leaf_paints_inside_its_focus_ring_after_folding(browser, serve):
     leaf = page.locator(".lf-fp-leaf")
     colours = leaf.evaluate("""node => ({
       ring: getComputedStyle(node).outlineColor,
-      mark: getComputedStyle(node.querySelector('.lf-dot')).backgroundColor
+      mark: getComputedStyle(node.querySelector('svg[data-lf-icon=leaf]')).color
     })""")
     # Authored words can share the mark's colour; only the panel's pixels count.
     page.locator("#title").evaluate(
@@ -3967,7 +3976,7 @@ def test_versions_rests_the_page_s_keys_and_takes_a_version_s_number(browser, se
     reference = page.locator(".lf-command-reference")
     expect(
         reference.locator(
-            '[role=row][data-lf-command="panel.floating.versions.pick"] kbd'
+            '[role=option][data-lf-command="panel.floating.versions.pick"] kbd'
         )
     ).to_have_text(["1–3"])
     page.keyboard.press("Escape")
@@ -4072,9 +4081,7 @@ def test_a_website_copy_says_who_revises_it_and_where_leaf_comes_from(browser, s
     expect(field(page)).to_have_attribute(
         "placeholder", re.compile("^Ready — comment to revise this copy")
     )
-    expect(page.locator(".lf-fp-leaf .lf-dot")).to_have_attribute(
-        "data-lf-tone", "listening"
-    )
+    expect(page.locator(".lf-fp-leaf")).to_have_attribute("data-lf-tone", "listening")
     expect(page.locator(".lf-fp-row-notice")).to_be_hidden()
     links = panel_menu(page).locator(".lf-fp-state a")
     expect(links).to_have_count(2)
@@ -4506,7 +4513,7 @@ ROW_CENTRES = """() => {
   };
   const text = document.querySelector('.lf-fp-field leaf-text').getBoundingClientRect();
   return {
-    leaf: centre('.lf-fp-leaf .lf-dot'),
+    leaf: centre('.lf-fp-leaf > svg[data-lf-icon=leaf]'),
     line: text.bottom - 16,
     dictate: centre('.lf-fp-field .lf-compose-dictate svg'),
     send: centre('.lf-fp-field .lf-compose-submit svg'),
@@ -4708,7 +4715,8 @@ def test_a_press_arriving_in_a_line_of_answers_moves_nothing(browser, serve, tou
       const words = line.getBoundingClientRect().height;
       const press = document.createElement('button');
       press.type = 'button';
-      press.className = 'lf-fp-face lf-fp-quiet';
+      press.className = 'lf-btn lf-fp-reply lf-ui lf-ui-face';
+      press.dataset.lfOffer = 'button';
       press.textContent = 'Undo';
       line.append(press);
       return [words, line.getBoundingClientRect().height];

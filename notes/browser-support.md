@@ -29,6 +29,14 @@ movement that disrupts a gesture need a fix or an explicit support decision.
 An unsupported API alone does not justify blocking the whole browser: record
 what fails and what still works.
 
+Record a gap and leave it, rather than correcting it in Leaf's code, unless it
+shows on a path users take often or does one of the things above that need a
+fix. A correction is a second answer to a question the browser already answers,
+so every later change has to keep it working, and someone has to notice when the
+engine catches up and delete it. The entry's recheck says when that has
+happened. Where engines differ on a feature and another feature does the job the
+same way in every engine, use the second.
+
 ## Known gaps
 
 ### Native select keyboard input in the test engine
@@ -442,7 +450,13 @@ table (translated) and on a reveal.js slide (translated and scaled), and the
 block controls (`readInsets` in `browser/runtime/block-controls.js`) add the
 size difference to their far edges. An engine that keeps transforms, the
 Nightly pref included, fails that check, and none of this runs. Offsets are
-whole pixels, so a mark can stand up to a pixel off.
+whole pixels, so a mark can stand up to a pixel off. The walk runs when a box is
+placed, so a transform that changes afterwards, as an animation sliding the
+target does, leaves the box where it was placed until the next scroll, resize or
+layout signal: holding Alt over a paragraph slid 120px down by a 300ms animation,
+Playwright Firefox 157 (build 1555) kept the aim at its start, after the slide
+too, on 2026-11-02.
+Accepted, since no example page shows a mark through such a slide.
 
 A scroll inside a scaled box is a separate gap. Firefox 157 and WebKit 27.2
 carry an anchored box by the scroll's layout pixels, not the smaller or larger

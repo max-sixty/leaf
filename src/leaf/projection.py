@@ -170,7 +170,7 @@ class StateProjection:
 
     A reading that asks about each widget in turn, such as the obligation
     inventory, reads that widget's coordinates through an index built once per
-    projection (`actions_by_owner`, `desired_by_unit`, `classified_by_owner`), so
+    projection (`actions_by_owner`, `desired_by_unit`, `classified_by_unit`), so
     its cost grows with the page rather than with the page times its widgets."""
 
     actions: dict
@@ -200,12 +200,12 @@ class StateProjection:
         return index
 
     @cached_property
-    def classified_by_owner(self) -> dict[str, list]:
-        """Owner id → its `classified` entries, each `(coordinate, (event, spec))`,
-        in log order."""
+    def classified_by_unit(self) -> dict[str, list]:
+        """Unit id → the `classified` entries at its coordinates, whatever their
+        owner, each `(coordinate, (event, spec))`, in log order."""
         index = {}
         for coordinate, entry in self.classified.values():
-            index.setdefault(coordinate[0], []).append((coordinate, entry))
+            index.setdefault(coordinate[1], []).append((coordinate, entry))
         return index
 
 
@@ -287,7 +287,8 @@ def state_projection(
     both. `actions` holds the last surviving user action per coordinate.
     `reports` keeps every live report there because stamping retires all of
     them. `desired` is the state that stands at each coordinate: its action, or
-    its newest live report.
+    its newest live report. `obligations.previously_requested` reads `desired` on
+    prefixes of the log by the same rule, from `classified` and `in_force`.
 
     Both writers share one classification pass over the window. They end by
     different facts: undo or a retraction floor ends an action, while a note

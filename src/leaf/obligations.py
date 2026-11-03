@@ -37,13 +37,14 @@ import hashlib
 import json
 from collections.abc import Callable
 from functools import partial
+from math import inf
 from typing import TYPE_CHECKING, NamedTuple
 from urllib.parse import quote
 
 from leaf.events import (
     awaits_agent,
     is_reaction,
-    retractions,
+    report_settled_at,
     taken_back,
     unanswered_agent_turn,
 )
@@ -59,7 +60,6 @@ from leaf.projection import (
     obligation_value,
     page_reading,
     projected_action_holders,
-    state_projection,
 )
 from leaf.registry.contract import exhibits, matches_when
 from leaf.registry.kernel import verb_writers
@@ -225,7 +225,12 @@ def replayed_attrs(rec: dict, projection: StateProjection) -> dict:
     unit = attrs.get("id")
     if not unit:
         return attrs
-    held = projection.desired_by_unit.get(unit, [])
+    return _overlaid(attrs, projection.desired_by_unit.get(unit, []))
+
+
+def _overlaid(attrs: dict, held) -> dict:
+    """`attrs` overlaid with each value record among `held`, the states standing at
+    the element's coordinates, oldest first."""
     for e, spec in sorted(held, key=lambda item: item[0]["seq"]):
         if (spec.get("record") or {}).get("kind") == "value":
             attrs = {**attrs, spec["record"]["attr"]: folded_value(e, spec)}
@@ -237,42 +242,49 @@ def previously_requested(
     projection: StateProjection,
     when: dict,
     revision: int | None,
-    events: list,
-    byid: dict,
-    spoken: dict,
-    registry: dict,
-    cache: dict,
+    settled: dict,
 ) -> bool:
     """Registration at relevant gestures in their own immutable source basis.
 
-    The canonical state fold reads each relevant log prefix, sharing cached prefixes
-    across sources. This includes report settlement and Undo without a second replay
-    rule. Surviving actions and reports can originate a conditional request between
-    document revisions; retracted actions cannot.
+    Each of the element's value writes in `revision` asks whether `when` held on
+    the log's prefix through it. The fold of that prefix (`state_projection`) takes
+    its floors and withdrawals from the whole log, so it admits the actions
+    `projection`, the fold of the whole log in `revision`, holds in force; and it
+    settles only the reports a note through the write settles (`settled`, from
+    `events.report_settled_at` through `revision`). So one walk of the entries at the
+    element's unit reads every prefix by the rule `state_projection` builds `desired`
+    by: a coordinate stands at its newest action in force so far, else at its newest
+    report not yet settled. Surviving actions and reports can originate a
+    conditional request between document revisions; retracted actions cannot.
     """
     unit = record["attrs"].get("id")
-    for coordinate, (event, spec) in projection.classified_by_owner.get(unit, ()):
+    actions = {}
+    reports = {}
+    for coordinate, (event, spec) in projection.classified_by_unit.get(unit, ()):
+        in_force = event["kind"] != "action" or event["id"] in projection.in_force
+        if event["kind"] == "action":
+            if in_force:
+                actions[coordinate] = (event, spec)
+        else:
+            reports.setdefault(coordinate, []).append((event, spec))
         effect = spec.get("record") or {}
         if (
-            coordinate[1] != unit
-            or (event["kind"] == "action" and event["id"] not in projection.in_force)
+            coordinate[0] != unit
+            or not in_force
             or (revision is not None and event["revision"] != revision)
             or effect.get("kind") != "value"
             or effect["attr"] not in when
         ):
             continue
-        key = (id(projection), event["seq"])
-        if key not in cache:
-            cache[key] = state_projection(
-                [item for item in events if item["seq"] <= event["seq"]],
-                byid,
-                spoken,
-                registry,
-                revision,
-                floors=retractions(events, revision) if revision is not None else {},
-                withdrawn=taken_back(events),
-            )
-        if matches_when(replayed_attrs(record, cache[key]), when):
+        standing = {}
+        for at, live in reports.items():
+            # A report a note has settled stays settled on every longer prefix.
+            while live and settled.get(live[-1][0]["id"], inf) <= event["seq"]:
+                live.pop()
+            if live:
+                standing[at] = live[-1]
+        standing.update(actions)
+        if matches_when(_overlaid(record["attrs"], standing.values()), when):
             return True
     return False
 
@@ -801,7 +813,7 @@ class _ObligationReducer:
     def inventory(self, settled_away: set[str], prior=None) -> list:
         """Every present source remains identifiable after completion or withdrawal."""
         records = []
-        history_projections = {}
+        settled_at = {}
         history_readings = {}
         history_keys = {}
         # Only writers in the exact historical revision can originate a request
@@ -812,6 +824,12 @@ class _ObligationReducer:
                 written.setdefault((event["revision"], event["widget"]), set()).add(
                     event["action"]
                 )
+
+        def settled(revision):
+            """The seq each report is first settled at through `revision`."""
+            if revision not in settled_at:
+                settled_at[revision] = report_settled_at(self.events, revision)
+            return settled_at[revision]
 
         def historical_request(old_revision, old, unit):
             previous = old.document.by_id[unit]
@@ -826,11 +844,7 @@ class _ObligationReducer:
                 basis.projection,
                 declaration.get("when", {}),
                 old_revision,
-                self.events,
-                old.document.by_id,
-                old.spoken,
-                old.registry,
-                history_projections,
+                settled(old_revision),
             )
 
         # A historical fold reads writers and notes through its revision, plus
@@ -867,11 +881,7 @@ class _ObligationReducer:
                     self.projection,
                     self._declaration(record).get("when", {}),
                     self.revision,
-                    self.events,
-                    self.byid,
-                    self.spk,
-                    self.registry,
-                    history_projections,
+                    settled(self.revision),
                 )
                 or any(
                     "answer" in (held[0].get("meaning") or {})

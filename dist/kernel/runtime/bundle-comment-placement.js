@@ -1550,9 +1550,10 @@ function floatingPlacement({ floating, update }) {
 			stopScrollInvalidation = null;
 			if (plane !== "page") {
 				const sources = context ? [...new Set(getOverflowAncestors(context))] : [];
-				for (const source of sources) source.addEventListener("scroll", update, { passive: true });
+				const solve = () => update();
+				for (const source of sources) source.addEventListener("scroll", solve, { passive: true });
 				stopScrollInvalidation = () => {
-					for (const source of sources) source.removeEventListener("scroll", update);
+					for (const source of sources) source.removeEventListener("scroll", solve);
 				};
 			}
 			stand = frameAnchor ? anchoredAt(frameAnchor, at) : placedAt;

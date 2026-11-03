@@ -63,7 +63,6 @@ def stills_catalogue(tmp_path, monkeypatch):
             return {
                 "faces": [[page.url, *[""] * (len(argument) - 1)]],
                 "elements": {"html": 0},
-                "texts": [],
             }
 
         page.evaluate = evaluate

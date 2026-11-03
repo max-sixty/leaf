@@ -1,5 +1,5 @@
 import { __exportAll } from "./bundle-rolldown-runtime.js";
-import { canvas2D, describeFailure } from "./bundle-portable.js";
+import { canvas2D, describeFailure, overlaps } from "./bundle-portable.js";
 
 //#region runtime/composing/page-image.js
 var page_image_exports = /* @__PURE__ */ __exportAll({
@@ -15,7 +15,6 @@ const pageRenderer = async () => {
 		sampleFrameImage
 	};
 };
-const meets = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
 const holds = (a, b) => a.left <= b.left && a.top <= b.top && a.right >= b.right && a.bottom >= b.bottom;
 const paintsOverChildren = (parent, style) => style.backgroundImage !== "none" || style.overflowX !== "visible" || style.overflowY !== "visible" || /paint|content|strict/.test(style.contain) || ["::before", "::after"].some((pseudo) => {
 	const own = getComputedStyle(parent, pseudo);
@@ -47,7 +46,7 @@ function captureRoot(region, skip) {
 		let holder = null;
 		for (const child of laidOut(root, skip)) {
 			const box = child.getBoundingClientRect();
-			if (!meets(box, region)) continue;
+			if (!overlaps(box, region)) continue;
 			if (holder || !holds(box, region)) {
 				holder = null;
 				break;

@@ -287,7 +287,9 @@ export function settledAway(el) {
     )
   );
 }
-const GENERATED = ".lf-ui, [data-lf-gen]";
+export const GENERATED = ".lf-ui, [data-lf-gen]";
+// Every heading, which names the part of the page under it.
+export const HEADING = "h1, h2, h3, h4, h5, h6";
 export const DATUM = "[data-lf-projection][data-lf-datum]";
 // Whether the user can see a block's words, for a reading or a landing chosen among the
 // page's blocks. A box is no answer: what content-visibility hides keeps its boxes where

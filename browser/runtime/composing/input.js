@@ -42,6 +42,7 @@
 // retained as a Node part: rendering chrome never replaces its words, caret or history.
 // Local draft and dictation callbacks request Lit updates; shared readings subscribe
 // through SignalWatcher, including focus and errors, without a repaint registry.
+import { capitalized, counted } from "../words.js";
 import { describeFailure } from "../exception.js";
 import { rememberWriting } from "../drafts.js";
 import { keys, paintKeysWithin } from "../keyboard/scopes.js";
@@ -152,7 +153,7 @@ function mediaTemplate({ drawing, media, sent, removeMedia }) {
               type="button"
               ${offeredAction("picture", "lf-media-open lf-composer-media-open lf-media-frame")}
               data-lf-media-canvas
-              aria-label=${`Inspect drawing, ${strokes} ${strokes === 1 ? "stroke" : "strokes"}`}
+              aria-label=${`Inspect drawing, ${counted(strokes, "stroke")}`}
               title="Inspect drawing"
               @click=${
                 /** @param {MouseEvent & {currentTarget: HTMLButtonElement & {firstElementChild: HTMLCanvasElement}}} event */ (
@@ -396,11 +397,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         shelfSeen = { drawing: drawn, media: [...attachedMedia] };
         drawing.replace(drawn);
         const strokes = drawn?.strokes.length ?? 0;
-        announce(
-          strokes
-            ? `Drawing, ${strokes} stroke${strokes === 1 ? "" : "s"}.`
-            : "No drawing.",
-        );
+        announce(strokes ? `Drawing, ${counted(strokes, "stroke")}.` : "No drawing.");
       });
     /** @param {readonly string[]} media */
     const putMedia = (media) => {
@@ -464,10 +461,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     const initialName = name();
     if (initialName) keeps(ta, "aria-label", initialName);
     const sendWord = () => (typeof sends === "function" ? sends() : sends);
-    const sendLabel = () => {
-      const word = sendWord();
-      return word.charAt(0).toUpperCase() + word.slice(1);
-    };
+    const sendLabel = () => capitalized(sendWord());
     // Once words reach Send's corner, Send shows there as the pointer comes to it, and
     // takes presses only once the pointer has rested on it (response.css), so a quick
     // press at the words' end places the caret. Typing, or a press on the words, puts

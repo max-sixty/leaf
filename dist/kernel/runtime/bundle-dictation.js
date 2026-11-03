@@ -1,3 +1,5 @@
+import { labelWords } from "./bundle-portable.js";
+
 //#region runtime/composing/dictation.js
 const FAILURES = {
 	"not-allowed": "Microphone access blocked",
@@ -78,7 +80,7 @@ function createDictation({ Recognition, language, read, write, changed, announce
 				};
 				recognizer.onresult = (event) => {
 					if (session !== recognizer) return;
-					const heard = Array.from(event.results, (result) => result[0].transcript).join(" ").replace(/\s+/g, " ").trim();
+					const heard = labelWords(Array.from(event.results, (result) => result[0].transcript).join(" "));
 					const words = [base, heard].filter(Boolean).join(" ");
 					if (read() !== words) {
 						writing = true;

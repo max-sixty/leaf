@@ -1,5 +1,5 @@
 import { __exportAll } from "./bundle-rolldown-runtime.js";
-import { ANNOUNCE, CARET_KEYS, COMMANDS, J, PRESS, PRESSES, ROLE_BUTTON_OFFER, W, WORKS, Z, actionTemplate, bindQueuedWork, coarsePointer, commandsChangedOn, controlNavigationKeys, d, focusDestination, focusRevision, holdFocus, installLanguagePaths, installMoveFocus, isElement, isHTML, isNativeLayer, isStage, keeps, liveStages, move, nextRender, offer, offerAction, onCurrentLocation, onFocusVisibility, onUserInput, pressIsKeyboardActivation, refuseCommands, renderedParent, renderedUnder, shadowHost, showNativeLayer, takesLetters, tick, under, watchCurrentLocationIn, x } from "./bundle-portable.js";
+import { ANNOUNCE, CARET_KEYS, COMMANDS, J, MESSAGE_KINDS, PRESS, PRESSES, ROLE_BUTTON_OFFER, VERB_WRITERS, W, WIDGET_NAME, WORKS, Z, actionTemplate, bindQueuedWork, coarsePointer, commandsChangedOn, controlNavigationKeys, d, focusDestination, focusRevision, holdFocus, installLanguagePaths, installMoveFocus, isElement, isHTML, isNativeLayer, isStage, keeps, liveStages, move, nextRender, offer, offerAction, onCurrentLocation, onFocusVisibility, onUserInput, pressIsKeyboardActivation, refuseCommands, renderedParent, renderedUnder, showNativeLayer, takesLetters, tick, under, watchCurrentLocationIn, x } from "./bundle-portable.js";
 import { AsyncDirective, LitElement as LitElement$1, PartType as PartType$1, directive as directive$1, guard, html, html as html$1, keyed, live as live$1, noChange, nothing as nothing$1, ref, render as render$1, repeat } from "/vendor/lit.js";
 
 //#region runtime/move-focus.js
@@ -328,188 +328,6 @@ function obligationValue(widget, verb, answered, unit) {
 const isProjectionEntry = (entry) => entry.coordinate !== void 0;
 
 //#endregion
-//#region runtime/kernel-facts.js
-const COLLAPSE = /[\u0009\u000a\u000b\u000c\u000d\u0020\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]+/g;
-const DRAFT_FORMAT = "leaf-draft/17";
-const MESSAGE_KINDS = /* @__PURE__ */ new Set(["comment", "reply"]);
-const TEXT_BLOCK = "p,li,h1,h2,h3,h4,h5,h6,td,th,pre,blockquote,dd,dt,figcaption,summary";
-const VERB_WRITERS = {
-	"action": "user",
-	"report": "agent"
-};
-const WIDGET_NAME = /^lf-[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const drawingSchema = {
-	"type": "object",
-	"properties": {
-		"strokes": {
-			"type": "array",
-			"minItems": 1,
-			"maxItems": 32,
-			"items": {
-				"type": "array",
-				"minItems": 2,
-				"maxItems": 256,
-				"items": {
-					"type": "array",
-					"minItems": 2,
-					"maxItems": 2,
-					"prefixItems": [{
-						"type": "number",
-						"minimum": -33554432,
-						"maximum": 33554432
-					}, {
-						"type": "number",
-						"minimum": -33554432,
-						"maximum": 33554432
-					}],
-					"items": false
-				}
-			}
-		},
-		"box": {
-			"type": "array",
-			"minItems": 2,
-			"maxItems": 2,
-			"prefixItems": [{
-				"type": "number",
-				"exclusiveMinimum": 0,
-				"maximum": 33554432
-			}, {
-				"type": "number",
-				"exclusiveMinimum": 0,
-				"maximum": 33554432
-			}],
-			"items": false
-		},
-		"frame": {
-			"type": "object",
-			"properties": {
-				"root": {
-					"type": "string",
-					"maxLength": 128,
-					"pattern": "^[A-Za-z][A-Za-z0-9_.:-]*$"
-				},
-				"path": {
-					"type": "array",
-					"maxItems": 32,
-					"items": {
-						"type": "object",
-						"properties": {
-							"tag": {
-								"type": "string",
-								"maxLength": 128,
-								"pattern": "^[A-Za-z][A-Za-z0-9_.:-]*$"
-							},
-							"index": {
-								"type": "integer",
-								"minimum": 0,
-								"maximum": 65535
-							},
-							"siblings": {
-								"type": "integer",
-								"minimum": 1,
-								"maximum": 65536
-							},
-							"shadow": { "type": "boolean" }
-						},
-						"required": [
-							"tag",
-							"index",
-							"siblings"
-						],
-						"additionalProperties": false
-					}
-				}
-			},
-			"required": ["root", "path"],
-			"additionalProperties": false
-		},
-		"says": {
-			"type": "string",
-			"minLength": 1,
-			"maxLength": 500
-		},
-		"viewport": {
-			"type": "array",
-			"minItems": 2,
-			"maxItems": 2,
-			"prefixItems": [{
-				"type": "number",
-				"exclusiveMinimum": 0,
-				"maximum": 33554432
-			}, {
-				"type": "number",
-				"exclusiveMinimum": 0,
-				"maximum": 33554432
-			}],
-			"items": false
-		},
-		"scheme": { "enum": ["light", "dark"] }
-	},
-	"required": [
-		"strokes",
-		"box",
-		"viewport",
-		"scheme"
-	],
-	"additionalProperties": false
-};
-const marks = {
-	"x-content": {
-		"paint": "data-lf-content",
-		"message": true
-	},
-	"x-verbatim": {
-		"paint": "data-lf-verbatim",
-		"message": true
-	},
-	"x-space": {
-		"paint": "data-lf-space",
-		"authored": "data-width",
-		"authored_on": "content",
-		"message": false
-	},
-	"x-inline": {
-		"paint": "data-lf-inline",
-		"message": true
-	},
-	"x-exhibit": {
-		"paint": "data-lf-exhibit",
-		"message": true
-	},
-	"x-bound": {
-		"paint": "data-lf-bound",
-		"authored": "data-bound",
-		"authored_on": "content",
-		"message": true
-	},
-	"x-height": {
-		"paint": "data-lf-height",
-		"authored": "data-height",
-		"authored_on": "declared",
-		"message": true
-	},
-	"x-reading-role": {
-		"paint": "data-lf-reading-role",
-		"message": true
-	},
-	"x-views": {
-		"paint": "data-lf-views",
-		"message": true
-	},
-	"x-visual": {
-		"paint": "data-lf-visual",
-		"presence": true,
-		"message": true
-	},
-	"x-awaits": {
-		"paint": "data-lf-awaits",
-		"presence": true,
-		"message": true
-	}
-};
-
-//#endregion
 //#region runtime/registry-contract.js
 function stampedState(registry, tag, event) {
 	const state = registry.$states[tag]?.[event.action];
@@ -593,6 +411,7 @@ const messageKey = (message) => message.key ?? message.attempt ?? message.id;
 function threadNames(threads) {
 	const byName = /* @__PURE__ */ new Map();
 	for (const thread of threads) {
+		byName.set(threadKey(thread), thread);
 		byName.set(thread.id, thread);
 		for (const message of thread.msgs) {
 			byName.set(message.id, thread);
@@ -2417,11 +2236,6 @@ const declaredRoot = (host) => host.shadowRoot && registry[host.localName]?.["x-
 const shadowRootsIn = (root) => liveStages().filter((stage) => root.contains(stage.host) && declaredRoot(stage.host) === stage);
 const pageShadowRoots = () => shadowRootsIn(document);
 const renderedChildren = (node) => isHTML(node, "slot") ? node.assignedNodes({ flatten: true }) : (isElement(node) ? node.shadowRoot ?? node : node).childNodes;
-const hostIn = (node, root) => {
-	let at = node;
-	while (at && at.getRootNode() !== root) at = shadowHost(at.getRootNode());
-	return at;
-};
 let shadowRules = "";
 let loading = null;
 function loadShadowRules() {
@@ -3833,4 +3647,4 @@ function dismissErrors() {
 }
 
 //#endregion
-export { COLLAPSE, DELIVERY, DRAFT_FORMAT, EVERYTHING, LINK, LIVE_ROOT, LitElement$1 as LitElement, MAC, PAGE_ROOT, PENDING, PRESENTATION_DOM, PRESSABLE, SHARE_ROOT, TEXT_BLOCK, TEXT_ENTRY, WEBSITE_DELIVERY, actionForWidget, adoptRegistry, advertisesKeys, agentName, agentSays, allBindings, anchorKey, annotationMode, announce, answers, applicationPresented, applicationPresenter, applicationRegionsPresented, applicationState, ariaShortcuts, attachApplicationPresentation, attachWidgetPresentation, authoredBody, authoredRank, bareReaction, bindingEnabled, bindingEnabledFor, bindings, buttonCommand, carriesObligation, checked, claimsEsc, clampedRow, closeControl, commandAvailable, commandBinding, commandDeclarationsWithin, commandEntries, commandPresentations, commandReady, commandRoutes, commandRun, commandScope, commandsOn, commandsWithin, contextBindings, contextScopes, controlAvailabilityOutput, createPresentationSchedule, cycledRow, decisionControls, decisionFor, declarationFor, declareCommandReadiness, declaredBindings, declaredRoot, declaresCommandHandler, deleted, descriptionOf, discussed, dismissError, dismissErrors, documentChanged, dragHeld, dragging, drawingSchema, editable, el, elementDeclarations, elementsDeclaring, errorsReading, exhibits, foldWidgetStates, fragmentId, fragmentKey, fragmentUrl, guard, hasObligationSource, hasRows, holdAuthoredBody, holdSelection, holdStatus, holdingError, hostIn, html$1 as html, isCommandScope, isElementName, isMessageEvent, isNews, isReaction, isThreadEvent, itemNoun, itemOutcome, keyed, keys, labelOf, lastMovedAt, layerFact, layerRoot, leafSays, live, live$1, liveEl, loadShadowRules, marks, matchesWhen, messageKey, motionPreview, mountRepaint, moved, nativeActivationAt, nativeClaimAt, nativePress, noChange, nothing$1 as nothing, notice, noticeReading, noticeWords, obligationValue, offlineDeferred, offlineInteractive, offlineState, pageClaimed, pageRange, pageShadowRoots, pageUrl, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, presentDocument, programmaticSelection, projectCommandScope, projectView, projectionOrigins, projectionRegionsPresented, pruneScopedElements, queueWidgetUpdate, quickShortcuts, raiseError, rankAt, reachedForWords, reactionsAt, readApplication, readApplicationPresentation, readPart, recordedWidgetSelector, ref, referencedCommandEntry, reflectFirstScopes, reflectKeys, refuseShadowRoot, registry, render$1 as render, renderedChildren, repaint, repaintPage, repeat, responseAction, reveal, revisionLabel, routedCommand, runLanding, runtime, runtimeModule, runtimeResource, saidBy, sameAnchor, savedReadingSettled, saying, scopeAvailable, scopeIdentity, scopeRefs, scopesAt, scopesFor, seatRoot, seeErrors, selectEnds, selectWidgets, selectionBackward, setNoticeContext, setPresentationFailureReporter, setQuickShortcuts, shadowRootsIn, shadowRules, share, shareUrl, spell, spokenBinding, stateSpecs, submitBindings, tagsDeclaring, threadCounts, threadKey, threadNames, titleOf, tokenChoices, tokenEntry, touchPresses, turns, voiceOf, voiced, watchCommandAvailability, watchCommandScopes, watchPresentation, watchSemantic, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented, word, wordsText, worksInside };
+export { DELIVERY, EVERYTHING, LINK, LIVE_ROOT, LitElement$1 as LitElement, MAC, PAGE_ROOT, PENDING, PRESENTATION_DOM, PRESSABLE, SHARE_ROOT, TEXT_ENTRY, WEBSITE_DELIVERY, actionForWidget, adoptRegistry, advertisesKeys, agentName, agentSays, allBindings, anchorKey, annotationMode, announce, answers, applicationPresented, applicationPresenter, applicationRegionsPresented, applicationState, ariaShortcuts, attachApplicationPresentation, attachWidgetPresentation, authoredBody, authoredRank, bareReaction, bindingEnabled, bindingEnabledFor, bindings, buttonCommand, carriesObligation, checked, claimsEsc, clampedRow, closeControl, commandAvailable, commandBinding, commandDeclarationsWithin, commandEntries, commandPresentations, commandReady, commandRoutes, commandRun, commandScope, commandsOn, commandsWithin, contextBindings, contextScopes, controlAvailabilityOutput, createPresentationSchedule, cycledRow, decisionControls, decisionFor, declarationFor, declareCommandReadiness, declaredBindings, declaredRoot, declaresCommandHandler, deleted, descriptionOf, discussed, dismissError, dismissErrors, documentChanged, dragHeld, dragging, editable, el, elementDeclarations, elementsDeclaring, errorsReading, exhibits, foldWidgetStates, fragmentId, fragmentKey, fragmentUrl, guard, hasObligationSource, hasRows, holdAuthoredBody, holdSelection, holdStatus, holdingError, html$1 as html, isCommandScope, isElementName, isMessageEvent, isNews, isReaction, isThreadEvent, itemNoun, itemOutcome, keyed, keys, labelOf, lastMovedAt, layerFact, layerRoot, leafSays, live, live$1, liveEl, loadShadowRules, matchesWhen, messageKey, motionPreview, mountRepaint, moved, nativeActivationAt, nativeClaimAt, nativePress, noChange, nothing$1 as nothing, notice, noticeReading, noticeWords, obligationValue, offlineDeferred, offlineInteractive, offlineState, pageClaimed, pageRange, pageShadowRoots, pageUrl, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, presentDocument, programmaticSelection, projectCommandScope, projectView, projectionOrigins, projectionRegionsPresented, pruneScopedElements, queueWidgetUpdate, quickShortcuts, raiseError, rankAt, reachedForWords, reactionsAt, readApplication, readApplicationPresentation, readPart, recordedWidgetSelector, ref, referencedCommandEntry, reflectFirstScopes, reflectKeys, refuseShadowRoot, registry, render$1 as render, renderedChildren, repaint, repaintPage, repeat, responseAction, reveal, revisionLabel, routedCommand, runLanding, runtime, runtimeModule, runtimeResource, saidBy, sameAnchor, savedReadingSettled, saying, scopeAvailable, scopeIdentity, scopeRefs, scopesAt, scopesFor, seatRoot, seeErrors, selectEnds, selectWidgets, selectionBackward, setNoticeContext, setPresentationFailureReporter, setQuickShortcuts, shadowRootsIn, shadowRules, share, shareUrl, spell, spokenBinding, stateSpecs, submitBindings, tagsDeclaring, threadCounts, threadKey, threadNames, titleOf, tokenChoices, tokenEntry, touchPresses, turns, voiceOf, voiced, watchCommandAvailability, watchCommandScopes, watchPresentation, watchSemantic, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented, word, wordsText, worksInside };

@@ -18,7 +18,7 @@
 import { moved } from "./thread/model.js";
 import { NOT_ANSWERED } from "./thread/workflow.js";
 import { agentSays, leafSays } from "./voice.js";
-import { excerptWords } from "./words.js";
+import { counted, excerptWords } from "./words.js";
 
 /** @typedef {ReturnType<typeof semanticNewsReading>} NewsReading
  * @typedef {import("../types/domain.js").Message} Message
@@ -195,10 +195,6 @@ export function combineSemanticNews(older, newer) {
   return [...new Map([...older, ...newer].map((item) => [item.key, item])).values()];
 }
 
-/** @param {number} count @param {string} singular @param {string} pluralForm */
-const plural = (count, singular, pluralForm = `${singular}s`) =>
-  `${count} ${count === 1 ? singular : pluralForm}`;
-
 // One clause per fact, joined by the middle dot the panel's line joins every fact with,
 // as parts each said by the agent or by Leaf (voice.js; notifications.js, `notice`). A
 // single new message speaks for itself, its opening words in the agent's voice ("I
@@ -234,8 +230,8 @@ export function semanticNewsNotice(news) {
     clauses.push([
       leafSays(
         replies.length === content.length
-          ? `${plural(content.length, "reply", "replies")} in ${plural(threads, "thread")}`
-          : `${plural(content.length, "agent message")} in ${plural(threads, "thread")}`,
+          ? `${counted(content.length, "reply", "replies")} in ${counted(threads, "thread")}`
+          : `${counted(content.length, "agent message")} in ${counted(threads, "thread")}`,
       ),
     ]);
   }

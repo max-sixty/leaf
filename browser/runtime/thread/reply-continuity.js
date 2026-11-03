@@ -112,9 +112,7 @@ export class ReplyContinuity {
   #keep(space) {
     if (space === this.#space) return;
     this.#space = space;
-    const value = layoutPx(space);
-    if (this.gap.style.getPropertyValue("--lf-reply-space") !== value)
-      this.gap.style.setProperty("--lf-reply-space", value);
+    this.gap.style.setProperty("--lf-reply-space", layoutPx(space));
   }
   release() {
     this.#departure?.();

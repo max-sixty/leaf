@@ -1,4 +1,4 @@
-import { closeLayer, closeNativeLayer, currentLocationIn, describeFailure, focusDestination, handBack, offerAction, offeredAction, openLayer, openerOf, retainUserIntent, scrollBehavior, scrollIntoView, showNativeLayer } from "./bundle-portable.js";
+import { capitalized, closeLayer, closeNativeLayer, currentLocationIn, describeFailure, focusDestination, handBack, offerAction, offeredAction, openLayer, openerOf, retainUserIntent, scrollBehavior, scrollIntoView, showNativeLayer } from "./bundle-portable.js";
 import { closeControl, el, guard, html, nothing, offlineInteractive, pageUrl, render, reveal, runtime } from "./bundle-errors.js";
 import { requestJson, sessionIsActive } from "./bundle-layer-client.js";
 import { chromeForeground, pageControls } from "./bundle-content-layout.js";
@@ -13,8 +13,8 @@ function copyableText(label, value) {
       ${guard([label, value], () => {
 		const copy = copyControl("", {
 			label: `Copy ${label}`,
-			success: `${label.charAt(0).toUpperCase()}${label.slice(1)} copied`,
-			error: `${label.charAt(0).toUpperCase()}${label.slice(1)} not copied · select the text to copy`,
+			success: `${capitalized(label)} copied`,
+			error: `${capitalized(label)} not copied · select the text to copy`,
 			role: "symbol"
 		});
 		copy.value = value;
@@ -304,7 +304,7 @@ async function openPageInspection(intent) {
 	sourceError = available ? null : "Source inspection is unavailable in this export or public preview. Browser context is shown below.";
 	loading = available;
 	render(html`<h2 class="lf-label">Page details</h2>
-      ${pageControls().filter((entry) => entry.copies).map((entry) => html`${copyableText(entry.label.charAt(0).toUpperCase() + entry.label.slice(1), entry.copies)}${entry.title ? html`<p>${entry.title}</p>` : nothing}`)}`, identity);
+      ${pageControls().filter((entry) => entry.copies).map((entry) => html`${copyableText(capitalized(entry.label), entry.copies)}${entry.title ? html`<p>${entry.title}</p>` : nothing}`)}`, identity);
 	openLayer(dialog);
 	if (available) loadSource();
 	else present();

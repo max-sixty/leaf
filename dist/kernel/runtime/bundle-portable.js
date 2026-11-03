@@ -638,6 +638,11 @@ function isHTML(node, tag) {
 const isSlottable = (node) => isElement(node) || isText(node);
 const shadowHost = (root) => isShadowRoot(root) ? root.host : null;
 const upFrom = (node) => node?.parentElement ?? shadowHost(node?.getRootNode());
+const hostIn = (node, root) => {
+	let at = node ?? null;
+	while (at && at.getRootNode() !== root) at = shadowHost(at.getRootNode());
+	return at;
+};
 const isStyledElement = (node) => node.namespaceURI === "http://www.w3.org/1999/xhtml" || node.namespaceURI === "http://www.w3.org/2000/svg" || node.namespaceURI === "http://www.w3.org/1998/Math/MathML";
 function closestAcross(node, selector) {
 	let el = isElement(node) ? node : upFrom(node);
@@ -969,9 +974,8 @@ function landLabelPress() {
 const currentLocation = Z(0);
 const focusRevision = () => currentLocation.value;
 const focused = (tree = null) => {
-	let at = heldByLabel() ?? deepFocus();
-	if (tree) while (at && at.getRootNode() !== tree) at = shadowHost(at.getRootNode());
-	return at;
+	const at = heldByLabel() ?? deepFocus();
+	return tree ? hostIn(at, tree) : at;
 };
 const selectionOf = (node) => {
 	const root = node.getRootNode();
@@ -2043,6 +2047,188 @@ function move(parent, node, before = null) {
 	return node;
 }
 window.lfMove = move;
+
+//#endregion
+//#region runtime/kernel-facts.js
+const COLLAPSE$1 = /[\u0009\u000a\u000b\u000c\u000d\u0020\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]+/g;
+const DRAFT_FORMAT = "leaf-draft/17";
+const MESSAGE_KINDS = /* @__PURE__ */ new Set(["comment", "reply"]);
+const TEXT_BLOCK = "p,li,h1,h2,h3,h4,h5,h6,td,th,pre,blockquote,dd,dt,figcaption,summary";
+const VERB_WRITERS = {
+	"action": "user",
+	"report": "agent"
+};
+const WIDGET_NAME = /^lf-[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const drawingSchema = {
+	"type": "object",
+	"properties": {
+		"strokes": {
+			"type": "array",
+			"minItems": 1,
+			"maxItems": 32,
+			"items": {
+				"type": "array",
+				"minItems": 2,
+				"maxItems": 256,
+				"items": {
+					"type": "array",
+					"minItems": 2,
+					"maxItems": 2,
+					"prefixItems": [{
+						"type": "number",
+						"minimum": -33554432,
+						"maximum": 33554432
+					}, {
+						"type": "number",
+						"minimum": -33554432,
+						"maximum": 33554432
+					}],
+					"items": false
+				}
+			}
+		},
+		"box": {
+			"type": "array",
+			"minItems": 2,
+			"maxItems": 2,
+			"prefixItems": [{
+				"type": "number",
+				"exclusiveMinimum": 0,
+				"maximum": 33554432
+			}, {
+				"type": "number",
+				"exclusiveMinimum": 0,
+				"maximum": 33554432
+			}],
+			"items": false
+		},
+		"frame": {
+			"type": "object",
+			"properties": {
+				"root": {
+					"type": "string",
+					"maxLength": 128,
+					"pattern": "^[A-Za-z][A-Za-z0-9_.:-]*$"
+				},
+				"path": {
+					"type": "array",
+					"maxItems": 32,
+					"items": {
+						"type": "object",
+						"properties": {
+							"tag": {
+								"type": "string",
+								"maxLength": 128,
+								"pattern": "^[A-Za-z][A-Za-z0-9_.:-]*$"
+							},
+							"index": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 65535
+							},
+							"siblings": {
+								"type": "integer",
+								"minimum": 1,
+								"maximum": 65536
+							},
+							"shadow": { "type": "boolean" }
+						},
+						"required": [
+							"tag",
+							"index",
+							"siblings"
+						],
+						"additionalProperties": false
+					}
+				}
+			},
+			"required": ["root", "path"],
+			"additionalProperties": false
+		},
+		"says": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 500
+		},
+		"viewport": {
+			"type": "array",
+			"minItems": 2,
+			"maxItems": 2,
+			"prefixItems": [{
+				"type": "number",
+				"exclusiveMinimum": 0,
+				"maximum": 33554432
+			}, {
+				"type": "number",
+				"exclusiveMinimum": 0,
+				"maximum": 33554432
+			}],
+			"items": false
+		},
+		"scheme": { "enum": ["light", "dark"] }
+	},
+	"required": [
+		"strokes",
+		"box",
+		"viewport",
+		"scheme"
+	],
+	"additionalProperties": false
+};
+const marks = {
+	"x-content": {
+		"paint": "data-lf-content",
+		"message": true
+	},
+	"x-verbatim": {
+		"paint": "data-lf-verbatim",
+		"message": true
+	},
+	"x-space": {
+		"paint": "data-lf-space",
+		"authored": "data-width",
+		"authored_on": "content",
+		"message": false
+	},
+	"x-inline": {
+		"paint": "data-lf-inline",
+		"message": true
+	},
+	"x-exhibit": {
+		"paint": "data-lf-exhibit",
+		"message": true
+	},
+	"x-bound": {
+		"paint": "data-lf-bound",
+		"authored": "data-bound",
+		"authored_on": "content",
+		"message": true
+	},
+	"x-height": {
+		"paint": "data-lf-height",
+		"authored": "data-height",
+		"authored_on": "declared",
+		"message": true
+	},
+	"x-reading-role": {
+		"paint": "data-lf-reading-role",
+		"message": true
+	},
+	"x-views": {
+		"paint": "data-lf-views",
+		"message": true
+	},
+	"x-visual": {
+		"paint": "data-lf-visual",
+		"presence": true,
+		"message": true
+	},
+	"x-awaits": {
+		"paint": "data-lf-awaits",
+		"presence": true,
+		"message": true
+	}
+};
 
 //#endregion
 //#region runtime/version-signal.js
@@ -3302,6 +3488,22 @@ function stageFor(host) {
 	});
 	return host.attachShadow({ mode: "open" });
 }
+
+//#endregion
+//#region runtime/words.js
+const labelWords = (value) => String(value ?? "").replace(COLLAPSE$1, " ").trim();
+function excerptWords(value, cap) {
+	const words = labelWords(value);
+	const points = [...words];
+	if (points.length <= cap) return words;
+	const excerpt = points.slice(0, cap - 1);
+	const boundary = excerpt.lastIndexOf(" ");
+	const end = boundary >= cap / 2 ? boundary : excerpt.length;
+	return `${excerpt.slice(0, end).join("")}…`;
+}
+const quotedWords = (value, cap = 60) => `“${excerptWords(value, cap)}”`;
+const counted = (count, one, many = `${one}s`) => `${count} ${count === 1 ? one : many}`;
+const capitalized = (words) => words.charAt(0).toUpperCase() + words.slice(1);
 
 //#endregion
 //#region runtime/leaf-element.js
@@ -5167,7 +5369,6 @@ function tokenLines(tokens) {
 //#endregion
 //#region runtime/visual-parts.js
 const registrations$1 = /* @__PURE__ */ new WeakMap();
-const words = (value) => String(value ?? "").replace(/\s+/g, " ").trim();
 function registerVisualParts(source, read, { reveal = null, label = null } = {}) {
 	if (registrations$1.has(source)) throw new TypeError("A visual source may register its parts only once");
 	registrations$1.set(source, {
@@ -5209,7 +5410,7 @@ function registeredVisualParts(source) {
 		const number = index + 1;
 		const id = part.id;
 		const element = part.element;
-		const label = words(part.label);
+		const label = labelWords(part.label);
 		const surface = part.surface ?? element;
 		if (typeof id !== "string" || !id || /\s/.test(id)) throw new TypeError(`Visual part ${number} has no single-token id`);
 		if (!(element instanceof Element) || element === source || !under(element, source)) throw new TypeError(`Visual part ${id} has no descendant Element`);
@@ -5234,7 +5435,7 @@ const registeredVisualPartLabel = (source, id) => {
 	const current = registeredVisualPart(source, id)?.label;
 	if (current) return current;
 	const label = registrations$1.get(source)?.label?.(id);
-	return words(label) || null;
+	return labelWords(label) || null;
 };
 function registeredVisualPartAt(source, target, admits = () => true) {
 	const byElement = new Map(registeredVisualParts(source).filter(admits).map((part) => [part.element, part]));
@@ -5515,4 +5716,4 @@ function textWidth(text, font) {
 }
 
 //#endregion
-export { ANNOUNCE, CARET_KEYS, COMMANDS, DISCLOSE, DISCLOSURE_SELECTOR, HOLDS_WORD, J, LAYOUT, LENT_REACH_STOP, LeafElement, MODIFIER_KEYS, OUTPUT, PAGE_PAINT_ATTRIBUTE, PENDING_TASK, PRESS, PRESSES, PendingTaskEvent, ROLE_BUTTON_OFFER, RUNTIME_PAINT_ATTRIBUTE, SAID, SourcePairs, TAB_STOP, TEXT_BOX, TEXT_FIELD, UI_MARKS, W, WALK, WORKS, Z, actionClass, actionElement, actionIcon, actionName, actionTemplate, afterScript, afterSettling, agentArrivalDuration, aimedTop, alreadyShown, announce, assignRows, atLayoutPrecision, atScrollEnd, attachDeferredLoader, axisTicks, backgroundFlash, beginWalk, bindQueuedWork, blurFocused, bodyText, byRenderedOrder, canPlaceFocus, cancelAnimation, cancelRender, canvas2D, caretAtKey, chosenSince, claimReleaseClick, clamp, clippedContents, clippedPlace, clippedRect, clippingAxes, clipsPastSurfaces, closeLayer, closeNativeLayer, closestAcross, coarsePointer, commandsChanged, commandsChangedOn, composedParentNode, contentRides, controlNavigationKeys, coveredShare, currentLocationIn, currentLocationNodes, currentLocationTouches, d, dataBody, declareOccluder, declareReading, declareRelease, declareWindowChrome, deepFocus, describeFailure, disclosureAt, dismissPopoversOutside, drawn$1 as drawn, elementDirective, elementFrame, ensureSyntaxLanguage, eventSource, exceptionRecord, exceptionText, excludedByInert, failSoft, failSoftUnreported, failureContext, failureOf, fitsWhole, flashDuration, focusDestination, focusRevision, focused, foldBlock, foldDuration, frameFor, frameView, frameVisibility, generated, generatedElement, glideTo, growthAfterIsSeen, growthIsSeen, handBack, hasArea, headerCuts, headerInset, holdCurrentLocation, holdFocus, holdRendering, holdToRead, hoveringPointer, iconElement, iconTemplate, inBaseLayer, inChrome, inUi, inWindowChrome, inlineStyle, inputCount, inputInFrame, installElementIntegration, installLanguagePaths, installLayerStyleIntegration, installMoveFocus, installMoveSelection, installScrollerLookup, installStageIntegration, intersect, isElement, isHTML, isNativeLayer, isNode, isStage, isText, keepFieldKeys, keepFoot, keeps, keepsHidden, keepsText, landedBox, landingBand, landingInsets, landingRoom, langForPath, layerLanding, layoutChanged, layoutPx, layoutWindow, letGo, listWalkPosition, liveStages, loadDeferred, locationStandsDown, measure, motion, motionEasing, motionPlays, motionTime, move, moveScrollerBy, nameAction, nativeFocusTarget, nativeLayerHolding, nativeLayers, nativeModalAdmits, nearObserver, nearWindow, nextAnimation, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offerContentElement, offerElement, offered, offeredAction, offeredActionElement, onCurrentLocation, onFocusVisibility, onFrameVisibility, onLetGo, onMotionPreferenceChange, onPress, onPressAway, onUserInput, once, openLayer, openerOf, orderChildren, outputProducer, overIn, overlaps, overlapsAcross, pagePresented, pageScroller, pageUpgraded, paintClips, passOn, patchRetains, patchTree, placeBox, placeHolder, placeKept, placesFailure, plainPress, playMotion, pointerAt, presented, pressHolds, pressIsKeyboardActivation, pressLed, pressRecords, pressing, publishOutput, q, readCaret, readLeavingKeys, readSampleVisibility, recentPlaceInput, recoveredLabelFocus, reducedMotion, refuseCommands, refuseOutput, registerVisualParts, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, registrations, relabel, release, releaseFocus, releaseOutlets, renderedOrder, renderedParent, renderedUnder, renderingState, reportFailure, restorePointer, restrictUserIntent, retainUserIntent, returnDuration, revealRegisteredVisualPart, revealsVisualParts, rightCover, ringBox, roomPx, rove, rowArrows, scrollAxes, scrollBehavior, scrollChoices, scrollContainer, scrollGlides, scrollGoal, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollToEnd, scrollersOf, scrolling, scrollsBy, scrollsContent, searchField, seenRect, selectableOffer, selectableOffered, selectsAll, setChildLists, setChildren, setRegistration, setRenderedChildren, setScroll, shadowHost, shadowStage, shellRight, showNativeLayer, shownBand, shownBox, shownExtent, shownParts, shownRect, shownWindow, showsContents, sizeObserver, skipped, skipper, slotTop, stackLevel, startsAt, stopGlide, stopScroll, stuckBox, synNodes, syntax, syntaxLanguageNames, tabStops, tabStore, takesLetters, textWidth, threadSurface, tick, tokenLines, typesText, uiInside, under, underOccluder, union, upFrom, updateSurface, userScrollport, visibleBand, visibleFocus, visualPartAdmission, visualPartProblems, visualViewport, walkPosition, walkPositionLabel, watchArrivals, watchCurrentLocationIn, watchFrame, watchLayerChanges, watchOwner, watchRoom, watchScrollEnds, watchScrolls, wearsLentStop, whenLeft, whenNone, whileConnected, windowChromeBoxes, x$1 as x };
+export { ANNOUNCE, CARET_KEYS, COLLAPSE$1 as COLLAPSE, COMMANDS, DISCLOSE, DISCLOSURE_SELECTOR, DRAFT_FORMAT, HOLDS_WORD, J, LAYOUT, LENT_REACH_STOP, LeafElement, MESSAGE_KINDS, MODIFIER_KEYS, OUTPUT, PAGE_PAINT_ATTRIBUTE, PENDING_TASK, PRESS, PRESSES, PendingTaskEvent, ROLE_BUTTON_OFFER, RUNTIME_PAINT_ATTRIBUTE, SAID, SourcePairs, TAB_STOP, TEXT_BLOCK, TEXT_BOX, TEXT_FIELD, UI_MARKS, VERB_WRITERS, W, WALK, WIDGET_NAME, WORKS, Z, actionClass, actionElement, actionIcon, actionName, actionTemplate, afterScript, afterSettling, agentArrivalDuration, aimedTop, alreadyShown, announce, assignRows, atLayoutPrecision, atScrollEnd, attachDeferredLoader, axisTicks, backgroundFlash, beginWalk, bindQueuedWork, blurFocused, bodyText, byRenderedOrder, canPlaceFocus, cancelAnimation, cancelRender, canvas2D, capitalized, caretAtKey, chosenSince, claimReleaseClick, clamp, clippedContents, clippedPlace, clippedRect, clippingAxes, clipsPastSurfaces, closeLayer, closeNativeLayer, closestAcross, coarsePointer, commandsChanged, commandsChangedOn, composedParentNode, contentRides, controlNavigationKeys, counted, coveredShare, currentLocationIn, currentLocationNodes, currentLocationTouches, d, dataBody, declareOccluder, declareReading, declareRelease, declareWindowChrome, deepFocus, describeFailure, disclosureAt, dismissPopoversOutside, drawingSchema, drawn$1 as drawn, elementDirective, elementFrame, ensureSyntaxLanguage, eventSource, exceptionRecord, exceptionText, excerptWords, excludedByInert, failSoft, failSoftUnreported, failureContext, failureOf, fitsWhole, flashDuration, focusDestination, focusRevision, focused, foldBlock, foldDuration, frameFor, frameView, frameVisibility, generated, generatedElement, glideTo, growthAfterIsSeen, growthIsSeen, handBack, hasArea, headerCuts, headerInset, holdCurrentLocation, holdFocus, holdRendering, holdToRead, hostIn, hoveringPointer, iconElement, iconTemplate, inBaseLayer, inChrome, inUi, inWindowChrome, inlineStyle, inputCount, inputInFrame, installElementIntegration, installLanguagePaths, installLayerStyleIntegration, installMoveFocus, installMoveSelection, installScrollerLookup, installStageIntegration, intersect, isElement, isHTML, isNativeLayer, isNode, isStage, isText, keepFieldKeys, keepFoot, keeps, keepsHidden, keepsText, labelWords, landedBox, landingBand, landingInsets, landingRoom, langForPath, layerLanding, layoutChanged, layoutPx, layoutWindow, letGo, listWalkPosition, liveStages, loadDeferred, locationStandsDown, marks, measure, motion, motionEasing, motionPlays, motionTime, move, moveScrollerBy, nameAction, nativeFocusTarget, nativeLayerHolding, nativeLayers, nativeModalAdmits, nearObserver, nearWindow, nextAnimation, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offerContentElement, offerElement, offered, offeredAction, offeredActionElement, onCurrentLocation, onFocusVisibility, onFrameVisibility, onLetGo, onMotionPreferenceChange, onPress, onPressAway, onUserInput, once, openLayer, openerOf, orderChildren, outputProducer, overIn, overlaps, overlapsAcross, pagePresented, pageScroller, pageUpgraded, paintClips, passOn, patchRetains, patchTree, placeBox, placeHolder, placeKept, placesFailure, plainPress, playMotion, pointerAt, presented, pressHolds, pressIsKeyboardActivation, pressLed, pressRecords, pressing, publishOutput, q, quotedWords, readCaret, readLeavingKeys, readSampleVisibility, recentPlaceInput, recoveredLabelFocus, reducedMotion, refuseCommands, refuseOutput, registerVisualParts, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, registrations, relabel, release, releaseFocus, releaseOutlets, renderedOrder, renderedParent, renderedUnder, renderingState, reportFailure, restorePointer, restrictUserIntent, retainUserIntent, returnDuration, revealRegisteredVisualPart, revealsVisualParts, rightCover, ringBox, roomPx, rove, rowArrows, scrollAxes, scrollBehavior, scrollChoices, scrollContainer, scrollGlides, scrollGoal, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollToEnd, scrollersOf, scrolling, scrollsBy, scrollsContent, searchField, seenRect, selectableOffer, selectableOffered, selectsAll, setChildLists, setChildren, setRegistration, setRenderedChildren, setScroll, shadowHost, shadowStage, shellRight, showNativeLayer, shownBand, shownBox, shownExtent, shownParts, shownRect, shownWindow, showsContents, sizeObserver, skipped, skipper, slotTop, stackLevel, startsAt, stopGlide, stopScroll, stuckBox, synNodes, syntax, syntaxLanguageNames, tabStops, tabStore, takesLetters, textWidth, threadSurface, tick, tokenLines, typesText, uiInside, under, underOccluder, union, upFrom, updateSurface, userScrollport, visibleBand, visibleFocus, visualPartAdmission, visualPartProblems, visualViewport, walkPosition, walkPositionLabel, watchArrivals, watchCurrentLocationIn, watchFrame, watchLayerChanges, watchOwner, watchRoom, watchScrollEnds, watchScrolls, wearsLentStop, whenLeft, whenNone, whileConnected, windowChromeBoxes, x$1 as x };

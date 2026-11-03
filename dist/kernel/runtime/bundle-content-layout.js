@@ -1,7 +1,7 @@
-import { J, LAYOUT, LENT_REACH_STOP, PAGE_PAINT_ATTRIBUTE, PRESSES, TEXT_BOX, WORKS, Z, afterScript, atScrollEnd, clamp, clippedContents, closestAcross, deepFocus, elementFrame, eventSource, focusDestination, headerCuts, inChrome, inUi, inlineStyle, installScrollerLookup, isElement, isHTML, isText, keeps, keepsHidden, landingBand, layoutChanged, layoutPx, layoutWindow, move, nativeLayerHolding, nearObserver, nearWindow, nextFrame, nextRender, onCurrentLocation, overlaps, pagePresented, pageScroller, pressing, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, renderedParent, renderedUnder, renderingState, revealRegisteredVisualPart, revealsVisualParts, scrollContainer, scrollToEnd, scrollersOf, scrollsBy, scrollsContent, shadowHost, shellRight, shownParts, shownRect, sizeObserver, skipped, tabStops, tick, uiInside, under, union, upFrom, userScrollport, visualPartAdmission, watchArrivals, watchScrolls, wearsLentStop, whileConnected } from "./bundle-portable.js";
-import { PRESSABLE, TEXT_BLOCK, anchorKey, applicationPresented, documentChanged, fragmentId, fragmentKey, hostIn, isElementName, marks, registry, repaintPage, shadowRootsIn, tagsDeclaring } from "./bundle-errors.js";
+import { J, LAYOUT, LENT_REACH_STOP, PAGE_PAINT_ATTRIBUTE, PRESSES, TEXT_BLOCK, TEXT_BOX, WORKS, Z, afterScript, atScrollEnd, clamp, clippedContents, closestAcross, deepFocus, elementFrame, eventSource, excerptWords, focusDestination, headerCuts, hostIn, inChrome, inUi, inlineStyle, installScrollerLookup, isElement, isHTML, isText, keeps, keepsHidden, labelWords, landingBand, layoutChanged, layoutPx, layoutWindow, marks, move, nativeLayerHolding, nearObserver, nearWindow, nextFrame, nextRender, onCurrentLocation, overlaps, pagePresented, pageScroller, pressing, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, renderedParent, renderedUnder, renderingState, revealRegisteredVisualPart, revealsVisualParts, scrollContainer, scrollToEnd, scrollersOf, scrollsBy, scrollsContent, shadowHost, shellRight, shownParts, shownRect, sizeObserver, skipped, tabStops, tick, uiInside, under, union, upFrom, userScrollport, visualPartAdmission, watchArrivals, watchScrolls, wearsLentStop, whileConnected } from "./bundle-portable.js";
+import { PRESSABLE, anchorKey, applicationPresented, documentChanged, fragmentId, fragmentKey, isElementName, registry, repaintPage, shadowRootsIn, tagsDeclaring } from "./bundle-errors.js";
 import { removeRuntimeRootStyle, reportPageError, setRuntimeRootAttribute, setRuntimeRootStyle } from "./bundle-layer-client.js";
-import { DATUM, authoredScope, blockAt, contextAround, cut, elementById, elementReading, excerptWords, fencedAt, fileModelsPassage, findQuote, layoutBox, leafSurface, neighbourhood, pageDocument, pageQueryAll, pageText, quoteFrom, rangeOf, readingFrom, segmentsIn, settledAway, spanIn, textNodesUnder } from "./bundle-passages.js";
+import { DATUM, HEADING, authoredScope, blockAt, contextAround, cut, elementById, elementReading, fencedAt, fileModelsPassage, findQuote, layoutBox, leafSurface, neighbourhood, pageDocument, pageQueryAll, pageText, quoteFrom, rangeOf, readingFrom, segmentsIn, settledAway, spanIn, textNodesUnder } from "./bundle-passages.js";
 
 //#region runtime/presence.js
 let clockSkew = 0;
@@ -799,7 +799,7 @@ function addressableSays(addressable) {
 	if (!addressable) return "";
 	return (registry[addressable.localName]?.["x-word"] === "module" ? addressable.lfSays?.() : "") || elementReading(addressable);
 }
-const TITLES = "summary, h1, h2, h3, h4, h5, h6, strong";
+const TITLES = `summary, ${HEADING}, strong`;
 function leadingTitle(container) {
 	for (const node of container.childNodes) {
 		if (node.nodeType === Node.TEXT_NODE && node.textContent?.trim()) return null;
@@ -1097,7 +1097,7 @@ function anchorForPassage(segments, node) {
 		};
 	}
 }
-const controlName = (control) => control instanceof HTMLElement && control.isContentEditable ? accessibleName(control) : ownName(control) || (control.matches(PRESSES) ? (control instanceof HTMLElement ? control.innerText : "")?.trim().replace(/\s+/g, " ") || addressableWord(control) : "");
+const controlName = (control) => control instanceof HTMLElement && control.isContentEditable ? accessibleName(control) : ownName(control) || (control.matches(PRESSES) ? labelWords(control instanceof HTMLElement ? control.innerText : "") || addressableWord(control) : "");
 const controlFaces = (control) => [control, ...control.labels ?? []];
 const controlIdentity = (control) => (control instanceof HTMLLabelElement ? control.control : null) ?? control;
 const namedParts = (owner, name) => [...new Set(pageQueryAll(WORKS).map(controlIdentity))].filter((control) => control !== owner && under(control, owner) && addressableAt(control) === owner && controlName(control) === name);
@@ -1890,10 +1890,7 @@ function writeInsets(control, { dx, dy, dw, dh }) {
 		"--lf-block-control-dy": dy,
 		"--lf-block-control-dw": dw,
 		"--lf-block-control-dh": dh
-	})) {
-		const value = length ? layoutPx(length) : "";
-		if (control.style.getPropertyValue(property) !== value) control.style.setProperty(property, value);
-	}
+	})) control.style.setProperty(property, length ? layoutPx(length) : "");
 }
 function revealControl(control, block) {
 	if (cuts.has(control)) standInChrome(control, block, headerLevels(block));

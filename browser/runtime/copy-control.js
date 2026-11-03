@@ -19,6 +19,12 @@ import { nativeLayerHolding } from "./shadow-tree.js";
 // Plain HTTP on a machine name has no Clipboard API. A copy press can still use the
 // browser's selection command there. Embedded samples deliberately cannot write the
 // clipboard, so a frame never bypasses its own permission path.
+const copiesThroughSelection = () =>
+  !navigator.clipboard?.writeText && window === window.top;
+/** Whether a copy control can copy here, through the Clipboard API or the selection
+ * command; a surface that offers a copy only where one can work asks this. */
+export const canCopy = () =>
+  Boolean(navigator.clipboard?.writeText) || copiesThroughSelection();
 /** @param {string} value @param {Element} trigger */
 function copyThroughSelection(value, trigger) {
   if (!value) return false;
@@ -95,8 +101,7 @@ export function copyControl(
     copy.addEventListener(
       "click",
       (event) => {
-        if (window.isSecureContext || window !== window.top || navigator.clipboard)
-          return;
+        if (!copiesThroughSelection()) return;
         event.stopPropagation();
         if (event.defaultPrevented || copy.disabled || copy.isCopying) return;
         copy.isCopying = true;

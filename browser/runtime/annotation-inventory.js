@@ -16,7 +16,13 @@ import { agentName } from "./semantic-state.js";
 import { livePoint } from "./pointed-place.js";
 import { ago } from "./presence.js";
 import { runtime } from "./context.js";
-import { elementById, inChrome, quoteFrom, textNodesUnder } from "./passages.js";
+import {
+  elementById,
+  GENERATED,
+  inChrome,
+  quoteFrom,
+  textNodesUnder,
+} from "./passages.js";
 import { addressableLabel, addressableWord } from "./addressable-names.js";
 import { threadList } from "./thread/state.js";
 import { threadKey } from "./thread/model.js";
@@ -120,9 +126,7 @@ export function createAnnotationInventory({
         (node.parentNode instanceof ShadowRoot ? node.parentNode : null);
       if (!parent) break;
       const siblings = [...parent.children].filter(
-        (candidate) =>
-          !candidate.classList.contains("lf-ui") &&
-          !candidate.hasAttribute("data-lf-gen"),
+        (candidate) => !candidate.matches(GENERATED),
       );
       steps.push(`${node.localName}:${siblings.indexOf(node)}`);
       if (node.localName === "main" || parent instanceof ShadowRoot) break;

@@ -1,5 +1,5 @@
-import { PAGE_PAINT_ATTRIBUTE, SAID, UI_MARKS, closestAcross, inChrome, inUi, isElement, isHTML, isNode, isText, overIn, pageUpgraded, renderedOrder, renderedParent, renderedUnder, shadowHost, uiInside, under, upFrom } from "./bundle-portable.js";
-import { COLLAPSE, TEXT_BLOCK, decisionFor, declaredRoot, pageShadowRoots, readPart, refuseShadowRoot, registry, shadowRootsIn } from "./bundle-errors.js";
+import { COLLAPSE, PAGE_PAINT_ATTRIBUTE, SAID, TEXT_BLOCK, UI_MARKS, closestAcross, excerptWords, inChrome, inUi, isElement, isHTML, isNode, isText, overIn, pageUpgraded, renderedOrder, renderedParent, renderedUnder, shadowHost, uiInside, under, upFrom } from "./bundle-portable.js";
+import { decisionFor, declaredRoot, pageShadowRoots, readPart, refuseShadowRoot, registry, shadowRootsIn } from "./bundle-errors.js";
 import { reportPageError } from "./bundle-layer-client.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
 
@@ -53,20 +53,6 @@ function alignInlineText(before, after) {
 }
 
 //#endregion
-//#region runtime/words.js
-const labelWords = (value) => String(value ?? "").replace(COLLAPSE, " ").trim();
-function excerptWords(value, cap) {
-	const words = labelWords(value);
-	const points = [...words];
-	if (points.length <= cap) return words;
-	const excerpt = points.slice(0, cap - 1);
-	const boundary = excerpt.lastIndexOf(" ");
-	const end = boundary >= cap / 2 ? boundary : excerpt.length;
-	return `${excerpt.slice(0, end).join("")}…`;
-}
-const quotedWords = (value, cap = 60) => `“${excerptWords(value, cap)}”`;
-
-//#endregion
 //#region runtime/passages.js
 const passageFences = /* @__PURE__ */ new WeakSet();
 const verbatimOwnerIdentity = /* @__PURE__ */ new WeakMap();
@@ -118,6 +104,7 @@ function settledAway(el) {
 	return nodes.some((n) => isElement(n) && retiredSlot(n)) && nodes.every((n) => isElement(n) ? retiredSlot(n) || uiInside(n, el) : !isText(n) || !n.data.trim());
 }
 const GENERATED = ".lf-ui, [data-lf-gen]";
+const HEADING = "h1, h2, h3, h4, h5, h6";
 const DATUM = "[data-lf-projection][data-lf-datum]";
 const showsWords = (block) => block.checkVisibility({ visibilityProperty: true });
 const LEAF_SURFACE = ".lf-chrome, [data-lf-runtime]";
@@ -194,7 +181,7 @@ function enter(ctx, el, inFrame = true) {
 	const silent = !ctx.silenced && silences(el);
 	if (!marked && !block && !cell && !silent) return ctx;
 	const chrome = (marked && inFrame ? chromeMark(el) : null) ?? ctx.chrome;
-	const generated = ctx.generated || marked && inFrame && el.matches(GENERATED);
+	const generated = ctx.generated || marked && inFrame && el.matches(".lf-ui, [data-lf-gen]");
 	return {
 		chrome,
 		silenced: ctx.silenced || silent,
@@ -819,4 +806,4 @@ function pageParts(sel) {
 }
 
 //#endregion
-export { DATUM, LEAF_SURFACE, alignInlineText, alignText, authored, authoredScope, blockAt, contextAround, cut, elementById, elementFromPointAcross, elementOver, elementReading, excerptWords, fencePassageParts, fencedAt, fileModelsPassage, findQuote, findText, labelWords, layoutBox, leafSurface, neighbourhood, pageBlocks, pageDocument, pageParts, pageQueryAll, pageReadingVersion, pageText, pageWords, pointAt, quoteFrom, quotedWords, rangeOf, readingFrom, renderRetired, says, segmentBlock, segmentsIn, sentenceUnits, settledAway, showsWords, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity, watchPassageRoot, wrote };
+export { DATUM, GENERATED, HEADING, LEAF_SURFACE, alignInlineText, alignText, authored, authoredScope, blockAt, contextAround, cut, elementById, elementFromPointAcross, elementOver, elementReading, fencePassageParts, fencedAt, fileModelsPassage, findQuote, findText, layoutBox, leafSurface, neighbourhood, pageBlocks, pageDocument, pageParts, pageQueryAll, pageReadingVersion, pageText, pageWords, pointAt, quoteFrom, rangeOf, readingFrom, renderRetired, says, segmentBlock, segmentsIn, sentenceUnits, settledAway, showsWords, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity, watchPassageRoot, wrote };

@@ -33,7 +33,8 @@ import { closestAcross } from "../passages.js";
 import { tagsDeclaring } from "../registry.js";
 import { watchArrivals } from "../arrivals.js";
 import { renderThreadSurface, clearThreadSurface } from "./inline.js";
-import { readThreads, threadIdNamed } from "./state.js";
+import { readThreads, threadIdNamed, threadNamed } from "./state.js";
+import { discussed } from "./model.js";
 import { threadFocusDestination } from "./focus.js";
 import { HeldArrivals } from "./held-news.js";
 import { under } from "../shadow.js";
@@ -155,8 +156,8 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
     read: readThreads,
     reveal(key) {
       if (registrations.get(owner) !== registration) return false;
-      const thread = readThreads().threads.find((item) => item.key === key);
-      return thread ? reveal(thread.id) : false;
+      const thread = threadNamed(key);
+      return thread && discussed(thread) ? reveal(thread.id) : false;
     },
     open(node) {
       if (registrations.get(owner) !== registration) return false;

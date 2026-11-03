@@ -44,6 +44,7 @@ from contextlib import contextmanager
 from datetime import UTC, datetime
 from functools import cache
 from pathlib import Path
+from socket import gethostname
 from types import SimpleNamespace
 from typing import Protocol, cast
 from urllib.parse import parse_qsl, urlencode, urlsplit
@@ -2114,6 +2115,25 @@ def open_page(
         upgraded=upgraded,
     )
     return page
+
+
+def over_plain_http(browser, local_url):
+    """A context reading `local_url` by this machine's name over plain HTTP, as another
+    machine reads a page `leaf --host` serves, and the URL to open in it. Such a page is
+    no secure context, so it has no Clipboard API; the context may read the clipboard
+    back from `local_url`, which is one.
+
+    The browser lower-cases a URL's host, so the route rewrites that spelling to
+    loopback; the machine's name needn't resolve there, as on CI's macOS runner."""
+    host = gethostname().lower()
+    context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
+
+    def fetch_from_loopback(route):
+        response = route.fetch(url=route.request.url.replace(host, "127.0.0.1"))
+        route.fulfill(response=response)
+
+    context.route(f"http://{host}:**/*", fetch_from_loopback)
+    return context, local_url.replace("127.0.0.1", host)
 
 
 def opened_tab(page, destination, press):

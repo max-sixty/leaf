@@ -2139,11 +2139,7 @@ export class Trace extends LeafElement {
     const longest = this.#trace
       ? String(this.#time(this.#bounds().end, this.#stream()).length)
       : "";
-    if (
-      this.#nodes.positionLabel.style.getPropertyValue("--lf-trace-position-chars") !==
-      longest
-    )
-      this.#nodes.positionLabel.style.setProperty("--lf-trace-position-chars", longest);
+    this.#nodes.positionLabel.style.setProperty("--lf-trace-position-chars", longest);
     // When the image on screen was taken at another time than the playhead,
     // say so: between captures, at a checkpoint without its own image, or
     // while the next image prepares. What the playhead stands on is said by the

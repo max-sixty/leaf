@@ -94,15 +94,18 @@ export const threadKey = (thread) => thread.root.attempt ?? thread.id;
 /** @param {Pick<Message, "id" | "key" | "attempt">} message */
 export const messageKey = (message) => message.key ?? message.attempt ?? message.id;
 
-// Every name that reaches a thread: its own id, the id of each message in it, which a
-// reply or settlement names as its `parent`, and the pending id a message this tab sent
-// went by before the log named it.
-/** @template {{id: string, msgs: readonly {id: string, attempt?: string}[]}} T
+// Every name that reaches a thread: its key (`threadKey`), its own id, the id of each
+// message in it, which a reply or settlement names as its `parent`, and the pending id
+// a message this tab sent went by before the log named it. A key that is an attempt
+// can't be another thread's name: an attempt is 32 hex digits (ids.js) or one of the
+// server's prefixed ones, and the log's ids are 8 (`event_log.new_event_id`).
+/** @template {{id: string, root: {attempt?: string}, msgs: readonly {id: string, attempt?: string}[]}} T
  * @param {readonly T[]} threads */
 export function threadNames(threads) {
   /** @type {Map<string, T>} */
   const byName = new Map();
   for (const thread of threads) {
+    byName.set(threadKey(thread), thread);
     byName.set(thread.id, thread);
     for (const message of thread.msgs) {
       byName.set(message.id, thread);

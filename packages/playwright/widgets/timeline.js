@@ -55,13 +55,6 @@ const TICK_SPACING = 84;
 const EDGE = 12;
 const CLUSTER_WIDTH = 168;
 
-// Style writes the page did not change are still mutations; skip them.
-/** @param {HTMLElement | null} node @param {string} name @param {string} value */
-function keepVar(node, name, value) {
-  if (node && node.style.getPropertyValue(name) !== value)
-    node.style.setProperty(name, value);
-}
-
 export class RecordingTimeline {
   #host;
   #options;
@@ -176,9 +169,8 @@ export class RecordingTimeline {
     this.#time = time;
     const track = this.#part(".lf-trace-track");
     if (!track || !this.#model) return;
-    keepVar(track, "--lf-trace-time", String(this.#fraction(time)));
-    keepVar(
-      this.#part(".lf-trace-overview"),
+    track.style.setProperty("--lf-trace-time", String(this.#fraction(time)));
+    this.#part(".lf-trace-overview")?.style.setProperty(
       "--lf-trace-time",
       String(this.#fraction(time)),
     );
@@ -297,7 +289,7 @@ export class RecordingTimeline {
   #applyZoom() {
     const track = this.#part(".lf-trace-track");
     if (!track) return;
-    keepVar(track, "--lf-trace-zoom", String(this.#zoom));
+    track.style.setProperty("--lf-trace-zoom", String(this.#zoom));
     this.#layoutLabels();
     this.#drawRuler();
   }
@@ -652,9 +644,9 @@ export class RecordingTimeline {
       this.#host,
     );
     const track = this.#part(".lf-trace-track");
-    keepVar(track, "--lf-trace-zoom", String(this.#zoom));
-    keepVar(track, "--lf-trace-edge", `${EDGE}px`);
-    keepVar(track, "--lf-trace-time", String(this.#fraction(this.#time)));
+    track?.style.setProperty("--lf-trace-zoom", String(this.#zoom));
+    track?.style.setProperty("--lf-trace-edge", `${EDGE}px`);
+    track?.style.setProperty("--lf-trace-time", String(this.#fraction(this.#time)));
     this.#drawRuler();
   }
 
@@ -667,8 +659,14 @@ export class RecordingTimeline {
     const overview = this.#part(".lf-trace-overview");
     if (!scroller?.scrollWidth || !overview) return;
     const { scrollLeft, scrollWidth, clientWidth } = scroller;
-    keepVar(overview, "--lf-trace-window-start", String(scrollLeft / scrollWidth));
-    keepVar(overview, "--lf-trace-window-size", String(clientWidth / scrollWidth));
+    overview.style.setProperty(
+      "--lf-trace-window-start",
+      String(scrollLeft / scrollWidth),
+    );
+    overview.style.setProperty(
+      "--lf-trace-window-size",
+      String(clientWidth / scrollWidth),
+    );
     keeps(overview, "data-zoomed", this.#zoom > 1 ? "" : null);
   }
 

@@ -153,7 +153,7 @@ import { createMarginClusterViews } from "./margin-cluster-view.js";
 import { seenRect, shownWindow, watchRoom } from "../geometry.js";
 import { skipped } from "../shown-box.js";
 
-import { hostIn, renderedUnder, under } from "../shadow.js";
+import { renderedOrder, renderedUnder, under } from "../shadow.js";
 import { retainUserIntent } from "../user-intent.js";
 
 /** @typedef {import("../annotation-inventory.js").InventoryEntry} Entry
@@ -831,10 +831,7 @@ export function createMarginProjection({
     if (!(standsFoldedNow || optionsOffered(current, primary))) return;
     if (expandedOptionsKey === current.key && expandedOptionsOwner) return;
     if (entryEngaged(current)) return;
-    const from = left && hostIn(left, host.getRootNode());
-    const back = Boolean(
-      from && host.compareDocumentPosition(from) & Node.DOCUMENT_POSITION_FOLLOWING,
-    );
+    const back = Boolean(left && renderedOrder(host, left) < 0);
     setOptionsOpen(current, true, {
       focusOption:
         control === host.more ? (standsFoldedNow && !back ? "first" : "last") : null,

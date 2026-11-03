@@ -108,7 +108,6 @@ def folded_board(page_dir: Path) -> dict[str, list[str]]:
             "move",
             registry["lf-board"]["x-state"]["move"]["record"],
             document.document.by_id,
-            document.spoken,
             registry,
             document.projection,
         )

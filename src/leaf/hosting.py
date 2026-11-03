@@ -74,6 +74,12 @@ if TYPE_CHECKING:
 # address another live process holds.
 PORT_WAIT_SECONDS = 90
 
+# How long a stopping server lets its clients finish before it drops their
+# connections (`_page_uvicorn`). A page's answers take milliseconds, so a client
+# still unfinished after this has stopped sending or reading. It is generous, so a
+# route slowed by a loaded machine still delivers its answer.
+STOP_GRACE_SECONDS = 30
+
 # Linux refuses a SO_REUSEADDR bind beside any listener on an overlapping address
 # (socket(7)). BSD kernels, macOS among them, admit one at a specific address beside
 # a wildcard listener.
@@ -255,17 +261,30 @@ class LeafHTTPServer:
 
 @functools.cache
 def _page_uvicorn():
-    """Uvicorn's server, stopping when asked rather than on its next poll.
+    """Uvicorn's server, stopping when asked rather than on its next poll, and
+    never waiting on a client for longer than `STOP_GRACE_SECONDS`.
 
     Uvicorn notices `should_exit` on a 0.1 s tick, then sleeps a fixed 0.1 s after
     asking each connection to finish and polls every 0.1 s until they have. A page
     server that has nothing in flight therefore took ~0.18 s to stop, and the browser
-    suite stops one per test. Here the tick also wakes on `wake()`, and the stop waits
-    exactly as long as its connections and tasks take, polling at 5 ms. The order is
-    uvicorn's: close the listeners, ask each connection to finish, wait for them
-    unless a second signal forces the exit, then for the servers. Its graceful-shutdown timeout and lifespan shutdown are absent
-    because a page server sets neither. Built on first use, since uvicorn loads only
-    when a server is constructed.
+    suite stops one per test. Here the tick also wakes on `wake()`, and the stop polls
+    at 5 ms. The order is uvicorn's: close the listeners, ask each connection to
+    finish, and wait for the connections and their requests, unless a second signal
+    forces the exit.
+
+    Two departures keep a client from holding the stop open. Uvicorn asks only the
+    connections it has made when the stop begins, but the listener may already have
+    accepted one, such as a browser's preconnect, that asyncio makes a moment later;
+    an idle one of those stayed open for as long as its client kept it. So each poll
+    asks every connection it has not asked yet, and the wait lasts until the servers
+    report every connection gone. And a client that stops sending its request or
+    reading its answer keeps that request in flight forever, so after
+    `STOP_GRACE_SECONDS` the stop drops every connection still open. Uvicorn's own
+    graceful-shutdown timeout cancels the requests instead; cancelling cannot stop a
+    route running on a worker thread, so the stop goes on waiting for them, and no
+    route is left writing into a page its owner has removed. Lifespan shutdown is
+    absent because a page server sets no lifespan. Built on first use, since uvicorn
+    loads only when a server is constructed.
     """
     import asyncio
 
@@ -296,13 +315,21 @@ def _page_uvicorn():
                 server.close()
             for sock in sockets or []:
                 sock.close()
-            for connection in list(self.server_state.connections):
-                connection.shutdown()
+            loop = asyncio.get_running_loop()
+            drop_at = loop.time() + STOP_GRACE_SECONDS
+            closed = asyncio.gather(*(server.wait_closed() for server in self.servers))
             state = self.server_state
-            while (state.connections or state.tasks) and not self.force_exit:  # noqa: ASYNC110 - Uvicorn owns this state and exposes no completion event.
+            asked = set()
+            while (
+                state.connections or state.tasks or not closed.done()
+            ) and not self.force_exit:
+                for connection in state.connections - asked:
+                    connection.shutdown()
+                asked |= state.connections
+                if loop.time() >= drop_at:
+                    for connection in state.connections:
+                        connection.transport.abort()
                 await asyncio.sleep(0.005)
-            for server in self.servers:
-                await server.wait_closed()
 
     return PageUvicorn
 

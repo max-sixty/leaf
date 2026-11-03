@@ -436,11 +436,9 @@ def stale_move_error(view, event: dict, spec: dict, reading, readings):
     owner, container = event["widget"], event["detail"]["value"]
     registry = readings.registry
     now = readings.page(newest)
-    if authored_positions(
-        owner, record, reading.document.by_id, reading.spoken, registry
-    ).get(container) == authored_positions(
-        owner, record, now.document.by_id, now.spoken, registry
-    ).get(container):
+    if authored_positions(owner, record, reading.document.by_id, registry).get(
+        container
+    ) == authored_positions(owner, record, now.document.by_id, registry).get(container):
         return None
     return Finding(
         "stale-move",

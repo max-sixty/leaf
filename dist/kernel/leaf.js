@@ -1,5 +1,5 @@
 import { CARET_KEYS, CHROME_LEVEL, DISCLOSE, DISCLOSURE_SELECTOR, J, LAYOUT, LeafElement, MODIFIER_KEYS, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSES, TEXT_BOX, TEXT_FIELD, WORKS, Z, actionName, actionTemplate, alreadyShown, atScrollEnd, beginWalk, bindQueuedWork, blurFocused, byRenderedOrder, cancelRender, canvas2D, claimReleaseClick, clamp, clippedContents, closeLayer, closeNativeLayer, closestAcross, coarsePointer, coveredShare, currentLocationIn, d, declareOccluder, declareReading, declareWindowChrome, describeFailure, disclosureAt, dismissPopoversOutside, drawn, elementFrame, eventSource, focusDestination, focusRevision, focused, glideTo, handBack, holdFocus, holdRendering, holdToRead, iconTemplate, inChrome, inUi, inlineStyle, installLayerStyleIntegration, installMoveSelection, installStageIntegration, intersect, isElement, isHTML, keepFieldKeys, keepFoot, keeps, keepsHidden, keepsText, landedBox, landingBand, landingRoom, layerLanding, layoutPx, layoutWindow, letGo, listWalkPosition, motionEasing, motionPlays, motionTime, move, moveScrollerBy, nativeLayers, nativeModalAdmits, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offeredAction, onCurrentLocation, onPress, onPressAway, onUserInput, openLayer, openerOf, overlaps, overlapsAcross, pagePresented, pageScroller, pageUpgraded, placeHolder, playMotion, pointerAt, presented, pressHolds, pressIsKeyboardActivation, pressRecords, q, readLeavingKeys, release, releaseFocus, renderedOrder, renderedUnder, renderingState, restrictUserIntent, retainUserIntent, rove, scrollBehavior, scrollGoal, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollToEnd, scrollersOf, scrolling, searchField, seenRect, selectsAll, setScroll, shadowHost, showNativeLayer, shownBox, shownParts, shownRect, sizeObserver, skipped, stackLevel, startsAt, stopGlide, tabStore, takesLetters, tick, typesText, under as under$1, underOccluder, union, upFrom, walkPosition, walkPositionLabel, watchCurrentLocationIn, watchLayerChanges, watchScrollEnds, watchScrolls, whileConnected, windowChromeBoxes, x } from "./runtime/bundle-portable.js";
-import { COLLAPSE, EVERYTHING, LINK, LitElement, MAC, PRESENTATION_DOM, PRESSABLE, SHARE_ROOT, TEXT_BLOCK, WEBSITE_DELIVERY, advertisesKeys, agentName, agentSays, allBindings, annotationMode, announce, applicationPresenter, applicationState, bareReaction, bindingEnabled, bindings, buttonCommand, carriesObligation, claimsEsc, clampedRow, closeControl, commandBinding, commandDeclarationsWithin, commandPresentations, commandRoutes, commandRun, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, decisionFor, declaredBindings, descriptionOf, dismissError, dismissErrors, documentChanged, dragHeld, el, errorsReading, fragmentId, guard, hasObligationSource, hasRows, holdSelection, holdingError, hostIn, html, isNews, itemNoun, itemOutcome, keyed, keys, labelOf, leafSays, live, live$1, liveEl, mountRepaint, nativePress, noChange, nothing, notice, noticeReading, noticeWords, offlineInteractive, pageRange, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, programmaticSelection, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, readPart, ref, reflectFirstScopes, reflectKeys, registry, render, repaint, repaintPage, repeat, reveal, routedCommand, runtime, runtimeResource, saidBy, sameAnchor, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, seeErrors, selectEnds, selectionBackward, setNoticeContext, setQuickShortcuts, shadowRules, shareUrl, spell, spokenBinding, submitBindings, tagsDeclaring, threadCounts, threadKey, threadNames, titleOf, tokenEntry, voiceOf, voiced, watchCommandAvailability, whenApplicationPresented, word, wordsText } from "./runtime/bundle-errors.js";
+import { COLLAPSE, EVERYTHING, LINK, LitElement, MAC, PRESENTATION_DOM, PRESSABLE, SHARE_ROOT, TEXT_BLOCK, WEBSITE_DELIVERY, advertisesKeys, agentName, agentSays, allBindings, annotationMode, announce, applicationPresenter, applicationState, bareReaction, bindingEnabled, bindings, buttonCommand, carriesObligation, claimsEsc, clampedRow, closeControl, commandBinding, commandDeclarationsWithin, commandPresentations, commandRoutes, commandRun, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, decisionFor, declaredBindings, declaresCommandHandler, descriptionOf, dismissError, dismissErrors, documentChanged, dragHeld, el, errorsReading, fragmentId, guard, hasObligationSource, hasRows, holdSelection, holdingError, hostIn, html, isNews, itemNoun, itemOutcome, keyed, keys, labelOf, leafSays, live, live$1, liveEl, mountRepaint, nativePress, noChange, nothing, notice, noticeReading, noticeWords, offlineInteractive, pageRange, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, programmaticSelection, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, readPart, ref, reflectFirstScopes, reflectKeys, registry, render, repaint, repaintPage, repeat, reveal, routedCommand, runtime, runtimeResource, saidBy, sameAnchor, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, seeErrors, selectEnds, selectionBackward, setNoticeContext, setQuickShortcuts, shadowRules, shareUrl, spell, spokenBinding, submitBindings, tagsDeclaring, threadCounts, threadKey, threadNames, titleOf, tokenEntry, voiceOf, voiced, watchCommandAvailability, whenApplicationPresented, word, wordsText } from "./runtime/bundle-errors.js";
 import { reportPageError, setRuntimeRootStyle, uploadMedia } from "./runtime/bundle-layer-client.js";
 import { ADDRESSABLE, PAGE_CONTROL_RANK, PRESENTATION, UPGRADE, addressableLabel, addressableSays, addressableWord, afterPresentation, ago, aimTargetAt, aimTargets, anchorFor, anchoringIsReady, annotationAt, chromeForeground, chromeRoot, designPressAt, effectiveScroller, exactTarget, fragmentTarget, holdArrivingBounds, isAddressable, lightSeat, livePoint, markPagePresented, markPageUpgraded, openDocumentLayout, pageControls, pageControlsChanged, pageReadiness, placePoints, pointInto, railStands, reachScrollers, readingRegionFor, registerPageControl, registerReadingRegion, resolveAnchor, resolvedInMessage, revealAddressed, scrollChainOf, scrollerFor, sectionLabel, sectionOf, setAnchoringReady, settlePageInterface, shortAgo, targetElement, targetParts, targetPlace, targetRange, targetSegments, unclaimedVisualGesture, userReadingRegion, visualAt, visualParts, visualSelector, whenArrived } from "./runtime/bundle-content-layout.js";
 import { activeCommandLabel, annotationMarkSheets, annotationSheets, answerCloseRequest, availableCommandRoutes, chromeSheet, dispatchKey, escapeTakesAStep, executeCommand, innermostStance, invokePress, keyReady, marksSheet, onSampleNotice, registerSampleCommand, restoreUserView, sampleNotice, userIn } from "./runtime/bundle-restore-state.js";
@@ -4756,7 +4756,7 @@ function captureCommandReferenceCatalog() {
 		const alternatives = route ? [route.binding] : rowInfo.rowBindings;
 		return rowInfo.declared.length === 0 ? routes.has(void 0) : alternatives.some((binding) => routes.has(binding));
 	};
-	const actionable = (row, route) => Boolean((commandRun(row, commandBinding(row, route), null) || routedCommand(route)) && (routedCommand(route)?.row ?? row).runFromCommandReference !== false);
+	const actionable = (row, route) => Boolean((declaresCommandHandler(row, "run") || commandBinding(row, route) != null && declaresCommandHandler(row, "runKey") || routedCommand(route)) && (routedCommand(route)?.row ?? row).runFromCommandReference !== false);
 	const preferred = /* @__PURE__ */ new Map();
 	const executable = /* @__PURE__ */ new Set();
 	for (const { rows } of referenceScopes) for (const rowInfo of rows) for (const { id, route } of rowInfo.presentations) {
@@ -5533,8 +5533,10 @@ function createQueueWalk({ arriveAtRecord, arriveAtThread, threadPlace, prepareN
 	}
 	const doneAt = (stop) => stop ? readQueues().on_user.find((item) => item.offers.done && sameStop(stopOf(item), stop)) ?? null : null;
 	function doneTodo() {
+		if (!readQueues().on_user.some((item) => item.offers.done)) return null;
 		const origin = currentLocationOrigin();
-		const shown = origin?.kind === "current-location" ? cardItem(origin) : void 0;
+		if (origin?.kind !== "current-location") return null;
+		const shown = cardItem(origin);
 		if (shown !== void 0) return shown?.offers.done ? shown : null;
 		return doneAt(currentLocationStop(stops(), origin));
 	}
@@ -5927,7 +5929,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
       <button
         ${offeredAction("mark", "lf-corner-mark lf-fp-minimize", "Fold to the leaf", { action: "minimize" })}
         tabindex="-1"
-        @click=${() => foldPanel()}
+        @click=${() => rows().find((entry) => entry.key === `command:${FOLD}`)?.press?.(null)}
       ></button>
     `;
 	}
@@ -10605,6 +10607,7 @@ function paintCloseRequests() {
 //#endregion
 //#region runtime/navigation.js
 const openThreads = (placedAt) => inPageOrder(threadList().filter((thread) => !thread.resolved), placedAt).map((thread) => thread.id);
+const anyOpenThread = () => threadList().some((thread) => !thread.resolved);
 const currentThread = (threads, origin) => {
 	const id = origin?.kind === "current-location" ? drawnThreadId(threadIn(origin.node)) : null;
 	return id !== null && threads.includes(id) ? id : null;
@@ -10719,7 +10722,7 @@ function createNavigation({ threadDestinations, placedAt }) {
 	const walkThreads = (dir) => stepThread(dir, threadDestinations, placedAt);
 	pageCommand({
 		id: "thread.walk",
-		ready: () => savedReadingSettled() || openThreads(placedAt).length > 0,
+		ready: () => savedReadingSettled() || anyOpenThread(),
 		touch: false,
 		keys: ["t", "Shift+t"],
 		routes: [{
@@ -10732,7 +10735,7 @@ function createNavigation({ threadDestinations, placedAt }) {
 			title: "Previous open thread"
 		}],
 		title: "threads",
-		when: () => openThreads(placedAt).length > 0,
+		when: anyOpenThread,
 		repeat: true,
 		travels: true,
 		runKey: (binding) => walkThreads(binding === "t" ? 1 : -1)

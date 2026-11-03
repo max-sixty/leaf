@@ -1691,76 +1691,82 @@
     align-self: flex-start;
     margin-top: 2px;
   }
-  /* PROTOTYPE (on-me panel structure): how the On lists part their cards and groups,
-     each set on the host from the playground (floating-panel.js, `foldPage`). A card
-     after another card, rather than after its group's heading, is where one item ends
-     and the next begins. */
-  .lf-floating-panel[data-onme-items="rule"]
-    .lf-fp-on-list
-    > .lf-fp-on-item[data-card]:not(
-      :first-child,
-      .lf-rows-head + *,
-      .lf-fp-on-rule + *
-    ) {
-    border-top: 1px solid var(--lf-fp-faint);
-  }
-  .lf-floating-panel[data-onme-items="box"] .lf-fp-on-rule {
-    display: none;
-  }
-  .lf-floating-panel[data-onme-items="box"] .lf-fp-on-rule + .lf-fp-on-item[data-card] {
-    margin-top: 22px;
-  }
-  .lf-floating-panel[data-onme-items="box"] .lf-fp-on-item[data-card] {
-    border: 1px solid var(--lf-fp-faint);
-    border-radius: var(--r);
-    padding: 10px 7px 12px;
-  }
-  .lf-floating-panel[data-onme-items="box"]
-    .lf-fp-on-list
-    > .lf-fp-on-item[data-card]:not(:first-child) {
-    margin-top: 8px;
-  }
-  .lf-floating-panel[data-onme-items="box"] .lf-rows-head + .lf-fp-on-item[data-card] {
-    margin-top: 4px;
-  }
-  /* A group starts at a rule darker than an item's, with room above it: over its
-     heading, set in the ink at a pane title's size, or over a card that stands alone in
-     it and names the group itself. The rule stands above, where a list parts what
-     follows from what came before, as the panel's menu, its plan's goals and a
-     heading's room (controls.css, `.lf-rows-head`) all do; a rule under a heading is a
-     framed box's head bar (a pane's header, a text document's caption). */
-  .lf-floating-panel[data-onme-heads="ruled"] {
-    --lf-fp-group-rule: color-mix(in srgb, var(--ink) 24%, transparent);
-  }
-  .lf-floating-panel[data-onme-heads="ruled"] .lf-fp-on-list > .lf-rows-head {
+  /* PROTOTYPE (on-me panel structure): how the On lists hold each group together, set
+     on the host from the playground (floating-panel.js, `foldPage`). Every group has
+     a heading, in the ink at a pane title's size. */
+  .lf-floating-panel[data-onme-groups] .lf-fp-on-list > .lf-rows-head {
     font: var(--font-title);
     color: var(--ink);
   }
-  .lf-floating-panel[data-onme-heads="ruled"] .lf-fp-on-rule {
-    display: none;
-  }
-  .lf-floating-panel[data-onme-heads="ruled"]
-    .lf-fp-on-list
-    > :is(.lf-rows-head, .lf-fp-on-item[data-lone]):not(:first-child) {
-    margin-top: 14px;
-  }
-  .lf-floating-panel[data-onme-heads="ruled"]
-    .lf-fp-on-list
-    > .lf-rows-head:not(:first-child) {
-    padding-top: 12px;
-    border-top: 1px solid var(--lf-fp-group-rule);
-  }
-  .lf-floating-panel[data-onme-heads="ruled"]:not([data-onme-items="box"])
-    .lf-fp-on-list
-    > .lf-fp-on-item[data-lone]:not(:first-child) {
-    border-top: 1px solid var(--lf-fp-group-rule);
-  }
-  .lf-floating-panel[data-onme-heads="ruled"]
-    .lf-fp-on-list
-    > .lf-rows-head
-    .lf-row-end {
+  .lf-floating-panel[data-onme-groups] .lf-fp-on-list > .lf-rows-head .lf-row-end {
     font: var(--font-small);
     color: var(--muted);
+  }
+  /* By space alone: a group's cards stand close, a third of the room that parts one
+     group from the next, as a document's paragraphs under its headings. */
+  .lf-floating-panel[data-onme-groups="space"] .lf-fp-on-item[data-card] {
+    padding-block: 5px 7px;
+  }
+  .lf-floating-panel[data-onme-groups="space"]
+    .lf-fp-on-list
+    > .lf-rows-head:not(:first-child) {
+    margin-top: 30px;
+  }
+  .lf-floating-panel[data-onme-groups="space"]
+    .lf-rows-head
+    + .lf-fp-on-item[data-card] {
+    padding-top: 2px;
+  }
+  /* In a box: each group a framed box, its heading the box's head bar with a rule under
+     it, as a pane's header (base.css) and a Web Awesome card's header draw theirs, and
+     its cards parted inside by a faint rule. The list keeps one keyed run of headings
+     and cards, so the box is drawn by its parts: the heading opens it, each card carries
+     its sides, and the group's foot (`.lf-fp-on-group-end`) closes it. */
+  .lf-floating-panel[data-onme-groups="box"] {
+    --lf-fp-box: var(--lf-fp-ring);
+  }
+  .lf-floating-panel[data-onme-groups="box"] .lf-fp-on-list > .lf-rows-head {
+    padding: 8px 10px;
+    border: 1px solid var(--lf-fp-box);
+    border-radius: var(--r) var(--r) 0 0;
+  }
+  .lf-floating-panel[data-onme-groups="box"]
+    .lf-fp-on-list
+    > .lf-rows-head:not(:first-child) {
+    margin-top: 12px;
+  }
+  .lf-floating-panel[data-onme-groups="box"]
+    .lf-fp-on-list
+    > .lf-rows-head:has(+ .lf-fp-on-group-end) {
+    border-radius: var(--r);
+  }
+  /* Done's heading is a press whose own padding stands its name where the other
+     headings' names start. */
+  .lf-floating-panel[data-onme-groups="box"]
+    .lf-fp-on-list
+    > .lf-rows-head:has(> .lf-fp-settled) {
+    padding: 3px 0 3px 2px;
+  }
+  .lf-floating-panel[data-onme-groups="box"] .lf-fp-on-list > .lf-fp-on-item {
+    border-inline: 1px solid var(--lf-fp-box);
+  }
+  .lf-floating-panel[data-onme-groups="box"] .lf-fp-on-item[data-card] {
+    padding: 10px 10px 12px;
+  }
+  .lf-floating-panel[data-onme-groups="box"]
+    .lf-fp-on-list
+    > .lf-fp-on-item:not(.lf-rows-head + *) {
+    border-top: 1px solid var(--lf-fp-faint);
+  }
+  .lf-floating-panel[data-onme-groups="box"] .lf-fp-on-group-end {
+    height: 0;
+    border: 1px solid var(--lf-fp-box);
+    border-top: 0;
+    border-radius: 0 0 var(--r) var(--r);
+    padding-top: calc(var(--r) - 1px);
+  }
+  .lf-floating-panel[data-onme-groups="box"] .lf-rows-head + .lf-fp-on-group-end {
+    display: none;
   }
   /* Done folded in On me starts where the headings above it do, its arrow after its
      count at the end, rather than in the lead column its lines' kinds widen. */

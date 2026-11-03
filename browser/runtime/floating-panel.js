@@ -3315,16 +3315,11 @@ export function createFloatingPanel({
         showing({ view: "queue" }) &&
         queueTab === "you",
     );
-    // PROTOTYPE: how the On lists part their items and groups, which the panel's sheet
-    // reads off the host (floating-panel.css, `data-onme-*`).
-    for (const [name, today] of /** @type {const} */ ([
-      ["items", "space"],
-      ["heads", "caption"],
-    ])) {
-      const value = candidateOf(name, today);
-      if (value === today) host.removeAttribute(`data-onme-${name}`);
-      else host.setAttribute(`data-onme-${name}`, value);
-    }
+    // PROTOTYPE: how the On lists hold each group together, which the panel's sheet
+    // reads off the host (floating-panel.css, `data-onme-groups`).
+    const groupsHeld = candidateOf("groups", "today");
+    if (groupsHeld === "today") host.removeAttribute("data-onme-groups");
+    else host.setAttribute("data-onme-groups", groupsHeld);
     if (
       next.length === folded.length &&
       next.every((block, at) => block === folded[at])
@@ -3947,7 +3942,6 @@ export function createFloatingPanel({
         data-key=${key}
         data-obligation=${record?.id ?? nothing}
         ?data-walked=${walked}
-        ?data-lone=${Boolean(group)}
         style=${opening.seatHeights.has(key) ? `min-height: ${opening.seatHeights.get(key)}px` : ""}
       >
         ${
@@ -4074,18 +4068,21 @@ export function createFloatingPanel({
   /** @template {{key: string | Element, title: string, items: readonly PanelQueueItem[], headed?: boolean, count?: number, folds?: boolean}} G
    * @param {readonly G[]} groups @param {(item: PanelQueueItem, group: G) => unknown} line */
   function groupedItems(groups, line) {
-    /** @type {({key: string | Element, rule: true} | {key: string | Element, rule?: false, group: G, item?: PanelQueueItem})[]} */
+    /** @type {({key: string | Element, rule: true} | {key: string | Element, end: true} | {key: string | Element, rule?: false, end?: false, group: G, item?: PanelQueueItem})[]} */
     const rows = [];
     let running = false;
+    const boxed = candidateOf("groups", "today") === "box";
     for (const group of groups) {
       const headed = group.headed !== false;
       if (rows.length && !headed && !running)
         rows.push({ key: `rule:${group.key}`, rule: true });
       running = !headed;
       if (headed) rows.push({ key: group.key, group });
-      if (group.folds && !unfolded.has(String(group.key))) continue;
-      for (const item of group.items)
-        rows.push({ key: queueItemKey(item), item, group });
+      if (!(group.folds && !unfolded.has(String(group.key))))
+        for (const item of group.items)
+          rows.push({ key: queueItemKey(item), item, group });
+      // PROTOTYPE: a boxed group's foot, which closes the box its heading opens.
+      if (headed && boxed) rows.push({ key: `end:${group.key}`, end: true });
     }
     /** @param {G} group */
     const heading = (group) => {
@@ -4101,11 +4098,13 @@ export function createFloatingPanel({
         rows,
         (row) => row.key,
         (row) =>
-          row.rule
-            ? html`<hr class="lf-fp-rule lf-fp-on-rule" />`
-            : row.item
-              ? line(row.item, row.group)
-              : heading(row.group),
+          "end" in row && row.end
+            ? html`<div class="lf-fp-on-group-end"></div>`
+            : row.rule
+              ? html`<hr class="lf-fp-rule lf-fp-on-rule" />`
+              : row.item
+                ? line(row.item, row.group)
+                : heading(row.group),
       )}
     </div>`;
   }
@@ -4214,7 +4213,7 @@ export function createFloatingPanel({
       ...group,
       // PROTOTYPE: or every group, one of a single card included, as the user asked
       // (3 November) of a list that groups at all.
-      headed: group.items.length > 1 || candidateOf("lone", "heading") === "group",
+      headed: group.items.length > 1 || candidateOf("groups", "today") !== "today",
       count: group.items.filter(waits).length,
     }));
     // Another grouping draws the list afresh: every card moves, and moving each keyed

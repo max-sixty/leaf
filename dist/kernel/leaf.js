@@ -7363,11 +7363,9 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		}));
 		const next = wanted.length ? [...main?.children ?? []].filter((block) => !holding.has(block) && !block.matches("hgroup, header, h1")) : [];
 		host.toggleAttribute("data-onme-side", candidateOf("opens", "foot") === "side" && showing({ view: "queue" }) && queueTab === "you");
-		for (const [name, today] of [["items", "space"], ["heads", "caption"]]) {
-			const value = candidateOf(name, today);
-			if (value === today) host.removeAttribute(`data-onme-${name}`);
-			else host.setAttribute(`data-onme-${name}`, value);
-		}
+		const groupsHeld = candidateOf("groups", "today");
+		if (groupsHeld === "today") host.removeAttribute("data-onme-groups");
+		else host.setAttribute("data-onme-groups", groupsHeld);
 		if (next.length === folded.length && next.every((block, at) => block === folded[at])) return;
 		for (const block of folded) block.removeAttribute("hidden");
 		for (const block of next) block.setAttribute("hidden", "until-found");
@@ -7746,7 +7744,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
         data-key=${key}
         data-obligation=${record?.id ?? nothing}
         ?data-walked=${walked}
-        ?data-lone=${Boolean(group)}
         style=${opening.seatHeights.has(key) ? `min-height: ${opening.seatHeights.get(key)}px` : ""}
       >
         ${about.length ? html`<p class="lf-fp-on-place lf-rows-head">${about.join(" · ")}</p>` : nothing}${message ? html`${title ? html`<h3
@@ -7814,6 +7811,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	function groupedItems(groups, line) {
 		const rows = [];
 		let running = false;
+		const boxed = candidateOf("groups", "today") === "box";
 		for (const group of groups) {
 			const headed = group.headed !== false;
 			if (rows.length && !headed && !running) rows.push({
@@ -7825,11 +7823,14 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 				key: group.key,
 				group
 			});
-			if (group.folds && !unfolded.has(String(group.key))) continue;
-			for (const item of group.items) rows.push({
+			if (!(group.folds && !unfolded.has(String(group.key)))) for (const item of group.items) rows.push({
 				key: queueItemKey(item),
 				item,
 				group
+			});
+			if (headed && boxed) rows.push({
+				key: `end:${group.key}`,
+				end: true
 			});
 		}
 		const heading = (group) => {
@@ -7841,7 +7842,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
       </h3>`;
 		};
 		return html`<div class="lf-fp-on-list lf-rows">
-      ${repeat(rows, (row) => row.key, (row) => row.rule ? html`<hr class="lf-fp-rule lf-fp-on-rule" />` : row.item ? line(row.item, row.group) : heading(row.group))}
+      ${repeat(rows, (row) => row.key, (row) => "end" in row && row.end ? html`<div class="lf-fp-on-group-end"></div>` : row.rule ? html`<hr class="lf-fp-rule lf-fp-on-rule" />` : row.item ? line(row.item, row.group) : heading(row.group))}
     </div>`;
 	}
 	declareSide((node) => {
@@ -7892,7 +7893,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const waits = (item) => lists.you.some((current) => current === item);
 		const groups = onMe.groups(listed, grouping, held).map((group) => ({
 			...group,
-			headed: group.items.length > 1 || candidateOf("lone", "heading") === "group",
+			headed: group.items.length > 1 || candidateOf("groups", "today") !== "today",
 			count: group.items.filter(waits).length
 		}));
 		const onPageWaiting = onPage.filter((item) => lists.you.includes(item)).length;

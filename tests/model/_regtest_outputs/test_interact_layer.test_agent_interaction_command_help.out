@@ -199,8 +199,8 @@ Usage: leaf task end [OPTIONS] PAGE ID {done|failed|dropped}
 
   End the to-do or conversational obligation named by ID in `page state`.
 
-  A to-do, yours or the user's, ends done, failed or dropped. --text says where
-  the result is, such as the version or reply holding it, or why there is none.
+  A to-do ends done, failed or dropped. --text says where the result is, such as
+  the version or reply holding it, or why there is none.
 
   For a message obligation (`message:<id>`) or a question widget answered in
   words (`widget:<id>`), done records that the user answered elsewhere, --text

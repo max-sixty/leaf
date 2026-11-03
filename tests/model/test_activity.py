@@ -423,7 +423,6 @@ def test_a_harness_step_waiting_on_the_user_outlasts_the_working_grace():
         {
             "kind": "todo",
             "id": "t1",
-            "owner": "agent",
             "seq": 1,
             "ts": old,
             "subject": {"kind": "page"},

@@ -764,8 +764,7 @@ function readThreadRecords(threads, document, widgets, workflows, todos = [], ob
 			resolved: thread.resolved,
 			attention: thread.attention,
 			obligations: obligations.filter((obligation) => obligation.thread === thread.id),
-			todos: todos.filter((todo) => todo.owner === "agent" && todo.thread === thread.id),
-			userTodos: todos.filter((todo) => todo.owner === "user" && todo.thread === thread.id),
+			todos: todos.filter((todo) => todo.thread === thread.id),
 			workflows: workflows.filter((workflow) => workflow.thread === thread.id),
 			bare_reaction: thread.bare_reaction,
 			seat: thread.seat,
@@ -824,38 +823,6 @@ const actionForWidget = (descriptor, command, revision) => ({
 	detail: structuredClone(command.detail ?? {}),
 	...command.attempt && { attempt: command.attempt }
 });
-
-//#endregion
-//#region runtime/voice.js
-const saidBy = (voice, text) => Object.freeze({
-	text,
-	voice
-});
-const agentSays = (text) => saidBy("agent", text);
-const leafSays = (text) => saidBy("leaf", text);
-const runOf = (words) => typeof words === "string" || "voice" in words ? [words] : words;
-const wordsText = (words) => runOf(words).map((part) => typeof part === "string" ? part : part.text).join("");
-function voiceOf(words) {
-	const voices = new Set(runOf(words).filter((part) => typeof part === "string" ? part : part.text).map((part) => typeof part === "string" ? null : part.voice));
-	const [voice = null] = voices;
-	return voices.size === 1 ? voice : null;
-}
-const voiced = (words) => runOf(words).map((part) => typeof part === "string" ? part : html`<span data-voice=${part.voice}>${part.text}</span>`);
-
-//#endregion
-//#region runtime/queues.js
-const queueOffers = (item, ready, onUser) => ({
-	open: ready,
-	done: ready && onUser && item.kind === "todo"
-});
-const carriesObligation = (item) => item.kind === "widget" || item.kind === "message" || item.kind === "todo" && item.owner === "user";
-const itemNoun = (item) => item.kind !== "update" ? item.kind : item.owner === "user" ? "resend" : item.thread !== null ? "reply" : "answer";
-const OUTCOMES = Object.freeze({
-	done: "Done",
-	failed: "Failed",
-	dropped: "Dropped"
-});
-const itemOutcome = (item) => item.kind === "update" ? agentSays("Answered") : saidBy(item.owner === "agent" ? "agent" : "leaf", OUTCOMES[item.state] ?? item.state);
 
 //#endregion
 //#region runtime/framework/application.js
@@ -951,30 +918,8 @@ const NO_OBLIGATIONS = {
 	user: [],
 	unanswered: []
 };
-function normalizedObligations(view, widgets, document, projection, todos) {
-	const todoRecords = new Map([...todos.open, ...todos.ended].map((todo) => [todo.id, todo]));
+function normalizedObligations(view, widgets, document, projection) {
 	const all = (view?.obligations ?? []).map((item) => {
-		if (hasObligationSource(item, "todo")) {
-			const todo = todoRecords.get(item.source.id);
-			if (todo.state === "open" && item.status !== "open") return {
-				...item,
-				answer: null,
-				status: "open",
-				next_actor: "user",
-				end: null
-			};
-			if ((todo.state === "done" || todo.state === "failed") && item.status === "open") return {
-				...item,
-				answer: {
-					value: todo.state,
-					event: null
-				},
-				status: "answered",
-				next_actor: null,
-				end: null
-			};
-			return item;
-		}
 		if (!hasObligationSource(item, "widget")) return item;
 		const sourceId = item.source.id;
 		const sourceUnit = item.source.unit;
@@ -997,32 +942,6 @@ function normalizedObligations(view, widgets, document, projection, todos) {
 		all,
 		user: all.filter((item) => item.next_actor === "user"),
 		unanswered: all.filter((item) => item.status === "open")
-	};
-}
-function localTodos(state, local) {
-	const ending = new Set(local.flatMap(({ event }) => event.kind === "todo_end" ? [event.todo] : []));
-	const undoing = new Set(local.flatMap(({ event }) => event.kind === "undo" ? [event.undoes] : []));
-	const all = state?.browser.todos ?? [];
-	const served = all.filter((todo) => todo.state === "open");
-	const ended = all.filter((todo) => todo.state !== "open");
-	const reopened = (todo) => todo.outcome !== null && undoing.has(todo.outcome.id);
-	const open = [...served, ...ended.filter(reopened).map((todo) => ({
-		...todo,
-		state: "open",
-		outcome: null
-	}))];
-	const locallyEnded = (todo) => ending.has(todo.id);
-	return {
-		open: open.filter((todo) => !locallyEnded(todo)),
-		ended: [...ended.filter((todo) => !reopened(todo)), ...open.filter(locallyEnded).map((todo) => ({
-			...todo,
-			state: "done",
-			running: null,
-			outcome: {
-				ts: null,
-				detail: null
-			}
-		}))]
 	};
 }
 const NO_QUEUES = {
@@ -1071,9 +990,7 @@ function currentWidgetRelations(document, widgets, projection) {
 function localQueues(served, workflows, todos, items, local) {
 	const record = new Map(items.all.map((item) => [item.id, item]));
 	const inventoryAt = new Map(items.all.map((item, at) => [item.id, at]));
-	const open = new Set(todos.open.map((todo) => todo.id));
-	const ended = new Set(todos.ended.map((todo) => todo.id));
-	const todoRecord = new Map([...todos.open, ...todos.ended].map((todo) => [todo.id, todo]));
+	const todoRecord = new Map(todos.map((todo) => [todo.id, todo]));
 	const sentIn = new Set(workflows.flatMap((workflow) => workflow.stage === "sending" && workflow.condition === null && workflow.subject.kind === "thread" ? [workflow.thread] : []));
 	const obligationOf = (item) => {
 		const current = record.get(item.id);
@@ -1081,16 +998,16 @@ function localQueues(served, workflows, todos, items, local) {
 		return current;
 	};
 	const standsOpen = (item) => {
-		if (!namesRecord(item)) return open.has(item.id);
+		if (!namesRecord(item)) return true;
 		const current = obligationOf(item);
 		return current.next_actor === item.owner && !(current.source.kind === "update" && current.thread !== null && sentIn.has(current.thread));
 	};
-	const reopened = (item) => namesRecord(item) ? obligationOf(item).status === "open" && obligationOf(item).next_actor === item.owner : open.has(item.id);
-	const endedHere = (item) => namesRecord(item) ? obligationOf(item).status !== "open" : ended.has(item.id);
+	const reopened = (item) => namesRecord(item) && obligationOf(item).status === "open" && obligationOf(item).next_actor === item.owner;
+	const endedHere = (item) => namesRecord(item) && obligationOf(item).status !== "open";
 	const todoOf = (item) => {
-		const local = todoRecord.get(item.id);
-		if (!local) throw new Error(`Queue item ${item.id} names no to-do`);
-		return local;
+		const todo = todoRecord.get(item.id);
+		if (!todo) throw new Error(`Queue item ${item.id} names no to-do`);
+		return todo;
 	};
 	const current = (item) => namesRecord(item) ? {
 		...item,
@@ -1173,8 +1090,8 @@ function localUpdates(workflows) {
 		records
 	};
 }
-const onUserRank = (item) => item.kind === "todo" ? 1 : item.kind === "update" ? 2 : 0;
-const namesRecord = (item) => item.kind !== "todo" || item.owner === "user";
+const onUserRank = (item) => item.kind === "update" ? 1 : 0;
+const namesRecord = (item) => item.kind !== "todo";
 function widgetIndex(root) {
 	const projection = root.effective.projection;
 	const byWidget = /* @__PURE__ */ new Map();
@@ -1324,11 +1241,8 @@ function createSemanticApplication({ presentation } = {}) {
 		const folded = foldThreads(view?.thread.threads ?? [], gestures);
 		const widgets = foldWidgetStates(document.authored, projection);
 		const { parents: widgetParents, memberships } = currentWidgetRelations(document, widgets, projection);
-		const todos = ready ? localTodos(state, local) : {
-			open: [],
-			ended: []
-		};
-		const servedItems = ready ? normalizedObligations(view, widgets, document, projection, todos) : NO_OBLIGATIONS;
+		const todos = ready ? state?.browser.todos ?? [] : [];
+		const servedItems = ready ? normalizedObligations(view, widgets, document, projection) : NO_OBLIGATIONS;
 		const named = threadNames(folded);
 		const threadOfEntry = ({ event, thread: drawn, namedParent }) => {
 			const drawnIn = drawn && named.get(drawn.id)?.id;
@@ -1441,14 +1355,13 @@ function createSemanticApplication({ presentation } = {}) {
 			user: [...servedItems.user, ...localRecords.filter((item) => item.next_actor === "user")],
 			unanswered: [...servedItems.unanswered, ...localRecords]
 		};
-		const threads = readThreadRecords(obligated, document, widgets, workflows, todos.open, items.all, markingRead, ready);
+		const threads = readThreadRecords(obligated, document, widgets, workflows, todos.filter((todo) => todo.state === "open"), items.all, markingRead, ready);
 		const selectedQueues = localQueues(ready ? view?.queues ?? NO_QUEUES : NO_QUEUES, workflows, todos, items, localRecords);
 		const serving = /* @__PURE__ */ new Map();
 		for (const workflow of workflows) if (workflow.obligation !== null && !serving.has(workflow.obligation)) serving.set(workflow.obligation, workflow);
-		const contextual = (items, onUser = false) => items.map((item) => ({
+		const contextual = (items) => items.map((item) => ({
 			...item,
-			workflow: serving.get(item.id) ?? null,
-			offers: queueOffers(item, ready, onUser)
+			workflow: serving.get(item.id) ?? null
 		}));
 		return {
 			hostAvailable,
@@ -1469,7 +1382,7 @@ function createSemanticApplication({ presentation } = {}) {
 			plan: ready ? state?.browser.plan ?? null : null,
 			queues: {
 				phase,
-				on_user: contextual(selectedQueues.on_user, true),
+				on_user: contextual(selectedQueues.on_user),
 				on_agent: contextual(selectedQueues.on_agent),
 				done: contextual(selectedQueues.done)
 			},
@@ -3617,6 +3530,23 @@ function holdAuthoredBody(host, body) {
 }
 
 //#endregion
+//#region runtime/voice.js
+const saidBy = (voice, text) => Object.freeze({
+	text,
+	voice
+});
+const agentSays = (text) => saidBy("agent", text);
+const leafSays = (text) => saidBy("leaf", text);
+const runOf = (words) => typeof words === "string" || "voice" in words ? [words] : words;
+const wordsText = (words) => runOf(words).map((part) => typeof part === "string" ? part : part.text).join("");
+function voiceOf(words) {
+	const voices = new Set(runOf(words).filter((part) => typeof part === "string" ? part : part.text).map((part) => typeof part === "string" ? null : part.voice));
+	const [voice = null] = voices;
+	return voices.size === 1 ? voice : null;
+}
+const voiced = (words) => runOf(words).map((part) => typeof part === "string" ? part : html`<span data-voice=${part.voice}>${part.text}</span>`);
+
+//#endregion
 //#region runtime/notifications.js
 const liveEl = el("div", "lf-ui lf-live");
 liveEl.setAttribute("aria-live", "polite");
@@ -3801,4 +3731,4 @@ function dismissErrors() {
 }
 
 //#endregion
-export { COLLAPSE, DELIVERY, DRAFT_FORMAT, EVERYTHING, LINK, LIVE_ROOT, LitElement$1 as LitElement, PAGE_ROOT, PENDING, PRESENTATION_DOM, PRESSABLE, SHARE_ROOT, TEXT_BLOCK, TEXT_ENTRY, WEBSITE_DELIVERY, actionForWidget, adoptRegistry, advertisesKeys, agentName, agentSays, allBindings, anchorKey, annotationMode, announce, answers, applicationPresented, applicationPresenter, applicationRegionsPresented, applicationState, ariaShortcuts, attachApplicationPresentation, attachWidgetPresentation, authoredBody, authoredRank, bareReaction, bindingEnabled, bindingEnabledFor, bindings, buttonCommand, carriesObligation, checked, claimsEsc, clampedRow, closeControl, commandAvailable, commandBinding, commandDeclarationsWithin, commandEntries, commandPresentations, commandReady, commandRoutes, commandRun, commandScope, commandsOn, commandsWithin, contextBindings, contextScopes, controlAvailabilityOutput, createPresentationSchedule, cycledRow, decisionControls, decisionFor, declarationFor, declareCommandReadiness, declaredBindings, declaredRoot, declaresCommandHandler, deleted, descriptionOf, discussed, dismissError, dismissErrors, documentChanged, dragHeld, dragging, drawingSchema, editable, el, elementDeclarations, elementsDeclaring, errorsReading, exhibits, foldWidgetStates, fragmentId, fragmentKey, fragmentUrl, guard, hasObligationSource, hasRows, holdAuthoredBody, holdSelection, holdStatus, holdingError, hostIn, html$1 as html, isCommandScope, isElementName, isMessageEvent, isNews, isReaction, isThreadEvent, itemNoun, itemOutcome, keyed, keys, labelOf, lastMovedAt, layerFact, layerRoot, leafSays, live, live$1, liveEl, loadShadowRules, marks, matchesWhen, messageKey, motionPreview, mountRepaint, moved, nativeActivationAt, nativeClaimAt, nativePress, noChange, nothing$1 as nothing, notice, noticeReading, noticeWords, obligationValue, offlineDeferred, offlineInteractive, offlineState, pageClaimed, pageRange, pageShadowRoots, pageUrl, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, presentDocument, programmaticSelection, projectCommandScope, projectView, projectionOrigins, projectionRegionsPresented, pruneScopedElements, queueWidgetUpdate, quickShortcuts, raiseError, rankAt, reachedForWords, reactionsAt, readApplication, readApplicationPresentation, readPart, recordedWidgetSelector, ref, referencedCommandEntry, reflectFirstScopes, reflectKeys, refuseShadowRoot, registry, render$1 as render, renderedChildren, repaint, repaintPage, repeat, responseAction, reveal, revisionLabel, routedCommand, runLanding, runtime, runtimeModule, runtimeResource, saidBy, sameAnchor, savedReadingSettled, saying, scopeAvailable, scopeIdentity, scopeRefs, scopesAt, scopesFor, seatRoot, seeErrors, selectEnds, selectWidgets, selectionBackward, setNoticeContext, setPresentationFailureReporter, setQuickShortcuts, shadowRootsIn, shadowRules, share, shareUrl, spell, spokenBinding, stateSpecs, submitBindings, tagsDeclaring, threadCounts, threadKey, threadNames, titleOf, tokenChoices, tokenEntry, touchPresses, turns, voiceOf, voiced, watchCommandAvailability, watchCommandScopes, watchPresentation, watchSemantic, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented, word, wordsText, worksInside };
+export { COLLAPSE, DELIVERY, DRAFT_FORMAT, EVERYTHING, LINK, LIVE_ROOT, LitElement$1 as LitElement, PAGE_ROOT, PENDING, PRESENTATION_DOM, PRESSABLE, SHARE_ROOT, TEXT_BLOCK, TEXT_ENTRY, WEBSITE_DELIVERY, actionForWidget, adoptRegistry, advertisesKeys, agentName, agentSays, allBindings, anchorKey, annotationMode, announce, answers, applicationPresented, applicationPresenter, applicationRegionsPresented, applicationState, ariaShortcuts, attachApplicationPresentation, attachWidgetPresentation, authoredBody, authoredRank, bareReaction, bindingEnabled, bindingEnabledFor, bindings, buttonCommand, checked, claimsEsc, clampedRow, closeControl, commandAvailable, commandBinding, commandDeclarationsWithin, commandEntries, commandPresentations, commandReady, commandRoutes, commandRun, commandScope, commandsOn, commandsWithin, contextBindings, contextScopes, controlAvailabilityOutput, createPresentationSchedule, cycledRow, decisionControls, decisionFor, declarationFor, declareCommandReadiness, declaredBindings, declaredRoot, declaresCommandHandler, deleted, descriptionOf, discussed, dismissError, dismissErrors, documentChanged, dragHeld, dragging, drawingSchema, editable, el, elementDeclarations, elementsDeclaring, errorsReading, exhibits, foldWidgetStates, fragmentId, fragmentKey, fragmentUrl, guard, hasObligationSource, hasRows, holdAuthoredBody, holdSelection, holdStatus, holdingError, hostIn, html$1 as html, isCommandScope, isElementName, isMessageEvent, isNews, isReaction, isThreadEvent, keyed, keys, labelOf, lastMovedAt, layerFact, layerRoot, leafSays, live, live$1, liveEl, loadShadowRules, marks, matchesWhen, messageKey, motionPreview, mountRepaint, moved, nativeActivationAt, nativeClaimAt, nativePress, noChange, nothing$1 as nothing, notice, noticeReading, noticeWords, obligationValue, offlineDeferred, offlineInteractive, offlineState, pageClaimed, pageRange, pageShadowRoots, pageUrl, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, presentDocument, programmaticSelection, projectCommandScope, projectView, projectionOrigins, projectionRegionsPresented, pruneScopedElements, queueWidgetUpdate, quickShortcuts, raiseError, rankAt, reachedForWords, reactionsAt, readApplication, readApplicationPresentation, readPart, recordedWidgetSelector, ref, referencedCommandEntry, reflectFirstScopes, reflectKeys, refuseShadowRoot, registry, render$1 as render, renderedChildren, repaint, repaintPage, repeat, responseAction, reveal, revisionLabel, routedCommand, runLanding, runtime, runtimeModule, runtimeResource, saidBy, sameAnchor, savedReadingSettled, saying, scopeAvailable, scopeIdentity, scopeRefs, scopesAt, scopesFor, seatRoot, seeErrors, selectEnds, selectWidgets, selectionBackward, setNoticeContext, setPresentationFailureReporter, setQuickShortcuts, shadowRootsIn, shadowRules, share, shareUrl, spell, spokenBinding, stateSpecs, submitBindings, tagsDeclaring, threadCounts, threadKey, threadNames, titleOf, tokenChoices, tokenEntry, touchPresses, turns, voiceOf, voiced, watchCommandAvailability, watchCommandScopes, watchPresentation, watchSemantic, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented, word, wordsText, worksInside };

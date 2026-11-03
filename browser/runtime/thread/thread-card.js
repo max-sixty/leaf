@@ -94,7 +94,7 @@ import { Transcript } from "./transcript.js";
  * id: string, attempt: string | null, surface: string, resolved: boolean,
  * attention: ReturnType<typeof threadAttention>, resolvedBy: string,
  * settlement: {kind: "resolve" | "unresolve", word: string, label: string},
- * todos: readonly {id: string, title: string}[], summaries: ThreadRecord["summaries"],
+ * summaries: ThreadRecord["summaries"],
  * messages: readonly MessageReading[], working: WorkingMessage | null,
  * source: ThreadRecord, reread: (held: ThreadRecord) => ThreadReading}} ThreadReading */
 
@@ -188,7 +188,7 @@ function workingMessage(thread, messages) {
       Boolean(workflow.detail),
   );
   const todo = thread.todos.find(
-    /** @returns {todo is import("../framework/application.js").WireTodo & {running: NonNullable<import("../framework/application.js").WireTodo["running"]>}} */
+    /** @returns {todo is import("../../types/contract.js").ServedTodo & {running: NonNullable<import("../../types/contract.js").ServedTodo["running"]>}} */
     (todo) => todo.running !== null,
   );
   /** @typedef {{words: string, position: number, live: boolean,
@@ -268,29 +268,6 @@ function workingMessage(thread, messages) {
   });
 }
 
-// The user's open to-dos on a thread, over the conversation about them: each title
-// with its Done, the ticked circle it shows wherever Leaf offers it, which tells it from
-// the thread head's Resolve check. A thread card once worded it. Done is the user's
-// `todo_end`, which takes the line away in the turn it is pressed (queue-api.js,
-// `done`). A card draws them at its head, and so does the floating panel's view of a
-// thread, under its quote.
-/** @param {readonly {id: string, title: string}[]} todos @param {(id: string) => unknown} done */
-export function threadTodos(todos, done) {
-  if (!todos.length) return nothing;
-  return html`<ul class="lf-thread-todos">
-    ${todos.map(
-      (todo) =>
-        html`<li class="lf-thread-todo">
-          <span class="lf-thread-todo-title">To-do · ${todo.title}</span
-          ><button
-            ${offeredAction("symbol", "", undefined, { action: "done" })}
-            @click=${() => done(todo.id)}
-          ></button>
-        </li>`,
-    )}
-  </ul>`;
-}
-
 /** @param {ThreadRecord} thread @param {string} surface
  * @param {{authoredRank?: number}} commands @returns {ThreadReading} */
 export function threadReading(thread, surface, commands) {
@@ -363,12 +340,6 @@ export function threadReading(thread, surface, commands) {
       word,
       label,
     }),
-    // The user's open to-dos on the thread, each named at the thread's head with its
-    // Done (`threadTodos`), as the floating panel's field names one the user stands on
-    // in the page.
-    todos: Object.freeze(
-      thread.userTodos.map(({ id, title }) => Object.freeze({ id, title })),
-    ),
     summaries: Object.freeze(thread.summaries),
     messages: Object.freeze(messages),
     working: workingMessage(thread, messages),
@@ -401,7 +372,6 @@ function wordsWidth(node) {
  * read: Pick<ReturnType<typeof import("./read.js").createReadTracking>, "observeMessage" | "observeFeedback">,
  * reaction: Omit<import("./messages.js").MessageCommands["reaction"], "pressed">,
  * settlement: Omit<Parameters<typeof settleThread>[0], "parent" | "key" | "resolved" | "prepareLanding">,
- * todos: {done: (id: string) => unknown},
  * landInThread: import("./replies.js").ReplyCommands["landInThread"]}} ThreadCommands */
 
 /** @typedef {{nav: Element | null, expand: Element, close: Element,
@@ -717,9 +687,7 @@ export class ThreadView {
     // `.lf-thread-content > .lf-thread-news`); its words change in place.
     keeps(notice.node, "data-lf-reflow", marginControls ? null : "text");
     const body = html`
-      ${threadTodos(model.todos, (id) => this.#commands.todos.done(id))}${
-        this.#transcript.node
-      }
+      ${this.#transcript.node}
       ${
         threadActions !== nothing
           ? marginControls

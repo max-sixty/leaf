@@ -34,7 +34,7 @@ import { createInlineContributions } from "./inline-contributions.js";
 import { presentingContributions, watchContributions } from "./contributions.js";
 import { createThreadDestinations } from "./thread/destination.js";
 import { createThreadActions } from "./thread/actions.js";
-import { createQueueActions, queueItemKey } from "./queue-api.js";
+import { createQueueActions } from "./queue-api.js";
 import { createPrimaryReader } from "./thread/primary-reader.js";
 import { nextRender } from "./rendering.js";
 import { createReadTracking } from "./thread/read.js";
@@ -261,7 +261,6 @@ function createApplication(dependencies) {
     open: openPageThread,
   });
   const queueActions = createQueueActions({
-    post,
     arrive: (item) => dependencies.arriveAtQueueItem(item),
   });
   const replyView = {
@@ -285,11 +284,6 @@ function createApplication(dependencies) {
     reply: replyView,
     settlement: settlementView,
     reaction: reactionView,
-    // A thread's head ends the user's to-do on it with its own Done.
-    todos: {
-      done: /** @param {string} id */ (id) =>
-        queueActions.done(queueItemKey({ kind: "todo", id })),
-    },
     read,
     openThread: openPageThread,
     landInThread: dependencies.landInThread,
@@ -695,7 +689,7 @@ function createApplication(dependencies) {
     openObligation(id) {
       const item = readObligations().all.find((item) => item.id === id);
       if (!item) return Promise.resolve(false);
-      if (hasObligationSource(item, "update") || hasObligationSource(item, "todo"))
+      if (hasObligationSource(item, "update"))
         return queueActions.open(JSON.stringify([item.source.kind, item.id]));
       if (item.thread !== null && answeredInWords(item)) {
         showHeld(item.thread);
@@ -772,9 +766,6 @@ export const queueActions = Object.freeze({
   open: /** @type {ReturnType<typeof createApplication>["queueActions"]["open"]} */ (
     ...args
   ) => app().queueActions.open(...args),
-  done: /** @type {ReturnType<typeof createApplication>["queueActions"]["done"]} */ (
-    ...args
-  ) => app().queueActions.done(...args),
 });
 /** @type {ReturnType<typeof import("./composing/input.js").createCompositionInputs>["wireInput"]} */
 export const wireInput = (...args) => app().wireInput(...args);

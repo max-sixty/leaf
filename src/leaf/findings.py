@@ -1826,10 +1826,6 @@ _TEXT = {
         f"{v['widget']} has no work seat; its widget declares no x-work and it holds"
         " no unsettled action"
     ),
-    "duplicate-obligation": lambda at, v: (
-        f"{v['widget']!r} already has obligation {v['obligation']!r}; use that obligation instead of"
-        " opening duplicate work"
-    ),
     "plan-depth": lambda at, v: (
         f"plan step {v['step']!r} is at depth {v['depth']}, more than one below the"
         " step before it; the first step is at depth 0 and each step is at most one"
@@ -1846,9 +1842,6 @@ _TEXT = {
     ),
     "widget-obligation": lambda at, v: (
         f"{v['todo']!r} is answered by its widget's state, so retire it in the document"
-    ),
-    "users-question": lambda at, v: (
-        "the user's message or settling reaction answers a question asked in words"
     ),
     "ended-obligation": lambda at, v: (
         f"obligation {v['todo']!r} is already {v['status']}"
@@ -1869,9 +1862,6 @@ _TEXT = {
         " before ending it from another session"
     ),
     "unknown-todo": lambda at, v: f"unknown to-do {v['todo']!r}",
-    "agents-todo": lambda at, v: (
-        f"to-do {v['todo']!r} is the agent's; the user ends only a to-do on them"
-    ),
     # What other commands note beside their result (`note`). `page open` over
     # updates it still owes an answer, each named by the command that answers it:
     "page-open-owes": lambda at, v: (

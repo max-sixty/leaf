@@ -1080,22 +1080,26 @@ def on_me(page: Page) -> None:
     expect(page.locator(".lf-fp-view[data-view=queue]")).to_be_visible()
 
 
-def on_me_todo(page: Page) -> None:
-    """On me opened on a to-do's card, its whole title over its Done, after the On me
-    walk arrives at the to-do's subject."""
+def on_me_question(page: Page) -> None:
+    """On me opened on the card of a question the agent asked in a thread with
+    `--obligation`, its whole words over the card's Reply."""
+    question = (
+        "Can you review the change or name a reviewer, then merge it after checking "
+        "the build?"
+    )
     as_agent(
-        "task",
+        "thread",
         "create",
+        "--section",
         "plan-context",
-        "--title",
-        "Review the change or name a reviewer, then merge it after checking the build",
-        "--on",
-        "user",
+        "--text",
+        question,
+        "--obligation",
     )
     page.reload()
     wait_until_ready(page, PageClient(served_page.get().address).state())
-    page.locator("#plan-top").click()
-    page.keyboard.press("m")
+    on_me(page)
+    page.locator(".lf-fp-on-item", has_text=question).scroll_into_view_if_needed()
 
 
 def on_me_choice(page: Page) -> None:
@@ -3742,7 +3746,7 @@ STATES = (
         viewport=(1024, 500),
         touch=True,
     ),
-    State("on-me-todo", "review-a-plan", on_me_todo),
+    State("on-me-question", "review-a-plan", on_me_question),
     State("on-me", "corpus", on_me),
     State("on-me-dark", "corpus", on_me, scheme="dark"),
     State("on-agent", "corpus", on_agent),

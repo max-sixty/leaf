@@ -21,7 +21,6 @@ export function ownedObligationControl(source, commandSource) {
 /** @param {AnswerableObligation} item */
 export function obligationWord(item) {
   if (answeredInWords(item)) return "Reply";
-  if (hasObligationSource(item, "todo")) return "To-do";
   const word = widgetWord(item.source.tag, elementById(item.source.id));
   return word.charAt(0).toUpperCase() + word.slice(1);
 }
@@ -46,14 +45,6 @@ export function answerWords(item) {
    user (voice.js); the answer itself is the user's value, in the interface's face. */
 /** @param {AnswerableObligation} item */
 export function obligationEnding(item) {
-  if (hasObligationSource(item, "todo"))
-    return leafSays(
-      item.status === "withdrawn"
-        ? "Dropped"
-        : item.answer?.value === "failed"
-          ? "Failed"
-          : "Done",
-    );
   if (item.status === "withdrawn") return leafSays("Withdrawn");
   if (item.status === "answered_elsewhere") return leafSays("Answered elsewhere");
   const words = answerWords(item);

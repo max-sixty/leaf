@@ -86,9 +86,7 @@ export function declareSide(bridge, { beside = false } = {}) {
 // inside a proposal's new text does, so the nearest place holding the node names the
 // obligation rather than the kind of place: on the inner question's enclosing widget the user
 // is on that question, not on the proposal whose source holds it. Of two standing at one
-// place, as a to-do on a widget does beside the widget's own question, the first the
-// inventory lists names it, and the inventory lists widgets' obligations before to-dos.
-// `items` may be a selection, such as those waiting on the user, placed as the whole
+// place, the first the inventory lists names it. `items` may be a selection, such as those waiting on the user, placed as the whole
 // `inventory` places them.
 /** @template {import("./framework/application.js").ObligationRecord} T
  * @param {readonly T[]} items @param {Node | null} node

@@ -69,24 +69,12 @@ def kinds(items) -> list:
 
 
 def test_page_state_tracks_both_lists_until_they_are_settled(page_dir):
-    """Discovery reads the user's actual queue, including all three obligation
-    sources, and keeps agent work after On me reaches zero."""
+    """Discovery reads the user's actual queue, a widget's obligation and a message's
+    alike, and keeps agent work after On me reaches zero."""
     asking(page_dir)
     [item] = state_json(page_dir)["queues"]["on_user"]
     mine = written(
         leaf("task", "create", page_dir, "page", "--title", "Finish the plan")
-    )
-    theirs = written(
-        leaf(
-            "task",
-            "create",
-            page_dir,
-            "plan",
-            "--title",
-            "Check the plan",
-            "--on",
-            "user",
-        )
     )
     question = written(
         leaf(
@@ -102,7 +90,6 @@ def test_page_state_tracks_both_lists_until_they_are_settled(page_dir):
     assert kinds(queue["queues"]["on_user"]) == [
         ("widget", item["id"]),
         ("message", f"message:{question['id']}"),
-        ("todo", theirs["id"]),
     ]
     assert kinds(queue["queues"]["on_agent"]) == [("todo", mine["id"])]
     assert queue["source"]["live"] is True
@@ -137,7 +124,6 @@ def test_page_state_tracks_both_lists_until_they_are_settled(page_dir):
             "detail": {"value": ["flag-first"]},
         },
     )
-    assert done(page_dir, theirs["id"])[0] == 200
     queue = state_json(page_dir)
     assert queue["queues"]["on_user"] == []
     assert ("update", f"update:{answer['id']}") in kinds(queue["queues"]["on_agent"])
@@ -407,7 +393,6 @@ def test_the_door_refuses_a_todo_off_the_page_and_an_outcome_twice(page_dir):
                 {
                     "kind": "todo",
                     "author": "agent",
-                    "owner": "agent",
                     "agent": "Claude",
                     "session": "task-test",
                     "subject": {"kind": "page"},
@@ -903,9 +888,7 @@ def task_log():
 def test_only_the_latest_starting_session_can_complete_agent_work(task_log, outcome):
     """Log order transfers authority for every outcome, even while work is put down."""
     append, log = task_log
-    todo = append(
-        "todo", session="opener", owner="agent", subject={"kind": "page"}, title="Plan"
-    )
+    todo = append("todo", session="opener", subject={"kind": "page"}, title="Plan")
     for session in ("older", "newer"):
         latest = append("start", session=session, item=todo["id"], text="Working")
     append("status", session="newer", state="waiting")
@@ -934,7 +917,7 @@ def test_explicit_starts_transfer_completion_authority_back_and_between_tasks(ta
     """A session can retake work; a start on another item transfers only that item."""
     append, log = task_log
     todos = [
-        append("todo", owner="agent", subject={"kind": "page"}, title=title)
+        append("todo", subject={"kind": "page"}, title=title)
         for title in ("Plan", "Glossary")
     ]
     for session in ("older", "newer", "older"):
@@ -951,13 +934,9 @@ def test_explicit_starts_transfer_completion_authority_back_and_between_tasks(ta
 def test_unstarted_and_anonymously_started_tasks_remain_completable(task_log):
     """Opening creates no session ownership; an anonymous start is a real start."""
     append, log = task_log
-    unstarted = append(
-        "todo", session="opener", owner="agent", subject={"kind": "page"}, title="Plan"
-    )
+    unstarted = append("todo", session="opener", subject={"kind": "page"}, title="Plan")
     append("todo_end", session="another", todo=unstarted["id"], outcome="done")
-    anonymous = append(
-        "todo", owner="agent", subject={"kind": "page"}, title="Glossary"
-    )
+    anonymous = append("todo", subject={"kind": "page"}, title="Glossary")
     latest = append("start", item=anonymous["id"], text="Working")
     with pytest.raises(events_model.EventRefused) as refused:
         append("todo_end", session="identified", todo=anonymous["id"], outcome="done")
@@ -1295,70 +1274,14 @@ def asking(page_dir):
 
 
 def done(page_dir, todo: str) -> tuple[int, dict]:
-    """The user's Done on `task`, posted as the On panel posts it."""
+    """A Done on `todo` posted to the browser's door, which takes none."""
     return endpoint_model.accept_event(
         page_dir, {"kind": "todo_end", "todo": todo, "outcome": "done"}, dict
     )
 
 
-def test_a_todo_on_the_user_stands_on_any_element_until_their_done(page_dir):
-    """`--on user` puts a to-do on the user's queue, about any element of the page by
-    its id, and their Done ends it: an event the agent hears of, on the one door."""
-    publish(page_dir)
-    todo = written(
-        leaf(
-            "task",
-            "create",
-            page_dir,
-            "plan",
-            "--title",
-            "Is the plan enough?",
-            "--on",
-            "user",
-        )
-    )
-    assert (todo["owner"], todo["subject"]) == (
-        "user",
-        {"kind": "element", "id": "plan"},
-    )
-    state = state_json(page_dir)
-    items = [("widget", item["id"]) for item in obligations_on_user(state)]
-    assert kinds(state["queues"]["on_user"]) == items + [("todo", todo["id"])]
-    assert state["queues"]["on_agent"] == []
-    assert [item["owner"] for item in state["todos"] if item["id"] == todo["id"]] == [
-        "user"
-    ]
-
-    status, answer = done(page_dir, todo["id"])
-    assert status == 200, answer
-    end = events_model.read_events(page_dir)[-1]
-    assert (end["kind"], end["author"], end["todo"], end["attention"]) == (
-        "todo_end",
-        "user",
-        todo["id"],
-        True,
-    )
-    state = state_json(page_dir)
-    assert kinds(state["queues"]["on_user"]) == items
-    assert todo["id"] not in [item["id"] for item in state["todos"]]
-    served = full_state(page_dir, events_model.read_events(page_dir))
-    [ended] = [item for item in served["browser"]["todos"] if item["id"] == todo["id"]]
-    assert (ended["state"], ended["outcome"]["author"]) == ("done", "user")
-    assert done(page_dir, todo["id"])[0] == 400
-
-    # Done is a gesture the user can take back, which puts the to-do on them again.
-    status, answer = endpoint_model.accept_event(
-        page_dir, {"kind": "undo", "undoes": end["id"]}, dict
-    )
-    assert status == 200, answer
-    state = state_json(page_dir)
-    assert kinds(state["queues"]["on_user"]) == items + [("todo", todo["id"])]
-    assert done(page_dir, todo["id"])[0] == 200
-
-
-def test_a_thread_obligation_remains_distinct_from_explicit_user_work(page_dir):
-    """A question in a reply ends at the user's reply, without a to-do or separate
-    Done action."""
+def test_a_question_in_a_reply_ends_at_the_users_reply(page_dir):
+    """A question in a reply ends at the user's reply, with no Done of Leaf's own."""
     publish(page_dir)
     comment = append_carried_log_record(
         page_dir,
@@ -1375,31 +1298,9 @@ def test_a_thread_obligation_remains_distinct_from_explicit_user_work(page_dir):
         )
     )
     rollback = f"message:{question['id']}"
-    task = written(
-        leaf(
-            "task",
-            "create",
-            page_dir,
-            comment["id"],
-            "--title",
-            "Try the rollback",
-            "--on",
-            "user",
-        )
-    )
-    [task_obligation] = [
-        item for item in state_json(page_dir)["obligations"] if item["id"] == task["id"]
-    ]
-    assert task_obligation["source"] == {
-        "kind": "todo",
-        "id": task["id"],
-        "subject": {"kind": "thread", "id": comment["id"]},
-    }
-    assert task_obligation["thread"] == comment["id"]
-
     status, answer = done(page_dir, rollback)
     assert status == 400, answer
-    assert refused_on(answer).code == "users-question"
+    assert refused_on(answer).code == "unknown-kind"
     assert ("message", rollback) in kinds(state_json(page_dir)["queues"]["on_user"])
 
     append_carried_log_record(
@@ -1413,18 +1314,17 @@ def test_a_thread_obligation_remains_distinct_from_explicit_user_work(page_dir):
         },
     )
     assert question["id"] not in [item["id"] for item in state_json(page_dir)["todos"]]
-    assert ("message", rollback) not in kinds(state_json(page_dir)["queues"]["on_user"])
-    assert ("todo", task["id"]) in kinds(state_json(page_dir)["queues"]["on_user"])
-    assert done(page_dir, task["id"])[0] == 200
+    assert state_json(page_dir)["queues"]["on_user"] == []
     [ended] = [
-        item for item in state_json(page_dir)["obligations"] if item["id"] == task["id"]
+        item for item in state_json(page_dir)["obligations"] if item["id"] == rollback
     ]
-    assert ended["status"] == "answered"
-    assert ended["answer"]["value"] == "done"
+    assert (ended["status"], ended["answer"]["value"]) == ("answered", {"text": "Yes."})
 
 
-def test_the_user_ends_only_explicit_user_work_and_not_an_obligation(page_dir):
-    """Done ends explicit user work; widget obligations retain their source lifecycle."""
+def test_the_browser_ends_no_todo_or_obligation_outright(page_dir):
+    """The browser can't end a to-do or an obligation outright: a to-do is the agent's
+    to end, and an obligation ends only through its source, a widget's own controls
+    or a reply in its thread."""
     asking(page_dir)
     mine = written(
         leaf("task", "create", page_dir, "page", "--title", "Add a glossary")
@@ -1590,60 +1490,20 @@ def test_the_agent_ends_a_choice_the_user_answered_in_words(page_dir):
     assert (record["status"], record["answer"]) == ("answered_elsewhere", None)
 
 
-def test_user_work_cannot_duplicate_a_widget_obligation(page_dir):
-    """An obligation owns the request; opening user work must name that canonical id."""
-    asking(page_dir)
-    [item] = obligations_on_user(state_json(page_dir))
-    [result] = command_findings(
-        "task",
-        "create",
-        page_dir,
-        "choice",
-        "--title",
-        "Check evidence",
-        "--on",
-        "user",
-    )
-    assert (result.code, result.values["obligation"]) == (
-        "duplicate-obligation",
-        "widget:choice",
-    )
-    assert state_json(page_dir)["todos"] == []
-    assert obligations_on_user(state_json(page_dir)) == [item]
-
-
 def test_a_version_can_remove_a_target_while_its_todos_stay_open(page_dir):
-    """Removing a page subject does not silently settle either side's to-dos."""
+    """Removing a page subject does not silently settle a to-do on it."""
     (page_dir / "index.html").write_text(WORK_PAGE)
     publish(page_dir)
     mine = written(
         leaf("task", "create", page_dir, "plan", "--title", "Rewrite the plan")
-    )
-    theirs = written(
-        leaf(
-            "task",
-            "create",
-            page_dir,
-            "plan",
-            "--title",
-            "Is the plan enough?",
-            "--on",
-            "user",
-        )
     )
     (page_dir / "index.html").write_text(
         WORK_PAGE.replace('<section id="plan">', '<section id="scheme">')
     )
     dropped = stamp(page_dir, "Plan renamed")
     assert dropped.exit_code == 0, dropped.output
-    assert {todo["id"] for todo in state_json(page_dir)["todos"]} == {
-        mine["id"],
-        theirs["id"],
-    }
-    for todo in (theirs, mine):
-        written(
-            leaf("task", "end", page_dir, todo["id"], "dropped", "--text", "Renamed")
-        )
+    assert [todo["id"] for todo in state_json(page_dir)["todos"]] == [mine["id"]]
+    written(leaf("task", "end", page_dir, mine["id"], "dropped", "--text", "Renamed"))
     assert state_json(page_dir)["todos"] == []
 
 
@@ -2253,7 +2113,6 @@ def test_thread_task_preserves_its_reaction_root(page_dir, attach_first):
     task = {
         "kind": "todo",
         "author": "agent",
-        "owner": "user",
         "subject": {"kind": "thread", "id": root["id"]},
         "title": "Check on a phone",
     }
@@ -2269,7 +2128,7 @@ def test_thread_task_preserves_its_reaction_root(page_dir, attach_first):
             )["threads"]
         }
         assert opened["id"] in {
-            item["id"] for item in state_json(page_dir)["queues"]["on_user"]
+            item["id"] for item in state_json(page_dir)["queues"]["on_agent"]
         }
     else:
         append_command(page_dir, undo)

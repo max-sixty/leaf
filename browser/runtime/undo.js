@@ -22,8 +22,7 @@
 
    `z` leaves the user at what it takes back, the gesture's place: the thread a
    settlement or reaction is in, the message holding a widget an agent sent, or the
-   element changed. A to-do's Done changes only the leaf's own rows, which stand in
-   front of the user, so it has none. A press reaches the place one of three ways:
+   element changed. A press reaches the place one of three ways:
 
    - Where the user sees it, the press takes the gesture there.
    - Where the place is out of view, or the agent has picked the gesture up
@@ -85,7 +84,7 @@ import { eventSource } from "./pointer.js";
 import { raiseError } from "./errors.js";
 
 /** @template E
- * @typedef {E extends unknown ? Pick<E, Extract<keyof E, "id" | "kind" | "attempt" | "token" | "anchor" | "parent" | "widget" | "todo" | "outcome" | "ts">> : never} GestureFields
+ * @typedef {E extends unknown ? Pick<E, Extract<keyof E, "id" | "kind" | "attempt" | "token" | "anchor" | "parent" | "widget" | "ts">> : never} GestureFields
  */
 /** The fields a withdrawal reads, shared by an admitted event and a locally drawn gesture.
  * @typedef {import("../types/contract.js").CompleteUnion<GestureFields<ReturnType<typeof import("./thread/state.js").allThreads>[number]["root"] | import("./pending/dispatch.js").UndoCandidate | import("./framework/snapshot.js").Immutable<import("../types/domain.js").Event | import("../types/domain.js").Message>>>} UndoEvent
@@ -129,13 +128,6 @@ function actionWords(event, gesture) {
   }
 }
 
-/** @type {Record<"done" | "failed" | "dropped", (title: string) => string>} */
-const TODO_ENDINGS = {
-  done: (title) => `marked ${title} done`,
-  failed: (title) => `marked ${title} failed`,
-  dropped: (title) => `dropped ${title}`,
-};
-
 // What a gesture did, in the words the page holds for it now.
 /** @param {UndoEvent} event @param {Gesture | undefined} gesture */
 function gestureWords(event, gesture) {
@@ -147,10 +139,6 @@ function gestureWords(event, gesture) {
       const name = thread ? quoted(threadName(thread), 48) : "a thread";
       return `${event.kind === "resolve" ? "resolved" : "reopened"} ${name}`;
     }
-    case "todo_end": {
-      const todo = runtime.todos.find(({ id }) => id === event.todo);
-      return TODO_ENDINGS[event.outcome](todo ? quoted(todo.title) : "a to-do");
-    }
     default:
       return actionWords(event, gesture);
   }
@@ -158,8 +146,7 @@ function gestureWords(event, gesture) {
 
 // Where taking `event` back shows on the page: the thread it settled or reacted in, a
 // widget an agent sent in a message (its message is its place), or the element it
-// changed. A to-do's Done changes only the leaf's own rows, which stand
-// in front of the user, so it has no place.
+// changed.
 /** @param {UndoEvent} event @returns {UndoPlace | null} */
 function placeOf(event) {
   // A reaction in a thread is a reply naming the message it reacts to.

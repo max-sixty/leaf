@@ -267,9 +267,9 @@ flowchart TD
             <p id="exchange-obligations">
               An <strong>obligation</strong> records an input or answer owed and whose
               turn it is: first the user’s queue-policy choice, then the agent’s
-              incorporation of that choice. A <strong>to-do</strong> records explicit
-              work for either party, such as measuring the importer’s throughput.
-              Obligations and to-dos supply the
+              incorporation of that choice. A <strong>to-do</strong> records work the
+              agent owes, such as measuring the importer’s throughput. Obligations and
+              to-dos supply the
               <a href="#progress-on-lists">On me and On agent lists</a>; threads keep
               the conversation, and workflows track the handling of updates.
             </p>
@@ -465,7 +465,8 @@ leaf page state ./review &lt;thread-id&gt;
 leaf thread reply &lt;answer.ref&gt; --done --text "The importer policy is updated."
 leaf thread create ./review --obligation --text "Does the revised policy match the workload?"</code></pre>
               <p id="answers-kinds">
-                A comment needs a thread reply. A decision widget creates an
+                A comment needs a thread reply. A widget that asks, any widget whose
+                registry entry declares <code>x-awaits</code>, creates an
                 <em>obligation</em> on the user’s On me list, with a prompt, typed
                 answer, and lifecycle; an optional <code>lf-ask</code> supplies its
                 heading as the prompt. The widget owns the value, and the agent records
@@ -843,9 +844,8 @@ flowchart TD
                 <tr>
                   <th scope="row">Turn-end check (experimental)</th>
                   <td>
-                    Each question it asked in a thread, and each step it put On me as a
-                    to-do, for something the agent left to the user in chat, with its
-                    words, its id and how to withdraw it.
+                    Each question it asked in a thread for something the agent left to
+                    the user in chat, with its words, its id and how to withdraw it.
                   </td>
                   <td>
                     In Claude Code, at the next prompt or tool call after a turn ends
@@ -1142,9 +1142,8 @@ flowchart TD
                 holding a page, Leaf's hooks module forks the conversation. The fork is
                 a copy of the conversation that answers one question without calling
                 tools, and the agent never sees the exchange. Leaf shows the fork each
-                page's On me and the questions and to-dos on the user already answered,
-                ended or withdrawn, and asks it to name each of the following that the
-                agent left to the user:
+                page's On me and the questions already answered or withdrawn, and asks
+                it to name each of the following that the agent left to the user:
               </p>
               <ul id="fork-checks">
                 <li>a decision, such as which of two designs to keep</li>
@@ -1157,23 +1156,22 @@ flowchart TD
               <p id="fork-excludes">
                 The fork leaves out what an On me item already holds, what the user has
                 answered since, and what the agent will settle itself. For each ask it
-                says whether it is a question or a step the user takes and confirms with
-                Done, and gives the words of the passage it concerns, if one does. A
-                question gets a thread title and a message of a few sentences that the
-                user can answer without the chat; a step gets a title naming the action
-                whole. Leaf skips an ask whose title an ask the agent made already has.
+                gives a thread title, a message of a few sentences that the user can
+                answer without the chat, and the words of the passage it concerns, if
+                one does. A step the user is to take is asked the same way: the message
+                says what to do and asks the user to reply once it is done. Leaf skips
+                an ask whose title a question the agent asked already has.
               </p>
               <p id="fork-writes">
-                Leaf opens each remaining question as a thread, its message written as
-                the agent's with an obligation, as
-                <code>leaf thread create --obligation</code> writes one, and puts each
-                step On me as the agent's to-do on the user, as
-                <code>leaf task create --on user</code> does. Each stands on that
-                passage, or on the page as a whole where the fork named none or the page
-                doesn't show its words once. It stays On me until the user replies or
-                presses Done, and nothing on the page marks where it came from. At its
-                next prompt or tool call, the agent reads what Leaf wrote and its id,
-                and withdraws any of it with <code>leaf task end</code>.
+                Leaf opens each remaining ask as a thread, its message written as the
+                agent's with an obligation, as
+                <code>leaf thread create --obligation</code> writes one. Each stands on
+                that passage, or on the page as a whole where the fork named none or the
+                page doesn't show its words once. It stays On me until the user replies
+                or settles it with a reaction, and nothing on the page marks where it
+                came from. At its next prompt or tool call, the agent reads what Leaf
+                wrote and its id, and withdraws any of it with
+                <code>leaf task end</code>.
               </p>
               <p id="fork-off-path">
                 The fork starts after the turn has ended, so neither the turn nor the
@@ -1373,15 +1371,15 @@ flowchart TD
                       elsewhere or withdrawn.
                     </td>
                     <td>
-                      <code>widget:</code> or <code>update:</code>, followed by its
-                      source
+                      <code>widget:</code>, <code>message:</code> or
+                      <code>update:</code>, followed by its source
                     </td>
                   </tr>
                   <tr id="ontology-todo">
                     <td>To-do</td>
                     <td>
-                      Explicit work the agent or the user owes until it ends. One the
-                      agent opens on a thread keeps that thread waiting on the agent.
+                      Work the agent owes until it ends. One on a thread keeps that
+                      thread waiting on the agent.
                     </td>
                     <td>its event id</td>
                   </tr>
@@ -1447,7 +1445,7 @@ flowchart TD
                   <pre>
 flowchart TD
   accTitle: Work records determine attention
-  accDescr: An update has a workflow, an answer request creates an obligation, and an assignment or promise creates a to-do. These records determine whose move is next and which work is finished, supplying thread attention and the page's work lists.
+  accDescr: An update has a workflow, an answer request creates an obligation, and the agent's promise or task creates a to-do. These records determine whose move is next and which work is finished, supplying thread attention and the page's work lists.
   subgraph Records["Record creation"]
     direction LR
     Update["Update"] --&gt; Workflow["Workflow"]
@@ -2060,8 +2058,9 @@ flowchart TD
                 <tr>
                   <td>On me</td>
                   <td>
-                    Open widget decisions and questions, including <code>lf-ask</code>;
-                    user to-dos; and updates the user needs to send again.
+                    Open obligations: each widget that asks, on the page or in a thread
+                    message; each agent message sent with <code>--obligation</code>; and
+                    each update the user needs to send again.
                   </td>
                 </tr>
                 <tr>
@@ -2084,11 +2083,27 @@ flowchart TD
               </tbody>
             </table>
             <p id="progress-lists-answer">
-              A widget’s declared action answers its decision; a multi-select choice
-              waits for Done. A thread question is answered by a reply or settling
-              reaction. A user to-do has a Done control; agent to-dos end with
-              <code>leaf task end</code>. Done history records the outcome, including
-              withdrawn obligations and failed or dropped to-dos.
+              On the page, an item On me is answered only in the widget or thread that
+              asks it, and Leaf adds no control of its own to end one. A widget’s
+              obligation is answered by the actions its
+              <code>x-awaits</code> declaration names, such as a pick, or the Done a
+              multi-select choice offers as its own control. A question in a thread is
+              answered by the user’s reply there or a settling reaction, such as 👍. The
+              agent ends its to-dos with <code>leaf task end</code>, and records the
+              same way an answer the user gave elsewhere, such as in chat. Done history
+              records the outcome, including withdrawn obligations and failed or dropped
+              to-dos.
+            </p>
+            <p id="progress-lists-subjects">
+              Any widget can ask, whether bundled, from a package or the page’s own, by
+              declaring <code>x-awaits</code> in its registry entry, which names the
+              actions that answer it. To ask about content that asks nothing, such as a
+              paragraph or a chart, or to leave the user a step such as trying a build,
+              the agent opens a thread on that content or the page with a message sent
+              with <code>--obligation</code>, and the user’s reply answers it. Nothing
+              goes On me that neither a widget nor a thread answers, so no item carries
+              a generic Done, and Leaf adds no answer to a widget beyond those the
+              widget declares.
             </p>
             <p id="progress-lists-thread">
               A thread’s attention identifies which side it awaits, using its updates,
@@ -2341,8 +2356,8 @@ flowchart TD
                 <tr id="updates-notice-input">
                   <td>New on me, 2 new on me</td>
                   <td>
-                    Something new waits on the user, such as a question a reply asks, a
-                    decision a revision adds or a to-do the agent gives them.
+                    Something new waits on the user, such as a question a reply asks or
+                    a decision a revision adds.
                   </td>
                 </tr>
                 <tr id="updates-notice-failure">
@@ -2422,16 +2437,10 @@ flowchart TD
               <li id="updates-written-question">
                 <strong><code>leaf thread reply … --obligation</code></strong>
                 Opens a question on On me and makes the thread read
-                <em>Your turn</em>. A reply or settling reaction answers it. The agent
-                can end it with <code>leaf task end</code> as answered elsewhere or
-                withdrawn.
-              </li>
-              <li id="updates-written-on-you">
-                <strong><code>leaf task create … --on user</code></strong> Puts a task
-                such as trying a build on On me. <kbd>m</kbd> reaches it and opens On me
-                on it; its <em>Done</em> button, or <kbd>x</kbd>, ends it and tells the
-                agent. A thread question has no Done button: the user’s reply answers
-                it.
+                <em>Your turn</em>. A reply or settling reaction answers it. A step the
+                user is to take, such as trying a build, is asked the same way. The
+                agent can end it with <code>leaf task end</code> as answered elsewhere
+                or withdrawn.
               </li>
               <li id="updates-written-comment">
                 <strong

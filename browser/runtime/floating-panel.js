@@ -242,7 +242,7 @@ import {
 } from "./thread/messages.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
 import { declareThreadParts } from "./thread/selectors.js";
-import { quoteReading, threadTodos } from "./thread/thread-card.js";
+import { quoteReading } from "./thread/thread-card.js";
 import { inPageOrder } from "./thread/placement.js";
 import { dismissReply, releaseReplies } from "./thread/replies.js";
 import {
@@ -528,7 +528,7 @@ export function createFloatingPanel({
         "symbol",
         exit ? "lf-fp-exit" : "lf-fp-on-user",
         exit ? exit.label : onUserName,
-        { action: exit ? (exit.action ?? "close") : "on-me" },
+        { action: exit ? "close" : "on-me" },
       )}
       ?data-due=${!exit && onUser > 0}
       ?disabled=${Boolean(exit?.disabled)}
@@ -3176,9 +3176,7 @@ export function createFloatingPanel({
     const thread = threadByKey(key);
     if (!thread) return nothing;
     const waiting = opening.waiting;
-    return html`${quoteHead(thread)}${threadTodos(thread.userTodos, (id) =>
-        queueActions.done(queueItemKey({ kind: "todo", id })),
-      )}
+    return html`${quoteHead(thread)}
       <div class="lf-fp-messages lf-fp-outlet" data-lf-reflow="append"></div>
       ${
         waiting?.key === key
@@ -3264,13 +3262,6 @@ export function createFloatingPanel({
     const turned = chooseQueueTab("you");
     if (turned && showing({ view: "queue" })) paint();
     else open({ view: "queue" });
-  }
-  // On me standing open on the user's list, as the `m` walk asks where it arrives at a
-  // to-do (queue-walk.js), with focus left where the walk put it.
-  function showOnMe() {
-    const turned = chooseQueueTab("you");
-    if (!showing({ view: "queue" })) open({ view: "queue" }, { focus: false });
-    else if (turned) paint();
   }
   // The mark opens On me, or Threads where nothing waits on the user but a reply they
   // have not read, as the Threads mark it replaced opened on its Unread filter. It
@@ -3478,7 +3469,7 @@ export function createFloatingPanel({
   // when.
   /** @param {PanelQueueItem} item */
   const workOn = (item) =>
-    item.kind === "todo" && item.owner === "agent"
+    item.kind === "todo"
       ? {
           word: todoWord(item.todo.running),
           line: item.todo.running ? agentSays(item.todo.running.text) : null,
@@ -3738,12 +3729,6 @@ export function createFloatingPanel({
           }
         </button>`;
       })}`;
-    else if (item.offers?.done)
-      answers = html`<button
-        type="button"
-        ${offeredAction("symbol", "", undefined, { action: "done" })}
-        @click=${() => queueActions.done(queueItemKey(item))}
-      ></button>`;
     else if (inWords && thread) {
       discussHere = false;
       answers = html`<button
@@ -3766,10 +3751,9 @@ export function createFloatingPanel({
     const walked = leads && queueTab === "you" && walkedStop() === stop.key;
     // On me's card says only where its item stands over its question, after the name
     // of the group it stands alone in, and keeps that once it is answered, so the
-    // answer moves nothing. It names no kind: its question and answers say what it is,
-    // a to-do telling itself from a question by its Done. The user chose that on 26
-    // October 2026 over a kind word before every card's place, which repeated what the
-    // card's answers already say.
+    // answer moves nothing. It names no kind: its question and answers say what it is.
+    // The user chose that on 26 October 2026 over a kind word before every card's
+    // place, which repeated what the card's answers already say.
     if (card) {
       const about = [...new Set([group, where])].filter(Boolean);
       return html`<section
@@ -5213,7 +5197,6 @@ export function createFloatingPanel({
     pageComment,
     searchPage,
     doors,
-    showOnMe,
     showForSample,
     openThread,
     captureCurrentLocation,

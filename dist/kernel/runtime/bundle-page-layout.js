@@ -4053,7 +4053,7 @@ function createAnnotationInventory({ readObligations, placedAt, openThread, goTo
 				id: `on-me:${id}`,
 				text: "Waiting on me",
 				words: leafSays("Waiting on me"),
-				label: (item.source.kind === "todo" ? item.prompt.text : addressableLabel(target)) || null,
+				label: addressableLabel(target) || null,
 				activate: () => {
 					const items = placed();
 					const next = items.find((candidate) => candidate.id === id);
@@ -4143,7 +4143,7 @@ function createAnnotationInventory({ readObligations, placedAt, openThread, goTo
 			});
 		});
 		for (const todo of runtime.todos) {
-			if (todo.owner !== "agent" || todo.state !== "open" || todo.subject.kind !== "widget" && todo.subject.kind !== "element" || Number(todo.revision) > Number(runtime.currentRevision)) continue;
+			if (todo.state !== "open" || todo.subject.kind !== "widget" && todo.subject.kind !== "element" || Number(todo.revision) > Number(runtime.currentRevision)) continue;
 			if (activityAlreadyShown.has(`widget:${todo.subject.id}`)) continue;
 			const target = elementById(todo.subject.id);
 			const { running } = todo;
@@ -4675,11 +4675,6 @@ function actionWords(event, gesture) {
 		default: return `updated ${widget}`;
 	}
 }
-const TODO_ENDINGS = {
-	done: (title) => `marked ${title} done`,
-	failed: (title) => `marked ${title} failed`,
-	dropped: (title) => `dropped ${title}`
-};
 function gestureWords(event, gesture) {
 	if (event.token) return `${event.token} reaction on ${reactionPlace(event)}`;
 	switch (event.kind) {
@@ -4688,10 +4683,6 @@ function gestureWords(event, gesture) {
 			const thread = threadNamed(event.parent);
 			const name = thread ? quotedWords(threadName(thread), 48) : "a thread";
 			return `${event.kind === "resolve" ? "resolved" : "reopened"} ${name}`;
-		}
-		case "todo_end": {
-			const todo = runtime.todos.find(({ id }) => id === event.todo);
-			return TODO_ENDINGS[event.outcome](todo ? quotedWords(todo.title) : "a to-do");
 		}
 		default: return actionWords(event, gesture);
 	}
@@ -5708,29 +5699,16 @@ function createThreadActions({ post, withdraw, sendReaction, currentRevision, op
 const queueItemKey = (item) => JSON.stringify([item.kind, item.id]);
 const readQueues = readPart((root) => root.effective.queues);
 const readPlan = readPart((root) => root.effective.plan);
-function createQueueActions({ post, arrive }) {
-	return Object.freeze({
-		open(key) {
-			const reading = readQueues();
-			const item = [
-				...reading.on_user,
-				...reading.on_agent,
-				...reading.done
-			].find((candidate) => queueItemKey(candidate) === key);
-			return item?.offers.open ? arrive(item) : Promise.resolve(false);
-		},
-		done(key) {
-			const item = readQueues().on_user.find((candidate) => queueItemKey(candidate) === key);
-			if (!item?.offers.done) return null;
-			const delivery = post({
-				kind: "todo_end",
-				todo: item.id,
-				outcome: "done"
-			});
-			announce("Done");
-			return delivery;
-		}
-	});
+function createQueueActions({ arrive }) {
+	return Object.freeze({ open(key) {
+		const reading = readQueues();
+		const item = [
+			...reading.on_user,
+			...reading.on_agent,
+			...reading.done
+		].find((candidate) => queueItemKey(candidate) === key);
+		return item ? arrive(item) : Promise.resolve(false);
+	} });
 }
 
 //#endregion
@@ -7784,10 +7762,7 @@ function createApplication(dependencies) {
 		currentRevision: () => runtime.currentRevision,
 		open: openPageThread
 	});
-	const queueActions = createQueueActions({
-		post,
-		arrive: (item) => dependencies.arriveAtQueueItem(item)
-	});
+	const queueActions = createQueueActions({ arrive: (item) => dependencies.arriveAtQueueItem(item) });
 	const replyView = {
 		actions: threadActions,
 		wireInput: dependencies.wireInput,
@@ -7808,10 +7783,6 @@ function createApplication(dependencies) {
 			registerSurface: dependencies.registerReactSurface,
 			actions: threadActions
 		},
-		todos: { done: (id) => queueActions.done(queueItemKey({
-			kind: "todo",
-			id
-		})) },
 		read,
 		openThread: openPageThread,
 		landInThread: dependencies.landInThread
@@ -8118,7 +8089,7 @@ function createApplication(dependencies) {
 		openObligation(id) {
 			const item = readObligations().all.find((item) => item.id === id);
 			if (!item) return Promise.resolve(false);
-			if (hasObligationSource(item, "update") || hasObligationSource(item, "todo")) return queueActions.open(JSON.stringify([item.source.kind, item.id]));
+			if (hasObligationSource(item, "update")) return queueActions.open(JSON.stringify([item.source.kind, item.id]));
 			if (item.thread !== null && answeredInWords(item)) {
 				showHeld(item.thread);
 				return threadDestinations.openPageThread(item.message, { part: "message" });
@@ -8151,10 +8122,7 @@ const obligationActions = Object.freeze({
 	open: (...args) => app().openObligation(...args),
 	next: (...args) => app().nextObligation(...args)
 });
-const queueActions = Object.freeze({
-	open: (...args) => app().queueActions.open(...args),
-	done: (...args) => app().queueActions.done(...args)
-});
+const queueActions = Object.freeze({ open: (...args) => app().queueActions.open(...args) });
 const wireInput = (...args) => app().wireInput(...args);
 
 //#endregion
@@ -8587,7 +8555,6 @@ function ownedObligationControl(source, commandSource) {
 }
 function obligationWord(item) {
 	if (answeredInWords(item)) return "Reply";
-	if (hasObligationSource(item, "todo")) return "To-do";
 	const word = widgetWord(item.source.tag, elementById(item.source.id));
 	return word.charAt(0).toUpperCase() + word.slice(1);
 }
@@ -8600,7 +8567,6 @@ function answerWords(item) {
 	return String(source && formatter ? formatter(item.answer.value, source) : "").replace(/\s+/g, " ").trim();
 }
 function obligationEnding(item) {
-	if (hasObligationSource(item, "todo")) return leafSays(item.status === "withdrawn" ? "Dropped" : item.answer?.value === "failed" ? "Failed" : "Done");
 	if (item.status === "withdrawn") return leafSays("Withdrawn");
 	if (item.status === "answered_elsewhere") return leafSays("Answered elsewhere");
 	const words = answerWords(item);

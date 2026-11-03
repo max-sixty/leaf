@@ -35,9 +35,9 @@ def _served(events: tuple[dict, ...]) -> dict:
     }
 
 
-# Something of every kind on each list: a widget obligation, a question, a to-do the agent put
-# on the user, a reply that failed and a page action whose pickup failed are on On me;
-# a comment owed a reply and a to-do the agent has in hand are on On <agent>.
+# Something of every kind on each list: a widget obligation, a question, a reply that
+# failed and a page action whose pickup failed are on On me; a comment owed a reply and
+# a to-do the agent has in hand are on On <agent>.
 BOTH_SIDES = (
     {"kind": "comment", "text": "Weekly?"},
     {
@@ -94,15 +94,6 @@ BOTH_SIDES = (
         "turn": "turn-1",
         "item": "e5",
         "text": "Redrawing the chart",
-    },
-    {
-        "kind": "todo",
-        "author": "agent",
-        "agent": "Agent",
-        "session": "served-records",
-        "owner": "user",
-        "subject": {"kind": "page"},
-        "title": "Try the build on a phone",
     },
 )
 
@@ -190,14 +181,6 @@ def build() -> dict:
                 OBLIGATION_PAGE,
                 BOTH_SIDES,
             ),
-            # The same page once the user has marked their to-do done.
-            "user done": served_reading(
-                OBLIGATION_PAGE,
-                (
-                    *BOTH_SIDES,
-                    {"kind": "todo_end", "todo": "e11", "outcome": "done"},
-                ),
-            ),
             # Two to-dos the agent holds on a page it is working on: a start running
             # on one went quiet past the working grace, and the other's is current.
             "quiet start": served_reading(
@@ -209,7 +192,6 @@ def build() -> dict:
                             "author": "agent",
                             "agent": "Agent",
                             "session": "served-records",
-                            "owner": "agent",
                             "subject": {"kind": "page"},
                             "title": title,
                         }

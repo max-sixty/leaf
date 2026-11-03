@@ -1547,16 +1547,6 @@ def package_workspace(serve, *, before_reader="", primary=True):
             "parent": "opening",
             "text": "One paragraph.",
         },
-        {
-            "id": "proofread",
-            "kind": "todo",
-            "author": "agent",
-            "agent": "Agent",
-            "session": "proofread",
-            "owner": "user",
-            "subject": {"kind": "element", "id": "notes"},
-            "title": "Proofread announcement",
-        },
     ]:
         append_carried_log_record(serve.page_dir, event)
     return url
@@ -1581,62 +1571,12 @@ def test_package_answer_summary_waits_for_widget_completion(browser, serve):
     counts = workspace.locator(".counts")
     workspace.get_by_role("button", name="Which extras? Chat", exact=True).click()
     expect(workspace.locator("#extra-chat").get_by_role("checkbox")).to_be_checked()
-    expect(counts).to_have_text("3 waiting on me")
+    expect(counts).to_have_text("2 waiting on me")
     with sending(page, "complete the selected extras"):
         workspace.locator("#extras").get_by_role(
             "button", name="Done: these picks are complete", exact=True
         ).click()
-    expect(counts).to_have_text("2 waiting on me · 1 answered · Chat")
-
-
-def test_public_queue_commands_recheck_membership_and_restore_refusals(browser, serve):
-    page = open_page(browser, package_workspace(serve))
-    page.evaluate("async () => { window.api = await window.__lfWidgetApi(); }")
-    key = page.evaluate(
-        "api.queueItemKey(api.readQueues().on_user.find(item => item.id === 'proofread'))"
-    )
-    assert page.evaluate(
-        "api.queueActions.done(api.queueItemKey(api.readQueues().on_user.find(item => item.obligation?.source.kind === 'widget'))) === null"
-    )
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
-    page.evaluate("key => { window.doneDelivery = api.queueActions.done(key); }", key)
-    holding(page, held, 1, "a package Done awaiting admission")
-    assert page.evaluate(
-        "!api.readQueues().on_user.some(item => item.id === 'proofread')"
-    )
-    assert page.evaluate("api.readQueues().done.some(item => item.id === 'proofread')")
-    assert page.evaluate("key => api.queueActions.done(key) === null", key)
-    held[0].fulfill(
-        status=200,
-        content_type="application/json",
-        body=json.dumps(
-            {
-                "ok": False,
-                "final": True,
-                "attempt": held[0].request.post_data_json["attempt"],
-                "error": "Deliberate refusal",
-            }
-        ),
-    )
-    page.unroute("**/api/event")
-    assert page.evaluate("doneDelivery") is None
-    round_trip(page)
-    assert page.evaluate(
-        "api.readQueues().on_user.some(item => item.id === 'proofread')"
-    )
-    with sending(page, "a current package Done"):
-        page.locator("#workspace").get_by_role(
-            "button", name="Done", exact=True
-        ).click()
-    assert page.evaluate("key => api.queueActions.done(key) === null", key)
-    assert page.evaluate("key => api.queueActions.open(key)", key)
-    expect(page.locator("#notes")).to_be_focused()
-    assert [
-        event["kind"]
-        for event in events_model.read_events(serve.page_dir)
-        if event.get("todo") == "proofread"
-    ] == ["todo_end"]
+    expect(counts).to_have_text("1 waiting on me · 1 answered · Chat")
 
 
 def test_failed_primary_reader_restores_the_same_native_obligation_in_core(

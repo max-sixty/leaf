@@ -26,8 +26,8 @@ so an id is not a global identifier. Each kind's record schema is `$events.kinds
 | <a id="kind-receipt"></a>`receipt`           | page            | delivery receipt (`delivery.receive_batch`)                                     | `through`, the seq the receipt confirms                                                                                                                                | the complete delivery of the log through `through` reached its durable consumer; the greatest `through` is the acknowledgement cursor                                                         |
 | <a id="kind-note"></a>`note`                 | agent           | `leaf page stamp`                                                               | `version`, `revision`, changelog `text`, `restated`, `settles` (the `report` ids it answers and the `todo` ids its `--completes` ends)                                 | maps a public version to an immutable revision, naming the decisions it takes back                                                                                                            |
 | <a id="kind-error"></a>`error`               | page            | the runtime                                                                     | `text`                                                                                                                                                                 | a failure the page reported in front of the user; the agent hears it as a report                                                                                                              |
-| <a id="kind-todo"></a>`todo`                 | agent           | `leaf task create`, or a reply's `todo` (`leaf thread reply --todo`)            | `owner` (`agent`, or `user` with `--on user`); `subject` (a widget, another element, or the page); `title`; server-stamped `revision` on a widget to-do                | opens work the agent owes, or a to-do on the user (`todos.py`)                                                                                                                                |
-| <a id="kind-todo_end"></a>`todo_end`         | agent or user   | `leaf task end`, or a to-do's Done (`POST /api/event`)                          | `todo`, an open to-do's id or a question's obligation id; `outcome` (`done`, `failed` or `dropped`); optional `detail`                                                 | ends a to-do, or retires a question asked in words without answering it (`todos.py`)                                                                                                          |
+| <a id="kind-todo"></a>`todo`                 | agent           | `leaf task create`, or a reply's `todo` (`leaf thread reply --todo`)            | `subject` (a thread, a widget, another element, or the page); `title`; server-stamped `revision` on a widget to-do                                                     | opens work the agent owes (`todos.py`)                                                                                                                                                        |
+| <a id="kind-todo_end"></a>`todo_end`         | agent           | `leaf task end`                                                                 | `todo`, an open to-do's id or a question's obligation id; `outcome` (`done`, `failed` or `dropped`); optional `detail`                                                 | ends a to-do, or retires a question asked in words without answering it (`todos.py`)                                                                                                          |
 | <a id="kind-start"></a>`start`               | agent           | `leaf task start`, or progress posted to an owed update                         | `item`, an owed update's event id or an open to-do's; `text`, the status line; `turn`                                                                                  | takes the item in hand until it ends or a `status` follows; the newest start on an item replaces the one before (`todos.py`)                                                                  |
 | <a id="kind-status"></a>`status`             | agent           | `leaf page open` and `leaf page close`, or the website harness at a turn's edge | `state` (`waiting` or `idle`)                                                                                                                                          | declares the page open for feedback or closed, and puts down every earlier start (`activity.declaration`, `todos.item_starts`)                                                                |
 | <a id="kind-plan"></a>`plan`                 | agent           | `leaf task plan`                                                                | `steps`, an outline of `{depth, title, state}` or `{depth, item}`                                                                                                      | replaces the agent's plan, which arranges to-dos and obligations without owning them (`plans.py`)                                                                                             |
@@ -90,8 +90,8 @@ and the anchor moves that depend on it land together.
 
 ## Undo
 
-The user may withdraw a resolve, unresolve, action, or Done on a to-do (the
-kinds `$events.kinds` marks `undoable`), and a reaction while nothing has answered it
+The user may withdraw a resolve, unresolve or action (the kinds `$events.kinds`
+marks `undoable`), and a reaction while nothing has answered it
 and its thread is unresolved. Spoken messages cannot be withdrawn; their writer deletes
 one by rewriting it to no words, which leaves it in place ("Messages"). An undo cannot
 itself be undone. The door refuses an `undoes` naming anything but an unwithdrawn
@@ -135,10 +135,10 @@ session writes neither field. Every reading
 names an agent's event through `schema.agent_name`, and the browser shows that name as
 served.
 
-Admission stamps `attention` when the event changes obligations or
-to-dos on the user, pending answers, work the agent has in hand and its inputs, or
-widget input whose active `x-state` verb declares `attention: true` (`$state`).
-`workflows.attention_reading` compares those readings before and
+Admission stamps `attention` when the event changes obligations, pending answers,
+work the agent has in hand and its inputs, or widget input whose active `x-state`
+verb declares `attention: true` (`$state`). `workflows.attention_reading` compares
+those readings before and
 after the gesture, and the decision survives later replies, versions and to-do endings,
 so a cancellation delivered to the agent stays input after the work it withdrew ends.
 Reports and errors always carry attention, and agent messages never do. A user's edit

@@ -62,8 +62,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   }
   /* The rail cannot trap a raised item below the page paint it summons. Only the item
      under pointer or focus crosses that paint, and the obligation the user stands in,
-     whose question shows at rest beside the location ring (base.css), which ran through
-     it; the full-page toolbar stays at rest. */
+     whose marker stands across the location ring where the decision reaches the rail
+     (pr-walkthrough's approval at 1280px); the full-page toolbar stays at rest. */
   .lf-margin-projection {
     z-index: auto;
   }
@@ -94,7 +94,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   /* Placement fits the finished thread before typing: the frame reserves the card's
      header and reply rows around the editor, and is at least as wide as the card
      (`--thread-card-min`), so the card Send opens stands in the frame and grows out of
-     the field (thread-preview.js, `followCard`). Only the field paints; the
+     the field (box-motion.js, `drawnAt`). Only the field paints; the
      transparent rows neither take document flow nor intercept presses. Its tracks
      shrink into that frame, and attached images hang outside it. */
   .lf-fab-bar:not([data-lf-target-only], [data-lf-presentation="inline"]) {

@@ -211,7 +211,7 @@ def test_the_agent_verifier_opens_news_arriving_after_an_earlier_notice(browser)
         pause=lambda seconds: page.wait_for_timeout(seconds * 1000),
     )  # fmt: skip
     answer = {"parent": "comment", "id": "answer", "ts": "2026-10-08T09:00:00Z"}
-    shown = journey.await_reply_shown(journey.BrowserEnd(session), answer)
+    shown = journey.await_reply_shown(journey.BrowserEnd(session, None), answer)
     assert shown["by"] == "message"
     assert page.locator(".lf-thread-news").count() == 0
 

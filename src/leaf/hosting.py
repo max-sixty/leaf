@@ -61,6 +61,7 @@ from .service import (
     prepare_claim,
     same_claim,
 )
+from .session_runtime import select_checkout
 
 if TYPE_CHECKING:
     from .record_types import ServiceRecord
@@ -567,15 +568,16 @@ def cmd_serve(
 
     lease = None
     httpd = None
-    delivery = (
-        harness.preparing_delivery()
-        if acquire and not persistent and harness is not None and handshake is None
-        else contextlib.nullcontext()
-    )
+    delivery = contextlib.nullcontext()
+    if acquire and not persistent and harness is not None:
+        prepared_claim = prepared_claim or prepare_claim(harness, page_dir)
+        if handshake is None:
+            # The serve takes the page in this process, so it selects its Leaf
+            # before it prepares delivery (`session_runtime.select_checkout`).
+            select_checkout(harness.session)
+            delivery = harness.preparing_delivery()
     try:
         with delivery, page_locked(page_dir):
-            if acquire and not persistent and harness is not None:
-                prepared_claim = prepared_claim or prepare_claim(harness, page_dir)
             previous_service = service = read_service(page_dir)
             with PageTransaction(page_dir) as page:
                 claimed = (
@@ -760,15 +762,16 @@ def claim_and_start(
     lifetime and cwd rather than discovering its detached process's ancestry.
     """
     harness = claim_harness(prepared_claim) if prepared_claim else session_harness()
-    delivery = (
-        harness.preparing_delivery()
-        if not persistent and harness is not None and prepared_claim is None
-        else contextlib.nullcontext()
-    )
+    claim = prepared_claim
+    delivery = contextlib.nullcontext()
+    if claim is None and not persistent and harness is not None:
+        claim = prepare_claim(harness, page_dir)
+        # The start takes the page in this process, so it selects its Leaf before
+        # it prepares delivery (`session_runtime.select_checkout`), as a detached
+        # preview's launcher did before preparing the claim it hands over.
+        select_checkout(harness.session)
+        delivery = harness.preparing_delivery()
     with delivery:
-        claim = prepared_claim or (
-            prepare_claim(harness, page_dir) if not persistent and harness else None
-        )
         try:
             with _starting_server(
                 page_dir, host, persistent, harness=harness, acquire=True, claim=claim

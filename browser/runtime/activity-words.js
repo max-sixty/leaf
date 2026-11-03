@@ -445,8 +445,8 @@ const WITHOUT_QUEUES = new Set(["broken", "refused", "faulted", "unreachable"]);
 // publication's introduction and links, with which the explanation ends.
 /** @param {Status} status @param {Queues} queues @param {string} agent */
 export function statusModel(status, queues, agent) {
-  const { kind, tone, summary, asks = false, publication = null } = status;
-  let { explanation, adds } = status;
+  const { kind, tone, summary, adds, asks = false, publication = null } = status;
+  let { explanation } = status;
   const explanationParts = [...(status.explanationParts ?? textParts(explanation))];
   const addsParts = [...(status.addsParts ?? textParts(adds))];
   const counted = WITHOUT_QUEUES.has(kind) ? [] : queueWords(queues, agent);

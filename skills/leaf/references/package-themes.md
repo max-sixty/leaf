@@ -168,7 +168,7 @@ with the page. To restyle one of them alone, name it by its part:
 Tokens set on a part change that surface alone, whether a theme's sheet or the page's
 own CSS sets them: `[part~="card"] { --paper: #fffdf5; --r-l: 4px; }` gives thread
 cards their own ground and corners. Each part resolves the chrome's fonts again
-(`--font-*`, `base.css`), so a face or rung set on it, such as `--sans` or `--t-5`,
+(`--font-*`, `styles/tokens.css`), so a face or rung set on it, such as `--sans` or `--t-5`,
 reaches every word the surface shows. Other values Leaf derives on the root keep the
 root's reading on a part, such as the focus ring and link underline, which follow the
 root's `--accent`, and the raise shadows, which follow its `--shade`; set

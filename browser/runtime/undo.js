@@ -12,17 +12,18 @@
    `z` says what it takes and how long ago that was made, in the command reference, the
    floating panel's menu row and the notice its undo leaves ("Undo: resolved “Rollout
    safety” · 3d ago", then "Undid: resolved “Rollout safety” · 3d ago"), in
-   every tab and after a reload. A thread goes by its name as it stands now, a to-do by
-   its title and a reaction by where it stands, all of
-   which the page already holds. An action's ids are words only in the document it was
-   made in, so the server serves what the head did in that document's words
-   (`gesture`, `GestureWords.gesture`), and the widget goes by its name on this page.
+   every tab and after a reload. A thread goes by its name as it stands now, a rewrite
+   by the words it replaced, a to-do by its title and a reaction by where it stands, all
+   of which the page already holds. An action's ids are words only in
+   the document it was made in, so the server serves what the head did in that
+   document's words (`gesture`, `GestureWords.gesture`), and the widget goes by its
+   name on this page.
    An exact control's older entry carries no such reading, so its undo names only the
    widget. The age is the gesture's own `ts`, worded by the page's one clock (`ago`).
 
    `z` leaves the user at what it takes back, the gesture's place: the thread a
-   settlement or reaction is in, the message holding a widget an agent sent, or the
-   element changed. A to-do's Done changes only the leaf's own rows, which stand in
+   settlement or reaction is in, the message a rewrite changed, the message holding a
+   widget an agent sent, or the element changed. A to-do's Done changes only the leaf's own rows, which stand in
    front of the user, so it has none. A press reaches the place one of three ways:
 
    - Where the user sees it, the press takes the gesture there.
@@ -85,7 +86,7 @@ import { eventSource } from "./pointer.js";
 import { raiseError } from "./errors.js";
 
 /** @template E
- * @typedef {E extends unknown ? Pick<E, Extract<keyof E, "id" | "kind" | "attempt" | "token" | "anchor" | "parent" | "widget" | "todo" | "outcome" | "ts">> : never} GestureFields
+ * @typedef {E extends unknown ? Pick<E, Extract<keyof E, "id" | "kind" | "attempt" | "token" | "anchor" | "parent" | "message" | "text" | "widget" | "todo" | "outcome" | "ts">> : never} GestureFields
  */
 /** The fields a withdrawal reads, shared by an admitted event and a locally drawn gesture.
  * @typedef {import("../types/contract.js").CompleteUnion<GestureFields<ReturnType<typeof import("./thread/state.js").allThreads>[number]["root"] | import("./pending/dispatch.js").UndoCandidate | import("./framework/snapshot.js").Immutable<import("../types/domain.js").Event | import("../types/domain.js").Message>>>} UndoEvent
@@ -147,6 +148,14 @@ function gestureWords(event, gesture) {
       const name = thread ? quoted(threadName(thread), 48) : "a thread";
       return `${event.kind === "resolve" ? "resolved" : "reopened"} ${name}`;
     }
+    case "edit": {
+      // By the words taking it back gives the message again, which the user wrote.
+      const message = threadNamed(event.message)?.msgs.find(
+        ({ id }) => id === event.message,
+      );
+      const was = message?.edited?.id === event.id ? message.edited.was : null;
+      return `${event.text ? "edited" : "deleted"} ${was ? quoted(was, 48) : "a message"}`;
+    }
     case "todo_end": {
       const todo = runtime.todos.find(({ id }) => id === event.todo);
       return TODO_ENDINGS[event.outcome](todo ? quoted(todo.title) : "a to-do");
@@ -156,12 +165,23 @@ function gestureWords(event, gesture) {
   }
 }
 
-// Where taking `event` back shows on the page: the thread it settled or reacted in, a
-// widget an agent sent in a message (its message is its place), or the element it
-// changed. A to-do's Done changes only the leaf's own rows, which stand
-// in front of the user, so it has no place.
+// Where taking `event` back shows on the page: the thread it settled or reacted in, the
+// message a rewrite changed, a widget an agent sent in a message (its message is its
+// place), or the element it changed. A to-do's Done changes only the leaf's own rows,
+// which stand in front of the user, so it has no place. A rewrite changes only its
+// message's words, so the thread's passage or marker in view doesn't show it.
 /** @param {UndoEvent} event @returns {UndoPlace | null} */
 function placeOf(event) {
+  if (event.kind === "edit")
+    return {
+      thread: null,
+      message: event.message,
+      nodes: [
+        ...document.querySelectorAll(
+          `.lf-msg[data-event="${CSS.escape(event.message)}"]`,
+        ),
+      ],
+    };
   // A reaction in a thread is a reply naming the message it reacts to.
   if (event.kind === "resolve" || event.kind === "unresolve" || event.kind === "reply")
     return { thread: event.parent ? threadIdNamed(event.parent) : null, nodes: [] };

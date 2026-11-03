@@ -2,6 +2,7 @@
 marked with a bar and walked with `h`, and where the agent is at work while it works
 (change-walk.js, margin-bars.js)."""
 
+import re
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -163,6 +164,66 @@ def test_a_change_ends_where_a_disclosure_does(browser, serve, fold):
     expect(
         page.locator('[data-lf-margin-for="d"] [data-lf-kinds~="change"]')
     ).to_be_visible()
+
+
+def test_a_paragraph_removed_is_a_change_at_its_gap(browser, serve):
+    """A paragraph removed with nothing in its place is a change like any other: its bar
+    is the change bar at zero blocks' length, in the gap; its entry, a raised press,
+    stands by the block after the gap and outlines the gap under the pointer; the walk
+    stops there; and its press opens a card over what follows holding the words it took
+    out, while the page under the card holds still."""
+    url = live_url(serve(PAGE))
+    d = serve.page_dir
+    revise(
+        d,
+        ('<p id="c">Gamma stays as it was.</p>\n', ""),
+        ("Alpha stays as it was.", "Alpha reads another way."),
+    )
+    page = open_page(browser, url)
+    compare_with(page, 1)
+    page.keyboard.press("Escape")
+    expect(page.locator("main .lf-ins-block")).to_have_count(1)
+    gap = page.locator('.lf-change-bar[data-gap="before"][data-for="d"]')
+    expect(gap).to_have_count(1)
+    between = page.evaluate(
+        """() => {
+          const box = (s) => document.querySelector(s).getBoundingClientRect();
+          const [b, d, gap] = [box('#b'), box('#d'), box('.lf-change-bar[data-gap]')];
+          return gap.top >= b.bottom - 1 && gap.bottom <= d.top + 1 && gap.height > 0;
+        }"""
+    )
+    assert between, "the removal's bar doesn't stand in the gap it left"
+    removal = page.locator('[data-lf-margin-for="d"] [data-lf-kinds~="change"]')
+    expect(removal).to_have_css("border-top-width", "2px")
+    expect(removal).not_to_have_css("box-shadow", "none")
+    for expected in ("#a", "#d", "#a"):
+        page.keyboard.press("h")
+        expect(page.locator(expected)).to_be_focused()
+    page.keyboard.press("Escape")
+
+    removal.hover()
+    outline = page.locator(".lf-change-outline")
+    expect(outline).to_be_visible()
+    assert page.evaluate(
+        """() => {
+          const box = (s) => document.querySelector(s).getBoundingClientRect();
+          const [b, d, round] = [box('#b'), box('#d'), box('.lf-change-outline')];
+          return round.top <= b.bottom && round.bottom >= d.top - 1;
+        }"""
+    ), "the outline doesn't stand round the gap"
+
+    before = page.locator("#d").bounding_box()
+    removal.click()
+    card = page.locator("#lf-change-card")
+    expect(card).to_be_visible()
+    expect(removal).to_have_attribute("aria-expanded", "true")
+    expect(card.locator(".lf-change-card-head")).to_have_text(
+        re.compile(r"^1 paragraph removed · v1 → ")
+    )
+    expect(card.locator("del")).to_have_text("Gamma stays as it was.")
+    assert page.locator("#d").bounding_box() == before
+    page.keyboard.press("Escape")
+    expect(card).to_have_count(0)
 
 
 def _comment_on(d, section, words, revision=1):

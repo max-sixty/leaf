@@ -996,6 +996,15 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   color: var(--lf-entry-ink, var(--ink-2));
   box-shadow: none;
 }
+/* A change's entry opens its card, a disclosure, but wears an action's raised face, so
+   the one press beside a change reads as a press (margin-bars.js); the user chose it on
+   3 November over the flatter disclosure face. */
+.lf-margin-face[data-lf-behavior="disclosure"][data-lf-kinds="change"] {
+  border-width: 2px;
+  border-color: var(--border-2);
+  color: var(--lf-entry-ink, var(--ink));
+  box-shadow: var(--lf-entry-lift);
+}
 .lf-margin-face[data-lf-behavior="status"] {
   border-color: var(--rule);
   color: var(--lf-entry-ink, var(--ink-2));

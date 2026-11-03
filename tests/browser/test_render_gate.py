@@ -1181,8 +1181,8 @@ def test_a_pane_compares_its_words_without_its_opaque_children_rendered_data(
         "</pre></lf-diff></div><footer>Tests not run</footer></lf-pane>",
     )
     page = open_page(browser, live_url(serve(source, packages=("diff", "file-tree"))))
-    # The pane's prose, without its opaque children's rendered data, owns the inline
-    # explanation of a revision.
+    # The pane's prose, without its opaque children's rendered data, owns what its
+    # change's card says of a revision.
     stamp_page(
         serve.page_dir,
         source.replace(">Patch</header>", ">xxx  </header>").replace(
@@ -1194,14 +1194,13 @@ def test_a_pane_compares_its_words_without_its_opaque_children_rendered_data(
     compare_with(page, 1)
     change = page.locator('[data-lf-margin-for="code"] [data-lf-kinds~="change"]')
     change.click()
-    expect(page.locator("#code .lf-version-inline-deletion del")).to_have_text(
-        "Patch Tests not run"
-    )
-    assert page.evaluate(
-        "() => [...CSS.highlights.get('lf-version-insert') ?? []].map(range => range.toString())"
-    ) == ["xxx  ", "  yyy"]
-    expect(page.locator("#patch .lf-version-inline-deletion")).to_have_count(0)
+    card = page.locator("#lf-change-card")
+    expect(card.locator("del")).to_have_text("Patch Tests not run")
+    expect(card.locator("ins")).to_have_text(re.compile(r"^\s*xxx\s+yyy\s*$"))
+    expect(card).not_to_contain_text("diff --git")
+    expect(card).not_to_contain_text("UNCHANGED DRAWING")
     change.click()
+    expect(card).to_have_count(0)
     expect(page.locator("#code > header")).to_have_text("xxx")
 
 

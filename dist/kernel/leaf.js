@@ -9254,8 +9254,8 @@ function createObligationView({ prepareNavigationStep, arrive, openPageThread, f
 
 //#endregion
 //#region runtime/change-walk.js
-const start = (change) => change[0];
-const currentChange = (list, origin = currentLocationOrigin()) => origin?.kind === "current-location" ? list.find((change) => change.some((block) => renderedUnder(origin.node, block))) ?? null : null;
+const start = (change) => change.at;
+const currentChange = (list, origin = currentLocationOrigin()) => origin?.kind === "current-location" ? list.find((change) => (change.blocks.length ? change.blocks : [change.at]).some((block) => renderedUnder(origin.node, block))) ?? null : null;
 const position = () => {
 	const list = comparisonChanges();
 	const base = comparisonBase();

@@ -20,7 +20,7 @@
 
     "runtime/anchor-travel.js": "ec4f63fec7bb07f608c3c402b012d7e9f9b372a01caddd17ec7dc8d707ff23c5",
 
-    "runtime/annotation-inventory.js": "f85cda64cdf583a005bab2dd5e14983763d8ee2a55b26962d336b3bf359f5b87",
+    "runtime/annotation-inventory.js": "b61426d45d5b55dfa0de49505b91933bb541891d47f02b89015f39fa9ed5f26b",
 
     "runtime/annotation-overlay/anchor-paint.js": "3ead2423eb5280061cccc4f6cbb1706f1884a8637caa21d64aa6df36a129340d",
 
@@ -44,7 +44,7 @@
 
     "runtime/annotation-overlay/margin-placement.js": "7eb32b30afc9432946f2ecd3ff60535ab3c1ff4ed4646fca1f5445bffb91de22",
 
-    "runtime/annotation-overlay/margin-projection.js": "8ebc4ffcb9a43c6e0059fb547fd0010ea8a54d70cc5f651ab90b11deab1caae4",
+    "runtime/annotation-overlay/margin-projection.js": "0f203b25353368d021b039bb722df31f4b176bd059ec541fe8a2c116952d5c96",
 
     "runtime/annotation-overlay/surface-grip.js": "fcaae3d4a8967c133989238e9a284830e72fda427d2cf71ec6919d394e18fd00",
 
@@ -72,7 +72,7 @@
 
     "runtime/carry.js": "7f2cffd6a3e7a9c877dbfefc76afe78e466400b5551cf8395f44d6c2155915fc",
 
-    "runtime/change-walk.js": "d2f78a628550cd297e521297b7d66acf22fbcd1f5afdf78b48d6e679e5c01eeb",
+    "runtime/change-walk.js": "88fb607e5ed9a76af9e9d2751005301109c027e10c727e1f3674802f3e360b3e",
 
     "runtime/check-api.js": "46d7c9a230246ca35427b954912c8da3c98115a00aaa52d8d562f4885647bac2",
 
@@ -264,7 +264,7 @@
 
     "runtime/keyboard/page.js": "4dbe57e03c017452d898e8043ae6fc614bbf571a7bba6905ed36d767bc4e8dde",
 
-    "runtime/keyboard/register.js": "b1ee127ef099ccb462992bcf9fa75af56573290a66f1422aefa773d77a6a2bc7",
+    "runtime/keyboard/register.js": "7bcd85745a1b6b725baa11cfa60e315b172c4cb3eb611256045a3076955023f2",
 
     "runtime/keyboard/scopes.js": "4989842c2fdfa345ece3afcad3b68fc8fa48d8d8ce810b4b774bce72e740c84d",
 
@@ -286,7 +286,7 @@
 
     "runtime/llm-api.js": "a1d45811caba7e683fca30326d7a5b0c6f483e6f90067d35e138f822b38780c1",
 
-    "runtime/margin-bars.js": "b960fe7980cd4179ed620c4e0285732ba770ef27404312a1e2bb572da64063d7",
+    "runtime/margin-bars.js": "296797ed9f7c37d62a5e95d75c065bd1a744a6f08831ffa460f344402f258b2c",
 
     "runtime/margin-map-model.js": "942b6caaba45dc8744c8164b631d1663875790ef71f0d56cf3926c2312a3b455",
 
@@ -446,7 +446,7 @@
 
     "runtime/storage.js": "bea6e37345b37a51c14ad0f2b51a73bf12be33f81d0ec5ab0ed6d557bfccaa8b",
 
-    "runtime/stylesheets.js": "8f1a41e66c8fed4cac331f2c8135769c8eb9823d8e59e90d8110f35c72a0e131",
+    "runtime/stylesheets.js": "3af76c27c848f9d3154dbe5eada6c3390d3995fbcc70c00762e783f0f1c97dfa",
 
     "runtime/syntax-languages.js": "13f24d02ff634d2c84400b12b28952256cc4dd79479f0d6948b979343bfd78df",
 
@@ -538,7 +538,7 @@
 
     "runtime/version-signal.js": "2fd7de64264ad0318dbb2e7e8e44ec4a576f84c4f8f128e240f57f595dbedbeb",
 
-    "runtime/version.js": "11b1756debe92050992bf36a2a1d5409d59bc1ebf5c5511af4f09d73103994bf",
+    "runtime/version.js": "cf4b18dad0336082438afea459d1f129b6284dd4997e78ccfc2b197f02b7c923",
 
     "runtime/video-controls.js": "edeb26d5b544ecd5a1099a06146a6ce10baf214be6c172c66abe1fe535ec8f47",
 

@@ -3653,16 +3653,15 @@ def test_a_thread_whose_quote_was_rewritten_keeps_its_words(browser, serve):
     expect(head.locator(".lf-anchor-status")).to_have_text("Changed")
 
 
-def test_a_changed_block_shows_an_inline_diff_against_the_base_version(browser, serve):
-    """The other half of a comparison is one inline reading of what changed.
+def test_a_change_opens_what_it_replaced_in_a_card_over_it(browser, serve):
+    """The other half of a comparison is what each change replaced, on request.
 
-    The Change margin entry is a disclosure per change, a run of changed blocks with no
-    unchanged one between them, which opens and closes together. Its press inserts
-    dropped text at each aligned boundary and highlights added words in the current
-    prose, so the user need not compare the paragraph with a second copy underneath. Rewritten
-    sentences stay whole; a local edit is refined to its words. Generated historical
-    words stay outside the authored passage: the existing comment remains attached and
-    selection still reads the current version alone.
+    The Change margin entry is a disclosure per change, a hunk of the block diff, which
+    opens one card over the change: the words a block that kept its id lost, struck, and
+    the words it gained, tinted, then the change's other blocks as the page shows them.
+    Rewritten sentences stay whole; a local edit is refined to its words. The card stands
+    in the chrome, so the page under it does not move, the existing comments stay
+    attached and selection still reads the current version alone.
 
     The authored pair supplies the contrasts: one rewritten paragraph with a surviving
     and a replaced sentence, and the new paragraph after it, which make one change; a
@@ -3673,112 +3672,83 @@ def test_a_changed_block_shows_an_inline_diff_against_the_base_version(browser, 
     expect(page.locator("main .lf-ins-block")).to_have_count(5)
 
     # Nothing stands open until a user asks: the marks are the whole first reading.
-    expect(page.locator(".lf-version-inline-label")).to_have_count(0)
+    card = page.locator("#lf-change-card")
+    expect(card).to_have_count(0)
     marks = "() => CSS.highlights.get('lf-mark')?.size ?? 0"
     assert page.evaluate(marks) == 2
     rewritten = page.locator(
         '[data-lf-margin-for="ret-cost-body"] [data-lf-kinds~="change"]'
     )
     expect(rewritten).to_have_attribute("aria-expanded", "false")
-    # A disclosure says what it holds. "Change" alone reports a fact and promises no
-    # press, which is what the margin entry said before it had one to make.
-    expect(rewritten.locator(".lf-margin-entry-context")).to_have_text("v1 → v2")
+    expect(rewritten).to_have_attribute("aria-controls", "lf-change-card")
+    # A disclosure says what it holds: what the change did, in blocks.
+    expect(rewritten.locator(".lf-margin-entry-context")).to_have_text(
+        "1 paragraph edited, 1 added since v1"
+    )
 
-    # Page Map carries the same provenance on each change's row, which says where the
-    # change starts and how many blocks follow it. The account stays distinct from the
-    # versions, and both remain searchable away from the passage.
+    # Page Map carries the same account on each change's row, with the versions its
+    # card compares, and both remain searchable away from the passage.
     page.keyboard.press("g")
     page.keyboard.press("Shift+p")
     sheet = page.get_by_role("dialog", name="Page Map", exact=True)
     mapped = sheet.locator('[data-lf-map-item^="change:"]').filter(has_text="v1 → v2")
     expect(mapped).to_have_count(3)
-    paragraph = mapped.filter(has_text="paragraph and 1 more changed · Two years")
+    paragraph = mapped.filter(has_text="1 paragraph edited, 1 added · Two years")
     expect(paragraph).to_have_count(1)
-    expect(paragraph.locator(".lf-page-map-action-label-word")).to_have_text(
-        re.compile(r"^paragraph and 1 more changed · ")
-    )
     expect(paragraph.locator(".lf-page-map-action-context")).to_have_text("v1 → v2")
     expect(paragraph).to_have_attribute(
         "aria-label", re.compile(r"^Open change: .+, v1 → v2$")
     )
     page.keyboard.press("Escape")
+    before = page.locator("#ret-cost-body").bounding_box()
     rewritten.click()
 
-    # One current passage with no visible label mixed into it. Its quiet label names the
-    # controlled comparison for assistive reading. The deletion sits where the
-    # replacement begins; the current sentence stays in its authored DOM.
-    label = page.locator("#ret-cost-body > .lf-version-inline-label")
-    expect(label).to_have_text("v1 → v2")
-    expect(label).to_have_class(re.compile(r"\blf-quiet\b"))
-    expect(label).to_have_css("clip-path", "inset(50%)")
+    # One card over the change; the page under it holds still.
+    expect(card).to_be_visible()
     expect(rewritten).to_have_attribute("aria-expanded", "true")
-    expect(rewritten).to_have_attribute(
-        "aria-controls",
-        "lf-version-inline-ret-cost-body lf-version-inline-ret-cost-keep",
+    assert page.locator("#ret-cost-body").bounding_box() == before
+    expect(card.locator(".lf-change-card-head")).to_have_text(
+        "1 paragraph edited, 1 added · v1 → v2"
     )
-    struck = page.locator("#ret-cost-body > .lf-version-inline-deletion del")
+    struck = card.locator("del")
     expect(struck).to_have_count(1)
     expect(struck).to_contain_text("Both questions were answered")
     expect(struck).not_to_contain_text("Two years of incident write-ups")
-    inserted = page.evaluate(
-        "() => [...CSS.highlights.get('lf-version-insert')].map(r => r.toString())"
-    )
-    assert len(inserted) == 1, inserted
-    assert inserted[0].strip().startswith("Aggregates supplied the rate"), inserted
-    assert "Two years of incident write-ups" not in inserted[0], inserted
-
-    # The press reports the move where the panel says a moment's news.
-    expect_panel_says(
-        page, "paragraph and 1 more changed since v1 · showing an inline diff from v1"
-    )
-
-    # The paragraph the revision added in the same change opened with it. It has no
-    # counterpart to show, so the inline label says that directly and the block keeps
-    # its all-new wash.
-    expect(page.locator("#ret-cost-keep > .lf-version-inline-label")).to_have_text(
-        "New since v1"
-    )
-    expect(page.locator("#ret-cost-keep .lf-version-inline-deletion")).to_have_count(0)
+    inserted = card.locator("ins")
+    expect(inserted).to_have_count(1)
+    expect(inserted).to_contain_text("Aggregates supplied the rate")
+    expect(inserted).not_to_contain_text("Two years of incident write-ups")
+    # The paragraph the revision added in the same change reads after it, whole.
+    expect(card).to_contain_text("Keep 5xx request logs for 120 days")
     expect(
         page.locator('[data-lf-margin-for="ret-cost-keep"] [data-lf-kinds~="change"]')
     ).to_have_count(0)
+    expect_panel_says(page, "1 paragraph edited, 1 added since v1 · showing the change")
 
-    # And the same inside a list item, where a sibling would be markup no <ol> may hold.
+    # One card at a time: a list item's change takes its place.
     step = page.locator(
         '[data-lf-margin-for="ret-steps-carve"] [data-lf-kinds~="change"]'
     )
     step.click()
-    expect(page.locator("#ret-steps-carve > .lf-version-inline-label")).to_have_text(
-        "New since v1"
-    )
-    expect_panel_says(page, "item changed since v1 · v1 had nothing here")
-    expect(
-        page.locator(
-            "main ol > .lf-version-inline-label, main ul > .lf-version-inline-label"
-        )
-    ).to_have_count(0)
+    expect(card.locator(".lf-change-card-head")).to_have_text("1 item added · v1 → v2")
+    expect(rewritten).to_have_attribute("aria-expanded", "false")
+    expect(step).to_have_attribute("aria-expanded", "true")
 
-    # The reading is the runtime's own words (.lf-ui), so the page's reading does not
-    # move under it: both threads keep the passages they quote, one of them inside the
-    # block now holding the inline comparison.
+    # The card is the runtime's own (.lf-ui), so the page's reading does not move under
+    # it: both threads keep the passages they quote.
     assert stranded_quotes(page) == []
     assert page.evaluate(marks) == 2
 
-    # The same press closes it, and stopping the comparison takes every inline part and
-    # highlight with the marks.
-    rewritten.click()
-    expect(page.locator("#ret-cost-body > .lf-version-inline-label")).to_have_count(0)
-    expect(page.locator("#ret-cost-keep > .lf-version-inline-label")).to_have_count(0)
-    expect(rewritten).to_have_attribute("aria-expanded", "false")
-    expect(page.locator(".lf-version-inline-label")).to_have_count(1)
+    # Escape closes it, and stopping the comparison takes the marks.
+    page.keyboard.press("Escape")
+    expect(card).to_have_count(0)
+    expect(step).to_have_attribute("aria-expanded", "false")
     compare_with(page, 1)
-    expect(page.locator(".lf-version-inline-label")).to_have_count(0)
     expect(page.locator("main .lf-ins-block")).to_have_count(0)
-    assert page.evaluate("() => CSS.highlights.has('lf-version-insert')") is False
 
 
-def test_an_inline_version_diff_uses_the_shared_authored_reading(browser, serve):
-    """A passage crossing element boundaries keeps one text and DOM reading."""
+def test_a_change_card_reads_the_shared_authored_reading(browser, serve):
+    """A passage crossing element boundaries keeps one text reading."""
     first = leaf_page(
         "Nested version passage",
         "<h1>Review</h1><aside id='note'>Careful<b>!</b> The old wording stood here.</aside>",
@@ -3794,18 +3764,14 @@ def test_an_inline_version_diff_uses_the_shared_authored_reading(browser, serve)
     change = page.locator('[data-lf-margin-for="note"] [data-lf-kinds~="change"]')
     change.click()
     expect(change).to_have_attribute("aria-expanded", "true")
-    assert page.locator("#note .lf-version-inline-deletion del").all_inner_texts() == [
-        "old",
-        "stood",
-    ]
-    inserted = page.evaluate(
-        "() => [...CSS.highlights.get('lf-version-insert')].map(r => r.toString())"
-    )
-    assert inserted == ["new", "stands"]
+    card = page.locator("#lf-change-card")
+    expect(card.locator("del")).to_have_count(2)
+    assert card.locator("del").all_inner_texts() == ["old", "stood"]
+    assert card.locator("ins").all_inner_texts() == ["new", "stands"]
 
 
-def test_an_inline_version_diff_indexes_astral_text_by_character(browser, serve):
-    """Astral text before an edit cannot shift its insertion and deletion ranges."""
+def test_a_change_card_aligns_astral_text_by_character(browser, serve):
+    """Astral text before an edit cannot shift its insertion and deletion runs."""
     first = leaf_page(
         "Unicode version passage",
         """
@@ -3826,17 +3792,19 @@ def test_an_inline_version_diff_indexes_astral_text_by_character(browser, serve)
     wording = page.locator('[data-lf-margin-for="wording"] [data-lf-kinds~="change"]')
     wording.click()
     expect(wording).to_have_attribute("aria-expanded", "true")
-    assert page.locator("#wording del").all_inner_texts() == ["old", "stood"]
-    assert page.evaluate(
-        "() => [...CSS.highlights.get('lf-version-insert')].map(r => r.toString())"
-    ) == ["new", "stands"]
+    # The adjacent edits share one change, and its card holds both.
+    card = page.locator("#lf-change-card")
+    expect(card.locator("del")).to_have_count(3)
+    assert [text.strip() for text in card.locator("del").all_inner_texts()] == [
+        "old",
+        "stood",
+        "keeps a trailing phrase",
+    ]
+    assert card.locator("ins").all_inner_texts() == ["new", "stands"]
 
-    # The adjacent edits share one change; its press opens both inline diffs.
-    expect(page.locator("#tail del")).to_have_text("keeps a trailing phrase")
 
-
-def test_a_state_only_version_change_does_not_offer_an_empty_text_diff(browser, serve):
-    """A moved block remains marked without promising an inline prose comparison."""
+def test_a_state_only_version_change_does_not_offer_an_empty_card(browser, serve):
+    """A moved block remains marked without promising a card of words."""
     first = leaf_page(
         "Moved card",
         """
@@ -3869,8 +3837,8 @@ def test_a_state_only_version_change_does_not_offer_an_empty_text_diff(browser, 
     expect(change).not_to_have_attribute("aria-expanded", re.compile(".*"))
     expect(change).not_to_have_attribute("aria-controls", re.compile(".*"))
     change.click()
-    expect(page.locator("#card .lf-version-inline-label")).to_have_count(0)
-    expect_panel_says(page, "card changed since v1")
+    expect(page.locator("#lf-change-card")).to_have_count(0)
+    expect_panel_says(page, "1 card changed since v1")
 
 
 def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
@@ -5522,7 +5490,7 @@ def test_a_revised_example_travels_between_its_own_versions(browser, serve):
     page.locator(
         '.lf-margin-entry:has(svg[data-lf-icon="change"]):visible'
     ).first.click()
-    expect_panel_says(page, " changed since v1")
+    expect_panel_says(page, "2 blocks edited since v1")
 
     # The threads the log opened, both still on their passages: one on a block the
     # revision rewrote, one on a block it never touched.

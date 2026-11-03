@@ -1,0 +1,130 @@
+/* @noformat Generated from node_modules/@awesome.me/webawesome/dist/styles/native.css, region "Checkboxes + Radios", by build/styles.mjs. */
+@scope (.choice) {
+  input[type='checkbox'],
+  label:has(input[type='checkbox']),
+  input[type='radio'],
+  label:has(input[type='radio']) {
+    display: inline-flex;
+
+    width: fit-content;
+
+    color: var(--wa-form-control-value-color);
+    font-family: inherit;
+    font-size: var(--wa-form-control-value-font-size);
+    font-weight: var(--wa-form-control-value-font-weight);
+    line-height: var(--wa-form-control-value-line-height);
+
+    user-select: none;
+    -webkit-user-select: none;
+
+    &,
+    + label {
+      cursor: pointer;
+    }
+
+    &:disabled,
+    &:has(:disabled) {
+      opacity: 0.5;
+
+      cursor: not-allowed;
+    }
+  }
+
+  input[type='checkbox'],
+  input[type='radio'] {
+    appearance: none;
+
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+
+    width: var(--wa-form-control-toggle-size);
+    height: var(--wa-form-control-toggle-size);
+    margin: 0;
+    margin-inline-end: 0.5em;
+
+    background-color: var(--wa-form-control-background-color);
+    border-color: var(--wa-form-control-border-color);
+    border-style: var(--wa-border-style);
+    border-width: var(--wa-form-control-border-width);
+
+    transition:
+      background var(--wa-transition-normal),
+      border-color var(--wa-transition-fast),
+      box-shadow var(--wa-transition-fast),
+      color var(--wa-transition-fast);
+    transition-timing-function: var(--wa-transition-easing);
+
+    &:focus-visible {
+      outline: var(--wa-focus-ring);
+      outline-offset: var(--wa-focus-ring-offset);
+    }
+  }
+
+  /* Checkbox */
+  input[type='checkbox'] {
+    --checked-icon-color: var(--wa-color-brand-on-loud);
+    --checked-icon-scale: 0.8;
+
+    border-radius: min(
+      calc(var(--wa-form-control-toggle-size) * 0.375),
+      var(--wa-border-radius-s)
+    ); /* min prevents entirely circular checkbox */
+
+    &:checked,
+    &:indeterminate {
+      color: var(--checked-icon-color);
+
+      background-color: var(--wa-form-control-activated-color);
+      border-color: var(--wa-form-control-activated-color);
+    }
+
+    &:checked::after,
+    &:indeterminate::after {
+      content: '';
+
+      width: var(--wa-form-control-toggle-size);
+      height: var(--wa-form-control-toggle-size);
+      scale: var(--checked-icon-scale);
+
+      background-color: currentColor;
+    }
+
+    &:checked::after {
+      mask: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc. --><path fill="currentColor" d="M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z"/></svg>')
+        center / 1em 1em no-repeat;
+    }
+
+    &:indeterminate::after {
+      mask: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" height="16" width="14" viewBox="0 0 448 512"><path d="M431 256c0 17.7-14.3 32-32 32H49c-17.7 0-32-14.3-32-32s14.3-32 32-32h350c17.7 0 32 14.3 32 32z"/></svg>')
+        center no-repeat;
+    }
+  }
+
+  /* Radio */
+  input[type='radio'] {
+    --checked-icon-color: var(--wa-form-control-activated-color);
+    --checked-icon-scale: 0.7;
+
+    color: transparent;
+
+    border-radius: 50%;
+
+    &:checked {
+      color: var(--checked-icon-color);
+
+      border-color: var(--wa-form-control-activated-color);
+    }
+
+    &:checked::after {
+      content: '';
+
+      aspect-ratio: 1;
+      width: 100%;
+      scale: var(--checked-icon-scale);
+
+      background-color: currentColor;
+      border-radius: 50%;
+    }
+  }
+}

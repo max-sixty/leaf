@@ -3815,30 +3815,50 @@ const threadPlace = (t, placedAt) => {
 };
 const inPageOrder = (threads, placedAt) => byRenderedOrder(threads, (t) => threadPlace(t, placedAt));
 let outlined = null;
-function pageOutline() {
+function readOutline() {
 	const key = [pageReadingVersion(), documentChanged()];
-	if (outlined?.key.every((part, index) => part === key[index])) return outlined.outline;
+	if (outlined?.key.every((part, index) => part === key[index])) return outlined;
 	const outline = Object.freeze(byRenderedOrder(pageParts("h1, h2, h3, h4, h5, h6"), (heading) => heading));
+	const heads = /* @__PURE__ */ new Map();
+	for (const heading of outline) {
+		const container = headed(heading);
+		const held = heads.get(container);
+		if (held) held.push(heading);
+		else heads.set(container, [heading]);
+	}
 	outlined = {
 		key,
-		outline
+		outline,
+		heads
 	};
-	return outline;
+	return outlined;
 }
+const pageOutline = () => readOutline().outline;
 const HEADERS = "header, hgroup";
 const headed = (heading) => {
 	const at = upFrom(heading);
 	return at?.matches(HEADERS) ? upFrom(at) : at;
 };
-function partOver(node, outline = pageOutline()) {
-	const heads = /* @__PURE__ */ new Map();
-	for (const heading of outline) if (renderedOrder(heading, node) < 0) heads.set(headed(heading), heading);
+function partOver(node) {
+	const { heads } = readOutline();
 	for (let at = upFrom(node); at; at = upFrom(at)) {
-		const heading = heads.get(at);
+		const heading = lastBefore(heads.get(at), node);
 		if (heading) return heading;
 		if (declaredName(at)) return at;
 	}
 	return null;
+}
+function lastBefore(headings, node) {
+	if (!headings) return null;
+	let low = 0;
+	let high = headings.length;
+	while (low < high) {
+		const middle = low + high >> 1;
+		const heading = headings[middle];
+		if (renderedOrder(heading, node) < 0) low = middle + 1;
+		else high = middle;
+	}
+	return headings[low - 1] ?? null;
 }
 const subjectLabel = (target) => addressableLabel(target) || addressableWord(target);
 function outlineSubjectFor(target, peers = [target], outline = pageOutline()) {
@@ -8533,15 +8553,15 @@ function declareThreadKeys(landIn, threadHere) {
 				touch: false,
 				keys: ["Enter"],
 				title: () => !threadInput(cardThread()) && resolutionControl(cardThread())?.matches(".lf-reopen") ? "reopen" : "reply",
-				get run() {
+				when: () => Boolean(threadInput(cardThread())) || Boolean(resolutionControl(cardThread())?.matches(".lf-reopen:not(:disabled, [aria-disabled=\"true\"])")),
+				run: () => {
 					const thread = cardThread();
 					const box = threadInput(thread);
-					if (box) return () => landIn({
+					if (box) landIn({
 						held: thread,
 						box
 					});
-					const control = resolutionControl(thread);
-					return control?.matches(".lf-reopen:not(:disabled, [aria-disabled=\"true\"])") ? () => control.click() : void 0;
+					else resolutionControl(thread)?.click();
 				}
 			},
 			{
@@ -8549,20 +8569,16 @@ function declareThreadKeys(landIn, threadHere) {
 				touch: false,
 				keys: ["r"],
 				title: () => resolutionControl(threadHere())?.matches(".lf-reopen") ? "reopen" : "resolve",
-				get run() {
-					const control = resolutionControl(threadHere());
-					return control?.matches(":not(:disabled, [aria-disabled=\"true\"])") ? () => control.click() : void 0;
-				}
+				when: () => Boolean(resolutionControl(threadHere())?.matches(":not(:disabled, [aria-disabled=\"true\"])")),
+				run: () => resolutionControl(threadHere())?.click()
 			},
 			{
 				id: "message.copy",
 				touch: false,
 				keys: ["Mod+c"],
 				title: "copy message as Markdown",
-				get run() {
-					const trigger = messageCopy(threadHere());
-					return trigger && getSelection()?.isCollapsed ? () => trigger.click() : void 0;
-				}
+				when: () => Boolean(messageCopy(threadHere()) && getSelection()?.isCollapsed),
+				run: () => messageCopy(threadHere())?.click()
 			}
 		]
 	});

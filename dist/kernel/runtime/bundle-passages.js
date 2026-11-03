@@ -1,4 +1,4 @@
-import { COLLAPSE, PAGE_PAINT_ATTRIBUTE, SAID, TEXT_BLOCK, UI_MARKS, closestAcross, excerptWords, inChrome, inUi, isElement, isHTML, isNode, isText, overIn, pageUpgraded, renderedOrder, renderedParent, renderedUnder, shadowHost, uiInside, under, upFrom } from "./bundle-portable.js";
+import { COLLAPSE, PAGE_PAINT_ATTRIBUTE, SAID, TEXT_BLOCK, UI_MARKS, closestAcross, excerptWords, inUi, isElement, isHTML, isNode, isText, overIn, pageUpgraded, renderedOrder, renderedParent, renderedUnder, shadowHost, uiInside, under, upFrom } from "./bundle-portable.js";
 import { decisionFor, declaredRoot, pageShadowRoots, readPart, refuseShadowRoot, registry, shadowRootsIn } from "./bundle-errors.js";
 import { reportPageError } from "./bundle-layer-client.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
@@ -109,7 +109,7 @@ const DATUM = "[data-lf-projection][data-lf-datum]";
 const showsWords = (block) => block.checkVisibility({ visibilityProperty: true });
 const LEAF_SURFACE = ".lf-chrome, [data-lf-runtime]";
 const leafSurface = (node) => isNode(node) ? closestAcross(node, LEAF_SURFACE) : null;
-const pageWords = (node) => Boolean(node) && !inChrome(node) && !inUi(node);
+const pageWords = (node) => inPage(node) && !inUi(node);
 const bareTextRefusal = (n) => {
 	const host = shadowHost(n.getRootNode());
 	const at = host ? `<${host.localName}${host.id ? ` id="${host.id}"` : ""}>` : "a module";
@@ -294,7 +294,7 @@ function textNodesUnder(root, reading = "says", boundary = null, format = "prose
 			breakBefore = false;
 			lineBefore = "";
 		}
-	}, boundary && ((child) => boundary(child, segments.length)), (ctx) => {
+	}, (child) => (root === document || root === root.ownerDocument?.body) && child.matches(".lf-chrome, [data-lf-runtime]") || (boundary?.(child, segments.length) ?? false), (ctx) => {
 		if (keeps(ctx)) {
 			breakBefore = true;
 			lineBefore = "\n";
@@ -310,15 +310,18 @@ function textNodesUnder(root, reading = "says", boundary = null, format = "prose
 }
 const elementById = (id, root = document) => {
 	if (id == null || root === null) return null;
-	const found = root === document ? document.getElementById(id) : root.querySelector(`[id="${CSS.escape(id)}"]`);
-	if (found) return found;
+	const page = root === root.ownerDocument?.body;
+	const accepts = (node) => node && (!page || !leafSurface(node) && authoredScope(node) === root);
+	const found = root === document ? document.getElementById(id) : [...root.querySelectorAll(`[id="${CSS.escape(id)}"]`)].find(accepts);
+	if (found && accepts(found)) return found;
 	for (const shadow of shadowRootsIn(root)) {
 		const inside = shadow.getElementById(id);
-		if (inside) return inside;
+		if (accepts(inside)) return inside;
 	}
 	return null;
 };
-const pageDocument = (doc = document) => doc.querySelector("body > main");
+const pageDocument = (doc = document) => doc.body;
+const inPage = (node) => under(node, pageDocument()) && !leafSurface(node);
 const isLayoutBox = (box) => getComputedStyle(box).getPropertyValue("--lf-layout-box").trim() === "1";
 const layoutBox = () => {
 	const main = document.querySelector("body > main");
@@ -326,7 +329,7 @@ const layoutBox = () => {
 	const parts = main.querySelector(":scope > [data-lf-views=\"parts\"]");
 	return [...main.children, ...[...parts?.children ?? []].flatMap((part) => [...part.children])].find((box) => box.checkVisibility() && isLayoutBox(box)) ?? main;
 };
-const authoredScope = (node) => closestAcross(node, ".lf-msg-body") ?? pageDocument();
+const authoredScope = (node) => closestAcross(node, ".lf-msg-body") ?? pageDocument(node?.ownerDocument ?? document);
 const elementFromPointAcross = (x, y) => {
 	let el = document.elementFromPoint(x, y);
 	for (let root; el && (root = declaredRoot(el));) {
@@ -552,8 +555,8 @@ let elementReadings = /* @__PURE__ */ new WeakMap();
 let readingVocabulary;
 let readingSettled;
 let watcher = null;
-const pageReads = (over) => !isElement(over) || READINGS.says(contextAt(over, null));
-const holdsSaid = (node) => isElement(node) && (node.matches("[data-lf-said]") || node.querySelector("[data-lf-said]") !== null);
+const pageReads = (over) => !isElement(over) || !leafSurface(over) && READINGS.says(contextAt(over, null));
+const holdsSaid = (node) => isElement(node) && !leafSurface(node) && (node.matches("[data-lf-said]") || node.querySelector("[data-lf-said]") !== null);
 const speaks = (node, read) => read && !(isElement(node) && chromeMark(node) === true) || holdsSaid(node);
 const changesTheReading = (record) => {
 	const { target } = record;
@@ -632,7 +635,7 @@ function readPage() {
 		});
 		breakBefore = false;
 		cellChains.push(ctx.cells);
-	}, null, (ctx) => {
+	}, (child) => child.matches(LEAF_SURFACE), (ctx) => {
 		if (keeps(ctx)) breakBefore = true;
 	});
 	const dynamicWords = /* @__PURE__ */ new Set();
@@ -802,8 +805,8 @@ function contextAround(text, segments, { before = 28, after = 28 } = {}) {
 	};
 }
 function pageParts(sel) {
-	return pageQueryAll(sel).filter((el) => !inChrome(el));
+	return pageQueryAll(sel).filter(inPage);
 }
 
 //#endregion
-export { DATUM, GENERATED, HEADING, LEAF_SURFACE, alignInlineText, alignText, authored, authoredScope, blockAt, contextAround, cut, elementById, elementFromPointAcross, elementOver, elementReading, fencePassageParts, fencedAt, fileModelsPassage, findQuote, findText, layoutBox, leafSurface, neighbourhood, pageBlocks, pageDocument, pageParts, pageQueryAll, pageReadingVersion, pageText, pageWords, pointAt, quoteFrom, rangeOf, readingFrom, renderRetired, says, segmentBlock, segmentsIn, sentenceUnits, settledAway, showsWords, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity, watchPassageRoot, wrote };
+export { DATUM, GENERATED, HEADING, LEAF_SURFACE, alignInlineText, alignText, authored, authoredScope, blockAt, contextAround, cut, elementById, elementFromPointAcross, elementOver, elementReading, fencePassageParts, fencedAt, fileModelsPassage, findQuote, findText, inPage, layoutBox, leafSurface, neighbourhood, pageBlocks, pageDocument, pageParts, pageQueryAll, pageReadingVersion, pageText, pageWords, pointAt, quoteFrom, rangeOf, readingFrom, renderRetired, says, segmentBlock, segmentsIn, sentenceUnits, settledAway, showsWords, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity, watchPassageRoot, wrote };

@@ -54,6 +54,10 @@ const openThreads = (placedAt) =>
     threadList().filter((thread) => !thread.resolved),
     placedAt,
   ).map((thread) => thread.id);
+// Whether the walk has anywhere to go, which the keys ask on every input: the open
+// threads' order is the walk's business, and sorting them for a count cost a sort of
+// every thread per input.
+const anyOpenThread = () => threadList().some((thread) => !thread.resolved);
 
 // The thread the walk stands on: the one the origin's current location is in,
 // wherever it is drawn. Its target, with the thread's card beside it, is at the thread,
@@ -264,7 +268,7 @@ export function createNavigation({ threadDestinations, placedAt }) {
     id: "thread.walk",
     // A walk needs a visible destination, not the complete saved inventory: local
     // sends are usable destinations while the first reading is still loading.
-    ready: () => savedReadingSettled() || openThreads(placedAt).length > 0,
+    ready: () => savedReadingSettled() || anyOpenThread(),
     touch: false,
     // A walk's letter names its category; Shift reverses it. The page's walks therefore
     // share one compact, repeatable grammar.
@@ -282,7 +286,7 @@ export function createNavigation({ threadDestinations, placedAt }) {
       },
     ],
     title: "threads",
-    when: () => openThreads(placedAt).length > 0,
+    when: anyOpenThread,
     repeat: true,
     travels: true,
     // The walk moves the user laterally: it is the surface it reaches through, rather

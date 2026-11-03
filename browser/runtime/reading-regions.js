@@ -57,7 +57,7 @@ import { skipped } from "./shown-box.js";
 import { pageScroller } from "./scrolling.js";
 import { reachReadingScroller } from "./reach.js";
 import { under, renderedUnder, renderedParent } from "./shadow.js";
-import { layoutBox, pageDocument } from "./passages.js";
+import { inPage, layoutBox } from "./passages.js";
 import { deepFocus, onCurrentLocation, pressing } from "./focus.js";
 
 /** @typedef {{id: string, host: Element & Partial<Pick<HTMLElement, "offsetWidth">>, body: Element, subject: string | null | undefined}} ReadingRegion
@@ -281,9 +281,9 @@ const actedAt = (at, arriving) => {
   const region = readingRegionFor(at);
   if (region) {
     recentRegionId = region.id;
-    if (under(region.host, pageDocument())) pageRegionId = region.id;
+    if (inPage(region.host)) pageRegionId = region.id;
   } else if (
-    (at === document.body || under(at, pageDocument())) &&
+    inPage(at) &&
     !(arriving && at === document.body && pressing()?.released === false)
   )
     recentRegionId = pageRegionId = null;
@@ -312,13 +312,13 @@ export const recentReadingRegion = () => readingRegion(recentRegionId);
 const shown = (region) => (region?.host.checkVisibility() ? region : undefined);
 export const pageReadingRegion = () => {
   const at = deepFocus();
-  if (under(at, pageDocument())) return readingRegionFor(at);
+  if (inPage(at)) return readingRegionFor(at);
   return shown(readingRegion(pageRegionId));
 };
 export const userReadingRegion = () => {
   const at = deepFocus();
   const region = readingRegionFor(at);
-  if (region || under(at, pageDocument())) return region;
+  if (region || inPage(at)) return region;
   return shown(recentReadingRegion()) ?? pageReadingRegion();
 };
 

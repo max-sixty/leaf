@@ -1,7 +1,7 @@
 import { J, LAYOUT, LENT_REACH_STOP, PAGE_PAINT_ATTRIBUTE, PRESSES, TEXT_BLOCK, TEXT_BOX, WORKS, Z, afterScript, atScrollEnd, clamp, clippedContents, closestAcross, deepFocus, elementFrame, eventSource, excerptWords, focusDestination, headerCuts, hostIn, inChrome, inUi, inlineStyle, installScrollerLookup, isElement, isHTML, isText, keeps, keepsHidden, labelWords, landingBand, layoutChanged, layoutPx, layoutWindow, marks, move, nativeLayerHolding, nearObserver, nearWindow, nextFrame, nextRender, onCurrentLocation, overlaps, pagePresented, pageScroller, pressing, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, renderedParent, renderedUnder, renderingState, revealRegisteredVisualPart, revealsVisualParts, scrollContainer, scrollToEnd, scrollersOf, scrollsBy, scrollsContent, shadowHost, shellRight, shownParts, shownRect, sizeObserver, skipped, tabStops, tick, uiInside, under, union, upFrom, userScrollport, visualPartAdmission, watchArrivals, watchScrolls, wearsLentStop, whileConnected } from "./bundle-portable.js";
 import { PRESSABLE, anchorKey, applicationPresented, documentChanged, fragmentId, fragmentKey, isElementName, registry, repaintPage, shadowRootsIn, tagsDeclaring } from "./bundle-errors.js";
 import { removeRuntimeRootStyle, reportPageError, setRuntimeRootAttribute, setRuntimeRootStyle } from "./bundle-layer-client.js";
-import { DATUM, HEADING, authoredScope, blockAt, contextAround, cut, elementById, elementReading, fencedAt, fileModelsPassage, findQuote, layoutBox, leafSurface, neighbourhood, pageDocument, pageQueryAll, pageText, quoteFrom, rangeOf, readingFrom, segmentsIn, settledAway, spanIn, textNodesUnder } from "./bundle-passages.js";
+import { DATUM, HEADING, authoredScope, blockAt, contextAround, cut, elementById, elementReading, fencedAt, fileModelsPassage, findQuote, inPage, layoutBox, leafSurface, neighbourhood, pageDocument, pageQueryAll, pageText, quoteFrom, rangeOf, readingFrom, segmentsIn, settledAway, spanIn, textNodesUnder } from "./bundle-passages.js";
 
 //#region runtime/presence.js
 let clockSkew = 0;
@@ -467,7 +467,7 @@ const queries = sizeObserver((entries) => {
 		query.size = size;
 	}
 }, { counted: false });
-addEventListener("resize", () => reread(document.body));
+addEventListener("resize", () => reread(document.documentElement));
 const asked = /* @__PURE__ */ new WeakSet();
 const reached = (el) => {
 	let node = el;
@@ -595,8 +595,8 @@ const actedAt = (at, arriving) => {
 	const region = readingRegionFor(at);
 	if (region) {
 		recentRegionId = region.id;
-		if (under(region.host, pageDocument())) pageRegionId = region.id;
-	} else if ((at === document.body || under(at, pageDocument())) && !(arriving && at === document.body && pressing()?.released === false)) recentRegionId = pageRegionId = null;
+		if (inPage(region.host)) pageRegionId = region.id;
+	} else if (inPage(at) && !(arriving && at === document.body && pressing()?.released === false)) recentRegionId = pageRegionId = null;
 };
 for (const type of [
 	"pointerdown",
@@ -620,13 +620,13 @@ const recentReadingRegion = () => readingRegion(recentRegionId);
 const shown = (region) => region?.host.checkVisibility() ? region : void 0;
 const pageReadingRegion = () => {
 	const at = deepFocus();
-	if (under(at, pageDocument())) return readingRegionFor(at);
+	if (inPage(at)) return readingRegionFor(at);
 	return shown(readingRegion(pageRegionId));
 };
 const userReadingRegion = () => {
 	const at = deepFocus();
 	const region = readingRegionFor(at);
-	if (region || under(at, pageDocument())) return region;
+	if (region || inPage(at)) return region;
 	return shown(recentReadingRegion()) ?? pageReadingRegion();
 };
 const containingReadingRegionFor = (node) => {
@@ -2201,8 +2201,8 @@ function readDocumentLayout() {
 		pageControlsChanged();
 	}
 	if (changed) {
-		const main = pageDocument();
-		if (main) layoutChanged(main);
+		const page = pageDocument();
+		if (page) layoutChanged(page);
 		repaintPage();
 	}
 }

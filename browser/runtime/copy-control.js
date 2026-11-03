@@ -40,6 +40,8 @@ function copyThroughSelection(value, trigger) {
   // at 16px and selected by range, as clipboard.js and copy-text-to-clipboard do.
   field.readOnly = true;
   field.style.cssText = "position: fixed; left: -9999px; top: 0; font-size: 16px";
+  // Leaf's own, wherever it stands, so the moment it holds focus isn't the page's.
+  field.dataset.lfRuntime = "";
   // A modal makes the rest of the document inert, including a field at body level.
   (nativeLayerHolding(trigger) ?? document.body).append(field);
   try {

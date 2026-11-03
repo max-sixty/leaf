@@ -19,6 +19,7 @@ import {
   generatedElement,
   ensureSyntaxLanguage,
   inBaseLayer,
+  keeps,
   LeafElement,
   nothing,
   whileConnected,
@@ -35,10 +36,13 @@ import {
 import { diffArrays } from "/vendor/jsdiff.esm.js";
 import { pierre, markSyntax } from "./pierre.js";
 
-// Writing the same key again would still be a mutation the page's observers see.
+// Each reading shows the same document whatever text its source holds, so its key is
+// also its identity (projection/data.js). A comment on a passage then follows the
+// passage's words across replacements, and stays marked while they still stand.
 /** @param {HTMLElement} node @param {string} key */
 const mark = (node, key) => {
-  if (node.dataset.lfDatum !== key) node.dataset.lfDatum = key;
+  keeps(node, "data-lf-datum", key);
+  keeps(node, "data-lf-identity", key);
 };
 
 /** @param {string} source @param {string | null} language */

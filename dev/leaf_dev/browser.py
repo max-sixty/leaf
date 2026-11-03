@@ -8,6 +8,7 @@ from contextlib import contextmanager
 from functools import cache
 from pathlib import Path
 
+import click
 from playwright.sync_api import Browser, FrameLocator, Page, sync_playwright
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
@@ -15,8 +16,7 @@ from leaf.render_checks import rendered, wait_for_probe, wait_until_ready
 from leaf_dev import ROOT
 
 DESKTOP = (1440, 900)
-# The width of a window beside an editor.
-BESIDE = (900, 900)
+PHONE = (390, 844)
 
 # The fixed fontconfig that lays text out in DejaVu faces on Linux (`use_linux_fonts`).
 LINUX_FONTCONFIG = ROOT / "tests/fonts.conf"
@@ -131,6 +131,38 @@ def tab(
         yield page
     finally:
         context.close()
+
+
+def window_size(value: str) -> tuple[int, int]:
+    width, _, height = value.partition("x")
+    if not (width.isdigit() and height.isdigit()):
+        raise click.BadParameter(f"{value!r} is not WIDTHxHEIGHT")
+    return int(width), int(height)
+
+
+def tab_options(command):
+    """Give a command `tab`'s viewport, scheme and pointer as `--viewport`, `--scheme`
+    and `--touch`. `viewport` and `touch` reach the command as None unless given, so
+    it can tell a default from a choice."""
+    command = click.option(
+        "--touch/--no-touch",
+        default=None,
+        help="Show the page under a finger: a coarse pointer and mobile emulation, at "
+        "--viewport's size. Off by default.",
+    )(command)
+    command = click.option(
+        "--scheme",
+        type=click.Choice(["light", "dark"]),
+        default="light",
+        help="The colour scheme the page is shown in.",
+    )(command)
+    return click.option(
+        "--viewport",
+        metavar="WIDTHxHEIGHT",
+        callback=lambda c, p, value: value and window_size(value),
+        help=f"By default {DESKTOP[0]}x{DESKTOP[1]}. A phone also needs --touch: "
+        f"--viewport {PHONE[0]}x{PHONE[1]} --touch.",
+    )(command)
 
 
 def slow_cpu(page: Page, rate: float) -> None:

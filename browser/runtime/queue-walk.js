@@ -24,7 +24,8 @@
 
    Arrival belongs to the item's owner, so the walk adds no arrival of its own beside
    theirs: an obligation arrives through the obligation view's `arriveAtRecord`, a to-do
-   on an element or the page included, at the place obligations/place.js gives it; a
+   on an element included, at the place obligations/place.js gives it; a to-do on the
+   page as a whole, which stands nowhere on it, on its own On me card (`showOnMe`); a
    thread through the t/T walk's own (navigation.js, `arriveAtThread`), so it lands
    wherever that walk lands. Only what is no obligation the page places has no owner
    that arrives at it, a page widget action handed back to the user or an On <agent>
@@ -37,9 +38,9 @@
    it, by the rule every walk shares (current-target.js, `walkOrigin` and `stepFrom`).
    The chrome is a binding badge, not a page position, so its controls do not become
    the walk's origin. The user is on an obligation when their current location is in
-   its place (`obligationHolding`, current-target.js), a to-do's included, on a thread
-   stop when they are in its thread (`threadIn`), and on an action handed back when
-   they are in its widget. Being on a to-do Done ends, `x` is that Done, as are the Done at
+   its place (`obligationHolding`, current-target.js), a to-do's included, or on its On
+   me card (`ON_CARD`), on a thread stop when they are in its thread (`threadIn`), and
+   on an action handed back when they are in its widget. Being on a to-do Done ends, `x` is that Done, as are the Done at
    the end of the floating panel's row and the Done on its On me card (`queue-api.js`,
    `done`): the user's `todo_end`, which leaves On me in the turn it is pressed. The
    to-do is a stance (keyboard/touch-controls.js): while the user stands on it the
@@ -54,10 +55,10 @@
    a line in the field.
 
    Page order is each obligation's place in the page as rendered: an obligation's own
-   element, the element a to-do is on or the page's head for one on the whole page
-   (obligations/place.js), or its thread's passage for an obligation seated in a
-   thread; a thread's passage; the widget an action was made on. An item with no place
-   on the page, a general thread or one whose passage is gone, comes after every placed one in the list's own order, as the t/T walk reaches
+   element, the element a to-do is on (obligations/place.js), or its thread's passage
+   for an obligation seated in a thread; a thread's passage; the widget an action was
+   made on. An item with no place on the page, a to-do on the whole page, a general
+   thread or one whose passage is gone, comes after every placed one in the list's own order, as the t/T walk reaches
    such threads from its list's ends. A step past either end comes round to the other.
    Each grouping orders its items within a group by page order (`inWalkOrder`), but a
    goal's by its steps' order.
@@ -90,9 +91,10 @@ import {
   walkOrigin,
 } from "./current-target.js";
 import { seenRect } from "./geometry.js";
-import { inChrome } from "./passages.js";
+import { closestAcross, inChrome } from "./passages.js";
 import { byRenderedOrder, under } from "./shadow.js";
 import { hasObligationSource } from "./obligations/source.js";
+import { ON_CARD } from "./obligations/view-elements.js";
 import { obligationWord } from "./obligations/answer.js";
 import { answeredInWords, readObligations } from "./obligations/model.js";
 import { obligationsIn, obligationPlace, subjectPlace } from "./obligations/place.js";
@@ -146,7 +148,7 @@ const nounOf = (item, stop) =>
 // asked in words or a to-do on a thread is arrived at, like anything else there, by the
 // thread it stands in; or else where its subject stands (`subjectPlace`), as an action
 // handed back is arrived at on the widget it was made on and the agent's to-do at its
-// element or the page's head.
+// element.
 /** @param {QueueItem} item @returns {Stop} */
 const stopOf = (item) =>
   carriesObligation(item) && (item.thread === null || item.kind === "widget")
@@ -208,7 +210,7 @@ const givesUser = (step) => step.owner === "user" || step.steps.some(givesUser);
  * threadPlace: (id: string) => Element | null,
  * prepareNavigationStep: Travel["prepareNavigationStep"], arrive: Travel["arrive"],
  * readableDestination: Travel["readableDestination"], announce: typeof import("./notifications.js").announce,
- * showOnMe: () => void,
+ * showOnMe: (obligation?: string) => boolean,
  * actions: ReturnType<typeof import("./queue-api.js").createQueueActions>
  * }} dependencies */
 export function createQueueWalk({
@@ -424,13 +426,24 @@ export function createQueueWalk({
   function currentLocationStop(list, origin = currentLocationOrigin()) {
     if (origin?.kind !== "current-location") return null;
     const thread = drawnThreadId(threadIn(origin.node));
+    const shown = cardItem(origin);
     return (
       (thread &&
         list.find(
           (candidate) => candidate.kind === "thread" && candidate.id === thread,
         )) ||
+      (shown && list.find((candidate) => candidate.key === queueStop(shown).key)) ||
       placeStop(list, origin)
     );
+  }
+
+  // The item the On card the user is on shows, if they are on one: undefined off a card,
+  // and null on a card whose item no longer waits on them, as in Done.
+  /** @param {Origin} origin */
+  function cardItem(origin) {
+    const card = closestAcross(origin.node, ON_CARD)?.getAttribute("data-lf-key");
+    if (card == null) return undefined;
+    return readQueues().on_user.find((item) => queueItemKey(item) === card) ?? null;
   }
 
   // The obligation or subject stop holding the user's place, if any.
@@ -474,7 +487,7 @@ export function createQueueWalk({
     const intent = retainUserIntent({ available: () => Boolean(find()) });
     const where = find();
     if (!where) return Promise.resolve(false);
-    const departure = prepareNavigationStep({ landing: find, intent });
+    const departure = prepareNavigationStep();
     departure.plan(where);
     return arrive(
       () => {
@@ -497,9 +510,12 @@ export function createQueueWalk({
   function arriveAt(stop) {
     if (stop.kind === "obligation") {
       const record = readObligations().all.find((item) => item.id === stop.id);
-      return record && !hasObligationSource(record, "update")
-        ? arriveAtRecord(record)
-        : Promise.resolve(false);
+      if (!record || hasObligationSource(record, "update"))
+        return Promise.resolve(false);
+      // A to-do on the page as a whole stands nowhere on it, only on its On me card.
+      return hasObligationSource(record, "todo") && !obligationPlace(record).node
+        ? Promise.resolve(showOnMe(record.id))
+        : arriveAtRecord(record);
     }
     if (stop.kind === "thread") return arriveAtThread(stop.id, stop.message);
     return arriveAtElement(() => stopElement(stop));
@@ -555,8 +571,14 @@ export function createQueueWalk({
         ) ?? null)
       : null;
 
-  // The to-do Done ends now: the one the user is on.
-  const doneTodo = () => doneAt(currentLocationStop(stops()));
+  // The to-do Done ends now: the one the user is on. On a card that is the card's own,
+  // even where another to-do shares its place and so its stop.
+  function doneTodo() {
+    const origin = currentLocationOrigin();
+    const shown = origin?.kind === "current-location" ? cardItem(origin) : undefined;
+    if (shown !== undefined) return shown?.offers.done ? shown : null;
+    return doneAt(currentLocationStop(stops(), origin));
+  }
 
   // The user's Done on a to-do on them: their `todo_end`, through the one append door.
   // The to-do leaves On me in the turn they press it (`framework/application.js`).

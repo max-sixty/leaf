@@ -13,7 +13,7 @@
    a press, such as Reply, or where the user stands in a walk, which the interface
    states in its own face. So a seat never decides a voice: each word reaches it with
    its speaker, or as the interface's own. */
-import { html } from "/runtime/framework.js";
+import { html } from "/vendor/lit.js";
 
 /** @typedef {"agent" | "leaf"} Voice */
 /** A word said, and who says it.

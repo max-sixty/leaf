@@ -746,7 +746,10 @@ def test_an_emptied_rewrite_keeps_nothing_and_saved_deletes_its_message(browser,
     Saved, an emptied rewrite deletes its message, where its Save once stood drawn live
     and did nothing. The box says so before the press, its field reading Delete message
     and its Save turning to Delete; the message then reads Deleted in its place, above
-    the answer given to it, offering no rewrite, and still does after a reload."""
+    the answer given to it, offering no rewrite, and still does after a reload.
+
+    A deletion, as any rewrite, once ended `z`'s walk and could not be taken back. `z`
+    now gives the message its words back in the press, and the log keeps them."""
     page, _, message = _rewrite_surface(browser, serve, "panel")
     words = message.locator(".lf-msg-text")
     editor = message.locator(".lf-msg-editor leaf-text")
@@ -779,9 +782,28 @@ def test_an_emptied_rewrite_keeps_nothing_and_saved_deletes_its_message(browser,
     ] == [""]
     page.reload()
     wait_until_ready(page)
-    open_panel_thread(page, mine)
+    open_panel_thread(page, mine).focus()
     expect(deleted).to_have_text("Deleted")
     expect(message.locator(".lf-msg-edit")).to_have_count(0)
+
+    # The log answers only once the words are back.
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    page.keyboard.press("z")
+    expect(words).to_have_text("Fit the north bracket.")
+    expect(deleted).to_have_count(0)
+    page.unroute("**/api/event")
+    for route in held:
+        route.continue_()
+    round_trip(page)
+    logged = events_model.read_events(serve.page_dir)
+    (deletion,) = [e for e in logged if e["kind"] == "edit"]
+    assert logged[-1]["kind"] == "undo" and logged[-1]["undoes"] == deletion["id"]
+    page.reload()
+    wait_until_ready(page)
+    open_panel_thread(page, mine)
+    expect(words).to_have_text("Fit the north bracket.")
+    expect(message.locator(".lf-msg-edit")).to_have_count(1)
 
 
 def test_a_discarded_rewrite_comes_back(browser, serve):

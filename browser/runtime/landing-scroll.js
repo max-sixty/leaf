@@ -92,12 +92,9 @@ import { setScroll } from "./arrivals.js";
  */
 /** @param {Element} box @param {{top?: number, left?: number}} by @param {ScrollBehavior} behavior */
 const land = (box, by, behavior) => {
-  startScroll(box);
-  setScroll(box, {
-    top: box.scrollTop + (by.top ?? 0),
-    left: box.scrollLeft + (by.left ?? 0),
-    behavior,
-  });
+  const top = box.scrollTop + (by.top ?? 0);
+  startScroll(box, top);
+  setScroll(box, { top, left: box.scrollLeft + (by.left ?? 0), behavior });
 };
 
 // A destination's landing margin on one side. A range has none of its own and takes the

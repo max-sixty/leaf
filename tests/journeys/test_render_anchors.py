@@ -377,7 +377,10 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
             )
 
         before = geometry()
-        assert before["padding"] == "12px", before
+        # Copy reserves no room: a page block keeps its code line above the code, and
+        # the numbered widget its own inset.
+        padding = "12px" if pre_selector.startswith("#numbered") else "20px"
+        assert before["padding"] == padding, before
         # Copy's toolbar stands just inside the block's top-right corner.
         frame, overlay = before["frame"], before["copy"]
         assert 0 <= overlay[1] - frame[1] <= 8, before
@@ -496,7 +499,7 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     expect(touch_control).to_have_count(1)
     expect(touch_control).to_have_css("opacity", "0")
     expect(touch_control).to_have_css("pointer-events", "none")
-    expect(touch.locator("#plain")).to_have_css("padding-top", "12px")
+    expect(touch.locator("#plain")).to_have_css("padding-top", "20px")
 
     def copied(expected):
         wait_for(

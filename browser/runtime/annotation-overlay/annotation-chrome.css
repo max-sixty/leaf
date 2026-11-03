@@ -62,8 +62,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   }
   /* The rail cannot trap a raised item below the page paint it summons. Only the item
      under pointer or focus crosses that paint, and the obligation the user stands in,
-     whose question shows at rest beside the location ring (base.css), which ran through
-     it; the full-page toolbar stays at rest. */
+     whose marker stands across the location ring where the decision reaches the rail
+     (pr-walkthrough's approval at 1280px); the full-page toolbar stays at rest. */
   .lf-margin-projection {
     z-index: auto;
   }

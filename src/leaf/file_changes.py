@@ -358,15 +358,20 @@ def _native_observer() -> "BaseObserver":
     from watchdog.observers.fsevents import FSEventsEmitter, FSEventsObserver
 
     class Emitter(FSEventsEmitter):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            # Resolved once: the stream reports every event beneath the directory,
+            # so this filter runs on each of them.
+            self.watched = os.path.realpath(self.watch.path)
+
         def queue_event(self, event) -> None:
-            watched = os.path.realpath(self.watch.path)
             paths = (
                 [event.src_path, event.dest_path]
                 if event.dest_path
                 else [event.src_path]
             )
             if self.watch.is_recursive or any(
-                watched in (path, os.path.dirname(path))
+                self.watched in (path, os.path.dirname(path))
                 for path in map(os.fsdecode, paths)
             ):
                 EventEmitter.queue_event(self, event)

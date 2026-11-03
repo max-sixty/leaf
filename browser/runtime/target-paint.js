@@ -53,8 +53,19 @@ let locationFrame = 0;
 let locationProjected = [];
 const PROJECTED_LOCATION = "lf-projected-location";
 
+/** @type {Element | null} */
+let aimedSurface = null;
+/** @param {Element | null} surface */
+function markAimed(surface) {
+  if (aimedSurface && aimedSurface !== surface)
+    aimedSurface.classList.toggle("lf-aimed", false);
+  surface?.classList.toggle("lf-aimed", true);
+  aimedSurface = surface;
+}
+
 export function clearAim() {
   aimed = null;
+  markAimed(null);
   vacate(aimStand);
   aimBox.style.display = "none";
   aimBox.classList.toggle("lf-shaped", false);
@@ -93,6 +104,10 @@ export function paintAim(element, surface) {
     shaped ? null : getComputedStyle(surface).borderRadius,
   );
   aimed = { placed: { ...placed, shown: placed.shown }, stood };
+  // Prototype: the box stands only to seat the design label (`labelAim`); the surface
+  // draws the aim itself (surfaces.css).
+  aimBox.style.visibility = "hidden";
+  markAimed(surface);
   return placed.shown;
 }
 
@@ -146,115 +161,34 @@ export function labelAim(node) {
 
 // One trace: a box drawn round one target at a time, in the target's contour where it
 // is a drawn shape, standing in the planes of what carries it.
+// One trace: a class on the one box it marks at a time, which draws the mark itself
+// (surfaces.css).
 /** @param {string} className */
 function createTrace(className) {
-  const box = el("div", `lf-ui ${className}`);
-  const stand = paintStand(box);
-  const shape = document.createElementNS(SVG_NS, "svg");
-  shape.classList.add(`${className}-shape`);
-  shape.setAttribute("aria-hidden", "true");
+  // Prototype: an empty layer keeps leaf.js's mount list unchanged.
+  const layer = el("div", "lf-ui");
   /** @type {Element | null} */
   let traced = null;
-  /** @type {Element | null} */
-  let tracedSurface = null;
-  /** @type {ReturnType<typeof paintGeometry>} */
-  let tracedGeometry = null;
-  let shapeKeyDrawn = "";
-  let placementFrame = 0;
-  let geometryFrame = 0;
-  let geometryDirty = false;
-
-  function clear() {
-    traced = null;
-    tracedSurface = null;
-    tracedGeometry = null;
-    shapeKeyDrawn = "";
-    vacate(stand);
-    box.style.display = "none";
-    box.classList.toggle("lf-shaped", false);
-    shape.replaceChildren();
-    // What the box was for and the plane it stood in stay until it stands again: a
-    // target the page draws anew is drawn round in the next pass, and writing them off
-    // and back would be two writes for no change.
+  /** @param {Element | null} surface */
+  function mark(surface) {
+    if (traced && traced !== surface) traced.classList.toggle(className, false);
+    surface?.classList.toggle(className, true);
+    traced = surface;
   }
-
-  function draw(element = traced, surface = tracedSurface, rebuildGeometry = true) {
-    if (
-      !(element instanceof Element) ||
-      !(surface instanceof Element) ||
-      !element.isConnected ||
-      !surface.isConnected
-    ) {
-      clear();
-      return;
-    }
-    const changed = element !== traced || surface !== tracedSurface;
-    const geometry =
-      changed || rebuildGeometry ? paintGeometry(surface) : tracedGeometry;
-    const placed = placement(surface, Boolean(geometry), inChrome(element));
-    traced = element;
-    tracedSurface = surface;
-    tracedGeometry = geometry;
-    if (!placed.shown) {
-      box.style.display = "none";
-      return;
-    }
-    const { rect, shapeKey } = placed;
-    let shaped = Boolean(geometry);
-    if (shaped && (changed || rebuildGeometry || shapeKey !== shapeKeyDrawn))
-      shaped = paintShape(shape, geometry, rect);
-    if (!shaped) shape.replaceChildren();
-    shapeKeyDrawn = shaped ? shapeKey : "";
-    box.classList.toggle("lf-shaped", shaped);
-    keeps(box, "data-for", element.id || null);
-    keeps(stand.root, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
-    standOver(stand, placed, shaped ? null : getComputedStyle(surface).borderRadius);
-  }
-
   return {
-    layer: stand.root,
+    layer,
     /** @param {Element | null} element @param {Element | null} [surface] */
     paint(element, surface = element) {
-      if (!element) {
-        clear();
-        return;
-      }
-      const rebuild = geometryDirty || element !== traced || surface !== tracedSurface;
-      if (geometryDirty) {
-        if (geometryFrame) cancelRender(geometryFrame);
-        if (placementFrame) cancelRender(placementFrame);
-        geometryFrame = placementFrame = 0;
-        geometryDirty = false;
-      }
-      draw(element, surface, rebuild);
+      mark(element && surface?.isConnected ? surface : null);
     },
-    shifted() {
-      if (placementFrame || geometryFrame || !traced) return;
-      placementFrame = nextRender(() => {
-        placementFrame = 0;
-        if (traced) draw(traced, tracedSurface, false);
-      });
-    },
-    geometryChanged() {
-      geometryDirty = true;
-      if (placementFrame) cancelRender(placementFrame);
-      placementFrame = 0;
-      if (geometryFrame || !traced) return;
-      geometryFrame = nextRender(() => {
-        geometryFrame = 0;
-        if (!geometryDirty) return;
-        geometryDirty = false;
-        if (traced) draw(traced, tracedSurface, true);
-      });
-    },
-    mount() {
-      box.append(shape);
-    },
+    shifted() {},
+    geometryChanged() {},
+    mount() {},
   };
 }
 
-const targetTrace = createTrace("lf-target-trace");
-const proxyRing = createTrace("lf-proxy-ring");
+const targetTrace = createTrace("lf-traced");
+const proxyRing = createTrace("lf-proxied");
 // What leaf.js mounts in the chrome: each box in the stand that carries it.
 export const targetTraceLayer = targetTrace.layer;
 export const proxyRingLayer = proxyRing.layer;
@@ -291,36 +225,14 @@ export function paintLocation(element) {
   drawLocation();
 }
 
-// Whether the location's stand paints over `element`: over the document from any layer,
-// and over a native layer only from inside it.
-/** @param {Element} element */
-const paintsOver = (element) => {
-  const layer = nativeLayerHolding(element);
-  return !layer || layer === nativeLayerHolding(locationStand.root);
-};
-
+// Prototype: each box the decision shows through draws the ring itself (surfaces.css).
 function drawLocation() {
   const element = locationElement;
-  const placed =
-    element?.isConnected && !locationStandsDown(element) && paintsOver(element)
-      ? placement(element, false, inChrome(element))
-      : null;
-  if (!element || !placed?.shown) {
+  if (!element?.isConnected || locationStandsDown(element)) {
     projectLocation([]);
-    vacate(locationStand);
-    locationBox.style.display = "none";
-    locationBox.removeAttribute("data-for");
-    delete locationStand.root.dataset.lfPaintPlane;
     return;
   }
   projectLocation([element, ...shownParts(element)]);
-  keeps(locationBox, "data-for", element.id || null);
-  keeps(
-    locationStand.root,
-    "data-lf-paint-plane",
-    inChrome(element) ? "chrome" : "page",
-  );
-  standOver(locationStand, placed, getComputedStyle(element).borderRadius);
 }
 
 /** @param {Element[]} boxes */

@@ -52,7 +52,27 @@ export function createVisualMarkPaint() {
     }
   }
 
+  // Prototype: each target's surface draws its own mark (surfaces.css), named by its
+  // states in `data-lf-mark`.
+  /** @type {Map<Element, Element>} */
+  const marked = new Map();
+  // eslint-disable-next-line no-unused-vars
   function paintTargets(rebuildGeometry = true) {
+    for (const [element, surface] of marked)
+      if (targets.get(element)?.surface !== surface) {
+        element.classList.toggle(PROJECTED, false);
+        surface.removeAttribute("data-lf-mark");
+        marked.delete(element);
+      }
+    for (const [element, { surface, states }] of targets) {
+      element.classList.toggle(PROJECTED, true);
+      keeps(surface, "data-lf-mark", [...states].sort().join(" "));
+      marked.set(element, surface);
+    }
+  }
+
+  // eslint-disable-next-line no-unused-vars
+  function paintOverlays(rebuildGeometry = true) {
     for (const [element, record] of overlays)
       if (!targets.has(element)) {
         element.classList.toggle(PROJECTED, false);

@@ -1,4 +1,4 @@
-import { LAYOUT, LENT_REACH_STOP, TAB_STOP, afterScript, atLayoutPrecision, cancelRender, clamp, clippedContents, clippedRect, clippingAxes, coarsePointer, hoveringPointer, inChrome, inlineStyle, keeps, layoutPx, move, moveScrollerBy, nextRender, offeredActionElement, overlaps, overlapsAcross, pageScroller, renderedParent, renderedUnder, scrollAxes, scrollLimit, scrollsContent, shellRight, shownBand, shownExtent, shownParts, shownRect, shownWindow, sizeObserver, skipped, under, union, upFrom, visualViewport } from "./bundle-portable.js";
+import { LAYOUT, LENT_REACH_STOP, TAB_STOP, afterScript, atLayoutPrecision, cancelRender, clamp, clippedContents, clippedRect, clippingAxes, coarsePointer, hoveringPointer, inChrome, inlineStyle, isText, keeps, layoutPx, move, moveScrollerBy, nextRender, offeredActionElement, overlaps, overlapsAcross, pageScroller, renderedParent, renderedUnder, scrollAxes, scrollLimit, scrollsContent, shellRight, shownBand, shownExtent, shownParts, shownRect, shownWindow, sizeObserver, skipped, under, union, upFrom, visualViewport } from "./bundle-portable.js";
 import { renderedChildren } from "./bundle-errors.js";
 import { afterPresentation, anchorBox, anchorElement, anchorFor, anchorHolder, anchorName, anchorReading, blockControlBoxes, boundedBlockOf, carriedAnchor, containingReadingRegionFor, cutFrames, headerLevels, nameAnchor, passageBoxes, pointBand, proseMeasure, proseRect, railStands, scrollMisplacesAnchors, scrollerFor, scrollsWith, targetRange, targetSegments } from "./bundle-content-layout.js";
 import { layoutBox } from "./bundle-passages.js";
@@ -279,15 +279,15 @@ function scrollSources(node) {
 	return sources;
 }
 const stuckOrFixed = (node) => {
-	let at = node;
+	let at = isText(node) ? renderedParent(node) : node;
 	for (; at instanceof Element; at = renderedParent(at)) if (/^(sticky|fixed)$/.test(getComputedStyle(at).position)) return true;
 	return false;
 };
-function carrierAnchor(subject, sources, scroller) {
-	const inner = sources[0] ?? (scroller === pageScroller ? null : scroller);
-	const own = () => anchorElement(targetBox(subject));
+function carrierAnchor(subject, scroller) {
+	const inner = scrollSources(subject)[0] ?? (scroller === pageScroller ? null : scroller);
+	const own = () => isText(subject) ? anchorFor(subject) : anchorElement(targetBox(subject));
 	if (!inner) return stuckOrFixed(subject) ? own() : null;
-	if (!scrollsWith(subject, inner)) return own();
+	if (isText(subject) || !scrollsWith(subject, inner)) return own();
 	return carriedAnchor(inner) ?? own();
 }
 const marginColumn = () => layoutBox() || document.body;
@@ -1075,7 +1075,7 @@ function layoutMountedRows(layer) {
 	for (const read of reads) {
 		if (!read.target) continue;
 		const subject = read.point ?? read.target;
-		read.carrier = (read.passageNode && anchorFor(read.passageNode)) ?? carrierAnchor(subject, scrollSources(subject), read.scroller);
+		read.carrier = carrierAnchor(read.passageNode ?? subject, read.scroller);
 		read.cuts = headerLevels(subject, cutClips);
 		read.cutKey = read.cuts.map(({ anchor, band, at }) => anchor ? `${idOf(anchor)}:${band.top - at.top}:${band.bottom - at.top}` : `window:${band.top}:${band.bottom}`).join("|");
 		if (read.cuts.length) read.carrier ??= carriedAnchor(pageScroller) ?? anchorElement(targetBox(subject));

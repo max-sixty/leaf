@@ -75,6 +75,51 @@ def test_the_margin_keeps_its_page_coordinate_while_the_user_scrolls(browser, se
     assert offset() == pytest.approx(before, abs=1)
 
 
+# Scroll the page to put the quoted words a third of the way down the window, and read,
+# in the task that scrolled, how far the row's marker stands from the words and whether
+# hit testing where it stands finds it.
+SCROLL_TO_PASSAGE = """() => {
+  const marker = document.querySelector('[data-lf-margin-for="long"] .lf-margin-marker');
+  const node = document.getElementById('long').firstChild;
+  const words = document.createRange();
+  words.setStart(node, node.data.indexOf('the last words land'));
+  words.setEnd(node, node.data.length);
+  const line = () => words.getClientRects()[0].top;
+  const before = marker.getBoundingClientRect().top - line();
+  scrollBy({top: line() - innerHeight / 3, behavior: 'instant'});
+  const box = marker.getBoundingClientRect();
+  const hit = document.elementFromPoint(
+    (box.left + box.right) / 2, line() + before + box.height / 2);
+  return {before, after: box.top - line(), reached: marker.contains(hit)};
+}"""
+
+
+def test_a_passage_s_row_moves_with_the_page_s_scroll_in_the_task_that_scrolls(
+    browser, serve, subtests
+):
+    """A row quoting words only the page's scroll moves stands where that scroll leaves
+    it in the task that scrolls, as the words do, so a script reading its box or hit
+    testing where it is drawn finds it there, as a pin on a phone and in the rail. In an
+    anchored carrier it read at its old place until the next frame rendered, so a tap
+    Playwright aimed meanwhile scrolled away from it."""
+    text = " ".join(
+        f"Sentence number {i} says something about the release." for i in range(120)
+    )
+    body = f'<h1>Passage rows</h1><p id="long">{text} Finally the last words land.</p>'
+    events = [_comment_on("long", quote="the last words land")]
+    page = open_page(browser, serve(leaf_page("Passage rows", body), events=events))
+    row = page.locator('[data-lf-margin-for="long"]')
+    for width, height, place in ((390, 844, "pin"), (1440, 900, "rail")):
+        with subtests.test(width=width):
+            resized(page, width, height)
+            page.evaluate("() => scrollTo({top: 0, behavior: 'instant'})")
+            margins_laid_out(page)
+            expect(row).to_have_attribute("data-lf-place", place)
+            read = page.evaluate(SCROLL_TO_PASSAGE)
+            assert read["after"] == pytest.approx(read["before"], abs=1), read
+            assert read["reached"], read
+
+
 def test_a_keyboard_arrival_brings_its_card_once_its_row_is_shown(browser, serve):
     """`m` to an obligation below a pane's fold scrolls it into view while its row is still
     withheld, so there is nothing yet to hang its card from. The card of the thread the

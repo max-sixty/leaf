@@ -79,6 +79,7 @@ import {
   under,
   upFrom,
 } from "../shadow.js";
+import { isText } from "../shadow-tree.js";
 import { scrollerFor } from "../reading-regions.js";
 import { boundedBlockOf } from "../bounds.js";
 import { pageScroller } from "../scrolling.js";
@@ -315,7 +316,7 @@ function standsNow(row) {
 
 // Every actual scrollport, including an inner table and a shadow root's scroller.
 // Reading-region identity decides the clip lane, not which ancestors can move words.
-/** @param {Element} node */
+/** @param {Node} node */
 function scrollSources(node) {
   const sources = [];
   for (
@@ -334,21 +335,31 @@ function scrollSources(node) {
 // scroll carries beside it. A row in a bounded region always has a carrier, since its
 // lane is a frame the region's scroll does not carry. The document's scroll carries an
 // absolute box with everything else, so there only a sticky or fixed one parts a row
-// from the root lane.
-/** @param {Element} node */
+// from the root lane. A row quoting a passage follows its words, which a box inside the
+// target can scroll, so the words are its subject, and a carrier for them is anchored to
+// them (`anchorFor`).
+//
+// A row takes a carrier only where the root lane can't carry it. Layout moves the root
+// lane in the task that scrolls the document, but a carrier only once the next frame
+// renders. Until then a script reading the row's box or hit-testing it with
+// `elementFromPoint` finds it where it stood (`paintedBox`), and Chromium keeps giving
+// that stale answer at a point tested meanwhile for about half a second.
+/** @param {Node} node */
 const stuckOrFixed = (node) => {
-  /** @type {Element | null} */
-  let at = node;
+  /** @type {Node | null} */
+  let at = isText(node) ? renderedParent(node) : node;
   for (; at instanceof Element; at = renderedParent(at))
     if (/^(sticky|fixed)$/.test(getComputedStyle(at).position)) return true;
   return false;
 };
-/** @param {Element} subject @param {readonly Element[]} sources @param {Element} scroller */
-function carrierAnchor(subject, sources, scroller) {
-  const inner = sources[0] ?? (scroller === pageScroller ? null : scroller);
-  const own = () => anchorElement(targetBox(subject));
+/** @param {Element | Text} subject @param {Element} scroller @returns {Anchor | null} */
+function carrierAnchor(subject, scroller) {
+  const inner =
+    scrollSources(subject)[0] ?? (scroller === pageScroller ? null : scroller);
+  const own = () =>
+    isText(subject) ? anchorFor(subject) : anchorElement(targetBox(subject));
   if (!inner) return stuckOrFixed(subject) ? own() : null;
-  if (!scrollsWith(subject, inner)) return own();
+  if (isText(subject) || !scrollsWith(subject, inner)) return own();
   return carriedAnchor(inner) ?? own();
 }
 
@@ -1616,9 +1627,7 @@ function layoutMountedRows(layer) {
   for (const read of reads) {
     if (!read.target) continue;
     const subject = read.point ?? read.target;
-    read.carrier =
-      (read.passageNode && anchorFor(read.passageNode)) ??
-      carrierAnchor(subject, scrollSources(subject), read.scroller);
+    read.carrier = carrierAnchor(read.passageNode ?? subject, read.scroller);
     // The headers over the target cut its row, in frames the document's own scroll
     // does not carry, so a row they cut stands in a carrier the document's scroll does.
     read.cuts = headerLevels(subject, cutClips);

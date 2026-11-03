@@ -470,6 +470,29 @@ recheck with the `scrollend` listener removed, which left the row 24.1px off in
 Firefox 157 and 24.0px off in WebKit 27.2, or by reading the row in the frame
 after the scroll, before `scrollend`.
 
+### A fixed anchored box read before the frame renders
+
+A `position: fixed` box anchored to scrolled content moves with a script's
+scroll only once the next frame renders: the layout a read forces in between
+leaves it where it stood. On 2026-11-03, after an instant
+`scrollBy` on a 390 × 844 phone page, Playwright's Chromium headless shell
+156.0.8078.4 and Firefox 157 read a carried margin row's
+`getBoundingClientRect` and `elementFromPoint` at its old place in the
+scrolling task and in the next frame's animation callbacks; WebKit 27.2 read
+the old box in the scrolling task and hit-tested the new place. Chromium then
+kept answering `elementFromPoint` at a point tested in that window from the old
+reading for 23 to 28 frames, while a tap or click there three frames after the
+scroll reached the row. So a Playwright tap aimed in that window can scroll to
+the old place and miss.
+
+`carrierAnchor` in `browser/runtime/annotation-overlay/margin-layout.js` keeps
+a row out of a carrier wherever the document's scroll alone moves its subject,
+and `paintedBox` reads a carried row where it stands now. Rows a pane, an inner
+scroller or a sticky box carries keep the gap. Recheck with a fixed box
+anchored to a paragraph far down a page: `scrollBy` it to the window's middle,
+then read the box and `elementFromPoint` there in the same task and at each
+frame after.
+
 ### A `left`-inset anchored control after a resize in Firefox
 
 `.lf-heading-link` in `browser/styles/components/integration.css` carries its

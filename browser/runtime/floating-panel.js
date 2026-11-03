@@ -4418,7 +4418,11 @@ export function createFloatingPanel({
                 // window with no room for the rail does, on its place
                 // (thread/destination.js, `page`).
                 void present({ release: true }).then(() =>
-                  threadActions.open(thread.key, { part: null, intent, page: true }),
+                  threadActions.open(thread.key, {
+                    part: null,
+                    intent,
+                    reader: "page",
+                  }),
                 );
               }}
             ></button>`
@@ -4439,6 +4443,7 @@ export function createFloatingPanel({
             resolved: Boolean(thread.resolved),
             prepareLanding: () =>
               thread.resolved ? reopenLanding() : resolveLanding(thread),
+            reader: "primary",
             ...settlement,
           }).catch(() => {});
         }}

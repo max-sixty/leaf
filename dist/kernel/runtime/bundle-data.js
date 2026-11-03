@@ -2,7 +2,7 @@ import { CARET_KEYS, HOLDS_WORD, J, OUTPUT, PAGE_PAINT_ATTRIBUTE, PRESS, RUNTIME
 import { COLLAPSE, LIVE_ROOT, PENDING, PRESENTATION_DOM, TEXT_BLOCK, adoptRegistry, agentName, agentSays, announce, applicationPresenter, applicationState, ariaShortcuts, attachApplicationPresentation, authoredBody, bindings, buttonCommand, checked, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, decisionFor, declarationFor, declareCommandReadiness, declaresCommandHandler, deleted, descriptionOf, editable, el, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, fragmentUrl, hasObligationSource, holdStatus, holdingError, html, isElementName, isReaction, keyed, keys, labelOf, lastMovedAt, layerRoot, leafSays, live as live$1, live$1 as live, loadShadowRules, marks, messageKey, nothing, notice, obligationValue, offlineDeferred, offlineInteractive, pageClaimed, pageRange, pageUrl, paintKeys, passErrorsAt, projectCommandScope, projectView, projectionOrigins, projectionRegionsPresented, pruneScopedElements, raiseError, readApplication, readPart, ref, registry, render as render$1, repaint, repeat, reveal, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, savedReadingSettled, seatRoot, selectEnds, selectionBackward, share, spell, tagsDeclaring, threadKey, threadNames, titleOf, tokenEntry, touchPresses as touchPresses$1, turns, voiced, watchCommandScopes, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented, word } from "./bundle-errors.js";
 import { LayerRefused, admitReading, admitResponse, randomId, reportPageError, requestJson, revealLayer, runtimeRootState, sameLayer, setRuntimeRootAttribute } from "./bundle-layer-client.js";
 import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableWord, addressedElements, ago, aimControl, aimTargetAt, anchorControl, anchorForPassage, anchorForRange, anchoringIsReady, chromeForeground, chromeRoot, claimReachStop, containingReadingRegionFor, datumAimTarget, datumLabel, deferredArrival, effectiveScroller, followingItsEnd, fragmentAddress, fragmentTarget, headerLevels, isAddressable, leadingTitle, livePoint, nameable, onReadingInput, pageReadingRegion, pressedElsewhere, projectedDatum, reachScrollers, readInsets, readingRegionFor, readingRegions, recentReadingRegion, regionScrollBehavior, regionsSettled, registerPageControl, releaseControl, releaseReachStop, resolveAnchor, revealAddressed, revealControl, scrollChainOf, scrollerFor, sectionLabel, sectionOf, settleDocumentLayout, shortAgo, shownRegionBounds, standInChrome, tabFromBlock, targetElement, targetPlace, targetSegments, unconcealedReadingRegions, visualPartLabel, watchReadingRegionTransitions, writeInsets } from "./bundle-content-layout.js";
-import { alignInlineText, alignText, authored, authoredScope, blockAt, elementById, excerptWords, fencePassageParts, labelWords, leafSurface, pageBlocks, pageDocument, pageQueryAll, pageText, pageWords, pointAt as pointAt$1, quoteFrom, quotedWords, rangeOf, readingFrom, renderRetired, segmentBlock, segmentsIn, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
+import { alignInlineText, alignText, authored, authoredScope, blockAt, elementById, fencePassageParts, labelWords, leafSurface, pageBlocks, pageDocument, pageQueryAll, pageText, pageWords, pointAt as pointAt$1, quoteFrom, quotedWords, rangeOf, readingFrom, renderRetired, segmentBlock, segmentsIn, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
 import { aborted, authoredStates, commitWidgetDescriptors, quoted, rememberAuthoredParents, stageAuthoredStates, stageWidgetDescriptors, widgetElement } from "./bundle-abort.js";
 import { isCanonicalMediaUrl, readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "./media.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
@@ -4316,24 +4316,17 @@ function createReplyView(key, commands, redraw, { onChange = () => {}, editLast 
 //#endregion
 //#region runtime/thread/folding.js
 const NAMED = 48;
-function settledName(key) {
-	const thread = threadNamed(key);
-	if (!thread) return "the thread";
-	const passage = threadPassage(thread);
-	return anchorLabel(passage?.quote ? {
-		...passage,
-		quote: excerptWords(passage.quote, NAMED)
-	} : passage, thread.root.about) || quotedWords(threadName(thread), NAMED);
-}
-async function settleThread({ parent, key, resolved, prepareLanding, pendingEntries, actions, landedAway, offerUndo, returnToThread }) {
+async function settleThread({ parent, key, resolved, prepareLanding, reader = null, pendingEntries, actions, undo }) {
 	const land = prepareLanding?.();
 	const since = inputCount();
 	const attempt = randomId();
-	const named = settledName(key);
+	const thread = threadNamed(key);
+	const named = thread ? quotedWords(threadName(thread), NAMED) : "the thread";
 	const answer = resolved ? actions.reopen(key, { attempt }) : actions.resolve(key, { attempt });
 	if (!answer) return;
-	notice(`${resolved ? "Reopened" : "Resolved"} ${named}`, { press: offerUndo(attempt) });
-	if (land) landedAway(attempt);
+	undo.retainGesture(attempt, { settled: { reader } });
+	notice(`${resolved ? "Reopened" : "Resolved"} ${named}`, { press: undo.offerUndo(attempt) });
+	if (land) undo.landedAway(attempt);
 	await landGesture({
 		land,
 		answer,
@@ -4341,7 +4334,7 @@ async function settleThread({ parent, key, resolved, prepareLanding, pendingEntr
 		refused: async () => {
 			const mayReturn = retainUserIntent({ since });
 			await whenDocumentPresented();
-			return returnToThread(parent(), mayReturn);
+			return undo.returnToThread(parent(), mayReturn, reader);
 		}
 	});
 }
@@ -6060,6 +6053,7 @@ var ThreadView = class {
 			key: model.key,
 			resolved: model.resolved,
 			prepareLanding: model.surface === "margin" && !model.resolved ? this.#marginControls?.prepareLanding ?? null : this.#prepareThreadLanding,
+			reader: model.surface === "margin" ? "page" : null,
 			...this.#commands.settlement
 		}).catch(() => {});
 	};

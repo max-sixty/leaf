@@ -4795,7 +4795,7 @@ function createUndo({ post, stateApplying, unaccountedGesture, openThread, threa
 	}
 	onUserInput((event) => {
 		if (!armed || event.type === "blur") return;
-		if (event.type === "wheel" && !armed.returns) return;
+		if (event.type === "wheel" && !armed.landing) return;
 		if (event instanceof KeyboardEvent && event.type === "keydown" && (event.repeat || KEYS_HELD.has(event.key) || UNDO_KEYS.includes(event.key))) return;
 		if ((event.type === "pointerdown" || event.type === "touchstart") && inChrome(eventSource(event))) return;
 		armed.inputs.push(inputCount());
@@ -4809,7 +4809,7 @@ function createUndo({ post, stateApplying, unaccountedGesture, openThread, threa
 			stop: () => {},
 			inputs: [],
 			shown: true,
-			returns: true
+			landing: true
 		};
 	}
 	const drawingsOf = (id) => [...[...document.querySelectorAll(THREAD)].filter((node) => drawnThreadId(node) === id), surfaceFocusTarget(id, { part: "thread" })];
@@ -4819,7 +4819,12 @@ function createUndo({ post, stateApplying, unaccountedGesture, openThread, threa
 		const place = placeOf(entry.event);
 		return place !== null && !inView(place);
 	}
-	async function returnToThread(id, intent) {
+	async function returnToThread(id, intent, reader = null) {
+		if (reader) return openThread(id, {
+			part: "thread",
+			intent,
+			reader
+		});
 		const seated = drawingsOf(id).find((node) => node && !inChrome(node) && seen(node));
 		if (!seated) return openThread(id, {
 			part: "thread",
@@ -4828,6 +4833,7 @@ function createUndo({ post, stateApplying, unaccountedGesture, openThread, threa
 		intent.handoff(() => focusDestination(seated, "move"));
 		return seated;
 	}
+	const settledHere = (event) => event.attempt ? gestures.get(event.attempt)?.settled : void 0;
 	async function show(event, intent = retainUserIntent()) {
 		const place = placeOf(event);
 		if (!place) return [];
@@ -4835,7 +4841,11 @@ function createUndo({ post, stateApplying, unaccountedGesture, openThread, threa
 			part: "message",
 			intent
 		}), ...place.nodes].filter((node) => node !== null);
-		if (place.thread) return [await returnToThread(place.thread, intent)].filter((node) => node !== null);
+		if (place.thread) {
+			const reader = settledHere(event)?.reader;
+			const shown = await returnToThread(place.thread, intent, reader);
+			return shown instanceof Element ? [shown] : [];
+		}
 		const url = new URL(window.location.href);
 		if (place.fragment === void 0) return [];
 		url.hash = place.fragment;
@@ -4851,7 +4861,7 @@ function createUndo({ post, stateApplying, unaccountedGesture, openThread, threa
 			stop: () => stop(),
 			inputs: [],
 			shown: false,
-			returns: false
+			landing: false
 		};
 		armed = current;
 		notice(`Press again to undo: ${takes(event)}`);
@@ -4878,16 +4888,17 @@ function createUndo({ post, stateApplying, unaccountedGesture, openThread, threa
 	function walkTo(entry) {
 		const { event } = entry;
 		const heldArm = armedFor(event);
-		const taking = heldArm && !(heldArm.returns && entry.picked_up);
-		if (!taking && needsShowing(entry)) {
+		if (!(heldArm && !(heldArm.landing && entry.picked_up)) && needsShowing(entry)) {
 			arm(event);
 			return null;
 		}
-		const returning = taking && heldArm.returns && retainUserIntent();
+		const settled = settledHere(event);
+		const thread = placeOf(event)?.thread;
+		const intent = retainUserIntent();
 		const answer = withdraw(event);
 		if (!answer) return null;
 		disarm();
-		if (returning) whenDocumentPresented().then(() => show(event, returning)).catch(() => {});
+		if (settled && thread) whenDocumentPresented().then(() => returnToThread(thread, intent, settled.reader)).catch(() => {});
 		return answer;
 	}
 	function undoLast() {
@@ -5365,8 +5376,9 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 	};
 	const DECLINED = Symbol("declined");
 	const UNDRAWN = Symbol("undrawn");
-	async function openPageThread(id, { part = null, focus = true, travel = true, history = true, scroll = true, intent = retainUserIntent(), origin = null, page = false } = {}) {
+	async function openPageThread(id, { part = null, focus = true, travel = true, history = true, scroll = true, intent = retainUserIntent(), origin = null, reader = null } = {}) {
 		if (!intent()) return null;
+		const page = reader === "page";
 		const navigationStep = travel && scroll;
 		const selected = presentation?.owner.isConnected ? presentation : null;
 		const thread = threadNamed(id);
@@ -5377,7 +5389,7 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 		if (selected && !primary) return null;
 		const holder = part === "message" ? authoredHolder(id) : null;
 		const drawn = Boolean(selected && holder && renderedUnder(holder, selected.owner));
-		function inPrimary({ selected, thread }, last) {
+		function inPrimary({ selected, thread }, last, resort = last) {
 			opening?.abort();
 			const abort = new AbortController();
 			opening = abort;
@@ -5393,7 +5405,7 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 			const mayPresent = () => !abort.signal.aborted && presentation === selected && selected.owner.isConnected && (focus === false ? intent.available() : intent());
 			const arriving = restrictUserIntent(intent, mayPresent);
 			const departure = focus !== false && navigationStep && history ? prepareNavigationStep() : null;
-			if (last) lastResort.add(thread.key);
+			if (resort) lastResort.add(thread.key);
 			else lastResort.delete(thread.key);
 			const result = selected.open(thread.key, request);
 			if (result === false) lastResort.delete(thread.key);
@@ -5513,6 +5525,10 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 			if (surfaceFocusTarget(id, { part: localPart })) return openSurface();
 			return DECLINED;
 		}
+		if (reader === "primary") {
+			const kept = primary ? await inPrimary(primary, true, false) : null;
+			return kept === DECLINED || kept === UNDRAWN ? null : kept;
+		}
 		const asked = primary && !page ? inPrimary(primary, false) : DECLINED;
 		const first = asked instanceof Promise ? await asked : asked;
 		if (first !== DECLINED && first !== UNDRAWN) return first;
@@ -5554,7 +5570,7 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 				focus: replyThreadKey(focused()) !== key && drawnThreadId(heldThread()) === thread.id,
 				travel: false,
 				scroll: false,
-				page: true
+				reader: "page"
 			});
 		}
 	}
@@ -7804,9 +7820,7 @@ function createApplication(dependencies) {
 	const settlementView = {
 		pendingEntries: ledger.snapshot,
 		actions: threadActions,
-		landedAway: undo.landedAway,
-		offerUndo: undo.offerUndo,
-		returnToThread: undo.returnToThread
+		undo
 	};
 	const inlineView = {
 		reply: replyView,

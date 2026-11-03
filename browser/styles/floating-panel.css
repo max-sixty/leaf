@@ -771,6 +771,22 @@
     font: var(--font-message);
     color: var(--muted);
   }
+  /* The row holds one line. A notice's words longer than the room the field gives it
+     end in an ellipsis, and its press stays whole; wrapped, they took two lines and
+     stood Undo over its key. */
+  .lf-fp-row-notice-face {
+    max-width: 100%;
+    > * {
+      flex: none;
+    }
+  }
+  .lf-fp-row-notice-face > .lf-fp-row-notice-says {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .lf-fp-row-notice-sep {
     color: var(--lf-fp-quiet);
   }

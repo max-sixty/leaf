@@ -345,14 +345,19 @@ function dressing(node, parents, depth) {
 //
 // - "template": a `<button>`, or an element whose `role` is "button", in a template
 //   literal or an HTML string, read with parse5's tokenizer so quoting holds, each
-//   `${…}` standing in as a marker. A role dresses it from an expression in its
-//   element part: "role in its tag" when a builder is called there, "role through a
-//   name" when the part names a directive kept in a constant, or a callback handed to
-//   `ref`, whose binding calls one, directly or through a function it calls.
+//   `${…}` standing in as a marker, or whose element part makes it a selectable
+//   button (`selectableOffered("button", …)`). A role dresses it from an expression in
+//   its element part: "role in its tag" when a builder is called there, or the
+//   selectable offer names its face, "role through a name" when the part names a
+//   directive kept in a constant, or a callback handed to `ref`, whose binding calls
+//   one, directly or through a function it calls.
 // - "made": a "button" made by `offer`, `el` or `createElement`; "role as it is made"
-//   when it is made
-//   as the element of `offerActionElement` or `offerContentElement`, or the variable
-//   that holds it, and only it, is later handed to one.
+//   when it is made as the element of `offerActionElement` or `offerContentElement`,
+//   or the variable that holds it, and only it, is later handed to one.
+// - "selectable": a selectable button, `selectableOffer("button", …)`; "role as it is
+//   made" when it names its face (the fourth argument). A selectable offer of another
+//   role, such as a tab, chooses rather than presses, as a native choice does, and is
+//   no press.
 // - "copy control": a `copyControl(…)`, "role in its options" when they name a role,
 //   "trigger in its options" when they hand it a trigger, a press read on its own.
 // - "scripted role": an element a module makes, bound in scope, and gives the role
@@ -418,6 +423,13 @@ function presses() {
           later.length > 0;
         press(node.start, node.end, "made", asMade && "role as it is made");
       }
+      if (name === "selectableOffer" && words(args[0], parents).includes("button"))
+        press(
+          node.start,
+          node.end,
+          "selectable",
+          words(args[3], parents).length > 0 && "role as it is made",
+        );
       if (name === "copyControl" && node.callee.type === "Identifier") {
         const option = (name) => args[1]?.properties?.find((p) => p.key?.name === name);
         const role = option("role") && words(option("role").value, parents).length;
@@ -485,13 +497,22 @@ function templatePresses(node, parents, press) {
     );
   const onStartTag = ({ tagName, attrs, location }) => {
     const role = attrs.find((attr) => attr.name === "role");
+    // The element part: an expression standing in the tag as an attribute name.
+    const parts = attrs.flatMap((attr) => marked(attr.name));
+    // A selectable offer gives the element its role, and its face (the third argument).
+    const selectable = parts.filter(
+      (part) =>
+        callee(part) === "selectableOffered" &&
+        words(part.arguments[0], parents).includes("button"),
+    );
     const asButton = valueWords(role?.value ?? "").includes("button");
-    if (tagName !== "button" && !asButton) return;
+    if (tagName !== "button" && !asButton && !selectable.length) return;
     const classValue = attrs.find((attr) => attr.name === "class")?.value ?? "";
     // A pure template writes a role's face into its class (`actionClass`).
     const facedClass = marked(classValue).some((part) => dressing(part, parents, 0));
-    // The element part: an expression standing in the tag as an attribute name.
-    const parts = attrs.flatMap((attr) => marked(attr.name));
+    const facedOffer = selectable.some(
+      (part) => words(part.arguments[2], parents).length > 0,
+    );
     const handed = parts.flatMap((part) => {
       const names = [];
       walk(part, (n) => {
@@ -503,7 +524,7 @@ function templatePresses(node, parents, press) {
       inSource(location.startOffset),
       inSource(location.endOffset - 1) + 1,
       "template",
-      parts.some((part) => dressing(part, parents, 0)) || facedClass
+      parts.some((part) => dressing(part, parents, 0)) || facedClass || facedOffer
         ? "role in its tag"
         : handed.some((name) => dressing(bound(name, parents), parents, 1)) &&
             "role through a name",

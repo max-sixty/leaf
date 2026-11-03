@@ -41,6 +41,11 @@
      the keys.
    - `picture`: a picture that opens larger in the media viewer, a message's or a
      draft's, whose face is the picture itself, unframed, under a magnifier.
+   - `fold`: the line a folded group stands as, such as a settled decision's "Settled ·
+     Ship Friday" over its options, which opens and closes the group
+     (`aria-expanded`). It runs the group's width, its words at weight 600 after the
+     disclosure arrow (`.lf-disclosure-marker`), unframed until a hovering pointer
+     draws its edge.
    - `proxy`: a hidden stand-in, for the keyboard or a screen reader, for something on
      the page the pointer takes by itself: a gloss's phrase, a commented block (its
      comment note), a picture and its declared parts (their response proxies). Its face
@@ -71,6 +76,7 @@ const ACTION_FACES = {
   response: "lf-response-face",
   gutter: "lf-gutter",
   picture: "lf-picture",
+  fold: "lf-fold",
   proxy: "lf-proxy",
 };
 

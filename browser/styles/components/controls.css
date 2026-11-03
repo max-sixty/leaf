@@ -892,6 +892,33 @@ wa-copy-button.lf-icon-action {
 .lf-picture:hover {
   box-shadow: none;
 }
+/* The fold face: the line a folded group stands as, which opens and closes it, a
+   settled decision's (lf-options-settled.js). It runs the group's width, its words at
+   weight 600 after the disclosure arrow, which the line's gap parts from them, and
+   draws no frame until a hovering pointer shows its edge; its ring stands inside it,
+   as a row's does. */
+.lf-fold {
+  display: flex;
+  width: 100%;
+  align-items: baseline;
+  min-height: var(--aim-floor);
+  gap: var(--sp-2);
+  padding: 7px 0;
+  font-weight: 600;
+  text-align: left;
+  background: transparent;
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-radius: var(--r);
+  --lf-ring-at: var(--focus-ring-inset);
+}
+.lf-fold::before {
+  align-self: center;
+  margin: 0;
+}
+.lf-fold:hover {
+  border-color: var(--border-2);
+}
 /* The proxy face: a pixel out of flow, out of the selection and transparent, taking no
    pointer, since what it stands for takes the pointer and is what the user sees. Its
    focus draws nothing on it: the ring stands on that thing (control-faces.js, `proxy`).

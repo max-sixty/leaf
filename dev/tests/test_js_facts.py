@@ -25,8 +25,9 @@ def facts(command, module):
 # through a name, as it is made, in a copy control's options, around a trigger, and
 # through the name a made button is bound to; a scripted role never dressed; a name
 # dressed and then given another button, over two lines of one block, whose buttons
-# neither reads as dressed; and a pure template that writes a role's face into its
-# class.
+# neither reads as dressed; a pure template that writes a role's face into its
+# class; and a selectable button, made and in a template, each once naming its face
+# and once drawing its own, which the press check refuses.
 PRESSES = """\
 { document.createElement ("button"); }
 { html`<div role = "button" class="lf-grip">`; }
@@ -44,6 +45,10 @@ PRESSES = """\
 { let button = document.createElement("button"); offerActionElement(button, "word", "lf-old");
   button = document.createElement("button"); }
 { html`<button class=${`${actionClass("word", "lf-x")} lf-ui`}>`; }
+{ selectableOffer("button", "lf-x", undefined, "row"); }
+{ selectableOffer("button", "own-face"); }
+{ html`<span ${selectableOffered("button", "lf-x", "row")}>`; }
+{ html`<span ${selectableOffered("button", "own-face")}>`; }
 """
 # Each line's press: the kind it is read as and how a role dresses it.
 READ = [
@@ -63,6 +68,10 @@ READ = [
     ("made", None),
     ("made", None),
     ("template", "role in its tag"),
+    ("selectable", "role as it is made"),
+    ("selectable", None),
+    ("template", "role in its tag"),
+    ("template", None),
 ]
 
 
@@ -71,3 +80,14 @@ def test_each_press_is_read_with_how_a_role_dresses_it(tmp_path):
     module.write_text(PRESSES)
     read = [(p["line"], p["kind"], p["built"]) for p in facts("presses", module)]
     assert read == [(line, *press) for line, press in enumerate(READ, 1)]
+
+
+def test_a_selectable_offer_of_another_role_chooses_rather_than_presses(tmp_path):
+    """A tab or an option a selectable offer makes chooses what shows, as a native
+    choice does, so the press check reads none of them."""
+    module = tmp_path / "choices.js"
+    module.write_text(
+        'selectableOffer("tab", "own-face");\n'
+        'html`<span ${selectableOffered("option", "own-face")}>`;\n'
+    )
+    assert facts("presses", module) == []

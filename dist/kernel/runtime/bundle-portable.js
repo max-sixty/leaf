@@ -2065,6 +2065,7 @@ const ACTION_FACES = {
 	response: "lf-response-face",
 	gutter: "lf-gutter",
 	picture: "lf-picture",
+	fold: "lf-fold",
 	proxy: "lf-proxy"
 };
 function actionClass(role, className = "") {

@@ -440,6 +440,7 @@ face, symbol and name to an existing node. The roles are:
 - `"response"`, a response bar's choice, which Leaf builds.
 - `"gutter"`, a code line's number that takes a comment.
 - `"picture"`, a picture that opens in the media viewer.
+- `"fold"`, the line a folded group stands as, which opens it (`aria-expanded`).
 - `"proxy"`, a hidden keyboard stand-in for something the pointer takes by itself, such
   as a phrase that explains; give that thing the ring its focus draws.
 
@@ -451,16 +452,11 @@ generated controls too.
 
 A control whose label is the page's own words, such as a tab's name, must stay
 selectable, so build it with `selectableOffer(role, className, label)`, a focusable
-span. Leaf presses any span it offers as a button as it does a button, so with the
-role `"button"` Enter and Space press it, on a page with Leaf or without it, and the
-widget declares no keys for that press; for another role, such as `"tab"`, the widget
-declares its keys. In a template, use
-`<span ${selectableOffered(role, className)}>${label}</span>`. To give it a role's
-face, such as `"row"` for a list whose rows are the page's words, name the role last:
-`selectableOffer(role, className, label, "row")` or `selectableOffered(role,
-className, "row")`. Printing drops every
-offer, so build structure that isn't injected UI, such as an editor's file, with
-`el(tag, className, text)`.
+span, or `<span ${selectableOffered(role, className)}>${label}</span>`. With the role
+`"button"`, Enter and Space press it, with Leaf or without, and like any press it
+names its role last: `selectableOffer("button", className, label, "row")`. For
+another role, such as `"tab"`, the widget declares its keys. Printing drops every
+offer, so build structure that isn't injected UI with `el(tag, className, text)`.
 
 `relabel(node, label, {says})` writes a generated control's label. Set `says: true`
 where the label is the page speaking, as a pick mark reading "chosen" does, `false` for an

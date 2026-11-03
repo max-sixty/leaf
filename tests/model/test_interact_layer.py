@@ -1627,13 +1627,15 @@ def test_every_press_is_built_by_role():
         "role as it is made",
         "role in its options",
         "trigger in its options",
+        "selectable",
     }, f"the reading missed a kind of press: {reached}"
     assert not unbuilt, (
         "these presses draw a face of their own:\n"
         + "\n".join(unbuilt)
-        + "\nBuild each by role with offerAction, offeredAction, offerActionElement or"
-        " copyControl's `role` (control-faces.js, `ACTION_FACES`). A press no role"
-        " serves is a new role, for a reviewer to weigh."
+        + "\nBuild each by role with offerAction, offeredAction, offerActionElement,"
+        " copyControl's `role` or a selectable offer's face (control-faces.js,"
+        " `ACTION_FACES`). A press no role serves is a new role, for a reviewer to"
+        " weigh."
     )
 
 

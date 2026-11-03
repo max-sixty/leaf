@@ -1,5 +1,5 @@
 import { canPlaceFocus, composedParentNode, exceptionRecord, excludedByInert, focusDestination, focused, nativeLayers, onCurrentLocation, onUserInput, pagePresented, pageUpgraded, recoveredLabelFocus, renderedUnder, sizeObserver, tabStore, takesLetters } from "./bundle-portable.js";
-import { EVERYTHING, allBindings, answers, bindingEnabledFor, bindings, commandEntries, commandReady, commandRoutes, commandRun, declaredBindings, descriptionOf, live, nativeActivationAt, nativeClaimAt, quickShortcuts, referencedCommandEntry, routedCommand, runLanding, scopeAvailable, scopeIdentity, scopesAt, scopesFor, spell, titleOf, word } from "./bundle-errors.js";
+import { EVERYTHING, allBindings, answers, bindingEnabledFor, bindings, commandEntries, commandReady, commandRoutes, commandRun, declaredBindings, descriptionOf, live, nativeActivationAt, nativeClaimAt, quickShortcuts, referencedCommandEntry, routedCommand, runLanding, scopeAvailable, scopeIdentity, scopesAt, scopesFor, spell, titleOf, word } from "./bundle-layer-client.js";
 import { whenArrived } from "./bundle-content-layout.js";
 import { DESIGN_MODE_KEY, ELEMENTS, focusScrolledAway, pageScopes, stances, textEntryScopes, universalCommandReference } from "./bundle-data.js";
 

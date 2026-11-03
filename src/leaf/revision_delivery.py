@@ -700,7 +700,6 @@ class Delivery:
     # them. Relative to the delivery, which has no origin to know.
     page_root: str | None = None
     html_attributes: Mapping[str, str] = field(default_factory=dict)
-    body_attributes: Mapping[str, str] = field(default_factory=dict)
 
 
 def compose_document(
@@ -828,13 +827,6 @@ def compose_document(
             # A source may leave <html> implicit; the tag is then written where the
             # parser would have implied it, before the head.
             else (head_start, f"<html{attributes}>")
-        )
-    if delivery.body_attributes:
-        insertions.append(
-            (
-                document.authoring.wrapper_tags["body"][1] - 1,
-                _attributes(delivery.body_attributes),
-            )
         )
     for offset, text in sorted(insertions, key=lambda item: item[0], reverse=True):
         source = source[:offset] + text + source[offset:]

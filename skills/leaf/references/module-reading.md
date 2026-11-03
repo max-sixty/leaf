@@ -19,8 +19,8 @@ which Leaf sets to the `<pre>`'s text when the markup binds nothing
 (`package-data.md`, "External or derived data").
 
 An agent's message can carry markup that repeats ids on the page, so look up an id
-another element gives within `authoredScope(element)`: the page's `body`, or the body
-of the message holding the element. `elementById(id, root)` finds an id within `root`,
+another element gives within `authoredScope(element)`: the page's `body`, or, for
+markup in an agent's message, that message's own markup. `elementById(id, root)` finds an id within `root`,
 or the whole document, including the shadow trees `getElementById` misses.
 `under(node, root)` says whether `node` is in `root` across shadow boundaries, and
 `inChrome(node)` whether it is in Leaf's own interface, as a widget in a Thread reply

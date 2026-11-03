@@ -19,6 +19,17 @@ One arranges a block's children:
 | -------------- | ------------------------------------ |
 | `layout-tiles` | equal cells, as many to a row as fit |
 
+Content standing beside `main` in `body`, such as a site-wide header or footer, takes
+no Layout: no gutter or column, and `data-width` does nothing there. A workspace's
+`main` still fills the window, so anything beside it scrolls the page. A page of parts
+holds its title and list fixed at the window's top, so it takes nothing beside `main`.
+Keep the page's
+title, and a Layout's `header` and `footer`, inside `main`, and lay out what stands
+beside it with the page's own CSS, such as a grid on `body`. A site header the page
+fixes or sticks at the window's top covers what lands under it, so give the page's
+targets `scroll-margin-top` its height (`module-scroll-and-motion.md`, "Sticky
+headers").
+
 On a column page, a board, diagram or diff declares its own width, and any other block,
 such as a table, a trace or a playground, can ask for one with `data-width` ("Bounds and
 widths"). The block breaks out of the column and the prose stays where it is.
@@ -297,7 +308,9 @@ a stack of layer tiles or a curve's handles, is the page's own design
 
 Leaf's panel, thread cards and markers draw over everything in `body`, whatever its
 `z-index`. Open a modal or menu of the page's own in the top layer: a `<dialog>` shown
-with `showModal()`, or an element with `popover`.
+with `showModal()`, or an element with `popover`. To show the page full screen, call
+`requestFullscreen()` on `document.documentElement`; a full-screen `body` leaves Leaf's
+panel and threads out.
 
 ### Space for changing text
 

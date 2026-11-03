@@ -40,7 +40,7 @@
 
     "runtime/annotation-overlay/margin-cluster-view.js": "a329209183a6255d8df0b87dadd4047b521d14f2dd33de52da7d47fadcb88e1c",
 
-    "runtime/annotation-overlay/margin-layout.js": "48ebaeed3fd8bf44a1954cef6f118a3810303d90cf42fa9c5cf5575d654f3e80",
+    "runtime/annotation-overlay/margin-layout.js": "c5a678c4664c1d1433b3c1d859bae54a2338ebf613ecbf0bdf847715317cd883",
 
     "runtime/annotation-overlay/margin-placement.js": "7eb32b30afc9432946f2ecd3ff60535ab3c1ff4ed4646fca1f5445bffb91de22",
 
@@ -62,7 +62,7 @@
 
     "runtime/block-controls.js": "0385b74686947517ac721cc63f9fc0aeb2f458efb9eab5c8a82aa88258049ba4",
 
-    "runtime/bootstrap.js": "0deed193173f4c2dca8c376facbd5436d2db4fd776d92410f1e549cacc0f0ff1",
+    "runtime/bootstrap.js": "13612e808ab2f7c9e01c1c1008a38afa581598991d4daaed188e8474ca468286",
 
     "runtime/bounds.js": "742f1c9c975e07158a67af844f8cfc30a1ec62f5dd2aa79d0e59d7525c8b93c3",
 
@@ -110,7 +110,7 @@
 
     "runtime/composing/region-capture.js": "0497e183c37f85674e84a6eb459915b0f0670c83f63c686e605c4fe67251069d",
 
-    "runtime/composing/region-selector.js": "0bfebe31d5c136c57b472a7f2ee59ed8b16ae4941641fb17ab11a0af575b1d5b",
+    "runtime/composing/region-selector.js": "44de5b4ac19e7ab8f3d630ec6cd18528866738a752c3c76125a98fe4c42f1547",
 
     "runtime/composing/selection.js": "391bd9fb7f9c46e3374144f918866a2f6d5eaaea818fed9eff104c244644fc9b",
 
@@ -120,7 +120,7 @@
 
     "runtime/composing/text-field.js": "03fdc73a1f8fc983665cd34c0b1f1c8e1f3350148cbae042f92583ce8303d85b",
 
-    "runtime/content-layout.js": "b732b29769b531a8e38f4cab790e0f8deb2359450ca24ef9b24b308f3173c9b0",
+    "runtime/content-layout.js": "1e2658ebf10541a2b2730247d8663c1b7d57a107f15928521037f424df3fbfc8",
 
     "runtime/context.js": "aa77a03059c0685e20c61c865ce3647fa1327ca523116aa784903f4e35bf971f",
 
@@ -138,7 +138,7 @@
 
     "runtime/control-selectors.js": "1f8a7f80d1a3d33e1cef5e6f6af2fe3cda382a9c0af258c1ffc69d47db748d3e",
 
-    "runtime/copy-control.js": "2df48bfc46171195eba9f16ae015c92bc2a153f87346fa35cc4913cf668e5840",
+    "runtime/copy-control.js": "c5131c9f55f913f4b99cd5ec3fcaa71362fa58edd367993890fb6c57f10b2020",
 
     "runtime/copyable-text.js": "b4252f63a205ebd26d5e158c5127b3da844e61b553527350b69564bc71be04ef",
 
@@ -266,7 +266,7 @@
 
     "runtime/keyboard/register.js": "b1ee127ef099ccb462992bcf9fa75af56573290a66f1422aefa773d77a6a2bc7",
 
-    "runtime/keyboard/scopes.js": "4989842c2fdfa345ece3afcad3b68fc8fa48d8d8ce810b4b774bce72e740c84d",
+    "runtime/keyboard/scopes.js": "90d5d52e93859ccc549ccc65587652dd87878cdda939614d07c8ee2872bf40ae",
 
     "runtime/keyboard/status-context.js": "7a513009193c1d885a2bfb7d2d7cbcf81de793fdec47ee5d19e5422c9c69aa8b",
 
@@ -286,7 +286,7 @@
 
     "runtime/llm-api.js": "a1d45811caba7e683fca30326d7a5b0c6f483e6f90067d35e138f822b38780c1",
 
-    "runtime/margin-bars.js": "b960fe7980cd4179ed620c4e0285732ba770ef27404312a1e2bb572da64063d7",
+    "runtime/margin-bars.js": "693fdcde8deadbb80723c7d9bb854b736fdee84d01a477713cb428f4e406c299",
 
     "runtime/margin-map-model.js": "942b6caaba45dc8744c8164b631d1663875790ef71f0d56cf3926c2312a3b455",
 
@@ -388,7 +388,7 @@
 
     "runtime/reading-continuity.js": "cef989af886deaa24e32727730263b4d522a3d33a8bfd9c87f4ca29b6f9e36c4",
 
-    "runtime/reading-place.js": "f68e1790f3f6adfad3f3dc3c176f049723b4c487afa2d979997927da97d5569c",
+    "runtime/reading-place.js": "6d6b4b6e0108381a101a91bb7f31669d858729028b0666f369b292aeda509649",
 
     "runtime/reading-regions.js": "ddce82affdf1156d19a0e22e500e61c78291341fb66144406ac5f9272d51edde",
 

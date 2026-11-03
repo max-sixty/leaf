@@ -309,8 +309,12 @@ body {
     );
     /* The foot's room is the body's own end, where content growing above it only
      * lengthens the body: a box standing after the content would move with each growth.
-     * A page of parts makes it the open part's end instead (layouts.css). */
+     * A page of parts makes it the open part's end instead (layouts.css). The head's
+     * room is the body's own start the same way, padding rather than a box, so a page
+     * that lays its body out as a grid or flex row of header, nav and main finds no
+     * item of Leaf's among its own. */
     body {
+      padding-top: var(--lf-head-room);
       padding-bottom: var(--lf-foot-room);
     }
     /* Every live body but a block sample's (below) fills the window less its own
@@ -323,11 +327,6 @@ body {
      * the band. */
     &:not([data-lf-sample-block]) body {
       min-height: stretch;
-    }
-    body::before {
-      content: "";
-      display: block;
-      height: var(--lf-head-room);
     }
   }
   html[data-lf-live][data-lf-layout~="workspace"] {

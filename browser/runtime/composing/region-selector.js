@@ -43,6 +43,7 @@ import { clamp } from "../rect.js";
 import { layoutWindow } from "../geometry.js";
 import { notice } from "../notifications.js";
 import { pageImage } from "./page-image.js";
+import { LEAF_SURFACE } from "../passages.js";
 import { raiseError } from "../errors.js";
 
 const MIN_SIZE = 8;
@@ -191,9 +192,9 @@ export function createRegionSelector({
     keepsText(status, "Capturing…");
     paintKeys();
     try {
-      const { blob, warnings } = await pageImage(clip, {
-        exclude: [".lf-region-capture", ".lf-floating-panel", ".lf-fp-ground"],
-      });
+      // Leaf's chrome stands after the body the capture draws from; what Leaf keeps
+      // inside the body is hidden as the drawing's capture hides it.
+      const { blob, warnings } = await pageImage(clip, { exclude: [LEAF_SURFACE] });
       if (ended || ticket !== attempt) return;
       if (revision !== runtime.currentRevision)
         throw new Error("The page changed. Select the area again.");

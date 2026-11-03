@@ -52,9 +52,9 @@ export function geometryReading(open) {
 // column or a flow in it. Existing containment may be deliberate, so this reading never
 // refuses a page.
 function containedSpace() {
-  const main = pageDocument();
-  if (!main) return [];
-  return [...main.querySelectorAll("[data-lf-space]")].filter(inPage).flatMap((el) => {
+  const page = pageDocument();
+  if (!page) return [];
+  return [...page.querySelectorAll("[data-lf-space]")].filter(inPage).flatMap((el) => {
     if (skipped(el) || !el.checkVisibility()) return [];
     const holders = [];
     for (let holder = el.parentElement; holder; holder = holder.parentElement) {
@@ -93,8 +93,8 @@ function containedSpace() {
 // browser style and lay out each such subtree first (runtime/shown-box.js, `skipped`).
 /** @param {string[]} open */
 export function arrangedBoxes(open, { shown = false } = {}) {
-  const main = pageDocument();
-  if (!main) return [];
+  const page = pageDocument();
+  if (!page) return [];
   const opens = new Set(open);
   /** @type {[Element, string][]} */
   const boxes = [];
@@ -108,7 +108,7 @@ export function arrangedBoxes(open, { shown = false } = {}) {
       walk(child, `${path} > :nth-child(${i + 1})`),
     );
   };
-  walk(main, "body");
+  walk(page, "body");
   return boxes.flatMap(([box, path]) => {
     if (!/flex|grid/.test(getComputedStyle(box).display)) return [];
     const tops = laidOutItems(box)
@@ -732,8 +732,8 @@ export function misplacedBoxes() {
 // read as a column by one and left wrapping by the other went unreported: a note
 // across the whole table wraps because it is long, says nothing about a squeeze, and
 // unwrapped would push every column it spans out and name them all.
-// A cell in a hidden or collapsed row has no height. Read from `main`, where geometry
-// is real.
+// A cell in a hidden or collapsed row has no height. Read from the page, where
+// geometry is real.
 //
 // `squeezedTables` reports a table whose visible words stand outside its inner box with
 // a cell in it wrapped. `scrollWidth` is the first reading, then the words decide it:
@@ -754,8 +754,8 @@ export function misplacedBoxes() {
 // table's place (locate.js) beside its code, so the sweep tells one table's run of
 // widths from another's. A page with no scrolling table never adds the wrapping rule.
 export function squeezedTables() {
-  const main = pageDocument();
-  if (!main) return [];
+  const page = pageDocument();
+  if (!page) return [];
   // What a heading says, for the column's name.
   /** @param {Element} cell */
   const says = (cell) => {
@@ -788,7 +788,7 @@ export function squeezedTables() {
     }
     return false;
   };
-  const tables = [...main.querySelectorAll("table")]
+  const tables = [...page.querySelectorAll("table")]
     .filter(inPage)
     .filter(
       (t) =>

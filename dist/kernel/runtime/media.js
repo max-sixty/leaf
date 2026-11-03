@@ -1,5 +1,5 @@
 import { closeLayer, closeNativeLayer, describeFailure, focusDestination, foldDuration, handBack, inBaseLayer, keeps, keepsHidden, keepsText, nativeLayers, offerAction, offered, openLayer, openerOf, plainPress, reducedMotion, showNativeLayer } from "./bundle-portable.js";
-import { closeControl, html, keys, offlineInteractive, pageUrl, paintKeys, render, runtimeResource } from "./bundle-errors.js";
+import { closeControl, html, keys, offlineInteractive, pageUrl, paintKeys, render, runtimeResource } from "./bundle-layer-client.js";
 import { says } from "./bundle-passages.js";
 
 //#region runtime/media.js

@@ -660,8 +660,7 @@ def test_a_host_marks_the_delivered_document_where_it_asks(explicit_html):
             address=ADDRESS,
             import_map={"imports": {"/runtime/": ROOT + "/runtime/"}},
             page_root=PAGE_ROOT,
-            html_attributes={"data-lf-contained": ""},
-            body_attributes={"inert": ""},
+            html_attributes={"data-lf-contained": "", "inert": ""},
         ),
     )
 
@@ -670,9 +669,7 @@ def test_a_host_marks_the_delivered_document_where_it_asks(explicit_html):
     find_result_7 = served.tree.find("html")
     assert find_result_7 is not None
     assert "data-lf-contained" in find_result_7.attrs
-    find_result_8 = served.tree.find("body")
-    assert find_result_8 is not None
-    assert "inert" in find_result_8.attrs
+    assert "inert" in find_result_7.attrs
     assert served.authoring.title == "T" and "<p>Text.</p>" in delivered
 
 

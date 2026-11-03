@@ -78,7 +78,11 @@
         },
         receive: (callback) => listeners.add(callback),
         present() {
-          window.lfRootState.setRuntimeRootAttribute(document.body, "inert", null);
+          window.lfRootState.setRuntimeRootAttribute(
+            document.documentElement,
+            "inert",
+            null,
+          );
         },
       };
       root.lfSample = bridge;
@@ -220,8 +224,9 @@
         ...keys,
         keys.length === 1 ? "runs when it's ready" : "run when it's ready",
       );
-      // After the chrome's root, which it ties with (base.css, `.lf-held-keys`).
-      if (!echo.isConnected) document.documentElement.append(echo);
+      // After the body and the chrome's root, which it ties with (base.css,
+      // `.lf-held-keys`); before the body is parsed it would stand ahead of both.
+      if (!echo.isConnected && document.body) document.documentElement.append(echo);
     };
     const letGo = () => {
       held.length = 0;

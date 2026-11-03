@@ -134,7 +134,8 @@ or an obligation (it stays ordinary English for a list item or a row of a list),
 | Term | Identity criterion |
 |---|---|
 | **Page shell** | The body-level box that sizes the page after the chrome takes its space |
-| **Content frame** | `body > main`, the root of authored content and its reading column when its scroll behavior is `flow` |
+| **Page** | `body` less Leaf's own elements (`.lf-chrome, [data-lf-runtime]`), the root of authored content (`passages.js` `pageDocument`, `inPage`) |
+| **Content frame** | `body > main`, the box a page Layout arranges and its reading column when its scroll behavior is `flow` |
 | **Layout** | A shipped class (`layouts.css`, the `lf-layouts` cascade layer) that arranges the box it is on: a page Layout on the content frame only, `layout-tiles` on any block |
 | **Frame** | A box whose size comes from outside it, such as `main`, a root tab panel, a part, a pane or a cell of a Layout, or any box declaring `--lf-block-frame`. It sets its children's width and trims their outer margins |
 | **Text** and **surface** | How a block uses its frame's width. Text (a paragraph, list item, quote, caption, heading, or a block given the column) keeps the reading measure. Every other block is a surface and takes the width its frame allows: `wide` up to `--wide`, `available` all of it |
@@ -158,7 +159,7 @@ behavior. A compound widget may own reading regions without being a pane.
 
 | Term | Identity criterion |
 |---|---|
-| **Chrome** | Interface the runtime draws outside authored content, rooted at the one `.lf-chrome` container |
+| **Chrome** | Interface the runtime draws outside authored content, rooted at the one `.lf-chrome` container after `body` |
 | **Leaf panel** | Leaf's chrome (`floating-panel.js`): one box floating at the bottom of the window. Its **row** contains the leaf, the comment field, and one **seat** at the end. That seat shows the **On me mark**, with its count and a dot when a thread has an unread reply. While a view or stance is active, the seat instead shows the ✕ that closes it. A **folded** panel shows only the leaf in the window's corner |
 | **Leaf** | The mark at the row's start, coloured by the agent's state; a press opens the On view on the leaf's menu, or unfolds a folded panel |
 | **Leaf's menu** | The On view's first tab, **Menu**: the full status over the page's other controls (`page-controls.js`), one line each with its shortcut. A row ending in a chevron opens its list over the menu: Navigate, Annotations, Versions. While it stands, the comment field is its search |

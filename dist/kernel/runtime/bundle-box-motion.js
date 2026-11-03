@@ -1,17 +1,24 @@
-import { TEXT_FIELD, afterSettling, cancelRender, contentRides, inChrome, inlineStyle, keeps, motionEasing, motionPlays, motionTime, move, nextRender, onUserInput, playMotion } from "./bundle-portable.js";
+import { TEXT_FIELD, afterSettling, cancelRender, contentRides, inChrome, inlineStyle, keeps, locationStandsDown, motionEasing, motionPlays, motionTime, move, nativeLayerHolding, nextRender, onUserInput, playMotion, shownParts } from "./bundle-portable.js";
 import { el } from "./bundle-errors.js";
 import "./bundle-passages.js";
 import { SVG_NS, paintGeometry, paintShape, paintStand, placement, standBox, standOver, vacate } from "./bundle-page-layout.js";
 
 //#region runtime/target-paint.js
 const aimBox = el("div", "lf-ui lf-aim");
+const locationBox = el("div", "lf-ui lf-location");
 const aimStand = paintStand(aimBox);
+const locationStand = paintStand(locationBox);
 const aimLayer = aimStand.root;
+const locationLayer = locationStand.root;
 const aimShape = document.createElementNS(SVG_NS, "svg");
 aimShape.classList.add("lf-aim-shape");
 aimShape.setAttribute("aria-hidden", "true");
 const aimMaskId = "lf-runtime-aim-shape-mask";
 let aimed = null;
+let locationElement = null;
+let locationFrame = 0;
+let locationProjected = [];
+const PROJECTED_LOCATION = "lf-projected-location";
 function clearAim() {
 	aimed = null;
 	vacate(aimStand);
@@ -41,7 +48,7 @@ function paintAim(element, surface) {
 	if (!shaped) aimShape.replaceChildren();
 	keeps(aimBox, "data-for", element.id);
 	keeps(aimStand.root, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
-	const stood = standOver(aimStand, placed, shaped ? "0" : getComputedStyle(surface).borderRadius);
+	const stood = standOver(aimStand, placed, shaped ? null : getComputedStyle(surface).borderRadius);
 	aimed = {
 		placed: {
 			...placed,
@@ -123,7 +130,7 @@ function createTrace(className) {
 		box.classList.toggle("lf-shaped", shaped);
 		keeps(box, "data-for", element.id || null);
 		keeps(stand.root, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
-		standOver(stand, placed, shaped ? "0" : getComputedStyle(surface).borderRadius);
+		standOver(stand, placed, shaped ? null : getComputedStyle(surface).borderRadius);
 	}
 	return {
 		layer: stand.root,
@@ -172,12 +179,50 @@ const proxyRingLayer = proxyRing.layer;
 const paintTrace = targetTrace.paint;
 const paintProxyRing = proxyRing.paint;
 function shifted$1() {
+	relocate();
 	targetTrace.shifted();
 	proxyRing.shifted();
 }
 function geometryChanged() {
+	relocate();
 	targetTrace.geometryChanged();
 	proxyRing.geometryChanged();
+}
+function paintLocation(element) {
+	locationElement = element;
+	drawLocation();
+}
+const paintsOver = (element) => {
+	const layer = nativeLayerHolding(element);
+	return !layer || layer === nativeLayerHolding(locationStand.root);
+};
+function drawLocation() {
+	const element = locationElement;
+	const placed = element?.isConnected && !locationStandsDown(element) && paintsOver(element) ? placement(element, false, inChrome(element)) : null;
+	if (!element || !placed?.shown) {
+		projectLocation([]);
+		vacate(locationStand);
+		locationBox.style.display = "none";
+		locationBox.removeAttribute("data-for");
+		delete locationStand.root.dataset.lfPaintPlane;
+		return;
+	}
+	projectLocation([element, ...shownParts(element)]);
+	keeps(locationBox, "data-for", element.id || null);
+	keeps(locationStand.root, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
+	standOver(locationStand, placed, getComputedStyle(element).borderRadius);
+}
+function projectLocation(boxes) {
+	for (const box of locationProjected) if (!boxes.includes(box)) box.classList.toggle(PROJECTED_LOCATION, false);
+	for (const box of boxes) box.classList.toggle(PROJECTED_LOCATION, true);
+	locationProjected = boxes;
+}
+function relocate() {
+	if (locationFrame || !locationElement) return;
+	locationFrame = nextRender(() => {
+		locationFrame = 0;
+		drawLocation();
+	});
 }
 function mountTargetPaint() {
 	aimBox.append(aimShape);
@@ -904,4 +949,4 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 }
 
 //#endregion
-export { aimLayer, boxMotion, clearAim, geometryChanged, labelAim, mountTargetPaint, paintAim, paintProxyRing, paintTrace, proxyRingLayer, shifted$1 as shifted, targetTraceLayer };
+export { aimLayer, boxMotion, clearAim, geometryChanged, labelAim, locationLayer, mountTargetPaint, paintAim, paintLocation, paintProxyRing, paintTrace, proxyRingLayer, shifted$1 as shifted, targetTraceLayer };

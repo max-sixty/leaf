@@ -44,7 +44,7 @@
 }
 :host(lf-file-editor) :is(.lf-file-editor-retry, .lf-file-editor-conflict) {
   /* On its edge (base.css, "Where it stands"): it fills the header's line. */
-  outline-offset: 0;
+  --lf-ring-at: 0;
 }
 :host(lf-file-editor) .lf-file-editor-conflict {
   align-self: stretch;
@@ -99,7 +99,7 @@
 }
 /* A row is packed against the menu's edge, so its ring is drawn inset. */
 :host(lf-file-editor) .lf-file-editor-choices .lf-btn {
-  outline-offset: var(--focus-ring-inset);
+  --lf-ring-at: var(--focus-ring-inset);
 }
 :host(lf-file-editor) .lf-file-editor-edit {
   min-width: 0;

@@ -264,7 +264,7 @@ CONTROL_ARCHETYPES = (
 
 # The layer's focus floor (surfaces.css), which rings every box holding visible focus
 # where no carrier wears the ring for it: the panel's own controls and rows among them.
-FLOOR_RING = "[data-lf-focus-visible]:not(.lf-projected-mark)"
+FLOOR_RING = "[data-lf-focus-visible]:not(.lf-projected-mark, .lf-projected-location)"
 
 
 # The page the chrome's surfaces are sampled on: small, with a board's grips, and served

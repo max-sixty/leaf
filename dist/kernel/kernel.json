@@ -1,6 +1,6 @@
 {
   "inputs": {
-    "leaf.js": "536b6b0bf9d7c1a6db47a6b86746097062d4b17db57ce8035f23bf34478fb2a3",
+    "leaf.js": "60c34395dda04531461938114fb727a213b61703f67da4ba093c8d28385de739",
 
     "runtime/abort.js": "5ac3a80366571da2b98e2aae8cea84bbc2fa8befed9815a9e7d77e8a68445320",
 
@@ -22,7 +22,7 @@
 
     "runtime/annotation-inventory.js": "f85cda64cdf583a005bab2dd5e14983763d8ee2a55b26962d336b3bf359f5b87",
 
-    "runtime/annotation-overlay/anchor-paint.js": "56a11abd4a8fe68a45e00d26ce2cda2165b980fdef97363079c4f12c0e2b9ed4",
+    "runtime/annotation-overlay/anchor-paint.js": "3ead2423eb5280061cccc4f6cbb1706f1884a8637caa21d64aa6df36a129340d",
 
     "runtime/annotation-overlay/annotation-layer.js": "745fd0b8d0fafcc5e903790dd2a65ea0090800fa118df0d49231e3ee31902d61",
 
@@ -40,17 +40,17 @@
 
     "runtime/annotation-overlay/margin-cluster-view.js": "a329209183a6255d8df0b87dadd4047b521d14f2dd33de52da7d47fadcb88e1c",
 
-    "runtime/annotation-overlay/margin-layout.js": "1c88d58a5506ef87b69957dd608566f3f624e16af2912281443bd698a6286db6",
+    "runtime/annotation-overlay/margin-layout.js": "248c831f39dade8cbd29258f08488ef2510a78886c34cb1cc6306c361fef4501",
 
     "runtime/annotation-overlay/margin-placement.js": "7eb32b30afc9432946f2ecd3ff60535ab3c1ff4ed4646fca1f5445bffb91de22",
 
-    "runtime/annotation-overlay/margin-projection.js": "277398b45cfdfb2f3c47ef67d4068d0cc00eb0b61dd273f8c50cfff95a4c7776",
+    "runtime/annotation-overlay/margin-projection.js": "0ad7635cbec35d59e18cc930733ae8782fb3170c6e6bc72738c0da061534645d",
 
     "runtime/annotation-overlay/surface-grip.js": "fcaae3d4a8967c133989238e9a284830e72fda427d2cf71ec6919d394e18fd00",
 
     "runtime/annotation-overlay/thread-preview.js": "1240b32ff46aadcb260c07cc2883c7a94bcdcba5ef1742eba3c5d9090428f064",
 
-    "runtime/annotation-overlay/visual-mark-paint.js": "00651c9c34b7ebd9fff4646328aebf907444287278cbdb7439a82a472ea26125",
+    "runtime/annotation-overlay/visual-mark-paint.js": "82aba5f8f89f4714553f1c8ff6ba89819366a4f353dace43d1abd494659d23bb",
 
     "runtime/annotation-view.js": "7bad452ad8ec72d6c93b9604cce3d9a771233389ce6130b5f30f59a6f028bc03",
 
@@ -120,7 +120,7 @@
 
     "runtime/composing/text-field.js": "03fdc73a1f8fc983665cd34c0b1f1c8e1f3350148cbae042f92583ce8303d85b",
 
-    "runtime/content-layout.js": "86c9eedefdec72fc83b816df59027c8f089a9fd30a97890cae8894504f39be58",
+    "runtime/content-layout.js": "b732b29769b531a8e38f4cab790e0f8deb2359450ca24ef9b24b308f3173c9b0",
 
     "runtime/context.js": "aa77a03059c0685e20c61c865ce3647fa1327ca523116aa784903f4e35bf971f",
 
@@ -148,7 +148,7 @@
 
     "runtime/data.js": "c80e810fbf3d964e4f20027b817256e0c5074f9c17aaa22dddac5b8e389d293d",
 
-    "runtime/declared-words.js": "c07edbf911ae155486ef42651ab28dd7c12b2cd0b20abea516a1c56b4d0a6e2d",
+    "runtime/declared-words.js": "2de3dcdb20da9a9d59ae6ed98a41e9024d769cb3c8aa8b0ce5667ceb3d092a6e",
 
     "runtime/deferred-value.js": "bd5941ba778244dfeb3ca7518e1b826f5945450d5be91ca3aa399699dcbe1b60",
 
@@ -192,7 +192,7 @@
 
     "runtime/file-api.js": "f3b92db21e51b8e6537c73e015c63e388234e8d1be210e60ebcb48015ca46eae",
 
-    "runtime/floating-panel.js": "3fd400ca406c27e8cf0677e1e9798cb53bdcedc1339d046f0453275bff1c4c08",
+    "runtime/floating-panel.js": "ee3b3ac8a83b9ece6d68b6b9eeba38ace10c3c3df3dc1737d74653c543e32dd0",
 
     "runtime/focus.js": "4ce1d8d253d0651bf8e3181dfc821011a5b3ee24d692cc9ab8a3a69364a96345",
 
@@ -232,7 +232,7 @@
 
     "runtime/kernel-facts.js": "a115be58af0138cc01234a9d6c16caa066237d7988b94e056039810edcf9b53e",
 
-    "runtime/kernel-registry.json": "454c62e87f54d3c342124b091b3e631e11b1b30b61588eccce1a9d8c37d18cd6",
+    "runtime/kernel-registry.json": "fa727bbbbc3b8e99c031d96a350dbcf7bd67f9546ef13b09f18a086b067d0883",
 
     "runtime/keyboard/bindings.js": "df27dc5618f49b0f81056b32b23687718447e90b075ae5a4f4cfafcc80038fe4",
 
@@ -274,7 +274,7 @@
 
     "runtime/keyboard/touch-controls.js": "921757cef46c6231263653480c5abb6f877b7c0b10dac5798df19fbab43de7db",
 
-    "runtime/landing-scroll.js": "ded0e481f29ce0bbcdf471a052e7ba0ecdff34927145df30fc326b08f0d5f97a",
+    "runtime/landing-scroll.js": "c17a398332f3e9dcdc58f551177a5b20b1e2f1bf8739d058dca4dceb491889ac",
 
     "runtime/language-paths.js": "038583c5c8c80b5f772323aa1f47b6d8d865e615d632014ac2c12cd92f90006f",
 
@@ -318,7 +318,7 @@
 
     "runtime/obligations/view-elements.js": "8dcb50af3cd2a4e2d57dfd37e134ceddc7688acd53bc62c3fece85e225927123",
 
-    "runtime/obligations/view.js": "e239bf3c3368d2f8b6fa2402f97bd46f40de0960acb568d9a0e91b02e346f578",
+    "runtime/obligations/view.js": "2e9bc6711d462664d071eb9019c7eb58d1342c680e5101f7ab3421395e2e998c",
 
     "runtime/off-flow.js": "c122dda0dc854011c1c5967527dac3d8600acfc43ced069cd25695a2751b2e65",
 
@@ -338,7 +338,7 @@
 
     "runtime/page-map-dialog.js": "bbd38a54412c8bf71f9e9a0f61bce6f75cea5fcd0cab4f4129644b3f60e5ae2f",
 
-    "runtime/page-paint.js": "6050717266dba56428b84991218d4a6facb2d3c3f956fbbcc61f0ecfe0e12fe4",
+    "runtime/page-paint.js": "5dac4964ed38871dab888896a1118cf68ad252d8df86d2e30c6a686c728e6627",
 
     "runtime/page-status.js": "2b3befc0ab94f7b6b82b05a0eac88d3fd7bcfac95157ba09776d8583d88a01cf",
 
@@ -388,7 +388,7 @@
 
     "runtime/reading-continuity.js": "cef989af886deaa24e32727730263b4d522a3d33a8bfd9c87f4ca29b6f9e36c4",
 
-    "runtime/reading-place.js": "f06d3b4e966278d8a5a315e781c817b6ef5a9cb654e2d5a7314185bf888dd553",
+    "runtime/reading-place.js": "f68e1790f3f6adfad3f3dc3c176f049723b4c487afa2d979997927da97d5569c",
 
     "runtime/reading-regions.js": "d136548d92891ed60edbb929c07ed5bc218218a6f6042feb7cd0b1e22786ef5b",
 
@@ -456,9 +456,9 @@
 
     "runtime/tab-store.js": "a290fcf97023d587200d0efe7bd5e122d4d79ca4b77a058af25174824ca9d6e6",
 
-    "runtime/target-paint-geometry.js": "6ff1e936a319e0f52c0bce9ee3a94548974e2a6a67a09090bf5ab5cb37a02b67",
+    "runtime/target-paint-geometry.js": "7f700bfb6446fa2706a8eaee3e04591c5b51bf61aa1eb98fd97ab8c3c0097926",
 
-    "runtime/target-paint.js": "12cada78b43fcc8f0eb482cf8a20dd222caea43c680fea78ef7347be523d7ab5",
+    "runtime/target-paint.js": "d6f5bc9d5f464039b5ae9ddf654010cebabf6b22e6a905135243a6af01a1a4b4",
 
     "runtime/text-alignment.js": "bb83ca5955c7aef58a8bf7b2321f847e758af72921c00a8e6316eb8f74a282b3",
 
@@ -514,7 +514,7 @@
 
     "runtime/thread/surfaces.js": "435ec1165d7f5d5cfdedf44955f3c38fb0164d1a93d0d9f68b8202b6f7f76e20",
 
-    "runtime/thread/thread-card.js": "bdec36a7651745e3095317c9ce5c992ac380d196f757873bb241240f26d240e6",
+    "runtime/thread/thread-card.js": "7e0dc3fb4fee1a4ed4ec5d0bdf83c490d37fe43e4eba951e99a66d918f3fe377",
 
     "runtime/thread/transcript.js": "dc5a4c7fddcd756a4dbb6e92205fc47210460b0e278414f5a5be633a013601b2",
 

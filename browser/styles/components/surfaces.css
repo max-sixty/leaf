@@ -253,18 +253,28 @@ a[data-lf-external]::after,
  * In this file, because a widget declaring x-shadow builds its controls in a tree the
  * document's stylesheet does not reach, and a floor that stopped at the light DOM would
  * be a floor the newest kind of widget is the one to fall through. */
+/* Every box's outline stands where the box says its marks stand (base.css, "Where it
+   stands"), so a ring a carrier draws on its own box stands there without restating
+   it. A box that says nothing keeps the property's initial 0. */
+:where(*) {
+  outline-offset: var(--lf-ring-at, 0px);
+}
 /* A visible focus destination wears the layer's band unless its own rule supplies
-   a carrier, or a mark over the page carries it (`.lf-projected-mark`,
-   visual-mark-paint.js), which reads the gap the destination states rather than this
-   one. Controls and reading destinations follow browser focus visibility.
-   Current location remains separate, so pointer focus can reveal controls without
-   drawing a ring.
-   At no weight, so a box that states where its marks stand (base.css, "Where it
-   stands") keeps that place, and a carrier's band wins. Retargeting shadow hosts and
-   a label press's intermediate nodes get no band. */
-:where([data-lf-focus-visible]:not(.lf-projected-mark)) {
+   a carrier, or a mark drawn over it carries it: a mark over the page
+   (`.lf-projected-mark`, visual-mark-paint.js), or the location ring round the decision
+   the user stands in (`.lf-projected-location`, target-paint.js). Each stands where the
+   box says, as this band does. Controls and reading destinations follow browser focus
+   visibility. Current location remains separate, so pointer focus can reveal controls
+   without drawing a ring.
+   A box that says nothing stands its band at a control's gap. At no weight, so a
+   carrier's band wins. Retargeting shadow hosts and a label press's intermediate nodes
+   get no band. */
+:where([data-lf-focus-visible]:not(.lf-projected-mark, .lf-projected-location)) {
   outline: var(--focus-ring);
-  outline-offset: var(--focus-ring-gap);
+  outline-offset: var(--lf-ring-at, var(--focus-ring-gap));
+}
+:where(.lf-projected-location:is(:focus-visible, [data-lf-focus-visible])) {
+  outline: none;
 }
 /* A landing clears the sticky headers stacked over what it lands on. Its scroller's
    `scroll-padding` clears those over the whole scroller (the head room, a page tab
@@ -497,7 +507,7 @@ summary {
 @media (forced-colors: active) {
   .lf-page-thread:not(.lf-primary-part)[data-lf-focus-within] {
     outline: var(--focus-ring);
-    outline-offset: var(--focus-ring-inset);
+    --lf-ring-at: var(--focus-ring-inset);
   }
 }
 .lf-say {

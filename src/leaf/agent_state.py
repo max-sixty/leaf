@@ -524,6 +524,7 @@ def page_state(
                 "ephemeral",
                 "revision",
                 "edited",
+                "viewing",
             ):
                 if key in event:
                     message[key] = event[key]

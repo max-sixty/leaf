@@ -77,6 +77,7 @@ import {
   clearAim,
   geometryChanged,
   labelAim,
+  locationLayer,
   mountTargetPaint,
   paintAim,
   proxyRingLayer,
@@ -727,6 +728,7 @@ async function boot() {
     // One permanent home for the chrome's foreground; none of these live descendants is
     // reparented.
     chromeForeground.append(
+      locationLayer,
       targetTraceLayer,
       proxyRingLayer,
       aimLayer,

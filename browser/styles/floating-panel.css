@@ -140,14 +140,16 @@
      (`--lf-line`, below, where words stand) and a symbol in a view the same
      (`--lf-icon-action-face`, `.lf-fp-opened`). The panel once drew its own face for
      every control in it (`lf-fp-face`), a second look for each kind of press beside
-     the page's, until each moved onto its role on 28 October. On me's cards keep the
-     ring of the panel's rows, inside their box, and the card the `m` walk stands on
-     wears it too, though focus is at its ask on the page (floating-panel.js,
-     `walkedStop`). */
+     the page's, until each moved onto its role on 28 October. On me's cards stand
+     their ring inside their edge, since the panel's rows meet edge to edge (base.css,
+     "Where it stands"), and the card the `m` walk stands on wears it too, though
+     focus is at its ask on the page (floating-panel.js, `walkedStop`). */
+  .lf-fp-on-item {
+    --lf-ring-at: var(--focus-ring-inset);
+  }
   .lf-fp-on-item:focus-visible,
   .lf-fp-on-item[data-walked] {
     outline: var(--focus-ring);
-    outline-offset: var(--focus-ring-inset);
   }
 
   /* ---------- the row ---------- */
@@ -239,7 +241,7 @@
   }
   .lf-fp-field:has(> .lf-fp-search-surface:not([hidden])):focus-within {
     outline: var(--focus-ring);
-    outline-offset: 0;
+    --lf-ring-at: 0;
     --lf-wears-ring: 1;
   }
   .lf-fp-search-surface > :is(wa-input, input) {
@@ -1104,7 +1106,7 @@
     min-height: var(--lf-fp-press);
     border-radius: var(--r);
     color: var(--muted);
-    outline-offset: var(--focus-ring-inset);
+    --lf-ring-at: var(--focus-ring-inset);
   }
   .lf-fp-chooser:hover {
     color: var(--ink);

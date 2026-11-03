@@ -1562,25 +1562,30 @@ def test_controls_are_built_by_role_and_never_by_face():
 def test_every_ring_stands_at_a_kind_of_box():
     """Where a box's marks stand is one of the kinds base.css names ("Where it
     stands"): a region's gap, a control's, the box's edge, or one band inside it. Every
-    `outline-offset` in Leaf's sheets names its kind's token rather than a length, so
-    a change to a kind reaches every box of it and the overlay marks, which read the
-    gap a box states, stand where its rings do. The overlay's own boxes take the gap
-    their placement writes (`--lf-mark-offset`)."""
+    `--lf-ring-at` in Leaf's sheets names its kind's token rather than a length, so a
+    change to a kind reaches every box of it, and so does every `outline-offset`, which
+    otherwise reads that declaration: every box's (surfaces.css), the floor's, and the
+    overlay's boxes, which take the gap their placement writes (`--lf-mark-offset`)."""
     kinds = {
         "0",
         "var(--focus-region-gap)",
         "var(--focus-ring-gap)",
         "var(--focus-ring-inset)",
+    }
+    reads = {
+        "var(--lf-ring-at, 0px)",
+        "var(--lf-ring-at, var(--focus-ring-gap))",
         "var(--lf-mark-offset)",
     }
+    allowed = {"--lf-ring-at": kinds, "outline-offset": kinds | reads}
     stated = [
-        f"{sheet.relative_to(ROOT)}: {selector} {{ outline-offset: {value} }}"
+        f"{sheet.relative_to(ROOT)}: {selector} {{ {name}: {value} }}"
         for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES)
         for sheet in sorted(root.rglob("*.css"))
         if "vendor" not in sheet.parts
         for _conditions, _enclosing, selector, declarations in _style_rules(sheet)
         for name, value in declarations
-        if name == "outline-offset" and value not in kinds
+        if name in allowed and value not in allowed[name]
     ]
     assert not stated, "a ring stands at a length of its own:\n" + "\n".join(stated)
 

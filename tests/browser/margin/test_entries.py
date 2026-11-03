@@ -431,7 +431,8 @@ def test_an_obligation_marker_s_label_and_name_identify_its_question(browser, se
 
 def test_the_obligation_the_user_stands_in_selects_its_marker(browser, serve):
     """Arriving at an obligation with `m` paints its On me marker selected, and only its
-    marker."""
+    marker. Its label appears only when the user points at the marker: the ask's heading
+    already says the question, and a label nobody pointed at covers the ask's controls."""
     page = open_page(browser, serve(OBLIGATION_MARKERS_PAGE))
     resized(page, 1440, 900)
 
@@ -440,11 +441,17 @@ def test_the_obligation_the_user_stands_in_selects_its_marker(browser, serve):
             f'[data-lf-margin-for="{item}"] .lf-margin-marker[data-lf-kinds~="on-me"]'
         )
 
+    label = marker("short-ask").locator(".lf-margin-entry-label")
+    shown = "label => label.checkVisibility({opacityProperty: true, visibilityProperty: true})"
     page.keyboard.press("m")
     expect(marker("short-ask")).to_have_attribute("data-lf-target-selected", "")
     expect(marker("long-ask")).not_to_have_attribute(
         "data-lf-target-selected", re.compile(".*")
     )
+    rendered(page)
+    assert not label.evaluate(shown)
+    marker("short-ask").hover()
+    expect(label).to_be_visible()
 
 
 LABEL_CLEARANCE = """control => {

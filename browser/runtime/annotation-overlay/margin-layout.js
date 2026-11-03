@@ -93,7 +93,7 @@ import {
 } from "./margin-placement.js";
 import { clamp, clippingAxes, overlaps, union } from "../rect.js";
 import { passageBoxes, targetRange, targetSegments } from "../resolved-target.js";
-import { proseRect, railStands } from "../content-layout.js";
+import { proseMeasure, proseRect, railStands } from "../content-layout.js";
 import { keeps, layoutPx, inlineStyle } from "../keeps.js";
 import { move } from "../dom-move.js";
 import { offerActionElement } from "../widget-elements.js";
@@ -627,14 +627,15 @@ function placeMarginEntryLabel(control) {
 }
 
 // What reveals a margin entry's label, as the theme's rules for it say: a press held on
-// it (held-word.js), the selected obligation, and focus or hover where the pointer
-// really hovers. Elsewhere a tap leaves the entry hovered and focused, so only the
-// keyboard's focus reveals a label on an unselected entry.
+// it (held-word.js), and focus or hover where the pointer really hovers. Elsewhere a
+// tap leaves the entry hovered and focused, so only the keyboard's focus reveals it.
+// Arriving at the entry's target, as `m` does, leaves the label hidden. An ask's
+// heading already says its question, and `m` opens On me on a to-do, whose card shows
+// the title its subject doesn't (queue-walk.js).
 const revealsLabel = () =>
-  '[data-lf-kinds~="on-me"][data-lf-target-selected], ' +
-  (hoveringPointer.matches
+  hoveringPointer.matches
     ? ':is(:hover, [data-lf-focus]):not([aria-expanded="true"]), [data-lf-held-word]'
-    : '[data-lf-focus]:focus-visible:not([aria-expanded="true"]), [data-lf-held-word]');
+    : '[data-lf-focus]:focus-visible:not([aria-expanded="true"]), [data-lf-held-word]';
 // Only a label this owner has placed and its control currently reveals paints a
 // footprint. Placement consumers read that same native geometry when the user holds
 // the control, so an arriving row does not make its existing label change sides.
@@ -808,15 +809,11 @@ function reach(anchor, box, main, reaches) {
     if (edge === undefined) {
       const b = el.getBoundingClientRect();
       const style = getComputedStyle(el);
-      // Named document tracks include free margins; a subgrid carrying those
-      // tracks is the page's flow, not a figure extending into its rail. The
+      // A box holding the page's prose, the column or a flow in it, is the page's
+      // flow, not a figure extending into its rail, however wide its box. The
       // target's own box and ordinary framed ancestors still count in full.
-      const tracks =
-        style.gridTemplateColumns.includes("prose-start") ||
-        (style.gridTemplateColumns.startsWith("subgrid") &&
-          style.gridColumnStart === "full");
       edge = {
-        right: tracks ? -Infinity : b.right,
+        right: proseMeasure(el) > 0 ? -Infinity : b.right,
         clip:
           style.overflowX === "visible"
             ? null

@@ -67,7 +67,7 @@
   border: 1px solid transparent;
   border-radius: var(--chip-r);
   font: var(--font-chip);
-  outline-offset: 0;
+  --lf-ring-at: 0;
 }
 /* A message's controls are symbols (`.lf-icon-action`, below), as the thread's own
    are beside them; one whose picker is open keeps the chip while the picker shows. */
@@ -656,7 +656,7 @@ summary,
   box-sizing: border-box;
   cursor: pointer;
   font: var(--font-ui);
-  outline-offset: var(--focus-ring-inset);
+  --lf-ring-at: var(--focus-ring-inset);
 }
 .choice > input {
   flex: none;
@@ -1033,7 +1033,7 @@ wa-copy-button.lf-icon-action {
   border-radius: var(--r);
   background: var(--card);
   color: var(--ink);
-  outline-offset: 0;
+  --lf-ring-at: 0;
   &[data-lf-focus-visible] {
     border-color: transparent;
   }
@@ -1075,7 +1075,7 @@ wa-copy-button.lf-icon-action {
 }
 .lf-ui :is(textarea, leaf-text):where(:not(.lf-fab-input)),
 :is(textarea, leaf-text).lf-ui:where(:not(.lf-fab-input)) {
-  outline-offset: 0;
+  --lf-ring-at: 0;
   &[data-lf-focus-visible] {
     border-color: transparent;
   }
@@ -1154,7 +1154,7 @@ wa-copy-button.lf-icon-action {
   font: inherit;
   text-align: start;
   text-decoration: none;
-  outline-offset: var(--focus-ring-inset);
+  --lf-ring-at: var(--focus-ring-inset);
 }
 /* It declines the shadow every generated press takes under the pointer (surfaces.css),
    which, inset, would leave the stripe's room unwashed. */

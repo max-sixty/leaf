@@ -436,6 +436,38 @@ def test_a_document_in_a_tab_set_keeps_its_strip_under_its_caption(
             assert read["panelOnTop"], read
 
 
+def test_every_document_draws_from_one_copy_of_pierres_sheet(browser, serve):
+    """Each document stands its line numbers beside its lines, as Pierre's sheet draws
+    them, and the page holds one copy of that sheet however many documents it has. A
+    copy in each listing was a sheet holding `@scope` entering the page as each
+    document drew, and Firefox restyles every element of the page for each one: 29
+    empty documents in tabs beside one of 4 MB held the tab list back 6.5 s."""
+    tabs = "".join(
+        f'<lf-tab id="tab-{at}" label="Doc {at}"><lf-text-document id="doc-{at}" '
+        f'source="text-{at}"></lf-text-document></lf-tab>'
+        for at in range(3)
+    )
+    url = serve(
+        leaf_page("Documents", f'<lf-tabs id="docs" list="side">{tabs}</lf-tabs>')
+    )
+    data_model.cmd_data_set(serve.page_dir, "text-0", "first line\nsecond line\n")
+    page = open_page(browser, url)
+    expect(page.locator("lf-text-document.lf-rendered")).to_have_count(3)
+    copies = page.evaluate("""() =>
+      [...document.styleSheets, ...document.adoptedStyleSheets].filter((sheet) =>
+        [...sheet.cssRules].some((rule) => rule.cssText.includes('--diffs-font-fallback'))
+      ).length""")
+    assert copies == 1
+    beside = """doc => {
+      const number = doc.querySelector('[data-number]').getBoundingClientRect();
+      const line = doc.querySelector('[data-line]').getBoundingClientRect();
+      return {beside: number.right <= line.left, top: line.top - number.top};
+    }"""
+    for at in range(3):
+        page.get_by_role("tab", name=f"Doc {at}", exact=True).click()
+        assert page.locator(f"#doc-{at}").evaluate(beside) == {"beside": True, "top": 0}
+
+
 def test_document_views_remember_independently_and_follow_live_source_updates(
     browser, serve
 ):

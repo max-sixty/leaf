@@ -3,7 +3,15 @@
  * wrote when the markup binds neither (element-data.js, "Bound values"). Optional
  * previews compose the ordinary lf-tabs switcher, so keyboard, reveal, and tab
  * memory have the same owner as authored views. Each reading has its own bounded
- * viewport, keeping the page still when switching and its scroll place independent.
+ * viewport, which keeps its scroll place independent, and switching keeps the page
+ * still. Where the text can arrive after first paint, the viewport is `--lf-bound`
+ * tall. A Markdown preview of written text instead takes its rendered height, which
+ * its first paint already holds (`x-prepaint`), and its Source tab takes the same
+ * height (`holdSource`), drawn on it or switched to it. Where that height cuts the
+ * source, a press shows every line (`cut`), as a thread's Full quote shows a whole
+ * quote: a reflow the reader asks for. The cut box doesn't scroll, so the press is the
+ * one way to the rest, and stays at the box's foot rather than scrolling off with the
+ * lines.
  * Pierre draws numbered source using the same static renderer as diffs. Its sheets
  * are scoped to the listing; gutter glyphs are generated content, so selecting or
  * copying the source never includes line numbers. The listing's rows stand in runs that
@@ -27,14 +35,23 @@ import {
   setRenderedChildren,
   setChildLists,
   setChildren,
+  focusDestination,
+  keepsHidden,
+  offer,
+  offerAction,
   loadMarkdown,
   renderMarkdown,
   sizeObserver,
+  layoutPx,
   textWidth,
   nextFrame,
 } from "/runtime/widget-api.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
 import { pierre, markSyntax } from "./pierre.js";
+
+// A Markdown preview of text written in the page, whose rendering sets the box both
+// tabs share (text-document.css).
+const WRITTEN = '[preview="markdown"]:not([source], [for])';
 
 // Each reading shows the same document whatever text its source holds, so its key is
 // also its identity (projection/data.js). A comment on a passage then follows the
@@ -333,7 +350,53 @@ class TextDocument extends LeafElement {
   // sized again in the next frame, outside the observer's delivery: sized in it when
   // Firefox's face arrived, they resized the code it watches, and Firefox reported the
   // notification it couldn't deliver as an error.
-  sizes = sizeObserver(() => nextFrame(() => this.refit()));
+  sizes = sizeObserver(() =>
+    nextFrame(() => {
+      this.refit();
+      this.holdSource();
+      this.measureCut();
+    }),
+  );
+  // A written preview's Source tab, which shows what the preview's height holds, and
+  // the press that shows the rest where that height cuts the source.
+  /** @type {{panel: HTMLElement, box: HTMLElement, press: HTMLButtonElement} | null} */
+  cut = null;
+  // The Source tab takes the preview's height, so switching to it moves nothing below
+  // the document. A closed tab skips its contents' layout (`hidden="until-found"`), so
+  // the height is read while the preview shows, after each of its resizes. A document
+  // drawn on Source, as after a reload, never showed its preview; it keeps the box the
+  // page first painted (`firstBox`), which holds the preview's rendering (`x-prepaint`).
+  // Either reaches the Source tab before the frame paints.
+  /** @param {number | null} [firstBox] */
+  holdSource(firstBox = null) {
+    const preview = this.view?.preview;
+    const tab = preview?.parentElement;
+    if (!this.cut || !preview || !tab) return;
+    const { panel } = this.cut;
+    let measured;
+    if (!tab.hidden) measured = preview.getBoundingClientRect().height;
+    else if (firstBox !== null)
+      measured =
+        panel.getBoundingClientRect().height +
+        firstBox -
+        this.getBoundingClientRect().height;
+    else return;
+    const height = layoutPx(measured);
+    const { style } = panel;
+    if (style.getPropertyValue("--lf-preview-block") !== height)
+      style.setProperty("--lf-preview-block", height);
+  }
+  // The press shows only while the box cuts lines off, as a thread's Full quote does.
+  measureCut() {
+    if (!this.cut) return;
+    const { panel, box } = this.cut;
+    keepsHidden(
+      box,
+      panel.hidden ||
+        panel.hasAttribute("data-lf-all") ||
+        panel.scrollHeight <= panel.clientHeight + 1,
+    );
+  }
   // The runs the browser has drawn since they last forgot a height (`sizeRuns`).
   drawn = new WeakSet();
   // Size the drawn runs again where the listing's line length changed.
@@ -423,11 +486,16 @@ class TextDocument extends LeafElement {
       keepsText(view.caption, value == null ? `${label} · no data` : label);
       const previous = this.text;
       this.text = text;
+      if (this.cut) keepsText(this.cut.press, `Show all ${text.length} lines`);
       if (!this.sourceView) {
         setChildren(view.listing, [...listing.childNodes]);
         this.sourceView = { pre: drawnPre, code: drawnCode };
         this.sizes.observe(view.listing);
         this.sizes.observe(drawnCode);
+        if (this.cut && view.preview) {
+          this.sizes.observe(this.cut.panel);
+          this.sizes.observe(view.preview);
+        }
       } else {
         // The pre owns provenance and scroll; the code owns its native reach stop.
         // Reconcile only their source children, leaving those independent owners
@@ -465,6 +533,10 @@ class TextDocument extends LeafElement {
         if (!previewNode.hasAttribute("srcdoc") || previewNode.srcdoc !== source)
           previewNode.srcdoc = source;
       }
+      const firstBox =
+        this.cut && !view.figure.isConnected
+          ? this.getBoundingClientRect().height
+          : null;
       setChildren(this, [view.figure]);
       this.refit();
       // The drawn text's items, marked for whoever hosts the widget: on a Leaf page,
@@ -477,6 +549,9 @@ class TextDocument extends LeafElement {
       if (loaded) await loaded;
       if (rendering !== this.rendering || !this.isConnected) return;
       this.classList.toggle("lf-rendered", true);
+      // Measured once drawn, since until then the host wears the source face
+      // (reading.css).
+      this.holdSource(firstBox);
     } catch (error) {
       if (rendering !== this.rendering || !this.isConnected) return;
       failSoft(this, error, source);
@@ -521,6 +596,20 @@ class TextDocument extends LeafElement {
     }
     rendered.append(drawn);
     literal.append(listing);
+    if (this.matches(WRITTEN)) {
+      const box = offer("div", "lf-text-document-cut");
+      box.hidden = true;
+      const press = offerAction("inline", "lf-text-document-more", "");
+      // The press goes once it has shown the lines, so focus moves to the listing.
+      press.addEventListener("click", () => {
+        literal.toggleAttribute("data-lf-all", true);
+        keepsHidden(box, true);
+        if (this.sourceView) focusDestination(this.sourceView.pre, "return");
+      });
+      box.append(press);
+      literal.append(box);
+      this.cut = { panel: literal, box, press };
+    }
     tabs.append(rendered, literal);
     figure.append(tabs);
     return { figure, caption, listing, preview: drawn };

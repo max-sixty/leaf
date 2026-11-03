@@ -1,0 +1,191 @@
+# Judgments `leaf-dev eval --from` makes of saved samples (`dev/leaf_dev/regrade.py`).
+# A pair judge compares two live pages built for one request; discovery explores one
+# page for observations and has no winner or fitness score.
+pair:
+  prompt: |-
+    You are judging two web pages built for the same user request. Explore their
+    supplied live versions at the provided window sizes before comparing them.
+
+    {brief}
+
+    Prescribed browser decision task:
+    <decision_task>
+    {decision_task}
+    </decision_task>
+
+    When a decision task applies, first perform it on each version before the
+    decision, through the page's offered completion route and preserving its
+    stated constraints, before making other exploratory changes. Report whether
+    the route completes. Additional exploration may reveal other behavior, but
+    must remain separate: changing decisions outside this task cannot establish
+    that the prescribed route works or repair a failure observed on it.
+
+    Judge as the user who made the request would, from the rendered pages and
+    the behavior you actually operate. Your inspection choices are not changes
+    the author made to the user's recorded final decisions.
+    {reachable} Ignore which tool or framework made a page and any fixed viewer chrome
+    outside the page's content; judge the content, its arrangement and its legibility.
+
+    Compare A and B on:
+    - evidence: the request's substantive facts are present and readable
+    - decisions: on the versions before the decision, the user can see and take the
+      prescribed decisions and complete the page's offered route; judge navigation
+      on the final versions
+    - layout: at the declared window sizes, the page uses the available space to support
+      the task and follows the user's recorded work environment and layout preference
+    - comment: the final page carries the change the comment asked for where a reader
+      of that passage would find it
+    - applied: after the later decision message, the author's final revision preserves
+      the user's recorded decisions
+
+    Judge against the request and later messages. Where user intent has several
+    plausible readings, state the assumption behind a concern rather than treating
+    it as an established requirement. An aspect that does not apply to this task is
+    a tie, rather than missing evidence.
+
+    Name the better page on each, and overall with its margin; list each page's
+    defects; give your reason in two or three sentences.
+    Use status complete only when exploration supports the comparison. Otherwise
+    return insufficient_evidence and explain what remains unverified; do not turn
+    missing observation into a tie or an omission.
+  aspects:
+    - evidence
+    - decisions
+    - layout
+    - comment
+    - applied
+  output_schema:
+    type: object
+    properties:
+      status:
+        type: string
+        enum:
+          - complete
+          - insufficient_evidence
+      evidence: &id001
+        type: string
+        enum:
+          - A
+          - B
+          - tie
+      decisions: *id001
+      layout: *id001
+      comment: *id001
+      applied: *id001
+      overall: *id001
+      margin:
+        type: string
+        enum:
+          - slight
+          - clear
+          - strong
+      defects_A: &id002
+        type: array
+        items:
+          type: string
+      defects_B: *id002
+      reason:
+        type: string
+    required:
+      - status
+      - evidence
+      - decisions
+      - layout
+      - comment
+      - applied
+      - overall
+      - margin
+      - defects_A
+      - defects_B
+      - reason
+    additionalProperties: false
+  brief_intro:
+    Pages A and B were each built for this request, then revised for each later message.
+    A and B show the final revisions. When the task includes a decision,
+    A_before_decision and B_before_decision show the latest revisions before the
+    user made it. Operate decision controls on those earlier versions. Use A and B
+    to judge the final evidence, layout, comment response and recorded decisions.
+    Each live copy starts before your inspection actions.
+discovery:
+  prompt: |-
+    Explore this page for observations that would help improve the user's work with
+    an agent. Work at the sample's recorded desktop viewport is the priority. This is discovery, separate
+    from the fixed pairwise benchmark; report what you learn, not a comparison score.
+
+    The original authoring task and phase roles are frozen here:
+    {comparison}
+
+    Focus:
+    {focus}
+
+    Start with the required desktop view, then choose the sizes and interactions
+    that seem informative. Look for both strengths and problems in understanding
+    evidence, navigation, making decisions, editing and returning to the record.
+    Follow an interesting observation into nearby variations. Window height and
+    width, available content controls, item counts and action sequences may matter
+    together; try combinations when there is a reason. Use phone as a secondary
+    check when it seems useful or the focus asks for it.
+
+    The page named page is the authored final record. When page_before_decision is
+    supplied, use it to explore making the prescribed decision. Distinguish saved
+    state from your exploratory changes. Use ordinary page controls to vary content;
+    don't edit source or manufacture defects by altering the DOM. A changed request
+    needs new authoring runs, not a claim about these saved samples. You can propose
+    such a case as a next experiment.
+
+    Support observations with the page and state, CSS viewport size, repeatable steps
+    and screenshots or traces you actually inspected. Each evidence entry is an exact
+    file path, absolute or relative to the supplied evidence directory. For a problem, try to simplify
+    its trigger and explain the consequence for the task. Useful positive behavior
+    and unresolved questions are observations too. Distinguish observed behavior
+    from an explanation you have not established. Stop when further exploration is
+    unlikely to add a materially different observation; no fixed matrix is owed.
+
+    Report complete when the exploration you describe was completed, even if it
+    found no problems. Use insufficient_evidence when that chosen investigation
+    remains unsettled, and name the gap. The unverified list states those gaps;
+    neither status claims exhaustive coverage or supplies a reliability rate.
+  output_schema:
+    type: object
+    properties:
+      status:
+        type: string
+        enum: [complete, insufficient_evidence]
+      explored:
+        type: string
+      observations:
+        type: array
+        items:
+          type: object
+          properties:
+            kind:
+              type: string
+              enum: [problem, strength, question]
+            summary:
+              type: string
+            impact:
+              type: string
+            viewport:
+              type: array
+              items:
+                type: integer
+              minItems: 2
+              maxItems: 2
+            steps:
+              type: array
+              items:
+                type: string
+            evidence:
+              type: array
+              items:
+                type: string
+            next:
+              type: string
+          required: [kind, summary, impact, viewport, steps, evidence, next]
+          additionalProperties: false
+      unverified:
+        type: array
+        items:
+          type: string
+    required: [status, explored, observations, unverified]
+    additionalProperties: false

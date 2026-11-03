@@ -19,7 +19,7 @@ lf-visual-review {
   --lf-full-height: inherit;
   --lf-block-frame: 1;
   color: var(--ink);
-  font: var(--t-5)/1.5 var(--sans);
+  font: var(--font-widget);
 }
 .lf-vr-dashboard {
   display: grid;

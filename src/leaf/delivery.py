@@ -178,6 +178,12 @@ _THREAD_DIGEST = object_schema(
                                 }
                             ),
                         ),
+                        "withdrawn": described(
+                            "The user's undo of a message something still stood on, "
+                            "and what the message said; it keeps its place with "
+                            "nothing in it.",
+                            object_schema({"id": STRING, "ts": STRING, "was": STRING}),
+                        ),
                     },
                 ),
             },

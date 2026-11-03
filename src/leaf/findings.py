@@ -1794,12 +1794,6 @@ _TEXT = {
         f"{v['target']} {v['undoes']} is not a reaction; a message with words in it"
         " is said rather than unsaid"
     ),
-    "answered-reaction": lambda at, v: (
-        f"reaction {v['undoes']} has a reply or task attached; continue in its thread"
-    ),
-    "resolved-reaction": lambda at, v: (
-        f"reaction {v['undoes']} stands on a resolved thread"
-    ),
     "unundoable": lambda at, v: (
         f"{v['target']} events cannot be taken back (the kinds that can are"
         f" {', '.join(v['undoable'])} and a reaction)"

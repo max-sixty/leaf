@@ -322,6 +322,7 @@ export function messageReading(
         ? "suggestion"
         : "prose";
   const prose = kind === "prose" ? proseReading(message) : null;
+  const removal = message.withdrawn ?? message.edited;
   return Object.freeze({
     key: messageKey(message),
     id: message.id,
@@ -346,8 +347,8 @@ export function messageReading(
     age: ago(message.ts),
     // What the message said before its last rewrite is the edited mark's to tell, or a
     // deleted message's, since answers above may have been about those words.
-    edited: message.edited
-      ? `${kind === "deleted" ? "Deleted" : "Edited"} ${ago(message.edited.ts)}. Before, it said: “${message.edited.was}”`
+    edited: removal
+      ? `${kind === "deleted" ? "Deleted" : "Edited"}${"ts" in removal ? ` ${ago(removal.ts)}` : ""}. Before, it said: “${removal.was}”`
       : null,
     editable: editable(message),
     failure: message.failure ?? null,

@@ -524,6 +524,7 @@ def page_state(
                 "ephemeral",
                 "revision",
                 "edited",
+                "withdrawn",
                 "viewing",
             ):
                 if key in event:

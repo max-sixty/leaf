@@ -1515,6 +1515,17 @@
               },
               "required": ["id", "seq", "ts", "was"],
               "additionalProperties": false
+            },
+            "withdrawn": {
+              "description": "The undo that took the message back while something still stood on it, and what it said; the message keeps its place with no words and no mark (`events.build_threads`).",
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "ts": { "type": "string" },
+                "was": { "type": "string" }
+              },
+              "required": ["id", "ts", "was"],
+              "additionalProperties": false
             }
           },
           "required": ["content_version"],

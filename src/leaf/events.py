@@ -65,10 +65,11 @@ def is_answer(event: dict) -> bool:
 def spoken_turns(thread: dict) -> list:
     """Messages with words, including retained progress messages.
 
-    Reactions are marks rather than words. Presentation ranges include ephemeral
+    Reactions are marks rather than words, and a message the user took back keeps
+    its place with neither (`build_threads`). Presentation ranges include ephemeral
     messages; semantic turn-taking reads :func:`conversation_turns` instead.
     """
-    return [m for m in thread["msgs"] if not is_reaction(m)]
+    return [m for m in thread["msgs"] if not is_reaction(m) and "withdrawn" not in m]
 
 
 def conversation_turns(thread: dict) -> list:
@@ -104,75 +105,23 @@ class UndoReading:
     """Indexed eligibility for the user's one-step withdrawals.
 
     The browser exposes every gesture in force in one reading, so checking each
-    candidate by folding the event log again turns a linear state read into a
-    quadratic one. This index computes the shared facts once: event identity,
-    withdrawals, and the reaction's thread status. The append door uses the
-    same reading for its authoritative check, while callers that only have one
-    candidate can keep using :func:`undo_error`.
-
-    ``threads`` may be supplied by a caller that already folded the same log.
-    Otherwise, ``within`` is required to fold the threads; it is not read when
-    threads are supplied. This is a reading rather than another source of state:
-    the event log and page containment remain the authorities, and this object
-    only indexes their validated projection.
+    candidate by scanning the event log again turns a linear state read into a
+    quadratic one. This index computes the shared facts once, event identity and
+    withdrawals, and the append door uses the same reading for its authoritative
+    check, while callers that only have one candidate can keep using
+    :func:`undo_error`.
     """
 
     def __init__(
         self,
         events: list,
         *,
-        threads: dict | None = None,
-        within: dict | None = None,
         withdrawn: set | None = None,
         absorbed: frozenset,
     ):
         self.events_by_id = {event["id"]: event for event in events}
         self.withdrawn = taken_back(events) if withdrawn is None else withdrawn
         self.absorbed = absorbed
-        if threads is None:
-            if within is None:
-                raise TypeError("within is required when threads are not supplied")
-            # Only reactions ask about thread state. Keeping this fold lazy
-            # also preserves the boundary's ability to reject a non-reaction
-            # gesture without interpreting unrelated, already-validated records.
-            threads = (
-                build_threads(events, within, withdrawn=self.withdrawn)
-                if any(
-                    event.get("token")
-                    for event in events
-                    if event["kind"] in kinds_declaring("message")
-                )
-                else {}
-            )
-        answered_reactions = set()
-        resolved_reactions = set()
-        reaction_ids = {
-            event["id"]
-            for event in events
-            if event["id"] not in self.withdrawn
-            and event["kind"] in kinds_declaring("message")
-            and is_reaction(event)
-        }
-        for thread in threads.values():
-            messages = thread["msgs"]
-            for message in messages:
-                # Any message naming the reaction stands on it, a reaction to it
-                # included, and a withdrawn parent would leave it rootless.
-                if message.get("parent") in reaction_ids:
-                    answered_reactions.add(message["parent"])
-                if thread["resolved"] and message["id"] in reaction_ids:
-                    resolved_reactions.add(message["id"])
-        # Attached work depends on the thread's root just as a reply does.
-        # Completed work keeps its discussion available in the Done list.
-        for event in events:
-            if (
-                event["kind"] == "todo"
-                and event["subject"]["kind"] == "thread"
-                and event["subject"]["id"] in reaction_ids
-            ):
-                answered_reactions.add(event["subject"]["id"])
-        self.answered_reactions = answered_reactions
-        self.resolved_reactions = resolved_reactions
 
     def error(self, event: dict) -> Finding | None:
         """The finding the append door refuses one proposed ``undo`` event on."""
@@ -188,10 +137,6 @@ class UndoReading:
         if target["kind"] in kinds_declaring("message"):
             if not is_reaction(target):
                 return Finding("said-message", values=named)
-            if target["id"] in self.answered_reactions:
-                return Finding("answered-reaction", values=named)
-            if target["id"] in self.resolved_reactions:
-                return Finding("resolved-reaction", values=named)
         elif target["kind"] not in kinds_declaring("undoable"):
             return Finding(
                 "unundoable",
@@ -207,12 +152,7 @@ class UndoReading:
         return None
 
 
-def undo_error(
-    event: dict,
-    events: list,
-    within: dict,
-    absorbed: frozenset,
-) -> Finding | None:
+def undo_error(event: dict, events: list, absorbed: frozenset) -> Finding | None:
     """Why this undo may not take back the event it names, or None.
 
     Checked once here, at the door the browser writes through, so nothing
@@ -222,22 +162,35 @@ def undo_error(
     notice where accepting it would leave two withdrawals of one gesture in a log
     whose every other line is something the user did.
 
-    A reaction is the one message a user takes back rather than answers,
-    and only while it still paints: once a turn answers it or a task attaches,
-    withdrawal would orphan that discussion or work, and the user's update is in the thread that
-    turn opened; once its thread is resolved, resolve being its floor, there
-    is nothing left to take back. Every other gesture of the user's own is theirs to
-    take back however far the agent has got with it, a rewrite included: the agent is
-    told of the withdrawal as it was of the gesture (`event_contracts.admitted_event`).
-    The browser offers exactly the gestures this reading admits
-    (`served_state.document.browser_undo_candidates`).
+    A reaction is the one message a user takes back rather than rewrites. Like every
+    other gesture of the user's own, a rewrite included, it is theirs to take back
+    however far the agent has got with it, answered or resolved: what answered it
+    keeps its place (`build_threads`), and the agent is told of the withdrawal as it
+    was of the gesture (`event_contracts.admitted_event`). The browser offers exactly
+    the gestures this reading admits (`served_state.document.browser_undo_candidates`).
 
-    `within` is the published page's containment, as every other fold of the
-    threads takes it: a thread an action settled, and a version's `restated`
-    inside that widget reopened, is open here as it is in `page state`.
     `absorbed` is the newest revision's absorbed moves, whose units its markup
     places."""
-    return UndoReading(events, within=within, absorbed=absorbed).error(event)
+    return UndoReading(events, absorbed=absorbed).error(event)
+
+
+def standing_withdrawn(events: list, withdrawn: set) -> set:
+    """The withdrawn messages something still in force stands on: a message naming
+    one as its parent, or a to-do attached to the thread one opened. Each keeps its
+    place in its thread with nothing in it (`build_threads`), so what answered it
+    keeps its context and its thread its name. A parent is always older than its
+    message, so one pass from the newest event finds a chain of them."""
+    standing = set()
+    for event in reversed(events):
+        if event["kind"] == "todo" and event["subject"]["kind"] == "thread":
+            standing.add(event["subject"]["id"])
+        elif (
+            event["kind"] in kinds_declaring("message")
+            and "parent" in event
+            and (event["id"] not in withdrawn or event["id"] in standing)
+        ):
+            standing.add(event["parent"])
+    return standing & withdrawn
 
 
 def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -> dict:
@@ -258,11 +211,19 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
 
     Each thread is keyed by, and carries as ``id``, the id of the comment that
     opened it, its ``root``: the name every obligation, workflow, summary, and title
-    uses for it. Admission keeps each message's parent in force while the message is
+    uses for it. Admission names as a parent only a message some reading shows
     (`event_contracts._parent_error`), so each reply it admits lands in a thread.
+
+    A message the user took back leaves every reading, except where something still
+    in force stands on it (`standing_withdrawn`): there it keeps its place with no
+    words and no mark, and ``withdrawn`` names the undo and what it said, as a
+    deleted message's ``edited`` does. It is no turn (`spoken_turns`), so nothing is
+    owed it.
     """
     if withdrawn is None:
         withdrawn = taken_back(events)
+    standing = standing_withdrawn(events, withdrawn)
+    undos = {e["undoes"]: e for e in events if e.get("undoes") in standing}
     # Every action at a coordinate competes, including a non-answer. Thread
     # settlement and visible state therefore read the same winning gesture.
     in_force = InForce(within, retractions(events), withdrawn)
@@ -276,10 +237,10 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     for e in events:
         # A gesture the user took back settles nothing, whichever way it settled:
         # the log holds it and no reading of the log stands on it.
-        if e["id"] in withdrawn:
+        if e["id"] in withdrawn and e["id"] not in standing:
             continue
         if e["kind"] == "comment":
-            message = dict(e)
+            message = message_reading(e, undos.get(e["id"]))
             messages[e["id"]] = message
             thread = {
                 "id": e["id"],
@@ -334,7 +295,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
             continue
         if e["kind"] == "reply":
             thread = thread_for[e["parent"]]
-            message = dict(e)
+            message = message_reading(e, undos.get(e["id"]))
             messages[e["id"]] = message
             thread["msgs"].append(message)
             if thread["title"] is None and "title" in e:
@@ -355,6 +316,19 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
         elif e["kind"] == "unresolve" and (thread := thread_for.get(e["parent"])):
             thread["resolved"] = None
     return threads
+
+
+def message_reading(event: dict, undo: dict | None) -> dict:
+    """A message as a thread holds it: the record, or, where `undo` took it back and
+    something still stands on it, its place with no words and no mark. Only a
+    reaction is taken back (`UndoReading`), so what it said is its token."""
+    if undo is None:
+        return dict(event)
+    kept = {key: value for key, value in event.items() if key != "token"}
+    return kept | {
+        "text": "",
+        "withdrawn": {"id": undo["id"], "ts": undo["ts"], "was": event["token"]},
+    }
 
 
 def active_summaries(events: list, threads: dict) -> dict[str, list[dict]]:

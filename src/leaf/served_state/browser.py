@@ -151,10 +151,7 @@ def browser_state(
     withdrawn = durable.log.withdrawn
     threads = durable.threads
     undo_reading = UndoReading(
-        events,
-        threads=threads,
-        withdrawn=withdrawn,
-        absorbed=active_page.projection.absorbed,
+        events, withdrawn=withdrawn, absorbed=active_page.projection.absorbed
     )
     workflows = work.workflows
     todos = durable.page_todos(work.activity["todos"])

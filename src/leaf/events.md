@@ -92,12 +92,15 @@ and the anchor moves that depend on it land together.
 ## Undo
 
 The user may withdraw a resolve, unresolve, action, edit, or Done on a to-do (the kinds
-`$events.kinds` marks `undoable`), however far the agent has got with it, and a reaction
-while nothing has answered it and its thread is unresolved. Spoken messages cannot be
-withdrawn; their writer deletes one by rewriting it to no words, which leaves it in place
-("Messages"), and withdrawing that edit gives the message its words back. An undo cannot
-itself be undone. The door refuses an `undoes` naming anything but an unwithdrawn
-gesture of the user's own (`events.UndoReading`).
+`$events.kinds` marks `undoable`), or a reaction, however far the agent has got with it.
+A withdrawn message leaves every reading, except where a message or to-do still in force
+stands on it: there it keeps its place with no words and no mark, `withdrawn` naming the
+undo and what it said, and the browser draws it as Deleted, so what answered it keeps its
+context (`events.build_threads`). It is no turn, so nothing is owed it. Spoken messages
+cannot be withdrawn; their writer deletes one by rewriting it to no words, which leaves
+it in place ("Messages"), and withdrawing that edit gives the message its words back. An
+undo cannot itself be undone. The door refuses an `undoes` naming anything but an
+unwithdrawn gesture of the user's own (`events.UndoReading`).
 
 `undo` names its gesture and nothing else. It withdraws rather than deletes: the event
 stays in the log and every fold skips it, so the page shows what the revision says

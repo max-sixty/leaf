@@ -535,10 +535,11 @@
           <p id="withdrawing">
             A reaction is the only message the user can take back. Its mark's undo
             control, or <kbd>z</kbd> while it is the user's latest action, withdraws it:
-            the log gains an <code>undo</code> naming it, and the mark and any thread it
-            started leave the page. This works only while the thread is open and
-            nothing, not even another reaction, has answered it. A message with words
-            cannot be withdrawn.
+            the log gains an <code>undo</code> naming it, and the mark leaves the page.
+            A thread it started leaves with it, unless something there has answered it:
+            then the thread stays, and the reaction reads Deleted in its place. A
+            message with words cannot be withdrawn; its writer deletes it by rewriting
+            it to no words.
           </p>
           <p id="unsent-words">
             Words typed but not sent are kept after their box closes. If a new version

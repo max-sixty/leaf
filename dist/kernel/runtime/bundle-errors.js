@@ -602,7 +602,7 @@ function threadNames(threads) {
 	return byName;
 }
 const editable = (message) => message.author === "user" && !message.pending && !message.token && Boolean(message.text);
-const deleted = (message) => Boolean(message.edited) && !message.text && !message.drawing;
+const deleted = (message) => Boolean(message.withdrawn) || Boolean(message.edited) && !message.text && !message.drawing;
 const bareReaction = (thread) => thread.bare_reaction;
 const discussed = (thread) => !thread.bare_reaction;
 const hasUnread = (thread) => thread.unread.length > 0;
@@ -648,17 +648,36 @@ function unedited(thread, message, withdrawn) {
 		}
 	};
 }
+function standingIn(thread, withdrawn) {
+	const standing = /* @__PURE__ */ new Set();
+	for (const message of thread.msgs.toReversed()) if ("parent" in message && (!withdrawn.has(message.id) || standing.has(message.id))) standing.add(message.parent);
+	return standing;
+}
+function takenBack(message) {
+	const { token, ...rest } = message;
+	return {
+		...rest,
+		text: "",
+		withdrawn: {
+			was: token ?? "",
+			pending: true
+		}
+	};
+}
 function foldThreads(threads, gestures) {
 	if (!gestures.length) return [...threads];
 	const withdrawn = new Set(gestures.flatMap((gesture) => gesture.kind === "undo" ? [gesture.undoes] : []));
-	const copies = threads.filter((thread) => !withdrawn.has(thread.root.id)).map((thread) => {
-		const msgs = thread.msgs.filter((message) => !withdrawn.has(message.id)).map((message) => unedited(thread, message, withdrawn));
-		return {
+	const copies = threads.flatMap((thread) => {
+		const standing = standingIn(thread, withdrawn);
+		if (withdrawn.has(thread.root.id) && !standing.has(thread.root.id)) return [];
+		const msgs = thread.msgs.flatMap((message) => !withdrawn.has(message.id) ? [unedited(thread, message, withdrawn)] : standing.has(message.id) ? [takenBack(message)] : []);
+		return [{
 			...thread,
 			root: msgs.find(({ id }) => id === thread.root.id) ?? thread.root,
 			msgs,
+			bare_reaction: thread.bare_reaction && !withdrawn.has(thread.root.id),
 			...thread.resolved && "id" in thread.resolved && withdrawn.has(thread.resolved.id) ? { resolved: null } : {}
-		};
+		}];
 	});
 	const byName = threadNames(copies);
 	const opened = [];

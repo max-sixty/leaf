@@ -16,6 +16,7 @@ from leaf.events import (
     build_threads,
     note_settlements,
     spoken_turns,
+    standing_withdrawn,
     taken_back,
     undo_error,
 )
@@ -585,10 +586,10 @@ def _anchored_comment_error(view, event: dict, registry: dict):
 
 
 def _parent_error(event: dict, events: list) -> Finding | None:
-    """A parent is a message the log holds and no undo took back. Every thread fold
-    drops a withdrawn message (`build_threads`), so an event naming one would stand
-    on a message no reading shows; with `UndoReading` refusing to withdraw a message
-    another stands on, every message in force keeps its parent in force."""
+    """A parent is a message some reading shows: one the log holds that no undo took
+    back, or one taken back that something still stands on, which keeps its place in
+    its thread (`events.standing_withdrawn`). An event naming any other would stand on
+    a message no reading shows."""
     if "parent" not in event:
         return None
     parent = event["parent"]
@@ -597,7 +598,8 @@ def _parent_error(event: dict, events: list) -> Finding | None:
         for logged in events
     ):
         return Finding("unknown-parent", values={"parent": parent})
-    if parent in taken_back(events):
+    withdrawn = taken_back(events)
+    if parent in withdrawn and parent not in standing_withdrawn(events, withdrawn):
         return Finding("withdrawn-parent", values={"parent": parent})
     return None
 
@@ -680,7 +682,7 @@ def _withdrawal_error(
         return None
     newest = view.revisions[-1]
     absorbed = readings.page(newest).projection.absorbed
-    return undo_error(event, events, view.within, absorbed)
+    return undo_error(event, events, absorbed)
 
 
 def admission_error(

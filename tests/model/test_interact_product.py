@@ -2025,6 +2025,85 @@ def test_page_state_reads_reactions_as_marks(page_dir):
     assert state["reactions"][0]["anchor"]["quote"] == "Ship dark"
 
 
+def test_a_reaction_something_answered_is_taken_back_into_its_place(page_dir):
+    """A reaction is the user's to take back however far the agent has got with it,
+    as a rewrite is, where the door used to refuse it once anything answered it. The
+    withdrawal leaves what answered it its context: the thread stays, the reaction's
+    place reads Deleted with what it said, the mark paints nothing, and nothing is
+    owed to it. A reaction on a message keeps its place the same way, and one nothing
+    stands on still leaves every reading."""
+    published(page_dir)
+    mark = append_command(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "token": "shorten",
+            "anchor": {"section": "plan", "quote": "Ship dark"},
+        },
+    )
+
+    def reply(target, text):
+        posted = CliRunner().invoke(
+            cli_model.cli,
+            ["thread", "reply", str(page_dir), target, "--text", text],
+        )
+        assert posted.exit_code == 0, posted.output
+        return json.loads(posted.output)
+
+    answer = reply(mark["id"], "Which part is long?")
+    nod = append_command(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "revision": 1,
+            "parent": answer["id"],
+            "token": "keep",
+        },
+    )
+    kept = reply(nod["id"], "Keeping that part.")
+    loose = append_command(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "revision": 1,
+            "parent": kept["id"],
+            "token": "keep",
+        },
+    )
+    undos = [
+        append_command(
+            page_dir, {"kind": "undo", "author": "user", "undoes": gesture["id"]}
+        )
+        for gesture in (loose, nod, mark)
+    ]
+    # Each withdrawal reaches the agent as its reaction did: one that answers no
+    # question wakes nobody, and `page state` stops listing it.
+    assert [undo["attention"] for undo in undos] == [False, False, False]
+
+    thread = event_folds_model.build_threads(events_model.read_events(page_dir), {})[
+        mark["id"]
+    ]
+    assert [message["id"] for message in thread["msgs"]] == [
+        mark["id"],
+        answer["id"],
+        nod["id"],
+        kept["id"],
+    ]
+    for gesture, undo, said in ((mark, undos[2], "shorten"), (nod, undos[1], "keep")):
+        placed = next(m for m in thread["msgs"] if m["id"] == gesture["id"])
+        assert "token" not in placed and placed["text"] == ""
+        assert placed["withdrawn"] == {"id": undo["id"], "ts": undo["ts"], "was": said}
+    assert not event_folds_model.bare_reaction(thread)
+    assert event_folds_model.unanswered_turns(thread) == []
+    state = state_json(page_dir)
+    assert [t["id"] for t in state["threads"]] == [mark["id"]]
+    assert state["reactions"] == []
+
+
 def test_an_agent_names_and_renames_a_thread_without_changing_its_speech(
     page_dir,
 ):

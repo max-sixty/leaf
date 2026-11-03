@@ -3344,6 +3344,7 @@ function messageReading(message, { authoredRank = 0, reactions, workflows, leave
 	const token = message.token ? tokenEntry(message.token) : null;
 	const kind = isReaction(message) ? "reaction" : deleted(message) ? "deleted" : message.suggestion ? "suggestion" : "prose";
 	const prose = kind === "prose" ? proseReading(message) : null;
+	const removal = message.withdrawn ?? message.edited;
 	return Object.freeze({
 		key: messageKey(message),
 		id: message.id,
@@ -3359,7 +3360,7 @@ function messageReading(message, { authoredRank = 0, reactions, workflows, leave
 		by: message.author === "agent" ? message.agent : "Me",
 		timestamp: message.ts,
 		age: ago(message.ts),
-		edited: message.edited ? `${kind === "deleted" ? "Deleted" : "Edited"} ${ago(message.edited.ts)}. Before, it said: “${message.edited.was}”` : null,
+		edited: removal ? `${kind === "deleted" ? "Deleted" : "Edited"}${"ts" in removal ? ` ${ago(removal.ts)}` : ""}. Before, it said: “${removal.was}”` : null,
 		editable: editable(message),
 		failure: message.failure ?? null,
 		pending: workflow?.stage === "sending",

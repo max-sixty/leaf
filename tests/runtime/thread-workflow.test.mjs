@@ -7,7 +7,11 @@ import {
   threadAttention,
   workflowWord,
 } from "../../browser/runtime/thread/workflow.js";
-import { foldThreads, readThreadRecords } from "../../browser/runtime/thread/model.js";
+import {
+  deleted,
+  foldThreads,
+  readThreadRecords,
+} from "../../browser/runtime/thread/model.js";
 import { isTurnEvent, turnMessage } from "../../browser/runtime/pending/model.js";
 import { servedReading, servedThread, servedWorkflow } from "../served.mjs";
 
@@ -274,6 +278,35 @@ test("taking back a rewrite draws its message as the log's answer will", () => {
   assert.equal(folded.root.text, "Chart 2025.");
   assert.deepEqual(folded.msgs.map(words), answered.msgs.map(words));
   assert.deepEqual(words(folded.root), words(answered.root));
+});
+
+test("taking back an answered reaction keeps its place as the log's answer will", () => {
+  const [answered] = servedReading("a reaction answered").threads;
+  const [taken] = servedReading(
+    "a reaction answered, both reactions taken back",
+  ).threads;
+  /** @param {import("../../browser/types/domain.js").Message} message */
+  const place = (message) => ({
+    id: message.id,
+    text: message.text,
+    token: message.token,
+    was: message.withdrawn?.was,
+    deleted: deleted(message),
+  });
+  const [folded] = foldThreads(
+    [answered],
+    [
+      { kind: "undo", undoes: "e3" },
+      { kind: "undo", undoes: "e1" },
+    ],
+  );
+  assert.deepEqual(folded.msgs.map(place), [
+    { id: "e1", text: "", token: undefined, was: "change", deleted: true },
+    { id: "e2", text: "Which part?", token: undefined, was: undefined, deleted: false },
+  ]);
+  assert.deepEqual(folded.msgs.map(place), taken.msgs.map(place));
+  assert.deepEqual(place(folded.root), place(taken.root));
+  assert.equal(folded.bare_reaction, taken.bare_reaction);
 });
 
 test("a local rewrite shows on its message and reopens a closed thread", () => {

@@ -133,6 +133,19 @@ REWRITTEN_TWICE = (
     {"kind": "edit", "message": "e1", "text": "Chart 2026."},
 )
 
+# A reaction the agent answered, and the user's own reaction on that answer.
+ANSWERED_REACTION = (
+    {"kind": "comment", "token": "change"},
+    {
+        "kind": "reply",
+        "author": "agent",
+        "agent": "Agent",
+        "parent": "e1",
+        "text": "Which part?",
+    },
+    {"kind": "reply", "parent": "e2", "token": "keep"},
+)
+
 
 def build() -> dict:
     """A thread the agent answered and the user has read, which is nobody's turn,
@@ -201,6 +214,20 @@ def build() -> dict:
                     (
                         "rewritten twice, the last taken back",
                         ({"kind": "undo", "undoes": "e3"},),
+                    ),
+                )
+            },
+            # The user took both reactions back: the answered one keeps its place.
+            **{
+                name: _served(ANSWERED_REACTION + tail)
+                for name, tail in (
+                    ("a reaction answered", ()),
+                    (
+                        "a reaction answered, both reactions taken back",
+                        (
+                            {"kind": "undo", "undoes": "e3"},
+                            {"kind": "undo", "undoes": "e1"},
+                        ),
                     ),
                 )
             },

@@ -727,9 +727,9 @@ def test_two_concurrent_undos_cannot_both_take_back_one_gesture(
     )
     validation_calls = 0
 
-    def expose_validation_gap(event, events, within, absorbed):
+    def expose_validation_gap(event, events, absorbed):
         nonlocal validation_calls
-        error = real_undo_error(event, events, within, absorbed)
+        error = real_undo_error(event, events, absorbed)
         with validation_lock:
             validation_calls += 1
             call = validation_calls
@@ -806,8 +806,8 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
     """A reaction is a comment or reply carrying `token` in place of `text`: one of
     the two and never both, a word the merged vocabulary declares, and no
     suggestion, hold, or markup riding beside it. What the door lets through it
-    also lets the user take back — while it is still a mark. An answer under it
-    makes it a thread, and a message with words in it was never a mark."""
+    also lets the user take back, answered or not; a message with words in it was
+    never a mark."""
     publish(page_dir)
     root = json.loads(
         fetch(
@@ -889,8 +889,8 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
     answer = json.loads(body)
     assert answer["final"] is True, body
     assert refused_on(answer).code == "withdrawn-gesture", body
-    # Every thread fold drops a withdrawn message, so nothing may name it as a parent:
-    # a reply to it would open a thread with no root.
+    # Nothing stood on it, so every thread fold drops it, and nothing may name it as a
+    # parent: a reply to it would open a thread with no root.
     status, body = fetch(
         f"{server}/api/event",
         data=json.dumps(
@@ -898,7 +898,9 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
         ).encode(),
     )
     assert status == 400 and refused_on(body).code == "withdrawn-parent"
-    # Nor may a message another stands on be withdrawn, a reaction to it included.
+    # A reaction something answered is the user's to take back too, here a reaction to
+    # it and the agent's reply. Its thread keeps its place (`events.build_threads`), so
+    # the agent may go on answering there.
     mark = json.loads(
         fetch(
             f"{server}/api/event",
@@ -913,19 +915,15 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
         )[1]
     )["state"]["events"][-1]
     assert mark["parent"] == reaction["id"]
-    status, body = fetch(
-        f"{server}/api/event",
-        data=json.dumps({"kind": "undo", "undoes": reaction["id"]}).encode(),
-    )
-    assert status == 400 and refused_on(body).code == "answered-reaction"
-    # Answered, the page reaction is a thread, and the withdrawal would orphan
-    # the answer; the user's move is in the thread it opened.
     thread_model.post_reply(page_dir, {"parent": reaction["id"]}, "Which part is long?")
     status, body = fetch(
         f"{server}/api/event",
         data=json.dumps({"kind": "undo", "undoes": reaction["id"]}).encode(),
     )
-    assert status == 400 and refused_on(body).code == "answered-reaction"
+    assert status == 200, body
+    assert thread_model.post_reply(
+        page_dir, {"parent": reaction["id"]}, "Keeping it as it is, then."
+    )
 
 
 def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(

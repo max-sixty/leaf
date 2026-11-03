@@ -232,7 +232,7 @@
 
     "runtime/kernel-facts.js": "a115be58af0138cc01234a9d6c16caa066237d7988b94e056039810edcf9b53e",
 
-    "runtime/kernel-registry.json": "0a3f30e9babe768cc6135f1508575202a4ab19b4701f476c1d25ac8f86c4df04",
+    "runtime/kernel-registry.json": "2477e3f5e36d3a498be73569fd7ae2fb134bc7ee88b723c37e5c47c299655527",
 
     "runtime/keyboard/bindings.js": "67c3dd0c589fc877dc7b84a00e03ce3599524455bc13984dd0be7f2637c8c837",
 
@@ -484,9 +484,9 @@
 
     "runtime/thread/message-edit.js": "6cc8450945a7031183eba36986471e26f3de247ec4b9c9e7f1141577b18801c3",
 
-    "runtime/thread/messages.js": "77ba95dd7380946dd5a39aa1859985fec396e756582d1413f9118020f9fb38d2",
+    "runtime/thread/messages.js": "d2eeddaf4b8a9debb609f06e85653e8f68bf886e0ef47412c6fdc50aeadb5ab7",
 
-    "runtime/thread/model.js": "97708981970747737174baa9149daa1f8f397e2577070292ffce9a92620c66ad",
+    "runtime/thread/model.js": "30b7a576cf834368bd397c9542c3c694c3798f91e6abb0b9741a8fc8290e40e3",
 
     "runtime/thread/placement.js": "e73aebe5fcdc99563a3006462c3b6bee2452284ad5112d26acd9e4bd939fb820",
 

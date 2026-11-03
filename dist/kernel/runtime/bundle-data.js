@@ -8263,8 +8263,6 @@ const diffBase = Z(null);
 const comparisonGeneration = Z(0);
 const diffPendingBase = Z(null);
 const diffMarked = /* @__PURE__ */ new Set();
-const countedAs = (block) => block.closest("tr") ?? block;
-const countedIn = /* @__PURE__ */ new WeakMap();
 let diffChanges = [];
 let cardOpen = null;
 const diffPaired = /* @__PURE__ */ new Set();
@@ -8600,19 +8598,12 @@ function applyDiff(doc, baseAuthored, baseRevision, baseReading) {
 			is: is ? comparisonWords(is, opaque) : null
 		});
 	}
-	const units = /* @__PURE__ */ new Map();
-	const takenOut = (blocks) => blocks.map((block) => {
-		const record = Object.freeze({
-			id: block.id,
-			tag: block.localName,
-			word: addressableWord(block),
-			words: block.matches(opaque) ? "" : comparisonWords(block, opaque)
-		});
-		const unit = countedAs(block);
-		if (!units.has(unit)) units.set(unit, { word: addressableWord(unit) });
-		countedIn.set(record, units.get(unit));
-		return record;
-	});
+	const takenOut = (blocks) => blocks.map((block) => Object.freeze({
+		id: block.id,
+		tag: block.localName,
+		word: addressableWord(block),
+		words: block.matches(opaque) ? "" : comparisonWords(block, opaque)
+	}));
 	diffChanges = changeRuns(diffMarked, kept, new Map([...removedAt].map(([block, gone]) => [block, takenOut(gone)])), takenOut(trailing));
 	return diffChanges.length;
 }
@@ -8626,24 +8617,18 @@ const nounOf = (words) => {
 	return rest.every((word) => word === first) ? first : "block";
 };
 function changeAccount({ blocks, removed }) {
-	const units = /* @__PURE__ */ new Map();
-	for (const block of blocks) {
+	const added = blocks.filter((block) => !diffPaired.has(block));
+	const edited = blocks.filter((block) => {
 		const words = diffPaired.has(block) && blockWords(block);
-		const did = !diffPaired.has(block) ? 0 : words && words.was !== words.is ? 2 : 1;
-		const unit = countedAs(block);
-		units.set(unit, Math.max(units.get(unit) ?? 0, did));
-	}
-	const that = (did) => [...units].filter(([, its]) => its === did).map(([unit]) => addressableWord(unit));
-	const [into, changed, edited] = [
-		that(0),
-		that(1),
-		that(2)
-	];
-	const out = [...new Set(removed.map((record) => countedIn.get(record)))].map(({ word }) => word);
+		return words && words.was !== words.is;
+	});
+	const changed = blocks.filter((block) => diffPaired.has(block) && !edited.includes(block));
+	const out = removed.map(({ word }) => word);
+	const into = added.map(addressableWord);
 	const parts = [];
 	if (edited.length) parts.push([
 		edited.length,
-		nounOf(edited),
+		nounOf(edited.map(addressableWord)),
 		"edited"
 	]);
 	if (out.length && into.length) parts.push([
@@ -8663,7 +8648,7 @@ function changeAccount({ blocks, removed }) {
 	]);
 	if (changed.length) parts.push([
 		changed.length,
-		nounOf(changed),
+		nounOf(changed.map(addressableWord)),
 		"changed"
 	]);
 	return parts.map(([n, noun, verb], i) => parts[i - 1]?.[1] === noun ? `${n} ${verb}` : `${plural(noun, n)} ${verb}`).join(", ");

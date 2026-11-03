@@ -102,11 +102,7 @@ def test_a_comparison_marks_each_change_with_a_bar_and_h_walks_them(browser, ser
     assert lanes, "the change bar and the at-work bar don't stand in lanes of their own"
 
 
-SECTION = (
-    "<h2>Routes</h2>\n<p>The old rule.</p>\n<table>"
-    "<tr><th>Route</th><td>Nobody</td></tr><tr><th>Since</th><td>May</td></tr>"
-    "</table>\n<p>The old reason.</p>"
-)
+SECTION = "<h2>Routes</h2>\n<p>The old rule.</p>\n<p>The old reason.</p>"
 REWRITTEN = (
     "<h2>Who acts</h2>\n<p>The new rule.</p>\n<table>"
     "<tr><th>Finding</th><td>Leaf</td></tr><tr><th>Behind</th><td>The agent</td></tr>"
@@ -122,8 +118,7 @@ def test_a_section_rewritten_whole_is_one_change(browser, serve):
 
     The comparison lines the two versions' blocks up in order, so the new table's
     "Leaf" cell is new, though the untouched table below holds the same word, and
-    that table stays unmarked. The entry counts the table by its rows, as a reader
-    does, rather than by its cells."""
+    that table stays unmarked."""
     sectioned = PAGE.replace('<p id="b">Beta reads one way.</p>', SECTION).replace(
         '<p id="d">', f'{KEPT_TABLE}\n<p id="d">'
     )
@@ -141,11 +136,6 @@ def test_a_section_rewritten_whole_is_one_change(browser, serve):
     for expected in ("main h2", "#d", "main h2"):
         page.keyboard.press("h")
         expect(page.locator(expected)).to_be_focused()
-    # A heading, two paragraphs and a table's two rows, on each side.
-    page.locator('.lf-margin-marker[data-lf-kinds~="change"]').first.click()
-    expect(page.locator("#lf-change-card .lf-change-card-head")).to_have_text(
-        re.compile(r"^5 blocks replaced by 5 · v1 → ")
-    )
 
 
 @pytest.mark.parametrize(

@@ -102,9 +102,7 @@ test("g D restores the discarded rewrite", (t) => {
     openPageMap: () => {},
     scrollToElement: () => {},
     leavesOffered: () => false,
-    glideTo: () => {},
     placeThreadEdge: () => {},
-    stopGlide: () => {},
   });
   const press = (key, shiftKey = false) =>
     dispatchKey(

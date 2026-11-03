@@ -122,23 +122,19 @@ test("a to-do on the user stands at its subject, holding it but no region", () =
     assert.equal(obligationPlace(notes, items).node, at("notes"));
     assert.equal(obligationPlace(notes, items).source, null);
     assert.equal(obligationPlace(onThread, items).node, null);
-    // With no top-level heading, the page's head is its first heading.
-    assert.equal(obligationPlace(whole, items).node, document.querySelector("h2"));
+    // The page as a whole names no element, so its to-do stands nowhere on the page,
+    // and the heading that comes first holds the to-do on its section, not the page's.
+    assert.equal(obligationPlace(whole, items).node, null);
+    assert.equal(obligationHolding(items, document.querySelector("h2")), notes);
     assert.equal(obligationHolding(items, at("notes")), notes);
     // On a widget a to-do is on, the widget's own question holds the user.
     assert.equal(obligationHolding(items, at("pick").firstElementChild), pick);
     assert.equal(obligationHolding([onPick], at("pick")), onPick);
-    // The section's heading is the page's head, inside the notes' to-do.
-    assert.equal(obligationHolding(items, document.querySelector("h2")), whole);
     // A region counts what its widgets ask, which a to-do is not.
     assert.deepEqual(
       obligationsIn(at("notes"), items).map((held) => held.id),
       ["widget:pick"],
     );
-    document.querySelector("main").insertAdjacentHTML("afterbegin", "<h1>Release</h1>");
-    assert.equal(obligationPlace(whole, items).node, document.querySelector("h1"));
-    document.querySelector("main").innerHTML = '<p id="lead">Plain words.</p>';
-    assert.equal(obligationPlace(whole, items).node, at("lead"));
   } finally {
     document.body.replaceChildren();
   }

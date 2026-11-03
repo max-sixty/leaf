@@ -163,10 +163,11 @@ Custom properties come in four kinds:
 | Vendor bridges      | An adapter maps Leaf inputs to a dependency's properties, such as `--diffs-*` and `--plot-background`. Change the Leaf input, not each use.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 
 Leaf's interface sets its words in a closed set of fonts derived from those inputs,
-each a whole value for the `font` shorthand, declared together in `browser/base.css`
-beside what each one sets. A widget's own words, such as its controls, statuses,
-counts, labels and readouts, name the font for their kind (`font: var(--font-small)`)
-rather than a size, line height or family of their own. They then match Leaf's at
+each a whole value for the `font` shorthand, declared together in
+`browser/styles/tokens.css` beside what each one sets. A widget's own words, such as
+its controls, statuses, counts, labels and readouts, and the sentences it holds, such
+as a card's, name the font for their kind (`font: var(--font-small)`,
+`font: var(--font-widget)`) rather than a size, line height or family of their own. They then match Leaf's at
 every density and under every theme, and a page doesn't collect faces a pixel or a
 weight apart from the ones Leaf already draws.
 

@@ -3,6 +3,7 @@ following claim and lifecycle publications, and re-arming roots that are created
 replaced."""
 
 import contextlib
+import errno
 import json
 import os
 import shutil
@@ -12,14 +13,12 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
-import watchfiles.main
 from interact_support import (
     STATED_TIMEOUT,
     append_carried_log_record,
     record_claim,
     write_record,
 )
-from watchfiles._rust_notify import WatchfilesRustInternalError
 
 from leaf import event_log as events_model
 from leaf import harness as harness_model
@@ -30,17 +29,30 @@ from leaf import state as cleanup_model
 
 @pytest.fixture
 def native(monkeypatch):
-    """Native watchers of this test's own, so what it counts, inspects or breaks
-    meets no subscription an earlier test left open in the process."""
+    """Observers of this test's own, so what it counts, inspects or breaks meets no
+    subscription an earlier test left open in the process."""
     from leaf import file_changes
 
     owned = file_changes._Native()
     monkeypatch.setattr(file_changes, "_native", owned)
     yield owned
-    with owned.condition:
-        for watcher in owned.watchers.values():
-            watcher.stop()
-        owned.watchers.clear()
+    with owned.subscribing:
+        while owned.watches:
+            owned.watches.popitem()[1].stop()
+    for observer in owned.observers.values():
+        observer.stop()
+        observer.join(STATED_TIMEOUT)
+
+
+def _inotify_instances():
+    """The inotify instances this process holds, read from its descriptors."""
+    instances = 0
+    for descriptor in os.listdir("/proc/self/fd"):
+        with contextlib.suppress(OSError):
+            instances += (
+                os.readlink(f"/proc/self/fd/{descriptor}") == "anon_inode:inotify"
+            )
+    return instances
 
 
 def test_a_watch_wakes_on_what_its_pass_read_moving(page_dir):
@@ -132,7 +144,8 @@ def test_a_page_reading_moves_on_exactly_the_writes_its_watchers_wake_on(
     followers wake on, derive from one declaration of its inputs. A bound file
     outside the page moves both, as does an authored edit or renaming the folder
     that holds the bound file; `user-views.json`, which the server rewrites as a tab
-    reports its view, moves neither.
+    reports its view, moves neither, and nor does reading an input, which inotify
+    reports as the server serves it.
 
     Where the volume ignores letter case, the page and the file are named in a
     spelling other than the one on disk, which notifications report: both must
@@ -162,7 +175,7 @@ def test_a_page_reading_moves_on_exactly_the_writes_its_watchers_wake_on(
     try:
         settled.write_text("")
         deadline = time.monotonic() + STATED_TIMEOUT
-        while str(settled) not in (heard.batch(STATED_TIMEOUT) or set()):
+        while str(settled) not in heard.batch(STATED_TIMEOUT):
             assert time.monotonic() < deadline, "the watcher never reported the write"
     finally:
         heard.close()
@@ -179,6 +192,7 @@ def test_a_page_reading_moves_on_exactly_the_writes_its_watchers_wake_on(
         lambda: write_record(page_dir / "user-views.json", {"sessions": {}}),
         DIAGNOSTIC_QUIET_WINDOW_S,
     ) == (False, False)
+    assert classified(settled.read_text, DIAGNOSTIC_QUIET_WINDOW_S) == (False, False)
     assert classified(
         lambda: (page_dir / "page" / "extra.css").write_text("p {}"), STATED_TIMEOUT
     ) == (True, True)
@@ -216,21 +230,21 @@ def _subscriber(kind, page_dir):
 
 @pytest.mark.parametrize("owner", ["page", "session"])
 def test_a_page_subscription_takes_in_a_directory_made_while_it_installs(
-    page_dir, monkeypatch, owner
+    page_dir, monkeypatch, native, owner
 ):
     """A page's roots follow its subdirectories, so one made after they are listed
     and before the subscription is handed over is subscribed in it: an entry added
     to it later wakes the owner without the owner connecting again."""
     made = page_dir / "made-while-installing"
-    native = watchfiles.main.RustNotify
+    schedule = native.schedule
 
-    def installing(*args, **kwargs):
+    def installing(path, recursive):
         made.mkdir(exist_ok=True)
-        return native(*args, **kwargs)
+        return schedule(path, recursive)
 
     with _subscriber(owner, page_dir) as subscribe:
         with monkeypatch.context() as installation:
-            installation.setattr(watchfiles.main, "RustNotify", installing)
+            installation.setattr(native, "schedule", installing)
             changes, _generation = subscribe()
         assert changes.roots[made] is False
         while changes.wait(changes.mark(), DIAGNOSTIC_QUIET_WINDOW_S):
@@ -241,70 +255,63 @@ def test_a_page_subscription_takes_in_a_directory_made_while_it_installs(
 
 
 @pytest.mark.parametrize("owner", ["page", "session"])
-def test_a_directory_made_deep_in_a_page_tree_joins_its_subscription(page_dir, owner):
-    """No page subscription watches a tree, so a directory made deep in `page/`
-    moves the page's reading, which is what sends its owner to subscribe again,
-    and that subscription hears a file written in it."""
+@pytest.mark.parametrize("arrival", ["made", "moved in"])
+def test_a_directory_arriving_deep_in_a_page_tree_joins_its_subscription(
+    page_dir, tmp_path, owner, arrival
+):
+    """No page subscription watches a tree, so directories made deep in `page/`, or
+    moved there from outside the page, move the page's reading, which is what sends
+    its owner to subscribe again, and that subscription hears a file written in the
+    innermost one. On Linux watchdog's recursive watch of `page/` would never watch
+    a directory moved in."""
     from leaf.served_state.reading import page_reading
 
     shallow = page_dir / "page" / "modules"
     shallow.mkdir(parents=True, exist_ok=True)
     deep = shallow / "deep"
+    inner = deep / "inner"
+    outside = tmp_path / "outside"
+    (outside / inner.name).mkdir(parents=True)
     with _subscriber(owner, page_dir) as subscribe:
         changes, generation = subscribe()
         before = page_reading(page_dir)
-        deep.mkdir()
+        if arrival == "made":
+            inner.mkdir(parents=True)
+        else:
+            outside.rename(deep)
         assert changes.wait(generation, STATED_TIMEOUT)
         assert page_reading(page_dir) != before
         changes, generation = subscribe()
-        assert changes.roots[deep] is False
-        (deep / "module.js").write_text("export {};")
+        assert changes.roots[inner] is False
+        (inner / "module.js").write_text("export {};")
         assert changes.wait(generation, STATED_TIMEOUT)
 
 
-def test_a_process_follows_every_page_through_one_native_watcher(
-    tmp_path, monkeypatch, native
-):
-    """However many pages a process follows, it holds one native watcher, which on
-    Linux is one inotify instance: page subscriptions take no tree, and one that
-    needs a directory the watcher lacks replaces it. Each subscription still hears
-    only its own page's writes. The replacement wakes the others once, since a batch
-    the retired watcher had not reported goes with it."""
+def test_a_process_follows_every_page_through_one_observer(tmp_path, native):
+    """However many pages a process follows, it holds one observer, which on Linux
+    is one inotify instance, and schedules each directory they want once.
+    Subscribing to another page wakes no subscription already open, and each
+    subscription hears only its own page's writes."""
     from leaf.file_changes import page_changes
 
-    live = []
-    rust_notify = watchfiles.main.RustNotify
-
-    class Counted:
-        """A native watcher, counted while `watch` holds it open."""
-
-        def __init__(self, *args):
-            self.watcher = rust_notify(*args)
-
-        def __enter__(self):
-            live.append(self)
-            return self
-
-        def __exit__(self, *exc):
-            live.remove(self)
-            return self.watcher.__exit__(*exc)
-
-        def watch(self, *args):
-            return self.watcher.watch(*args)
-
-    monkeypatch.setattr(watchfiles.main, "RustNotify", Counted)
     pages = [tmp_path / name for name in ("first", "second", "third")]
     for page in pages:
         (page / "page" / "nested").mkdir(parents=True)
-    first, generation = page_changes(pages[0])
+    first, _generation = page_changes(pages[0])
+    while first.wait(first.mark(), DIAGNOSTIC_QUIET_WINDOW_S):
+        pass
+    generation = first.mark()
     second, third = (page_changes(page)[0] for page in pages[1:])
-    assert first.wait(generation, 0), "a replacement left a subscription asleep"
-    # A retired watcher ends within a step of its replacement.
-    deadline = time.monotonic() + STATED_TIMEOUT
-    while len(live) > 1 and time.monotonic() < deadline:
-        time.sleep(0.01)
-    assert len(live) == 1
-    for changes in (first, second, third):
+    assert not first.wait(generation, DIAGNOSTIC_QUIET_WINDOW_S), (
+        "subscribing to a page woke another page's subscription"
+    )
+    assert len(native.observers) == 1
+    assert set(native.watches) == {
+        key for changes in (first, second, third) for key in changes.roots.items()
+    }
+    if Path("/proc/self/fd").is_dir():
+        assert _inotify_instances() == 1
+    for changes in (second, third):
         while changes.wait(changes.mark(), DIAGNOSTIC_QUIET_WINDOW_S):
             pass
     marks = [(changes, changes.mark()) for changes in (first, second, third)]
@@ -521,65 +528,24 @@ def test_native_watch_rearms_a_session_partition_created_after_startup(
         watch.release()
 
 
-def test_a_replacement_tells_a_path_reader_its_paths_may_be_lost(tmp_path, native):
-    """A watcher replaced for another subscription drops any batch it had not
-    reported, so a reader of paths hears None, telling it to read every input again,
-    where an owner of a canonical reading only wakes."""
-    from leaf import file_changes
-
-    first, second = tmp_path / "first", tmp_path / "second"
-    first.mkdir()
-    second.mkdir()
-    paths = file_changes.FileChanges({first: True}, lambda _path: True, collect=True)
-    try:
-        while paths.batch(DIAGNOSTIC_QUIET_WINDOW_S):
-            pass
-        other = file_changes.FileChanges({second: True}, lambda _path: True)
-        assert paths.batch(STATED_TIMEOUT) is None
-        (first / "edited").write_text("x")
-        batch = paths.batch(STATED_TIMEOUT)
-        assert batch is not None and str(first / "edited") in batch
-        other.close()
-    finally:
-        paths.close()
-
-
-def test_each_recursion_mode_serves_only_its_own_subscriptions(tmp_path, native):
+def test_a_directory_watched_with_and_without_its_tree_serves_each(tmp_path, native):
     """A directory one subscription watches with its tree and another without is
-    held by each mode's watcher. So a shallow subscription installs beside a deep
-    one whose directory was replaced, and goes on hearing its directory after the
-    deep one closes and the recursive watcher is replaced for another tree."""
+    scheduled in each mode, so closing one leaves the other hearing its writes."""
     from leaf import file_changes
 
-    tree, other = tmp_path / "tree", tmp_path / "other"
-    tree.mkdir()
-    other.mkdir()
+    tree = tmp_path / "tree"
+    (tree / "nested").mkdir(parents=True)
     deep = file_changes.FileChanges({tree: True}, lambda _path: True)
-    tree.rmdir()
-    tree.mkdir()
-    subscribed = []
-    # A daemon thread, so a subscription that never installs fails this test
-    # rather than holding the process.
-    subscribing = threading.Thread(
-        target=lambda: subscribed.append(
-            file_changes.FileChanges({tree: False}, lambda _path: True)
-        ),
-        daemon=True,
-    )
-    subscribing.start()
-    subscribing.join(STATED_TIMEOUT)
-    assert subscribed, "the subscription never installed"
-    [shallow] = subscribed
-    deep.close()
-    later = file_changes.FileChanges({other: True}, lambda _path: True)
+    shallow = file_changes.FileChanges({tree: False}, lambda _path: True)
     try:
+        deep.close()
         while shallow.wait(shallow.mark(), DIAGNOSTIC_QUIET_WINDOW_S):
             pass
         generation = shallow.mark()
         (tree / "entry").write_text("x")
         assert shallow.wait(generation, STATED_TIMEOUT)
+        assert set(native.watches) == {(tree, False)}
     finally:
-        later.close()
         shallow.close()
 
 
@@ -607,7 +573,7 @@ def test_shared_page_native_owner_rearms_created_and_replaced_directories(
             waiting = executor.submit(changes.wait, mark, STATED_TIMEOUT)
             module.write_text("later authored input")
             assert waiting.result(timeout=STATED_TIMEOUT)
-        descriptor = native.watchers[False].roots[page]
+        descriptor = native.watches[page, False].descriptor
         previous_identity = os.fstat(descriptor)
         shutil.rmtree(page)
         page.mkdir()
@@ -644,7 +610,7 @@ def test_shared_page_native_owner_rearms_created_and_replaced_directories(
 
 @pytest.mark.parametrize("phase", ["opening", "native-installation"])
 def test_shared_page_watch_replans_a_root_removed_during_subscription(
-    tmp_path, monkeypatch, phase
+    tmp_path, monkeypatch, native, phase
 ):
     """A page removed during subscription stays observable through its parent."""
     from leaf import file_changes
@@ -652,7 +618,7 @@ def test_shared_page_watch_replans_a_root_removed_during_subscription(
     page = tmp_path / "retiring-page"
     page.mkdir()
     original_open = file_changes.os.open
-    original_native = watchfiles.main.RustNotify
+    schedule = native.schedule
     removed = False
 
     def retire():
@@ -666,14 +632,14 @@ def test_shared_page_watch_replans_a_root_removed_during_subscription(
             retire()
         return original_open(path, *args, **kwargs)
 
-    def installing(paths, *args, **kwargs):
-        if str(page) in paths and phase == "native-installation":
+    def installing(path, recursive):
+        if path == page and phase == "native-installation":
             retire()
-        return original_native(paths, *args, **kwargs)
+        return schedule(path, recursive)
 
     owner = file_changes._PageChanges()
     monkeypatch.setattr(file_changes.os, "open", opening)
-    monkeypatch.setattr(watchfiles.main, "RustNotify", installing)
+    monkeypatch.setattr(native, "schedule", installing)
     try:
         changes, generation = owner.connect(page)
         assert removed
@@ -699,7 +665,7 @@ def test_session_native_watch_pins_roots_until_replacement(page_dir, native):
         watch.mark()
         previous = watch.changes
         assert previous is not None
-        held = os.fstat(native.watchers[False].roots[page_dir])
+        held = os.fstat(native.watches[page_dir, False].descriptor)
         shutil.rmtree(page_dir)
         page_dir.mkdir()
         current = page_dir.stat()
@@ -717,15 +683,11 @@ def test_native_subscription_releases_partial_startup_resources(
 ):
     from leaf import file_changes
 
-    shallow, tree = tmp_path / "shallow", tmp_path / "tree"
-    shallow.mkdir()
-    tree.mkdir()
-    opened, readers = [], []
-    real_open, real_thread, real_native = (
-        os.open,
-        threading.Thread,
-        watchfiles.main.RustNotify,
-    )
+    first, second = tmp_path / "first", tmp_path / "second"
+    first.mkdir()
+    second.mkdir()
+    opened, emitters = [], []
+    real_open, schedule = os.open, native.schedule
 
     def opening(*args, **kwargs):
         if failure == "directory" and opened:
@@ -734,57 +696,51 @@ def test_native_subscription_releases_partial_startup_resources(
         opened.append(descriptor)
         return descriptor
 
-    def thread(*args, **kwargs):
-        reader = real_thread(*args, **kwargs)
-        readers.append(reader)
-        return reader
-
-    providers = []
-
-    def installing(*args, **kwargs):
-        # The recursion modes' watchers install one after the other.
-        if failure == "provider" and providers:
+    def installing(path, recursive):
+        if failure == "provider" and emitters:
             raise RuntimeError("provider installation refused")
-        providers.append(args)
-        return real_native(*args, **kwargs)
+        scheduled = schedule(path, recursive)
+        emitters.append(scheduled[2])
+        return scheduled
 
-    monkeypatch.setattr(os, "open", opening)
-    monkeypatch.setattr(file_changes.threading, "Thread", thread)
-    monkeypatch.setattr(watchfiles.main, "RustNotify", installing)
+    monkeypatch.setattr(file_changes.os, "open", opening)
+    monkeypatch.setattr(native, "schedule", installing)
     with pytest.raises(RuntimeError, match="installation refused"):
-        file_changes.FileChanges({shallow: False, tree: True}, lambda _path: True)
-    assert opened
+        file_changes.FileChanges({first: False, second: True}, lambda _path: True)
+    assert opened and emitters
     for descriptor in opened:
         with pytest.raises(OSError):
             os.fstat(descriptor)
-    assert all(not reader.is_alive() for reader in readers)
+    assert not any(emitter.is_alive() for emitter in emitters)
+    assert native.watches == {}
 
 
 def test_native_subscription_rearms_a_root_replaced_during_installation(
     tmp_path, monkeypatch, native
 ):
-    """A replacement between pinning and native installation invalidates the plan."""
+    """A replacement between pinning and scheduling invalidates the plan."""
     from leaf import file_changes
 
     page = tmp_path / "installing"
     page.mkdir()
-    real_native = watchfiles.main.RustNotify
+    schedule = native.schedule
     installations = []
 
-    def installing(*args, **kwargs):
-        if not installations:
-            page.rmdir()
-            page.mkdir()
-        installations.append(args)
-        return real_native(*args, **kwargs)
+    def installing(path, recursive):
+        if path == page:
+            if not installations:
+                page.rmdir()
+                page.mkdir()
+            installations.append(path)
+        return schedule(path, recursive)
 
     owner = file_changes._PageChanges()
-    monkeypatch.setattr(watchfiles.main, "RustNotify", installing)
+    monkeypatch.setattr(native, "schedule", installing)
     try:
         replacement, _generation = owner.connect(page)
         assert len(installations) == 2, "the stale installation was not replanned"
-        descriptors = list(native.watchers[False].roots.values())
-        held = os.fstat(native.watchers[False].roots[page])
+        descriptors = [watch.descriptor for watch in native.watches.values()]
+        held = os.fstat(native.watches[page, False].descriptor)
         assert (held.st_dev, held.st_ino) == (page.stat().st_dev, page.stat().st_ino)
         roots = dict(replacement.roots)
         assert replacement.matches(roots)
@@ -828,41 +784,30 @@ def test_shared_native_page_owner_survives_held_memory_and_closes_on_eviction(
 
 
 @pytest.mark.parametrize(
-    ("refusal", "limit"),
+    ("code", "limit"),
     [
-        (
-            lambda _paths: WatchfilesRustInternalError(
-                "Error creating recommended watcher: Too many open files (os error 24)"
-            ),
-            "fs.inotify.max_user_instances or RLIMIT_NOFILE",
-        ),
-        (
-            lambda paths: OSError(
-                f"OS file watch limit reached. about {json.dumps(paths)}"
-                f" (Error {{ kind: MaxFilesWatch, paths: {json.dumps(paths)} }})"
-            ),
-            "fs.inotify.max_user_watches",
-        ),
+        (errno.EMFILE, "fs.inotify.max_user_instances or RLIMIT_NOFILE"),
+        (errno.ENOSPC, "fs.inotify.max_user_watches"),
     ],
     ids=["instances", "watches"],
 )
 def test_an_exhausted_native_watcher_polls_instead(
-    tmp_path, monkeypatch, capfd, native, refusal, limit
+    tmp_path, monkeypatch, capfd, native, code, limit
 ):
     """The kernel's inotify limits are shared with every program the user runs, so a
-    watcher it refuses for want of one polls instead and names the limit, rather
-    than ending the process that asked. The refusals are watchfiles 1.3.0's own
-    words for EMFILE and ENOSPC, which only a Linux host with a spent limit raises."""
+    directory it refuses a watch for want of one is polled instead, and a note names
+    the limit, rather than ending the process that asked. watchdog raises the
+    kernel's errno, which only a Linux host with a spent limit gives."""
     from leaf import file_changes
 
-    rust_notify = watchfiles.main.RustNotify
+    schedule = native._schedule
 
-    def kernel(paths, debug, force_polling, *args):
-        if not force_polling:
-            raise refusal(paths)
-        return rust_notify(paths, debug, force_polling, *args)
+    def kernel(path, recursive, *, polling):
+        if not polling:
+            raise OSError(code, os.strerror(code))
+        return schedule(path, recursive, polling=polling)
 
-    monkeypatch.setattr(watchfiles.main, "RustNotify", kernel)
+    monkeypatch.setattr(native, "_schedule", kernel)
     changes = file_changes.FileChanges({tmp_path: False}, lambda _path: True)
     try:
         mark = changes.mark()
@@ -881,8 +826,8 @@ def test_any_other_native_watcher_failure_reaches_its_owner(
     from leaf import file_changes
 
     def broken(*_args, **_kwargs):
-        raise WatchfilesRustInternalError("Error creating recommended watcher: broken")
+        raise RuntimeError("the observer is broken")
 
-    monkeypatch.setattr(watchfiles.main, "RustNotify", broken)
-    with pytest.raises(WatchfilesRustInternalError, match="broken"):
+    monkeypatch.setattr(native, "_schedule", broken)
+    with pytest.raises(RuntimeError, match="broken"):
         file_changes.FileChanges({tmp_path: False}, lambda _path: True)

@@ -3,10 +3,19 @@
  * wrote when the markup binds neither (element-data.js, "Bound values"). Optional
  * previews compose the ordinary lf-tabs switcher, so keyboard, reveal, and tab
  * memory have the same owner as authored views. Each reading has its own bounded
- * viewport, keeping the page still when switching and its scroll place independent.
- * Pierre draws numbered source using the same static renderer as diffs. Its sheets
- * are scoped to the listing; gutter glyphs are generated content, so selecting or
- * copying the source never includes line numbers. The listing's rows stand in runs that
+ * viewport, which keeps its scroll place independent, and switching keeps the page
+ * still. Where the text can arrive after first paint, the viewport is `--lf-bound`
+ * tall. A Markdown preview of written text instead takes its rendered height, which
+ * its first paint already holds (`x-prepaint`), and its Source tab takes the same
+ * height (`holdSource`), drawn on it or switched to it. Where that height cuts the
+ * source, a press shows every line (`cut`), as a thread's Full quote shows a whole
+ * quote: a reflow the reader asks for. The cut box doesn't scroll, so the press is the
+ * one way to the rest, and stays at the box's foot rather than scrolling off with the
+ * lines.
+ * Pierre draws numbered source using the same static renderer as diffs. Its sheets,
+ * one copy every listing shares (`listingSheet`), are scoped to the listing; gutter
+ * glyphs are generated content, so selecting or copying the source never includes
+ * line numbers. The listing's rows stand in runs that
  * the browser draws only in view (`inRuns`), each sized ahead of drawing by the lines
  * its rows fill (`sizeRuns`). The Markdown preview renders a file, whose soft line
  * breaks are spaces, so a paragraph wraps to the preview's width. The source and
@@ -19,6 +28,7 @@ import {
   generatedElement,
   ensureSyntaxLanguage,
   inBaseLayer,
+  keeps,
   LeafElement,
   nothing,
   whileConnected,
@@ -26,20 +36,53 @@ import {
   setRenderedChildren,
   setChildLists,
   setChildren,
+  focusDestination,
+  keepsHidden,
+  offer,
+  offerAction,
   loadMarkdown,
   renderMarkdown,
   sizeObserver,
+  layoutPx,
   textWidth,
   nextFrame,
 } from "/runtime/widget-api.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
 import { pierre, markSyntax } from "./pierre.js";
 
-// Writing the same key again would still be a mutation the page's observers see.
+// A Markdown preview of text written in the page, whose rendering sets the box both
+// tabs share (text-document.css).
+const WRITTEN = '[preview="markdown"]:not([source], [for])';
+
+// Each reading shows the same document whatever text its source holds, so its key is
+// also its identity (projection/data.js). A comment on a passage then follows the
+// passage's words across replacements, and stays marked while they still stand.
 /** @param {HTMLElement} node @param {string} key */
 const mark = (node, key) => {
-  if (node.dataset.lfDatum !== key) node.dataset.lfDatum = key;
+  keeps(node, "data-lf-datum", key);
+  keeps(node, "data-lf-identity", key);
 };
+
+// Every listing in a document or shadow root shares one copy of Pierre's sheets, which
+// that root adopts. Pierre writes the sheets into each file it renders, the same for
+// every file, since they depend only on the syntax theme and the options
+// `sourceListing` passes. Their `:host` rules describe the file box, here the listing,
+// without adding a second shadow-tree owner. Kept in each listing, the sheets entered
+// the page again with each document that drew, and Firefox restyles the whole page
+// whenever a sheet holding `@scope` enters or leaves it: 29 empty documents in tabs
+// beside one of 4 MB added about 6 s to the page's load.
+/** @type {CSSStyleSheet | undefined} */
+let listingSheet;
+/** @param {string} css */
+function scopedSheet(css) {
+  const sheet = new CSSStyleSheet();
+  sheet.replaceSync(
+    inBaseLayer(
+      `@scope (.lf-text-document-listing) { ${css.replaceAll(":host", ":scope")} }`,
+    ),
+  );
+  return sheet;
+}
 
 /** @param {string} source @param {string | null} language */
 async function sourceListing(source, language) {
@@ -55,13 +98,9 @@ async function sourceListing(source, language) {
   template.innerHTML = prerenderedHTML;
   const rendered = template.content;
   rendered.querySelector("svg[data-icon-sprite]")?.remove();
-  for (const style of rendered.querySelectorAll("style")) {
-    // A style's implicit @scope root is its parent listing. Pierre's :host rules
-    // describe that file box here, without adding a second shadow-tree owner.
-    style.textContent = inBaseLayer(
-      `@scope { ${style.textContent.replaceAll(":host", ":scope")} }`,
-    );
-  }
+  const styles = [...rendered.querySelectorAll("style")];
+  listingSheet ??= scopedSheet(styles.map((style) => style.textContent).join("\n"));
+  for (const style of styles) style.remove();
   // A line number is Leaf's control, drawn from `data-number`; dropping Pierre's
   // attribute keeps its sheet's rule for that span (a positioned, stacked
   // inline-block) off it.
@@ -91,7 +130,7 @@ async function sourceListing(source, language) {
   if (code.textContent !== source)
     throw new Error("Pierre did not return the source unchanged");
   markSyntax(rendered, foreground);
-  return { rendered, pre, code, text };
+  return { rendered, pre, code, text, sheet: listingSheet };
 }
 
 // Rows per run: several times the lines a document's box shows, so the runs in view
@@ -329,7 +368,53 @@ class TextDocument extends LeafElement {
   // sized again in the next frame, outside the observer's delivery: sized in it when
   // Firefox's face arrived, they resized the code it watches, and Firefox reported the
   // notification it couldn't deliver as an error.
-  sizes = sizeObserver(() => nextFrame(() => this.refit()));
+  sizes = sizeObserver(() =>
+    nextFrame(() => {
+      this.refit();
+      this.holdSource();
+      this.measureCut();
+    }),
+  );
+  // A written preview's Source tab, which shows what the preview's height holds, and
+  // the press that shows the rest where that height cuts the source.
+  /** @type {{panel: HTMLElement, box: HTMLElement, press: HTMLButtonElement} | null} */
+  cut = null;
+  // The Source tab takes the preview's height, so switching to it moves nothing below
+  // the document. A closed tab skips its contents' layout (`hidden="until-found"`), so
+  // the height is read while the preview shows, after each of its resizes. A document
+  // drawn on Source, as after a reload, never showed its preview; it keeps the box the
+  // page first painted (`firstBox`), which holds the preview's rendering (`x-prepaint`).
+  // Either reaches the Source tab before the frame paints.
+  /** @param {number | null} [firstBox] */
+  holdSource(firstBox = null) {
+    const preview = this.view?.preview;
+    const tab = preview?.parentElement;
+    if (!this.cut || !preview || !tab) return;
+    const { panel } = this.cut;
+    let measured;
+    if (!tab.hidden) measured = preview.getBoundingClientRect().height;
+    else if (firstBox !== null)
+      measured =
+        panel.getBoundingClientRect().height +
+        firstBox -
+        this.getBoundingClientRect().height;
+    else return;
+    const height = layoutPx(measured);
+    const { style } = panel;
+    if (style.getPropertyValue("--lf-preview-block") !== height)
+      style.setProperty("--lf-preview-block", height);
+  }
+  // The press shows only while the box cuts lines off, as a thread's Full quote does.
+  measureCut() {
+    if (!this.cut) return;
+    const { panel, box } = this.cut;
+    keepsHidden(
+      box,
+      panel.hidden ||
+        panel.hasAttribute("data-lf-all") ||
+        panel.scrollHeight <= panel.clientHeight + 1,
+    );
+  }
   // The runs the browser has drawn since they last forgot a height (`sizeRuns`).
   drawn = new WeakSet();
   // Size the drawn runs again where the listing's line length changed.
@@ -405,12 +490,16 @@ class TextDocument extends LeafElement {
         pre: drawnPre,
         code: drawnCode,
         text,
+        sheet,
       } = await sourceListing(source, language);
       if (preview === "markdown") {
         let failure;
         if (!(await loadMarkdown((error) => (failure = error)))) throw failure;
       }
       if (rendering !== this.rendering || !this.isConnected) return;
+      const root = /** @type {Document | ShadowRoot} */ (this.getRootNode());
+      if (!root.adoptedStyleSheets.includes(sheet))
+        root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet];
       const view = (this.view ??= this.build(preview));
       const label =
         this.getAttribute("label") ??
@@ -419,11 +508,16 @@ class TextDocument extends LeafElement {
       keepsText(view.caption, value == null ? `${label} · no data` : label);
       const previous = this.text;
       this.text = text;
+      if (this.cut) keepsText(this.cut.press, `Show all ${text.length} lines`);
       if (!this.sourceView) {
         setChildren(view.listing, [...listing.childNodes]);
         this.sourceView = { pre: drawnPre, code: drawnCode };
         this.sizes.observe(view.listing);
         this.sizes.observe(drawnCode);
+        if (this.cut && view.preview) {
+          this.sizes.observe(this.cut.panel);
+          this.sizes.observe(view.preview);
+        }
       } else {
         // The pre owns provenance and scroll; the code owns its native reach stop.
         // Reconcile only their source children, leaving those independent owners
@@ -461,6 +555,10 @@ class TextDocument extends LeafElement {
         if (!previewNode.hasAttribute("srcdoc") || previewNode.srcdoc !== source)
           previewNode.srcdoc = source;
       }
+      const firstBox =
+        this.cut && !view.figure.isConnected
+          ? this.getBoundingClientRect().height
+          : null;
       setChildren(this, [view.figure]);
       this.refit();
       // The drawn text's items, marked for whoever hosts the widget: on a Leaf page,
@@ -473,6 +571,9 @@ class TextDocument extends LeafElement {
       if (loaded) await loaded;
       if (rendering !== this.rendering || !this.isConnected) return;
       this.classList.toggle("lf-rendered", true);
+      // Measured once drawn, since until then the host wears the source face
+      // (reading.css).
+      this.holdSource(firstBox);
     } catch (error) {
       if (rendering !== this.rendering || !this.isConnected) return;
       failSoft(this, error, source);
@@ -516,6 +617,20 @@ class TextDocument extends LeafElement {
     }
     rendered.append(drawn);
     literal.append(listing);
+    if (this.matches(WRITTEN)) {
+      const box = offer("div", "lf-text-document-cut");
+      box.hidden = true;
+      const press = offerAction("inline", "lf-text-document-more", "");
+      // The press goes once it has shown the lines, so focus moves to the listing.
+      press.addEventListener("click", () => {
+        literal.toggleAttribute("data-lf-all", true);
+        keepsHidden(box, true);
+        if (this.sourceView) focusDestination(this.sourceView.pre, "return");
+      });
+      box.append(press);
+      literal.append(box);
+      this.cut = { panel: literal, box, press };
+    }
     tabs.append(rendered, literal);
     figure.append(tabs);
     return { figure, caption, listing, preview: drawn };

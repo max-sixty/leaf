@@ -85,7 +85,7 @@
      node stacks, could not answer for a page node inside a stacking context it did not
      read. */
   --lf-z-page-paint: 8890; /* paint on a page element */
-  --lf-z-margin-raised: 8895; /* the margin item under pointer or focus */
+  --lf-z-margin-raised: 8895; /* the margin item under pointer or focus, or at the user's location */
   --lf-z-page-hints: 8898; /* page-target key chips, under the chrome */
   --lf-z-margin-preview: 8920; /* the thread card, under the panel it scrolls beneath */
   --lf-z-region-capture: 8930; /* viewport crop selection, over the thread card */
@@ -590,8 +590,8 @@
      the ratio has this one home. */
   --lf-key-badge-size: calc(round(var(--t-6) * 1.478 + 2px, 1px));
   /* The interface's fonts. Each is a whole font (weight, size, line height and
-     family), and every rule of Leaf's interface, one that selects an `lf-` class in
-     the core's sheets or a bundled package's, sets its words by naming one,
+     family), and every rule of Leaf's interface, one that selects an `lf-` class or
+     element in the core's sheets or a bundled package's, sets its words by naming one,
      `font: var(--font-small)`, or by inheriting its holder's.
      A rule that names a font takes its weight with it. Only a run that keeps its
      holder's font sets a weight (400, 500 or 600), to stand out from the words around
@@ -602,6 +602,13 @@
      take, `--font-message`, `--font-name` and `--font-goal`, are declared above
      instead, on the root and each chrome part, so a density leaves them alone. */
   --font-ui: var(--t-5) / var(--lf-ui-lh) var(--sans); /* a menu, a dialog, a button */
+  /* A segmented control's choices, at the weight a chosen one takes, so choosing
+     never widens its words: a dial's depths, a shot's views. */
+  --font-choice: 500 var(--t-5) / var(--lf-ui-lh) var(--sans);
+  /* The words a widget holds beside the page's prose, a rung below it and on its
+     leading, since they run to sentences: a card's, a note on a line of source, a
+     review's, a worktree's, a row of options. */
+  --font-widget: var(--t-5) / 1.5 var(--sans);
   /* The floating panel and its lists, a rung below the chrome's, since the panel
      stands over the page rather than in place of it. */
   --font-compact: var(--t-working-label) / var(--lf-ui-lh) var(--sans);

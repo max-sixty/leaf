@@ -4689,6 +4689,11 @@ function gestureWords(event, gesture) {
 			const name = thread ? quotedWords(threadName(thread), 48) : "a thread";
 			return `${event.kind === "resolve" ? "resolved" : "reopened"} ${name}`;
 		}
+		case "edit": {
+			const message = threadNamed(event.message)?.msgs.find(({ id }) => id === event.message);
+			const was = message?.edited?.id === event.id ? message.edited.was : null;
+			return `${event.text ? "edited" : "deleted"} ${was ? quotedWords(was, 48) : "a message"}`;
+		}
 		case "todo_end": {
 			const todo = runtime.todos.find(({ id }) => id === event.todo);
 			return TODO_ENDINGS[event.outcome](todo ? quotedWords(todo.title) : "a to-do");
@@ -4697,6 +4702,11 @@ function gestureWords(event, gesture) {
 	}
 }
 function placeOf(event) {
+	if (event.kind === "edit") return {
+		thread: null,
+		message: event.message,
+		nodes: [...document.querySelectorAll(`.lf-msg[data-event="${CSS.escape(event.message)}"]`)]
+	};
 	if (event.kind === "resolve" || event.kind === "unresolve" || event.kind === "reply") return {
 		thread: event.parent ? threadIdNamed(event.parent) : null,
 		nodes: []
@@ -5382,10 +5392,7 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 			};
 			const mayPresent = () => !abort.signal.aborted && presentation === selected && selected.owner.isConnected && (focus === false ? intent.available() : intent());
 			const arriving = restrictUserIntent(intent, mayPresent);
-			const departure = focus !== false && navigationStep && history ? prepareNavigationStep({
-				landing: () => selected.reader.destination(thread.key, request),
-				intent: arriving
-			}) : null;
+			const departure = focus !== false && navigationStep && history ? prepareNavigationStep() : null;
 			if (last) lastResort.add(thread.key);
 			else lastResort.delete(thread.key);
 			const result = selected.open(thread.key, request);

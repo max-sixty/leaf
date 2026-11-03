@@ -39,7 +39,7 @@ lf-shot {
 .lf-shot-tools > .lf-btn,
 .lf-shot-scale-options > .lf-btn {
   /* Selection changes the face, never the width of its words. */
-  font-weight: 500;
+  font: var(--font-choice);
   white-space: nowrap;
 }
 .lf-shot-toolbar > .lf-shotcap[data-lf-state="before"] {

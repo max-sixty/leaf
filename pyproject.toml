@@ -31,8 +31,9 @@
 # regress is an ECMAScript regular-expression engine; schema `pattern`s are read
 # with it (`registry/schema.py`) so they mean what they mean to the browser rather
 # than Python's `re`, whose `$` also matches before a final newline.
-# watchfiles supplies the native subscriptions shared by page maintenance,
-# delivery waits and developer previews, avoiding repeated idle filesystem scans.
+# watchdog supplies the native subscriptions shared by page maintenance, delivery
+# waits and developer previews, avoiding repeated idle filesystem scans. 7.0 shares
+# one inotify instance across a process (`file_changes`).
 #
 # Playwright is a runtime dependency because the skill's own flow runs the
 # browser: `page check --render` gates every finished page and `version
@@ -56,6 +57,7 @@ dependencies = [
   "playwright>=1.64",
   "psutil>=6",
   "pywhatwgurl>=0.1.2",
+  "referencing>=0.28.4",
   "regress>=2026.9",
   "starlette>=0.48",
   "tinycss2>=1.4",
@@ -63,7 +65,7 @@ dependencies = [
   "tree-sitter-javascript>=0.25.0",
   "turbohtml>=1.7",
   "uvicorn>=0.31.1",
-  "watchfiles>=1.1.0",
+  "watchdog>=7.0.0",
   "websockets>=15",
 ]
 
@@ -142,6 +144,10 @@ select = [
 # Authored prose may intentionally use Unicode; collection construction and union
 # ordering are style choices rather than correctness requirements.
 ignore = ["E402", "E501", "E731", "RUF001", "RUF002", "RUF003", "RUF005", "RUF036"]
+# The selected rules' preview behaviour, such as F401 reporting an unused
+# `import http.cookiejar` beside a used `import http.client`; preview rules stay off.
+preview = true
+explicit-preview-rules = true
 
 [tool.ruff.lint.isort]
 known-first-party = ["leaf", "leaf_dev", "leaf_website"]

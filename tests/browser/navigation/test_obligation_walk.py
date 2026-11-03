@@ -746,6 +746,71 @@ def test_digits_leave_an_obligation_the_user_scrolled_away_from(browser, serve):
     assert answer() == ["right"]
 
 
+def test_keys_pressed_while_the_page_moves_act_as_if_it_had_landed(browser, serve):
+    """Keys typed while the page still moves add up as if each motion had landed: `m u`
+    typed quickly ends where it ends typed slowly, `d m` lands the ask, `m Shift+m`
+    returns to the ask `m` set off from, and `j m` beside an ask `j` leaves in view
+    moves no further than `j`. Each ends where the same keys typed slowly end."""
+    asks = "".join(
+        f'<div style="height:3000px">Reading on</div><lf-ask id="ask-{index}">'
+        f'<h2>Which route?</h2><lf-options id="routes-{index}" choose>'
+        f'<lf-option id="left-{index}">Take the left route</lf-option>'
+        f'<lf-option id="right-{index}">Take the right route</lf-option>'
+        "</lf-options></lf-ask>"
+        for index in (1, 2)
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Two asks far down",
+                f'<h1>Two asks far down</h1>{asks}<div style="height:3000px"></div>',
+            )
+        ),
+    )
+    first = page.locator("#ask-1")
+
+    def settled():
+        scroll_settled(page)
+        return page.evaluate("scrollY")
+
+    def from_the_top():
+        page.evaluate(RELEASE_FOCUS)
+        page.evaluate("() => scrollTo({top: 0, behavior: 'instant'})")
+        scroll_settled(page)
+
+    page.keyboard.press("m")
+    expect(first).to_be_focused()
+    landing = settled()
+    page.keyboard.press("u")
+    paged = settled()
+
+    from_the_top()
+    page.keyboard.press("m")
+    page.keyboard.press("u")
+    assert settled() == pytest.approx(paged, abs=2)
+
+    from_the_top()
+    page.keyboard.press("d")
+    page.keyboard.press("m")
+    expect(first).to_be_focused()
+    assert settled() == pytest.approx(landing, abs=2)
+
+    page.keyboard.press("m")
+    page.keyboard.press("Shift+m")
+    expect(first).to_be_focused()
+    assert settled() == pytest.approx(landing, abs=2)
+
+    page.keyboard.press("k")
+    page.keyboard.press("k")
+    above = settled()
+    page.evaluate(RELEASE_FOCUS)
+    page.keyboard.press("j")
+    page.keyboard.press("m")
+    expect(first).to_be_focused()
+    assert settled() == pytest.approx(above + 60, abs=2)
+
+
 def test_the_obligation_walk_uses_the_visible_reading_after_its_focus_is_released(
     browser, serve
 ):

@@ -1,4 +1,4 @@
-import { CARET_KEYS, DISCLOSE, DISCLOSURE_SELECTOR, J, LAYOUT, LeafElement, MODIFIER_KEYS, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSES, TEXT_BOX, TEXT_FIELD, WORKS, Z, actionName, actionTemplate, alreadyShown, atScrollEnd, beginWalk, bindQueuedWork, blurFocused, byRenderedOrder, cancelRender, canvas2D, claimReleaseClick, clamp, clippedContents, closeLayer, closeNativeLayer, closestAcross, coarsePointer, coveredShare, currentLocationIn, d, declareOccluder, declareReading, declareWindowChrome, describeFailure, disclosureAt, dismissPopoversOutside, drawn, elementFrame, eventSource, focusDestination, focusRevision, focused, handBack, holdFocus, holdRendering, holdToRead, iconTemplate, inChrome, inUi, inlineStyle, installLayerStyleIntegration, installMoveSelection, installStageIntegration, intersect, isElement, isHTML, keepFieldKeys, keepFoot, keeps, keepsHidden, keepsText, landedBox, landingBand, landingRoom, layerLanding, layoutPx, layoutWindow, letGo, listWalkPosition, motionEasing, motionPlays, motionTime, move, moveScrollerBy, nativeLayers, nativeModalAdmits, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offeredAction, onCurrentLocation, onPress, onPressAway, onUserInput, openLayer, openerOf, overlaps, overlapsAcross, pagePresented, pageScroller, pageUpgraded, placeHolder, playMotion, pointerAt, presented, pressHolds, pressIsKeyboardActivation, pressRecords, q, readLeavingKeys, reducedMotion, release, releaseFocus, renderedOrder, renderedUnder, renderingState, restrictUserIntent, retainUserIntent, rove, scrollBehavior, scrollGlides, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollToEnd, scrollersOf, scrolling, searchField, seenRect, selectsAll, setScroll, shadowHost, showNativeLayer, shownBox, shownParts, shownRect, sizeObserver, skipped, stackLevel, startsAt, tabStore, takesLetters, tick, typesText, under as under$1, underOccluder, union, upFrom, walkPosition, walkPositionLabel, watchCurrentLocationIn, watchLayerChanges, watchScrollEnds, watchScrolls, whileConnected, windowChromeBoxes, x } from "./runtime/bundle-portable.js";
+import { CARET_KEYS, DISCLOSE, DISCLOSURE_SELECTOR, J, LAYOUT, LeafElement, MODIFIER_KEYS, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSES, TEXT_BOX, TEXT_FIELD, WORKS, Z, actionName, actionTemplate, alreadyShown, atScrollEnd, beginWalk, bindQueuedWork, blurFocused, byRenderedOrder, cancelRender, canvas2D, claimReleaseClick, clamp, clippedContents, closeLayer, closeNativeLayer, closestAcross, coarsePointer, coveredShare, currentLocationIn, d, declareOccluder, declareReading, declareWindowChrome, describeFailure, disclosureAt, dismissPopoversOutside, drawn, elementFrame, eventSource, focusDestination, focusRevision, focused, glideTo, handBack, holdFocus, holdRendering, holdToRead, iconTemplate, inChrome, inUi, inlineStyle, installLayerStyleIntegration, installMoveSelection, installStageIntegration, intersect, isElement, isHTML, keepFieldKeys, keepFoot, keeps, keepsHidden, keepsText, landedBox, landingBand, landingRoom, layerLanding, layoutPx, layoutWindow, letGo, listWalkPosition, motionEasing, motionPlays, motionTime, move, moveScrollerBy, nativeLayers, nativeModalAdmits, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offeredAction, onCurrentLocation, onPress, onPressAway, onUserInput, openLayer, openerOf, overlaps, overlapsAcross, pagePresented, pageScroller, pageUpgraded, placeHolder, playMotion, pointerAt, presented, pressHolds, pressIsKeyboardActivation, pressRecords, q, readLeavingKeys, release, releaseFocus, renderedOrder, renderedUnder, renderingState, restrictUserIntent, retainUserIntent, rove, scrollBehavior, scrollGoal, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollToEnd, scrollersOf, scrolling, searchField, seenRect, selectsAll, setScroll, shadowHost, showNativeLayer, shownBox, shownParts, shownRect, sizeObserver, skipped, stackLevel, startsAt, stopGlide, tabStore, takesLetters, tick, typesText, under as under$1, underOccluder, union, upFrom, walkPosition, walkPositionLabel, watchCurrentLocationIn, watchLayerChanges, watchScrollEnds, watchScrolls, whileConnected, windowChromeBoxes, x } from "./runtime/bundle-portable.js";
 import { COLLAPSE, EVERYTHING, LINK, LitElement, PRESENTATION_DOM, PRESSABLE, SHARE_ROOT, TEXT_BLOCK, WEBSITE_DELIVERY, advertisesKeys, agentName, agentSays, allBindings, annotationMode, announce, applicationPresenter, applicationState, bareReaction, bindingEnabled, bindings, buttonCommand, carriesObligation, claimsEsc, clampedRow, closeControl, commandBinding, commandDeclarationsWithin, commandPresentations, commandRoutes, commandRun, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, decisionFor, declaredBindings, descriptionOf, dismissError, dismissErrors, documentChanged, dragHeld, el, errorsReading, fragmentId, guard, hasObligationSource, hasRows, holdSelection, holdingError, hostIn, html, isNews, itemNoun, itemOutcome, keyed, keys, labelOf, leafSays, live, live$1, liveEl, mountRepaint, nativePress, noChange, nothing, notice, noticeReading, noticeWords, offlineInteractive, pageRange, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, programmaticSelection, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, readPart, ref, reflectFirstScopes, reflectKeys, registry, render, repaint, repaintPage, repeat, reveal, routedCommand, runtime, runtimeResource, saidBy, sameAnchor, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, seeErrors, selectEnds, selectionBackward, setNoticeContext, setQuickShortcuts, shadowRules, shareUrl, spell, spokenBinding, submitBindings, tagsDeclaring, threadCounts, threadKey, threadNames, titleOf, tokenEntry, voiceOf, voiced, watchCommandAvailability, whenApplicationPresented, word, wordsText } from "./runtime/bundle-errors.js";
 import { reportPageError, setRuntimeRootStyle, uploadMedia } from "./runtime/bundle-layer-client.js";
 import { ADDRESSABLE, PAGE_CONTROL_RANK, PRESENTATION, UPGRADE, addressableLabel, addressableSays, addressableWord, afterPresentation, ago, aimTargetAt, aimTargets, anchorFor, anchoringIsReady, annotationAt, chromeForeground, chromeRoot, designPressAt, effectiveScroller, exactTarget, fragmentTarget, holdArrivingBounds, isAddressable, lightSeat, livePoint, markPagePresented, markPageUpgraded, openDocumentLayout, pageControls, pageControlsChanged, pageReadiness, placePoints, pointInto, railStands, reachScrollers, readingRegionFor, registerPageControl, registerReadingRegion, resolveAnchor, resolvedInMessage, revealAddressed, scrollChainOf, scrollerFor, sectionLabel, sectionOf, setAnchoringReady, settlePageInterface, shortAgo, targetElement, targetParts, targetPlace, targetRange, targetSegments, unclaimedVisualGesture, userReadingRegion, visualAt, visualParts, visualSelector, whenArrived } from "./runtime/bundle-content-layout.js";
@@ -9135,7 +9135,7 @@ function createObligationView({ prepareNavigationStep, arrive, openPageThread, f
 	}
 	function framed(record, region, item, box, readable) {
 		const band = landingBand(box);
-		return !!band && readable(item) && shownBox(region).top >= band.top && actionsOf(record).every(({ control }) => readable(presentedActionControl(control)));
+		return !!band && readable(item) && shownBox(region).top - (scrollGoal(box) - box.scrollTop) >= band.top && actionsOf(record).every(({ control }) => readable(presentedActionControl(control)));
 	}
 	async function arriveAtRecordNow(next) {
 		const mayArrive = retainUserIntent({ available: () => hasObligation(readObligations().all, next) });
@@ -9907,7 +9907,7 @@ registerPageControl({
 //#region runtime/keyboard/go-to-sequence.js
 const goToHintLayer = el("div", "lf-ui lf-key-chips lf-go-to-hints");
 goToHintLayer.setAttribute("aria-hidden", "true");
-function createGoToSequence({ doors, hintChrome, openPageMap, directDestinations, scrollToElement, leavesOffered, marginEntries, glideTo, placeThreadEdge, stopGlide }) {
+function createGoToSequence({ doors, hintChrome, openPageMap, directDestinations, scrollToElement, leavesOffered, marginEntries, placeThreadEdge }) {
 	const formatGoToAddress = (row) => [...sequencePrefix(), labelOf(row)].filter(Boolean).join(" ");
 	const pageLinks = () => {
 		return pageQueryAll("a[href]").filter((link) => closestAcross(link, "main"));
@@ -10351,14 +10351,14 @@ pageCommand({
 	title: "Caret browsing",
 	description: "Select text with the keyboard caret to comment on it"
 });
-const holding$1 = () => {
+const holding = () => {
 	const active = focused(document);
 	return Boolean(active) && active !== document.body;
 };
 let currentLocationFloor = () => null;
 function declareCurrentLocation({ pageState }) {
 	currentLocationFloor = () => {
-		if (!holding$1()) return null;
+		if (!holding()) return null;
 		if (nativeLayers().length) return null;
 		if (leavesBox()) return null;
 		if (claimsEsc(focused())) return null;
@@ -10371,7 +10371,7 @@ function declareCurrentLocation({ pageState }) {
 		title: "Current location",
 		root: focused,
 		escape: "inner",
-		at: holding$1,
+		at: holding,
 		rows: [{
 			id: "navigation.release",
 			touch: false,
@@ -10384,7 +10384,7 @@ function declareCurrentLocation({ pageState }) {
 }
 pageRung("page", () => {
 	if (nativeLayers().length) return null;
-	if (holding$1()) return currentLocationFloor() ? null : {
+	if (holding()) return currentLocationFloor() ? null : {
 		title: "back to the page",
 		out: letGo
 	};
@@ -10618,13 +10618,6 @@ function placeThreadEdge(thread, edge) {
 		block: edge
 	});
 }
-const SCROLL_MS = 140;
-let glide = null;
-const setGlide = (next) => {
-	glide = next;
-	scrollGlides(Boolean(next));
-};
-const holding = (box) => glide?.box === box && Math.abs(box.scrollTop - glide.wrote) <= 1 ? glide : null;
 const readingStep = (box, clips) => {
 	const shown = shownRect(box, clips);
 	const band = shown && landingBand(box);
@@ -10650,10 +10643,10 @@ function stepAlong(from, amount, unit) {
 	for (const box of scrollChainOf(from)) {
 		if (!nativeModalAdmits(box)) return;
 		const step = readingStep(box, clips);
-		const canMove = amount > 0 ? !atScrollEnd(box) : box.scrollTop > 0;
+		const goal = scrollGoal(box);
+		const canMove = amount > 0 ? !atScrollEnd(box, goal) : goal > 0;
 		if (step && canMove) {
-			const distance = unit === "page" ? amount * step.height : amount;
-			glideTo(box, (holding(box)?.goal ?? box.scrollTop) + distance);
+			glideTo(box, goal + (unit === "page" ? amount * step.height : amount));
 			return;
 		}
 		if (getComputedStyle(box).overscrollBehaviorY !== "auto") return;
@@ -10665,53 +10658,6 @@ function stepAlong(from, amount, unit) {
 			unit
 		}
 	});
-}
-function glideTo(box, goal) {
-	goal = Math.max(0, Math.min(scrollLimit(box), goal));
-	if (reducedMotion()) {
-		setScroll(box, {
-			top: goal,
-			behavior: "instant"
-		});
-		return;
-	}
-	cancelRender(glide?.raf);
-	const start = box.scrollTop;
-	const t0 = performance.now();
-	const tick = (now) => {
-		const current = holding(box);
-		if (!current) {
-			setGlide(null);
-			return;
-		}
-		if (reducedMotion()) {
-			setScroll(box, {
-				top: goal,
-				behavior: "instant"
-			});
-			setGlide(null);
-			return;
-		}
-		const t = Math.max(0, Math.min(1, (now - t0) / SCROLL_MS));
-		setScroll(box, {
-			top: goal - (goal - start) * (1 - t) ** 3,
-			behavior: "instant"
-		});
-		current.wrote = box.scrollTop;
-		if (t < 1) current.raf = nextFrame(tick);
-		else setGlide(null);
-	};
-	setGlide({
-		box,
-		goal,
-		wrote: start,
-		raf: nextFrame(tick)
-	});
-}
-function stopGlide(box) {
-	if (glide?.box !== box) return;
-	cancelRender(glide.raf);
-	setGlide(null);
 }
 function createNavigation({ threadDestinations, placedAt }) {
 	const currentItem = () => {
@@ -11250,9 +11196,7 @@ async function boot() {
 		scrollToElement: anchorTravel.scrollToElement,
 		leavesOffered,
 		marginEntries: app.overlay ?? null,
-		glideTo,
-		placeThreadEdge,
-		stopGlide
+		placeThreadEdge
 	});
 	const currentLocationPainters = {
 		markHere: items.markHere,

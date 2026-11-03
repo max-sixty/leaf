@@ -514,9 +514,10 @@
 
      What it says:
      - The focus ring, whole: what takes the next key or press (`data-lf-focus-visible`).
-     - The location ring, whole: the decision the user stands in (`[data-lf-obligation]`,
-       chrome.css). A control inside it that carries the location itself stands it
-       down (`--lf-obligation-ring: none`).
+     - The location ring, whole: the decision the user stands in (`[data-lf-obligation]`),
+       drawn over it (target-paint.js, `paintLocation`), and the decision's focus ring
+       too. A control inside it that carries the location itself stands it down
+       (`--lf-obligation-ring: none`).
      - Brackets, the band's two ends (chrome.css): what a gesture under way addresses,
        such as the Alt aim, a comment's element, the thread the user is in or its row
        under the pointer in Threads. In the trace ink, the target of the margin entry
@@ -527,13 +528,15 @@
        thread, where a band would be a second box round the box.
 
      Where it stands, which the box decides and the mark never does. The box states it
-     as its own `outline-offset`, which every mark reads: the focus ring and the
-     location ring draw at it, and an overlay mark reads it off the box
-     (target-paint-geometry.js, `standOver`). So a box an overlay can stand over states
-     it in the rule that draws its face, not in one that waits for focus, and a box
-     that wears the ring for a control inside it states it on itself. A box that states
-     none stands at a control's gap when it holds focus (the floor, surfaces.css), and
-     at a region's under an overlay mark. A rule names the token of the box's kind,
+     once, as `--lf-ring-at`, in the rule that draws its face rather than one that waits
+     for focus, and every mark reads it there: each box's outline stands at it
+     (surfaces.css), so its focus ring does, and the overlay's marks, the location ring
+     among them, read it off the box (target-paint-geometry.js, `standOver`). A box that
+     wears the ring for a control inside it states it on itself; a pseudo-element that
+     draws a box's ring above the box's contents states the same place as its own
+     `outline-offset`. A box that states none stands at a control's gap when it holds
+     focus (the floor, surfaces.css), and under an overlay mark at a control's gap if it
+     takes a press and at a region's if not. A rule names the token of the box's kind,
      never a length (`test_every_ring_stands_at_a_kind_of_box`):
      - A region, a block of the page standing among others (a section, a question, a
        figure, a paragraph): outside it at --focus-region-gap. Every mark on a region
@@ -543,12 +546,11 @@
      - A box that draws its own edge, such as a field, a mark (controls.css) or a margin
        entry, or a control whose neighbours stand closer than a control's gap, such as
        a reaction beside others: on its edge, at 0. A field's ring replaces its border.
-       An overlay mark can't tell 0 from a box that states nothing, since 0 is
-       `outline-offset`'s initial value, so it stands round a field at a control's gap.
      - A box packed edge to edge with others, such as a list's row or a table's cell, a
        box padded inside a frame it fills, or one whose clip leaves no room outside it:
-       one band inside its edge, at --focus-ring-inset. An overlay mark stands there too
-       wherever it finds the clip leaves no room.
+       one band inside its edge, at --focus-ring-inset. An overlay mark stands there too:
+       on every side once a box clipping its target leaves it no room on one, and on any
+       side the window leaves no room (target-paint-geometry.js, `sideGaps`).
 
      The width is a token of its own because the ring is drawn outside the box it
      names, so a scroll region has to reserve room for it: a shorthand cannot be
@@ -860,6 +862,15 @@ html:not([data-lf-live]) {
   syntax: "<integer>";
   inherits: false;
   initial-value: 0;
+}
+/* Where a box's marks stand (:root, "Where it stands"). It has no initial value, so a
+ * box that states none reads as stating none, which `outline-offset`'s initial 0 could
+ * not say: a field's edge read as nothing stated, and an overlay mark stood 3px out
+ * round a field whose focus ring replaces its border. It does not inherit, so a box
+ * inside a stated one answers for itself. */
+@property --lf-ring-at {
+  syntax: "*";
+  inherits: false;
 }
 /* The body's position and box are important against the page's own rules: Leaf's
  * document-anchored paint takes the initial containing block as its origin, so it may
@@ -1604,7 +1615,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   scroll-margin-block: var(--focus-ring-landing);
   /* On its edge (:root, "Where it stands"), since a cluster's entries stand 4px apart
      (`--margin-gap`), closer than a control's ring reaches. */
-  outline-offset: 0;
+  --lf-ring-at: 0;
   /* The raised face a pressable entry wears, beneath any pulse that rings it. */
   --lf-entry-lift: 0 1px 0 var(--border-2), var(--raise-1);
 }

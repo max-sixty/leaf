@@ -3782,6 +3782,69 @@ def test_the_aim_and_a_comment_stand_inside_a_cell_their_frame_leaves_no_room(
     assert pending.evaluate(inner) == "-2px"
 
 
+def test_the_aim_on_a_row_a_clip_packs_stays_inside_the_row(browser, serve):
+    """A box that clips its rows holds them edge to edge, so the aim on a row whose
+    sides the box meets stands inside the row on every side. Standing outside above
+    and below, where the box leaves room, it ran over the neighbouring rows' words."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Packed rows",
+                """<h1 id="h">Packed rows</h1>
+<div id="rows" style="overflow: clip">
+  <p id="row-1" style="margin: 0">First row</p>
+  <p id="row-2" style="margin: 0">Second row</p>
+  <p id="row-3" style="margin: 0">Third row</p>
+</div>""",
+            )
+        ),
+    )
+    row = page.locator("#row-2")
+    row.hover(position={"x": 20, "y": 5})
+    page.keyboard.down("Alt")
+    aim = page.locator(".lf-aim")
+    expect(aim).to_have_attribute("data-for", "row-2")
+    drawn = aim.evaluate(
+        """node => {
+          const ring = getComputedStyle(node, '::before');
+          const out = parseFloat(ring.outlineOffset) + parseFloat(ring.outlineWidth);
+          const box = node.getBoundingClientRect();
+          return {top: box.top - out, bottom: box.bottom + out};
+        }"""
+    )
+    box = row.bounding_box()
+    assert box is not None
+    assert drawn["top"] >= box["y"] - 0.5, (drawn, box)
+    assert drawn["bottom"] <= box["y"] + box["height"] + 0.5, (drawn, box)
+    page.keyboard.up("Alt")
+
+
+def test_the_aim_round_a_field_stands_on_its_edge_where_its_ring_does(browser, serve):
+    """A field's ring replaces its border, so it stands on the field's edge, and the aim
+    over the field stands there too. It stood a control's gap outside, because the
+    field's edge, 0, read as no place stated: 0 is also where the outline of a box that
+    states nothing stands."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Field",
+                '<h1 id="h">Field</h1><p><label for="name">Name</label> '
+                '<input id="name" class="field" type="text" value="Ada"></p>',
+            )
+        ),
+    )
+    field = page.locator("#name")
+    field.hover(position={"x": 8, "y": 6})
+    page.keyboard.down("Alt")
+    aim = page.locator(".lf-aim")
+    expect(aim).to_have_attribute("data-for", "name")
+    gap = "node => getComputedStyle(node, '::before').outlineOffset"
+    assert aim.evaluate(gap) == "0px"
+    assert field.evaluate("node => getComputedStyle(node).outlineOffset") == "0px"
+
+
 def test_focus_projection_follows_modality_and_leaves_private_controls_their_ring(
     browser, serve, subtests
 ):

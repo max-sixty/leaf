@@ -1,16 +1,20 @@
-/* Transient Aim and target-trace paint in Leaf's chrome layer.
+/* Aim, target-trace and location paint in Leaf's chrome layer.
  *
  * Aim draws synchronously for the gesture that arms it. A trace retains its current
- * target and drawn geometry. Each box stands in a paint stand that the browser moves
- * with every scroll around its target (target-paint-geometry.js), so a scroll places
- * it again without writing, while layout and resize rebuild its shape. Persistent
- * annotations have their own optional painter. */
+ * target and drawn geometry, and the location ring the decision it stands round. Each
+ * box stands in a paint stand that the browser moves with every scroll around its
+ * target (target-paint-geometry.js), so a scroll places it again without writing, while
+ * layout and resize rebuild its shape. Persistent annotations have their own optional
+ * painter. */
 
 import { cancelRender, nextRender } from "./rendering.js";
 import { el } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
 import { move } from "./dom-move.js";
 import { inChrome } from "./passages.js";
+import { shownParts } from "./geometry.js";
+import { nativeLayerHolding } from "./shadow-tree.js";
+import { locationStandsDown } from "./page-paint.js";
 import {
   SVG_NS,
   paintGeometry,
@@ -24,11 +28,14 @@ import {
 
 const targetTraceBox = el("div", "lf-ui lf-target-trace");
 const aimBox = el("div", "lf-ui lf-aim");
+const locationBox = el("div", "lf-ui lf-location");
 const traceStand = paintStand(targetTraceBox);
 const aimStand = paintStand(aimBox);
+const locationStand = paintStand(locationBox);
 // What leaf.js mounts in the chrome: each box in the stand that carries it.
 export const targetTraceLayer = traceStand.root;
 export const aimLayer = aimStand.root;
+export const locationLayer = locationStand.root;
 
 const aimShape = document.createElementNS(SVG_NS, "svg");
 aimShape.classList.add("lf-aim-shape");
@@ -51,6 +58,12 @@ let traceShapeKey = "";
 let placementFrame = 0;
 let geometryFrame = 0;
 let geometryDirty = false;
+/** @type {Element | null} */
+let locationElement = null;
+let locationFrame = 0;
+/** @type {Element[]} */
+let locationProjected = [];
+const PROJECTED_LOCATION = "lf-projected-location";
 
 export function clearAim() {
   aimed = null;
@@ -89,7 +102,7 @@ export function paintAim(element, surface) {
   const stood = standOver(
     aimStand,
     placed,
-    shaped ? "0" : getComputedStyle(surface).borderRadius,
+    shaped ? null : getComputedStyle(surface).borderRadius,
   );
   aimed = { placed: { ...placed, shown: placed.shown }, stood };
   return placed.shown;
@@ -189,7 +202,7 @@ function drawTrace(
   targetTraceBox.classList.toggle("lf-shaped", shaped);
   keeps(targetTraceBox, "data-for", element.id || null);
   keeps(traceStand.root, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
-  standOver(traceStand, placed, shaped ? "0" : getComputedStyle(surface).borderRadius);
+  standOver(traceStand, placed, shaped ? null : getComputedStyle(surface).borderRadius);
 }
 
 /** @param {Element | null} element @param {Element | null} [surface] */
@@ -209,6 +222,7 @@ export function paintTrace(element, surface = element) {
 }
 
 export function shifted() {
+  relocate();
   if (placementFrame || geometryFrame || !traceElement) return;
   placementFrame = nextRender(() => {
     placementFrame = 0;
@@ -217,6 +231,7 @@ export function shifted() {
 }
 
 export function geometryChanged() {
+  relocate();
   geometryDirty = true;
   if (placementFrame) cancelRender(placementFrame);
   placementFrame = 0;
@@ -226,6 +241,73 @@ export function geometryChanged() {
     if (!geometryDirty) return;
     geometryDirty = false;
     if (traceElement) drawTrace(traceElement, traceSurface, true);
+  });
+}
+
+// The location ring round `element`, the decision the user stands in, or none
+// (obligations/view.js, `markHere`). It is drawn over the decision as every other mark
+// on it is, so it stands where the decision says (`standOver`), inside it where a clip
+// leaves no room outside, and above the decision's contents, which covered a ring drawn
+// inside it as an outline. A control inside the decision that carries the location
+// itself stands it down (page-paint.js, `locationStandsDown`).
+//
+// The ring is also the focus ring of a decision the user arrived on, so each box it is
+// drawn round wears `lf-projected-location`, and the focus floor draws none of its own
+// there (surfaces.css). Only a ring that is drawn says so: a native layer the chrome
+// stands under, such as a modal dialog, would cover the ring of a decision inside it,
+// so that decision keeps its own focus ring.
+/** @param {Element | null} element */
+export function paintLocation(element) {
+  locationElement = element;
+  drawLocation();
+}
+
+// Whether the location's stand paints over `element`: over the document from any layer,
+// and over a native layer only from inside it.
+/** @param {Element} element */
+const paintsOver = (element) => {
+  const layer = nativeLayerHolding(element);
+  return !layer || layer === nativeLayerHolding(locationStand.root);
+};
+
+function drawLocation() {
+  const element = locationElement;
+  const placed =
+    element?.isConnected && !locationStandsDown(element) && paintsOver(element)
+      ? placement(element, false, inChrome(element))
+      : null;
+  if (!element || !placed?.shown) {
+    projectLocation([]);
+    vacate(locationStand);
+    locationBox.style.display = "none";
+    locationBox.removeAttribute("data-for");
+    delete locationStand.root.dataset.lfPaintPlane;
+    return;
+  }
+  projectLocation([element, ...shownParts(element)]);
+  keeps(locationBox, "data-for", element.id || null);
+  keeps(
+    locationStand.root,
+    "data-lf-paint-plane",
+    inChrome(element) ? "chrome" : "page",
+  );
+  standOver(locationStand, placed, getComputedStyle(element).borderRadius);
+}
+
+/** @param {Element[]} boxes */
+function projectLocation(boxes) {
+  for (const box of locationProjected)
+    if (!boxes.includes(box)) box.classList.toggle(PROJECTED_LOCATION, false);
+  for (const box of boxes) box.classList.toggle(PROJECTED_LOCATION, true);
+  locationProjected = boxes;
+}
+
+// Layout and scrolls move the decision as they move a trace's target.
+function relocate() {
+  if (locationFrame || !locationElement) return;
+  locationFrame = nextRender(() => {
+    locationFrame = 0;
+    drawLocation();
   });
 }
 

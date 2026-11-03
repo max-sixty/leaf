@@ -748,3 +748,45 @@ def test_r_settles_the_thread_shown_for_the_element_the_user_stands_on(
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "resolve"
     expect(card).to_be_hidden()
     expect(element).to_be_focused()
+
+
+def test_r_leaves_a_thread_the_user_scrolled_away_from(browser, serve):
+    """Focus stays in a card the user has scrolled off screen, but `r` acts only on a
+    thread they can see, so it settles nothing until the card is back in view."""
+    comment = {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "text": "Does this paragraph need a source?",
+        "anchor": {"section": "p2"},
+    }
+    page = open_page(browser, serve(LONG_PAGE, events=[comment]))
+    resized(page, 1440, 900)
+    page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
+    card = page.locator(".lf-margin-preview")
+    thread = card.locator(".lf-page-thread")
+    expect(thread).to_be_focused()
+
+    def scroll(down):
+        page.mouse.move(700, 450)
+        page.mouse.wheel(0, 3000 if down else -3000)
+        page.wait_for_function(
+            "(down) => (down ? scrollY > 2000 : scrollY === 0)", arg=down
+        )
+        rendered(page)
+
+    scroll(down=True)
+    expect(thread).not_to_be_in_viewport()
+    page.keyboard.press("r")
+    rendered(page)
+    expect(card).to_be_attached()
+    expect(card).not_to_have_attribute("hidden", "")
+    expect(thread).to_be_focused()
+    assert events_model.read_events(serve.page_dir)[-1]["kind"] != "resolve"
+
+    scroll(down=False)
+    expect(thread).to_be_in_viewport()
+    with sending(page, "the resolve"):
+        page.keyboard.press("r")
+    expect_open_threads(page, 0)
+    expect(card).to_be_hidden()

@@ -8476,6 +8476,10 @@ function createThreadLanding() {
 	};
 }
 function declareThreadKeys(landIn, threadHere) {
+	const seenThreadHere = () => {
+		const thread = threadHere();
+		return thread && seenRect(thread, /* @__PURE__ */ new Map()) ? thread : null;
+	};
 	pageScope("thread", {
 		title: "In a thread",
 		root: focused,
@@ -8502,9 +8506,9 @@ function declareThreadKeys(landIn, threadHere) {
 				id: "thread.resolution.toggle",
 				touch: false,
 				keys: ["r"],
-				title: () => resolutionControl(threadHere())?.matches(".lf-reopen") ? "reopen" : "resolve",
+				title: () => resolutionControl(seenThreadHere())?.matches(".lf-reopen") ? "reopen" : "resolve",
 				get run() {
-					const control = resolutionControl(threadHere());
+					const control = resolutionControl(seenThreadHere());
 					return control?.matches(":not(:disabled, [aria-disabled=\"true\"])") ? () => control.click() : void 0;
 				}
 			},
@@ -8514,7 +8518,7 @@ function declareThreadKeys(landIn, threadHere) {
 				keys: ["Mod+c"],
 				title: "copy message as Markdown",
 				get run() {
-					const trigger = messageCopy(threadHere());
+					const trigger = messageCopy(seenThreadHere());
 					return trigger && getSelection()?.isCollapsed ? () => trigger.click() : void 0;
 				}
 			}

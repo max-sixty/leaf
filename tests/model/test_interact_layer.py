@@ -1664,10 +1664,10 @@ def _face_overrides(sheets, faces, placed, home):
     A role's own rules stand in `home` and name the press by its face class, refined
     only by attributes and pseudo-classes, which are its states and the variants it
     declares, on the press or on what holds it, as a margin row says it stands as a
-    pin; a press or holder named by a class, an id or a tag would let one widget or
-    place draw a role its own way. A glyph a pseudo-element masks into the press, as a
-    disclosure arrow is, painted `currentColor`, wears the ink the face gives the press
-    and chooses none of its own. An alternative naming only an element no press is,
+    pin; a press or holder named by a class, an id or a tag, or a rule under an
+    `@scope`, would let one widget or place draw a role its own way. A glyph a
+    pseudo-element masks into the press from an image, as a disclosure arrow is, painted
+    `currentColor`, wears the ink the face gives the press and chooses none of its own. An alternative naming only an element no press is,
     such as a link, draws no press."""
 
     def compound_tokens(compound):
@@ -1678,7 +1678,12 @@ def _face_overrides(sheets, faces, placed, home):
         classes it gives it, `:not()` and `:has()` naming other elements; whether an
         id or a `class` or `id` attribute names it; its tags; and whether an
         alternative of an `:is()` stands it in a holder of its own."""
-        found, tags, named, choices = set(), set(), False, [[(set(), False, set(), False)]]
+        found, tags, named, choices = (
+            set(),
+            set(),
+            False,
+            [[(set(), False, set(), False)]],
+        )
         previous = None
         for token in compound_tokens(compound):
             if token.type == "ident":
@@ -1690,8 +1695,27 @@ def _face_overrides(sheets, faces, placed, home):
             elif token.type == "hash":
                 named = True
             elif token.type == "[] block":
-                key = next((t for t in token.content if t.type == "ident"), None)
-                named |= key is not None and key.lower_value in ("class", "id")
+                said = tinycss2.serialize(token.content).strip()
+                attribute = re.fullmatch(
+                    r"(class|id)\s*([~^$*|]?=)\s*[\"']?([^\"'\]]*)[\"']?(\s+[is])?",
+                    said,
+                    re.IGNORECASE,
+                )
+                if attribute or re.fullmatch(r"(class|id)", said, re.IGNORECASE):
+                    named = True
+                if attribute and attribute[1].lower() == "class":
+                    operator, value = attribute[2], attribute[3]
+                    found |= (
+                        set(value.split())
+                        if operator in ("=", "~=")
+                        else {
+                            name
+                            for name in faces | placed
+                            if (operator == "*=" and value in name)
+                            or (operator in ("^=", "|=") and name.startswith(value))
+                            or (operator == "$=" and name.endswith(value))
+                        }
+                    )
             elif token.type == "function" and token.lower_name in ("is", "where"):
                 options = []
                 for each in _split_top(tinycss2.serialize(token.arguments), ","):
@@ -1730,10 +1754,12 @@ def _face_overrides(sheets, faces, placed, home):
 
     refused = []
     for sheet in sheets:
-        for _conditions, _enclosing, selector, declarations in _style_rules(sheet):
+        for _conditions, enclosing, selector, declarations in _style_rules(sheet):
             *context, subject = _split_top(selector, " >+~")
             glyph = "::" in subject and any(
-                name.startswith(("mask", "-webkit-mask")) for name, _ in declarations
+                name in ("mask", "mask-image", "-webkit-mask", "-webkit-mask-image")
+                and re.search(r"url\(|gradient\(", value)
+                for name, value in declarations
             )
             if not any(
                 _PRESS_FACE.fullmatch(name)
@@ -1753,12 +1779,16 @@ def _face_overrides(sheets, faces, placed, home):
                 *(["away from its role's rules"] if sheet.name != home else []),
                 *(
                     f"names {name}"
-                    for name in sorted(set().union(*(n for n, _, _ in pressed)) & placed)
+                    for name in sorted(
+                        set().union(*(n for n, _, _ in pressed)) & placed
+                    )
                 ),
                 *(["by a name of its own"] if any(b for _, b, _ in pressed) else []),
                 *(
                     ["by where it stands"]
-                    if not all(map(declared, context)) or any(h for _, _, h in pressed)
+                    if not all(map(declared, context))
+                    or any(h for _, _, h in pressed)
+                    or "scope" in enclosing
                     else []
                 ),
             ]
@@ -1843,6 +1873,7 @@ def test_the_face_reading_refuses_what_restyles_a_press(tmp_path):
         ".lf-page .lf-btn { border-color: var(--accent); }\n"
         '[class~="lf-page"] .lf-btn { border-color: var(--accent); }\n'
         "#dial.lf-btn { color: var(--accent); }\n"
+        "@scope (.lf-page) { .lf-btn { color: var(--accent); } }\n"
     )
     away = tmp_path / "widget.css"
     away.write_text(
@@ -1851,16 +1882,30 @@ def test_the_face_reading_refuses_what_restyles_a_press(tmp_path):
         ".lf-dial-depth { background-color: currentColor; }\n"
         ".lf-dial-depth:is(a, .lf-btn) { color: var(--ink); }\n"
         ".lf-dial > .lf-btn:hover { box-shadow: none; }\n"
+        '[class~="lf-btn"] { background: var(--chip); }\n'
+        ".lf-icon-action::before { mask: none; background: currentColor; }\n"
     )
     refused = _face_overrides(
-        [home, away], {"lf-icon-action", "lf-btn", "lf-row"}, {"lf-dial-depth"}, home.name
+        [home, away],
+        {"lf-icon-action", "lf-btn", "lf-row"},
+        {"lf-dial-depth"},
+        home.name,
     )
     assert [(sheet.name, selector, reason) for sheet, selector, reason in refused] == [
-        ("controls.css", '.lf-dial-depth.lf-btn[data-lf-tone="ok"]', "names lf-dial-depth"),
+        (
+            "controls.css",
+            '.lf-dial-depth.lf-btn[data-lf-tone="ok"]',
+            "names lf-dial-depth",
+        ),
         ("controls.css", ".lf-page .lf-btn", "by where it stands"),
         ("controls.css", '[class~="lf-page"] .lf-btn', "by where it stands"),
         ("controls.css", "#dial.lf-btn", "by a name of its own"),
-        ("widget.css", ".lf-dial-depth", "away from its role's rules, names lf-dial-depth"),
+        ("controls.css", ".lf-btn", "by where it stands"),
+        (
+            "widget.css",
+            ".lf-dial-depth",
+            "away from its role's rules, names lf-dial-depth",
+        ),
         (
             "widget.css",
             ".lf-dial-depth:is(a, .lf-btn)",
@@ -1871,6 +1916,12 @@ def test_the_face_reading_refuses_what_restyles_a_press(tmp_path):
             ".lf-dial > .lf-btn:hover",
             "away from its role's rules, by where it stands",
         ),
+        (
+            "widget.css",
+            '[class~="lf-btn"]',
+            "away from its role's rules, by a name of its own",
+        ),
+        ("widget.css", ".lf-icon-action::before", "away from its role's rules"),
     ]
 
 

@@ -72,7 +72,7 @@
 
     "runtime/carry.js": "7f2cffd6a3e7a9c877dbfefc76afe78e466400b5551cf8395f44d6c2155915fc",
 
-    "runtime/change-walk.js": "d2f78a628550cd297e521297b7d66acf22fbcd1f5afdf78b48d6e679e5c01eeb",
+    "runtime/change-walk.js": "ff1bd9c70f7fffc8b9f50ad14a7d29f96aa9145bde2faa308f97e9b0aa018073",
 
     "runtime/check-api.js": "46d7c9a230246ca35427b954912c8da3c98115a00aaa52d8d562f4885647bac2",
 
@@ -264,7 +264,7 @@
 
     "runtime/keyboard/page.js": "01dae6e54679ee95e73f3c8cc0459a732d7ae910b16a5b9a043784343514822f",
 
-    "runtime/keyboard/register.js": "e3899176463d4b8e908c5f6d15edf1e92a1d0abaccd4714d0676e5c9fc38de02",
+    "runtime/keyboard/register.js": "8314838cae7e3c77c7ce580dcfd5cd57c5cc3ea32802c7c6b2619d0f44ce056a",
 
     "runtime/keyboard/scopes.js": "4989842c2fdfa345ece3afcad3b68fc8fa48d8d8ce810b4b774bce72e740c84d",
 
@@ -538,7 +538,7 @@
 
     "runtime/version-signal.js": "2fd7de64264ad0318dbb2e7e8e44ec4a576f84c4f8f128e240f57f595dbedbeb",
 
-    "runtime/version.js": "1db727cfc795cff7d84703b025ea2024edd612578bedb7e2fc1d591491b2541a",
+    "runtime/version.js": "1c64df6b64d15b29c55c1f67967b693f1cc329f89f5a2349ac6c26ec89c269da",
 
     "runtime/video-controls.js": "edeb26d5b544ecd5a1099a06146a6ce10baf214be6c172c66abe1fe535ec8f47",
 

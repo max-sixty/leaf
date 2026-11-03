@@ -2510,6 +2510,7 @@ const PAGE_COMMANDS = [
 	"draw.mode.enter",
 	"capture.region.open",
 	"design.mode.enter",
+	"version.compare.latest",
 	"annotations.toggle",
 	"panel.floating.fold",
 	COMMAND_REFERENCE,
@@ -8781,6 +8782,25 @@ function createVersionController({ initialDocument, compositionInput, openThread
 		run: () => versions.press(),
 		when: versionsOffered
 	};
+	const latestBase = () => runtime.versions.findLast((entry) => comparable(entry.revision)) ?? null;
+	const since = () => {
+		const latest = latestBase();
+		return latest ? ` since v${latest.version}` : "";
+	};
+	pageCommand({
+		id: "version.compare.latest",
+		ready: savedReadingSettled,
+		keys: ["v"],
+		title: () => selectedBase() ? "hide changes" : `show changes${since()}`,
+		touch: () => selectedBase() ? "Hide changes" : `Show changes${since()}`,
+		menu: "annotate",
+		when: () => selectedBase() !== null || latestBase() !== null,
+		run: () => {
+			const latest = latestBase();
+			if (selectedBase()) setDiff(false);
+			else if (latest) return showComparison(revisionBase(latest));
+		}
+	});
 	let forceActivation = false;
 	const goVersion = (version) => {
 		if (version === runtime.currentStamp) return;

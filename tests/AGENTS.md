@@ -113,11 +113,11 @@ does not establish that unchanged consumers still work.
 
 A change lands through a gate that runs the broad selection: a pull request's `test`
 job or `wt merge`'s pre-merge. A failure there that the change causes is the gate doing
-its job; fix it and push. A failure the change doesn't cause, such as one main's latest
-run also shows (confirm by running it on main by node id), blocks nothing and calls
-for no rerun: name it in the pull request as inherited, check that it has an owner
-(below), and land. For now, by the user's choice, `test` is not a required check on
-`main`.
+its job; fix it and push. A failure the change doesn't cause, such as one main's
+latest finished run also shows (confirm by running it on main by node id), blocks
+nothing and calls for no rerun: name it in the pull request as inherited, check that
+someone is fixing it (below), and land. For now, by the user's choice, `test` is not a
+required check on `main`.
 `wt merge` refuses on any failure, so such a change lands through a pull request.
 
 Tend repairs what CI (`ci.yaml`) fails on main: the `test` job on Ubuntu, and
@@ -126,15 +126,16 @@ A failed run opens or updates a `tend-ci-failure` report issue, and triage files
 `tend-ci-cause` issue for each cause and fixes it there.
 The user accepted that a pull request can land green and break a test it never ran, so
 a red main is no reason to widen a change or its tests. A newer push cancels main's
-waiting run, as intended. To learn what main fails, read that job's run and reproduce a
-failure by node id.
+waiting run, as intended, so to learn what main fails, read the latest run that
+finished and reproduce a failure by node id.
 
-A failure on main, in that run or only in a local one, needs an owner. Tend owns one
-that main's latest run shows, through the open report for that run and the cause issue
-or pull request that names it. A failure only a local run shows is beyond it. For a
-failure Tend doesn't own, check that no session, worktree
-(Codex's under `~/.codex/worktrees` included) or open pull request covers it, then start
-a local session for it (for example with `/dispatch`).
+A failure on main, in that run or only in a local one, needs someone fixing it. Tend's
+cause issue names each failing test, which a search for one test's full name finds,
+and Tend fixes the cause in a pull request that links the issue. A cause issue no pull
+request links is still waiting, and a failure only a local run shows never reaches
+Tend. If no pull request, session or worktree (Codex's under `~/.codex/worktrees`
+included) is fixing a failure and the user you work for maintains Leaf, start a local
+session for it (for example with `/dispatch`).
 
 CLI output and agent-facing text are regtest recordings in each tier's
 `_regtest_outputs/`, normalized for temporary paths and generated ids but never for

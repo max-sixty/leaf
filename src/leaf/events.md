@@ -42,8 +42,9 @@ write it from a quote read out of the authored HTML through `leaf.passages`, so 
 write only anchors the file confirms (`validation.md`, "Passages").
 
 Projected data has no authored text to quote, so a selection on it names `datum`, the
-rendering key within its section, and, where the projection names an external `x-data`
-input, `source` and `source_revision`, the value's revision when selected. The door
+rendering key within its section, with `prefix` and `suffix` taken from the datum's own
+words, and, where the projection names an external `x-data` input, `source` and
+`source_revision`, the value's revision when selected. The door
 checks that the section binds that source, and admits an older revision as a comment on
 a value since replaced. `identity` names a subject the emitter knows persists across
 source replacements. `visual` names a declared part of a picture, and `part` the control
@@ -90,11 +91,13 @@ and the anchor moves that depend on it land together.
 
 ## Undo
 
-The user may withdraw a resolve, unresolve or action (the kinds `$events.kinds`
-marks `undoable`), and a reaction while nothing has answered it
-and its thread is unresolved. Spoken messages cannot be withdrawn; their writer deletes
-one by rewriting it to no words, which leaves it in place ("Messages"). An undo cannot
-itself be undone. The door refuses an `undoes` naming anything but an unwithdrawn
+The user may withdraw a gesture of a kind `$events.kinds` marks `undoable`: a resolve,
+unresolve or action, and an edit while the agent has not answered it, since an answer
+may have acted on the words it left. They may also withdraw a reaction while nothing
+has answered it and its thread is unresolved. Spoken messages cannot be withdrawn;
+their writer deletes one by rewriting it to no words, which leaves it in place
+("Messages"), and withdrawing that edit before an answer gives the message its words
+back. An undo cannot itself be undone. The door refuses an `undoes` naming anything but an unwithdrawn
 gesture of the user's own (`events.UndoReading`).
 
 `undo` names its gesture and nothing else. It withdraws rather than deletes: the event
@@ -329,8 +332,10 @@ to-do is made from an obligation.
   to revise. Readings show the latest text on the original message, labelled edited,
   and the message's `edited` names that edit and the text it replaced (`was`). Text the
   message already says is refused. A browser's edit names its `base`, the id of the
-  message or of its latest edit, and lands only while that is still the latest, so a
-  tab cannot silently replace words another tab has since rewritten.
+  message or of its latest edit still in force, and lands only while that is still the
+  latest, so a tab cannot silently replace words another tab has since rewritten. A
+  withdrawn edit no longer stands: the message says what its latest edit still in force
+  says, else its own words.
 - An `edit` whose `text` is empty deletes the message. Readings keep it in its place,
   with empty `text` and `edited.was` holding what it said, since answers to it still
   stand and name it; the browser draws it as Deleted, and offers no rewrite of it.

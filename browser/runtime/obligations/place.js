@@ -8,8 +8,10 @@
    obligation; the owning widget still supplies its commands and answer formatter.
    Frozen thread sources may have no node until the thread owner materializes them.
    A question answered in words and an update stand nowhere on the page; their thread
-   or widget owner draws them. Placement never changes the semantic inventory or its
-   obligation identities.
+   or widget owner draws them. Nor does anything whose subject is the page as a whole:
+   a to-do on the page stood at its first heading until 2 November 2026, when the user
+   chose to give it no place, since that heading had nothing to do with it. Placement
+   never changes the semantic inventory or its obligation identities.
 
    A region holds an obligation when the obligation's source element is the region or stands under
    it (`obligationsIn`), shadow trees included. A withdrawn obligation no longer asks anything, and
@@ -26,7 +28,7 @@
    than membership (`obligationHolding`, current-target.js). It reads every placed
    obligation, and also falls back to an obligation's unique context. */
 import { projectedDatum } from "../anchor-resolution.js";
-import { elementById, inChrome, pageDocument } from "../passages.js";
+import { elementById } from "../passages.js";
 import { under } from "../shadow.js";
 import { readObligations } from "./model.js";
 
@@ -49,32 +51,10 @@ export function obligationPlace(item, items = readObligations().all) {
 }
 
 // Where a to-do's or an update's subject stands on the page: the element or widget it
-// names, the page's head for the page as a whole, and nowhere for a thread, which its
-// owner draws.
+// names, and nowhere for the page as a whole or a thread.
 /** @param {import("../../types/contract.js").ServedSubject} subject */
 export const subjectPlace = (subject) =>
-  subject.kind === "page"
-    ? pageHead()
-    : subject.kind === "thread"
-      ? null
-      : elementById(subject.id);
-
-// The page's head, where the agent's to-do on the page as a whole stands: its first
-// top-level heading, else its first heading, else the first element of its content.
-// Being on the head is being on that element or in it, so a page with no heading takes
-// its first block rather than `main`, which would put the user on the to-do anywhere
-// on the page.
-const HEADINGS = ["h1", "h1, h2, h3, h4, h5, h6"];
-function pageHead() {
-  for (const selector of HEADINGS) {
-    const heading = [...document.querySelectorAll(selector)].find(
-      (candidate) => !inChrome(candidate),
-    );
-    if (heading) return heading;
-  }
-  const content = pageDocument();
-  return content?.firstElementChild ?? content ?? document.body.firstElementChild;
-}
+  subject.kind === "page" || subject.kind === "thread" ? null : elementById(subject.id);
 
 // The obligations `region` holds, in the order `obligations` lists them.
 /** @param {Element} region

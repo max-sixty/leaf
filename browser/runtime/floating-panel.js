@@ -269,6 +269,7 @@ import { userChoice } from "./storage.js";
 import { obligationEnding } from "./obligations/answer.js";
 import { answeredInWords, readObligations } from "./obligations/model.js";
 import { obligationPlace } from "./obligations/place.js";
+import { ON_CARD } from "./obligations/view-elements.js";
 import { declareSide, holdPagePlace } from "./current-target.js";
 import { versionPicker } from "./version-picker.js";
 import { versionsReading } from "./version.js";
@@ -3931,9 +3932,7 @@ export function createFloatingPanel({
       const thread = part && openIn(part);
       if (thread) return placedAt(thread.id)?.place ?? null;
       const id = under(node, stage)
-        ? closestAcross(node, ".lf-fp-on-item[data-obligation]")?.getAttribute(
-            "data-obligation",
-          )
+        ? closestAcross(node, ON_CARD)?.getAttribute("data-obligation")
         : null;
       const record = id && readObligations().all.find((item) => item.id === id);
       return record ? obligationPlace(record).node : null;

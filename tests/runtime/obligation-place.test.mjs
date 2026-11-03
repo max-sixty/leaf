@@ -96,19 +96,15 @@ test("a region holds the live widget obligations whose source is it or stands un
   }
 });
 
-test("a subject stands at the element it names, the page's head, or nowhere", () => {
+test("a subject stands at the element it names, or nowhere", () => {
   document.body.innerHTML =
     '<main><section id="notes"><h2>Notes</h2><p>Words.</p></section></main>';
   const at = (id) => document.getElementById(id);
   try {
     assert.equal(subjectPlace({ kind: "element", id: "notes" }), at("notes"));
     assert.equal(subjectPlace({ kind: "thread", id: "th-1" }), null);
-    // With no top-level heading, the page's head is its first heading.
-    assert.equal(subjectPlace({ kind: "page" }), document.querySelector("h2"));
-    document.querySelector("main").insertAdjacentHTML("afterbegin", "<h1>Release</h1>");
-    assert.equal(subjectPlace({ kind: "page" }), document.querySelector("h1"));
-    document.querySelector("main").innerHTML = '<p id="lead">Plain words.</p>';
-    assert.equal(subjectPlace({ kind: "page" }), at("lead"));
+    // The page as a whole names no element, so a subject on it stands nowhere.
+    assert.equal(subjectPlace({ kind: "page" }), null);
   } finally {
     document.body.replaceChildren();
   }

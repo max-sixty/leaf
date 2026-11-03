@@ -639,7 +639,7 @@ def test_an_item_arriving_above_takes_its_walk_place_and_moves_no_card_read(
     browser, serve
 ):
     """An item that joins On me while it is open takes its place in the walk's order,
-    so a question asked on the page's head is the first card as `m` reaches it first.
+    so a question asked on the page's title is the first card as `m` reaches it first.
     The list scrolled to a later card keeps that card where it stood on screen: the
     browser's scroll anchoring holds it as the new card grows the list above."""
     url = serve(WALKED_PAGE)

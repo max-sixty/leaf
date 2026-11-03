@@ -36,8 +36,9 @@
    it, by the rule every walk shares (current-target.js, `walkOrigin` and `stepFrom`).
    The chrome is a binding badge, not a page position, so its controls do not become
    the walk's origin. The user is on an obligation when their current location is in
-   its place (`obligationHolding`, current-target.js), on a thread stop when they are
-   in its thread (`threadIn`), and on an action handed back when they are in its widget.
+   its place (`obligationHolding`, current-target.js) or on its On me card
+   (`ON_CARD`), on a thread stop when they are in its thread (`threadIn`), and on an
+   action handed back when they are in its widget.
 
    The walk opens what answers each item it reaches: a thread opens, and a widget's
    controls stand at its place. Everything on the user's list is answered there, by
@@ -80,9 +81,10 @@ import {
   walkOrigin,
 } from "./current-target.js";
 import { seenRect } from "./geometry.js";
-import { inChrome } from "./passages.js";
+import { closestAcross, inChrome } from "./passages.js";
 import { byRenderedOrder, under } from "./shadow.js";
 import { hasObligationSource } from "./obligations/source.js";
+import { ON_CARD } from "./obligations/view-elements.js";
 import { obligationWord } from "./obligations/answer.js";
 import { answeredInWords, readObligations } from "./obligations/model.js";
 import { obligationsIn, obligationPlace, subjectPlace } from "./obligations/place.js";
@@ -136,7 +138,7 @@ const nounOf = (item, stop) =>
 // asked in words is arrived at, like anything else there, by the thread it stands in;
 // or else where its subject stands (`subjectPlace`), as an action
 // handed back is arrived at on the widget it was made on and the agent's to-do at its
-// element or the page's head.
+// element.
 /** @param {QueueItem} item @returns {Stop} */
 const stopOf = (item) =>
   carriesObligation(item) && (item.thread === null || item.kind === "widget")
@@ -407,13 +409,24 @@ export function createQueueWalk({
   function currentLocationStop(list, origin = currentLocationOrigin()) {
     if (origin?.kind !== "current-location") return null;
     const thread = drawnThreadId(threadIn(origin.node));
+    const shown = cardItem(origin);
     return (
       (thread &&
         list.find(
           (candidate) => candidate.kind === "thread" && candidate.id === thread,
         )) ||
+      (shown && list.find((candidate) => candidate.key === queueStop(shown).key)) ||
       placeStop(list, origin)
     );
+  }
+
+  // The item the On card the user is on shows, if they are on one: undefined off a card,
+  // and null on a card whose item no longer waits on them, as in Done.
+  /** @param {Origin} origin */
+  function cardItem(origin) {
+    const card = closestAcross(origin.node, ON_CARD)?.getAttribute("data-key");
+    if (card == null) return undefined;
+    return readQueues().on_user.find((item) => queueItemKey(item) === card) ?? null;
   }
 
   // The obligation or subject stop holding the user's place, if any.
@@ -457,7 +470,7 @@ export function createQueueWalk({
     const intent = retainUserIntent({ available: () => Boolean(find()) });
     const where = find();
     if (!where) return Promise.resolve(false);
-    const departure = prepareNavigationStep({ landing: find, intent });
+    const departure = prepareNavigationStep();
     departure.plan(where);
     return arrive(
       () => {
@@ -480,9 +493,9 @@ export function createQueueWalk({
   function arriveAt(stop) {
     if (stop.kind === "obligation") {
       const record = readObligations().all.find((item) => item.id === stop.id);
-      return record && !hasObligationSource(record, "update")
-        ? arriveAtRecord(record)
-        : Promise.resolve(false);
+      if (!record || hasObligationSource(record, "update"))
+        return Promise.resolve(false);
+      return arriveAtRecord(record);
     }
     if (stop.kind === "thread") return arriveAtThread(stop.id, stop.message);
     return arriveAtElement(() => stopElement(stop));

@@ -608,11 +608,12 @@ def _edit_error(event: dict, events: list) -> Finding | None:
     predecessor said. A reaction or a bare drawing has none to revise.
 
     An edit that names its `base`, the revision its words were written over (the
-    message's own id, or the latest edit of it; a browser names an edit of its own
-    still sending once the log has answered it), lands only on that revision: one
-    written over words another tab has since replaced would silently take their place.
-    Words the message already says are no revision, and no turn; no words at all
-    delete the message (events.md, "Messages")."""
+    message's own id, or the latest edit of it still in force; a browser names an edit
+    of its own still sending once the log has answered it), lands only on that
+    revision: one written over words another tab has since replaced would silently
+    take their place. An undone edit no longer stands, so the revision before it is the
+    one a rewrite writes over. Words the message already says are no revision, and no
+    turn; no words at all delete the message (events.md, "Messages")."""
     if event["kind"] != "edit":
         return None
     name = event["message"]
@@ -631,10 +632,13 @@ def _edit_error(event: dict, events: list) -> Finding | None:
         return Finding("foreign-message", values={**message, "author": event["author"]})
     if "text" not in target:
         return Finding("wordless-message", values=message)
+    withdrawn = taken_back(events)
     revisions = [
         logged
         for logged in events
-        if logged["kind"] == "edit" and logged["message"] == name
+        if logged["kind"] == "edit"
+        and logged["message"] == name
+        and logged["id"] not in withdrawn
     ]
     latest = revisions[-1] if revisions else target
     if "base" in event and event["base"] != latest["id"]:

@@ -35,6 +35,7 @@ as it ends one asked in words (`asked_in_a_message`)."""
 
 import hashlib
 import json
+from bisect import bisect_right
 from collections.abc import Callable
 from functools import partial
 from math import inf
@@ -1061,30 +1062,22 @@ def thread_obligation_readings(
         if message.get("obligation")
     )
     tokens = registry.get("$reactions", {}).get("tokens", {})
+    # The newest open to-do on each thread.
+    newest_todo: dict[str, int] = {}
+    for todo in log.owed:
+        if todo["subject"]["kind"] == "thread":
+            identity = todo["subject"]["id"]
+            newest_todo[identity] = max(newest_todo.get(identity, 0), todo["seq"])
+    readings: dict[str, ThreadAnswers] = {}
     for record in records:
         thread = threads[record["thread"]]
+        if record["thread"] not in readings:
+            readings[record["thread"]] = ThreadAnswers(thread, tokens)
+        answers = readings[record["thread"]]
         in_words = answered_in_words(record)
-        asked = next(
-            message["seq"]
-            for message in thread["msgs"]
-            if message["id"] == record["message"]
-        )
+        asked = answers.seq(record["message"])
         if record["status"] == "open" and in_words:
-            answer = next(
-                (
-                    message
-                    for message in thread["msgs"]
-                    if message["seq"] > asked
-                    and message["author"] == "user"
-                    and (
-                        settles(message, record["message"], tokens)
-                        if is_reaction(message)
-                        # A message the user deleted has no words left to answer.
-                        else bool(message.get("text")) and not message.get("ephemeral")
-                    )
-                ),
-                None,
-            )
+            answer = answers.first_answer(record["message"])
             settle_by_words(record, answer, log.ends.get(record["id"]))
         # No revision can write a frozen widget's state, so an answer in words
         # retires its question through the agent's end, as for a question in words.
@@ -1092,21 +1085,56 @@ def thread_obligation_readings(
             end_question(record, ending)
         if record["next_actor"] is None:
             continue
-        owed = unanswered_agent_turn(thread)
+        owed = answers.owed
         if thread["resolved"]:
             record["next_actor"] = None
         # Only the user's words answer a question asked in words, so a turn the agent
         # owes after it, such as one a user's edit up the thread opens, leaves it theirs.
         elif not in_words and (
             (owed is not None and owed["seq"] > asked)
-            or any(
-                todo["seq"] > asked
-                for todo in log.owed
-                if todo["subject"] == {"kind": "thread", "id": record["thread"]}
-            )
+            or newest_todo.get(record["thread"], 0) > asked
         ):
             record["next_actor"] = "agent"
     return collection(records)
+
+
+class ThreadAnswers:
+    """What answers the questions one thread asks, read once for every obligation
+    in it: where each message stands, the user's messages in words, each message's
+    first reaction whose token settles it (`settles`), and the turn the agent owes
+    (`unanswered_agent_turn`)."""
+
+    def __init__(self, thread: dict, tokens: dict):
+        self.messages = thread["msgs"]
+        self.position = {message["id"]: i for i, message in enumerate(self.messages)}
+        # A message the user deleted has no words left to answer.
+        self.words = [
+            i
+            for i, message in enumerate(self.messages)
+            if message["author"] == "user"
+            and not is_reaction(message)
+            and bool(message.get("text"))
+            and not message.get("ephemeral")
+        ]
+        self.settling: dict[str, int] = {}
+        for i, message in enumerate(self.messages):
+            parent = message.get("parent")
+            if parent is not None and settles(message, parent, tokens):
+                self.settling.setdefault(parent, i)
+        self.owed = unanswered_agent_turn(thread)
+
+    def seq(self, message: str) -> int:
+        return self.messages[self.position[message]]["seq"]
+
+    def first_answer(self, message: str) -> dict | None:
+        """The first message after `message` that answers it: the user's words, or
+        their reaction on it whose token settles it."""
+        at = self.position[message]
+        later = bisect_right(self.words, at)
+        found = [i for i in (self.settling.get(message),) if i is not None]
+        if later < len(self.words):
+            found.append(self.words[later])
+        return self.messages[min(found)] if found else None
 
 
 def answered_in_words(record: dict) -> bool:

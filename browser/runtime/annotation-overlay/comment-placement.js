@@ -585,8 +585,10 @@ export function commentPlacement() {
     /** @param {Pick<MiddlewareState, "middlewareData">} state */
     const measure = (state) => state.middlewareData.scaled;
     // The room across the columns the surface stands in where the boundary lets it
-    // stand, so chrome beside it takes none of its height (`commentBoundary`); the
-    // last one read is the room the answer stood in.
+    // stand, so chrome beside it takes none of its height (`commentBoundary`). The last
+    // one read when the surface reads its answer (`plane`) is the room the answer stood
+    // in. floating.js solves the placement again at the box's old size only after that
+    // (`position`), and that solve writes it again.
     /** @type {DOMRectReadOnly} */
     let shown = boundary;
     /** @param {MiddlewareState} state */

@@ -441,7 +441,8 @@ def test_every_document_draws_from_one_copy_of_pierres_sheet(browser, serve):
     them, and the page holds one copy of that sheet however many documents it has. A
     copy in each listing was a sheet holding `@scope` entering the page as each
     document drew, and Firefox restyles every element of the page for each one: 29
-    empty documents in tabs beside one of 4 MB held the tab list back 6.5 s."""
+    empty documents in tabs beside one of 4 MB held the long document's first draw back
+    about 6 s."""
     tabs = "".join(
         f'<lf-tab id="tab-{at}" label="Doc {at}"><lf-text-document id="doc-{at}" '
         f'source="text-{at}"></lf-text-document></lf-tab>'

@@ -606,25 +606,6 @@ short. To recheck, draw a `content-visibility: auto` box with
 `contain-intrinsic-size: 300px` and read its height a few frames later: 300 px is the
 specified behaviour.
 
-### A `<style>` holding `@scope` restyles the whole page in Firefox
-
-Firefox 157 (Playwright build 1555, macOS) restyles every element of the document
-when a `<style>` holding an `@scope` rule enters or leaves it, whether the scope is
-implicit or names its root, and on that restyle it also styles the rows inside
-skipped `content-visibility: auto` boxes, so the cost grows with every long text on
-the page. On 2026-11-03, beside one 4 MB text document, a `<style>` holding one
-`@scope` rule that matched nothing cost a 110–370 ms flush, and the profiler's Styles
-markers counted about 36,000 elements styled in each; the same rule without `@scope`
-cost 2–9 ms. Each text document wrote its own copy of Pierre's sheets, so with 29
-empty documents in tabs beside the long one the page took 7.5–10.4 s to settle against
-1.4–2.1 s without them, where Chromium 156 took 0.7 s against 0.4 s. So every listing
-shares one copy of Pierre's sheets, which its document or shadow root adopts
-(`lf-text-document.js`, `listingSheet`), and
-`test_every_document_draws_from_one_copy_of_pierres_sheet` holds a page to that one
-copy. To recheck, insert and remove `<style>@scope { .x { color: red } }</style>`
-beside a long text document in Firefox and time the next `clientWidth` read against
-the same rule without `@scope`.
-
 ### A traversal's own scroll restoration under the Navigation API
 
 Firefox 157 (Playwright build 1555, macOS) applies a same-document traversal after

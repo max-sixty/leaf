@@ -130,12 +130,13 @@ waiting run, as intended, so to learn what main fails, read the latest run that
 finished and reproduce a failure by node id.
 
 A failure on main, in that run or only in a local one, needs someone fixing it. Tend's
-cause issue names each failing test, which a search for one test's full name finds,
-and Tend fixes the cause in a pull request that links the issue. A cause issue no pull
-request links is still waiting, and a failure only a local run shows never reaches
-Tend. If no pull request, session or worktree (Codex's under `~/.codex/worktrees`
-included) is fixing a failure and the user you work for maintains Leaf, start a local
-session for it (for example with `/dispatch`).
+cause issue names each failing test, which a search for one test's full name finds.
+Tend's triage marks the issue with an eyes reaction while it works, then fixes the
+cause in a pull request that links the issue; a cause issue with neither is still
+waiting, and a failure only a local run shows never reaches Tend. If no pull request,
+Tend run, session or worktree (Codex's under `~/.codex/worktrees` included) is fixing
+a failure and the user you work for maintains Leaf, start a local session for it (for
+example with `/dispatch`).
 
 CLI output and agent-facing text are regtest recordings in each tier's
 `_regtest_outputs/`, normalized for temporary paths and generated ids but never for

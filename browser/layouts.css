@@ -499,16 +499,22 @@
     /* A flow's box grows into the room on each side as far as the blocks in it break
      * out, so its focus ring and every mark drawn round it enclose them. Padding grows
      * the box and an equal negative margin keeps the content box at the prose, so the
-     * blocks in it resolve their room as before. A table's reach is its whole room,
-     * since its columns set its width. */
+     * blocks in it resolve their room as before. A note row and a wide block each
+     * reach a width from the prose's start edge, and the flow takes the larger, within
+     * the room. A table's reach is its whole room, since its columns set its width. */
     :is(.layout-column, .layout-flow) > .layout-flow {
+      --lf-note-reach: 0px;
+      --lf-wide-reach: 0px;
       --lf-reach-start: 0px;
-      --lf-reach-end: 0px;
+      --lf-reach-end: min(
+        max(var(--lf-note-reach), var(--lf-wide-reach)) - 100%,
+        var(--lf-free-end)
+      );
       &:has(.layout-note) {
-        --lf-reach-end: min(var(--col) + var(--note) - 100%, var(--lf-free-end));
+        --lf-note-reach: calc(var(--col) + var(--note));
       }
       &:has([data-lf-space="wide"]) {
-        --lf-reach-end: min(var(--wide) - 100%, var(--lf-free-end));
+        --lf-wide-reach: var(--wide);
       }
       &:has(:is([data-lf-space="available"], .layout-sidebar)) {
         --lf-reach-start: var(--lf-free-start);

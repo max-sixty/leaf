@@ -42,10 +42,13 @@ const home = (owner) =>
 
 test("a reference resolves in its own message before the page, and never in another message", () => {
   document.body.innerHTML =
-    "<main data-home='page'></main><div class='lf-chrome'></div>";
+    "<div class='lf-chrome'></div><header data-home='header'></header>" +
+    "<main data-home='page'></main><footer data-home='footer'></footer>";
   const main = document.querySelector("main");
   const chrome = document.querySelector(".lf-chrome");
   main.append(target("code", ["a"]), target("page-only", ["a"]));
+  document.querySelector("header").append(target("header-only", ["a"]));
+  document.querySelector("footer").append(target("footer-only", ["a"]));
   const [mine, theirs] = ["mine", "theirs"].map((name) => {
     const body = document.createElement("div");
     body.className = "lf-msg-body";
@@ -67,6 +70,14 @@ test("a reference resolves in its own message before the page, and never in anot
   const onPage = driver("p", "code");
   main.append(onPage);
   assert.equal(home(onPage), "page");
+  for (const name of ["header", "footer"]) {
+    onPage.setAttribute("for", `${name}-only`);
+    assert.equal(home(onPage), name);
+    inMessage.setAttribute("for", `${name}-only`);
+    assert.equal(home(inMessage), name);
+  }
+  onPage.setAttribute("for", "elsewhere");
+  assert.equal(home(onPage), "nothing");
 });
 
 test("a keyed reference names the member its own scope holds, never an id", () => {

@@ -1125,9 +1125,10 @@ export const clippedPlace = (where, clips, box = placeBox(where)) => {
 // Where a box stacks among the page's root-level layers: the z-index of its outermost
 // positioned ancestor that sets one, and above all of them in the top layer. Both are
 // read up the tree as rendered, where a slotted box stacks inside its slot's ancestors.
-// For anything in `main` that ancestor is `main`, a stacking context at 0 (base.css,
-// at the ladder), so a page box reads 0 whatever z-index it or a box around it sets,
-// unless it stands in the top layer.
+// The chrome's root follows `body` at the largest z-index and wins every tie by tree
+// order (base.css, `:root > .lf-chrome`), so a chrome box reads its own rung above every
+// level a page box can read, whatever z-index the page sets.
+export const CHROME_LEVEL = 2 ** 31;
 /** @param {Element} node */
 export function stackLevel(node) {
   let level = 0;
@@ -1135,6 +1136,7 @@ export function stackLevel(node) {
   let a = node;
   for (; a; a = renderedParent(a)) {
     if (isNativeLayer(a)) return Infinity;
+    if (a.matches(":root > .lf-chrome")) return CHROME_LEVEL + level;
     const { position, zIndex } = getComputedStyle(a);
     if (position !== "static" && zIndex !== "auto") level = Number(zIndex);
   }

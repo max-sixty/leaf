@@ -31,7 +31,8 @@ reply and entered the session's context, and that the page's claim names the ses
 with its turn closed. A website target runs `release` alone, since only a terminal
 can start a turn or interrupt one. What the harnesses share lives here: their
 isolation and its evidence (`isolated`), the session the journey hears through every
-wait (`Terminal`), and the user (`User`). `--sandbox` runs the session's shell
+wait, with each step more than one harness takes written once over the primitives a
+harness module supplies (`Terminal`), and the user (`User`). `--sandbox` runs the session's shell
 commands in its harness's sandbox; `--preview` has Codex serve the page with the
 canonical `leaf-dev preview --user`; `--forks` lets forks of Claude Code's
 conversation answer the user's thread messages, and runs the steps that test them
@@ -120,8 +121,10 @@ from leaf.events import build_threads
 from leaf.files import revision_path
 from leaf.findings import Finding
 from leaf.interaction_log import read_interactions
+from leaf.leases import wait_is_live
 from leaf.server import running_server
-from leaf.service import page_claim
+from leaf.service import claim_is_active, page_claim
+from leaf.state import session_live, session_record, turn_open
 from leaf.structure import SourceDocument
 from leaf.thread import successful_replies
 from leaf_dev import ROOT
@@ -144,7 +147,17 @@ from leaf_dev.commands.verify_site import (
 )
 from leaf_dev.page_fixtures import record_run_context
 from leaf_dev.reply_phases import reply_breakdown
-from leaf_dev.review_scenario import COMMENTS, post
+from leaf_dev.review_scenario import (
+    COMMENTS,
+    REQUEST,
+    USER_TURN,
+    activity,
+    claimed,
+    picked_up,
+    post,
+    require,
+    settled,
+)
 from leaf_dev.startup import startup_reading
 
 # A turn's wait ends at `TURN_PATIENCE` unless the page says a turn is still working on
@@ -168,13 +181,23 @@ TITLE_PATIENCE = thread_titles.RETRY_FOR + inference.TIMEOUT
 # must stay idle with a step's outcome before the step counts it settled.
 STEP_LIMIT = 300
 QUIET = 10
-# The harness targets, each named in a sample by its harness and, where the harness
-# has more than one, the Leaf transport its turns take.
+
+
+class HarnessTarget(NamedTuple):
+    """A harness target: the name a chart row gives it (`journey_chart`), and what
+    names it in a sample, its harness and, where the harness has more than one, the
+    Leaf transport its turns take."""
+
+    title: str
+    harness: str
+    transport: str | None = None
+
+
 HARNESS_TARGETS = {
-    "claude-code": {"harness": "claude-code"},
-    "codex-app-server": {"harness": "codex", "transport": "app-server"},
-    "codex-queue": {"harness": "codex", "transport": "queue"},
-    "pi": {"harness": "pi"},
+    "claude-code": HarnessTarget("Claude Code", "claude-code"),
+    "codex-app-server": HarnessTarget("Codex App Server", "codex", "app-server"),
+    "codex-queue": HarnessTarget("Codex queue", "codex", "queue"),
+    "pi": HarnessTarget("Pi", "pi"),
 }
 # Where the harness is when the release ask reaches it (`--case`).
 CASES = ("waiting", "working")
@@ -361,12 +384,12 @@ def release_ask(marker: str) -> str:
 
 def board_names_release(html: str, marker: str) -> bool:
     """Read board text and widget labels, excluding release-scoped resource URLs."""
-    main = SourceDocument(html).tree.select_one("main")
-    return main is not None and (
-        marker in main.to_text()
+    body = SourceDocument(html).tree.select_one("body")
+    return body is not None and (
+        marker in body.to_text()
         or any(
             marker in (element.attrs.get("label") or "")
-            for element in main.find_all(True)
+            for element in body.find_all(True)
         )
     )
 
@@ -673,15 +696,23 @@ def website_session(
 
 
 class Terminal:
-    """A harness session the journey types into as the user at its terminal.
+    """A harness session the journey types into as the user at its terminal, and
+    each step more than one harness takes, written once over what a harness module
+    supplies: `session`, the harness's id for the session, which the page's claim
+    names, and its primitives `say`, `work`, `hear`, `idle`, `listening`, and, where
+    the harness has them, `press_escape` and `leave`. A harness module runs the
+    shared steps its harness takes among steps of its own, and records each with its
+    own checks between steps.
 
     Every wait in a harness journey goes through `hear`, the release ask's included
     (`Session.pause`), so whatever the user at the terminal answers is answered
     whichever wait meets it, and a session that has gone fails the wait. `records`
     is the session's tool and turn record, stamped `received_at`, which a harness
-    that reports it as it goes keeps in `trace`; `approved` holds the
-    permission prompts answered since the last step; `running_commands` and `commands` are the shell commands it is
-    running and has run, where the harness reports them."""
+    that reports it as it goes keeps in `trace`; `approved` holds the permission
+    prompts answered since the last step; `running_commands` and `commands` are the
+    shell commands it is running and has run, where the harness reports them."""
+
+    session: str
 
     def __init__(self) -> None:
         self.trace: list[dict] = []
@@ -697,10 +728,28 @@ class Terminal:
         """Whether no turn of the session is running."""
         raise NotImplementedError
 
-    def work(self) -> object:
-        """Type the user's own turn (`review_scenario.USER_TURN`) and return once its
-        shell command runs, with what names the turn where the harness says."""
+    def say(self, text: str) -> None:
+        """Type one prompt into the idle session."""
         raise NotImplementedError
+
+    def work(self, turn: str = USER_TURN) -> None:
+        """Type the user's own `turn` (`review_scenario.USER_TURN`) and return once
+        its shell command runs."""
+        raise NotImplementedError
+
+    def press_escape(self) -> None:
+        """Press Escape on the running turn, as the user at the terminal does, and
+        return once the turn has ended."""
+        raise NotImplementedError
+
+    def leave(self) -> None:
+        """End the session as its user does, and return once it has."""
+        raise NotImplementedError
+
+    def listening(self) -> bool:
+        """Whether Leaf listens for the session's input between its turns: whether a
+        watch holds its pages."""
+        return wait_is_live(None, self.session)
 
     def records(self) -> list[dict]:
         """The session's tool and turn record so far."""
@@ -735,18 +784,24 @@ class Terminal:
                     return
         raise self.failure(what, STEP_LIMIT)
 
-    def page_server_title(self, page: Path, thread: str) -> dict | None:
-        """The record `page`'s server made in its diagnostics of the title it
-        generated for `thread`, hearing the session for as long as the request may
-        take, or None where it made none. A thread's title says nothing of who made
-        it; this says the page server did."""
+    def titled(self, page: Path, name: str, thread: str) -> str:
+        """How `page`'s server titled `thread`, step `name`'s, from the record it made
+        in its diagnostics, hearing the session for as long as the request may take.
+        A thread's title says nothing of who made it; this says the page server
+        did."""
         deadline = time.monotonic() + TITLE_PATIENCE
         while True:
             for record in read_interactions(page, types=("thread_title_generated",)):
                 if record.get("thread") == thread:
-                    return record
+                    return (
+                        f"titled in {record['durationMs']} ms by {record['model']}, "
+                        f"{record['inputTokens']} input tokens"
+                        + (f", ${record['costUsd']:.5f}" if "costUsd" in record else "")
+                    )
             if time.monotonic() > deadline:
-                return None
+                raise click.ClickException(
+                    f"the page server did not title `{name}`'s thread"
+                )
             self.hear(0.5)
 
     def await_command(self, text: str, what: str) -> None:
@@ -755,6 +810,104 @@ class Terminal:
             lambda: any(text in command for command in self.running_commands.values()),
             what,
         )
+
+    def user_turn(self, page: Path, turn: str = USER_TURN) -> str:
+        """Type the user's own `turn` (`work`), and return its id once the page's
+        claim holds it open."""
+        self.work(turn)
+        self.until(
+            lambda: turn_open(page_claim(page)),
+            "the page's claim did not hold the user's turn open",
+        )
+        return claimed(page)["turn"]
+
+    def setup(self, page: Path, request: str = REQUEST) -> None:
+        """`setup`: the user asks for `page` to be served (`request`), and the session
+        serves it, ending its turn with Leaf listening for its input and the page
+        claimed by it, that turn closed."""
+        self.say(request)
+        self.settle(
+            lambda: running_server(page) is not None and self.listening(),
+            "setup: the page was not served with Leaf listening for the session",
+        )
+        settled(page, self.session, {})
+
+    def release(self, user: User) -> None:
+        """`release`: the journey's timed ask (`User.release`), sent while the session
+        is idle, which opens a turn that answers it, or with `--case working` during
+        the user's own turn's shell command, which answers it. The step ends once the
+        session settles."""
+        if user.case == "working":
+            self.work()
+        user.release()
+        self.settle(lambda: True, "release: the turn that answered did not end")
+
+    def mid_turn(self, user: User, page: Path) -> str:
+        """`mid-turn`: a comment sent during the user's turn's shell command is
+        picked up in that turn, at its next tool boundary, and answered before the
+        turn ends, with no turn of its own. Returns the comment's id."""
+        turn = self.user_turn(page)
+        comment = user.comment("mid-turn")
+        self.until(self.idle, "mid-turn: the user's turn did not end")
+        require(
+            user.answered("mid-turn"),
+            "mid-turn: the user's turn ended without answering the comment",
+        )
+        require(
+            turn in picked_up(page, comment),
+            f"mid-turn: the comment was not picked up in the user's turn {turn}",
+        )
+        self.settle(
+            lambda: user.answered("mid-turn"), "mid-turn: the comment was not answered"
+        )
+        require(
+            claimed(page)["turn"] == turn,
+            "mid-turn: the comment started a turn of its own",
+        )
+        return comment
+
+    def escape(self, user: User, page: Path) -> bool:
+        """`escape`: Escape during the user's turn's shell command ends that turn,
+        and the session stays idle, with Leaf listening for it, the page reading so
+        and no turn opening, until a comment sent afterwards opens a turn that
+        answers it. Returns whether the claim's turn stayed open after Escape: a
+        harness that runs no end-of-turn hook on an interruption leaves it open
+        until its next turn."""
+        turn = self.user_turn(page)
+        self.press_escape()
+        self.settle(
+            self.listening,
+            "escape: the session did not settle listened for after Escape",
+        )
+        require(
+            claimed(page)["turn"] == turn,
+            "escape: a turn opened after Escape with no new input",
+        )
+        reading = activity(page)
+        require(
+            reading == "listening",
+            f"escape: the page reads {reading}, not listening, after Escape",
+        )
+        stayed = turn_open(page_claim(page), turn)
+        user.comment("escape")
+        self.settle(
+            lambda: user.answered("escape"), "escape: the comment was not answered"
+        )
+        return stayed
+
+    def quit(self, page: Path) -> None:
+        """`quit`: the user ends the session (`leave`), so Leaf records its end, its
+        claim on the page is inactive and Leaf no longer listens for it."""
+        self.leave()
+        require(
+            not session_live(session_record(self.session)),
+            "quit: the session ended without Leaf's SessionEnd",
+        )
+        require(
+            not claim_is_active(page_claim(page)),
+            "quit: the ended session's claim on the page is still active",
+        )
+        require(not self.listening(), "quit: Leaf still listens for the ended session")
 
 
 class Isolation(NamedTuple):
@@ -1061,7 +1214,12 @@ class BrowserEnd:
             )
             # `inner_text` applies the theme's text-transform, so a release recorded in
             # an uppercase eyebrow or panel heading reads `35B36571`. Compare ignoring case.
-            rendered = page.locator("main").inner_text()
+            # The page is body less Leaf's own elements (passages.js, `inPage`).
+            rendered = page.evaluate(
+                "() => [...document.body.children]"
+                ".filter((el) => !el.matches('.lf-chrome, [data-lf-runtime]'))"
+                ".map((el) => el.innerText).join('\\n')"
+            )
             check(
                 marker.casefold() in rendered.casefold(),
                 f"{url} rendered a page that never names ‘{marker}’, which the agent's "
@@ -1151,11 +1309,8 @@ class User:
         self.release_reading: dict = {}
 
     def release(self) -> None:
-        """The ask every target answers, timed (`run_journey`), in the journey's
-        `case`: in the working one, while the user's turn runs its command."""
-        if self.case == "working":
-            assert self.terminal is not None
-            self.terminal.work()
+        """The ask every target answers, timed (`run_journey`); a harness sends it in
+        the journey's `case` (`Terminal.release`)."""
         self.release_reading = run_journey(self.end, self.version)
         self.ids["release"] = self.release_reading["comment"]["eventIds"][-1]
 
@@ -1388,26 +1543,27 @@ def target_session(
     output (`target` the same across runs, as a local server's `origin` is not), and
     the journey's steps."""
     if target in HARNESS_TARGETS:
-        named: dict = {"target": target, **HARNESS_TARGETS[target]}
-        if target == "claude-code":
+        _, harness, transport = HARNESS_TARGETS[target]
+        named: dict = {"target": target, "harness": harness}
+        if harness == "claude-code":
             from leaf_dev.journey_claude_code import answering
 
-            harness = answering(browser, sandbox=sandbox, forks=forks)
+            answered = answering(browser, sandbox=sandbox, forks=forks)
             named |= {"sandbox": True} if sandbox else {}
             named |= {"forks": True} if forks else {}
-        elif target == "pi":
+        elif harness == "pi":
             from leaf_dev.journey_pi import answering
 
-            harness = answering(browser)
+            answered = answering(browser)
         else:
             from leaf_dev.journey_codex import answering
 
-            harness = answering(
-                browser, named["transport"], preview=preview, sandbox=sandbox
-            )
+            assert transport is not None
+            answered = answering(browser, transport, preview=preview, sandbox=sandbox)
+            named |= {"transport": transport}
             named |= {"preview": True} if preview else {}
             named |= {"sandbox": True} if sandbox else {}
-        with harness as (user, run):
+        with answered as (user, run):
             yield user, named, run
         return
     if target == "website-adapter":
@@ -1501,18 +1657,16 @@ def journey(
     or a website origin. A harness's user posts its comments over HTTP unless
     `--browser` puts them in Chrome.
     """
-    if sandbox and HARNESS_TARGETS.get(target, {}).get("harness") not in (
-        "claude-code",
-        "codex",
-    ):
+    harness = HARNESS_TARGETS[target].harness if target in HARNESS_TARGETS else None
+    if sandbox and harness not in ("claude-code", "codex"):
         raise click.UsageError("--sandbox is an option of claude-code and codex")
-    if preview and HARNESS_TARGETS.get(target, {}).get("harness") != "codex":
+    if preview and harness != "codex":
         raise click.UsageError("--preview is an option of the codex targets")
     if preview and sandbox:
         raise click.UsageError("--preview runs leaf-dev, which a sandbox refuses")
-    if forks and target != "claude-code":
+    if forks and harness != "claude-code":
         raise click.UsageError("--forks is an option of claude-code")
-    website = target not in HARNESS_TARGETS
+    website = harness is None
     if website and case == "working":
         raise click.UsageError("a website's journey has no terminal to start a turn")
     if website and browser is False:

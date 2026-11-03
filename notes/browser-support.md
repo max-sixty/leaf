@@ -484,6 +484,23 @@ swapping in the `left` form and comparing the link's box after that resize with
 a fresh page's at the same width across the corpus; if none differ, drop this
 entry and the reason in the stylesheet.
 
+### A keyboard scroll's `scrollend` on every frame in WebKit
+
+On 2026-11-03, Playwright WebKit 27.2 (build 2370) sent a `scrollend` on each
+frame of a PageDown's or Space's animation, 12 for one PageDown, where Chromium
+156 and Firefox 157 send one as the scroll lands. So in WebKit one keypress makes
+a scroll sequence per frame (`arrivals.js`, `watchScrollEnds`), and each reader
+of a scroll's end runs on every frame of it. A Leaf step pressed during such a
+scroll waits for it to end (`scrolling.js`, `afterBrowserScroll`), which in
+WebKit is the first frame's end, so the step moves from where that frame left
+the page and the rest of the browser's move is lost, or the step is: Space and
+then `d` 40 ms later ended at 651 px, and PageDown and then `d` at 720, PageDown
+alone, where Chromium and Firefox end at 1246 and 1254, the landing plus the
+step. Waiting a rendering update past each end did not help, since WebKit's
+main thread hears its keyboard scroll's frames up to 110 ms apart. To recheck,
+count `scrollend` events on the document across one PageDown in WebKit; one
+means the gap has closed.
+
 ### Native reveal bounded to its scroller
 
 `scrollIntoView(node, {within})` in `browser/runtime/landing-scroll.js` reveals

@@ -82,6 +82,7 @@ import {
 import { scrollerFor } from "../reading-regions.js";
 import { boundedBlockOf } from "../bounds.js";
 import { pageScroller } from "../scrolling.js";
+import { hearScrollsIn, watchScrollEnds } from "../arrivals.js";
 import { layoutBox } from "../passages.js";
 import {
   arrivals,
@@ -672,6 +673,18 @@ export function scheduleMarginEntryLabels() {
 export function mountMarginLayer(root, projection) {
   layer = { root, projection, lanes: new Map(), sizes: sizeObserver(layoutMarginRows) };
   hearTargetChanges(document);
+  watchScrollEnds(placeCarriedRows);
+}
+
+// A scroll inside a scaled box carried the rows whose carriers it moves away from their
+// words in some engines (css-anchors.js, `scrollMisplacesAnchors`), so the pass places
+// them again once it ends.
+/** @param {Element} box */
+function placeCarriedRows(box) {
+  const carries = [...carriers.values()].some((byAnchor) =>
+    [...byAnchor.keys()].some((anchor) => renderedUnder(anchorHolder(anchor), box)),
+  );
+  if (carries && scrollMisplacesAnchors(box)) scheduleMarginLayout();
 }
 
 // Neither scroll events nor mutation records leave their shadow tree, so a target
@@ -728,27 +741,7 @@ function hearTargetChanges(root) {
     },
     { capture: true, passive: true },
   );
-  // A scroll inside a scaled box carried the rows whose carriers it moves away from their
-  // words in some engines (css-anchors.js, `scrollMisplacesAnchors`), so the pass places
-  // them again once it ends.
-  /** @param {Element} box */
-  const carries = (box) =>
-    [...carriers.values()].some((byAnchor) =>
-      [...byAnchor.keys()].some((anchor) => renderedUnder(anchorHolder(anchor), box)),
-    );
-  root.addEventListener(
-    "scrollend",
-    (event) => {
-      const source = event.target === document ? pageScroller : event.target;
-      if (
-        source instanceof Element &&
-        carries(source) &&
-        scrollMisplacesAnchors(source)
-      )
-        scheduleMarginLayout();
-    },
-    { capture: true, passive: true },
-  );
+  if (root instanceof ShadowRoot) hearScrollsIn(root);
   // A transition or animation can show a target to the reader, or take it away, with
   // no resize and no mutation after the one that started it, which was read at the old
   // value: a reveal.js fragment, whose `visibility` turns visible only after the

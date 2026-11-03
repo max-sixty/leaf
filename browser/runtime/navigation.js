@@ -7,7 +7,13 @@ import { pageCommand } from "./keyboard/register.js";
 import { nativeModalAdmits } from "./keyboard/layer-stack.js";
 import { sampleNotice } from "./sample-child.js";
 import { scrollBehavior } from "./motion.js";
-import { atScrollEnd, glideTo, scrollGoal, stopGlide } from "./scrolling.js";
+import {
+  afterBrowserScroll,
+  atScrollEnd,
+  glideTo,
+  scrollGoal,
+  stopGlide,
+} from "./scrolling.js";
 import { landingBand, shownRect } from "./geometry.js";
 import { intersect } from "./rect.js";
 import {
@@ -132,10 +138,10 @@ export function placeThreadEdge(thread, edge) {
 }
 
 // j/k take small pixel steps; d/u move 60% of the visible reading page. Both follow
-// the active region and share one glide (scrolling.js, `glideTo`). A press steps from
-// where the box is headed (`scrollGoal`), so presses made while Leaf still moves the
-// page, whether after another step or after a landing such as `m`'s, add up as if each
-// had landed. At a region's edge
+// the active region and glide (scrolling.js, `glideTo`). A press steps from where the
+// box is headed (`scrollGoal`), so presses made while the page still moves, whether
+// after another step, after a landing such as `m`'s, or after the browser's own Space
+// or PageDown (`afterBrowserScroll`), add up as if each had landed. At a region's edge
 // they follow its CSS scroll chain (`scrollChainOf`, `stepAlong`), stopping at the
 // same task or modal boundary as native input, so a floating thread's turns, once
 // spent, hand the step to the document, and a sample's to its containing page, as the
@@ -197,6 +203,7 @@ function stepAlong(from, amount, unit) {
   const clips = new Map();
   for (const box of scrollChainOf(from)) {
     if (!nativeModalAdmits(box)) return;
+    if (afterBrowserScroll(box, () => stepAlong(from, amount, unit))) return;
     const step = readingStep(box, clips);
     const goal = scrollGoal(box);
     const canMove = amount > 0 ? !atScrollEnd(box, goal) : goal > 0;

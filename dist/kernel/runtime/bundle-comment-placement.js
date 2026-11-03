@@ -1,4 +1,4 @@
-import { LAYOUT, LENT_REACH_STOP, TAB_STOP, afterScript, atLayoutPrecision, cancelRender, clamp, clippedContents, clippedRect, clippingAxes, coarsePointer, hoveringPointer, inChrome, inlineStyle, keeps, layoutPx, move, moveScrollerBy, nextRender, offeredActionElement, overlaps, overlapsAcross, pageScroller, renderedParent, renderedUnder, scrollAxes, scrollLimit, scrollsContent, shellRight, shownBand, shownExtent, shownParts, shownRect, shownWindow, sizeObserver, skipped, under, union, upFrom, visualViewport } from "./bundle-portable.js";
+import { LAYOUT, LENT_REACH_STOP, TAB_STOP, afterScript, atLayoutPrecision, cancelRender, clamp, clippedContents, clippedRect, clippingAxes, coarsePointer, hearScrollsIn, hoveringPointer, inChrome, inlineStyle, keeps, layoutPx, move, moveScrollerBy, nextRender, offeredActionElement, overlaps, overlapsAcross, pageScroller, renderedParent, renderedUnder, scrollAxes, scrollLimit, scrollsContent, shellRight, shownBand, shownExtent, shownParts, shownRect, shownWindow, sizeObserver, skipped, under, union, upFrom, visualViewport, watchScrollEnds } from "./bundle-portable.js";
 import { renderedChildren } from "./bundle-errors.js";
 import { afterPresentation, anchorBox, anchorElement, anchorFor, anchorHolder, anchorName, anchorReading, blockControlBoxes, boundedBlockOf, carriedAnchor, containingReadingRegionFor, cutFrames, headerLevels, nameAnchor, passageBoxes, pointBand, proseMeasure, proseRect, railStands, scrollMisplacesAnchors, scrollerFor, scrollsWith, targetRange, targetSegments } from "./bundle-content-layout.js";
 import { layoutBox } from "./bundle-passages.js";
@@ -458,6 +458,10 @@ function mountMarginLayer(root, projection) {
 		sizes: sizeObserver(layoutMarginRows)
 	};
 	hearTargetChanges(document);
+	watchScrollEnds(placeCarriedRows);
+}
+function placeCarriedRows(box) {
+	if ([...carriers.values()].some((byAnchor) => [...byAnchor.keys()].some((anchor) => renderedUnder(anchorHolder(anchor), box))) && scrollMisplacesAnchors(box)) scheduleMarginLayout();
 }
 const heard = /* @__PURE__ */ new WeakSet();
 function hearTargetChanges(root) {
@@ -495,14 +499,7 @@ function hearTargetChanges(root) {
 		capture: true,
 		passive: true
 	});
-	const carries = (box) => [...carriers.values()].some((byAnchor) => [...byAnchor.keys()].some((anchor) => renderedUnder(anchorHolder(anchor), box)));
-	root.addEventListener("scrollend", (event) => {
-		const source = event.target === document ? pageScroller : event.target;
-		if (source instanceof Element && carries(source) && scrollMisplacesAnchors(source)) scheduleMarginLayout();
-	}, {
-		capture: true,
-		passive: true
-	});
+	if (root instanceof ShadowRoot) hearScrollsIn(root);
 	const settled = ({ target }) => {
 		if (!(target instanceof Element) || inChrome(target)) return;
 		stirred.add(target);

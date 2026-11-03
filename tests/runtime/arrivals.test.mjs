@@ -12,7 +12,8 @@ globalThis.requestAnimationFrame = (callback) => {
 };
 globalThis.cancelAnimationFrame = (id) => frames.delete(id);
 
-const { whileConnected, frameFor } = await import("/runtime/arrivals.js");
+const { whileConnected, frameFor, holdScroll, scrolling, watchScrollEnds } =
+  await import("/runtime/arrivals.js");
 const { clockValue, tickClock } = await import("/runtime/presence.js");
 const { observeQueuedWork } = await import("/runtime/queued-work.js");
 
@@ -292,5 +293,34 @@ test("a clock render reports its failure once and recovers on the next reading",
   } finally {
     console.error = consoleError;
     owner.remove();
+  }
+});
+
+test("a scroll a script holds ends once, after its release, whatever its frames send", async () => {
+  const box = document.createElement("div");
+  document.body.append(box);
+  /** @type {Element[]} */
+  const ended = [];
+  const stop = watchScrollEnds((end) => ended.push(end));
+  const frame = () => {
+    box.dispatchEvent(new window.Event("scroll"));
+    box.dispatchEvent(new window.Event("scrollend"));
+  };
+  try {
+    const release = holdScroll(box);
+    frame();
+    await renderFrame();
+    frame();
+    await renderFrame();
+    assert.deepEqual(ended, []);
+    assert.equal(scrolling(), true);
+    release();
+    frame();
+    await renderFrame();
+    assert.deepEqual(ended, [box]);
+    assert.equal(scrolling(), false);
+  } finally {
+    stop();
+    box.remove();
   }
 });

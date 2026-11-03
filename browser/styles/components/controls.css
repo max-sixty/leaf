@@ -1850,13 +1850,10 @@ wa-copy-button.lf-icon-action {
     background-image: linear-gradient(var(--offer-hover), var(--offer-hover));
   }
 }
-/* A row whose thread is on the user's turn (`data-lf-turn`), in Threads or the Page
-   Map, stands on the turn's wash, as the thread's margin entry does (above). A step
-   still ahead of the row a list stands on (`data-lf-ahead`), as a timeline's are,
-   stands in the muted ink. */
-.lf-row[data-lf-turn="user"] {
-  background-color: var(--turn-wash);
-}
+/* A step still ahead of the row a list stands on (`data-lf-ahead`), as a timeline's
+   are, stands in the muted ink. A row whose thread is on the user's turn says so in
+   its words alone (`.lf-row-end`, above), on the row's own ground: a wash would repeat
+   them, and touching turn rows would merge into one band. */
 .lf-row[data-lf-ahead] {
   color: var(--muted);
 }

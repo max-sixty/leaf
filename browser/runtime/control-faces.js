@@ -37,10 +37,9 @@
    - `row`: one row of a list or menu, whose words are what the reader scans, so they
      stand in the ink; the row under the pointer or the keys is washed, and the row
      the list stands on (`aria-current`) wears the accent's stripe and tint. A step
-     still ahead of it (`data-lf-ahead`) stands in the muted ink, a thread's row on
-     the user's turn (`data-lf-turn="user"`) on the turn's wash, and the row of the
+     still ahead of it (`data-lf-ahead`) stands in the muted ink, and the row of the
      thread whose passage the pointer is on (`.lf-mark-hover`) in that passage's
-     wash.
+     wash. A thread's row on the user's turn says so in its closing words.
    - `answer`: one of the answers a question offers, such as a decision's choices on
      an On me card, framed so the set reads as one to pick from, the chosen one
      (`aria-pressed`) marked in the ok tone as the page marks its chosen option.

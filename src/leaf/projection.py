@@ -837,25 +837,25 @@ def generated_children(desired: dict, authored_ids: set) -> dict:
 
 
 def record_members(
-    owner: str,
     record: dict,
     projection: StateProjection,
     byid: dict,
     registry: dict,
-) -> set:
-    """The current members an attribute record may name, including created children.
+) -> dict[str, set]:
+    """Owner id → the current members the attribute `record` lets it name,
+    including created children, read for every owner in one pass over the document.
 
     Position records in force determine membership, so moving a member changes the
     container that can select it in the same authoritative reading.
     """
     holders = projected_action_holders(projection, byid, registry)
-    authored = {
-        oid
-        for oid in byid
-        if recorded_owner(oid, record, byid, registry, holders=holders) == owner
-    }
-    created = generated_children(projection.desired, set(byid)).get(owner, [])
-    return authored | {child["id"] for child in created}
+    members: dict[str, set] = {}
+    for oid in byid:
+        if owner := recorded_owner(oid, record, byid, registry, holders=holders):
+            members.setdefault(owner, set()).add(oid)
+    for owner, children in generated_children(projection.desired, set(byid)).items():
+        members.setdefault(owner, set()).update(child["id"] for child in children)
+    return members
 
 
 def retirement_outcomes(actions: dict) -> dict:

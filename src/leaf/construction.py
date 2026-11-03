@@ -181,6 +181,8 @@ def constructed_content(
     # Every attribute-set owner paints its complete state over its current members.
     # A move can give an unchanged destination baseline a new member to paint.
     marks = attribute_marks(members, spoken, registry)
+    # Attribute → each owner's members (`record_members`), read once per attribute.
+    named: dict[str, dict[str, set]] = {}
     for widget, rec in members.items():
         for verb, spec in state_specs(registry.get(rec["tag"], {})):
             record = spec.get("record") or {}
@@ -192,9 +194,11 @@ def constructed_content(
                 if held
                 else markup_value(widget, spec, members, marks)
             )
-            for identity in record_members(
-                widget, record, projection, members, registry
-            ):
+            if record["attr"] not in named:
+                named[record["attr"]] = record_members(
+                    record, projection, members, registry
+                )
+            for identity in named[record["attr"]].get(widget, ()):
                 node = by_id[identity]
                 if (record["attr"] in node["attrs"]) == (identity in value):
                     continue

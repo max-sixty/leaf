@@ -412,8 +412,8 @@ def record_contract_error(view, event, spec, readings, page_owned=True):
         ):
             return error.but(values=record)
     if record_kind == "attribute":
-        members = record_members(
-            event["widget"], spec["record"], projection, byid, registry
+        members = record_members(spec["record"], projection, byid, registry).get(
+            event["widget"], set()
         )
         named = event["detail"]["value"]
         if strangers := sorted(set(named) - members):

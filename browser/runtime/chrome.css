@@ -625,7 +625,10 @@ html[data-lf-region-capture] main * {
     align-items: baseline;
     column-gap: 8px;
     row-gap: 2px;
-    margin: 4px 0 12px;
+    /* A choice (controls.css) pads its ring room; the margins take that padding
+       back, so the checkbox stands on the search field's edge. */
+    margin: calc(4px - var(--choice-pad)) 0 calc(12px - var(--choice-pad))
+      calc(-1 * var(--choice-pad));
     flex: none;
   }
   .lf-command-reference-preference input {

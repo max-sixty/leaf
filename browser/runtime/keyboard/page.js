@@ -5,8 +5,8 @@ import { sampleNotice } from "../sample-child.js";
    Everything else the page answers is declared by the owner that implements it and joins
    the stack through `register.js`. This file keeps the document's own parts — a link, a
    disclosure — and the presses that are nobody's capability: the browser's caret
-   browsing, letting go of whatever the user is on, and backing out of the
-   chrome onto the page.
+   browsing and its Back and Forward, letting go of whatever the user is on, and
+   backing out of the chrome onto the page.
 
    Importing this module is what puts the page's parts in the register. The let-go is the
    one declaration that reads other owners' state — the modes, the captured target, the
@@ -20,7 +20,7 @@ import { heldThread } from "../thread/focus.js";
 import { heldObligation } from "../current-target.js";
 import { leavesBox } from "../thread/landing.js";
 import { claimsEsc } from "./scopes.js";
-import { nativePress } from "./bindings.js";
+import { MAC, nativePress } from "./bindings.js";
 import { DISCLOSE, DISCLOSURE_SELECTOR, disclosureAt } from "./disclosure.js";
 import { nativeLayers } from "./layer-stack.js";
 import { LINK } from "./text-entry.js";
@@ -104,6 +104,26 @@ pageCommand({
   keys: ["F7"],
   title: "Caret browsing",
   description: "Select text with the keyboard caret to comment on it",
+});
+
+// Every walk, Go-to and link that moves the page leaves a history entry where the user
+// stood (anchor-travel.js), so the browser's own Back is the way back to it. Leaf binds
+// no key of its own for that; this row names the browser's, which differ by platform.
+const [BACK, FORWARD] = MAC ? ["Mod+[", "Mod+]"] : ["Alt+ArrowLeft", "Alt+ArrowRight"];
+pageCommand({
+  id: "browser.history",
+  touch: false,
+  keys: [BACK, FORWARD],
+  title: "Back and Forward",
+  routes: [
+    {
+      id: "browser.history.back",
+      binding: BACK,
+      title: "Back",
+      description: "Return to the place the last walk, Go-to or link left",
+    },
+    { id: "browser.history.forward", binding: FORWARD, title: "Forward" },
+  ],
 });
 
 // Current location is a destination on the page. Releasing it lands at its floor, the document.

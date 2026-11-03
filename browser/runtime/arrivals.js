@@ -328,7 +328,7 @@ export function watchScrolls(listener) {
 // settles, and each settle as it comes: a `scrollend` where the browser sends one, else
 // a settle after the last scroll frame, since a scroll restoration that replaces what
 // was scrolling ends without one. A scroll the runtime writes a frame at a time
-// (navigation.js, `glideTo`) sends a `scrollend` for each frame, so it holds the flight
+// (scrolling.js, `glideTo`) sends a `scrollend` for each frame, so it holds the flight
 // until it lands (`scrollGlides`). What rides a scroll on an anchor is placed again once
 // it settles rather than on its frames, where a placement would trail the scroll a
 // frame behind.

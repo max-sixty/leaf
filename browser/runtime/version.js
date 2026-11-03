@@ -580,6 +580,14 @@ const diffMarked = new Set();
  * word for the reader (addressable-names.js), and the id it had, which pairs it with the
  * block that kept that id.
  * @typedef {Readonly<{id: string, tag: string, word: string, words: string}>} Removed */
+// What a change's account counts a block as: its row where it is a table's cell, since a
+// reader counts a table by its rows, and the block itself elsewhere.
+const countedAs = (/** @type {Element} */ block) => block.closest("tr") ?? block;
+// The unit each taken-out block counts in, one token for each base element `countedAs`
+// gives and shared by the blocks it holds, so the account counts a removed row once
+// without keeping a node of the base document.
+/** @type {WeakMap<Removed, {word: string}>} */
+const countedIn = new WeakMap();
 /** A change: one hunk of the block diff as the page shows it. `blocks` are its changed
  * blocks in page order, none where it only took blocks out; `removed` the base blocks it
  * took out; `at` where it stands, its first block or the block its gap stands before,
@@ -1122,16 +1130,23 @@ function applyDiff(doc, baseAuthored, baseRevision, baseReading) {
       is: is ? comparisonWords(is, opaque) : null,
     });
   }
-  // What each base block a hunk took out said, read while its source is in hand.
+  // What each base block a hunk took out said, read while its source is in hand, and the
+  // unit it counts in.
+  /** @type {Map<Element, {word: string}>} */
+  const units = new Map();
   const takenOut = (/** @type {Element[]} */ blocks) =>
-    blocks.map((block) =>
-      Object.freeze({
+    blocks.map((block) => {
+      const record = Object.freeze({
         id: block.id,
         tag: block.localName,
         word: addressableWord(block),
         words: block.matches(opaque) ? "" : comparisonWords(block, opaque),
-      }),
-    );
+      });
+      const unit = countedAs(block);
+      if (!units.has(unit)) units.set(unit, { word: addressableWord(unit) });
+      countedIn.set(record, /** @type {{word: string}} */ (units.get(unit)));
+      return record;
+    });
   diffChanges = changeRuns(
     diffMarked,
     kept,
@@ -1165,30 +1180,36 @@ const nounOf = (/** @type {string[]} */ words) => {
   return rest.every((word) => word === first) ? first : "block";
 };
 /** What a change did, in the reader's words: "2 paragraphs replaced by 3", "1 paragraph
- * removed", "1 item edited, 1 added". A part naming the same kind of block as the one
- * before it leaves the noun out.
+ * removed", "1 item edited, 1 added". It counts what the reader does (`countedAs`), and a
+ * part naming the same kind of block as the one before it leaves the noun out.
  * @param {Change} change */
 export function changeAccount({ blocks, removed }) {
-  const added = blocks.filter((block) => !diffPaired.has(block));
-  const edited = blocks.filter((block) => {
+  // Each unit the change holds on the page, as the most its blocks did: 0 added, where
+  // none kept its id; 1 changed; 2 edited, where one kept its id and changed its words.
+  /** @type {Map<Element, number>} */
+  const units = new Map();
+  for (const block of blocks) {
     const words = diffPaired.has(block) && blockWords(block);
-    return words && words.was !== words.is;
-  });
-  const changed = blocks.filter(
-    (block) => diffPaired.has(block) && !edited.includes(block),
-  );
-  const out = removed.map(({ word }) => word);
-  const into = added.map(addressableWord);
+    const did = !diffPaired.has(block) ? 0 : words && words.was !== words.is ? 2 : 1;
+    const unit = countedAs(block);
+    units.set(unit, Math.max(units.get(unit) ?? 0, did));
+  }
+  const that = (/** @type {number} */ did) =>
+    [...units].filter(([, its]) => its === did).map(([unit]) => addressableWord(unit));
+  const [into, changed, edited] = [that(0), that(1), that(2)];
+  const out = [
+    ...new Set(
+      removed.map((record) => /** @type {{word: string}} */ (countedIn.get(record))),
+    ),
+  ].map(({ word }) => word);
   /** @type {[number, string, string][]} */
   const parts = [];
-  if (edited.length)
-    parts.push([edited.length, nounOf(edited.map(addressableWord)), "edited"]);
+  if (edited.length) parts.push([edited.length, nounOf(edited), "edited"]);
   if (out.length && into.length)
     parts.push([out.length, nounOf([...out, ...into]), `replaced by ${into.length}`]);
   else if (out.length) parts.push([out.length, nounOf(out), "removed"]);
   else if (into.length) parts.push([into.length, nounOf(into), "added"]);
-  if (changed.length)
-    parts.push([changed.length, nounOf(changed.map(addressableWord)), "changed"]);
+  if (changed.length) parts.push([changed.length, nounOf(changed), "changed"]);
   return parts
     .map(([n, noun, verb], i) =>
       parts[i - 1]?.[1] === noun ? `${n} ${verb}` : `${plural(noun, n)} ${verb}`,

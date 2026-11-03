@@ -260,7 +260,7 @@
 
     "runtime/keyboard/key-sequence.js": "8e8267e99d0a548b70bab70ae60322b5f014b8270c161faa2a6da71632c60fbd",
 
-    "runtime/keyboard/layer-stack.js": "57787571735be00ec9a0700a9a7b732e269a6eeb6f417f4b325eb45e283d886b",
+    "runtime/keyboard/layer-stack.js": "5592683a5ccb2a37d0745d7d3644c3b90217215a0a6b5d5e9b188a2f676bfbd7",
 
     "runtime/keyboard/page.js": "01dae6e54679ee95e73f3c8cc0459a732d7ae910b16a5b9a043784343514822f",
 
@@ -552,7 +552,7 @@
 
     "runtime/walk-position.js": "10a8e77ca0ac65bd53c6ba061e3a34188ea352638a1cf6ae0082bf34929295f4",
 
-    "runtime/widget-api.js": "a74cc2a4e2046a95cabb4ada3dce381bc4b862a51fe7850f14818165e5bbded3",
+    "runtime/widget-api.js": "4a1a3ba612da85d8e1b67828b97b40a96b5d7e27a5802cd68a2f8288392e0b0c",
 
     "runtime/widget-controller.js": "78ac7b9c2508e204c1c8fed85849ff724cb968c704ac188a7c51f96c9965824a",
 

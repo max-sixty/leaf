@@ -2760,6 +2760,10 @@ let entries = [];
 const watchedRoots = /* @__PURE__ */ new WeakSet();
 const nativeDialogShowModal = HTMLDialogElement.prototype.showModal;
 const nativePopoverShow = HTMLElement.prototype.showPopover;
+let scripted = null;
+function keepExpanded(control, open) {
+	if (control?.hasAttribute("aria-expanded")) keeps(control, "aria-expanded", String(open));
+}
 function prune() {
 	entries = entries.filter((entry) => entry.active());
 }
@@ -2792,6 +2796,7 @@ function closing(event) {
 	if (event.newState !== "closed") return;
 	const entry = entries.find((candidate) => candidate.root === event.target);
 	if (entry) entry.opening = false;
+	keepExpanded(entry?.source, false);
 	if (entry?.kind === "popover") {
 		for (const layer of nativeLayers().toReversed()) if (layer.kind === "modal" && renderedUnder(layer.root, entry.root)) closeNativeLayer(layer.root);
 	}
@@ -2807,9 +2812,12 @@ HTMLDialogElement.prototype.showModal = function() {
 };
 HTMLElement.prototype.showPopover = function(options) {
 	const entry = nativeLayerKind(this) !== "popover" ? pushNativeLayer(this) : null;
+	const was = scripted;
+	scripted = this;
 	try {
 		nativePopoverShow.call(this, options);
 	} finally {
+		scripted = was;
 		if (entry) entry.opening = false;
 	}
 	if (entry && options?.source) entry.source = options.source;
@@ -2830,12 +2838,6 @@ function showNativeLayer(layer, { source, modal = true } = {}) {
 	} finally {
 		if (withholdFocus) layer.inert = false;
 	}
-}
-function toggleNativeLayer(layer, source, arrival = null) {
-	if (isNativeLayer(layer)) return closeNativeLayer(layer);
-	focusDestination(source, "press");
-	showNativeLayer(layer, { source });
-	if (arrival) focusDestination(arrival, "move");
 }
 const modalHomes = /* @__PURE__ */ new WeakMap();
 function seatModal(dialog, source) {
@@ -2914,7 +2916,13 @@ function watchLayers(root) {
 	if (watchedRoots.has(root)) return;
 	watchedRoots.add(root);
 	const opened = (event) => {
-		if (event.newState === "open" && event.target instanceof HTMLElement && event.target.matches("[popover], dialog")) pushNativeLayer(event.target, event.source);
+		if (event.newState !== "open" || !(event.target instanceof HTMLElement) || !event.target.matches("[popover], dialog")) return;
+		const { source } = event;
+		if (event.type === "beforetoggle") {
+			if (event.target !== scripted && source instanceof HTMLElement && canPlaceFocus() && focused() !== source) focusDestination(source, "press");
+			keepExpanded(source, true);
+		}
+		pushNativeLayer(event.target, source);
 	};
 	root.addEventListener("beforetoggle", opened, true);
 	root.addEventListener("beforetoggle", closing, true);
@@ -5521,4 +5529,4 @@ function textWidth(text, font) {
 }
 
 //#endregion
-export { ANNOUNCE, CARET_KEYS, COMMANDS, DISCLOSE, DISCLOSURE_SELECTOR, HOLDS_WORD, J, LAYOUT, LENT_REACH_STOP, LeafElement, MODIFIER_KEYS, OUTPUT, PAGE_PAINT_ATTRIBUTE, PENDING_TASK, PRESS, PRESSES, PendingTaskEvent, ROLE_BUTTON_OFFER, RUNTIME_PAINT_ATTRIBUTE, SAID, SourcePairs, TAB_STOP, TEXT_BOX, TEXT_FIELD, UI_MARKS, W, WALK, WORKS, Z, actionClass, actionElement, actionIcon, actionName, actionTemplate, afterScript, afterSettling, agentArrivalDuration, aimedTop, alreadyShown, announce, assignRows, atLayoutPrecision, atScrollEnd, attachDeferredLoader, axisTicks, backgroundFlash, beginWalk, bindQueuedWork, blurFocused, bodyText, byRenderedOrder, canPlaceFocus, cancelAnimation, cancelRender, canvas2D, caretAtKey, chosenSince, claimReleaseClick, clamp, clippedContents, clippedPlace, clippedRect, clippingAxes, clipsPastSurfaces, closeLayer, closeNativeLayer, closestAcross, coarsePointer, commandsChanged, commandsChangedOn, composedParentNode, contentRides, controlNavigationKeys, coveredShare, currentLocationIn, currentLocationNodes, currentLocationTouches, d, dataBody, declareOccluder, declareReading, declareRelease, declareWindowChrome, deepFocus, describeFailure, disclosureAt, dismissPopoversOutside, drawn$1 as drawn, elementDirective, elementFrame, ensureSyntaxLanguage, eventSource, exceptionRecord, exceptionText, excludedByInert, failSoft, failSoftUnreported, failureContext, failureOf, fitsWhole, flashDuration, focusDestination, focusRevision, focused, foldBlock, foldDuration, frameFor, frameView, frameVisibility, generated, generatedElement, glideTo, growthAfterIsSeen, growthIsSeen, handBack, hasArea, headerCuts, headerInset, holdCurrentLocation, holdFocus, holdRendering, holdToRead, hoveringPointer, iconElement, iconTemplate, inBaseLayer, inChrome, inUi, inWindowChrome, inlineStyle, inputCount, inputInFrame, installElementIntegration, installLanguagePaths, installLayerStyleIntegration, installMoveFocus, installMoveSelection, installScrollerLookup, installStageIntegration, intersect, isElement, isHTML, isNativeLayer, isNode, isStage, isText, keepFieldKeys, keepFoot, keeps, keepsHidden, keepsText, landedBox, landingBand, landingInsets, landingRoom, langForPath, layerLanding, layoutChanged, layoutPx, layoutWindow, letGo, listWalkPosition, liveStages, loadDeferred, locationStandsDown, measure, motion, motionEasing, motionPlays, motionTime, move, moveScrollerBy, nameAction, nativeFocusTarget, nativeLayerHolding, nativeLayers, nativeModalAdmits, nearObserver, nearWindow, nextAnimation, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offerContentElement, offerElement, offered, offeredAction, offeredActionElement, onCurrentLocation, onFocusVisibility, onFrameVisibility, onLetGo, onMotionPreferenceChange, onPress, onPressAway, onUserInput, once, openLayer, openerOf, orderChildren, outputProducer, overIn, overlaps, overlapsAcross, pagePresented, pageScroller, pageUpgraded, paintClips, passOn, patchRetains, patchTree, placeBox, placeHolder, placeKept, placesFailure, plainPress, playMotion, pointerAt, presented, pressHolds, pressIsKeyboardActivation, pressLed, pressRecords, pressing, publishOutput, q, readCaret, readLeavingKeys, readSampleVisibility, recentPlaceInput, recoveredLabelFocus, reducedMotion, refuseCommands, refuseOutput, registerVisualParts, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, registrations, relabel, release, releaseFocus, releaseOutlets, renderedOrder, renderedParent, renderedUnder, renderingState, reportFailure, restorePointer, restrictUserIntent, retainUserIntent, returnDuration, revealRegisteredVisualPart, revealsVisualParts, rightCover, ringBox, roomPx, rove, rowArrows, scrollAxes, scrollBehavior, scrollChoices, scrollContainer, scrollGlides, scrollGoal, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollToEnd, scrollersOf, scrolling, scrollsBy, scrollsContent, searchField, seenRect, selectableOffer, selectableOffered, selectsAll, setChildLists, setChildren, setRegistration, setRenderedChildren, setScroll, shadowHost, shadowStage, shellRight, showNativeLayer, shownBand, shownBox, shownExtent, shownParts, shownRect, shownWindow, showsContents, sizeObserver, skipped, skipper, slotTop, stackLevel, startsAt, stopGlide, stopScroll, stuckBox, synNodes, syntax, syntaxLanguageNames, tabStops, tabStore, takesLetters, textWidth, threadSurface, tick, toggleNativeLayer, tokenLines, typesText, uiInside, under, underOccluder, union, upFrom, updateSurface, userScrollport, visibleBand, visibleFocus, visualPartAdmission, visualPartProblems, visualViewport, walkPosition, walkPositionLabel, watchArrivals, watchCurrentLocationIn, watchFrame, watchLayerChanges, watchOwner, watchRoom, watchScrollEnds, watchScrolls, wearsLentStop, whenLeft, whenNone, whileConnected, windowChromeBoxes, x$1 as x };
+export { ANNOUNCE, CARET_KEYS, COMMANDS, DISCLOSE, DISCLOSURE_SELECTOR, HOLDS_WORD, J, LAYOUT, LENT_REACH_STOP, LeafElement, MODIFIER_KEYS, OUTPUT, PAGE_PAINT_ATTRIBUTE, PENDING_TASK, PRESS, PRESSES, PendingTaskEvent, ROLE_BUTTON_OFFER, RUNTIME_PAINT_ATTRIBUTE, SAID, SourcePairs, TAB_STOP, TEXT_BOX, TEXT_FIELD, UI_MARKS, W, WALK, WORKS, Z, actionClass, actionElement, actionIcon, actionName, actionTemplate, afterScript, afterSettling, agentArrivalDuration, aimedTop, alreadyShown, announce, assignRows, atLayoutPrecision, atScrollEnd, attachDeferredLoader, axisTicks, backgroundFlash, beginWalk, bindQueuedWork, blurFocused, bodyText, byRenderedOrder, canPlaceFocus, cancelAnimation, cancelRender, canvas2D, caretAtKey, chosenSince, claimReleaseClick, clamp, clippedContents, clippedPlace, clippedRect, clippingAxes, clipsPastSurfaces, closeLayer, closeNativeLayer, closestAcross, coarsePointer, commandsChanged, commandsChangedOn, composedParentNode, contentRides, controlNavigationKeys, coveredShare, currentLocationIn, currentLocationNodes, currentLocationTouches, d, dataBody, declareOccluder, declareReading, declareRelease, declareWindowChrome, deepFocus, describeFailure, disclosureAt, dismissPopoversOutside, drawn$1 as drawn, elementDirective, elementFrame, ensureSyntaxLanguage, eventSource, exceptionRecord, exceptionText, excludedByInert, failSoft, failSoftUnreported, failureContext, failureOf, fitsWhole, flashDuration, focusDestination, focusRevision, focused, foldBlock, foldDuration, frameFor, frameView, frameVisibility, generated, generatedElement, glideTo, growthAfterIsSeen, growthIsSeen, handBack, hasArea, headerCuts, headerInset, holdCurrentLocation, holdFocus, holdRendering, holdToRead, hoveringPointer, iconElement, iconTemplate, inBaseLayer, inChrome, inUi, inWindowChrome, inlineStyle, inputCount, inputInFrame, installElementIntegration, installLanguagePaths, installLayerStyleIntegration, installMoveFocus, installMoveSelection, installScrollerLookup, installStageIntegration, intersect, isElement, isHTML, isNativeLayer, isNode, isStage, isText, keepFieldKeys, keepFoot, keeps, keepsHidden, keepsText, landedBox, landingBand, landingInsets, landingRoom, langForPath, layerLanding, layoutChanged, layoutPx, layoutWindow, letGo, listWalkPosition, liveStages, loadDeferred, locationStandsDown, measure, motion, motionEasing, motionPlays, motionTime, move, moveScrollerBy, nameAction, nativeFocusTarget, nativeLayerHolding, nativeLayers, nativeModalAdmits, nearObserver, nearWindow, nextAnimation, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offerContentElement, offerElement, offered, offeredAction, offeredActionElement, onCurrentLocation, onFocusVisibility, onFrameVisibility, onLetGo, onMotionPreferenceChange, onPress, onPressAway, onUserInput, once, openLayer, openerOf, orderChildren, outputProducer, overIn, overlaps, overlapsAcross, pagePresented, pageScroller, pageUpgraded, paintClips, passOn, patchRetains, patchTree, placeBox, placeHolder, placeKept, placesFailure, plainPress, playMotion, pointerAt, presented, pressHolds, pressIsKeyboardActivation, pressLed, pressRecords, pressing, publishOutput, q, readCaret, readLeavingKeys, readSampleVisibility, recentPlaceInput, recoveredLabelFocus, reducedMotion, refuseCommands, refuseOutput, registerVisualParts, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, registrations, relabel, release, releaseFocus, releaseOutlets, renderedOrder, renderedParent, renderedUnder, renderingState, reportFailure, restorePointer, restrictUserIntent, retainUserIntent, returnDuration, revealRegisteredVisualPart, revealsVisualParts, rightCover, ringBox, roomPx, rove, rowArrows, scrollAxes, scrollBehavior, scrollChoices, scrollContainer, scrollGlides, scrollGoal, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollToEnd, scrollersOf, scrolling, scrollsBy, scrollsContent, searchField, seenRect, selectableOffer, selectableOffered, selectsAll, setChildLists, setChildren, setRegistration, setRenderedChildren, setScroll, shadowHost, shadowStage, shellRight, showNativeLayer, shownBand, shownBox, shownExtent, shownParts, shownRect, shownWindow, showsContents, sizeObserver, skipped, skipper, slotTop, stackLevel, startsAt, stopGlide, stopScroll, stuckBox, synNodes, syntax, syntaxLanguageNames, tabStops, tabStore, takesLetters, textWidth, threadSurface, tick, tokenLines, typesText, uiInside, under, underOccluder, union, upFrom, updateSurface, userScrollport, visibleBand, visibleFocus, visualPartAdmission, visualPartProblems, visualViewport, walkPosition, walkPositionLabel, watchArrivals, watchCurrentLocationIn, watchFrame, watchLayerChanges, watchOwner, watchRoom, watchScrollEnds, watchScrolls, wearsLentStop, whenLeft, whenNone, whileConnected, windowChromeBoxes, x$1 as x };

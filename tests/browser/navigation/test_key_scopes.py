@@ -602,6 +602,36 @@ def test_a_dialog_shown_as_a_popover_stands_as_a_popover(browser, serve):
     assert kinds == {"popover": ["popover"], "modal": ["modal"]}
 
 
+def test_a_popover_its_control_opens_hands_the_user_back_to_the_control(browser, serve):
+    """A control that opens a popover with `popovertarget` holds the user as it opens, so
+    Escape hands them back to it, and its `aria-expanded` follows the popover.
+
+    Safari and Firefox on macOS leave a pressed button unfocused, so the platform's
+    return went wherever focus stood before the press. `click()` presses the control
+    without focusing it, as those browsers do."""
+    page = open_page(browser, serve(LONG_PAGE))
+    page.evaluate("""() => {
+      const control = document.createElement('button');
+      control.id = 'menu-control';
+      control.textContent = 'Options';
+      control.setAttribute('popovertarget', 'menu');
+      control.setAttribute('aria-expanded', 'false');
+      const menu = document.createElement('div');
+      menu.id = 'menu';
+      menu.popover = 'auto';
+      menu.innerHTML = '<button>Choice</button>';
+      document.querySelector('main').append(control, menu);
+      control.click();
+    }""")
+    control = page.locator("#menu-control")
+    expect(control).to_be_focused()
+    expect(control).to_have_attribute("aria-expanded", "true")
+    page.keyboard.press("Escape")
+    expect(page.locator("#menu")).to_be_hidden()
+    expect(control).to_be_focused()
+    expect(control).to_have_attribute("aria-expanded", "false")
+
+
 def test_a_text_box_keeps_its_keys_from_the_widget_around_it(browser, serve):
     """A widget scope may contain a text box, but its bare keys still type there.
 

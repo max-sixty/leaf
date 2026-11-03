@@ -332,16 +332,17 @@ svg[data-lf-icon] {
   anchor-name: --lf-react-trigger;
 }
 /* A popover a control opens over the page, such as a menu of choices or a card of
-   details, wears one face: the raised surfaces' ground (`--card`), a border that sets
-   it apart from the page in either scheme, and the shadow of what opens over the page
-   (`--raise-2`, tokens.css). A popover takes the face with the `lf-popover` class, and
-   its own rule sets only its place, size and padding. The rule has no specificity, so
-   the popover's own rules win, as the reaction strip's list's do where it stands in
-   flow while closed. */
-:where(.lf-popover) {
+   details, wears one face while it is open: the raised surfaces' ground (`--card`),
+   which it names as its ground for its opaque controls (package-themes.md), a border
+   that sets it apart from the page in either scheme, and the shadow of what opens over
+   the page (`--raise-2`, tokens.css). A popover takes the face with the `lf-popover`
+   class, and its own rule sets only its place, size and padding. The rule has no
+   specificity, so the popover's own rules win. */
+:where(.lf-popover:popover-open) {
+  --lf-ground: var(--card);
   border: 1px solid var(--border-2);
   border-radius: var(--r);
-  background: var(--card);
+  background: var(--lf-ground);
   color: var(--ink);
   box-shadow: var(--raise-2);
 }
@@ -368,7 +369,6 @@ svg[data-lf-icon] {
   border: 0;
   color: inherit;
   background: none;
-  box-shadow: none;
 }
 .lf-react-strip > .lf-react-palette:popover-open {
   position: fixed;

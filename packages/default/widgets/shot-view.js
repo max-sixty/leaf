@@ -214,8 +214,8 @@ export class ShotView {
   chooseView;
   /** @type {((scale: string) => void) | undefined} */
   chooseScale;
-  /** @type {((event: MouseEvent) => void) | undefined} */
-  toggleOptions;
+  /** @type {((event: ToggleEvent) => void) | undefined} */
+  optionsToggled;
   /** @type {(() => void) | undefined} */
   toggleOutlines;
   /** @type {((event: Event) => void) | undefined} */
@@ -405,7 +405,7 @@ export class ShotView {
               })}
               type="button"
               popovertarget=${optionsId}
-              @click=${this.toggleOptions ?? null}
+              aria-expanded="false"
             ></button>
             <button
               ${ref(this.outlineRef)}
@@ -423,6 +423,7 @@ export class ShotView {
               ${offered("lf-shotoptions lf-popover")}
               id=${optionsId}
               popover="auto"
+              @toggle=${this.optionsToggled ?? null}
               role="group"
               aria-label="Image options"
             >

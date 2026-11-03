@@ -93,11 +93,7 @@ export { threadSummary } from "./thread/messages.js";
 // (browser/AGENTS.md, "The page holds still under the user's aim").
 export { HeldReading, heldGrowth } from "./thread/held-news.js";
 export { wireInput } from "./application.js";
-export {
-  showNativeLayer,
-  closeNativeLayer,
-  toggleNativeLayer,
-} from "./keyboard/layer-stack.js";
+export { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
 export { isNativeLayer } from "./shadow-tree.js";
 // `rowArrows(node)` is the `[back, ahead]` arrow pair along a row, in its text direction.
 export { PRESS, cycledRow, labelOf, rowArrows } from "./keyboard/bindings.js";

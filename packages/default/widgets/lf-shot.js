@@ -50,7 +50,6 @@ import {
   frameFor,
   placesFailure,
   focusDestination,
-  toggleNativeLayer,
   closeNativeLayer,
   render,
   nextFrame,
@@ -147,13 +146,10 @@ export class Shot extends HTMLElement {
       closeNativeLayer(drawing.options);
       focusDestination(drawing.scaleTrigger, "move");
     };
-    drawing.toggleOptions = (event) => {
-      event.preventDefault();
-      toggleNativeLayer(
-        drawing.options,
-        drawing.scaleTrigger,
-        drawing.options.querySelector('button[aria-pressed="true"]'),
-      );
+    drawing.optionsToggled = (event) => {
+      if (event.newState !== "open") return;
+      const selected = drawing.options.querySelector('button[aria-pressed="true"]');
+      if (selected) focusDestination(selected, "move");
     };
     drawing.toggleOutlines = () => {
       this.#drawing.outlines = !this.#drawing.outlines;

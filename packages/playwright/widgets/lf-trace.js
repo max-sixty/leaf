@@ -83,9 +83,7 @@ import {
   keepsHidden,
   el,
   focusDestination,
-  toggleNativeLayer,
   closeNativeLayer,
-  isNativeLayer,
   holdFocus,
   html,
   actionTemplate,
@@ -2448,16 +2446,6 @@ export class Trace extends LeafElement {
               popovertarget=${`${this.id}-image-scale-options`}
               aria-expanded="false"
               ?disabled=${!this.#picture?.viewed || q}
-              @click=${(/** @type {Event} */ event) => {
-                event.preventDefault();
-                const options = this.#nodes.imageScaleOptions;
-                toggleNativeLayer(
-                  options,
-                  this.#nodes.imageScale,
-                  options.querySelector('[aria-pressed="true"]') ??
-                    options.querySelector("button"),
-                );
-              }}
             >
               <span ${ref(this.#zoomLabel)}></span>${iconTemplate(
                 "down",
@@ -2471,12 +2459,14 @@ export class Trace extends LeafElement {
               role="group"
               aria-label="Image scale"
               ${ref(this.#imageScaleOptions)}
-              @toggle=${() => {
-                keeps(
-                  this.#nodes.imageScale,
-                  "aria-expanded",
-                  isNativeLayer(this.#nodes.imageScaleOptions),
-                );
+              @toggle=${(/** @type {ToggleEvent} */ event) => {
+                if (event.newState === "open") {
+                  const options = this.#nodes.imageScaleOptions;
+                  const selected =
+                    options.querySelector('[aria-pressed="true"]') ??
+                    options.querySelector("button");
+                  if (selected) focusDestination(selected, "move");
+                }
                 commandsChanged(this);
               }}
             >

@@ -23,6 +23,16 @@
    module cannot hear, so it never reaches the stack; `shadowStage` is the declared route
    for a widget's shadow tree.
 
+   Where a control opens its layer declaratively, this module also does what that
+   opening owes the control. The platform's return on closing, like `closeNativeLayer`'s,
+   hands the user back to wherever focus stood as the layer opened, and Safari and
+   Firefox on macOS leave a pressed button unfocused, so a press puts the user on the
+   control before its layer opens. A scripted opening names its source only for the
+   platform's nesting and leaves focus where its caller put it. A control that declares
+   `aria-expanded` has it kept here through every opening and closing, light dismissal
+   included, so its face can follow it. The widget moves the user into the layer, where
+   it has a control to land on, from its `toggle` event.
+
    Every read prunes first, and an entry whose surface no longer stands is removed
    wherever it sits, so a dialog closed by script beneath another layer cannot linger as
    a false floor. Modal entry dismisses auto and hint popovers through the platform
@@ -78,6 +88,7 @@ import {
   nativeLayerKind,
 } from "../shadow-tree.js";
 import { watchOwner } from "../arrivals.js";
+import { keeps } from "../keeps.js";
 
 // A host styles its own chrome when a modal carries it into another shadow tree.
 // Layer ordering and native opening need no stylesheet from the page.
@@ -96,6 +107,16 @@ let entries = [];
 const watchedRoots = new WeakSet();
 const nativeDialogShowModal = HTMLDialogElement.prototype.showModal;
 const nativePopoverShow = HTMLElement.prototype.showPopover;
+// The popover a `showPopover` call is opening, while it opens: its `beforetoggle` is a
+// scripted opening rather than a press on its control.
+/** @type {HTMLElement | null} */
+let scripted = null;
+
+/** @param {Element | null | undefined} control @param {boolean} open */
+function keepExpanded(control, open) {
+  if (control?.hasAttribute("aria-expanded"))
+    keeps(control, "aria-expanded", String(open));
+}
 
 function prune() {
   entries = entries.filter((entry) => entry.active());
@@ -151,6 +172,7 @@ function closing(event) {
   if (event.newState !== "closed") return;
   const entry = entries.find((candidate) => candidate.root === event.target);
   if (entry) entry.opening = false;
+  keepExpanded(entry?.source, false);
   if (entry?.kind === "popover")
     for (const layer of nativeLayers().toReversed())
       if (layer.kind === "modal" && renderedUnder(layer.root, entry.root))
@@ -177,9 +199,12 @@ HTMLDialogElement.prototype.showModal = function () {
 HTMLElement.prototype.showPopover = function (options) {
   const opening = nativeLayerKind(this) !== "popover";
   const entry = opening ? pushNativeLayer(this) : null;
+  const was = scripted;
+  scripted = this;
   try {
     nativePopoverShow.call(this, options);
   } finally {
+    scripted = was;
     if (entry) entry.opening = false;
   }
   if (entry && options?.source) entry.source = options.source;
@@ -211,20 +236,6 @@ export function showNativeLayer(layer, { source, modal = true } = {}) {
   } finally {
     if (withholdFocus) layer.inert = false;
   }
-}
-
-// A press on the control that opens a popover, such as a menu of choices hung from a
-// trigger. While the popover is open, the press closes it. Otherwise it opens the
-// popover from the control and moves the user to `arrival`, the control inside it that
-// the user acts on next. Focus moves to the control first, since Safari and Firefox on
-// macOS leave a pressed button unfocused, so closing the popover returns the user to
-// the control.
-/** @param {HTMLElement} layer @param {HTMLElement} source @param {Element | null} [arrival] */
-export function toggleNativeLayer(layer, source, arrival = null) {
-  if (isNativeLayer(layer)) return closeNativeLayer(layer);
-  focusDestination(source, "press");
-  showNativeLayer(layer, { source });
-  if (arrival) focusDestination(arrival, "move");
 }
 
 // Native modal entry preserves its source popover only when the modal stands inside
@@ -352,11 +363,23 @@ export function watchLayers(root) {
   /** @param {ToggleEvent} event */
   const opened = (event) => {
     if (
-      event.newState === "open" &&
-      event.target instanceof HTMLElement &&
-      event.target.matches("[popover], dialog")
+      event.newState !== "open" ||
+      !(event.target instanceof HTMLElement) ||
+      !event.target.matches("[popover], dialog")
     )
-      pushNativeLayer(event.target, event.source);
+      return;
+    const { source } = event;
+    if (event.type === "beforetoggle") {
+      if (
+        event.target !== scripted &&
+        source instanceof HTMLElement &&
+        canPlaceFocus() &&
+        focused() !== source
+      )
+        focusDestination(source, "press");
+      keepExpanded(source, true);
+    }
+    pushNativeLayer(event.target, source);
   };
   root.addEventListener("beforetoggle", opened, true);
   root.addEventListener("beforetoggle", closing, true);

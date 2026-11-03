@@ -4256,6 +4256,7 @@ const reactionAvailable = () => readThreads().phase === "ready";
 const anchorChoices = (anchor) => reactionAvailable() ? tokenChoices(reactionVocabulary(), anchor ? reactionsAt(allThreads(), anchor) : []) : [];
 function reactionChip({ name, glyph, label }, pressed) {
 	const chip = offerAction("response", `lf-react ${HOLDS_WORD}`);
+	chip.setAttribute("aria-pressed", "false");
 	chip.dataset.token = name;
 	chip.title = label;
 	chip.setAttribute("aria-label", label);

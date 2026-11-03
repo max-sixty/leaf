@@ -3621,7 +3621,6 @@ const closeControl = ({ name, title = name, className = "" }) => offerAction("sy
 });
 function responseAction(control, { glyph = null, action = null, label, behavior = "action", collapse = false }) {
 	if (Boolean(String(glyph ?? "").trim()) === Boolean(action)) throw new TypeError("A response action needs exactly one glyph or action");
-	control.classList.toggle("lf-response-control", true);
 	control.classList.toggle("lf-response-action", true);
 	keeps(control, "data-lf-behavior", behavior);
 	control.toggleAttribute("data-lf-collapse", collapse);

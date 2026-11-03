@@ -312,6 +312,13 @@ a[data-lf-external]::after,
   --lf-band-ink: var(--mark-contour-ink);
   --lf-band-w: 1px;
 }
+/* A forced palette draws marks in its highlight, as it does the focus ring
+   (tokens.css). */
+@media (forced-colors: active) {
+  :where(.lf-aimed, .lf-traced, .lf-proxied, [data-lf-mark], .lf-projected-location) {
+    --lf-band-ink: Highlight;
+  }
+}
 /* The aim's veil fills the box and the gap round it, so it and its brackets read as
    one box. */
 :where(.lf-aimed) {
@@ -324,7 +331,9 @@ a[data-lf-external]::after,
    bottom runs, leaving 8px at each end. The clip cuts only the band the mark takes, so
    outside the box it cuts nothing but what overflows into the band, and inside it, as
    round a row, it shows what stands behind the box's own edge there. A focused or
-   arrived-at box draws its ring whole. While the brackets show, the box is a stacking
+   arrived-at box draws its ring whole, as does a box wearing the ring for a control in
+   it (`--lf-wears-ring`, base.css), such as a choice whose radio holds focus. While
+   the brackets show, the box is a stacking
    context, so a descendant it lifts stacks inside it, and what overflows into the
    band's cut neither paints nor takes a press. A box that clips itself keeps its own
    clip, which cuts the mark as it cuts the box. */
@@ -333,7 +342,8 @@ a[data-lf-external]::after,
     .lf-projected-location,
     .lf-proxied,
     [data-lf-mark~="focus"],
-    [data-lf-focus-visible]
+    [data-lf-focus-visible],
+    :has(> [data-lf-focus-visible])
   )
 ) {
   --lf-band-room: calc(var(--lf-band-gap) + var(--lf-band-w, var(--focus-ring-w)));

@@ -4,23 +4,31 @@ import { paintStand, placement, standAt, standBox } from "./bundle-page-layout.j
 
 //#region runtime/target-paint.js
 function markOne(className) {
+	let target = null;
 	let marked = [];
-	return (element) => {
-		const boxes = element ? shownParts(element) : [];
+	function draw() {
+		const boxes = target?.isConnected ? shownParts(target) : [];
 		for (const box of marked) if (!boxes.includes(box)) box.classList.toggle(className, false);
 		for (const box of boxes) box.classList.toggle(className, true);
 		marked = boxes;
+	}
+	return {
+		mark(element) {
+			target = element;
+			draw();
+		},
+		refresh: () => target && draw()
 	};
 }
-const markAimed = markOne("lf-aimed");
-const markTraced = markOne("lf-traced");
-const markProxied = markOne("lf-proxied");
+const aimMark = markOne("lf-aimed");
+const traceMark = markOne("lf-traced");
+const proxyMark = markOne("lf-proxied");
 const labelStand = paintStand();
 const aimLayer = labelStand.root;
 let aimed = null;
 function clearAim() {
 	aimed = null;
-	markAimed(null);
+	aimMark.mark(null);
 }
 function paintAim(element, surface) {
 	surface ??= element;
@@ -29,7 +37,7 @@ function paintAim(element, surface) {
 		clearAim();
 		return null;
 	}
-	markAimed(surface);
+	aimMark.mark(surface);
 	aimed = {
 		placed: {
 			...placed,
@@ -70,10 +78,10 @@ function labelAim(node) {
 	standBox(node, at, stood, stood.anchor, stood.at);
 }
 function paintTrace(element, surface = element) {
-	markTraced(element && surface?.isConnected ? surface : null);
+	traceMark.mark(element && surface?.isConnected ? surface : null);
 }
 function paintProxyRing(element, surface = element) {
-	markProxied(element && surface?.isConnected ? surface : null);
+	proxyMark.mark(element && surface?.isConnected ? surface : null);
 }
 let locationElement = null;
 let locationFrame = 0;
@@ -91,10 +99,13 @@ function drawLocation() {
 	locationProjected = boxes;
 }
 function geometryChanged() {
-	if (locationFrame || !locationElement) return;
+	if (locationFrame) return;
 	locationFrame = nextRender(() => {
 		locationFrame = 0;
 		drawLocation();
+		aimMark.refresh();
+		traceMark.refresh();
+		proxyMark.refresh();
 	});
 }
 

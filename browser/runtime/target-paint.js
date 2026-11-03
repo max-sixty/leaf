@@ -18,24 +18,34 @@ import { paintStand, placement, standAt, standBox } from "./target-paint-geometr
 
 // One mark: a class on what it marks at a time, which is each box the element shows
 // through (`shownParts`), so an element with no box of its own, such as a section
-// styled `display: contents`, is marked on the boxes it shows.
+// styled `display: contents`, is marked on the boxes it shows. A layout change can
+// replace those boxes, so `refresh` reads them again.
 /** @param {string} className */
 function markOne(className) {
+  /** @type {Element | null} */
+  let target = null;
   /** @type {Element[]} */
   let marked = [];
-  /** @param {Element | null} element */
-  return (element) => {
-    const boxes = element ? shownParts(element) : [];
+  function draw() {
+    const boxes = target?.isConnected ? shownParts(target) : [];
     for (const box of marked)
       if (!boxes.includes(box)) box.classList.toggle(className, false);
     for (const box of boxes) box.classList.toggle(className, true);
     marked = boxes;
+  }
+  return {
+    /** @param {Element | null} element */
+    mark(element) {
+      target = element;
+      draw();
+    },
+    refresh: () => target && draw(),
   };
 }
 
-const markAimed = markOne("lf-aimed");
-const markTraced = markOne("lf-traced");
-const markProxied = markOne("lf-proxied");
+const aimMark = markOne("lf-aimed");
+const traceMark = markOne("lf-traced");
+const proxyMark = markOne("lf-proxied");
 
 const labelStand = paintStand();
 // What leaf.js mounts in the chrome: the stand the design label stands in.
@@ -46,7 +56,7 @@ let aimed = null;
 
 export function clearAim() {
   aimed = null;
-  markAimed(null);
+  aimMark.mark(null);
 }
 
 // The aim marks `surface`, the element itself where nothing draws it for it, as a
@@ -60,7 +70,7 @@ export function paintAim(element, surface) {
     clearAim();
     return null;
   }
-  markAimed(surface);
+  aimMark.mark(surface);
   aimed = { placed: { ...placed, shown: placed.shown }, surface };
   return placed.shown;
 }
@@ -123,12 +133,12 @@ export function labelAim(node) {
 
 /** @param {Element | null} element @param {Element | null} [surface] */
 export function paintTrace(element, surface = element) {
-  markTraced(element && surface?.isConnected ? surface : null);
+  traceMark.mark(element && surface?.isConnected ? surface : null);
 }
 
 /** @param {Element | null} element @param {Element | null} [surface] */
 export function paintProxyRing(element, surface = element) {
-  markProxied(element && surface?.isConnected ? surface : null);
+  proxyMark.mark(element && surface?.isConnected ? surface : null);
 }
 
 /** @type {Element | null} */
@@ -162,13 +172,16 @@ function drawLocation() {
   locationProjected = boxes;
 }
 
-// Layout can change which boxes the decision shows through, and a control inside it
-// can take the location over.
+// Layout can change which boxes a marked element shows through, and a control inside
+// the decision can take the location over.
 export function geometryChanged() {
-  if (locationFrame || !locationElement) return;
+  if (locationFrame) return;
   locationFrame = nextRender(() => {
     locationFrame = 0;
     drawLocation();
+    aimMark.refresh();
+    traceMark.refresh();
+    proxyMark.refresh();
   });
 }
 export { geometryChanged as shifted };

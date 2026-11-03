@@ -116,32 +116,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     margin-right: 0;
   }
 }
-/* Where a widget upgrade fails, it fails soft into this box, in the document or in an
- * x-shadow widget's stage (runtime/widget-upgrade.js). Its face is the sans the theme
- * gives other labels (.tag, figcaption), with figures of one width. */
-.lf-error {
-  border: 1px solid var(--danger);
-  background: var(--danger-tint);
-  color: var(--danger-ink);
-  border-radius: var(--r);
-  padding: 8px 12px;
-  font: var(--font-ui);
-  font-variant-numeric: tabular-nums;
-  white-space: normal;
-  --lf-block-frame: 1;
-}
-/* The box sets `white-space: normal`, so the source inside it restores preformatting,
-   and outranks the reading sheet's print wrap by specificity until it answers paper
-   itself. */
-.lf-error pre {
-  margin: 8px 0 0;
-  white-space: pre;
-}
-@media print {
-  .lf-error pre {
-    white-space: pre-wrap;
-  }
-}
 /* A key badge has one face in the document, in the chrome, and in declared shadow
    trees: a binding's steps, a transient hint code, and a control's binding seat all
    wear it. Where it stands is each surface's. A seat a widget builds empty draws
@@ -808,7 +782,7 @@ summary {
 .lf-summary-text > :last-child {
   margin-bottom: 0;
 }
-/* A thread's disclosure, an inline press (controls.css): a progress run's "N steps" in
+/* A thread's disclosure, an inline press (faces.css): a progress run's "N steps" in
    its message's head, and a retained quote's Full quote (floating-panel.js). */
 .lf-thread-disclosure {
   display: inline-flex;
@@ -1026,7 +1000,7 @@ summary {
    head controls row's Resolve or Reopen. Centred rather than on the row's baseline,
    it asks for none of the depth below the words. A seat that draws no thread shows it
    in its controls row's place, at the height the runtime measured that row at. It
-   wears the inline face (controls.css) on the line of a message's head, and states
+   wears the inline face (faces.css) on the line of a message's head, and states
    that line's size because its box stands beside the head rather than in it. Its
    words are Leaf's, in Leaf's regular italic. */
 .lf-thread-news {
@@ -1036,7 +1010,7 @@ summary {
 }
 /* The notice says one count, "2 new" (held-news.js, `newsNotice`), in figures of one
    width, both in its words and in the room a card holds for the count it first said
-   (`data-room`, controls.css), so a count that grows keeps to that room; a room too
+   (`data-room`, faces.css), so a count that grows keeps to that room; a room too
    narrow for it cuts it. */
 button.lf-thread-news {
   font: var(--font-heading);

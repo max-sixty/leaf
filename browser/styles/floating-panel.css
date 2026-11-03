@@ -30,7 +30,7 @@
     --lf-fp-faint: color-mix(in srgb, var(--ink) 8%, transparent);
     --lf-fp-hover: color-mix(in srgb, var(--ink) 5%, transparent);
     /* What the panel raises, its corner marks and attached pictures, meets its ground
-       (controls.css, `.lf-corner-mark`; response.css, `.lf-composer-media`). */
+       (faces.css, `.lf-corner-mark`; response.css, `.lf-composer-media`). */
     --lf-ground: var(--lf-fp-surface);
     --lf-ring: var(--lf-fp-ring);
     --lf-fp-folded: 42px;
@@ -139,7 +139,7 @@
      `lf-fp-face` (floating-panel.js), so a component the panel holds brings its own
      face: what Leaf's reader draws in a view's outlet (controls.css) and a thread's
      notice (surfaces.css), the comment box seated in the row and the attachment shelf
-     (response.css), page search's steps and the panel's corner mark (controls.css).
+     (response.css), page search's steps and the panel's corner mark (faces.css).
      Rejected: the face reaching every control under the panel but a list of the
      components it stopped at, which each component the panel newly seated had to join,
      or wear the face, as it took the fill off a chosen reaction in a thread, drew the
@@ -879,7 +879,7 @@
         calc(-1 * var(--lf-fp-fold-pad-inline));
     }
   }
-  /* The pointer's fold: a corner mark (controls.css) riding the box's top-right corner,
+  /* The pointer's fold: a corner mark (faces.css) riding the box's top-right corner,
      shown while the pointer is near that corner (floating-panel.js, `data-corner`). It
      fades rather than moves, so nothing shifts under the pointer. An open view's Close
      holds that corner, so the mark waits for the view to go rather than stand beside
@@ -1045,7 +1045,7 @@
     margin-inline-end: 12px;
   }
   /* What Threads holds while the user reads it stands on a line over its rows,
-     starting where their marks do, as a list's heading does (controls.css,
+     starting where their marks do, as a list's heading does (faces.css,
      `.lf-rows-head`) and a view's title does. The line grows the box upward from the
      row it stands on, so no row moves (floating-panel.js, `threadsListing`). */
   .lf-fp-head:has(> .lf-fp-joined) {
@@ -1174,7 +1174,7 @@
   :is(.lf-fp-on-page, .lf-fp-next-unread, .lf-fp-close)[data-unoffered] {
     visibility: hidden;
   }
-  /* Next unread is an inline press (controls.css) after its symbol, standing in the
+  /* Next unread is an inline press (faces.css) after its symbol, standing in the
      row at a panel press's height and padding. */
   .lf-fp-next-unread {
     display: inline-flex;
@@ -1278,7 +1278,7 @@
     background: color-mix(in srgb, var(--ink) 5%, var(--lf-fp-surface));
   }
 
-  /* A list's rows lay out as every list's do (controls.css, `.lf-rows`). */
+  /* A list's rows lay out as every list's do (faces.css, `.lf-rows`). */
   .lf-fp-label {
     min-width: 0;
     white-space: nowrap;
@@ -1338,7 +1338,7 @@
      takes the control's width as a container's; and the host is only the face's box, so
      its own words would give it an empty line under the face. The control draws the
      shadow tree that shows its face a frame after it joins, so the host keeps a row's
-     height (controls.css, `.lf-row`) meanwhile: the menu takes the room it opens with
+     height (faces.css, `.lf-row`) meanwhile: the menu takes the room it opens with
      at once (floating-panel.js, `holdRoom`), and a row arriving late would stand under
      the tabs. */
   .lf-fp-copy-item {
@@ -1405,7 +1405,7 @@
     display: block;
     overflow: visible;
   }
-  /* Full quote, an inline press (controls.css) at the quote's size. Its reach
+  /* Full quote, an inline press (faces.css) at the quote's size. Its reach
      (surfaces.css) lies inside the thread's view, which clips what passes its 8px top
      padding, so under a finger it stands low enough for the reach above it. */
   .lf-fp-quote-head > .lf-quote-expand {
@@ -1417,7 +1417,7 @@
      doing, which gives way to the title and is cut where the row ends; then the mark
      every link opening a tab of its own wears (declared-words.js), in a column of its
      own at the row's end. The title and what the agent is doing stand on one baseline,
-     as a row's name and end do (controls.css, `.lf-row`); centred each in its own
+     as a row's name and end do (faces.css, `.lf-row`); centred each in its own
      box, the smaller words stood higher. Their line stands centred in the row, and the
      leaf and the mark centred on it. */
   .lf-fp-page {
@@ -1454,7 +1454,7 @@
      A version's press spans the row, so its wash and the shown version's mark run
      across it; Compare stands over the press's end as a press of its own, and Showing
      lets a press on it through to the version's. The version's name, Compare and
-     Showing stand on one baseline, as a row's name and end do (controls.css,
+     Showing stand on one baseline, as a row's name and end do (faces.css,
      `.lf-row`); centred each in its own box, the smaller Showing stood higher. */
   .lf-fp-version {
     align-items: baseline;
@@ -1624,7 +1624,7 @@
     padding-top: 2px;
   }
   /* What left a list, folded under its group heading (floating-panel.js,
-     `settledHeading`): the heading is the press, a row of the list (controls.css,
+     `settledHeading`): the heading is the press, a row of the list (faces.css,
      `.lf-rows`) in the heading's font, so its disclosure arrow (controls.css) stands
      in the column the rows' news mark takes, its name starts where their names do, and
      its count ends where their status does. */
@@ -1647,7 +1647,7 @@
     text-overflow: ellipsis;
   }
   /* A card alone in its group names the group over its question in the group heading's
-     font (controls.css, `.lf-rows-head`), as a heading names the group of two or more,
+     font (faces.css, `.lf-rows-head`), as a heading names the group of two or more,
      standing where the card's words start. */
   .lf-fp-on-place {
     display: block;

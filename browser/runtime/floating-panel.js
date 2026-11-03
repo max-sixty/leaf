@@ -2820,7 +2820,7 @@ export function createFloatingPanel({
   // user unfolds, so a page whose conversations have all settled takes one row rather
   // than a row for each. The heading is a row of the list, which the arrows walk to and
   // Enter opens, and a section stays unfolded while the panel stays open (`unfolded`).
-  // It takes the list's group heading (controls.css, `.lf-rows-head`), and its
+  // It takes the list's group heading (faces.css, `.lf-rows-head`), and its
   // disclosure arrow stands in the rows' first column, so its name starts where theirs
   // do. The user chose the fold on 27 October over the newest three resolved with the
   // rest behind a row, which put a second order in a list read in the page's, and over
@@ -3881,7 +3881,7 @@ export function createFloatingPanel({
   // Groups of items, each under its heading, which counts them (`count`, else all of
   // them), unless the group says `headed: false`: its items then stand on their own,
   // and a run of such groups reads as one. A headed group is parted from what stands
-  // before it by its heading's room (controls.css, `.lf-rows-head`), and a run, which
+  // before it by its heading's room (faces.css, `.lf-rows-head`), and a run, which
   // has no heading, by a rule. One keyed list of rules, headings and items, so an
   // item that moves to another group, as one whose place leaves the page does, keeps
   // its node, and the focus and drawing in it. `line` draws an item, given the group it

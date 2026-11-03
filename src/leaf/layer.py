@@ -420,7 +420,7 @@ def chrome_restyle(sheet: str, source: Path) -> str:
 
 
 def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
-    """The layer's three stylesheets: each contribution in its role's cascade tier,
+    """The layer's four stylesheets: each contribution in its role's cascade tier,
     in input order. Leaf places sheets and rewrites none of their rules but
     chrome.css's, which it nests in the chrome (`chrome_restyle`).
 
@@ -439,6 +439,14 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
 
     The kernel supplies the base and shared shadow defaults. Its Layouts and semantic
     state retain their own tiers. Page CSS remains unlayered.
+
+    portable.css is the look a page without Leaf links for the widgets it runs
+    (module-authoring.md, "A widget that also runs off Leaf"): the kernel's
+    portable.css, then each package's widget-shadow.css and defaults.css, in input
+    order, all in lf-base, the tier a widget module's adopted rules take off Leaf too
+    (runtime/base-layer.js), so the host's own sheet outranks every rule. It takes
+    none of base.css's page shell, the Layouts, semantic state, overrides or chrome,
+    which style a Leaf page around its widgets.
     """
     kernel, *packages = inputs
     if not (kernel / "base.css").is_file():
@@ -447,6 +455,7 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     theme = [order]
     shadow = [order]
     chrome = []
+    portable = []
 
     def place(sheets, tier, root, name):
         source = root / name
@@ -458,10 +467,13 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     place(theme, "lf-base", kernel, "shadow.css")
     place(shadow, "lf-shadow", kernel, "shadow.css")
     place(theme, "lf-base", kernel, "base.css")
+    place(portable, "lf-base", kernel, "portable.css")
     for root in packages:
         place(theme, "lf-base", root, "widget-shadow.css")
         place(shadow, "lf-shadow", root, "widget-shadow.css")
+        place(portable, "lf-base", root, "widget-shadow.css")
         place(theme, "lf-base", root, "defaults.css")
+        place(portable, "lf-base", root, "defaults.css")
         place(theme, "lf-overrides", root, "overrides.css")
         if (source := root / "chrome.css").is_file():
             chrome.append(chrome_restyle(stylesheet(source, root), source))
@@ -475,6 +487,7 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
         "theme.css": "".join(theme).encode(),
         "shadow.css": "".join(shadow).encode(),
         "chrome.css": "".join(chrome).encode(),
+        "portable.css": "".join(portable).encode(),
     }
 
 

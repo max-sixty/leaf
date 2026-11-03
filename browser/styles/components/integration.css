@@ -36,7 +36,7 @@ html[data-lf-draw-mode] main {
 }
 /* A block's marks (Copy, a draft's editing controls) stand on one small toolbar inside
    the block's top-right corner, `--lf-block-control-inset` from both edges, taking no
-   room: a patch of the card ground with a hairline ring, its marks (controls.css,
+   room: a patch of the card ground with a hairline ring, its marks (faces.css,
    `.lf-mark-action`) 1px inside it. It casts no shadow: it lies on one surface, which
    the ring alone sets it apart from. Its marks stand a reach apart, so neighbouring
    reaches meet rather than overlap and the finger's wider reach widens only the
@@ -128,7 +128,7 @@ html[data-lf-draw-mode] main {
 /* A heading's link stands in the gutter before its first line, centered on that line
    (heading-links.js writes where the line stands in the heading's box), and at the
    heading's far end where the gutter has no room for it. It shows as Copy does, and is
-   a symbol (controls.css, `.lf-icon-action`) a line tall. */
+   a symbol (faces.css, `.lf-icon-action`) a line tall. */
 :root {
   --lf-heading-link-size: var(--lf-line);
 }
@@ -219,7 +219,7 @@ html[data-lf-draw-mode] main {
   opacity: 1;
   pointer-events: auto;
 }
-/* Play and Full screen are symbols (controls.css, `.lf-icon-action`) as tall as the
+/* Play and Full screen are symbols (faces.css, `.lf-icon-action`) as tall as the
    bar inside its border, standing flush with its ends. */
 .lf-video-controls {
   --lf-icon-action-face: calc(var(--lf-video-bar-h) - 2px);

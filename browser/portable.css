@@ -1,0 +1,7 @@
+/* The kernel's part of the look a page without Leaf links for its widgets
+ * (portable.css, which `layer.composed_sheets` composes with each package's widget
+ * rules after this): the theme's tokens, and the faces of what a widget builds with
+ * the helper surface. It takes none of base.css's page shell, the Layouts or semantic
+ * state, so the host's own markup keeps its own look. */
+@import "./styles/tokens.css";
+@import "./styles/components/faces.css";

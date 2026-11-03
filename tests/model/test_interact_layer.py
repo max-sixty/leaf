@@ -903,7 +903,7 @@ def test_claude_and_codex_load_the_same_plugin_payload():
 def test_page_authoring_names_the_theme_s_largest_spacing_step():
     """Authors read the spacing scale's ends in page-authoring.md rather than the
     theme, so a step the theme adds is one they can find."""
-    theme = (PLUGIN_ROOT / "browser/base.css").read_text()
+    theme = (PLUGIN_ROOT / "browser/styles/tokens.css").read_text()
     largest = max(int(step) for step in re.findall(r"--sp-(\d+):", theme))
     prose = (PLUGIN_ROOT / "skills/leaf/references/page-authoring.md").read_text()
     assert f"`--sp-1` to `--sp-{largest}`" in " ".join(prose.split())
@@ -1462,6 +1462,11 @@ def test_layout_style_and_widgets_never_read_each_other():
     }
     assert {"layout-column", "layout-workspace"} <= owned[layouts], owned[layouts]
     assert owned[theme] == {"density-working"}, owned[theme]
+    # The theme's tokens restate the type ladder's derived fonts for its density class.
+    homes = {
+        layouts: {layouts},
+        theme: {theme, *layer_model.imported_sheets(theme, schema_model.ASSETS)},
+    }
     roots = (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES)
     readers = []
     for source in sorted(path for root in roots for path in root.rglob("*.[cj]s*")):
@@ -1470,7 +1475,7 @@ def test_layout_style_and_widgets_never_read_each_other():
         foreign = [
             names
             for home, names in owned.items()
-            if home != source
+            if source not in homes[home]
             and not (
                 home == layouts
                 and source
@@ -1599,7 +1604,7 @@ def test_no_rule_rounds_a_box_edged_on_one_side(tmp_path):
     `<style>` and the sheets shipped beside it, the corpus's merged copy aside, and a
     stripe is a side's border of 2px or more or an inset shadow offset
     along one axis only. A transparent side draws no edge: it keeps a stripe's room,
-    as every row does for the current row's stripe (controls.css, `.lf-row`). The
+    as every row does for the current row's stripe (faces.css, `.lf-row`). The
     reading is per rule, so a radius another rule gives the same box passes it."""
     sides = re.compile(
         r"border-(?:left|right|top|bottom|inline-start|inline-end|block-start|"

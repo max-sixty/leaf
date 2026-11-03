@@ -536,7 +536,7 @@ lf-trace[hidden="until-found"] {
 .lf-trace-bookmark-list {
   max-inline-size: 44rem;
 }
-/* A saved moment is a row (controls.css, `.lf-row`), the moment shown its current
+/* A saved moment is a row (faces.css, `.lf-row`), the moment shown its current
  * row, led by its number in the ring its marker wears on the track. The number stands
  * on the baseline the row's name and time share, so the ring, taller than a line,
  * holds the line on its middle. Centring each part on the ring's middle instead stood

@@ -1,15 +1,10 @@
 /* Response composition owns the shared field, actions and attachment shelf.
  * Presentation owners allocate and position this control, in the document or a
  * declared shadow tree; they do not restate its typography, focus or face. */
-/* A symbol's face (controls.css, `.lf-icon-action`), which the composer's own Send
-   and Dictate share; its hit box, the face or the aim floor where that is larger
-   (the box is that wide, and its reach stands out to it above and below, surfaces.css);
-   and the height of an empty composer field, which stands the face inside its action
-   inset on either side. Stated at the root, where a widget holds a composer's room
-   before it is drawn, and again on each field and action, so a context that sizes its
-   action (lf-diff's file presses) resizes its hit box with it. */
+/* The composer's own Send and Dictate wear a symbol's face and hit box (faces.css),
+   and an empty composer field stands the face inside its action inset on either side.
+   Stated at the root, where a widget holds a composer's room before it is drawn. */
 :root {
-  --lf-icon-action-face: 28px;
   --lf-compose-action-inset: 6px;
 }
 /* How far in from a field's frame the words of a field holding Send stop: Send's hit
@@ -23,13 +18,6 @@ leaf-composition-field {
   --lf-compose-send-end: calc(
     var(--lf-icon-action-hit) + 2 * var(--lf-compose-action-inset)
   );
-}
-:root,
-.lf-compose-field,
-.lf-icon-action,
-.lf-compose-submit,
-.lf-compose-dictate {
-  --lf-icon-action-hit: max(var(--lf-icon-action-face), var(--aim-floor));
 }
 :root,
 :is(.lf-fab-bar, .lf-margin-preview),
@@ -299,7 +287,7 @@ leaf-composition-field {
 }
 /* Send and resolve are the two glyph actions: a bare glyph in the action's own ink,
    whose ::before is the action's disc that stays clear at rest and takes its tint
-   on hover. The hit box around the disc is a symbol's (controls.css). Resolve is a
+   on hover. The hit box around the disc is a symbol's (faces.css). Resolve is a
    symbol drawn in its own ink; the composer's Send and Dictate are the composer's own
    controls, which wireInput dresses whatever its caller made them, so they state the
    symbol's box here. The glyph's ink outranks the .lf-ui face by coming later. Reopen
@@ -528,7 +516,7 @@ button.lf-media-open {
   max-height: var(--lf-media-h);
   border-radius: inherit;
 }
-/* Every press in an item besides its picture is a corner mark (controls.css) on a top
+/* Every press in an item besides its picture is a corner mark (faces.css) on a top
    corner: removal on the right, and a drawing's Undo last stroke on the left. A mark
    stands over the box's carry band (`.lf-surface-grip`), which its reach can cross, so
    the press is the mark's. */
@@ -722,7 +710,7 @@ button.lf-media-open {
   min-height: 0;
   border: 1px solid transparent;
 }
-/* Both wear the symbol's chip on a press (controls.css, `.lf-icon-action`), Save's
+/* Both wear the symbol's chip on a press (faces.css, `.lf-icon-action`), Save's
    send glyph included. */
 .lf-msg-edit-actions > .lf-msg-control:is(:hover, [data-lf-focus]) {
   background: var(--chip);

@@ -475,7 +475,7 @@ const said = (news) => {
 /** The control that says what a row holds and shows it. `set(news)` gives it the
  *  reading's `news` ({text, label, reopened, open}); `open` returns the thread to land a
  *  keyboard on, since the notice goes with what it held. It is an inline press that
- *  announces news waiting (`data-lf-news`, controls.css), in the accent the unread dot
+ *  announces news waiting (`data-lf-news`, faces.css), in the accent the unread dot
  *  wears. A held reopening's notice stands where Reopen did, in the same face as other
  *  news, and is the thread's reopen control (`lf-reopen`), so the thread's Enter and
  *  `r` keep their meaning and press it to show the thread reopened. A `header` notice
@@ -488,7 +488,7 @@ const said = (news) => {
  *  of facts that dropped those past its room and counted them at its end ("1 new reply
  *  +1"), and said "2 new" only where even the first fact didn't fit, so one piece of
  *  news read three ways, in the danger ink an error wears. The words have a span of
- *  their own, so a card that holds the notice's room (`data-room`, controls.css) keeps
+ *  their own, so a card that holds the notice's room (`data-room`, faces.css) keeps
  *  it at the width of the count it first said. */
 export function newsNotice(header = false) {
   const node = offerAction(

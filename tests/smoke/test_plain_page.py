@@ -1,21 +1,22 @@
 """Display widgets on a plain HTML page, which runs none of Leaf's runtime (#3833).
 
 The page maps Leaf's rooted module paths to a Leaf install with an import map of its
-own, as a Leaf page does (`layer_import_map`), and gives each widget a block, as any
-page does for an element it lays out. Nothing there draws a widget before the first
-paint, as Leaf's delivery does, so the page hides each widget until its module defines
-it, as a page may any custom element it upgrades, and reserves the room of one that
-draws later than its upgrade. Its widgets stand two to a row, aligned at their tops, so
-one growing as it draws moves no other: those that draw at upgrade, in the last row,
-grow once their modules define them. It holds the motion study's clock, whose words
-change as it plays, to one width, as the package's stylesheet does. The install is what Leaf
-serves its own pages: this tree's runtime, the compiled kernel where it is current,
-beside the composed layer's widgets and vendor modules. A widget that imports only the portable helpers
-(`runtime/portable-api.js`) defines itself, draws, and shows a body it cannot draw as
-an error box and an `error` event the host may hear, with nothing in the console. What
-Leaf adds to a widget it reads off the widget, so here there is none of it: no
-widget key bound or advertised, no Copy control, no quiet word. Its own buttons still
-work, and so do its spans offered as buttons, by Enter and Space too.
+own, as a Leaf page does (`layer_import_map`), links the layer's portable.css for the
+widgets' look, and gives each widget a block, as any page does for an element it lays
+out. Nothing there draws a widget before the first paint, as Leaf's delivery does, so
+the page hides each widget until its module defines it, as a page may any custom
+element it upgrades, and reserves the room of one that draws later than its upgrade.
+Its widgets stand two to a row, aligned at their tops, so one growing as it draws moves
+no other: those that draw at upgrade, in the last row, grow once their modules define
+them. The install is what Leaf serves its own pages: this tree's runtime, the compiled
+kernel where it is current, beside the composed layer's sheets, widgets and vendor
+modules. A widget that imports only the portable helpers (`runtime/portable-api.js`)
+defines itself, draws in the theme's look, and shows a body it cannot draw as an error
+box and an `error` event the host may hear, with nothing in the console, while the
+host's own markup keeps the look the host gave it. What Leaf adds to a widget it reads
+off the widget, so here there is none of it: no widget key bound or advertised, no
+Copy control, no quiet word. Its own buttons still work, and so do its spans offered
+as buttons, by Enter and Space too.
 
 It is a landing gate because nothing else would see the guarantee break: every other
 test runs a widget on a Leaf page, where an import of a module that reads what Leaf
@@ -117,6 +118,39 @@ PORTABLE = [
 # lifecycle's (`failSoft`), so one widget answers for every portable one.
 REFUSED = '<lf-chart id="refused"><pre>\n{ marks: [ }\n</pre></lf-chart>'
 ROOT = "/leaf"
+# The host's own markup, above the widgets so their drawing moves none of it, which
+# portable.css leaves as the host drew it: none of its rules names an element by its
+# tag alone.
+HOST = (
+    '<div id="host"><p>Words</p><button>Press</button><details><summary>More'
+    "</summary></details><pre>code</pre><select><option>One</option></select>"
+    '<svg width="20" height="20" viewBox="0 0 10 10"></svg></div>'
+)
+SHOWN = (
+    "background-color",
+    "border-top-style",
+    "color",
+    "display",
+    "font-family",
+    "font-size",
+    "height",
+    "list-style-type",
+    "margin-top",
+    "padding-top",
+    "width",
+)
+# What portable.css draws, a part of each kind and properties it sets there: the
+# theme's tokens through a package's rules, a control's face and its icon, a row's
+# face, and the box a refused body leaves.
+LOOK = {
+    "#lf-chart .lf-chart-drawing": ("color", "font-family", "font-size"),
+    "#lf-code .lf-code-line[data-lf-hi]": ("background-color",),
+    "#lf-timeline .lf-timeline-next": ("width", "height", "border-top-left-radius"),
+    "#lf-timeline .lf-timeline-next svg": ("width", "height", "stroke"),
+    "#lf-timeline [aria-current=step]": ("background-color",),
+    "#lf-motion .lf-motion-controls": ("display", "font-size"),
+    "#refused .lf-error": ("border-top-style", "background-color", "color"),
+}
 
 
 def install(*packages: str) -> Mapping[str, Resource]:
@@ -131,6 +165,9 @@ def install(*packages: str) -> Mapping[str, Resource]:
         f"/{sub}/{name}": Resource(data, resource_type(name))
         for sub in BROWSER_DIRS
         for name, data in layer.directory_files[sub].items()
+    } | {
+        f"/{name}": Resource(data, resource_type(name))
+        for name, data in layer.top_files.items()
     }
     return read_runtime().resources(files, {})
 
@@ -144,12 +181,12 @@ def plain_page() -> str:
     )
     return f"""<!doctype html>
 <html><head><meta charset="utf-8"><title>Plain page</title>
+<link rel="stylesheet" href="{ROOT}/portable.css">
 <script type="importmap">{json.dumps(layer_import_map(ROOT))}</script>
 <style>main {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: start; gap: 16px; }}
 {tags} {{ display: flow-root; }}
-:is({tags}):not(:defined) {{ visibility: hidden; }}
-.lf-motion-clock {{ display: inline-block; inline-size: 9ch; }}</style>
+:is({tags}):not(:defined) {{ visibility: hidden; }}</style>
 <script>
   window.heard = [];
   addEventListener("error", (event) => heard.push({{
@@ -157,7 +194,7 @@ def plain_page() -> str:
   }}));
 </script>
 <script type="module">{imports}</script>
-</head><body><main>{sections}</main></body></html>"""
+</head><body>{HOST}<main>{sections}</main></body></html>"""
 
 
 @contextmanager
@@ -278,6 +315,40 @@ def test_a_display_widget_draws_on_a_page_without_leaf(browser, subtests):
         # The refusal is the page's to show, and nothing of it, or of any widget,
         # reaches the console of a page that runs no Leaf.
         assert console == [], console
+
+        # The one stylesheet draws each kind of part in the theme's look and nothing of
+        # the host's own: read without it, in the same task, so nothing paints between,
+        # every part it draws changes and no element of the host's does.
+        host = {
+            f"#host {tag}": SHOWN
+            for tag in ("p", "button", "summary", "pre", "select", "svg")
+        }
+        linked, bare = page.evaluate(
+            """parts => lfUnwatched(() => {
+              const read = () => Object.fromEntries(Object.entries(parts).map(
+                ([part, names]) => {
+                  const style = getComputedStyle(document.querySelector(part));
+                  return [part, Object.fromEntries(names.map(
+                    name => [name, style.getPropertyValue(name)]))];
+                }));
+              const sheet = document.querySelector('link[rel="stylesheet"]').sheet;
+              const linked = read();
+              sheet.disabled = true;
+              const bare = read();
+              sheet.disabled = false;
+              return [linked, bare];
+            })""",
+            LOOK | host,
+        )
+        for part, names in LOOK.items():
+            with subtests.test(drawn=part):
+                kept = [
+                    name for name in names if linked[part][name] == bare[part][name]
+                ]
+                assert not kept, (part, linked[part], bare[part])
+        with subtests.test(drawn="#host"):
+            moved = {part: (linked[part], bare[part]) for part in host}
+            assert all(was == now for was, now in moved.values()), moved
 
 
 def test_a_host_sets_a_diff_value_and_reads_its_drawn_marks(browser):

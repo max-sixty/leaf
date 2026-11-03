@@ -95,12 +95,22 @@ writing widget CSS, and reuse Leaf's thread symbol, comment box and keyboard hin
 Choose a stylesheet by the contribution it makes. A package may supply any combination;
 adding a widget does not change its theme styling.
 
-| Sheet               | Document                           | Declared shadow trees |
-| ------------------- | ---------------------------------- | --------------------- |
-| `defaults.css`      | `lf-base`                          | —                     |
-| `widget-shadow.css` | `lf-base`                          | `lf-shadow`           |
-| `overrides.css`     | Page-wide in `lf-overrides`        | —                     |
-| `chrome.css`        | Leaf's chrome, above its own rules | —                     |
+| Sheet               | Document                           | Declared shadow trees | A page without Leaf |
+| ------------------- | ---------------------------------- | --------------------- | ------------------- |
+| `defaults.css`      | `lf-base`                          | —                     | `lf-base`           |
+| `widget-shadow.css` | `lf-base`                          | `lf-shadow`           | `lf-base`           |
+| `overrides.css`     | Page-wide in `lf-overrides`        | —                     | —                   |
+| `chrome.css`        | Leaf's chrome, above its own rules | —                     | —                   |
+
+A page without Leaf links the layer's `portable.css` for its widgets' look
+(`module-authoring.md`, "A widget that also runs off Leaf"). It holds the theme's
+tokens, the faces of the controls, icons and failure box that widgets build, and each
+package's `defaults.css` and `widget-shadow.css`, all in `lf-base`. The page's own CSS
+outranks every rule in it, so the page restyles its widgets by restating a token such
+as `--accent`, and its `color-scheme` picks their colours. Of the page's own markup,
+`portable.css` styles only the control classes Leaf gives authors (`.button`,
+`.field`, `.choice` and `data-room`) and the element rules of a theme the layer
+selects.
 
 Defaults, a widget's own and a theme's element rules and idioms, go in `defaults.css`,
 below Layouts; overrides, in `overrides.css`, rank above them. Leaf orders

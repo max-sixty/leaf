@@ -1,27 +1,18 @@
-import { __exportAll } from "./bundle-rolldown-runtime.js";
-import { TEXT_FIELD, afterSettling, cancelRender, contentRides, inChrome, inlineStyle, keeps, motionEasing, motionPlays, motionTime, move, nextRender, onUserInput, playMotion } from "./bundle-portable.js";
+import { TEXT_FIELD, afterSettling, cancelRender, contentRides, inChrome, inlineStyle, keeps, locationStandsDown, motionEasing, motionPlays, motionTime, move, nativeLayerHolding, nextRender, onUserInput, playMotion, shownParts } from "./bundle-portable.js";
 import { el } from "./bundle-errors.js";
 import "./bundle-passages.js";
 import { SVG_NS, paintGeometry, paintShape, paintStand, placement, standBox, standOver, vacate } from "./bundle-page-layout.js";
 
 //#region runtime/target-paint.js
-var target_paint_exports = /* @__PURE__ */ __exportAll({
-	aimLayer: () => aimLayer,
-	clearAim: () => clearAim,
-	geometryChanged: () => geometryChanged,
-	labelAim: () => labelAim,
-	mountTargetPaint: () => mountTargetPaint,
-	paintAim: () => paintAim,
-	paintTrace: () => paintTrace,
-	shifted: () => shifted$1,
-	targetTraceLayer: () => targetTraceLayer
-});
 const targetTraceBox = el("div", "lf-ui lf-target-trace");
 const aimBox = el("div", "lf-ui lf-aim");
+const locationBox = el("div", "lf-ui lf-location");
 const traceStand = paintStand(targetTraceBox);
 const aimStand = paintStand(aimBox);
+const locationStand = paintStand(locationBox);
 const targetTraceLayer = traceStand.root;
 const aimLayer = aimStand.root;
+const locationLayer = locationStand.root;
 const aimShape = document.createElementNS(SVG_NS, "svg");
 aimShape.classList.add("lf-aim-shape");
 aimShape.setAttribute("aria-hidden", "true");
@@ -37,6 +28,10 @@ let traceShapeKey = "";
 let placementFrame = 0;
 let geometryFrame = 0;
 let geometryDirty = false;
+let locationElement = null;
+let locationFrame = 0;
+let locationProjected = [];
+const PROJECTED_LOCATION = "lf-projected-location";
 function clearAim() {
 	aimed = null;
 	vacate(aimStand);
@@ -66,7 +61,7 @@ function paintAim(element, surface) {
 	if (!shaped) aimShape.replaceChildren();
 	keeps(aimBox, "data-for", element.id);
 	keeps(aimStand.root, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
-	const stood = standOver(aimStand, placed, shaped ? "0" : getComputedStyle(surface).borderRadius);
+	const stood = standOver(aimStand, placed, shaped ? null : getComputedStyle(surface).borderRadius);
 	aimed = {
 		placed: {
 			...placed,
@@ -137,7 +132,7 @@ function drawTrace(element = traceElement, surface = traceSurface, rebuildGeomet
 	targetTraceBox.classList.toggle("lf-shaped", shaped);
 	keeps(targetTraceBox, "data-for", element.id || null);
 	keeps(traceStand.root, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
-	standOver(traceStand, placed, shaped ? "0" : getComputedStyle(surface).borderRadius);
+	standOver(traceStand, placed, shaped ? null : getComputedStyle(surface).borderRadius);
 }
 function paintTrace(element, surface = element) {
 	if (!element) {
@@ -154,6 +149,7 @@ function paintTrace(element, surface = element) {
 	drawTrace(element, surface, rebuild);
 }
 function shifted$1() {
+	relocate();
 	if (placementFrame || geometryFrame || !traceElement) return;
 	placementFrame = nextRender(() => {
 		placementFrame = 0;
@@ -161,6 +157,7 @@ function shifted$1() {
 	});
 }
 function geometryChanged() {
+	relocate();
 	geometryDirty = true;
 	if (placementFrame) cancelRender(placementFrame);
 	placementFrame = 0;
@@ -170,6 +167,42 @@ function geometryChanged() {
 		if (!geometryDirty) return;
 		geometryDirty = false;
 		if (traceElement) drawTrace(traceElement, traceSurface, true);
+	});
+}
+function paintLocation(element) {
+	locationElement = element;
+	drawLocation();
+}
+const paintsOver = (element) => {
+	const layer = nativeLayerHolding(element);
+	return !layer || layer === nativeLayerHolding(locationStand.root);
+};
+function drawLocation() {
+	const element = locationElement;
+	const placed = element?.isConnected && !locationStandsDown(element) && paintsOver(element) ? placement(element, false, inChrome(element)) : null;
+	if (!element || !placed?.shown) {
+		projectLocation([]);
+		vacate(locationStand);
+		locationBox.style.display = "none";
+		locationBox.removeAttribute("data-for");
+		delete locationStand.root.dataset.lfPaintPlane;
+		return;
+	}
+	projectLocation([element, ...shownParts(element)]);
+	keeps(locationBox, "data-for", element.id || null);
+	keeps(locationStand.root, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
+	standOver(locationStand, placed, getComputedStyle(element).borderRadius);
+}
+function projectLocation(boxes) {
+	for (const box of locationProjected) if (!boxes.includes(box)) box.classList.toggle(PROJECTED_LOCATION, false);
+	for (const box of boxes) box.classList.toggle(PROJECTED_LOCATION, true);
+	locationProjected = boxes;
+}
+function relocate() {
+	if (locationFrame || !locationElement) return;
+	locationFrame = nextRender(() => {
+		locationFrame = 0;
+		drawLocation();
 	});
 }
 function mountTargetPaint() {
@@ -236,6 +269,8 @@ const clipFrame = (sides, radius = 0) => ({
 	clipPath: `inset(var(--lf-box-cut) round ${radius}px)`,
 	"--lf-box-cut": sides.map((side) => `${side}px`).join(" ")
 });
+const connected = (anchor) => "scroller" in anchor ? anchor.scroller.isConnected : anchor.isConnected;
+const planeShare = (moved, limit) => moved * limit > 0 ? Math.sign(limit) * Math.min(Math.abs(moved), Math.abs(limit)) : 0;
 const radiusOf = (style) => Number.parseFloat(style.borderTopLeftRadius) || 0;
 const seeThrough = (color) => /^(transparent|rgba\(.*,\s*0\))$/.test(color);
 const paints = (style) => !seeThrough(style.backgroundColor) || style.backgroundImage !== "none" || style.boxShadow !== "none" || [
@@ -281,6 +316,7 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 	const theirs = () => gesture !== null && sent === gestures ? "send" : gesture;
 	let rests = null;
 	let frame = null;
+	let besideAt = null;
 	let timing = null;
 	let motions = /* @__PURE__ */ new Map();
 	let running = [];
@@ -301,12 +337,7 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 		rests = null;
 	};
 	addEventListener("resize", forget);
-	function rebase() {
-		const at = boxOf(root.getBoundingClientRect());
-		const edges = held();
-		const dx = frame && edges ? at[edges.x] - frame[edges.x] : 0;
-		const dy = frame && edges ? at[edges.y] - frame[edges.y] : 0;
-		frame = at;
+	function carryReadings(dx, dy) {
 		if (near(dx, 0) && near(dy, 0)) return;
 		if (rests) rests = new Map([...rests].map(([element, rest]) => [element, shifted(rest, dx, dy)]));
 		for (const moving of motions.values()) {
@@ -318,6 +349,43 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 			riding.from += dy;
 			riding.to += dy;
 		}
+	}
+	function beside(edges) {
+		const by = edges?.by;
+		const plane = edges?.plane ?? null;
+		if (!by || !connected(by) || plane && !connected(plane)) return null;
+		const at = by.getBoundingClientRect();
+		const origin = plane?.getBoundingClientRect() ?? {
+			left: 0,
+			top: 0
+		};
+		return {
+			by,
+			plane,
+			x: at.left - origin.left,
+			y: at.top - origin.top
+		};
+	}
+	function rebase() {
+		const at = boxOf(root.getBoundingClientRect());
+		const edges = held();
+		const dx = frame && edges ? at[edges.x] - frame[edges.x] : 0;
+		const dy = frame && edges ? at[edges.y] - frame[edges.y] : 0;
+		frame = at;
+		carryReadings(dx, dy);
+		const now = beside(edges);
+		const past = now && besideAt?.by === now.by && besideAt.plane === now.plane ? {
+			x: now.x - besideAt.x,
+			y: now.y - besideAt.y
+		} : {
+			x: 0,
+			y: 0
+		};
+		besideAt = now;
+		return {
+			at,
+			past
+		};
 	}
 	const interpolate = (from, to, progress) => {
 		const rect = between(from, to, progress);
@@ -836,9 +904,14 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 			}
 		},
 		placed(place) {
-			rebase();
-			place();
-			frame = boxOf(root.getBoundingClientRect());
+			const { at, past } = rebase();
+			const read = rests?.get(root);
+			const resized = !read || !near(width(read), width(at)) || !near(height(read), height(at));
+			const moved = place();
+			besideAt = beside(held());
+			if (!resized) return;
+			carryReadings(planeShare(moved.x, past.x), planeShare(moved.y, past.y));
+			frame = shifted(at, moved.x, moved.y);
 		},
 		outline() {
 			const moving = motions.get(box);
@@ -856,4 +929,4 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 }
 
 //#endregion
-export { aimLayer, boxMotion, mountTargetPaint, paintTrace, targetTraceLayer, target_paint_exports };
+export { aimLayer, boxMotion, clearAim, geometryChanged, labelAim, locationLayer, mountTargetPaint, paintAim, paintLocation, paintTrace, shifted$1 as shifted, targetTraceLayer };

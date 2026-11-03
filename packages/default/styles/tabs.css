@@ -10,7 +10,7 @@
  * index.
  * Live pages select their panel before the strip arrives. Without the runtime,
  * panels stack as labeled sections. */
-/* A set authored as layout-flow shares document tracks and draws no frame. Every
+/* A set authored as layout-flow shares the document's space and draws no frame. Every
  * other set is boxed. layouts.css owns the flow declaration the module reads for
  * scrolling; primary URL/history ownership is a separate fact (lf-tabs.js). */
 
@@ -80,7 +80,7 @@ lf-tabs[data-lf-views] > lf-tab {
 }
 .lf-tabstrip .lf-tab-btn[data-lf-focus-visible] > .lf-tab-name {
   outline: var(--focus-ring);
-  outline-offset: var(--focus-ring-gap);
+  --lf-ring-at: var(--focus-ring-gap);
 }
 /* The open tab's mark follows the strip's flow (`--lf-tabstrip-flow`), the one fact
  * that also lays the strip out, so every strip, whichever widget writes it, marks its
@@ -171,7 +171,7 @@ lf-tabs[data-lf-views] > lf-tab {
     }
   }
 }
-/* A tab counts the passages the version diff marks (chip.css, `.lf-change-count`).
+/* A tab counts the changes the version diff marks (chip.css, `.lf-change-count`).
    An empty count takes no room. */
 .lf-tabdiff {
   font-weight: 400;
@@ -374,7 +374,7 @@ lf-tabs[data-lf-views] > lf-tab {
       align-items: baseline;
       justify-items: start;
       text-align: start;
-      outline-offset: var(--focus-ring-inset);
+      --lf-ring-at: var(--focus-ring-inset);
       &[data-lf-focus-visible] {
         outline: var(--focus-ring);
         & > .lf-tab-name {

@@ -298,6 +298,12 @@ def native_code(page: Page) -> None:
     page.locator("#bg-javascript-code").scroll_into_view_if_needed()
 
 
+def annotated_code(page: Page) -> None:
+    """Syntax colours inside authored marks, line wrappers and link targets."""
+    native_code(page)
+    page.locator("#bg-annotated-code").scroll_into_view_if_needed()
+
+
 def native_code_copy_hover(page: Page) -> None:
     """A document code block under the pointer, which shows its Copy on its border."""
     native_code(page)
@@ -607,12 +613,23 @@ def open_card(page: Page, marker: Locator) -> None:
     page.wait_for_function(OPEN_CARD)
 
 
+def thread_by_marker(page: Page) -> None:
+    """The plan's stop thread, opened by a press on its marker: a margin card on a
+    window with room for the rail, the floating panel's view of it on a phone."""
+    marker = page.locator('[data-lf-margin-for="plan-stop"] .lf-margin-marker')
+    marker.evaluate("m => scrollBy(0, m.getBoundingClientRect().top - innerHeight / 3)")
+    settle(page)
+    marker.click()
+    page.wait_for_function(
+        "() => document.activeElement?.closest('.lf-margin-preview, .lf-fp-view')"
+    )
+    page.mouse.move(0, 0)
+
+
 def card_by_keyboard(page: Page) -> None:
-    """The first margin card, opened by Enter on its marker, so its thread holds a
-    visible focus."""
-    page.keyboard.press("Tab")  # keyboard modality, so focus is drawn
-    page.locator(".lf-margin-marker").first.focus()
-    page.keyboard.press("Enter")
+    """The first margin card, opened by `t`, the keyboard's way to the next thread, so
+    its thread holds a visible focus."""
+    page.keyboard.press("t")
     page.wait_for_function(
         "() => document.activeElement?.matches('.lf-margin-preview .lf-page-thread')"
     )
@@ -816,14 +833,16 @@ def card_after_interjection(page: Page) -> None:
     card_held_step(page)
     card = page.locator(".lf-margin-preview")
     card.get_by_role("textbox", name="Reply", exact=True).press("Enter")
-    expect(card.locator(".lf-msg.user").last).to_contain_text(
-        "Drafting a reply while the agent works"
-    )
-    expect(card.locator(".lf-msg.user").last).not_to_have_attribute("aria-busy", "true")
+    # Messages are picked by their words, which every arm's runtime draws alike.
+    reply = card.locator(
+        ".lf-msg", has_text="Drafting a reply while the agent works"
+    ).last
+    expect(reply).to_be_visible()
+    expect(reply).not_to_have_attribute("aria-busy", "true")
     settle(page)
     served = served_page.get()
     delivery = json.loads(served.leaf("wait", str(served.directory), timeout=15).stdout)
-    sent = card.locator(".lf-msg.user").last.get_attribute("data-event")
+    sent = reply.get_attribute("data-event")
     reference = next(
         event["answer"]["ref"]
         for batch in delivery["batches"]
@@ -839,7 +858,9 @@ def card_after_interjection(page: Page) -> None:
         "--text",
         "The answer continues with the detail requested in the interjection. " * 5,
     )
-    expect(card.locator(".lf-msg.agent").last).to_contain_text("The answer continues")
+    expect(
+        card.locator(".lf-msg", has_text="The answer continues").last
+    ).to_be_visible()
 
 
 def seat_held_news(page: Page) -> None:
@@ -876,7 +897,8 @@ def on_me(page: Page) -> None:
 
 
 def on_me_todo(page: Page) -> None:
-    """The full to-do title beside its subject after the On me walk arrives."""
+    """On me opened on a to-do's card, its whole title over its Done, after the On me
+    walk arrives at the to-do's subject."""
     as_agent(
         "task",
         "create",
@@ -1107,11 +1129,11 @@ def image_preview(page: Page) -> None:
 
 
 def panel_by_keyboard(page: Page) -> None:
-    """Threads, opened by Go to Threads, with keyboard focus on its view."""
+    """Threads, opened by Go to Threads, with keyboard focus on its first row."""
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     page.wait_for_function(
-        "() => document.activeElement?.matches('.lf-fp-view[data-view=threads]')"
+        "() => document.activeElement?.matches('.lf-fp-view[data-view=threads] .lf-fp-thread')"
     )
 
 
@@ -1796,6 +1818,16 @@ def versions_menu(page: Page) -> None:
     page.locator(".lf-fp-version").first.wait_for()
 
 
+def obligation_marker_by_keyboard(page: Page) -> None:
+    """An obligation's margin marker and the location ring it projects onto the page."""
+    marker = page.locator('.lf-margin-entry[data-lf-kinds="on-me"]').first
+    for _ in range(400):
+        page.keyboard.press("Tab")
+        if marker.evaluate("node => node === document.activeElement"):
+            return
+    raise AssertionError("Tab did not reach the obligation's margin marker")
+
+
 def ask_by_keyboard(page: Page) -> None:
     """The next open obligation, an `lf-ask`, reached with `m`: its ring and its marker in view."""
     page.keyboard.press("m")
@@ -1876,6 +1908,36 @@ def draft_edit(page: Page) -> None:
     page.locator("#rn-cli .lf-draft-body").click()
     page.keyboard.press("Tab")
     page.locator("#rn-cli .lf-draft-edit").focus()
+
+
+def draft_long_edit(page: Page) -> None:
+    """Open a visible word after scrolling through a long Markdown draft."""
+    page.locator("#rn-cli .lf-draft-body").click()
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.insert_text(
+        "\n".join(
+            f"Line {i}: The **release note** remains `editable`." for i in range(60)
+        )
+    )
+    page.keyboard.press("ControlOrMeta+Enter")
+    expect(page.locator("#rn-cli .lf-draft-edit")).to_have_count(0)
+    body = page.locator("#rn-cli .lf-draft-body")
+    expect(body).to_contain_text("Line 59:")
+    word = """el => {
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      let node;
+      while ((node = walker.nextNode()) && !node.data.includes('Line 30:')) {}
+      const at = node.data.indexOf('Line 30:');
+      const range = document.createRange();
+      range.setStart(node, at + 3); range.setEnd(node, at + 4);
+      const box = range.getBoundingClientRect();
+      return [box.x + box.width / 2, box.y + box.height / 2];
+    }"""
+    point = body.evaluate(word)
+    page.evaluate("y => window.scrollBy(0, y - 350)", point[1])
+    scroll_settled(page)
+    page.mouse.click(*body.evaluate(word))
+    expect(page.locator("#rn-cli .lf-draft-edit")).to_be_focused()
 
 
 def draft_hover(page: Page) -> None:
@@ -2022,6 +2084,7 @@ class State:
     scheme: str = "light"
     touch: bool = False
     region: str | None = None
+    activated: bool = True
 
 
 STATES = (
@@ -2091,6 +2154,19 @@ STATES = (
         "developer/feature-gallery",
         native_code,
         region="#bg-javascript-code",
+    ),
+    State(
+        "annotated-code",
+        "developer/feature-gallery",
+        annotated_code,
+        region="#bg-annotated-code",
+    ),
+    State(
+        "annotated-code-dark",
+        "developer/feature-gallery",
+        annotated_code,
+        scheme="dark",
+        region="#bg-annotated-code",
     ),
     State(
         "native-code-copy-hover",
@@ -2476,6 +2552,13 @@ STATES = (
     ),
     State("worktree-diffs", "developer/worktree-diffs", at_rest),
     State(
+        "worktree-startup",
+        "developer/worktree-diffs",
+        at_rest,
+        activated=False,
+        region="#worktree-example-workbench",
+    ),
+    State(
         "worktree-summaries",
         "developer/worktree-diffs",
         worktree_summaries,
@@ -2676,6 +2759,7 @@ STATES = (
         touch=True,
     ),
     State("release-draft", "release-notes", draft_edit),
+    State("release-draft-long", "release-notes", draft_long_edit),
     State("release-draft-hover", "release-notes", draft_hover, region="#rn-cli"),
     State(
         "release-draft-phone",
@@ -2812,11 +2896,13 @@ STATES = (
     ),
     State("plan-card-keyboard", "review-a-plan", card_by_keyboard),
     State("plan-card-keyboard-dark", "review-a-plan", card_by_keyboard, scheme="dark"),
+    # A window with room for the rail but none beside the ask, so the card stands over
+    # its options and covers a choice's hint.
     State(
         "thread-choice-hints",
         "../tests/fixtures/pages/thread-choice-hints",
         card_by_keyboard,
-        viewport=(741, 838),
+        viewport=(1000, 838),
         region=".lf-margin-preview",
     ),
     State("plan-card-reply", "review-a-plan", card_reply),
@@ -2852,11 +2938,13 @@ STATES = (
         scheme="dark",
         region=".lf-margin-preview",
     ),
+    # A finger's card at its least width: a 1400px touch window stands it beside its
+    # words, where a phone opens the thread in the floating panel.
     State(
-        "plan-card-held-news-phone",
+        "plan-card-held-news-touch",
         "review-a-plan",
         card_held_news,
-        viewport=(390, 844),
+        viewport=(1400, 844),
         touch=True,
         region=".lf-margin-preview",
     ),
@@ -2888,6 +2976,13 @@ STATES = (
     State("plan-go-to", "review-a-plan", go_to, viewport=(1024, 768)),
     State("plan-narrow", "review-a-plan", at_rest, viewport=(360, 740)),
     State("plan-touch", "review-a-plan", at_rest, viewport=(390, 844), touch=True),
+    State(
+        "plan-thread-phone",
+        "review-a-plan",
+        thread_by_marker,
+        viewport=(390, 844),
+        touch=True,
+    ),
     State("plan-more", "review-a-plan", more_menu),
     State("plan-capture", "review-a-plan", capture_area),
     State(
@@ -2923,7 +3018,7 @@ STATES = (
         "plan-card-reply-long-touch",
         "review-a-plan",
         card_reply_long,
-        viewport=(390, 844),
+        viewport=(1400, 844),
         touch=True,
     ),
     State("plan-panel-reply-long", "review-a-plan", panel_reply_long),
@@ -3109,6 +3204,12 @@ STATES = (
     State("alert-option-long", "alert-review", option_long),
     State("alert-options-in-pane", "alert-review", options_in_pane),
     State("ideas-ask", "ideas-to-implement", ask_by_keyboard),
+    State(
+        "pr-obligation-marker",
+        "pr-walkthrough",
+        obligation_marker_by_keyboard,
+        region="#pr-approval-decision",
+    ),
     State("progress-callout", "live-progress", at_rest),
     State("progress-metrics", "live-progress", at_rest, region="#lp-status"),
     State(
@@ -3361,11 +3462,10 @@ STATES = (
         "ship-card-touch",
         "ship-review",
         card_by_pointer,
-        viewport=(390, 500),
+        viewport=(1024, 500),
         touch=True,
     ),
     State("on-me-todo", "review-a-plan", on_me_todo),
-    State("on-me-todo-dark", "review-a-plan", on_me_todo, scheme="dark"),
     State("on-me", "corpus", on_me),
     State("on-me-dark", "corpus", on_me, scheme="dark"),
     State("on-agent", "corpus", on_agent),
@@ -3410,10 +3510,20 @@ def capture(
     (`STYLES`), the lines whose words stand on baselines `SPLIT` apart (`BASELINES`),
     and the tab, open until the block ends so `declaration_changes` can read it."""
     scale = 2
+    held_modules = []
     with tab(browser, state.viewport, state.scheme, state.touch, scale=scale) as page:
-        load(page, address)
-        state.drive(page)
-        settle(page)
+        if state.activated:
+            load(page, address)
+            state.drive(page)
+            settle(page)
+        else:
+            # Keep authored layout visible while the activation module is in flight.
+            page.route("**/leaf.js", lambda route: held_modules.append(route))
+            page.goto(address, wait_until="commit")
+            # A visible node can precede the render-blocking stylesheet.
+            page.wait_for_function("""() => performance.getEntriesByType('paint')
+                .some(entry => entry.name === 'first-contentful-paint')""")
+            page.evaluate("() => document.fonts.ready")
         clip = None
         if state.region:
             target = page.locator(state.region)
@@ -3438,7 +3548,11 @@ def capture(
         }
         splits = page.evaluate(BASELINES, SPLIT)
         region = {key: value * scale for key, value in clip.items()} if clip else None
-        yield region, styles, reading["texts"], splits, page
+        try:
+            yield region, styles, reading["texts"], splits, page
+        finally:
+            for route in held_modules:
+                route.abort()
 
 
 def style_changes(

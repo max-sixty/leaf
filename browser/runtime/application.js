@@ -80,7 +80,7 @@ import { raiseError } from "./errors.js";
  * arriveAtQueueItem: ReturnType<typeof import("./queue-walk.js").createQueueWalk>["arriveAtItem"],
  * nextObligationWithin: ReturnType<typeof import("./queue-walk.js").createQueueWalk>["nextWithin"],
  * state: Pick<Parameters<typeof createStateApplication>[0], "prepareActivation" | "acceptData" | "notifyDataSubscribers">,
- * annotationCommands: Pick<ReturnType<typeof import("./page-map-dialog.js").createPageMapDialog>, "leavePageMap" | "openPageMap" | "pageMapDialogContains" | "renderPageMapDialog"> & Pick<ReturnType<typeof import("./obligations/view.js").createObligationView>, "goToObligation"> & Pick<Parameters<typeof import("./annotation-overlay/margin-projection.js").createMarginProjection>[0], "designModeActive" | "pointerModeActive" | "scrollThreadIntoView" | "openInPanel">,
+ * annotationCommands: Pick<ReturnType<typeof import("./page-map-dialog.js").createPageMapDialog>, "leavePageMap" | "openPageMap" | "pageMapDialogContains" | "renderPageMapDialog"> & Pick<ReturnType<typeof import("./obligations/view.js").createObligationView>, "goToObligation"> & Pick<Parameters<typeof import("./annotation-overlay/margin-projection.js").createMarginProjection>[0], "designModeActive" | "pointerModeActive" | "scrollThreadIntoView" | "openInPanel" | "currentLocationObligation">,
  * createMarginProjection?: typeof import("./annotation-overlay/margin-projection.js").createMarginProjection | undefined,
  * threadAvailable?: boolean,
  * }} ApplicationDependencies */
@@ -248,7 +248,6 @@ function createApplication(dependencies) {
       applicationState.settleMarkRead(messages);
     }
   };
-  // Arrival marking is disabled while marks tied to Versions are considered.
   const read = createReadTracking({
     markRead,
     openThread: openPageThread,
@@ -275,6 +274,7 @@ function createApplication(dependencies) {
     pendingEntries: ledger.snapshot,
     actions: threadActions,
     landedAway: undo.landedAway,
+    offerUndo: undo.offerUndo,
     returnToThread: undo.returnToThread,
   };
   const reactionView = {
@@ -365,6 +365,7 @@ function createApplication(dependencies) {
     refreshInventory: refreshAnnotationInventory,
     renderAnnotations,
     openPageThread,
+    returnToPage: () => threadDestinations.returnToPage(),
     designModeActive: dependencies.annotationCommands.designModeActive,
     pointerModeActive: dependencies.annotationCommands.pointerModeActive,
     leavePageMap: dependencies.annotationCommands.leavePageMap,
@@ -375,6 +376,8 @@ function createApplication(dependencies) {
       renderMarginThread(host, thread, inlineView, controls),
     placedAt: dependencies.anchorPlacement.placedAt,
     marksFor: (id) => dependencies.anchorPaint?.marksFor(id) ?? [],
+    currentLocationObligation:
+      dependencies.annotationCommands.currentLocationObligation,
     scrollToElement: dependencies.anchorTravel.scrollToElement,
     openInPanel: dependencies.annotationCommands.openInPanel,
   });

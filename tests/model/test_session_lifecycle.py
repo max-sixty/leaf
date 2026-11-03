@@ -52,25 +52,6 @@ def test_a_restarted_session_cannot_reopen_a_dead_claims_turn(
     assert renewed["turn"] != "old-turn"
 
 
-def test_session_end_releases_the_page_and_its_session_server_retires(claimed):
-    assert hosting_model.start_server(
-        claimed, harness=harness_model.session_harness()
-    )  # a real detached server to clean up
-    session_model.cmd_waiting(claimed)
-    cleanup_model.end_harness_instance("s1")
-    wait_for(
-        lambda: server_model.running_server(claimed),
-        lambda running: not running,
-        failure="the unclaimed session server stayed up after session end",
-    )
-    assert declared(claimed)["state"] == "waiting"
-    assert read_record(claimed / "service.json")["enabled"] is True
-    claim = service_model.page_claim(claimed)
-    assert claim is not None
-    assert not service_model.claim_is_active(claim)
-    assert service_model.owned_pages("s1") == []
-
-
 def test_a_session_keeps_its_files_only_while_something_can_read_them(page_dir):
     """A session's end removes the files nothing will read again
     (`session-lifetime.md`, "A session's files"). A session that never used Leaf,

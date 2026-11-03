@@ -15,8 +15,11 @@ chromeRoot.className = "lf-chrome";
 // popovers, over the margin's rows. It is an open, nonmodal dialog, so the native layers
 // opened inside it join the browser's own layer order. Opened by its markup rather than
 // `show()`, it performs no dialog focusing steps, so mounting the chrome borrows no
-// author's focus.
+// author's focus. It is an empty box, so it is no Tab stop: Firefox gives an open
+// dialog one (Firefox 157), which drew nothing, and both engines already focus it on a
+// press between the panel's controls, which `tabindex="-1"` leaves as it was.
 export const chromeForeground = document.createElement("dialog");
 chromeForeground.className = "lf-ui lf-foreground";
 chromeForeground.setAttribute("open", "");
 chromeForeground.setAttribute("role", "presentation");
+chromeForeground.tabIndex = -1;

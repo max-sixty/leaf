@@ -114,7 +114,7 @@ def open_surface(page: Page, surface: str) -> ThreadSurface:
             wait_for_probe(page, "pageSettled")
             return ThreadSurface(
                 field,
-                view.locator(".lf-msg.user"),
+                view.locator(".lf-msg[data-lf-author=user]"),
                 page.locator("body"),
                 f"{THREAD_VIEW} .lf-msg",
                 page.locator(".lf-floating-panel"),

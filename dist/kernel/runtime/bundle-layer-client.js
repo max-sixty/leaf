@@ -63,7 +63,7 @@ const repetitive = /* @__PURE__ */ new Set([
 	"touchmove",
 	"compositionupdate"
 ]);
-const encoder = new window.TextEncoder();
+const encoder$1 = new window.TextEncoder();
 const nodeIds = /* @__PURE__ */ new WeakMap();
 let nextSequence = 0;
 let nextNodeId = 0;
@@ -218,7 +218,7 @@ function enqueue(entry) {
 		...entry,
 		...common
 	});
-	let bytes = encoder.encode(body).length;
+	let bytes = encoder$1.encode(body).length;
 	if (bytes > 4e4) {
 		body = JSON.stringify({
 			...common,
@@ -227,7 +227,7 @@ function enqueue(entry) {
 			bytes,
 			reason: "record_exceeds_limit"
 		});
-		bytes = encoder.encode(body).length;
+		bytes = encoder$1.encode(body).length;
 	}
 	append({
 		body,
@@ -238,7 +238,7 @@ function enqueue(entry) {
 }
 function batch(start, maxBytes) {
 	const prefix = `{"session":${JSON.stringify(session)},"entries":[`;
-	let bytes = encoder.encode(prefix).length + 2;
+	let bytes = encoder$1.encode(prefix).length + 2;
 	let count = 0;
 	for (const row of queue.slice(start, start + 100)) {
 		const size = row.bytes + (count ? 1 : 0);
@@ -251,13 +251,13 @@ function batch(start, maxBytes) {
 		body: `${prefix}${queue.slice(start, start + count).map((row) => row.body).join(",")}]}`
 	};
 }
-function post(body, destination) {
+function post(body, destination, keepalive) {
 	return fetch(destination, {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
 		body,
 		credentials: "same-origin",
-		keepalive: encoder.encode(body).length < 6e4
+		keepalive
 	});
 }
 async function flush() {
@@ -267,7 +267,7 @@ async function flush() {
 	inFlightCount = count;
 	let delay = 250;
 	try {
-		const response = await post(body, url);
+		const response = await post(body, url, false);
 		if (response.status >= 400 && response.status < 500) {
 			console.error(`Leaf interaction log rejected ${count} records: ${response.status}`);
 			queue.splice(0, count);
@@ -387,11 +387,7 @@ if (url !== null) {
 		userAgent: navigator.userAgent
 	});
 	window.addEventListener("pagehide", () => {
-		for (let start = 0; start < queue.length;) {
-			const { count, body } = batch(start, 48e3);
-			start += count;
-			post(body, url).catch(() => {});
-		}
+		if (queue.length) post(batch(0, 32e3).body, url, true).catch(() => {});
 	}, true);
 }
 
@@ -555,7 +551,9 @@ const revealLayer = () => {
 	layerKnown = true;
 	layerRevealed();
 };
-const postEvent = async (event, held = runtime.data, { keepalive = false } = {}) => {
+const encoder = new window.TextEncoder();
+const KEEPALIVE_BYTES = 6e4;
+const postEvent = async (event, held = runtime.data) => {
 	if (offlineInteractive) throw new Error("no agent or server is available in an interactive export");
 	if (!layerKnown) await layerReady;
 	countTraffic("sends");
@@ -563,6 +561,7 @@ const postEvent = async (event, held = runtime.data, { keepalive = false } = {})
 		kind: event.kind,
 		attempt: event.attempt ?? null
 	});
+	const body = JSON.stringify(event);
 	let response;
 	try {
 		response = await fetch(pageUrl("api/event"), {
@@ -571,8 +570,8 @@ const postEvent = async (event, held = runtime.data, { keepalive = false } = {})
 				"Content-Type": "application/json",
 				...dataHeaders(held)
 			}),
-			body: JSON.stringify(event),
-			keepalive
+			body,
+			keepalive: encoder.encode(body).byteLength < KEEPALIVE_BYTES
 		});
 		recordInteraction("event_response", {
 			kind: event.kind,

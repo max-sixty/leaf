@@ -58,7 +58,8 @@ not by looking up the id yourself.
 the first element `key` names in the referenced widget: a visual part's id, a projected
 datum's key, or whatever the target's `lfElementsFor(key)` maps it to (`lf-code` takes
 line ranges such as `"3-5,8"`). Leaf loads the datum, opens what holds it, reveals and
-focuses it, updates the fragment, and announces `success`. An absent destination
+focuses it, sets the URL's fragment to the widget's id and the key, and announces
+`success`. An absent destination
 keeps the reader's place and history and shows `missing` in Leaf's notice seat. Pass
 `focus: false` when the source stays the user's input surface, as a file navigator does
 beside the evidence it selects. A lazy target can implement
@@ -68,6 +69,14 @@ name a datum not yet drawn. Where your key is a source location rather than the 
 lasting identity, translate it and read `projectedDatum(widget, key)`, the one matching
 element or `null`.
 
+A URL reaches the same parts. `fragmentUrl(widget, key)` returns this page's URL with
+a fragment naming the part `key` names in `widget`, `#<widget-id>:<key>`, for a
+copy-link control or a link to hand on; `fragmentUrl(element)` names the element alone.
+Loading, following, reloading, or going Back or Forward to that URL draws the part
+through the same hooks; a load or followed link lands on it, or on the widget where the
+key names nothing. A widget that answers `navigateToDatum` needs nothing more for links
+to its parts.
+
 ## Content helpers
 
 ### Markdown
@@ -75,18 +84,21 @@ element or `null`.
 A widget whose entry declares `x-text-format: inline-markdown` has its direct authored
 text formatted as inline Markdown. With `markdown`, its data body arrives rendered as
 block Markdown while the recorded body stays the source. It reads as a Markdown file,
-whose soft line breaks are spaces. Adopt the rendered `.lf-markdown-body` and repaint
-changing prose with `paintMarkdown(body, source)`.
+as `renderMarkdown(text, false)` does (below). Adopt the rendered `.lf-markdown-body`
+and repaint changing prose with `paintMarkdown(body, source)`.
 `markdownSourceOffset(body, node, offset)` maps a caret in the rendered body back to the
 source.
 
 `inlineMarkdownFragment(text)` returns a fragment, `renderMarkdown(text)` a safe HTML
 string for `unsafeHTML`, and `markdownWords(text)` the words Markdown renders to. They
-keep each line break as typed words do; `renderMarkdown(text, false)` renders a Markdown
-file, whose soft line breaks are spaces, so its paragraphs wrap to the box. Until
-the renderer has loaded, they return the escaped source; `loadMarkdown()` resolves once
-it has, and `markdownReady()` says whether it has, so a widget showing changing prose
-repaints then.
+read text as a message a person typed: each line break stays a line, a line's leading
+spaces are dropped rather than starting code, and `---` under a line is a rule.
+`renderMarkdown(text, false)` and `markdownWords(text, false)` read a Markdown file as
+CommonMark does: its soft line breaks are spaces, so its paragraphs wrap to the box, a
+block indented four spaces is code, and a line of `=` or `-` underlines a heading.
+Until the renderer has loaded, they return the escaped source; `loadMarkdown()`
+resolves once it has, and `markdownReady()` says whether it has, so a widget showing
+changing prose repaints then.
 
 ### Code
 
@@ -95,7 +107,12 @@ page's syntax theme. `synNodes(tokens)` turns them into nodes, and `tokenLines(t
 splits them by line. `lang` is a registry `$languages` name; `langForPath(path)` derives
 one from a file name, and `ensureSyntaxLanguage(lang)` loads one ahead of time.
 `highlightBlocks(root)` colours each `pre > code` in `root` whose `language-…` class
-names a language.
+names a language and that wears the reading face
+(`package-themes.md`, "Personal themes"); a block in a shadow tree wears it where the
+widget sets `--lf-reading-face: 1` on a box around it. Inline annotations keep their
+elements and text while tokens are added inside them; use literal newlines rather than
+`<br>`, whose blocks remain uncoloured. A block with its own colouring turns off the
+reading face as other personally themed content does.
 
 Leaf adds a Copy button to each `pre > code` in the page. A widget block holding other
 source text, such as numbered code lines, declares its own: give the block
@@ -263,10 +280,14 @@ published, for showing how long a worker has been quiet.
 
 ### Reading version changes
 
-`comparisonChanges(owner)` returns the changed elements inside `owner` in the current
-version comparison, or every changed element with no owner, and an empty array with no
-comparison active. Reading it during a `LeafElement` render subscribes that render
-to comparison changes.
+`comparisonChanges(owner)` returns the changes inside `owner` in the current version
+comparison, or every change with no owner, and an empty array with no comparison
+active. A change is a run of changed elements in one view, such as a tab, a
+`details`, or the content a disclosure control (`aria-expanded`) names in
+`aria-controls`, with no unchanged block between them, as a rewritten section is. Each
+change is an array of its elements inside `owner`, in page order, so the result's
+length counts changes as the reader does. Reading it during a `LeafElement` render
+subscribes that render to comparison changes.
 
 `revisionLabel(event.revision)` is the page's name for the version an event was
 recorded in.

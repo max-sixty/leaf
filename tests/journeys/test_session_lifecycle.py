@@ -52,3 +52,32 @@ def test_normal_server_restart_leaves_later_recovery_advice_available(claimed, c
             "additionalContext"
         ]
     )
+
+
+from interact_support import (
+    declared,
+    read_record,
+)
+
+from leaf import harness as harness_model
+from leaf import hosting as hosting_model
+from leaf import session as session_model
+
+
+def test_session_end_releases_the_page_and_its_session_server_retires(claimed):
+    assert hosting_model.start_server(
+        claimed, harness=harness_model.session_harness()
+    )  # a real detached server to clean up
+    session_model.cmd_waiting(claimed)
+    cleanup_model.end_harness_instance("s1")
+    wait_for(
+        lambda: server_model.running_server(claimed),
+        lambda running: not running,
+        failure="the unclaimed session server stayed up after session end",
+    )
+    assert declared(claimed)["state"] == "waiting"
+    assert read_record(claimed / "service.json")["enabled"] is True
+    claim = service_model.page_claim(claimed)
+    assert claim is not None
+    assert not service_model.claim_is_active(claim)
+    assert service_model.owned_pages("s1") == []

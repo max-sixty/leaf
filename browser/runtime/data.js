@@ -16,7 +16,7 @@
    fetch it, mutate the accepted copy, or keep a hidden current-value map of their own.*/
 
 import { computed, signal, untracked } from "/runtime/framework.js";
-import { offlineData, offlineInteractive, pageUrl, runtime } from "./context.js";
+import { offlineDeferred, offlineInteractive, pageUrl, runtime } from "./context.js";
 import { applicationState, whenApplicationRegionsPresented } from "./semantic-state.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { setRuntimeRootAttribute } from "./root-state.js";
@@ -345,17 +345,10 @@ async function readDeferred(manifest, key) {
       `source ${source} revision ${revision} changed before loading deferred ${key}`,
     );
   if (offlineInteractive) {
-    const records = registry.$data.contracts[manifest.contract].records;
-    const item = offlineData().sources[source].value[records.items].find(
-      (/** @type {Record<string, unknown>} */ item) => item[records.key] === key,
-    );
-    if (!item)
-      throw new Error(`unknown record key '${key}' in data source '${source}'`);
-    if (!Object.hasOwn(item, records.deferred))
-      throw new Error(
-        `record '${key}' in data source '${source}' has no deferred field '${records.deferred}'`,
-      );
-    return structuredClone(item[records.deferred]);
+    const field = offlineDeferred(source, key);
+    if (!field)
+      throw new Error(`data source '${source}' defers no field of record '${key}'`);
+    return field;
   }
   const params = new URLSearchParams({ source, source_revision: revision, key });
   const answer = await requestJson(

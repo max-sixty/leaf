@@ -106,7 +106,7 @@ def test_the_page_dates_a_claim_by_the_clock_that_wrote_it(browser, serve):
         page,
         re.compile(r"^\s*waiting on the shard \(just now\)\."),
     )
-    expect(dot).to_have_class(re.compile(r"\bworking\b"))
+    expect(dot).to_have_attribute("data-lf-tone", "working")
 
 
 def test_a_thread_says_what_the_agent_is_doing_about_it(
@@ -232,7 +232,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         },
     )
     told(page)
-    expect(view.locator(".lf-msg.agent")).to_have_count(1)
+    expect(view.locator(".lf-msg[data-lf-author=agent]")).to_have_count(1)
     expect(held_workflow).to_have_count(0)
     # The answer responds to the follow-up, whose line goes with it.
     expect(view.locator(".lf-msg-sending")).to_have_count(0)
@@ -294,7 +294,7 @@ def test_the_leaf_and_all_pages_say_the_served_activity(browser, serve, other_le
         page,
         re.compile(r"^\s*Writing the page \(just now\)\."),
     )
-    expect(page.locator(LEAF_DOT)).to_have_class(re.compile(r"\bworking\b"))
+    expect(page.locator(LEAF_DOT)).to_have_attribute("data-lf-tone", "working")
     page.locator("body").focus()
     page.keyboard.press("g")
     page.keyboard.press("Shift+l")
@@ -406,7 +406,7 @@ def test_a_message_workflow_changes_phase_in_place_and_then_stands_still(
           return {
             authorVisible: contains(head, author),
             timeVisible: contains(head, time) && contains(metadata, time),
-            timeFixed: getComputedStyle(time).flexShrink === '0',
+            timeWhole: time.scrollWidth <= time.clientWidth,
           };
         }"""
     )

@@ -8,9 +8,9 @@ Each state of `leaf_dev.states` (all of them unless `--state` names some) is vis
 both arms through the loop `leaf-dev probe` runs too (`leaf_dev.visits`), which brings
 a fresh tab on each to the state, in the engine `--browser` names. The base is the
 merge base with `main` unless `--base` names another commit, and the head is this
-working tree, uncommitted edits included (`leaf_dev.arms.choose_arms`). Each page is built from
-this working tree's example source and served by the arm's own launcher, so only the
-runtime, theme and server differ between the two stills of a state. With
+working tree, uncommitted edits included (`leaf_dev.arms.choose_arms`). Each page is
+built from this working tree's example source and served by the arm's own launcher,
+so only the runtime, theme and server differ between the two stills of a state. With
 `--authored`, the base instead reads its own example and companions
 (`leaf_dev.arms.own_source`), so changes to page markup are visible as well. Each
 capture starts with a fresh authored fixture and event log, so a prior gesture cannot

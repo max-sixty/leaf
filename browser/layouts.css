@@ -430,11 +430,17 @@
    * after it, to --wide at most; an `available` one takes the room on both sides, as a
    * sidebar Layout standing in the column's flow does, such as a tab's view. A block
    * that states its width this way overrides the width a box of its own would take (a
-   * table, an iframe). One that reaches before the prose is moved there by a relative
-   * offset rather than a margin, which the page's own margins would override. A box
-   * wider than its holder stands at the holder's start edge whatever its own direction,
-   * so the offset follows the holder's. A sheet has no window margin to borrow, so on
-   * paper every block keeps the prose's measure. */
+   * table, an iframe). One that reaches before the prose starts there by a negative
+   * start margin, marked important since a page's own margin rule, such as
+   * `margin: 1rem 0` on the block, would otherwise put it back at the prose; its block
+   * margins stay the page's. A margin rather than a relative offset or a translate, so
+   * its box in flow is where it is drawn: Firefox counts a moved box's place in flow
+   * into its holder's overflow when a style change re-reads it, as a focus ring on a
+   * paragraph beside it does, and the page then scrolled sideways past the window
+   * (notes/browser-support.md). A box wider than its holder stands at the holder's
+   * start edge whatever its own direction, so the margin is on the holder's start side.
+   * A sheet has no window margin to borrow, so on paper every block keeps the prose's
+   * measure. */
   /* A table with a breakout is only as wide as its columns need, up to its room, where
    * a breakout's width would spread two short columns across the whole room. */
   :is(.layout-column, .layout-flow) > table[data-lf-space] {
@@ -467,32 +473,34 @@
         --lf-breakout: 1;
       }
       > :is([data-lf-space="available"], .layout-sidebar) {
-        position: relative;
         inline-size: calc(100% + var(--lf-free-start) + var(--lf-free-end));
         max-inline-size: none;
         --lf-breakout: 1;
       }
       &:dir(ltr) > :is([data-lf-space="available"], .layout-sidebar) {
-        left: calc(-1 * var(--lf-free-start));
+        margin-left: calc(-1 * var(--lf-free-start)) !important;
       }
       &:dir(rtl) > :is([data-lf-space="available"], .layout-sidebar) {
-        right: calc(-1 * var(--lf-free-start));
+        margin-right: calc(-1 * var(--lf-free-start)) !important;
       }
       > table[data-lf-space] {
         max-inline-size: min(var(--wide), 100% + var(--lf-free-end));
       }
       /* An available table is as wide as its content and stands on the room's axis:
-       * its start at the axis, moved back by half its own width. Firefox lacks
-       * `justify-self` on a block, which would centre it (notes/browser-support.md). */
+       * from the room's start, where its margin puts it, its start is moved to the axis
+       * and back by half its own width, so its box in flow stays inside the room.
+       * Firefox lacks `justify-self` on a block, which would centre it
+       * (notes/browser-support.md). */
       > table[data-lf-space="available"] {
+        position: relative;
         max-inline-size: calc(100% + var(--lf-free-start) + var(--lf-free-end));
       }
       &:dir(ltr) > table[data-lf-space="available"] {
-        left: calc(50% + (var(--lf-free-end) - var(--lf-free-start)) / 2);
+        left: calc(50% + (var(--lf-free-start) + var(--lf-free-end)) / 2);
         translate: -50%;
       }
       &:dir(rtl) > table[data-lf-space="available"] {
-        right: calc(50% + (var(--lf-free-end) - var(--lf-free-start)) / 2);
+        right: calc(50% + (var(--lf-free-start) + var(--lf-free-end)) / 2);
         translate: 50%;
       }
     }
@@ -530,12 +538,14 @@
   :is(.layout-column, .layout-flow) {
     /* A failed upgrade draws prose in place of its exhibit, and a page whose runtime
      * could not start shows each undrawn widget's source. Either is prose, so its host
-     * keeps the prose's measure and the source scrolls inside it. */
+     * keeps the prose's measure, without the margin a breakout reaches the room by,
+     * and the source scrolls inside it. */
     > [data-lf-space]:has(> .lf-error),
     html[data-lf-startup-error]:not([data-lf-interactive]) & > [data-lf-space] {
       position: static;
       inline-size: 100%;
       max-inline-size: 100%;
+      margin-inline: 0 !important;
       translate: none;
       --lf-breakout: 0;
     }

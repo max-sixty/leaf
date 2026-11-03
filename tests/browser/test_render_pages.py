@@ -1734,6 +1734,13 @@ def test_a_table_granted_room_stands_on_the_prose_axis(
             assert at[kept][edge] == pytest.approx(at["cell"][edge], abs=1), (kept, at)
     assert width(at["beside"]) == pytest.approx(width(at["cell"]), abs=1), at
     assert root_overflow(page) == 0
+    # A focus ring beside the tables leaves nothing to scroll sideways either
+    # (test_a_breakout_grows_only_from_a_holder_that_spans_the_column).
+    page.evaluate(
+        """() => { const p = document.getElementById('prose');
+          p.tabIndex = -1; p.focus({focusVisible: true}); }"""
+    )
+    assert root_overflow(page) == 0
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
@@ -2086,12 +2093,17 @@ INDENTED_PAGE = leaf_page(
 def test_a_breakout_grows_only_from_a_holder_that_spans_the_column(
     request, serve, direction, engine
 ):
-    """An explicit flow shares the column's room; ordinary holders contain their exhibits."""
+    """An explicit flow shares the column's room; ordinary holders contain their exhibits.
+    A focus ring beside a breakout leaves nothing to scroll sideways: Firefox counted a
+    breakout moved by a relative offset at its place in flow once a ring restyled its
+    holder, so closing a thread card, which rings the paragraph it leaves the user at,
+    left the page 456px wider than a 1728px window."""
     browser = request.getfixturevalue(engine)
     source = leaf_page(
         "Native exhibit tracks",
         '<h1>Evidence</h1><p id="prose">Reading measure.</p>'
-        '<section class="layout-flow"><div id="wide" data-width="wide">Wide</div>'
+        '<section class="layout-flow"><p id="beside">Beside the breakouts.</p>'
+        '<div id="wide" data-width="wide">Wide</div>'
         '<div id="available" data-width="available">Available</div></section>'
         '<div id="holder" style="margin-inline-start:40px"><div id="nested" data-width="available">Contained</div></div>'
         '<div id="grid" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">'
@@ -2112,6 +2124,12 @@ def test_a_breakout_grows_only_from_a_holder_that_spans_the_column(
             (at["grid"]["width"] - 16) / 2, abs=1
         )
         assert root_overflow(page) == 0
+    resized(page, 1440, 900)
+    page.evaluate(
+        """() => { const p = document.getElementById('beside');
+          p.tabIndex = -1; p.focus({focusVisible: true}); }"""
+    )
+    assert root_overflow(page) == 0
 
 
 def test_a_breakout_a_revision_inserts_deeper_lands_before_it_paints(browser, serve):

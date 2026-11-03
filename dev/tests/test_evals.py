@@ -484,15 +484,13 @@ def test_from_replays_saved_outputs_under_current_grading(tmp_path, monkeypatch)
     run = saved_run(tmp_path / "saved")
     original = (run / "results.json").read_bytes()
 
-    def configured(*args: str) -> dict:
-        result = CliRunner().invoke(module.eval, ["--from", str(run), *args])
-        assert result.exit_code == 0, result.output
-        latest = max((tmp_path / "runs").glob("*/promptfooconfig.json"))
-        return json.loads(latest.read_text())
-
-    # By default each saved output is graded by its case's current assertions, in
-    # its own column; the result whose provider failed saved nothing to grade.
-    config = configured()
+    # Each saved output is graded by its case's current assertions in its own
+    # column; the result whose provider failed saved nothing to grade.
+    result = CliRunner().invoke(module.eval, ["--from", str(run)])
+    assert result.exit_code == 0, result.output
+    config = json.loads(
+        next((tmp_path / "runs").glob("*/promptfooconfig.json")).read_text()
+    )
     assert [p["label"] for p in config["providers"]] == [
         "codex:app-server/base/workflow",
         "codex:app-server/candidate/workflow",
@@ -509,44 +507,27 @@ def test_from_replays_saved_outputs_under_current_grading(tmp_path, monkeypatch)
         assert replayed["output"] == f"{reference['sample'].split('-')[1]} summary"
         assert replayed["metadata"]["work"].endswith(reference["sample"])
 
-    # A pair is judged once in each presentation order, in a column named for both.
-    config = configured("--judge", "pair")
-    assert [p["label"] for p in config["providers"]] == [
-        "codex:app-server/base/workflow vs codex:app-server/candidate/workflow"
-    ]
-    orders = [
-        [reference["column"] for reference in test["metadata"]["saved"]]
-        for test in config["tests"]
-    ]
-    assert orders == [
-        ["codex:app-server/base/workflow", "codex:app-server/candidate/workflow"],
-        ["codex:app-server/candidate/workflow", "codex:app-server/base/workflow"],
-    ]
-    replayed = regrade.replay("", {}, {"test": config["tests"][1]})
-    assert replayed["output"] == {"A": "candidate summary", "B": "base summary"}
-
     result = CliRunner().invoke(module.eval, ["--from", str(run), "--harness", "codex"])
     assert result.exit_code != 0 and "--harness" in result.output
     assert (run / "results.json").read_bytes() == original
 
 
 def test_judgments_of_saved_samples_reach_the_report(tmp_path, monkeypatch):
-    """Only the live judge is replaced: page roles, evidence and the report's
-    reading of both orders are real."""
+    """Only the live judge is replaced: the tests, their replayed samples, page
+    roles, evidence and the report's reading of both orders are real."""
     from leaf_dev import regrade
     from leaf_dev.commands import eval_report
 
     run = saved_run(tmp_path / "saved")
-    record = json.loads((run / "results.json").read_text())
     base, candidate = (
-        result["response"]["metadata"] for result in record["results"]["results"][:2]
+        "codex:app-server/base/workflow",
+        "codex:app-server/candidate/workflow",
     )
-    verdicts = []
+    judged = []
 
     def judge(pages, widths, prompt, schema, evidence, *, handovers):
-        assert evidence.is_dir() and evidence.parent == tmp_path / "judgments"
-        assert widths == base["diagnostics"]["comparison"]["widths"]
-        verdicts.append((set(pages), prompt, schema))
+        assert evidence.parent == tmp_path / "out" / "judgments"
+        judged.append((set(pages), prompt))
         if "overall" not in schema["properties"]:
             return {
                 "output": {
@@ -573,81 +554,62 @@ def test_judgments_of_saved_samples_reach_the_report(tmp_path, monkeypatch):
         }
 
     monkeypatch.setattr(regrade, "judge_pages", judge)
-    columns = ["codex:app-server/base/workflow", "codex:app-server/candidate/workflow"]
-    results = []
-    for order, (a, b) in enumerate(((0, 1), (1, 0)), 1):
-        test = {
-            "description": f"document-live-status · pair 1 · order {order}",
-            "metadata": {
-                "judgment": "pair",
-                "subject": "document-live-status",
-                "pair": 1,
-                "order": order,
-                "saved": [
-                    {"run": str(run), "result": f"result-{i}", "column": columns[i]}
-                    | {"sample": f"document-{columns[i].split('/')[1]}-{i}"}
-                    for i in (a, b)
-                ],
-            },
-        }
-        samples = dict(
-            zip("AB", ((base, candidate)[a], (base, candidate)[b]), strict=True)
+
+    def graded(name: str, variables: dict) -> tuple[Path, list[dict]]:
+        """Run the named judgment's tests as Promptfoo would, and save the run."""
+        config = module.saved_config((run,), (), name, tmp_path / "out", tmp_path)
+        results = []
+        for index, test in enumerate(config["tests"]):
+            (assertion,) = test["assert"]
+            outcome = getattr(regrade, name)(
+                None,
+                {
+                    "providerResponse": regrade.replay("", {}, {"test": test}),
+                    "test": test,
+                    "vars": {**test["vars"], **variables},
+                    "config": assertion["config"],
+                },
+            )
+            assert outcome["pass"], outcome["reason"]
+            results.append(
+                {
+                    "id": f"{name}-{index}",
+                    "testCase": test,
+                    "gradingResult": {"componentResults": [outcome]},
+                }
+            )
+        judging = tmp_path / name
+        judging.mkdir()
+        (judging / "results.json").write_text(
+            json.dumps({"config": config, "results": {"results": results}})
         )
-        graded = regrade.pair(
-            None,
-            {
-                "providerResponse": {"metadata": samples},
-                "test": test,
-                "vars": {},
-                "config": {"evidence": str(tmp_path / "judgments")},
-            },
-        )
-        assert graded["pass"]
-        # The reason names the winning column, whichever position it held.
-        assert columns[1] in graded["reason"]
-        results.append(
-            {
-                "id": f"judged-{order}",
-                "testCase": test,
-                "gradingResult": {"componentResults": [graded]},
-            }
-        )
-    pages, prompt, _ = verdicts[0]
-    assert pages == {
+        return judging, results
+
+    # Each pair is judged in both presentation orders, and the report counts a
+    # winner both orders name, by column.
+    judging, results = graded("pair", {})
+    assert [
+        [reference["column"] for reference in result["testCase"]["metadata"]["saved"]]
+        for result in results
+    ] == [[base, candidate], [candidate, base]]
+    assert candidate in results[1]["gradingResult"]["componentResults"][0]["reason"]
+    assert judged[0][0] == {
         f"{position}{suffix}"
         for position in "AB"
         for suffix in ("", "_before_decision", "_before_revision")
     }
-    assert "No browser decision task" not in prompt
-
-    discovered = regrade.discovery(
-        None,
-        {
-            "providerResponse": {"metadata": candidate},
-            "test": {"metadata": {"subject": "document-live-status"}},
-            "vars": {"focus": "Investigate long decision premises"},
-            "config": {"evidence": str(tmp_path / "judgments")},
-        },
-    )
-    assert discovered["pass"] and discovered["metadata"]["discovery"]["explored"]
-    pages, prompt, schema = verdicts[-1]
-    assert pages == {"page", "page_before_decision", "page_before_revision"}
-    assert "Investigate long decision premises" in prompt
-    assert "overall" not in schema["properties"]
-
-    judging = tmp_path / "judging"
-    judging.mkdir()
-    (judging / "results.json").write_text(
-        json.dumps({"config": {"providers": []}, "results": {"results": results}})
-    )
     ((source, pair),) = eval_report.pair_records((judging,))
     assert source == judging / "results.json"
-    assert pair["status"] == "complete" and pair["winner"] == columns[1]
-    assert pair["orders"][0]["defects"] == {
-        columns[0]: ["Clipped table"],
-        columns[1]: [],
-    }
+    assert pair["status"] == "complete" and pair["winner"] == candidate
+    assert pair["orders"][1]["defects"] == {base: ["Clipped table"], candidate: []}
     assert eval_report.run_samples((judging,)) == {}
+
+    judging, _ = graded("discovery", {"focus": "Investigate long decision premises"})
+    pages, prompt = judged[-1]
+    assert pages == {"page", "page_before_decision", "page_before_revision"}
+    assert "Investigate long decision premises" in prompt
+    section = eval_report.discovery_section(tmp_path / "report", (judging,))
+    assert section.count("Desktop navigation.") == 2
 
 
 def test_arrangement_retains_linked_pages_per_phase(tmp_path, monkeypatch):

@@ -113,7 +113,7 @@ def test_only_the_generated_corpus_is_not_an_authored_page(tmp_path):
 
     # A page that shares the corpus's name is authored, so the name picks two sources.
     shadow = tmp_path / "examples" / "developer" / "corpus.html"
-    shadow.write_text(pages["gallery"].read_text())
+    shadow.write_text(pages["gallery"].read_text().replace("gallery", "shadow"))
     assert shadow in published_sources(tmp_path)
     with pytest.raises(ValueError, match="corpus names more than one source"):
         named_source("corpus", root=tmp_path)

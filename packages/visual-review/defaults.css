@@ -162,8 +162,11 @@ lf-visual-review {
   flex-wrap: wrap;
   gap: 8px 12px;
 }
+/* A choice (controls.css) pads its ring room; the row hangs it by that padding, so the
+   checkbox stands on the row's edge. */
 .lf-vr-approval {
   gap: 7px;
+  margin-inline-start: calc(-1 * var(--choice-pad));
   font: var(--font-compact);
 }
 .lf-vr-inspect {

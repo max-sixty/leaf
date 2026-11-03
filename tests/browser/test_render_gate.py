@@ -574,7 +574,8 @@ def test_a_frame_of_another_live_leaf_page_is_checked_on_its_own(
     """The gate's browser holds no key for another live Leaf page, whose server
     refuses the gate as a framer, so its frame would fail the page framing it with a
     fault that page's author can't fix. The gate shows a stand-in there, and a frame
-    of any other server still reports."""
+    of any other server still reports. Only the frame stands in: a request the
+    framing page itself makes to that server, such as a fetch, still reaches it."""
     framed, _ = live_leaf("framed", "Framed")
     other = urlsplit(serve(leaf_page("Other", "<h1>Other</h1>"), packages=()))
     other = f"{other.scheme}://{other.netloc}"
@@ -592,6 +593,21 @@ def test_a_frame_of_another_live_leaf_page_is_checked_on_its_own(
         and other in failure.values["text"] + failure.values["url"]
         for failure in failures
     ), failures
+
+    page = browser.unwatched.new_page()
+    try:
+        render_gate_scheme.stand_in_other_leaves(page)
+        page.set_content(f'<iframe src="{framed}/"></iframe>')
+        expect(page.frame_locator("iframe").locator("p")).to_have_text(
+            "Another Leaf page, checked on its own."
+        )
+        state = f"{framed}/api/state"
+        with page.expect_response(state) as answer:
+            page.evaluate("url => fetch(url, {mode: 'no-cors'}).catch(() => {})", state)
+        # The live server's own refusal of a browser without its key.
+        assert answer.value.status == 401
+    finally:
+        page.close()
 
 
 RECURSIVE_ROWS_PAGE = leaf_page(

@@ -34,24 +34,35 @@ OTHER_LEAF = "<!doctype html><p>Another Leaf page, checked on its own.</p>"
 
 
 def stand_in_other_leaves(target) -> None:
-    """Answer each other live Leaf page on this machine with a stand-in in `target`,
-    a page or a browser context.
+    """Answer a frame of each other live Leaf page on this machine with a stand-in
+    in `target`, a page or a browser context.
 
     A page may frame another live Leaf page (validation.md, "Delivery policy"),
     whose faults are its own check's. The gate's browser holds no key for that page,
     and its server refuses the gate's origin as a framer, so the frame would report
-    a refusal the framing page's author can't fix by editing it. A frame of any
-    other address, a mistyped port included, loads and fails as it would."""
+    a refusal the framing page's author can't fix by editing it. Only a child
+    frame's navigation stands in: a script, stylesheet, image or fetch the page
+    loads from that server is one of the page's own dependencies and reaches the
+    server as it would. A frame of any other address, a mistyped port included,
+    loads and fails as it would."""
     origins = sorted(
         {
             page_origin(service["host"], service["port"])
             for *_, service in live_servers()
         }
     )
+
+    def frame_or_fallback(route) -> None:
+        request = route.request
+        if request.is_navigation_request() and request.frame.parent_frame is not None:
+            route.fulfill(content_type="text/html", body=OTHER_LEAF)
+        else:
+            route.fallback()
+
     if origins:
         target.route(
             re.compile(f"^(?:{'|'.join(map(re.escape, origins))})/"),
-            lambda route: route.fulfill(content_type="text/html", body=OTHER_LEAF),
+            frame_or_fallback,
         )
 
 

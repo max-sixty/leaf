@@ -4,7 +4,6 @@
 import { excludedByInert, renderedParent, uiInside, under } from "./shadow-tree.js";
 import { nativeModalAdmits, watchLayerChanges } from "./keyboard/layer-stack.js";
 import { isNativeLayer } from "./shadow-tree.js";
-import { chromeRoot } from "./chrome.js";
 import {
   clippingAxes,
   hasArea,
@@ -1127,8 +1126,8 @@ export const clippedPlace = (where, clips, box = placeBox(where)) => {
 // positioned ancestor that sets one, and above all of them in the top layer. Both are
 // read up the tree as rendered, where a slotted box stacks inside its slot's ancestors.
 // The chrome's root follows `body` at the largest z-index and wins every tie by tree
-// order (base.css, at the ladder), so a chrome box reads its own rung above every level
-// a page box can read, whatever z-index the page sets.
+// order (base.css, `:root > .lf-chrome`), so a chrome box reads its own rung above every
+// level a page box can read, whatever z-index the page sets.
 export const CHROME_LEVEL = 2 ** 31;
 /** @param {Element} node */
 export function stackLevel(node) {
@@ -1137,7 +1136,7 @@ export function stackLevel(node) {
   let a = node;
   for (; a; a = renderedParent(a)) {
     if (isNativeLayer(a)) return Infinity;
-    if (a === chromeRoot) return CHROME_LEVEL + level;
+    if (a.matches(":root > .lf-chrome")) return CHROME_LEVEL + level;
     const { position, zIndex } = getComputedStyle(a);
     if (position !== "static" && zIndex !== "auto") level = Number(zIndex);
   }

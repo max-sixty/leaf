@@ -1,4 +1,4 @@
-"""Safari on an iOS simulator, for a probe of an iPhone-only difference.
+"""Safari on an iOS simulator, for a probe or stills of an iPhone-only difference.
 
 Playwright's WebKit is a desktop build and differs from iOS WebKit beyond its version:
 on 2026-10-26 iOS 26.1 listed adopted stylesheets in `document.styleSheets` and
@@ -81,6 +81,20 @@ def ios_safari(scheme: str = "light"):
     finally:
         if not booted:
             simctl("shutdown", udid)
+
+
+class Tab:
+    """The simulator's Safari as a reading calls a Playwright `Page`, by `evaluate` and
+    `screenshot`, so a command reads a tab the same way in every engine."""
+
+    def __init__(self, driver):
+        self.driver = driver
+
+    def evaluate(self, expression: str, arg=None):
+        return evaluate(self.driver, expression, arg)
+
+    def screenshot(self, *, path) -> None:
+        self.driver.save_screenshot(str(path))
 
 
 def evaluate(driver, expression: str, arg=None):

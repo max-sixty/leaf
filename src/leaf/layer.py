@@ -444,9 +444,9 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     (module-authoring.md, "A widget that also runs off Leaf"): the kernel's
     portable.css, then each package's widget-shadow.css and defaults.css, in input
     order, all in lf-base, the tier a widget module's adopted rules take off Leaf too
-    (runtime/base-layer.js), so the host's own sheet outranks every rule. It takes
-    none of base.css's page shell, the Layouts, semantic state, overrides or chrome,
-    which style a Leaf page around its widgets.
+    (runtime/base-layer.js), so the host's own unlayered rules outrank all of it. It
+    takes none of base.css's page shell, the Layouts, semantic state, overrides or
+    chrome, which style a Leaf page around its widgets.
     """
     kernel, *packages = inputs
     if not (kernel / "base.css").is_file():

@@ -77,15 +77,20 @@ export function createMarginBars(inventory) {
         cut: false,
         // At the start edge of the target's column, which is its right in
         // right-to-left text: a table's edge for a cell, so the bar stands in the
-        // margin rather than in the cell before it.
+        // margin rather than in the cell before it. A target with no room before it,
+        // such as a site header standing at the window's edge beside `main`, keeps its
+        // bar inside the window, over its own edge.
         rect: (
           /** @type {import("./target-paint-geometry.js").Placement} */ { rect },
         ) => {
           const { gap } = KINDS[kind];
           const edge = (target.closest("table") ?? target).getBoundingClientRect();
           const left = target.matches(":dir(rtl)")
-            ? Math.max(rect.right, edge.right) + gap
-            : Math.min(rect.left, edge.left) - gap - BAR;
+            ? Math.min(
+                Math.max(rect.right, edge.right) + gap,
+                document.documentElement.clientWidth - BAR,
+              )
+            : Math.max(Math.min(rect.left, edge.left) - gap - BAR, 0);
           return { left, right: left + BAR, top: rect.top, bottom: rect.bottom };
         },
       })),

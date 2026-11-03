@@ -543,16 +543,13 @@ export class MessageEditor {
               this.input.selectionStart,
               this.input.selectionEnd,
             ];
-            return start === 0 && end === 0 && unchanged();
+            return start === 0 && end === 0 && unchanged() && Boolean(previous());
           },
-          get run() {
+          run: () => {
             const before = previous();
-            return before
-              ? () => {
-                  putAside();
-                  before.openEdit();
-                }
-              : undefined;
+            if (!before) return;
+            putAside();
+            before.openEdit();
           },
         },
       ],

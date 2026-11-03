@@ -41,8 +41,8 @@ function readDocumentLayout() {
     pageControlsChanged();
   }
   if (changed) {
-    const main = pageDocument();
-    if (main) layoutChanged(main);
+    const page = pageDocument();
+    if (page) layoutChanged(page);
     repaintPage();
   }
 }

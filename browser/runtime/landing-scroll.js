@@ -78,6 +78,7 @@ import {
   visibleBand,
 } from "./geometry.js";
 import { scrollersOf } from "./scroll-containers.js";
+import { PAGE_PAINT_ATTRIBUTE, locationStandsDown } from "./page-paint.js";
 import { startScroll, reachable, pageScroller } from "./scrolling.js";
 import { clippingAxes, nearestScrollBy } from "./rect.js";
 import { nextRender } from "./rendering.js";
@@ -401,8 +402,8 @@ onCurrentLocation(
       /** @type {Element | null} */
       let box = node;
       for (; box; box = renderedParent(box)) {
-        if (!box.matches("[data-lf-obligation]")) continue;
-        if (getComputedStyle(box).outlineStyle === "none") continue;
+        if (!box.matches(`[${PAGE_PAINT_ATTRIBUTE.obligation}]`)) continue;
+        if (locationStandsDown(box)) continue;
         if (!ringShown(box)) scrollIntoView(box, { block: "nearest" });
         break;
       }

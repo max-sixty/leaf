@@ -115,6 +115,14 @@
   // Both carriers of the band are read. Most of the layer's rules draw it as an outline;
   // two cast it as a shadow instead, and a reading that knew only the outline reported the
   // response bar and the browsed target hint as boxes with no ring on them at all.
+  // A box over the page drawing the ring for the focused element: the projected focus
+  // mark, or the location ring over a decision that holds focus itself, as an arrival
+  // leaves it.
+  const carriesFocus = (el, focused) =>
+    el.matches(".lf-visual-mark-focus") ||
+    (el.matches(".lf-location") &&
+      Boolean(focused?.matches?.(".lf-projected-location")));
+
   function ringCandidates() {
     const { accent, mixed } = accentSwatch();
     // The band this box casts as a shadow, where it draws one, in the width it draws it
@@ -716,10 +724,10 @@
         mark: el.matches(".lf-mark-el"),
         pseudo: pseudo ? "after" : null,
         carrier: outlined ? "outline" : "box-shadow",
-        focused: el === focused || el.matches(".lf-visual-mark-focus"),
+        focused: el === focused || carriesFocus(el, focused),
         sample:
           el === focused ||
-          el.matches(".lf-visual-mark-focus") ||
+          carriesFocus(el, focused) ||
           holds(el, focused) ||
           holds(focused, el) ||
           el.hasAttribute("data-lf-ring-sample"),
@@ -821,6 +829,13 @@
     // when its source has no id. Its other states are reference brackets.
     const projected = e.ownerDocument.querySelector(".lf-visual-mark-focus");
     if (projected?.checkVisibility({ visibilityProperty: true })) overlaid(projected);
+    // The location ring drawn over a decision is its focus cue too.
+    const location = e.ownerDocument.querySelector(".lf-location");
+    if (
+      e.matches(".lf-projected-location") &&
+      location?.checkVisibility({ visibilityProperty: true })
+    )
+      overlaid(location);
     // Tabs draw focus on their label inside the larger hit target.
     for (const child of e.querySelectorAll("*"))
       if (child.checkVisibility({ visibilityProperty: true, opacityProperty: true })) {

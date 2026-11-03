@@ -897,7 +897,8 @@ def on_me(page: Page) -> None:
 
 
 def on_me_todo(page: Page) -> None:
-    """The full to-do title beside its subject after the On me walk arrives."""
+    """On me opened on a to-do's card, its whole title over its Done, after the On me
+    walk arrives at the to-do's subject."""
     as_agent(
         "task",
         "create",
@@ -3465,7 +3466,6 @@ STATES = (
         touch=True,
     ),
     State("on-me-todo", "review-a-plan", on_me_todo),
-    State("on-me-todo-dark", "review-a-plan", on_me_todo, scheme="dark"),
     State("on-me", "corpus", on_me),
     State("on-me-dark", "corpus", on_me, scheme="dark"),
     State("on-agent", "corpus", on_agent),

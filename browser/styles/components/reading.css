@@ -32,10 +32,6 @@
  * refuses the page (`page-scrolls`), so its author fixes the overflow in the page's
  * own CSS.
  */
-:root {
-  --lf-text-scroll-clearance: 8px;
-  --lf-text-scroll-track: 15px;
-}
 /* Markup Leaf renders from Markdown, a message's or a widget's (`markdown.js`: a block's
    `.lf-markdown-body`, inline words' `.lf-markdown-words`), is Leaf's reading of it, so
    it wears the face whatever theme the page takes. */

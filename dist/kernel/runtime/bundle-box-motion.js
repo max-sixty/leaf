@@ -4,30 +4,17 @@ import "./bundle-passages.js";
 import { SVG_NS, paintGeometry, paintShape, paintStand, placement, standBox, standOver, vacate } from "./bundle-page-layout.js";
 
 //#region runtime/target-paint.js
-const targetTraceBox = el("div", "lf-ui lf-target-trace");
 const aimBox = el("div", "lf-ui lf-aim");
 const locationBox = el("div", "lf-ui lf-location");
-const traceStand = paintStand(targetTraceBox);
 const aimStand = paintStand(aimBox);
 const locationStand = paintStand(locationBox);
-const targetTraceLayer = traceStand.root;
 const aimLayer = aimStand.root;
 const locationLayer = locationStand.root;
 const aimShape = document.createElementNS(SVG_NS, "svg");
 aimShape.classList.add("lf-aim-shape");
 aimShape.setAttribute("aria-hidden", "true");
 const aimMaskId = "lf-runtime-aim-shape-mask";
-const targetTraceShape = document.createElementNS(SVG_NS, "svg");
-targetTraceShape.classList.add("lf-target-trace-shape");
-targetTraceShape.setAttribute("aria-hidden", "true");
 let aimed = null;
-let traceElement = null;
-let traceSurface = null;
-let traceGeometry = null;
-let traceShapeKey = "";
-let placementFrame = 0;
-let geometryFrame = 0;
-let geometryDirty = false;
 let locationElement = null;
 let locationFrame = 0;
 let locationProjected = [];
@@ -97,77 +84,109 @@ function labelAim(node) {
 	if (node.parentElement !== aimStand.carrier) move(aimStand.carrier, node, null);
 	standBox(node, at, stood, stood.anchor, stood.at);
 }
-function clearTrace() {
-	traceElement = null;
-	traceSurface = null;
-	traceGeometry = null;
-	traceShapeKey = "";
-	vacate(traceStand);
-	targetTraceBox.style.display = "none";
-	targetTraceBox.classList.toggle("lf-shaped", false);
-	targetTraceShape.replaceChildren();
-	targetTraceBox.removeAttribute("data-for");
-	delete traceStand.root.dataset.lfPaintPlane;
+function createTrace(className) {
+	const box = el("div", `lf-ui ${className}`);
+	const stand = paintStand(box);
+	const shape = document.createElementNS(SVG_NS, "svg");
+	shape.classList.add(`${className}-shape`);
+	shape.setAttribute("aria-hidden", "true");
+	let traced = null;
+	let tracedSurface = null;
+	let tracedGeometry = null;
+	let shapeKeyDrawn = "";
+	let placementFrame = 0;
+	let geometryFrame = 0;
+	let geometryDirty = false;
+	function clear() {
+		traced = null;
+		tracedSurface = null;
+		tracedGeometry = null;
+		shapeKeyDrawn = "";
+		vacate(stand);
+		box.style.display = "none";
+		box.classList.toggle("lf-shaped", false);
+		shape.replaceChildren();
+	}
+	function draw(element = traced, surface = tracedSurface, rebuildGeometry = true) {
+		if (!(element instanceof Element) || !(surface instanceof Element) || !element.isConnected || !surface.isConnected) {
+			clear();
+			return;
+		}
+		const changed = element !== traced || surface !== tracedSurface;
+		const geometry = changed || rebuildGeometry ? paintGeometry(surface) : tracedGeometry;
+		const placed = placement(surface, Boolean(geometry), inChrome(element));
+		traced = element;
+		tracedSurface = surface;
+		tracedGeometry = geometry;
+		if (!placed.shown) {
+			box.style.display = "none";
+			return;
+		}
+		const { rect, shapeKey } = placed;
+		let shaped = Boolean(geometry);
+		if (shaped && (changed || rebuildGeometry || shapeKey !== shapeKeyDrawn)) shaped = paintShape(shape, geometry, rect);
+		if (!shaped) shape.replaceChildren();
+		shapeKeyDrawn = shaped ? shapeKey : "";
+		box.classList.toggle("lf-shaped", shaped);
+		keeps(box, "data-for", element.id || null);
+		keeps(stand.root, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
+		standOver(stand, placed, shaped ? null : getComputedStyle(surface).borderRadius);
+	}
+	return {
+		layer: stand.root,
+		paint(element, surface = element) {
+			if (!element) {
+				clear();
+				return;
+			}
+			const rebuild = geometryDirty || element !== traced || surface !== tracedSurface;
+			if (geometryDirty) {
+				if (geometryFrame) cancelRender(geometryFrame);
+				if (placementFrame) cancelRender(placementFrame);
+				geometryFrame = placementFrame = 0;
+				geometryDirty = false;
+			}
+			draw(element, surface, rebuild);
+		},
+		shifted() {
+			if (placementFrame || geometryFrame || !traced) return;
+			placementFrame = nextRender(() => {
+				placementFrame = 0;
+				if (traced) draw(traced, tracedSurface, false);
+			});
+		},
+		geometryChanged() {
+			geometryDirty = true;
+			if (placementFrame) cancelRender(placementFrame);
+			placementFrame = 0;
+			if (geometryFrame || !traced) return;
+			geometryFrame = nextRender(() => {
+				geometryFrame = 0;
+				if (!geometryDirty) return;
+				geometryDirty = false;
+				if (traced) draw(traced, tracedSurface, true);
+			});
+		},
+		mount() {
+			box.append(shape);
+		}
+	};
 }
-function drawTrace(element = traceElement, surface = traceSurface, rebuildGeometry = true) {
-	if (!(element instanceof Element) || !(surface instanceof Element) || !element.isConnected || !surface.isConnected) {
-		clearTrace();
-		return;
-	}
-	const changed = element !== traceElement || surface !== traceSurface;
-	const geometry = changed || rebuildGeometry ? paintGeometry(surface) : traceGeometry;
-	const placed = placement(surface, Boolean(geometry), inChrome(element));
-	traceElement = element;
-	traceSurface = surface;
-	traceGeometry = geometry;
-	if (!placed.shown) {
-		targetTraceBox.style.display = "none";
-		return;
-	}
-	const { rect, shapeKey } = placed;
-	let shaped = Boolean(geometry);
-	if (shaped && (changed || rebuildGeometry || shapeKey !== traceShapeKey)) shaped = paintShape(targetTraceShape, geometry, rect);
-	if (!shaped) targetTraceShape.replaceChildren();
-	traceShapeKey = shaped ? shapeKey : "";
-	targetTraceBox.classList.toggle("lf-shaped", shaped);
-	keeps(targetTraceBox, "data-for", element.id || null);
-	keeps(traceStand.root, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
-	standOver(traceStand, placed, shaped ? null : getComputedStyle(surface).borderRadius);
-}
-function paintTrace(element, surface = element) {
-	if (!element) {
-		clearTrace();
-		return;
-	}
-	const rebuild = geometryDirty || element !== traceElement || surface !== traceSurface;
-	if (geometryDirty) {
-		if (geometryFrame) cancelRender(geometryFrame);
-		if (placementFrame) cancelRender(placementFrame);
-		geometryFrame = placementFrame = 0;
-		geometryDirty = false;
-	}
-	drawTrace(element, surface, rebuild);
-}
+const targetTrace = createTrace("lf-target-trace");
+const proxyRing = createTrace("lf-proxy-ring");
+const targetTraceLayer = targetTrace.layer;
+const proxyRingLayer = proxyRing.layer;
+const paintTrace = targetTrace.paint;
+const paintProxyRing = proxyRing.paint;
 function shifted$1() {
 	relocate();
-	if (placementFrame || geometryFrame || !traceElement) return;
-	placementFrame = nextRender(() => {
-		placementFrame = 0;
-		if (traceElement) drawTrace(traceElement, traceSurface, false);
-	});
+	targetTrace.shifted();
+	proxyRing.shifted();
 }
 function geometryChanged() {
 	relocate();
-	geometryDirty = true;
-	if (placementFrame) cancelRender(placementFrame);
-	placementFrame = 0;
-	if (geometryFrame || !traceElement) return;
-	geometryFrame = nextRender(() => {
-		geometryFrame = 0;
-		if (!geometryDirty) return;
-		geometryDirty = false;
-		if (traceElement) drawTrace(traceElement, traceSurface, true);
-	});
+	targetTrace.geometryChanged();
+	proxyRing.geometryChanged();
 }
 function paintLocation(element) {
 	locationElement = element;
@@ -207,7 +226,8 @@ function relocate() {
 }
 function mountTargetPaint() {
 	aimBox.append(aimShape);
-	targetTraceBox.append(targetTraceShape);
+	targetTrace.mount();
+	proxyRing.mount();
 }
 
 //#endregion
@@ -916,4 +936,4 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer: g
 }
 
 //#endregion
-export { aimLayer, boxMotion, clearAim, geometryChanged, labelAim, locationLayer, mountTargetPaint, paintAim, paintLocation, paintTrace, shifted$1 as shifted, targetTraceLayer };
+export { aimLayer, boxMotion, clearAim, geometryChanged, labelAim, locationLayer, mountTargetPaint, paintAim, paintLocation, paintProxyRing, paintTrace, proxyRingLayer, shifted$1 as shifted, targetTraceLayer };

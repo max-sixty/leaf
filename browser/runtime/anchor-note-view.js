@@ -11,12 +11,13 @@
  * while it shows only the count, which the name begins with.
  *
  * A keyboard reaches a block's threads from the block itself (`c`, `t`) and through its
- * margin row. Focus on the note shows it at the window's head (chrome.css).
+ * margin row. The note is a proxy for its block (control-faces.js, `proxy`): focus on it
+ * rings the block and brings it into view (details-shelf.js).
  */
 import { aimTargetAt } from "./anchor-resolution.js";
 import { shelve, unshelve } from "./details-shelf.js";
 import { spokenSubject } from "./contribution-model.js";
-import { offer } from "./widget-elements.js";
+import { offerAction } from "./widget-elements.js";
 import { keeps, keepsText } from "./keeps.js";
 
 /** @param {number} count */
@@ -32,7 +33,7 @@ export function createAnchorNoteProjection({ openThread, labelAnchor }) {
 
   /** @param {string} firstThreadId */
   function claim(firstThreadId) {
-    const note = offer("button", "lf-mark-note");
+    const note = offerAction("proxy", "lf-mark-note");
     note.tabIndex = -1;
     const record = { note, firstThreadId };
     note.addEventListener(
@@ -50,11 +51,24 @@ export function createAnchorNoteProjection({ openThread, labelAnchor }) {
 
   /** @param {ReadonlyMap<Element, CommentThreads>} notes */
   function present(notes) {
+    // A block the page drew anew keeps its note, found by the thread it enters, so a
+    // user on the note stays on it (details-shelf.js, `shelve`). One passage across
+    // several blocks gives each a note entering the same thread, so the notes that
+    // left wait in page order under that thread, and each new block takes the first.
+    /** @type {Map<string, [Element, ReturnType<typeof claim>][]>} */
+    const left = new Map();
     for (const [holder, record] of claims)
-      if (!notes.has(holder) || !holder.isConnected) release(holder, record);
+      if (!notes.has(holder) || !holder.isConnected) {
+        claims.delete(holder);
+        const waiting = left.get(record.firstThreadId) ?? [];
+        left.set(record.firstThreadId, [...waiting, [holder, record]]);
+      }
     for (const [holder, threadIds] of notes) {
       let record = claims.get(holder);
-      if (!record) claims.set(holder, (record = claim(threadIds[0])));
+      if (!record) {
+        record = left.get(threadIds[0])?.shift()?.[1] ?? claim(threadIds[0]);
+        claims.set(holder, record);
+      }
       shelve(holder, record.note);
       record.firstThreadId = threadIds[0];
       const count = label(threadIds.length);
@@ -66,6 +80,7 @@ export function createAnchorNoteProjection({ openThread, labelAnchor }) {
         anchor ? `${count} on ${spokenSubject(labelAnchor(anchor))}` : count,
       );
     }
+    for (const [holder, record] of [...left.values()].flat()) release(holder, record);
   }
 
   function destroy() {

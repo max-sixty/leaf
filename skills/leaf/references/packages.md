@@ -95,12 +95,21 @@ writing widget CSS, and reuse Leaf's thread symbol, comment box and keyboard hin
 Choose a stylesheet by the contribution it makes. A package may supply any combination;
 adding a widget does not change its theme styling.
 
-| Sheet               | Document                           | Declared shadow trees |
-| ------------------- | ---------------------------------- | --------------------- |
-| `defaults.css`      | `lf-base`                          | —                     |
-| `widget-shadow.css` | `lf-base`                          | `lf-shadow`           |
-| `overrides.css`     | Page-wide in `lf-overrides`        | —                     |
-| `chrome.css`        | Leaf's chrome, above its own rules | —                     |
+| Sheet               | Document                           | Declared shadow trees | A page without Leaf |
+| ------------------- | ---------------------------------- | --------------------- | ------------------- |
+| `defaults.css`      | `lf-base`                          | —                     | `lf-base`           |
+| `widget-shadow.css` | `lf-base`                          | `lf-shadow`           | `lf-base`           |
+| `overrides.css`     | Page-wide in `lf-overrides`        | —                     | —                   |
+| `chrome.css`        | Leaf's chrome, above its own rules | —                     | —                   |
+
+A page without Leaf links the layer's `portable.css`, served beside `/widgets/`, for
+its widgets' look (`module-authoring.md`, "A widget that also runs off Leaf"). It holds
+the theme's tokens, Leaf's faces for what widgets build, kept to the widgets' insides,
+and the `defaults.css` and `widget-shadow.css` of each package that ships widgets, so
+a theme's rules stay out and the page's own markup keeps its look. The rules stand in `lf-base`, so the page's
+own unlayered CSS outranks them and restyles its widgets by restating a token such as
+`--accent`, and its `color-scheme` picks their colours. A page that paints its own
+background sets `--lf-ground` to it, the ground a widget's opaque controls paint.
 
 Defaults, a widget's own and a theme's element rules and idioms, go in `defaults.css`,
 below Layouts; overrides, in `overrides.css`, rank above them. Leaf orders

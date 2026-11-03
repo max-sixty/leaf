@@ -96,6 +96,7 @@ import { passageBoxes, targetRange, targetSegments } from "../resolved-target.js
 import { proseMeasure, proseRect, railStands } from "../content-layout.js";
 import { keeps, layoutPx, inlineStyle } from "../keeps.js";
 import { move } from "../dom-move.js";
+import { offerActionElement } from "../widget-elements.js";
 import { coarsePointer, hoveringPointer } from "../pointer.js";
 import { LAYOUT } from "../widget-upgrade.js";
 import { inChrome } from "../passages.js";
@@ -382,9 +383,11 @@ railMeasureRow.dataset.lfPlace = "rail";
 railMeasureRow.inert = true;
 railMeasureRow.setAttribute("aria-hidden", "true");
 railMeasureRow.style.visibility = "hidden";
-const railMeasureEntry = document.createElement("button");
-railMeasureEntry.className = "lf-margin-entry";
-railMeasureEntry.type = "button";
+const railMeasureEntry = offerActionElement(
+  document.createElement("button"),
+  "entry",
+  "lf-margin-entry",
+);
 railMeasureEntry.dataset.lfBehavior = "disclosure";
 railMeasureRow.append(railMeasureEntry);
 /** @param {Layer} layer */

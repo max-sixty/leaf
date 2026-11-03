@@ -577,10 +577,10 @@ export function createThreadPreview({
     const thread = threadCardThread(session);
     const words =
       !point && thread?.anchor?.quote ? passageGeometry(placedAt(thread.id)) : null;
-    return {
-      element: target,
-      place: commentAttachment({ target, point, passage: words }),
-    };
+    const place = commentAttachment({ target, point, passage: words });
+    // Floating UI follows the scrollers around what the card stands by, so a card on a
+    // row deep in a target follows the box that scrolls that row, not only the target's.
+    return { element: place?.element ?? target, place };
   }
   const THREAD_SIDES = { right: "right", left: "left", bottom: "below", top: "above" };
   // Feed the shared placement policy the current conversation and native draft;

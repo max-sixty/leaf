@@ -449,11 +449,15 @@ export function floatingPlacement({ floating, update }) {
         // Off the page's plane the answer depends on where the words stand in what holds
         // the box in, so every scroll around them solves it again, a scroll inside the
         // tree of a reference whose host does not move included.
+        // A listener of its own: `watch` registers `update` on these same scrollers,
+        // and a target keeps one registration per function, so removing `update` here
+        // would end that watch's scroll invalidation in the page's plane too.
         const sources = context ? [...new Set(getOverflowAncestors(context))] : [];
+        const solve = () => update();
         for (const source of sources)
-          source.addEventListener("scroll", update, { passive: true });
+          source.addEventListener("scroll", solve, { passive: true });
         stopScrollInvalidation = () => {
-          for (const source of sources) source.removeEventListener("scroll", update);
+          for (const source of sources) source.removeEventListener("scroll", solve);
         };
       }
       stand = frameAnchor ? anchoredAt(frameAnchor, at) : placedAt;

@@ -119,7 +119,7 @@
   // mark, or the location ring over a decision that holds focus itself, as an arrival
   // leaves it.
   const carriesFocus = (el, focused) =>
-    el.matches(".lf-visual-mark-focus") ||
+    el.matches(".lf-visual-mark-focus, .lf-proxy-ring") ||
     (el.matches(".lf-location") &&
       Boolean(focused?.matches?.(".lf-projected-location")));
 
@@ -826,8 +826,11 @@
     if (shadowBand(cs, accent, mixed) > 0) return null;
     overlaid(e);
     // The target painter's focus state names the current keyboard carrier even
-    // when its source has no id. Its other states are reference brackets.
-    const projected = e.ownerDocument.querySelector(".lf-visual-mark-focus");
+    // when its source has no id, and so does a focused stop's ring round what it
+    // stands for. The painter's other states are reference brackets.
+    const projected = e.ownerDocument.querySelector(
+      ".lf-visual-mark-focus, .lf-proxy-ring",
+    );
     if (projected?.checkVisibility({ visibilityProperty: true })) overlaid(projected);
     // The location ring drawn over a decision is its focus cue too.
     const location = e.ownerDocument.querySelector(".lf-location");

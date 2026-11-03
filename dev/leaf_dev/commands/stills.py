@@ -17,14 +17,15 @@ held checkpoints capture a send before its POST completes; a still cannot hold o
 
 A state is one surface: a page, by the name `leaf-dev probe` also takes
 (`named_source`), and the input that brings a fresh tab there (`DRIVERS`, which
-`probe --do drive:NAME` also runs). Each page the corpus composes has a state at
-rest, named after its file (`corpus.sources`), and `STATES` lists the surfaces a user
+`probe --do drive:NAME` also runs). `STATES` holds a state at rest for each page the
+corpus composes, named after its file (`corpus.sources`), and the surfaces a user
 reaches by acting. Where a change touches a surface no state reaches, add one state
 for it, never one per size, scheme or pointer: `--viewport`, `--scheme` and `--touch`
-choose those for every state a run captures, as they do for `probe`. A state names
-its own viewport or pointer only where its surface needs one to appear, such as a
-card in a short window or the floating panel's view of a thread on a phone, and the
-run's options override it. A state may name a
+choose those for every state a run captures, as they do for `probe`, and a surface
+laid out differently on a phone is still one state. A state names its own viewport
+or pointer only where its surface appears at no other, such as a card in a short
+window or the floating panel's view of a thread on a phone; `--viewport` and
+`--touch` override it. A state may name a
 region whose before/after bounds frame the comparison, retaining related controls
 without shrinking their details behind unrelated viewport changes. Raw screenshots
 always preserve the full viewport and its geometry.
@@ -2621,7 +2622,7 @@ STATES = (
     State("playground-tall-stage", "alert-thresholds", playground_tall_stage),
     State("playground-short-window", "data-explorer", page_end, viewport=(844, 390)),
     State(
-        "margin-gallery-phone",
+        "margin-gallery",
         "feature-gallery",
         margin_gallery,
         viewport=PHONE,
@@ -2720,7 +2721,7 @@ STATES = (
     State("plan-panel-keyboard", "review-a-plan", panel_by_keyboard),
     State("plan-go-to", "review-a-plan", go_to, viewport=(1024, 768)),
     State(
-        "plan-thread-phone",
+        "plan-thread-in-panel",
         "review-a-plan",
         thread_by_marker,
         viewport=PHONE,
@@ -2851,7 +2852,6 @@ STATES = (
         region="#security-contract-list",
     ),
     State("stacked-disclosures", "security-boundary", disclosures_in_view),
-    # The case study's five-step flow, drawn top-down so a phone shows every step.
     State(
         "security-flow",
         "security-boundary",
@@ -2859,13 +2859,13 @@ STATES = (
         region="#security-before-flow",
     ),
     State(
-        "breakout-captions-scrolled-phone",
+        "breakout-captions-scrolled",
         "breakout-table-caption",
         breakout_captions_scrolled,
         viewport=PHONE,
     ),
     State(
-        "table-scrolled-phone",
+        "table-scrolled-sideways",
         "security-boundary",
         table_scrolled_sideways,
         viewport=PHONE,
@@ -2881,7 +2881,7 @@ STATES = (
         touch=True,
         region="#col-blocking",
     ),
-    State("walkthrough-wide", "pr-walkthrough", into_the_body),
+    State("walkthrough-body", "pr-walkthrough", into_the_body),
     State("progress-body-short", "live-progress", into_the_body, viewport=(900, 600)),
     State("walkthrough-calls", "pr-walkthrough", call_tree, region="#pr-call-diagram"),
     State("diagram-flow", "pr-walkthrough", diagram_flow, region="#pr-flow-diagram"),
@@ -3359,7 +3359,11 @@ def stills(
     touch: bool | None,
 ) -> None:
     """Screenshot a catalogue of UI states on BASE_REF's runtime and HEAD's, and crop
-    each state that changed into a before/after pair under .tmp/stills/."""
+    each state that changed into a before/after pair under .tmp/stills/.
+
+    --viewport, --scheme and --touch set the window of every state captured; a state
+    that names its own viewport or pointer keeps it unless --viewport or --touch is
+    given."""
     states = [state for state in STATES if not names or state.name in names]
     out = run_directory(OUT)
     failed: dict[str, list[str]] = {}

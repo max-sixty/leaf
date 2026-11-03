@@ -208,7 +208,8 @@ covering every composed page, rather than writing a computed-style sweep. Cover 
 reached by interaction, including focus states where layout can cover a focus ring.
 Where no state reaches a surface the change touches, add one to `STATES` rather than
 driving it by hand: one state per surface, never one per scheme, size or pointer,
-which a run chooses with `--scheme`, `--viewport` and `--touch`.
+which a run chooses with `--scheme`, `--viewport` and `--touch` (the `stills.py`
+header says when a state keeps its own).
 
 Hand off every difference a still can show as a Leaf page with an `lf-shot` of the
 crops and a sentence saying what changed, and link the page in the reply; a live

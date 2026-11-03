@@ -142,13 +142,13 @@ def window_size(value: str) -> tuple[int, int]:
 
 def tab_options(command):
     """Give a command `tab`'s viewport, scheme and pointer as `--viewport`, `--scheme`
-    and `--touch`. `viewport` and `touch` reach the command as None unless given, so a
-    `leaf-dev stills` state's own size and pointer stand."""
+    and `--touch`. `viewport` and `touch` reach the command as None unless given, so
+    it can tell a default from a choice."""
     command = click.option(
         "--touch/--no-touch",
         default=None,
         help="Show the page under a finger: a coarse pointer and mobile emulation, at "
-        "--viewport's size. Off unless a stills state names it.",
+        "--viewport's size. Off by default.",
     )(command)
     command = click.option(
         "--scheme",
@@ -160,8 +160,8 @@ def tab_options(command):
         "--viewport",
         metavar="WIDTHxHEIGHT",
         callback=lambda c, p, value: value and window_size(value),
-        help=f"{DESKTOP[0]}x{DESKTOP[1]} unless a stills state names its own. A phone "
-        f"also needs --touch: --viewport {PHONE[0]}x{PHONE[1]} --touch.",
+        help=f"By default {DESKTOP[0]}x{DESKTOP[1]}. A phone also needs --touch: "
+        f"--viewport {PHONE[0]}x{PHONE[1]} --touch.",
     )(command)
 
 

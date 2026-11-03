@@ -839,13 +839,13 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
     frame = page.frame_locator("#bg-panel-sample iframe")
     shown = frame.locator(panel_view("thread"))
     expect(shown).to_have_count(0)
-    page.locator('#bg-panel-presets [data-lf-route="overview"]').click()
+    page.locator('#bg-panel-presets [data-view="overview"]').click()
     expect(shown).to_have_attribute(
         "data-lf-thread", "72e031c5bf0d485ba9054628e09869d4"
     )
 
     page.keyboard.press("Tab")
-    you_button = page.locator('#bg-panel-presets [data-lf-route="you"]')
+    you_button = page.locator('#bg-panel-presets [data-view="you"]')
     expect(you_button).to_be_focused()
     assert you_button.evaluate("element => element.matches(':focus-visible')")
     page.keyboard.press("Space")
@@ -865,11 +865,11 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
             "Is lunch provided, or should attendees make their own plans?",
         ),
     ):
-        page.locator(f'#bg-panel-presets [data-lf-route="{view}"]').click()
+        page.locator(f'#bg-panel-presets [data-view="{view}"]').click()
         expect(shown).to_have_attribute("data-lf-thread", thread)
         expect(frame.locator(".lf-fp-title")).to_have_text(title)
 
-    page.locator('#bg-panel-presets [data-lf-route="resolved"]').click()
+    page.locator('#bg-panel-presets [data-view="resolved"]').click()
     expect(shown).to_have_attribute(
         "data-lf-thread", "bab3cdfcfb8c02aacbb27da731de947a"
     )

@@ -532,6 +532,17 @@ function neighbourhood(reading, at, want, before) {
 		if ([...text].length >= want || (before ? lo === edge : hi === edge)) return text;
 	}
 }
+function fencedAt(reading, element) {
+	const inside = reading.segments.filter(({ node }) => under(node, element));
+	const first = inside[0];
+	const last = inside.at(-1);
+	if (!first || !last) return reading;
+	const edges = [first.rawStart, last.rawStart + last.end - last.start];
+	return {
+		...reading,
+		fences: [.../* @__PURE__ */ new Set([...reading.fences, ...edges])].sort((a, b) => a - b)
+	};
+}
 const WATCH_READING = {
 	subtree: true,
 	childList: true,
@@ -808,4 +819,4 @@ function pageParts(sel) {
 }
 
 //#endregion
-export { DATUM, LEAF_SURFACE, alignInlineText, alignText, authored, authoredScope, blockAt, contextAround, cut, elementById, elementFromPointAcross, elementOver, elementReading, excerptWords, fencePassageParts, fileModelsPassage, findQuote, findText, labelWords, layoutBox, leafSurface, neighbourhood, pageBlocks, pageDocument, pageParts, pageQueryAll, pageReadingVersion, pageText, pageWords, pointAt, quoteFrom, quotedWords, rangeOf, readingFrom, renderRetired, says, segmentBlock, segmentsIn, sentenceUnits, settledAway, showsWords, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity, watchPassageRoot, wrote };
+export { DATUM, LEAF_SURFACE, alignInlineText, alignText, authored, authoredScope, blockAt, contextAround, cut, elementById, elementFromPointAcross, elementOver, elementReading, excerptWords, fencePassageParts, fencedAt, fileModelsPassage, findQuote, findText, labelWords, layoutBox, leafSurface, neighbourhood, pageBlocks, pageDocument, pageParts, pageQueryAll, pageReadingVersion, pageText, pageWords, pointAt, quoteFrom, quotedWords, rangeOf, readingFrom, renderRetired, says, segmentBlock, segmentsIn, sentenceUnits, settledAway, showsWords, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity, watchPassageRoot, wrote };

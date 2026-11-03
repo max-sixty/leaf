@@ -3190,12 +3190,12 @@ def test_neighbor_discovery_needs_no_native_subscription(
     page_dir, tmp_path, monkeypatch
 ):
     """A short-lived reader sees new rows even when native watches cannot start."""
-    import watchfiles.main
+    from leaf import file_changes
 
     def no_watcher(*_args, **_kwargs):
         raise RuntimeError("native watch unavailable")
 
-    monkeypatch.setattr(watchfiles.main, "RustNotify", no_watcher)
+    monkeypatch.setattr(file_changes._Native, "schedule", no_watcher)
     rows = cleanup_model.state_home() / "rows"
     assert not rows.exists()
     assert presence_model.neighbor_candidates() == ()

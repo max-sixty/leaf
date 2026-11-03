@@ -42,8 +42,9 @@ write it from a quote read out of the authored HTML through `leaf.passages`, so 
 write only anchors the file confirms (`validation.md`, "Passages").
 
 Projected data has no authored text to quote, so a selection on it names `datum`, the
-rendering key within its section, and, where the projection names an external `x-data`
-input, `source` and `source_revision`, the value's revision when selected. The door
+rendering key within its section, with `prefix` and `suffix` taken from the datum's own
+words, and, where the projection names an external `x-data` input, `source` and
+`source_revision`, the value's revision when selected. The door
 checks that the section binds that source, and admits an older revision as a comment on
 a value since replaced. `identity` names a subject the emitter knows persists across
 source replacements. `visual` names a declared part of a picture, and `part` the control

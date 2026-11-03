@@ -604,7 +604,9 @@ def test_reading_landmarks_use_drawn_segments_in_mixed_blocks(
     assert chosen["place"]["quote"] == visible
     chosen_scroll = page.evaluate("scrollY")
     page.keyboard.press("t")
-    expect(page.locator(f'.lf-margin-preview [data-lf-thread="{root}"]')).to_be_focused()
+    expect(
+        page.locator(f'.lf-margin-preview [data-lf-thread="{root}"]')
+    ).to_be_focused()
     scroll_settled(page)
     page.go_back()
     page.wait_for_function("top => Math.abs(scrollY-top) <= 2", arg=chosen_scroll)

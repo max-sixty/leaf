@@ -387,7 +387,7 @@
   --mark-strong: light-dark(#dfd1ed, #6152a099);
   --mark-ink: light-dark(#4a3b7d, #9d8fd6);
   /* The draft's wash, relative to the accent so one definition serves both schemes; the
-     passage highlight (marks.css) and a draft's element mark (chrome.css) read it. */
+     passage highlight (annotation-marks.css) reads it. */
   --mark-pending: color-mix(in srgb, var(--accent) 20%, transparent);
   /* A reaction's wash: the same hue one step under the resting mark, so a passage
      someone reacted to reads as touched and a passage someone commented on reads as
@@ -405,14 +405,15 @@
      What it says:
      - The focus ring, whole: what takes the next key or press (`data-lf-focus-visible`).
      - The location ring, whole: the decision the user stands in (`[data-lf-obligation]`)
-       (target-paint.js, `paintLocation`), and the decision's focus ring too. A control inside it that carries the location itself stands it down
+       (target-paint.js, `paintLocation`), and the decision's focus ring too. A control
+       inside it that carries the location itself stands it down
        (`--lf-obligation-ring: none`).
      - Brackets, the band's two ends (surfaces.css): what a gesture under way addresses,
        such as the Alt aim, a comment's element, the thread the user is in or its row
        under the pointer in Threads. In the trace ink, the target of the margin entry
        in hand; at 1px in the contour ink, the target of an action.
-     - A shape's own contour, stroked along its path in place of either
-       (surfaces.css).
+     - A drawing's part, a shape or a group of them: any of these whole, on the edge of
+       what it draws (surfaces.css).
      - A quiet ground (--focus-surface): a large composite holding focus, such as a
        thread, where a band would be a second box round the box.
 
@@ -488,11 +489,9 @@
      own: the suite asks the browser which rule drew a ring it sees, and the token is
      what tells that rule from a contour painted in the same ink. */
   --focus-shadow: 0 0 0 var(--focus-ring-w) var(--accent);
-  --target-trace-w: 1.5px;
   --target-trace-ink: color-mix(in srgb, var(--ink-2) 42%, var(--paper));
-  /* SVG annotations stroke their actual contour in this quieter ink. Rectangular
-     annotations use the focus outline cut into brackets (chrome.css), on the region's
-     perimeter. */
+  /* A drawing's part wears a comment's mark in this quieter ink and width, and an
+     action's target wears its brackets at 1px in this ink (surfaces.css). */
   --mark-contour-w: 1.5px;
   --mark-contour-ink: color-mix(in srgb, var(--accent) 72%, var(--paper));
   /* A pressable never wears the accent as a solid fill: the accent is its ink and its

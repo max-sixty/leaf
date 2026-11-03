@@ -297,20 +297,28 @@ a[data-lf-external]::after,
 ) {
   --lf-band-gap: var(--lf-ring-at, var(--focus-ring-gap));
 }
+/* The margin trace takes its own ink, and an action's target alone a quieter line. */
 :where(.lf-traced) {
   --lf-band-ink: var(--target-trace-ink);
 }
-/* An action's target alone takes a quieter line than a comment's mark on it. */
-:where(
-  [data-lf-mark~="action"]:not(
-    [data-lf-mark~="pending"],
-    [data-lf-mark~="hover"],
-    [data-lf-mark~="here"],
-    [data-lf-mark~="focus"]
-  )
-) {
+:where([data-lf-mark="action"]:not(.lf-traced)) {
   --lf-band-ink: var(--mark-contour-ink);
   --lf-band-w: 1px;
+}
+/* Any other mark on the box keeps the accent over those two: the aim, a comment's
+   mark, the proxy or location ring, or the focus ring the box wears. */
+:where(
+  :is(.lf-traced, [data-lf-mark="action"]):is(
+    .lf-aimed,
+    .lf-proxied,
+    .lf-projected-location,
+    [data-lf-mark]:not([data-lf-mark="action"]),
+    [data-lf-focus-visible],
+    :has(> [data-lf-focus-visible])
+  )
+) {
+  --lf-band-ink: var(--accent);
+  --lf-band-w: var(--focus-ring-w);
 }
 /* A forced palette draws marks in its highlight, as it does the focus ring
    (tokens.css). */

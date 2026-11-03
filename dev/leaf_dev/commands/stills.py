@@ -1849,7 +1849,7 @@ def pane_focused(page: Page) -> None:
 
 def aim_cut_by_pane(page: Page) -> None:
     """The aim over a paragraph whose top a workspace pane has scrolled out of view:
-    paint over a target cut where the pane cuts the target."""
+    the pane cuts the aim where it cuts the paragraph."""
     page.locator("#sort-source").evaluate(
         """source => {
           const note = document.getElementById('sort-source-note');

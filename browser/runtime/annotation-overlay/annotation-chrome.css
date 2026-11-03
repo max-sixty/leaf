@@ -1,18 +1,17 @@
 /* Physical annotation overlays, adopted only by the overlay renderer.
- * Shared controls, Aim, target trace and drawing capture remain in chrome.css.
- * This sheet owns persistent target contours, smart margin rows, floating response
- * placement and the contextual Thread preview; importing page chrome needs none of it. */
+ * Shared controls and drawing capture remain in chrome.css, and every mark a box draws
+ * in surfaces.css. This sheet owns the hand over a marked element, smart margin rows,
+ * floating response placement and the contextual Thread preview; importing page chrome
+ * needs none of it. */
 
 body.lf-over-mark {
   cursor: pointer;
 }
 /* An element holding threads draws no contour at rest: its margin entry says so, and a
    box means "this, now". A contour appears for a moment — a draft on it, the pointer
-   on its row in Threads, the thread the user is in — and is one hollow line.
-   Unlike a text highlight, an element mark is projected above everything the target
-   draws, so any interior paint can obscure the target's own words or picture. The
-   target painter keeps the contour above those descendants. The element still takes
-   a press that opens its thread. */
+   on its row in Threads, the thread the user is in — and is one hollow line, the
+   element's own outline (surfaces.css). The element still takes a press that opens
+   its thread. */
 .lf-mark-el {
   cursor: pointer;
 }
@@ -35,10 +34,6 @@ body:is(.lf-aiming, [data-lf-design-mode]) .lf-mark-el {
 body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   cursor: pointer;
 }
-/* Replace only the source focus cue, preserving authored outlines and obligations
-   while a reference is projected. Native visibility covers the return before the
-   focus owner has reflected its attribute. :root outranks field focus rules even
-   when their sheet arrives later. */
 
 @scope (.lf-chrome) {
   /* The hand only where the press lands. An element anchor draws its contour

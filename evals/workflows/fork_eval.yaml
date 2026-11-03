@@ -199,8 +199,17 @@ conversations:
         command: pytest tests/test_cache.py::test_cache_warmup -n 8 --count 300 -q
         description: Run the test 300 times under eight workers
       result: |-
+        FAILED tests/test_cache.py::test_cache_warmup[17-300] - KeyError: 'q:shoes'
+        FAILED tests/test_cache.py::test_cache_warmup[42-300] - KeyError: 'q:shoes'
+        FAILED tests/test_cache.py::test_cache_warmup[61-300] - KeyError: 'q:shoes'
+        FAILED tests/test_cache.py::test_cache_warmup[95-300] - KeyError: 'q:shoes'
+        FAILED tests/test_cache.py::test_cache_warmup[118-300] - KeyError: 'q:shoes'
+        FAILED tests/test_cache.py::test_cache_warmup[151-300] - KeyError: 'q:shoes'
+        FAILED tests/test_cache.py::test_cache_warmup[187-300] - KeyError: 'q:shoes'
+        FAILED tests/test_cache.py::test_cache_warmup[230-300] - KeyError: 'q:shoes'
+        FAILED tests/test_cache.py::test_cache_warmup[264-300] - KeyError: 'q:shoes'
+        FAILED tests/test_cache.py::test_cache_warmup[289-300] - KeyError: 'q:shoes'
         10 failed, 290 passed in 41.2s
-        FAILED tests/test_cache.py::test_cache_warmup - KeyError: 'q:shoes'
     - tool: Bash
       input:
         command: pytest tests/test_cache.py::test_cache_warmup -n 0 --count 300 -q

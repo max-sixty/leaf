@@ -21,7 +21,6 @@ from .projection import (
     generated_children,
     markup_value,
     record_members,
-    retirement_outcomes,
 )
 from .registry.contract import state_specs
 from .structure import SourceDocument
@@ -90,6 +89,7 @@ def constructed_content(
     stored: dict,
     page_dir: Path,
     *,
+    outcomes: dict,
     retired: set,
     thread: str,
 ) -> list:
@@ -100,6 +100,12 @@ def constructed_content(
     exact declared slot. No value in this reading is an instruction to overwrite
     another owner's decision. Node locations inherit the enclosing reading's
     document source; source and vocabulary paths are not repeated per element.
+
+    `projection` folds the whole thread, and its caller constructs many of the
+    thread's messages from it, so a message reads only its own part of the fold,
+    through the projection's indexes by owner and by unit. `outcomes` is the
+    projection's `retirement_outcomes`, which the caller reads once for every
+    message.
     """
     roots = deepcopy(parser.authoring.content)
     by_id: dict[str, dict] = {}
@@ -126,10 +132,31 @@ def constructed_content(
 
     prepare(roots)
     members = parser.by_id
+    # The owners whose children this message can hold: its own elements, and the
+    # children those create, transitively. No other owner is ever in `by_id`, so
+    # their coordinates list the same children in the same order as the whole fold.
+    authored = set(by_id)
+    owners: set = set()
+    reach = list(authored)
+    while reach:
+        owner = reach.pop()
+        if owner in owners:
+            continue
+        owners.add(owner)
+        reach.extend(
+            coordinate[1]
+            for coordinate, (_event, spec) in projection.desired_by_owner.get(owner, ())
+            if spec.get("creates") and coordinate[1] not in authored
+        )
+    desired = {
+        coordinate: entry
+        for owner in owners
+        for coordinate, entry in projection.desired_by_owner.get(owner, ())
+    }
     # Created child id → its owner, so a record the owner states reaches the children
     # other events created as well as the authored ones.
     created_in = {}
-    for widget, children in generated_children(projection.desired, set(by_id)).items():
+    for widget, children in generated_children(desired, authored).items():
         owner = by_id.get(widget)
         if owner is None:
             continue
@@ -147,11 +174,17 @@ def constructed_content(
             by_id[identity] = child
     # Owner and verb → the position record a move in force places units by.
     placed = {}
-    ordered = sorted(projection.desired.items(), key=lambda item: item[1][0]["seq"])
-    for (widget, unit, _verb), (event, spec) in ordered:
-        owner = by_id.get(unit)
-        if owner is None:
-            continue
+    ordered = sorted(
+        (
+            (unit, entry)
+            for unit in by_id
+            for entry in projection.desired_by_unit.get(unit, ())
+        ),
+        key=lambda item: item[1][0]["seq"],
+    )
+    for unit, (event, spec) in ordered:
+        owner = by_id[unit]
+        widget = event["widget"]
         authority = event_origin(event)
         reading = {
             "action": event["action"],
@@ -232,8 +265,6 @@ def constructed_content(
             content.extend(nodes[len(slots) :])
             for i in reversed(slots[len(nodes) :]):
                 content.pop(i)
-
-    outcomes = retirement_outcomes(projection.actions)
 
     def visible(items, parent=None):
         result = []

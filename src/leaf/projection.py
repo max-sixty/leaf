@@ -433,19 +433,19 @@ def projected_action_holders(
 ) -> dict[str, dict]:
     """Unit id → its enclosing vocabulary widget after position records in force
     no later revision has absorbed; an absorbed move leaves its unit where the
-    markup has it."""
+    markup has it. Only units `byid` holds are read."""
     holders = {}
-    for (_owner, unit, _verb), (event, spec) in projection.desired.items():
-        record = spec.get("record") or {}
-        if record.get("kind") != "position" or event["id"] in projection.absorbed:
-            continue
-        target = byid.get(event["detail"]["value"])
-        unit_rec = byid.get(unit)
-        if target and unit_rec:
-            holder = target if target["tag"] in registry else target.get("holder")
-            permitted = (registry.get(unit_rec["tag"]) or {}).get("x-owners", [])
-            if holder and holder["tag"] in permitted:
-                holders[unit] = holder
+    for unit, unit_rec in byid.items():
+        for event, spec in projection.desired_by_unit.get(unit, ()):
+            record = spec.get("record") or {}
+            if record.get("kind") != "position" or event["id"] in projection.absorbed:
+                continue
+            target = byid.get(event["detail"]["value"])
+            if target:
+                holder = target if target["tag"] in registry else target.get("holder")
+                permitted = (registry.get(unit_rec["tag"]) or {}).get("x-owners", [])
+                if holder and holder["tag"] in permitted:
+                    holders[unit] = holder
     return holders
 
 
@@ -843,7 +843,8 @@ def record_members(
     registry: dict,
 ) -> dict[str, set]:
     """Owner id → the current members the attribute `record` lets it name,
-    including created children, read for every owner in one pass over the document.
+    including created children, for every owner `byid` holds, read in one pass over
+    the document and its owners' coordinates.
 
     Position records in force determine membership, so moving a member changes the
     container that can select it in the same authoritative reading.
@@ -853,8 +854,14 @@ def record_members(
     for oid in byid:
         if owner := recorded_owner(oid, record, byid, registry, holders=holders):
             members.setdefault(owner, set()).add(oid)
-    for owner, children in generated_children(projection.desired, set(byid)).items():
-        members.setdefault(owner, set()).update(child["id"] for child in children)
+    for owner in byid:
+        created = {
+            coordinate[1]
+            for coordinate, (_event, spec) in projection.desired_by_owner.get(owner, ())
+            if spec.get("creates") and coordinate[1] not in byid
+        }
+        if created:
+            members.setdefault(owner, set()).update(created)
     return members
 
 

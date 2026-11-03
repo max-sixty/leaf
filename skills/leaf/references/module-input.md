@@ -262,13 +262,12 @@ with `focusDestination`. `isNativeLayer(node)` says whether a popover is open or
 dialog modal.
 
 A control that opens a popover, such as a menu of choices, names it with
-`popovertarget`. Leaf puts the user on the control as the popover opens, so closing it
-returns them there, and the browser reports the control as expanded while the popover
-is open, so the control declares no `aria-expanded`. A control whose popover a script
-opens with `showNativeLayer(popover, {source: control})` does declare
-`aria-expanded="false"`, and Leaf keeps it current. To land the user on a control
-inside the popover, call `focusDestination(control, "move")` from the popover's
-`toggle` event when its `newState` is `"open"`. The `lf-popover` class gives an open
+`popovertarget`, or passes itself as the source of `showNativeLayer(popover, {source})`.
+Leaf puts the user on a `popovertarget` control as the popover opens, so closing it
+returns them there. Every such control declares `aria-expanded="false"`, and Leaf keeps
+it current as the popover opens and closes, however it opened. To land the user on a
+control inside the popover, call `focusDestination(control, "move")` from the
+popover's `toggle` event when its `newState` is `"open"`. The `lf-popover` class gives an open
 popover Leaf's raised surface and names it as the ground its controls paint; its own
 rule sets only its place, size and padding.
 

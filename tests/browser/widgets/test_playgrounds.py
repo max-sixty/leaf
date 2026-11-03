@@ -1493,12 +1493,14 @@ def test_a_playground_opens_its_instruction_over_the_page(browser, serve):
 
     page.locator("#outside").click()
     reveal.click()
+    expect(reveal).to_have_attribute("aria-expanded", "true")
     expect(instruction).to_contain_text("Use 4 rows")
     expect(instruction).to_be_visible()
     assert reveal.bounding_box() == pytest.approx(pressed, abs=0.5)
     assert playground.locator(".lf-playground-rail").bounding_box() == rail
     reveal.click()
     expect(instruction).to_be_hidden()
+    expect(reveal).to_have_attribute("aria-expanded", "false")
 
     reveal.press("Enter")
     expect(instruction).to_be_visible()

@@ -29,11 +29,11 @@
    the layer opened, and Safari and Firefox on macOS leave a pressed button unfocused,
    so the press puts the user on the control before its layer opens. Any other opening
    that names a source, a scripted one or one a hover starts, leaves focus where it
-   was. The platform reports a declarative control as expanded while its layer is
-   open, so such a control declares no `aria-expanded`. A scripted opener's control
-   gets no such report, so it declares `aria-expanded`, and this module keeps it
-   through every opening and closing, light dismissal included. The widget moves the
-   user into the layer, where it has a control to land on, from its `toggle` event.
+   was. A control that opens a popover declares `aria-expanded`, and this module keeps
+   it current on declarative and scripted openings alike, through every closing, light
+   dismissal included, so a control's face can follow it as well as a reader's. The
+   widget moves the user into the layer, where it has a control to land on, from its
+   `toggle` event.
 
    Every read prunes first, and an entry whose surface no longer stands is removed
    wherever it sits, so a dialog closed by script beneath another layer cannot linger as

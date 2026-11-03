@@ -605,18 +605,18 @@ def test_a_dialog_shown_as_a_popover_stands_as_a_popover(browser, serve):
 def test_a_popover_its_control_opens_hands_the_user_back_to_the_control(browser, serve):
     """A control that opens a popover with `popovertarget` holds the user as it opens, so
     Escape hands them back to it. A script that opens a popover naming a control as its
-    source moves no one, and keeps the `aria-expanded` that control declares.
+    source moves no one. Either way the control's `aria-expanded` follows the popover.
 
     Safari and Firefox on macOS leave a pressed button unfocused, so the platform's
     return went wherever focus stood before the press. `click()` presses the control
-    without focusing it, as those browsers do. The platform reports a `popovertarget`
-    control's expansion itself, so only a scripted opener's control declares it."""
+    without focusing it, as those browsers do."""
     page = open_page(browser, serve(LONG_PAGE))
     page.evaluate("""() => {
       const control = document.createElement('button');
       control.id = 'menu-control';
       control.textContent = 'Options';
       control.setAttribute('popovertarget', 'menu');
+      control.setAttribute('aria-expanded', 'false');
       const menu = document.createElement('div');
       menu.id = 'menu';
       menu.popover = 'auto';
@@ -637,10 +637,11 @@ def test_a_popover_its_control_opens_hands_the_user_back_to_the_control(browser,
     }""")
     control = page.locator("#menu-control")
     expect(control).to_be_focused()
+    expect(control).to_have_attribute("aria-expanded", "true")
     page.keyboard.press("Escape")
     expect(page.locator("#menu")).to_be_hidden()
     expect(control).to_be_focused()
-    assert control.get_attribute("aria-expanded") is None
+    expect(control).to_have_attribute("aria-expanded", "false")
 
     outside = page.locator("#outside")
     outside.focus()

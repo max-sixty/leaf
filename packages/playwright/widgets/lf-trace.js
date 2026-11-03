@@ -2444,6 +2444,7 @@ export class Trace extends LeafElement {
               aria-label="Image scale"
               aria-controls=${`${this.id}-image-scale-options`}
               popovertarget=${`${this.id}-image-scale-options`}
+              aria-expanded="false"
               ?disabled=${!this.#picture?.viewed || q}
             >
               <span ${ref(this.#zoomLabel)}></span>${iconTemplate(

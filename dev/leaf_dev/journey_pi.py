@@ -23,11 +23,9 @@ as `journey.Terminal` has them:
   Escape, then enters a fresh run and is answered automatically;
 - `quit`, by closing Pi's stdin.
 
-Between steps every comment sent so far has exactly one reply and a pickup, the
-last one's thread was named by the page server's own title request
-(`thread_titles`), the page's claim names Pi's session with its turn closed, and
-the watch is running. Pi's stderr joins the run's evidence. It spends a few model
-turns on the host's Codex login, so CI does not run it.
+Between steps, what holds on every harness holds (`journey.Terminal.between`), the
+watch being what listens for Pi's session. Pi's stderr joins the run's evidence. It
+spends a few model turns on the host's Codex login, so CI does not run it.
 """
 
 import itertools
@@ -53,14 +51,7 @@ from leaf_dev.commands.journey import (
     isolated,
     user_at,
 )
-from leaf_dev.review_scenario import (
-    SLEEP,
-    USER_TURN,
-    picked_up,
-    prepare,
-    require,
-    settled,
-)
+from leaf_dev.review_scenario import SLEEP, USER_TURN, picked_up, prepare, require
 
 PI_PROJECT = ROOT / "dev" / "pi"
 # Pi's provider for a ChatGPT login, running the model the Codex evals run.
@@ -219,16 +210,11 @@ class Pi(Terminal):
 
 
 def steps(pi: Pi, user: User, page: Path) -> None:
-    """The steps after setup, as the module docstring lists them."""
-    sent: list[str] = []
+    """The steps after setup, as the module docstring lists them, each sending a
+    comment of its own name."""
 
     def step(name: str, started: float) -> None:
-        """Record step `name` once what holds between steps does, with how the page
-        server titled the step's comment's thread."""
-        sent.append(name)
-        settled(page, pi.session, {each: user.ids[each] for each in sent})
-        require(pi.listening(), "no watch holds the session's pages between runs")
-        user.passed(name, started, pi.titled(page, name, user.ids[name]))
+        pi.passed(user, page, name, started, name)
 
     started = time.monotonic()
     pi.release(user)

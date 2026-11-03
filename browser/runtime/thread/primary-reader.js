@@ -373,7 +373,6 @@ export function createPrimaryReader(
     const message = messageSource(thread, key);
     return messageReading(message, {
       authoredRank: 3,
-      reactions: message.reactions,
       workflows: message.workflows,
     });
   };

@@ -192,7 +192,7 @@
 
     "runtime/file-api.js": "f3b92db21e51b8e6537c73e015c63e388234e8d1be210e60ebcb48015ca46eae",
 
-    "runtime/floating-panel.js": "4e75cfd2a8592280c4b0bb25bd43b7af1d74437ae4de55192269bb86d563a131",
+    "runtime/floating-panel.js": "3d2a813b815d177dc106522ad64369ba4a1266907278ec96c40695860653d9e6",
 
     "runtime/focus.js": "4ce1d8d253d0651bf8e3181dfc821011a5b3ee24d692cc9ab8a3a69364a96345",
 
@@ -484,7 +484,7 @@
 
     "runtime/thread/message-edit.js": "405d6f4dc3065caff393c81fcf42d8b7fb8d3b549987396c740c8a5b74a5745e",
 
-    "runtime/thread/messages.js": "77ba95dd7380946dd5a39aa1859985fec396e756582d1413f9118020f9fb38d2",
+    "runtime/thread/messages.js": "057a8149b2840d92d1429ea63c6352dbde7d0d79a50951b7f0a593fba5cb1456",
 
     "runtime/thread/model.js": "97708981970747737174baa9149daa1f8f397e2577070292ffce9a92620c66ad",
 
@@ -492,7 +492,7 @@
 
     "runtime/thread/presentation.js": "8435bd5274e3f3f84676dd5a38d946f0ff40bf7a71c697186938000b703ef01d",
 
-    "runtime/thread/primary-reader.js": "f68874ccc664cd0802e0ca93505dc49403ffd2eb6cf61df58735b142af4345b1",
+    "runtime/thread/primary-reader.js": "3ec03d6cece1b66dece80e583692d9a09520512a10ccc8f758eb7d84362296d2",
 
     "runtime/thread/reaction-strips.js": "c8bb5bcec0d637f75d2d17f4c5859e8382b92b9b6be519e9a9f30e4f79a59577",
 
@@ -514,7 +514,7 @@
 
     "runtime/thread/surfaces.js": "435ec1165d7f5d5cfdedf44955f3c38fb0164d1a93d0d9f68b8202b6f7f76e20",
 
-    "runtime/thread/thread-card.js": "7e0dc3fb4fee1a4ed4ec5d0bdf83c490d37fe43e4eba951e99a66d918f3fe377",
+    "runtime/thread/thread-card.js": "2b5f5e9950bd1d7e41c33ac7a2d51e1d960af11e05aced02ae13394bce61349d",
 
     "runtime/thread/transcript.js": "dc5a4c7fddcd756a4dbb6e92205fc47210460b0e278414f5a5be633a013601b2",
 

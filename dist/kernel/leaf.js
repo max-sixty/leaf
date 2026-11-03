@@ -7532,10 +7532,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			reading: asking
 		} : null;
 		const title = message ? message.thread.title ?? (message.thread.root.id === message.reading.id ? "" : threadName(message.thread)) : asking && thread ? threadName(thread) : queueTitle(item);
-		const said = message ? "" : asking ? messageReading(asking, {
-			reactions: asking.reactions,
-			workflows: []
-		}).body.plainText : record?.prompt?.text;
+		const said = message ? "" : asking ? messageReading(asking, { workflows: [] }).body.plainText : record?.prompt?.text;
 		const prompt = said && said.trim() !== title.trim() ? said : "";
 		const carried = (also ?? []).flatMap((id) => {
 			const other = readObligations().all.find((candidate) => candidate.id === id);
@@ -7673,10 +7670,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
                 data-thread=${where.key}
                 data-message=${asked.key}
               ></div>` : html`<p class="lf-fp-prompt">
-                ${messageReading(asked, {
-				reactions: asked.reactions,
-				workflows: []
-			}).body.plainText}
+                ${messageReading(asked, { workflows: [] }).body.plainText}
               </p>`)}
         <div class="lf-fp-answers">
           ${answers}${discussHere ? discuss : nothing}${show}

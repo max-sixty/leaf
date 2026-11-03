@@ -3597,8 +3597,7 @@ export function createFloatingPanel({
     const said = message
       ? ""
       : asking
-        ? messageReading(asking, { reactions: asking.reactions, workflows: [] }).body
-            .plainText
+        ? messageReading(asking, { workflows: [] }).body.plainText
         : record?.prompt?.text;
     const prompt = said && said.trim() !== title.trim() ? said : "";
     // The other questions the user answers at this card's place (`also`): further
@@ -3818,10 +3817,7 @@ export function createFloatingPanel({
                 data-message=${asked.key}
               ></div>`
             : html`<p class="lf-fp-prompt">
-                ${
-                  messageReading(asked, { reactions: asked.reactions, workflows: [] })
-                    .body.plainText
-                }
+                ${messageReading(asked, { workflows: [] }).body.plainText}
               </p>`,
         )}
         <div class="lf-fp-answers">

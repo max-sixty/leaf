@@ -2142,6 +2142,43 @@ def test_a_message_reaction_trigger_meets_its_header_and_covers_no_words(
     expect(card).to_have_count(0)
 
 
+def test_a_margin_card_offers_a_reply_s_reactions(browser, serve):
+    """A margin card offers reactions on an agent's reply as the panel's view of the
+    thread does: by the reply's own trigger and by `e` from the card. The card once
+    drew no reactions at all, so a thread about a passage took them only in the
+    panel."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Why this cap?", {"section": "how-cap"})
+    reply = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": root,
+            "text": "Forty megabytes holds a week of edits for the largest workspace.",
+        },
+    )["id"]
+    page = open_page(browser, url)
+    page.locator('[data-lf-margin-for="how-cap"] .lf-margin-marker').click()
+    card = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+    message = card.locator(f'.lf-msg[data-message="{reply}"]')
+    strip = message.locator(":scope > .lf-react-strip")
+    palette = strip.locator(".lf-react-palette:popover-open")
+    expect(card).to_be_focused()
+    page.keyboard.press("e")
+    expect(palette).to_have_count(1)
+    page.keyboard.press("Escape")
+    expect(palette).to_have_count(0)
+    message.hover()
+    message.locator(".lf-react-trigger").click()
+    expect(palette).to_have_count(1)
+    with sending(page, "the reaction"):
+        strip.locator(".lf-react").first.click()
+    reacted = events_model.read_events(serve.page_dir)[-1]
+    assert (reacted["kind"], reacted["parent"]) == ("reply", reply), reacted
+
+
 def test_a_held_reaction_says_its_word_and_the_release_decides(browser, serve):
     """A finger learns what a reaction means by pressing and holding it: the choice
     under the finger shows its word for as long as the press lasts, sliding onto its

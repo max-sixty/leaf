@@ -3339,7 +3339,7 @@ function authoredHolder(id) {
 	for (const view of authoredHolders.values()) if (view.model.id === id && shown(view)) return view.node;
 	return null;
 }
-function messageReading(message, { authoredRank = 0, reactions, workflows, leaves = null }) {
+function messageReading(message, { authoredRank = 0, workflows, leaves = null }) {
 	const workflow = strongestWorkflow(workflows);
 	const token = message.token ? tokenEntry(message.token) : null;
 	const kind = isReaction(message) ? "reaction" : deleted(message) ? "deleted" : message.suggestion ? "suggestion" : "prose";
@@ -3380,7 +3380,7 @@ function messageReading(message, { authoredRank = 0, reactions, workflows, leave
 		}),
 		markdown: kind === "reaction" ? null : [message.text, message.body.kind === "authored" ? message.body.markup : null].filter(Boolean).join("\n\n"),
 		authoredRank,
-		reactions
+		reactions: message.reactions
 	});
 }
 var MessageView = class {
@@ -5651,7 +5651,6 @@ function threadReading(thread, surface, commands) {
 	const presented = new Set(thread.msgs.map(({ id }) => id));
 	const messages = turns(thread).filter((message) => message.completed_by === void 0 || !presented.has(message.completed_by)).map((message) => messageReading(message, {
 		authoredRank: commands.authoredRank ?? (surface === "margin" ? 2 : 1),
-		reactions: surface === "outlet" ? message.reactions : null,
 		workflows: message.workflows,
 		leaves: leaves(message)
 	}));

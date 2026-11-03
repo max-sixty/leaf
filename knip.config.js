@@ -1,4 +1,6 @@
-// knip, run by pre-commit's `knip` hook: the modules, exports and types nothing reads.
+// knip, run by pre-commit's `knip` hook: the modules, exports and types nothing reads,
+// and the static import cycles, which leave the modules in them no order to evaluate
+// in: whichever runs first can read another's bindings before they exist.
 //
 // Knip follows imports from the entries, the modules something other than an import
 // loads, and resolves a root-absolute specifier the way a served page answers it: the
@@ -53,5 +55,5 @@ export default {
     "/widgets/*": composed("widgets"),
     "/checks/*": ["src/leaf/render-checks/*"],
   },
-  include: ["files", "exports", "types"],
+  include: ["files", "exports", "types", "cycles"],
 };

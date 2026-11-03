@@ -124,8 +124,9 @@ const PAGE_COMMANDS = [
   "annotations.toggle",
   "panel.floating.fold",
   COMMAND_REFERENCE,
-  // A real key the browser owns, and one gesture that is not a key at all.
+  // Real keys the browser owns, and one gesture that is not a key at all.
   "browser.caret",
+  "browser.history",
   "aim.comment",
 ];
 

@@ -1797,6 +1797,9 @@ _TEXT = {
     "answered-reaction": lambda at, v: (
         f"reaction {v['undoes']} has a reply or task attached; continue in its thread"
     ),
+    "answered-edit": lambda at, v: (
+        f"edit {v['undoes']} has been answered; rewrite the message or reply instead"
+    ),
     "resolved-reaction": lambda at, v: (
         f"reaction {v['undoes']} stands on a resolved thread"
     ),

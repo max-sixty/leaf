@@ -6,9 +6,9 @@ changed.
 
 Each state of `leaf_dev.states` (all of them unless `--state` names some) is visited on
 both arms through the loop `leaf-dev probe` runs too (`leaf_dev.visits`), which brings
-a fresh tab on each to the state, in the engine `--browser` names. The base is the merge base with
-`main` unless `--base` names another commit, and the head is this working tree,
-uncommitted edits included (`leaf_dev.arms.choose_arms`). Each page is built from
+a fresh tab on each to the state, in the engine `--browser` names. The base is the
+merge base with `main` unless `--base` names another commit, and the head is this
+working tree, uncommitted edits included (`leaf_dev.arms.choose_arms`). Each page is built from
 this working tree's example source and served by the arm's own launcher, so only the
 runtime, theme and server differ between the two stills of a state. With
 `--authored`, the base instead reads its own example and companions
@@ -64,9 +64,9 @@ Capture and comparison failures are reported per state, with tracebacks in its
 directory; the remaining states still run. A state whose input the engine can't run,
 such as any input on the iOS simulator, is such a failure. Only complete pairs enter
 the comparison. Arm construction, browser setup failures and interrupts end the
-command, and a state whose page can't be found ends it before any capture. Once the whole report is written, the command
-exits 1 if any state failed, so a caller that reads only the exit status still learns
-that a state went uncaptured.
+command, and a state whose page can't be found ends it before any capture. Once the
+whole report is written, the command exits 1 if any state failed, so a caller that
+reads only the exit status still learns that a state went uncaptured.
 """
 
 import json

@@ -50,8 +50,11 @@ def stills_catalogue(tmp_path, monkeypatch):
         for arm, commit in (("base", "b" * 40), ("head", "a" * 40))
     }
 
+    served = []
+
     @contextmanager
     def serving_source(arm_dir, source, destination, log):
+        served.append(destination.parent.name)
         yield arm_dir.name
 
     windows = []
@@ -86,6 +89,7 @@ def stills_catalogue(tmp_path, monkeypatch):
         out=out,
         states=states,
         visited=visited,
+        served=served,
         windows=windows,
         compared=compared,
         compare=lambda name: {"changed": 1, "regions": []},
@@ -338,3 +342,23 @@ def test_the_run_lists_lines_whose_words_split_their_baseline(
         "lines whose words split their baseline: lines only head splits  x2,"
         " lines both arms split  x1, lines only base splits  x1 ->"
     ) in result.output
+
+
+def test_a_state_the_engine_cannot_reach_fails_before_its_page_is_built(
+    stills_catalogue, monkeypatch
+):
+    monkeypatch.setattr(
+        stills,
+        "STATES",
+        (State("held", "fixture", activated=False), stills_catalogue.states[-1]),
+    )
+    firefox = SimpleNamespace(browser_type=SimpleNamespace(name="firefox"))
+    monkeypatch.setattr(stills, "launch", lambda engine, scheme: nullcontext(firefox))
+
+    result = CliRunner().invoke(stills.stills, ["--browser", "firefox"])
+
+    assert result.exit_code == 1, result.output
+    refusal = "only Chromium shows a page whose runtime is held"
+    assert f"failed  held on base: {refusal}" in result.output
+    assert stills_catalogue.served == ["healthy", "healthy"]
+    assert stills_catalogue.compared == ["healthy"]

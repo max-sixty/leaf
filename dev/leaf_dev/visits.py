@@ -12,9 +12,12 @@ often made where one version is broken.
 Each visit also records what probe reports: the startup reading, long frames through
 startup and through the inputs, the layout shifts, and the console's errors and
 warnings. Safari on the iOS simulator answers a reading as a Playwright page does
-(`ios_safari.Tab`), but takes no input and no routing, so a state with an input, or
-one that holds the runtime, is refused there before its page is built; in place of a
-console, an arm there reports the errors the runtime logged to the page.
+(`ios_safari.Tab`), but takes no input, so a state with an input is refused there
+before its page is built; in place of a console, an arm there reports the errors the
+runtime logged to the page. A state that holds the runtime (`State.activated`) is
+refused in every engine but Chromium: on 2026-11-03 Playwright 1.64's Firefox (build
+1555) and WebKit (build 2370) never resolved `document.fonts.ready` while the entry
+module was held, and their screenshots wait for it, and WebDriver holds no request.
 """
 
 from collections.abc import Callable, Generator, Iterator, Sequence
@@ -85,8 +88,9 @@ def visits(
     record: Callable[[Page, str], AbstractContextManager] | None = None,
     throttle: float | None = None,
 ) -> Generator[Iterator[tuple[str, Visit]]]:
-    """Yield each arm's visit to `state` as it ends, keeping every tab open until the
-    block ends.
+    """Yield an iterator of each arm's visit to `state`, which visits the arm as the
+    caller reaches it, so a caller reads every arm only by draining it. Every tab stays
+    open until the block ends.
 
     `source` is an authored page, served from the arm (its own copy when `authored`,
     `own_source`, with `log`'s events admitted), or a URL, opened as it is. The tab
@@ -104,13 +108,13 @@ def visits(
             "Safari on the iOS simulator takes no input: its taps never reach "
             "pointerup or click"
         )
-    elif ios and not state.activated:
+    elif not state.activated and (ios or browser.browser_type.name != "chromium"):
         refusal = (
-            "Safari on the iOS simulator can't hold the runtime's entry module, as "
-            "this state needs"
+            "only Chromium shows a page whose runtime is held: Firefox and WebKit "
+            "wait for the page to load, and WebDriver can't hold a request"
         )
 
-    def visit(held: ExitStack, arm: str, version: Arm) -> Visit:
+    def visit_arm(held: ExitStack, arm: str, version: Arm) -> Visit:
         visit = Visit(version.commit)
         reading = visit.reading
         if refusal:
@@ -179,7 +183,7 @@ def visits(
         return visit
 
     with ExitStack() as held:
-        yield ((arm, visit(held, arm, version)) for arm, version in arms.items())
+        yield ((arm, visit_arm(held, arm, version)) for arm, version in arms.items())
 
 
 def hold_runtime(page: Page, address: str) -> Callable[[], None]:

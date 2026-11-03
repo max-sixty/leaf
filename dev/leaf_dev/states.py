@@ -15,8 +15,8 @@ retaining related controls without shrinking their details behind unrelated view
 changes.
 
 `leaf_dev.visits` brings each arm's tab to a state, in the engine the run chose. A
-state that engine can't reach, such as one with an input on the iOS simulator, whose
-Safari takes none, fails with the reason.
+state that engine can't reach fails with the reason, as one with an input does on the
+iOS simulator, whose Safari takes none.
 """
 
 import json

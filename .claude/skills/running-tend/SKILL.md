@@ -72,9 +72,10 @@ rendering, names in its description the states it changes on screen. Before the
 verdict, its review captures each of them on the base and the head with
 `uv run leaf-dev stills --state NAME`, choosing the scheme and window with
 `--scheme`, `--viewport` and `--touch`, and adds a state to `STATES` for a surface
-none reaches, one per surface and never one per scheme or window. It looks at the
-crops and weighs what changed against every state that pays for it. Without
-captures it can read, the review withholds approval.
+none reaches, one per surface and never one per scheme or window (the `stills.py`
+header says when a state keeps its own). It looks at the crops and weighs what
+changed against every state that pays for it. Without captures it can read, the
+review withholds approval.
 
 ## Explaining UI changes and questions
 

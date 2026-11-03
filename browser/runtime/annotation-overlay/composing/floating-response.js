@@ -527,7 +527,7 @@ export function createFloatingResponsePlacement({
           ui.computePosition,
           commentReference(place, reference),
           { placement, middleware },
-          response.open && seatedOwner ? () => "page" : plane,
+          response.open && seatedOwner ? "page" : plane,
           seatedOwner ?? document.documentElement,
         );
       })

@@ -2883,7 +2883,7 @@ function createFloatingResponsePlacement({ bar: fabBar, input: fabInput, respons
 			return fabPosition.position(ui.computePosition, commentReference(place, reference), {
 				placement,
 				middleware
-			}, response.open && seatedOwner ? () => "page" : plane, seatedOwner ?? document.documentElement);
+			}, response.open && seatedOwner ? "page" : plane, seatedOwner ?? document.documentElement);
 		}).then((position) => {
 			if (!position || !stillCurrent()) return;
 			fabPlacement.landed(position);

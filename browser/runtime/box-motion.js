@@ -128,7 +128,6 @@ import { afterSettling, nextRender, sizeObserver } from "./rendering.js";
 import { contentRides } from "./scrolling.js";
 
 /** @typedef {import('./rect.js').Box} Box
- * @typedef {import('./css-anchors.js').Anchor} Anchor
  * @typedef {keyof Box} Edge
  * @typedef {[number, number]} Offset
  * @typedef {[number, number, number, number]} Insets
@@ -140,9 +139,9 @@ import { contentRides } from "./scrolling.js";
  * @typedef {{child: Element, from: number, to: number}} Stream
  * @typedef {(element: Element | null) => Offset} Carried
  * @typedef {{duration: number, easing: string}} Timing
- * @typedef {"top" | "right" | "bottom" | "left"} Side
- * @typedef {{x: "left" | "right", y: "top" | "bottom", by: Anchor | null,
- * plane: Anchor | null, against: Side | null}} Held
+ * @typedef {{x: "left" | "right", y: "top" | "bottom"}} Held
+ * @typedef {{edges: Held, x: number, y: number}} Kept
+ * @typedef {{x: number, y: number, kept: Kept | null}} Stood
  * @typedef {{held: () => Held | null, place: () => boolean}} Placement */
 
 // Whose change it is, one clock for every box, since an input anywhere is the user's:
@@ -241,22 +240,6 @@ const clipFrame = (sides, radius = 0) => ({
   clipPath: `inset(var(--lf-box-cut) round ${radius}px)`,
   "--lf-box-cut": sides.map((side) => `${side}px`).join(" "),
 });
-// Whether an anchor is in the document: an element, or the start of what a scroller
-// holds (css-anchors.js, `ContentStart`).
-/** @param {Anchor} anchor */
-const connected = (anchor) =>
-  "scroller" in anchor ? anchor.scroller.isConnected : anchor.isConnected;
-// The part of a move `moved` that a plane moving `limit` accounts for: no farther than
-// the plane moved, and only in its direction.
-/** @param {number} moved @param {number} limit */
-const planeShare = (moved, limit) =>
-  moved * limit > 0 ? Math.sign(limit) * Math.min(Math.abs(moved), Math.abs(limit)) : 0;
-// How far `from` moves to stand no farther out on `side` than `to` does.
-/** @param {Box} from @param {Box} to @param {Edge} side */
-const inside = (from, to, side) =>
-  side === "top" || side === "left"
-    ? Math.max(0, to[side] - from[side])
-    : Math.min(0, to[side] - from[side]);
 /** @param {CSSStyleDeclaration} style */
 const radiusOf = (style) => Number.parseFloat(style.borderTopLeftRadius) || 0;
 /** @param {string} color */
@@ -286,11 +269,9 @@ const rings = (style) =>
 // is, gives its owner's `observer`, which reads the box again (`follow`) when any part
 // changes size. A box a placement stands gives that `placement` instead (floating.js,
 // `floatingPlacement`), and the motion observes its parts itself. held(): the root's
-// edges that hold it in its plane, the anchor of what it stands by, the element the
-// plane moves with (`plane`), null for the window's, and the edge of its room the
-// placement holds it against (`against`); or null while no placement stands it.
-// place(): asks for the placement the box's size now asks for, true where one will
-// land, whose landing stands the box through `placed` and then reads it.
+// edges that hold it in its plane, or null while no placement stands it. place(): asks
+// for the placement the box's size now asks for, true where one will land, whose
+// landing stands the box through `placed` and then reads it.
 /** @param {{
  * root: HTMLElement, box: HTMLElement, surface: string, lift: number, outset: number,
  * observer?: ResizeObserver, placement?: Placement,
@@ -348,10 +329,6 @@ export function boxMotion({
   // by its foot that grows at its top reads as growing, not as moving.
   /** @type {Box | null} */
   let frame = null;
-  // What the box stands by, and where it stood in the box's plane at the last reading
-  // or placement, or null for a box that stands by nothing (`beside`).
-  /** @type {{by: Anchor, plane: Anchor | null, x: number, y: number} | null} */
-  let besideAt = null;
   // Where the box was drawn a moment ago, which the next reading draws it from
   // (`drawnAt`).
   /** @type {Box | null} */
@@ -418,25 +395,8 @@ export function boxMotion({
       riding.to += dy;
     }
   }
-  // What the box stands by, and where it stands in the plane that holds the box: from
-  // the element the plane moves with, or from the window. It is read off those
-  // elements, never off the box, which Chromium lays out off its spot until the next
-  // frame after a placement takes it into its anchor's plane: a reading of the box then
-  // is off by the same amount in every part, and carried whole, but a move of the box
-  // against its anchor would read as one.
-  /** @param {Held | null} edges */
-  function beside(edges) {
-    const by = edges?.by;
-    const plane = edges?.plane ?? null;
-    if (!by || !connected(by) || (plane && !connected(plane))) return null;
-    const at = by.getBoundingClientRect();
-    const origin = plane?.getBoundingClientRect() ?? { left: 0, top: 0 };
-    return { by, plane, x: at.left - origin.left, y: at.top - origin.top };
-  }
   // Carries every reading kept as far as the edges holding the root moved since
-  // (`frame`), and returns the root's box and how far what the box stands by moved in
-  // the box's plane meanwhile, as a scroll moves a passage past a box the window's edge
-  // holds.
+  // (`frame`), and returns the root's box.
   function rebase() {
     const at = boxOf(root.getBoundingClientRect());
     const edges = held();
@@ -444,13 +404,7 @@ export function boxMotion({
     const dy = frame && edges ? at[edges.y] - frame[edges.y] : 0;
     frame = at;
     carryReadings(dx, dy);
-    const now = beside(edges);
-    const past =
-      now && besideAt?.by === now.by && besideAt.plane === now.plane
-        ? { x: now.x - besideAt.x, y: now.y - besideAt.y }
-        : { x: 0, y: 0 };
-    besideAt = now;
-    return { at, past };
+    return at;
   }
   /** @param {Box} from @param {Box} to @param {number} progress */
   const interpolate = (from, to, progress) => {
@@ -1173,41 +1127,30 @@ export function boxMotion({
     // the box's own. Otherwise, at the size last read it is the plane's, as when a
     // scroll re-solves a box held at the window's edge: the reading carries the box by
     // the edges that hold it now. At a new size, the plane's is where the placement
-    // would have stood the box at its old size. The edges that hold it now take it
-    // there, as far as what the box stands by moved past it meanwhile, as a scroll
-    // moves a passage past a box the window's edge holds: a card that a scroll takes
-    // from the window's foot to beside its passage as it grows stands its head by the
-    // passage and grows at its foot. It then comes back inside the edge of its room the
-    // placement now holds it against, as a scroll that carried the box past the
-    // window's foot leaves it held at that foot. The rest is the box's own and travels
-    // from where the box was drawn. `place` says how far it moved the box by its own
-    // answer: in Chromium, a box it just took into its anchor's plane lays out off its
-    // spot until the browser next places it, by hundreds of pixels (floating.js,
-    // `clientBox`).
-    /** @param {() => {x: number, y: number}} place @param {boolean} [anew] */
+    // would have stood the box at its old size, which the placement solves for
+    // (`kept`, floating.js): a card a scroll takes past the window's foot as it shrinks
+    // stands at that foot, and one it takes off the foot as it grows stands its head by
+    // its passage. The rest is the box's own and travels from where the box was drawn.
+    // `place` says how far it moved the box by its own answer: in Chromium, a box it
+    // just took into its anchor's plane lays out off its spot until the browser next
+    // places it, by hundreds of pixels (floating.js, `clientBox`).
+    /** @param {() => Stood} place @param {boolean} [anew] */
     placed(place, anew = false) {
       if (!held()) forget();
-      const { at, past } = rebase();
+      const at = rebase();
       const read = rests?.get(root);
-      const moved = place();
-      const edges = held();
-      besideAt = beside(edges);
+      const { x, y, kept } = place();
       const resized =
         read && !(near(width(read), width(at)) && near(height(read), height(at)));
-      if (edges && read && (anew || resized)) {
-        const to = shifted(at, moved.x, moved.y);
-        let dx = 0;
-        let dy = 0;
-        if (!anew) {
-          dx = planeShare(to[edges.x] - read[edges.x], past.x);
-          dy = planeShare(to[edges.y] - read[edges.y], past.y);
-          const from = shifted(read, dx, dy);
-          const side = edges.against;
-          if (side === "top" || side === "bottom") dy += inside(from, to, side);
-          else if (side) dx += inside(from, to, side);
-        }
-        carryReadings(dx, dy);
-        frame = to;
+      if (read && (anew || resized)) {
+        // The placement's measure is of the box it stands, whose edges stand where the
+        // root's do, a fixed inset apart.
+        if (!anew && kept)
+          carryReadings(
+            kept.x + at[kept.edges.x] - read[kept.edges.x],
+            kept.y + at[kept.edges.y] - read[kept.edges.y],
+          );
+        frame = shifted(at, x, y);
       }
       follow();
     },

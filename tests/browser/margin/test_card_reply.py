@@ -598,12 +598,12 @@ def test_a_line_that_changes_the_edge_holding_a_card_moves_it_from_where_it_stoo
 def test_a_card_a_scroll_moves_onto_or_off_the_windows_foot_as_it_resizes_only_resizes(
     engine, request, serve
 ):
-    """A card that a scroll moves between the window's foot and beside its passage, in
-    the frame it changes size, stands where its new placement holds it from the motion's
-    first frame, and only its change of size travels. Taken off the foot as it grew, the
-    card was drawn with its foot already at rest and grew up to its head, half its head
-    row hidden at first. Carried past the foot as it shrank, it was drawn below the
-    window's foot for a frame and rose back to it."""
+    """A card that a scroll moves in the frame it changes size starts its motion where
+    its placement would have stood it at its old size, so no frame draws it past the
+    window's foot or cuts its head row. Taken off the foot as it grew, the card was drawn
+    with its foot already at rest and grew up to its head, half its head row hidden at
+    first. Carried past the foot as it shrank, it was drawn below the window's foot for
+    a frame and rose back to it, whether or not the foot held it before or after."""
     page = open_page(
         request.getfixturevalue(engine),
         serve(LOW_PASSAGE_PAGE, events=[LONG_THREAD_ROOT]),
@@ -643,6 +643,18 @@ def test_a_card_a_scroll_moves_onto_or_off_the_windows_foot_as_it_resizes_only_r
         page.wait_for_function(CARD_RELEASED)
         return drawn, preview.evaluate(CARD_OUTLINE)
 
+    def standing(passage, padding):
+        """The card at rest, a `padding` taller, with its passage's top at `passage`."""
+        transcript.evaluate(
+            "(node, padding) => { node.style.paddingBottom = padding; }", padding
+        )
+        top = page.locator("#open").evaluate("node => node.getBoundingClientRect().top")
+        page.evaluate("by => document.scrollingElement.scrollBy(0, by)", top - passage)
+        scroll_settled(page)
+        rendered(page)
+        page.wait_for_function(CARD_RELEASED)
+        return preview.evaluate(CARD_OUTLINE)
+
     # The passage at the window's foot stands the card against it. A scroll down, with
     # the card a little taller, stands it beside its passage by its head; a scroll back,
     # at its old size, against the foot again.
@@ -656,6 +668,14 @@ def test_a_card_a_scroll_moves_onto_or_off_the_windows_foot_as_it_resizes_only_r
     drawn, rest = scroll_resizing(-200, "0px")
     assert rest[1] == pytest.approx(held, abs=1), f"held nowhere: {rest}, {held}"
     assert drawn[1] == pytest.approx(held, abs=1), f"{drawn} -> {rest}"
+    # A card the foot holds for its height, and one standing beside its passage, each
+    # carried down by a scroll up as it shrinks to fit beside its passage: at its old
+    # size the foot would still hold it.
+    for passage, padding, by in [(650, "141px", -50), (600, "121px", -60)]:
+        stood = standing(passage, padding)
+        drawn, rest = scroll_resizing(by, "0px")
+        assert rest[1] < held - 20, f"still held at the foot: {stood} -> {rest}"
+        assert drawn[1] <= held + 1, f"past the foot: {stood} -> {drawn} -> {rest}"
 
 
 def test_a_growing_margin_reply_keeps_its_whole_ring_from_the_first_frame(

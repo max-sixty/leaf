@@ -489,19 +489,16 @@ def test_a_frame_of_another_live_leaf_page_is_checked_on_its_own(
     ), failures
 
     page = browser.unwatched.new_page()
-    try:
-        render_gate_scheme.stand_in_other_leaves(page)
-        page.set_content(f'<iframe src="{framed}/"></iframe>')
-        expect(page.frame_locator("iframe").locator("p")).to_have_text(
-            "Another Leaf page, checked on its own."
-        )
-        state = f"{framed}/api/state"
-        with page.expect_response(state) as answer:
-            page.evaluate("url => fetch(url, {mode: 'no-cors'}).catch(() => {})", state)
-        # The live server's own refusal of a browser without its key.
-        assert answer.value.status == 401
-    finally:
-        page.close()
+    render_gate_scheme.stand_in_other_leaves(page)
+    page.set_content(f'<iframe src="{framed}/"></iframe>')
+    expect(page.frame_locator("iframe").locator("p")).to_have_text(
+        "Another Leaf page, checked on its own."
+    )
+    state = f"{framed}/api/state"
+    with page.expect_response(state) as answer:
+        page.evaluate("url => fetch(url, {mode: 'no-cors'}).catch(() => {})", state)
+    # The live server's own refusal of a browser without its key.
+    assert answer.value.status == 401
 
 
 RECURSIVE_ROWS_PAGE = leaf_page(

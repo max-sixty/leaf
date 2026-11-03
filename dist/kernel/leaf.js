@@ -7816,6 +7816,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const rows = [];
 		let running = false;
 		const foldsEvery = candidateOf("fold", "no") === "yes";
+		const shut = (group) => group.folds ? !unfolded.has(String(group.key)) : group.headed !== false && foldsEvery && foldedGroups.has(group.key);
 		for (const group of groups) {
 			const headed = group.headed !== false;
 			if (rows.length && !headed && !running) rows.push({
@@ -7827,8 +7828,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 				key: group.key,
 				group
 			});
-			const key = String(group.key);
-			if (!(group.folds ? !unfolded.has(key) : headed && foldsEvery && foldedGroups.has(group.key))) for (const item of group.items) rows.push({
+			if (!shut(group)) for (const item of group.items) rows.push({
 				key: queueItemKey(item),
 				item,
 				group
@@ -7843,6 +7843,11 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
         ><span class="lf-row-end">${count}</span>
       </h3>`;
 		};
+		if (candidateOf("groups", "today") !== "today") return html`<div class="lf-fp-on-list lf-rows">
+        ${repeat(groups, (group) => group.key, (group) => html`<section class="lf-fp-on-group">
+              ${heading(group)}${shut(group) ? nothing : repeat(group.items, queueItemKey, (item) => line(item, group))}
+            </section>`)}
+      </div>`;
 		return html`<div class="lf-fp-on-list lf-rows">
       ${repeat(rows, (row) => row.key, (row) => row.rule ? html`<hr class="lf-fp-rule lf-fp-on-rule" />` : row.item ? line(row.item, row.group) : heading(row.group))}
     </div>`;

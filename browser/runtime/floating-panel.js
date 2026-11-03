@@ -4089,17 +4089,18 @@ export function createFloatingPanel({
     let running = false;
     // PROTOTYPE: where every group folds, each heading is the press that folds it.
     const foldsEvery = candidateOf("fold", "no") === "yes";
+    /** @param {G} group */
+    const shut = (group) =>
+      group.folds
+        ? !unfolded.has(String(group.key))
+        : group.headed !== false && foldsEvery && foldedGroups.has(group.key);
     for (const group of groups) {
       const headed = group.headed !== false;
       if (rows.length && !headed && !running)
         rows.push({ key: `rule:${group.key}`, rule: true });
       running = !headed;
       if (headed) rows.push({ key: group.key, group });
-      const key = String(group.key);
-      const shut = group.folds
-        ? !unfolded.has(key)
-        : headed && foldsEvery && foldedGroups.has(group.key);
-      if (!shut)
+      if (!shut(group))
         for (const item of group.items)
           rows.push({ key: queueItemKey(item), item, group });
     }
@@ -4113,6 +4114,25 @@ export function createFloatingPanel({
         ><span class="lf-row-end">${count}</span>
       </h3>`;
     };
+    // PROTOTYPE: where groups wear bands, each group is a box of its own, so its band
+    // sticks only while its group passes and the next group's band pushes it off,
+    // rather than sliding over it. An item that moves to another group is drawn afresh
+    // there, a rare path (a place leaving the page) the user takes in at a glance.
+    if (candidateOf("groups", "today") !== "today")
+      return html`<div class="lf-fp-on-list lf-rows">
+        ${repeat(
+          groups,
+          (group) => group.key,
+          (group) =>
+            html`<section class="lf-fp-on-group">
+              ${heading(group)}${
+                shut(group)
+                  ? nothing
+                  : repeat(group.items, queueItemKey, (item) => line(item, group))
+              }
+            </section>`,
+        )}
+      </div>`;
     return html`<div class="lf-fp-on-list lf-rows">
       ${repeat(
         rows,

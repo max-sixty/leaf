@@ -1698,9 +1698,10 @@
      top of the view while its group scrolls under it, as a message's head sticks in a
      thread card (annotation-chrome.css), so the group being read is always named, and a
      stuck band needs its ground anyway, since cards pass beneath it. A sticky box moves
-     only inside its containing block, and a grid item's is its own grid area, a row as
-     tall as the band, so the list stacks its rows as a column here, and a line takes
-     its own columns. The view's top padding goes, so the first band meets the panel's
+     only inside its containing block, so each group is a box of its own
+     (floating-panel.js, `groupedItems`): its band sticks while the group passes, and the
+     next group's band pushes it off. The list and each group stack as columns, since a
+     grid item's sticky range is its own grid area, and a line takes its own columns. The view's top padding goes, so the first band meets the panel's
      top edge and stands there when it sticks. What a landing brings into view stands
      below the band (`--lf-top`, geometry.js `headerInset`; `scroll-padding` for focus). */
   .lf-floating-panel[data-onme-groups] {
@@ -1711,10 +1712,15 @@
     padding-top: 0;
     scroll-padding-top: var(--lf-fp-band-height);
   }
-  .lf-floating-panel[data-onme-groups] .lf-fp-on-list {
+  .lf-floating-panel[data-onme-groups] :is(.lf-fp-on-list, .lf-fp-on-group) {
     display: flex;
     flex-direction: column;
+  }
+  .lf-floating-panel[data-onme-groups] .lf-fp-on-list {
     --lf-top: var(--lf-fp-band-height);
+  }
+  .lf-floating-panel[data-onme-groups] .lf-fp-on-group + .lf-fp-on-group {
+    margin-top: 14px;
   }
   .lf-floating-panel[data-onme-groups]
     .lf-fp-on-list
@@ -1722,7 +1728,7 @@
     display: grid;
     grid-template-columns: [lead] fit-content(30%) [main] minmax(0, 1fr) [end] auto;
   }
-  .lf-floating-panel[data-onme-groups] .lf-fp-on-list > .lf-rows-head {
+  .lf-floating-panel[data-onme-groups] .lf-fp-on-group > .lf-rows-head {
     position: sticky;
     top: 0;
     z-index: 2;
@@ -1737,29 +1743,26 @@
     font: var(--font-heading);
     color: var(--muted);
   }
-  .lf-floating-panel[data-onme-groups]
-    .lf-fp-on-list
-    > .lf-rows-head:not(:first-child) {
-    margin-top: 14px;
-  }
   /* A folded group is its band alone, so the next band follows it closely, as rows of
      one list do, rather than with the room that parts a group's last item from it. */
   .lf-floating-panel[data-onme-groups]
-    .lf-fp-on-list
-    > .lf-rows-head:has(> [aria-expanded="false"])
-    + .lf-rows-head {
+    .lf-fp-on-group:has(> .lf-rows-head > [aria-expanded="false"])
+    + .lf-fp-on-group {
     margin-top: 2px;
   }
-  .lf-floating-panel[data-onme-groups] .lf-fp-on-list > .lf-rows-head .lf-row-end {
+  .lf-floating-panel[data-onme-groups] .lf-fp-on-group > .lf-rows-head .lf-row-end {
     font-weight: 400;
     font-variant-numeric: tabular-nums;
   }
   /* A heading that folds its group is the band's press, its arrow hanging in the
      band's start padding, so its name starts where every other band's name does. */
-  .lf-floating-panel[data-onme-groups] .lf-fp-on-list > .lf-rows-head:has(> .lf-row) {
+  .lf-floating-panel[data-onme-groups] .lf-fp-on-group > .lf-rows-head:has(> .lf-row) {
     padding: 0;
   }
-  .lf-floating-panel[data-onme-groups] .lf-fp-on-list > .lf-rows-head > .lf-fp-settled {
+  .lf-floating-panel[data-onme-groups]
+    .lf-fp-on-group
+    > .lf-rows-head
+    > .lf-fp-settled {
     position: relative;
     display: flex;
     align-items: center;
@@ -1770,7 +1773,7 @@
     color: inherit;
   }
   .lf-floating-panel[data-onme-groups]
-    .lf-fp-on-list
+    .lf-fp-on-group
     > .lf-rows-head
     > .lf-fp-settled::before {
     position: absolute;

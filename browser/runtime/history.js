@@ -24,6 +24,12 @@
  * change inside it in that frame moves it as the browser does, and a pinned block
  * stays put while the browser scrolls. The claimant and travel read the page before
  * the browser applies the traversal, while it still hides what the user hid since.
+ * Rejected: placing only after the browser applies the traversal, which let Firefox
+ * and WebKit reveal a root view's target before travel read the page, and let a quick
+ * second Back save the entry between before it was placed; putting back the
+ * placement's own offset, which undid scroll anchoring; and
+ * `history.scrollRestoration = "manual"`, under which Firefox put a traversal Leaf had
+ * no checkpoint for at the top of the page.
  * Nested reading regions stop with that placement but keep their current offsets;
  * these checkpoints restore the document viewport.
  *

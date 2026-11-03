@@ -68,13 +68,43 @@ def headless_shell(**options):
         yield browser
 
 
+ENGINES = ("chromium", "firefox", "webkit", "ios")
+
+
+def engine_option(command):
+    """Give a command the engine it opens pages in (`launch`), as `--browser`."""
+    return click.option(
+        "--browser",
+        "engine",
+        type=click.Choice(ENGINES),
+        default="chromium",
+        help="The engine to run in: Playwright's Chromium shell, Firefox or WebKit, or "
+        "Safari on an iPhone simulator through WebDriver.",
+    )(command)
+
+
 @contextmanager
-def headless_engine(name: str):
-    """Playwright's Firefox or WebKit, for a probe of an engine-specific difference:
-    readers use Leaf in both, and the suite and `headless_shell` drive Chromium. A host
-    without the engine gets Playwright's own error, which names the install command."""
-    with sync_playwright() as playwright, getattr(playwright, name).launch() as browser:
-        yield browser
+def launch(engine: str, scheme: str = "light"):
+    """The browser `engine` names, closed however the block is left: Playwright's
+    Chromium shell (`headless_shell`) showing the scrollbars readers see, including
+    the room a classic bar takes; Playwright's Firefox or WebKit, which readers use
+    as well; or a WebDriver session on the iOS simulator's Safari in `scheme`
+    (`ios_safari`), for a difference only iPhones show. A host without a Playwright
+    engine gets Playwright's own error, which names the install command."""
+    if engine == "ios":
+        from leaf_dev.ios_safari import ios_safari
+
+        with ios_safari(scheme) as driver:
+            yield driver
+    elif engine == "chromium":
+        with headless_shell(ignore_default_args=["--hide-scrollbars"]) as browser:
+            yield browser
+    else:
+        with (
+            sync_playwright() as playwright,
+            getattr(playwright, engine).launch() as browser,
+        ):
+            yield browser
 
 
 @cache

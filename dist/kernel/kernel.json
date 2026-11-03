@@ -20,7 +20,7 @@
 
     "runtime/anchor-travel.js": "187fbe97836671099bed09b7dc26736f63d8f832ce94e13c932f02855faf8825",
 
-    "runtime/annotation-inventory.js": "aba939efd41fa2d44469a66e9c69cf6b710cdca459daba4655598ccf8fa1940b",
+    "runtime/annotation-inventory.js": "03318a2c81e7cf6a79a21291449aef3d8dcf9dbf761e32011c952c755b97313d",
 
     "runtime/annotation-overlay/anchor-paint.js": "3ead2423eb5280061cccc4f6cbb1706f1884a8637caa21d64aa6df36a129340d",
 
@@ -40,11 +40,11 @@
 
     "runtime/annotation-overlay/margin-cluster-view.js": "a329209183a6255d8df0b87dadd4047b521d14f2dd33de52da7d47fadcb88e1c",
 
-    "runtime/annotation-overlay/margin-layout.js": "7c89513a76842e85661bfdaa4e5baad9d7dbb9fde4917cf47004c3a831ec96ee",
+    "runtime/annotation-overlay/margin-layout.js": "4715d66d1aa9d8916621456b151f732ffed37d6eb648303a5661740fbd7980e3",
 
     "runtime/annotation-overlay/margin-placement.js": "7eb32b30afc9432946f2ecd3ff60535ab3c1ff4ed4646fca1f5445bffb91de22",
 
-    "runtime/annotation-overlay/margin-projection.js": "8ebc4ffcb9a43c6e0059fb547fd0010ea8a54d70cc5f651ab90b11deab1caae4",
+    "runtime/annotation-overlay/margin-projection.js": "0f203b25353368d021b039bb722df31f4b176bd059ec541fe8a2c116952d5c96",
 
     "runtime/annotation-overlay/surface-grip.js": "fcaae3d4a8967c133989238e9a284830e72fda427d2cf71ec6919d394e18fd00",
 
@@ -72,7 +72,7 @@
 
     "runtime/carry.js": "b56796dafceeb930b409af5c88e94d9c76f9833bd35d519d2513e449b578f20c",
 
-    "runtime/change-walk.js": "d2f78a628550cd297e521297b7d66acf22fbcd1f5afdf78b48d6e679e5c01eeb",
+    "runtime/change-walk.js": "88fb607e5ed9a76af9e9d2751005301109c027e10c727e1f3674802f3e360b3e",
 
     "runtime/check-api.js": "7ea2fd886611d70f6c9cacf93fea9bd8df257c3e5dfabb96639aa3c1bc683b4c",
 
@@ -142,7 +142,7 @@
 
     "runtime/copyable-text.js": "b4252f63a205ebd26d5e158c5127b3da844e61b553527350b69564bc71be04ef",
 
-    "runtime/css-anchors.js": "03fabbdc0604c9624e56185521831b6b416d2e5f3272cfd5fe78e17b4b9631eb",
+    "runtime/css-anchors.js": "9f12de4aac61b83b328f047bef5f1ecbaea25f2aad177f1da85a5867aa0cb8eb",
 
     "runtime/current-target.js": "caf76ef138c45b35c46982272ac827e571f49a300a46dbe12630c4993ad52d86",
 
@@ -264,7 +264,7 @@
 
     "runtime/keyboard/page.js": "01dae6e54679ee95e73f3c8cc0459a732d7ae910b16a5b9a043784343514822f",
 
-    "runtime/keyboard/register.js": "e3899176463d4b8e908c5f6d15edf1e92a1d0abaccd4714d0676e5c9fc38de02",
+    "runtime/keyboard/register.js": "f858ee82252db507446c9adec179cafa77e061d99958a9b26ff5a665d9b510ac",
 
     "runtime/keyboard/scopes.js": "7d734e1f81549acc9f10d6bbac5c38197a9d4f4c70389ac7a88912f008629457",
 
@@ -286,7 +286,7 @@
 
     "runtime/llm-api.js": "a1d45811caba7e683fca30326d7a5b0c6f483e6f90067d35e138f822b38780c1",
 
-    "runtime/margin-bars.js": "693fdcde8deadbb80723c7d9bb854b736fdee84d01a477713cb428f4e406c299",
+    "runtime/margin-bars.js": "f243d013a69eee12706c0bf6dadd2d6475bd8a4b35b2b80c8c398077845e9b94",
 
     "runtime/margin-map-model.js": "942b6caaba45dc8744c8164b631d1663875790ef71f0d56cf3926c2312a3b455",
 
@@ -446,7 +446,7 @@
 
     "runtime/storage.js": "bea6e37345b37a51c14ad0f2b51a73bf12be33f81d0ec5ab0ed6d557bfccaa8b",
 
-    "runtime/stylesheets.js": "8f1a41e66c8fed4cac331f2c8135769c8eb9823d8e59e90d8110f35c72a0e131",
+    "runtime/stylesheets.js": "3af76c27c848f9d3154dbe5eada6c3390d3995fbcc70c00762e783f0f1c97dfa",
 
     "runtime/syntax-languages.js": "13f24d02ff634d2c84400b12b28952256cc4dd79479f0d6948b979343bfd78df",
 
@@ -456,7 +456,7 @@
 
     "runtime/tab-store.js": "a290fcf97023d587200d0efe7bd5e122d4d79ca4b77a058af25174824ca9d6e6",
 
-    "runtime/target-paint-geometry.js": "7f700bfb6446fa2706a8eaee3e04591c5b51bf61aa1eb98fd97ab8c3c0097926",
+    "runtime/target-paint-geometry.js": "a083fcd7e5d472e5db9e75c58ee4851e1a5b7e3b7041d92dd48a88a9628037f2",
 
     "runtime/target-paint.js": "d6f5bc9d5f464039b5ae9ddf654010cebabf6b22e6a905135243a6af01a1a4b4",
 
@@ -538,7 +538,7 @@
 
     "runtime/version-signal.js": "2fd7de64264ad0318dbb2e7e8e44ec4a576f84c4f8f128e240f57f595dbedbeb",
 
-    "runtime/version.js": "6ddb4561ff13c4b34c10d852a3b0aa7ae6b0047065ab0000be5e8afaa42fc9c4",
+    "runtime/version.js": "3b04a0961f3a334c5d6edde57d8112dc9c7ba7304c837628bf18d31b99aff101",
 
     "runtime/video-controls.js": "edeb26d5b544ecd5a1099a06146a6ce10baf214be6c172c66abe1fe535ec8f47",
 

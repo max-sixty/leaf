@@ -1,5 +1,6 @@
 """HTTP event and service-address tests."""
 
+import asyncio
 import base64
 import builtins
 import errno
@@ -3579,6 +3580,101 @@ def test_temporary_server_close_is_bounded_by_an_idle_connection(page_dir):
         else:
             server.close()
     assert not closer.is_alive()
+
+
+def test_temporary_server_close_drops_a_client_that_stops_sending(
+    page_dir, monkeypatch
+):
+    """A client that stops partway through its request cannot hold a close open.
+
+    Its route waits for bytes that never come. Once the grace a stop gives its
+    clients has passed, the server drops the connection, the route ends as
+    disconnected, and close returns having waited for it. The grace is zero here, so
+    the drop is due on the stop's first poll.
+    """
+    monkeypatch.setattr(hosting_model, "STOP_GRACE_SECONDS", 0)
+    reading = threading.Event()
+    read_body = http_model.PageEndpoint.read_body
+
+    def reading_body(endpoint, limit):
+        reading.set()
+        return read_body(endpoint, limit)
+
+    monkeypatch.setattr(http_model.PageEndpoint, "read_body", reading_body)
+    server = hosting_model.TemporaryPageServer(page_dir, token=TOKEN).start()
+    closer = threading.Thread(target=server.close, daemon=True)
+    client = socket.create_connection(("127.0.0.1", server.port))
+    try:
+        client.sendall(
+            (
+                f"POST /api/event?t={TOKEN} HTTP/1.1\r\n"
+                f"Host: 127.0.0.1:{server.port}\r\nOrigin: {server.origin}\r\n"
+                "Content-Type: application/json\r\nContent-Length: 100\r\n\r\n{"
+            ).encode()
+        )
+        assert reading.wait(STATED_TIMEOUT), "the route never began reading the body"
+        closer.start()
+        closer.join(timeout=STATED_TIMEOUT)
+        assert not closer.is_alive(), "close waited on a client that stopped sending"
+        client.settimeout(STATED_TIMEOUT)
+        try:
+            ended = client.recv(1) == b""
+        except ConnectionResetError:
+            ended = True
+        assert ended, "the server kept the stalled client's connection"
+    finally:
+        client.close()
+        if closer.is_alive():
+            closer.join(timeout=STATED_TIMEOUT)
+        server.close()
+
+
+def test_temporary_server_close_asks_a_connection_made_as_it_stops(
+    page_dir, monkeypatch
+):
+    """A connection the listener accepted before the stop, which asyncio makes only
+    after the stop has asked the others to finish, is asked too.
+
+    A browser's preconnect is such a connection: it says nothing, so nothing else
+    would end it before the grace a stop gives its clients. Here its making is held
+    until the stop has closed the listener, and the grace outlasts the test's wait,
+    so close returns only if the stop asks it.
+    """
+    from uvicorn.protocols.http.h11_impl import H11Protocol
+
+    monkeypatch.setattr(hosting_model, "STOP_GRACE_SECONDS", 2 * STATED_TIMEOUT)
+    server = hosting_model.TemporaryPageServer(page_dir, token=TOKEN).start()
+    connection_made = H11Protocol.connection_made
+    made = threading.Event()
+
+    def made_once_stopping(protocol, transport):
+        loop = asyncio.get_running_loop()
+
+        def make():
+            if any(listener.is_serving() for listener in server.httpd._uvicorn.servers):
+                loop.call_soon(make)
+                return
+            connection_made(protocol, transport)
+            made.set()
+
+        server.httpd.shutdown()
+        make()
+
+    monkeypatch.setattr(H11Protocol, "connection_made", made_once_stopping)
+    closer = threading.Thread(target=server.close, daemon=True)
+    client = socket.create_connection(("127.0.0.1", server.port))
+    try:
+        assert made.wait(STATED_TIMEOUT), "the server never made the connection"
+        closer.start()
+        closer.join(timeout=STATED_TIMEOUT)
+        assert not closer.is_alive(), "a connection made during the stop held it open"
+        client.settimeout(STATED_TIMEOUT)
+        assert client.recv(1) == b"", "the server left the connection open"
+    finally:
+        client.close()
+        if closer.is_alive():
+            closer.join(timeout=STATED_TIMEOUT)
+        server.close()
 
 
 def test_temporary_server_answers_a_connection_opened_before_its_request(page_dir):

@@ -1,4 +1,5 @@
-"""Read the authored catalog, regression inputs, and page companions."""
+"""Read the authored pages, the catalog that selects among them, and their
+companions."""
 
 import json
 import re
@@ -11,8 +12,6 @@ from jsonschema import Draft202012Validator
 from leaf.structure import SourceDocument
 from leaf_dev import ROOT
 from leaf_dev.leaf_assets import pinned_copy
-
-TEST_PAGES = ROOT / "tests" / "fixtures" / "pages"
 
 # Captures are live authored inputs: an intermediate JSON save must fail through
 # the preview's refusal path, rather than a missing key stopping its watcher.
@@ -38,42 +37,40 @@ _DATA_COMPANION = Draft202012Validator(
 )
 
 
-# Where a page named on a command line is looked up.
-NAMED_SOURCE_DIRS = (ROOT / "examples", ROOT / "examples" / "developer", TEST_PAGES)
+# Where authored pages live in a checkout: the examples, the developer galleries and
+# the full-page regression fixtures. A command line names a page by its file's stem.
+SOURCE_DIRS = ("examples", "examples/developer", "tests/fixtures/pages")
+
+
+def source_directories(root: Path = ROOT) -> list[Path]:
+    return [root / directory for directory in SOURCE_DIRS]
+
+
+def authored_sources(root: Path = ROOT) -> list[Path]:
+    """Every authored page, by directory and then name; the corpus is generated."""
+    return [
+        path
+        for directory in source_directories(root)
+        for path in sorted(directory.glob("*.html"))
+        if path != root / "examples" / "corpus.html"
+    ]
 
 
 def named_source(name: str, *, root: Path = ROOT) -> Path:
-    """The one authored source a name picks out of `NAMED_SOURCE_DIRS`; a ValueError
+    """The one authored source a name picks out of `SOURCE_DIRS`; a ValueError
     says why a name picks none, or several. The generated corpus is built on demand."""
     name = name.removesuffix(".html")
     if name == "corpus":
         from leaf_dev.commands.corpus import generate
 
         return generate(root)
-    directories = [root / path.relative_to(ROOT) for path in NAMED_SOURCE_DIRS]
-    found = [
-        path
-        for directory in directories
-        if (path := directory / f"{name}.html").is_file()
-    ]
+    found = [path for path in authored_sources(root) if path.stem == name]
     if len(found) > 1:
         raise ValueError(f"{name} names more than one source: {found}")
     if not found:
-        available = sorted(
-            {"corpus"}
-            | {
-                path.stem
-                for directory in directories
-                for path in directory.glob("*.html")
-            }
-        )
+        available = sorted({"corpus"} | {path.stem for path in authored_sources(root)})
         raise ValueError(f"no source named {name}; available: {', '.join(available)}")
     return found[0]
-
-
-def regression_sources(root: Path = ROOT) -> list[Path]:
-    """Full-page regression inputs that are neither examples nor website routes."""
-    return sorted((root / "tests" / "fixtures" / "pages").glob("*.html"))
 
 
 def catalog_sources(root: Path = ROOT) -> list[Path]:

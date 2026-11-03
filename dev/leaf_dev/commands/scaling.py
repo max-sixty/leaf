@@ -44,7 +44,7 @@ from leaf_dev.arms import (
     serving_source,
 )
 from leaf_dev.browser import headless_shell, settle, tab
-from leaf_dev.commands.profile import Profile
+from leaf_dev.commands.bench_latency import Profile
 
 OUT = ROOT / ".tmp" / "scaling"
 SIZES = (32, 64, 128, 256)

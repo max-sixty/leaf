@@ -509,8 +509,9 @@ Playwright Firefox 155 screencasts intermittently omitted fixed layers on
 2026-10-22, including a stationary marker outside Leaf's chrome. Native
 screenshots sampled during the same journeys retained those layers; whether
 the omission occurs in native-window paint remains unresolved.
-`leaf-dev bench-panel-motion` reports missing mark and focus-outline paint in
-Chromium's sampled frames; the functional test checks their settled paint.
+The probe journey in `dev/leaf_dev/panel_paint.py` reports missing mark and
+focus-outline paint in Chromium's sampled frames; the functional test checks
+their settled paint.
 Firefox recordings remain diagnostic
 evidence and cannot establish all-frame visibility. Recheck the same
 fold/unfold journey with a stationary fixed marker, native screenshots and a

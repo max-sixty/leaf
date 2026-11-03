@@ -92,7 +92,7 @@
             const met = facts[goal.fact](goal.arg, goal.attempt);
             if (met) {
               goal.at = at;
-              // Where a trace of the page finds this frame (`leaf-dev profile`).
+              // Where a trace of the page finds this frame (`bench-latency --profile`).
               performance.mark(`lf-bench:${goal.name}`);
             } else open = true;
           }

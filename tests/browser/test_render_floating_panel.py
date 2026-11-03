@@ -3551,8 +3551,9 @@ def test_the_folded_leaf_keeps_its_badge_and_face_through_motion(browser, serve)
 
 def test_the_leaf_paints_inside_its_focus_ring_after_folding(browser, serve):
     """Pointer and keyboard folds finish with a visible mark at the control's
-    centre, inside its keyboard ring. Motion sampling lives in bench-panel-motion;
-    receiving an intermediate screencast frame is not a functional guarantee."""
+    centre, inside its keyboard ring. Motion sampling is a probe journey
+    (`leaf_dev.panel_paint`); receiving an intermediate screencast frame is not a
+    functional guarantee."""
     from io import BytesIO
 
     from PIL import Image, ImageColor

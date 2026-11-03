@@ -61,6 +61,7 @@ from .service import (
     prepare_claim,
     same_claim,
 )
+from .session_runtime import select_checkout
 
 if TYPE_CHECKING:
     from .record_types import ServiceRecord
@@ -651,6 +652,8 @@ def cmd_serve(
                 )
             else:
                 commit()
+                if acquire and claimed and harness is not None:
+                    select_checkout(page_dir, harness)
                 announced = _announce_server(page_dir, url)
         if httpd is None or not announced:
             return
@@ -778,6 +781,10 @@ def claim_and_start(
             if claim is not None:
                 cmd_stop(page_dir, owner=claim)
             raise
+    # A detached preview's launcher, which prepared its claim, chose the session's
+    # Leaf itself (`dev/leaf_dev/commands/preview.py`).
+    if harness is not None and claim is not None and prepared_claim is None:
+        select_checkout(page_dir, harness)
 
 
 class _StopScope(Enum):

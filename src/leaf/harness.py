@@ -378,7 +378,12 @@ class ClaudeCodeHarness(EnvironmentHarness):
 
     `job` is the background job directory a claim rests on (`lifetime`), which
     `nudge` resumes when no worker hosts the job; None for a session the user sits
-    at, and for the harness the environment implies."""
+    at, and for the harness the environment implies.
+
+    A subagent the session spawns runs its shell commands in the session's own
+    environment, with nothing that names the subagent (measured at 2.1.317), so a
+    command it runs acts for the session; only a hook's payload names it
+    (`agent_id`, `state.worker_tool_batch`)."""
 
     job: str | None = None
 

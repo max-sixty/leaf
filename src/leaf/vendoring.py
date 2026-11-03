@@ -128,7 +128,7 @@ def cmd_init(
                 raise
     if harness is not None:
         # The copy the session loaded may not read the page at this protocol.
-        select_checkout(harness.session)
+        select_checkout(page_dir, harness)
     return {"page": str(page_dir)}
 
 
@@ -153,7 +153,8 @@ def renew_layer(
     initialized, which `_plan_page` refuses.
 
     A `command` from a checkout also selects that checkout to deliver for the
-    session (`session_runtime.select_checkout`); a hook leaves the selection alone.
+    session, where the session holds the page (`session_runtime.select_checkout`);
+    a hook leaves the selection alone.
 
     What it finds is why the renewal was refused, or the `page check` errors that
     keep index.html from activating under the new layer, since a source an older
@@ -192,7 +193,7 @@ def renew_layer(
             "renewal-refused", values={"page": str(page_dir), "error": str(error)}
         )
     if command and harness is not None:
-        select_checkout(harness.session)
+        select_checkout(page_dir, harness)
     return _unready(page_dir, errors)
 
 

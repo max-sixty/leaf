@@ -791,6 +791,7 @@ def cmd_claim(page_dir: Path, *, manual_delivery: bool = False) -> dict:
     wait is live, ordinary serving and reclaiming preserve the selected watch.
     """
     from leaf.harness import session_harness
+    from leaf.session_runtime import select_checkout
 
     harness = session_harness()
     if harness is None:
@@ -798,6 +799,7 @@ def cmd_claim(page_dir: Path, *, manual_delivery: bool = False) -> dict:
     preparation = nullcontext() if manual_delivery else harness.preparing_delivery()
     with preparation, PageTransaction(page_dir) as page:
         page.take_claim(harness)
+    select_checkout(page_dir, harness)
     return {"session": harness.session}
 
 

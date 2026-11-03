@@ -11,8 +11,8 @@ Codex delivery adapter follows the selection alone (`selected_launcher`):
 
 - the launcher the session selected, while it exists: the checkout a user preview
   serves (`dev/leaf_dev/commands/preview.py`), or a checkout whose command
-  initialized one of the session's pages (`select_checkout`), whose protocol the
-  session's own copy may not speak yet;
+  claimed one of the session's pages or initialized one it holds
+  (`select_checkout`), whose protocol the session's own copy may not speak yet;
 - otherwise, from a copy Claude Code installed, the copy it has installed since,
   which the marketplace sweep moves to each new commit;
 - otherwise this one.
@@ -28,9 +28,12 @@ ends with its generation. Page servers retain their own runtime, so choosing
 delivery does not replace a comparison arm's renderer.
 """
 
+from __future__ import annotations
+
 import json
 import os
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from .refusals import Refused
 from .state import (
@@ -42,6 +45,9 @@ from .state import (
     session_record,
     write_session,
 )
+
+if TYPE_CHECKING:
+    from .harness import Harness
 
 
 def delivering_launcher(session_id: str) -> Path:
@@ -123,16 +129,28 @@ def hand_off_command(argv: list[str]) -> None:
     os.execve(launcher, [str(launcher), *argv], environment)
 
 
-def select_checkout(session_id: str) -> None:
-    """Select this Leaf for the session's delivery where it runs from a checkout,
-    as a command initializes one of the session's pages (`vendoring`), since the
-    copy the session loaded may not read the page at this protocol. A checkout
-    can't tell which copy the session's hooks run, so it selects itself whenever
-    the session lives. Only a command selects: a hook runs the delivering Leaf
+def select_checkout(page_dir: Path, harness: Harness) -> None:
+    """Select this Leaf for the delivery of `harness`'s session where it runs from
+    a checkout and the session holds `page_dir`, as a command claims the page
+    (`server start`, `server run`, `page claim`) or initializes one the session
+    holds (`vendoring`), since the copy the session loaded may not read the page at
+    this protocol. A checkout can't tell which copy the session's hooks run, so it
+    selects itself for each such page.
+
+    The session's hooks read only the pages it holds, so a page it doesn't hold
+    leaves the selection alone: one a plain preview or a scratch `page init`
+    builds, or one another session holds. That includes a scratch page a Claude
+    Code subagent builds in its own worktree, whose commands act for the session
+    (`ClaudeCodeHarness`). Only a command selects: a hook runs the delivering Leaf
     already, and a write to the lifecycle record would change the snapshot its own
     readings compare against."""
-    if not plugin_cache_copy(PLUGIN_ROOT) and session_live(session_record(session_id)):
-        select_launcher(session_id, own_launcher())
+    from .service import claim_is_active, claimant_matches, page_claim
+
+    if plugin_cache_copy(PLUGIN_ROOT):
+        return
+    claim = page_claim(page_dir)
+    if claim_is_active(claim) and claimant_matches(claim, harness):
+        select_launcher(harness.session, own_launcher())
 
 
 def own_launcher() -> Path:

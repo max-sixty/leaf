@@ -1931,6 +1931,28 @@ def test_a_checkout_that_re_vendors_a_page_delivers_for_its_session(
     assert session_runtime_model.selected_launcher("s1") == own
 
 
+def test_a_checkout_delivers_for_its_session_only_through_a_page_the_session_holds(
+    claimed, tmp_path
+):
+    """A checkout's `page init` of a page its session doesn't hold, as a scratch page
+    a subagent builds in its own worktree, which runs with its parent's session id,
+    leaves the session's hooks on the Leaf they run, since they never read that page.
+    Claiming the page makes the checkout the session's Leaf, since now they do."""
+    other = tmp_path / "installed" / "bin" / "leaf"
+    other.parent.mkdir(parents=True)
+    other.write_text("#!/bin/sh\n")
+    other.chmod(0o755)
+    session_runtime_model.select_launcher("s1", other)
+    scratch = tmp_path / "scratch"
+
+    vendoring_model.cmd_init(scratch, ())
+    assert session_runtime_model.selected_launcher("s1") == other.resolve()
+
+    service_model.cmd_claim(scratch, manual_delivery=True)
+    own = session_runtime_model.own_launcher()
+    assert session_runtime_model.selected_launcher("s1") == own
+
+
 def test_a_prompt_captures_again_an_update_whose_delivery_an_older_leaf_wrote(
     claimed, capsys
 ):

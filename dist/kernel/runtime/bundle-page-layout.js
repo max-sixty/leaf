@@ -3883,7 +3883,7 @@ function createAnnotationInventory({ readObligations, placedAt, openThread, goTo
 			if (!parent) break;
 			const siblings = [...parent.children].filter((candidate) => !candidate.classList.contains("lf-ui") && !candidate.hasAttribute("data-lf-gen"));
 			steps.push(`${node.localName}:${siblings.indexOf(node)}`);
-			if (node.localName === "main" || parent instanceof ShadowRoot) break;
+			if (node.localName === "body" || parent instanceof ShadowRoot) break;
 			node = parent;
 		}
 		return `${prefix}${from}${steps.reverse().join("/")}`;
@@ -7044,7 +7044,7 @@ function createMarginBars(inventory) {
 			rect: ({ rect }) => {
 				const { gap } = KINDS[kind];
 				const edge = (target.closest("table") ?? target).getBoundingClientRect();
-				const left = target.matches(":dir(rtl)") ? Math.max(rect.right, edge.right) + gap : Math.min(rect.left, edge.left) - gap - BAR;
+				const left = target.matches(":dir(rtl)") ? Math.min(Math.max(rect.right, edge.right) + gap, document.documentElement.clientWidth - BAR) : Math.max(Math.min(rect.left, edge.left) - gap - BAR, 0);
 				return {
 					left,
 					right: left + BAR,
@@ -8531,15 +8531,15 @@ function declareThreadKeys(landIn, threadHere) {
 				touch: false,
 				keys: ["Enter"],
 				title: () => !threadInput(cardThread()) && resolutionControl(cardThread())?.matches(".lf-reopen") ? "reopen" : "reply",
-				get run() {
+				when: () => Boolean(threadInput(cardThread())) || Boolean(resolutionControl(cardThread())?.matches(".lf-reopen:not(:disabled, [aria-disabled=\"true\"])")),
+				run: () => {
 					const thread = cardThread();
 					const box = threadInput(thread);
-					if (box) return () => landIn({
+					if (box) landIn({
 						held: thread,
 						box
 					});
-					const control = resolutionControl(thread);
-					return control?.matches(".lf-reopen:not(:disabled, [aria-disabled=\"true\"])") ? () => control.click() : void 0;
+					else resolutionControl(thread)?.click();
 				}
 			},
 			{
@@ -8547,20 +8547,16 @@ function declareThreadKeys(landIn, threadHere) {
 				touch: false,
 				keys: ["r"],
 				title: () => resolutionControl(threadHere())?.matches(".lf-reopen") ? "reopen" : "resolve",
-				get run() {
-					const control = resolutionControl(threadHere());
-					return control?.matches(":not(:disabled, [aria-disabled=\"true\"])") ? () => control.click() : void 0;
-				}
+				when: () => Boolean(resolutionControl(threadHere())?.matches(":not(:disabled, [aria-disabled=\"true\"])")),
+				run: () => resolutionControl(threadHere())?.click()
 			},
 			{
 				id: "message.copy",
 				touch: false,
 				keys: ["Mod+c"],
 				title: "copy message as Markdown",
-				get run() {
-					const trigger = messageCopy(threadHere());
-					return trigger && getSelection()?.isCollapsed ? () => trigger.click() : void 0;
-				}
+				when: () => Boolean(messageCopy(threadHere()) && getSelection()?.isCollapsed),
+				run: () => messageCopy(threadHere())?.click()
 			}
 		]
 	});

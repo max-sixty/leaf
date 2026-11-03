@@ -125,8 +125,9 @@ with a persistent service spends most of its life unheld, and picks up again whe
 session takes it.
 
 A session's hooks, watch and bare `leaf` commands run its delivering Leaf: a checkout
-a user preview or a re-vendor selected, or the copy Claude Code installed since the
-session loaded its own (`session_runtime.py`); page servers keep their own.
+a user preview selected or one that claimed or re-vendored a page the session holds,
+or the copy Claude Code installed since the session loaded its own
+(`session_runtime.py`); page servers keep their own.
 
 ## Watchers
 

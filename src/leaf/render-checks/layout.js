@@ -2,6 +2,7 @@ import { pageScroller, regionScrollBehavior, TEXT_BOX } from "/runtime/widget-ap
 import {
   layoutBox,
   pageDocument,
+  inPage,
   readingRegions,
   shownBand,
   shownRegionBounds,
@@ -51,9 +52,9 @@ export function geometryReading(open) {
 // column or a flow in it. Existing containment may be deliberate, so this reading never
 // refuses a page.
 function containedSpace() {
-  const main = pageDocument();
-  if (!main) return [];
-  return [...main.querySelectorAll("[data-lf-space]")].flatMap((el) => {
+  const page = pageDocument();
+  if (!page) return [];
+  return [...page.querySelectorAll("[data-lf-space]")].filter(inPage).flatMap((el) => {
     if (skipped(el) || !el.checkVisibility()) return [];
     const holders = [];
     for (let holder = el.parentElement; holder; holder = holder.parentElement) {
@@ -85,20 +86,21 @@ function containedSpace() {
 // through the widgets named in `open`, those whose content is the page's own markup or
 // members, since a pane's or a tab's content is the page's; a widget's own box is the
 // widget's business and is not read, and nothing Leaf generates is. Each box comes back
-// with its place under `main`, a selector another load of the same page resolves to the
+// with its place under `body`, a selector another load of the same page resolves to the
 // same box, and the name every finding uses (locate.js). With `shown`, the walk keeps
 // to what the browser draws, leaving out skipped content such as a tab not chosen: a
 // reading of the view the user has asks nothing of it, and asking would make the
 // browser style and lay out each such subtree first (runtime/shown-box.js, `skipped`).
 /** @param {string[]} open */
 export function arrangedBoxes(open, { shown = false } = {}) {
-  const main = pageDocument();
-  if (!main) return [];
+  const page = pageDocument();
+  if (!page) return [];
   const opens = new Set(open);
   /** @type {[Element, string][]} */
   const boxes = [];
   const walk = (/** @type {Element} */ el, /** @type {string} */ path) => {
-    if (el.matches(".lf-ui, [data-lf-gen]") || (shown && skipped(el))) return;
+    if (!inPage(el) || el.matches(".lf-ui, [data-lf-gen]") || (shown && skipped(el)))
+      return;
     const widget = el.localName.includes("-");
     if (widget && !opens.has(el.localName)) return;
     if (!widget) boxes.push([el, path]);
@@ -106,7 +108,7 @@ export function arrangedBoxes(open, { shown = false } = {}) {
       walk(child, `${path} > :nth-child(${i + 1})`),
     );
   };
-  walk(main, "main");
+  walk(page, "body");
   return boxes.flatMap(([box, path]) => {
     if (!/flex|grid/.test(getComputedStyle(box).display)) return [];
     const tops = laidOutItems(box)
@@ -730,8 +732,8 @@ export function misplacedBoxes() {
 // read as a column by one and left wrapping by the other went unreported: a note
 // across the whole table wraps because it is long, says nothing about a squeeze, and
 // unwrapped would push every column it spans out and name them all.
-// A cell in a hidden or collapsed row has no height. Read from `main`, where geometry
-// is real.
+// A cell in a hidden or collapsed row has no height. Read from the page, where
+// geometry is real.
 //
 // `squeezedTables` reports a table whose visible words stand outside its inner box with
 // a cell in it wrapped. `scrollWidth` is the first reading, then the words decide it:
@@ -752,8 +754,8 @@ export function misplacedBoxes() {
 // table's place (locate.js) beside its code, so the sweep tells one table's run of
 // widths from another's. A page with no scrolling table never adds the wrapping rule.
 export function squeezedTables() {
-  const main = pageDocument();
-  if (!main) return [];
+  const page = pageDocument();
+  if (!page) return [];
   // What a heading says, for the column's name.
   /** @param {Element} cell */
   const says = (cell) => {
@@ -786,9 +788,12 @@ export function squeezedTables() {
     }
     return false;
   };
-  const tables = [...main.querySelectorAll("table")].filter(
-    (t) => t.checkVisibility() && t.scrollWidth - t.clientWidth > 1 && wordsOutside(t),
-  );
+  const tables = [...page.querySelectorAll("table")]
+    .filter(inPage)
+    .filter(
+      (t) =>
+        t.checkVisibility() && t.scrollWidth - t.clientWidth > 1 && wordsOutside(t),
+    );
   if (!tables.length) return [];
   // Each table's columns by left edge, each with its cells, before the probe.
   /** @typedef {{heading: string | null, head: boolean, width: number, first: Element, wraps: boolean}} TableColumn */

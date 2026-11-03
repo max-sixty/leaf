@@ -112,11 +112,7 @@ function createRegionSelector({ parent, visibleTargets, openComposerWithMedia, r
 		keepsText(status, "Capturing…");
 		paintKeys();
 		try {
-			const { blob, warnings } = await pageImage(clip, { exclude: [
-				".lf-region-capture",
-				".lf-floating-panel",
-				".lf-fp-ground"
-			] });
+			const { blob, warnings } = await pageImage(clip);
 			if (ended || ticket !== attempt) return;
 			if (revision !== runtime.currentRevision) throw new Error("The page changed. Select the area again.");
 			let adding;

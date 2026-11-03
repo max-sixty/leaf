@@ -31,18 +31,18 @@ no task id: Claude Code tells a resumed session that a task it recorded has
 stopped, which a live fork never hears, so the replay needs no sentence of its own
 in the prompt. The request keeps Claude Code's tool definitions, as a live fork
 resends the session's, with its per-machine sections moved out of the system prompt
-so the prefix is cached across cases. Don't-ask mode denies every tool that needs
-permission, the tools that reach beyond the fork's directory are denied by name,
-and `--max-turns 1` ends a fork that calls any tool without an answer, which fails
-the case. Hooks, plugins and MCP servers are off.
+so the prefix is cached across cases. One `PreToolUse` hook (`BLOCKED`), the fresh
+home's only one, refuses every call, and `--max-turns 1` then ends the fork without
+an answer, which fails every check of the case rather than raising a provider
+error. Plugins and MCP servers are off.
 
 What the arm's Leaf took is what gets scored. A turn-end answer it refuses fails
 `answered`. Its asks are the records it wrote (`wrote`), as the user reads them; its
 findings are those its `turn_end_check` note lists for the page, which leaves out
 anything named for a page the session doesn't hold. A reply is what its `fork_reply`
-note says came of the answer: posted, or handed over by the fork's choice; an answer
-Leaf refused fails `answered` (an arm whose note doesn't say so counts it as handed
-over).
+note says came of the answer: posted, or handed over by the fork's choice. An answer
+or reply Leaf refused fails `answered` where the note says so (`refused`); a base arm
+from before that field counts a refused reply as handed over.
 
 An item is matched to a label by the words it rests on: one of the label's `words`
 stands in its quote, passage, title, text or edit words. An `expect` label needs an
@@ -55,9 +55,9 @@ guardrail leaves out. Every item and change goes to the text judge
 an unlabelled one is real. A reply is scored on its decision, and a posted reply's
 words on the judge.
 
-Cost is priced from the result's `usage` at Opus 5.5's list prices. Its
-`total_cost_usd` prices the same call, since the rendered records carry no usage,
-but bills hour-long cache writes at the five-minute rate.
+Cost is priced from the result's `usage` at the fork model's list prices (`PRICES`).
+Its `total_cost_usd` prices the same call, since the rendered records carry no
+usage, but bills hour-long cache writes at the five-minute rate.
 """
 
 import json
@@ -89,22 +89,39 @@ from leaf_dev.page_fixtures import ADMIT, fixture_environment
 
 DEFINITION = definition("fork_eval")
 CASES = DEFINITION["cases"]
+# A live fork resends the session's model; the replay takes the author model.
+MODEL = MODELS[ClaudeCodeHarness.name]
 
 # The parts of a turn-end answer, with the kinds each holds.
 PARTS = {"asks": ("question", "step"), "findings": ("stale", "settled", "unshown")}
 
-# Tools that could reach beyond the fork's directory without asking permission.
-OUTWARD = (
-    "PushNotification",
-    "SendMessage",
-    "RemoteTrigger",
-    "CronCreate",
-    "ScheduleWakeup",
-    "Workflow",
-)
+# The fork's settings: a hook that refuses every tool call, keeping the definitions.
+BLOCKED = {
+    "hooks": {
+        "PreToolUse": [
+            {
+                "matcher": "*",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "echo 'Tools are off in this fork.' >&2; exit 2",
+                    }
+                ],
+            }
+        ]
+    }
+}
 
-# Opus 5.5 list prices, dollars per million tokens.
-PRICES = {"input": 5.0, "write_5m": 6.25, "write_1h": 10.0, "read": 0.5, "output": 25.0}
+# List prices by model, dollars per million tokens.
+PRICES = {
+    "claude-opus-5-5": {
+        "input": 5.0,
+        "write_5m": 6.25,
+        "write_1h": 10.0,
+        "read": 0.5,
+        "output": 25.0,
+    }
+}
 
 # Holds the session's forks lane until stdin closes, waiting past the take's
 # millisecond, since a message admitted within it stays with the session.
@@ -223,7 +240,10 @@ def execute_scenario(
     }
     checks = expected_checks(case)
     if run["text"] is None:
+        # A fork that called a tool answered wrongly; one that never ran is an error.
         metadata["checks"] = dict.fromkeys(checks, False)
+        if run["tool_calls"]:
+            return response
         return {**response, "error": f"the fork gave no answer: {run['failed']}"}
     if scenario["fork"] == "reply":
         metadata.update(score_reply(leaf, page, scenario, turns))
@@ -400,7 +420,7 @@ def transcript(turns: list[dict], session: str, cwd: Path, start: datetime) -> l
             {
                 "type": "assistant",
                 "message": {
-                    "model": MODELS[ClaudeCodeHarness.name],
+                    "model": MODEL,
                     "id": message,
                     "type": "message",
                     "role": "assistant",
@@ -492,14 +512,13 @@ def fork(prompt: str, session: str, turns: list, work: Path) -> dict:
     with tempfile.TemporaryDirectory(prefix="leaf-fork-") as directory:
         cwd = Path(directory).resolve() / "cwd"
         cwd.mkdir()
-        settings = {"disableAllHooks": True, "permissions": {"deny": list(OUTWARD)}}
         child = claude_child(
             cwd,
             *("--resume", session, "--effort", "medium", "--max-turns", "1"),
             *("--exclude-dynamic-system-prompt-sections", "--settings"),
-            json.dumps(settings),
+            json.dumps(BLOCKED),
+            model=MODEL,
             sandbox=False,
-            permissions="dontAsk",
         )
         project = Path(child["env"]["HOME"]) / ".claude/projects"
         project /= re.sub(r"[^A-Za-z0-9]", "-", str(cwd))
@@ -549,26 +568,29 @@ def fork(prompt: str, session: str, turns: list, work: Path) -> dict:
         "text": None if failed else text,
         "failed": failed,
         "usage": usage,
-        "cost": price(usage),
+        "cost": price(usage, MODEL),
         "wall_s": round(wall, 1),
         "elapsed_ms": result.get("duration_ms"),
         "tool_calls": calls,
     }
 
 
-def price(usage: dict) -> float:
-    """What one call's `usage` costs at `PRICES`."""
+def price(usage: dict, model: str) -> float:
+    """What one call's `usage` costs at `model`'s `PRICES`, which must hold it."""
+    if model not in PRICES:
+        raise KeyError(f"no list prices for {model}; add them to fork_eval.PRICES")
+    rates = PRICES[model]
     written = usage.get("cache_creation") or {}
     hour = written.get("ephemeral_1h_input_tokens", 0)
     minutes = written.get(
         "ephemeral_5m_input_tokens", usage.get("cache_creation_input_tokens", 0) - hour
     )
     dollars = (
-        usage.get("input_tokens", 0) * PRICES["input"]
-        + minutes * PRICES["write_5m"]
-        + hour * PRICES["write_1h"]
-        + usage.get("cache_read_input_tokens", 0) * PRICES["read"]
-        + usage.get("output_tokens", 0) * PRICES["output"]
+        usage.get("input_tokens", 0) * rates["input"]
+        + minutes * rates["write_5m"]
+        + hour * rates["write_1h"]
+        + usage.get("cache_read_input_tokens", 0) * rates["read"]
+        + usage.get("output_tokens", 0) * rates["output"]
     )
     return round(dollars / 1e6, 5)
 

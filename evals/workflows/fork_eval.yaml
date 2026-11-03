@@ -61,7 +61,8 @@ rubrics:
 # The words a guardrail and its positive case share.
 words:
   cache-question: &cache-question [lru, ttl]
-  flag-step: &flag-step [flags set search cache lru]
+  flag-step: &flag-step [flags set search cache lru, search cache]
+  staging-flag: &staging-flag [staging]
   reindex-stale:
     &reindex-stale [
       2 of 5,
@@ -154,6 +155,14 @@ conversations:
         Setting staging flags needs your ops login, which this session doesn't have.
         Run `./ops/flags set search.cache lru --env staging` from your terminal, and
         tell me when it's done.
+  flag-on:
+    - user: Ran it. Staging should have it now.
+    - tool: Bash
+      input:
+        command: ./ops/flags get search.cache --env staging
+        description: Check the staging flag
+      result: search.cache=lru (staging, set 2026-11-03T09:06Z)
+    - assistant: Confirmed, staging has `search.cache=lru`, so its search results now come through the LRU cache.
   reindex:
     - user: >-
         Check on the staging reindex and finish it if it's stuck. The page at {page}
@@ -305,23 +314,39 @@ cases:
       - *items
   ask-step-done:
     fork: turn-end
+    page: turn-end-check/pages/cache-staging.html
+    conversation:
+      - from: cache
+      - *cache-reply
+      - from: cache-chosen
+      - from: flag-asked
+      - from: flag-on
+      - tool: Edit
+        input:
+          file_path: "{page}/index.html"
+          old_string: It serves where the search.cache flag is lru.
+          new_string: It serves where the search.cache flag is lru, as it is in staging since 3 November.
+        result: The file {page}/index.html has been updated successfully.
+      - assistant: The page now says staging has it on.
+    labels:
+      absent:
+        - kind: step
+          words: *flag-step
+    assert:
+      - *items
+  stale-omission:
+    fork: turn-end
     page: turn-end-check/pages/cache-chosen.html
     conversation:
       - from: cache
       - *cache-reply
       - from: cache-chosen
       - from: flag-asked
-      - user: Ran it. Staging should have it now.
-      - tool: Bash
-        input:
-          command: ./ops/flags get search.cache --env staging
-          description: Check the staging flag
-        result: search.cache=lru (staging, set 2026-11-03T09:06Z)
-      - assistant: Confirmed, staging has `search.cache=lru`, so its search results now come through the LRU cache.
+      - from: flag-on
     labels:
       absent:
-        - kind: step
-          words: *flag-step
+        - kind: stale
+          words: *staging-flag
     assert:
       - *items
   stale-edit:

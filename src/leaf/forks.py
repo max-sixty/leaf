@@ -502,9 +502,10 @@ def _post(session_id: str, basis: dict, text: str) -> dict:
     except (FileNotFoundError, ReceiptRefused):
         return {"outcome": "dropped", "text": text}
     except (Rejected, Refused) as error:
-        # The reply's own checks refused it, so the session answers instead.
-        handed = _hand_over(session_id, basis, f"the reply was refused: {error}")
-        return {**handed, "text": text}
+        # The reply's own checks refused it, so the session answers instead, and the
+        # note says why, as it does for an answer `take` refused.
+        why = f"the reply was refused: {error}"
+        return {**_hand_over(session_id, basis, why), "text": text, "refused": why}
     if record is None:
         return {"outcome": "dropped", "text": text}
     queue(

@@ -24,6 +24,10 @@ variants:
     metadata:
       scenario: ask-step-done
       purpose: A command the user ran and confirmed since is left out.
+  stale-omission:
+    metadata:
+      scenario: stale-omission
+      purpose: A fact the work added, which the page doesn't mention and nothing contradicts, is no stale finding.
   ask-on-me:
     metadata:
       scenario: ask-on-me

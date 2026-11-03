@@ -1162,7 +1162,10 @@ onCurrentLocation((node, cause) => {
 function focusScrolledAway() {
 	if (!settledSinceArrival) return false;
 	const node = focused();
-	return Boolean(node && node !== document.body && !seenRect(node, /* @__PURE__ */ new Map()));
+	if (!node || node === document.body) return false;
+	const [list] = scrollersOf(node);
+	const place = list && list !== pageScroller && inChrome(list) ? list : node;
+	return !seenRect(place, /* @__PURE__ */ new Map());
 }
 function placeCandidates({ inherited, named, preferred, visible }) {
 	const lead = inherited || named[0] || preferred || visible[0];

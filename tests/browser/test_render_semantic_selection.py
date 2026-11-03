@@ -142,7 +142,7 @@ def test_target_picker_takes_a_margin_press_as_the_target_it_stands_by(browser, 
         browser, serve(next(p for p in EXAMPLES if p.stem == "release-notes"))
     )
     before = len(events_model.read_events(serve.page_dir))
-    accept = page.locator(".lf-margin-cluster .lf-sug-accept").first
+    accept = page.locator(".lf-margin-cluster [data-lf-margin-entry-key=accept]").first
     accept.scroll_into_view_if_needed()
     accept.hover()
     page.keyboard.press("s")

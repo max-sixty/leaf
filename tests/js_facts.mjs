@@ -481,23 +481,10 @@ const DRESSERS = {
   copyControl: ["role", 0],
 };
 
-// Where a margin entry's declaration stands: a contribution's `entries`, or the
-// argument of the call that reads or presents one. Its `className` is written onto
-// the entry's host after the `entry` role builds it.
-const ENTRY_READERS = new Set(["contributionEntry", "presentContributionEntry"]);
-const declaresEntry = (node, parents) => {
-  for (let at = parents.get(node); at; at = parents.get(at)) {
-    if (at.type === "Property" && at.key?.name === "entries") return true;
-    if (ENTRY_READERS.has(callee(at))) return true;
-  }
-  return false;
-};
-
 // Every call that dresses an element in a role's face: `{line, roles, classes}`, the
 // roles it may name and the classes it may write beside the face, as `words` reads
 // them. A call handed its role or classes as a parameter, such as a builder's own
-// wrapper, names none. A margin entry's declared `className` dresses the `entry`
-// role the same way.
+// wrapper, names none.
 function dressings() {
   const read = {};
   for (const file of files) {
@@ -506,16 +493,6 @@ function dressings() {
     walk(program, (node, _loops, parent) => parents.set(node, parent));
     const found = [];
     walk(program, (node) => {
-      if (
-        node.type === "Property" &&
-        node.key?.name === "className" &&
-        declaresEntry(node, parents)
-      ) {
-        const classes = words(node.value, parents);
-        if (classes.length)
-          found.push({ line: line(file, node), roles: ["entry"], classes });
-        return;
-      }
       const name = callee(node);
       if (!Object.hasOwn(DRESSERS, name)) return;
       const at = DRESSERS[name];

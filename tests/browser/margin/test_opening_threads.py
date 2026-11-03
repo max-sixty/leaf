@@ -1346,7 +1346,9 @@ def test_an_open_thread_refresh_keeps_the_current_margin_entry_target_highlighte
     suggestion.locator(".lf-margin-more").click()
     suggestion.locator('.lf-margin-reading-option[data-lf-kinds="comment"]').click()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
-    page.locator('[data-lf-margin-for="sug-thistle"] .lf-sug-accept').focus()
+    page.locator(
+        '[data-lf-margin-for="sug-thistle"] [data-lf-margin-entry-key=accept]'
+    ).focus()
     # This suggestion is the current obligation, so its ring identifies the target
     # instead of the duplicate margin trace, even while another card stays open.
     drawn = rings_drawn(page)

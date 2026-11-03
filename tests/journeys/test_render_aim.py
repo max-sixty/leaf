@@ -158,7 +158,7 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
     # but a press there is one the page answers, so the sweep takes it as well.
     targets = (
         f"{aim_targets(serve.page_dir)}, "
-        ".lf-margin-cluster :is(.lf-sug-accept, .lf-sug-reject)"
+        ".lf-margin-cluster :is([data-lf-margin-entry-key=accept], [data-lf-margin-entry-key=reject])"
     )
     total = page.locator(targets).count()
     pressed = aimed = 0
@@ -188,7 +188,7 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
                   [el.matches('.lf-pick') || !!el.closest('lf-option'), 'option click'],
                   [el.matches('lf-draft') || !!el.closest('lf-draft'),
                    'draft mousedown'],
-                  [el.matches('.lf-sug-accept, .lf-sug-reject'),
+                  [el.matches('[data-lf-margin-entry-key=accept], [data-lf-margin-entry-key=reject]'),
                    'suggestion control'],
                 ].filter(([reached]) => reached).map(([, name]) => name)"""
             )
@@ -308,7 +308,9 @@ def test_design_mode_comments_on_a_margin_action_without_performing_it(browser, 
     page = open_page(browser, serve(SUGGESTION_PAGE))
     resized(page, 1440, 900)
     page.keyboard.press("l")
-    accept = page.locator('[data-lf-margin-for="sug-refill"] .lf-sug-accept')
+    accept = page.locator(
+        '[data-lf-margin-for="sug-refill"] [data-lf-margin-entry-key=accept]'
+    )
     expect(accept).to_be_visible()
 
     accept.hover()
@@ -367,7 +369,9 @@ def test_design_mode_comments_on_a_margin_action_without_performing_it(browser, 
     # The thread opens with the caret in its reply; Escape stands on the thread.
     page.keyboard.press("Escape")
     page.keyboard.press("l")
-    accept = page.locator('[data-lf-margin-for="reply-suggestion"] .lf-sug-accept')
+    accept = page.locator(
+        '[data-lf-margin-for="reply-suggestion"] [data-lf-margin-entry-key=accept]'
+    )
     expect(accept).to_be_visible()
 
     accept.click()

@@ -113,11 +113,6 @@ html[data-lf-region-capture] main,
 html[data-lf-region-capture] main * {
   cursor: crosshair !important;
 }
-/* The glyphs of the reactions in force on a target — a margin entry per reaction,
-   revealing a separately named removal action. */
-.lf-react-mark {
-  text-align: center;
-}
 /* A change's mark is an annotation, so hiding annotations (`o`) hides its bar
    (margin-bars.js) too. */
 :root[data-lf-annotations="hidden"] {

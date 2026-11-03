@@ -241,9 +241,9 @@ def test_a_pin_with_no_room_for_its_actions_stands_folded_and_unfolds_in_place(
 
     pressed = toggle.bounding_box()
     toggle.tap()
-    accept = row.locator(".lf-sug-accept")
+    accept = row.locator("[data-lf-margin-entry-key=accept]")
     expect(accept).to_be_visible()
-    expect(row.locator(".lf-sug-reject")).to_be_visible()
+    expect(row.locator("[data-lf-margin-entry-key=reject]")).to_be_visible()
     expect(toggle).to_have_attribute("aria-expanded", "true")
     margins_laid_out(page)
     assert toggle.bounding_box() == pressed, (toggle.bounding_box(), pressed)
@@ -275,7 +275,7 @@ def test_a_pin_with_no_room_for_its_actions_stands_folded_and_unfolds_in_place(
         keyboard.keyboard.press("Tab")
         if row.evaluate("row => row.contains(document.activeElement)"):
             break
-    accept = row.locator(".lf-sug-accept")
+    accept = row.locator("[data-lf-margin-entry-key=accept]")
     expect(accept).to_be_focused()
     keyboard.keyboard.press("Enter")
     expect(keyboard.locator("#s")).to_have_attribute("data-lf-state", "accept")

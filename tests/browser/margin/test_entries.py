@@ -948,7 +948,7 @@ def test_every_pin_entry_shares_its_face_and_keeps_its_behavior(browser, serve):
     page = open_page(browser, url)
     resized(page, 1440, 900)
     cluster = page.locator('[data-lf-margin-for="schedule"]')
-    accept = cluster.locator(".lf-sug-accept")
+    accept = cluster.locator("[data-lf-margin-entry-key=accept]")
     more = cluster.locator(":scope > .lf-margin-more")
     thread = page.locator('[data-lf-margin-for="discussion"] .lf-margin-marker')
     status = page.locator('.lf-margin-entry[data-lf-kinds="sent"]')
@@ -986,7 +986,7 @@ def test_every_pin_entry_shares_its_face_and_keeps_its_behavior(browser, serve):
         page.mouse.move(0, 0)
 
         more.click()
-        reject = cluster.locator(".lf-sug-reject")
+        reject = cluster.locator("[data-lf-margin-entry-key=reject]")
         expect(reject).to_be_visible()
         page.mouse.move(0, 0)
         page.keyboard.press("Tab")

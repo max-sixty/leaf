@@ -484,7 +484,9 @@ def test_the_margin_layer_follows_the_page_in_the_tab_order(browser, serve):
     page's last control reaches them, and Shift+Tab goes back the way it came."""
     page = open_page(browser, serve(MARGIN_ENTRY_KEYBOARD_PAGE))
     resized(page, 1440, 900)
-    accept = page.locator('[data-lf-margin-for="sug-refill"] .lf-sug-accept')
+    accept = page.locator(
+        '[data-lf-margin-for="sug-refill"] [data-lf-margin-entry-key=accept]'
+    )
     page.locator("#after-margin-entries").focus()
     reached = 0
     for presses in range(1, 80):

@@ -305,7 +305,6 @@ const ENTRY_OPTIONS = /* @__PURE__ */ new Set([
 	"relation",
 	"activation",
 	"title",
-	"className",
 	"scope"
 ]);
 const kinds = {
@@ -423,7 +422,7 @@ const freezeRelation = (relation) => {
 };
 function contributionEntry$1(offered) {
 	unknownOptions(offered, ENTRY_OPTIONS, "entry");
-	const { key, glyph = null, action = null, icon: mark = null, label, voice = null, accessibleLabel = null, context = null, description = null, behavior = "action", tone = "neutral", rank = "primary", state = "idle", visible = true, disabled = false, count = 1, pressed = null, workflowReceipt = void 0, relation = null, activation = key, title = null, className = null, scope = null } = offered;
+	const { key, glyph = null, action = null, icon: mark = null, label, voice = null, accessibleLabel = null, context = null, description = null, behavior = "action", tone = "neutral", rank = "primary", state = "idle", visible = true, disabled = false, count = 1, pressed = null, workflowReceipt = void 0, relation = null, activation = key, title = null, scope = null } = offered;
 	if (!text$1(key)) throw new TypeError("A contribution entry needs a key");
 	if ([
 		text$1(glyph),
@@ -458,8 +457,7 @@ function contributionEntry$1(offered) {
 		pressed: pressed == null ? null : Boolean(pressed),
 		workflowReceipt,
 		relation: freezeRelation(relation),
-		title: text$1(title) || null,
-		className: text$1(className) || null
+		title: text$1(title) || null
 	};
 	const record = behavior === "status" ? Object.freeze({
 		...fields,
@@ -611,9 +609,8 @@ let relationOrdinal = 0;
 const presented = /* @__PURE__ */ new WeakMap();
 const records = /* @__PURE__ */ new WeakMap();
 const controlContributions = /* @__PURE__ */ new WeakMap();
-const contributorClasses = /* @__PURE__ */ new WeakMap();
-function createContributionControl(record, className = "") {
-	return offeredActionElement(document.createElement(record.behavior === "status" ? "span" : "button"), "entry", className);
+function createContributionControl(record) {
+	return offeredActionElement(document.createElement(record.behavior === "status" ? "span" : "button"), "entry");
 }
 const contributionControlMatches = (control, record) => record.behavior === "status" ? control instanceof HTMLSpanElement : control instanceof HTMLButtonElement;
 function contributionEntryRecord(control) {
@@ -797,11 +794,6 @@ function presentContributionEntry(control, offered, options = {}) {
 	if (Object.hasOwn(options, "selected")) syncContributionSelection(control, options.selected);
 	control.classList.toggle("lf-margin-entry", true);
 	control.classList.toggle(HOLDS_WORD, true);
-	const priorClasses = contributorClasses.get(control) ?? [];
-	const nextClasses = record.className?.split(/\s+/).filter(Boolean) ?? [];
-	for (const name of priorClasses) if (!nextClasses.includes(name)) control.classList.toggle(name, false);
-	for (const name of nextClasses) control.classList.toggle(name, true);
-	contributorClasses.set(control, nextClasses);
 	const visibleLabel = visibleContributionEntryLabel(record);
 	const glyph = record.icon ? iconTemplate(record.icon) : html`<span class="lf-margin-entry-glyph" aria-hidden="true"
         >${record.glyph}</span
@@ -4389,7 +4381,6 @@ function createReactionController({ marginEntryChoices, marginEntryContextContai
 					glyph: choice.glyph,
 					label: choice.label,
 					rank: "secondary",
-					className: "lf-react",
 					pressed: Boolean(choice.inForce)
 				})),
 				readings: []

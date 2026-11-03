@@ -3879,7 +3879,6 @@ function createAnchorControls({ commentOnTarget, openThread, withdrawReaction, l
 						label: `${root.token} reaction actions`,
 						behavior: "disclosure",
 						rank: "secondary",
-						className: "lf-react-mark",
 						scope: this.scope,
 						relation: {
 							kind: "entries",
@@ -3891,7 +3890,6 @@ function createAnchorControls({ commentOnTarget, openThread, withdrawReaction, l
 						action: "undo",
 						label: `Undo ${root.token} reaction`,
 						rank: "secondary",
-						className: "lf-react-remove",
 						scope: this.scope,
 						visible: this.expanded === root.id
 					}]),

@@ -1823,10 +1823,10 @@ def test_a_press_wears_its_role_s_face_alone():
     (browser/AGENTS.md, "A control wears its role's face"). Every face is drawn in
     controls.css, keyed by the role's face class and the attributes a press declares,
     such as a tone (`data-lf-tone`) or news (`data-lf-news`); `js_facts.mjs dressings`
-    reads the classes builders write beside a role, and those a margin entry declares
-    (`className`), which place a press and never restyle it. The reading sees the
-    classes Leaf's APIs write, as the source spells them; a module's own `classList`
-    writes are its code, as an inline style is.
+    reads the classes builders write beside a role, which place a press and never
+    restyle it. A builder is the only API that writes a press's classes, so the
+    reading sees every class Leaf writes on one, as the source spells it; a module's
+    own `classList` write is its code, as an inline style is.
 
     Before this check a sheet could restyle a press it placed: Send and Dictate drew
     a disc of their own in response.css, a margin entry's face lived in base.css, the
@@ -1835,8 +1835,8 @@ def test_a_press_wears_its_role_s_face_alone():
     by role, the question has one answer per role and needs no browser."""
     faces, placed = _role_classes()
     assert {"lf-icon-action", "lf-btn", "lf-row"} <= faces, faces
-    assert {"lf-compose-dictate", "lf-fp-tab", "lf-react-mark"} <= placed, (
-        "the dressings reading has stopped finding builders' or entries' classes"
+    assert {"lf-compose-dictate", "lf-fp-tab"} <= placed, (
+        "the dressings reading has stopped finding builders' classes"
     )
     sheets = [
         sheet

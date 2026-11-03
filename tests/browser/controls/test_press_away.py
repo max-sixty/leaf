@@ -205,7 +205,7 @@ def test_a_press_away_folds_a_pin_s_unfolded_actions(browser, serve):
     page = open_page(browser, serve(FOLDING_PAGE), context=browser.new_context(**PHONE))
     row = page.locator('.lf-margin-cluster[data-lf-margin-for="s"]')
     toggle = row.locator(".lf-margin-more")
-    accept = row.locator(".lf-sug-accept")
+    accept = row.locator("[data-lf-margin-entry-key=accept]")
     outside = centre(page.locator("h1"))
     toggle.tap()
     expect(toggle).to_have_attribute("aria-expanded", "true")

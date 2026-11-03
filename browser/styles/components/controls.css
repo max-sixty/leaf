@@ -108,15 +108,14 @@
    otherwise one glyph. The word is the choice's own name, so it says what the accessible
    name says, and it stands above the choice, where the finger pressing it does not cover
    it. The press owns the gesture, so it neither scrolls nor opens the platform's
-   long-press menu; a margin choice says its word through its own label (the entry
-   face, below). */
+   long-press menu. A reaction offered in the margin is a margin entry, which says its
+   word through its own label (the entry face, below) and, like every entry, lets a
+   finger that starts on it scroll the page. */
 .lf-react {
   touch-action: none;
   -webkit-touch-callout: none;
   user-select: none;
   -webkit-user-select: none;
-}
-.lf-react:not(.lf-margin-entry) {
   position: relative;
 }
 :is(.lf-reaction, .lf-response-face[aria-pressed]):is(

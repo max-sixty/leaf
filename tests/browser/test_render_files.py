@@ -125,11 +125,11 @@ def test_file_editor_uses_package_typography_and_the_inherited_focus_ring(
     root_size = page.locator("html").evaluate(
         "node => parseFloat(getComputedStyle(node).fontSize)"
     )
-    assert abs(float(size.removesuffix("px")) - root_size * 0.88) < 0.01
+    assert abs(float(size.removesuffix("px")) - root_size * 0.84375) < 0.01
 
     page.evaluate("""() => document.querySelector('#change-theme').addEventListener('click', () => {
       const style = document.createElement('style');
-      style.textContent = ':root { --focus-ring: 7px dashed magenta; --focus-ring-w: 7px; --syn-string: rgb(0, 85, 102); } lf-file-editor { --lf-file-editor-size: 30px; }';
+      style.textContent = ':root { --focus-ring: 7px dashed magenta; --focus-ring-w: 7px; --syn-string: rgb(0, 85, 102); } lf-file-editor { --code-size: 30px; }';
       document.head.append(style);
     })""")
     page.get_by_role("button", name="Change theme", exact=True).click()

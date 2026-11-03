@@ -1139,7 +1139,7 @@ function declareOffFlowSurface(surface, { floats = () => true, away = () => fals
 	}, { capture: true });
 }
 onCurrentLocation((node, cause, left) => {
-	if (!node || !left || cause === "return") return;
+	if (!node || !left || cause === "return" || cause === "press") return;
 	for (const reading of surfaces.values()) {
 		const { surface } = reading;
 		if (under(node, surface) && under(left, surface)) follow(reading, node, scrollBehavior());

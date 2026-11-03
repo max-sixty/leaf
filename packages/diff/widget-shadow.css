@@ -568,11 +568,14 @@ pre[data-overflow="wrap"] .lf-diff-rows {
 }
 /* Container units are the visible reader width, while max-content lets source rows
    extend horizontally. Inline-size containment keeps a long remark from widening
-   the source; sticky positioning keeps the conversation in view while it scrolls. */
+   the source; sticky positioning keeps the conversation in view while it scrolls.
+   The conversation stands on the paper among the code's rows, a solid surface naming
+   its ground (package-themes.md). */
 .lf-diff-thread-outlet {
   min-width: 0;
   border-block: 1px solid var(--rule);
-  background: var(--paper);
+  --lf-ground: var(--paper);
+  background: var(--lf-ground);
   padding: 10px clamp(10px, 2vw, 18px);
   white-space: normal;
   font: var(--font-message);

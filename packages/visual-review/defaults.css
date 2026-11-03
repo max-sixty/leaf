@@ -199,7 +199,10 @@ lf-visual-review {
   display: grid;
   grid-template-rows: auto minmax(min-content, 1fr);
   --lf-full-height: inherit;
-  background: color-mix(in srgb, var(--ink) 3%, var(--paper));
+  /* The capture stands on a tint of the paper, between a header and a claim on the
+     paper itself; each is a solid surface naming its ground (package-themes.md). */
+  --lf-ground: color-mix(in srgb, var(--ink) 3%, var(--paper));
+  background: var(--lf-ground);
   border: 0;
   border-radius: 0;
 }
@@ -211,7 +214,8 @@ lf-visual-review {
   gap: 8px 16px;
   padding: 10px 12px;
   border-block-end: 1px solid var(--rule);
-  background: var(--paper);
+  --lf-ground: var(--paper);
+  background: var(--lf-ground);
 }
 .lf-vr-evidence-note {
   flex: 1 1 20rem;
@@ -360,7 +364,8 @@ lf-visual-review {
 
 .lf-vr-claim {
   padding: var(--sp-3);
-  background: var(--paper);
+  --lf-ground: var(--paper);
+  background: var(--lf-ground);
 }
 
 @container visual-review (max-width:58rem) {

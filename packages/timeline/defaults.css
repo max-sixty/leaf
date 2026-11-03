@@ -41,7 +41,7 @@ lf-event::before {
   --lf-timeline-row: 22px;
   --lf-timeline-bar: 22px;
   --lf-timeline-ruler: 22px;
-  --lf-timeline-ground: var(--lf-ground, var(--paper));
+  --lf-timeline-ground: var(--lf-ground);
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
   grid-template-rows: var(--lf-timeline-ruler) repeat(var(--lf-timeline-bands, 1), auto);

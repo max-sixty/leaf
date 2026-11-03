@@ -9,6 +9,7 @@ import subprocess
 import sys
 import time
 from contextlib import contextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
@@ -334,6 +335,7 @@ class _DeployedContainer:
                 "layer": {"generation": "generation-1"},
                 "release": self.release,
                 "events": TURN_LOG,
+                "now": "2026-10-04T12:01:00.000-07:00",
             },
             headers=answered,
         )
@@ -649,6 +651,11 @@ def test_the_journey_chart_draws_each_targets_latest_version_from_kept_samples()
         "Claude Code over HTTP at aaaaaaaa",
     ]
     assert json.dumps(rows) in markup
+    # Kept samples with no milestones leave nothing to chart, which it says.
+    path.write_text(json.dumps(unread) + "\n")
+    empty = CliRunner().invoke(journey_chart.journey_chart)
+    assert empty.exit_code == 1
+    assert "holds no sample with milestones" in empty.output
 
 
 def test_a_turn_that_never_answered_is_reported_before_the_threads_panel():
@@ -1130,7 +1137,9 @@ def test_a_title_written_after_the_reply_is_still_timed(tmp_path):
         )
         journey.await_title(journey.BrowserEnd(session, None), comment["id"], untitled)
     assert paused == [1]
-    milestones = journey.input_rows(page_dir)[comment["id"]]["milestones"]
+    milestones = journey.input_rows(page_dir, datetime.now(UTC))[comment["id"]][
+        "milestones"
+    ]
     assert milestones["titled"]["elapsed_s"] > 0
     assert "published" not in milestones
 

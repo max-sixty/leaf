@@ -7,8 +7,9 @@ failure receipts are separate milestones. Progress, published provisional words 
 answers count as first replies; answer time does not claim the task is finished.
 `titled` is when the input's thread got its first title, for an input admitted while
 it had none. `published` is when the page published the revision the input's answer
-stands on, where that came after the input; it reads the revision files, so a
-directory holding only a log has none.
+stands on, where that came after the input. Nothing records which input a revision
+serves, so one published while several inputs were open counts for each answer that
+stands on it. It reads the revision files, so a directory holding only a log has none.
 
 Diagnostics carry host receipt `ts` and browser `observed_at`; the cutoff uses
 host time while visible elapsed time uses only the document's monotonic clock.

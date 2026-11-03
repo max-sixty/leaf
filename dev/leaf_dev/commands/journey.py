@@ -54,10 +54,10 @@ Both ends share every check: the release ask waits on the same turn, title and a
 (`run_journey`), and each end only sends the user's comments and says what it saw of
 them (`reading`), the browser alone reloading the page and timing what it shows.
 
-The timings come from where each step happened. The page server records when it
-admitted a comment, recorded its pickup, titled its thread, published the revision
-the answer stands on and admitted the reply. A comment's `milestones` are its row
-of those as `leaf-dev response-times` reads the page's log
+The timings come from where each step happened. The page server's log records when
+it admitted a comment, recorded its pickup, titled its thread and admitted the
+reply, and its revision files when it published the revision the answer stands on.
+A comment's `milestones` are those `leaf-dev response-times` reads for it
 (`response_times.page_timings`), in seconds from the comment's admission, so every
 target and either end is timed on one clock, the page server's. A website's page
 directory is out of the journey's reach, so there it reads the log the page serves,
@@ -273,10 +273,11 @@ def title(events: list[dict], thread: str) -> str | None:
     return build_threads(events, {}).get(thread, {}).get("title")
 
 
-def input_rows(page: Path) -> dict[str, dict]:
-    """Each input on `page` with its milestones, read from the page's log as
-    `leaf-dev response-times` reads it (`response_times.page_timings`), by its id."""
-    reading = page_timings(page, since=None, until=datetime.now().astimezone())
+def input_rows(page: Path, until: datetime) -> dict[str, dict]:
+    """Each input on `page` with its milestones as `leaf-dev response-times` reads
+    them (`response_times.page_timings`), by its id, from what the page held before
+    `until` on its own clock."""
+    reading = page_timings(page, since=None, until=until)
     return {row["input_id"]: row for row in reading["samples"]}
 
 
@@ -965,7 +966,7 @@ class HttpEnd:
 
     def timings(self) -> dict[str, dict]:
         """Each input on the page with its milestones (`input_rows`)."""
-        return input_rows(self.page)
+        return input_rows(self.page, datetime.now().astimezone())
 
     def reading(self, profile: AgentProfile, milestones: dict, answer: dict) -> dict:
         """A comment's reading: its milestones on the page server's clock, with
@@ -1098,15 +1099,17 @@ class BrowserEnd:
 
     def timings(self) -> dict[str, dict]:
         """Each input on the page with its milestones (`input_rows`), read on a
-        website from the log the page serves."""
+        website from the log the page serves, up to the time it served it on its own
+        clock."""
         if self.page is not None:
-            return input_rows(self.page)
+            return input_rows(self.page, datetime.now().astimezone())
+        state = self.state()
         with tempfile.TemporaryDirectory() as served:
             log = Path(served)
             (log / "events.jsonl").write_text(
-                "".join(json.dumps(event) + "\n" for event in self.state()["events"])
+                "".join(json.dumps(event) + "\n" for event in state["events"])
             )
-            return input_rows(log)
+            return input_rows(log, datetime.fromisoformat(state["now"]))
 
     def reading(self, profile: AgentProfile, milestones: dict, answer: dict) -> dict:
         """A comment's reading: its milestones on the page server's clock, and from

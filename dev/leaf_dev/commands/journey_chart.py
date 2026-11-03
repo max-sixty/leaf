@@ -244,11 +244,17 @@ def journey_chart(replies: bool, since: datetime | None) -> None:
     """Print an `lf-chart` of recorded delivery and work milestones, for
     the latest code version each target ran in this machine's kept samples."""
     path = samples_path()
-    if not path.exists():
-        raise click.ClickException(f"no samples kept in {path}; run `leaf-dev journey`")
     if since is not None and since.tzinfo is None:
         raise click.BadParameter("give a time zone, as in 2026-10-20T18:10-07:00")
-    samples = [json.loads(line) for line in path.read_text().splitlines()]
+    samples = (
+        [json.loads(line) for line in path.read_text().splitlines()]
+        if path.exists()
+        else []
+    )
+    if not chosen(samples, since):
+        raise click.ClickException(
+            f"{path} holds no sample with milestones to read; run `leaf-dev journey`"
+        )
     print(
         reply_table(samples, since)
         if replies

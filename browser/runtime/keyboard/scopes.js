@@ -56,8 +56,9 @@ import {
   word,
 } from "./bindings.js";
 import { nativeActivationAt, nativeClaimAt } from "./text-entry.js";
-import { renderedParent, under } from "../shadow.js";
+import { composedParentNode, renderedParent } from "../shadow.js";
 import { repaint } from "../repaint.js";
+import { installMoveKeys } from "../dom-move.js";
 import { keeps } from "../keeps.js";
 import { COMMANDS, commandsChangedOn, refuseCommands } from "../widget-upgrade.js";
 
@@ -546,7 +547,7 @@ function forgetScopedElement(el) {
  *
  * Registering at upgrade rather than at module load is what keeps the reference honest:
  * a module stays loaded after the last element it upgraded leaves — a version activation
- * replaces main, a panel body is rebuilt — so a scope declared at the top level would go
+ * replaces the page's content, a panel body is rebuilt — so a scope declared at the top level would go
  * on as reference content for a widget the page no longer has. The dispatch scope leaves through the weak map; the
  * enumerable reference prunes its element when it disconnects. A connected control that
  * stops answering a key says so in the row's `when`, where every surface can read it.
@@ -923,6 +924,7 @@ function reflectAvailabilityReaders() {
   if (failure) throw failure;
 }
 function reflectButtonsTracked() {
+  claimPaintedRoots();
   if (!buttonsDirty && !dirtyButtons.size && !availabilityDirty) return;
   const every = buttonsDirty;
   buttonsDirty = false;
@@ -994,6 +996,7 @@ function reflectTracked(element) {
   if (failure) throw failure;
 }
 export function reflectKeys() {
+  claimPaintedRoots();
   if (!keysDirty && !dirtyElements.size) return;
   const every = keysDirty;
   keysDirty = false;
@@ -1021,15 +1024,48 @@ export const paintKeys = () => {
  * the hints among them, read the same rows. */
 /** @param {Node} root */
 export const paintKeysWithin = (root) => {
-  for (const ref of scopeRefs) {
-    const scoped = ref.deref();
-    if (scoped && under(scoped, root)) {
-      dirtyElements.add(scoped);
-      dirtyButtons.add(scoped);
-    }
-  }
+  paintedRoots.add(root);
   repaint();
 };
+// The roots renderers painted since the frame last reflected, resolved to the scoped
+// elements inside them in one climb per scoped element however many renderers
+// painted, where a scan per paint cost every widget's update the whole page's scoped
+// elements. A placed node about to move out of a painted root takes the marks of the
+// scoped elements it holds with it (dom-move.js), so the frame finds them wherever
+// they land.
+/** @type {Set<Node>} */
+const paintedRoots = new Set();
+installMoveKeys((node) => {
+  if (!paintedRoots.size) return;
+  for (let at = /** @type {Node | null} */ (node); at; at = composedParentNode(at))
+    if (paintedRoots.has(at)) return markScopedIn(node);
+});
+/** @param {Node} node */
+function markScopedIn(node) {
+  if (node instanceof Element && scopeRefFor.has(node)) {
+    dirtyElements.add(node);
+    dirtyButtons.add(node);
+  }
+  for (const child of node.childNodes) markScopedIn(child);
+  if (node instanceof Element && node.shadowRoot) markScopedIn(node.shadowRoot);
+}
+function claimPaintedRoots() {
+  if (!paintedRoots.size) return;
+  for (const ref of scopeRefs) {
+    const scoped = ref.deref();
+    for (
+      let at = /** @type {Node | null} */ (scoped ?? null);
+      at;
+      at = composedParentNode(at)
+    )
+      if (paintedRoots.has(at)) {
+        dirtyElements.add(/** @type {Element} */ (scoped));
+        dirtyButtons.add(/** @type {Element} */ (scoped));
+        break;
+      }
+  }
+  paintedRoots.clear();
+}
 /** What a scope answers right now, as a listener hears it read out — key names rather than
  * the chips the eye reads, since a screen reader renders "esc" literally. Off the register,
  * so an announcement cannot name a key the rows stopped binding.

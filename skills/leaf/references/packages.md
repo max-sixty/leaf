@@ -119,7 +119,9 @@ packages win ties. The page's own CSS is unlayered above these normal rules. Lay
 do not reach inside shadow trees. A theme's rules, like the page's own, reach the
 controls widgets build (`page-layout.md`, "Page CSS and Leaf's controls"). Being
 layered, they also outrank the layered faces of the controls in Leaf's panel and thread
-cards, so a theme's element rules name the content they style, such as `main button`. Use public inputs and selectors to customise a widget rather than
+cards, so a theme's element rules name the content they style, such as `body button`,
+which reaches the page and none of Leaf's panel or threads, since those stand after
+`body`. Use public inputs and selectors to customise a widget rather than
 `!important` or inline overrides.
 
 A package's sheet can be split into files: `@import "./styles/tabs.css";`, optionally
@@ -163,10 +165,11 @@ Custom properties come in four kinds:
 | Vendor bridges      | An adapter maps Leaf inputs to a dependency's properties, such as `--diffs-*` and `--plot-background`. Change the Leaf input, not each use.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 
 Leaf's interface sets its words in a closed set of fonts derived from those inputs,
-each a whole value for the `font` shorthand, declared together in `browser/base.css`
-beside what each one sets. A widget's own words, such as its controls, statuses,
-counts, labels and readouts, name the font for their kind (`font: var(--font-small)`)
-rather than a size, line height or family of their own. They then match Leaf's at
+each a whole value for the `font` shorthand, declared together in
+`browser/styles/tokens.css` beside what each one sets. A widget's own words, such as
+its controls, statuses, counts, labels and readouts, and the sentences it holds, such
+as a card's, name the font for their kind (`font: var(--font-small)`,
+`font: var(--font-widget)`) rather than a size, line height or family of their own. They then match Leaf's at
 every density and under every theme, and a page doesn't collect faces a pixel or a
 weight apart from the ones Leaf already draws.
 

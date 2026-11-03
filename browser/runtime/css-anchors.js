@@ -39,9 +39,13 @@
  * anchored box by the scroll's layout pixels, not the smaller or larger distance the
  * words move on screen (Firefox bug 2055371, which its own transform support still has).
  * So the margin measures and places the rows that scroll carried again at that box's
- * `scrollend` (`scrollMisplacesAnchors`, margin-layout.js): they drift while the scroll
- * runs and stand on their words a frame after it ends. Chromium 156 follows the words, so
- * there the pass writes the insets the scroll left.
+ * `scrollend` (`scrollMisplacesAnchors`, margin-layout.js), and they stand on their words
+ * a frame after it ends. While the scroll runs, the margin's once-a-frame reading of it
+ * finds a row whose words have left it and places it again (`subjectMoved`), which in
+ * Firefox, whose anchors `anchorBox` measures without their transforms, keeps the row a
+ * few pixels from its words; in WebKit the measured anchor moves with the words, so its
+ * rows drift until `scrollend`. Chromium 156 follows the words, so there the pass writes
+ * the insets the scroll left.
  *
  * A source keeps one name across those uses. Retained controls can observe whether its
  * source renders near the viewport before entering layout. That reading starts

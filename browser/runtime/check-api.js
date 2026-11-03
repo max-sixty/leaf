@@ -53,6 +53,7 @@ export {
 export {
   layoutBox,
   pageDocument,
+  inPage,
   quoteFrom,
   verbatimBoundaryIdentity,
   verbatimOwnerIdentity,

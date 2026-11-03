@@ -16,7 +16,7 @@ from datetime import datetime
 
 import click
 
-from leaf_dev.commands.journey import CASES, samples_path
+from leaf_dev.commands.journey import CASES, HARNESS_TARGETS, samples_path
 
 # The milestones the chart draws (`response_times.page_timings`), on the page
 # server's clock from the comment's admission.
@@ -27,12 +27,6 @@ SIGNS = (
     ("progress", "progress", "var(--series-4)"),
     ("reply", "answered", "var(--series-3)"),
 )
-TARGET_NAMES = {
-    "claude-code": "Claude Code",
-    "codex-app-server": "Codex App Server",
-    "codex-queue": "Codex queue",
-    "pi": "Pi",
-}
 TICKS = (0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500)
 # Plot sizes no margin to its labels: about this many px a character at its font.
 LABEL_PX = 5.5
@@ -41,8 +35,9 @@ LABEL_PX = 5.5
 def chart_target(sample: dict) -> str:
     """What a chart row names: the target, with the options it ran under and its
     user's end where that is not a browser."""
+    harness = HARNESS_TARGETS.get(sample["target"])
     return (
-        TARGET_NAMES.get(sample["target"], sample["target"])
+        (sample["target"] if harness is None else harness.title)
         + (" through a preview" if sample.get("preview") else "")
         + (" with forks" if sample.get("forks") else "")
         + (" over HTTP" if sample.get("userEnd") == "http" else "")

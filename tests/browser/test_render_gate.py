@@ -2485,19 +2485,22 @@ def test_a_column_block_starts_at_its_first_line(browser, serve):
 def test_the_page_edge_is_no_frame(browser, serve):
     """A page with no Layout keeps the browser's margin on its body, and the live root
     scrolls, so the root holds that margin in. The root draws no frame, its edge
-    being the window's, so the reading has nothing to ask of it, where it named the
-    root of every such page. A root that draws padding is a frame like any box."""
+    being the window's. Shell padding is viewport spacing, including Leaf's panel
+    clearance; a border makes the shell an actual frame whose edges can be read."""
     page = open_page(
         browser, serve(leaf_page("No Layout", "<p>Plain prose.</p>", layout=None))
     )
     margin = page.evaluate("() => getComputedStyle(document.body).marginTop")
     trapped = render_checks_model.evaluate_probe(page, "trappedMargins")
     page.evaluate("() => document.documentElement.style.padding = '12px'")
+    padded = render_checks_model.evaluate_probe(page, "trappedMargins")
+    page.evaluate("() => document.documentElement.style.border = '1px solid'")
     framed = render_checks_model.evaluate_probe(page, "trappedMargins")
     page.close()
 
     assert margin == "8px", "the body lost the browser's margin, so this tests nothing"
     assert trapped == [], trapped
+    assert padded == [], padded
     assert [f["at"] for f in framed] == ["<html>", "<html>"], framed
 
 
@@ -2929,7 +2932,7 @@ def _short_aims(page, *, every_tab):
             confirming_resize_notices(page, opening, reopening)
             # What the opening shows: the panel, and the chrome the runtime draws for
             # it, such as the margin's entries for what the panel holds.
-            read(page.locator(f'[id="{tab}"], body > .lf-chrome'), tab)
+            read(page.locator(f'[id="{tab}"], :root > .lf-chrome'), tab)
     assert seen > 30, f"only {seen} aims stood on the corpus"
     if not short:
         return []
@@ -3696,6 +3699,33 @@ def test_declared_space_names_containing_holders_as_advice(browser, serve):
     assert all(finding.severity == "advice" for finding in advice)
     assert 'class="layout-flow"' in str(advice[0])
     assert "put data-width on that holder" in str(advice[0])
+
+
+def test_the_sweep_reads_each_width_as_a_load_there_shows_it(browser, serve):
+    """A width the sweep steps to is read as it settles, not partway through a
+    transition the step started, which no load at that width shows. A sidebar's
+    contents map, once the window is wide enough to lay it in the margin, fades its
+    labels out at the places they take over the column; the sweep up from a phone's
+    window read them mid-fade and failed the page for words they covered for a fifth
+    of a second."""
+    source = leaf_page(
+        "Settling",
+        """<div id="stage"><p id="prose">Words a fading label passes over.</p>
+        <p id="label">A label that fades out</p></div>""",
+        head="""<style>
+#stage { position: relative; }
+#stage > p { margin: 0; }
+#label { transition: opacity 60s linear; }
+@media (min-width: 1000px) {
+  #label { position: absolute; inset: 0 auto auto 0; opacity: 0; }
+}
+</style>""",
+    )
+    # Loaded where the label stands in flow, so the step to 1200px starts the whole fade.
+    context = browser.new_context(viewport={"width": 800, "height": 720})
+    page = open_page(browser, serve(source), context=context)
+    readings = render_gate_readings.sweep(page, [1200], [])
+    assert render_gate_readings.swept_faults(readings) == []
 
 
 def test_unpainted_padding_can_hold_focus_rings_inside_the_page_gutter(browser, serve):

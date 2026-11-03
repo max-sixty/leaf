@@ -2,7 +2,7 @@ import { CARET_KEYS, HOLDS_WORD, J, OUTPUT, PAGE_PAINT_ATTRIBUTE, PRESS, RUNTIME
 import { COLLAPSE, LIVE_ROOT, PENDING, PRESENTATION_DOM, TEXT_BLOCK, adoptRegistry, agentName, agentSays, announce, applicationPresenter, applicationState, ariaShortcuts, attachApplicationPresentation, authoredBody, bindings, buttonCommand, checked, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, decisionFor, declarationFor, declareCommandReadiness, declaresCommandHandler, deleted, descriptionOf, editable, el, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, fragmentUrl, hasObligationSource, holdStatus, holdingError, html, isElementName, isReaction, keyed, keys, labelOf, lastMovedAt, layerRoot, leafSays, live as live$1, live$1 as live, loadShadowRules, marks, messageKey, nothing, notice, obligationValue, offlineDeferred, offlineInteractive, pageClaimed, pageRange, pageUrl, paintKeys, passErrorsAt, projectCommandScope, projectView, projectionOrigins, projectionRegionsPresented, pruneScopedElements, raiseError, readApplication, readPart, ref, registry, render as render$1, repaint, repeat, reveal, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, savedReadingSettled, seatRoot, selectEnds, selectionBackward, share, spell, tagsDeclaring, threadKey, threadNames, titleOf, tokenEntry, touchPresses as touchPresses$1, turns, voiced, watchCommandScopes, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented, word } from "./bundle-errors.js";
 import { LayerRefused, admitReading, admitResponse, randomId, reportPageError, requestJson, revealLayer, runtimeRootState, sameLayer, setRuntimeRootAttribute } from "./bundle-layer-client.js";
 import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableWord, addressedElements, ago, aimControl, aimTargetAt, anchorControl, anchorForPassage, anchorForRange, anchoringIsReady, chromeForeground, chromeRoot, claimReachStop, containingReadingRegionFor, datumAimTarget, datumLabel, deferredArrival, effectiveScroller, followingItsEnd, fragmentAddress, fragmentTarget, headerLevels, isAddressable, leadingTitle, livePoint, nameable, onReadingInput, pageReadingRegion, pressedElsewhere, projectedDatum, reachScrollers, readInsets, readingRegionFor, readingRegions, recentReadingRegion, regionScrollBehavior, regionsSettled, registerPageControl, releaseControl, releaseReachStop, resolveAnchor, revealAddressed, revealControl, scrollChainOf, scrollerFor, sectionLabel, sectionOf, settleDocumentLayout, shortAgo, shownRegionBounds, standInChrome, tabFromBlock, targetElement, targetPlace, targetSegments, unconcealedReadingRegions, visualPartLabel, watchReadingRegionTransitions, writeInsets } from "./bundle-content-layout.js";
-import { alignInlineText, alignText, authored, authoredScope, blockAt, elementById, excerptWords, fencePassageParts, labelWords, leafSurface, pageBlocks, pageDocument, pageQueryAll, pageText, pageWords, pointAt as pointAt$1, quoteFrom, quotedWords, rangeOf, readingFrom, renderRetired, segmentBlock, segmentsIn, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
+import { LEAF_SURFACE, alignInlineText, alignText, authored, authoredScope, blockAt, elementById, excerptWords, fencePassageParts, inPage, labelWords, leafSurface, pageBlocks, pageDocument, pageQueryAll, pageText, pageWords, pointAt as pointAt$1, quoteFrom, quotedWords, rangeOf, readingFrom, renderRetired, segmentBlock, segmentsIn, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
 import { aborted, authoredStates, commitWidgetDescriptors, quoted, rememberAuthoredParents, stageAuthoredStates, stageWidgetDescriptors, widgetElement } from "./bundle-abort.js";
 import { isCanonicalMediaUrl, readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "./media.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
@@ -1827,14 +1827,13 @@ var MessageEditor = class {
 				title: "edit previous message",
 				when: () => {
 					const [start, end] = caretAtKey(this.input) ?? [this.input.selectionStart, this.input.selectionEnd];
-					return start === 0 && end === 0 && unchanged();
+					return start === 0 && end === 0 && unchanged() && Boolean(previous());
 				},
-				get run() {
+				run: () => {
 					const before = previous();
-					return before ? () => {
-						putAside();
-						before.openEdit();
-					} : void 0;
+					if (!before) return;
+					putAside();
+					before.openEdit();
 				}
 			}]
 		});
@@ -2244,6 +2243,7 @@ function copyThroughSelection(value, trigger) {
 	const field = document.createElement("textarea");
 	field.value = value;
 	field.style.cssText = "position: fixed; left: -9999px; top: 0";
+	field.dataset.lfRuntime = "";
 	(nativeLayerHolding(trigger) ?? document.body).append(field);
 	try {
 		focusDestination(field, "return");
@@ -6417,12 +6417,27 @@ function obligationPlace(item, items = readObligations().all) {
 	const owner = elementById(item.source.id);
 	const source = item.source.unit ? projectedDatum(owner, item.source.unit) : owner;
 	const context = elementById(item.prompt.target);
-	const shared = items.some((other) => other.id !== item.id && other.source.kind === "widget" && other.prompt.target === item.prompt.target);
+	const sharing = contextsOf(items).get(item.prompt.target);
+	const shared = Boolean(sharing && (sharing.size > 1 || sharing.size === 1 && !sharing.has(item.id)));
 	return {
 		source,
 		context,
 		node: item.source.unit || shared ? source : context
 	};
+}
+const contexts = /* @__PURE__ */ new WeakMap();
+function contextsOf(items) {
+	let held = contexts.get(items);
+	if (held) return held;
+	held = /* @__PURE__ */ new Map();
+	for (const { id, source, prompt } of items) {
+		if (source.kind !== "widget") continue;
+		const ids = held.get(prompt.target);
+		if (ids) ids.add(id);
+		else held.set(prompt.target, /* @__PURE__ */ new Set([id]));
+	}
+	contexts.set(items, held);
+	return held;
 }
 const subjectPlace = (subject) => subject.kind === "page" || subject.kind === "thread" ? null : elementById(subject.id);
 function obligationsIn(region, items = readObligations().all) {
@@ -6574,7 +6589,14 @@ function* blocksOnScreen(region = null, blocks = textBlocks(), band = null) {
 		];
 	}
 }
-const readingBlock = (region = null) => blocksOnScreen(region, textBlocks(region?.body)).next().value?.[0] ?? null;
+const readingBlock = (region = null) => {
+	let first = null;
+	for (const [block] of blocksOnScreen(region, textBlocks(region?.body))) {
+		first ??= block;
+		if (!stuckBox(block, region?.body ?? null)) return block;
+	}
+	return first;
+};
 function pageReading({ bodies }) {
 	for (let region = pageReadingRegion(); region; region = readingRegionFor(region.host.parentElement)) {
 		const block = readingBlock(region);
@@ -7385,6 +7407,7 @@ function captureCarry(root, authored) {
 	const held = /* @__PURE__ */ new Map();
 	const regionBodies = new Set(readingRegions().map(({ body }) => body));
 	for (const node of root.querySelectorAll("[id]")) {
+		if (!inPage(node)) continue;
 		const wrote = authored.querySelector(`#${CSS.escape(node.id)}`);
 		if (wrote?.localName !== node.localName) continue;
 		const record = {
@@ -7423,7 +7446,7 @@ function captureCarry(root, authored) {
 function restoreCarry(records, held = /* @__PURE__ */ new Map(), handoffFocus = (move) => move()) {
 	const positions = [];
 	for (const record of records ?? []) {
-		const arrived = document.getElementById(record.id);
+		const arrived = elementById(record.id, pageDocument());
 		if (!arrived || arrived === held.get(record.id)) continue;
 		if (arrived.localName !== record.name) continue;
 		if (record.open !== void 0 && isHTML(arrived, "details")) arrived.open = record.open;
@@ -8109,12 +8132,19 @@ const authoredMarkup = (root) => {
 	for (const member of root.querySelectorAll(`[${RUNTIME_PAINT_ATTRIBUTE.viewMember}]`)) member.removeAttribute("hidden");
 	for (const name of Object.values(RUNTIME_PAINT_ATTRIBUTE)) for (const element of root.querySelectorAll(`[${name}]`)) element.removeAttribute(name);
 	for (const preview of root.querySelectorAll("[data-lf-prepaint]")) preview.remove();
+	const body = root instanceof Document ? root.body : root instanceof Element && root.localName === "body" ? root : null;
+	if (body) {
+		for (const surface of body.querySelectorAll(LEAF_SURFACE)) surface.remove();
+		const attributes = authoredAttributes(body);
+		for (const { name } of [...body.attributes]) body.removeAttribute(name);
+		for (const [name, value] of attributes) body.setAttribute(name, value);
+	}
 	return root;
 };
 const pairSources = (source, live, pairs) => {
 	pairs.pair(source, live);
 	const held = source instanceof HTMLTemplateElement ? source.content : source;
-	const children = [...(live instanceof HTMLTemplateElement ? live.content : live).childNodes].filter((child) => !(child instanceof Element && child.matches("[data-lf-prepaint]")));
+	const children = [...(live instanceof HTMLTemplateElement ? live.content : live).childNodes].filter((child) => !(child instanceof Element && child.matches(`[data-lf-prepaint], ${".lf-chrome, [data-lf-runtime]"}`)));
 	for (const [at, child] of [...held.childNodes].entries()) {
 		const peer = children[at];
 		if (peer) pairSources(child, peer, pairs);
@@ -8122,9 +8152,9 @@ const pairSources = (source, live, pairs) => {
 	return pairs;
 };
 function captureInitialDocument() {
-	const main = pageDocument();
+	const body = pageDocument();
 	const inert = document.implementation.createHTMLDocument("");
-	const source = main ? authoredMarkup(inert.importNode(main, true)) : null;
+	const source = authoredMarkup(inert.importNode(body, true));
 	for (const input of source?.querySelectorAll("input") ?? []) {
 		if (![
 			"file",
@@ -8134,13 +8164,12 @@ function captureInitialDocument() {
 		input.checked = input.defaultChecked;
 	}
 	for (const textarea of source?.querySelectorAll("textarea") ?? []) textarea.value = textarea.defaultValue;
-	const pairs = main && source ? pairSources(source, main, new SourcePairs()) : new SourcePairs();
+	const pairs = pairSources(source, body, new SourcePairs());
 	for (const disclosure of source?.querySelectorAll("details") ?? []) {
 		const open = window.lfStorage.initialDisclosureOpen(pairs.require(disclosure));
 		if (open !== void 0) disclosure.toggleAttribute("open", open);
 	}
 	return {
-		authoredBodyAttributes: authoredAttributes(document.body),
 		authoredHeadNodes: new Set([...document.head.children].filter(versionedHeadNode)),
 		authoredHtmlAttributes: authoredAttributes(document.documentElement),
 		source,
@@ -8387,7 +8416,7 @@ function paintedSource(source, widgets) {
 	const doc = document.implementation.createHTMLDocument("");
 	const root = doc.importNode(source, true);
 	const sourceOf = pairSources(root, source, new SourcePairs());
-	doc.body.replaceChildren(root);
+	doc.body.replaceWith(root);
 	formatDeclaredMarkdown(root);
 	paintBodies(doc, widgets);
 	placeCreated(doc, widgets);
@@ -8764,7 +8793,7 @@ function revisionDocument(revision) {
 	return arriving;
 }
 function createVersionController({ initialDocument, compositionInput, openThread, refreshThread, midComposition, hasPending, readAndApply, syncLayout, captureRetainedCurrentLocation, restoreRetainedCurrentLocation, captureObligationCurrentLocation, restoreObligationCurrentLocation, versions }) {
-	let { authoredBodyAttributes, authoredHeadNodes, authoredHtmlAttributes, source: authoredSource } = initialDocument;
+	let { authoredHeadNodes, authoredHtmlAttributes, source: authoredSource } = initialDocument;
 	const sourcePairs = initialDocument.pairs;
 	versionSource = () => ({
 		source: authoredSource,
@@ -8890,7 +8919,7 @@ function createVersionController({ initialDocument, compositionInput, openThread
 		const arrivingRoot = layerRoot(doc);
 		return {
 			pairs: sourcePairs,
-			contains: under,
+			contains: (node, owner) => owner === pageDocument() ? inPage(node) : under(node, owner),
 			declared: upgraded,
 			body: authoredBody,
 			reaches: (before, after) => reachesMembers(before, after, arrivingRoot),
@@ -8945,7 +8974,7 @@ function createVersionController({ initialDocument, compositionInput, openThread
 		const rules = patchRules(doc);
 		revisionDocuments.delete(target.revision);
 		const isAuthored = authored(live);
-		const generated = (node) => (node.nodeType === Node.ELEMENT_NODE || node.parentElement !== null) && !isAuthored(node);
+		const generated = (node) => (node.nodeType === Node.ELEMENT_NODE || node.parentElement !== null) && (Boolean(leafSurface(node)) || !isAuthored(node));
 		const arrived = [];
 		const arrivedDescriptors = /* @__PURE__ */ new Map();
 		const prior = readApplication().document;
@@ -8982,7 +9011,6 @@ function createVersionController({ initialDocument, compositionInput, openThread
 		const { restoreCarryScroll } = await patchDocument(live, () => {
 			authoredHtmlAttributes = replaceAuthoredAttributes(document.documentElement, doc.documentElement, authoredHtmlAttributes);
 			keeps(document.documentElement, "data-lf-layout", doc.documentElement.getAttribute("data-lf-layout"));
-			authoredBodyAttributes = replaceAuthoredAttributes(document.body, doc.body, authoredBodyAttributes);
 			activateHead(doc, target);
 			sourcePairs.set(source, live);
 			patchTree(outgoing, source, {
@@ -9233,7 +9261,7 @@ function createVersionController({ initialDocument, compositionInput, openThread
 		for (const box of boxes) {
 			const region = regionForBox(box);
 			if (region === void 0 || held(box)) continue;
-			if (region && !(under(region.host, pageDocument()) && shownRegionBounds(region))) continue;
+			if (region && !(inPage(region.host) && shownRegionBounds(region))) continue;
 			const before = places.get(region ? region.id : PAGE);
 			const acted = currentLocation || readerChose(box, before?.choices ?? 0) || inputSince(box, before?.inputs ?? 0);
 			if (before && !acted) continue;
@@ -9493,7 +9521,7 @@ function createVersionController({ initialDocument, compositionInput, openThread
 		for (const type of ["popstate", "hashchange"]) addEventListener(type, releaseHolds);
 		const recordCurrentLocation = () => {
 			const at = focused();
-			if (!at || !under(at, pageDocument())) return;
+			if (!at || !inPage(at)) return;
 			const box = boxOf(at);
 			recordPlaces([box], { currentLocation: true });
 			nextRender(() => recordPlaces([box], { currentLocation: true }));

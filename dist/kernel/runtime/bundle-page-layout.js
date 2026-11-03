@@ -3883,7 +3883,7 @@ function createAnnotationInventory({ readObligations, placedAt, openThread, goTo
 			if (!parent) break;
 			const siblings = [...parent.children].filter((candidate) => !candidate.classList.contains("lf-ui") && !candidate.hasAttribute("data-lf-gen"));
 			steps.push(`${node.localName}:${siblings.indexOf(node)}`);
-			if (node.localName === "main" || parent instanceof ShadowRoot) break;
+			if (node.localName === "body" || parent instanceof ShadowRoot) break;
 			node = parent;
 		}
 		return `${prefix}${from}${steps.reverse().join("/")}`;
@@ -7033,7 +7033,7 @@ function outlineChange(change) {
 }
 function barLeft(target, rect, gap) {
 	const edge = (target.closest("table") ?? target).getBoundingClientRect();
-	return target.matches(":dir(rtl)") ? Math.max(rect.right, edge.right) + gap : Math.min(rect.left, edge.left) - gap - BAR;
+	return target.matches(":dir(rtl)") ? Math.min(Math.max(rect.right, edge.right) + gap, document.documentElement.clientWidth - BAR) : Math.max(Math.min(rect.left, edge.left) - gap - BAR, 0);
 }
 function gapOf({ at, after }, rect) {
 	const other = (after ? at.nextElementSibling : at.previousElementSibling)?.getBoundingClientRect();

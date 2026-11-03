@@ -323,7 +323,8 @@ def check(answer: str, condition: str, case: str, work: Path) -> dict:
             errors = []
             view.on("pageerror", lambda error: errors.append(str(error)))
             load(view, url)
-            (work / "visible.txt").write_text(view.locator("main").inner_text())
+            # The page is body; Leaf's chrome stands after it.
+            (work / "visible.txt").write_text(view.locator("body").inner_text())
             view.screenshot(path=work / "before.png", full_page=True)
             try:
                 if case == "choice":

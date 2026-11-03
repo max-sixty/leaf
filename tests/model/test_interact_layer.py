@@ -1886,7 +1886,8 @@ def test_the_injected_control_face_is_one_default_in_both_trees():
     shadow = schema_model.ASSETS / "shadow.css"
     control_face = (
         ":where( :is(:root, :host) .lf-ui-face, :is(:root, :host) .button, "
-        ":is(:root, :host) .field, :root main :is(button, input, select, textarea), "
+        ":is(:root, :host) .field, "
+        ":root body :is(button, input, select, textarea):not(.lf-chrome *), "
         ":host :is(button, input, select, textarea) )"
     )
     control_ink = ":where(.lf-ui-face, .button, .field)"

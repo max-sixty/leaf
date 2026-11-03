@@ -14,23 +14,20 @@ journey is then the terminal: it opens the task and types the user's turns, and
 sends the user's comments at the journey's user end. It reads the page's log and
 claim in process, and stops at the first check that fails.
 
-The steps, in order:
+The steps, in order, those every harness shares as `journey.Terminal` has them, with
+the task's adapter as what listens for it between turns:
 
-- `setup`: the user asks for a page to review; serving it automatically connects
-  delivery using this journey's transport. With `--sandbox`, the task's shell
-  commands run in Codex's `workspace-write` sandbox, which may write the task's
-  directory but not the state home, and nothing approves an escalation, so the task
-  must serve through the plugin's MCP server (`leaf.codex_tool`);
-- `release`: the journey's timed ask, sent while the task is idle, is answered in a
-  turn Leaf starts (`journey.run_journey`); with `--case working` it is sent during
-  the user's own turn's shell command, which answers it;
+- `setup`, serving the page connecting delivery through this journey's transport.
+  With `--sandbox`, the task's shell commands run in Codex's `workspace-write`
+  sandbox, which may write the task's directory but not the state home, and nothing
+  approves an escalation, so the task must serve through the plugin's MCP server
+  (`leaf.codex_tool`);
+- `release`, which a turn Leaf starts answers while the task is idle;
 - `rich-choice` and `rich-question`: comments asking, in the author's own words, for
   clickable choices in the thread and for a question awaiting the user's answer, each
   moving its thread to the release rationale, are answered so;
-- `mid-turn`: a comment sent during a shell command is answered once, and the claim
-  names the user's turn while it runs; on `codex-queue` the comment must also enter
-  that turn and be answered before its first final response, starting no turn of
-  its own;
+- `mid-turn`, whose comment, on `codex-queue`, enters the user's turn and is
+  answered before that turn's first final response, with no turn of its own;
 - `resume`: a turn interrupted during its shell command is resumed with empty input,
   as the desktop app resumes one, to report the interruption, so its first boundary is
   its Stop. On `codex-app-server` a comment sent as it starts doesn't enter it, since
@@ -76,11 +73,9 @@ import psutil
 
 from leaf.agent_state import cmd_page_state
 from leaf.codex import private_app_server
-from leaf.delivery import pickup_receipts
 from leaf.event_log import read_events
 from leaf.leases import adapter_is_live, hooks_ran, lock_is_held
 from leaf.server import running_server
-from leaf.service import page_claim
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     PageClient,
@@ -92,7 +87,6 @@ from leaf_dev.arms import (
 )
 from leaf_dev.codex_task import Task, trust_plugin_hooks
 from leaf_dev.commands.journey import (
-    STEP_LIMIT,
     Isolation,
     Terminal,
     User,
@@ -107,6 +101,8 @@ from leaf_dev.review_scenario import (
     SLEEP,
     USER_TURN,
     answers,
+    claimed,
+    picked_up,
     prepare,
     require,
     settled,
@@ -142,6 +138,14 @@ class Codex(Terminal):
         # The task's cwd, approval policy and sandbox, which resuming it restores.
         self.settings: dict[str, str] = {}
 
+    def start(self, settings: dict[str, str]) -> None:
+        """Trust the plugin's hooks and open the task with `settings`."""
+        trust_plugin_hooks(self.task, Path(settings["cwd"]))
+        self.settings = settings
+        self.session = self.task.thread = self.task.request("thread/start", settings)[
+            "thread"
+        ]["id"]
+
     def record(self, message: dict) -> None:
         """Keep a notification of the task's thread as records, with where each turn
         starts and ends, each model response's end, which App Server reports with
@@ -176,12 +180,17 @@ class Codex(Terminal):
     def idle(self) -> bool:
         return not self.task.running
 
-    def work(self) -> str:
-        """Type the user's own turn, wait for its shell command, and return the
-        turn's id."""
-        turn = self.task.say(USER_TURN)
+    def say(self, text: str) -> None:
+        self.task.say(text)
+
+    def work(self, turn: str = USER_TURN) -> None:
+        self.task.say(turn)
         self.await_command(SLEEP, "the user's turn did not start its command")
-        return turn
+
+    def listening(self) -> bool:
+        """Whether the task's adapter runs, which holds its wait lease between
+        turns."""
+        return adapter_is_live(self.session)
 
 
 def adapter_processes(codex: str) -> list[psutil.Process]:
@@ -198,15 +207,11 @@ def check(page: Path, codex: Codex, sent: dict[str, str]) -> str | None:
     """What holds between steps (`settled`), the last comment's thread titled by the
     page server, and the claim's turn being the task's last. `sent` names each
     comment so far by its step. Returns how the last comment's title was made."""
-    claim = settled(page, codex.task.thread, sent)
+    claim = settled(page, codex.session, sent)
     titled = None
     if sent:
         last = list(sent)[-1]
-        record = codex.page_server_title(page, sent[last])
-        record = require(record, f"the page server did not title `{last}`'s thread")
-        titled = (
-            f"titled in {record['durationMs']} ms, {record['inputTokens']} input tokens"
-        )
+        titled = codex.titled(page, last, sent[last])
     require(
         claim["turn"] == codex.task.started[-1],
         f"the claim names turn {claim['turn']}, not the task's last turn "
@@ -224,9 +229,11 @@ def setup(
     preview: bool,
     sandbox: bool,
 ):
-    """Ask for the page and require it served, with delivery connected through
-    `transport`, and in the sandbox by a `leaf` command run through the plugin's
-    MCP server."""
+    """`setup` (`Terminal.setup`), asking for the page by the canonical preview
+    command with `preview`, and requiring delivery connected through `transport`
+    by this journey's Codex, and in the sandbox by a `leaf` command run through the
+    plugin's MCP server."""
+    request = REQUEST
     if preview:
         command = shlex.join(
             [
@@ -243,18 +250,13 @@ def setup(
                 "--user",
             ]
         )
-        codex.task.say(
+        request = (
             "I wrote a Leaf source at ./source.html. "
             f"Run `{command}` so I can review it. "
             "Keep its preview available; feedback connects automatically. "
             "Handle the comments I leave on the page."
         )
-    else:
-        codex.task.say(REQUEST)
-    codex.settle(
-        lambda: adapter_is_live(codex.task.thread) and running_server(page) is not None,
-        "the setup turn did not serve the page and start the adapter",
-    )
+    codex.setup(page, request)
     require(
         bool(adapter_processes(executable)),
         "the adapter did not use this journey's Codex",
@@ -284,7 +286,7 @@ def steps(
     """The steps after setup, as the module docstring lists them."""
     task = codex.task
     url = require(running_server(page), "the page has no server")["url"]
-    acquired = require(page_claim(page), "the page has no claim")["acquisition"]
+    acquired = claimed(page)["acquisition"]
     sent: list[str] = []
 
     def check_step() -> list[str]:
@@ -296,8 +298,7 @@ def steps(
         PageClient(url).state()
         if preview:
             require(
-                require(page_claim(page), "the page has no claim")["acquisition"]
-                == acquired,
+                claimed(page)["acquisition"] == acquired,
                 "the preview lost its acquisition between Codex turns",
             )
             require(
@@ -308,15 +309,14 @@ def steps(
 
     def step(name: str, started: float, details: list[str]) -> None:
         if preview:
-            claim = page_claim(page)
-            assert claim is not None
+            claim = claimed(page)
             details.append(
                 json.dumps(
                     {
                         "url": require(running_server(page), "the page has no server")[
                             "url"
                         ],
-                        "thread": task.thread,
+                        "thread": codex.session,
                         "turn": claim["turn"],
                         "generation": claim["generation"],
                         "acquisition": claim["acquisition"],
@@ -331,8 +331,7 @@ def steps(
         user.passed(name, started, *details)
 
     started = time.monotonic()
-    user.release()
-    codex.settle(lambda: True, "the turn that answered `release` did not end")
+    codex.release(user)
     sent.append("release")
     step("release", started, check_step())
 
@@ -378,56 +377,26 @@ def steps(
         step(rich, started, check_step())
 
     started = time.monotonic()
-    previous_turns = len(task.started)
-    user_turn = codex.work()
-    mid_turn = user.comment("mid-turn")
     if transport == "queue":
+        # The comment enters the user's turn at a tool boundary, so its answer comes
+        # before the turn's final response, not after it at the turn's Stop.
+        def answered_first(turn: str) -> None:
+            require(
+                bool(answers(page, user.ids["mid-turn"])),
+                "mid-turn: the agent sent its final response before answering the "
+                "comment",
+            )
 
-        def before_final(turn: str) -> None:
-            if turn == user_turn:
-                require(
-                    bool(answers(page, mid_turn)),
-                    "the agent sent its final response before answering the active comment",
-                )
-
-        task.on_final = before_final
-    named, deadline = False, time.monotonic() + STEP_LIMIT
-    while (
-        user_turn in task.running or user_turn not in task.started
-    ) and time.monotonic() < deadline:
-        codex.hear(0.5)
-        named = (
-            named
-            or require(page_claim(page), "the page has no claim")["turn"] == user_turn
-        )
-    require(named, f"the claim never named the user's turn {user_turn} while it ran")
+        task.on_final = answered_first
+    # Over App Server the Stop hook leaves input to the adapter's own turn.
+    codex.mid_turn(user, page, enters=transport == "queue")
     task.on_final = None
-    if transport == "queue":
-        require(
-            user_turn in task.final_answers,
-            "the active turn emitted no final response to check",
-        )
-        require(
-            bool(answers(page, mid_turn)), "the active turn ended without answering"
-        )
-        require(
-            any(
-                event["turn"] == user_turn
-                for event in pickup_receipts(
-                    read_events(page), phase="opened", input_id=mid_turn
-                )
-            ),
-            f"the active hook did not deliver the comment into turn {user_turn}",
-        )
-    codex.settle(lambda: user.answered("mid-turn"), "`mid-turn` was not answered")
+    require(
+        transport != "queue" or task.started[-1] in task.final_answers,
+        "mid-turn: the user's turn emitted no final response to check",
+    )
     sent.append("mid-turn")
-    details = check_step()
-    if transport == "queue":
-        require(
-            task.started[previous_turns:] == [user_turn],
-            "the mid-turn comment started another turn instead of entering the active one",
-        )
-    step("mid-turn", started, details)
+    step("mid-turn", started, check_step())
 
     started = time.monotonic()
     interrupted = task.say(RESUME_TURN)
@@ -461,10 +430,7 @@ def steps(
     )
     sent.append("resume")
     details = check_step()
-    entered = any(
-        event["turn"] == resumed
-        for event in pickup_receipts(read_events(page), phase="opened", input_id=during)
-    )
+    entered = resumed in picked_up(page, during)
     if transport == "queue":
         require(entered, "the comment did not enter the empty-input resumed turn")
         require(
@@ -506,7 +472,7 @@ def steps(
     early = task.say(UNLOAD_TURN)
     codex.await_command(UNLOAD_READY, "the resumed turn did not reach its checkpoint")
     codex.until(
-        lambda: require(page_claim(page), "the page has no claim")["turn"] == early,
+        lambda: claimed(page)["turn"] == early,
         f"the claim never named the user's turn {early}",
     )
     during = user.comment("unload")
@@ -518,12 +484,7 @@ def steps(
     sent.append("unload")
     details = check_step()
     require(
-        any(
-            event["turn"] == early
-            for event in pickup_receipts(
-                read_events(page), phase="opened", input_id=during
-            )
-        ),
+        early in picked_up(page, during),
         f"the comment sent at the checkpoint did not enter turn {early}",
     )
     require(
@@ -538,8 +499,7 @@ def steps(
     # The preview may retain its killed child as a zombie until its next spawn.
     # The kernel-backed lease proves execution ended before that parent reaps it.
     codex.settle(
-        lambda: not adapter_is_live(task.thread),
-        "the killed adapter still holds its lease",
+        lambda: not codex.listening(), "the killed adapter still holds its lease"
     )
     if preview:
         reconnect = shlex.join(
@@ -562,10 +522,7 @@ def steps(
             "Serve the existing ./page again with `leaf server start ./page`, "
             f"then {RESTART_TURN}"
         )
-    codex.settle(
-        lambda: adapter_is_live(task.thread),
-        "the agent did not start the adapter again",
-    )
+    codex.settle(codex.listening, "the agent did not start the adapter again")
     check_step()
     user.comment("restart")
     codex.settle(lambda: user.answered("restart"), "`restart` was not answered")
@@ -686,15 +643,15 @@ def answering(
         with private_app_server(executable) as (endpoint, _process):
             codex = Codex(endpoint)
             try:
-                trust_plugin_hooks(codex.task, place.work)
-                codex.settings = {
-                    "cwd": str(place.work),
-                    "approvalPolicy": "never",
-                    "sandbox": "workspace-write" if sandbox else "danger-full-access",
-                }
-                codex.task.thread = codex.task.request("thread/start", codex.settings)[
-                    "thread"
-                ]["id"]
+                codex.start(
+                    {
+                        "cwd": str(place.work),
+                        "approvalPolicy": "never",
+                        "sandbox": "workspace-write"
+                        if sandbox
+                        else "danger-full-access",
+                    }
+                )
                 started = time.monotonic()
                 setup(
                     codex,

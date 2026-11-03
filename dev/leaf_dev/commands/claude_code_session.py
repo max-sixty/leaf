@@ -21,12 +21,12 @@ import os
 import shutil
 import subprocess
 import tempfile
+import uuid
 from pathlib import Path
 
 import click
 
 from leaf.server import running_server
-from leaf.service import page_claim
 from leaf_dev import ROOT
 from leaf_dev.arms import claude_environment, claude_home
 from leaf_dev.commands.journey import Isolation, stop_left_running
@@ -83,23 +83,20 @@ def claude_code_session(stopping: bool) -> None:
     os.environ.update(env)
     prepare(ROOT, place.state, place.page)
     debug_log = root / "debug.log"
+    session = str(uuid.uuid4())
     argv = [
-        "claude", "--model", MODEL,
+        "claude", "--session-id", session, "--model", MODEL,
         "--plugin-dir", str(ROOT), "--strict-mcp-config",
         "--permission-mode", "default", "--add-dir", str(ROOT),
         "--allowedTools", "Bash Read Write Edit Glob Grep Skill",
         "--debug-file", str(debug_log),
     ]  # fmt: skip
-    cc = ClaudeCode(place, argv, env)
+    cc = ClaudeCode(place, session, argv, env)
     RECORD.parent.mkdir(exist_ok=True)
     RECORD.write_text(
         json.dumps({"pane": cc.pane, "root": str(root), "state": str(place.state)})
     )
     cc.say(REQUEST)
-    cc.until(lambda: page_claim(place.page) is not None, "the page was not claimed")
-    claim = page_claim(place.page)
-    assert claim is not None
-    cc.session = claim["id"]
     cc.until(
         lambda: running_server(place.page) is not None and cc.idle(),
         "the page was not served with the session idle",

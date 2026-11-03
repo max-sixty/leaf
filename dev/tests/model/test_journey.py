@@ -958,7 +958,7 @@ def test_pis_events_give_the_turn_phases(monkeypatch):
     monkeypatch.setattr(journey_pi, "now", lambda: at(next(seconds)))
     pi = journey_pi.Pi.__new__(journey_pi.Pi)
     journey.Terminal.__init__(pi)
-    pi.running, pi.settled, pi.closed_watches = False, 0, 0
+    pi.running, pi.closed_watches = False, 0
     pi.output_tokens = None
     assistant = {"role": "assistant", "usage": {"output": 90}}
     for event in (
@@ -979,7 +979,7 @@ def test_pis_events_give_the_turn_phases(monkeypatch):
     ):
         pi._hear(event)
     assert pi.commands == ["sleep 1"] and pi.running_commands == {}
-    assert (pi.settled, pi.closed_watches, pi.idle()) == (1, 1, True)
+    assert (pi.closed_watches, pi.idle()) == (1, True)
     assert [record["type"] for record in pi.records()] == [
         "turn_start",
         "first_output",

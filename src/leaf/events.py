@@ -178,15 +178,13 @@ class UndoReading:
         self.resolved_reactions = resolved_reactions
         # A rewrite is a turn: once the agent has answered it, that answer stands on
         # its words, as a reply stands on a reaction.
-        self.answered_edits = {
-            revision["id"]
-            for thread in threads.values()
-            for revision in thread["revisions"]
-        } - {
-            turn["id"]
-            for thread in threads.values()
-            for turn in unanswered_turns(thread)
-        }
+        self.answered_edits = set()
+        for thread in threads.values():
+            if thread["revisions"]:
+                owed = {turn["id"] for turn in unanswered_turns(thread)}
+                self.answered_edits |= {
+                    revision["id"] for revision in thread["revisions"]
+                } - owed
 
     def error(self, event: dict) -> Finding | None:
         """The finding the append door refuses one proposed ``undo`` event on."""

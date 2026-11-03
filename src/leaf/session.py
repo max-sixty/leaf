@@ -675,10 +675,10 @@ def left_owed(page: PageTransaction) -> list[dict]:
     ]
 
 
-def watch_between_turns(
-    harness: Harness, *, interrupted: bool = False, at_prompt: bool = False
-) -> str | None:
-    """Wake for meaningful unreceived input, without treating a log look as pickup.
+def watch_between_turns(harness: Harness, payload: dict) -> str | None:
+    """Wake for meaningful unreceived input, without treating a log look as pickup,
+    from the hook `payload` that started the watch: a Stop's, a prompt's, or an
+    Interrupt's.
 
     Input already present at startup waits for the concurrent Stop hook to close
     the turn, since that hook may still continue it over what the turn owes; the
@@ -696,6 +696,8 @@ def watch_between_turns(
     runs the Leaf its harness runs now, while an older one may run a Leaf the
     session has since left, one that cannot read a page the session now holds.
     """
+    interrupted = payload.get("hook_event_name") == "Interrupt"
+    at_prompt = payload.get("hook_event_name") == "UserPromptSubmit"
     # Event timestamps have millisecond precision. Include the startup millisecond
     # in immediate delivery rather than delaying an arrival in that millisecond.
     began = int(time.time() * 1000) / 1000
@@ -703,32 +705,45 @@ def watch_between_turns(
     settled = time.monotonic() + HOOK_TIMEOUT_S
     watch = Watch(harness)
     watch.acquire(supersede=True)
-    # The turn this watch follows, none for a prompt's watch, and when it saw each
-    # later turn closed.
+    # The turn this watch follows, none for a prompt's watch, and when it first saw
+    # each ending of a later turn that starts another watch (`turn_ending`).
     followed = (
         None if at_prompt else (session_record(harness.session) or {}).get("turn")
     )
-    later_closed: dict[str, float] = {}
+    successor_due: dict[str, float] = {}
 
     def later_turn_wakes(claim: dict) -> bool:
         """Whether input wakes the session in a turn opened after the one this
         watch follows. While that turn runs it takes input at its next tool
         boundary or Stop hook, so a wake would only show the user a second notice
-        of input the turn is about to read. The Stop hook that closes it starts
-        the watch that takes over from this one, so this one wakes then only if
-        no successor has come within the Stop hooks' time. Escape ends a turn
-        with no Stop hook, leaving its record open, and the harness's own `idle`
-        is the reading that moves then; a harness that gives none keeps the
-        immediate wake, except for a prompt's watch."""
-        if turn_closed(claim):
-            closed = later_closed.setdefault(claim["turn"], time.monotonic())
-            return time.monotonic() > closed + HOOK_TIMEOUT_S
-        live = harness.live_turn()
-        if live is None:
-            # A prompt's watch follows the running turn itself, which its Stop hook
-            # hands over to the next watch.
-            return not at_prompt
-        return live["state"] == "idle"
+        of input the turn is about to read.
+
+        Escape ends a turn with no Stop hook and leaves its record open, so the
+        harness's own `idle` is the reading that moves then. A harness that gives
+        none keeps the immediate wake, except for a prompt's watch. Nothing follows
+        a turn that Escape stopped while it ran, so this watch wakes at once for it.
+
+        Two other endings start a watch that takes over from this one. The Stop
+        hook that closes a turn starts one. So does a queued prompt, such as a
+        watch's wake, that Escape dropped before it ran (`Harness.prompt_dropped`):
+        Claude Code submits it again under a new id, 46 ms after the Escape at
+        2.1.316, and that prompt's hooks start a watch. A wake from this watch in
+        between would open a second turn for the input the new turn carries. After
+        either ending, this watch wakes only if no successor has come within the
+        hooks' time, which still wakes the session for a typed prompt Escape
+        dropped: Claude Code puts that back in the composer and submits nothing."""
+        if not turn_closed(claim):
+            live = harness.live_turn()
+            if live is None:
+                # A prompt's watch follows the running turn itself, which its Stop
+                # hook hands over to the next watch.
+                return not at_prompt
+            if live["state"] != "idle":
+                return False
+            if not harness.prompt_dropped(payload, claim["turn"]):
+                return True
+        seen = successor_due.setdefault(turn_ending(claim), time.monotonic())
+        return time.monotonic() > seen + HOOK_TIMEOUT_S
 
     # What `left_owed` found on each page, by the log and turn it read, so a pass
     # that finds nothing changed folds no page.

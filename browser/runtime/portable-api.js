@@ -90,7 +90,7 @@ export { loadDeferred } from "./deferred-value.js";
 export { threadSurface, releaseOutlets } from "./thread/surface-handles.js";
 export { canvas2D } from "./canvas.js";
 
-export { nameAction, namedAction, relabel, searchField } from "./control-labels.js";
+export { nameAction, relabel, searchField } from "./control-labels.js";
 
 export { focusDestination, focused, holdFocus, currentLocationIn } from "./focus.js";
 export { retainUserIntent } from "./user-intent.js";

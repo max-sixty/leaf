@@ -462,6 +462,45 @@ def test_a_refused_document_reports_its_status_with_the_gate_failure(browser, se
     assert "401 (Unauthorized)" in str(failure)
 
 
+def test_a_frame_of_another_live_leaf_page_is_checked_on_its_own(
+    browser, serve, live_leaf
+):
+    """The gate's browser holds no key for another live Leaf page, whose server
+    refuses the gate as a framer, so its frame would fail the page framing it with a
+    fault that page's author can't fix. The gate shows a stand-in there, and a frame
+    of any other server still reports. Only the frame stands in: a request the
+    framing page itself makes to that server, such as a fetch, still reaches it."""
+    framed, _ = live_leaf("framed", "Framed")
+    other = urlsplit(serve(leaf_page("Other", "<h1>Other</h1>"), packages=()))
+    other = f"{other.scheme}://{other.netloc}"
+    frames = "".join(
+        f'<iframe src="{src}/" title="{title}" '
+        'style="display:block;width:100%;height:200px;border:0"></iframe>'
+        for src, title in ((framed, "Another Leaf page"), (other, "Another server"))
+    )
+    failures = render_gate_model.render_version(
+        browser.unwatched,
+        serve(leaf_page("Framing", f"<h1>Framing</h1>{frames}"), packages=()),
+    ).failures
+    assert failures and all(
+        failure.code == "console-error"
+        and other in failure.values["text"] + failure.values["url"]
+        for failure in failures
+    ), failures
+
+    page = browser.unwatched.new_page()
+    render_gate_scheme.stand_in_other_leaves(page)
+    page.set_content(f'<iframe src="{framed}/"></iframe>')
+    expect(page.frame_locator("iframe").locator("p")).to_have_text(
+        "Another Leaf page, checked on its own."
+    )
+    state = f"{framed}/api/state"
+    with page.expect_response(state) as answer:
+        page.evaluate("url => fetch(url, {mode: 'no-cors'}).catch(() => {})", state)
+    # The live server's own refusal of a browser without its key.
+    assert answer.value.status == 401
+
+
 RECURSIVE_ROWS_PAGE = leaf_page(
     "recursive rows",
     """
@@ -4368,6 +4407,46 @@ def test_a_breakout_table_without_the_reading_face_keeps_its_columns_width(
     assert measured["display"] == "table", measured
     assert measured["row"] < measured["column"] / 2, measured
     assert 0 <= measured["start"] <= 4, measured
+
+
+def test_a_page_wider_than_the_window_scrolls_sideways_to_its_far_side(browser, serve):
+    """On a page that takes no theme, a table keeps the browser's layout, so on a
+    phone's window its last column stands past the right edge. The page scrolls
+    sideways to it, as on the open web: a wheel over the table brings that column
+    into view. While the live root clipped sideways overflow, the wheel moved the page
+    0px and the column could not be reached. `page check --render` still refuses
+    such a page (`page-scrolls`)."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Shard runs",
+                '<table id="runs" style="white-space: nowrap">'
+                "<tr><th>Shard</th><th>Region</th><th>Started</th><th>Duration</th>"
+                '<th>Status</th><th id="owner">Owner</th></tr>'
+                "<tr><td>shard-a</td><td>us-east-1</td><td>2026-11-01 09:14</td>"
+                "<td>14 min 05 s</td><td>passed</td><td>platform-team</td></tr>"
+                "</table>",
+                layout=None,
+            ),
+            theme=False,
+        ),
+    )
+    resized(page, 390, 844)
+    owner = """() => {
+        const cell = document.querySelector('#owner').getBoundingClientRect();
+        return {left: cell.left, right: cell.right,
+                window: document.scrollingElement.clientWidth};
+    }"""
+    before = page.evaluate(owner)
+    assert before["right"] > before["window"], f"the table fits the window: {before}"
+    assert root_overflow(page) > 0
+    page.locator("#runs td").first.hover()
+    page.mouse.wheel(1000, 0)
+    page.wait_for_function("scrollX > 0")
+    scroll_settled(page, axis="x")
+    after = page.evaluate(owner)
+    assert after["left"] >= 0 and after["right"] <= after["window"] + 0.5, after
 
 
 def test_an_identifier_in_a_cell_breaks_rather_than_holding_its_column(browser, serve):

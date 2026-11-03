@@ -542,7 +542,8 @@ def test_an_empty_contents_route_follows_headings_arriving_and_leaving(browser, 
 def test_a_table_of_contents_link_is_a_finger_s_aim(browser, serve):
     """The open outline stacks its links with no gap between them, so each link's box
     is all there is to land on. Under a finger they stood 24px tall where the layer's
-    floor is 44; a mouse keeps its compact rows."""
+    floor is 44; a mouse keeps its compact rows. The floor is padding centring the line,
+    and layout truncates both to 1/64px, so a row can stand a fraction short of 44."""
     source = leaf_page(
         "contents",
         """
@@ -561,7 +562,7 @@ def test_a_table_of_contents_link_is_a_finger_s_aim(browser, serve):
     page.locator("lf-toc summary").tap()
     links = page.get_by_role("navigation", name="On this page").get_by_role("link")
     expect(links).to_have_count(2)
-    assert all(h >= 44 for h in links.evaluate_all(heights))
+    assert all(h >= 43.9 for h in links.evaluate_all(heights))
     mouse = open_page(browser, url)
     mouse.locator("lf-toc summary").click()
     links = mouse.get_by_role("navigation", name="On this page").get_by_role("link")
@@ -712,7 +713,9 @@ def test_generated_page_interface_reconciles_before_semantic_interaction(
     page.wait_for_function("() => window.__tocFirstPaint !== null")
     first_paint = page.evaluate("() => window.__tocFirstPaint")
     assert first_paint["visible"], first_paint
-    assert first_paint["actual"] > authored_span + 200, (
+    # The replayed draft must move the geometry beyond the span tolerance, or a
+    # stale authored span would pass the reconciliation check below.
+    assert first_paint["actual"] != pytest.approx(authored_span, abs=1), (
         authored_span,
         first_paint,
     )

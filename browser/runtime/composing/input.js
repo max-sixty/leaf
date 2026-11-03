@@ -72,7 +72,7 @@ import { sizeObserver } from "../rendering.js";
 import { scrollIntoView } from "../landing-scroll.js";
 import { retainUserIntent } from "../user-intent.js";
 import { coarsePointer } from "../pointer.js";
-import { namedAction, offered, offeredAction } from "../widget-elements.js";
+import { offeredAction } from "../widget-elements.js";
 
 /** @typedef {import("./drawing-record.js").DraftDrawing} Drawing
  * @typedef {import("./text-field.js").LeafTextElement} TextField
@@ -150,7 +150,7 @@ function mediaTemplate({ drawing, media, sent, removeMedia }) {
           <span class="lf-composer-media-item lf-composer-drawing">
             <button
               type="button"
-              class="lf-media-open lf-composer-media-open lf-media-frame"
+              ${offeredAction("picture", "lf-media-open lf-composer-media-open lf-media-frame")}
               data-lf-media-canvas
               aria-label=${`Inspect drawing, ${strokes} ${strokes === 1 ? "stroke" : "strokes"}`}
               title="Inspect drawing"
@@ -211,7 +211,7 @@ function mediaTemplate({ drawing, media, sent, removeMedia }) {
         ? html`<p class="lf-composer-media-item">
             <button
               type="button"
-              class="lf-media-open lf-message-media"
+              ${offeredAction("picture", "lf-media-open lf-message-media")}
               data-lf-media-url=${url}
               aria-label=${`View attached image ${index + 1}`}
             >
@@ -221,7 +221,7 @@ function mediaTemplate({ drawing, media, sent, removeMedia }) {
         : html`<span class="lf-composer-media-item">
             <button
               type="button"
-              class="lf-media-open lf-composer-media-open lf-media-frame"
+              ${offeredAction("picture", "lf-media-open lf-composer-media-open lf-media-frame")}
               data-lf-media-url=${url}
               aria-label=${`View attached image ${index + 1}`}
             >
@@ -579,9 +579,8 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
             : "Dictate";
       const submitControl = html`<button
         type="button"
-        ${offered(`${sendClass} lf-compose-submit`)}
-        ${namedAction(actionWord(), {
-          label: action,
+        ${offeredAction("symbol", `${sendClass} lf-compose-submit`.trim(), action, {
+          action: actionWord(),
           title: sendKeys ? `${action} (${sendKeys})${newline}` : action,
         })}
         aria-disabled=${String(!canSend())}
@@ -629,13 +628,12 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const dictationControl = offersDictation
         ? html`<button
             type="button"
-            ${offered("lf-compose-dictate")}
-            ?hidden=${!micShown}
-            data-dictation=${dictationState}
-            ${namedAction("dictate", {
-              label: micAction,
+            ${offeredAction("symbol", "lf-compose-dictate", micAction, {
+              action: "dictate",
               title: live || !status ? micAction : `${micAction} (${status})`,
             })}
+            ?hidden=${!micShown}
+            data-dictation=${dictationState}
             aria-pressed=${String(live)}
             aria-description=${status || nothing}
             @mousedown=${/** @param {MouseEvent} event */ (event) => event.preventDefault()}

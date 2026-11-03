@@ -1,4 +1,4 @@
-import { CARET_KEYS, HOLDS_WORD, J, OUTPUT, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSES, RUNTIME_PAINT_ATTRIBUTE, SourcePairs, TEXT_BOX, TEXT_FIELD, W, WALK, Z, actionElement, actionTemplate, afterScript, aimedTop, alreadyShown, atScrollEnd, attachDeferredLoader, backgroundFlash, beginWalk, bindQueuedWork, blurFocused, byRenderedOrder, cancelRender, caretAtKey, chosenSince, clippedContents, clippedPlace, closestAcross, currentLocationIn, currentLocationNodes, currentLocationTouches, d, dataBody, deepFocus, describeFailure, drawn as drawn$2, eventSource, fitsWhole, flashDuration, focusDestination, focused, foldBlock, frameFor, generatedElement, growthAfterIsSeen, growthIsSeen, headerInset, holdCurrentLocation, holdFocus, iconElement, inChrome, inUi, inWindowChrome, inlineStyle, inputCount, isElement, isHTML, keeps, keepsHidden, keepsText, landedBox, landingBand, layoutChanged, layoutPx, listWalkPosition, measure, motion, motionPlays, move, moveScrollerBy, nativeLayerHolding, nextAnimation, nextFrame, nextRender, offer, offerAction, offered, offeredAction, offeredActionElement, onCurrentLocation, onLetGo, onPress, onPressAway, onUserInput, outputProducer, pagePresented, pageScroller, passOn, patchRetains, patchTree, placeBox, placeHolder, placeKept, plainPress, pointerAt, presented, readCaret, recentPlaceInput, refuseOutput, registrations, renderedOrder, renderedParent, renderedUnder, renderingState, restorePointer, restrictUserIntent, retainUserIntent, roomPx, scrollBehavior, scrollChoices, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollToEnd, scrollersOf, seenRect, selectsAll, setChildren, setRegistration, setScroll, shownBox, shownRect, shownWindow, showsContents, sizeObserver, skipped, skipper, slotTop, stopScroll, stuckBox, synNodes, syntax, syntaxLanguageNames, tabStore, takesLetters, tick, typesText, under, union, upFrom, updateSurface, userScrollport, visibleBand, watchArrivals, watchOwner, whenNone, x } from "./bundle-portable.js";
+import { CARET_KEYS, HOLDS_WORD, J, OUTPUT, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSES, RUNTIME_PAINT_ATTRIBUTE, SourcePairs, TEXT_BOX, TEXT_FIELD, W, WALK, Z, actionElement, actionTemplate, afterScript, aimedTop, alreadyShown, atScrollEnd, attachDeferredLoader, backgroundFlash, beginWalk, bindQueuedWork, blurFocused, byRenderedOrder, cancelRender, caretAtKey, chosenSince, clippedContents, clippedPlace, closestAcross, currentLocationIn, currentLocationNodes, currentLocationTouches, d, dataBody, deepFocus, describeFailure, drawn as drawn$2, eventSource, fitsWhole, flashDuration, focusDestination, focused, foldBlock, frameFor, generatedElement, growthAfterIsSeen, growthIsSeen, headerInset, holdCurrentLocation, holdFocus, iconElement, inChrome, inUi, inWindowChrome, inlineStyle, inputCount, isElement, isHTML, keeps, keepsHidden, keepsText, landedBox, landingBand, layoutChanged, layoutPx, listWalkPosition, measure, motion, motionPlays, move, moveScrollerBy, nativeLayerHolding, nextAnimation, nextFrame, nextRender, offer, offerAction, offerContentElement, offered, offeredAction, offeredActionElement, onCurrentLocation, onLetGo, onPress, onPressAway, onUserInput, outputProducer, pagePresented, pageScroller, passOn, patchRetains, patchTree, placeBox, placeHolder, placeKept, plainPress, pointerAt, presented, readCaret, recentPlaceInput, refuseOutput, registrations, renderedOrder, renderedParent, renderedUnder, renderingState, restorePointer, restrictUserIntent, retainUserIntent, roomPx, scrollBehavior, scrollChoices, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollToEnd, scrollersOf, seenRect, selectsAll, setChildren, setRegistration, setScroll, shownBox, shownRect, shownWindow, showsContents, sizeObserver, skipped, skipper, slotTop, stopScroll, stuckBox, synNodes, syntax, syntaxLanguageNames, tabStore, takesLetters, tick, typesText, under, union, upFrom, updateSurface, userScrollport, visibleBand, watchArrivals, watchOwner, watchScrollEnds, whenNone, x } from "./bundle-portable.js";
 import { COLLAPSE, LIVE_ROOT, PENDING, PRESENTATION_DOM, PRESSABLE, TEXT_BLOCK, adoptRegistry, agentName, agentSays, announce, applicationPresenter, applicationState, ariaShortcuts, attachApplicationPresentation, authoredBody, bindings, buttonCommand, checked, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, decisionFor, declarationFor, declareCommandReadiness, declaresCommandHandler, deleted, descriptionOf, editable, el, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, fragmentUrl, hasObligationSource, holdStatus, holdingError, html, isElementName, isReaction, keyed, keys, labelOf, lastMovedAt, layerRoot, leafSays, live as live$1, live$1 as live, loadShadowRules, marks, messageKey, nothing, notice, obligationValue, offlineDeferred, offlineInteractive, pageClaimed, pageRange, pageUrl, paintKeys, passErrorsAt, projectCommandScope, projectView, projectionOrigins, projectionRegionsPresented, pruneScopedElements, raiseError, readApplication, readPart, ref, registry, render as render$1, repaint, repeat, reveal, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, savedReadingSettled, seatRoot, selectEnds, selectionBackward, share, spell, tagsDeclaring, threadKey, threadNames, titleOf, tokenEntry, touchPresses as touchPresses$1, turns, voiced, watchCommandScopes, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented, word } from "./bundle-errors.js";
 import { LayerRefused, admitReading, admitResponse, randomId, reportPageError, requestJson, revealLayer, runtimeRootState, sameLayer, setRuntimeRootAttribute } from "./bundle-layer-client.js";
 import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableWord, addressedElements, ago, aimControl, aimTargetAt, anchorControl, anchorForPassage, anchorForRange, anchoringIsReady, chromeForeground, chromeRoot, claimReachStop, containingReadingRegionFor, datumAimTarget, datumLabel, deferredArrival, effectiveScroller, followingItsEnd, fragmentAddress, fragmentTarget, headerLevels, isAddressable, leadingTitle, livePoint, nameable, onReadingInput, pageReadingRegion, pressedElsewhere, projectedDatum, reachScrollers, readInsets, readingRegionFor, readingRegions, recentReadingRegion, regionScrollBehavior, regionsSettled, registerPageControl, releaseControl, releaseReachStop, resolveAnchor, revealAddressed, revealControl, scrollChainOf, scrollerFor, sectionLabel, sectionOf, settleDocumentLayout, shortAgo, shownRegionBounds, standInChrome, tabFromBlock, targetElement, targetPlace, targetSegments, unconcealedReadingRegions, visualPartLabel, watchReadingRegionTransitions, writeInsets } from "./bundle-content-layout.js";
@@ -497,10 +497,7 @@ function makeMarkdown(module, message) {
 		const image = renderedElement(markup, "img");
 		const source = scopedMediaUrl(href);
 		image.setAttribute("src", source);
-		const button = document.createElement("button");
-		button.type = "button";
-		button.className = "lf-media-open lf-message-media";
-		button.setAttribute("data-lf-offer", "button");
+		const button = offerContentElement(document.createElement("button"), "picture", "lf-media-open lf-message-media");
 		button.setAttribute("data-lf-said", "");
 		button.setAttribute("data-lf-media-url", source);
 		button.setAttribute("aria-label", `View ${alt || "Image"}`);
@@ -1139,7 +1136,7 @@ function declareOffFlowSurface(surface, { floats = () => true, away = () => fals
 	}, { capture: true });
 }
 onCurrentLocation((node, cause, left) => {
-	if (!node || !left || cause === "return") return;
+	if (!node || !left || cause === "return" || cause === "press") return;
 	for (const reading of surfaces.values()) {
 		const { surface } = reading;
 		if (under(node, surface) && under(left, surface)) follow(reading, node, scrollBehavior());
@@ -1154,6 +1151,18 @@ function bringBackSurfaceOf(node, behavior = scrollBehavior()) {
 function focusedInView() {
 	const node = focused();
 	return node && !inWindowChrome(node) && seenRect(node, /* @__PURE__ */ new Map()) && !stuckBox(node) ? node : null;
+}
+let settledSinceArrival = false;
+watchScrollEnds(() => {
+	settledSinceArrival = true;
+});
+onCurrentLocation((node, cause) => {
+	if (cause !== "return" && cause !== "drop") settledSinceArrival = false;
+});
+function focusScrolledAway() {
+	if (!settledSinceArrival) return false;
+	const node = focused();
+	return Boolean(node && node !== document.body && !seenRect(node, /* @__PURE__ */ new Map()));
 }
 function placeCandidates({ inherited, named, preferred, visible }) {
 	const lead = inherited || named[0] || preferred || visible[0];
@@ -2233,7 +2242,8 @@ function copyThroughSelection(value, trigger) {
 		if (before?.isConnected) focusDestination(before, "return");
 	}
 }
-function copyControl(className, { label = "", success, error, action = "copy", role = void 0 }) {
+function copyControl(className, { label = "", success, error, action = "copy", role = void 0, trigger = null }) {
+	if (Boolean(role) === Boolean(trigger)) throw new TypeError("A copy control wears a role's face or wraps a trigger");
 	const copy = role ? offeredActionElement(document.createElement("wa-copy-button"), role, className, void 0, { action }) : offer("wa-copy-button", className);
 	const icons = [
 		[copy.querySelector(":scope > svg[data-lf-icon]") ?? actionElement(action, "lf-copy-icon"), "copy-icon"],
@@ -2241,6 +2251,7 @@ function copyControl(className, { label = "", success, error, action = "copy", r
 		[iconElement("cross", "lf-copy-icon"), "error-icon"]
 	];
 	for (const [icon, slot] of icons) copy.append(Object.assign(icon, { slot }));
+	if (trigger instanceof Element) copy.append(trigger);
 	if (label) copy.copyLabel = label;
 	copy.successLabel = success;
 	copy.errorLabel = error;
@@ -3154,7 +3165,7 @@ var ReactionStripView = class {
 		this.node.classList.toggle("lf-open", model.latest);
 		render$1(html`
         ${repeat(model.choices, (choice) => choice.name, (choice) => html` <button
-              ${offered(`lf-react ${HOLDS_WORD}`)}
+              ${offeredAction("reaction", `lf-react ${HOLDS_WORD}`)}
               data-token=${choice.name}
               title=${choice.label}
               aria-label=${choice.label}
@@ -6564,6 +6575,26 @@ function pageReading({ bodies }) {
 	return readingBlock();
 }
 const pageReadingBlock = () => pageReading({ bodies: false });
+function sectionsInView() {
+	const sections = /* @__PURE__ */ new Set();
+	const add = (node) => {
+		const section = closestAcross(node, ADDRESSABLE);
+		if (section) sections.add(section);
+	};
+	for (const region of [null, ...unconcealedReadingRegions()]) {
+		for (const [block] of blocksOnScreen(region, textBlocks(region?.body))) add(block);
+		const bounds = readingBounds(region);
+		const body = region?.body ?? pageDocument();
+		if (!bounds || !body) continue;
+		const clips = /* @__PURE__ */ new Map();
+		for (const drawing of body.querySelectorAll(DRAWING)) {
+			if (!region && effectiveScroller(drawing) !== pageScroller) continue;
+			const seen = drawing.checkVisibility() && seenRect(drawing, clips);
+			if (seen && seen.bottom > bounds.top && seen.top < bounds.bottom) add(drawing);
+		}
+	}
+	return [...new Set([...sections].sort(renderedOrder).map(({ id }) => id))];
+}
 function landingPlace(from = null) {
 	if (from && from !== document.body && !inChrome(from)) {
 		const blocks = textBlocks(from);
@@ -7593,6 +7624,7 @@ function mountHistory({ followFragment, returnToFragment }) {
 			const claim = claimed(url);
 			const place = places.get(event.destination.key);
 			const mayReturn = retainUserIntent({ available: () => !event.signal.aborted });
+			const applied = traversalApplied(event.signal);
 			event.intercept({
 				scroll: "manual",
 				focusReset: "manual",
@@ -7613,15 +7645,25 @@ function mountHistory({ followFragment, returnToFragment }) {
 					});
 					if (work !== void 0) placed = await work !== false || placed;
 					if (!mayReturn()) return;
-					if (!placed) {
-						if (place) setScroll(pageScroller, {
-							left: place.offset[0],
-							top: place.offset[1],
-							behavior: "instant"
-						});
-						else event.scroll();
+					if (!placed && !place) {
+						event.scroll();
+						return;
 					}
-					if (place) returnPlace(place);
+					if (!placed && place) setScroll(pageScroller, {
+						left: place.offset[0],
+						top: place.offset[1],
+						behavior: "instant"
+					});
+					if (place) mayReturn.handoff(() => returnPlace(place));
+					const mark = readingBlock() ?? document.documentElement;
+					const stood = mark.getBoundingClientRect().top;
+					await applied;
+					if (!mayReturn() || !mark.isConnected) return;
+					const moved = mark.getBoundingClientRect().top - stood;
+					if (moved) mayReturn.handoff(() => setScroll(pageScroller, {
+						top: pageScroller.scrollTop + moved,
+						behavior: "instant"
+					}));
 				}
 			});
 			return;
@@ -7635,6 +7677,15 @@ function mountHistory({ followFragment, returnToFragment }) {
 				await handler();
 			}
 		});
+	});
+}
+function traversalApplied(signal) {
+	return new Promise((resolve) => {
+		addEventListener("popstate", () => nextRender(() => resolve()), {
+			once: true,
+			signal
+		});
+		signal.addEventListener("abort", () => resolve(), { once: true });
 	});
 }
 function claimed(url) {
@@ -9797,4 +9848,4 @@ async function readDeferred(manifest, key) {
 }
 
 //#endregion
-export { DESIGN_MODE_KEY, ELEMENTS, HeldNews, HeldReading, MessageView, NOT_ANSWERED, PAGE_DRAFT, PAGE_SCOPE, RESOLVED, SAYS_IN, SAY_BOX, THREAD, ThreadView, Transcript, acceptData, allButCommandReference, allThreads, anchorLabel, answeredInWords, arrivalOf, authoredHolder, awaitsData, beginThreadSeats, bindsInput, blocksOnScreen, bringBackSurfaceOf, captureDraftEditing, capturePlace, carryingThreadPlace, claimSeatReplies, claimTraversals, claimed$1 as claimed, clearDraft, commandSteps, commitThreadSeats, comparisonBase, comparisonChanges, completeReadingReturn, copyBlock, copyControl, copyTrigger, createAnchorTravel, createPassageSelection, createProjectionPresentation, createReplyView, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, dataReader, declareOffFlowSurface, declareSide, declareThreadParts, designName, dismissReply, dismissReplyAt, draftContexts, draftHasContent, draftStore, drawnThreadId, externalMark, focusThread, focusedThreadTarget, followBoxGrowth, gesturedOn, heldGrowth, heldObligation, heldOut, heldPagePlace, heldThread, highlightBlocks, holdPagePlace, holdReplyCompositions, holdThreadPlace, initializeServedDocument, inlineComparison, inlineMarkdownFragment, isBlockPlacement, isExternalPageLink, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, keepThreadLanding, keepView, landingPlace, leftThePage, loadDraft, loadMarkdown, loadMessageMarkdown, markdownReady, markdownSourceOffset, markdownWords, messageHolding, messageReading, messageText, mirrorDraft, mountFirstMessage, mountHistory, newsCount, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, observeOutputs, onReadingInterrupted, openMessageEditIn, openingView, opensElsewhere, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, paintMarkdown, placeKeeper, placeNode, placeOf, placePageThreads, placedMarkdownTokens, prepareAuthoredMessage, prepareDocument, progressFace, pushEntry, quoteReading, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, readingReturn, registerWritingDestination, releaseAuthoredUnder, releaseReplies, rememberWriting, renderMarginThread, renderMarkdown, renderSeats, renderSurfaces, replaceEntry, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, replyIsEditing, replyThreadKey, restorePlace, retainThreadSeats, returnPlace, revealHeld, rowWalk, saveDraft, scrollThreadIntoView, selectionAnchor, sendDraft, sendLanding, sendMessage, servedElements, settleAcceptedDrafts, settleThread, shallowSigs, showHeld, showHeldThread, showReturnTurn, snapSelection, stances, stepFrom, storedDraft, strongestWorkflow, subjectPlace, suppliedSnapshot, surfaceFocusTarget, takeInitialDocument, tellDraft, textEntryScopes, threadAttention, threadDraft, threadFocusDestination, threadHeading, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, threadSummary, threadTodos, titlePending, todoWord, toggleInlineComparison, touchPresses, transferDraft, universalCommandReference, upgradeWidgets, userChoice, userStore, versionPicker, versionsReading, viewMembers, walkOrigin, watchDraft, watchDrafts, watchThreadSurfaces, whereDraft, wholeThread, workflowStep, workflowWord };
+export { DESIGN_MODE_KEY, ELEMENTS, HeldNews, HeldReading, MessageView, NOT_ANSWERED, PAGE_DRAFT, PAGE_SCOPE, RESOLVED, SAYS_IN, SAY_BOX, THREAD, ThreadView, Transcript, acceptData, allButCommandReference, allThreads, anchorLabel, answeredInWords, arrivalOf, authoredHolder, awaitsData, beginThreadSeats, bindsInput, blocksOnScreen, bringBackSurfaceOf, captureDraftEditing, capturePlace, carryingThreadPlace, claimSeatReplies, claimTraversals, claimed$1 as claimed, clearDraft, commandSteps, commitThreadSeats, comparisonBase, comparisonChanges, completeReadingReturn, copyBlock, copyControl, copyTrigger, createAnchorTravel, createPassageSelection, createProjectionPresentation, createReplyView, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, dataReader, declareOffFlowSurface, declareSide, declareThreadParts, designName, dismissReply, dismissReplyAt, draftContexts, draftHasContent, draftStore, drawnThreadId, externalMark, focusScrolledAway, focusThread, focusedThreadTarget, followBoxGrowth, gesturedOn, heldGrowth, heldObligation, heldOut, heldPagePlace, heldThread, highlightBlocks, holdPagePlace, holdReplyCompositions, holdThreadPlace, initializeServedDocument, inlineComparison, inlineMarkdownFragment, isBlockPlacement, isExternalPageLink, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, keepThreadLanding, keepView, landingPlace, leftThePage, loadDraft, loadMarkdown, loadMessageMarkdown, markdownReady, markdownSourceOffset, markdownWords, messageHolding, messageReading, messageText, mirrorDraft, mountFirstMessage, mountHistory, newsCount, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, observeOutputs, onReadingInterrupted, openMessageEditIn, openingView, opensElsewhere, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, paintMarkdown, placeKeeper, placeNode, placeOf, placePageThreads, placedMarkdownTokens, prepareAuthoredMessage, prepareDocument, progressFace, pushEntry, quoteReading, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, readingReturn, registerWritingDestination, releaseAuthoredUnder, releaseReplies, rememberWriting, renderMarginThread, renderMarkdown, renderSeats, renderSurfaces, replaceEntry, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, replyIsEditing, replyThreadKey, restorePlace, retainThreadSeats, returnPlace, revealHeld, rowWalk, saveDraft, scrollThreadIntoView, sectionsInView, selectionAnchor, sendDraft, sendLanding, sendMessage, servedElements, settleAcceptedDrafts, settleThread, shallowSigs, showHeld, showHeldThread, showReturnTurn, snapSelection, stances, stepFrom, storedDraft, strongestWorkflow, subjectPlace, suppliedSnapshot, surfaceFocusTarget, takeInitialDocument, tellDraft, textEntryScopes, threadAttention, threadDraft, threadFocusDestination, threadHeading, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, threadSummary, threadTodos, titlePending, todoWord, toggleInlineComparison, touchPresses, transferDraft, universalCommandReference, upgradeWidgets, userChoice, userStore, versionPicker, versionsReading, viewMembers, walkOrigin, watchDraft, watchDrafts, watchThreadSurfaces, whereDraft, wholeThread, workflowStep, workflowWord };

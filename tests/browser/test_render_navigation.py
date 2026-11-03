@@ -286,6 +286,37 @@ def test_a_thread_walk_card_leaves_and_returns_with_its_anchor(browser, serve):
     page.keyboard.press("c")
     expect(reply).to_be_focused()
     page.wait_for_function(shown)
+    # A click from the card's thread into its Reply, cut off at the window's top, leaves
+    # the page and the box under the pointer still: the pointer found the box where it
+    # is. The first word typed there brings the card back, as a browser brings a field
+    # back for its caret.
+    page.keyboard.press("Escape")
+    expect(card.locator(".lf-page-thread")).to_be_focused()
+    reply.evaluate(
+        """async (box) => {
+          const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+          while (box.getBoundingClientRect().top >= 0) {
+            scrollBy(0, 2);
+            await frame();
+          }
+        }"""
+    )
+    rendered(page)
+    pressed = reply.bounding_box()
+    assert pressed["y"] < 0 < pressed["y"] + pressed["height"] - 8
+    held = page.evaluate("() => document.scrollingElement.scrollTop")
+    page.mouse.click(
+        pressed["x"] + pressed["width"] / 2, pressed["y"] + pressed["height"] - 6
+    )
+    expect(reply).to_be_focused()
+    rendered(page)
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == held
+    assert reply.bounding_box()["y"] == pytest.approx(pressed["y"], abs=0.5)
+    page.keyboard.type("S")
+    page.wait_for_function(
+        "() => document.querySelector('.lf-margin-preview leaf-text')"
+        ".getBoundingClientRect().top >= 0"
+    )
 
 
 def test_thread_navigation_lands_after_resizing_an_open_reply(browser, serve):

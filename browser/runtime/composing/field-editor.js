@@ -1156,6 +1156,7 @@ function fieldEditor(
   /** @param {EditorView} view */
   function newLine(view) {
     const { state } = view;
+    if (state.readOnly) return false;
     if (state.facet(message)) return insertNewline(view);
     const { from, to } = state.selection.main;
     const { placed } = state.field(reading);
@@ -1479,7 +1480,7 @@ function fieldEditor(
         ),
         keymap.of([
           // A one-line field takes no line break (`field.oneLine`).
-          { key: "Shift-Enter", run: () => field.oneLine() },
+          { key: "Shift-Enter", run: (view) => field.oneLine() || view.state.readOnly },
           { key: "Enter", run: (view) => field.returned() && newLine(view) },
           {
             key: "Shift-Enter",

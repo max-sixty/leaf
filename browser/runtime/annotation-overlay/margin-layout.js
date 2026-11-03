@@ -96,6 +96,7 @@ import { passageBoxes, targetRange, targetSegments } from "../resolved-target.js
 import { proseMeasure, proseRect, railStands } from "../content-layout.js";
 import { keeps, layoutPx, inlineStyle } from "../keeps.js";
 import { move } from "../dom-move.js";
+import { offerActionElement } from "../widget-elements.js";
 import { coarsePointer, hoveringPointer } from "../pointer.js";
 import { LAYOUT } from "../widget-upgrade.js";
 import { inChrome } from "../passages.js";
@@ -210,8 +211,8 @@ let layer = null;
 // scroll, so its carrier follows its anchor's block axis alone and stands across the
 // page where the window holds it. A box follows only its default anchor through a
 // scroll, not a second anchor `anchor()` names, so the column cannot carry it across;
-// the document scrolls sideways only by script (`overflow-x: hidden`, base.css), and
-// the pass that scroll brings places it again.
+// the document scrolls sideways only on a page wider than the window, which the render
+// check refuses, and the pass that scroll brings places it again.
 // A carrier holds one run of consecutive rows, so rows keep document order across
 // carriers; a second run on the same anchor takes a second carrier. Carriers are kept
 // by what holds them, a lane or the frames a header cuts, so a row never takes over a
@@ -382,9 +383,11 @@ railMeasureRow.dataset.lfPlace = "rail";
 railMeasureRow.inert = true;
 railMeasureRow.setAttribute("aria-hidden", "true");
 railMeasureRow.style.visibility = "hidden";
-const railMeasureEntry = document.createElement("button");
-railMeasureEntry.className = "lf-margin-entry";
-railMeasureEntry.type = "button";
+const railMeasureEntry = offerActionElement(
+  document.createElement("button"),
+  "entry",
+  "lf-margin-entry",
+);
 railMeasureEntry.dataset.lfBehavior = "disclosure";
 railMeasureRow.append(railMeasureEntry);
 /** @param {Layer} layer */

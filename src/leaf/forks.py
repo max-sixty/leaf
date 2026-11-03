@@ -59,8 +59,8 @@ with the reply in the thread's digest, and the clerk's queue (`clerk.queue`) add
 line saying a fork wrote it, for the session to correct where what it knows shows the
 reply wrong: replayed on real messages, about one fork reply in eight or more was.
 Every outcome goes to the page's diagnostics
-(`interaction_log`, type `fork_reply`), with the fork's tokens and time and the
-request it resent (`request` in `hooks/claude-code.ts`, which says where a replay
+(`interaction_log`, type `fork_reply`), with the fork's tokens and time, why Leaf
+refused its answer where it did, and the request it resent (`request` in `hooks/claude-code.ts`, which says where a replay
 cuts the conversation: to `sent` while `running` lists a call, else to `row`), as
 the clerk's `turn_end_check` notes have it, which is what a later replay or audit
 scores. `leaf-dev eval 'fork-reply*' --harness claude-code --base` scores a change
@@ -432,13 +432,15 @@ def take(
     from .refusals import Refused
 
     decided: dict
+    refused = None
     if answer is None:
         decided = {"hand_over": f"the fork failed: {failed}"}
     else:
         try:
             decided = read_answer(answer, ANSWER)
         except Refused as error:
-            decided = {"hand_over": str(error)}
+            refused = str(error)
+            decided = {"hand_over": refused}
     outcome: dict
     if "reply" in decided:
         outcome = _post(session_id, basis, decided["reply"])
@@ -449,6 +451,9 @@ def take(
         basis,
         {
             **outcome,
+            # A refused answer hands the thread over too; the note keeps why, as the
+            # clerk's notes a refused answer, so an audit can tell it from the fork's.
+            **({"refused": refused, "answer": answer} if refused else {}),
             "running": running or [],
             **({"usage": usage} if usage else {}),
             **({"elapsedMs": elapsed_ms} if elapsed_ms is not None else {}),

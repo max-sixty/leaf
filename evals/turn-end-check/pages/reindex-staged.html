@@ -6,23 +6,36 @@
   <body>
     <main class="layout-column">
       <h1 id="rx-title">Rebuilding the search index</h1>
-      <p class="lede" id="rx-lede">
-        Staging serves the rebuilt index, search-v7; production is next.
-      </p>
+      <p class="lede" id="rx-lede">Staging serves the rebuilt index, search-v7.</p>
       <section id="rx-plan" class="layout-flow">
         <h2>Plan</h2>
         <ol id="rx-plan-list">
-          <li id="rx-plan-staging">Rebuild all five shards on staging and swap the alias.</li>
-          <li id="rx-plan-check">Compare p95 latency and result counts with the old index.</li>
+          <li id="rx-plan-staging">
+            Rebuild all five shards on staging and swap the alias.
+          </li>
+          <li id="rx-plan-check">
+            Compare p95 latency and result counts with the old index.
+          </li>
           <li id="rx-plan-prod">Rebuild production, one region at a time.</li>
         </ol>
       </section>
       <section id="rx-fallback" class="layout-flow">
         <h2>Fallback plan</h2>
         <p id="rx-fallback-body">
-          If production error rates rise after the swap, point the alias back at the
-          old cluster, es-legacy, which stays up for two weeks for that purpose.
+          If production error rates rise after a region's swap, roll it back to the old
+          cluster, es-legacy:
         </p>
+        <ol id="rx-fallback-steps">
+          <li id="rx-fallback-alias">
+            Point that region's search alias back at es-legacy.
+          </li>
+          <li id="rx-fallback-replay">
+            Replay the writes logged since the swap into es-legacy.
+          </li>
+          <li id="rx-fallback-keep">
+            Keep es-legacy up for two weeks after the last region swaps.
+          </li>
+        </ol>
       </section>
     </main>
   </body>

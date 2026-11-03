@@ -205,67 +205,56 @@ def test_codex_trace_keeps_subagent_activity_without_inventing_tool_calls():
     assert trace == activities
 
 
-def test_fork_replay_renders_the_conversation_and_matches_answers_to_labels():
-    from datetime import datetime
-    from itertools import pairwise
+def test_fork_replay_hands_the_answer_through_the_arms_leaf(tmp_path, monkeypatch):
+    # No model runs: a stand-in for Claude Code reads the turn-end check's prompt
+    # and answers it, so this shows the question reaching the fork and the answer
+    # reaching the grader through the arm's Leaf, its edit landing on the page.
+    import os
 
-    from leaf_dev import fork_eval
+    from leaf_dev import ROOT, fork_eval
 
-    scenario = fork_eval.CASES["stale-passed-on"]
-    turns = fork_eval.substitute(
-        fork_eval.conversation(scenario), {"{page}": "/p", "{session}": "s"}
-    )
-    records = fork_eval.transcript(turns, "s", Path("/c"), datetime(2026, 11, 3))
-    # One response's text and tool call share a message; Leaf's line follows the
-    # prompt it was delivered with; each record chains to the one before.
-    shapes = [
-        (
-            r["type"],
-            r.get("message", {}).get("stop_reason"),
-            r.get("attachment", {}).get("hookEvent"),
-        )
-        for r in records
-    ]
-    assert shapes[:5] == [
-        ("user", None, None),
-        ("assistant", "tool_use", None),
-        ("user", None, None),
-        ("assistant", "tool_use", None),
-        ("assistant", "tool_use", None),
-    ]
-    assert records[3]["message"]["id"] == records[4]["message"]["id"]
-    assert ("attachment", None, "UserPromptSubmit") in shapes
-    assert all(r["parentUuid"] == p["uuid"] for p, r in pairwise(records))
-    assert "{page}" not in json.dumps(records)
-
-    labels = {
-        "expect": [{"kind": "stale", "words": ["2 of 5"], "edit": {"words": "2 of 5"}}],
-        "absent": [{"kind": "question", "words": ["search channel"]}],
+    work = tmp_path / "work"
+    asked = tmp_path / "prompt"
+    answer = {
+        "asks": [],
+        "findings": [
+            {
+                "kind": "stale",
+                "page": str(work / "page"),
+                "summary": "The lede still says 2 of 5 shards are rebuilt.",
+                "quote": "all 5 shards rebuilt; alias search -> search-v7",
+                "edit": {
+                    "words": "2 of 5 shards are rebuilt",
+                    "replacement": "all 5 shards are rebuilt",
+                },
+            }
+        ],
     }
-    stale = {
-        "kind": "stale",
-        "quote": "all 5 shards",
-        "edit": {"words": "2 of 5 shards"},
-    }
-    matched = fork_eval.match(
-        {
-            "asks": [
-                {
-                    "kind": "question",
-                    "quote": "Post it to the search channel?",
-                    "passage": "",
-                }
-            ],
-            "findings": [stale, stale, {"kind": "unshown", "quote": "I'll watch it"}],
-        },
-        labels,
+    result = {"type": "result", "subtype": "success", "result": json.dumps(answer)}
+    program = (
+        f"import sys; open({str(asked)!r}, 'w').write(sys.stdin.read()); "
+        f"print({json.dumps(result)!r})"
     )
-    assert list(matched["found"]) == [0]
-    assert [named["item"]["part"] for named in matched["named"]] == ["asks"]
-    assert [item.get("repeats_a_labelled_item") for item in matched["extra"]] == [
-        True,
-        None,
-    ]
+
+    def child(cwd, *args, **kwargs):
+        home = cwd.with_name("home")
+        return {
+            "args": [sys.executable, "-c", program],
+            "cwd": cwd,
+            "env": {**os.environ, "HOME": str(home)},
+        }
+
+    monkeypatch.setattr(fork_eval, "claude_child", child)
+    response = fork_eval.execute_scenario("stale-edit", ROOT, work)
+    metadata = response["metadata"]
+    assert metadata["checks"] == {
+        "answered": True,
+        "labels-found": True,
+        "edits-land": True,
+    }
+    assert "<leaf-fork-check>" in asked.read_text()
+    assert (work / "transcript.jsonl").is_file()
+    assert "all 5 shards are rebuilt" in metadata["texts"]["judge"]
 
 
 def test_catalog_builds_native_and_workflow_promptfoo_tests(tmp_path, monkeypatch):

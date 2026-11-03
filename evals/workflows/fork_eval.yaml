@@ -1,42 +1,47 @@
 # Leaf's two conversation forks, replayed on short constructed conversations
 # (`dev/leaf_dev/fork_eval.py`). A case names its fork, the page the session holds
 # (a source under evals/, with `log` events admitted as its history), the
-# conversation (a `from` item stands for a named one), and how its answer is scored.
-# `{page}` and `{session}` stand for the case's page directory and session id.
+# conversation (a `from` item stands for a named one, and `found` for the line the
+# arm's clerk queues for that finding), and how its answer is scored. `{page}` and
+# `{session}` stand for the case's page directory and session id.
 #
 # Turn-end labels: `expect` items the answer must name, and `absent` items it must
-# leave out, each by `kind` and the `words` (any of them) its quote, passage or edit
-# rests on. A stale label's `edit` is the words its fix must land over, or null where
-# the fix needs more than a few words. A reply case's `decision` is `reply` or
-# `hand_over`.
+# leave out, each by `kind` and the `words` (any of them) it rests on; a guardrail
+# shares its words with its positive case. A stale label's `edit` is the words its
+# fix must remove, or null where the turn-end check's prompt asks for no edit
+# (skills/leaf/references/turn-end-check.md). A reply case's `decision` is `reply`
+# or `hand_over`.
 
-# The fork's model and effort, as a live fork in the claude-code journey records them.
-model: claude-opus-5-5
-effort: medium
 # When each conversation starts; its records follow seven seconds apart.
 start: "2026-11-03T09:00:00+00:00"
 
 rubrics:
-  unlabelled: &unlabelled
+  items: &items
     type: llm-rubric
-    metric: unlabelled-items-real
-    transform: context.metadata.texts?.judge || 'No unlabelled items and no changes.'
+    metric: items-right
+    transform: context.metadata.texts?.judge || 'No items and no changes.'
     value: >-
-      The input is either the line "No unlabelled items and no changes.", which
-      passes, or a conversation between a user and a coding agent, the question
-      Leaf's turn-end check asked a fork of that conversation, the items of the
-      fork's answer that this test's labels don't account for, and the changes Leaf
-      made to the page from the answer's edits. Pass only if every unlabelled item is
-      one the question asks for and the conversation clearly shows: an ask the agent
-      left to the user that no On me item holds and the user hasn't answered since; a
-      page passage the work or the conversation has since contradicted; an On me item
-      settled elsewhere; or work the agent promised or set running that no page shows.
-      Fail an item that hedges about what the page may say, that a Leaf message in the
-      conversation already passed on, that concerns a chat reply rather than the page,
-      that an On me item already holds, that the user has since answered, that
-      concerns a server, watcher or wait loop serving only the agent's own checks, or
-      that repeats another item. Each change must make the page say what the
-      conversation shows now, in the page's own register.
+      The input is either the line "No items and no changes.", which passes, or a
+      conversation between a user and a coding agent, the question Leaf's turn-end
+      check asked a fork of that conversation, every item of the fork's answer that
+      Leaf took (each ask as Leaf put it On me, with the title and text the user
+      reads; each finding as Leaf passed it to the agent), each marked `labelled`
+      where this test expects it, and the changes Leaf made to the page from the
+      answer's edits. Pass only if all of these hold. A question's title names its
+      subject and its text asks what the conversation leaves to the user, correctly,
+      in a way the user can answer from the card alone. A step's title is the action
+      the user takes, whole. A finding's summary says correctly what the conversation
+      shows. Each change makes the page say what the conversation shows now, in the
+      page's own register. Each item not labelled is one the question asks for and
+      the conversation clearly shows: an ask the agent left to the user that no On me
+      item holds and the user hasn't answered since; a page passage the work or the
+      conversation has since contradicted; an On me item settled elsewhere; or work
+      the agent promised or set running that no page shows. An unlabelled item fails
+      if it hedges about what the page may say, if a Leaf message in the
+      conversation already passed it on, if it concerns a chat reply rather than the
+      page, if an On me item already holds it, if the user has since answered it, if
+      it concerns a server, watcher or wait loop serving only the agent's own checks,
+      or if it repeats another item.
   reply: &reply
     type: llm-rubric
     metric: reply-right
@@ -45,8 +50,42 @@ rubrics:
       The input is a conversation between a user and a coding agent, the user's
       message in a thread on the agent's page, and the reply a fork of the
       conversation posted in the thread as the agent's. Pass only if the reply answers
-      the message directly and correctly from what the conversation shows, states no
-      fact the conversation lacks, and promises no work.
+      the message directly and correctly, and promises no work. Every observation it
+      states must be in the conversation: a count, an error message, a result, a
+      command that ran or what a file contains. Fail a reply that states one the
+      conversation lacks, such as all of several failures having one error when the
+      output shows one. An explanation the reply offers passes where it is
+      consistent with what the conversation shows, even if the conversation never
+      states it.
+
+# The words a guardrail and its positive case share.
+words:
+  cache-question: &cache-question [lru, ttl]
+  flag-step: &flag-step [flags set search cache lru]
+  reindex-stale:
+    &reindex-stale [
+      2 of 5,
+      all 5 shards rebuilt,
+      remaining shards rebuilt,
+      staging now serves,
+      search v7,
+      reindex is running,
+    ]
+  old-index:
+    &old-index [
+      old index,
+      delete it as soon as the swap,
+      deletes the old index,
+      retain old index,
+    ]
+  eu-west-rebuild:
+    &eu-west-rebuild [
+      eu west rebuild,
+      running in the background,
+      tell you when it finishes,
+      tell me when it s done,
+      reindex start,
+    ]
 
 conversations:
   cache:
@@ -77,12 +116,15 @@ conversations:
       result: The file {page}/index.html has been updated successfully.
   cache-chosen:
     - user: LRU. Memory is what's tight on the search hosts.
-    - assistant: Going with LRU.
+    - assistant: Going with LRU, behind a flag so it can be turned on per environment.
     - tool: Edit
       input:
         file_path: search/cache.py
-        old_string: "    return self._search(query)"
-        new_string: "    return self._lru.get_or_compute(query.key, lambda: self._search(query))"
+        old_string: "        return self._search(query)"
+        new_string: |-
+          if flags.get("search.cache") == "lru":
+                      return self._lru.get_or_compute(query.key, lambda: self._search(query))
+                  return self._search(query)
       result: The file search/cache.py has been updated successfully.
     - tool: Bash
       input:
@@ -102,6 +144,18 @@ conversations:
     - assistant: >-
         The LRU cache is in `search/cache.py`, behind the `search.cache` flag, and the
         search tests pass. The page records the choice and why.
+  flag-asked:
+    - user: Turn the LRU cache on in staging.
+    - tool: Bash
+      input:
+        command: ./ops/flags set search.cache lru --env staging
+        description: Turn the LRU cache on in staging
+      result: "error: staging flags need an ops token (OPS_TOKEN unset); run `ops login` first"
+      error: true
+    - assistant: >-
+        Setting staging flags needs your ops login, which this session doesn't have.
+        Run `./ops/flags set search.cache lru --env staging` from your terminal, and
+        tell me when it's done.
   reindex:
     - user: >-
         Check on the staging reindex and finish it if it's stuck. The page at {page}
@@ -187,33 +241,9 @@ cases:
     labels:
       expect:
         - kind: question
-          words: [lru cache, ttl cache]
+          words: *cache-question
     assert:
-      - *unlabelled
-  ask-step:
-    fork: turn-end
-    page: turn-end-check/pages/cache-chosen.html
-    conversation:
-      - from: cache
-      - *cache-reply
-      - from: cache-chosen
-      - user: Turn the LRU cache on in staging.
-      - tool: Bash
-        input:
-          command: ./ops/flags set search.cache lru --env staging
-          description: Turn the LRU cache on in staging
-        result: "error: staging flags need an ops token (OPS_TOKEN unset); run `ops login` first"
-        error: true
-      - assistant: >-
-          Setting staging flags needs your ops login, which this session doesn't have.
-          Run `./ops/flags set search.cache lru --env staging` from your terminal and
-          tell me when it's done, and I'll watch the hit rate for an hour.
-    labels:
-      expect:
-        - kind: step
-          words: [flags set search cache lru]
-    assert:
-      - *unlabelled
+      - *items
   ask-on-me:
     fork: turn-end
     page: turn-end-check/pages/cache.html
@@ -245,9 +275,9 @@ cases:
     labels:
       absent:
         - kind: question
-          words: [lru, ttl]
+          words: *cache-question
     assert:
-      - *unlabelled
+      - *items
   ask-answered:
     fork: turn-end
     page: turn-end-check/pages/cache-chosen.html
@@ -258,9 +288,44 @@ cases:
     labels:
       absent:
         - kind: question
-          words: [lru, ttl]
+          words: *cache-question
     assert:
-      - *unlabelled
+      - *items
+  ask-step:
+    fork: turn-end
+    page: turn-end-check/pages/cache-chosen.html
+    conversation:
+      - from: cache
+      - *cache-reply
+      - from: cache-chosen
+      - from: flag-asked
+    labels:
+      expect:
+        - kind: step
+          words: *flag-step
+    assert:
+      - *items
+  ask-step-done:
+    fork: turn-end
+    page: turn-end-check/pages/cache-chosen.html
+    conversation:
+      - from: cache
+      - *cache-reply
+      - from: cache-chosen
+      - from: flag-asked
+      - user: Ran it. Staging should have it now.
+      - tool: Bash
+        input:
+          command: ./ops/flags get search.cache --env staging
+          description: Check the staging flag
+        result: search.cache=lru (staging, set 2026-11-03T09:06Z)
+      - assistant: Confirmed, staging has `search.cache=lru`, so its search results now come through the LRU cache.
+    labels:
+      absent:
+        - kind: step
+          words: *flag-step
+    assert:
+      - *items
   stale-edit:
     fork: turn-end
     page: turn-end-check/pages/reindex-running.html
@@ -269,12 +334,11 @@ cases:
     labels:
       expect:
         - kind: stale
-          words:
-            [2 of 5, all 5 shards rebuilt, remaining shards rebuilt, staging now serves]
+          words: *reindex-stale
           edit:
             words: 2 of 5
     assert:
-      - *unlabelled
+      - *items
   stale-rewrite:
     fork: turn-end
     page: turn-end-check/pages/reindex-staged.html
@@ -300,18 +364,21 @@ cases:
           words: [fallback, es legacy]
           edit: null
     assert:
-      - *unlabelled
+      - *items
   stale-passed-on:
     fork: turn-end
     page: turn-end-check/pages/reindex-running.html
     conversation:
       - from: reindex
       - user: Nice. Draft a two-line note for the search channel saying staging is on the new index.
-      - leaf: |-
-          Leaf's turn-end check read your last turn and found the page saying what has since changed on {page}: The lede still says the reindex is running with 2 of 5 shards rebuilt, but all five shards rebuilt and staging now serves search-v7.
-          It rests on these words in this session's transcript (session {session}):
-          > all 5 shards rebuilt; alias search -> search-v7
-          Leaf changed nothing for this; act on it if it still holds.
+      - found:
+          kind: stale
+          page: "{page}"
+          summary: >-
+            The lede still says the reindex is running with 2 of 5 shards rebuilt, but
+            all five shards rebuilt and staging now serves search-v7.
+          quote: all 5 shards rebuilt; alias search -> search-v7
+          edit: null
       - assistant: |-
           A note for the search channel:
 
@@ -319,10 +386,9 @@ cases:
     labels:
       absent:
         - kind: stale
-          words:
-            [2 of 5, all 5 shards rebuilt, remaining shards rebuilt, reindex is running]
+          words: *reindex-stale
     assert:
-      - *unlabelled
+      - *items
   settled:
     fork: turn-end
     page: turn-end-check/pages/reindex-staged.html
@@ -351,10 +417,9 @@ cases:
     labels:
       expect:
         - kind: settled
-          words:
-            [delete it as soon as the swap, deletes the old index, retain old index]
+          words: *old-index
     assert:
-      - *unlabelled
+      - *items
   settled-open:
     fork: turn-end
     page: turn-end-check/pages/reindex-staged.html
@@ -374,11 +439,11 @@ cases:
     labels:
       absent:
         - kind: settled
-          words: [old index, 1 8 tb, 1 8t]
+          words: *old-index
         - kind: question
-          words: [old index]
+          words: *old-index
     assert:
-      - *unlabelled
+      - *items
   unshown:
     fork: turn-end
     page: turn-end-check/pages/reindex-staged.html
@@ -394,16 +459,9 @@ cases:
     labels:
       expect:
         - kind: unshown
-          words:
-            [
-              eu west rebuild is running,
-              running in the background,
-              tell you when it finishes,
-              tell me when it s done,
-              reindex start,
-            ]
+          words: *eu-west-rebuild
     assert:
-      - *unlabelled
+      - *items
   unshown-shown:
     fork: turn-end
     page: turn-end-check/pages/reindex-production.html
@@ -455,9 +513,11 @@ cases:
     labels:
       absent:
         - kind: unshown
-          words: [eu west, rebuild, tail errors, error rate, reindex start]
+          words: *eu-west-rebuild
+        - kind: unshown
+          words: [tail errors, error rate]
     assert:
-      - *unlabelled
+      - *items
   clean:
     fork: turn-end
     page: turn-end-check/pages/reindex-staged.html
@@ -470,7 +530,7 @@ cases:
         result: rx-298 staging started 2026-11-02T08:12Z finished 2026-11-02T08:51Z shards=5 status=done
       - assistant: "39 minutes: it started at 08:12 UTC yesterday and finished at 08:51."
     assert:
-      - *unlabelled
+      - *items
 
   why-ci:
     fork: reply

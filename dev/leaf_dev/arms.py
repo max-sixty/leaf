@@ -680,11 +680,13 @@ def claude_child(
     env: dict | None = None,
     model: str = MODELS[ClaudeCodeHarness.name],
     sandbox: bool = True,
+    permissions: str = "bypassPermissions",
 ) -> dict:
     """The `subprocess` arguments for one isolated `claude -p` child in `cwd`.
 
     `args` follow `-p`, so a prompt goes first. `dirs` are what the child may read
-    beyond `cwd`, and `env` adds to `environment()`. Output is verbose stream-json.
+    beyond `cwd`, and `env` adds to `environment()`. `permissions` is the child's
+    permission mode. Output is verbose stream-json.
     On macOS the child runs under `authoring_sandbox`, owning `cwd`, its home and
     `dirs`, unless `sandbox` is False, as a child that drives the harness's own
     browser is. Its private-home CLAUDE.md names the sandbox's scratch directory
@@ -694,7 +696,7 @@ def claude_child(
     home = claude_home(cwd.with_name(f"{cwd.name}-home"))
     command = [
         "claude", "-p", *args, "--model", model,
-        "--strict-mcp-config", "--permission-mode", "bypassPermissions",
+        "--strict-mcp-config", "--permission-mode", permissions,
         "--output-format", "stream-json",
         "--verbose", *(arg for d in dirs for arg in ("--add-dir", str(d))),
     ]  # fmt: skip

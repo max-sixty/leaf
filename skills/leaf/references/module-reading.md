@@ -107,9 +107,12 @@ page's syntax theme. `synNodes(tokens)` turns them into nodes, and `tokenLines(t
 splits them by line. `lang` is a registry `$languages` name; `langForPath(path)` derives
 one from a file name, and `ensureSyntaxLanguage(lang)` loads one ahead of time.
 `highlightBlocks(root)` colours each `pre > code` in `root` whose `language-…` class
-names a language, that holds only text, and that wears the reading face
+names a language and that wears the reading face
 (`package-themes.md`, "Personal themes"); a block in a shadow tree wears it where the
-widget sets `--lf-reading-face: 1` on a box around it.
+widget sets `--lf-reading-face: 1` on a box around it. Inline annotations keep their
+elements and text while tokens are added inside them; use literal newlines rather than
+`<br>`, whose blocks remain uncoloured. A block with its own colouring turns off the
+reading face as other personally themed content does.
 
 Leaf adds a Copy button to each `pre > code` in the page. A widget block holding other
 source text, such as numbered code lines, declares its own: give the block

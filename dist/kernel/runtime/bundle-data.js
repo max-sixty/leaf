@@ -1926,10 +1926,41 @@ const BLOCK = "pre > code[class]";
 const colouredAs = (code) => {
 	const lang = code.getAttribute("class")?.match(LANGUAGE_CLASS)?.[1];
 	if (!lang || !Object.hasOwn(syntaxLanguageNames, lang)) return void 0;
-	if (code.querySelector(":not([data-lf-syn])")) return void 0;
+	if (code.querySelector("br")) return void 0;
 	if (code.isConnected && getComputedStyle(code).getPropertyValue("--lf-reading-face").trim() !== "1") return void 0;
 	return syntaxLanguageNames[lang];
 };
+function colourText(code, tokens) {
+	const nodes = [];
+	const collect = (parent) => {
+		for (const node of parent.childNodes) if (node instanceof Text || node instanceof Element && node.matches("[data-lf-syn]")) nodes.push(node);
+		else collect(node);
+	};
+	collect(code);
+	let index = 0;
+	let offset = 0;
+	for (const node of nodes) {
+		let remaining = node.textContent.length;
+		const pieces = [];
+		while (remaining) {
+			const token = tokens[index];
+			const length = Math.min(remaining, token.text.length - offset);
+			if (length) pieces.push({
+				text: token.text.slice(offset, offset + length),
+				style: token.style
+			});
+			remaining -= length;
+			offset += length;
+			if (offset === token.text.length) {
+				index++;
+				offset = 0;
+			}
+		}
+		const painted = synNodes(pieces);
+		if (painted.length === 1 && painted.every((piece) => node.isEqualNode(piece))) continue;
+		if (painted.length) node.replaceWith(...painted);
+	}
+}
 const tokenizing = /* @__PURE__ */ new WeakSet();
 async function highlightBlocks(root) {
 	const blocks = [];
@@ -1953,7 +1984,7 @@ async function highlightBlocks(root) {
 					lang = colouredAs(code);
 					continue;
 				}
-				if (tokens.some(({ style }) => Object.keys(style).length)) code.replaceChildren(...synNodes(tokens));
+				colourText(code, tokens);
 				code.setAttribute("data-lf-syntax", lang);
 				break;
 			}

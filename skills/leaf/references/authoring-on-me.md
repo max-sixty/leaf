@@ -28,8 +28,8 @@ or label shows.
 Order the options by the subject, such as from today's behavior to the largest
 change, and keep that one order wherever the question lists them, including a
 comparison table and lettered names, so the user matches each option to its row by
-position. The recommended option stays where that order puts it; its `recommended`
-label marks your advice. Prose that recommends or discusses an option names it by
+position. The recommended option stays where that order puts it; a `small.tag`
+reading `recommended` marks your advice. Prose that recommends or discusses an option names it by
 its title, as in “I'd keep handwritten types”, never by its position or by a letter
 from an earlier list, since the options' order can change after you write it.
 

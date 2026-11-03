@@ -384,12 +384,12 @@ def release_ask(marker: str) -> str:
 
 def board_names_release(html: str, marker: str) -> bool:
     """Read board text and widget labels, excluding release-scoped resource URLs."""
-    main = SourceDocument(html).tree.select_one("main")
-    return main is not None and (
-        marker in main.to_text()
+    body = SourceDocument(html).tree.select_one("body")
+    return body is not None and (
+        marker in body.to_text()
         or any(
             marker in (element.attrs.get("label") or "")
-            for element in main.find_all(True)
+            for element in body.find_all(True)
         )
     )
 
@@ -1214,7 +1214,12 @@ class BrowserEnd:
             )
             # `inner_text` applies the theme's text-transform, so a release recorded in
             # an uppercase eyebrow or panel heading reads `35B36571`. Compare ignoring case.
-            rendered = page.locator("main").inner_text()
+            # The page is body less Leaf's own elements (passages.js, `inPage`).
+            rendered = page.evaluate(
+                "() => [...document.body.children]"
+                ".filter((el) => !el.matches('.lf-chrome, [data-lf-runtime]'))"
+                ".map((el) => el.innerText).join('\\n')"
+            )
             check(
                 marker.casefold() in rendered.casefold(),
                 f"{url} rendered a page that never names ‘{marker}’, which the agent's "

@@ -100,7 +100,8 @@ def test_a_written_markdown_passage_reads_rendered_over_its_exact_source(
     browser, serve
 ):
     """A passage the page writes in the document's <pre> needs no data source: the
-    preview renders it, and the Source tab holds it character for character."""
+    preview renders it, in a box as tall as its rendering rather than the bound a
+    bound document keeps, and the Source tab holds it character for character."""
     text = "**Fixed** a crash when `--config` names <missing> files.\n"
     url = serve(
         leaf_page(
@@ -119,6 +120,12 @@ def test_a_written_markdown_passage_reads_rendered_over_its_exact_source(
     expect(document.locator(".lf-text-document-preview")).to_contain_text(
         "names <missing> files."
     )
+    view, rendering = document.evaluate(
+        """host => [host.querySelector('lf-tab:not([hidden])'),
+          host.querySelector('.lf-text-document-preview')]
+          .map(box => box.getBoundingClientRect().height)"""
+    )
+    assert abs(view - rendering) < 1, (view, rendering)
     # The preview's padding is the visible inset, without the paragraph's margins.
     insets = document.locator(".lf-text-document-preview").evaluate(
         """box => {
@@ -132,6 +139,58 @@ def test_a_written_markdown_passage_reads_rendered_over_its_exact_source(
     assert insets[:2] == insets[2:], insets
     document.get_by_role("tab", name="Source", exact=True).click()
     assert document.locator("code[data-code]").text_content() == text
+
+
+def test_a_written_markdown_source_keeps_the_preview_height_until_shown_whole(
+    browser, serve
+):
+    """A written Markdown preview's Source tab takes the preview's height, so neither
+    switching to it nor reloading on it moves what follows the document. Where that
+    height cuts the source, a press shows every line and puts focus on them."""
+    links = "".join(f"[#{n}]: https://example.com/pull/{n}\n" for n in range(800, 812))
+    text = (
+        "## 2.4.0\n\n- Fixed a crash when `--config` is missing ([#800]).\n\n" + links
+    )
+    url = serve(
+        leaf_page(
+            "Release notes",
+            '<h1>Release notes</h1><lf-text-document id="notes" '
+            f'label="CHANGELOG.md" preview="markdown"><pre>\n{text}</pre>'
+            '</lf-text-document><p id="after">After the notes.</p>',
+        )
+    )
+    page = open_page(browser, url)
+    document = page.locator("#notes")
+    read = """() => [document.getElementById('notes').getBoundingClientRect().height,
+      document.getElementById('after').getBoundingClientRect().top]"""
+    preview = page.evaluate(read)
+    document.get_by_role("tab", name="Source", exact=True).click()
+    assert page.evaluate(read) == preview
+    lines = len(text.split("\n"))
+    press = document.get_by_role("button", name=f"Show all {lines} lines")
+    expect(press).to_be_visible()
+    held = []
+    page.route("**/leaf.js", lambda route: held.append(route))
+    page.reload(wait_until="commit")
+    page.locator("#after").wait_for(state="attached")
+    holding(page, held, 1, "the runtime")
+    assert page.evaluate(read) == preview
+    for route in held:
+        route.continue_()
+    page.unroute("**/leaf.js")
+    wait_until_ready(page)
+    expect(document.get_by_role("tab", name="Source", exact=True)).to_have_attribute(
+        "aria-selected", "true"
+    )
+    expect(press).to_be_visible()
+    assert page.evaluate(read) == preview
+    press.click()
+    expect(press).to_be_hidden()
+    expect(document.locator(".lf-text-document-listing > pre")).to_be_focused()
+    whole = document.locator("lf-tab:not([hidden])").evaluate(
+        "tab => [tab.clientHeight, tab.scrollHeight]"
+    )
+    assert whole[0] == whole[1] and whole[0] > preview[0] - 80, (whole, preview)
 
 
 def test_a_widget_document_updates_both_readings_and_keeps_the_selected_view(
@@ -434,6 +493,39 @@ def test_a_document_in_a_tab_set_keeps_its_strip_under_its_caption(
             }""")
             assert read["strip"] == pytest.approx(read["caption"], abs=0.5), read
             assert read["panelOnTop"], read
+
+
+def test_every_document_draws_from_one_copy_of_pierres_sheet(browser, serve):
+    """Each document stands its line numbers beside its lines, as Pierre's sheet draws
+    them, and the page holds one copy of that sheet however many documents it has. A
+    copy in each listing was a sheet holding `@scope` entering the page as each
+    document drew, and Firefox restyles every element of the page for each one: 29
+    empty documents in tabs beside one of 4 MB held the long document's first draw back
+    about 6 s."""
+    tabs = "".join(
+        f'<lf-tab id="tab-{at}" label="Doc {at}"><lf-text-document id="doc-{at}" '
+        f'source="text-{at}"></lf-text-document></lf-tab>'
+        for at in range(3)
+    )
+    url = serve(
+        leaf_page("Documents", f'<lf-tabs id="docs" list="side">{tabs}</lf-tabs>')
+    )
+    data_model.cmd_data_set(serve.page_dir, "text-0", "first line\nsecond line\n")
+    page = open_page(browser, url)
+    expect(page.locator("lf-text-document.lf-rendered")).to_have_count(3)
+    copies = page.evaluate("""() =>
+      [...document.styleSheets, ...document.adoptedStyleSheets].filter((sheet) =>
+        [...sheet.cssRules].some((rule) => rule.cssText.includes('--diffs-font-fallback'))
+      ).length""")
+    assert copies == 1
+    beside = """doc => {
+      const number = doc.querySelector('[data-number]').getBoundingClientRect();
+      const line = doc.querySelector('[data-line]').getBoundingClientRect();
+      return {beside: number.right <= line.left, top: line.top - number.top};
+    }"""
+    for at in range(3):
+        page.get_by_role("tab", name=f"Doc {at}", exact=True).click()
+        assert page.locator(f"#doc-{at}").evaluate(beside) == {"beside": True, "top": 0}
 
 
 def test_document_views_remember_independently_and_follow_live_source_updates(

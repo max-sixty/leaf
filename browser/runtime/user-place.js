@@ -58,7 +58,9 @@
    inside it would be read as reflow and undone.
 
    The module also owns when focus marks the user's place at all (`focusedInView`), for
-   the readers outside a hold that take focus as that place. */
+   the readers outside a hold that take focus as that place, and whether the user has
+   scrolled away from the control focus stands on (`focusScrolledAway`), for the keys
+   that act there. */
 import { inlineStyle } from "./keeps.js";
 import { cancelRender, nextFrame, nextRender } from "./rendering.js";
 import {
@@ -70,7 +72,8 @@ import {
 } from "./geometry.js";
 import { aimedTop, moveScrollerBy, placeKept, scrollLimit } from "./scrolling.js";
 import { pointerAt } from "./pointer.js";
-import { recentPlaceInput, focused } from "./focus.js";
+import { recentPlaceInput, focused, onCurrentLocation } from "./focus.js";
+import { watchScrollEnds } from "./arrivals.js";
 
 // The focused control while it marks where the user is: while any of it is in front of
 // them (geometry.js, `seenRect`), and it is not riding in a stuck sticky box
@@ -90,6 +93,28 @@ export function focusedInView() {
   return node && !inWindowChrome(node) && seenRect(node, new Map()) && !stuckBox(node)
     ? node
     : null;
+}
+
+// Whether the user has scrolled away from the control focus stands on: a scroll has
+// settled since focus arrived there, and none of the control is in front of them
+// (geometry.js, `seenRect`), as when they read something else. Leaf's keys don't act at
+// a control scrolled away (dispatch.js, `stack`). Only a settled scroll counts, since a
+// walk focuses its stop before gliding there and a key pressed on the way is meant for
+// the stop; the control is measured when asked, since what rides a scroll is placed
+// again as it settles. Unlike `focusedInView`, a control in the chrome or a stuck box is
+// not away: the user sees what a key there acts on, though it names no place in the page.
+let settledSinceArrival = false;
+watchScrollEnds(() => {
+  settledSinceArrival = true;
+});
+// A node the runtime replaced handing focus to its successor is the same place.
+onCurrentLocation((node, cause) => {
+  if (cause !== "return") settledSinceArrival = false;
+});
+export function focusScrolledAway() {
+  if (!settledSinceArrival) return false;
+  const node = focused();
+  return Boolean(node && node !== document.body && !seenRect(node, new Map()));
 }
 
 // The candidates in the order they may hold the place, each once: an inherited

@@ -228,21 +228,10 @@ export function createThreadLanding() {
  * platform's copy key with nothing selected presses Copy on the message the user is in,
  * else on the thread's latest, the keyboard's route to what Copy gives a pointer; with
  * words selected it keeps the browser's copy. Absent a thread, the reference describes
- * the open state users first meet.
- *
- * `r` and the copy key act on the thread without bringing it into view, so they act only
- * on a thread the user can see (geometry.js, `seenRect`): focus stays in a card or a
- * seat the user has scrolled away from while they read something else, and a key
- * shouldn't settle or copy what they can't see. Enter lands in the thread's box, which
- * brings its surface back as it lands (off-flow.js), so it still reaches a thread
- * scrolled away. */
+ * the open state users first meet. */
 /** @param {ReturnType<typeof createThreadLanding>["landIn"]} landIn
  * @param {() => Element | null} threadHere */
 export function declareThreadKeys(landIn, threadHere) {
-  const seenThreadHere = () => {
-    const thread = threadHere();
-    return thread && seenRect(thread, new Map()) ? thread : null;
-  };
   pageScope("thread", {
     title: "In a thread",
     root: focused,
@@ -274,11 +263,9 @@ export function declareThreadKeys(landIn, threadHere) {
         touch: false,
         keys: ["r"],
         title: () =>
-          resolutionControl(seenThreadHere())?.matches(".lf-reopen")
-            ? "reopen"
-            : "resolve",
+          resolutionControl(threadHere())?.matches(".lf-reopen") ? "reopen" : "resolve",
         get run() {
-          const control = resolutionControl(seenThreadHere());
+          const control = resolutionControl(threadHere());
           return control?.matches(':not(:disabled, [aria-disabled="true"])')
             ? () => control.click()
             : undefined;
@@ -290,7 +277,7 @@ export function declareThreadKeys(landIn, threadHere) {
         keys: ["Mod+c"],
         title: "copy message as Markdown",
         get run() {
-          const trigger = messageCopy(seenThreadHere());
+          const trigger = messageCopy(threadHere());
           return trigger && getSelection()?.isCollapsed
             ? () => trigger.click()
             : undefined;

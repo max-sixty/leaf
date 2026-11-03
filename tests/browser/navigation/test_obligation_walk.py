@@ -697,6 +697,54 @@ def test_obligations_sharing_context_keep_their_source_identity(browser, serve):
         expect(page.locator(f"#{source}")).to_be_focused()
 
 
+def test_digits_leave_an_obligation_the_user_scrolled_away_from(browser, serve):
+    """Focus stays in an ask the user has scrolled off screen, but its digits answer it
+    only while they can see it: scrolled away, `2` chooses nothing, and back in view the
+    digits show again and `2` chooses."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "An ask scrolled away",
+                '<h1>An ask scrolled away</h1><lf-ask id="route"><h2>Which route?</h2>'
+                '<lf-options id="routes" choose>'
+                '<lf-option id="left">Take the left route</lf-option>'
+                '<lf-option id="right">Take the right route</lf-option>'
+                '</lf-options></lf-ask><div style="height:4000px">Reading on</div>',
+            )
+        ),
+    )
+
+    def answer():
+        return page.evaluate(
+            """async () => (await window.__lfWidgetApi()).readObligations().all
+              .find((item) => item.id === "widget:routes").answer?.value ?? null"""
+        )
+
+    def scroll(down):
+        page.mouse.move(400, 400)
+        page.mouse.wheel(0, 3000 if down else -3000)
+        page.wait_for_function(
+            "(down) => (down ? scrollY > 2000 : scrollY === 0)", arg=down
+        )
+        scroll_settled(page)
+
+    page.keyboard.press("m")
+    page.keyboard.press("Tab")
+    digit = page.locator("#right > .lf-key-badge")
+    expect(digit).to_be_visible()
+    scroll(down=True)
+    expect(page.locator("#routes")).not_to_be_in_viewport()
+    page.keyboard.press("2")
+    rendered(page)
+    assert answer() is None
+    scroll(down=False)
+    expect(digit).to_be_visible()
+    with sending(page, "the answer"):
+        page.keyboard.press("2")
+    assert answer() == ["right"]
+
+
 def test_the_obligation_walk_uses_the_visible_reading_after_its_focus_is_released(
     browser, serve
 ):

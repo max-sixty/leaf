@@ -27,6 +27,7 @@ from render_harness import (
     panel_settled,
     resized,
     round_trip,
+    scroll_settled,
     sending,
     told,
     undo,
@@ -751,8 +752,8 @@ def test_r_settles_the_thread_shown_for_the_element_the_user_stands_on(
 
 
 def test_r_leaves_a_thread_the_user_scrolled_away_from(browser, serve):
-    """Focus stays in a card the user has scrolled off screen, but `r` acts only on a
-    thread they can see, so it settles nothing until the card is back in view."""
+    """Focus stays in a card the user has scrolled off screen, but keys act there only
+    while they can see it, so `r` settles nothing until the card is back in view."""
     comment = {
         "kind": "comment",
         "author": "user",
@@ -773,6 +774,7 @@ def test_r_leaves_a_thread_the_user_scrolled_away_from(browser, serve):
         page.wait_for_function(
             "(down) => (down ? scrollY > 2000 : scrollY === 0)", arg=down
         )
+        scroll_settled(page)
         rendered(page)
 
     scroll(down=True)

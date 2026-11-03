@@ -7,6 +7,7 @@
 //   node tests/js_facts.mjs queries FILE...   {file: [selector]} handed to DOM queries
 //   node tests/js_facts.mjs literals FILE...  {file: {constants, calls}} literal values
 //   node tests/js_facts.mjs presses FILE...   {file: [press]} each press and its dressing
+//   node tests/js_facts.mjs dressings FILE... {file: [dressing]} each role's classes
 //
 // Every module is read with oxc, which parses JavaScript and TypeScript, the language
 // chosen by the file's extension, into one ESTree, so a TypeScript module's exported
@@ -462,6 +463,51 @@ function presses() {
   return JSON.stringify(read);
 }
 
+// Where each builder finds the role it dresses an element in and the classes it writes
+// beside the role's face: an argument's position, or a selectable offer's face, or
+// the `role` of a copy control's options.
+const DRESSERS = {
+  offerAction: [0, 1],
+  offeredAction: [0, 1],
+  offerActionElement: [1, 2],
+  offerContentElement: [1, 2],
+  roleElement: [1, 2],
+  actionClass: [0, 1],
+  selectableOffer: [3, 1],
+  selectableOffered: [2, 1],
+  copyControl: ["role", 0],
+};
+
+// Every call that dresses an element in a role's face: `{line, roles, classes}`, the
+// roles it may name and the classes it may write beside the face, as `words` reads
+// them. A call handed its role or classes as a parameter, such as a builder's own
+// wrapper, names none.
+function dressings() {
+  const read = {};
+  for (const file of files) {
+    const program = tree(file);
+    const parents = new Map();
+    walk(program, (node, _loops, parent) => parents.set(node, parent));
+    const found = [];
+    walk(program, (node) => {
+      const name = callee(node);
+      if (!Object.hasOwn(DRESSERS, name)) return;
+      const at = DRESSERS[name];
+      const args = node.arguments;
+      const [role, classes] = at.map((where) =>
+        typeof where === "number"
+          ? args[where]
+          : args[1]?.properties?.find((p) => p.key?.name === where)?.value,
+      );
+      const roles = words(role, parents);
+      if (roles.length)
+        found.push({ line: line(file, node), roles, classes: words(classes, parents) });
+    });
+    read[file] = found;
+  }
+  return JSON.stringify(read);
+}
+
 // The presses a template literal or an HTML string holds (`presses`, "template").
 function templatePresses(node, parents, press) {
   const expressions = node.expressions ?? [];
@@ -538,7 +584,7 @@ function templatePresses(node, parents, press) {
   new Tokenizer({ sourceCodeLocationInfo: true }, handler).write(markup, true);
 }
 
-const commands = { keydown, exports, queries, literals, presses };
+const commands = { keydown, exports, queries, literals, presses, dressings };
 if (!commands[command])
   throw new Error(`usage: js_facts.mjs ${Object.keys(commands).join("|")} FILE...`);
 process.stdout.write(commands[command]());

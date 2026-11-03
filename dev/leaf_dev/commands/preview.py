@@ -35,13 +35,13 @@ each refresh where a runtime edit left it stale (`current_kernel`); authored-pag
 compile nothing. A `--user` preview's session runs its hooks and delivery from the
 launching checkout's `bin/leaf`.
 
-While it runs, `watchfiles` reports edits. Initialization decides whether the layer
-actually changed; identical saves leave the browser and server alone. A source or
-`.page/` companion edit is stamped into the live page at the same URL. A package or
-runtime edit restarts the server, which composes the layer afresh, and a changed
-selection goes through `page init`, which mints a new layer generation the browser
-follows into a fresh document. A refused update is printed and retried after the next
-edit.
+While it runs, a native subscription (`leaf.file_changes`) reports edits.
+Initialization decides whether the layer actually changed; identical saves leave the
+browser and server alone. A source or `.page/` companion edit is stamped into the
+live page at the same URL. A package or runtime edit restarts the server, which
+composes the layer afresh, and a changed selection goes through `page init`, which
+mints a new layer generation the browser follows into a fresh document. A refused
+update is printed and retried after the next edit.
 Fixture history, literal data seeds and earlier versions initialize a fresh slot.
 Live updates follow current markup, page-owned files, captured data files, media
 and the browser runtime. Restarting a user preview preserves its history and current
@@ -743,14 +743,13 @@ def watch_changes(watched: Watched) -> PreviewChanges:
     """Install the native subscriptions before publishing the preview URL.
 
     Single files use shallow parent watches: an editor's atomic rename changes
-    the inode, so a file watch on Linux otherwise loses later saves.
+    the inode, so a file watch on Linux otherwise loses later saves. The runtime's
+    Python trees are inputs, and every interpreter that imports them writes
+    bytecode beside them, so `__pycache__` is ignored.
     """
-    from watchfiles import Change, DefaultFilter
-
-    default_filter = DefaultFilter()
     return PreviewChanges(
         watch_roots(watched),
-        lambda path: default_filter(Change.modified, str(path)),
+        lambda path: "__pycache__" not in path.parts,
         collect=True,
     )
 
@@ -901,9 +900,7 @@ def serve_preview(
                 # the canonical input reading as well as the subscription.
                 changes.close()
                 changes = watch_changes(watched)
-            # A batch of None says the process's watcher was replaced and may have
-            # taken edits with it, which invalidates the reading in the same way.
-            if not replaced and reported is not None:
+            if not replaced:
                 if not reported:
                     continue  # lifetime and root checks need no input discovery
                 if not any(watched.relevant(path) for path in reported):
@@ -944,9 +941,9 @@ def serve_preview(
                 continue
             if not changes.matches(watch_roots(rebuilt)):
                 # A refresh can change which packages the page selects, and a
-                # subscription is fixed for its lifetime. Holding the old one
-                # wherever the roots stand still keeps the edits made during the
-                # refresh, which the rust watcher collected while this was busy.
+                # subscription's roots are fixed for its lifetime. Holding the old
+                # one wherever the roots stand still keeps the edits made during
+                # the refresh, which it collected while this was busy.
                 changes.close()
                 changes = watch_changes(rebuilt)
             watched = rebuilt

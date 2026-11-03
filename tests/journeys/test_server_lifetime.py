@@ -251,8 +251,6 @@ def test_init_restarts_a_served_page_onto_the_replacement_contract(
     assert events[-1]["attempt"] == comment["attempt"]
 
 
-import urllib.error
-
 from interact_support import (
     command_findings,
     record_claim,

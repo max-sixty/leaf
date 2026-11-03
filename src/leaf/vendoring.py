@@ -134,12 +134,21 @@ def cmd_init(
 def _deliver_from_here(page_dir: Path, harness: Harness) -> None:
     """Where the session holds the page this command initialized, make this Leaf
     its delivering Leaf (`session_runtime.select_checkout`), since the copy the
-    session loaded may not read the page at this protocol, and ready delivery under
-    it, since a Codex task's adapter running from another Leaf leaves once this one
-    is selected."""
+    session loaded may not read the page at this protocol. Where that changed the
+    selection, start delivery again: a Codex task's adapter running from the former
+    Leaf leaves once another is selected.
+
+    The session's hooks read only the pages it holds, so a page it doesn't hold
+    leaves the selection alone: one a plain preview or a scratch `page init`
+    builds, or one another session holds. That includes a scratch page a Claude
+    Code subagent builds in its own worktree, whose commands act for the session
+    (`ClaudeCodeHarness`)."""
     claim = page_claim(page_dir)
-    if claim_is_active(claim) and claimant_matches(claim, harness):
-        select_checkout(harness.session)
+    if (
+        claim_is_active(claim)
+        and claimant_matches(claim, harness)
+        and select_checkout(harness.session)
+    ):
         harness.ensure_delivery()
 
 

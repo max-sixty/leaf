@@ -1939,18 +1939,60 @@ def test_a_checkout_that_re_vendors_a_page_delivers_for_its_session(
     assert session_runtime_model.selected_launcher("s1") == own
 
 
+def deliveries_started(monkeypatch) -> list:
+    """The Leaf selected for session s1 each time a command starts its delivery."""
+    started = []
+    monkeypatch.setattr(
+        harness_model.ClaudeCodeHarness,
+        "ensure_delivery",
+        lambda harness: started.append(
+            session_runtime_model.selected_launcher(harness.session)
+        ),
+    )
+    return started
+
+
 def test_a_checkout_leaves_its_session_alone_for_a_page_the_session_doesnt_hold(
-    claimed, tmp_path
+    claimed, tmp_path, monkeypatch
 ):
     """A checkout's `page init` of a page its session doesn't hold, as a scratch page
     a subagent builds in its own worktree, which runs with its parent's session id,
     leaves the session's hooks on the Leaf they run, since they never read that
-    page."""
+    page, and leaves its delivery running."""
     other = select_another_leaf(tmp_path)
+    started = deliveries_started(monkeypatch)
 
     vendoring_model.cmd_init(tmp_path / "scratch", ())
 
     assert session_runtime_model.selected_launcher("s1") == other
+    assert started == []
+
+
+@pytest.mark.parametrize("command", ["page init", "renewal"])
+def test_a_checkout_that_takes_over_a_held_page_starts_its_sessions_delivery_again(
+    claimed, tmp_path, monkeypatch, command
+):
+    """A checkout's init or renewal of a page its session holds makes the checkout
+    the session's Leaf, then starts the session's delivery again, since a Codex
+    task's adapter running from the former Leaf leaves once another is selected.
+    Doing it again changes no selection, so it leaves the running delivery alone."""
+    select_another_leaf(tmp_path)
+    started = deliveries_started(monkeypatch)
+    own = session_runtime_model.own_launcher()
+
+    def take_over():
+        if command == "page init":
+            vendoring_model.cmd_init(claimed)
+        else:
+            vendored_at_another_protocol(claimed)
+            vendoring_model.renew_layer(
+                claimed, harness_model.session_harness(), command=True
+            )
+
+    take_over()
+    assert started == [own]
+    take_over()
+    assert started == [own]
 
 
 @pytest.mark.parametrize("command", ["page claim", "server start", "server run"])

@@ -205,6 +205,69 @@ def test_codex_trace_keeps_subagent_activity_without_inventing_tool_calls():
     assert trace == activities
 
 
+def test_fork_replay_renders_the_conversation_and_matches_answers_to_labels():
+    from datetime import datetime
+    from itertools import pairwise
+
+    from leaf_dev import fork_eval
+
+    scenario = fork_eval.CASES["stale-passed-on"]
+    turns = fork_eval.substitute(
+        fork_eval.conversation(scenario), {"{page}": "/p", "{session}": "s"}
+    )
+    records = fork_eval.transcript(turns, "s", Path("/c"), datetime(2026, 11, 3))
+    # One response's text and tool call share a message; Leaf's line follows the
+    # prompt it was delivered with; each record chains to the one before.
+    shapes = [
+        (
+            r["type"],
+            r.get("message", {}).get("stop_reason"),
+            r.get("attachment", {}).get("hookEvent"),
+        )
+        for r in records
+    ]
+    assert shapes[:5] == [
+        ("user", None, None),
+        ("assistant", "tool_use", None),
+        ("user", None, None),
+        ("assistant", "tool_use", None),
+        ("assistant", "tool_use", None),
+    ]
+    assert records[3]["message"]["id"] == records[4]["message"]["id"]
+    assert ("attachment", None, "UserPromptSubmit") in shapes
+    assert all(r["parentUuid"] == p["uuid"] for p, r in pairwise(records))
+    assert "{page}" not in json.dumps(records)
+
+    labels = {
+        "expect": [{"kind": "stale", "words": ["2 of 5"], "edit": {"words": "2 of 5"}}],
+        "absent": [{"kind": "question", "words": ["search channel"]}],
+    }
+    stale = {
+        "kind": "stale",
+        "quote": "all 5 shards",
+        "edit": {"words": "2 of 5 shards"},
+    }
+    matched = fork_eval.match(
+        {
+            "asks": [
+                {
+                    "kind": "question",
+                    "quote": "Post it to the search channel?",
+                    "passage": "",
+                }
+            ],
+            "findings": [stale, stale, {"kind": "unshown", "quote": "I'll watch it"}],
+        },
+        labels,
+    )
+    assert list(matched["found"]) == [0]
+    assert [named["item"]["part"] for named in matched["named"]] == ["asks"]
+    assert [item.get("repeats_a_labelled_item") for item in matched["extra"]] == [
+        True,
+        None,
+    ]
+
+
 def test_catalog_builds_native_and_workflow_promptfoo_tests(tmp_path, monkeypatch):
     # Configuration shares the external login; no native provider is invoked.
     login = tmp_path / "login"

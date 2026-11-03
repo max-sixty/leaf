@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Rebuilding the search index</title>
+  </head>
+  <body>
+    <main class="layout-column">
+      <h1 id="rx-title">Rebuilding the search index</h1>
+      <p class="lede" id="rx-lede">
+        Staging serves the rebuilt index, search-v7; production is next.
+      </p>
+      <section id="rx-plan" class="layout-flow">
+        <h2>Plan</h2>
+        <ol id="rx-plan-list">
+          <li id="rx-plan-staging">Rebuild all five shards on staging and swap the alias.</li>
+          <li id="rx-plan-check">Compare p95 latency and result counts with the old index.</li>
+          <li id="rx-plan-prod">Rebuild production, one region at a time.</li>
+        </ol>
+      </section>
+      <section id="rx-fallback" class="layout-flow">
+        <h2>Fallback plan</h2>
+        <p id="rx-fallback-body">
+          If production error rates rise after the swap, point the alias back at the
+          old cluster, es-legacy, which stays up for two weeks for that purpose.
+        </p>
+      </section>
+    </main>
+  </body>
+</html>

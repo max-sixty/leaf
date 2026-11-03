@@ -63,7 +63,9 @@ Every outcome goes to the page's diagnostics
 request it resent (`request` in `hooks/claude-code.ts`, which says where a replay
 cuts the conversation: to `sent` while `running` lists a call, else to `row`), as
 the clerk's `turn_end_check` notes have it, which is what a later replay or audit
-scores.
+scores. `leaf-dev eval 'fork-reply*' --harness claude-code --base` scores a change
+to the prompt on a short constructed conversation for each of its decisions
+(`dev/leaf_dev/fork_eval.py`).
 """
 
 import json

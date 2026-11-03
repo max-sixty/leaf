@@ -157,6 +157,10 @@ anywhere else. The text adds about 1,000 to 11,000 input tokens per page. Claude
 Code's fork reuses the session's cached prefix only while its system prompt, tools
 and effort match the session's, which `$.model.fork` keeps by resending the main
 thread's own last request.
+
+`leaf-dev eval 'turn-end-check*' --harness claude-code --base` scores a change to
+what the fork is asked or how Leaf takes its answer, on a short constructed
+conversation for each decision the prompt asks about (`dev/leaf_dev/fork_eval.py`).
 """
 
 import json

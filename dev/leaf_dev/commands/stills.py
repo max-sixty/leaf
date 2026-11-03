@@ -17,7 +17,7 @@ held checkpoints capture a send before its POST completes; a still cannot hold o
 
 A state is one surface: a page, by the name `leaf-dev probe` also takes
 (`named_source`), and the input that brings a fresh tab there (`DRIVERS`, which
-`probe --do drive:NAME` also runs). Every example and fixture page has a state at
+`probe --do drive:NAME` also runs). Each page the corpus composes has a state at
 rest, named after its file (`corpus.sources`), and `STATES` lists the surfaces a user
 reaches by acting. Where a change touches a surface no state reaches, add one state
 for it, never one per size, scheme or pointer: `--viewport`, `--scheme` and `--touch`
@@ -2291,8 +2291,9 @@ class State:
     def window(
         self, viewport: tuple[int, int] | None, scheme: str, touch: bool | None
     ) -> tuple[tuple[int, int], str, bool]:
-        """The viewport, scheme and pointer to open this state's tab in: those given at
-        capture time (`tab_options`), else its own."""
+        """The viewport, scheme and pointer to open this state's tab in, as given at
+        capture time (`tab_options`), with the state's own viewport and pointer where
+        none was given."""
         return viewport or self.viewport, scheme, self.touch if touch is None else touch
 
 
@@ -2948,7 +2949,7 @@ STATES = (
     State("hub-workers", "command-hub", hub_workers),
     State("sort-pane", "rust-sort", pane_focused),
     State("sort-aim-cut", "rust-sort", aim_cut_by_pane),
-    # Every example and fixture page as it loads, named after its file.
+    # Each page the corpus composes, as it loads, named after its file.
     *(State(source.stem, source.stem, at_rest) for source in corpus_sources()),
 )
 

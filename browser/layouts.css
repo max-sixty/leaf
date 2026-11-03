@@ -607,6 +607,19 @@
     container-type: inline-size;
     --lf-track-parent-width: 100cqi;
   }
+  /* The aside stacks over the body, and the body is one stacking context, so a box
+   * the aside lays over the body, such as the contents map a margin track reveals
+   * (toc.css), covers everything the body paints, whatever its position or z-index.
+   * The map's own z-index ranks it only inside the track, whose sticky box is a
+   * stacking context; without these rules the body's positioned boxes, a table or a
+   * code block among them, come later in the tree and paint over the whole track. A
+   * flex item takes a z-index unpositioned. */
+  .layout-sidebar > aside {
+    z-index: 1;
+  }
+  .layout-sidebar > :not(header, footer, aside) {
+    isolation: isolate;
+  }
   @container not style(--aside: auto) {
     .layout-sidebar > :not(header, footer) {
       flex: 1000000 1 30rem;

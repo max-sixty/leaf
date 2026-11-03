@@ -9,7 +9,7 @@ from interact_support import append_carried_log_record
 from PIL import Image, ImageChops
 from playwright.sync_api import expect
 from render_cases_interaction import HOLD_MOTION, live_url
-from render_cases_layout import MARK, page_at_rest
+from render_cases_layout import MARK, page_at_rest, token_colour
 from render_cases_navigation import (
     COMMENTED_LIST_PAGE,
     DIFF_PAGE,
@@ -714,17 +714,6 @@ def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
     assert accessible_details(page, "#p2")[0].startswith("1 comment on ")
 
 
-# The accent the page's marks are drawn in, as the browser resolves it.
-ACCENT = """() => {
-  const probe = document.createElement("span");
-  probe.style.color = "var(--accent)";
-  document.head.append(probe);
-  const color = getComputedStyle(probe).color;
-  probe.remove();
-  return color;
-}"""
-
-
 def _ring_round(page, selector):
     """Whether the element `selector` names wears the proxy ring (`lf-proxied`), which
     it draws whole round itself in the accent, outside its edge at its gap
@@ -737,7 +726,7 @@ def _ring_round(page, selector):
         and mark["style"] == "solid"
         and not mark["brackets"]
         and mark["offset"] > 0
-        and mark["color"] == page.evaluate(ACCENT)
+        and mark["color"] == token_colour(page, "--accent")
     )
 
 

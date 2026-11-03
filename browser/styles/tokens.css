@@ -412,8 +412,8 @@
        such as the Alt aim, a comment's element, the thread the user is in or its row
        under the pointer in Threads. In the trace ink, the target of the margin entry
        in hand; at 1px in the contour ink, the target of an action.
-     - A drawing's part, a shape or a group of them: any of these whole, on the edge of
-       what it draws (surfaces.css).
+     - A drawing's part, a shape or a group of them: any of these whole, along the
+       contour of each shape it draws (surfaces.css).
      - A quiet ground (--focus-surface): a large composite holding focus, such as a
        thread, where a band would be a second box round the box.
 

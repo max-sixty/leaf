@@ -928,7 +928,9 @@ wa-copy-button.lf-icon-action {
    `.lf-diff-line-number`); the face adds no frame or ground of its own, the hand,
    and a + in the accent's tint standing before the number once the keys stand on
    it. Its seat shows the + for the line under the pointer too, and places it over
-   the gutter's width. */
+   the gutter's width. The + stands one band in from its line's edges, clear of the
+   band a mark on the line draws just inside them (base.css, "Where it stands"), so
+   the line's brackets show beside it. */
 .lf-gutter {
   border: 0;
   border-radius: 0;
@@ -938,9 +940,10 @@ wa-copy-button.lf-icon-action {
 .lf-gutter::before {
   content: "+";
   position: absolute;
-  inset-inline-start: 1px;
-  inset-block-start: 0;
-  width: calc(2ch - 2px);
+  inset-inline-start: var(--focus-ring-w);
+  inset-block: var(--focus-ring-w);
+  width: calc(2ch - 1px - var(--focus-ring-w));
+  line-height: calc(1lh - 2 * var(--focus-ring-w));
   border-radius: var(--r-s);
   background: var(--accent-tint);
   color: var(--accent);

@@ -871,6 +871,30 @@ MARK = """(box) => {
            bottom: r.bottom + grow},
   };
 }"""
+# A mark on a drawing's part, read off the shapes the part draws (surfaces.css, "A
+# drawing's part"): the part's own outline style, which the mark leaves at none, and
+# each shape's stroke as [colour, width], which the mark sets.
+DRAWN_MARK = """(part) => {
+  const shapes = "path, rect, circle, ellipse, line, polyline, polygon";
+  const drawn = part.matches(shapes) ? [part] : [...part.querySelectorAll(shapes)];
+  return {
+    outline: getComputedStyle(part).outlineStyle,
+    strokes: drawn.map((shape) => {
+      const s = getComputedStyle(shape);
+      return [s.stroke, parseFloat(s.strokeWidth)];
+    }),
+  };
+}"""
+
+
+def assert_drawn_in(part, ink, width):
+    """A drawing's part wears its mark along each shape it draws: every shape stroked
+    in `ink` at `width` CSS px, and no outline round the part."""
+    drawn = part.evaluate(DRAWN_MARK)
+    assert drawn["outline"] == "none" and drawn["strokes"], drawn
+    assert all(stroke == [ink, width] for stroke in drawn["strokes"]), (drawn, ink)
+
+
 # The item the draft stands on, which is not always the element wearing the outline: a
 # mark hangs on the boxes its element shows through, and a display: contents wrapper shows
 # through its slots. Reading the raw id said the promise was broken for every suggestion

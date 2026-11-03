@@ -10,7 +10,7 @@ from click.testing import CliRunner
 from interact_support import append_carried_log_record, declare_idle, record_claim
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE, PANEL_PAGE, live_url
-from render_cases_layout import MARK, token_colour
+from render_cases_layout import MARK, assert_drawn_in, token_colour
 from render_cases_navigation import go_to_address
 from render_cases_widgets import (
     GENERIC_VISUAL_LAYER,
@@ -1353,29 +1353,13 @@ def test_status_hover_trace_uses_a_registered_visual_surface(browser, serve):
     expect(status).to_have_attribute("tabindex", "-1")
     assert status.evaluate("node => node.tagName") == "SPAN"
     status.hover()
-    # The surface draws the trace, on the edge of what it draws, whole, in the trace's
-    # ink; the part it stands for, which holds a decoration too, draws none.
+    # The surface draws the trace along its own edge, whole, in the trace's ink; the
+    # part it stands for, which holds a decoration too, draws none.
     traced = re.compile(r"\blf-traced\b")
     surface = page.locator("#outer-surface")
     expect(surface).to_have_class(traced)
     expect(page.locator("#outer")).not_to_have_class(traced)
-    mark = surface.evaluate(MARK)
-    trace_ink = page.evaluate(
-        """() => {
-          const swatch = document.createElement('span');
-          swatch.style.color = 'var(--target-trace-ink)';
-          document.head.append(swatch);
-          const ink = getComputedStyle(swatch).color;
-          swatch.remove();
-          return ink;
-        }"""
-    )
-    assert mark and (mark["style"], mark["offset"], mark["brackets"]) == (
-        "solid",
-        0,
-        False,
-    ), mark
-    assert mark["color"] == trace_ink, (mark, trace_ink)
+    assert_drawn_in(surface, token_colour(page, "--target-trace-ink"), 2)
 
     page.mouse.move(0, 0)
     expect(page.locator(".lf-traced")).to_have_count(0)

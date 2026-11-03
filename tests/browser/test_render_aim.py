@@ -30,10 +30,13 @@ from render_cases_layout import (
     AIMED,
     CORNER_PAGE,
     DRAFT_MARK,
+    DRAWN_MARK,
     FOCUS_IN_PAGE,
     LEGEND_TRUE,
     MARK,
     PAGE_MARKUP,
+    assert_drawn_in,
+    token_colour,
 )
 from render_cases_navigation import source_revision
 from render_cases_widgets import (
@@ -2885,7 +2888,7 @@ def test_a_generic_package_gets_nested_hits_and_can_narrow_a_paint_surface(
 
     The inner part wins even though the containing part appears first. The outer part's
     explicit surface draws its aim, excluding its decorative line, while the inner part
-    draws its own round all the painted geometry it contains.
+    draws its own along every shape it contains, its diamond's sides included.
     """
     page = open_page(
         browser,
@@ -2900,14 +2903,21 @@ def test_a_generic_package_gets_nested_hits_and_can_narrow_a_paint_surface(
     page.keyboard.down("Alt")
     # The outer part's surface draws its aim, leaving out its decorative line.
     expect(page.locator(".lf-aimed")).to_have_id("outer-surface")
-    assert page.locator("#outer-surface").evaluate(MARK)["style"] == "solid"
+    accent = token_colour(page, "--accent")
+    assert_drawn_in(page.locator("#outer-surface"), accent, 2)
+    assert (
+        page.locator("#outer-decoration").evaluate(
+            "line => getComputedStyle(line).stroke"
+        )
+        != accent
+    )
     page.keyboard.up("Alt")
 
     page.locator("#inner path").hover()
     page.keyboard.down("Alt")
-    # The inner part, with no surface of its own, draws it round all it holds.
+    # The inner part, with no surface of its own, draws it along all it holds.
     expect(page.locator(".lf-aimed")).to_have_id("inner")
-    assert page.locator("#inner").evaluate(MARK)["style"] == "solid"
+    assert_drawn_in(page.locator("#inner"), accent, 2)
     page.keyboard.up("Alt")
 
 
@@ -2943,7 +2953,7 @@ def test_a_part_drawn_in_another_state_stands_on_its_visual_until_travel_reveals
     expect(page.locator("#visual")).not_to_have_attribute(
         "data-lf-mark", re.compile(".*")
     )
-    assert inner.evaluate(MARK)["style"] == "solid"
+    assert_drawn_in(inner, token_colour(page, "--mark-contour-ink"), 1.5)
 
 
 def test_a_prefixed_visual_part_is_marked_and_aimed_like_an_authored_one(
@@ -3109,39 +3119,39 @@ def test_a_shadow_visual_surface_is_clipped_by_its_host(browser, serve):
 
     surface.click(position={"x": 20, "y": 20})
     expect(surface).to_have_attribute("data-lf-mark", re.compile("."))
-    assert surface.evaluate(MARK)["style"] == "solid"
+    assert_drawn_in(surface, token_colour(page, "--mark-contour-ink"), 1.5)
     assert host.evaluate("host => getComputedStyle(host).overflowX") == "hidden"
     assert surface.bounding_box()["width"] > host.bounding_box()["width"] + 10
 
     page.keyboard.down("Alt")
     expect(page.locator(".lf-aimed")).to_have_id("wide-surface")
-    assert surface.evaluate(MARK)["style"] == "solid"
+    assert_drawn_in(surface, token_colour(page, "--mark-contour-ink"), 1.5)
     page.keyboard.up("Alt")
 
 
-def test_a_rounded_diagram_part_aim_has_room_to_cover_the_shape_edge(browser, serve):
-    """A part's aim stands outside the edge of what it draws.
-
-    SVG strokes straddle their geometry. An aim drawn on the node's exact bounds would
-    leave the outside half of the node's own border visible beside it on rounded ends
-    instead of under it.
-    """
+def test_a_rounded_diagram_part_aim_follows_its_rounded_edge(browser, serve):
+    """A diagram node's aim is drawn along the node's own edge, round its rounded ends,
+    as the stroke of the shape it draws, which takes the place of the node's border
+    while it shows: an outline round the node's box stood a square frame off its
+    rounded ends. The node's words keep their own paint."""
     rounded_page = PART_DIAGRAM_PAGE.replace(
         "S[Start request]", "S([Start request])", 1
     )
     page = open_page(browser, serve(rounded_page))
     rounded = page.locator('#flow g[data-id="S"]')
+    border = rounded.evaluate(DRAWN_MARK)["strokes"]
     rounded.hover()
     page.keyboard.down("Alt")
     aimed = page.locator(".lf-aimed")
     expect(aimed).to_have_count(1)
-    node = rounded.evaluate("node => node.getBoundingClientRect().toJSON()")
-    aim = aimed.evaluate(MARK)["ring"]
-    assert node["left"] - aim["left"] >= 1
-    assert node["top"] - aim["top"] >= 1
-    assert aim["right"] - node["right"] >= 1
-    assert aim["bottom"] - node["bottom"] >= 1
+    assert_drawn_in(aimed, token_colour(page, "--accent"), 2)
+    assert (
+        rounded.locator("text").first.evaluate("text => getComputedStyle(text).stroke")
+        == "none"
+    )
     page.keyboard.up("Alt")
+    expect(aimed).to_have_count(0)
+    assert rounded.evaluate(DRAWN_MARK)["strokes"] == border
 
 
 def test_a_declared_flowchart_node_keeps_its_comment_across_renderings(browser, serve):

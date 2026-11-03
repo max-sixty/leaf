@@ -376,21 +376,43 @@ a[data-lf-external]::after,
     -9999px -9999px
   );
 }
-/* A drawing's part, a shape or a group of them, takes the mark whole on the edge of
-   what it draws, since its box is its shapes' own: no brackets, veil or gap. A
-   drawing's own stroke rule outranks every rule here, so the mark is the part's
-   outline, which no drawing sets. A comment's mark there takes the quieter contour
-   ink. */
-:where(svg *):where(
+/* A drawing's part, a shape or a group of them, takes the mark whole along the
+   contour of each shape it draws, as that shape's stroke, so a diamond's mark follows
+   its sides: no outline, brackets, veil or gap. The stroke is important, as the
+   outline is, so a drawing's own stroke rules leave the mark standing while it shows;
+   its words keep their own. A comment's mark there takes the quieter contour ink. */
+:where(svg *:not(foreignObject *)):where(
   .lf-aimed,
   .lf-traced,
   .lf-proxied,
   [data-lf-mark],
   .lf-projected-location
 ) {
-  outline-offset: 0 !important;
+  --lf-shape-ink: var(--lf-band-ink, var(--accent));
+  --lf-shape-w: var(--lf-band-w, var(--focus-ring-w));
+  outline-style: none !important;
   clip-path: none;
   box-shadow: none;
+}
+:where(svg *:not(foreignObject *)):where(
+    .lf-aimed,
+    .lf-traced,
+    .lf-proxied,
+    [data-lf-mark],
+    .lf-projected-location
+  ):where(path, rect, circle, ellipse, line, polyline, polygon),
+:where(svg *:not(foreignObject *)):where(
+    .lf-aimed,
+    .lf-traced,
+    .lf-proxied,
+    [data-lf-mark],
+    .lf-projected-location
+  )
+  :where(path, rect, circle, ellipse, line, polyline, polygon) {
+  stroke: var(--lf-shape-ink) !important;
+  stroke-width: var(--lf-shape-w) !important;
+  stroke-dasharray: none !important;
+  vector-effect: non-scaling-stroke !important;
 }
 :where(svg [data-lf-mark]:not([data-lf-mark~="focus"])) {
   --lf-band-ink: var(--mark-contour-ink);

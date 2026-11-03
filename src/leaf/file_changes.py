@@ -345,11 +345,13 @@ class _Native:
 def _native_observer() -> "BaseObserver":
     """The platform's observer.
 
-    watchdog 7.0's FSEvents emitter drops a non-recursive watch's events for a
-    directory created, removed or renamed in it, since it compares a directory
-    event's own path with the watched directory rather than the path's parent. The
-    macOS observer here keeps an event whose path, or whose path's parent, is the
-    watched directory, as inotify reports it."""
+    On macOS watchdog 7.0 reports a directory made in a non-recursive watch's
+    directory, removed from it or moved across it only as that directory being
+    modified, which a subscription ignores, since its FSEvents emitter compares a
+    directory event's own path with the watched directory rather than the path's
+    parent. Its tests assert that. The macOS observer here keeps an event whose
+    path, or whose path's parent, is the watched directory, as inotify reports
+    it."""
     if sys.platform != "darwin":
         from watchdog.observers.inotify import InotifyObserver
 

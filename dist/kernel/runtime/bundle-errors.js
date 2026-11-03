@@ -669,9 +669,11 @@ function foldThreads(threads, gestures) {
 	const withdrawn = new Set(gestures.flatMap((gesture) => gesture.kind === "undo" ? [gesture.undoes] : []));
 	const gone = (message) => withdrawn.has(message.id) || Boolean(message.withdrawn);
 	const copies = threads.flatMap((thread) => {
+		const explained = standingIn(thread, (message) => Boolean(message.withdrawn));
 		const standing = standingIn(thread, gone);
-		if (gone(thread.root) && !standing.has(thread.root.id)) return [];
-		const msgs = thread.msgs.flatMap((message) => !gone(message) ? [unedited(thread, message, withdrawn)] : !standing.has(message.id) ? [] : message.withdrawn ? [message] : [takenBack(message)]);
+		const kept = (message) => standing.has(message.id) || Boolean(message.withdrawn) && !explained.has(message.id);
+		if (gone(thread.root) && !kept(thread.root)) return [];
+		const msgs = thread.msgs.flatMap((message) => !gone(message) ? [unedited(thread, message, withdrawn)] : !kept(message) ? [] : message.withdrawn ? [message] : [takenBack(message)]);
 		return [{
 			...thread,
 			root: msgs.find(({ id }) => id === thread.root.id) ?? thread.root,

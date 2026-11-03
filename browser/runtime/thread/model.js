@@ -253,12 +253,19 @@ export function foldThreads(threads, gestures) {
   const gone = (message) => withdrawn.has(message.id) || Boolean(message.withdrawn);
   /** @type {Thread[]} */
   const copies = threads.flatMap((thread) => {
+    // A place the log kept that no message here explains is held by what the browser
+    // doesn't fold, a to-do attached to the thread, so it stays.
+    const explained = standingIn(thread, (message) => Boolean(message.withdrawn));
     const standing = standingIn(thread, gone);
-    if (gone(thread.root) && !standing.has(thread.root.id)) return [];
+    /** @param {Thread["msgs"][number]} message */
+    const kept = (message) =>
+      standing.has(message.id) ||
+      (Boolean(message.withdrawn) && !explained.has(message.id));
+    if (gone(thread.root) && !kept(thread.root)) return [];
     const msgs = thread.msgs.flatMap((message) =>
       !gone(message)
         ? [unedited(thread, message, withdrawn)]
-        : !standing.has(message.id)
+        : !kept(message)
           ? []
           : message.withdrawn
             ? [message]

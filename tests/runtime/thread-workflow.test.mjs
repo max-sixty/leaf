@@ -309,6 +309,14 @@ test("taking back an answered reaction keeps its place as the log's answer will"
   assert.equal(folded.bare_reaction, taken.bare_reaction);
 });
 
+test("a place the log keeps for a to-do stays through the next gesture", () => {
+  const [held] = servedReading("a reaction holding a to-do taken back").threads;
+  assert.equal(held.root.withdrawn?.was, "change");
+  assert.deepEqual(foldThreads([held], [{ kind: "undo", undoes: "elsewhere" }]), [
+    held,
+  ]);
+});
+
 test("taking back the mark that kept a taken-back reaction's place takes the thread", () => {
   const [kept] = servedReading("a reaction on a reaction taken back").threads;
   assert.equal(kept.root.withdrawn?.was, "change");

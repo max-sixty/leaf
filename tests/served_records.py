@@ -231,6 +231,22 @@ def build() -> dict:
                     ),
                 )
             },
+            # A reaction the agent attached a to-do to, taken back.
+            "a reaction holding a to-do taken back": _served(
+                (
+                    {"kind": "comment", "token": "change"},
+                    {
+                        "kind": "todo",
+                        "author": "agent",
+                        "agent": "Agent",
+                        "session": "served-records",
+                        "owner": "agent",
+                        "subject": {"kind": "thread", "id": "e1"},
+                        "title": "Rework the passage",
+                    },
+                    {"kind": "undo", "undoes": "e1"},
+                )
+            ),
             # A reaction the user marked with another, the first taken back, then both.
             **{
                 name: _served(

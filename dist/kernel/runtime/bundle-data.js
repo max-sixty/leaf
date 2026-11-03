@@ -4591,6 +4591,7 @@ function withheld(was, now) {
 	const msgs = was.msgs.flatMap((prior) => {
 		const message = current.get(messageKey(prior));
 		if (!message) return isReaction(prior) || prior.provisional ? [prior] : [];
+		if (isReaction(prior) && !isReaction(message)) return [prior];
 		const { text, body, edited, content_version, provisional, reactions } = prior;
 		return [Object.freeze({
 			...message,

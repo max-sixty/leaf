@@ -2238,7 +2238,8 @@ def test_explicit_message_obligations_need_no_markup(page_dir, route):
 
 @pytest.mark.parametrize("attach_first", [True, False])
 def test_thread_task_preserves_its_reaction_root(page_dir, attach_first):
-    """A task cannot lose its thread to Undo or attach after Undo removed it."""
+    """A task keeps the thread a reaction opened when the user takes the reaction
+    back, its place reading Deleted, and cannot attach after Undo removed it."""
     publish(page_dir)
     root = append_carried_log_record(
         page_dir,
@@ -2260,14 +2261,17 @@ def test_thread_task_preserves_its_reaction_root(page_dir, attach_first):
     undo = {"kind": "undo", "author": "user", "undoes": root["id"]}
     if attach_first:
         opened = append_command(page_dir, task)
-        with pytest.raises(events_model.EventRefused, match="reply or task attached"):
-            append_command(page_dir, undo)
-        assert root["id"] in {
-            thread["id"]
+        append_command(page_dir, undo)
+        [kept] = [
+            thread
             for thread in served_thread(
                 full_state(page_dir, events_model.read_events(page_dir))["browser"]
             )["threads"]
-        }
+            if thread["id"] == root["id"]
+        ]
+        assert kept["root"]["withdrawn"]["was"] == "keep"
+        # The thread stays a thread, so the agent may attach more work to it.
+        append_command(page_dir, {**task, "title": "Check on a tablet"})
         assert opened["id"] in {
             item["id"] for item in state_json(page_dir)["queues"]["on_user"]
         }

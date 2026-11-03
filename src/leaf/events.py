@@ -193,6 +193,13 @@ def standing_withdrawn(events: list, withdrawn: set) -> set:
     return standing & withdrawn
 
 
+def unshown(events: list, withdrawn: set) -> set:
+    """The gestures taken back that no reading shows: every withdrawn id but the
+    messages something still stands on (`standing_withdrawn`). A message or thread
+    named by one of these is gone, and nothing new may name it."""
+    return withdrawn - standing_withdrawn(events, withdrawn)
+
+
 def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -> dict:
     """Fold threads using the admitted answer coordinate.
 
@@ -409,11 +416,15 @@ def _thread_summaries(
             summary for summary in active if covered.isdisjoint(summary["covers"])
         ]
         # A reaction taken back leaves the thread unless something stands on it, so
-        # one the summary saw is found by the message it was on.
+        # one the summary may report is found by the message it was on, or by where
+        # it was made: on a covered message, or within the range, before the summary.
+        low, high = thread["msgs"][start]["seq"], thread["msgs"][end]["seq"]
         marks = [
             mark["id"]
             for mark in taken
-            if mark.get("parent") in covered and mark["seq"] < event["seq"]
+            if mark.get("parent") in positions
+            and mark["seq"] < event["seq"]
+            and (mark["parent"] in covered or low <= mark["seq"] <= high)
         ]
         if event["text"] and any(
             edits.get(identity, 0) > event["seq"] for identity in [*covers, *marks]

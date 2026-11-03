@@ -16,9 +16,9 @@ from leaf.events import (
     build_threads,
     note_settlements,
     spoken_turns,
-    standing_withdrawn,
     taken_back,
     undo_error,
+    unshown,
 )
 from leaf.findings import Finding
 from leaf.harness import message_identity
@@ -588,8 +588,8 @@ def _anchored_comment_error(view, event: dict, registry: dict):
 def _parent_error(event: dict, events: list) -> Finding | None:
     """A parent is a message some reading shows: one the log holds that no undo took
     back, or one taken back that something still stands on, which keeps its place in
-    its thread (`events.standing_withdrawn`). An event naming any other would stand on
-    a message no reading shows."""
+    its thread (`events.unshown`). An event naming any other would stand on a message
+    no reading shows."""
     if "parent" not in event:
         return None
     parent = event["parent"]
@@ -598,8 +598,7 @@ def _parent_error(event: dict, events: list) -> Finding | None:
         for logged in events
     ):
         return Finding("unknown-parent", values={"parent": parent})
-    withdrawn = taken_back(events)
-    if parent in withdrawn and parent not in standing_withdrawn(events, withdrawn):
+    if parent in unshown(events, taken_back(events)):
         return Finding("withdrawn-parent", values={"parent": parent})
     return None
 

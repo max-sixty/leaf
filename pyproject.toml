@@ -31,8 +31,9 @@
 # regress is an ECMAScript regular-expression engine; schema `pattern`s are read
 # with it (`registry/schema.py`) so they mean what they mean to the browser rather
 # than Python's `re`, whose `$` also matches before a final newline.
-# watchfiles supplies the native subscriptions shared by page maintenance,
-# delivery waits and developer previews, avoiding repeated idle filesystem scans.
+# watchdog supplies the native subscriptions shared by page maintenance, delivery
+# waits and developer previews, avoiding repeated idle filesystem scans. 7.0 shares
+# one inotify instance across a process (`file_changes`).
 #
 # Playwright is a runtime dependency because the skill's own flow runs the
 # browser: `page check --render` gates every finished page and `version
@@ -64,7 +65,7 @@ dependencies = [
   "tree-sitter-javascript>=0.25.0",
   "turbohtml>=1.7",
   "uvicorn>=0.31.1",
-  "watchfiles>=1.1.0",
+  "watchdog>=7.0.0",
   "websockets>=15",
 ]
 

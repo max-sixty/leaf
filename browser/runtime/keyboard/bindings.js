@@ -191,7 +191,7 @@ import { runtime } from "../context.js";
 
 // Which platform's spelling, and which modifier is the sequence's. Up here rather than beside
 // the text inputs because the spelling table below is the first thing that needs it.
-const MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+export const MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 
 // How a key is spelled, in one column. The line said "esc" where the overlay said "Esc"
 // for the same binding, and lf-options declared one pair of arrows twice, as "↑ / ↓" and

@@ -1,23 +1,31 @@
-"""Screenshot a fixed catalogue of UI states on BASE_REF's runtime and HEAD's, and
-show which ones changed.
+"""Screenshot a fixed catalogue of UI states on a base's runtime and this working
+tree's, and show which ones changed.
 
-    uv run leaf-dev stills [BASE_REF] [--state NAME]... [--authored]
+    uv run leaf-dev stills [--base REF] [--state NAME]... [--authored]
+        [--viewport WIDTHxHEIGHT] [--scheme dark] [--touch]
 
-BASE_REF defaults to the merge base of HEAD and `main`; each arm is the payload at its
-commit (`leaf_dev.arms.build_pair`), so commit what you want compared. Each page is
-built from this checkout's example source and served by the arm's own launcher, so
-only the runtime, theme and server differ between the two stills of a state. With
-`--authored`, each arm instead reads its own committed example and companions, so
-changes to page markup are visible as well. Each
+The base is the merge base with `main` unless `--base` names another commit, and the
+head is this working tree, uncommitted edits included (`leaf_dev.arms.choose_arms`).
+Each page is built from this working tree's example source and served by the arm's
+own launcher, so only the runtime, theme and server differ between the two stills of
+a state. With `--authored`, the base instead reads its own example and companions
+(`leaf_dev.arms.own_source`), so changes to page markup are visible as well. Each
 capture starts with a fresh authored fixture and event log, so a prior gesture cannot
 change another state's initial condition.
 Message delivery belongs to thread_journey and test_render_thread_snapshots, whose
 held checkpoints capture a send before its POST completes; a still cannot hold one.
 
-A state is an example, a viewport, a color scheme and a pointer, and the input that
-brings a fresh tab there (`DRIVERS`, which `leaf-dev probe --do drive:NAME` also runs).
-The catalogue (`STATES`) covers states a user reaches by acting, not only pages at rest;
-add one where a change touches a surface it does not reach. A state may name a
+A state is one surface: a page, by the name `leaf-dev probe` also takes
+(`named_source`), and the input that brings a fresh tab there (`DRIVERS`, which
+`probe --do drive:NAME` also runs). `STATES` holds a state at rest for each page the
+corpus composes, named after its file (`corpus.sources`), and the surfaces a user
+reaches by acting. Where a change touches a surface no state reaches, add one state
+for it, never one per size, scheme or pointer: `--viewport`, `--scheme` and `--touch`
+choose those for every state a run captures, as they do for `probe`, and a surface
+laid out differently on a phone is still one state. A state names its own viewport
+or pointer only where its surface appears at no other, such as a card in a short
+window or the floating panel's view of a thread on a phone; `--viewport` and
+`--touch` override it. A state may name a
 region whose before/after bounds frame the comparison, retaining related controls
 without shrinking their details behind unrelated viewport changes. Raw screenshots
 always preserve the full viewport and its geometry.
@@ -47,14 +55,6 @@ lists the declarations Chromium's inspector reads as matching it in only one arm
 in another order, each with its sheet, layers, scope and selector
 (`declaration_changes`): the rule a change added, removed, edited or moved. Where none
 differ, the element inherits the difference or reads it from a custom property.
-
-Across the run, the command also collects each arm's faces: the family, size, weight,
-style, tracking and case of every shown element that holds words of its own, in the
-states both arms completed. The run's `faces.txt` lists each face only one arm draws,
-with the elements that wear it and the other arm's nearest face (`face_changes`). A
-change that reuses Leaf's faces adds none, so a new face half a pixel or a hundred of
-weight from its nearest is usually a drift to fold into that face. A consolidation
-lists the faces it retired.
 
 The command reads, too, where words stand on their lines. Words of two faces centred
 in boxes of their own stand on different baselines, the larger lower, and a reader
@@ -94,22 +94,27 @@ from leaf.runtime_selection import read_runtime
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     PageClient,
-    build_pair,
-    copy_committed,
+    base_option,
+    choose_arms,
+    describe,
+    own_source,
     run_directory,
     served_page,
     serving_source,
 )
 from leaf_dev.browser import (
-    BESIDE,
     DESKTOP,
+    PHONE,
     go_to_threads,
     headless_shell,
     load,
     scroll_settled,
     settle,
     tab,
+    tab_options,
 )
+from leaf_dev.commands.corpus import sources as corpus_sources
+from leaf_dev.example_data import named_source
 
 OUT = ROOT / ".tmp" / "stills"
 CROP_MARGIN = 32
@@ -188,14 +193,12 @@ STYLED = [
     "box-sizing",
     "z-index",
 ]
-# Every element's `STYLED` values by its path, sharing each distinct set of values, the
-# paths of the shown elements with words of their own, and the elements themselves by
-# path on `window.stillsRead`, for `declarations`.
+# Every element's `STYLED` values by its path, sharing each distinct set of values, and
+# the elements themselves by path on `window.stillsRead`, for `declarations`.
 STYLES = """(properties) => {
   const skip = new Set(["head", "script", "style", "template", "link", "meta"]);
   const faces = new Map();
   const elements = {};
-  const texts = [];
   const read = (window.stillsRead = new Map());
   const walk = (parent, prefix) => {
     const seen = {};
@@ -211,17 +214,12 @@ STYLES = """(properties) => {
       if (!faces.has(face)) faces.set(face, faces.size);
       elements[key] = faces.get(face);
       read.set(key, element);
-      const words = [...element.childNodes].some(
-        (node) => node.nodeType === Node.TEXT_NODE && node.data.trim(),
-      );
-      if (words && element.checkVisibility({ visibilityProperty: true, opacityProperty: true }))
-        texts.push(key);
       walk(element, `${key} > `);
       if (element.shadowRoot) walk(element.shadowRoot, `${key} >> `);
     }
   };
   walk(document, "");
-  return { faces: [...faces.keys()].map((face) => JSON.parse(face)), elements, texts };
+  return { faces: [...faces.keys()].map((face) => JSON.parse(face)), elements };
 }"""
 # Where the words beside each other on a line stand their baselines
 # (`baseline_changes`), and the gap between two of them that the report names: half a
@@ -229,16 +227,6 @@ STYLES = """(properties) => {
 # stand half a CSS pixel below its time.
 BASELINES = Path(__file__).with_name("stills_baselines.js").read_text()
 SPLIT = 0.25
-# The computed properties that make a face, the font a run of words is set in, which
-# `face_changes` compares across a run.
-FACE = [
-    "font-family",
-    "font-size",
-    "font-weight",
-    "font-style",
-    "letter-spacing",
-    "text-transform",
-]
 
 
 def at_rest(page: Page) -> None:
@@ -2274,10 +2262,17 @@ class State:
     source: str
     drive: Callable[[Page], None]
     viewport: tuple[int, int] = DESKTOP
-    scheme: str = "light"
     touch: bool = False
     region: str | None = None
     activated: bool = True
+
+    def window(
+        self, viewport: tuple[int, int] | None, scheme: str, touch: bool | None
+    ) -> tuple[tuple[int, int], str, bool]:
+        """The viewport, scheme and pointer to open this state's tab in, as given at
+        capture time (`tab_options`), with the state's own viewport and pointer where
+        none was given."""
+        return viewport or self.viewport, scheme, self.touch if touch is None else touch
 
 
 STATES = (
@@ -2287,40 +2282,9 @@ STATES = (
         dynamic_request_preview,
         region="#leaf-request-document",
     ),
-    State(
-        "dynamic-request-preview-dark",
-        "dynamic-widgets",
-        dynamic_request_preview,
-        scheme="dark",
-        region="#leaf-request-document",
-    ),
     State("printed-exhibit", "lost-update", printed_exhibit, region="main"),
-    State("screen-exhibit", "lost-update", at_rest, region="main"),
     State("failed-widget", "review-a-plan", failed_widget, viewport=(1600, 900)),
-    State(
-        "failed-widget-dark",
-        "review-a-plan",
-        failed_widget,
-        viewport=(1600, 900),
-        scheme="dark",
-    ),
     State("page-about", "review-a-plan", page_about, region=".lf-inspection-dialog"),
-    State(
-        "page-about-dark",
-        "review-a-plan",
-        page_about,
-        scheme="dark",
-        region=".lf-inspection-dialog",
-    ),
-    State(
-        "page-about-phone",
-        "review-a-plan",
-        page_about,
-        viewport=(390, 844),
-        touch=True,
-        region=".lf-inspection-dialog",
-    ),
-    State("authored-timeline", "lost-update", at_rest, region="#race"),
     State(
         "authored-timeline-keyboard",
         "lost-update",
@@ -2328,103 +2292,51 @@ STATES = (
         region="#race",
     ),
     State(
-        "authored-timeline-dark",
-        "lost-update",
-        authored_timeline_step,
-        scheme="dark",
-        region="#race",
-    ),
-    State(
-        "authored-timeline-phone",
-        "lost-update",
-        at_rest,
-        viewport=(390, 900),
-        touch=True,
-        region="#race",
-    ),
-    State(
         "native-code",
-        "developer/feature-gallery",
+        "feature-gallery",
         native_code,
         region="#bg-javascript-code",
     ),
     State(
         "annotated-code",
-        "developer/feature-gallery",
+        "feature-gallery",
         annotated_code,
-        region="#bg-annotated-code",
-    ),
-    State(
-        "annotated-code-dark",
-        "developer/feature-gallery",
-        annotated_code,
-        scheme="dark",
         region="#bg-annotated-code",
     ),
     State(
         "native-code-copy-hover",
-        "developer/feature-gallery",
+        "feature-gallery",
         native_code_copy_hover,
         region="#bg-javascript-code",
     ),
     State(
-        "native-code-dark",
-        "developer/feature-gallery",
-        native_code,
-        scheme="dark",
-        region="#bg-javascript-code",
-    ),
-    State(
         "markdown-preview-scrolled",
-        "developer/feature-gallery",
+        "feature-gallery",
         markdown_preview_scrolled,
-        region="#bg-markdown-preview",
-    ),
-    State(
-        "markdown-preview-scrolled-dark",
-        "developer/feature-gallery",
-        markdown_preview_scrolled,
-        scheme="dark",
         region="#bg-markdown-preview",
     ),
     State(
         "captured-source",
-        "developer/feature-gallery",
+        "feature-gallery",
         captured_source,
         region="#bg-source-captures",
     ),
     State(
         "recorded-video",
-        "developer/feature-gallery",
+        "feature-gallery",
         recorded_video,
-        region="#bg-recorded-media",
-    ),
-    State(
-        "recorded-video-dark",
-        "developer/feature-gallery",
-        recorded_video,
-        scheme="dark",
         region="#bg-recorded-media",
     ),
     State(
         "recorded-video-keyboard",
-        "developer/feature-gallery",
+        "feature-gallery",
         recorded_video_by_keyboard,
         region="#bg-recorded-media",
     ),
     State(
         "panel-leaf",
-        "developer/feature-gallery",
+        "feature-gallery",
         panel_leaf,
-        region=".lf-fp-leaf",
-    ),
-    State(
-        "panel-leaf-phone-dark",
-        "developer/feature-gallery",
-        panel_leaf,
-        viewport=(390, 844),
-        scheme="dark",
-        touch=True,
         region=".lf-fp-leaf",
     ),
     State("panel-status-hover", "review-a-plan", panel_status_hover),
@@ -2434,13 +2346,6 @@ STATES = (
         "floating-thread-unread",
         "ship-review",
         floating_thread_unread,
-        region=".lf-fp-opened",
-    ),
-    State(
-        "floating-thread-unread-dark",
-        "ship-review",
-        floating_thread_unread,
-        scheme="dark",
         region=".lf-fp-opened",
     ),
     State("ship-threads", "ship-review", go_to_threads, region=".lf-fp-opened"),
@@ -2458,22 +2363,7 @@ STATES = (
         region="#off-workaround-decision",
     ),
     State(
-        "ship-option-references-phone",
-        "ship-review",
-        option_references,
-        viewport=(390, 844),
-        region="#off-workaround-decision",
-    ),
-    State(
         "threads-returning", "ship-review", threads_returning, region=".lf-fp-opened"
-    ),
-    State(
-        "threads-returning-phone",
-        "ship-review",
-        threads_returning,
-        viewport=(390, 844),
-        touch=True,
-        region=".lf-fp-opened",
     ),
     State(
         "floating-thread-retitled",
@@ -2482,49 +2372,12 @@ STATES = (
         region=".lf-fp-opened",
     ),
     State("panel-new-reply", "ship-review", panel_new_reply, region=".lf-fp-opened"),
-    State(
-        "panel-new-reply-phone",
-        "ship-review",
-        panel_new_reply,
-        viewport=(390, 844),
-        touch=True,
-    ),
     State("plan-head", "ship-review", plan_head, region=".lf-floating-panel"),
-    State(
-        "plan-head-phone",
-        "ship-review",
-        plan_head,
-        viewport=(390, 844),
-        touch=True,
-    ),
-    State(
-        "on-me-choice-phone",
-        "command-hub",
-        on_me_choice,
-        viewport=(390, 844),
-        touch=True,
-    ),
     State(
         "playground-choice",
         "notification-playground",
         playground_choice,
         region="lf-playground label:has(> input:focus)",
-    ),
-    State(
-        "playground-choice-phone-dark",
-        "notification-playground",
-        playground_choice,
-        viewport=(390, 844),
-        scheme="dark",
-        touch=True,
-        region="lf-playground label:has(> input:focus)",
-    ),
-    State(
-        "trace-transport-icons",
-        "developer/playwright-trace-gallery",
-        trace_controls,
-        viewport=(540, 720),
-        region=".lf-trace-toolbar",
     ),
     State(
         "film-inspector",
@@ -2534,36 +2387,20 @@ STATES = (
         region="#merge-film .film-stage",
     ),
     State(
-        "film-inspector-phone",
-        "wt-merge",
-        film_inspector,
-        viewport=(390, 844),
-        touch=True,
-        region="#merge-film .film-stage",
-    ),
-    State(
         "live-sample-embedded",
-        "developer/feature-gallery",
+        "feature-gallery",
         live_sample_embedded,
-        region="#bg-live-sample",
-    ),
-    State(
-        "live-sample-embedded-phone",
-        "developer/feature-gallery",
-        live_sample_embedded,
-        viewport=(390, 844),
-        touch=True,
         region="#bg-live-sample",
     ),
     State(
         "live-sample-full-view",
-        "developer/feature-gallery",
+        "feature-gallery",
         live_sample_full_view,
         region="#bg-live-sample .lf-sample-view",
     ),
     State(
         "interactive-sample",
-        "developer/feature-gallery",
+        "feature-gallery",
         interactive_sample,
         region="#bg-inline-sample",
     ),
@@ -2574,35 +2411,20 @@ STATES = (
         viewport=(900, 900),
         region="#fix-before",
     ),
-    State(
-        "trace-comparison-header-phone",
-        "review-a-fix",
-        trace_comparison,
-        viewport=(390, 844),
-        touch=True,
-        region="#fix-before",
-    ),
-    State("drawing-photo-comment", "developer/feature-gallery", drawing_photo_comment),
-    State("page-comment-photo", "developer/feature-gallery", page_comment_photo),
+    State("drawing-photo-comment", "feature-gallery", drawing_photo_comment),
+    State("page-comment-photo", "feature-gallery", page_comment_photo),
     State(
         "page-comment-photo-hover",
-        "developer/feature-gallery",
+        "feature-gallery",
         page_comment_photo_hover,
-    ),
-    State(
-        "page-comment-photo-hover-dark",
-        "developer/feature-gallery",
-        page_comment_photo_hover,
-        scheme="dark",
     ),
     State("panel-corner-hover", "review-a-plan", panel_corner_hover),
     State(
         "share-link",
-        "developer/feature-gallery",
+        "feature-gallery",
         share_link,
         region='.lf-inspection-dialog [aria-label="Page details"]',
     ),
-    State("share-link-dark", "developer/feature-gallery", share_link, scheme="dark"),
     State(
         "diff-filter",
         "pr-walkthrough",
@@ -2616,247 +2438,125 @@ STATES = (
         region="#pr-key-hunk .lf-diff-rows",
     ),
     State(
-        "diff-filter-phone-dark",
-        "pr-walkthrough",
-        diff_filter,
-        viewport=(390, 844),
-        scheme="dark",
-        touch=True,
-        region="#pr-exact-patch .lf-diff-tools",
-    ),
-    State(
         "playground-text",
         "notification-playground",
         playground_text,
         region='lf-playground-control:has(> input[type="text"])',
     ),
-    State(
-        "playground-text-dark",
-        "notification-playground",
-        playground_text,
-        scheme="dark",
-    ),
-    State("drawing-comment", "developer/feature-gallery", drawing_comment),
-    State(
-        "drawing-comment-dark",
-        "developer/feature-gallery",
-        drawing_comment,
-        scheme="dark",
-    ),
-    State("drawing-comment-hover", "developer/feature-gallery", drawing_comment_hover),
-    State(
-        "drawing-comment-hover-dark",
-        "developer/feature-gallery",
-        drawing_comment_hover,
-        scheme="dark",
-    ),
+    State("drawing-comment", "feature-gallery", drawing_comment),
+    State("drawing-comment-hover", "feature-gallery", drawing_comment_hover),
     State(
         "drawing-comment-keyboard",
-        "developer/feature-gallery",
+        "feature-gallery",
         drawing_comment_keyboard,
     ),
-    State(
-        "drawing-comment-touch",
-        "developer/feature-gallery",
-        drawing_comment,
-        viewport=(390, 844),
-        touch=True,
-    ),
-    State("progress-messages", "developer/feature-gallery", progress_messages),
-    State(
-        "progress-messages-touch",
-        "developer/feature-gallery",
-        progress_messages,
-        viewport=(390, 844),
-        touch=True,
-    ),
+    State("progress-messages", "feature-gallery", progress_messages),
     State(
         "screenshot-comparison",
-        "developer/feature-gallery",
+        "feature-gallery",
         screenshot_comparison,
         region="#bg-shot",
     ),
     State(
         "screenshot-pair",
-        "developer/feature-gallery",
+        "feature-gallery",
         screenshot_pair,
         region="#bg-shot",
     ),
     State(
         "screenshot-slider-before",
-        "developer/feature-gallery",
+        "feature-gallery",
         screenshot_slider_before,
         region="#bg-shot",
     ),
     State(
         "screenshot-pixels",
-        "developer/feature-gallery",
+        "feature-gallery",
         screenshot_pixels,
         region="#bg-shot",
     ),
     State(
         "screenshot-options",
-        "developer/feature-gallery",
+        "feature-gallery",
         screenshot_options,
         region="#bg-shot",
     ),
     State(
-        "screenshot-comparison-compact",
-        "developer/feature-gallery",
-        screenshot_comparison,
-        viewport=(544, 844),
-        region="#bg-shot",
-    ),
-    State(
-        "screenshot-comparison-phone",
-        "developer/feature-gallery",
-        screenshot_comparison,
-        viewport=(390, 844),
-        touch=True,
-    ),
-    State(
         "image-in-page",
-        "developer/feature-gallery",
+        "feature-gallery",
         image_in_page,
         region="#bg-image-preview",
     ),
     State(
         "thread-picture",
-        "developer/feature-gallery",
+        "feature-gallery",
         thread_picture,
         region=".lf-fp-opened",
     ),
-    State("image-preview", "developer/feature-gallery", image_preview),
-    State(
-        "image-preview-dark", "developer/feature-gallery", image_preview, scheme="dark"
-    ),
-    State(
-        "image-preview-phone",
-        "developer/feature-gallery",
-        image_preview,
-        viewport=(390, 844),
-        touch=True,
-    ),
+    State("image-preview", "feature-gallery", image_preview),
     State(
         "visual-review-inspection",
-        "developer/visual-review-gallery",
+        "visual-review-gallery",
         visual_review_inspection,
     ),
-    State("visual-review", "developer/visual-review-gallery", at_rest),
-    State("diff-file-threads", "developer/diff-thread-gallery", at_rest),
-    State("diff-long-lines", "developer/diff-thread-gallery", diff_long_lines),
+    State("diff-long-lines", "diff-thread-gallery", diff_long_lines),
     State(
         "diff-author-notes",
-        "developer/diff-thread-gallery",
+        "diff-thread-gallery",
         diff_author_notes,
         region="#dfg-scroll",
     ),
-    State(
-        "diff-author-notes-dark",
-        "developer/diff-thread-gallery",
-        diff_author_notes,
-        scheme="dark",
-        region="#dfg-scroll",
-    ),
-    State(
-        "diff-author-notes-touch",
-        "developer/diff-thread-gallery",
-        diff_author_notes,
-        viewport=(390, 844),
-        touch=True,
-        region="#dfg-scroll",
-    ),
-    State("worktree-diffs", "developer/worktree-diffs", at_rest),
     State(
         "worktree-startup",
-        "developer/worktree-diffs",
+        "worktree-diffs",
         at_rest,
         activated=False,
         region="#worktree-example-workbench",
     ),
     State(
         "worktree-summaries",
-        "developer/worktree-diffs",
+        "worktree-diffs",
         worktree_summaries,
         region="#worktree-example-workbench",
     ),
-    State(
-        "worktree-summaries-dark",
-        "developer/worktree-diffs",
-        worktree_summaries,
-        scheme="dark",
-        region="#worktree-example-workbench",
-    ),
-    State(
-        "worktree-summaries-phone",
-        "developer/worktree-diffs",
-        worktree_summaries,
-        viewport=(390, 844),
-        touch=True,
-        region="#worktree-example-workbench",
-    ),
-    State("diff-file-reply", "developer/diff-thread-gallery", diff_file_reply),
-    State("diff-moved-reply", "developer/diff-thread-gallery", diff_moved_reply),
+    State("diff-file-reply", "diff-thread-gallery", diff_file_reply),
+    State("diff-moved-reply", "diff-thread-gallery", diff_moved_reply),
     State(
         "diff-file-resolved-closed",
-        "developer/diff-thread-gallery",
+        "diff-thread-gallery",
         diff_file_resolved_closed,
     ),
-    State("diff-file-resolved", "developer/diff-thread-gallery", diff_file_resolved),
-    State(
-        "diff-file-reply-dark-touch",
-        "developer/diff-thread-gallery",
-        diff_file_reply,
-        viewport=(390, 844),
-        scheme="dark",
-        touch=True,
-    ),
+    State("diff-file-resolved", "diff-thread-gallery", diff_file_resolved),
     State("code-reader-feedback", "code-comparison", code_reader_feedback),
-    State(
-        "visual-review-inspection-dark",
-        "developer/visual-review-gallery",
-        visual_review_inspection,
-        scheme="dark",
-    ),
     State("activity-feed", "triage-board", activity_feed, region="#triage-moves"),
     State(
         "gloss-open",
-        "developer/feature-gallery",
+        "feature-gallery",
         gloss_open,
         region="#bg-gloss .lf-gloss-popover",
     ),
-    State("deck", "developer/deck", at_rest, region="#deck-catch-up"),
-    State("detail-dial", "developer/detail", at_rest, region="#detail-dial"),
-    State("file-editor", "developer/file-editor", at_rest, region="#research-file"),
     State(
         "settled-option",
-        "developer/feature-gallery",
+        "feature-gallery",
         settled_option,
         region="#bg-outcome",
     ),
     State(
         "settled-option-hover",
-        "developer/feature-gallery",
+        "feature-gallery",
         settled_option_hover,
         region="#bg-outcome",
     ),
-    State("trace-controls", "developer/playwright-trace-gallery", trace_controls),
-    State(
-        "trace-actions",
-        "developer/playwright-trace-gallery",
-        trace_controls,
-        viewport=(800, 900),
-        region=".lf-trace-toolbar",
-    ),
+    State("trace-controls", "playwright-trace-gallery", trace_controls),
     State(
         "trace-pace",
-        "developer/playwright-trace-gallery",
+        "playwright-trace-gallery",
         trace_controls,
         region=".lf-trace-pace",
     ),
     State(
         "motion-controls",
-        "developer/motion",
+        "motion",
         motion_controls,
         region="#fold-motion .lf-motion-controls",
     ),
@@ -2868,86 +2568,30 @@ STATES = (
     ),
     State(
         "trace-timeline-keyboard",
-        "developer/playwright-trace-gallery",
+        "playwright-trace-gallery",
         trace_timeline_by_keyboard,
     ),
-    State(
-        "trace-controls-phone",
-        "developer/playwright-trace-gallery",
-        trace_controls,
-        viewport=(390, 844),
-        touch=True,
-    ),
-    State("retained-quote", "developer/feature-gallery", retained_quote),
-    State("retained-quote-full", "developer/feature-gallery", retained_quote_full),
-    State(
-        "retained-quote-full-dark",
-        "developer/feature-gallery",
-        retained_quote_full,
-        scheme="dark",
-    ),
-    State(
-        "retained-quote-touch",
-        "developer/feature-gallery",
-        retained_quote_full,
-        viewport=(390, 844),
-        touch=True,
-    ),
+    State("retained-quote", "feature-gallery", retained_quote),
+    State("retained-quote-full", "feature-gallery", retained_quote_full),
     State(
         "topic-contents",
-        "developer/feature-gallery",
+        "feature-gallery",
         topic_contents,
         region="#bg-topic-contents",
     ),
     # The contents map draws only in a sidebar's track beside a `.layout-column`. No
     # example draws one, so these states read a fixture built that way.
-    State("contents-spine", "../tests/fixtures/pages/sidebar-contents", at_rest),
     State(
         "contents-spine-keyboard",
-        "../tests/fixtures/pages/sidebar-contents",
+        "sidebar-contents",
         contents_by_keyboard,
     ),
     State(
         "contents-over-reading",
-        "../tests/fixtures/pages/sidebar-contents",
+        "sidebar-contents",
         contents_over_reading,
         viewport=(1100, 900),
         region=".lf-toc-start a",
-    ),
-    State(
-        "contents-over-reading-dark",
-        "../tests/fixtures/pages/sidebar-contents",
-        contents_over_reading,
-        viewport=(1100, 900),
-        scheme="dark",
-        region=".lf-toc-start a",
-    ),
-    State(
-        "contents-spine-dark",
-        "../tests/fixtures/pages/sidebar-contents",
-        contents_by_keyboard,
-        scheme="dark",
-    ),
-    # Where the margin has no room for the map, and where a coarse pointer keeps the
-    # sidebar's contents in the flow, at a roomy width and on a phone.
-    State(
-        "contents-narrow",
-        "../tests/fixtures/pages/sidebar-contents",
-        at_rest,
-        viewport=(900, 900),
-    ),
-    State(
-        "contents-coarse",
-        "../tests/fixtures/pages/sidebar-contents",
-        at_rest,
-        touch=True,
-    ),
-    State(
-        "contents-phone",
-        "../tests/fixtures/pages/sidebar-contents",
-        at_rest,
-        viewport=(390, 844),
-        touch=True,
     ),
     State("playground-controls", "notification-playground", playground_controls),
     State("playground-instruction", "notification-playground", playground_instruction),
@@ -2955,110 +2599,39 @@ STATES = (
     State("playground-tall-stage", "alert-thresholds", playground_tall_stage),
     State("playground-short-window", "data-explorer", page_end, viewport=(844, 390)),
     State(
-        "playground-controls-phone",
-        "notification-playground",
-        playground_controls,
-        viewport=(390, 844),
-        touch=True,
-    ),
-    State(
-        "quoted-playground",
-        "../tests/fixtures/pages/quoted-playground",
-        at_rest,
-        region="#quoted-alerts",
-    ),
-    State(
-        "margin-gallery-phone",
-        "developer/feature-gallery",
+        "margin-gallery",
+        "feature-gallery",
         margin_gallery,
-        viewport=(390, 844),
+        viewport=PHONE,
         touch=True,
     ),
     State("release-draft", "release-notes", draft_edit),
     State("release-draft-long", "release-notes", draft_long_edit),
     State("release-draft-hover", "release-notes", draft_hover, region="#rn-cli"),
     State(
-        "release-draft-phone",
-        "release-notes",
-        draft_edit,
-        viewport=(390, 844),
-        touch=True,
-    ),
-    State("gallery-tabs", "developer/feature-gallery", at_rest),
-    State(
         "gallery-tabs-overflow",
-        "developer/feature-gallery",
+        "feature-gallery",
         overflowing_tabs,
         region="#bg-rollout-tabs",
     ),
-    State(
-        "gallery-tabs-overflow-dark",
-        "developer/feature-gallery",
-        overflowing_tabs,
-        scheme="dark",
-        region="#bg-rollout-tabs",
-    ),
-    State("gallery-tab-focus", "developer/feature-gallery", tab_by_keyboard),
-    State("gallery-tab-hover", "developer/feature-gallery", tab_by_pointer),
-    State(
-        "gallery-boxed-tab-focus", "developer/feature-gallery", boxed_tab_by_keyboard
-    ),
+    State("gallery-tab-focus", "feature-gallery", tab_by_keyboard),
+    State("gallery-tab-hover", "feature-gallery", tab_by_pointer),
+    State("gallery-boxed-tab-focus", "feature-gallery", boxed_tab_by_keyboard),
     State("side-tab-focus", "alert-review", tab_by_keyboard),
-    State("frame-edges", "developer/feature-gallery", frame_edges),
-    State("gallery-metrics", "developer/feature-gallery", gallery_metrics),
-    State("gallery-plans", "developer/feature-gallery", gallery_plans),
-    State("gallery-ask-figure", "developer/feature-gallery", gallery_ask_figure),
-    State(
-        "gallery-ask-figure-900",
-        "developer/feature-gallery",
-        gallery_ask_figure,
-        viewport=(900, 900),
-    ),
-    State(
-        "gallery-ask-figure-dark",
-        "developer/feature-gallery",
-        gallery_ask_figure,
-        scheme="dark",
-    ),
-    State(
-        "gallery-ask-figure-phone",
-        "developer/feature-gallery",
-        gallery_ask_figure,
-        viewport=(390, 844),
-        touch=True,
-    ),
-    State("gallery-theme", "developer/feature-gallery", theme_hierarchy),
-    State(
-        "gallery-theme-dark",
-        "developer/feature-gallery",
-        theme_hierarchy,
-        scheme="dark",
-    ),
-    State(
-        "gallery-theme-phone",
-        "developer/feature-gallery",
-        theme_hierarchy,
-        viewport=(390, 844),
-        touch=True,
-    ),
-    State(
-        "gallery-theme-phone-dark",
-        "developer/feature-gallery",
-        theme_hierarchy,
-        viewport=(390, 844),
-        scheme="dark",
-        touch=True,
-    ),
-    State("widget-inline-hints", "developer/feature-gallery", widget_inline_hints),
-    State("gallery-wide-passage", "developer/feature-gallery", wide_passage),
+    State("frame-edges", "feature-gallery", frame_edges),
+    State("gallery-metrics", "feature-gallery", gallery_metrics),
+    State("gallery-plans", "feature-gallery", gallery_plans),
+    State("gallery-ask-figure", "feature-gallery", gallery_ask_figure),
+    State("gallery-theme", "feature-gallery", theme_hierarchy),
+    State("widget-inline-hints", "feature-gallery", widget_inline_hints),
+    State("gallery-wide-passage", "feature-gallery", wide_passage),
     State(
         "gallery-wide-schedule",
-        "developer/feature-gallery",
+        "feature-gallery",
         wide_schedule,
         viewport=(1726, 900),
     ),
-    State("gallery-multiline-passage", "developer/feature-gallery", multiline_passage),
-    State("plan", "review-a-plan", at_rest),
+    State("gallery-multiline-passage", "feature-gallery", multiline_passage),
     State("plan-execution", "review-a-plan", plan_execution, region="#plan-execute"),
     State("plan-caveat", "review-a-plan", plan_caveat, region="#plan-network"),
     State("page-search", "review-a-plan", page_search, region=".lf-floating-panel"),
@@ -3068,65 +2641,20 @@ STATES = (
         accepted_page_search,
         region=".lf-floating-panel",
     ),
-    State(
-        "accepted-page-search-touch",
-        "review-a-plan",
-        accepted_page_search,
-        viewport=(390, 844),
-        touch=True,
-        region=".lf-floating-panel",
-    ),
-    State(
-        "page-search-phone",
-        "review-a-plan",
-        page_search,
-        viewport=(390, 844),
-        region=".lf-floating-panel",
-    ),
     State("selected-passage-responses", "review-a-plan", selected_passage_responses),
-    State(
-        "selected-passage-responses-phone",
-        "review-a-plan",
-        selected_passage_responses,
-        viewport=(390, 844),
-        touch=True,
-    ),
-    State(
-        "selected-passage-responses-dark",
-        "review-a-plan",
-        selected_passage_responses,
-        scheme="dark",
-    ),
     State("command-reference-search", "review-a-plan", command_reference_search),
     State("page-map", "review-a-plan", page_map, region=".lf-page-map-dialog"),
     # Its threads on the user's turn, tinted and saying so at their ends.
     State("page-map-turn", "ship-review", page_map, region=".lf-page-map-dialog"),
-    State(
-        "command-reference-search-dark",
-        "review-a-plan",
-        command_reference_search,
-        scheme="dark",
-    ),
-    State("plan-dark", "review-a-plan", at_rest, scheme="dark"),
-    State("plan-beside", "review-a-plan", at_rest, viewport=BESIDE),
     State("plan-card", "review-a-plan", card_by_pointer),
     State("reaction-palette", "ship-review", reaction_palette),
-    State("reaction-palette-dark", "ship-review", reaction_palette, scheme="dark"),
     State("reaction-pressed", "ship-review", reaction_pressed),
-    State("reaction-pressed-dark", "ship-review", reaction_pressed, scheme="dark"),
-    State(
-        "plan-card-message-width",
-        "review-a-plan",
-        card_by_pointer,
-        viewport=(1920, 900),
-    ),
     State("plan-card-keyboard", "review-a-plan", card_by_keyboard),
-    State("plan-card-keyboard-dark", "review-a-plan", card_by_keyboard, scheme="dark"),
     # A window with room for the rail but none beside the ask, so the card stands over
     # its options and covers a choice's hint.
     State(
+        "thread-choice-hints-card",
         "thread-choice-hints",
-        "../tests/fixtures/pages/thread-choice-hints",
         card_by_keyboard,
         viewport=(1000, 838),
         region=".lf-margin-preview",
@@ -3158,55 +2686,22 @@ STATES = (
         region=".lf-margin-preview",
     ),
     State(
-        "plan-card-held-step-dark",
-        "review-a-plan",
-        card_held_step,
-        scheme="dark",
-        region=".lf-margin-preview",
-    ),
-    # A finger's card at its least width: a 1400px touch window stands it beside its
-    # words, where a phone opens the thread in the floating panel.
-    State(
-        "plan-card-held-news-touch",
-        "review-a-plan",
-        card_held_news,
-        viewport=(1400, 844),
-        touch=True,
-        region=".lf-margin-preview",
-    ),
-    State(
         "hub-seat-held-news",
         "command-hub",
         seat_held_news,
         region="#goal-parser .lf-page-thread",
     ),
     State(
-        "hub-seat-held-news-phone",
-        "command-hub",
-        seat_held_news,
-        viewport=(390, 844),
-        touch=True,
-        region="#goal-parser .lf-page-thread",
-    ),
-    State(
         "plan-card-reply-large", "review-a-plan", card_reply_large, viewport=(1440, 600)
     ),
-    State("plan-card-beside", "review-a-plan", card_by_pointer, viewport=BESIDE),
     State("plan-panel", "review-a-plan", go_to_threads),
-    State("plan-panel-dark", "review-a-plan", go_to_threads, scheme="dark"),
-    State(
-        "plan-panel-keyboard-dark", "review-a-plan", panel_by_keyboard, scheme="dark"
-    ),
     State("plan-panel-keyboard", "review-a-plan", panel_by_keyboard),
-    State("plan-panel-beside", "review-a-plan", go_to_threads, viewport=BESIDE),
     State("plan-go-to", "review-a-plan", go_to, viewport=(1024, 768)),
-    State("plan-narrow", "review-a-plan", at_rest, viewport=(360, 740)),
-    State("plan-touch", "review-a-plan", at_rest, viewport=(390, 844), touch=True),
     State(
-        "plan-thread-phone",
+        "plan-thread-in-panel",
         "review-a-plan",
         thread_by_marker,
-        viewport=(390, 844),
+        viewport=PHONE,
         touch=True,
     ),
     State("plan-more", "review-a-plan", more_menu),
@@ -3214,43 +2709,15 @@ STATES = (
     State(
         "plan-capture-drag", "review-a-plan", capture_small_drag, viewport=(390, 740)
     ),
-    State("plan-capture-dark", "review-a-plan", capture_area, scheme="dark"),
-    State(
-        "plan-capture-touch",
-        "review-a-plan",
-        capture_area,
-        viewport=(390, 844),
-        touch=True,
-    ),
-    State(
-        "plan-more-touch", "review-a-plan", more_menu, viewport=(390, 844), touch=True
-    ),
     State(
         "plan-versions-touch",
         "review-a-plan",
         versions_menu,
-        viewport=(390, 844),
-        touch=True,
-    ),
-    State(
-        "plan-panel-touch",
-        "review-a-plan",
-        go_to_threads,
-        viewport=(390, 844),
+        viewport=PHONE,
         touch=True,
     ),
     State("plan-card-reply-long", "review-a-plan", card_reply_long),
-    State(
-        "plan-card-reply-long-touch",
-        "review-a-plan",
-        card_reply_long,
-        viewport=(1400, 844),
-        touch=True,
-    ),
     State("plan-panel-reply-long", "review-a-plan", panel_reply_long),
-    State(
-        "plan-panel-reply-long-dark", "review-a-plan", panel_reply_long, scheme="dark"
-    ),
     State("plan-page-comment-long", "review-a-plan", page_comment_long),
     State(
         "plan-page-comment-empty",
@@ -3262,13 +2729,6 @@ STATES = (
         "plan-page-comment-resting",
         "review-a-plan",
         page_comment_resting,
-        region=".lf-fp-row",
-    ),
-    State(
-        "plan-page-comment-resting-dark",
-        "review-a-plan",
-        page_comment_resting,
-        scheme="dark",
         region=".lf-fp-row",
     ),
     State(
@@ -3292,40 +2752,17 @@ STATES = (
     State(
         "plan-panel-dictating", "review-a-plan", panel_dictating, region=".lf-fp-row"
     ),
-    State(
-        "plan-panel-dictating-dark",
-        "review-a-plan",
-        panel_dictating,
-        scheme="dark",
-        region=".lf-fp-row",
-    ),
     State("plan-option-empty", "review-a-plan", option_empty, region=".lf-another"),
     State(
         "proxy-note-own-annotations",
-        "../tests/fixtures/pages/page-annotations",
+        "page-annotations",
         proxy_note_own_annotations,
-    ),
-    State(
-        "proxy-note-own-annotations-dark",
-        "../tests/fixtures/pages/page-annotations",
-        proxy_note_own_annotations,
-        scheme="dark",
     ),
     State("proxy-note-paragraph", "pr-walkthrough", proxy_note_paragraph),
-    State(
-        "proxy-note-paragraph-dark",
-        "pr-walkthrough",
-        proxy_note_paragraph,
-        scheme="dark",
-    ),
     State("proxy-note-row", "pr-walkthrough", proxy_note_row),
-    State("proxy-note-row-dark", "pr-walkthrough", proxy_note_row, scheme="dark"),
     State("proxy-drawing", "pr-walkthrough", proxy_drawing),
-    State("proxy-drawing-dark", "pr-walkthrough", proxy_drawing, scheme="dark"),
     State("proxy-part", "pr-walkthrough", proxy_part),
-    State("proxy-part-dark", "pr-walkthrough", proxy_part, scheme="dark"),
     State("proxy-gloss", "pr-walkthrough", proxy_gloss),
-    State("proxy-gloss-dark", "pr-walkthrough", proxy_gloss, scheme="dark"),
     State("plan-card-reply-resolved", "review-a-plan", card_reply_resolved),
     State("section-ring-keyboard", "review-a-plan", section_ring_by_keyboard),
     State(
@@ -3334,47 +2771,8 @@ STATES = (
         card_reply_resolved_elsewhere,
         region=".lf-margin-preview",
     ),
-    State(
-        "plan-card-reply-resolved-elsewhere-dark",
-        "review-a-plan",
-        card_reply_resolved_elsewhere,
-        scheme="dark",
-        region=".lf-margin-preview",
-    ),
-    State("triage", "triage-board", at_rest),
-    State("triage-phone", "triage-board", at_rest, viewport=(390, 844), touch=True),
-    State(
-        "triage-phone-dark",
-        "triage-board",
-        at_rest,
-        viewport=(390, 844),
-        scheme="dark",
-        touch=True,
-    ),
-    State("triage-metrics", "triage-board", at_rest, region="#triage-counts"),
-    State(
-        "triage-metrics-dark",
-        "triage-board",
-        at_rest,
-        scheme="dark",
-        region="#triage-counts",
-    ),
     State("triage-composer", "triage-board", composer),
-    State("triage-composer-dark", "triage-board", composer, scheme="dark"),
-    State(
-        "triage-composer-phone",
-        "triage-board",
-        composer,
-        viewport=(390, 844),
-        touch=True,
-    ),
     State("triage-composer-send-focused", "triage-board", composer_send_focused),
-    State(
-        "triage-composer-send-focused-dark",
-        "triage-board",
-        composer_send_focused,
-        scheme="dark",
-    ),
     State(
         "triage-composer-empty",
         "triage-board",
@@ -3385,13 +2783,6 @@ STATES = (
         "triage-composer-resting",
         "triage-board",
         composer_resting,
-        region=".lf-fab-bar",
-    ),
-    State(
-        "triage-composer-resting-dark",
-        "triage-board",
-        composer_resting,
-        scheme="dark",
         region=".lf-fab-bar",
     ),
     State(
@@ -3407,25 +2798,7 @@ STATES = (
         composer_scrolling,
         region=".lf-fab-bar",
     ),
-    State(
-        "triage-composer-scrolling-dark",
-        "triage-board",
-        composer_scrolling,
-        scheme="dark",
-        region=".lf-fab-bar",
-    ),
     State("triage-composer-long", "triage-board", composer_long),
-    State("triage-composer-long-dark", "triage-board", composer_long, scheme="dark"),
-    State(
-        "triage-composer-long-beside", "triage-board", composer_long, viewport=BESIDE
-    ),
-    State(
-        "triage-composer-long-touch",
-        "triage-board",
-        composer_long,
-        viewport=(390, 844),
-        touch=True,
-    ),
     State("triage-composer-sent", "triage-board", composer_sent),
     State(
         "plan-composer-sent-zoomed",
@@ -3433,50 +2806,12 @@ STATES = (
         composer_sent_zoomed,
         viewport=(1200, 900),
     ),
-    State("triage-composer-sent-dark", "triage-board", composer_sent, scheme="dark"),
-    State(
-        "triage-composer-sent-beside", "triage-board", composer_sent, viewport=BESIDE
-    ),
-    State(
-        "triage-composer-sent-touch",
-        "triage-board",
-        composer_sent,
-        viewport=(390, 844),
-        touch=True,
-    ),
-    State("alert-queue", "alert-review", at_rest),
-    State(
-        "alert-queue-touch", "alert-review", at_rest, viewport=(390, 844), touch=True
-    ),
     State("alert-queue-tally", "alert-review", tally_after_an_answer),
     State(
-        "alert-queue-tally-touch",
-        "alert-review",
-        tally_after_an_answer,
-        viewport=(390, 844),
-        touch=True,
-    ),
-    State(
-        "alert-queue-tally-touch-dark",
-        "alert-review",
-        tally_after_an_answer,
-        viewport=(390, 844),
-        touch=True,
-        scheme="dark",
-    ),
-    State(
         "option-add-hover",
-        "developer/feature-gallery",
+        "feature-gallery",
         option_add_hover,
         region="#bg-choice",
-    ),
-    State(
-        "option-add-hover-touch",
-        "developer/feature-gallery",
-        option_add_hover,
-        region="#bg-choice",
-        viewport=(390, 844),
-        touch=True,
     ),
     State("alert-option-long", "alert-review", option_long),
     State("alert-options-in-pane", "alert-review", options_in_pane),
@@ -3487,15 +2822,6 @@ STATES = (
         obligation_marker_by_keyboard,
         region="#pr-approval-decision",
     ),
-    State("progress-callout", "live-progress", at_rest),
-    State("progress-metrics", "live-progress", at_rest, region="#lp-status"),
-    State(
-        "progress-metrics-dark",
-        "live-progress",
-        at_rest,
-        scheme="dark",
-        region="#lp-status",
-    ),
     State(
         "steps",
         "security-boundary",
@@ -3503,7 +2829,6 @@ STATES = (
         region="#security-contract-list",
     ),
     State("stacked-disclosures", "security-boundary", disclosures_in_view),
-    # The case study's five-step flow, drawn top-down so a phone shows every step.
     State(
         "security-flow",
         "security-boundary",
@@ -3511,70 +2836,17 @@ STATES = (
         region="#security-before-flow",
     ),
     State(
-        "security-flow-dark",
-        "security-boundary",
-        security_flow,
-        scheme="dark",
-        region="#security-before-flow",
-    ),
-    State(
-        "security-flow-phone",
-        "security-boundary",
-        security_flow,
-        viewport=(390, 844),
-        touch=True,
-    ),
-    State(
-        "security-flow-phone-dark",
-        "security-boundary",
-        security_flow,
-        viewport=(390, 844),
-        scheme="dark",
-        touch=True,
-    ),
-    State(
-        "breakout-captions", "../tests/fixtures/pages/breakout-table-caption", at_rest
-    ),
-    State(
-        "breakout-captions-phone",
-        "../tests/fixtures/pages/breakout-table-caption",
-        at_rest,
-        viewport=(390, 844),
-    ),
-    State(
-        "breakout-captions-scrolled-phone",
-        "../tests/fixtures/pages/breakout-table-caption",
+        "breakout-captions-scrolled",
+        "breakout-table-caption",
         breakout_captions_scrolled,
-        viewport=(390, 844),
+        viewport=PHONE,
     ),
     State(
-        "table-scrolled-phone",
+        "table-scrolled-sideways",
         "security-boundary",
         table_scrolled_sideways,
-        viewport=(390, 844),
+        viewport=PHONE,
         region="#security-vendor-table",
-    ),
-    State(
-        "table-scrolled-phone-dark",
-        "security-boundary",
-        table_scrolled_sideways,
-        viewport=(390, 844),
-        scheme="dark",
-        region="#security-vendor-table",
-    ),
-    State(
-        "alert-options-in-pane-touch",
-        "alert-review",
-        options_in_pane,
-        viewport=(390, 844),
-        touch=True,
-    ),
-    State(
-        "alert-option-long-touch",
-        "alert-review",
-        option_long,
-        viewport=(390, 844),
-        touch=True,
     ),
     State("triage-grabbed", "triage-board", card_grabbed),
     State("triage-moved", "triage-board", card_moved, region="#release-board"),
@@ -3582,80 +2854,24 @@ STATES = (
         "triage-moved-touch",
         "triage-board",
         card_moved_by_destination,
-        viewport=(390, 844),
+        viewport=PHONE,
         touch=True,
         region="#col-blocking",
     ),
-    State("walkthrough", "pr-walkthrough", at_rest),
-    State("walkthrough-wide", "pr-walkthrough", into_the_body),
-    State(
-        "walkthrough-body-short",
-        "pr-walkthrough",
-        into_the_body,
-        viewport=(900, 600),
-    ),
-    State(
-        "walkthrough-body-short-dark",
-        "pr-walkthrough",
-        into_the_body,
-        viewport=(900, 600),
-        scheme="dark",
-    ),
-    State(
-        "walkthrough-body-phone",
-        "pr-walkthrough",
-        into_the_body,
-        viewport=(390, 844),
-        touch=True,
-    ),
+    State("walkthrough-body", "pr-walkthrough", into_the_body),
     State("progress-body-short", "live-progress", into_the_body, viewport=(900, 600)),
     State("walkthrough-calls", "pr-walkthrough", call_tree, region="#pr-call-diagram"),
     State("diagram-flow", "pr-walkthrough", diagram_flow, region="#pr-flow-diagram"),
-    State(
-        "diagram-flow-dark",
-        "pr-walkthrough",
-        diagram_flow,
-        scheme="dark",
-        region="#pr-flow-diagram",
-    ),
     State("diagram-shape-comment", "pr-walkthrough", diagram_shape_comment),
-    State(
-        "walkthrough-calls-dark",
-        "pr-walkthrough",
-        call_tree,
-        scheme="dark",
-        region="#pr-call-diagram",
-    ),
     State("walkthrough-code", "pr-walkthrough", code_note),
-    State("walkthrough-code-dark", "pr-walkthrough", code_note, scheme="dark"),
     State("walkthrough-diff-comment", "pr-walkthrough", diff_line_composer),
-    State(
-        "walkthrough-diff-comment-dark",
-        "pr-walkthrough",
-        diff_line_composer,
-        scheme="dark",
-    ),
-    State(
-        "walkthrough-diff-comment-touch",
-        "pr-walkthrough",
-        diff_line_composer,
-        viewport=(390, 844),
-        touch=True,
-    ),
     State("walkthrough-copy-hover", "pr-walkthrough", code_copy_by_pointer),
     State("walkthrough-copy-keyboard", "pr-walkthrough", code_copy_by_keyboard),
-    State(
-        "walkthrough-copy-touch",
-        "pr-walkthrough",
-        code_note,
-        viewport=(390, 844),
-        touch=True,
-    ),
     State(
         "walkthrough-path-keyboard",
         "pr-walkthrough",
         diff_path_by_keyboard,
-        viewport=(390, 844),
+        viewport=PHONE,
     ),
     State(
         "walkthrough-diff-source-pointer",
@@ -3675,7 +2891,7 @@ STATES = (
         "walkthrough-source-touch",
         "pr-walkthrough",
         code_source_by_touch,
-        viewport=(390, 844),
+        viewport=PHONE,
         touch=True,
     ),
     State("ship-thread", "ship-review", element_thread),
@@ -3686,30 +2902,9 @@ STATES = (
         region=".lf-margin-preview",
     ),
     State("ship-tasks", "ship-review", ship_tasks, region="#off-readiness"),
-    State(
-        "ship-tasks-dark",
-        "ship-review",
-        ship_tasks,
-        scheme="dark",
-        region="#off-readiness",
-    ),
-    State(
-        "ship-tasks-phone",
-        "ship-review",
-        ship_tasks,
-        viewport=(390, 844),
-        touch=True,
-    ),
     State("ship-answered", "ship-review", ship_answered, region=".lf-fp-opened"),
     State(
         "ship-thread-open", "ship-review", element_thread_open, region="#off-t-vendor"
-    ),
-    State(
-        "ship-thread-open-dark",
-        "ship-review",
-        element_thread_open,
-        scheme="dark",
-        region="#off-t-vendor",
     ),
     State(
         "ship-option-thread-open",
@@ -3717,56 +2912,22 @@ STATES = (
         option_thread_open,
         region="#off-workaround-review",
     ),
-    State(
-        "ship-option-thread-open-dark",
-        "ship-review",
-        option_thread_open,
-        scheme="dark",
-        region="#off-workaround-review",
-    ),
     State("ship-card-more-room", "ship-review", card_more_room, viewport=(1440, 600)),
     State(
         "ship-card-short-window", "ship-review", card_by_pointer, viewport=(1440, 480)
     ),
-    State(
-        "ship-card-short-window-dark",
-        "ship-review",
-        card_by_pointer,
-        viewport=(1440, 480),
-        scheme="dark",
-    ),
-    State(
-        "ship-card-touch",
-        "ship-review",
-        card_by_pointer,
-        viewport=(1024, 500),
-        touch=True,
-    ),
     State("on-me-todo", "review-a-plan", on_me_todo),
     State("on-me", "corpus", on_me),
-    State("on-me-dark", "corpus", on_me, scheme="dark"),
     State("on-agent", "corpus", on_agent),
     State("hub-on-me", "command-hub", on_me),
     State("hub-choice", "command-hub", on_me_choice),
     State("hub-choice-answered", "command-hub", on_me_choice_answered),
-    State(
-        "hub-choice-answered-dark", "command-hub", on_me_choice_answered, scheme="dark"
-    ),
-    State(
-        "hub-choice-answered-touch",
-        "command-hub",
-        on_me_choice_answered,
-        viewport=(390, 844),
-        touch=True,
-    ),
     State("hub-on-agent", "command-hub", on_agent),
-    State("hub", "command-hub", at_rest),
     State("hub-workers", "command-hub", hub_workers),
-    State("sort", "rust-sort", at_rest),
-    State("sort-narrow", "rust-sort", at_rest, viewport=(720, 900)),
     State("sort-pane", "rust-sort", pane_focused),
-    State("sort-pane-dark", "rust-sort", pane_focused, scheme="dark"),
     State("sort-aim-cut", "rust-sort", aim_cut_by_pane),
+    # Each page the corpus composes, as it loads, named after its file.
+    *(State(source.stem, source.stem, at_rest) for source in corpus_sources()),
 )
 
 # Every state's input by name, for `leaf-dev probe --do drive:NAME`.
@@ -3778,17 +2939,24 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
 
 @contextmanager
 def capture(
-    browser, address: str, state: State, path: Path
-) -> Generator[tuple[dict | None, dict[str, list[str]], list[str], list[dict], Page]]:
-    """Bring a fresh tab to `state` and screenshot its viewport to `path`, at the
+    browser,
+    address: str,
+    state: State,
+    path: Path,
+    viewport: tuple[int, int],
+    scheme: str,
+    touch: bool,
+) -> Generator[tuple[dict | None, dict[str, list[str]], list[dict], Page]]:
+    """Bring a fresh tab at `viewport`, in `scheme` and under a finger when `touch` to
+    `state`, and screenshot its viewport to `path`, at the
     density of the displays its pairs are read on, so a crop shows text and hairlines
     as the reader's screen draws them. Yield the state's region in the screenshot,
-    if it names one, its elements' styles and the paths of those showing words
-    (`STYLES`), the lines whose words stand on baselines `SPLIT` apart (`BASELINES`),
-    and the tab, open until the block ends so `declaration_changes` can read it."""
+    if it names one, its elements' styles (`STYLES`), the lines whose words stand on
+    baselines `SPLIT` apart (`BASELINES`), and the tab, open until the block ends so
+    `declaration_changes` can read it."""
     scale = 2
     held_modules = []
-    with tab(browser, state.viewport, state.scheme, state.touch, scale=scale) as page:
+    with tab(browser, viewport, scheme, touch, scale=scale) as page:
         if state.activated:
             load(page, address)
             state.drive(page)
@@ -3813,10 +2981,8 @@ def capture(
             clip = {
                 "x": x,
                 "y": y,
-                "width": min(state.viewport[0], bounds["x"] + bounds["width"] + room)
-                - x,
-                "height": min(state.viewport[1], bounds["y"] + bounds["height"] + room)
-                - y,
+                "width": min(viewport[0], bounds["x"] + bounds["width"] + room) - x,
+                "height": min(viewport[1], bounds["y"] + bounds["height"] + room) - y,
             }
         page.screenshot(path=path)
         reading = page.evaluate(STYLES, STYLED)
@@ -3826,7 +2992,7 @@ def capture(
         splits = page.evaluate(BASELINES, SPLIT)
         region = {key: value * scale for key, value in clip.items()} if clip else None
         try:
-            yield region, styles, reading["texts"], splits, page
+            yield region, styles, splits, page
         finally:
             for route in held_modules:
                 route.abort()
@@ -3870,65 +3036,6 @@ def style_changes(
             lines.extend(f"    {key}" for key in keys[:4])
     count = sum(map(len, groups.values())) + sum(map(len, alone.values()))
     return count, lines, list(firsts)
-
-
-def face_of(values: list[str]) -> tuple[str, ...]:
-    """The `FACE` values among an element's `STYLED` ones."""
-    return tuple(values[STYLED.index(name)] for name in FACE)
-
-
-def describe_face(face: tuple[str, ...]) -> str:
-    family, size, weight, style, tracking, case = face
-    words = [weight, size, family.split(",")[0].strip('"')]
-    words += [style] if style != "normal" else []
-    words += [f"tracked {tracking}"] if tracking != "normal" else []
-    words += [case] if case != "none" else []
-    return " ".join(words)
-
-
-def face_distance(a: tuple[str, ...], b: tuple[str, ...]) -> float:
-    """How far apart two faces read: a pixel of size, a hundred of weight and a
-    tenth of an em of tracking each count one, and a different family, style or case
-    puts them apart altogether."""
-    if (a[0], a[3], a[5]) != (b[0], b[3], b[5]):
-        return float("inf")
-
-    def pixels(value: str) -> float:
-        return float(value.removesuffix("px")) if value.endswith("px") else 0.0
-
-    tracks = [pixels(face[4]) / (pixels(face[1]) or 1) for face in (a, b)]
-    return (
-        abs(pixels(a[1]) - pixels(b[1]))
-        + abs(int(a[2]) - int(b[2])) / 100
-        + abs(tracks[0] - tracks[1]) * 10
-    )
-
-
-def face_changes(drawn: dict[str, dict[tuple[str, ...], list[str]]]) -> list[str]:
-    """The faces only one arm draws in `drawn` (each arm's faces, by the states and
-    elements that wear them), each with up to three of those and the other arm's
-    nearest face."""
-    lines = []
-    for arm, other in (("head", "base"), ("base", "head")):
-        alone = sorted(drawn[arm].keys() - drawn[other].keys(), key=describe_face)
-        if not alone:
-            continue
-        lines.append(f"faces only {arm} draws  x{len(alone)}")
-        for face in alone:
-            wearers = drawn[arm][face]
-            nearest = min(
-                drawn[other],
-                key=lambda candidate: face_distance(face, candidate),
-                default=None,
-            )
-            near = (
-                f"; {other}'s nearest {describe_face(nearest)}"
-                if nearest and face_distance(face, nearest) < float("inf")
-                else ""
-            )
-            lines.append(f"  {describe_face(face)}  x{len(wearers)}{near}")
-            lines.extend(f"      {wearer}" for wearer in wearers[:3])
-    return lines
 
 
 def baseline_changes(split: dict[str, dict[str, list[dict]]]) -> list[str]:
@@ -4147,7 +3254,7 @@ def crop(
 
 
 @click.command()
-@click.argument("base_ref", required=False)
+@base_option(paired=True)
 @click.option(
     "--state",
     "names",
@@ -4158,16 +3265,28 @@ def crop(
 @click.option(
     "--authored",
     is_flag=True,
-    help="Compare each commit’s authored examples as well as its runtime.",
+    help="Build the base's pages from its own authored sources.",
 )
-def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None:
-    """Screenshot a catalogue of UI states on BASE_REF's runtime and HEAD's, and crop
-    each state that changed into a before/after pair under .tmp/stills/."""
+@tab_options
+def stills(
+    base: str,
+    names: tuple[str, ...],
+    authored: bool,
+    viewport: tuple[int, int] | None,
+    scheme: str,
+    touch: bool | None,
+) -> None:
+    """Screenshot a catalogue of UI states on the base's runtime and this working
+    tree's, and crop each state that changed into a before/after pair under
+    .tmp/stills/.
+
+    --viewport, --scheme and --touch set the window of every state captured; a state
+    that names its own viewport or pointer keeps it unless --viewport or --touch is
+    given."""
     states = [state for state in STATES if not names or state.name in names]
     out = run_directory(OUT)
     failed: dict[str, list[str]] = {}
     read: dict[str, dict] = {}
-    drawn: dict[str, dict[tuple[str, ...], list[str]]] = {"base": {}, "head": {}}
     split: dict[str, dict[str, list[dict]]] = {"base": {}, "head": {}}
 
     def failure(state: State, phase: str, error: Exception) -> None:
@@ -4181,22 +3300,7 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
 
     with tempfile.TemporaryDirectory(prefix="leaf-stills-") as built:
         scratch = Path(built)
-        arms, commits = build_pair(base_ref, scratch)
-        source_roots = {arm: ROOT for arm in arms}
-        if authored:
-            for arm, commit in commits.items():
-                source_roots[arm] = scratch / f"{arm}-source"
-                source_roots[arm].mkdir()
-                copy_committed(
-                    (
-                        "examples",
-                        "tests/fixtures/pages",
-                        "docs/examples.html",
-                        "leaf-assets.json",
-                    ),
-                    source_roots[arm],
-                    commit,
-                )
+        arms = choose_arms(base, scratch)
         # Capture the scrollbars readers see, including the room a classic bar takes.
         with (
             headless_shell(ignore_default_args=["--hide-scrollbars"]) as browser,
@@ -4207,31 +3311,33 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
                 folder.mkdir()
                 crop_regions = []
                 styles = {}
-                texts = {}
                 splits = {}
                 pages = {}
                 # Both arms stay open through the comparison, which reads their tabs.
                 with ExitStack() as held:
-                    for arm, arm_dir in arms.items():
+                    for arm, version in arms.items():
                         # Every state starts from its authored fixture. A prior Send
                         # or Resolve must not become the next state's initial event
                         # log. The base refuses a source written in vocabulary only
                         # the head declares; that state has no base still, and the
                         # head's still stands alone in its folder.
                         try:
+                            source = named_source(state.source)
                             address = held.enter_context(
                                 serving_source(
-                                    arm_dir,
-                                    source_roots[arm]
-                                    / "examples"
-                                    / f"{state.source}.html",
+                                    version.directory,
+                                    own_source(version, source) if authored else source,
                                     scratch / f"{arm}-{state.name}",
                                 )
                             )
-                            region, styles[arm], texts[arm], splits[arm], pages[arm] = (
+                            region, styles[arm], splits[arm], pages[arm] = (
                                 held.enter_context(
                                     capture(
-                                        browser, address, state, folder / f"{arm}.png"
+                                        browser,
+                                        address,
+                                        state,
+                                        folder / f"{arm}.png",
+                                        *state.window(viewport, scheme, touch),
                                     )
                                 )
                             )
@@ -4241,12 +3347,8 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
                             failure(state, arm, error)
                     if state.name in failed:
                         continue
-                    for arm, keys in texts.items():
+                    for arm in splits:
                         split[arm][state.name] = splits[arm]
-                        for key in keys:
-                            drawn[arm].setdefault(face_of(styles[arm][key]), []).append(
-                                f"{state.name}: {key}"
-                            )
                     try:
                         difference = compare(state.name)
                         if difference["changed"]:
@@ -4265,7 +3367,7 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
                         read[state.name] = difference
                     except Exception as error:
                         failure(state, "comparison", error)
-    click.echo(f"base {commits['base'][:10]} vs head {commits['head'][:10]}")
+    click.echo(describe(arms))
     unchanged = 0
     for state in states:
         folder = out / state.name
@@ -4279,13 +3381,6 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
         else:
             unchanged += 1
     click.echo(f"{unchanged} of {len(states)} states unchanged")
-    if lines := face_changes(drawn):
-        (out / "faces.txt").write_text("\n".join(lines) + "\n")
-        click.echo(
-            "faces one arm alone draws: "
-            + ", ".join(line.strip() for line in lines if line.startswith("faces"))
-            + f" -> {out / 'faces.txt'}"
-        )
     if lines := baseline_changes(split):
         (out / "baselines.txt").write_text("\n".join(lines) + "\n")
         click.echo(

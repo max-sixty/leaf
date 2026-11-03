@@ -14,8 +14,9 @@ answer carries the server's reading of the page, and that answer's size. It prin
 largest sizes (least squares of log cost on log size), and marks an exponent above
 SUPERLINEAR, which is a step nesting one walk of the page inside another.
 
---base also measures the merge base with main (or REF), built as `leaf-dev probe
---base` builds it, so a change shows its exponents beside the base's. --profile
+--base also measures the merge base with main (or REF), chosen as every A/B command
+chooses its arms (`arms.choose_arms`), so a change shows its exponents beside the
+base's. --profile
 records a V8 CPU profile of each transition at the smallest and largest size and
 lists the functions whose time grew superlinearly between them, which names the
 nested walk; the kernel's bundles keep function names, so grep the source for them.
@@ -35,7 +36,13 @@ from pathlib import Path
 import click
 
 from leaf_dev import ROOT
-from leaf_dev.arms import base_ref, extract_arm, run_directory, serving_source
+from leaf_dev.arms import (
+    base_option,
+    choose_arms,
+    describe,
+    run_directory,
+    serving_source,
+)
 from leaf_dev.browser import headless_shell, settle, tab
 from leaf_dev.commands.profile import Profile
 
@@ -313,29 +320,21 @@ def growth(small: Path, large: Path, ratio: float) -> list[str]:
     show_default=True,
     help="Comma-separated page sizes, smallest first.",
 )
-@click.option(
-    "--base",
-    is_flag=False,
-    flag_value="",
-    default=None,
-    help="Also measure the merge base with main, or REF.",
-)
+@base_option()
 @click.option("--profile", is_flag=True, help="Profile the smallest and largest size.")
 def scaling(axes: tuple[str, ...], sizes: str, base: str | None, profile: bool) -> None:
     sized = [int(size) for size in sizes.split(",")]
     run = run_directory(OUT)
-    arms = {"head": ROOT}
-    if base is not None:
-        commit = extract_arm(base_ref(base or None), run / "base-arm")
-        arms = {f"base {commit[:9]}": run / "base-arm", **arms}
+    arms = choose_arms(base, run)
+    click.echo(describe(arms) + "\n")
     results: dict[str, dict[str, list[dict]]] = {}
     with headless_shell() as browser:
         for axis in axes or tuple(AXES):
             authored, log = AXES[axis]
-            for arm, tree in arms.items():
+            for arm, chosen in arms.items():
                 rows = []
                 for n in sized:
-                    scratch = run / f"{axis}-{arm.split()[0]}-{n}"
+                    scratch = run / f"{axis}-{arm}-{n}"
                     scratch.mkdir(parents=True)
                     source = scratch / f"{axis}{n}.html"
                     source.write_text(authored(n))
@@ -347,15 +346,14 @@ def scaling(axes: tuple[str, ...], sizes: str, base: str | None, profile: bool) 
                         scratch if profile and n in (sized[0], sized[-1]) else None
                     )
                     with serving_source(
-                        tree, source, scratch / "page", seed
+                        chosen.directory, source, scratch / "page", seed
                     ) as address:
                         rows.append({"n": n, **measure(browser, address, profiles)})
                 results.setdefault(axis, {})[arm] = rows
                 click.echo(table(axis, arm, rows) + "\n")
                 if profile:
                     first, last = (
-                        run / f"{axis}-{arm.split()[0]}-{n}"
-                        for n in (sized[0], sized[-1])
+                        run / f"{axis}-{arm}-{n}" for n in (sized[0], sized[-1])
                     )
                     for transition in TRANSITIONS:
                         lines = growth(

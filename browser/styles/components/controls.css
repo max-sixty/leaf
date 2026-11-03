@@ -812,10 +812,9 @@ wa-copy-button.lf-icon-action {
   border-color: var(--border-2);
 }
 /* A toggle's selected face, a word's or a symbol's: a full accent border on the chip
-   ground. It is the faces' own state, so it stands here beside them, ahead of every
-   component that dresses a face further: a glyph action, a symbol whose state its own
-   disc shows, such as Dictate listening (response.css), restates the state on its
-   disc and keeps its box clear, which a later sheet holding this rule overrode. */
+   ground. It is the faces' own state, so it stands here beside them; a disc, which
+   shows its state on its disc, such as Dictate listening, keeps its box clear (the
+   disc, below). */
 :is(.lf-btn, .button, .lf-icon-action):is(
   [aria-pressed="true"],
   [aria-checked="true"]
@@ -1200,10 +1199,6 @@ wa-copy-button.lf-icon-action {
 .lf-margin-face[aria-disabled="true"] {
   cursor: default;
 }
-/* An entry in force, such as a reaction the user left, stands on the chip. */
-.lf-margin-face[aria-pressed="true"] {
-  background: var(--chip);
-}
 /* Unread agent content marks the entry the way it marks the Threads toggle: a dot
    painted inside the box the entry already reserves, so it adds no width. It sits on
    the entry's corner, over its border, so a paper ring parts the two. */
@@ -1437,10 +1432,55 @@ wa-copy-button.lf-icon-action {
   --lf-pin-face: var(--pin-on-user);
   --lf-entry-ink: var(--pin-on-user-ink);
 }
+/* An entry in force, such as a reaction the user left, stands on the chip, a pin's
+   included, so it follows the pin. */
+.lf-margin-face[aria-pressed="true"] {
+  background: var(--chip);
+}
+/* Comment boxes, the response bar's field (`.lf-response-control`, response.css) and its
+   choices share their frame and focus paint. Other uses of the editor plumbing, such
+   as option entry, supply their own face. Containers place comment boxes; they do not
+   supply a second frame. */
+.lf-comment-box > leaf-composition-field > .lf-compose-field,
+.lf-response-control,
+.lf-response-face {
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  background: var(--card);
+}
+.lf-comment-box
+  > leaf-composition-field
+  > .lf-compose-field:has(> leaf-text[data-lf-focus-visible]),
+.lf-response-control[data-lf-focus-visible],
+.lf-response-face[data-lf-focus-visible] {
+  outline: var(--focus-ring);
+  --lf-ring-at: 0;
+  border-color: transparent;
+  --lf-wears-ring: 1;
+}
+/* Floating comment surfaces have one elevation. The page card reserves the ring's
+   room inside its scrollport; a filter lets its shadow extend beyond that clip. */
+.lf-response-control,
+.lf-response-face {
+  filter: drop-shadow(var(--raise-1));
+}
+/* The field and its choices share height, vertical padding and type. Tab opens
+     the anchored picker without replacing or moving the field.
+     The field can grow with its words without changing its corner. The shared UI
+     supplies the thread’s 14px face and line height; vertical padding keeps
+     that face in the 32px resting box. */
+.lf-response-control,
+.lf-response-face {
+  box-sizing: border-box;
+  min-height: var(--lf-response-height);
+  color: var(--ink-2);
+  font-weight: 400;
+  line-height: inherit;
+  padding-block: var(--lf-compose-pad-block);
+}
 /* The response face (control-faces.js, `ACTION_FACES`): a choice of the response bar,
-   which wears the frame, height and lift the bar's field wears too
-   (`.lf-response-control`, response.css) and lays out its symbol or glyph with its word
-   (widget-elements.js, `responseAction`). A reaction among them, a toggle
+   which wears the frame, height and lift the bar's field wears too (above) and lays
+   out its symbol or glyph with its word (widget-elements.js, `responseAction`). A reaction among them, a toggle
    (`aria-pressed`), wears a reaction's states (above) on the frame's opaque ground
    while not in force; the others, Comment and Suggest, take the frame's accent edge
    under the pointer and decline the wash every generated press takes there. */

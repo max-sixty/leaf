@@ -311,7 +311,6 @@ export function responseAction(
 ) {
   if (Boolean(String(glyph ?? "").trim()) === Boolean(action))
     throw new TypeError("A response action needs exactly one glyph or action");
-  control.classList.toggle("lf-response-control", true);
   control.classList.toggle("lf-response-action", true);
   keeps(control, "data-lf-behavior", behavior);
   control.toggleAttribute("data-lf-collapse", collapse);

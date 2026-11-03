@@ -452,8 +452,15 @@ else ran a margin pass. Bug 2055371 is Firefox's, and it remains with the
 Nightly pref on. A CSS zoom drifts no anchor in any of the three. The margin
 now runs a pass at a box's `scrollend` where a row's carrier stands in the box
 and the box's on-screen width differs from its zoomed layout width
-(`scrollMisplacesAnchors`), so rows drift while the scroll runs and stand on
-their words a frame after it ends. WebKit 27.2's Linux build (Playwright build
+(`scrollMisplacesAnchors`), so rows stand on their words a frame after it
+ends. While the scroll runs, the margin's once-a-frame reading of it places
+again a row whose words have left it (`subjectMoved`). In Firefox, whose
+anchors `anchorBox` measures without their transforms, that holds the row near
+its words: on 2026-11-03 a smooth scroll inside a scaled box ran 26 passes over
+72 frames, the row stayed within 7px of its words where it had drifted up to
+48px, and no frame took over 15ms on a four-row page. In WebKit the measured
+anchor moves with the words, so by that reading its rows still drift until
+`scrollend` (not measured). WebKit 27.2's Linux build (Playwright build
 2370, which CI runs) has no `currentCSSZoom`, unlike its macOS build of the same
 number, so there a zoomed box also gets the pass, which moves no row. Inside a rotated box, a mark anchored to an
 SVG drawing or to a scroller's first words stands off by the rotation, since

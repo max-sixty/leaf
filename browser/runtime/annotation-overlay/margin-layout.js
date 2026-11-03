@@ -364,7 +364,8 @@ function scrollSources(node) {
 // Chromium and WebKit also carried a row through a transform moving its words while the
 // transform ran. A row in the root lane trails such a transform, as a row on an element
 // does, and both are placed again once a CSS transition or animation ends
-// (`subjectMoved`).
+// (`subjectMoved`). A Web Animations motion (`element.animate`) fires no end event, so
+// rows on what it moves wait for the next pass its owner brings.
 /** @param {Node} node */
 const stuckOrFixed = (node) => {
   /** @type {Node | null} */
@@ -1339,11 +1340,13 @@ const pushes = new Map();
 let pass = 0;
 let came = new Map();
 // A scroll inside anything but the document moves its rows in the frame that scrolls
-// them. What it can change is which of them still have somewhere to stand, so only rows
-// under a box that scrolled are read again, once a frame, and a row that changes answer
-// brings the whole pass, which places it, scrollers inside shadow trees included. A
-// transition or animation ending is read the same way (`hearTargetChanges`), and a row
-// whose subject it moved brings the pass too (`subjectMoved`).
+// them. What it can change is which of them still have somewhere to stand, and whether
+// each still stands by its subject where the engine carries an anchor another distance
+// than the words move, as Firefox does inside a scaled box (css-anchors.js). So only
+// rows under a box that scrolled are read again, once a frame, and a row that changes
+// answer, or whose subject has left it (`subjectMoved`), brings the whole pass, which
+// places it, scrollers inside shadow trees included. A transition or animation ending is
+// read the same way (`hearTargetChanges`).
 const stirred = new Set();
 let stirReading = 0;
 function scheduleStirReading() {

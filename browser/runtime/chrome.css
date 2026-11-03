@@ -1166,7 +1166,7 @@ html[data-lf-region-capture]
     outline: var(--focus-ring-w) solid var(--target-trace-ink);
   }
   /* What a change replaced, over the change (margin-bars.js): a card lifted over the
-     page, its words in the document's face, the old struck as an edit's deletion and the
+     page, its words in a widget's font, the old struck as an edit's deletion and the
      new tinted as its insertion. A long redline scrolls inside the card, which stays
      short enough to read whole above the floating panel's room. */
   .lf-change-card {
@@ -1183,7 +1183,7 @@ html[data-lf-region-capture]
     background: var(--card);
     color: var(--ink);
     box-shadow: var(--raise-2);
-    font: 1rem / 1.55 var(--serif);
+    font: var(--font-widget);
     pointer-events: auto;
     & p {
       margin: 0;
@@ -1199,14 +1199,16 @@ html[data-lf-region-capture]
     }
   }
   .lf-change-card-head {
-    font: var(--t-6) / 1.3 var(--sans);
+    font: var(--font-small);
     color: var(--ink-2);
   }
   .lf-change-card-block[data-kind="heading"] {
-    font-weight: 700;
+    font-weight: 600;
   }
   .lf-change-card-block[data-kind="code"] {
-    font: 0.875em / 1.5 var(--mono);
+    font-family: var(--mono);
+    font-size: var(--code-size);
+    line-height: var(--code-line);
     white-space: pre-wrap;
   }
   .lf-page-search-match {

@@ -231,7 +231,7 @@ def test_a_change_s_card_reads_it_in_order(browser, serve):
     took out between two it edited stands struck between their word diffs, and a new
     paragraph reads as inserted. Assistive technology reaches the card as the entry's
     disclosure, and a redline taller than the window scrolls inside the card."""
-    long = " ".join(["Beta reads one way."] * 150)
+    long = " ".join(["Beta reads one way."] * 400)
     url = live_url(serve(PAGE.replace("Beta reads one way.", long)))
     revise(
         serve.page_dir,

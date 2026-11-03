@@ -141,6 +141,7 @@ import { arrivalOf, declareSide } from "../current-target.js";
 import { closestAcross, inChrome } from "../passages.js";
 import { visualAt } from "../anchor-resolution.js";
 import { paintTrace } from "../target-paint.js";
+import { outlineChange } from "../margin-bars.js";
 
 import { threadNamed } from "../thread/state.js";
 import { carryingThreadPlace, currentLocationThreadId } from "../thread/focus.js";
@@ -1330,7 +1331,22 @@ export function createMarginProjection({
     // An obligation's location ring already identifies this target, including when
     // its margin marker holds focus. Quiet brackets on that perimeter cover the ring.
     const obligationShown = target && target === currentLocationObligation();
-    highlight(drawingOnly || currentLocationShown || obligationShown ? null : target);
+    // A Change entry under the pointer or focus outlines its whole change, every block
+    // and its gap, in place of the brackets round its first block (margin-bars.js), until
+    // its card stands open over the change.
+    const changeSource = marker
+      ? entry?.items.map((item) => sourceItem(item)).find((source) => source?.change)
+      : null;
+    outlineChange(
+      changeSource?.change && !changeSource.discloses?.()?.open
+        ? changeSource.change
+        : null,
+    );
+    highlight(
+      changeSource || drawingOnly || currentLocationShown || obligationShown
+        ? null
+        : target,
+    );
   }
 
   function previewChanged() {

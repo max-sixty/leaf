@@ -1268,6 +1268,11 @@ def test_thread_url_reveals_a_tab_despite_its_generated_display_fragment(
           });
         }"""
     )
+    # The hold catches only a fade the tab press starts, so the card still stands
+    # placed when the press lands; a card already put away fails here, not in the wait.
+    expect(page.locator(".lf-margin-preview")).to_have_attribute(
+        "data-lf-thread-placement", re.compile(r".+")
+    )
     page.get_by_role("tab", name="First", exact=True).click()
     expect(page.locator("#first")).to_be_visible()
     assert urlsplit(page.url).fragment == "first"

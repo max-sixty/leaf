@@ -33,6 +33,7 @@ from browser.margin import (
     LONG_THREAD_ROOT,
     PARAGRAPH_ON_OBLIGATION,
     WORDS_RIGHT,
+    _comment_on,
     leave_card,
     resized_shell,
 )
@@ -917,16 +918,24 @@ def test_news_while_a_card_s_row_is_scrolled_away_leaves_the_card_open(browser, 
 
 def test_the_rail_tab_stop_follows_a_carried_row_back_into_view(browser, serve):
     """The rail's one Tab stop is its highest row in view, whichever way the page got
-    there. ship-review's first row stands in a carrier, which the browser moves with
-    the scroll but whose own box reads a frame late: read there, a scroll back to the
-    top left the stop on the second row, below the first, until something else
-    re-read the rail."""
-    example = next(p for p in EXAMPLES if p.stem == "ship-review")
-    page = open_page(browser, serve(example))
-    resized(page, 1200, 900)
+    there. A row on a line a box scrolls sideways stands in a carrier, which the browser
+    moves with the page's scroll but whose own box reads a frame late: read there, a
+    scroll back to the top left the stop on the second row, below the first, until
+    something else re-read the rail."""
+    line = " ".join(["A line wider than its box, which scrolls it sideways."] * 4)
+    filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(30))
+    body = (
+        "<h1>Carried rows</h1>"
+        f'<div style="overflow-x: auto"><p id="first" style="white-space: nowrap">{line}'
+        f'</p></div>{filler[: len(filler) // 3]}<p id="second">The second finding.</p>'
+        f"{filler}"
+    )
+    events = [_comment_on("first"), _comment_on("second")]
+    page = open_page(browser, serve(leaf_page("Carried rows", body), events=events))
+    resized(page, 1440, 900)
     rendered(page)
-    first = page.locator('[data-lf-margin-for="off-t-resync"] .lf-margin-marker')
-    second = page.locator('[data-lf-margin-for="off-t-vendor"] .lf-margin-marker')
+    first = page.locator('[data-lf-margin-for="first"] .lf-margin-marker')
+    second = page.locator('[data-lf-margin-for="second"] .lf-margin-marker')
     assert first.evaluate("row => row.closest('.lf-margin-carrier') !== null"), (
         "the fixture's first row no longer stands in a carrier"
     )

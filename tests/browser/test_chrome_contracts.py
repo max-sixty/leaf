@@ -683,7 +683,7 @@ def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve
     assert ".lf-aim {" in selected["chrome"]
     assert ".lf-target-trace {" in selected["chrome"]
     assert ".lf-drawing-mark path" in selected["chrome"]
-    assert "::highlight(lf-version-insert)" in selected["marks"]
+    assert ".lf-change-card {" in selected["chrome"]
 
 
 def test_message_markdown_reads_a_link_scheme_as_the_attribute_resolves_it(

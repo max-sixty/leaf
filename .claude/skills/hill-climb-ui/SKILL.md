@@ -26,7 +26,7 @@ holds previous runs and findings.
   the starting version for comparison. A saved-page redesign can prove a useful
   behavior; carry that behavior into the maintained runtime, package or authoring
   instructions so another author can produce it.
-- **Test.** Compare base and candidate on the affected task: saved Leaf sources against
+- **Test.** Compare base and head on the affected task: saved Leaf sources against
   both runtimes for a runtime change, fresh Leaf authors for authoring guidance, and
   the saved outputs graded again (`leaf-dev eval --from`) for a grading change. Compare
   with the HTML control too, and vary inputs or tasks to test the repair's reach.

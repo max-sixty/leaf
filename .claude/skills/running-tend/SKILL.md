@@ -295,9 +295,8 @@ Read the latest daily `ci` run that finished (`gh run list -w ci -e schedule`): 
 `test` job's summary lists the tests over their directory's budget (`leaf-dev
 suite-profile`). A test over budget in two daily runs either moves to
 `tests/journeys/` or gets faster. A single reading moves nothing, since one run's time
-includes contention. The summary's journeys within the browser budget stay where they
-are: a test reaches an earlier tier only by being made cheaper (`tests/AGENTS.md`).
-Open one pull request with the moves, listing each test and the times behind it.
+includes contention. Open one pull request with the moves, listing each test and the
+times behind it.
 
 ## Weekly: interface sweep
 

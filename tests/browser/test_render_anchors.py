@@ -3658,7 +3658,7 @@ def test_a_change_opens_what_it_replaced_in_a_card_over_it(browser, serve):
 
     The Change margin entry is a disclosure per change, a hunk of the block diff, which
     opens one card over the change: the words a block that kept its id lost, struck, and
-    the words it gained, tinted, then the change's other blocks as the page shows them.
+    the words it gained, tinted, then the paragraph the change added, inserted whole.
     Rewritten sentences stay whole; a local edit is refined to its words. The card stands
     in the chrome, so the page under it does not move, the existing comments stay
     attached and selection still reads the current version alone.
@@ -3715,11 +3715,11 @@ def test_a_change_opens_what_it_replaced_in_a_card_over_it(browser, serve):
     expect(struck).to_contain_text("Both questions were answered")
     expect(struck).not_to_contain_text("Two years of incident write-ups")
     inserted = card.locator("ins")
-    expect(inserted).to_have_count(1)
-    expect(inserted).to_contain_text("Aggregates supplied the rate")
-    expect(inserted).not_to_contain_text("Two years of incident write-ups")
-    # The paragraph the revision added in the same change reads after it, whole.
-    expect(card).to_contain_text("Keep 5xx request logs for 120 days")
+    expect(inserted).to_have_count(2)
+    expect(inserted.first).to_contain_text("Aggregates supplied the rate")
+    expect(inserted.first).not_to_contain_text("Two years of incident write-ups")
+    # The paragraph the revision added in the same change reads after it, inserted whole.
+    expect(inserted.last).to_contain_text("Keep 5xx request logs for 120 days")
     expect(
         page.locator('[data-lf-margin-for="ret-cost-keep"] [data-lf-kinds~="change"]')
     ).to_have_count(0)

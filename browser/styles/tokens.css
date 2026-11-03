@@ -404,29 +404,27 @@
 
      What it says:
      - The focus ring, whole: what takes the next key or press (`data-lf-focus-visible`).
-     - The location ring, whole: the decision the user stands in (`[data-lf-obligation]`),
-       drawn over it (target-paint.js, `paintLocation`), and the decision's focus ring
-       too. A control inside it that carries the location itself stands it down
+     - The location ring, whole: the decision the user stands in (`[data-lf-obligation]`)
+       (target-paint.js, `paintLocation`), and the decision's focus ring too. A control inside it that carries the location itself stands it down
        (`--lf-obligation-ring: none`).
-     - Brackets, the band's two ends (chrome.css): what a gesture under way addresses,
+     - Brackets, the band's two ends (surfaces.css): what a gesture under way addresses,
        such as the Alt aim, a comment's element, the thread the user is in or its row
        under the pointer in Threads. In the trace ink, the target of the margin entry
        in hand; at 1px in the contour ink, the target of an action.
      - A shape's own contour, stroked along its path in place of either
-       (target-paint-geometry.js).
+       (surfaces.css).
      - A quiet ground (--focus-surface): a large composite holding focus, such as a
        thread, where a band would be a second box round the box.
 
      Where it stands, which the box decides and the mark never does. The box states it
      once, as `--lf-ring-at`, in the rule that draws its face rather than one that waits
-     for focus, and every mark reads it there: each box's outline stands at it
-     (surfaces.css), so its focus ring does, and the overlay's marks, the location ring
-     among them, read it off the box (target-paint-geometry.js, `standOver`). A box that
-     wears the ring for a control inside it states it on itself; a pseudo-element that
-     draws a box's ring above the box's contents states the same place as its own
-     `outline-offset`. A box that states none stands at a control's gap when it holds
-     focus (the floor, surfaces.css), and under an overlay mark at a control's gap if it
-     takes a press and at a region's if not. A rule names the token of the box's kind,
+     for focus. Every mark is the box's own outline, which stands at it (surfaces.css),
+     so its focus ring, the location ring and every gesture's brackets stand on one
+     perimeter. A box that wears the ring for a control inside it states it on itself; a
+     pseudo-element that draws a box's ring above the box's contents states the same
+     place as its own `outline-offset`. A box that states none stands its focus ring at a
+     control's gap (the floor, surfaces.css), and its other marks at a control's gap if
+     it takes a press and at a region's if not. A rule names the token of the box's kind,
      never a length (`test_every_ring_stands_at_a_kind_of_box`):
      - A region, a block of the page standing among others (a section, a question, a
        figure, a paragraph): outside it at --focus-region-gap. Every mark on a region
@@ -438,9 +436,10 @@
        a reaction beside others: on its edge, at 0. A field's ring replaces its border.
      - A box packed edge to edge with others, such as a list's row or a table's cell, a
        box padded inside a frame it fills, or one whose clip leaves no room outside it:
-       one band inside its edge, at --focus-ring-inset. An overlay mark stands there too:
-       on every side once a box clipping its target leaves it no room on one, and on any
-       side the window leaves no room (target-paint-geometry.js, `sideGaps`).
+       one band inside its edge, at --focus-ring-inset. A box that clips a mark standing
+       outside its target cuts it, as it cuts the target, so a box the page's layout
+       fills with no room round it states this place, as a full-height workspace's body
+       does (layouts.css).
 
      The width is a token of its own because the ring is drawn outside the box it
      names, so a scroll region has to reserve room for it: a shorthand cannot be

@@ -1643,8 +1643,7 @@ const cutPath = ({ x, y }, band) => {
 	const open = 1e5;
 	const width = band.right - band.left;
 	const height = band.bottom - band.top;
-	const edge = (value, side) => `calc(${layoutPx(value)} - var(--lf-paint-outset-${side}, 0px))`;
-	return `inset(${edge(y ? 0 : -1e5, "top")} ${edge(-width - (x ? 0 : open), "right")} ${edge(-height - (y ? 0 : open), "bottom")} ${edge(x ? 0 : -1e5, "left")})`;
+	return `inset(${layoutPx(y ? 0 : -1e5)} ${layoutPx(-width - (x ? 0 : open))} ${layoutPx(-height - (y ? 0 : open))} ${layoutPx(x ? 0 : -1e5)})`;
 };
 const nowhere = {
 	left: 0,

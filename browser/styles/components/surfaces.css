@@ -260,7 +260,7 @@ a[data-lf-external]::after,
   outline-offset: var(--lf-ring-at, 0px);
 }
 /* A visible focus destination wears the layer's band unless its own rule supplies
-   a carrier, or a mark drawn over it carries it: a mark over the page
+   a carrier, or another mark on it carries it: a comment's mark
    (`.lf-projected-mark`, visual-mark-paint.js), or the location ring round the decision
    the user stands in (`.lf-projected-location`, target-paint.js). Each stands where the
    box says, as this band does. Controls and reading destinations follow browser focus
@@ -298,10 +298,7 @@ a[data-lf-external]::after,
 :where(.lf-traced) {
   --lf-mark-ink: var(--target-trace-ink);
 }
-:where([data-lf-mark]) {
-  --lf-mark-ink: var(--mark-contour-ink);
-  --lf-mark-w: var(--mark-contour-w);
-}
+/* An action's target alone takes a quieter line than a comment's mark on it. */
 :where(
   [data-lf-mark~="action"]:not(
     [data-lf-mark~="pending"],
@@ -310,11 +307,8 @@ a[data-lf-external]::after,
     [data-lf-mark~="focus"]
   )
 ) {
+  --lf-mark-ink: var(--mark-contour-ink);
   --lf-mark-w: 1px;
-}
-:where([data-lf-mark~="focus"]) {
-  --lf-mark-ink: var(--accent);
-  --lf-mark-w: var(--focus-ring-w);
 }
 /* The aim's veil fills the box and the gap round it, so it and its brackets read as
    one box. */
@@ -359,9 +353,11 @@ a[data-lf-external]::after,
     -9999px -9999px
   );
 }
-/* A drawing's shape takes the mark along its own path: a stroke under its fill, so the
-   band shows outside the shape. A group or a label takes the outline round its box. */
-:where(svg :is(rect, circle, ellipse, path, polygon, polyline, line)):where(
+/* A drawing's part takes the mark along its own path rather than round its box: each
+   shape it is or holds is stroked under its fill, so the band shows outside the shape,
+   and its labels are left as they are. A comment's mark there takes the quieter
+   contour ink. */
+:where(svg :is(g, a, rect, circle, ellipse, path, polygon, polyline, line)):where(
   .lf-aimed,
   .lf-traced,
   .lf-proxied,
@@ -371,6 +367,19 @@ a[data-lf-external]::after,
   outline: none;
   clip-path: none;
   box-shadow: none;
+}
+:where(svg [data-lf-mark]:not([data-lf-mark~="focus"])) {
+  --lf-mark-ink: var(--mark-contour-ink);
+  --lf-mark-w: var(--mark-contour-w);
+}
+:where(svg :is(rect, circle, ellipse, path, polygon, polyline, line)):where(
+  .lf-aimed,
+  .lf-traced,
+  .lf-proxied,
+  [data-lf-mark],
+  .lf-projected-location,
+  :where(.lf-aimed, .lf-traced, .lf-proxied, [data-lf-mark], .lf-projected-location) *
+) {
   stroke: var(--lf-mark-ink, var(--accent));
   stroke-width: calc(2 * var(--lf-mark-w, var(--focus-ring-w)));
   paint-order: stroke;

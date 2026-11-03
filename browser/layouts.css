@@ -919,12 +919,15 @@
     /* The body passes the window's height to its panes; one that is not a pane scrolls
      * as a whole. Each box that scrolls here stops sticking boxes at its own top
      * (`--lf-top: 0px`; the theme's head room is the window's) and holds its height
-     * on purpose (`--lf-holds-height`, base.css). */
+     * on purpose (`--lf-holds-height`, base.css). It fills the window, which leaves no
+     * room round it, so its marks stand one band inside it (base.css, "Where it
+     * stands"), as the location ring round a question filling the workspace does. */
     :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace
       > :not(header, footer, [data-lf-reading-role="pane"]) {
       overflow: auto;
       --lf-top: 0px;
       --lf-holds-height: 1;
+      --lf-ring-at: var(--focus-ring-inset);
     }
     /* A pane (a grid of header, body and footer, base.css) told it has a definite height
      * by its holder may shrink below its content and scrolls its body; a pane not told,

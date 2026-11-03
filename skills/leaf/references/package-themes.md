@@ -138,9 +138,10 @@ Leaf rings every box that holds visible focus, at a control's gap outside it. A 
 whose ring belongs elsewhere declares `--lf-ring-at` in its face's rule, as the token of
 its kind (`base.css`, "Where it stands"): `--focus-region-gap` for a block of the page,
 `0` for a box that draws its own edge, and `--focus-ring-inset` for a row packed edge to
-edge with others or a box whose clip leaves no room outside it. Leaf stands the box's
-outline there, and its marks over the page read the same declaration, so a comment's
-or an aim's frame stands where the ring does. The declaration does not inherit.
+edge with others or a box whose clip leaves no room outside it. Leaf draws every mark
+on a box as the box's own outline there, so a comment's or an aim's brackets stand
+where the ring does, and a rule of yours that sets the box's `outline` or `clip-path`
+replaces them. The declaration does not inherit.
 
 A rule that draws a control's focus ring on a box around it, such as a choice's face
 holding its radio and words, declares `--lf-wears-ring: 1` beside the ring, so Leaf

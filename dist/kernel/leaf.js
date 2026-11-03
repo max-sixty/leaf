@@ -6027,6 +6027,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	let query = "";
 	let searching = false;
 	const unfolded = /* @__PURE__ */ new Set();
+	const foldedGroups = /* @__PURE__ */ new Set();
 	let pageSearch = null;
 	const threadSearchInput = (() => {
 		const input = host.querySelector("input.lf-fp-search");
@@ -6507,6 +6508,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		trail.value = [];
 		searching = false;
 		unfolded.clear();
+		foldedGroups.clear();
 		transition(before, { handedOn });
 	}
 	function putAwayThen(run) {
@@ -7111,16 +7113,18 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
       ><span class="lf-fp-news-outlet">${joinedNotice.node}</span></span
     >`;
 	}
-	function settledHeading(key, title, count) {
-		const open = unfolded.has(key);
+	function settledHeading(key, title, count, startsOpen = false) {
+		const toggled = startsOpen ? foldedGroups : unfolded;
+		const open = toggled.has(key) !== startsOpen;
 		return html`<h3 class="lf-rows-head">
       <button
         type="button"
         ${offeredAction("row", "lf-fp-settled lf-disclosure-marker")}
         aria-expanded=${open ? "true" : "false"}
+        ?data-starts-open=${startsOpen}
         @click=${() => {
-			if (open) unfolded.delete(key);
-			else unfolded.add(key);
+			if (toggled.has(key)) toggled.delete(key);
+			else toggled.add(key);
 			refit();
 			paint();
 		}}
@@ -7344,6 +7348,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	}
 	const marked = (name) => document.querySelector(`[${name}]`) !== null;
 	const candidateOf = (name, today) => marked("data-onme-today") ? today : document.documentElement.getAttribute(`data-playground-${name}`) ?? today;
+	const foldsDone = () => candidateOf("groups", "today") !== "today" || candidateOf("done", "cards") === "fold";
 	const foldsPage = () => candidateOf("where", "cards") === "page";
 	const pageWidgetOf = (item) => {
 		const record = item && carriesObligation(item) ? item.obligation : null;
@@ -7703,7 +7708,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const opened = opening.openItem === key;
 		const stop = queueStop(item);
 		const mine = item.owner === "user";
-		const kind = mine && list === "done" && candidateOf("done", "cards") === "fold" ? "" : mine ? stop.noun : agentNoun(item);
+		const kind = mine && list === "done" && foldsDone() ? "" : mine ? stop.noun : agentNoun(item);
 		const where = says === "place" ? "" : onMe.place(item);
 		const walked = leads && queueTab === "you" && walkedStop() === stop.key;
 		const chosen_ = candidateOf("message", "whole");
@@ -7811,7 +7816,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	function groupedItems(groups, line) {
 		const rows = [];
 		let running = false;
-		const boxed = candidateOf("groups", "today") === "box";
+		const foldsEvery = candidateOf("fold", "no") === "yes";
 		for (const group of groups) {
 			const headed = group.headed !== false;
 			if (rows.length && !headed && !running) rows.push({
@@ -7823,26 +7828,24 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 				key: group.key,
 				group
 			});
-			if (!(group.folds && !unfolded.has(String(group.key)))) for (const item of group.items) rows.push({
+			const key = String(group.key);
+			if (!(group.folds ? !unfolded.has(key) : headed && foldsEvery && foldedGroups.has(group.key))) for (const item of group.items) rows.push({
 				key: queueItemKey(item),
 				item,
 				group
-			});
-			if (headed && boxed) rows.push({
-				key: `end:${group.key}`,
-				end: true
 			});
 		}
 		const heading = (group) => {
 			const count = group.count ?? group.items.length;
 			if (group.folds) return settledHeading(String(group.key), group.title, count);
+			if (foldsEvery) return settledHeading(group.key, group.title, count, true);
 			return html`<h3 class="lf-rows-head">
         <span class="lf-fp-label">${group.title}</span
         ><span class="lf-row-end">${count}</span>
       </h3>`;
 		};
 		return html`<div class="lf-fp-on-list lf-rows">
-      ${repeat(rows, (row) => row.key, (row) => "end" in row && row.end ? html`<div class="lf-fp-on-group-end"></div>` : row.rule ? html`<hr class="lf-fp-rule lf-fp-on-rule" />` : row.item ? line(row.item, row.group) : heading(row.group))}
+      ${repeat(rows, (row) => row.key, (row) => row.rule ? html`<hr class="lf-fp-rule lf-fp-on-rule" />` : row.item ? line(row.item, row.group) : heading(row.group))}
     </div>`;
 	}
 	declareSide((node) => {
@@ -7897,15 +7900,14 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			count: group.items.filter(waits).length
 		}));
 		const onPageWaiting = onPage.filter((item) => lists.you.includes(item)).length;
-		const foldsDone = candidateOf("done", "cards") === "fold";
 		return html`${onPage.length ? html`<p class="lf-rows-head lf-fp-on-page">
             ${voiced(onPageWaiting ? `${onPageWaiting} on the page, each at its own question` : "Nothing left on the page")}
           </p>` : nothing}${listed.length || onPage.length ? nothing : html`<p class="lf-rows-empty">Nothing waiting on me.</p>`}${keyed(grouping, groupedItems([...groups, ...finished.length ? [{
 			key: "done",
 			title: "Done",
 			items: finished,
-			folds: foldsDone
-		}] : []], (item, group) => !("leads" in group) ? onItemCard(item, "done", { card: !foldsDone }) : onItemCard(item, listOf(item), {
+			folds: foldsDone()
+		}] : []], (item, group) => !("leads" in group) ? onItemCard(item, "done", { card: !foldsDone() }) : onItemCard(item, listOf(item), {
 			card: true,
 			says: group.headed ? says : null,
 			group: group.headed ? null : group.title,
@@ -7931,7 +7933,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 				key: "done",
 				title: "Done",
 				items: lists.done,
-				folds: candidateOf("done", "cards") === "fold"
+				folds: foldsDone()
 			}
 		].filter((group) => group.items.length);
 		forgetOpened([...lists.agent, ...lists.done]);

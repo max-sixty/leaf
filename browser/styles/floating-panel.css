@@ -1692,81 +1692,105 @@
     margin-top: 2px;
   }
   /* PROTOTYPE (on-me panel structure): how the On lists hold each group together, set
-     on the host from the playground (floating-panel.js, `foldPage`). Every group has
-     a heading, in the ink at a pane title's size. */
-  .lf-floating-panel[data-onme-groups] .lf-fp-on-list > .lf-rows-head {
-    font: var(--font-title);
-    color: var(--ink);
+     on the host from the playground (floating-panel.js, `foldPage`). Every group has a
+     heading, a band across the panel's width on a ground a shade off the panel's, which
+     reads as the start of what follows down to the next band. The band sticks at the
+     top of the view while its group scrolls under it, as a message's head sticks in a
+     thread card (annotation-chrome.css), so the group being read is always named, and a
+     stuck band needs its ground anyway, since cards pass beneath it. A sticky box moves
+     only inside its containing block, and a grid item's is its own grid area, a row as
+     tall as the band, so the list stacks its rows as a column here, and a line takes
+     its own columns. The view's top padding goes, so the first band meets the panel's
+     top edge and stands there when it sticks. What a landing brings into view stands
+     below the band (`--lf-top`, geometry.js `headerInset`; `scroll-padding` for focus). */
+  .lf-floating-panel[data-onme-groups] {
+    --lf-fp-band: color-mix(in srgb, var(--ink) 6%, var(--lf-fp-surface));
+    --lf-fp-band-height: var(--lf-msg-head-height);
   }
-  .lf-floating-panel[data-onme-groups] .lf-fp-on-list > .lf-rows-head .lf-row-end {
-    font: var(--font-small);
+  .lf-floating-panel[data-onme-groups] .lf-fp-view:has(> .lf-fp-on-list) {
+    padding-top: 0;
+    scroll-padding-top: var(--lf-fp-band-height);
+  }
+  .lf-floating-panel[data-onme-groups] .lf-fp-on-list {
+    display: flex;
+    flex-direction: column;
+    --lf-top: var(--lf-fp-band-height);
+  }
+  .lf-floating-panel[data-onme-groups]
+    .lf-fp-on-list
+    > .lf-fp-on-item:not([data-card]) {
+    display: grid;
+    grid-template-columns: [lead] fit-content(30%) [main] minmax(0, 1fr) [end] auto;
+  }
+  .lf-floating-panel[data-onme-groups] .lf-fp-on-list > .lf-rows-head {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-sizing: border-box;
+    min-height: var(--lf-fp-band-height);
+    margin-inline: -6px;
+    padding: 0 14px;
+    background: var(--lf-fp-band);
+    font: var(--font-heading);
     color: var(--muted);
   }
-  /* By space alone: a group's cards stand close, at most a third of the room that
-     parts one group from the next, as a document's paragraphs under its headings. */
-  .lf-floating-panel[data-onme-groups="space"] .lf-fp-on-item[data-card] {
-    padding-block: 4px 6px;
-  }
-  .lf-floating-panel[data-onme-groups="space"]
+  .lf-floating-panel[data-onme-groups]
     .lf-fp-on-list
     > .lf-rows-head:not(:first-child) {
-    margin-top: 44px;
+    margin-top: 14px;
   }
-  .lf-floating-panel[data-onme-groups="space"]
-    .lf-rows-head
-    + .lf-fp-on-item[data-card] {
-    padding-top: 2px;
-  }
-  /* In a box: each group a framed box, its heading the box's head bar with a rule under
-     it, as a pane's header (base.css) and a Web Awesome card's header draw theirs, and
-     its cards parted inside by a faint rule. The list keeps one keyed run of headings
-     and cards, so the box is drawn by its parts: the heading opens it, each card carries
-     its sides, and the group's foot (`.lf-fp-on-group-end`) closes it. */
-  .lf-floating-panel[data-onme-groups="box"] {
-    --lf-fp-box: var(--lf-fp-ring);
-  }
-  .lf-floating-panel[data-onme-groups="box"] .lf-fp-on-list > .lf-rows-head {
-    padding: 8px 10px;
-    border: 1px solid var(--lf-fp-box);
-    border-radius: var(--r-s) var(--r-s) 0 0;
-  }
-  .lf-floating-panel[data-onme-groups="box"]
+  /* A folded group is its band alone, so the next band follows it closely, as rows of
+     one list do, rather than with the room that parts a group's last item from it. */
+  .lf-floating-panel[data-onme-groups]
     .lf-fp-on-list
-    > .lf-rows-head:not(:first-child) {
-    margin-top: 12px;
+    > .lf-rows-head:has(> [aria-expanded="false"])
+    + .lf-rows-head {
+    margin-top: 2px;
   }
-  .lf-floating-panel[data-onme-groups="box"]
+  .lf-floating-panel[data-onme-groups] .lf-fp-on-list > .lf-rows-head .lf-row-end {
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
+  }
+  /* A heading that folds its group is the band's press, its arrow hanging in the
+     band's start padding, so its name starts where every other band's name does. */
+  .lf-floating-panel[data-onme-groups] .lf-fp-on-list > .lf-rows-head:has(> .lf-row) {
+    padding: 0;
+  }
+  .lf-floating-panel[data-onme-groups] .lf-fp-on-list > .lf-rows-head > .lf-fp-settled {
+    position: relative;
+    display: flex;
+    align-items: center;
+    min-height: var(--lf-fp-band-height);
+    /* The row face's stripe room (controls.css, `.lf-row`) takes 2px of the start. */
+    padding: 0 14px 0 12px;
+    border-radius: 0;
+    color: inherit;
+  }
+  .lf-floating-panel[data-onme-groups]
     .lf-fp-on-list
-    > .lf-rows-head:has(+ .lf-fp-on-group-end) {
-    border-radius: var(--r-s);
+    > .lf-rows-head
+    > .lf-fp-settled::before {
+    position: absolute;
+    inset-inline-start: 2px;
+    top: 50%;
+    translate: 0 -50%;
+    margin: 0;
   }
-  /* Done's heading is a press whose own padding stands its name where the other
-     headings' names start. */
-  .lf-floating-panel[data-onme-groups="box"]
-    .lf-fp-on-list
-    > .lf-rows-head:has(> .lf-fp-settled) {
-    padding: 3px 0 3px 2px;
+  .lf-floating-panel[data-onme-groups] .lf-fp-on-item[data-card] {
+    padding-block: 8px 10px;
   }
-  .lf-floating-panel[data-onme-groups="box"] .lf-fp-on-list > .lf-fp-on-item {
-    border-inline: 1px solid var(--lf-fp-box);
+  .lf-floating-panel[data-onme-groups] .lf-rows-head + .lf-fp-on-item[data-card] {
+    padding-top: 10px;
   }
-  .lf-floating-panel[data-onme-groups="box"] .lf-fp-on-item[data-card] {
-    padding: 10px 10px 12px;
-  }
-  .lf-floating-panel[data-onme-groups="box"]
-    .lf-fp-on-list
-    > .lf-fp-on-item:not(.lf-rows-head + *) {
-    border-top: 1px solid var(--lf-fp-faint);
-  }
-  .lf-floating-panel[data-onme-groups="box"] .lf-fp-on-group-end {
-    height: 0;
-    border: 1px solid var(--lf-fp-box);
-    border-top: 0;
-    border-radius: 0 0 var(--r-s) var(--r-s);
-    padding-top: calc(var(--r-s) - 1px);
-  }
-  .lf-floating-panel[data-onme-groups="box"] .lf-rows-head + .lf-fp-on-group-end {
-    display: none;
+  /* The message a card quotes from its thread stands as a quote, a stripe in the
+     rule's ink down its start edge, so its author's line reads as part of the card
+     rather than the start of the next one. */
+  .lf-floating-panel[data-onme-groups] .lf-fp-on-item .lf-fp-asked:not(:empty) {
+    border-inline-start: 2px solid var(--lf-fp-ring);
+    padding-inline-start: 10px;
   }
   /* Done folded in On me: its arrow before its name, as Threads' Resolved, at the
      list's edge rather than in the lead column its lines' kinds widen, and its name in
@@ -1780,9 +1804,6 @@
   }
   .lf-fp-on-list .lf-fp-settled::before {
     margin: 0 6px 0 0;
-  }
-  .lf-floating-panel[data-onme-groups] .lf-fp-on-list > .lf-rows-head > .lf-fp-settled {
-    color: var(--muted);
   }
   /* A finished line that names no kind gives the lead column no room. */
   .lf-fp-on-noun:empty {

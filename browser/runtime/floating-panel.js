@@ -874,6 +874,11 @@ export function createFloatingPanel({
   // The settled sections the user unfolded while the panel stands open
   // (`settledHeading`).
   const unfolded = new Set();
+  // PROTOTYPE: the open groups of the On lists the user folded while the panel stands
+  // open, where every group folds (`groupedItems`), by the group's key, which is the
+  // page part it names where it names one.
+  /** @type {Set<string | Element>} */
+  const foldedGroups = new Set();
   /** @typedef {Parameters<import("./composing/target-picker.js").TargetPickerOptions["searchInPanel"]>[0]} PanelSearch */
   /** @type {PanelSearch | null} */
   let pageSearch = null;
@@ -1669,6 +1674,7 @@ export function createFloatingPanel({
     trail.value = [];
     searching = false;
     unfolded.clear();
+    foldedGroups.clear();
     transition(before, { handedOn });
   }
   // A row's press puts away the view it stands in, the menu or a list it leads to, and
@@ -2838,17 +2844,22 @@ export function createFloatingPanel({
   // do. The user chose the fold on 27 October over the newest three resolved with the
   // rest behind a row, which put a second order in a list read in the page's, and over
   // resolved threads only searched for, which left them nothing to browse.
-  /** @param {string} key @param {string} title @param {number} count */
-  function settledHeading(key, title, count) {
-    const open = unfolded.has(key);
+  // PROTOTYPE: a group that starts open (`startsOpen`) folds the other way, its key
+  // kept while the user has it folded (`foldedGroups`).
+  /** @param {string | Element} key @param {string} title @param {number} count @param {boolean} [startsOpen] */
+  function settledHeading(key, title, count, startsOpen = false) {
+    /** @type {Set<string | Element>} */
+    const toggled = startsOpen ? foldedGroups : unfolded;
+    const open = toggled.has(key) !== startsOpen;
     return html`<h3 class="lf-rows-head">
       <button
         type="button"
         ${offeredAction("row", "lf-fp-settled lf-disclosure-marker")}
         aria-expanded=${open ? "true" : "false"}
+        ?data-starts-open=${startsOpen}
         @click=${() => {
-          if (open) unfolded.delete(key);
-          else unfolded.add(key);
+          if (toggled.has(key)) toggled.delete(key);
+          else toggled.add(key);
           refit();
           paint();
         }}
@@ -3273,6 +3284,11 @@ export function createFloatingPanel({
     marked("data-onme-today")
       ? today
       : (document.documentElement.getAttribute(`data-playground-${name}`) ?? today);
+  // PROTOTYPE: Done folds under its heading, as Threads' Resolved does, wherever the
+  // groups wear bands, since the bands are drawn with it.
+  const foldsDone = () =>
+    candidateOf("groups", "today") !== "today" ||
+    candidateOf("done", "cards") === "fold";
   // PROTOTYPE: where On me shows a page widget's ask. `page` folds the page to the
   // blocks holding the asks the page draws while On me stands open, so the user answers
   // each on its own widget, and the panel keeps the rest: to-dos and what threads ask.
@@ -3882,11 +3898,7 @@ export function createFloatingPanel({
     // PROTOTYPE: a finished line of the user's under a folded Done says how it ended, a
     // to-do's Done or a question's answer, so it names no kind before its title.
     const kind =
-      mine && list === "done" && candidateOf("done", "cards") === "fold"
-        ? ""
-        : mine
-          ? stop.noun
-          : agentNoun(item);
+      mine && list === "done" && foldsDone() ? "" : mine ? stop.noun : agentNoun(item);
     const where = says === "place" ? "" : onMe.place(item);
     const walked = leads && queueTab === "you" && walkedStop() === stop.key;
     // On me's card says only where its item stands over its question, after the name
@@ -4068,26 +4080,30 @@ export function createFloatingPanel({
   /** @template {{key: string | Element, title: string, items: readonly PanelQueueItem[], headed?: boolean, count?: number, folds?: boolean}} G
    * @param {readonly G[]} groups @param {(item: PanelQueueItem, group: G) => unknown} line */
   function groupedItems(groups, line) {
-    /** @type {({key: string | Element, rule: true} | {key: string | Element, end: true} | {key: string | Element, rule?: false, end?: false, group: G, item?: PanelQueueItem})[]} */
+    /** @type {({key: string | Element, rule: true} | {key: string | Element, rule?: false, group: G, item?: PanelQueueItem})[]} */
     const rows = [];
     let running = false;
-    const boxed = candidateOf("groups", "today") === "box";
+    // PROTOTYPE: where every group folds, each heading is the press that folds it.
+    const foldsEvery = candidateOf("fold", "no") === "yes";
     for (const group of groups) {
       const headed = group.headed !== false;
       if (rows.length && !headed && !running)
         rows.push({ key: `rule:${group.key}`, rule: true });
       running = !headed;
       if (headed) rows.push({ key: group.key, group });
-      if (!(group.folds && !unfolded.has(String(group.key))))
+      const key = String(group.key);
+      const shut = group.folds
+        ? !unfolded.has(key)
+        : headed && foldsEvery && foldedGroups.has(group.key);
+      if (!shut)
         for (const item of group.items)
           rows.push({ key: queueItemKey(item), item, group });
-      // PROTOTYPE: a boxed group's foot, which closes the box its heading opens.
-      if (headed && boxed) rows.push({ key: `end:${group.key}`, end: true });
     }
     /** @param {G} group */
     const heading = (group) => {
       const count = group.count ?? group.items.length;
       if (group.folds) return settledHeading(String(group.key), group.title, count);
+      if (foldsEvery) return settledHeading(group.key, group.title, count, true);
       return html`<h3 class="lf-rows-head">
         <span class="lf-fp-label">${group.title}</span
         ><span class="lf-row-end">${count}</span>
@@ -4098,13 +4114,11 @@ export function createFloatingPanel({
         rows,
         (row) => row.key,
         (row) =>
-          "end" in row && row.end
-            ? html`<div class="lf-fp-on-group-end"></div>`
-            : row.rule
-              ? html`<hr class="lf-fp-rule lf-fp-on-rule" />`
-              : row.item
-                ? line(row.item, row.group)
-                : heading(row.group),
+          row.rule
+            ? html`<hr class="lf-fp-rule lf-fp-on-rule" />`
+            : row.item
+              ? line(row.item, row.group)
+              : heading(row.group),
       )}
     </div>`;
   }
@@ -4220,7 +4234,6 @@ export function createFloatingPanel({
     // node in turn would stand some back where they were.
     const onPageWaiting = onPage.filter((item) => lists.you.includes(item)).length;
     // PROTOTYPE: what left the list folded under Done, a line each once unfolded.
-    const foldsDone = candidateOf("done", "cards") === "fold";
     return html`${
       onPage.length
         ? html`<p class="lf-rows-head lf-fp-on-page">
@@ -4241,12 +4254,12 @@ export function createFloatingPanel({
         [
           ...groups,
           ...(finished.length
-            ? [{ key: "done", title: "Done", items: finished, folds: foldsDone }]
+            ? [{ key: "done", title: "Done", items: finished, folds: foldsDone() }]
             : []),
         ],
         (item, group) =>
           !("leads" in group)
-            ? onItemCard(item, "done", { card: !foldsDone })
+            ? onItemCard(item, "done", { card: !foldsDone() })
             : onItemCard(item, listOf(item), {
                 card: true,
                 says: group.headed ? says : null,
@@ -4272,7 +4285,7 @@ export function createFloatingPanel({
         key: "done",
         title: "Done",
         items: lists.done,
-        folds: candidateOf("done", "cards") === "fold",
+        folds: foldsDone(),
       },
     ].filter((group) => group.items.length);
     forgetOpened([...lists.agent, ...lists.done]);

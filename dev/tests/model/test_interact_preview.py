@@ -294,7 +294,7 @@ def test_fixture_media_follows_versions_draft_assets_and_live_edits(
 def test_a_preview_subscribes_to_a_root_over_every_input_it_follows():
     """A path outside the subscribed roots is never reported, so it can never refresh.
 
-    watchfiles watches each root recursively and names the path that changed; the
+    The subscription watches each root and names the path that changed; the
     watcher decides from that name alone. Any watched path the roots do not cover is
     therefore an input the preview silently stops following. The page directory is the
     other half: its own writes are a user's feedback, and watching them would make

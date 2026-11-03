@@ -1316,40 +1316,70 @@ def test_an_obligation_landed_in_a_pane_keeps_its_ring_inside_the_pane(browser, 
     expect(item).to_be_focused()
     expect(item).to_have_attribute("data-lf-obligation", "1")
     scroll_settled(page, "#ask-detail > :not(header, footer)")
-    reading = item.evaluate(
+    ring = page.evaluate(LOCATION_RING)
+    pane_top = item.evaluate(
         """ask => {
           const body = ask.closest('lf-pane').querySelector(':scope > :not(header, footer)');
-          const style = getComputedStyle(ask);
-          const ring = parseFloat(style.outlineOffset) + parseFloat(style.outlineWidth);
-          return {ringTop: ask.getBoundingClientRect().top - ring,
-                  paneTop: body.getBoundingClientRect().top + body.clientTop};
+          return body.getBoundingClientRect().top + body.clientTop;
         }"""
     )
-    assert reading["ringTop"] >= reading["paneTop"] - 0.5, reading
+    assert ring["outer"]["top"] >= pane_top - 0.5, (ring, pane_top)
 
 
-ASK_RING_READING = """() => {
-  const ask = document.querySelector('lf-ask[data-lf-obligation]');
-  const ring = getComputedStyle(ask, '::after');
-  const box = ask.getBoundingClientRect();
-  const words = document.createRange();
-  words.selectNodeContents(ask.querySelector('h2'));
+# The location ring's band as drawn over the decision (target-paint.js,
+# `paintLocation`): its inner and outer edges in client coordinates.
+LOCATION_RING = """() => {
+  const box = document.querySelector('.lf-location');
+  const ring = getComputedStyle(box, '::after');
+  const at = box.getBoundingClientRect();
+  const edges = (out) => ({left: at.left - out, top: at.top - out,
+                           right: at.right + out, bottom: at.bottom + out});
   const offset = parseFloat(ring.outlineOffset);
-  const width = parseFloat(ring.outlineWidth);
-  return {
-    inner: box.left - offset,
-    outer: box.bottom + offset + width,
-    words: words.getClientRects()[0].left,
-    foot: innerHeight,
-  };
+  return {for: box.dataset.for, inner: edges(offset),
+          outer: edges(offset + parseFloat(ring.outlineWidth))};
 }"""
+
+ASK_WORDS = """() => {
+  const words = document.createRange();
+  words.selectNodeContents(document.querySelector('lf-ask[data-lf-obligation] h2'));
+  return {words: words.getClientRects()[0].left, foot: innerHeight};
+}"""
+
+
+def test_the_ring_round_a_clipped_question_stands_inside_it(browser, serve):
+    """A box that clips a question and leaves no room round it, such as a frame with
+    no padding, cuts a ring standing outside the question: drawn as the question's
+    outline, it lost its sides and kept a line across the top. There the ring stands
+    inside the question, as every mark does round a box its clip leaves no room
+    around."""
+    ask = (
+        '<div id="frame" style="overflow: clip">'
+        '<lf-ask id="rollout"><h2>Include self-hosted runners?</h2>'
+        "<p>They need administrator-configured namespaces.</p>"
+        '<lf-options id="rollout-options" choose>'
+        '<lf-option id="include">Include them</lf-option>'
+        '<lf-option id="later">Later</lf-option></lf-options></lf-ask></div>'
+    )
+    page = open_page(browser, serve(leaf_page("a clipped question", ask)))
+    resized(page, 1280, 800)
+    page.keyboard.press("m")
+    expect(page.locator(".lf-location[data-for='rollout']")).to_be_visible()
+    ring = page.evaluate(LOCATION_RING)
+    frame = page.locator("#frame").bounding_box()
+    assert frame is not None
+    assert ring["outer"]["left"] >= frame["x"] - 0.5, (ring, frame)
+    assert ring["outer"]["top"] >= frame["y"] - 0.5, (ring, frame)
+    assert ring["outer"]["right"] <= frame["x"] + frame["width"] + 0.5, (ring, frame)
+    assert ring["outer"]["bottom"] <= frame["y"] + frame["height"] + 0.5, (ring, frame)
 
 
 def test_the_ring_round_a_question_stands_clear_of_its_words(browser, serve):
     """The ring the user stands in goes round a question outside its box, as every
-    obligation's does, so it does not run over the first letter of each line. Only a
-    question that fills a full-height workspace, which can meet the window's foot with
-    no scroll left to show a ring outside it, draws the ring inside its box."""
+    obligation's does, so it does not run over the first letter of each line. A
+    question that fills a full-height workspace meets the window's foot with no scroll
+    left to show a ring outside it, so the ring stands inside along the foot, and stays
+    clear of the words on the sides the window leaves room beside: standing inside on
+    every side, it ran over the heading's first letter."""
     ask = (
         '<lf-ask id="rollout"><h2>Include self-hosted runners?</h2>'
         "<p>They need administrator-configured namespaces.</p>"
@@ -1360,14 +1390,15 @@ def test_the_ring_round_a_question_stands_clear_of_its_words(browser, serve):
     page = open_page(browser, serve(leaf_page("a question", ask)))
     resized(page, 1280, 800)
     page.keyboard.press("m")
-    expect(page.locator("#rollout")).to_have_attribute("data-lf-obligation", "1")
-    column = page.evaluate(ASK_RING_READING)
-    assert column["inner"] < column["words"], column
+    expect(page.locator(".lf-location[data-for='rollout']")).to_be_visible()
+    ring, column = page.evaluate(LOCATION_RING), page.evaluate(ASK_WORDS)
+    assert ring["inner"]["left"] < column["words"], (ring, column)
     page.close()
 
     page = open_page(browser, serve(leaf_page("a question", ask, layout="workspace")))
     resized(page, 1280, 800)
     page.keyboard.press("m")
-    expect(page.locator("#rollout")).to_have_attribute("data-lf-obligation", "1")
-    workspace = page.evaluate(ASK_RING_READING)
-    assert workspace["outer"] <= workspace["foot"], workspace
+    expect(page.locator(".lf-location[data-for='rollout']")).to_be_visible()
+    ring, workspace = page.evaluate(LOCATION_RING), page.evaluate(ASK_WORDS)
+    assert ring["outer"]["bottom"] <= workspace["foot"], (ring, workspace)
+    assert ring["inner"]["left"] < workspace["words"], (ring, workspace)

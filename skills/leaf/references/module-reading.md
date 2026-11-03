@@ -107,9 +107,12 @@ page's syntax theme. `synNodes(tokens)` turns them into nodes, and `tokenLines(t
 splits them by line. `lang` is a registry `$languages` name; `langForPath(path)` derives
 one from a file name, and `ensureSyntaxLanguage(lang)` loads one ahead of time.
 `highlightBlocks(root)` colours each `pre > code` in `root` whose `language-…` class
-names a language, that holds only text, and that wears the reading face
+names a language and that wears the reading face
 (`package-themes.md`, "Personal themes"); a block in a shadow tree wears it where the
-widget sets `--lf-reading-face: 1` on a box around it.
+widget sets `--lf-reading-face: 1` on a box around it. Inline annotations keep their
+elements and text while tokens are added inside them; use literal newlines rather than
+`<br>`, whose blocks remain uncoloured. A block with its own colouring turns off the
+reading face as other personally themed content does.
 
 Leaf adds a Copy button to each `pre > code` in the page. A widget block holding other
 source text, such as numbered code lines, declares its own: give the block
@@ -119,8 +122,10 @@ the page, and a page without Leaf shows none. Where the button belongs among the
 widget's own controls, as in a draft's toolbar, place the one `copyBlock(block, source,
 noun)` returns once the block is connected; it copies `source()`. A copy that stands
 among a widget's own controls rather than over a block, such as in a popover's header,
-is `copyControl(className, {label, success, error})`: set its `value` before it copies,
-and it reports `success` or `error` as a code block's does.
+is `copyControl(className, {label, success, error, role})`, a press of `role`, such as
+`"symbol"` for Copy's symbol; to copy through a press of your own built by its role,
+pass it as `trigger` instead. Set its `value` before it copies, and it reports
+`success` or `error` as a code block's does.
 
 ### Text alignment
 
@@ -145,12 +150,10 @@ for what something is or holds, such as a kind or a state. A press shows an acti
 symbol instead, so each action looks the same wherever it is offered. `ACTIONS` in
 `runtime/icon-paths.js` lists Leaf's actions with their symbol and name, and
 `offerAction("symbol", className, label, {action: "comment"})` draws one
-(`module-authoring.md`, "Generated controls"). Where your widget gives the press its
-face itself, `nameAction(control, action, {label, title, className})`, or
-`namedAction(action, {…})` in a template's element part, gives it the action's symbol
-and says the action's name as its tooltip and accessible name, unless `label` or
-`title` says more. Call it again with another action for a press whose action follows
-its state, such as Expand all turning to Collapse all; it swaps only the symbol.
+(`module-authoring.md`, "Generated controls"). For a symbol whose action follows its
+state, such as Expand all turning to Collapse all, `nameAction(control, action,
+{label, title, className})` swaps in the new action's symbol and says its name as the
+tooltip and accessible name, unless `label` or `title` says more.
 `actionTemplate(action, className)` draws an action's symbol that isn't a press's whole
 face, such as the second of two symbols a press swaps by CSS.
 

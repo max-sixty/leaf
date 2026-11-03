@@ -298,6 +298,12 @@ def native_code(page: Page) -> None:
     page.locator("#bg-javascript-code").scroll_into_view_if_needed()
 
 
+def annotated_code(page: Page) -> None:
+    """Syntax colours inside authored marks, line wrappers and link targets."""
+    native_code(page)
+    page.locator("#bg-annotated-code").scroll_into_view_if_needed()
+
+
 def native_code_copy_hover(page: Page) -> None:
     """A document code block under the pointer, which shows its Copy on its border."""
     native_code(page)
@@ -557,6 +563,84 @@ def floating_thread_unread(page: Page) -> None:
     expect(page.locator(".lf-fp-head .lf-fp-next-unread")).to_be_visible()
 
 
+def panel_new_reply(page: Page) -> None:
+    """The same thread after the user's own turn, with the agent's answer to it too long
+    for the view, arrived below the fold behind New reply."""
+    floating_thread(page)
+    view = page.locator(".lf-fp-view[data-view=thread]")
+    messages = view.locator(".lf-msg")
+    sent = messages.count() + 1
+    page.locator(".lf-fp-field leaf-text").click()
+    page.keyboard.insert_text("And over the weekend?")
+    page.keyboard.press("ControlOrMeta+Enter")
+    expect(messages).to_have_count(sent)
+    settle(page)
+    # The agent answers the turn through the delivery that hands it over.
+    served = served_page.get()
+    delivery = json.loads(served.leaf("wait", str(served.directory)).stdout)
+
+    def refs(node):
+        if isinstance(node, dict):
+            if isinstance(node.get("answer"), dict) and "ref" in node["answer"]:
+                yield node["answer"]["ref"]
+            for value in node.values():
+                yield from refs(value)
+        elif isinstance(node, list):
+            for value in node:
+                yield from refs(value)
+
+    served.leaf(
+        "thread",
+        "reply",
+        next(refs(delivery)),
+        "--done",
+        "--text",
+        "It would. " + "Someone stays on call through Sunday, and Monday too. " * 80,
+    )
+    expect(view.locator(".lf-fp-new-reply")).to_be_visible()
+
+
+def plan_head(page: Page) -> None:
+    """On the agent's tab with the agent's plan disclosed from its head at the view's
+    foot, one of its steps waiting on the user."""
+    as_agent(
+        "task",
+        "plan",
+        "--text",
+        '[{"depth": 0, "title": "Ship the resend", "state": "working"},'
+        ' {"depth": 1, "title": "Reproduce the stall", "state": "done"},'
+        ' {"depth": 1, "item": "widget:off-release"},'
+        ' {"depth": 1, "title": "Write the release note", "state": "open"}]',
+    )
+    wait_until_ready(page, PageClient(served_page.get().address).state())
+    on_agent(page)
+    page.locator(".lf-fp-plan-head").click()
+    expect(page.locator(".lf-fp-plan")).to_be_visible()
+
+
+def reaction_palette(page: Page) -> None:
+    """A reply's reactions in the floating panel's thread, the palette opened from the
+    strip's trigger, none in force."""
+    floating_thread(page)
+    message = page.locator(".lf-fp-view[data-view=thread] .lf-msg:has(.lf-react-strip)")
+    message.first.hover()
+    message.first.locator(".lf-react-trigger").click()
+    expect(message.first.locator(".lf-react-palette:popover-open")).to_be_visible()
+
+
+def reaction_pressed(page: Page) -> None:
+    """The same reply once the user has added its first reaction, which the closed
+    strip keeps in sight in the accent, under the pointer and away from it."""
+    reaction_palette(page)
+    strip = page.locator(".lf-fp-view[data-view=thread] .lf-react-strip").first
+    strip.locator(".lf-react").first.click()
+    expect(strip.locator('.lf-react[aria-pressed="true"]')).to_have_count(1)
+    # A press beside the palette puts it away, as any popover is.
+    page.locator(".lf-fp-view[data-view=thread] .lf-msg-body").first.click()
+    expect(strip.locator(".lf-react-palette:popover-open")).to_have_count(0)
+    settle(page)
+
+
 def floating_thread_retitled(page: Page) -> None:
     """The same thread once its opening message is rewritten short, so its title is far
     narrower than the view it names."""
@@ -668,6 +752,112 @@ def panel_reply_empty(page: Page) -> None:
     expect(page.locator(".lf-fp-view[data-view=thread]")).to_be_visible()
     page.locator(".lf-fp-field leaf-text").click()
     expect(page.locator(".lf-fp-field leaf-text")).to_be_focused()
+
+
+def panel_dictating(page: Page) -> None:
+    """The floating panel's field while Dictate listens. Headless has no microphone, so
+    the button takes the state a listening dictation renders on it."""
+    page.locator(".lf-fp-field leaf-text").click()
+    dictate = page.locator(".lf-fp-field .lf-compose-dictate")
+    expect(dictate).to_be_visible()
+    dictate.evaluate(
+        """button => {
+          button.setAttribute("aria-pressed", "true");
+          button.dataset.dictation = "listening";
+        }"""
+    )
+    settle(page)
+
+
+def comment_on(section: str) -> None:
+    """A comment the user left on `section`, posted as another of their tabs would."""
+    client = PageClient(served_page.get().address)
+    client.post(
+        {
+            "kind": "comment",
+            "revision": client.state()["active"]["revision"],
+            "attempt": f"stills-proxy-{section}",
+            "text": "Worth a second look.",
+            "anchor": {"section": section},
+        }
+    )
+
+
+def focus_proxy(page: Page, focus: str, *args: str) -> None:
+    """Focus the proxy `focus` finds, with the keyboard's modality, as a screen reader
+    moving to it focuses it: a proxy on the details shelf is no Tab stop
+    (control-faces.js, `proxy`)."""
+    page.keyboard.press("Tab")
+    page.evaluate(f"([...args]) => ({focus})(...args)", list(args))
+    page.wait_for_function(
+        "() => document.activeElement?.closest('.lf-details-shelf, lf-gloss')"
+    )
+    settle(page)
+
+
+# The comment note the element `id` names as its details, once it has one.
+NOTE_OF = """id => {
+  const notes = document.getElementById(id).ariaDetailsElements ?? [];
+  const note = notes.find((node) => node.matches('.lf-mark-note'));
+  if (!note) throw new Error(`#${id} names no comment note`);
+  note.focus();
+}"""
+# The response proxy whose words include `label`, or the first of its group's, its
+# drawing's own.
+PROXY_OF = """(label, whole) => {
+  const proxy = [...document.querySelectorAll('.lf-visual-action')].find((node) =>
+    node.textContent.includes(label),
+  );
+  (whole ? proxy.parentElement.querySelector('.lf-visual-action') : proxy).focus();
+}"""
+
+
+def proxy_note_paragraph(page: Page) -> None:
+    """A paragraph's comment note focused, which rings the paragraph."""
+    comment_on("pr-approval-premise")
+    page.wait_for_function(
+        "() => document.getElementById('pr-approval-premise').ariaDetailsElements?.length"
+    )
+    focus_proxy(page, NOTE_OF, "pr-approval-premise")
+
+
+def proxy_note_row(page: Page) -> None:
+    """A table row's comment note focused, which rings the row."""
+    comment_on("pr-focus-latency")
+    page.wait_for_function(
+        "() => document.getElementById('pr-focus-latency').ariaDetailsElements?.length"
+    )
+    focus_proxy(page, NOTE_OF, "pr-focus-latency")
+
+
+def proxy_note_own_annotations(page: Page) -> None:
+    """A paragraph's comment note focused on a page that presents its own annotations,
+    where no annotation overlay is loaded, which still rings the paragraph."""
+    comment_on("plan")
+    page.wait_for_function(
+        "() => document.getElementById('plan').ariaDetailsElements?.length"
+    )
+    focus_proxy(page, NOTE_OF, "plan")
+
+
+def proxy_drawing(page: Page) -> None:
+    """A diagram's own response proxy focused, which rings the diagram."""
+    page.get_by_role("tab", name="Behavior diff").click()
+    focus_proxy(page, PROXY_OF, "PreparedDiff", "whole")
+
+
+def proxy_part(page: Page) -> None:
+    """The response proxy of one of a diagram's declared parts focused, which rings the
+    part in its own contour."""
+    page.get_by_role("tab", name="Behavior diff").click()
+    focus_proxy(page, PROXY_OF, "PreparedDiff")
+
+
+def proxy_gloss(page: Page) -> None:
+    """A gloss's proxy focused, which rings its phrase."""
+    focus_proxy(
+        page, "() => document.querySelector('#pr-focus-safety .lf-gloss-mark').focus()"
+    )
 
 
 def option_empty(page: Page) -> None:
@@ -891,7 +1081,8 @@ def on_me(page: Page) -> None:
 
 
 def on_me_todo(page: Page) -> None:
-    """The full to-do title beside its subject after the On me walk arrives."""
+    """On me opened on a to-do's card, its whole title over its Done, after the On me
+    walk arrives at the to-do's subject."""
     as_agent(
         "task",
         "create",
@@ -1214,6 +1405,15 @@ LONG_DRAFT = (
     "concept? So when the agent is working on something, they're working on a task?"
     "\n\nwhat else do we need to move around for that to work?"
 )
+
+
+def composer_send_focused(page: Page) -> None:
+    """The same comment with the keyboard on its Send."""
+    composer(page)
+    page.keyboard.press("Tab")
+    send = page.locator(".lf-composer .lf-compose-submit")
+    send.focus()
+    expect(send).to_have_attribute("data-lf-focus-visible", re.compile(".*"))
 
 
 def composer_long(page: Page) -> None:
@@ -2149,6 +2349,19 @@ STATES = (
         region="#bg-javascript-code",
     ),
     State(
+        "annotated-code",
+        "developer/feature-gallery",
+        annotated_code,
+        region="#bg-annotated-code",
+    ),
+    State(
+        "annotated-code-dark",
+        "developer/feature-gallery",
+        annotated_code,
+        scheme="dark",
+        region="#bg-annotated-code",
+    ),
+    State(
         "native-code-copy-hover",
         "developer/feature-gallery",
         native_code_copy_hover,
@@ -2267,6 +2480,29 @@ STATES = (
         "ship-review",
         floating_thread_retitled,
         region=".lf-fp-opened",
+    ),
+    State("panel-new-reply", "ship-review", panel_new_reply, region=".lf-fp-opened"),
+    State(
+        "panel-new-reply-phone",
+        "ship-review",
+        panel_new_reply,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State("plan-head", "ship-review", plan_head, region=".lf-floating-panel"),
+    State(
+        "plan-head-phone",
+        "ship-review",
+        plan_head,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State(
+        "on-me-choice-phone",
+        "command-hub",
+        on_me_choice,
+        viewport=(390, 844),
+        touch=True,
     ),
     State(
         "playground-choice",
@@ -2855,6 +3091,12 @@ STATES = (
         viewport=(390, 844),
         touch=True,
     ),
+    State(
+        "selected-passage-responses-dark",
+        "review-a-plan",
+        selected_passage_responses,
+        scheme="dark",
+    ),
     State("command-reference-search", "review-a-plan", command_reference_search),
     State("page-map", "review-a-plan", page_map, region=".lf-page-map-dialog"),
     # Its threads on the user's turn, tinted and saying so at their ends.
@@ -2868,6 +3110,10 @@ STATES = (
     State("plan-dark", "review-a-plan", at_rest, scheme="dark"),
     State("plan-beside", "review-a-plan", at_rest, viewport=BESIDE),
     State("plan-card", "review-a-plan", card_by_pointer),
+    State("reaction-palette", "ship-review", reaction_palette),
+    State("reaction-palette-dark", "ship-review", reaction_palette, scheme="dark"),
+    State("reaction-pressed", "ship-review", reaction_pressed),
+    State("reaction-pressed-dark", "ship-review", reaction_pressed, scheme="dark"),
     State(
         "plan-card-message-width",
         "review-a-plan",
@@ -3043,7 +3289,43 @@ STATES = (
         panel_reply_empty,
         region=".lf-fp-row",
     ),
+    State(
+        "plan-panel-dictating", "review-a-plan", panel_dictating, region=".lf-fp-row"
+    ),
+    State(
+        "plan-panel-dictating-dark",
+        "review-a-plan",
+        panel_dictating,
+        scheme="dark",
+        region=".lf-fp-row",
+    ),
     State("plan-option-empty", "review-a-plan", option_empty, region=".lf-another"),
+    State(
+        "proxy-note-own-annotations",
+        "../tests/fixtures/pages/page-annotations",
+        proxy_note_own_annotations,
+    ),
+    State(
+        "proxy-note-own-annotations-dark",
+        "../tests/fixtures/pages/page-annotations",
+        proxy_note_own_annotations,
+        scheme="dark",
+    ),
+    State("proxy-note-paragraph", "pr-walkthrough", proxy_note_paragraph),
+    State(
+        "proxy-note-paragraph-dark",
+        "pr-walkthrough",
+        proxy_note_paragraph,
+        scheme="dark",
+    ),
+    State("proxy-note-row", "pr-walkthrough", proxy_note_row),
+    State("proxy-note-row-dark", "pr-walkthrough", proxy_note_row, scheme="dark"),
+    State("proxy-drawing", "pr-walkthrough", proxy_drawing),
+    State("proxy-drawing-dark", "pr-walkthrough", proxy_drawing, scheme="dark"),
+    State("proxy-part", "pr-walkthrough", proxy_part),
+    State("proxy-part-dark", "pr-walkthrough", proxy_part, scheme="dark"),
+    State("proxy-gloss", "pr-walkthrough", proxy_gloss),
+    State("proxy-gloss-dark", "pr-walkthrough", proxy_gloss, scheme="dark"),
     State("plan-card-reply-resolved", "review-a-plan", card_reply_resolved),
     State("section-ring-keyboard", "review-a-plan", section_ring_by_keyboard),
     State(
@@ -3078,6 +3360,21 @@ STATES = (
         region="#triage-counts",
     ),
     State("triage-composer", "triage-board", composer),
+    State("triage-composer-dark", "triage-board", composer, scheme="dark"),
+    State(
+        "triage-composer-phone",
+        "triage-board",
+        composer,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State("triage-composer-send-focused", "triage-board", composer_send_focused),
+    State(
+        "triage-composer-send-focused-dark",
+        "triage-board",
+        composer_send_focused,
+        scheme="dark",
+    ),
     State(
         "triage-composer-empty",
         "triage-board",
@@ -3446,7 +3743,6 @@ STATES = (
         touch=True,
     ),
     State("on-me-todo", "review-a-plan", on_me_todo),
-    State("on-me-todo-dark", "review-a-plan", on_me_todo, scheme="dark"),
     State("on-me", "corpus", on_me),
     State("on-me-dark", "corpus", on_me, scheme="dark"),
     State("on-agent", "corpus", on_agent),

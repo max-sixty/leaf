@@ -238,8 +238,8 @@ def test_user_view_checks_read_current_geometry_without_changing_the_page(
 
     The same drawing's labels shrink further on a narrower window; large labels are
     clean at desktop and cross the stated threshold on mobile. A closed disclosure's
-    arrangement is no part of the view until opened. The reading includes the native
-    column grid as well as the page's flex rows. Reading leaves
+    arrangement is no part of the view until opened. The column is block flow, so the
+    reading holds only the page's own flex rows. Reading leaves
     the DOM, focus, selection, and scroll position intact.
     """
     source = DRAWN_LABELS_PAGE.replace(
@@ -287,8 +287,7 @@ def test_user_view_checks_read_current_geometry_without_changing_the_page(
     assert desktop["unchanged"] and narrow["unchanged"]
     for result in (desktop, narrow):
         reading = result["reading"]
-        column, arrangement = reading["layout"]["arrangement"]
-        assert column["path"] == "main"
+        (arrangement,) = reading["layout"]["arrangement"]
         assert arrangement["at"] == "<div id=arrangement>"
         assert arrangement["rows"] == "2"
         assert page.locator(arrangement["path"]).get_attribute("id") == "arrangement"
@@ -309,8 +308,7 @@ def test_user_view_checks_read_current_geometry_without_changing_the_page(
     rendered(page)
     opened = read()
     assert opened["unchanged"]
-    column, arrangement, later = opened["reading"]["layout"]["arrangement"]
-    assert column["path"] == "main"
+    arrangement, later = opened["reading"]["layout"]["arrangement"]
     assert arrangement["at"] == "<div id=arrangement>"
     assert later["at"] == "<div id=later-arrangement>"
     assert later["rows"] == "2"
@@ -462,6 +460,48 @@ def test_a_refused_document_reports_its_status_with_the_gate_failure(browser, se
     } in failure.values["console"], failure
 
     assert "401 (Unauthorized)" in str(failure)
+
+
+def test_a_frame_of_another_live_leaf_page_is_checked_on_its_own(
+    browser, serve, live_leaf
+):
+    """The gate's browser holds no key for another live Leaf page, whose server
+    refuses the gate as a framer, so its frame would fail the page framing it with a
+    fault that page's author can't fix. The gate shows a stand-in there, and a frame
+    of any other server still reports. Only the frame stands in: a request the
+    framing page itself makes to that server, such as a fetch, still reaches it."""
+    framed, _ = live_leaf("framed", "Framed")
+    other = urlsplit(serve(leaf_page("Other", "<h1>Other</h1>"), packages=()))
+    other = f"{other.scheme}://{other.netloc}"
+    frames = "".join(
+        f'<iframe src="{src}/" title="{title}" '
+        'style="display:block;width:100%;height:200px;border:0"></iframe>'
+        for src, title in ((framed, "Another Leaf page"), (other, "Another server"))
+    )
+    failures = render_gate_model.render_version(
+        browser.unwatched,
+        serve(leaf_page("Framing", f"<h1>Framing</h1>{frames}"), packages=()),
+    ).failures
+    assert failures and all(
+        failure.code == "console-error"
+        and other in failure.values["text"] + failure.values["url"]
+        for failure in failures
+    ), failures
+
+    page = browser.unwatched.new_page()
+    try:
+        render_gate_scheme.stand_in_other_leaves(page)
+        page.set_content(f'<iframe src="{framed}/"></iframe>')
+        expect(page.frame_locator("iframe").locator("p")).to_have_text(
+            "Another Leaf page, checked on its own."
+        )
+        state = f"{framed}/api/state"
+        with page.expect_response(state) as answer:
+            page.evaluate("url => fetch(url, {mode: 'no-cors'}).catch(() => {})", state)
+        # The live server's own refusal of a browser without its key.
+        assert answer.value.status == 401
+    finally:
+        page.close()
 
 
 RECURSIVE_ROWS_PAGE = leaf_page(
@@ -2389,38 +2429,42 @@ def test_frame_edges_pass_through_whatever_stands_at_them(browser, serve):
     ]
 
 
-def test_a_column_item_opening_with_a_heading_starts_at_the_heading(browser, serve):
-    """A grid item keeps its first child's margin inside its box, so a section in the
-    reading column would begin a heading's gap above its heading, and the focus ring,
-    margin entry and landing Leaf places by that box would stand in the gap. The item
-    takes the heading's gap instead: its box starts at the heading, which stands as far
-    below the block above as the gap says. An eyebrow over the heading follows the same
-    edge. A callout opening with a heading keeps its own margin, and an item opening with
-    prose keeps its child's margin, so neither one's text moves."""
+def test_a_column_block_starts_at_its_first_line(browser, serve):
+    """The reading column is block flow, so a block's first child's top margin collapses
+    out through it and the block's box starts at its first line, whatever opens it: the
+    focus ring, margin entry and landing Leaf places by that box stand at its text. The
+    gap above stays the larger margin, the heading's. A callout keeps its own margin,
+    since its frame holds its heading's margin in."""
     page = open_page(
         browser,
         serve(
             leaf_page(
-                "Column items",
+                "Column blocks",
                 """<p>Before.</p>
 <section id="h2-led"><h2>Heading</h2><p>Body.</p></section>
 <section id="h3-led"><h3>Subheading</h3><p>Body.</p></section>
 <section id="eyebrow-led"><p class="eyebrow">Eyebrow</p><h2>Heading</h2></section>
 <div class="callout" id="framed"><h2>Callout</h2><p>Body.</p></div>
-<section id="prose-led"><p>Prose first.</p></section>""",
+<section id="prose-led"><p>Prose first.</p></section>
+<section id="list-led"><ol><li>A list first.</li></ol></section>
+<section class="layout-flow" id="flow"><section id="flow-led"><h2>In a flow</h2></section></section>""",
             )
         ),
     )
     items = page.evaluate(
         """() => Object.fromEntries(
-          ['h2-led', 'h3-led', 'eyebrow-led', 'framed', 'prose-led'].map(id => {
+          ['h2-led', 'h3-led', 'eyebrow-led', 'framed', 'prose-led', 'list-led',
+           'flow-led'].map(id => {
             const item = document.getElementById(id);
             const box = item.getBoundingClientRect();
-            const first = item.firstElementChild.getBoundingClientRect();
-            const above = item.previousElementSibling.getBoundingClientRect();
+            let first = item.firstElementChild;
+            while (first.firstElementChild && !/^(h[1-6]|p)$/.test(first.localName))
+              first = first.firstElementChild;
+            const top = first.getBoundingClientRect().top;
+            const above = item.previousElementSibling?.getBoundingClientRect();
             return [id, {
-              band: first.top - box.top,
-              gap: first.top - above.bottom,
+              band: top - box.top,
+              gap: above ? top - above.bottom : null,
               margin: parseFloat(getComputedStyle(item).marginBlockStart),
             }];
           }))"""
@@ -2433,13 +2477,12 @@ def test_a_column_item_opening_with_a_heading_starts_at_the_heading(browser, ser
     page.close()
 
     h2_start, h3_start, callout_margin = tokens
-    for led in ("h2-led", "h3-led", "eyebrow-led"):
+    for led in ("h2-led", "h3-led", "eyebrow-led", "prose-led", "list-led", "flow-led"):
         assert items[led]["band"] == pytest.approx(0, abs=0.5), (led, items)
     assert items["h2-led"]["gap"] == pytest.approx(h2_start, abs=0.5), items
     assert items["h3-led"]["gap"] == pytest.approx(h3_start, abs=0.5), items
     assert items["eyebrow-led"]["gap"] == pytest.approx(h2_start, abs=0.5), items
     assert items["framed"]["margin"] == pytest.approx(callout_margin, abs=0.5), items
-    assert items["prose-led"]["band"] > 0, items
 
 
 def test_the_page_edge_is_no_frame(browser, serve):
@@ -4367,6 +4410,46 @@ def test_a_breakout_table_without_the_reading_face_keeps_its_columns_width(
     assert measured["display"] == "table", measured
     assert measured["row"] < measured["column"] / 2, measured
     assert 0 <= measured["start"] <= 4, measured
+
+
+def test_a_page_wider_than_the_window_scrolls_sideways_to_its_far_side(browser, serve):
+    """On a page that takes no theme, a table keeps the browser's layout, so on a
+    phone's window its last column stands past the right edge. The page scrolls
+    sideways to it, as on the open web: a wheel over the table brings that column
+    into view. While the live root clipped sideways overflow, the wheel moved the page
+    0px and the column could not be reached. `page check --render` still refuses
+    such a page (`page-scrolls`)."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Shard runs",
+                '<table id="runs" style="white-space: nowrap">'
+                "<tr><th>Shard</th><th>Region</th><th>Started</th><th>Duration</th>"
+                '<th>Status</th><th id="owner">Owner</th></tr>'
+                "<tr><td>shard-a</td><td>us-east-1</td><td>2026-11-01 09:14</td>"
+                "<td>14 min 05 s</td><td>passed</td><td>platform-team</td></tr>"
+                "</table>",
+                layout=None,
+            ),
+            theme=False,
+        ),
+    )
+    resized(page, 390, 844)
+    owner = """() => {
+        const cell = document.querySelector('#owner').getBoundingClientRect();
+        return {left: cell.left, right: cell.right,
+                window: document.scrollingElement.clientWidth};
+    }"""
+    before = page.evaluate(owner)
+    assert before["right"] > before["window"], f"the table fits the window: {before}"
+    assert root_overflow(page) > 0
+    page.locator("#runs td").first.hover()
+    page.mouse.wheel(1000, 0)
+    page.wait_for_function("scrollX > 0")
+    scroll_settled(page, axis="x")
+    after = page.evaluate(owner)
+    assert after["left"] >= 0 and after["right"] <= after["window"] + 0.5, after
 
 
 def test_an_identifier_in_a_cell_breaks_rather_than_holding_its_column(browser, serve):

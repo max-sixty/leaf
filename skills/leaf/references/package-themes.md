@@ -101,10 +101,6 @@ contains floats, declares `--lf-block-frame: trim`: its edge margins are trimmed
 wide content may take the page's width. The trim reaches through a plain wrapper at the
 edge, which declares nothing. A flex row or grid declares `--lf-holds-edge: 1` to stop
 the trim, which would otherwise take its first item's margin and not its neighbours'.
-A grid or flex box whose items stack, as the reading column's do, declares
-`--lf-items-keep-margins: 1`: each item keeps its children's margins inside its box, so
-Leaf gives an item opening with a heading the heading's gap as its own margin, and its
-box starts at the heading.
 
 Shared CSS selects widgets by what their registry entries declare, which delivery
 writes onto each element as `[data-lf-space]`, `[data-lf-bound]`, `[data-lf-height]`,
@@ -139,12 +135,12 @@ or in the host while no match exists. The declaration does not inherit. Declare
 needs nothing: Leaf fades its content at any edge with more beyond.
 
 Leaf rings every box that holds visible focus, at a control's gap outside it. A box
-whose ring belongs elsewhere states its own `outline-offset`, in its face's rule, as the
-token of its kind (`base.css`, "Where it stands"): `--focus-region-gap` for a block of
-the page, `0` for a box that draws its own edge, and `--focus-ring-inset` for a row
-packed edge to edge with others or a box whose clip leaves no room outside it. Leaf's
-marks over the page read the same value where it isn't `0`, so a comment's or an aim's
-frame stands where the ring does.
+whose ring belongs elsewhere declares `--lf-ring-at` in its face's rule, as the token of
+its kind (`base.css`, "Where it stands"): `--focus-region-gap` for a block of the page,
+`0` for a box that draws its own edge, and `--focus-ring-inset` for a row packed edge to
+edge with others or a box whose clip leaves no room outside it. Leaf stands the box's
+outline there, and its marks over the page read the same declaration, so a comment's
+or an aim's frame stands where the ring does. The declaration does not inherit.
 
 A rule that draws a control's focus ring on a box around it, such as a choice's face
 holding its radio and words, declares `--lf-wears-ring: 1` beside the ring, so Leaf

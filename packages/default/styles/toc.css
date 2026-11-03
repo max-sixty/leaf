@@ -48,7 +48,7 @@ lf-toc .lf-toc-heading {
 lf-toc .lf-toc-toggle {
   margin: 0;
   padding-block: max(7px, (var(--aim-floor) - 1lh) / 2);
-  outline-offset: var(--focus-ring-inset);
+  --lf-ring-at: var(--focus-ring-inset);
 }
 lf-toc .lf-toc-disclosure[open] .lf-toc-toggle {
   margin-bottom: 7px;
@@ -136,6 +136,8 @@ lf-toc a[data-lf-focus] {
          * including inside a page of parts; no runtime shell offset is needed. */
       left: auto;
       top: var(--lf-head-room, 0px);
+      /* Over the track's other boxes. The sidebar Layout stacks the track's aside over
+         * the body (layouts.css), which this z-index can't reach from inside the track. */
       z-index: 4;
       /* At rest only the spine has a box. The invisible labels keep their full
          * measure below, without a transparent map lying over document words. */
@@ -308,7 +310,7 @@ lf-toc a[data-lf-focus] {
       color: var(--ink-2);
     }
     lf-toc a {
-      outline-offset: var(--focus-ring-inset);
+      --lf-ring-at: var(--focus-ring-inset);
     }
     lf-toc:is(:hover, [data-lf-focus-within]) .lf-toc-nav {
       --lf-toc-label-opacity: 1;

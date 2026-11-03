@@ -18,7 +18,9 @@ def test_a_page_subscription_hears_every_input_its_reading_reads(
     page_dir, tmp_path, monkeypatch, owner
 ):
     """A page's subscription watches only the directories its reading reads
-    (`reading.page_roots`), so the history beneath `revisions/` costs it no watch.
+    (`reading.page_roots`), none with its tree, so the history beneath
+    `revisions/` costs it no watch and a process watching pages needs no recursive
+    watcher.
     Each path the reading stamps, found by recording its stamps rather than from a
     list, is written in turn: every write wakes the subscription and moves the
     reading. A write beneath a revision, to a diagnostic or to a staging file does
@@ -63,8 +65,7 @@ def test_a_page_subscription_hears_every_input_its_reading_reads(
 
     with _subscriber(owner, page_dir) as subscribe:
         changes, _generation = subscribe()
-        recursive = {path for path, (nested, _fd) in changes.roots.items() if nested}
-        assert recursive == {page_dir / tree for tree in reading.TREES}
+        assert not any(changes.roots.values()), "a page's subscription takes a tree"
         assert not any(revision in (root, *root.parents) for root in changes.roots), (
             "a revision's own tree is subscribed"
         )

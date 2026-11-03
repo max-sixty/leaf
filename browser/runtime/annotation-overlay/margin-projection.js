@@ -122,7 +122,7 @@ import {
   currentLocationIn,
 } from "../focus.js";
 
-import { el, generatedElement, offer } from "../widget-elements.js";
+import { el, generatedElement, offerActionElement } from "../widget-elements.js";
 import { keeps, keepsHidden } from "../keeps.js";
 
 import { cycledRow, rowArrows, nativePress } from "../keyboard/bindings.js";
@@ -350,7 +350,8 @@ export function createMarginProjection({
   // commands remain native buttons. While it is a press, Enter and Space press it as
   // they would a button (role-button-press.js), and as a status nothing presses it.
   /** @param {string} className */
-  const readingControl = (className) => offer("span", className);
+  const readingControl = (className) =>
+    offerActionElement(document.createElement("span"), "entry", className);
 
   // The one writer over a reading's disclosure relation, settling `aria-controls` and
   // `aria-expanded` together because a control that says it opens something has to say
@@ -1699,7 +1700,6 @@ export function createMarginProjection({
       if (!selected.has(control)) syncContributionSelection(control, false);
     for (const control of selected) syncContributionSelection(control, true);
     selectedReadingCarriers = selected;
-    scheduleMarginEntryLabels();
   }
 
   // ---------- the card goes where the user is ----------

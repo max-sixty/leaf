@@ -135,53 +135,20 @@
   .lf-fp-inner > :not(.lf-fp-opened) {
     flex-shrink: 0;
   }
-  /* The panel's own controls share one face, which each of them opts into by
-     `lf-fp-face` (floating-panel.js), so a component the panel holds brings its own
-     face: what Leaf's reader draws in a view's outlet (controls.css) and a thread's
-     notice (surfaces.css), the comment box seated in the row and the attachment shelf
-     (response.css), page search's steps and the panel's corner mark (controls.css).
-     Rejected: the face reaching every control under the panel but a list of the
-     components it stopped at, which each component the panel newly seated had to join,
-     or wear the face, as it took the fill off a chosen reaction in a thread, drew the
-     shelf's × as a panel press, stood the seated box's Send on a line under its field
-     and washed a thread's held news on hover, a wash that notice declines. It is a
-     default, so it stands in the components' layer (`lf-base`), at a plain selector's
-     weight: the panel's own rules, unlayered, outrank it, while it still outranks the
-     chrome's control reset (chrome.css) and the layer's focus band at no weight
-     (surfaces.css). A press reaches the pointer's floor by the shared reach
-     (surfaces.css). */
-  @layer lf-base {
-    :is(button, input, textarea):where(.lf-fp-face) {
-      font: inherit;
-      color: inherit;
-    }
-    button:where(.lf-fp-face) {
-      background: none;
-      border: 0;
-      border-radius: var(--r);
-      cursor: pointer;
-      white-space: nowrap;
-      padding: 0 8px;
-      min-height: var(--lf-fp-press);
-    }
-    button:where(.lf-fp-face):hover {
-      background: var(--lf-fp-hover);
-    }
-    button:where(.lf-fp-face):is(:disabled, [aria-disabled="true"]) {
-      color: var(--muted);
-      cursor: default;
-      background: none;
-    }
-    /* The panel's controls and On me's cards stand their ring inside their edge, since
-       the panel's rows meet edge to edge and its presses fill its row (base.css, "Where
-       it stands"). The card the `m` walk stands on wears the ring too, though focus is
-       at its ask on the page (floating-panel.js, `walkedStop`). */
-    :is(.lf-fp-face, .lf-fp-on-item) {
-      outline-offset: var(--focus-ring-inset);
-    }
-    .lf-fp-on-item[data-walked] {
-      outline: var(--focus-ring);
-    }
+  /* The panel's presses wear their roles' faces (controls.css), as every surface's
+     do, and the panel sets only their density: a word stands a press tall
+     (`--lf-line`, below, where words stand) and a symbol in a view the same
+     (`--lf-icon-action-face`, `.lf-fp-opened`). The panel once drew its own face for
+     every control in it (`lf-fp-face`), a second look for each kind of press beside
+     the page's, until each moved onto its role on 28 October. On me's cards stand
+     their ring inside their edge, since the panel's rows meet edge to edge (base.css,
+     "Where it stands"), and the card the `m` walk stands on wears it too, though
+     focus is at its ask on the page (floating-panel.js, `walkedStop`). */
+  .lf-fp-on-item {
+    --lf-ring-at: var(--focus-ring-inset);
+  }
+  .lf-fp-on-item[data-walked] {
+    outline: var(--focus-ring);
   }
 
   /* ---------- the row ---------- */
@@ -223,17 +190,15 @@
   .lf-floating-panel[data-expanded] .lf-fp-row:has(> .lf-fp-expand) {
     min-height: calc(2 * var(--lf-line) + 2 * var(--lf-fp-row-pad) + 4px);
   }
+  /* The leaf is a symbol (controls.css), a line tall, its mark a size up from an
+     action's symbol. */
   .lf-fp-leaf {
-    position: relative;
+    --lf-icon-action-face: var(--lf-line);
     flex: none;
-    display: grid;
-    place-items: center;
-    width: var(--lf-fp-aim);
-    min-height: var(--lf-line);
-    padding: 0;
   }
-  .lf-fp-leaf .lf-dot {
-    --lf-mark-w: 19px;
+  .lf-fp-leaf > svg[data-lf-icon="leaf"] {
+    inline-size: 19px;
+    block-size: 19px;
   }
   /* An error waiting unseen in the leaf's menu marks the leaf's corner. */
   .lf-fp-error-dot {
@@ -275,7 +240,7 @@
   }
   .lf-fp-field:has(> .lf-fp-search-surface:not([hidden])):focus-within {
     outline: var(--focus-ring);
-    outline-offset: 0;
+    --lf-ring-at: 0;
     --lf-wears-ring: 1;
   }
   .lf-fp-search-surface > :is(wa-input, input) {
@@ -701,40 +666,27 @@
      a number, so a count arriving moves nothing beside it. The way out takes the leaf's
      width, so its ✕ stands as close to the field as the leaf does at the row's start. */
   .lf-fp-quick {
+    --lf-icon-action-face: var(--lf-line);
     flex: none;
     display: flex;
   }
+  /* Both are symbols (controls.css), a line tall, so the way out stands a symbol's
+     width, the leaf's. The On me mark stands wider, its symbol and its count's room
+     centred in it, so a count arriving moves no symbol. */
   .lf-fp-quick > .lf-fp-on-user {
     width: max(var(--lf-fp-aim), calc(16px + 4px + 2ch + 14px));
-  }
-  .lf-fp-quick > .lf-fp-exit {
-    width: var(--lf-fp-aim);
-  }
-  /* A view's Close at the end of its head line or its tabs takes the face of the presses
-     before it. */
-  :is(.lf-fp-head, .lf-fp-controls) > .lf-fp-aux > .lf-fp-chip {
-    flex: none;
-    justify-content: center;
-    min-width: max(var(--lf-fp-press), var(--aim-floor));
-    min-height: var(--lf-fp-press);
-    padding: 0;
-  }
-  .lf-fp-chip {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+    grid-auto-flow: column;
     gap: 4px;
-    min-height: var(--lf-line);
-    padding: 0 7px;
-    color: var(--muted);
     font-variant-numeric: tabular-nums;
   }
-  .lf-fp-chip:hover {
-    color: var(--ink);
+  .lf-fp-on-user > .lf-fp-num {
+    min-width: 2ch;
+    text-align: start;
   }
-  .lf-fp-on-user {
-    justify-content: flex-start;
+  /* A view's Close at the end of its head line or its tabs (floating-panel.js,
+     `viewClose`) is a symbol a press tall, as the presses before it are. */
+  :is(.lf-fp-head, .lf-fp-controls) > .lf-fp-aux > .lf-fp-close {
+    flex: none;
   }
   .lf-fp-on-user[data-due] .lf-fp-num {
     color: var(--accent);
@@ -759,9 +711,9 @@
     box-shadow: 0 0 0 1.5px var(--lf-fp-surface);
   }
   /* The row's one small notice, beside the seat (floating-panel.js, `rowNotice`): a
-     tinted chip of the qualifying size, whose press is the word that ends it. The
-     field gives up the room it takes, so the seat keeps its place, and while the
-     user writes it stands aside with the mark. */
+     tinted chip of the qualifying size, whose press is the words that end it, an
+     inline press (controls.css). The field gives up the room it takes, so the seat
+     keeps its place, and while the user writes it stands aside with the mark. */
   .lf-fp-row-notice {
     flex: none;
     display: flex;
@@ -789,14 +741,6 @@
     max-width: anchor-size(--lf-fp-field width);
     background: var(--lf-fp-surface);
   }
-  /* The press takes the row's whole line, as every mark does, so a finger finds it;
-     the chip's face is drawn inside it. */
-  .lf-fp-row-notice-press {
-    padding: 0;
-  }
-  :where(.lf-floating-panel) .lf-fp-row-notice-press:hover {
-    background: none;
-  }
   /* Its tone tints it: an older version in warning. */
   .lf-fp-row-notice-face {
     display: inline-flex;
@@ -813,39 +757,22 @@
     font: var(--font-small);
     &[data-tone="warn"] {
       --lf-fp-notice-tint: var(--warn-tint);
-      --lf-fp-notice-ink: var(--warn-ink);
     }
     &[data-tone="ok"] {
       --lf-fp-notice-tint: var(--ok-tint);
-      --lf-fp-notice-ink: var(--ok-ink);
     }
-  }
-  .lf-fp-row-notice-press:hover .lf-fp-row-notice-face {
-    background: color-mix(
-      in srgb,
-      var(--lf-fp-notice-ink) 16%,
-      var(--lf-fp-notice-tint)
-    );
   }
   /* A passing notice says its words where the field's would, so it wears their face:
      the message's type, and the dimmed ink of a notice the field says (above), in
-     Leaf's italic (voice.js); only its press reads as one, upright in ink with its
-     key. In a chip's small type and full ink it read as a different line from the
-     field's "Away" or the "Resolved the thread" it replaced. */
+     Leaf's italic (voice.js); its press is an inline press, as every notice's is. In a
+     chip's small type and full ink it read as a different line from the field's
+     "Away" or the "Resolved the thread" it replaced. */
   .lf-fp-row-notice[data-passing] .lf-fp-row-notice-face {
     font: var(--font-message);
     color: var(--muted);
   }
-  .lf-fp-row-notice[data-passing] .lf-fp-row-notice-act {
-    color: var(--ink);
-  }
   .lf-fp-row-notice-sep {
     color: var(--lf-fp-quiet);
-  }
-  .lf-fp-row-notice-act {
-    text-decoration: underline;
-    text-underline-offset: 2px;
-    text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
   }
 
   /* ---------- folded to the leaf, in the window's corner ---------- */
@@ -999,9 +926,13 @@
      row's own presses' (`--lf-reach-room`), so a press between the two lands on the
      one the user is nearer. */
   .lf-fp-controls {
+    --lf-line: var(--lf-fp-press);
+    /* The room the line keeps for a press and Close after the tabs (below). */
+    --lf-fp-aux-room: calc(2 * max(var(--lf-fp-press), var(--aim-floor)) + 2px);
+    --lf-fp-controls-gap: 4px;
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--lf-fp-controls-gap);
     min-height: 40px;
     padding: 3px 6px var(--lf-reach-room) calc(6px + var(--lf-fp-inset));
     box-sizing: border-box;
@@ -1090,49 +1021,67 @@
   .lf-fp-controls {
     flex-wrap: wrap-reverse;
   }
-  /* The tabs' line stands as tall with the presses as without them. */
+  /* The tabs' line stands as tall with the presses as without them. It breaks only
+     where the tabs at their narrowest don't fit beside the room kept for the presses,
+     and takes that room's width whether the presses stand beside it or, as On
+     <agent>'s plan head does, on a line of their own, so the tabs' insets
+     (`.lf-fp-tab`) and every tab stand alike on each view. */
   .lf-fp-controls > .lf-fp-crumb {
     min-height: var(--lf-fp-press);
     align-items: center;
   }
+  .lf-fp-controls > .lf-fp-crumb:has(> .lf-fp-filters) {
+    flex-basis: 0;
+    min-width: min-content;
+    max-width: calc(100% - var(--lf-fp-aux-room) - var(--lf-fp-controls-gap));
+  }
   .lf-fp-controls > .lf-fp-aux {
-    min-width: calc(2 * max(var(--lf-fp-press), var(--aim-floor)) + 2px);
+    min-width: var(--lf-fp-aux-room);
     justify-content: flex-end;
     margin-inline-start: auto;
   }
   /* The tabs scroll at full size only where they alone don't fit the line. The
      tabs keep their face under a finger and reach the pointer's floor as the presses
      beside them do. The strip scrolls, which would clip a reach beyond its box, so it
-     keeps the reach's room inside its box and takes none in the row. */
+     keeps the reach's room, or its tabs' focus ring's where that is wider, inside its
+     box and takes none in the row. Each tab is a word whose `aria-pressed` the theme
+     draws as selected (controls.css), a tab's line tall (`--lf-line`). */
   .lf-fp-filters {
     --lf-fp-tab: 26px;
-    --lf-fp-filter-reach: max(0px, (var(--aim-floor) - var(--lf-fp-tab)) / 2);
-    display: flex;
+    --lf-line: var(--lf-fp-tab);
+    --lf-fp-filter-reach: max(
+      var(--focus-ring-room),
+      (var(--aim-floor) - var(--lf-fp-tab)) / 2
+    );
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(min-content, max-content);
+    justify-content: start;
     min-width: 0;
     overflow-x: auto;
-    gap: 2px;
-    padding-block: var(--lf-fp-filter-reach);
-    margin-block: calc(-1 * var(--lf-fp-filter-reach));
+    padding: var(--lf-fp-filter-reach) var(--focus-ring-room);
+    margin: calc(-1 * var(--lf-fp-filter-reach)) calc(-1 * var(--focus-ring-room));
   }
-  .lf-fp-filters button {
-    flex-shrink: 0;
-    color: var(--muted);
+  /* A tab's inset, and the room between tabs, give way before the line does: its
+     words stand between two rooms that shrink to nothing as the strip narrows, each
+     tab giving up the same, so the tabs take only their words' width (and a
+     finger's, `--aim-floor`) before the presses beside them go to a line of their
+     own, and the line breaks on the tabs' narrowest form (`.lf-fp-crumb`, below),
+     whatever faces the words are set in. On a phone, where the user chose the tabs to
+     share one line with a press and Close at 390px, that is how they fit, in the
+     wider faces Linux ships too. */
+  .lf-fp-filters > .lf-fp-tab {
+    display: grid;
+    grid-template-columns: minmax(0, 11px) max-content minmax(0, 11px);
+    min-width: auto;
+    padding-inline: 0;
     font: var(--font-small);
-    min-height: var(--lf-fp-tab);
   }
-  /* On a phone the tabs keep less of their inset, so in the faces phones ship they
-     share one line with a press and Close at 390px. */
-  @media (max-width: 420px) {
-    .lf-fp-filters button {
-      padding-inline: 3px;
-    }
-  }
-  .lf-fp-filters button:hover,
-  .lf-fp-filters [aria-pressed="true"] {
-    color: var(--ink);
-  }
-  .lf-fp-filters [aria-pressed="true"] {
-    background: var(--lf-fp-faint);
+  .lf-fp-tab-words {
+    grid-column: 2;
+    min-inline-size: calc(var(--aim-floor) - 2px);
+    white-space: nowrap;
+    text-align: center;
   }
   /* Room for two digits, so news changing a count moves no tab beside it; a count of
      nothing says 0 in the quieter ink, so the room never stands blank. */
@@ -1156,7 +1105,7 @@
     min-height: var(--lf-fp-press);
     border-radius: var(--r);
     color: var(--muted);
-    outline-offset: var(--focus-ring-inset);
+    --lf-ring-at: var(--focus-ring-inset);
   }
   .lf-fp-chooser:hover {
     color: var(--ink);
@@ -1260,22 +1209,15 @@
     padding: 10px 0 6px;
     background: linear-gradient(transparent, var(--lf-fp-surface) 10px);
   }
+  /* New reply announces news waiting, an inline press in the accent the unread dot
+     wears (controls.css, `data-lf-news`), centred on the foot's ground a press tall. */
   .lf-fp-new-reply {
     display: flex;
     align-items: center;
     gap: 4px;
+    min-height: var(--lf-fp-press);
     margin: 0 auto;
-    padding: 0 12px 0 8px;
-    border-radius: var(--r);
-    background: var(--lf-fp-surface);
-    box-shadow:
-      0 0 0 1px var(--lf-fp-ring),
-      var(--raise-1);
-    color: var(--ink);
     font: var(--font-small);
-  }
-  :where(.lf-floating-panel) .lf-fp-new-reply:hover {
-    background: color-mix(in srgb, var(--ink) 5%, var(--lf-fp-surface));
   }
 
   /* A list's rows lay out as every list's do (controls.css, `.lf-rows`). */
@@ -1457,6 +1399,7 @@
      Showing stand on one baseline, as a row's name and end do (controls.css,
      `.lf-row`); centred each in its own box, the smaller Showing stood higher. */
   .lf-fp-version {
+    --lf-line: var(--lf-fp-press);
     align-items: baseline;
   }
   /* The press has no value, key or chevron, so its words take the first column alone,
@@ -1481,9 +1424,10 @@
     position: relative;
   }
   /* Showing says which version the page shows, in the accent the shown version wears;
-     Compare stays a quiet press. */
+     Compare stays a quiet press, a word (controls.css), whose words Showing's end on:
+     its 10px padding and 1px border in. */
   .lf-fp-showing {
-    padding-inline: 8px;
+    padding-inline: 11px;
     color: var(--accent);
     font: var(--font-small);
     pointer-events: none;
@@ -1523,7 +1467,10 @@
     margin-inline-start: 0;
     font: var(--font-small);
   }
-  .lf-fp-error .lf-fp-quiet {
+  .lf-fp-error {
+    --lf-line: var(--lf-fp-press);
+  }
+  .lf-fp-dismiss {
     flex: none;
     font: var(--font-small);
   }
@@ -1537,9 +1484,6 @@
   .lf-fp-compare {
     font: var(--font-small);
   }
-  .lf-fp-compare[aria-pressed="true"] {
-    color: var(--accent);
-  }
   /* The panel's own rules. A rule a message holds reads as it does in any thread
      (reading.css), so its draft can draw it as it will be sent. */
   .lf-floating-panel .lf-fp-rule {
@@ -1547,12 +1491,6 @@
     height: 1px;
     background: var(--lf-fp-faint);
     margin: 4px 8px;
-  }
-  .lf-fp-quiet {
-    color: var(--muted);
-  }
-  .lf-fp-quiet:hover {
-    color: var(--ink);
   }
 
   /* ---------- On: a card or a line per item ---------- */
@@ -1630,9 +1568,13 @@
      its count ends where their status does. */
   .lf-fp-settled {
     align-items: center;
-    font: inherit;
-    color: inherit;
-    text-align: start;
+    gap: 8px;
+    width: 100%;
+    min-height: 34px;
+    /* The row face's stripe room (controls.css, `.lf-row`) takes 2px of the start. */
+    padding: 5px 8px 5px 6px;
+    letter-spacing: inherit;
+    text-transform: inherit;
   }
   .lf-fp-settled::before {
     grid-column: lead;
@@ -1669,6 +1611,7 @@
      a reading brings an answer later moves nothing beside it. Its minimum sizes the
      content, leaving any card spacing outside the line a button fills. */
   .lf-fp-answers {
+    --lf-line: var(--lf-fp-press);
     box-sizing: content-box;
     display: flex;
     flex-wrap: wrap;
@@ -1691,34 +1634,17 @@
   .lf-fp-answers > .lf-fp-commit {
     padding-block: calc((var(--lf-fp-press) - 1lh) / 2 - 1px);
   }
-  /* An answer as short as "A" stands as wide as the floor, so its reach, which meets
-     the floor on each axis the face falls short (surfaces.css), lies over no answer
-     beside it. */
-  .lf-fp-answer {
-    box-shadow: inset 0 0 0 1px var(--lf-fp-ring);
-    padding-inline: 11px;
-    min-width: var(--aim-floor);
+  /* Discuss and Reply are words in the qualifying size, as Compare and Dismiss are,
+     which stands them the line's height exactly (`--lf-line`, above). */
+  :is(.lf-fp-discuss, .lf-fp-reply) {
+    font: var(--font-small);
   }
-  /* A choice that says what it gives takes the line, its name over two lines at most of
-     those words (floating-panel.js, `data-told`). A long name wraps rather than running
-     past the card's edge. */
-  .lf-fp-answer {
-    white-space: normal;
-    text-align: start;
-  }
+  /* Each choice is an answer (controls.css, `.lf-answer`). One that says what it gives
+     takes the line, its name over two lines at most of those words (floating-panel.js,
+     `data-told`). */
   .lf-fp-answer[data-told] {
     flex: 1 0 100%;
     padding-block: 7px;
-  }
-  /* An answer that shows its action's symbol, as a to-do's Done does
-     (floating-panel.js), centres it in the frame, in the panel's muted ink. */
-  .lf-fp-answer:has(> .lf-action-icon) {
-    display: grid;
-    place-items: center;
-    color: var(--muted);
-  }
-  .lf-fp-answer:has(> .lf-action-icon):hover {
-    color: var(--ink);
   }
   .lf-fp-choice-name {
     font-weight: 600;
@@ -1745,15 +1671,6 @@
     overflow: hidden;
     font: var(--font-small);
     color: var(--muted);
-  }
-  .lf-fp-answer[aria-pressed="true"] {
-    color: var(--ok-ink);
-    background: var(--ok-tint);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ok) 45%, transparent);
-  }
-  .lf-fp-answer[aria-pressed="true"]::before {
-    content: "✓";
-    margin-right: 6px;
   }
   .lf-fp-said {
     color: var(--muted);
@@ -1866,25 +1783,14 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .lf-fp-plan-tag {
-    padding: 0 6px;
-    font: var(--font-small);
-    color: var(--accent);
-    box-shadow: inset 0 0 0 1px var(--lf-fp-ring);
-    border-radius: var(--r);
-  }
-  /* The plan's head at On <agent>'s foot, its progress as a short bar after its
-     words, which discloses the plan over the list. */
+  /* The plan's head at On <agent>'s foot, a word (controls.css) with its progress as
+     a short bar after its words, which discloses the plan over the list. A step on the
+     user says so with an inline press, On me, which turns to the list of it. */
   .lf-fp-plan-head {
     display: inline-flex;
     align-items: center;
     gap: 6px;
     font: var(--font-small);
-    color: var(--muted);
-  }
-  .lf-fp-plan-head[aria-expanded="true"] {
-    color: var(--ink);
-    background: var(--lf-fp-faint);
   }
   .lf-fp-plan-bar {
     width: 40px;

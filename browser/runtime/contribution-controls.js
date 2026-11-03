@@ -9,7 +9,7 @@ import { HOLDS_WORD } from "./held-word.js";
 import { progressFace, workflowWord } from "./thread/workflow.js";
 import { agentSays, saidBy, voiced } from "./voice.js";
 import { agentName } from "./semantic-state.js";
-import { elementDirective, offer } from "./widget-elements.js";
+import { elementDirective, offerActionElement } from "./widget-elements.js";
 import { keeps, inlineStyle } from "./keeps.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
 import { currentLocationIn, focusDestination, nativeFocusTarget } from "./focus.js";
@@ -163,7 +163,11 @@ const contributorClasses = new WeakMap();
 /** Create the native host for one generated margin entry reading. */
 /** @param {Entry} record @param {string} [className] */
 function createContributionControl(record, className = "") {
-  return offer(record.behavior === "status" ? "span" : "button", className);
+  return offerActionElement(
+    document.createElement(record.behavior === "status" ? "span" : "button"),
+    "entry",
+    className,
+  );
 }
 
 /** @param {Element} control @param {Entry} record */

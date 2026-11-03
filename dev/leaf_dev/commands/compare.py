@@ -1,10 +1,11 @@
-"""Serve a base runtime beside this checkout's as two live previews.
+"""Serve a base runtime beside this working tree's as two live previews.
 
-The baseline is an immutable full source arm; the candidate watches this checkout.
-Both read the candidate's authored source unless --authored selects each arm's own
-copy. Each invocation owns fresh preview slots. User previews keep their baseline
-under .tmp/compare after startup because detached watchers still need its files.
-Foreground previews end together.
+The base is the merge base with `main` unless `--base` names another commit, and the
+head is this working tree (`leaf_dev.arms.choose_arms`), whose preview follows edits.
+Both read the head's authored source unless --authored has the base read its own
+copy (`leaf_dev.arms.own_source`). Each invocation owns fresh preview slots. User
+previews keep their base under .tmp/compare after startup because detached watchers
+still need its files. Foreground previews end together.
 """
 
 import signal
@@ -17,9 +18,8 @@ import click
 
 from leaf.harness import session_harness
 from leaf_dev import ROOT
-from leaf_dev.arms import base_ref, build_arm, run_directory
+from leaf_dev.arms import base_option, choose_arms, own_source, run_directory
 from leaf_dev.commands.preview import authored_source
-from leaf_dev.example_data import named_source
 
 
 @click.command()
@@ -27,25 +27,20 @@ from leaf_dev.example_data import named_source
 @click.option(
     "--source", type=click.Path(path_type=Path), help="Shared authored HTML source."
 )
-@click.option("--base", help="Baseline ref; defaults to the merge base with main.")
-@click.option("--authored", is_flag=True, help="Use each arm's own authored source.")
+@base_option(paired=True)
+@click.option(
+    "--authored",
+    is_flag=True,
+    help="Build the base's pages from its own authored sources.",
+)
 @click.option("--user", is_flag=True, help="Receive user feedback from both previews.")
 def compare(example, source, base, authored, user):
-    """Serve baseline and candidate previews together, including live source edits."""
+    """Serve base and head previews together, including live source edits."""
     if example and source:
         raise click.UsageError("choose an example name or --source, not both")
     source = authored_source(example, source)
-    if authored and not source.is_relative_to(ROOT):
-        raise click.UsageError("--authored needs a source inside this checkout")
     directory = run_directory(ROOT / ".tmp" / "compare")
-    baseline = directory / "baseline"
-    build_arm(base_ref(base), baseline, paths=(".",))
-    if authored and source == ROOT / "examples" / "corpus.html":
-        named_source("corpus", root=baseline)
-    sources = {
-        "baseline": baseline / source.relative_to(ROOT) if authored else source,
-        "candidate": source,
-    }
+    arms = choose_arms(base, directory)
     prefix = f"{source.stem}-{directory.name}"
     harness = session_harness() if user else None
     detached = bool(harness and harness.lifetime() == {"chat": True})
@@ -61,7 +56,7 @@ def compare(example, source, base, authored, user):
 
     previous = signal.signal(signal.SIGTERM, terminated)
     try:
-        for name, runtime in (("baseline", baseline), ("candidate", ROOT)):
+        for name, arm in arms.items():
             process = subprocess.Popen(
                 [
                     "uv",
@@ -71,9 +66,9 @@ def compare(example, source, base, authored, user):
                     "leaf-dev",
                     "preview",
                     "--source",
-                    str(sources[name]),
+                    str(own_source(arm, source) if authored else source),
                     "--runtime",
-                    str(runtime),
+                    str(arm.directory),
                     "--slot",
                     f"{prefix}-{name}",
                     *(["--user"] if user else []),

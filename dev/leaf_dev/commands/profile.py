@@ -15,11 +15,12 @@ run: style and layout time and how much of it script forced, the forced style
 recalculations and the writes that invalidated style with the JS behind each, and JS
 by self and inclusive time.
 
---base also profiles the merge base with main (or REF), built as `leaf-dev probe
---base` builds it (`leaf_dev.arms.build_arm`), and prints the per-run detail for each
-arm followed by a side-by-side summary. --marks counts the user-timing marks and
-measures the page made inside the window, so a temporary `performance.mark('x')` in
-source shows how many times a path ran per transition on each arm.
+--base also profiles the merge base with main (or REF), built as every command that
+runs two versions builds it (`leaf_dev.arms.choose_arms`), and prints the per-run
+detail for each arm followed by a side-by-side summary. --marks counts the user-timing
+marks and measures the page made inside the window, so a temporary
+`performance.mark('x')` in source shows how many times a path ran per transition on
+each arm.
 
 Tracing slows the page, so read proportions here and durations from the benchmark.
 Each run's `.trace.json` (DevTools or Perfetto) and `.cpuprofile` land in
@@ -37,7 +38,7 @@ from pathlib import Path
 import click
 
 from leaf_dev import ROOT
-from leaf_dev.arms import base_ref, build_arm, run_directory
+from leaf_dev.arms import base_option, choose_arms, run_directory
 from leaf_dev.browser import headless_shell
 from leaf_dev.commands.bench_latency import SOURCES, TRANSITIONS, served
 
@@ -353,14 +354,7 @@ def compare(arms: dict[str, list]) -> None:
 @click.command()
 @click.argument("source", type=click.Choice(SOURCES))
 @click.argument("transition", type=click.Choice(TRANSITIONS))
-@click.option(
-    "--base",
-    is_flag=False,
-    flag_value="",
-    default=None,
-    help="Also profile the merge base with main, or the ref given. Put it after "
-    "the arguments or give it one (--base=REF).",
-)
+@base_option()
 @click.option(
     "--marks",
     is_flag=True,
@@ -388,13 +382,9 @@ def profile(source: str, transition: str, base: str | None, marks: bool) -> None
         headless_shell() as browser,
     ):
         scratch = Path(built)
-        trees = {"worktree": ROOT}
-        if base is not None:
-            build_arm(base_ref(base), scratch / "base-arm")
-            trees = {"base": scratch / "base-arm", **trees}
-        for arm, tree in trees.items():
+        for arm, version in choose_arms(base, scratch).items():
             arms[arm] = runs = []
-            with served(browser, arm, tree, source, scratch) as session:
+            with served(browser, arm, version.directory, source, scratch) as session:
                 for run in range(RUNS):
                     session.open()
                     name = f"{arm}-{source}-{transition}-{run + 1}"

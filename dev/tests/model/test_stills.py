@@ -7,6 +7,7 @@ import pytest
 from click.testing import CliRunner
 from PIL import Image
 
+from leaf_dev.arms import Arm
 from leaf_dev.commands import stills
 
 
@@ -40,8 +41,10 @@ def stills_catalogue(tmp_path, monkeypatch):
     )
     out = tmp_path / "stills"
     out.mkdir()
-    arms = {arm: tmp_path / arm for arm in ("base", "head")}
-    commits = {"base": "b" * 40, "head": "a" * 40}
+    arms = {
+        arm: Arm(tmp_path / arm, commit)
+        for arm, commit in (("base", "b" * 40), ("head", "a" * 40))
+    }
 
     @contextmanager
     def serving_source(arm_dir, source, destination):
@@ -86,7 +89,7 @@ def stills_catalogue(tmp_path, monkeypatch):
 
     monkeypatch.setattr(stills, "STATES", states)
     monkeypatch.setattr(stills, "run_directory", lambda path: out)
-    monkeypatch.setattr(stills, "build_pair", lambda base_ref, scratch: (arms, commits))
+    monkeypatch.setattr(stills, "choose_arms", lambda base, scratch: arms)
     monkeypatch.setattr(stills, "serving_source", serving_source)
     monkeypatch.setattr(
         stills, "headless_shell", lambda **options: nullcontext("browser")

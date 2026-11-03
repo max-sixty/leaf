@@ -1,12 +1,12 @@
-"""Time how fast an open Leaf page answers, for BASE_REF's runtime and HEAD's.
+"""Time how fast an open Leaf page answers, on this working tree and a base.
 
-    uv run leaf-dev bench-latency [BASE_REF]
-    uv run leaf-dev bench-latency --tree --page corpus --transition comment --runs 3
+    uv run leaf-dev bench-latency [--base [REF]]
+    uv run leaf-dev bench-latency --page corpus --transition comment --runs 3
 
-BASE_REF defaults to the merge base with `main`; each arm is the plugin payload at its
-commit (`leaf_dev.arms.build_pair`), so commit what you want measured. `--tree` times
-only the working tree as it stands, and with one page and transition it takes under
-a minute, cheap enough to run during a change; the full A/B takes many. Each arm
+The head is this working tree, uncommitted edits included, and `--base` adds the merge
+base with `main`, or REF (`leaf_dev.arms.choose_arms`). The working tree alone, with
+one page and transition, takes under a minute, cheap enough to run during a change;
+the full A/B takes many. Each arm
 builds and serves the triage board and the corpus from this checkout's examples, and
 both arms' tabs stay open in one headless shell, taking turns within each run. Each
 run reloads the page, opens the floating panel's Threads view, and times five
@@ -52,8 +52,10 @@ from playwright.sync_api import Error as PlaywrightError
 
 from leaf_dev import ROOT
 from leaf_dev.arms import (
-    build_pair,
+    base_option,
     build_source,
+    choose_arms,
+    describe,
     environment,
     load_average,
     run_directory,
@@ -445,7 +447,7 @@ def owners(runs: list[dict]) -> list[str]:
 
 
 @click.command()
-@click.argument("base_ref", required=False)
+@base_option()
 @click.option(
     "--page",
     "pages",
@@ -468,32 +470,24 @@ def owners(runs: list[dict]) -> list[str]:
     type=click.IntRange(1, len(MOVES)),
     help="Runs per arm.",
 )
-@click.option(
-    "--tree",
-    is_flag=True,
-    help="Time only this working tree, uncommitted edits included, with no base.",
-)
 def bench_latency(
-    base_ref: str | None,
+    base: str | None,
     pages: tuple[str, ...],
     transitions: tuple[str, ...],
     runs: int,
-    tree: bool,
 ) -> None:
-    """Time an open page's answers, base vs HEAD, or this working tree alone.
+    """Time an open page's answers on this working tree, and on a base with --base.
 
     Times a page's answer to a gesture, an agent write, and a revision, on two
-    pages, taking turns between BASE_REF's runtime and HEAD's; BASE_REF defaults to
-    the merge base with main. Prints a table of median [min-max] milliseconds
-    to the painted frame, to the gesture's POST answer, and to the painted frame
-    of the server's reading (Sent), with the requests and bytes each caused, then
-    who held the main thread in that time. Every run lands in .tmp/bench-latency/.
+    pages, taking turns between the base's runtime and this working tree's. Prints
+    a table of median [min-max] milliseconds to the painted frame, to the gesture's
+    POST answer, and to the painted frame of the server's reading (Sent), with the
+    requests and bytes each caused, then who held the main thread in that time.
+    Every run lands in .tmp/bench-latency/.
 
     To check a change as you make it, narrow it, for example
-    `--tree --page corpus --transition comment --runs 3`.
+    `--page corpus --transition comment --runs 3`.
     """
-    if tree and base_ref:
-        raise click.UsageError("--tree times the working tree alone; drop BASE_REF")
     pages = pages or SOURCES
     transitions = transitions or TRANSITIONS
     out = run_directory(OUT)
@@ -501,18 +495,15 @@ def bench_latency(
     results = []
     with tempfile.TemporaryDirectory(prefix="leaf-bench-") as built:
         scratch = Path(built)
-        if tree:
-            arms, commits = {"tree": ROOT}, {}
-        else:
-            arms, commits = build_pair(base_ref, scratch)
+        arms = choose_arms(base, scratch)
         with headless_shell() as browser:
             for source in pages:
                 with ExitStack() as stack:
                     sessions = [
                         stack.enter_context(
-                            served(browser, arm, arm_dir, source, scratch)
+                            served(browser, arm, version.directory, source, scratch)
                         )
-                        for arm, arm_dir in arms.items()
+                        for arm, version in arms.items()
                     ]
                     for run in range(runs):
                         # Alternate which arm goes first, so neither always meets
@@ -527,17 +518,13 @@ def bench_latency(
                                     f"{transition}: {result['painted']:.0f} ms",
                                     err=True,
                                 )
-            version = browser.version
+            chrome = browser.version
+    commits = {arm: arms[arm].commit for arm in arms}
     (out / "results.json").write_text(
         json.dumps({"commits": commits, "results": results}, indent=1)
     )
-    compared = (
-        "this working tree"
-        if tree
-        else f"base {commits['base'][:10]} vs head {commits['head'][:10]}"
-    )
     click.echo(
-        f"{compared}, {runs} runs, Chrome {version}, {DESKTOP[0]}x{DESKTOP[1]}\n"
+        f"{describe(arms)}, {runs} runs, Chrome {chrome}, {DESKTOP[0]}x{DESKTOP[1]}\n"
         f"load average {load_before} before, {load_average()} after\n"
         "times are median [min-max] ms from input or write to the painted frame\n"
         f"{'page':13} {'transition':10} {'arm':4} {'painted':>16} {'answered':>14} "

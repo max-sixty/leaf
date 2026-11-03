@@ -201,7 +201,7 @@ returning from the input doesn't prove an asynchronous update finished.
 
 `uv run leaf-dev stills` crops each changed catalogue state into a before/after pair
 and lists the computed styles that differ in it, shadow trees included, with the
-declarations behind them (its module header covers committing first and
+declarations behind them (its module header covers `--base` and
 `--authored`). For a change to where a rule sits,
 such as its sheet, layer or selector, read those lists, with the corpus states
 covering every composed page, rather than writing a computed-style sweep. Cover states

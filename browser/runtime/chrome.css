@@ -1162,9 +1162,8 @@ html[data-lf-region-capture] main * {
   }
   /* What a change replaced, over the change (margin-bars.js): a card lifted over the
      page, its words in the document's face, the old struck as an edit's deletion and the
-     new tinted as its insertion. */
-  /* A long redline scrolls inside the card, which stays short enough to read whole
-     above the floating panel's room. */
+     new tinted as its insertion. A long redline scrolls inside the card, which stays
+     short enough to read whole above the floating panel's room. */
   .lf-change-card {
     position: absolute;
     display: grid;

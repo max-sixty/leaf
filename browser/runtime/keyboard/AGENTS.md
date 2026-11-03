@@ -28,7 +28,11 @@ A press goes to scopes from the focused element outward, ending at the page and 
 the browser. A scope owns every binding it declares while the user is in it, so when its
 command is unavailable the press reaches no other Leaf command. A text field keeps
 characters, composition, caret movement and deletion, and a native control keeps its
-activation press, ahead of any widget or page scope around it (`dispatch.js`). A key
+activation press, ahead of any widget or page scope around it (`dispatch.js`). While
+the user has scrolled the focused control out of sight, a key other than typing or
+Escape skips the scopes focus puts them in and reaches only the page's own, so no Leaf
+command acts on what they can't see; the browser still activates a native control
+(`dispatch.js`). A key
 typed into one of Leaf's fields, a `leaf-text` or a search box, stops at the field once
 the field and the dispatcher have read it there (`field-keys.js`), so the page never
 hears it bubble, and any other Leaf listener that needs keys typed into a field listens

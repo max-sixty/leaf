@@ -240,7 +240,7 @@
 
     "runtime/keyboard/close-requests.js": "31c6ceca76e718b474c051e597d4ffd8cccc9b82569eb8969546cdd13181bca1",
 
-    "runtime/keyboard/command-hints.js": "3602fce5a026605e0c242c30235fdf69d56f41317b30d17a931ea74276a79ee5",
+    "runtime/keyboard/command-hints.js": "714f348b1dc4a7cead047972031b7fbacf31dc38c7a22cf128400b7d0132196b",
 
     "runtime/keyboard/command-reference.js": "0b9d90044a2d7b1a7e745e4721531997f34a5ee5c5f3b1347df33caca16a1e09",
 
@@ -250,7 +250,7 @@
 
     "runtime/keyboard/disclosure.js": "60a1824e09eafb26a9c92eede13cb7641442419310fa12ff49d440298191d6df",
 
-    "runtime/keyboard/dispatch.js": "a43e978c8116d721730a32092f062cd7492df4d1e797cd9e14642bee68a463c8",
+    "runtime/keyboard/dispatch.js": "a8cd6a9ca0dd5ffae0765738bc75337e9d2d418e84fc2cfd359487b9cbc1334e",
 
     "runtime/keyboard/go-to-sequence.js": "795d9acaae7f2c17d9fa0b0ee15fce07be5aa7f2f3c334bb8bd0f613754d7b1e",
 
@@ -376,7 +376,7 @@
 
     "runtime/queue-title.js": "af4eaec486fe0c3d52681945e13ede7fbfa7ab48e1a861ca9260480c685aa5b0",
 
-    "runtime/queue-walk.js": "da727f2126fc57ca1e46d8142d3587693ca9225cd9f84ab8bd92431206e20fc4",
+    "runtime/queue-walk.js": "1eca6c44b38406910b126155ed670354b2a3ba49d8186bb275392a952b22c889",
 
     "runtime/queued-work.js": "4e4b2fcc68487261fd56e9ac17e59f1b62e9fc7b58bc8afe9a4eac2a8bc4262a",
 
@@ -528,7 +528,7 @@
 
     "runtime/user-intent.js": "91a05c1dc0c6061110958f2715488e62a68088e9d807545c5796d85f7c8cf9f7",
 
-    "runtime/user-place.js": "7507bfe7c4e9b55521add81f0cb6b2b4d5dbf100de3f076f45919f837a37a2c3",
+    "runtime/user-place.js": "74029dc735ce7f4b7394aeea834598119a1a0838dfea482601ac5fc4f71e54fe",
 
     "runtime/user-view.js": "fea258d7c282cce9202d0220af60532034cc3ef3da5adf53513483f0ff10a022",
 

@@ -205,8 +205,11 @@ declarations behind them (its module header covers committing first and
 `--authored`). For a change to where a rule sits,
 such as its sheet, layer or selector, read those lists, with the corpus states
 covering every composed page, rather than writing a computed-style sweep. Cover states
-reached by interaction, including focus states where layout can cover a focus ring,
-and add a missing state to `STATES` rather than driving it by hand.
+reached by interaction, including focus states where layout can cover a focus ring.
+Where no state reaches a surface the change touches, add one to `STATES` rather than
+driving it by hand: one state per surface, never one per scheme, size or pointer,
+which a run chooses with `--scheme`, `--viewport` and `--touch` (the `stills.py`
+header says when a state keeps its own).
 
 Hand off every difference a still can show as a Leaf page with an `lf-shot` of the
 crops and a sentence saying what changed, and link the page in the reply; a live

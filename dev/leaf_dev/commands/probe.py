@@ -41,6 +41,7 @@ from leaf_dev.browser import (
     settle,
     slow_cpu,
     tab,
+    tab_options,
 )
 from leaf_dev.commands.stills import DRIVERS
 from leaf_dev.example_data import named_source
@@ -82,13 +83,6 @@ def source_path(value: str) -> Path | str:
         return named_source(value)
     except ValueError as error:
         raise click.BadParameter(str(error)) from error
-
-
-def viewport(value: str) -> tuple[int, int]:
-    width, _, height = value.partition("x")
-    if not (width.isdigit() and height.isdigit()):
-        raise click.BadParameter(f"{value!r} is not WIDTHxHEIGHT")
-    return int(width), int(height)
 
 
 @click.command()
@@ -143,25 +137,7 @@ def viewport(value: str) -> tuple[int, int]:
     default=None,
     help="Defaults to normal motion, as the user sees it; reduce settles transitions at once.",
 )
-@click.option(
-    "--viewport",
-    "size",
-    default=f"{DESKTOP[0]}x{DESKTOP[1]}",
-    callback=lambda c, p, v: viewport(v),
-    help="WIDTHxHEIGHT; independent of --touch, so a phone needs both.",
-)
-@click.option(
-    "--scheme",
-    type=click.Choice(["light", "dark"]),
-    default="light",
-    help="The colour scheme the page is shown in.",
-)
-@click.option(
-    "--touch",
-    is_flag=True,
-    help="Show the page under a finger: a coarse pointer and mobile emulation. "
-    "The size stays at --viewport (default desktop); pass --viewport 390x844 for a phone.",
-)
+@tab_options
 @click.option(
     "--browser",
     "engine",
@@ -195,7 +171,7 @@ def probe(
     checkpoint_images,
     actions,
     motion,
-    size,
+    viewport,
     scheme,
     touch,
     engine,
@@ -291,7 +267,7 @@ def probe(
     if throttle and engine != "chromium":
         raise click.UsageError(f"--cpu-throttle needs Chromium's CDP, not {engine}")
     ios = engine == "ios"
-    if ios and (steps or journey or record_dir or touch or motion or size != DESKTOP):
+    if ios and (steps or journey or record_dir or touch or motion or viewport):
         raise click.UsageError(
             "--browser ios takes SOURCE, --js, --shot, --scheme, --log and --base; "
             "Playwright's options and --do steps don't reach the simulator"
@@ -351,7 +327,11 @@ def probe(
                         else:
                             with (
                                 tab(
-                                    browser, size, scheme, touch, motion=motion
+                                    browser,
+                                    viewport or DESKTOP,
+                                    scheme,
+                                    bool(touch),
+                                    motion=motion,
                                 ) as page,
                                 (
                                     recording(

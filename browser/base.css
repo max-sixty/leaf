@@ -879,10 +879,10 @@ html:not([data-lf-live]) {
  * page-layout.js).
  *
  * A run with nothing to break on breaks anyway rather than painting outside the box that
- * was holding it, since the live root clips what overflows sideways
- * (html[data-lf-live], below) and the render gate refuses content cut off there. It
- * reaches everything by inheritance and does nothing anywhere a line already can't
- * wrap, so the widgets that scroll instead (lf-board, lf-diff, pre) are untouched; a
+ * was holding it, over whatever stands beside that box or past the window, where the
+ * page would scroll sideways, which the render gate refuses. It reaches everything by
+ * inheritance and does nothing anywhere a line already can't wrap, so the widgets
+ * that scroll instead (lf-board, lf-diff, pre) are untouched; a
  * metric's headline was the one with no width to spare at all, and a twelve-character
  * value ran 287px out of a 138px card and across whatever the grid had put beside it.
  *
@@ -905,9 +905,12 @@ body {
 /* The live shell's fixed chrome arrives after the authored document, but its room is
  * part of the document's final layout. The render-blocking theme reserves that room so
  * the useful initial HTML paints where it will remain. The root stays the document
- * scrollport. Its definite height lets the body's minimum fill a short viewport while a
- * longer body still overflows it. Document layouts keep a
- * scrollbar to prevent a later height change from recentering the page; a workspace
+ * scrollport on both axes. A page wider than the window scrolls sideways to its far
+ * side, as on the open web; a root that clipped sideways left that side out of reach.
+ * `page check --render` refuses such a page (`page-scrolls`). Its definite height
+ * lets the body's minimum fill a short viewport while a longer body still overflows it.
+ * Document layouts keep a scrollbar to prevent a later height change from recentering
+ * the page; a workspace
  * scrolls its own regions and needs a root scrollbar only when it flows. A served
  * page's bootstrap marks it live before its graph has loaded (runtime/bootstrap.js);
  * an export draws no chrome,
@@ -915,7 +918,6 @@ body {
 @media screen {
   html[data-lf-live] {
     height: 100%;
-    overflow-x: hidden;
     overflow-y: scroll;
     /* A sticky header over the whole root, a page tab strip, adds its stated height as
      * `--lf-root-headers` (page-layout.js). */
@@ -1308,11 +1310,12 @@ main {
   font-size: var(--t-4);
   line-height: 1.45;
 }
-/* Media fits its container on every page, with a Layout or without, and in a thread: the
- * live root clips what overflows sideways (html[data-lf-live], above), so an image wider
- * than its container would otherwise lose its far side with no way to scroll to it.
- * Leaf's icons are not the page's media: they take their size from the icon rule
- * (controls.css), which this one would outrank, unsizing a 16px icon's height. */
+/* Media fits its container on every page, with a Layout or without, and in a thread: an
+ * image wider than its container would otherwise run out of it, over whatever stands
+ * beside the container or past the window, where the page would scroll sideways,
+ * which the render gate refuses. Leaf's icons are not the page's media: they take
+ * their size from the icon rule (controls.css), which this one would outrank,
+ * unsizing a 16px icon's height. */
 img,
 svg:where(:not([data-lf-icon])),
 video {

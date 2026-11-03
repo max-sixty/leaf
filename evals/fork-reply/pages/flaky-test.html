@@ -7,8 +7,8 @@
     <main class="layout-column">
       <h1 id="ft-title">Why test_cache_warmup fails on CI</h1>
       <p class="lede" id="ft-lede">
-        The cache warmup and the first request race when tests run in parallel, so
-        the test fails in about 1 run in 30 on CI and never on a laptop.
+        The cache warmup and the first request race when tests run in parallel, so the
+        test fails in about 1 run in 30 on CI and never on a laptop.
       </p>
       <section id="ft-cause" class="layout-flow">
         <h2>Cause</h2>
@@ -21,8 +21,13 @@
       <section id="ft-fixes" class="layout-flow">
         <h2>Two fixes</h2>
         <ul id="ft-fixes-list">
-          <li id="ft-fix-await">Await the warmup in <code>start()</code>: three lines, and startup takes about 200 ms longer.</li>
-          <li id="ft-fix-lock">Lock around the cache fill: no startup cost, about forty lines.</li>
+          <li id="ft-fix-await">
+            Await the warmup in <code>start()</code>: three lines, and startup takes
+            about 200 ms longer.
+          </li>
+          <li id="ft-fix-lock">
+            Lock around the cache fill: no startup cost, about forty lines.
+          </li>
         </ul>
       </section>
     </main>

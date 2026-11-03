@@ -550,9 +550,10 @@ def unsent_at_messages(
     keeps an input's thread in force (`event_contracts._parent_error`,
     `_edit_error`). A reaction withdrawn after the input still counts, as it stood
     then. The second walk is the one `thread_memberships` makes, so an action undone
-    after an input still counts and one undone before it doesn't. Each input reads
-    only the coordinates of the widgets it is about, in the order `InForce.winners`
-    keeps them."""
+    after an input still counts and one undone before it doesn't. The walk keeps,
+    for each widget, the coordinates whose winner records unsent work, updated at
+    each step that moves a winner, so an input reads only the work it carries, in
+    the order `InForce.winners` keeps it."""
     names = thread_names(events)
     sent = {}
     for widget, holder in thread_widgets(thread_structure(events), names).items():
@@ -578,31 +579,41 @@ def unsent_at_messages(
         return {}
     in_force = InForce(within)
     first = {}
-    coordinates = {}
+    unsent_at = {}
+
+    def moved(change) -> None:
+        if change is None:
+            return
+        coordinate = change.coordinate
+        first.setdefault(coordinate, len(first))
+        held = unsent_at.setdefault(coordinate[0], {})
+        if change.after is not None and unsent(change.after):
+            held[coordinate] = change.after
+        else:
+            held.pop(coordinate, None)
+
     found = {}
     for event in events:
-        if widgets := about.get(event["id"]):
-            on_widgets = sorted(
-                (c for widget in widgets for c in coordinates.get(widget, ())),
-                key=first.__getitem__,
+        if (widgets := about.get(event["id"])) and (
+            standing := sorted(
+                (
+                    item
+                    for widget in widgets
+                    for item in unsent_at.get(widget, {}).items()
+                ),
+                key=lambda item: first[item[0]],
             )
-            if work := [
-                {key: winner[key] for key in ACTION_FIELDS}
-                for coordinate in on_widgets
-                if (winner := in_force.winner(coordinate)) is not None
-                and unsent(winner)
-            ]:
-                found[event["id"]] = work
+        ):
+            found[event["id"]] = [
+                {key: action[key] for key in ACTION_FIELDS}
+                for _coordinate, action in standing
+            ]
         kind = event["kind"]
         if kind == "action":
-            change = in_force.admit(event)
-            if change is not None and change.coordinate not in first:
-                first[change.coordinate] = len(first)
-                coordinates.setdefault(change.coordinate[0], []).append(
-                    change.coordinate
-                )
+            moved(in_force.admit(event))
         elif kind == "undo":
-            in_force.withdraw(event["undoes"])
+            moved(in_force.withdraw(event["undoes"]))
         elif kind == "note":
-            in_force.restate(event)
+            for change in in_force.restate(event):
+                moved(change)
     return found

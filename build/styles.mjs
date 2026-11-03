@@ -14,7 +14,8 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 /** Source and output pairs, readable without build dependencies by the trusted
  * dependency publisher as well as the compiler. A third member takes one region of
- * the source instead of all of it (`region`). */
+ * the source instead of all of it (`region`).
+ * @type {[source: string, output: string, part?: Region][]} */
 export const styleEntries = [
   [
     "node_modules/@awesome.me/webawesome/dist/styles/themes/default.css",
@@ -41,7 +42,10 @@ export async function styleOutputs() {
  * Awesome ships its styles for native controls only in `native.css`, which restyles
  * the whole document, so Leaf takes the region for radios and checkboxes and scopes it
  * to its `.choice` face (controls.css). A region that moves or goes fails the build
- * rather than shipping an empty sheet. */
+ * rather than shipping an empty sheet.
+ * @typedef {{ region: string, scope: string }} Region
+ * @param {string} source
+ * @param {Region} part */
 async function region(source, { region: name, scope }) {
   const { readFile } = await import("node:fs/promises");
   const text = await readFile(resolve(root, source), "utf8");

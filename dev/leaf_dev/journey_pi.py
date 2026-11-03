@@ -12,8 +12,8 @@ Escape as Pi's own terminal does (`clear_queue`, then `abort`), and sends the
 user's comments at the journey's user end. It reads the page's log and claim in
 process, and stops at the first check that fails.
 
-The steps, in order, those more than one harness takes as `journey.Terminal` has
-them:
+The steps, in order; all but `held-escape` are those more than one harness takes,
+as `journey.Terminal` has them:
 
 - `setup`, the extension watching the session's pages as the run settles;
 - `release`;

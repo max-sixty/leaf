@@ -14,8 +14,9 @@ journey is then the terminal: it opens the task and types the user's turns, and
 sends the user's comments at the journey's user end. It reads the page's log and
 claim in process, and stops at the first check that fails.
 
-The steps, in order, those more than one harness takes as `journey.Terminal` has
-them, with the task's adapter as what listens for it between turns:
+The steps, in order; `setup`, `release` and `mid-turn` are those more than one
+harness takes, as `journey.Terminal` has them, with the task's adapter as what
+listens for the task between turns:
 
 - `setup`, serving the page connecting delivery through this journey's transport.
   With `--sandbox`, the task's shell commands run in Codex's `workspace-write`
@@ -379,7 +380,9 @@ def steps(
     started = time.monotonic()
     if transport == "queue":
         # The comment enters the user's turn at a tool boundary, so its answer comes
-        # before the turn's final response, not after it at the turn's Stop.
+        # before the turn's final response, not after it at the turn's Stop. Only the
+        # queue's Stop hands input into the ending turn; over App Server it leaves
+        # input to the adapter, so the pickup in the user's turn proves the boundary.
         def answered_first(turn: str) -> None:
             comment = user.ids.get("mid-turn")
             require(

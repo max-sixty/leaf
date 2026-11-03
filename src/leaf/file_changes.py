@@ -34,11 +34,16 @@ preview.
 An event reaches a subscription as the platform reports it: at once from inotify,
 but for a file moved out of a watched directory, which watchdog holds up to 500 ms
 to pair with its arrival elsewhere, and within watchdog's 10 ms FSEvents latency on
-macOS. watchfiles, which this replaced, checked its own buffer on a 50 ms step and
-ended a batch a step after its last change, so every wake waited 50–100 ms. It
-also fixed a watcher's directories when the watcher started, so a subscription
-needing a new directory restarted the process's watcher over every subscription
-and woke them all.
+macOS. watchfiles, which this replaced, polled for the events its Rust side had
+already received: it slept a step between looks and ended a batch a step after its
+last change, so a wake waited one to two steps, and a shorter step bought speed with
+idle wakes in every process. It also fixed a watcher's directories when the watcher
+started, so a subscription needing a new directory restarted the process's watcher
+over every subscription and woke them all. Calling inotify and FSEvents through
+ctypes would avoid the thread per directory and the repairs to watchdog, but Leaf
+would own the foreign-function code and its hazards: a prototype came to half again
+this module's length, and crashed at exit until it stopped its FSEvents streams
+first.
 
 A subscription hears what changes a file's content, metadata, name or presence.
 Opening and closing a file change none of those. watchdog also reports a directory

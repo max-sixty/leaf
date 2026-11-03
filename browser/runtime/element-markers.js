@@ -120,7 +120,7 @@ export const offerContentElement = (node, role, cls) => {
   return node;
 };
 /** @param {Element} node @param {string} role @param {string} [cls] @param {LeafActionRole} [face] */
-export const selectableOfferElement = (node, role, cls, face) => {
+const selectableOfferElement = (node, role, cls, face) => {
   keeps(node, "role", role);
   keeps(
     node,

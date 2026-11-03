@@ -222,25 +222,8 @@ lf-worktree > details > summary {
   font-weight: 500;
 }
 
-lf-worktree dl {
-  display: grid;
-  grid-template-columns: minmax(6rem, max-content) minmax(0, 1fr);
-  gap: var(--sp-2) var(--sp-4);
-  margin-block: var(--sp-3);
-  font-size: var(--t-6);
-}
-
-lf-worktree dt,
-lf-worktree dd {
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-
-lf-worktree dt {
-  color: var(--muted);
-  font-weight: 400;
-}
-
+/* The snapshot's facts (reading.css, `dl.facts`) keep their values in ink inside the
+   muted disclosure. */
 lf-worktree dd {
   color: var(--ink);
 }
@@ -279,15 +262,6 @@ lf-worktree dd {
     grid-template-columns: 1fr;
     gap: 0;
   }
-
-  lf-worktree dl {
-    grid-template-columns: 1fr;
-    row-gap: var(--sp-1);
-  }
-
-  lf-worktree dd + dt {
-    margin-block-start: var(--sp-2);
-  }
 }
 
 @media print {
@@ -314,7 +288,8 @@ html[data-lf-interactive] lf-worktree[open]:not(:defined) {
 }
 html[data-lf-interactive] lf-worktree[open]:not(:defined)::before {
   /* The path adds its line and top gap after the fixed summary. */
-  block-size: calc(max(4rem, var(--aim-floor)) + var(--sp-3) + 1.5 * var(--t-6));
+  font: var(--font-small);
+  block-size: calc(max(4rem, var(--aim-floor)) + var(--sp-3) + 1lh);
 }
 html[data-lf-interactive] lf-worktree:not([open]):not(:defined) > * {
   display: none;
@@ -322,5 +297,6 @@ html[data-lf-interactive] lf-worktree:not([open]):not(:defined) > * {
 html[data-lf-interactive] lf-worktree-diffs:not(:defined)::before {
   content: "";
   grid-column: 1 / -1;
-  block-size: calc(1.5 * var(--t-5) + var(--sp-3));
+  font: var(--font-title);
+  block-size: calc(1lh + var(--sp-3));
 }

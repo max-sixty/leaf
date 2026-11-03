@@ -942,6 +942,10 @@ def test_the_response_field_grows_across_its_bar(browser, serve):
     assert narrow_field["x"] + narrow_field["width"] == pytest.approx(
         content_right, abs=1
     ), narrow_field
+    # A phone has no room for a card, so the draft is sent on a window that has.
+    resized(page, 1200, 900)
+    rendered(page)
+    expect(field).to_be_focused()
     page.keyboard.press("Enter")
     card = page.locator(".lf-margin-preview")
     expect(card).to_have_css("opacity", "1")
@@ -2432,7 +2436,7 @@ def test_a_remote_resolve_disarms_the_open_reply_list_it_takes_away(browser, ser
 
     thread_model.cmd_resolve(serve.page_dir, root)
     told(page)
-    expect(page.locator(".lf-fp-controls .lf-thread-news")).to_have_text("Resolved")
+    expect(page.locator(".lf-fp-head .lf-thread-news")).to_have_text("Resolved")
     expect(strip.locator(".lf-react-palette:popover-open")).to_have_count(1)
     count = len(events_model.read_events(serve.page_dir))
     page.keyboard.press("1")

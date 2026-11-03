@@ -2,7 +2,6 @@
 agent, decisions surviving the next version, and the action history."""
 
 import itertools
-import re
 
 import pytest
 from click.testing import CliRunner
@@ -18,6 +17,7 @@ from render_cases_navigation import (
     painted,
 )
 from render_harness import (
+    close_panel_menu,
     draft_control,
     expect_comment_notes,
     open_page,
@@ -107,7 +107,7 @@ def test_page_round_trip(browser, serve):
     expect(
         panel_menu(page).locator('.lf-fp-item[data-row="versions"]')
     ).to_contain_text("v2")
-    page.locator(".lf-fp-leaf").click()
+    close_panel_menu(page)
     assert "/versions/" not in page.url
     # The anchor pass runs at render: a mark now means the quote was re-found in
     # its new position; no mark within the wait means the anchor lost it.
@@ -117,7 +117,7 @@ def test_page_round_trip(browser, serve):
         e["id"] for e in events_model.read_events(d) if e["kind"] == "comment"
     )
     quote = open_panel_thread(page, comment).locator(".lf-fp-quote")
-    expect(quote).not_to_have_class(re.compile(r"\bdetached\b"))
+    expect(quote).not_to_have_attribute("data-lf-detached", "")
     # v2's markup carries the original draft text — Claude hasn't honored the
     # edit — so the user's words must arrive by replay, not visibly revert.
     expect(draft.locator(".lf-draft-body")).to_have_text(DRAFT_EDITED)
@@ -452,5 +452,5 @@ def test_a_comment_written_on_an_edited_draft_lands_on_their_words(browser, serv
         e["id"] for e in events_model.read_events(d) if e["kind"] == "comment"
     )
     quote = open_panel_thread(page, comment).locator(".lf-fp-quote")
-    expect(quote).not_to_have_class(re.compile(r"\bdetached\b"))
+    expect(quote).not_to_have_attribute("data-lf-detached", "")
     assert painted(page, "lf-mark") == "It takes about a minute."

@@ -64,7 +64,7 @@ def test_a_reply_sent_while_the_agent_streams_moves_nothing_when_accepted(
 
     page = open_page(browser, url)
     thread = open_panel_thread(page, root)
-    streamed = thread.locator(".lf-msg.agent")
+    streamed = thread.locator(".lf-msg[data-lf-author=agent]")
     expect(streamed.locator(".lf-msg-text")).to_have_text("First words")
     write(panel_field(page), "And note the date")
     # The shift watch holds the acceptance to moving nothing; the order is where the
@@ -83,7 +83,7 @@ def test_a_reply_sent_while_the_agent_streams_moves_nothing_when_accepted(
     expect(streamed.locator(".lf-msg-text")).to_have_text(
         "First words and more of them"
     )
-    expect(page.locator(".lf-fp-controls .lf-thread-news:visible")).to_have_count(0)
+    expect(page.locator(".lf-fp-head .lf-thread-news:visible")).to_have_count(0)
 
 
 @pytest.mark.watch_shifts
@@ -113,7 +113,7 @@ def test_an_idle_open_panel_thread_shows_appended_replies(browser, serve, reply_
     reply = append_agent_reply(serve.page_dir, root, words)
     told(page)
     expect(thread.locator(f'.lf-msg[data-event="{reply["id"]}"]')).to_be_visible()
-    expect(page.locator(".lf-fp-controls .lf-thread-news:visible")).to_have_count(0)
+    expect(page.locator(".lf-fp-head .lf-thread-news:visible")).to_have_count(0)
     rendered(page)
     # The view grows to hold the answer, the message keeping its place within it.
     assert message.evaluate(
@@ -314,7 +314,9 @@ def test_the_user_rewrites_their_own_message_where_it_stands(browser, serve):
     thread = open_panel_thread(page, mine["id"])
     message = thread.locator(f'.lf-msg[data-message="{mine["id"]}"]')
     expect(message.locator(".lf-msg-text")).to_have_text("Fit the north bracket.")
-    expect(thread.locator(".lf-msg.agent .lf-msg-edit")).to_have_count(0)
+    expect(thread.locator(".lf-msg[data-lf-author=agent] .lf-msg-edit")).to_have_count(
+        0
+    )
 
     message.locator(".lf-msg-text").dblclick()
     editor = message.locator(".lf-msg-editor leaf-text")

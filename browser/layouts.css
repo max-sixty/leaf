@@ -129,11 +129,16 @@
     }
     /* What the page writes before the parts, named from itself rather than by a `:has()`
      * on `main`, which would restyle the whole document on every write: what stands
-     * before the parts' holder. */
+     * before the parts' holder. No class or tag narrows the subject, so the browser
+     * tests the rule against every element, checking the subject's conditions in the
+     * order they are written. `:where(main > *)` comes first so that an element outside
+     * `main` fails at once. The sibling conditions read every later or earlier sibling,
+     * and tested first on each line of an 18,000-line text document, they spent 40 s
+     * restyling it. */
     html[data-lf-interactive]
       body
       > main:not(.layout-column, .layout-sidebar, .layout-workspace)
-      > :has(~ [data-lf-views="parts"]):not(
+      > :where(main > *):has(~ [data-lf-views="parts"]):not(
         [data-lf-views="parts"],
         [data-lf-views="parts"] ~ *
       ) {
@@ -214,7 +219,7 @@
       html[data-lf-interactive]
         body
         > main:not(.layout-column, .layout-sidebar, .layout-workspace)
-        > :has(~ [data-lf-views="parts"]):not(
+        > :where(main > *):has(~ [data-lf-views="parts"]):not(
           [data-lf-views="parts"],
           [data-lf-views="parts"] ~ *
         ),
@@ -235,7 +240,7 @@
       html[data-lf-interactive]
         body
         > main:not(.layout-column, .layout-sidebar, .layout-workspace)
-        > :has(~ [data-lf-views="parts"]):not(
+        > :where(main > *):has(~ [data-lf-views="parts"]):not(
           [data-lf-views="parts"],
           [data-lf-views="parts"] ~ *
         ) {
@@ -370,28 +375,54 @@
       max-inline-size: min(100%, var(--wide));
     }
   }
+  /* A sheet has no window margin to borrow: exhibits keep the prose track on paper. */
+  @media screen {
+    :is(.layout-column, .layout-flow) {
+      > [data-lf-space="wide"] {
+        grid-column: prose-start / full-end;
+        max-inline-size: min(100%, var(--wide));
+        --lf-breakout: 1;
+      }
+      > [data-lf-space="available"] {
+        grid-column: full;
+        max-inline-size: 100%;
+        --lf-breakout: 1;
+      }
+    }
+  }
   :is(.layout-column, .layout-flow) {
-    > [data-lf-space="wide"] {
-      grid-column: prose-start / full-end;
-      max-inline-size: min(100%, var(--wide));
-      --lf-breakout: 1;
+    /* A failed upgrade draws prose in place of its exhibit. The source scrolls
+     * inside the error box, while its host returns to the prose track. */
+    > [data-lf-space]:has(> .lf-error) {
+      grid-column: prose;
+      --lf-breakout: 0;
     }
-    > [data-lf-space="available"] {
-      grid-column: full;
-      max-inline-size: 100%;
-      --lf-breakout: 1;
+  }
+  /* A table with a breakout is only as wide as its columns need, up to its track,
+   * and stands at the track's start, where a breakout's 100% would spread two short
+   * columns across the whole wide track. */
+  :is(.layout-column, .layout-flow) > table[data-lf-space] {
+    contain: none;
+    inline-size: max-content;
+    justify-self: start;
+    &[data-lf-space="available"] {
+      justify-self: center;
     }
-    > table[data-lf-space] {
-      contain: none;
+  }
+  /* The reading face's table is a block that scrolls its columns (reading.css), and a
+   * breakout sizes that block. A page without the face keeps the browser's table,
+   * whose caption these rules would turn out of its caption box. */
+  @container style(--lf-reading-face: 1) {
+    :is(.layout-column, .layout-flow) > table[data-lf-space] {
       container-type: normal;
       container-type: scroll-state;
-      inline-size: max-content;
       min-inline-size: min(100%, var(--col));
-      justify-self: start;
-      &[data-lf-space="available"] {
-        justify-self: center;
-      }
+      /* A native caption joins the anonymous table grid, whose width is the
+       * columns' full scrollable width. An inline block belongs to this scrollport
+       * instead, so its percentage limit and sticky position use the same box. */
       > caption {
+        display: inline-block;
+        vertical-align: top;
         max-inline-size: 100%;
       }
     }

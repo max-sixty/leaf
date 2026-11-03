@@ -114,16 +114,10 @@ let destinations = new WeakMap();
 let navigationError = null;
 /** @param {number} value */
 const number = (value) => value.toLocaleString();
-/** @param {CssCounts} values */
-const metrics = (values) =>
-  html`<dl class="lf-inspection-metrics">
-    ${Object.entries({
-      "UTF-8 bytes": values.bytes,
-      "CSS rules": values.rules,
-      Declarations: values.declarations,
-      "Inline styles": values.inline_styles,
-      "!important": values.important,
-    }).map(
+/** @param {Record<string, number>} values */
+const counts = (values) =>
+  html`<dl class="lf-facts">
+    ${Object.entries(values).map(
       ([label, value]) =>
         html`<div>
           <dt>${label}</dt>
@@ -131,6 +125,15 @@ const metrics = (values) =>
         </div>`,
     )}
   </dl>`;
+/** @param {CssCounts} values */
+const metrics = (values) =>
+  counts({
+    "UTF-8 bytes": values.bytes,
+    "CSS rules": values.rules,
+    Declarations: values.declarations,
+    "Inline styles": values.inline_styles,
+    "!important": values.important,
+  });
 
 /** @param {CssReport} css @param {string} owner */
 const sourcesOf = (css, owner) =>
@@ -322,11 +325,11 @@ function present() {
         report.javascript
           ? html`<section aria-label="Authored JavaScript">
               <h2 class="lf-label">Authored JavaScript</h2>
-              <p>
-                ${number(report.javascript.page.bytes)} page-owned bytes ·
-                ${number(report.javascript.page.inline_scripts)} inline scripts ·
-                ${number(report.javascript.page.files)} files
-              </p>
+              ${counts({
+                "Page-owned bytes": report.javascript.page.bytes,
+                "Inline scripts": report.javascript.page.inline_scripts,
+                Files: report.javascript.page.files,
+              })}
               <details>
                 <summary>JavaScript sources</summary>
                 <dl>

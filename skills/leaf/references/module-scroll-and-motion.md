@@ -155,11 +155,15 @@ The rows' `scroll-margin-top` makes a scroll to a row land below the header.
 revealed control lands exactly there. Put the stacked value on a box that doesn't scroll
 itself.
 
-Leaf restarts `--lf-top` on every box that scrolls and doesn't stick, `overflow: hidden`
-included, so a header inside one sticks at its top. A box a package makes scroll sets
-`--lf-top: 0px` beside its `overflow`, so that holds from the first paint. A header
-sticks below its scroller's top padding; to have it sit on the scroller's edge, set
-`--lf-top-start` to minus that padding and `--lf-top: var(--lf-top-start)`. A scroller
+A box a package makes scroll sets `--lf-top: 0px` beside its `overflow`, so a header
+inside it sticks at its top from the first paint. Leaf also restarts `--lf-top` on a box
+with the `scroll` class, such as a registered reading region's body, once it finds the
+box scrolling and not sticking, `overflow: hidden` included. Leaf reads no other box's
+overflow, so in a box that scrolls without that declaration or the class, a header
+sticks as far below the box's top as the headers stacked over the box, and covers what
+lies under the header. A header sticks below its scroller's top padding; to have it sit
+on the scroller's edge, set `--lf-top-start` to minus that padding and
+`--lf-top: var(--lf-top-start)`. A scroller
 with its own `scroll-padding` states it as `--lf-landing-room-start`. A box that only
 clips, such as a card with rounded corners, uses `overflow: clip`, since a header inside
 an `overflow: hidden` box scrolls away with the page.
@@ -190,8 +194,12 @@ container above it.
 ## Travel and history
 
 Link to a place on the page with an ordinary fragment link; Leaf clears any panel
-covering the page and opens whatever holds the element. A widget that opens the part a
-fragment names reads it with `fragmentTarget(hash)`, which returns nothing for an id in
+covering the page and opens whatever holds the element. A fragment can also name a
+part of a widget by the widget's id and a key, which `fragmentUrl` builds
+([module-reading.md, "Following a reference"](module-reading.md#following-a-reference)).
+A widget that opens the part a
+fragment names reads it with `fragmentTarget(hash)`: the element, or for a key the part
+the widget has drawn for it, else the widget. It returns nothing for an id in
 Leaf's chrome, in a message's markup, or on content a revision removed.
 
 Before Leaf travels to a target, such as a comment's anchor, it reveals the target as
@@ -218,7 +226,8 @@ restore the page itself when the user goes Back or Forward to one of its entries
 the page for an entry of the widget's, or nothing. The handler may be asynchronous.
 When it only reveals the destination view, it resolves to `false`, and Leaf restores
 the entry's saved viewport after the view is shown. Otherwise the handler owns
-viewport placement.
+viewport placement. Either way, where the entry's fragment still names a place the
+page doesn't show once the handler finishes, Leaf reveals that place and lands there.
 
 ## Motion
 

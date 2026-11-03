@@ -137,7 +137,7 @@ composer.id = "lf-composer";
 // around it: this is the only injected chrome carrying an id, and "which section is this
 // in" is asked as `[id]:not(.lf-ui)` of the element rather than of its ancestors, so
 // without the class it answers that question with itself.
-export const composerQuote = el("blockquote", "lf-ui lf-quote detached");
+export const composerQuote = el("blockquote", "lf-ui lf-quote");
 composerQuote.id = "lf-composer-quote";
 composerQuote.hidden = true;
 // The page-anchored composer is the extended Comment control itself. The hidden

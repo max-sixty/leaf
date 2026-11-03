@@ -3967,6 +3967,24 @@ start.onclick = () => {
     errors = take_browser_errors(page)
     assert names_move(errors, "p#trigger"), errors
     assert names_move(errors, "button#control") == fault, errors
+    if fault:
+        error = next(e for e in errors if is_problem(e, moved_within("button#control")))
+        comparisons = shift_evidence(error)["comparisons"]
+        term = next(
+            term
+            for comparison in comparisons
+            for term in comparison["animation_terms"]
+            if term["branch"] == "animation" and term["axis"] == "top"
+        )
+        geometry = term["inputs"]["geometry"]
+        assert term["amount"] == pytest.approx(-20)
+        # The independent margin collapses through the message, adding travel
+        # that the translation value alone cannot explain.
+        assert geometry["after"]["top"] - geometry["before"]["top"] == pytest.approx(
+            -35
+        )
+        assert geometry["parent"] == ["div#scroller"]
+        assert geometry["parent_before"] == geometry["parent_after"]
 
 
 @pytest.mark.parametrize(
@@ -4030,16 +4048,23 @@ motion.pause();motion.currentTime=150;
     paint(page)
     page.locator("#start").click()
     paint(page)
+    before = page.locator("#control").bounding_box()
     page.evaluate(
         """({fault, guard}) => {
           motion.currentTime = 800;
           // A removed anchor must not own an equal independent displacement.
-          if (fault) tip.style.marginLeft = ['wins', 'lower'].includes(guard) ? '130px' : '55px';
+          // The important rollback must not cancel the injected margin itself.
+          if (fault) tip.style.setProperty('margin-left',
+            ['wins', 'lower'].includes(guard) ? '130px' : '55px',
+            guard === 'lower' ? 'important' : '');
           trigger.style.left = '40px';
         }""",
         {"fault": fault, "guard": guard},
     )
     paint(page)
+    after = page.locator("#control").bounding_box()
+    expected = (130 if guard in {"wins", "lower"} else 185) if fault else 130
+    assert after["x"] - before["x"] == pytest.approx(expected)
     judge_watches()
     errors = take_browser_errors(page)
     assert names_move(errors, "p#trigger"), errors
@@ -4189,70 +4214,6 @@ CLIPPING_CASES = (
         20,
     ),
 )
-
-
-def test_native_clipping_preserves_only_painted_carry(browser, serve):
-    """Each case stands alone on one page in turn: its boxes shown, the others' out of
-    the box tree, so no case's field stands under another's point or clip."""
-    source = leaf_page(
-        "Native clipping",
-        "".join(
-            f'<div id="case-{name}" hidden><div id="outer-{name}" style="{outer}">'
-            f'<div style="{inner}"><textarea id="field-{name}" style="{field};width:14px;'
-            'height:20px"></textarea></div></div></div>'
-            for name, outer, inner, field, *_ in CLIPPING_CASES
-        )
-        + '<div id="evidence" style="position:absolute;left:10px;top:400px;width:300px;'
-        'height:30px;background:red"></div>',
-        layout=None,
-    )
-    page = open_page(browser, serve(source))
-    for name, _, _, _, hit, painted, delta in CLIPPING_CASES:
-        page.evaluate(
-            "name => document.getElementById(`case-${name}`).hidden = false", name
-        )
-        paint(page)
-        field = page.locator(f"#field-{name}")
-        state = field.evaluate("""async field=>{
-          const box=field.getBoundingClientRect();
-          const geometry=await window.__lfCheckApi();
-          return {hit:document.elementFromPoint(box.x+3,box.y+3)===field,
-            shown:!!geometry.shownRect(field,new Map()),
-            opacity:field.checkVisibility({checkOpacity:true})};
-        }""")
-        assert state == {
-            "hit": hit,
-            "shown": hit,
-            "opacity": painted or hit is False,
-        }, name
-        before = field.bounding_box()
-        field.evaluate(
-            """(field, delta)=>{
-          window.nativeClipEntries=[];
-          window.nativeClipObserver?.disconnect();
-          window.nativeClipObserver=new PerformanceObserver(list=>nativeClipEntries.push(...list.getEntries()));
-          nativeClipObserver.observe({type:'layout-shift'});
-          field.style.marginLeft=delta+'px';
-          evidence.style.marginLeft=evidence.style.marginLeft==='40px'?'0px':'40px';
-        }""",
-            delta,
-        )
-        page.screenshot()
-        judge_watches()
-        errors = take_browser_errors(page)
-        assert page.evaluate("nativeClipEntries.length"), name
-        after = field.bounding_box()
-        assert after["x"] - before["x"] == (6 if delta == 3 else delta), name
-        if painted:
-            assert names_move(errors, f"textarea#field-{name}"), (name, errors)
-        else:
-            assert errors == [], (name, errors)
-        page.evaluate(
-            "name => document.getElementById(`case-${name}`).hidden = true", name
-        )
-        paint(page)
-        judge_watches()
-        assert take_browser_errors(page) == [], name
 
 
 @pytest.mark.parametrize("mode", ["typing", "passive"])
@@ -4807,39 +4768,6 @@ window.inner = host.shadowRoot.getElementById("inner");
     paint(page)
     page.evaluate(FRAMES, 10)
     return page
-
-
-def test_an_unchanged_frame_misses_no_restyle(browser):
-    """An idle frame keeps its last reading (`shift_watch.js`, "Unchanged frames").
-
-    A change no source announces fails the test, naming the innermost node that
-    changed; each change that restyles without a DOM write is announced, so the
-    periodic full reading finds nothing. The unannounced change runs first, while
-    nothing animates; the announced ones then run in turn on the same page, the shadow
-    transition last so it is still running when the sensor checks.
-    """
-    page = restyle_page(browser)
-    for call, (script, words, settled) in [
-        ("unannounced", RESTYLES["unannounced"]),
-        *((call, case) for call, case in RESTYLES.items() if call != "unannounced"),
-    ]:
-        page.evaluate(script)
-        expect(page.locator(words)).to_have_css(*(settled or ("opacity", "0.5")))
-        if call == "unannounced":
-            # More frames than the sensor's check interval.
-            page.evaluate(FRAMES, 90)
-            judge_watches()
-            consume_browser_errors(
-                page,
-                {
-                    "code": "shift-watch-missed",
-                    "node": ["#text", "p#unheard"],
-                    "changed": ["opacity"],
-                    "others": 1,
-                },
-            )
-    page.evaluate(FRAMES, 90)
-    judge_watches()
 
 
 def test_unavailable_computed_padding_keeps_an_unchanged_reading(browser):

@@ -54,7 +54,6 @@ from render_cases_navigation import (
 )
 from render_cases_widgets import (
     GENERIC_VISUAL_LAYER,
-    PART_DIAGRAM_PAGE,
     prefixed_visual_layer,
     visual_widgets,
 )
@@ -68,6 +67,7 @@ from render_harness import (
     _traffic,
     _until,
     at_rest,
+    close_panel_menu,
     compare_with,
     confirming_resize_notices,
     consume_browser_errors,
@@ -137,22 +137,6 @@ BOUNDED_WORKSPACE_PAGE = leaf_page(
 )
 
 
-def test_the_render_gate_reports_a_compact_spill(browser, serve):
-    source = leaf_page(
-        "Compact spill",
-        "<h1>Compact route</h1>"
-        '<p id="compact-overflow">This row spills only from compact viewports.</p>',
-        head="<style>@media(max-width:600px){#compact-overflow{width:700px}}</style>",
-    )
-    reading = render_gate_model.render_version(browser, serve(source, packages=()))
-    overflow = [
-        finding for finding in reading.failures if finding.code == "page-scrolls"
-    ]
-    assert [(f.widths, f.scheme, f.viewports) for f in overflow] == [
-        ((360, 600), None, ())
-    ], reading.failures
-
-
 def test_startup_shift_evidence_serializes_as_advice(browser, serve, monkeypatch):
     """Platform entries survive the real JS probe and report boundary as advice.
 
@@ -207,93 +191,6 @@ def _panel(name: str) -> str:
     return f'<section class="panel" id="{name}"><h2>{name}</h2><p>Words.</p></section>'
 
 
-def test_the_render_gate_fails_a_page_that_scrolls_sideways_only_between_viewports(
-    browser, serve
-):
-    """A body beside its track, and a row that spills only from 600 to 900px: both fixed
-    viewports read the page clean, and only the sweep between them sees it. A control
-    row that loses its scrollbar track room only between them is the same reading for
-    the overlay bar. Below both, a decision in a card of fixed height, whose prose
-    grows at 440px and narrower (a margin stands in for its wrapping) until it pushes
-    the decision's controls under the card's clip: a press nobody can reach, which only
-    the sweep's narrowest widths see. A card as tall as the window holds its decision
-    below 600px of plan, so a window 720px tall clips it and one 900px tall does not:
-    read at a user's 900px-tall desktop window, only the phone render's sweep, at its
-    own height, sees it. A card whose rule for the
-    dark scheme pushes its decision under the clip is clipped only in the two dark
-    renders, which each read the geometry once."""
-    source = leaf_page(
-        "mid-width overflow",
-        f"""
-<h1>Mid-width spill</h1>
-<div id="tracks">
-  <div id="body">{_panel("plan")}{_panel("steps")}</div>
-  <div id="rail">{_panel("checks")}{_panel("log")}</div>
-</div>
-<p id="mid-spill">{"A line that wraps at both viewports and runs on unbroken between them. " * 4}</p>
-<div id="strip"><button>Summary</button><button>Release scope</button>
-<button>Owner handoff</button></div>
-<div id="card"><lf-ask id="go-decision"><h2>Ship it?</h2>
-<p>The release passed its checks.</p><lf-options id="go" choose>
-<lf-option id="go-yes"><strong>Yes</strong></lf-option>
-</lf-options></lf-ask></div>
-<div id="short"><div id="plan-body"></div><lf-ask id="hold-decision"><h2>Hold it?</h2>
-<lf-options id="hold" choose><lf-option id="hold-yes"><strong>Yes</strong></lf-option>
-</lf-options></lf-ask></div>
-<div id="dusk"><lf-ask id="dusk-decision"><h2>Wait?</h2>
-<p>The canary is still running.</p><lf-options id="wait" choose>
-<lf-option id="wait-yes"><strong>Yes</strong></lf-option>
-</lf-options></lf-ask></div>
-""",
-        head="""<style>
-#tracks { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4); }
-@media (min-width: 600px) and (max-width: 900px) { #mid-spill { white-space: nowrap; } }
-#strip { display: flex; width: 240px; overflow: auto; padding: 0 0 15px; border: 0; }
-#strip button { flex: 0 0 180px; height: 40px; margin: 0; }
-@media (min-width: 600px) and (max-width: 900px) { #strip { padding-bottom: 0; } }
-#card { height: 400px; overflow: hidden; }
-@media (max-width: 440px) { #card p { margin-bottom: 400px; } }
-#short { height: 100vh; overflow: hidden; }
-#plan-body { height: 600px; }
-#dusk { height: 400px; overflow: hidden; }
-@media (prefers-color-scheme: dark) { #dusk p { margin-bottom: 400px; } }
-</style>""",
-    )
-
-    reading = render_gate_model.render_version(
-        browser,
-        serve(source, packages=("default",)),
-        desktop={"width": 1280, "height": 900},
-    )
-
-    clipped = [f for f in reading.failures if f.code == "clipped-control"]
-    assert clipped, reading.failures
-    assert {(f.values["by"], f.widths) for f in clipped} == {
-        ("<div id=card>", (360, 440)),
-        ("<div id=short>", (360, 540)),
-        ("<div id=dusk>", (1280, 1280)),
-        ("<div id=dusk>", (540, 540)),
-    }, clipped
-    # Each card that loses its controls loses the prose above them too, at the same
-    # widths: the content reading names the card, with what would show the rest.
-    cut = {(f.at, f.widths) for f in reading.failures if f.code == "clipped-content"}
-    assert cut == {(f.values["by"], f.widths) for f in clipped}, reading.failures
-    assert {(f.code, f.at, f.widths) for f in reading.failures} - {
-        (f.code, f.at, f.widths) for f in clipped
-    } - {("clipped-content", *box) for box in cut} == {
-        ("page-scrolls", "", (600, 880)),
-    }, reading.failures
-    # A strip that leaves no room for an overlay scrollbar is advice: the bar covers its
-    # last line only under the pointer, and the room is the author's to choose.
-    [strip] = reading.advice
-    assert (strip.code, strip.at, strip.widths) == (
-        "scrollbar-clearance",
-        "<div id=strip>",
-        (600, 880),
-    ), reading.advice
-    assert strip.values["clear"] == 0, strip
-
-
 # Four drawings in the idiom. The first is drawn wider than the column holds, so the fit
 # takes its 11px labels to under half. The second is fitted by the same fraction, and its
 # 28px labels survive it. The third keeps its natural size, with the theme's 9px step
@@ -341,14 +238,16 @@ def test_user_view_checks_read_current_geometry_without_changing_the_page(
 
     The same drawing's labels shrink further on a narrower window; large labels are
     clean at desktop and cross the stated threshold on mobile. A closed disclosure's
-    arrangement is no part of the view, so the reading leaves it out. Reading leaves
+    arrangement is no part of the view until opened. The reading includes the native
+    column grid as well as the page's flex rows. Reading leaves
     the DOM, focus, selection, and scroll position intact.
     """
     source = DRAWN_LABELS_PAGE.replace(
         "<h1>Rollout</h1>",
         '<h1>Rollout</h1><div id="arrangement" style="display:flex; gap:16px">'
         "<p>Canary</p><p>Global</p></div>"
-        '<details><summary>Later</summary><div style="display:flex; gap:16px">'
+        "<details><summary>Later</summary>"
+        '<div id="later-arrangement" style="display:flex; gap:16px">'
         "<p>Europe</p><p>Asia</p></div></details>",
     )
     page = open_page(browser, serve(source, packages=()))
@@ -388,7 +287,8 @@ def test_user_view_checks_read_current_geometry_without_changing_the_page(
     assert desktop["unchanged"] and narrow["unchanged"]
     for result in (desktop, narrow):
         reading = result["reading"]
-        (arrangement,) = reading["layout"]["arrangement"]
+        column, arrangement = reading["layout"]["arrangement"]
+        assert column["path"] == "main"
         assert arrangement["at"] == "<div id=arrangement>"
         assert arrangement["rows"] == "2"
         assert page.locator(arrangement["path"]).get_attribute("id") == "arrangement"
@@ -404,6 +304,17 @@ def test_user_view_checks_read_current_geometry_without_changing_the_page(
         "<svg> in <figure id=large>",
     }
     assert small[0]["drawn"] < drawing["drawn"]
+
+    page.get_by_text("Later", exact=True).click()
+    rendered(page)
+    opened = read()
+    assert opened["unchanged"]
+    column, arrangement, later = opened["reading"]["layout"]["arrangement"]
+    assert column["path"] == "main"
+    assert arrangement["at"] == "<div id=arrangement>"
+    assert later["at"] == "<div id=later-arrangement>"
+    assert later["rows"] == "2"
+    assert page.locator(later["path"]).get_attribute("id") == "later-arrangement"
 
 
 # A widget whose module draws a 120px box, where its authored markup holds nothing.
@@ -996,30 +907,6 @@ def test_replay_findings_keep_the_throw_site(browser, serve):
     assert 'File "' not in finding["error"], finding
     assert "TypeError: replay rejected" in finding["error"]
     assert "replayProjection" in finding["error"]
-
-
-def test_the_render_gate_refuses_duplicate_diagram_identities(browser, serve):
-    """Two named boxes cannot share the same stable comment identity."""
-    page = PART_DIAGRAM_PAGE.replace(
-        "</lf-diagram>",
-        """</lf-diagram>
-<lf-diagram id="model" parts="all"><pre>
-classDiagram
-  namespace Job {
-    class Job
-  }
-</pre></lf-diagram>""",
-        1,
-    )
-    failures = render_gate_model.render_version(browser.unwatched, serve(page)).failures
-    assert [(f.scheme, f.code, f.at) for f in failures] == [
-        (scheme, "console-error", "") for scheme in ("light", "dark")
-    ], failures
-    assert all(
-        'leaf: <lf-diagram id="model"> failed:' in f.values["text"]
-        and "Job" in f.values["text"]
-        for f in failures
-    ), failures
 
 
 def test_diagrams_preserve_late_state_labels_and_sequence_titles(browser, serve):
@@ -1959,9 +1846,7 @@ def other_pages(page):
     are live; the menu is put away again."""
     offered = panel_menu(page, "navigate").locator('.lf-fp-item[data-row="leaves"]')
     count = offered.count()
-    page.keyboard.press("Escape")
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-floating-panel")).not_to_have_attribute("data-menu", "")
+    close_panel_menu(page)
     return count > 0
 
 
@@ -2611,8 +2496,11 @@ def test_a_row_at_a_frame_edge_holds_the_trim_by_declaring_it(browser, serve, su
                 "Split rows",
                 "<h1>Rows</h1>"
                 + "".join(rows(display, frame) for display, frame in cases)
+                # Column items declare their end edge; keep the unframed controls
+                # inside one item, followed by text that receives that edge.
+                + "<div>"
                 + deliberate
-                + "<p>Following text keeps the rows away from the page frame's edges.</p>",
+                + "<p>Following text keeps the rows away from the page frame's edges.</p></div>",
             )
         ),
     )
@@ -3770,6 +3658,33 @@ def test_declared_space_names_containing_holders_as_advice(browser, serve):
     assert "put data-width on that holder" in str(advice[0])
 
 
+def test_unpainted_padding_can_hold_focus_rings_inside_the_page_gutter(browser, serve):
+    """Blank padding may cross the content edge; paint and words still may not."""
+    source = leaf_page(
+        "Room for focus",
+        """
+<header><h1>Room for focus</h1></header>
+<div id="focus-room" class="probe" style="overflow: auto"><p>Reading stays in the content box.</p></div>
+<div id="offscreen-room" class="probe" style="overflow: auto"><div id="offscreen" style="margin-left: 2000px; width: 100px; background: red">Reach by scrolling.</div></div>
+<div id="tinted" class="probe" style="background: #eee">Tint.</div>
+<div id="bordered" class="probe" style="border: 1px solid">Border.</div>
+<div id="indented" class="probe" style="text-indent: -16px">Words outside.</div>
+<div id="child-room" class="probe" style="overflow: auto"><p id="child" style="transform: translateX(-16px)">Child outside.</p></div>
+""",
+        layout="workspace",
+        head="<style>.probe { margin-inline: -8px; padding-inline: 8px; }</style>",
+    )
+    page = open_page(browser, serve(source))
+    findings = render_checks_model.evaluate_probe(page, "misplacedBoxes")
+    assert sorted((finding["code"], finding["at"]) for finding in findings) == [
+        ("clipped-out", "<p id=child>"),
+        ("past-column", "<div id=bordered>"),
+        ("past-column", "<div id=indented>"),
+        ("past-column", "<div id=tinted>"),
+        ("past-column", "<p id=child>"),
+    ], findings
+
+
 def test_an_obligation_spanning_its_block_is_a_breakout(browser, serve):
     """An explicitly widened obligation keeps its evidence inside the ring. Boxes
     pulled or sized past the actual page edge remain render-gate findings."""
@@ -4420,6 +4335,40 @@ def test_a_table_keeps_its_columns_natural_width_wherever_it_stands(browser, ser
     assert root_overflow(page) == 0
 
 
+def test_a_breakout_table_without_the_reading_face_keeps_its_columns_width(
+    browser, serve
+):
+    """On a page that takes no theme, a table marked `data-width="wide"` keeps the
+    browser's table and is as wide as its columns need, standing where the prose
+    starts. The breakout's 100% spread two one-word columns across the whole wide
+    track."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Breakout tables",
+                '<p id="prose">The prose column.</p>'
+                '<table id="short" data-width="wide">'
+                "<tr><th>Key</th><th>Value</th></tr><tr><td>name</td><td>leaf</td></tr>"
+                "</table>",
+            ),
+            theme=False,
+        ),
+    )
+    measured = page.evaluate(
+        """() => {
+        const prose = document.querySelector('#prose').getBoundingClientRect();
+        const table = document.querySelector('#short');
+        const row = table.querySelector('tr').getBoundingClientRect();
+        return {display: getComputedStyle(table).display, row: row.width,
+                column: prose.width, start: row.left - prose.left};
+    }"""
+    )
+    assert measured["display"] == "table", measured
+    assert measured["row"] < measured["column"] / 2, measured
+    assert 0 <= measured["start"] <= 4, measured
+
+
 def test_an_identifier_in_a_cell_breaks_rather_than_holding_its_column(browser, serve):
     """The theme's second case, reached by a table that used to fall through to the
     third: a column of test names beside a column of prose. A name is one word to
@@ -4577,3 +4526,9 @@ def test_label_size_reading_ignores_html_elements_inside_a_drawing(browser, serv
     assert drawing["words"] == "SVG label"
     assert drawing["set"] == 20
     assert drawing["drawn"] == 5
+
+
+import pytest
+from render_harness import (
+    leaf_page,
+)

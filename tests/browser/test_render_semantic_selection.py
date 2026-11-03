@@ -654,7 +654,7 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
     expect(search_command).to_have_accessible_name("Search page")
     expect(search_command.locator(".lf-command-reference-description")).to_have_count(0)
     expect(select_command.locator("kbd")).to_have_text("s")
-    expect(select_command).to_have_accessible_name("Comment on an element")
+    expect(select_command).to_have_accessible_name("Select mode")
     expect(select_command).to_have_attribute(
         "title", "Choose an element by pressing it or typing its hint, then comment"
     )
@@ -1256,6 +1256,9 @@ def test_a_boxless_target_is_read_where_it_paints(browser, serve):
   <p id="two">Second run of the split target.</p>
 </div>
 """,
+                # The split runs need ordinary block flow. In the column grid,
+                # they become separate items and the wrapper can sort before the heading.
+                layout=None,
                 head="""<style>
   #one, #two { margin: 0; }
   #two { margin-top: 14rem; }
@@ -1284,6 +1287,7 @@ def test_a_boxless_target_is_read_where_it_paints(browser, serve):
     # The heading, the wrapper, and each of its two runs.
     expect(hints).to_have_count(4)
     page.keyboard.press("Tab")
+    expect(page.locator(".lf-live")).to_contain_text("heading: Split")
     page.keyboard.press("Tab")
     # The one target whose words span both runs is the wrapper, not either run.
     expect(page.locator(".lf-live")).to_contain_text(

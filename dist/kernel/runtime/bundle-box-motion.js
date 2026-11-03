@@ -1,25 +1,9 @@
-import { __exportAll } from "./bundle-rolldown-runtime.js";
-import { afterSettling, cancelRender, inlineStyle, keeps, motionEasing, motionPlays, motionTime, nextRender, playMotion } from "./bundle-portable.js";
-import { TEXT_FIELD, move, onUserInput } from "./bundle-layer-stack.js";
-import { el } from "./bundle-layer-client.js";
-import { contentRides } from "./bundle-content-layout.js";
-import { inChrome } from "./bundle-passages.js";
+import { TEXT_FIELD, afterSettling, cancelRender, contentRides, inChrome, inlineStyle, keeps, motionEasing, motionPlays, motionTime, move, nextRender, onUserInput, playMotion } from "./bundle-portable.js";
+import { el } from "./bundle-errors.js";
+import "./bundle-passages.js";
 import { SVG_NS, paintGeometry, paintShape, paintStand, placement, standBox, standOver, vacate } from "./bundle-page-layout.js";
 
 //#region runtime/target-paint.js
-var target_paint_exports = /* @__PURE__ */ __exportAll({
-	aimLayer: () => aimLayer,
-	clearAim: () => clearAim,
-	geometryChanged: () => geometryChanged,
-	labelAim: () => labelAim,
-	mountTargetPaint: () => mountTargetPaint,
-	paintAim: () => paintAim,
-	paintProxyRing: () => paintProxyRing,
-	paintTrace: () => paintTrace,
-	proxyRingLayer: () => proxyRingLayer,
-	shifted: () => shifted$1,
-	targetTraceLayer: () => targetTraceLayer
-});
 const aimBox = el("div", "lf-ui lf-aim");
 const aimStand = paintStand(aimBox);
 const aimLayer = aimStand.root;
@@ -260,6 +244,8 @@ const clipFrame = (sides, radius = 0) => ({
 	clipPath: `inset(var(--lf-box-cut) round ${radius}px)`,
 	"--lf-box-cut": sides.map((side) => `${side}px`).join(" ")
 });
+const connected = (anchor) => "scroller" in anchor ? anchor.scroller.isConnected : anchor.isConnected;
+const planeShare = (moved, limit) => moved * limit > 0 ? Math.sign(limit) * Math.min(Math.abs(moved), Math.abs(limit)) : 0;
 const radiusOf = (style) => Number.parseFloat(style.borderTopLeftRadius) || 0;
 const seeThrough = (color) => /^(transparent|rgba\(.*,\s*0\))$/.test(color);
 const paints = (style) => !seeThrough(style.backgroundColor) || style.backgroundImage !== "none" || style.boxShadow !== "none" || [
@@ -305,6 +291,7 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 	const theirs = () => gesture !== null && sent === gestures ? "send" : gesture;
 	let rests = null;
 	let frame = null;
+	let besideAt = null;
 	let timing = null;
 	let motions = /* @__PURE__ */ new Map();
 	let running = [];
@@ -325,12 +312,7 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 		rests = null;
 	};
 	addEventListener("resize", forget);
-	function rebase() {
-		const at = boxOf(root.getBoundingClientRect());
-		const edges = held();
-		const dx = frame && edges ? at[edges.x] - frame[edges.x] : 0;
-		const dy = frame && edges ? at[edges.y] - frame[edges.y] : 0;
-		frame = at;
+	function carryReadings(dx, dy) {
 		if (near(dx, 0) && near(dy, 0)) return;
 		if (rests) rests = new Map([...rests].map(([element, rest]) => [element, shifted(rest, dx, dy)]));
 		for (const moving of motions.values()) {
@@ -342,6 +324,43 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 			riding.from += dy;
 			riding.to += dy;
 		}
+	}
+	function beside(edges) {
+		const by = edges?.by;
+		const plane = edges?.plane ?? null;
+		if (!by || !connected(by) || plane && !connected(plane)) return null;
+		const at = by.getBoundingClientRect();
+		const origin = plane?.getBoundingClientRect() ?? {
+			left: 0,
+			top: 0
+		};
+		return {
+			by,
+			plane,
+			x: at.left - origin.left,
+			y: at.top - origin.top
+		};
+	}
+	function rebase() {
+		const at = boxOf(root.getBoundingClientRect());
+		const edges = held();
+		const dx = frame && edges ? at[edges.x] - frame[edges.x] : 0;
+		const dy = frame && edges ? at[edges.y] - frame[edges.y] : 0;
+		frame = at;
+		carryReadings(dx, dy);
+		const now = beside(edges);
+		const past = now && besideAt?.by === now.by && besideAt.plane === now.plane ? {
+			x: now.x - besideAt.x,
+			y: now.y - besideAt.y
+		} : {
+			x: 0,
+			y: 0
+		};
+		besideAt = now;
+		return {
+			at,
+			past
+		};
 	}
 	const interpolate = (from, to, progress) => {
 		const rect = between(from, to, progress);
@@ -860,9 +879,14 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 			}
 		},
 		placed(place) {
-			rebase();
-			place();
-			frame = boxOf(root.getBoundingClientRect());
+			const { at, past } = rebase();
+			const read = rests?.get(root);
+			const resized = !read || !near(width(read), width(at)) || !near(height(read), height(at));
+			const moved = place();
+			besideAt = beside(held());
+			if (!resized) return;
+			carryReadings(planeShare(moved.x, past.x), planeShare(moved.y, past.y));
+			frame = shifted(at, moved.x, moved.y);
 		},
 		outline() {
 			const moving = motions.get(box);
@@ -880,4 +904,4 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 }
 
 //#endregion
-export { aimLayer, boxMotion, mountTargetPaint, paintProxyRing, paintTrace, proxyRingLayer, targetTraceLayer, target_paint_exports };
+export { aimLayer, boxMotion, clearAim, geometryChanged, labelAim, mountTargetPaint, paintAim, paintProxyRing, paintTrace, proxyRingLayer, shifted$1 as shifted, targetTraceLayer };

@@ -2,8 +2,6 @@
 anchored on a widget, an edited agent message, and the composer that writes a
 comment."""
 
-import re
-
 import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
@@ -348,9 +346,7 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
     )
     told(page)
     # Revealing the edit in either view settles the thread's shared unread state.
-    page.locator(".lf-fp-controls").get_by_role(
-        "button", name="1 message edited", exact=True
-    ).click()
+    page.locator(".lf-fp-head").get_by_role("button", name="1 new", exact=True).click()
 
     expect(inline.locator(".lf-msg-body")).to_contain_text("The north bracket fits.")
     expect(panel.locator(".lf-msg-text")).to_contain_text("The north bracket fits.")
@@ -442,7 +438,7 @@ def test_a_detached_thread_on_a_widget_an_agent_sent_stays_detached(browser, ser
     page = open_page(browser, url)
     resized(page, 1200, 900)
     thread = open_panel_thread(page, "c-lost")
-    expect(thread.locator(".lf-fp-quote")).to_have_class(re.compile(r"\bdetached\b"))
+    expect(thread.locator(".lf-fp-quote")).to_have_attribute("data-lf-detached", "")
     expect(
         page.locator(".lf-fp-aux").get_by_role("button", name="Show in message")
     ).to_have_count(0)
@@ -489,7 +485,7 @@ def test_a_thread_on_a_widget_an_agent_sent_stands_in_its_message(browser, serve
     thread = open_panel_thread(page, "c-on-sent")
     quote = thread.locator(".lf-fp-quote")
     expect(quote).to_contain_text("Which store should I write up?")
-    expect(quote).not_to_have_class(re.compile(r"\bdetached\b"))
+    expect(quote).not_to_have_attribute("data-lf-detached", "")
 
     page.locator(".lf-fp-aux").get_by_role(
         "button", name="Show in message", exact=True

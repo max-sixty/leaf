@@ -154,7 +154,7 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
     page.clock.run_for(600)
     retry = widget.get_by_role("button", name="Retry", exact=True)
     expect(retry).to_be_visible()
-    expect(status).to_have_text("Not saved · Retry", use_inner_text=True)
+    expect(status).to_have_text("Not saved", use_inner_text=True)
     expect(status).to_have_attribute("title", "The page's server did not answer.")
     expect(retry).to_have_accessible_description("The page's server did not answer.")
     assert editor_room() == resting_room

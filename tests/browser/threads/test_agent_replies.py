@@ -225,7 +225,7 @@ def test_a_thread_task_stays_on_me_until_done(browser, serve):
     with sending(page, "the device clarification"):
         page.keyboard.press("ControlOrMeta+Enter")
     expect_on_me(page, 1)
-    page.locator(".lf-fp-controls .lf-fp-back", has_text="On me").click()
+    page.get_by_role("button", name="Back to On me").click()
     with sending(page, "the completed phone check"):
         row.get_by_role("button", name="Done", exact=True).click()
     expect_on_me(page, 0)
@@ -308,12 +308,12 @@ def test_a_durable_answer_retires_the_placeholder_its_attempt_reserved(
     told(page)
 
     thread = page.locator(card_of(root))
-    notice = thread.get_by_role("button", name="1 new reply", exact=True)
+    notice = thread.get_by_role("button", name="1 new", exact=True)
     expect(notice).to_be_visible()
     expect(drafted).to_have_text("Checking the deployment.")
     notice.click()
     answered = thread.locator(f'.lf-msg[data-attempt="{STREAM_ATTEMPT}"]')
-    expect(thread.locator(".lf-msg.agent")).to_have_count(1)
+    expect(thread.locator(".lf-msg[data-lf-author=agent]")).to_have_count(1)
     expect(answered).to_have_attribute("data-event", reply["id"])
     expect(answered.locator(".lf-msg-text")).to_have_text("deployment verified")
 
@@ -420,11 +420,11 @@ def test_a_codex_reply_streams_into_an_open_card_and_its_answer_completes_it(
     expect(thread_row(page, root).locator(".lf-row-end")).to_have_text("Replying")
     open_margin_card(page, "h-how")
     thread = page.locator(card_of(root))
-    expect(thread.locator(".lf-msg.agent")).to_have_count(0)
+    expect(thread.locator(".lf-msg[data-lf-author=agent]")).to_have_count(0)
 
     stream_reply(serve.page_dir, root, "I'll")
     told(page)
-    streamed = thread.locator(".lf-msg.agent")
+    streamed = thread.locator(".lf-msg[data-lf-author=agent]")
     expect(streamed.locator(".lf-msg-text")).to_have_text("I'll")
     streamed.evaluate("node => { window.__streamMessage = node; }")
     stream_reply(serve.page_dir, root, "I'll record it on the board now.")
@@ -473,7 +473,7 @@ def test_a_held_card_counts_a_streaming_reply_once_and_names_the_users_own_messa
     page = open_page(browser, url)
     open_margin_card(page, "h-how")
     thread = page.locator(card_of(root))
-    drawn = thread.locator(".lf-msg.agent .lf-msg-text")
+    drawn = thread.locator(".lf-msg[data-lf-author=agent] .lf-msg-text")
     expect(drawn).to_have_text("First words")
     write(thread.locator(":scope > .lf-thread-reply leaf-text"), "Also note the date")
 
@@ -481,7 +481,7 @@ def test_a_held_card_counts_a_streaming_reply_once_and_names_the_users_own_messa
     for words in ("First words and more", "First words and more of them"):
         stream_reply(serve.page_dir, root, words)
         told(page)
-        expect(notice).to_have_text("1 new reply")
+        expect(notice).to_have_text("1 new")
         expect(drawn).to_have_text("First words")
 
     thread_model.post_reply(
@@ -494,17 +494,17 @@ def test_a_held_card_counts_a_streaming_reply_once_and_names_the_users_own_messa
     with service_model.PageTransaction(serve.page_dir) as transaction:
         transaction.clear_stream_reply("codex-thread", "leaf-turn")
     told(page)
-    expect(notice).to_have_text("1 new reply")
+    expect(notice).to_have_text("1 new")
     expect(drawn).to_have_text("First words")
 
     # A later reading compares against the held drawing, which still stands for the
     # streaming reply the answer completed rather than an answer since reworded.
     append_user_reply(serve.page_dir, root, "Sent from my other tab")
     told(page)
-    expect(notice).to_have_text("1 new reply · 1 new message")
+    expect(notice).to_have_text("2 new")
     notice.click()
     expect(drawn).to_have_text("Recorded the release on the board.")
-    expect(thread.locator(".lf-msg.user")).to_have_count(2)
+    expect(thread.locator(".lf-msg[data-lf-author=user]")).to_have_count(2)
 
 
 def test_an_answer_completing_its_stream_with_the_same_words_keeps_progress_hidden(
@@ -527,7 +527,7 @@ def test_an_answer_completing_its_stream_with_the_same_words_keeps_progress_hidd
     page = open_page(browser, url)
     open_margin_card(page, "h-how")
     thread = page.locator(card_of(root))
-    expect(thread.locator(".lf-msg.agent:visible")).to_have_count(1)
+    expect(thread.locator(".lf-msg[data-lf-author=agent]:visible")).to_have_count(1)
     write(thread.locator(":scope > .lf-thread-reply leaf-text"), "Also note the date")
 
     answer = thread_model.post_reply(
@@ -544,7 +544,7 @@ def test_an_answer_completing_its_stream_with_the_same_words_keeps_progress_hidd
     message = thread.locator(f'.lf-msg[data-event="{answer["id"]}"]')
     expect(message.locator(".lf-msg-text")).to_have_text("Recorded the release.")
     expect(thread.locator(".lf-thread-working")).to_have_count(0)
-    expect(thread.locator(".lf-msg.agent:visible")).to_have_count(1)
+    expect(thread.locator(".lf-msg[data-lf-author=agent]:visible")).to_have_count(1)
     expect(thread.locator(":scope > .lf-thread-reply leaf-text")).to_have_js_property(
         "value", "Also note the date"
     )
@@ -571,11 +571,11 @@ def test_an_idle_card_replaces_progress_with_the_answer(
     page = open_page(browser, url)
     open_margin_card(page, "h-how")
     thread = page.locator(card_of(root))
-    expect(thread.locator(".lf-msg.agent")).to_have_count(1)
+    expect(thread.locator(".lf-msg[data-lf-author=agent]")).to_have_count(1)
     if streamed:
         stream_reply(serve.page_dir, root, "Recording the release now.")
         told(page)
-        expect(thread.locator(".lf-msg.agent:visible")).to_have_count(1)
+        expect(thread.locator(".lf-msg[data-lf-author=agent]:visible")).to_have_count(1)
     opening = thread.locator(".lf-msg").first
     resting = opening.bounding_box()
 
@@ -589,7 +589,7 @@ def test_an_idle_card_replaces_progress_with_the_answer(
     with service_model.PageTransaction(serve.page_dir) as transaction:
         transaction.clear_stream_reply("codex-thread", "leaf-turn")
     told(page)
-    answer = thread.locator(".lf-msg.agent:visible")
+    answer = thread.locator(".lf-msg[data-lf-author=agent]:visible")
     expect(answer.locator(".lf-msg-text")).to_have_text(
         "Recorded the release on the board."
     )
@@ -794,12 +794,22 @@ def test_a_new_step_waits_where_its_words_would_move_the_draft(browser, serve):
     expect(words).to_contain_text("what each one needs before it can start")
 
 
-def test_held_news_too_long_for_its_notice_drops_a_later_fact_whole(browser, serve):
-    """A seat's notice keeps the width of the news it first said, with room at its end
-    for a count. News that grows past it shows its first fact whole and drops the
-    later one, which the notice's name still says, rather than cutting the first fact
-    mid-word ("1 new re…"). The count says "+1" in the room the notice kept, so a
-    reader with no tooltip knows more waits; the name doesn't repeat it."""
+# Whether a box's words stand whole inside it, to the fraction of a pixel that
+# scrollWidth rounds away.
+WORDS_FIT = """box => {
+  const words = document.createRange();
+  words.selectNodeContents(box);
+  return words.getBoundingClientRect().width <= box.firstElementChild
+    .getBoundingClientRect().width + 0.01;
+}"""
+
+
+def test_held_news_says_one_count_of_all_it_holds(browser, serve):
+    """A seat's notice says one count of what waits, "1 new" and then "2 new", at the
+    width it first stood at. Its name is the count it shows, so a voice user saying it
+    finds it, and its description says each fact. It said the facts and, past its room,
+    dropped the later ones behind a "+1", so one piece of news read three ways on three
+    surfaces; then its name said only the facts, which the words shown never said."""
     url = serve(SEATED_OBLIGATION_PAGE)
     # An agent's opening message has no delivery receipt competing with the news.
     root = panel_comment(
@@ -814,81 +824,19 @@ def test_held_news_too_long_for_its_notice_drops_a_later_fact_whole(browser, ser
 
     thread_model.post_reply(serve.page_dir, {"parent": root}, "The mounts come first.")
     told(page)
-    notice = thread.get_by_role("button", name="1 new reply", exact=True)
-    expect(notice).to_be_visible()
+    notice = thread.get_by_role("button", name="1 new", exact=True)
+    expect(notice).to_have_accessible_description("1 new reply")
     rendered(page)
-    # Dropping a later fact must not cut a first fact that already fit.
-    assert notice.locator(":scope > span > span").evaluate(
-        "fact => fact.scrollWidth <= fact.clientWidth"
-    )
     width = notice.bounding_box()["width"]
-    expect(notice.locator(":scope > span")).not_to_have_attribute(
-        "data-lf-more", re.compile(".*")
-    )
 
     append_user_reply(serve.page_dir, root, "And the bird bath?")
     told(page)
-    notice = thread.get_by_role(
-        "button", name="1 new reply · 1 new message", exact=True
-    )
-    expect(notice).to_be_visible()
+    notice = thread.get_by_role("button", name="2 new", exact=True)
+    expect(notice).to_have_accessible_description("1 new reply · 1 new message")
     rendered(page)
     assert notice.bounding_box()["width"] == pytest.approx(width, abs=0.5)
-    words = notice.locator(":scope > span")
-    expect(words).to_have_attribute("data-lf-more", "+1")
-    # The count draws in the room the notice kept past the words it follows.
-    count = words.evaluate(
-        """words => {
-            const after = getComputedStyle(words, "::after");
-            const start = words.getBoundingClientRect().right;
-            return {content: after.content, end: start + parseFloat(after.width),
-                right: words.parentElement.getBoundingClientRect().right};
-        }"""
-    )
-    assert count["content"] == '"+1" / ""', count
-    assert count["end"] <= count["right"] + 0.5, count
-    facts = notice.locator(":scope > span > span")
-    assert facts.nth(0).evaluate("fact => fact.scrollWidth <= fact.clientWidth")
-    # The later fact wraps past the words' clip, so nothing of it draws or takes a press.
-    assert facts.nth(1).evaluate(
-        """fact => {
-            const box = fact.getBoundingClientRect();
-            const hit = fact
-                .getRootNode()
-                .elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
-            return !fact.contains(hit);
-        }"""
-    )
-
-
-def test_held_news_shows_every_fact_its_notice_first_said(browser, serve):
-    """A seat's notice that first says two facts keeps both on its line. Its room
-    measures the news as one line and the facts measure it in pieces, a fraction of a
-    pixel wider, which dropped the last fact and left a gap where it fit."""
-    url = serve(SEATED_OBLIGATION_PAGE)
-    root = panel_comment(serve.page_dir, "Which job comes first?", {"section": "jobs"})
-    page = open_page(browser, url)
-    resized(page, 1200, 900)
-    thread = page.locator("#jobs .lf-page-thread")
-    expect(thread).to_be_visible()
-    write(thread.locator("leaf-text"), "Start with the mounts.")
-    rendered(page)
-
-    thread_model.post_reply(
-        serve.page_dir, {"responds": root}, "The mounts come first."
-    )
-    append_user_reply(serve.page_dir, root, "And the bird bath?")
-    told(page)
-    notice = thread.get_by_role(
-        "button", name="1 new reply · 1 new message", exact=True
-    )
-    expect(notice).to_have_attribute("data-room", "1 new reply · 1 new message")
-    rendered(page)
-    words = notice.locator(":scope > span")
-    assert words.evaluate(
-        "words => [...words.children].map(fact => fact.offsetTop)"
-    ) == [0, 0]
-    expect(words).not_to_have_attribute("data-lf-more", re.compile(".*"))
+    # The room "1 new" made holds "2 new" whole, figures of one width in both.
+    assert notice.evaluate(WORDS_FIT), "the notice cut its count short"
 
 
 def test_a_streaming_answer_hides_the_working_message_and_its_progress(
@@ -913,7 +861,7 @@ def test_a_streaming_answer_hides_the_working_message_and_its_progress(
     stream_reply(serve.page_dir, root, "Recording the release now.")
     told(page)
     expect(thread.locator(".lf-thread-working")).to_have_count(0)
-    streamed = thread.locator(".lf-msg.agent").last
+    streamed = thread.locator(".lf-msg[data-lf-author=agent]").last
     expect(streamed.locator(".lf-msg-text")).to_have_text("Recording the release now.")
     expect(thread.locator(f'.lf-msg[data-event="{step["id"]}"]')).to_be_hidden()
     expect(
@@ -935,7 +883,7 @@ def test_a_streaming_answer_hides_the_working_message_and_its_progress(
     told(page)
     expect(streamed.locator(".lf-msg-text")).to_have_text("Recording the release now.")
     expect(thread.locator(".lf-thread-working")).to_have_count(0)
-    thread.get_by_role("button", name="1 new reply", exact=True).click()
+    thread.get_by_role("button", name="1 new", exact=True).click()
     expect(
         thread.locator(f'.lf-msg[data-event="{failure["id"]}"] .lf-msg-failure')
     ).to_have_text("Not answered")
@@ -1047,7 +995,7 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
     )
     told(page)
     expect(receipt).to_have_count(0)
-    news = page.locator(PANEL_NEWS).filter(has_text="1 new reply")
+    news = page.locator(PANEL_NEWS).filter(has_text="1 new")
     if news.count():
         news.click()
     expect(card.locator(".lf-msg").filter(has_text="Cache is done")).to_be_visible()
@@ -1256,7 +1204,7 @@ def test_canceling_a_long_stream_keeps_the_panel_reading(browser, serve, request
 
 # The open thread view's user messages and working message in the order they stand, each
 # user message by its words.
-TRANSCRIPT_ORDER = """view => [...view.querySelectorAll('.lf-msg.user, .lf-thread-working')]
+TRANSCRIPT_ORDER = """view => [...view.querySelectorAll('.lf-msg[data-lf-author=user], .lf-thread-working')]
     .filter((node) => node.checkVisibility())
     .map((node) => node.matches('.lf-thread-working')
         ? 'working'
@@ -1287,7 +1235,9 @@ def test_a_reply_sent_after_progress_stands_below_it(browser, serve, request):
     page.keyboard.type("And the changelog?")
     with sending(page, "the reply"):
         page.keyboard.press("ControlOrMeta+Enter")
-    expect(view.locator(".lf-msg.user", has_text="And the changelog?")).to_be_visible()
+    expect(
+        view.locator(".lf-msg[data-lf-author=user]", has_text="And the changelog?")
+    ).to_be_visible()
     assert view.evaluate(TRANSCRIPT_ORDER)[-2:] == ["working", "And the changelog?"]
     told(page)
     assert view.evaluate(TRANSCRIPT_ORDER)[-2:] == ["working", "And the changelog?"]
@@ -1371,7 +1321,7 @@ def test_progress_the_user_spoke_after_keeps_its_steps_and_its_place(browser, se
     )
     expect(first).to_be_hidden()
 
-    message = thread.locator(".lf-msg.user", has_text="And the camera?")
+    message = thread.locator(".lf-msg[data-lf-author=user]", has_text="And the camera?")
     rendered(page)
     box = message.bounding_box()
     append_carried_log_record(
@@ -1387,8 +1337,8 @@ def test_progress_the_user_spoke_after_keeps_its_steps_and_its_place(browser, se
         },
     )
     told(page)
-    notice = thread.get_by_role("button", name="1 message edited", exact=True)
-    expect(notice).to_be_visible()
+    notice = thread.get_by_role("button", name="1 new", exact=True)
+    expect(notice).to_have_accessible_description("1 message edited")
     rendered(page)
     assert message.bounding_box() == pytest.approx(box, abs=0.5)
     notice.click()

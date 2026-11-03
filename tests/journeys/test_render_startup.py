@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 from urllib.parse import urljoin, urlparse
 
 import pytest
+from browser.startup import HELD_KEYS_PAGE, _hold_startup
+from browser.threads import open_panel_thread
 from click.testing import CliRunner
 from interact_support import (
     wait_for,
@@ -27,7 +29,7 @@ from render_harness import (
     open_page,
     open_threads,
     page_comment,
-    panel_menu,
+    panel_control,
     panel_view,
     refuse,
     round_trip,
@@ -48,9 +50,6 @@ from leaf.render_checks import rendered, wait_until_ready
 from leaf.served_state.reading import page_reading, source_readings
 
 pytestmark = pytest.mark.shifts_unsurveyed
-
-from browser.startup import HELD_KEYS_PAGE, _hold_startup
-from browser.threads import open_panel_thread
 
 
 @pytest.mark.watch_shifts
@@ -108,14 +107,16 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
         serve(leaf_page("Preview", "<h1>Preview</h1>"), preview=preview),
         context=context,
     )
-    # The leaf's menu names the preview on its copy row, and the copy says so where
-    # the empty field's placeholder would.
-    badge = panel_menu(page).locator('.lf-fp-item[data-row="preview"]')
-    expect(badge).to_have_text("Copy preview diagnostics")
-    expect(badge).to_have_attribute("title", "User · fb77@26499ea1abcd+ · 3d ago")
-    badge.click()
-    expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
-        "placeholder", re.compile("^Preview diagnostics copied")
+    # About this page, a row of the leaf's menu, shows the preview's diagnostics and
+    # copies them.
+    panel_control(page, "inspection").click()
+    about = page.get_by_role("dialog", name="About this page", exact=True)
+    expect(about.get_by_role("region", name="Page details")).to_contain_text(
+        "checkout: fb77"
+    )
+    about.get_by_role("button", name="Copy Preview diagnostics", exact=True).click()
+    page.wait_for_function(
+        "navigator.clipboard.readText().then(text => text.startsWith('Leaf preview'))"
     )
     diagnostics = page.evaluate("() => navigator.clipboard.readText()")
     assert "example: triage-board" in diagnostics
@@ -137,29 +138,16 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
         serve(leaf_page("Ordinary", "<h1>Ordinary</h1>")),
         context=context,
     )
-    expect(
-        panel_menu(ordinary).locator('.lf-fp-item[data-row="preview"]')
-    ).to_have_count(0)
+    panel_control(ordinary, "inspection").click()
+    about = ordinary.get_by_role("dialog", name="About this page", exact=True)
+    version = about.get_by_label("Leaf version", exact=True)
+    expect(version).to_be_visible()
+    expect(about.get_by_label("Preview diagnostics", exact=True)).to_have_count(0)
     layer = served_layer(load_registry(serve.page_dir)["$layer"], serve.page_dir)
     producer = layer.get("producer", {})
-    identity = (
-        producer["commit"][:8]
-        if producer.get("commit")
-        else "sha256:" + layer["fingerprint"].removeprefix("sha256:")[:12]
-    )
-    reference = ordinary.locator('.lf-fp-menu .lf-fp-item[data-row="layer"]')
-    dated = producer.get("committed") or producer.get("installed")
-    expect(reference).to_have_text("Copy Leaf version")
-    expect(reference).to_have_attribute(
-        "title",
-        re.compile(
-            rf"^Leaf {re.escape(identity)}{re.escape('+') if producer.get('dirty') else ''}"
-            + (r" · (just now|\d+[mhd] ago)$" if dated else "$")
-        ),
-    )
-    reference.click()
-    expect(ordinary.locator(".lf-fp-field leaf-text")).to_have_attribute(
-        "placeholder", re.compile("^Leaf version copied")
+    about.get_by_role("button", name="Copy Leaf version", exact=True).click()
+    ordinary.wait_for_function(
+        "navigator.clipboard.readText().then(text => text.startsWith('Leaf layer'))"
     )
     diagnostics = ordinary.evaluate("() => navigator.clipboard.readText()")
     assert f"fingerprint: {layer['fingerprint']}" in diagnostics
@@ -191,36 +179,6 @@ def test_a_page_that_never_presents_lets_its_held_keys_go(browser, serve):
     expect(echo).to_have_count(0)
     page.keyboard.press("x")
     assert page.evaluate("heard") == ["x"]
-
-
-def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
-    """Page interface preparation holds the first widget upgrade."""
-    page = browser.new_page(viewport={"width": 1440, "height": 900})
-    watched(page)
-    page.add_init_script(
-        """
-        document.addEventListener('lf-page-interface', event => {
-          event.detail.present(new Promise(resolve => {
-            window.releaseHeldPageInterface = resolve;
-          }));
-        });
-        """
-    )
-    page.goto(
-        serve(leaf_page("Held interface", "<h1>Held interface</h1>")),
-        wait_until="load",
-    )
-    page.wait_for_function("() => window.releaseHeldPageInterface !== undefined")
-    page.evaluate(
-        """async () => {
-          const {nextFrame} = await window.__lfWidgetApi();
-          await new Promise(resolve => nextFrame(() => nextFrame(resolve)));
-        }"""
-    )
-    expect(page.locator("body")).not_to_have_attribute("data-lf-upgraded", "1")
-    expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
-    page.evaluate("releaseHeldPageInterface()")
-    wait_until_ready(page)
 
 
 def test_more_than_six_live_documents_share_an_origin_without_stalling(browser, serve):
@@ -334,59 +292,6 @@ def test_slow_history_keeps_decisions_safe_and_status_honest(browser, serve, ans
         {"value": ["yes"]},
         {"value": []},
         {"value": ["no"]},
-    ]
-
-
-def test_offline_reaction_waits_for_its_saved_state(browser, serve):
-    """An unknown saved state cannot invent an add; recovery toggles the actual saved event."""
-    source = leaf_page(
-        "Saved reaction", '<h1>Saved reaction</h1><button id="target">A target</button>'
-    )
-    saved = {
-        "id": "saved-reaction",
-        "kind": "comment",
-        "author": "user",
-        "revision": 1,
-        "token": "keep",
-        "anchor": {"section": "target"},
-    }
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
-    posts = []
-    page.on(
-        "request",
-        lambda request: (
-            posts.append(request.post_data_json)
-            if request.url.endswith("/api/event")
-            else None
-        ),
-    )
-    page.route("**/api/state*", refuse)
-    page.goto(serve(source, events=[saved]), wait_until="load")
-    expect(page.locator(".lf-fp-leaf")).to_have_attribute(
-        "aria-label", re.compile("Lost the connection")
-    )
-    page.locator("#target").click()
-    page.keyboard.press("e")
-    page.keyboard.press("1")
-    assert posts == []
-    select_words(page, "#target")
-    page.keyboard.press("c")
-    page.keyboard.press("Tab")
-    chip = page.locator('.lf-response-options .lf-react[data-token="keep"]')
-    expect(chip).to_have_attribute("aria-disabled", "true")
-    chip.dispatch_event("click")
-    chip.focus()
-    page.keyboard.press("Space")
-    assert posts == []
-    page.keyboard.press("Escape")
-    page.unroute("**/api/state*")
-    wait_until_ready(page)
-    page.locator("#target").click()
-    page.keyboard.press("e")
-    page.keyboard.press("1")
-    round_trip(page)
-    assert [(post["kind"], post.get("undoes")) for post in posts] == [
-        ("undo", "saved-reaction")
     ]
 
 
@@ -783,3 +688,86 @@ def test_first_history_answer_keeps_an_open_quote_draft(browser, serve, answer, 
     expect(page.get_by_role("status").filter(has_text="Draft kept")).to_have_count(0)
     if answer == "offline":
         consume_browser_errors(page, "net::ERR_INTERNET_DISCONNECTED")
+
+
+def test_offline_reaction_waits_for_its_saved_state(browser, serve):
+    """An unknown saved state cannot invent an add; recovery toggles the actual saved event."""
+    source = leaf_page(
+        "Saved reaction", '<h1>Saved reaction</h1><button id="target">A target</button>'
+    )
+    saved = {
+        "id": "saved-reaction",
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "token": "keep",
+        "anchor": {"section": "target"},
+    }
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    posts = []
+    page.on(
+        "request",
+        lambda request: (
+            posts.append(request.post_data_json)
+            if request.url.endswith("/api/event")
+            else None
+        ),
+    )
+    page.route("**/api/state*", refuse)
+    page.goto(serve(source, events=[saved]), wait_until="load")
+    expect(page.locator(".lf-fp-leaf")).to_have_attribute(
+        "aria-label", re.compile("Lost the connection")
+    )
+    page.locator("#target").click()
+    page.keyboard.press("e")
+    page.keyboard.press("1")
+    assert posts == []
+    select_words(page, "#target")
+    page.keyboard.press("c")
+    page.keyboard.press("Tab")
+    chip = page.locator('.lf-response-options .lf-react[data-token="keep"]')
+    expect(chip).to_have_attribute("aria-disabled", "true")
+    chip.dispatch_event("click")
+    chip.focus()
+    page.keyboard.press("Space")
+    assert posts == []
+    page.keyboard.press("Escape")
+    page.unroute("**/api/state*")
+    wait_until_ready(page)
+    page.locator("#target").click()
+    page.keyboard.press("e")
+    page.keyboard.press("1")
+    round_trip(page)
+    assert [(post["kind"], post.get("undoes")) for post in posts] == [
+        ("undo", "saved-reaction")
+    ]
+
+
+def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
+    """Page interface preparation holds the first widget upgrade."""
+    page = browser.new_page(viewport={"width": 1440, "height": 900})
+    watched(page)
+    page.add_init_script(
+        """
+        document.addEventListener('lf-page-interface', event => {
+          event.detail.present(new Promise(resolve => {
+            window.releaseHeldPageInterface = resolve;
+          }));
+        });
+        """
+    )
+    page.goto(
+        serve(leaf_page("Held interface", "<h1>Held interface</h1>")),
+        wait_until="load",
+    )
+    page.wait_for_function("() => window.releaseHeldPageInterface !== undefined")
+    page.evaluate(
+        """async () => {
+          const {nextFrame} = await window.__lfWidgetApi();
+          await new Promise(resolve => nextFrame(() => nextFrame(resolve)));
+        }"""
+    )
+    expect(page.locator("body")).not_to_have_attribute("data-lf-upgraded", "1")
+    expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
+    page.evaluate("releaseHeldPageInterface()")
+    wait_until_ready(page)

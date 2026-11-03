@@ -935,7 +935,7 @@ def live_watcher(page_dir, page):
 TAB_TONE = """(want) => {
     const leaf = document.querySelector('.lf-fp-leaf');
     const el = leaf.querySelector('svg[data-lf-icon=leaf]');
-    const judged = leaf.dataset.tone ?? '';
+    const judged = leaf.getAttribute('data-lf-tone') ?? '';
     const prefix = 'data:image/svg+xml,';
     const href = document.querySelector('link[rel=icon]').getAttribute('href');
     const svg = href.startsWith(prefix)

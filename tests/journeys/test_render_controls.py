@@ -4,7 +4,12 @@ import re
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
+from browser.controls import (
+    LIVE_SAMPLES_PAGE,
+    RING_NEW_STOP,
+)
 from browser.threads import open_panel_thread
+from browser_sources import browser_function
 from interact_support import (
     append_carried_log_record,
     declare,
@@ -20,6 +25,7 @@ from render_cases_layout import (
     overlapped_words,
     page_at_rest,
     ring_faults,
+    ring_rules,
     rings_drawn,
     serious_axe_violations,
 )
@@ -29,6 +35,7 @@ from render_cases_navigation import (
 )
 from render_harness import (
     BOARD_PAGE,
+    CORPUS_SOURCES,
     EXAMPLES,
     FEATURE_GALLERY,
     LONG_PAGE,
@@ -38,6 +45,7 @@ from render_harness import (
     ROOT,
     Traffic,
     any_draft_control,
+    any_owner_entry,
     expect_panel_says,
     held_frames,
     leaf_page,
@@ -66,13 +74,6 @@ from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
-from browser.controls import (
-    LIVE_SAMPLES_PAGE,
-    RING_NEW_STOP,
-)
-from browser_sources import browser_function
-from render_cases_layout import ring_rules
-from render_harness import CORPUS_SOURCES, any_owner_entry
 
 VISUAL_REVIEW_GALLERY = next(
     path for path in CORPUS_SOURCES if path.stem == "visual-review-gallery"
@@ -310,7 +311,7 @@ RING_CASES = (
                 ("#pr-path-tree > summary", ".lf-visual-mark"),
                 (
                     "#pr-flow-tab",
-                    ".lf-rendered:has(> :is(lf-tab, lf-part)",
+                    "[data-lf-views]:has(> :is(lf-tab, lf-part)",
                 ),
                 ("lf-gloss:visible > .lf-gloss-mark", ".lf-gloss-mark"),
                 (".lf-diff-search input", "wa-input::part"),
@@ -349,7 +350,7 @@ RING_CASES = (
     (
         "a resolved thread",
         (),
-        {"ship-review": ((".lf-fp-controls .lf-fp-settle", FLOOR_RING),)},
+        {"ship-review": ((".lf-fp-head .lf-fp-settle", FLOOR_RING),)},
     ),
     # The same walk with the panel shut lands in the margin's thread view, on the
     # thread itself rather than a control inside it.
@@ -420,10 +421,10 @@ RING_CASES = (
     # On me opens on its view; the walk's first step lands on a card.
     ("On me", ("ArrowDown",), {"ship-review": ((None, FLOOR_RING),)}),
     ("All pages", ("g", "Shift+l", "ArrowDown"), {RING_CHROME: ((None, FLOOR_RING),)}),
-    # The leaf's menu, opened by its press; the walk's step lands on a row.
+    # The leaf's menu, opened by its press into its search; ↓ lands on a row.
     ("the leaf's menu", ("ArrowDown",), {RING_CHROME: ((None, FLOOR_RING),)}),
-    # The menu's Versions, which `g V` opens focused on the version being read; the
-    # walk's step lands on the earlier one.
+    # The menu's Versions, which `g V` opens holding focus itself; the walk's step
+    # lands on its first row.
     (
         "the versions menu",
         ("g", "Shift+v", "ArrowDown"),
@@ -514,8 +515,8 @@ RING_SCOPE_SURFACE = {
     "the response bar": ".lf-fab-bar .lf-composer[data-lf-open]",
     "On me": '.lf-floating-panel[data-open="queue"]',
     "All pages": '.lf-floating-panel[data-open="leaves"]',
-    "the leaf's menu": ".lf-floating-panel[data-menu]",
-    "the versions menu": ".lf-floating-panel[data-menu]",
+    "the leaf's menu": '.lf-floating-panel[data-open="menu"]',
+    "the versions menu": '.lf-floating-panel[data-open="versions"]',
     "the command reference": ".lf-command-reference[open]",
     "a reaction palette": ".lf-react-strip:has(> .lf-react-palette:popover-open)",
 }
@@ -549,7 +550,7 @@ RING_SCOPE_WIDTH = {
 # Scopes whose samples stand in a thread's view of the panel: the view of the first
 # thread whose view holds the selector (`open_panel_thread_holding`).
 RING_SCOPE_THREAD = {
-    "a resolved thread": ".lf-fp-controls .lf-fp-settle.lf-reopen",
+    "a resolved thread": ".lf-fp-head .lf-fp-settle.lf-reopen",
     "a reaction palette": ".lf-msg-controls > .lf-react-trigger",
     "message media": ".lf-message-media",
 }
@@ -647,7 +648,7 @@ AIM_BOXES = browser_function("aims.js", "offeredAims")
 # on a surface the walk has to open, and each was under the floor.
 AIM_SURFACES = (
     ".lf-fp-settle",
-    '[data-row="preview"]',
+    '.lf-copyable-text:has(pre[aria-label="Preview diagnostics"]) wa-copy-button',
     ".lf-react-strip .lf-react",
     ".lf-fp-compare",
     ".lf-command-reference-command",
@@ -660,9 +661,9 @@ AIM_SURFACES = (
 def _each_aim_surface(page, page_dir):
     """Stand each surface up in turn, yielding at every stop.
 
-    In turn rather than all at once, because they do not coexist: the reference is modal
-    and takes the leaf's menu down as it opens, so a sweep that waited for the last of
-    them would meet a page that had put two of the controls away again.
+    In turn rather than all at once, because they do not coexist: the panel stands one
+    view at a time, the leaf's menu among them, and the reference is modal, so a sweep
+    that waited for the last of them would meet a page that had put the others away.
     """
     comment, answered = [
         e["id"] for e in events_model.read_events(page_dir) if e["kind"] == "comment"
@@ -670,10 +671,10 @@ def _each_aim_surface(page, page_dir):
     # A resolved thread, which is the only state that has a Reopen to aim at. Resolving
     # moves the user on to the next open thread, so the resolved one is opened again.
     open_panel_thread(page, comment)
-    page.locator(".lf-fp-controls .lf-fp-settle").click()
+    page.locator(".lf-fp-head .lf-fp-settle").click()
     round_trip(page)
     open_panel_thread(page, comment)
-    expect(page.locator(".lf-fp-controls .lf-fp-settle")).to_have_class(
+    expect(page.locator(".lf-fp-head .lf-fp-settle")).to_have_class(
         re.compile(r"\blf-reopen\b")
     )
     yield
@@ -694,14 +695,20 @@ def _each_aim_surface(page, page_dir):
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
 
-    # The leaf's menu, which holds the preview's badge, and then its Versions, which
-    # hold Compare.
-    panel_menu(page)
+    # The leaf's menu, its preview diagnostics in About, and Versions with Compare.
+    menu = panel_menu(page)
     yield
+    menu.locator('[data-row="inspection"]').click()
+    preview = page.get_by_role("button", name="Copy Preview diagnostics", exact=True)
+    expect(preview).to_be_visible()
+    yield
+    page.keyboard.press("Escape")
     panel_menu(page, "versions")
     yield
     page.keyboard.press("Escape")
+    panel_settled(page, view="menu")
     page.keyboard.press("Escape")
+    panel_settled(page, open=False)
 
     page.keyboard.press("?")
     expect(page.locator(".lf-command-reference-command").first).to_be_visible()
@@ -912,7 +919,7 @@ def test_sample_child_passage_and_reply_gestures_scroll_only_the_child(browser, 
     )
     child = frame.element_handle().content_frame()
     # The thread's view goes to the passage it quotes with Show on page.
-    show_on_page = child.locator(".lf-fp-controls").get_by_role(
+    show_on_page = child.locator(".lf-fp-head").get_by_role(
         "button", name="Show on page"
     )
     show_on_page.scroll_into_view_if_needed()
@@ -1028,7 +1035,7 @@ def test_share_copies_access_after_a_bare_reload(browser, serve):
     expect(page).not_to_have_url(re.compile(r"[?&]t="))
     page.reload()
     wait_until_ready(page)
-    panel_menu(page).get_by_role("menuitem", name="Copy link").click()
+    panel_menu(page).locator('.lf-fp-item[data-row="share"]').click()
     expect_panel_says(page, "Link copied")
     copied = page.evaluate("navigator.clipboard.readText()")
     assert parse_qs(urlsplit(copied).query) == {
@@ -1041,83 +1048,6 @@ def test_share_copies_access_after_a_bare_reload(browser, serve):
         recipient = open_page(browser, copied, context=context)
         expect(recipient.locator("#p30")).to_be_in_viewport()
         expect(recipient).not_to_have_url(re.compile(r"[?&]t="))
-
-
-@pytest.mark.parametrize(
-    "archetype", CONTROL_ARCHETYPES, ids=lambda archetype: archetype["name"]
-)
-def test_each_control_archetype_holds_its_neighbours_still(browser, serve, archetype):
-    """Each row mechanism holds its other controls still across its causal transition."""
-    # The synthetic page composes every mechanism a page can author, and carries the
-    # existing comment the margin entry's row is made of. An archetype naming another
-    # source is one whose causal state cannot coexist with that composed page, or whose
-    # mechanism lives only in a shipped gallery or under a page-wide opt-in.
-    source = archetype.get("source")
-    page = open_page(
-        browser,
-        serve(source)
-        if source
-        else serve(
-            CONTROL_STABILITY_PAGE,
-            media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
-            events=[
-                {
-                    "kind": "comment",
-                    "author": "user",
-                    "revision": 1,
-                    "text": "Does the narrower proof still cover every control?",
-                    "anchor": {"section": "stable-suggestion"},
-                }
-            ],
-        ),
-    )
-    page_at_rest(page)
-    if disclosure := archetype.get("open"):
-        page.locator(disclosure).click()
-    page.evaluate(DEFINE_BOXES)
-    control = page.locator(archetype["target"])
-    expect(control).to_be_visible()
-    # Playwright's click may scroll its target into view. Finish that navigation
-    # before holding the positions the press itself must preserve.
-    control.scroll_into_view_if_needed()
-    page_at_rest(page)
-    before = control.evaluate(NEIGHBOURHOOD, NEIGHBOUR)
-    assert before["names"], f"{archetype['name']} has no neighbouring control to hold"
-
-    if option := archetype.get("option"):
-        control.click()
-        page.get_by_role("option", name=option, exact=False).click()
-    else:
-        control.click()
-    round_trip(page)
-    page_at_rest(page)
-    after = page.evaluate("() => window.__lfBoxes()")
-    assert any(box is not None for box in after), (
-        f"{archetype['name']} leaves no neighbouring control to measure after its press"
-    )
-    moved = displaced(before, after)
-    assert not moved, (
-        f"pressing the {archetype['name']} control moved its neighbours:\n  "
-        + "\n  ".join(moved)
-    )
-
-
-def test_a_recorded_move_is_announced_and_shown_only_where_it_was_made(browser, serve):
-    """A widget's gesture shows where the user made it, and the margin's receipt says
-    it was saved, so no passing notice repeats it: the live region alone hears "Moved
-    to Done", and neither the panel's field nor a toast says it."""
-    page = open_page(browser, serve(BOARD_PAGE))
-    board = page.locator("#sprint")
-    assert "Moved to Done" not in panel_says(page)
-
-    board.get_by_role("button", name="Move: Squirrel baffle — Todo").focus()
-    page.keyboard.press("Enter")
-    page.keyboard.press("ArrowRight")
-    page.keyboard.press("Enter")
-    expect(page.locator(".lf-live")).to_have_text("Moved to Done")
-    round_trip(page)
-    assert "Moved to Done" not in panel_says(page), "the panel's field repeats the move"
-    assert page.locator(".lf-toast").count() == 0, "a second surface says the news"
 
 
 def test_leaves_keep_focus_through_reordering_and_stay_in_the_list_on_removal(
@@ -1158,54 +1088,6 @@ def test_leaves_keep_focus_through_reordering_and_stay_in_the_list_on_removal(
     destination = rows.nth(1).get_attribute("href")
     assert destination is not None and destination.startswith(f"{second_url}/?t=")
     opened_tab(page, destination, lambda: page.keyboard.press("Enter"))
-
-
-@pytest.mark.watch_shifts
-def test_a_newer_wheel_supersedes_a_panel_resize_landing(browser, serve):
-    """A focused Threads row belongs to the reader's newer scroll while resize waits.
-
-    Native scroll keeps focus on the row. Hold the actual frame handoff so the
-    resize starts with that title visible and the wheel moves it away before the
-    correction runs; wheel-before-resize exercises a different ownership order.
-    """
-    page = open_page(browser, serve(LONG_PAGE, comments=24))
-    resized(page, 1000, 640)
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+t")
-    panel_settled(page, view="threads")
-    threads = page.locator(panel_view("threads"))
-    for _ in range(6):
-        page.keyboard.press("ArrowDown")
-    title = threads.locator(".lf-fp-thread").nth(5)
-    rendered(page)
-    expect(title).to_be_focused()
-    with held_frames(page):
-        page.evaluate(
-            "addEventListener('resize', () => { window.panelResizeObserved = true; }, "
-            "{once: true})"
-        )
-        page.set_viewport_size({"width": 1100, "height": 640})
-        page.wait_for_function("window.panelResizeObserved === true", polling=50)
-        box = threads.bounding_box()
-        assert box
-        page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
-        start = threads.evaluate("node => node.scrollTop")
-        page.mouse.wheel(0, 2000)
-        page.wait_for_function(
-            "start => document.querySelector("
-            "'.lf-fp-view[data-view=threads]').scrollTop > start + 20",
-            arg=start,
-            polling=50,
-        )
-        away = threads.evaluate("node => node.scrollTop")
-        assert title.evaluate(
-            "node => node.getBoundingClientRect().bottom < "
-            "node.closest('.lf-fp-view').getBoundingClientRect().top"
-        ), "the native wheel did not move the focused title out of view"
-        expect(title).to_be_focused()
-    rendered(page)
-    assert threads.evaluate("node => node.scrollTop") == pytest.approx(away, abs=1)
-    expect(title).to_be_focused()
 
 
 @pytest.mark.watch_shifts
@@ -1320,18 +1202,17 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
 
     # The leaf's menu, and its Versions, each read once its fade has finished.
     panel_menu(page)
-    panel_settled(page, open=False)
     sweep("in the leaf's menu")
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-fp-menu")).to_be_hidden()
-    open_versions(page)
-    expect(page.locator(".lf-fp-version").first).to_be_visible()
     panel_settled(page, open=False)
+    open_versions(page)
+    panel_settled(page, view="versions")
     sweep("in the versions menu")
-    # Escape steps back to the menu's root, and then puts the menu away.
+    # Escape steps back to the menu, and then puts it away.
     page.keyboard.press("Escape")
+    panel_settled(page, view="menu")
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-fp-menu")).to_be_hidden()
+    panel_settled(page, open=False)
 
     # The command reference, which is a dialog and owes the most of any of them.
     page.keyboard.press("?")
@@ -1743,7 +1624,7 @@ def test_every_control_the_layer_offers_is_a_box_the_user_can_hit(
         if touch
         else None
     )
-    # A preview record, because the badge it puts in the menu is one of the aims and
+    # A preview record, because its copy control in About is one of the aims and
     # exists on no page that was not served by the preview script. The comment anchored
     # on a quote puts a quote in its thread.
     served = serve(
@@ -1797,4 +1678,178 @@ def test_every_control_the_layer_offers_is_a_box_the_user_can_hit(
         f"{len(set(small))} of the layer's controls are under the {floor}px floor a "
         f"{'coarse' if touch else 'fine'} pointer asks for:\n  "
         + "\n  ".join(sorted(set(small)))
+    )
+
+
+from render_harness import (
+    EXAMPLES,
+    PANEL_THREAD,
+    leaf_page,
+)
+
+
+@pytest.mark.shifts_unsurveyed
+def test_all_pages_takes_the_keyboard(browser, serve, live_leaf, one_user):
+    """All pages is a list, and a user walks it without reaching for the mouse: g L
+    opens it, up and down step between its links and clamp at the ends, Home and End
+    reach the ends, Enter opens the focused one in its own tab, and Esc gives that press
+    back — the user is returned to the reading place they pressed `g L` from."""
+    live_leaf("second", "A second leaf")
+    other_url, _ = live_leaf("other", "The other leaf")
+    page = open_page(browser, serve(LONG_PAGE), context=one_user)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+l")
+    panel_settled(page, view="leaves")
+    rows = page.locator(f"{LEAVES} a.lf-fp-page")
+    # Titles order the list, so the walk has a stated first row to start from.
+    expect(rows.first.locator(".lf-fp-label")).to_have_text("A second leaf")
+    expect(rows.first).to_be_focused()
+    page.keyboard.press("ArrowUp")
+    expect(rows.first).to_be_focused()
+    page.keyboard.press("ArrowDown")
+    expect(rows.nth(1)).to_be_focused()
+    page.keyboard.press("ArrowDown")  # clamped at the end, never wrapped to the top
+    expect(rows.nth(1)).to_be_focused()
+    page.keyboard.press("ArrowUp")
+    expect(rows.first).to_be_focused()
+    page.keyboard.press("End")
+    expect(rows.nth(1)).to_be_focused()
+    page.keyboard.press("Home")
+    expect(rows.first).to_be_focused()
+    # Enter is the browser's own on a link, which is why the row is one.
+    page.keyboard.press("ArrowDown")
+    destination = rows.nth(1).get_attribute("href")
+    assert destination is not None and destination.startswith(f"{other_url}/?t=")
+    tab = opened_tab(page, destination, lambda: page.keyboard.press("Enter"))
+    expect(tab).to_have_url(f"{other_url}/")
+    tab.close()
+    page.keyboard.press("Escape")
+    panel_settled(page, open=False)
+    # One press in, one Escape out, and what the Escape gives back is exactly what the
+    # press took: the reading place `g L` was pressed from.
+    assert page.evaluate("() => document.activeElement === document.body")
+
+
+@pytest.mark.watch_shifts
+def test_a_newer_wheel_supersedes_a_panel_resize_landing(browser, serve):
+    """A focused Threads row belongs to the reader's newer scroll while resize waits.
+
+    Native scroll keeps focus on the row. Hold the actual frame handoff so the
+    resize starts with that title visible and the wheel moves it away before the
+    correction runs; wheel-before-resize exercises a different ownership order.
+    """
+    page = open_page(browser, serve(LONG_PAGE, comments=24))
+    resized(page, 1000, 640)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel_settled(page, view="threads")
+    threads = page.locator(panel_view("threads"))
+    for _ in range(6):
+        page.keyboard.press("ArrowDown")
+    title = threads.locator(".lf-fp-thread").nth(5)
+    rendered(page)
+    expect(title).to_be_focused()
+    with held_frames(page):
+        page.evaluate(
+            "addEventListener('resize', () => { window.panelResizeObserved = true; }, "
+            "{once: true})"
+        )
+        page.set_viewport_size({"width": 1100, "height": 640})
+        page.wait_for_function("window.panelResizeObserved === true", polling=50)
+        box = threads.bounding_box()
+        assert box
+        page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+        start = threads.evaluate("node => node.scrollTop")
+        page.mouse.wheel(0, 2000)
+        page.wait_for_function(
+            "start => document.querySelector("
+            "'.lf-fp-view[data-view=threads]').scrollTop > start + 20",
+            arg=start,
+            polling=50,
+        )
+        away = threads.evaluate("node => node.scrollTop")
+        assert title.evaluate(
+            "node => node.getBoundingClientRect().bottom < "
+            "node.closest('.lf-fp-view').getBoundingClientRect().top"
+        ), "the native wheel did not move the focused title out of view"
+        expect(title).to_be_focused()
+    rendered(page)
+    assert threads.evaluate("node => node.scrollTop") == pytest.approx(away, abs=1)
+    expect(title).to_be_focused()
+
+
+def test_a_recorded_move_is_announced_and_shown_only_where_it_was_made(browser, serve):
+    """A widget's gesture shows where the user made it, and the margin's receipt says
+    it was saved, so no passing notice repeats it: the live region alone hears "Moved
+    to Done", and neither the panel's field nor a toast says it."""
+    page = open_page(browser, serve(BOARD_PAGE))
+    board = page.locator("#sprint")
+    assert "Moved to Done" not in panel_says(page)
+
+    board.get_by_role("button", name="Move: Squirrel baffle — Todo").focus()
+    page.keyboard.press("Enter")
+    page.keyboard.press("ArrowRight")
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-live")).to_have_text("Moved to Done")
+    round_trip(page)
+    assert "Moved to Done" not in panel_says(page), "the panel's field repeats the move"
+    assert page.locator(".lf-toast").count() == 0, "a second surface says the news"
+
+
+@pytest.mark.parametrize(
+    "archetype", CONTROL_ARCHETYPES, ids=lambda archetype: archetype["name"]
+)
+def test_each_control_archetype_holds_its_neighbours_still(browser, serve, archetype):
+    """Each row mechanism holds its other controls still across its causal transition."""
+    # The synthetic page composes every mechanism a page can author, and carries the
+    # existing comment the margin entry's row is made of. An archetype naming another
+    # source is one whose causal state cannot coexist with that composed page, or whose
+    # mechanism lives only in a shipped gallery or under a page-wide opt-in.
+    source = archetype.get("source")
+    page = open_page(
+        browser,
+        serve(source)
+        if source
+        else serve(
+            CONTROL_STABILITY_PAGE,
+            media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
+            events=[
+                {
+                    "kind": "comment",
+                    "author": "user",
+                    "revision": 1,
+                    "text": "Does the narrower proof still cover every control?",
+                    "anchor": {"section": "stable-suggestion"},
+                }
+            ],
+        ),
+    )
+    page_at_rest(page)
+    if disclosure := archetype.get("open"):
+        page.locator(disclosure).click()
+    page.evaluate(DEFINE_BOXES)
+    control = page.locator(archetype["target"])
+    expect(control).to_be_visible()
+    # Playwright's click may scroll its target into view. Finish that navigation
+    # before holding the positions the press itself must preserve.
+    control.scroll_into_view_if_needed()
+    page_at_rest(page)
+    before = control.evaluate(NEIGHBOURHOOD, NEIGHBOUR)
+    assert before["names"], f"{archetype['name']} has no neighbouring control to hold"
+
+    if option := archetype.get("option"):
+        control.click()
+        page.get_by_role("option", name=option, exact=False).click()
+    else:
+        control.click()
+    round_trip(page)
+    page_at_rest(page)
+    after = page.evaluate("() => window.__lfBoxes()")
+    assert any(box is not None for box in after), (
+        f"{archetype['name']} leaves no neighbouring control to measure after its press"
+    )
+    moved = displaced(before, after)
+    assert not moved, (
+        f"pressing the {archetype['name']} control moved its neighbours:\n  "
+        + "\n  ".join(moved)
     )

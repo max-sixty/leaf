@@ -78,11 +78,13 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     rendered(page)
     # The turn's opening streams into the open thread at its end, where it moves none
     # of the words above it.
-    expect(thread.locator(".lf-msg.agent")).to_contain_text("Looking at the page.")
+    expect(thread.locator(".lf-msg[data-lf-author=agent]")).to_contain_text(
+        "Looking at the page."
+    )
     metadata = thread.locator(".lf-msg").first.locator(":scope > .lf-msg-head")
     receipt = metadata.locator(".lf-msg-sending")
     expect(receipt).to_have_text("Replying")
-    news = page.locator(".lf-fp-controls .lf-thread-news")
+    news = page.locator(".lf-fp-head .lf-thread-news")
 
     def receipt_words():
         return receipt.evaluate("""node => {
@@ -162,7 +164,9 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
         # The resolve does not hide it: Threads still lists the thread among the open
         # ones, and opening it there shows the answer, which the page times then.
         view = open_panel_thread(page, comment["id"])
-        message = view.locator(".lf-msg.agent").filter(has_text="deployment verified")
+        message = view.locator(".lf-msg[data-lf-author=agent]").filter(
+            has_text="deployment verified"
+        )
         expect(message).to_be_visible()
         shown = page.evaluate(
             "window.__leafVerifier.replyShownAt",
@@ -177,7 +181,9 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
         expect(news).to_be_hidden()
         expect(page.locator(".lf-fp-settle")).to_have_accessible_name("Resolve thread")
         expect(
-            thread.locator(".lf-msg.agent").filter(has_text="deployment verified")
+            thread.locator(".lf-msg[data-lf-author=agent]").filter(
+                has_text="deployment verified"
+            )
         ).to_be_visible()
         expect(reply).to_have_js_property("value", "While you look")
         answer_id = next(

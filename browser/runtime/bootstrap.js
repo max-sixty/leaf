@@ -184,7 +184,9 @@
   // keeps its own meaning. A chord never starts a run, and a modifier alone is half a
   // press, which neither starts nor ends one. After a beat the held keys are shown, so a
   // press visibly landed; a runtime that takes the run within the beat shows nothing.
-  const { takesLetters } = window.lfInputs;
+  const { takesLetters } = /** @type {DocumentInputs} */ (
+    Reflect.get(window, Symbol.for("leaf.inputs"))
+  );
   const HALF_PRESSES = new Set([
     "Shift",
     "Control",

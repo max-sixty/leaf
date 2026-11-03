@@ -187,7 +187,7 @@ def test_sample_fixture_history_presents_before_ready_and_returns_on_reset(
     first_state = first.locator("body").evaluate(
         "new URL('api/state', document.baseURI).href"
     )
-    first.locator(".lf-fp-controls .lf-fp-settle").click()
+    first.locator(".lf-fp-head .lf-fp-settle").click()
     wait_for(
         lambda: [e["kind"] for e in page.request.get(first_state).json()["events"]],
         lambda kinds: "resolve" in kinds,
@@ -1021,48 +1021,6 @@ def test_all_pages_opens_a_neighbour_in_a_tab_of_its_own(
     panel_settled(page, open=False)
 
 
-def test_all_pages_takes_the_keyboard(browser, serve, live_leaf, one_user):
-    """All pages is a list, and a user walks it without reaching for the mouse: g L
-    opens it, up and down step between its links and clamp at the ends, Home and End
-    reach the ends, Enter opens the focused one in its own tab, and Esc gives that press
-    back — the user is returned to the reading place they pressed `g L` from."""
-    live_leaf("second", "A second leaf")
-    other_url, _ = live_leaf("other", "The other leaf")
-    page = open_page(browser, serve(LONG_PAGE), context=one_user)
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+l")
-    panel_settled(page, view="leaves")
-    rows = page.locator(f"{LEAVES} a.lf-fp-page")
-    # Titles order the list, so the walk has a stated first row to start from.
-    expect(rows.first.locator(".lf-fp-label")).to_have_text("A second leaf")
-    page.keyboard.press("ArrowDown")
-    expect(rows.first).to_be_focused()
-    page.keyboard.press("ArrowUp")
-    expect(rows.first).to_be_focused()
-    page.keyboard.press("ArrowDown")
-    expect(rows.nth(1)).to_be_focused()
-    page.keyboard.press("ArrowDown")  # clamped at the end, never wrapped to the top
-    expect(rows.nth(1)).to_be_focused()
-    page.keyboard.press("ArrowUp")
-    expect(rows.first).to_be_focused()
-    page.keyboard.press("End")
-    expect(rows.nth(1)).to_be_focused()
-    page.keyboard.press("Home")
-    expect(rows.first).to_be_focused()
-    # Enter is the browser's own on a link, which is why the row is one.
-    page.keyboard.press("ArrowDown")
-    destination = rows.nth(1).get_attribute("href")
-    assert destination is not None and destination.startswith(f"{other_url}/?t=")
-    tab = opened_tab(page, destination, lambda: page.keyboard.press("Enter"))
-    expect(tab).to_have_url(f"{other_url}/")
-    tab.close()
-    page.keyboard.press("Escape")
-    panel_settled(page, open=False)
-    # One press in, one Escape out, and what the Escape gives back is exactly what the
-    # press took: the reading place `g L` was pressed from.
-    assert page.evaluate("() => document.activeElement === document.body")
-
-
 def test_a_leaf_served_at_a_new_address_keeps_its_row_and_focus(
     browser, serve, other_leaf, one_user
 ):
@@ -1118,3 +1076,6 @@ def test_a_leaf_served_at_a_new_address_keeps_its_row_and_focus(
         "focusedLeaf === document.activeElement && focusedLeaf.isConnected"
     ), "the restarted page's row lost its node or its focus"
     opened_tab(page, destination, lambda: page.keyboard.press("Enter"))
+
+
+import pytest

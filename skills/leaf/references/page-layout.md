@@ -34,10 +34,9 @@ narrow its grid track or cap its blocks in the page's `<style>`, such as
 
 The page's own `<style>` comes after the Layout, so ordinary rules can change a track
 share, a gap or an order. Where a Layout fits, use it rather than rebuilding it; a page
-that no Layout fits writes its own grid or flex rules. A grid or flex row of the page's
-own that sets blocks side by side declares `--lf-holds-edge: 1`. Without it, where the
-row opens a card or a playground's preview, its first item loses its top margin and the
-items beside it keep theirs (`package-themes.md`, "A theme change").
+that no Layout fits writes its own grid or flex rules. For a row of side-by-side blocks
+inside a card or a playground's preview, follow `package-themes.md`, "A theme change",
+so its items keep their top margins level.
 
 ## A page of parts
 
@@ -246,8 +245,10 @@ works on column and sidebar pages:
 A `table` with either value is only as wide as its columns need, up to that width.
 A block takes a wider track when it is a child of `layout-column` or `layout-flow`.
 A framed holder, such as an `lf-ask` or callout, needs its own `data-width` to widen;
-its children use the room inside it. A wide child alone does not widen its holder,
-and a table scrolls sideways when needed. Use `layout-flow` on unframed section
+its children use the room inside it. A wide child alone does not widen its holder.
+Under the reading face a table scrolls sideways when needed; a page without the face
+gives a table that can outgrow its track a box of its own that scrolls sideways
+(`page-authoring.md`, "Markup"). Use `layout-flow` on unframed section
 wrappers that should share the document's tracks, not on boxes that arrange their
 own contents.
 

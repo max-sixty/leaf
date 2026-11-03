@@ -100,6 +100,20 @@ _ANCHOR = {
         {"$ref": "leaf:event/reanchor#/properties/anchor"},
     ]
 }
+# Widget gestures, unfolded (`thread_context.ACTION_FIELDS`).
+_GESTURES = {
+    "type": "array",
+    "items": object_schema(
+        {
+            "id": STRING,
+            "seq": _INTEGER,
+            "author": STRING,
+            "widget": STRING,
+            "action": STRING,
+            "detail": {"type": "object"},
+        }
+    ),
+}
 _THREAD_DIGEST = object_schema(
     {
         "id": described("The thread's id, which the batch's events name.", STRING),
@@ -204,19 +218,7 @@ _THREAD_DIGEST = object_schema(
         "actions": described(
             "Gestures in force on widgets sent in the thread, other than the "
             "batch's own (`thread_context.ACTION_FIELDS`).",
-            {
-                "type": "array",
-                "items": object_schema(
-                    {
-                        "id": STRING,
-                        "seq": _INTEGER,
-                        "author": STRING,
-                        "widget": STRING,
-                        "action": STRING,
-                        "detail": {"type": "object"},
-                    }
-                ),
-            },
+            _GESTURES,
         ),
     },
     {
@@ -300,6 +302,14 @@ _DELIVERED_EVENT = {
                 "rewritten message is a suggestion, so its new text is the exact "
                 "replacement it proposes.",
                 {"type": "boolean"},
+            ),
+            "unsent": described(
+                "On the user's message or edit about a widget, one their thread is "
+                "anchored in or was sent in, the work they had made there without "
+                "sending it (`$state.unsent`), as it stood when they wrote: what "
+                "the widget showed them (`thread_context.unsent_at_messages`). "
+                "Absent where none stood.",
+                _GESTURES,
             ),
             "waiting": described(
                 "The agent's questions the input may have answered though it "
@@ -532,6 +542,7 @@ def batch_data(
     from .events import build_threads
     from .gesture_words import GestureWords, revisions_on_disk
     from .obligations import waiting_about, waiting_in_thread
+    from .registry.contract import event_spec
     from .revision_artifact import active_enclosing
     from .served_state.context import read_page
     from .thread_context import (
@@ -540,6 +551,7 @@ def batch_data(
         thread_names,
         thread_structure,
         thread_widgets,
+        unsent_at_messages,
     )
 
     registry = _registry(page_dir)
@@ -578,6 +590,18 @@ def batch_data(
     by_id = {event["id"]: event for event in events}
     words = GestureWords(events, registry, revisions_on_disk(page_dir))
 
+    def records_unsent(action: dict) -> bool:
+        # Which verbs record unsent work is the vocabulary's word, as `says` is, and
+        # the word of the document the user acted in.
+        spec = event_spec(words.declaration(action), action)
+        return bool(spec and spec.get("unsent"))
+
+    unsent = (
+        {}
+        if registry is None
+        else unsent_at_messages(events, batch, within, records_unsent)
+    )
+
     captured = []
     for event in batch:
         threads = memberships.get(event["id"], [])
@@ -603,6 +627,8 @@ def batch_data(
             entry["was"] = revision["was"]
             if by_id[revision["message"]].get("suggestion"):
                 entry["suggestion"] = True
+        if work := unsent.get(event["id"]):
+            entry["unsent"] = work
         if (answer := responses.get(event["id"])) is not None:
             entry["answer"] = answer
         if durable is not None and (
@@ -1153,15 +1179,25 @@ def deliverable(
     so input waits here only on a page whose renewal was refused, and the hooks name
     why (`hook_transport.remedies`).
 
+    Less, too, each waiting message of a thread a fork of the owner's conversation
+    is deciding on (`forks.held`), until the fork answers or hands it over, which
+    keeps the watch from waking the session for it as it arrives.
+
     Which updates are owed is the page's fold, whose page model costs about 70 ms
     of CPU to import. Codex's tool hook runs after every tool call, so it passes
     `received=False` and hands over only what the cursor has not passed, answered
     without loading the page's layer where nothing is pending; the adapter, or the
     Stop hook where no adapter runs, hands over the rest
-    (`harness.CodexHarness.offer_at_step`)."""
+    (`harness.CodexHarness.offer_at_step`). Claude Code's tool-boundary hook asks
+    the same before it folds its pages (`hook_transport.new_input`)."""
     pending = unacknowledged(page.events, page.cursor)
     if pending and (held := awaiting_receipt(page)):
         pending = [event for event in pending if event["id"] not in held]
+    if pending:
+        from .forks import held_inputs
+
+        if forked := held_inputs(page):
+            pending = [event for event in pending if event["id"] not in forked]
     owed = unreferenced(page, obligations) if received else []
     if not pending and not owed:
         return []

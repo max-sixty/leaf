@@ -1,12 +1,13 @@
 """The page's keys: control keys activating once, global shortcuts leaving browser keys
-alone, the reading keys' steps, and the comparison's one door."""
+alone, keys typed into Leaf's fields staying out of the page's listeners, the reading
+keys' steps, and the comparison's one door."""
 
 import re
 
 import pytest
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
-from render_cases_navigation import KEYS_PAGE, SMOOTH_LONG_PAGE, _publish
+from render_cases_navigation import KEYS_PAGE, SMOOTH_LONG_PAGE, _publish, compose
 from render_harness import (
     LONG_PAGE,
     RELEASE_FOCUS,
@@ -14,7 +15,9 @@ from render_harness import (
     compare_with,
     draft_control,
     open_page,
+    panel_view,
     round_trip,
+    sending,
 )
 
 from leaf import event_log as events_model
@@ -158,6 +161,86 @@ def test_global_shortcuts_leave_other_browser_navigation_keys_alone(browser, ser
         "observe the runtime dispatcher"
     )
     assert observed == dict.fromkeys(keys[:-1], False)
+
+
+def test_keys_typed_into_leaf_fields_never_bubble_to_the_page(browser, serve):
+    """A page's shortcut code skips keys typed into the fields it knows of, and Leaf's
+    fields are not among them: a slide deck's `b` blacked the deck out mid-comment. So
+    a key typed into a Leaf field never bubbles to the page's listeners, whether they
+    listen on the document, the window or `main`; a listener in capture still hears it.
+    `main` holds the draft's editor, while the comment box and the page search stand in
+    Leaf's chrome. Each field still takes its keys, Leaf still reads them there (Enter
+    sends the comment, Escape closes the editor and the search), and a key pressed on
+    the page itself still reaches the page."""
+    page = open_page(browser, serve(KEYS_PAGE))
+    page.evaluate(
+        """() => {
+          window.pageHeard = [];
+          const main = document.querySelector("main");
+          for (const [where, target] of [["main", main], ["document", document],
+                                          ["window", window]])
+            for (const type of ["keydown", "keypress", "keyup"])
+              target.addEventListener(type, (event) =>
+                window.pageHeard.push(`${where} ${event.type} ${event.key}`));
+          main.tabIndex = -1;
+          main.focus();
+        }"""
+    )
+
+    def heard():
+        return page.evaluate("() => window.pageHeard.splice(0)")
+
+    page.keyboard.press("ArrowRight")
+    assert heard() == [
+        f"{where} {type} ArrowRight"
+        for type in ("keydown", "keyup")
+        for where in ("main", "document", "window")
+    ], "a key pressed on the page itself no longer reached the page's listeners"
+
+    compose(page, "#h")
+    field = page.locator(".lf-fab-input")
+    heard()
+    page.keyboard.type("b ")
+    page.keyboard.press("ArrowLeft")
+    expect(field).to_have_js_property("value", "b ")
+    assert heard() == [], "the page heard keys typed into a comment"
+    with sending(page, "the comment"):
+        page.keyboard.press("Enter")
+    assert [
+        e["text"]
+        for e in events_model.read_events(serve.page_dir)
+        if e["kind"] == "comment"
+    ] == ["b "], "Enter typed into the comment no longer sent it"
+    assert not [key for key in heard() if "keyup" not in key], (
+        "the page heard the Enter that sent the comment"
+    )
+
+    draft_control(page, "edit", "draft-ops").focus()
+    page.keyboard.press("Enter")
+    editor = page.locator("#draft-ops leaf-text")
+    expect(editor).to_be_focused()
+    heard()
+    page.keyboard.press("End")
+    page.keyboard.press("b")
+    expect(editor).to_have_js_property("value", "Run the migration before deploying.b")
+    page.keyboard.press("Escape")
+    expect(editor).to_have_count(0)
+    assert not [key for key in heard() if "keyup Escape" not in key], (
+        "the page heard keys typed into the draft's editor"
+    )
+
+    page.keyboard.press("/")
+    search = page.get_by_role("searchbox", name="Search page text")
+    expect(search).to_be_focused()
+    heard()
+    page.keyboard.type("b ")
+    page.keyboard.press("ArrowLeft")
+    expect(search).to_have_value("b ")
+    page.keyboard.press("Escape")
+    expect(search).to_be_hidden()
+    assert not [key for key in heard() if "keyup Escape" not in key], (
+        "the page heard keys typed into the page search"
+    )
 
 
 def test_the_browser_pages_the_document_with_space(browser, serve):
@@ -416,7 +499,7 @@ def test_the_page_has_one_door_to_a_comparison(browser, serve):
         "reworded a paragraph",
     )
     page = open_page(browser, url.replace("v1.html", "v2.html"))
-    versions = page.locator('.lf-fp-menu[data-level="versions"]')
+    versions = page.locator(panel_view("versions"))
     # No key anywhere on the page marks changes: none of the commands the dispatcher
     # would run names `=`.
     assert not [

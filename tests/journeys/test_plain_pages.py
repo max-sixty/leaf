@@ -23,11 +23,14 @@ declaring it does so in an author rule. On those properties (colour, type, spaci
 display and grid, position, size, motion) every page element, `html` and `body`
 included, computes the same in both. A theme default showing through on a property
 the author left alone is Leaf's documented offer (`page-authoring.md`, "Style the
-page") and is not compared. Four readings beyond the properties follow the same rule:
-a box the author positions (sticky, fixed or absolute) stands in the same place at
-rest and after the page scrolls; where `body` ends short of the window, what shows
-past it, the canvas or the body itself, keeps the author's root background; an open
-`dialog` keeps its look; and the root keeps the
+page") and is not compared. Five readings beyond the properties follow the same rule:
+every box the author wrote inside `body` keeps its size, since a rule of Leaf's can
+lay a box out otherwise while every property the author declared computes the same,
+as a table made a block holds its rows to their content inside the width the author
+gave it; a box the author positions (sticky, fixed or absolute) stands in the same
+place at rest and after the page scrolls; where `body` ends short of the window, what
+shows past it, the canvas or the body itself, keeps the author's root background; an
+open `dialog` keeps its look; and the root keeps the
 colour scheme the author left it at, since that decides every system colour under the
 page. Leaf's chrome and what it generates (`.lf-ui`, `[data-lf-gen]`) are not the
 page's; an element of the author's missing from the Leaf page, or one Leaf adds among
@@ -66,19 +69,28 @@ SOURCES = sorted((ROOT / "tests" / "fixtures" / "plain").glob("*.html"))
 # The obstacles a decision has yet to lift, and below, each page's findings they
 # explain, by pin (`differences`, `checked`).
 OBSTACLES = {
-    "scroll-clearance": (
-        "Leaf makes a table or pre scroll inside itself rather than widen the page"
-        " (reading.css), and keeps 8px under its last row for an overlay scrollbar,"
-        " so a grid row holding a table is that much taller"
+    "sideways-clip": (
+        "Leaf's live root clips what runs past the window sideways (base.css), and the"
+        " render gate refuses a page that scrolls sideways, so a table wider than a"
+        " narrow window, which the open web lets the page scroll to, is refused"
+    ),
+    "class-vocabulary": (
+        "Leaf's own classes reach a page's classes of the same name on any page:"
+        " `dl.facts` takes the facts list's grid and shows its `div`s as contents"
+        " (reading.css), and `.choice` takes a choice target's aim floor and start"
+        " alignment (controls.css)"
     ),
 }
 KNOWN = {
     "dashboard": {
-        "scroll-clearance": {
-            "dark overridden grid-template-rows on main #0d6e4079",
-            "light overridden grid-template-rows on main #0d6e4079",
+        "sideways-clip": {
+            "page-scrolls ",
+            "past-column <table> in <section id=shards>",
+            "clipped-out <table> in <section id=shards>",
         },
     },
+    "editorial": {"class-vocabulary": {"size of main and 4 more #4bebaf86"}},
+    "form": {"class-vocabulary": {"size of main and 6 more #33a7a88b"}},
 }
 
 # A page that builds content after it loads says it has finished as a page does to
@@ -418,9 +430,10 @@ def differences(alone: Arm, leaf: Arm) -> list[tuple[str, str, str]]:
     """Each way the Leaf page's look departs from the author's, as (kind, pin, words).
     The kinds: a property the author declared on the element (`overridden`) or that
     reached it from an ancestor (`inherited`), the `canvas`, a positioned box's
-    `position`, an element `missing` from the Leaf page or `added` to it, and the root's
-    `color-scheme`, where the author left it alone and Leaf's differs. A property that
-    differs on several elements is one finding. Its pin names the reading, the
+    `position`, the `size` of boxes at rest, an element `missing` from the Leaf page or
+    `added` to it, and the root's `color-scheme`, where the author left it alone and
+    Leaf's differs. A property that differs on several elements is one finding, as the
+    boxes that change size are. Its pin names the reading, the
     property, and the complete set of elements by a digest, with the first and a count
     to read it by, and not the values, so `KNOWN` holds still while a theme's colours
     change but not while an override reaches any other element or property. The words
@@ -461,14 +474,12 @@ def differences(alone: Arm, leaf: Arm) -> list[tuple[str, str, str]]:
             alike.setdefault((kind, prop), []).append((key, now, was))
         for (kind, prop), where in alike.items():
             keys = [key for key, *_ in where]
-            more = f" and {len(keys) - 1} more" if len(keys) > 1 else ""
-            digest = hashlib.sha256("\n".join(sorted(keys)).encode()).hexdigest()[:8]
             values = {}
             for key, now, was in where:
                 values.setdefault((now, was), []).append(key)
             note(
                 kind,
-                f"{reading} {kind} {prop} on {keys[0]}{more} #{digest}",
+                f"{reading} {kind} {prop} on {_elements(keys)}",
                 f"{label}: {prop}, where the author's {kind} value gives "
                 + "; ".join(
                     f"{was!r}, is {now!r} on {', '.join(on)}"
@@ -527,7 +538,33 @@ def differences(alone: Arm, leaf: Arm) -> list[tuple[str, str, str]]:
                     f"{label}: {element['key']} stands at {other},"
                     f" not {element['rect']}",
                 )
+    served_sizes = {e["key"]: e["rect"][2:] for e in leaf.media[0]["elements"]}
+    resized = {
+        element["key"]: (element["rect"][2:], size)
+        for element in rest["elements"]
+        if element["key"] not in ("html", "body")
+        and (size := served_sizes.get(element["key"])) is not None
+        and any(abs(a - b) > 1 for a, b in zip(element["rect"][2:], size, strict=True))
+    }
+    if resized:
+        note(
+            "size",
+            f"size of {_elements(list(resized))}",
+            "at rest: "
+            + "; ".join(
+                f"{key} is {now[0]}x{now[1]}, not {was[0]}x{was[1]}"
+                for key, (was, now) in resized.items()
+            ),
+        )
     return found
+
+
+def _elements(keys: list[str]) -> str:
+    """A finding's elements as its pin names them: the first, a count of the rest, and
+    a digest of the complete set."""
+    more = f" and {len(keys) - 1} more" if len(keys) > 1 else ""
+    digest = hashlib.sha256("\n".join(sorted(keys)).encode()).hexdigest()[:8]
+    return f"{keys[0]}{more} #{digest}"
 
 
 @pytest.fixture

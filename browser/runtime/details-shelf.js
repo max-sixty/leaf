@@ -63,7 +63,7 @@ let shelf = null;
 // one of a picture's parts for that part's proxy, else the element naming the note.
 // Null for a node off the shelf.
 /** @param {Element} node */
-export function standsFor(node) {
+function standsFor(node) {
   /** @type {Element | null} */
   let at = node;
   for (; at && at !== shelf; at = upFrom(at)) {

@@ -37,6 +37,7 @@ export {
   shownParts,
 } from "./geometry.js";
 export { skipped } from "./shown-box.js";
+export { windowHoldsRail } from "./content-layout.js";
 export { renderedParent, uiInside, upFrom } from "./shadow.js";
 export { authoredBody } from "./widget-elements.js";
 export {
@@ -101,7 +102,6 @@ export {
   annotationMarkSheets,
 } from "./stylesheets.js";
 export { claimed } from "./thread/surfaces.js";
-export { runtimeRootState } from "./root-state.js";
 export { draftStore, userStore, PAGE_SCOPE } from "./storage.js";
 export { tabStore } from "./tab-store.js";
 export {

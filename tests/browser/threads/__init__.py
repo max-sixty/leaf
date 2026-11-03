@@ -21,6 +21,7 @@ from render_harness import (
     open_threads,
     page_comment,
     panel_field,
+    panel_menu,
     panel_settled,
     panel_view,
     press_visible,
@@ -38,7 +39,7 @@ from leaf.render_checks import rendered
 # The open thread's reply, the editor standing in the panel's field, and the thread's
 # held news, which the panel stands among its view's controls.
 PANEL_REPLY = '.lf-fp-field leaf-text[name="reply"]'
-PANEL_NEWS = ".lf-fp-controls .lf-thread-news"
+PANEL_NEWS = ".lf-fp-head .lf-thread-news"
 
 
 def thread_row(page, key):
@@ -526,6 +527,14 @@ def pressed_send_surface(browser, serve, surface):
             if surface == "pause"
             else seat.locator(":scope > .lf-page-thread > .lf-thread-reply leaf-text")
         )
+    elif surface == "diff-reply":
+        url, root = long_diff_thread(serve)
+        page = open_page(browser, url)
+        thread = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+        box = thread.locator(".lf-thread-reply leaf-text")
+        box.click()
+        send = thread.locator(".lf-thread-reply .lf-compose-submit")
+        after = reply = box
     elif surface == "composer-widget":
         url = serve(
             leaf_page(
@@ -576,12 +585,12 @@ def pressed_send_surface(browser, serve, surface):
             box = field.locator('leaf-text[name="reply"]')
             box.click()
         send = holder.locator(".lf-compose-submit")
-        # Conversation sends land where the conversation goes on: a card's on its card,
-        # the panel's in its field, a page comment opening its thread there, which the
+        # Conversation sends land where the conversation goes on: a reply in its box, a
+        # card's as the panel's, a page comment opening its thread there, which the
         # field then replies in.
         reply_box = field.locator('leaf-text[name="reply"]')
         after = {
-            "card": holder.locator(".lf-page-thread"),
+            "card": box,
             "composer": page.locator(".lf-margin-preview .lf-page-thread"),
             "composer-panel": page.locator(".lf-margin-preview .lf-page-thread"),
             "panel": reply_box,
@@ -589,7 +598,9 @@ def pressed_send_surface(browser, serve, surface):
         }[surface]
         reply = (
             page.locator(".lf-margin-preview .lf-thread-reply leaf-text")
-            if surface.startswith("composer") or surface == "card"
+            if surface.startswith("composer")
+            else box
+            if surface == "card"
             else reply_box
         )
     write(box, "Sent from the box.")
@@ -659,13 +670,12 @@ def open_capture_area(page, *, touch=False):
     """Enter the screenshot tool through its ordinary page-control route: the leaf's
     menu, Annotations, Capture area, and wait for it to dim the page. It opens with no
     area drawn, inviting a drag."""
-    menu = page.locator(".lf-fp-menu")
-    for press in (
-        page.locator(".lf-fp-leaf"),
-        menu.locator('.lf-fp-item[data-row="group:annotate"]'),
-        menu.locator('.lf-fp-item[data-row="command:capture.region.open"]'),
-    ):
-        press_visible(page, press, touch=touch)
+    annotations = panel_menu(page, "annotate", touch=touch)
+    press_visible(
+        page,
+        annotations.locator('.lf-fp-item[data-row="command:capture.region.open"]'),
+        touch=touch,
+    )
     surface = page.get_by_role("region", name="Capture area", exact=True)
     expect(surface).to_be_visible()
     expect(surface.locator(".lf-region-selection")).to_be_hidden()

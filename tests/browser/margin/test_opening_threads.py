@@ -14,7 +14,7 @@ from render_cases_interaction import (
     executable_revision,
     live_url,
 )
-from render_cases_layout import current_location_ring
+from render_cases_layout import current_location_ring, rings_drawn
 from render_harness import (
     PANEL,
     PANEL_THREAD,
@@ -398,9 +398,9 @@ def test_a_thread_whose_passage_stays_hidden_opens_in_the_panel(browser, serve):
         assert open_where_the_user_stands(page, section) is True, section
 
 
-def test_a_thread_in_view_opens_beside_it_and_leaves_the_tab_strip(browser, serve):
-    """A thread whose passage is in view opens its card beside it, and the tab strip the
-    user scrolled stays where they left it."""
+def test_a_thread_in_view_opens_and_leaves_the_tab_strip(browser, serve):
+    """A thread whose passage is in view opens without moving the tab strip the user
+    scrolled: on a phone, which has no room for the rail, in the floating panel."""
     page = open_page(
         browser, serve(LONG_STRIP_PAGE, events=[_comment_on("open-words")])
     )
@@ -409,8 +409,35 @@ def test_a_thread_in_view_opens_beside_it_and_leaves_the_tab_strip(browser, serv
     left = strip.evaluate("s => (s.scrollLeft = s.scrollWidth, s.scrollLeft)")
     assert left > 0, "the strip fits, so it proves nothing"
     assert open_where_the_user_stands(page, "open-words") is True
-    expect(page.locator(".lf-margin-preview")).to_be_visible()
+    expect(
+        page.locator(".lf-fp-view:not([data-leaving]) .lf-page-thread")
+    ).to_be_visible()
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
     assert strip.evaluate("s => s.scrollLeft") == left
+
+
+def test_show_on_page_on_a_phone_lands_on_the_thread_s_marker(browser, serve):
+    """On a phone the thread shows in the floating panel, and its Show on page takes the
+    user to the passage: the panel folds away and the user lands on the passage's
+    marker, whose focus traces the passage after a pointer's press too, so they can see
+    where they arrived; Enter there opens the thread again."""
+    page = open_page(
+        browser, serve(LONG_STRIP_PAGE, events=[_comment_on("open-words")])
+    )
+    resized(page, 390, 844)
+    marker = page.locator('[data-lf-margin-for="open-words"] .lf-margin-marker')
+    marker.click()
+    view = page.locator(".lf-fp-view:not([data-leaving])")
+    expect(view.locator(".lf-page-thread")).to_be_visible()
+    page.locator(".lf-fp-on-page").click()
+    expect(view).to_have_count(0)
+    expect(marker).to_be_focused()
+    page.wait_for_function(
+        "() => document.querySelector('.lf-target-trace')"
+        "?.getBoundingClientRect().width > 0"
+    )
+    page.keyboard.press("Enter")
+    expect(view.locator(".lf-page-thread")).to_be_visible()
 
 
 MOVED_PASSAGE_PAGE = leaf_page(
@@ -1320,10 +1347,17 @@ def test_an_open_thread_refresh_keeps_the_current_margin_entry_target_highlighte
     suggestion.locator('.lf-margin-reading-option[data-lf-kinds="comment"]').click()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     page.locator('[data-lf-margin-for="sug-thistle"] .lf-sug-accept').focus()
-    trace = page.locator('.lf-target-trace[data-for="sug-thistle"]')
-    expect(trace).to_be_visible()
+    # This suggestion is the current obligation, so its ring identifies the target
+    # instead of the duplicate margin trace, even while another card stays open.
+    drawn = rings_drawn(page)
+    assert any(
+        ring["here"] and "proposed insertionSwitch" in ring["who"] for ring in drawn
+    ), drawn
     ticked(page)
-    expect(trace).to_be_visible()
+    drawn = rings_drawn(page)
+    assert any(
+        ring["here"] and "proposed insertionSwitch" in ring["who"] for ring in drawn
+    ), drawn
 
 
 def test_focusing_a_thread_margin_entry_does_not_open_its_card(browser, serve):

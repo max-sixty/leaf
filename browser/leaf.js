@@ -1,6 +1,8 @@
 /* Leaf runtime boot and application composition root. */
 import { registerSampleCommand, onSampleNotice } from "./runtime/sample-child.js";
 import "/runtime/framework.js";
+import "./runtime/stage-integration.js";
+import "./runtime/element-integration.js";
 import "./runtime/interaction-log.js";
 // Restored panels and the first keyboard gesture share the ordinary synchronous
 // control routes, so their controls must be upgraded before those routes mount.
@@ -70,7 +72,17 @@ import {
   setAnchoringReady,
 } from "./runtime/anchor-resolution.js";
 import { createPageGeometry } from "./runtime/page-geometry.js";
-import * as targetPaint from "./runtime/target-paint.js";
+import {
+  aimLayer,
+  clearAim,
+  geometryChanged,
+  labelAim,
+  mountTargetPaint,
+  paintAim,
+  proxyRingLayer,
+  shifted,
+  targetTraceLayer,
+} from "./runtime/target-paint.js";
 import { pointerAt } from "./runtime/pointer.js";
 import { createWritingResume } from "./runtime/drafts.js";
 import { createRewriteRestore } from "./runtime/thread/message-edit.js";
@@ -93,7 +105,7 @@ import {
   createCommandHints,
 } from "./runtime/keyboard/command-hints.js";
 import { createDesignMode, inspectEl, legendRoot } from "./runtime/design.js";
-import { atWorkLayer } from "./runtime/at-work.js";
+import { marginBarLayer } from "./runtime/margin-bars.js";
 import { createPageLayout } from "./runtime/page-layout.js";
 import { restoreUserView } from "./runtime/restore-state.js";
 import { createVersionController, takeInitialDocument } from "./runtime/version.js";
@@ -146,6 +158,15 @@ import { announce, liveEl, notice } from "./runtime/notifications.js";
 import { raiseError } from "./runtime/errors.js";
 import { mediaViewer } from "./runtime/media.js";
 import { retainUserIntent, restrictUserIntent } from "./runtime/user-intent.js";
+import { installMoveSelection } from "./runtime/dom-move.js";
+import { holdSelection } from "./runtime/native-selection.js";
+
+// Leaf's selection writer keeps a page selection across `setChildLists`'s moves
+// (dom-move.js), installed before the boot draws anything. It stands here rather than
+// beside `installMoveFocus` (move-focus.js): native-selection.js reaches context.js
+// through shadow.js, and imported from move-focus.js, which framework.js imports
+// first, it ran a module before `readPart` (semantic-state.js) was initialized.
+installMoveSelection(holdSelection);
 
 // The boot runs in a function, since a compiled module awaits nothing at its top
 // level (`topLevelAwaitRule` in eslint.config.mjs says why). Its rejection names
@@ -308,7 +329,7 @@ async function boot() {
     aim: { isOn: aim.aimIsOn, target: aim.aimedTarget },
     pointer: pointerAt,
     designMode,
-    targetPaint,
+    targetPaint: { clearAim, geometryChanged, labelAim, paintAim, shifted },
     visualMarkPaint,
     shiftDrawings: drawingPaint.shifted,
     queueLegend: designMode.queueLegend,
@@ -416,6 +437,7 @@ async function boot() {
     sendReaction,
     createMarginProjection: annotationRenderer?.createMarginProjection,
     annotationCommands: {
+      currentLocationObligation: () => items.currentLocationIn(),
       designModeActive: designMode.active,
       pointerModeActive: () =>
         designMode.active() || drawing.drawModeActive() || regionCapture.active(),
@@ -505,7 +527,7 @@ async function boot() {
     placedAt: anchorPlacement.placedAt,
     openThreadSubject: (id, options) =>
       app.threadDestinations.openThreadSubject(id, options),
-    atLastResort: (key) => app.threadDestinations.atLastResort(key),
+    showsOnPage: (key) => app.threadDestinations.showsOnPage(key),
     annotationsHidden: () => annotationRenderer?.annotationsHidden() ?? false,
   });
   // The page's general comment box is the floating panel's field.
@@ -705,9 +727,9 @@ async function boot() {
     // One permanent home for the chrome's foreground; none of these live descendants is
     // reparented.
     chromeForeground.append(
-      targetPaint.targetTraceLayer,
-      targetPaint.proxyRingLayer,
-      targetPaint.aimLayer,
+      targetTraceLayer,
+      proxyRingLayer,
+      aimLayer,
       liveEl,
       mediaViewer,
       commandReferenceDialog,
@@ -715,7 +737,7 @@ async function boot() {
     );
     chromeRoot.append(
       legendRoot,
-      atWorkLayer,
+      marginBarLayer,
       ...(visualMarkPaint ? [visualMarkPaint.layer] : []),
       drawingPaint.layer,
       fabBar,
@@ -731,7 +753,7 @@ async function boot() {
     targets.mount();
     drawing.mount();
     aim.mount();
-    targetPaint.mountTargetPaint();
+    mountTargetPaint();
     anchorPaint?.mount();
     anchorControls.mount();
     pageGeometry.mount();

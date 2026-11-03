@@ -29,6 +29,21 @@
    else an enclosing one's), never those of a target inside it: a thread on an obligation's
    options shows from the options, not from the obligation (`threadEntryAt`).
 
+   The card is a wide window's surface: it stands only on a window with room for the
+   rail (content-layout.js, `windowHoldsRail`), whether or not this page's Layout stands
+   one there. On a window with no room for it, as a phone's, no card opens
+   (`showPreview`) and nothing accompanies a target; every route to a thread, a press on
+   its marker included, opens it where a thread the page draws no view of opens
+   (thread/destination.js): the floating panel, which holds a whole thread full-width
+   from the window's foot, its passage quoted at its head and Show on page taking the
+   user to the passage itself. A card open as a narrowing window loses the rail goes
+   there too (`yieldPreview`), and a widening one gives the thread back to a card
+   (destination.js, `returnToPage`). The user chose this on 31 October 2026 over a card
+   placed for a narrow window, which stood under or over its words in from the window's
+   edge, over a strip of cut-off words and often over the passage itself, and needed
+   placement rules of its own. Its cost is that the panel covers most of a phone's
+   window, so the passage shows there only in the quote, until Show on page.
+
    Each frozen cluster model names controls by contribution and entry identity. The Lit view
    retains their native nodes, so a state refresh cannot cancel a held pointer or move focus.
    A print-media render is deferred until screen media returns because print removes the
@@ -39,6 +54,7 @@
    gestures request that same pass. Mount binds the overlay's mechanical lifecycle. */
 
 import { createThreadPreview } from "./thread-preview.js";
+import { windowHoldsRail } from "../content-layout.js";
 
 import { afterScript, cancelRender, nextRender } from "../rendering.js";
 import { spokenSubject } from "../contribution-model.js";
@@ -51,6 +67,7 @@ import {
   scheduleMarginEntryLabels,
   scheduleMarginLayout,
   standsFolded,
+  standsWithheld,
   unregisterMarginRow,
 } from "./margin-layout.js";
 
@@ -105,11 +122,7 @@ import {
   currentLocationIn,
 } from "../focus.js";
 
-import {
-  el,
-  generatedElement,
-  offerActionElement,
-} from "../widget-elements.js";
+import { el, generatedElement, offerActionElement } from "../widget-elements.js";
 import { keeps, keepsHidden } from "../keeps.js";
 
 import { cycledRow, rowArrows, nativePress } from "../keyboard/bindings.js";
@@ -133,6 +146,7 @@ import { threadNamed } from "../thread/state.js";
 import { carryingThreadPlace, currentLocationThreadId } from "../thread/focus.js";
 
 import { claimed, revealHeld } from "../thread/surfaces.js";
+import { releaseReplies } from "../thread/replies.js";
 
 import { createMarginClusterViews } from "./margin-cluster-view.js";
 
@@ -162,16 +176,19 @@ import { retainUserIntent } from "../user-intent.js";
  * refreshInventory: ReturnType<typeof import("../annotation-inventory.js").createAnnotationInventory>["collect"],
  * renderAnnotations: (() => void) & {refresh: () => void},
  * openPageThread: ReturnType<typeof import("../thread/destination.js").createThreadDestinations>["openPageThread"],
+ * returnToPage: ReturnType<typeof import("../thread/destination.js").createThreadDestinations>["returnToPage"],
  * designModeActive: () => boolean, pointerModeActive: () => boolean,
  * leavePageMap: ReturnType<typeof import("../page-map-dialog.js").createPageMapDialog>["leavePageMap"],
  * openPageMap: ReturnType<typeof import("../page-map-dialog.js").createPageMapDialog>["openPageMap"],
  * pageMapDialogContains: ReturnType<typeof import("../page-map-dialog.js").createPageMapDialog>["pageMapDialogContains"],
+ * currentLocationObligation: () => Element | null,
  * marksFor: ReturnType<typeof import("./anchor-paint.js").createAnchorPaint>["marksFor"]}} dependencies */
 export function createMarginProjection({
   inventory,
   refreshInventory,
   renderAnnotations,
   openPageThread,
+  returnToPage,
   designModeActive,
   pointerModeActive,
   leavePageMap,
@@ -181,6 +198,7 @@ export function createMarginProjection({
   renderMarginThread,
   placedAt,
   marksFor,
+  currentLocationObligation,
   scrollToElement,
   openInPanel,
 }) {
@@ -213,6 +231,7 @@ export function createMarginProjection({
     placedAt,
     scrollThreadIntoView,
     scrollToElement,
+    openPageThread,
     openInPanel,
     onClose: closedPreview,
   });
@@ -457,7 +476,7 @@ export function createMarginProjection({
     return [...markerRows()].filter(
       (row) =>
         !row.hidden &&
-        !row.closest(".lf-withheld") &&
+        !standsWithheld(row) &&
         row.checkVisibility({ visibilityProperty: true }),
     );
   }
@@ -1068,8 +1087,13 @@ export function createMarginProjection({
       document.dispatchEvent(new CustomEvent("lf-margin-entry-options-closed"));
   }
 
+  // Whether the window held the rail when the margin last rendered (`renderNow`).
+  /** @type {boolean | null} */
+  let railRoom = null;
   /** @param {readonly Entry[]} inventory */
   function renderNow(inventory) {
+    // A layout read, so before this render's writes (browser/AGENTS.md).
+    const room = windowHoldsRail();
     const selected = card.selection();
     const forcedKey = selected?.forced ? selected.entry.key : null;
     const threadOwnerHeld = transferThreadFocus || focused() === selected?.control;
@@ -1194,10 +1218,15 @@ export function createMarginProjection({
       const fresh = pageInventory.find((entry) => entry.key === selected.entry.key);
       const freshChoice = fresh && threadReading(fresh);
       if (!fresh || !freshChoice) closePreview();
+      else if (!room) yieldPreview();
       else {
         const owner = threadMarginEntry(fresh);
+        // A withheld row is not gone: the card withholds itself with its target and
+        // comes back with it (thread-preview.js).
+        const away = owner && standsWithheld(owner);
         if (
           owner &&
+          !away &&
           !owner.checkVisibility() &&
           forcedKey !== fresh.key &&
           expandedOptionsKey !== fresh.key &&
@@ -1207,7 +1236,7 @@ export function createMarginProjection({
           unfoldOpenThreadOwner(fresh);
           return;
         }
-        if (!owner || (!owner.checkVisibility() && forcedKey !== fresh.key))
+        if (!owner || (!away && !owner.checkVisibility() && forcedKey !== fresh.key))
           closePreview();
         else {
           card.refresh(fresh, freshChoice, owner, threadOwnerHeld);
@@ -1218,6 +1247,11 @@ export function createMarginProjection({
         }
       }
     }
+    // The room for the rail coming back gives the floating panel the threads its going
+    // took (`yieldPreview`) back to cards (thread/destination.js, `returnToPage`), once
+    // this render has drawn the entries they hang from.
+    if (room && railRoom === false) queueMicrotask(() => void returnToPage());
+    railRoom = room;
     refreshHighlight();
     scheduleMarginLayout();
     scheduleRoving();
@@ -1289,7 +1323,11 @@ export function createMarginProjection({
       entry &&
       marksFor(currentLocation).length > 0 &&
       threadReading(entry)?.items.some((item) => item.thread.id === currentLocation);
-    highlight(drawingOnly || currentLocationShown ? null : (targetFor(entry) ?? null));
+    const target = targetFor(entry) ?? null;
+    // An obligation's location ring already identifies this target, including when
+    // its margin marker holds focus. Quiet brackets on that perimeter cover the ring.
+    const obligationShown = target && target === currentLocationObligation();
+    highlight(drawingOnly || currentLocationShown || obligationShown ? null : target);
   }
 
   function previewChanged() {
@@ -1309,7 +1347,7 @@ export function createMarginProjection({
     threadItem = null,
     { origin = null, accompanies = false, forced = false } = {},
   ) {
-    if (designModeActive()) return null;
+    if (designModeActive() || !windowHoldsRail()) return null;
     const previous = card.selection();
     const disclosed =
       (previous?.disclosed && previous.entry.key === entry.key) ||
@@ -1335,6 +1373,9 @@ export function createMarginProjection({
     return positioned;
   }
 
+  // A press on a marker opens its card, or puts away the card it already shows. Where
+  // no card stands, as on a window with no room for the rail (header), the thread opens
+  // where every other route opens it (thread/destination.js): the floating panel.
   /** @param {Entry} entry @param {ThreadChoice} choice @param {Element} button */
   function togglePinned(entry, choice, button) {
     const selected = card.selection();
@@ -1342,7 +1383,9 @@ export function createMarginProjection({
       closePreview();
       return;
     }
-    card.focusThread(showPreview(entry, choice, button));
+    const positioned = showPreview(entry, choice, button);
+    if (positioned) card.focusThread(positioned);
+    else void openPageThread(threadIdOf(choice), { part: "thread", travel: false });
   }
 
   // Closing the card hands a user who was in it on (focus.js, `closeLayer`). A close
@@ -1360,6 +1403,27 @@ export function createMarginProjection({
     const heldInside = currentLocationIn(preview) && !carryingThreadPlace(at);
     closeLayer(() => card.close(), heldInside && (() => land(button)));
     paintKeys();
+  }
+  // A card a window narrowed past the room for the rail gives its thread to where every
+  // route now opens it (`showPreview`), the floating panel, and a user in it goes along:
+  // the reply they are writing, the row itself with its caret and undo history
+  // (thread/replies.js, `releaseReplies`), or the thread. A widened window gives it back
+  // (thread/destination.js, `returnToPage`).
+  function yieldPreview() {
+    const id = card.thread()?.getAttribute("data-thread");
+    const inCard = currentLocationIn(preview);
+    const replying = card.replying();
+    const intent = retainUserIntent();
+    releaseReplies(preview);
+    closePreview(() => {});
+    if (id)
+      void openPageThread(id, {
+        part: replying ? "reply" : "thread",
+        focus: inCard,
+        travel: false,
+        scroll: false,
+        intent,
+      });
   }
   /** @param {PreviewSelection} previous @param {Entry | null} [next] */
   function retirePreviewDisclosure(previous, next = null) {
@@ -1568,22 +1632,29 @@ export function createMarginProjection({
   // cluster to reach the thread's own entry. Where the cluster shows but holds neither
   // on its face, as a suggestion's shows its Accept, the card unfolds it and folds it
   // again on closing; a cluster the page withholds shows no card.
+  /** @param {string} id */
+  const threadEntry = (id) => {
+    const itemId = marginThreadItem(threadNamed(id));
+    return pageInventory.find((candidate) =>
+      candidate.items.some((item) => item.id === itemId),
+    );
+  };
+  /** @param {Element | null | undefined} control */
+  const shown = (control) => (control?.checkVisibility() ? control : null);
+  // The margin control standing for a thread where the margin shows one: the thread's
+  // own entry, else the marker of the cluster folded over it.
+  /** @param {Entry} entry */
+  const shownEntryControl = (entry) =>
+    shown(threadMarginEntry(entry)) ?? shown(hosts.get(entry.key)?.marker);
   /** @param {string} id @param {Pick<Parameters<ShowPreview>[0], "origin"> & {unfold?: boolean}} [options] */
   function openInlineThread(id, { origin = null, unfold = true } = {}) {
     const itemId = marginThreadItem(threadNamed(id));
-    const entry = pageInventory.find((candidate) =>
-      candidate.items.some((item) => item.id === itemId),
-    );
+    const entry = threadEntry(id);
     if (!entry || designModeActive()) return null;
     const choice = threadReading(entry);
     if (!choice) return null;
-    const shown = (/** @type {Element | null | undefined} */ control) =>
-      control?.checkVisibility() ? control : null;
-    const host = hosts.get(entry.key);
-    const marker = unfold
-      ? null
-      : (shown(threadMarginEntry(entry)) ?? shown(host?.marker));
-    if (!unfold && !marker && !shown(host)) return null;
+    const marker = unfold ? null : shownEntryControl(entry);
+    if (!unfold && !marker && !shown(hosts.get(entry.key))) return null;
     const button = marker ?? threadMarginEntry(entry);
     const positioned = showPreview(entry, choice, button, itemId, {
       origin,
@@ -1629,6 +1700,7 @@ export function createMarginProjection({
       if (!selected.has(control)) syncContributionSelection(control, false);
     for (const control of selected) syncContributionSelection(control, true);
     selectedReadingCarriers = selected;
+    scheduleMarginEntryLabels();
   }
 
   // ---------- the card goes where the user is ----------
@@ -2042,6 +2114,10 @@ export function createMarginProjection({
       focusTarget: card.focusTarget,
       accompanied: accompaniedThreadHere,
       close: closePreview,
+      control: (/** @type {string} */ id) => {
+        const entry = threadEntry(id);
+        return entry ? shownEntryControl(entry) : null;
+      },
     },
     paintSelectedMarginEntries,
     marginEntryChoices,

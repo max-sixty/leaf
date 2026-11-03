@@ -1471,17 +1471,23 @@ def page_endpoint(
     The layer identity and the preview reading are read once here rather than per
     request: they are facts about the layer record this server was started over. So
     is whether this Leaf can serve that page at all: every one-page server, durable
-    or temporary, passes here before it binds, and refuses naming `page init` when
-    the page's layer is one this Leaf cannot serve (`incompatible_layer`). A
-    snapshot serves the revision it froze, which its capture already judged
+    or temporary, passes here before it binds, and refuses, naming `page init`, when
+    the page's layer is one this Leaf cannot serve (`incompatible_layer`) or cannot
+    compose. Reading the page needs only its vocabulary (`layer.LayerVocabulary`),
+    so this is where `server start` refuses a package sheet or module the
+    document's first request would fail on. A snapshot serves
+    the revision it froze, which its capture already judged
     (`page_snapshot.capture_page_snapshot`).
     The key has no default: every server over a page directory is reachable by
     whatever reached the machine, so there is no construction that should quietly go
     without one."""
-    if page_snapshot is None and (
-        refusal := incompatible_layer(page_dir, layer_record(page_dir) or {})
-    ):
-        raise Rejected([refusal])
+    from .registry.storage import selected
+
+    if page_snapshot is None:
+        record = layer_record(page_dir) or {}
+        if refusal := incompatible_layer(page_dir, record):
+            raise Rejected([refusal])
+        selected(record, page_dir)
     identity = (
         page_snapshot.context.layer
         if page_snapshot is not None

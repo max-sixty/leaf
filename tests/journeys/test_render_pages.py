@@ -4,6 +4,7 @@ import json
 import re
 
 import pytest
+from browser.threads import open_panel_thread
 from interact_support import (
     append_carried_log_record,
 )
@@ -33,6 +34,7 @@ from render_harness import (
     write,
 )
 
+from journeys import detached_threads, listed_threads
 from leaf import event_log as events_model
 from leaf import events as thread_model
 from leaf import render_checks as render_checks_model
@@ -44,10 +46,6 @@ from leaf.render_checks import wait_until_ready
 from leaf.render_gate import version as render_gate_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
-
-from browser.threads import open_panel_thread
-
-from journeys import detached_threads, listed_threads
 
 
 def test_sort_film_comment_restores_its_input_and_step(browser, serve):
@@ -116,45 +114,6 @@ def test_sort_film_comment_restores_its_input_and_step(browser, serve):
     page.locator(".lf-fp-close").click()
     page.get_by_role("button", name="1 comment").press("Enter")
     expect(moment).to_have_attribute("data-part", "moment:random:7:0")
-
-
-@pytest.mark.watch_shifts
-def test_sort_film_playback_keeps_the_stage_and_controls_still(browser, serve):
-    """Each trace step paints inside a fixed layout at both wide pane widths."""
-    example = next(path for path in EXAMPLES if path.stem == "rust-sort")
-    context = browser.new_context(
-        reduced_motion="reduce", viewport={"width": 1715, "height": 1046}
-    )
-    page = open_page(browser, serve(example), context=context)
-
-    for width in (1715, 1200):
-        page.set_viewport_size({"width": width, "height": 1046})
-        page.locator("#sort-film .sort-play").focus()
-        page.keyboard.press("Home")
-        layouts = page.evaluate(
-            """async () => {
-              const film = document.querySelector('#sort-film');
-              const stage = film.querySelector('.sort-stage');
-              const moment = film.querySelector('.sort-moment');
-              const bar = film.querySelector('.sort-bar');
-              const play = film.querySelector('.sort-play');
-              const samples = new Set();
-              play.click();
-              const until = performance.now() + 900;
-              while (performance.now() < until) {
-                await new Promise(requestAnimationFrame);
-                const top = stage.getBoundingClientRect().top;
-                samples.add(JSON.stringify([
-                  Math.round(stage.getBoundingClientRect().height),
-                  Math.round(moment.getBoundingClientRect().top - top),
-                  Math.round(bar.getBoundingClientRect().top - top),
-                ]));
-              }
-              play.click();
-              return [...samples];
-            }"""
-        )
-        assert len(layouts) == 1, (width, layouts)
 
 
 def test_a_shipped_log_replays_its_example_state(browser, serve):
@@ -393,7 +352,9 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                 if event["kind"] == "reply" and event["author"] == "agent"
             )
             open_panel_thread(page, thread_of(answered))
-            expect(page.locator(f"{PANEL_THREAD} .lf-msg.agent")).not_to_have_count(0)
+            expect(
+                page.locator(f"{PANEL_THREAD} .lf-msg[data-lf-author=agent]")
+            ).not_to_have_count(0)
 
         # The other thing a log carries. A widget can arrive as a message's markup
         # rather than as authored page content, and it draws in the body the panel
@@ -692,28 +653,23 @@ diff --git a/feeders/mount.py b/feeders/mount.py
 def test_the_render_gate_names_a_wide_widget_drawn_over_the_pages_own_margin(
     browser, serve
 ):
-    """Two rules in the theme give a margin up to what stands in it, one per claimant,
-    and a rule is only ever as complete as the list behind it. A project hangs its own
-    apparatus out there and the theme has no rule for it, so this is what is left: the
-    room the page states is measured against what is actually in the margin, and a widget
-    drawn over any of it is named at handover with both boxes in the message.
+    """Report a breakout covering authored margin furniture or escaping a frame.
 
-    It reads margin content by the same test the pass above excuses one by — placed
-    absolutely or fixed, or floated clear of the column — so this needs no vocabulary
-    of its own and nothing has to be declared to it. That is what keeps the two theme
-    rules honest: the next claimant that forgets one is a refusal with a name on it
-    rather than a page somebody eventually notices is drawn over its own controls.
-
-    The page's own frame is the same place: a wide widget is measured against the box
-    that frames it, and everything else on the page is excused by a scroll container
-    above it. The fixture deliberately overrides the board's width so it escapes the
-    frame; the ordinary theme now holds it inside. Asked in the wrong order, the scroll
-    container's excuse ate this measurement, so a wide widget escaping its frame went
-    unnamed."""
+    The authored grid is deliberately limited to its prose track, with the rail
+    positioned outside it. Both boards override the theme's width cap to create
+    actual overflow; the framed board belongs to a reading flow so it is a
+    breakout whose frame must be checked even though that frame scrolls.
+    """
     framed = FRAMED_SCROLLER_PAGE[FRAMED_SCROLLER_PAGE.index("<div id='own-frame'") :]
     framed = framed[: framed.index("</lf-board></div>") + len("</lf-board></div>")]
+    framed = framed.replace("id='own-frame'", "id='own-frame' class='layout-flow'")
     source = OWN_MARGIN_FURNITURE.replace(
-        "</head>", "<style>#framed { width: 1080px; }</style></head>"
+        "</head>",
+        "<style>main { position: relative; max-inline-size: var(--col); "
+        "margin-inline: auto; grid-template-columns: [full-start prose-start] minmax(0, 1fr) "
+        "[prose-end full-end]; } "
+        "#sprint, #framed { width: 1080px; max-inline-size: none; } "
+        "</style></head>",
     )
     failures = render_gate_model.render_version(
         browser, serve(source.replace("</main>", framed + "</main>"))
@@ -877,3 +833,42 @@ def test_a_layout_on_a_child_of_main_arranges_it_as_it_would_main(browser, serve
     assert left - in_child["main"][0] == 140, in_child
     for edges in (in_child["box"], in_child["route"][0], in_child["room"][0]):
         assert left <= edges[0] and edges[1] <= right, in_child
+
+
+@pytest.mark.watch_shifts
+def test_sort_film_playback_keeps_the_stage_and_controls_still(browser, serve):
+    """Each trace step paints inside a fixed layout at both wide pane widths."""
+    example = next(path for path in EXAMPLES if path.stem == "rust-sort")
+    context = browser.new_context(
+        reduced_motion="reduce", viewport={"width": 1715, "height": 1046}
+    )
+    page = open_page(browser, serve(example), context=context)
+
+    for width in (1715, 1200):
+        page.set_viewport_size({"width": width, "height": 1046})
+        page.locator("#sort-film .sort-play").focus()
+        page.keyboard.press("Home")
+        layouts = page.evaluate(
+            """async () => {
+              const film = document.querySelector('#sort-film');
+              const stage = film.querySelector('.sort-stage');
+              const moment = film.querySelector('.sort-moment');
+              const bar = film.querySelector('.sort-bar');
+              const play = film.querySelector('.sort-play');
+              const samples = new Set();
+              play.click();
+              const until = performance.now() + 900;
+              while (performance.now() < until) {
+                await new Promise(requestAnimationFrame);
+                const top = stage.getBoundingClientRect().top;
+                samples.add(JSON.stringify([
+                  Math.round(stage.getBoundingClientRect().height),
+                  Math.round(moment.getBoundingClientRect().top - top),
+                  Math.round(bar.getBoundingClientRect().top - top),
+                ]));
+              }
+              play.click();
+              return [...samples];
+            }"""
+        )
+        assert len(layouts) == 1, (width, layouts)

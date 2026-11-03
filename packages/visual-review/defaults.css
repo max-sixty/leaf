@@ -206,19 +206,6 @@ lf-visual-review {
 .lf-vr-details::backdrop {
   background: transparent;
 }
-.lf-vr-provenance {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px 20px;
-  font: var(--font-compact);
-}
-.lf-vr-provenance :is(dt, dd) {
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-.lf-vr-provenance dt {
-  color: var(--muted);
-}
 .lf-vr-sources {
   display: flex;
   gap: 12px;

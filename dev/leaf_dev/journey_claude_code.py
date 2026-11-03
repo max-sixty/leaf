@@ -83,10 +83,11 @@ diagnostics (`fork_reply`):
 
 Then `quit`, by `/exit`.
 
-Between steps, what holds on every harness holds (`journey.Terminal.between`), the
-watch being what listens for the session; and no Stop hook has continued a turn with
-input, so each turn ends on its own answer, no delivery shows in the terminal, and
-Leaf put no empty wake or notice in the conversation (`ClaudeCode.between`). A
+After each step the journey requires what every harness must hold between steps
+(`journey.Terminal.between`), with the watch as what listens for the session; and
+that no Stop hook has continued a turn with input, so each turn ends on its own
+answer, no delivery shows in the terminal, and Leaf put no empty wake or notice in
+the conversation (`ClaudeCode.between`). A
 comment a fork answered while the session was idle enters its context only at its
 next prompt, so `fork-idle`'s counts from `fork-busy` on. Escape runs no Stop hook,
 so it leaves the turn open, and the watch its prompt started, which waits while that

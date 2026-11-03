@@ -23,9 +23,10 @@ as `journey.Terminal` has them:
   Escape, then enters a fresh run and is answered automatically;
 - `quit`, by closing Pi's stdin.
 
-Between steps, what holds on every harness holds (`journey.Terminal.between`), the
-watch being what listens for Pi's session. Pi's stderr joins the run's evidence. It
-spends a few model turns on the host's Codex login, so CI does not run it.
+After each step the journey requires what every harness must hold between steps
+(`journey.Terminal.between`), with the watch as what listens for Pi's session. Pi's
+stderr joins the run's evidence. It spends a few model turns on the host's Codex
+login, so CI does not run it.
 """
 
 import itertools

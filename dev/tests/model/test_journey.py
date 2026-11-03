@@ -58,7 +58,10 @@ def test_journey_declares_automation_after_a_user_preview_starts(
         tmp_path, tmp_path, tmp_path, page_dir, tmp_path, evidence
     )
     monkeypatch.setattr(journey, "running_server", lambda page: {"url": "http://page/"})
-    with journey.user_at(None, place, journey.Terminal(), time.monotonic()):
+    terminal = journey.Terminal()
+    # The setup step's checks read a session's claim, which this page has none of.
+    monkeypatch.setattr(terminal, "passed", lambda *args, **kwargs: None)
+    with journey.user_at(None, place, terminal, time.monotonic()):
         contexts = read_interactions(page_dir, types=("run_context",))
         assert [row["purpose"] for row in contexts] == ["user-review", "automated"]
         assert contexts[-1]["run"] == str(evidence)

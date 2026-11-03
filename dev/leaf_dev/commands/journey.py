@@ -26,10 +26,11 @@ A harness target runs this working tree's plugin in a session of its own, under 
 throwaway home holding only the host's login, and the journey is also the terminal:
 it asks for the page to be served (`setup`), types the user's turns, presses Escape,
 and kills what a crash would. Around `release` each harness module runs the steps
-its harness can take, and after each checks what holds between steps on every
-harness (`Terminal.between`): every comment so far has one reply and entered the
-session's context, the page's claim names the session with its turn closed, Leaf
-listens for the session, and the page server titled each new comment's thread. A
+its harness can take, and after each, setup included, checks what holds between
+steps on every harness (`Terminal.between`): every comment the steps so far have
+named has one reply and entered the session's context, the page's claim names the
+session with its turn closed, Leaf listens for the session, and the page server
+titled the thread of each comment the step named. A
 website target runs `release` alone, since only a terminal can start a turn or
 interrupt one. What the harnesses share lives here: their
 isolation and its evidence (`isolated`), the session the journey hears through every
@@ -710,8 +711,8 @@ class Terminal:
     supplies: `session`, the harness's id for the session, which the page's claim
     names, and its primitives `say`, `work`, `hear`, `idle`, `listening`, and, where
     the harness has them, `press_escape` and `leave`. A harness module runs the
-    shared steps its harness takes among steps of its own, and records each once
-    what holds between steps does (`passed`).
+    shared steps its harness takes among steps of its own, and records each with
+    `passed`, which first requires what holds between steps (`between`).
 
     Every wait in a harness journey goes through `hear`, the release ask's included
     (`Session.pause`), so whatever the user at the terminal answers is answered
@@ -720,7 +721,8 @@ class Terminal:
     that reports it as it goes keeps in `trace`; `approved` holds the permission
     prompts answered since the last step; `running_commands` and `commands` are the
     shell commands it is running and has run, where the harness reports them;
-    `counted` names the comments `between` checks, by their steps' names."""
+    `counted` holds the comments the steps so far have named, by the names of the
+    steps that sent them."""
 
     session: str
 
@@ -818,17 +820,19 @@ class Terminal:
     def between(
         self, page: Path, name: str, comments: dict[str, str] | None = None
     ) -> list[str]:
-        """Require what holds between steps, once step `name` has added `comments`
-        (each step's name and its comment's id) to those counted: every comment
-        counted answered once and picked up, with `page` claimed by the session and
-        its turn closed (`settled`), Leaf listening for the session, and the page
-        server's title on each of `comments`' threads (`titled`). Returns the lines
-        the step's record prints of it. A harness extends it with what holds between
-        its own steps besides."""
+        """Require what holds after step `name`, which names `comments` (each by the
+        step that sent it, with its id): every comment the steps so far have named
+        answered once and picked up, with `page` claimed by the session and its turn
+        closed (`settled`), Leaf listening for the session, and the page server's
+        title on each of `comments`' threads (`titled`). Returns the lines the step's
+        record prints of it. A harness extends it with what holds between its own
+        steps besides."""
         comments = comments or {}
         self.counted |= comments
         settled(page, self.session, self.counted)
-        self.until(self.listening, f"{name}: Leaf does not listen for the session")
+        # A watch may start a moment after the turn that answered ends, as Claude
+        # Code's background Stop hook starts one.
+        self.until(self.listening, f"{name}: Leaf does not listen for the session", 60)
         return [
             f"`{step}` {self.titled(page, step, thread)}"
             for step, thread in comments.items()
@@ -844,8 +848,8 @@ class Terminal:
         detail: str | None = None,
     ) -> None:
         """Record step `name`, begun at `started`, with `detail` if any, once what
-        holds between steps does (`between`), counting from now on the comments the
-        steps named `comments` sent."""
+        holds between steps does (`between`), with `comments` naming, by the steps
+        that sent them, the comments that must hold from this step on."""
         lines = self.between(page, name, {each: user.ids[each] for each in comments})
         user.passed(name, started, *lines, *([detail] if detail else []))
 
@@ -868,13 +872,14 @@ class Terminal:
 
     def setup(self, page: Path, request: str = REQUEST) -> None:
         """`setup`: the user asks for `page` to be served (`request`), and the session
-        serves it, ending its turn with what holds between steps (`between`)."""
+        serves it, ending its turn with Leaf listening for its input. The step is
+        recorded, once what holds between steps does, where the user comes in
+        (`user_at`)."""
         self.say(request)
         self.settle(
             lambda: running_server(page) is not None and self.listening(),
             "setup: the page was not served with Leaf listening for the session",
         )
-        self.between(page, "setup")
 
     def release(self, user: User) -> None:
         """`release`: the journey's timed ask (`User.release`), sent while the session
@@ -1060,8 +1065,8 @@ def user_at(
 ) -> Generator[User]:
     """The user at the page `terminal`'s session serves, at the end `browser` gives
     them: in Chrome where there is one (`BrowserEnd`), else posting as the page's tab
-    does (`HttpEnd`). Records the setup step, begun at `started`, and keeps the
-    session's trace as evidence however the journey ends."""
+    does (`HttpEnd`). Records the setup step, begun at `started` (`Terminal.passed`),
+    and keeps the session's trace as evidence however the journey ends."""
     record_run_context(place.page, purpose="automated", run=place.evidence)
     server = running_server(place.page)
     assert server is not None
@@ -1086,7 +1091,7 @@ def user_at(
         end, checkout_version(), lambda: read_events(place.page), terminal, forks
     )
     try:
-        user.passed("setup", started)
+        terminal.passed(user, place.page, "setup", started)
         yield user
     finally:
         with (place.evidence / "trace.jsonl").open("w") as trace:

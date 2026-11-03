@@ -44,11 +44,12 @@ listens for the task between turns:
 - `restart`: with the adapter killed, the user's next turn ends with the agent having
   started it again, and a comment sent afterwards is answered.
 
-After each step, what holds on every harness holds (`journey.Terminal.between`),
-the rich comments aside, with the task's adapter as what listens for the task; and
-the page's claim names the task's last turn, by App Server's id for it, so the
-prompt hook and the adapter agree on one identity, and the page answers at the keyed
-URL it had after setup (`Codex.between`).
+After each step the journey requires what every harness must hold between steps
+(`journey.Terminal.between`), with the task's adapter as what listens for the task,
+over every comment but the rich ones; and that the page's claim names the task's
+last turn, by App Server's id for it, so the prompt hook and the adapter agree on
+one identity, and that the page answers at the keyed URL it had after setup
+(`Codex.between`).
 
 With `--preview`, setup runs the canonical `leaf-dev preview --user` command instead.
 Every step retains its acquisition and the preview's watcher. A last step,

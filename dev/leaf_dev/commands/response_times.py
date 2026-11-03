@@ -34,18 +34,18 @@ no current claim or timestamp proximity supplies this identity.
 Every answered input carries the time the answering session's `leaf` commands
 took on it (`leaf_commands_s`), from the `leaf_command` record each writes in the
 page (`leaf.interaction_log.record_command`), on any harness: those that started
-between the harness taking the input and the answer. Where the reply's breakdown
-(below) reads the transcript, the harness took it at the boundary the breakdown
-finds; elsewhere at its opened pickup, else its admission, which leaves out a
+between the harness taking the input and the answer. Where the input has a reply
+breakdown (below), the harness took it at the boundary the breakdown finds;
+elsewhere at its opened pickup, else its admission, which leaves out a
 command the agent ran before acknowledging a pointer it read itself. Where the
 answering session's record can be read, the input also carries its reply's breakdown
 (`reply`, `reply_phases.reply_breakdown`): the whole reply, Leaf's share of it
 (delivery and those commands), the harness's other work before it took the input,
 idle time between its turns, and the model's time and calls. Its case is `working`
 where a turn was running at the admission, so the harness took the input at that
-turn's next tool boundary or its end, else `waiting`. A reply a fork of the
-conversation wrote (`leaf.forks`) has none, since the session spent nothing on it.
-This command reads a Claude Code session's transcript still in this machine's Claude
+turn's next tool boundary or its end, else `waiting`. An input a fork of the
+conversation answered (`leaf.forks`) has none, nor a pickup wait (below), since the
+session spent nothing on it and takes it only later. This command reads a Claude Code session's transcript still in this machine's Claude
 Code projects (`transcript_of`), which times no request or first output, so the
 model's time stays unsplit; other harnesses' inputs carry no breakdown, and the
 summary's reply rows count them missing. `leaf-dev journey` reads the record of the
@@ -415,8 +415,12 @@ def page_timings(
             for command in commands
             if answered is not None and command["session"] == answered["session"]
         ]
-        row["reply"] = breakdown(row, mine, records, forked)
-        row["pickup"] = waited(row, watches, records)
+        # A reply a fork of the conversation wrote took nothing of the session's,
+        # which takes the input only later, so neither its reply nor its pickup
+        # waited on the session.
+        forks = answered is not None and answered["event_id"] in forked
+        row["reply"] = None if forks else breakdown(row, mine, records)
+        row["pickup"] = None if forks else waited(row, watches, records)
         # From where the harness took the input, so a working harness's
         # commands for the work it was busy with stay out.
         took = row["milestones"].get("opened", {}).get("at", row["admitted_at"])
@@ -434,19 +438,14 @@ def page_timings(
     }
 
 
-def breakdown(
-    row: dict, commands: list[dict], records: Records, forked: set[str]
-) -> dict | None:
+def breakdown(row: dict, commands: list[dict], records: Records) -> dict | None:
     """The answered input's reply breakdown, with its case, where `records` reads
-    the answering session's record and the session wrote the answer, not a fork of
-    its conversation (`forked`, the replies forks wrote); `commands` are its
-    session's `leaf_command` records."""
+    the answering session's record; `commands` are its session's `leaf_command`
+    records."""
     milestones = row["milestones"]
     if "answered" not in milestones or "opened" not in milestones:
         return None
     answered = milestones["answered"]
-    if answered["event_id"] in forked:
-        return None
     read = records(answered)
     if read is None:
         return None

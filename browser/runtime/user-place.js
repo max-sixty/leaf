@@ -107,9 +107,10 @@ let settledSinceArrival = false;
 watchScrollEnds(() => {
   settledSinceArrival = true;
 });
-// A node the runtime replaced handing focus to its successor is the same place.
+// A node the runtime replaced handing focus to its successor is the same place, and
+// focus a change dropped to the body arrives nowhere until its owner hands it back.
 onCurrentLocation((node, cause) => {
-  if (cause !== "return") settledSinceArrival = false;
+  if (cause !== "return" && cause !== "drop") settledSinceArrival = false;
 });
 export function focusScrolledAway() {
   if (!settledSinceArrival) return false;

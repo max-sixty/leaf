@@ -30,8 +30,9 @@ command is unavailable the press reaches no other Leaf command. A text field kee
 characters, composition, caret movement and deletion, and a native control keeps its
 activation press, ahead of any widget or page scope around it (`dispatch.js`). While
 the user has scrolled the focused control out of sight, a key other than typing or
-Escape resolves as though focus stood on the page, so nothing acts on what they can't
-see (`dispatch.js`). A key
+Escape skips the scopes focus puts them in and reaches only the page's own, so no Leaf
+command acts on what they can't see; the browser still activates a native control
+(`dispatch.js`). A key
 typed into one of Leaf's fields, a `leaf-text` or a search box, stops at the field once
 the field and the dispatcher have read it there (`field-keys.js`), so the page never
 hears it bubble, and any other Leaf listener that needs keys typed into a field listens

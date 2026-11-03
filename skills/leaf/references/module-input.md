@@ -118,8 +118,8 @@ naming a `control` Leaf clicks, so other keys pass outward. A row keeps its key 
 different meaning further out; an unavailable Escape, though, passes on to the next
 Escape. Text fields keep their editing keys ahead of every widget scope. While the user
 has scrolled the focused control out of sight, its widgets' scopes don't answer: a key
-other than typing or Escape goes to the page, so a key never acts on what the user can't
-see.
+other than typing or Escape goes to the page, so a widget's command never acts on what
+the user can't see. A native control keeps the browser's own Enter and Space.
 
 A menu or other scope that covers the page gives `allButCommandReference` as its
 declaration's `claims`, so the page's keys wait while the user is in it and only the

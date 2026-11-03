@@ -13,12 +13,13 @@
    Focus stays on a control the user has scrolled out of sight (user-place.js,
    `focusScrolledAway`), but Leaf's keys don't act there, since a user reading something
    else would settle, choose or toggle what they can't see. While it is away, `stack`
-   resolves as though focus stood on the page: the focused control's element scopes and
-   every page scope rooted at it (a page scope about the focused control declares
-   `root: focused`) leave, and the page's keys answer. A text field keeps its keys, since
-   typing brings its box back (off-flow.js), and Escape keeps every scope, so letting go
-   lands the user where they are reading. The control's native claims stay: the browser
-   still activates it, and no outer row may add to that press.
+   leaves out the focused control's element scopes and every page scope rooted at it (a
+   page scope about the focused control declares `root: focused`), so only the page's
+   own keys answer; a page command still reads where it starts from focus
+   (current-target.js). A text field keeps its keys, since typing brings its box back
+   (off-flow.js), and Escape keeps every scope, so letting go lands the user where they
+   are reading. The control's native claims stay: the browser still activates a native
+   control on its own press, and no outer row may add to that press.
 
    Leaf must not block standard platform or browser shortcuts. A handler prevents a
    default only after a Leaf command owns the complete modified press; secondary clicks

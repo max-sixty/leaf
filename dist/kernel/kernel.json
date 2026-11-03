@@ -250,7 +250,7 @@
 
     "runtime/keyboard/disclosure.js": "60a1824e09eafb26a9c92eede13cb7641442419310fa12ff49d440298191d6df",
 
-    "runtime/keyboard/dispatch.js": "e4125c7354291b8f5890827d44c471ab118a21094eaad77d080e2cc9e77eff9e",
+    "runtime/keyboard/dispatch.js": "a8cd6a9ca0dd5ffae0765738bc75337e9d2d418e84fc2cfd359487b9cbc1334e",
 
     "runtime/keyboard/go-to-sequence.js": "795d9acaae7f2c17d9fa0b0ee15fce07be5aa7f2f3c334bb8bd0f613754d7b1e",
 
@@ -528,7 +528,7 @@
 
     "runtime/user-intent.js": "91a05c1dc0c6061110958f2715488e62a68088e9d807545c5796d85f7c8cf9f7",
 
-    "runtime/user-place.js": "c046769c6dcbc2ec6c042be4a59c7a1d5a9169c3ee843a902096b60cfe8adb4d",
+    "runtime/user-place.js": "74029dc735ce7f4b7394aeea834598119a1a0838dfea482601ac5fc4f71e54fe",
 
     "runtime/user-view.js": "fea258d7c282cce9202d0220af60532034cc3ef3da5adf53513483f0ff10a022",
 

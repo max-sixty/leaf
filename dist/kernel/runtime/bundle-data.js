@@ -1160,7 +1160,7 @@ watchScrollEnds(() => {
 	settledSinceArrival = true;
 });
 onCurrentLocation((node, cause) => {
-	if (cause !== "return") settledSinceArrival = false;
+	if (cause !== "return" && cause !== "drop") settledSinceArrival = false;
 });
 function focusScrolledAway() {
 	if (!settledSinceArrival) return false;

@@ -147,7 +147,6 @@ from leaf_dev.commands.journey import (
     User,
     fork_summary,
     isolated,
-    recorded_steps,
     user_at,
 )
 from leaf_dev.reply_phases import (
@@ -786,13 +785,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, *, forks: bool) -> None:
             bool(took) and took[0] in (turn, last),
             "fork-work: neither the user's turn nor the next picked the request up",
         )
-        events = read_events(page)
-        times = recorded_steps(
-            events, next(event for event in events if event["id"] == work), None
-        )
-        first = min(
-            at for at in (times["progress"], times["replied"]) if at is not None
-        )
+        first = user.end.timings()[work]["milestones"]["first_reply"]["elapsed_s"]
         where = "the user's turn" if took[0] == turn else "the next turn"
         step(
             "fork-work",

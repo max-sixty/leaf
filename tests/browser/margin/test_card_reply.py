@@ -33,6 +33,9 @@ from render_harness import (
 
 from browser.margin import (
     CARD_AND_REPLY,
+    CARD_AT_REST,
+    CARD_OUTLINE,
+    CARD_RELEASED,
     COMMENT_ON_OBLIGATION,
     DRAFTING_CARD,
     LONG_THREAD,
@@ -358,12 +361,6 @@ def test_a_margin_reply_send_shows_the_sent_turn(browser, serve, place):
     assert reading["shown"], reading
 
 
-# Whether the margin card's motion has ended (box-motion.js).
-CARD_AT_REST = (
-    "() => !document.querySelector('.lf-margin-preview').getAnimations({subtree: true})"
-    ".some(a => Number.isFinite(a.effect?.getComputedTiming().endTime))"
-)
-
 # Where the card's outline, its head row and each turn are drawn now: the outline as its
 # surface's ring is cut (box-motion.js), the rest by their boxes.
 CARD_DRAWN = """card => {
@@ -534,13 +531,6 @@ def test_a_press_on_a_moving_card_reaches_what_it_aims_at(browser, serve):
     expect(preview).to_be_hidden()
 
 
-# Every motion held at its first frame is finished, until the card rests.
-CARD_RELEASED = (
-    "() => { window.__lfHeld.splice(0).forEach(motion => motion.finish());"
-    " return (" + CARD_AT_REST + ")(); }"
-)
-
-
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_line_that_changes_the_edge_holding_a_card_moves_it_from_where_it_stood(
     engine, request, serve
@@ -602,6 +592,90 @@ def test_a_line_that_changes_the_edge_holding_a_card_moves_it_from_where_it_stoo
     rest = preview.evaluate(CARD_DRAWN)
     assert rest[0] > held_up[0] + 5, f"the line went and the card stayed: {rest}"
     assert drawn == pytest.approx(held_up, abs=1), f"{held_up} -> {drawn}"
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_card_a_scroll_moves_onto_or_off_the_windows_foot_as_it_resizes_only_resizes(
+    engine, request, serve
+):
+    """A card that a scroll moves in the frame it changes size starts its motion where
+    its placement would have stood it at its old size, so no frame draws it past the
+    window's foot or cuts its head row. Taken off the foot as it grew, the card was drawn
+    with its foot already at rest and grew up to its head, half its head row hidden at
+    first. Carried past the foot as it shrank, it was drawn below the window's foot for
+    a frame and rose back to it, whether or not the foot held it before or after."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(LOW_PASSAGE_PAGE, events=[LONG_THREAD_ROOT]),
+    )
+    page.emulate_media(reduced_motion="no-preference")
+    resized(page, 1440, 900)
+    page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_be_visible()
+    editor = preview.get_by_role("textbox", name="Reply", exact=True)
+    editor.click()
+    write(editor, "A first line.")
+    transcript = preview.locator(".lf-thread-transcript")
+
+    def foot_after_scrolling(by):
+        page.evaluate("by => document.scrollingElement.scrollBy(0, by)", by)
+        scroll_settled(page)
+        rendered(page)
+        page.wait_for_function(CARD_AT_REST)
+        return preview.evaluate(CARD_OUTLINE)[1]
+
+    def scroll_resizing(by, padding):
+        """Where the card's outline is drawn at the first frame of the motion a scroll
+        and a change of its size in one frame start, and where it rests."""
+        transcript.evaluate(
+            """(node, [by, padding]) => new Promise(done => requestAnimationFrame(() => {
+              document.scrollingElement.scrollBy(0, by);
+              node.style.paddingBottom = padding;
+              done();
+            }))""",
+            [by, padding],
+        )
+        page.wait_for_function(
+            "() => window.__lfHeld.some(motion => motion.playState !== 'idle')"
+        )
+        drawn = preview.evaluate(CARD_OUTLINE)
+        page.wait_for_function(CARD_RELEASED)
+        return drawn, preview.evaluate(CARD_OUTLINE)
+
+    def standing(passage, padding):
+        """The card at rest, a `padding` taller, with its passage's top at `passage`."""
+        transcript.evaluate(
+            "(node, padding) => { node.style.paddingBottom = padding; }", padding
+        )
+        top = page.locator("#open").evaluate("node => node.getBoundingClientRect().top")
+        page.evaluate("by => document.scrollingElement.scrollBy(0, by)", top - passage)
+        scroll_settled(page)
+        rendered(page)
+        page.wait_for_function(CARD_RELEASED)
+        return preview.evaluate(CARD_OUTLINE)
+
+    # The passage at the window's foot stands the card against it. A scroll down, with
+    # the card a little taller, stands it beside its passage by its head; a scroll back,
+    # at its old size, against the foot again.
+    page.locator("#open").evaluate("node => node.scrollIntoView({block: 'end'})")
+    held = foot_after_scrolling(0)
+    page.evaluate("() => {" + HOLD_MOTION + "}")
+    drawn, rest = scroll_resizing(200, "20px")
+    assert rest[1] < held - 20, f"still held at the foot: {rest}, {held}"
+    assert drawn[0] == pytest.approx(rest[0], abs=1), f"{drawn} -> {rest}"
+    assert drawn[1] < rest[1] - 5, f"its growth did not travel: {drawn} -> {rest}"
+    drawn, rest = scroll_resizing(-200, "0px")
+    assert rest[1] == pytest.approx(held, abs=1), f"held nowhere: {rest}, {held}"
+    assert drawn[1] == pytest.approx(held, abs=1), f"{drawn} -> {rest}"
+    # A card the foot holds for its height, and one standing beside its passage, each
+    # carried down by a scroll up as it shrinks to fit beside its passage: at its old
+    # size the foot would still hold it.
+    for passage, padding, by in [(650, "141px", -50), (600, "121px", -60)]:
+        stood = standing(passage, padding)
+        drawn, rest = scroll_resizing(by, "0px")
+        assert rest[1] < held - 20, f"still held at the foot: {stood} -> {rest}"
+        assert drawn[1] <= held + 1, f"past the foot: {stood} -> {drawn} -> {rest}"
 
 
 def test_a_growing_margin_reply_keeps_its_whole_ring_from_the_first_frame(

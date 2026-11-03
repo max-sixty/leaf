@@ -1,4 +1,4 @@
-import { LAYOUT, TEXT_FIELD, Z, afterScript, atScrollEnd, beginWalk, cancelAnimation, cancelRender, clamp, closeLayer, closestAcross, coarsePointer, currentLocationIn, declareRelease, drawn, focusDestination, focused, generatedElement, handBack, holdFocus, inChrome, inputCount, keepFoot, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, listWalkPosition, move, moveScrollerBy, nativeLayerHolding, nextAnimation, nextRender, offerAction, offeredActionElement, onCurrentLocation, onPressAway, onUserInput, pageScroller, pressLed, renderedOrder, renderedUnder, retainUserIntent, rightCover, ringBox, roomPx, rove, rowArrows, scrollLimit, scrollToEnd, seenRect, setChildLists, setChildren, shownBox, shownParts, shownWindow, showsContents, sizeObserver, skipped, slotTop, tabStops, tabStore, under, union, visibleFocus, watchRoom } from "./bundle-portable.js";
+import { LAYOUT, TEXT_FIELD, Z, afterScript, atScrollEnd, beginWalk, cancelAnimation, cancelRender, clamp, closeLayer, closestAcross, coarsePointer, currentLocationIn, declareRelease, drawn, focusDestination, focused, generatedElement, handBack, holdFocus, inChrome, inputCount, keepFoot, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, listWalkPosition, move, moveScrollerBy, nativeLayerHolding, nextAnimation, nextRender, offerAction, offeredActionElement, onCurrentLocation, onPressAway, onUserInput, pageScroller, pressLed, renderedOrder, renderedUnder, retainUserIntent, rightCover, ringBox, roomPx, rove, rowArrows, scrollLimit, scrollToEnd, seenRect, setChildLists, setChildren, shownBox, shownParts, shownWindow, showsContents, skipped, slotTop, tabStops, tabStore, under, union, visibleFocus, watchRoom } from "./bundle-portable.js";
 import { bareReaction, closeControl, cycledRow, el, hostIn, html, keys, nativePress, notice, pageRange, paintKeys, paintKeysWithin, render, repaint, sameAnchor, turns } from "./bundle-errors.js";
 import { setRuntimeRootAttribute } from "./bundle-layer-client.js";
 import { chromeForeground, chromeRoot, exactTarget, passageGeometry, pointBand, proseRect, rangeGeometry, readingRegionFor, registerReadingRegion, scrollerFor, targetElement, targetParts, targetRange, targetSegments, targetSurface, visualAt, windowHoldsRail } from "./bundle-content-layout.js";
@@ -7,7 +7,7 @@ import { blockAt, elementFromPointAcross, labelWords, pageWords, quoteFrom, rang
 import { anchorLabel, arrivalOf, carryingThreadPlace, claimSeatReplies, claimed, currentLocationThreadId, declareOffFlowSurface, declareSide, keepThreadLanding, pageCommand, pageRung, pageScope, pageSelection, placeKeeper, releaseAuthoredUnder, releaseReplies, revealHeld, rowWalk, selectionAnchor, showReturnTurn, threadFocusDestination, threadIdNamed, threadNamed } from "./bundle-data.js";
 import { SVG_NS, activateContributionControl, awaitingUser, canFold, choosePrimary, clearContributionControls, clusterProjection, contributionEntry, contributionEntryRecord, contributionEntrySource, dropStand, entryEngaged, entryHasMarginHost, focusedOfferOf, markerFace, materializeContributionControls, optionsOffered, outlineChange, paintGeometry, paintShape, paintStand, placement, presentContributionEntry, presentContributionReceipts, primaryReading, readingBehavior, readingChoices, readingContext, readingFace, readingKey, readingLabel, readingState, spokenContext, spokenSubject, standOver, syncContributionSelection, syncContributionUnread, threadReading, unreadIn } from "./bundle-page-layout.js";
 import { boxMotion, paintTrace } from "./bundle-box-motion.js";
-import { THREAD_CARD, cardMeasure, cardMinimum, commentAttachment, commentBoundary, commentPlacement, commentReference, floatingGeometry, floatingPlacement, floatingSelections, floatingUi, heldEdges, layoutMarginRows, makeRoom, marginColumn, mountMarginLayer, paintedBox, registerMarginRow, scheduleMarginEntryLabels, scheduleMarginLayout, standsFolded, standsWithheld, syncMarginContentLayout, unregisterMarginRow } from "./bundle-comment-placement.js";
+import { THREAD_CARD, cardMeasure, cardMinimum, commentAttachment, commentBoundary, commentPlacement, commentReference, floatingGeometry, floatingPlacement, floatingSelections, floatingUi, layoutMarginRows, makeRoom, marginColumn, mountMarginLayer, paintedBox, registerMarginRow, scheduleMarginEntryLabels, scheduleMarginLayout, standsFolded, standsWithheld, syncMarginContentLayout, unregisterMarginRow } from "./bundle-comment-placement.js";
 
 //#region runtime/annotation-overlay/surface-grip.js
 const SLOP = 3;
@@ -267,26 +267,21 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 	});
 	const face = el("div", "lf-margin-preview-card");
 	face.append(previewList);
-	const followCard = () => {
-		if (!preview.hasAttribute("data-lf-thread-placement")) return following.forget();
-		following.follow();
-	};
-	const followed = sizeObserver(() => {
-		const session = previewSession;
-		if (session && preview.hasAttribute("data-lf-thread-placement") && !preview.hasAttribute("data-lf-carried")) placedThreadPreview(session).then((stands) => stands && followCard());
-		else followCard();
-	});
 	const following = boxMotion({
 		root: face,
 		box: face,
 		surface: "lf-margin-preview-ground",
 		lift: 3,
 		outset: 0,
-		observer: followed,
-		held: () => heldEdges(preview)
+		placement: {
+			held: () => placementDriver.held(),
+			place: () => {
+				const session = previewSession;
+				return session !== null && preview.hasAttribute("data-lf-thread-placement") && !preview.hasAttribute("data-lf-carried") && placeNow(session);
+			}
+		}
 	});
 	preview.append(following.ground, carry.grip, face);
-	followed.observe(face);
 	const opener = () => previewSession?.control?.checkVisibility() ? previewSession.control : null;
 	const onOpener = () => Boolean(opener()) && focused() === opener();
 	const stopsBeside = (root, at, side) => tabStops(root).filter((stop) => stop !== at && !renderedUnder(at, stop) && Math.sign(renderedOrder(stop, at)) === side);
@@ -401,11 +396,14 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 	});
 	const placedThreadPreview = (session) => {
 		session.positionResult ??= Promise.withResolvers();
-		cancelRender(session.positionFrame);
-		session.positionFrame = 0;
-		placeThreadPreview();
+		placeNow(session);
 		return session.positionResult.promise;
 	};
+	function placeNow(session) {
+		cancelRender(session.positionFrame);
+		session.positionFrame = 0;
+		return placeThreadPreview();
+	}
 	function forgetThreadPreviewPlacement(session) {
 		placementDriver.supersede();
 		cancelRender(session.positionFrame);
@@ -597,11 +595,17 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 			session.reading = null;
 			const { scale } = session.side.landed(position);
 			anchored.commit();
+			const anew = !session.followed;
+			if (anew) {
+				session.followed = true;
+				if (session.sent) following.drawnAt(session.sent.field);
+			}
 			following.placed(() => {
 				const moved = placementDriver.stand(position);
 				carry.placed();
+				keeps(preview, "data-lf-thread-placement", THREAD_SIDES[side]);
 				return moved;
-			});
+			}, anew);
 			session.width ??= preview.getBoundingClientRect().width;
 			preview.style.removeProperty("visibility");
 			session.withheldFocus?.();
@@ -618,12 +622,6 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 				};
 				for (const [edge, cut] of Object.entries(cuts)) preview.style.setProperty(edge, layoutPx(Math.max(cut, -following.shadowReach())));
 			} else for (const edge of CUT_EDGES) preview.style.removeProperty(edge);
-			keeps(preview, "data-lf-thread-placement", THREAD_SIDES[side]);
-			if (!session.followed) {
-				session.followed = true;
-				if (session.sent) following.drawnAt(session.sent.field);
-				followCard();
-			}
 			keepThreadLanding(previewList.querySelector(".lf-page-thread"));
 			session.positionResult?.resolve(true);
 			session.positionResult = null;
@@ -2639,19 +2637,6 @@ function createFloatingResponsePlacement({ bar: fabBar, input: fabInput, respons
 	fabBar.append(carry.grip);
 	const fabField = () => response.composition().field;
 	let following = null;
-	const readFab = () => {
-		if (!following && !response.open) return;
-		if (!response.floating || !fabBar.hasAttribute("data-lf-placement")) return following?.forget();
-		following ??= fabMotion();
-		following.follow();
-	};
-	const followed = sizeObserver(() => {
-		if (following && response.open && fabBar.hasAttribute("data-lf-placement")) {
-			nativeAttachment = false;
-			if (placeFab()) return;
-		}
-		readFab();
-	});
 	function fabMotion() {
 		const box = fabField();
 		const composer = response.composition().frame.parentElement;
@@ -2661,11 +2646,16 @@ function createFloatingResponsePlacement({ bar: fabBar, input: fabInput, respons
 			surface: "lf-fab-ground",
 			lift: 1,
 			outset: 0,
-			observer: followed,
-			held: () => heldEdges(fabBar)
+			placement: {
+				held: fabPosition.held,
+				place: () => {
+					if (!response.open || !fabBar.hasAttribute("data-lf-placement")) return false;
+					nativeAttachment = false;
+					return placeFab();
+				}
+			}
 		});
 		fabBar.prepend(motion.ground);
-		followed.observe(composer);
 		return motion;
 	}
 	let selectedPassage = null;
@@ -2703,7 +2693,6 @@ function createFloatingResponsePlacement({ bar: fabBar, input: fabInput, respons
 		cancelRender(fabPositionFrame);
 		fabPositionFrame = 0;
 		if (!reset) return;
-		following?.forget();
 		editingAttachment = null;
 		windowPosture = false;
 		fabPlacement.forget();
@@ -2896,7 +2885,7 @@ function createFloatingResponsePlacement({ bar: fabBar, input: fabInput, respons
 			return fabPosition.position(ui.computePosition, commentReference(place, reference), {
 				placement,
 				middleware
-			}, response.open && seatedOwner ? () => "page" : plane, seatedOwner ?? document.documentElement);
+			}, response.open && seatedOwner ? "page" : plane, seatedOwner ?? document.documentElement);
 		}).then((position) => {
 			if (!position || !stillCurrent()) return;
 			fabPlacement.landed(position);
@@ -2907,12 +2896,12 @@ function createFloatingResponsePlacement({ bar: fabBar, input: fabInput, respons
 				carry.placed();
 				return moved;
 			};
+			if (response.open) following ??= fabMotion();
 			if (following) following.placed(stand);
 			else stand();
 			nativeAttachment = response.open && fabPosition.follows();
 			positioned(true);
 			stoodAgain();
-			readFab();
 			return true;
 		}).catch((error) => {
 			if (!stillCurrent()) return;

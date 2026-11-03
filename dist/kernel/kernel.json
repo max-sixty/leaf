@@ -112,7 +112,7 @@
 
     "runtime/composing/region-selector.js": "0bfebe31d5c136c57b472a7f2ee59ed8b16ae4941641fb17ab11a0af575b1d5b",
 
-    "runtime/composing/selection.js": "391bd9fb7f9c46e3374144f918866a2f6d5eaaea818fed9eff104c244644fc9b",
+    "runtime/composing/selection.js": "53814bcc95743dbdac9f1a67b36b58003b33259a7ad8e839f2a2c4efd2c5abea",
 
     "runtime/composing/surface.js": "f709a43c27f0d4abc5a4d6cf4448b6fc578cad2aedee379bb96b0c103225f17e",
 
@@ -260,7 +260,7 @@
 
     "runtime/keyboard/key-sequence.js": "8e8267e99d0a548b70bab70ae60322b5f014b8270c161faa2a6da71632c60fbd",
 
-    "runtime/keyboard/layer-stack.js": "5592683a5ccb2a37d0745d7d3644c3b90217215a0a6b5d5e9b188a2f676bfbd7",
+    "runtime/keyboard/layer-stack.js": "be892cd8fd8c46e6607e40a451cfae7aec816a897b1e28c96fbd84381c428d04",
 
     "runtime/keyboard/page.js": "01dae6e54679ee95e73f3c8cc0459a732d7ae910b16a5b9a043784343514822f",
 
@@ -384,7 +384,7 @@
 
     "runtime/reach.js": "ac35eb1364566a694d001d2bd760c3db54fa663219c7644d9ea752a78c4b9816",
 
-    "runtime/reactions.js": "edfb2b954e91fb5d36b496e698f4d8a848e92494a44dd891f796aefadd4d548f",
+    "runtime/reactions.js": "6182c5790fdbd2cd4aa719f2134447ba5aaa7d360fea54454d92eea18908d5b7",
 
     "runtime/reading-continuity.js": "cef989af886deaa24e32727730263b4d522a3d33a8bfd9c87f4ca29b6f9e36c4",
 
@@ -494,7 +494,7 @@
 
     "runtime/thread/primary-reader.js": "f68874ccc664cd0802e0ca93505dc49403ffd2eb6cf61df58735b142af4345b1",
 
-    "runtime/thread/reaction-strips.js": "a92d9dbd306d0368d8ac1aca0225243f73e0119144bd0a8df6494744d20d28de",
+    "runtime/thread/reaction-strips.js": "265039b7ebb4d17af176e15952e5416d667bea82eb6fb0695222b6d44be3171c",
 
     "runtime/thread/read.js": "11e054c67fb5e54a54e297bd3f7589d30580c52759506af5b2bcf37db438b85f",
 

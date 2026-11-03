@@ -60,7 +60,8 @@ export class ReactionStripView {
   }
 
   // The list's trigger, which registers the strip with each button it draws: a reply
-  // whose reactions go and come back draws a new one.
+  // whose reactions go and come back draws a new one. Its `aria-expanded` is the layer
+  // stack's to keep as the list opens and closes (keyboard/layer-stack.js).
   trigger = html`<button
     ${offeredAction("symbol", "lf-msg-control lf-react-trigger", undefined, {
       action: "react",

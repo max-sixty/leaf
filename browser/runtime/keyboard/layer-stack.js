@@ -23,15 +23,17 @@
    module cannot hear, so it never reaches the stack; `shadowStage` is the declared route
    for a widget's shadow tree.
 
-   Where a control opens its layer declaratively, this module also does what that
-   opening owes the control. The platform's return on closing, like `closeNativeLayer`'s,
-   hands the user back to wherever focus stood as the layer opened, and Safari and
-   Firefox on macOS leave a pressed button unfocused, so a press puts the user on the
-   control before its layer opens. A scripted opening names its source only for the
-   platform's nesting and leaves focus where its caller put it. A control that declares
-   `aria-expanded` has it kept here through every opening and closing, light dismissal
-   included, so its face can follow it. The widget moves the user into the layer, where
-   it has a control to land on, from its `toggle` event.
+   Where a press on a declarative control (`popovertarget`, `commandfor`) opens a layer,
+   this module also does what that press owes the control. The platform's return on
+   closing, like `closeNativeLayer`'s, hands the user back to wherever focus stood as
+   the layer opened, and Safari and Firefox on macOS leave a pressed button unfocused,
+   so the press puts the user on the control before its layer opens. Any other opening
+   that names a source, a scripted one or one a hover starts, leaves focus where it
+   was. The platform reports a declarative control as expanded while its layer is
+   open, so such a control declares no `aria-expanded`. A scripted opener's control
+   gets no such report, so it declares `aria-expanded`, and this module keeps it
+   through every opening and closing, light dismissal included. The widget moves the
+   user into the layer, where it has a control to land on, from its `toggle` event.
 
    Every read prunes first, and an entry whose surface no longer stands is removed
    wherever it sits, so a dialog closed by script beneath another layer cannot linger as
@@ -107,9 +109,10 @@ let entries = [];
 const watchedRoots = new WeakSet();
 const nativeDialogShowModal = HTMLDialogElement.prototype.showModal;
 const nativePopoverShow = HTMLElement.prototype.showPopover;
-// The popover a `showPopover` call is opening, while it opens: its `beforetoggle` is a
-// scripted opening rather than a press on its control.
-/** @type {HTMLElement | null} */
+// The popover a `showPopover` call is opening, and the source the call names, while it
+// opens: its `beforetoggle` is a scripted opening rather than a press on its control,
+// and the call names its source in an engine whose event doesn't carry it.
+/** @type {{layer: HTMLElement, source: Element | null} | null} */
 let scripted = null;
 
 /** @param {Element | null | undefined} control @param {boolean} open */
@@ -200,7 +203,7 @@ HTMLElement.prototype.showPopover = function (options) {
   const opening = nativeLayerKind(this) !== "popover";
   const entry = opening ? pushNativeLayer(this) : null;
   const was = scripted;
-  scripted = this;
+  scripted = { layer: this, source: options?.source ?? null };
   try {
     nativePopoverShow.call(this, options);
   } finally {
@@ -368,11 +371,13 @@ export function watchLayers(root) {
       !event.target.matches("[popover], dialog")
     )
       return;
-    const { source } = event;
+    const call = scripted?.layer === event.target ? scripted : null;
+    const source = event.source ?? call?.source ?? null;
     if (event.type === "beforetoggle") {
       if (
-        event.target !== scripted &&
+        !call &&
         source instanceof HTMLElement &&
+        source.matches("[popovertarget], [commandfor]") &&
         canPlaceFocus() &&
         focused() !== source
       )

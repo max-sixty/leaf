@@ -405,7 +405,6 @@ export class ShotView {
               })}
               type="button"
               popovertarget=${optionsId}
-              aria-expanded="false"
             ></button>
             <button
               ${ref(this.outlineRef)}

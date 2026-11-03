@@ -517,7 +517,6 @@ customElements.define(
                   ? html`<button
                         ${offeredAction("word", "lf-vr-open-threads")}
                         popovertarget=${`${this.id}-${record.id}-threads`}
-                        aria-expanded="false"
                       >
                         ${threads.length} ${threads.length === 1 ? "thread" : "threads"}
                       </button>
@@ -576,7 +575,6 @@ customElements.define(
                 ${offeredAction("word", "lf-vr-inspect")}
                 aria-controls=${`${this.id}-${record.id}-inspection`}
                 popovertarget=${`${this.id}-${record.id}-inspection`}
-                aria-expanded="false"
               >
                 Capture details
               </button>

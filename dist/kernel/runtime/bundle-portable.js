@@ -2813,7 +2813,10 @@ HTMLDialogElement.prototype.showModal = function() {
 HTMLElement.prototype.showPopover = function(options) {
 	const entry = nativeLayerKind(this) !== "popover" ? pushNativeLayer(this) : null;
 	const was = scripted;
-	scripted = this;
+	scripted = {
+		layer: this,
+		source: options?.source ?? null
+	};
 	try {
 		nativePopoverShow.call(this, options);
 	} finally {
@@ -2917,9 +2920,10 @@ function watchLayers(root) {
 	watchedRoots.add(root);
 	const opened = (event) => {
 		if (event.newState !== "open" || !(event.target instanceof HTMLElement) || !event.target.matches("[popover], dialog")) return;
-		const { source } = event;
+		const call = scripted?.layer === event.target ? scripted : null;
+		const source = event.source ?? call?.source ?? null;
 		if (event.type === "beforetoggle") {
-			if (event.target !== scripted && source instanceof HTMLElement && canPlaceFocus() && focused() !== source) focusDestination(source, "press");
+			if (!call && source instanceof HTMLElement && source.matches("[popovertarget], [commandfor]") && canPlaceFocus() && focused() !== source) focusDestination(source, "press");
 			keepExpanded(source, true);
 		}
 		pushNativeLayer(event.target, source);

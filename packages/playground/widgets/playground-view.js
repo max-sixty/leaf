@@ -534,7 +534,6 @@ export function createPlayground(host) {
             ${revealOffer}
             popovertarget=${instructionId}
             aria-controls=${instructionId}
-            aria-expanded="false"
           ></button>
           <button ${submitOffer} data-room=${submitRoom}>
             ${submitWords(chosen())}

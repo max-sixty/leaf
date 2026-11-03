@@ -354,7 +354,6 @@ export function createReactionController({
     // The platform hands focus back to the opener as the list closes, the layer's own
     // return (focus.js).
     if (picker) closeNativeLayer(picker.palette);
-    picker?.trigger.setAttribute("aria-expanded", "false");
   }
 
   // A page picker lives in the target's shared margin entry options and therefore owns its
@@ -445,7 +444,6 @@ export function createReactionController({
         reactDeparture = whenNone([picker.trigger], seen, () => {
           if (reactSurface === opened) setReact(false);
         });
-        picker.trigger.setAttribute("aria-expanded", "true");
         const first =
           surface &&
           reactFrom() === picker.trigger &&

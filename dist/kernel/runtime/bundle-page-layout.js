@@ -3198,7 +3198,6 @@ function createSelectionComposer({ setReact, reactionTokens, reactionAvailable, 
 		}
 		if (next) setReact(false);
 		responseOptionsOpen = next;
-		keeps(fabOptionsTrigger, "aria-expanded", String(next));
 		if (next) showNativeLayer(fabOptions, { source: fabOptionsTrigger });
 		else closeNativeLayer(fabOptions);
 		if (next && focus) focusResponseOption(focus);
@@ -4421,7 +4420,6 @@ function createReactionController({ marginEntryChoices, marginEntryContextContai
 		reactDeparture = null;
 		const picker = pickerFor(surface);
 		if (picker) closeNativeLayer(picker.palette);
-		picker?.trigger.setAttribute("aria-expanded", "false");
 	}
 	function syncReactLayout() {
 		return reactArmed && reactSurface === marginSurface;
@@ -4485,7 +4483,6 @@ function createReactionController({ marginEntryChoices, marginEntryContextContai
 				reactDeparture = whenNone([picker.trigger], seen, () => {
 					if (reactSurface === opened) setReact(false);
 				});
-				picker.trigger.setAttribute("aria-expanded", "true");
 				const first = surface && reactFrom() === picker.trigger && picker.palette.querySelector(".lf-react");
 				if (first) focusDestination(first, "move");
 			}

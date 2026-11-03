@@ -7363,11 +7363,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		}));
 		const next = wanted.length ? [...main?.children ?? []].filter((block) => !holding.has(block) && !block.matches("hgroup, header, h1")) : [];
 		host.toggleAttribute("data-onme-side", candidateOf("opens", "foot") === "side" && showing({ view: "queue" }) && queueTab === "you");
-		for (const [name, today] of [
-			["items", "space"],
-			["heads", "caption"],
-			["lone", "heading"]
-		]) {
+		for (const [name, today] of [["items", "space"], ["heads", "caption"]]) {
 			const value = candidateOf(name, today);
 			if (value === today) host.removeAttribute(`data-onme-${name}`);
 			else host.setAttribute(`data-onme-${name}`, value);
@@ -7896,7 +7892,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const waits = (item) => lists.you.some((current) => current === item);
 		const groups = onMe.groups(listed, grouping, held).map((group) => ({
 			...group,
-			headed: group.items.length > 1,
+			headed: group.items.length > 1 || candidateOf("lone", "heading") === "group",
 			count: group.items.filter(waits).length
 		}));
 		const onPageWaiting = onPage.filter((item) => lists.you.includes(item)).length;

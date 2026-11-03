@@ -3320,7 +3320,6 @@ export function createFloatingPanel({
     for (const [name, today] of /** @type {const} */ ([
       ["items", "space"],
       ["heads", "caption"],
-      ["lone", "heading"],
     ])) {
       const value = candidateOf(name, today);
       if (value === today) host.removeAttribute(`data-onme-${name}`);
@@ -4213,7 +4212,9 @@ export function createFloatingPanel({
     const waits = (item) => lists.you.some((current) => current === item);
     const groups = onMe.groups(listed, grouping, held).map((group) => ({
       ...group,
-      headed: group.items.length > 1,
+      // PROTOTYPE: or every group, one of a single card included, as the user asked
+      // (3 November) of a list that groups at all.
+      headed: group.items.length > 1 || candidateOf("lone", "heading") === "group",
       count: group.items.filter(waits).length,
     }));
     // Another grouping draws the list afresh: every card moves, and moving each keyed

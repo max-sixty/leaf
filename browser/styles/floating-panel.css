@@ -1723,41 +1723,37 @@
   .lf-floating-panel[data-onme-items="box"] .lf-rows-head + .lf-fp-on-item[data-card] {
     margin-top: 4px;
   }
-  /* A group starts with room above it and a rule darker than an item's: under its
-     heading, set in the ink at a pane title's size, or over the card that stands alone
-     in it, which names the group itself. */
+  /* A group starts at a rule darker than an item's, with room above it: over its
+     heading, set in the ink at a pane title's size, or over a card that stands alone in
+     it and names the group itself. The rule stands above, where a list parts what
+     follows from what came before, as the panel's menu, its plan's goals and a
+     heading's room (controls.css, `.lf-rows-head`) all do; a rule under a heading is a
+     framed box's head bar (a pane's header, a text document's caption). */
   .lf-floating-panel[data-onme-heads="ruled"] {
     --lf-fp-group-rule: color-mix(in srgb, var(--ink) 24%, transparent);
   }
   .lf-floating-panel[data-onme-heads="ruled"] .lf-fp-on-list > .lf-rows-head {
     font: var(--font-title);
     color: var(--ink);
-    padding-bottom: 6px;
-    border-bottom: 1px solid var(--lf-fp-group-rule);
   }
   .lf-floating-panel[data-onme-heads="ruled"] .lf-fp-on-rule {
     display: none;
   }
   .lf-floating-panel[data-onme-heads="ruled"]
     .lf-fp-on-list
-    > .lf-fp-on-item[data-lone]:not(:first-child) {
-    margin-top: 22px;
+    > :is(.lf-rows-head, .lf-fp-on-item[data-lone]):not(:first-child) {
+    margin-top: 14px;
+  }
+  .lf-floating-panel[data-onme-heads="ruled"]
+    .lf-fp-on-list
+    > .lf-rows-head:not(:first-child) {
+    padding-top: 12px;
+    border-top: 1px solid var(--lf-fp-group-rule);
   }
   .lf-floating-panel[data-onme-heads="ruled"]:not([data-onme-items="box"])
     .lf-fp-on-list
     > .lf-fp-on-item[data-lone]:not(:first-child) {
     border-top: 1px solid var(--lf-fp-group-rule);
-  }
-  .lf-floating-panel[data-onme-heads="ruled"]
-    .lf-fp-on-list
-    > .lf-rows-head:not(:first-child) {
-    margin-top: 22px;
-  }
-  .lf-floating-panel[data-onme-heads="ruled"]
-    .lf-fp-on-list
-    > .lf-rows-head
-    + .lf-fp-on-item[data-card] {
-    padding-top: 10px;
   }
   .lf-floating-panel[data-onme-heads="ruled"]
     .lf-fp-on-list
@@ -1778,12 +1774,6 @@
   .lf-fp-on-list .lf-fp-settled::before {
     order: 1;
     margin: 0 0 0 8px;
-  }
-  /* A card alone in its group names it as a line of its own card, in the small muted
-     face a qualifier takes, rather than in a heading's. */
-  .lf-floating-panel[data-onme-lone="caption"] .lf-fp-on-place {
-    font: var(--font-small);
-    color: var(--muted);
   }
   /* PROTOTYPE: On me beside the page, at the window's end edge and nearly its full
      height, as wide as the room right of the column, where that room holds it; else at

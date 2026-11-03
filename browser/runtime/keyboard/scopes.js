@@ -547,7 +547,7 @@ function forgetScopedElement(el) {
  *
  * Registering at upgrade rather than at module load is what keeps the reference honest:
  * a module stays loaded after the last element it upgraded leaves — a version activation
- * replaces main, a panel body is rebuilt — so a scope declared at the top level would go
+ * replaces the page's content, a panel body is rebuilt — so a scope declared at the top level would go
  * on as reference content for a widget the page no longer has. The dispatch scope leaves through the weak map; the
  * enumerable reference prunes its element when it disconnects. A connected control that
  * stops answering a key says so in the row's `when`, where every surface can read it.

@@ -523,6 +523,9 @@ export function createFloatingResponsePlacement({
               withholdFab();
           },
         });
+        // We could consider, in future, placing the open box again on every scroll, as
+        // the card is: it would then need no "page" here, and floating.js no exception
+        // for a box its owner keeps in the page's plane.
         return fabPosition.position(
           ui.computePosition,
           commentReference(place, reference),

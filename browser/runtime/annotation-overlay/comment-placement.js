@@ -588,7 +588,9 @@ export function commentPlacement() {
     // stand, so chrome beside it takes none of its height (`commentBoundary`). The last
     // one read when the surface reads its answer (`plane`) is the room the answer stood
     // in. floating.js solves the placement again at the box's old size only after that
-    // (`position`), and that solve writes it again.
+    // (`position`), and that solve writes it again. We could consider, in future,
+    // returning `shown` and `heldIn` in the answer's middleware data, so `plane` reads
+    // the answer it is given and the order of the two solves stops mattering.
     /** @type {DOMRectReadOnly} */
     let shown = boundary;
     /** @param {MiddlewareState} state */

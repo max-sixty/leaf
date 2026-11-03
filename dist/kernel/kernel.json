@@ -28,13 +28,13 @@
 
     "runtime/annotation-overlay/check-api.js": "e329869cd53d08ea0a8e423cc6a7fe1fbb22311cc172881aacc5f9274051b5c7",
 
-    "runtime/annotation-overlay/comment-placement.js": "e783f070cd876d42a5f5d11b9951334fb7c62cffff8fc883d4ee67491292432c",
+    "runtime/annotation-overlay/comment-placement.js": "e0453305a1cc674d4e7d862ff44238fe101fb16fe5b659be0da3678ebf2329a0",
 
     "runtime/annotation-overlay/composing/drawing-paint.js": "f6572dc7150298b4589a708d55127a161777fbfb69058df1b099e6addcb4eb47",
 
-    "runtime/annotation-overlay/composing/floating-response.js": "693f39e49016a7689fca86c18872b24369ba4c553e5843b903102c1801ed77b5",
+    "runtime/annotation-overlay/composing/floating-response.js": "2f679769f2716534fa5de5d4a4139a25cc08cbdc66a652fc397b0347a7a11fa7",
 
-    "runtime/annotation-overlay/floating.js": "5c6cdcc985a2d98dfc829036f56e0190a5ec0bc98398baf645c8d7d6d857ef99",
+    "runtime/annotation-overlay/floating.js": "a34bdc409e84210bb91579939cfa6122a6de848aa8c31ac89f95226d6fe10608",
 
     "runtime/annotation-overlay/index.js": "972d2a085dfbbaf3de835649bd4e9ee7b6b0dd2df18dbc2f2d2ebbd15a91d1e0",
 
@@ -66,7 +66,7 @@
 
     "runtime/bounds.js": "742f1c9c975e07158a67af844f8cfc30a1ec62f5dd2aa79d0e59d7525c8b93c3",
 
-    "runtime/box-motion.js": "3cd064cf890fd7e96b130bdeb5479418c5fc76bb1bbfa6439515c520c59e638d",
+    "runtime/box-motion.js": "84fa197b914559ee910977d558e4b0f1475c10d11bc8bf979f1b92dedbbf58ec",
 
     "runtime/canvas.js": "4188e5964c5084984c95709501b31b380c6af31b38859820646704b1f03d09ae",
 

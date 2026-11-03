@@ -179,6 +179,11 @@ function listen() {
 // observers in the order they were made, so that observer reads the box's new size
 // after this one. Delivered before it, as a motion's own observer made when the box
 // first stood was, it read the old size and Chromium reported the new one as a loop.
+// We could consider, in future, making this the only observer that asks a placed box's
+// placement for a change of its size: Floating UI's watch (`autoUpdate`'s
+// `elementResize`) asks too, and observes the reference with the same option, so its
+// owners would have to observe the reference another way. The order observers are
+// made in would then stop mattering.
 /** @type {WeakMap<Element, () => void>} */
 const readers = new WeakMap();
 const placedParts = sizeObserver((entries) => {

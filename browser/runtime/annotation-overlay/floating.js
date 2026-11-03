@@ -307,7 +307,11 @@ export function floatingPlacement({ floating, update }) {
   /** @type {PlacementProof | null} */
   let placementProof = null;
   // What holds the box where its last placement stood it (`held`), and the size it
-  // stood at, in positioning pixels.
+  // stood at, in positioning pixels. We could consider, in future, keeping `stood` for a
+  // placement with no proof too, so `held` reads its edges rather than this copy, and
+  // having box-motion hand the placement the size it last read, so one place holds the
+  // box's old size: the two differ where a reading takes a resize no placement answers,
+  // as while the grip carries a card.
   /** @type {Held | null} */
   let holding = null;
   /** @type {{width: number, height: number} | null} */

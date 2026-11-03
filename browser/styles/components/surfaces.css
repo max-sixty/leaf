@@ -325,9 +325,10 @@ a[data-lf-external]::after,
     0 0 0 max(0px, var(--lf-mark-gap)) var(--lf-aim-veil);
 }
 /* A gesture's mark is brackets: the box clips the middle of its outline's top and
-   bottom runs, leaving 8px at each end. The cut stands outside the box only, so a mark
-   that stands inside the box draws whole, and the box's own paint is never cut. A
-   focused or arrived-at box draws its ring whole. */
+   bottom runs, leaving 8px at each end. The clip cuts only the band the mark takes, so
+   outside the box it cuts nothing but what overflows into the band, and inside it, as
+   round a row, it shows what stands behind the box's own edge there. A focused or
+   arrived-at box draws its ring whole. */
 :where(
   :is(.lf-aimed, .lf-traced, [data-lf-mark]):not(
     .lf-projected-location,
@@ -344,19 +345,17 @@ a[data-lf-external]::after,
     calc(100% + 9999px) calc(100% + 9999px),
     -9999px calc(100% + 9999px),
     -9999px -9999px,
-    calc(8px - var(--lf-mark-room)) min(0px, calc(-0.5px - var(--lf-mark-room))),
-    calc(100% + var(--lf-mark-room) - 8px) min(0px, calc(-0.5px - var(--lf-mark-room))),
-    calc(100% + var(--lf-mark-room) - 8px) min(0px, calc(0.5px - var(--lf-mark-gap))),
-    calc(8px - var(--lf-mark-room)) min(0px, calc(0.5px - var(--lf-mark-gap))),
-    calc(8px - var(--lf-mark-room)) min(0px, calc(-0.5px - var(--lf-mark-room))),
+    calc(8px - var(--lf-mark-room)) calc(-0.5px - var(--lf-mark-room)),
+    calc(100% + var(--lf-mark-room) - 8px) calc(-0.5px - var(--lf-mark-room)),
+    calc(100% + var(--lf-mark-room) - 8px) calc(0.5px - var(--lf-mark-gap)),
+    calc(8px - var(--lf-mark-room)) calc(0.5px - var(--lf-mark-gap)),
+    calc(8px - var(--lf-mark-room)) calc(-0.5px - var(--lf-mark-room)),
     -9999px -9999px,
-    calc(8px - var(--lf-mark-room)) max(100%, calc(100% + var(--lf-mark-gap) - 0.5px)),
-    calc(100% + var(--lf-mark-room) - 8px)
-      max(100%, calc(100% + var(--lf-mark-gap) - 0.5px)),
-    calc(100% + var(--lf-mark-room) - 8px)
-      max(100%, calc(100% + var(--lf-mark-room) + 0.5px)),
-    calc(8px - var(--lf-mark-room)) max(100%, calc(100% + var(--lf-mark-room) + 0.5px)),
-    calc(8px - var(--lf-mark-room)) max(100%, calc(100% + var(--lf-mark-gap) - 0.5px)),
+    calc(8px - var(--lf-mark-room)) calc(100% + var(--lf-mark-gap) - 0.5px),
+    calc(100% + var(--lf-mark-room) - 8px) calc(100% + var(--lf-mark-gap) - 0.5px),
+    calc(100% + var(--lf-mark-room) - 8px) calc(100% + var(--lf-mark-room) + 0.5px),
+    calc(8px - var(--lf-mark-room)) calc(100% + var(--lf-mark-room) + 0.5px),
+    calc(8px - var(--lf-mark-room)) calc(100% + var(--lf-mark-gap) - 0.5px),
     -9999px -9999px
   );
 }
@@ -526,7 +525,7 @@ button.lf-inline-action,
   &::after {
     content: "";
     position: absolute;
-    inset: min(0px, (100% - var(--aim-floor)) / 2);
+    inset: (100% - var(--aim-floor)) / 2;
   }
 }
 /* A symbol or mark on a vendor control, Copy, takes its press on its button part, so
@@ -536,7 +535,7 @@ button.lf-inline-action,
 :is(.lf-icon-action, .lf-mark-action).lf-ui::part(button)::after {
   content: "";
   position: absolute;
-  inset: min(0px, (100% - var(--aim-floor)) / 2);
+  inset: (100% - var(--aim-floor)) / 2;
 }
 /* A native summary retains its list marker and centers its content within the
    target floor. Extra hit area surrounds the label rather than trailing it. */

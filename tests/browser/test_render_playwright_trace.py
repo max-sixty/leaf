@@ -825,17 +825,15 @@ def test_trace_overview_shows_every_row_and_preserves_page_scrolling(browser, se
             expect(position).not_to_have_text(before)
             rendered(user)
             assert ruler.evaluate_all(ruler_reading) == time_window
-        assert widget.locator(".lf-trace-caption").evaluate(
-            "node => parseFloat(getComputedStyle(node).fontSize) >= 12"
-        )
-        assert ruler.first.evaluate(
-            "node => parseFloat(getComputedStyle(node).fontSize) >= 12"
-        )
-        assert ruler.first.evaluate(
-            "node => getComputedStyle(node).color"
-        ) == widget.locator(".lf-trace-caption").evaluate(
-            "node => getComputedStyle(node).color"
-        )
+        # The ruler's labels and the caption are one kind of small fact, set in
+        # one font and ink.
+        small_type = """node => {
+          const style = getComputedStyle(node);
+          return [style.fontSize, style.fontFamily, style.color];
+        }"""
+        assert ruler.first.evaluate(small_type) == widget.locator(
+            ".lf-trace-caption"
+        ).evaluate(small_type)
 
 
 def test_trace_pointer_annotation_stays_inside_the_panned_image_viewport(

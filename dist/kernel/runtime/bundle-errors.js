@@ -1,6 +1,6 @@
 import { __exportAll } from "./bundle-rolldown-runtime.js";
 import { ANNOUNCE, CARET_KEYS, COMMANDS, J, PRESS, PRESSES, ROLE_BUTTON_OFFER, W, WORKS, Z, actionTemplate, bindQueuedWork, coarsePointer, commandsChangedOn, controlNavigationKeys, d, focusDestination, focusRevision, holdFocus, installLanguagePaths, installMoveFocus, isElement, isHTML, isNativeLayer, isStage, keeps, liveStages, move, nextRender, offer, offerAction, onCurrentLocation, onFocusVisibility, onUserInput, pressIsKeyboardActivation, refuseCommands, renderedParent, renderedUnder, shadowHost, showNativeLayer, takesLetters, tick, under, watchCurrentLocationIn, x } from "./bundle-portable.js";
-import { AsyncDirective, LitElement as LitElement$1, PartType as PartType$1, directive as directive$1, guard, html as html$1, keyed, live as live$1, noChange, nothing as nothing$1, ref, render as render$1, repeat } from "/vendor/lit.js";
+import { AsyncDirective, LitElement as LitElement$1, PartType as PartType$1, directive as directive$1, guard, html, html as html$1, keyed, live as live$1, noChange, nothing as nothing$1, ref, render as render$1, repeat } from "/vendor/lit.js";
 
 //#region runtime/move-focus.js
 installMoveFocus({
@@ -620,14 +620,46 @@ const sending = (turn) => ({
 	reason: "workflow",
 	workflow: turn.id
 });
+function unedited(thread, message, withdrawn) {
+	const { edited, ...rest } = message;
+	if (!edited || !withdrawn.has(edited.id)) return message;
+	const revisions = thread.revisions.filter((edit) => edit.message === message.id);
+	const at = revisions.findIndex(({ id }) => id === edited.id);
+	const before = revisions.slice(0, at).findLast(({ id }) => !withdrawn.has(id));
+	if (!before) return {
+		...rest,
+		text: edited.was,
+		content_version: message.id
+	};
+	const { id, ts, was } = before;
+	return {
+		...rest,
+		text: edited.was,
+		content_version: id,
+		edited: "seq" in before ? {
+			id,
+			seq: before.seq,
+			ts,
+			was
+		} : {
+			id,
+			ts,
+			was
+		}
+	};
+}
 function foldThreads(threads, gestures) {
 	if (!gestures.length) return [...threads];
 	const withdrawn = new Set(gestures.flatMap((gesture) => gesture.kind === "undo" ? [gesture.undoes] : []));
-	const copies = threads.filter((thread) => !withdrawn.has(thread.root.id)).map((thread) => ({
-		...thread,
-		msgs: thread.msgs.filter((message) => !withdrawn.has(message.id)),
-		...thread.resolved && "id" in thread.resolved && withdrawn.has(thread.resolved.id) ? { resolved: null } : {}
-	}));
+	const copies = threads.filter((thread) => !withdrawn.has(thread.root.id)).map((thread) => {
+		const msgs = thread.msgs.filter((message) => !withdrawn.has(message.id)).map((message) => unedited(thread, message, withdrawn));
+		return {
+			...thread,
+			root: msgs.find(({ id }) => id === thread.root.id) ?? thread.root,
+			msgs,
+			...thread.resolved && "id" in thread.resolved && withdrawn.has(thread.resolved.id) ? { resolved: null } : {}
+		};
+	});
 	const byName = threadNames(copies);
 	const opened = [];
 	for (const gesture of gestures) if (gesture.kind === "comment") {
@@ -840,7 +872,7 @@ function voiceOf(words) {
 	const [voice = null] = voices;
 	return voices.size === 1 ? voice : null;
 }
-const voiced = (words) => runOf(words).map((part) => typeof part === "string" ? part : html$1`<span data-voice=${part.voice}>${part.text}</span>`);
+const voiced = (words) => runOf(words).map((part) => typeof part === "string" ? part : html`<span data-voice=${part.voice}>${part.text}</span>`);
 
 //#endregion
 //#region runtime/queues.js

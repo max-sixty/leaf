@@ -37,7 +37,7 @@ import { contractTypes, protocolSchemas } from "./contract-types.mjs";
 import { baselineSchemas, protocolBreaks } from "./protocol.mjs";
 import { litNamespace, litPath } from "../lit.mjs";
 import { styleOutputs } from "../styles.mjs";
-import { kernelOutputs } from "../runtime-bundle.mjs";
+import { kernelOutputs, signalsPath } from "../runtime-bundle.mjs";
 import { adapt, seam, vendorOutputs, vendorTypePaths } from "../vendor.mjs";
 import { bundledPackages, checkModule, licenseNotices } from "./shipped.mjs";
 
@@ -50,8 +50,6 @@ const typeRoot = "browser/types";
 const compilerPathsFile = `${typeRoot}/tsconfig.paths.json`;
 const litTypesFile = `${typeRoot}/lit.d.ts`;
 const packageRoot = "packages";
-/** The layer path of the framework's signals, which the kernel compiles in. */
-export const signalsPath = "vendor/signals-core.js";
 
 /** Package directories in deterministic order, shared by paths and build ownership. */
 async function packageDirectories(directory) {

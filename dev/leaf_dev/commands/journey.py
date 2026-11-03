@@ -800,17 +800,26 @@ class Terminal:
     def titled(self, page: Path, name: str, thread: str) -> str:
         """How `page`'s server titled `thread`, step `name`'s comment's, from the
         record it made in its diagnostics, hearing the session for as long as the
-        request may take. A thread's title says nothing of who made it; this says the
-        page server did."""
+        request may take, or fails with the error its record of a failed request
+        names. A thread's title says nothing of who made it; this says the page
+        server did."""
         deadline = time.monotonic() + TITLE_PATIENCE
         while True:
-            for record in read_interactions(page, types=("thread_title_generated",)):
-                if record.get("thread") == thread:
-                    return (
-                        f"titled in {record['durationMs']} ms by {record['model']}, "
-                        f"{record['inputTokens']} input tokens"
-                        + (f", ${record['costUsd']:.5f}" if "costUsd" in record else "")
+            for record in read_interactions(
+                page, types=("thread_title_generated", "thread_title_failed")
+            ):
+                if record.get("thread") != thread:
+                    continue
+                if record["type"] == "thread_title_failed":
+                    raise click.ClickException(
+                        f"the page server failed to title `{name}`'s thread: "
+                        f"{record['error']} {record.get('detail', '')}".strip()
                     )
+                return (
+                    f"titled in {record['durationMs']} ms by {record['model']}, "
+                    f"{record['inputTokens']} input tokens"
+                    + (f", ${record['costUsd']:.5f}" if "costUsd" in record else "")
+                )
             if time.monotonic() > deadline:
                 raise click.ClickException(
                     f"the page server did not title `{name}`'s thread"

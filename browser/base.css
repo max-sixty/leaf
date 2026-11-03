@@ -110,6 +110,22 @@
    offer/said declaration is fixed where the label is created, not by naming its widget
    in print CSS. */
 
+/* The chrome's root stands after `body` (leaf.js), a stacking context at the largest
+   z-index there is. A box the page writes can at most tie with it, and a tie paints in
+   tree order, where nothing in `body` follows it; so it paints over every page box,
+   whatever stacking contexts the page makes, and the page rises over Leaf only through
+   the top layer (the ladder, styles/tokens.css). Its box is empty at the origin and
+   takes no room; Leaf positions its surfaces against the document or the viewport. It
+   inherits from the root, as `body` does, so what the two share is declared there
+   (`:root`, below). */
+:root > .lf-chrome {
+  position: absolute;
+  inset: 0 auto auto 0;
+  z-index: 2147483647;
+  width: 0;
+  height: 0;
+}
+
 :root {
   /* The root and body are important against the page's own rules (body, below): Leaf's
      document-anchored paint takes the initial containing block as its origin, so neither
@@ -237,7 +253,13 @@
  * not become a containing block, and the foot's room pads it, which the live body's
  * minimum (below) fills the window with only at border-box. It is the shell, the
  * inline-size container a narrow column and a widget's `100cqi` ask (`lf-shell`,
- * page-layout.js).
+ * page-layout.js). */
+body {
+  position: static !important;
+  box-sizing: border-box !important;
+  container: lf-shell / inline-size;
+}
+/* What the page's body and Leaf's chrome after it both inherit from the root.
  *
  * A run with nothing to break on breaks anyway rather than painting outside the box that
  * was holding it, over whatever stands beside that box or past the window, where the
@@ -247,11 +269,8 @@
  * metric's headline was the one with no width to spare at all, and a twelve-character
  * value ran 287px out of a 138px card and across whatever the grid had put beside it.
  */
-body {
-  position: static !important;
-  box-sizing: border-box !important;
+:root {
   overflow-wrap: break-word;
-  container: lf-shell / inline-size;
 }
 /* Read only by the root's own `scroll-padding-bottom`, so it does not inherit: the
  * panel's every change of height then restyles the root alone. */
@@ -290,8 +309,12 @@ body {
     );
     /* The foot's room is the body's own end, where content growing above it only
      * lengthens the body: a box standing after the content would move with each growth.
-     * A page of parts makes it the open part's end instead (layouts.css). */
+     * A page of parts makes it the open part's end instead (layouts.css). The head's
+     * room is the body's own start the same way, padding rather than a box, so a page
+     * that lays its body out as a grid or flex row of header, nav and main finds no
+     * item of Leaf's among its own. */
     body {
+      padding-top: var(--lf-head-room);
       padding-bottom: var(--lf-foot-room);
     }
     /* Every live body but a block sample's (below) fills the window less its own
@@ -304,11 +327,6 @@ body {
      * the band. */
     &:not([data-lf-sample-block]) body {
       min-height: stretch;
-    }
-    body::before {
-      content: "";
-      display: block;
-      height: var(--lf-head-room);
     }
   }
   html[data-lf-live][data-lf-layout~="workspace"] {
@@ -359,16 +377,18 @@ body {
     display: none !important;
   }
   @media screen {
+    /* The chrome's root follows body (above), so it reads body's stamp as a sibling. */
     html[data-lf-interactive] body:not([data-lf-presented]),
-    html[data-lf-interactive] body:not([data-lf-presented]) > main,
-    html[data-lf-interactive] body:not([data-lf-presented]) > main *,
-    html[data-lf-interactive] body:not([data-lf-presented]) .lf-ui {
+    html[data-lf-interactive] body:not([data-lf-presented]) *,
+    html[data-lf-interactive] body:not([data-lf-presented]) ~ .lf-chrome,
+    html[data-lf-interactive] body:not([data-lf-presented]) ~ .lf-chrome * {
       transition: none !important;
     }
     /* A declared shadow tree cannot see body's stamp, so transition suppression
      * reaches it as an inherited property its startup rule queries
      * (styles/shadow-leading.css). */
-    html[data-lf-interactive] body:not([data-lf-presented]) {
+    html[data-lf-interactive] body:not([data-lf-presented]),
+    html[data-lf-interactive] body:not([data-lf-presented]) ~ .lf-chrome {
       --lf-before-presentation: 1;
     }
     /* A sample document paints once its containing page has said what it wears
@@ -383,10 +403,12 @@ body {
 }
 /* The keys a served page's bootstrap holds until presentation (runtime/bootstrap.js).
  * It stands centred on the band where the floating panel's row will rest, and is styled
- * here because it can appear before the runtime has adopted chrome.css. */
+ * here because it can appear before the runtime has adopted chrome.css. It stands after
+ * `body` at the chrome root's z-index and follows that root, so it paints over the page
+ * and the panel's row alike (`:root > .lf-chrome`, above). */
 .lf-held-keys {
   position: fixed;
-  z-index: var(--lf-z-held-keys);
+  z-index: 2147483647;
   pointer-events: none;
   right: calc(18px + var(--lf-safe-right));
   bottom: calc(
@@ -449,13 +471,9 @@ body {
  * page's own CSS. Leaf sets none of its geometry, nor the body's, so a page with no
  * Layout lays out as the browser lays out any page. What stays here is what Leaf's chrome
  * coordinates with and draws nothing: the name a margin element asks the page's
- * readings by, with no Layout, and the stacking
- * context that keeps the page beneath Leaf's ladder (`--lf-z-*`, above). A stacking
- * context also isolates blending, so a page box's `mix-blend-mode` blends with what
- * `main` paints and not with the paper behind it. */
+ * readings by, with no Layout. Stacking and blending stay the page's: the chrome
+ * stacks over the page from outside `body`. */
 main {
-  position: relative;
-  z-index: 0;
   container-name: lf-content-frame;
 }
 
@@ -995,6 +1013,15 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   border-color: color-mix(in srgb, var(--ink) 34%, var(--paper));
   color: var(--lf-entry-ink, var(--ink-2));
   box-shadow: none;
+}
+/* A change's entry opens its card, a disclosure, but wears an action's raised face, so
+   the one press beside a change reads as a press (margin-bars.js); the user chose it on
+   3 November over the flatter disclosure face. */
+.lf-margin-face[data-lf-behavior="disclosure"][data-lf-kinds="change"] {
+  border-width: 2px;
+  border-color: var(--border-2);
+  color: var(--lf-entry-ink, var(--ink));
+  box-shadow: var(--lf-entry-lift);
 }
 .lf-margin-face[data-lf-behavior="status"] {
   border-color: var(--rule);

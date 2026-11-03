@@ -61,14 +61,10 @@ from leaf.validation.admission import (
     revision_publication,
 )
 from leaf.validation.instances import reference_errors
-from leaf_dev.example_data import regression_sources
+from leaf_dev.example_data import authored_sources
 
-PUBLIC_EXAMPLES = tuple(
-    path for path in sorted((ROOT / "examples").glob("*.html")) if path.stem != "corpus"
-)
 FEATURE_GALLERY = ROOT / "examples" / "developer" / "feature-gallery.html"
-DEVELOPER_PAGES = tuple(sorted((ROOT / "examples" / "developer").glob("*.html")))
-CORPUS_SOURCES = (*PUBLIC_EXAMPLES, *regression_sources(), *DEVELOPER_PAGES)
+CORPUS_SOURCES = tuple(authored_sources())
 
 
 def authored_tags(document: SourceDocument) -> set[str]:

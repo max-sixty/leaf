@@ -448,7 +448,6 @@ def test_corpus_preview_follows_authored_sources(tmp_path, monkeypatch, capsys):
     """Native source events regenerate the corpus before its live page is refreshed."""
     from leaf.data import read_data
     from leaf.registry.storage import load_registry
-    from leaf_dev.commands import corpus
     from leaf_dev.example_data import data_file, named_source, page_files
 
     examples = tmp_path / "examples"
@@ -458,7 +457,6 @@ def test_corpus_preview_follows_authored_sources(tmp_path, monkeypatch, capsys):
     docs.mkdir()
     (docs / "examples.html").write_text("")
     (tmp_path / "tests/fixtures/pages").mkdir(parents=True)
-    monkeypatch.setattr(corpus, "DEVELOPER_SOURCES", ())
     source = examples / "reading.html"
     source.write_text(
         "<html><head><title>Reading</title></head><body><main><h1>Before</h1>"

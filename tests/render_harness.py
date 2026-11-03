@@ -81,7 +81,7 @@ from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import scheme as render_gate_model
 from leaf_dev import browser as dev_browser
 from leaf_dev.browser import ON_ME_MARK, scroll_settled, slow_cpu, threads_tab
-from leaf_dev.example_data import regression_sources
+from leaf_dev.example_data import authored_sources
 from leaf_dev.page_fixtures import (
     example_media,
     leaf_in_process,
@@ -183,11 +183,10 @@ assert EXAMPLES, "no examples found — parametrizing over an empty list tests n
 FEATURE_GALLERY = ROOT / "examples" / "developer" / "feature-gallery.html"
 assert FEATURE_GALLERY.is_file(), "the developer feature gallery is missing"
 DEVELOPER_PAGES = tuple(sorted((ROOT / "examples" / "developer").glob("*.html")))
-# The inputs `leaf-dev corpus` composes. The corpus is a generated presentation of
-# the public pages plus the feature gallery, not another author source. Every authored-
-# content sweep uses this source set, while public-site tests read the top-level glob.
+# The inputs `leaf-dev corpus` composes. Every authored-content sweep uses this
+# source set, while public-site tests read the top-level glob.
 PUBLIC_EXAMPLES = tuple(EXAMPLES)
-CORPUS_SOURCES = (*PUBLIC_EXAMPLES, *regression_sources(), *DEVELOPER_PAGES)
+CORPUS_SOURCES = tuple(authored_sources())
 
 PASSAGE_SOURCES = (
     FEATURE_GALLERY,

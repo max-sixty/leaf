@@ -296,7 +296,8 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 `runtime/rendering.js` runs every rendering callback in one pass per frame. Schedule
 through its `nextRender`, `nextFrame`, `cancelRender` and `sizeObserver`; lint refuses
 the browser's own. A rendering callback does its layout reads before its writes, since
-a read after a write forces a synchronous layout.
+a read after a write forces a synchronous layout. `getComputedStyle` forces style, and
+in Chromium so can a read of the page's selection, such as `rangeCount`.
 
 A box that follows page content is positioned by CSS, with an anchor, a sticky offset
 or a scroll timeline, because a scroll handler trails the scroll by a frame. Paint over
@@ -331,7 +332,7 @@ A `:has()` rule can turn a local write into a restyle of the whole page or chrom
 unkeyed rightmost compound widens what it invalidates, and a condition on the chrome
 root, `body` or `html` is re-evaluated on writes below it. Prefer a class that names the
 targets, or a condition its owner sets on the styled element, and measure with
-`leaf-dev profile SOURCE TRANSITION`.
+`leaf-dev bench-latency --profile`.
 
 ### Layouts, styles and controls
 
@@ -367,13 +368,13 @@ page's own CSS. Before a module measures, positions, stacks, isolates or tracks
 something, find the browser feature that decides it and shape the markup and CSS to
 use it:
 
-| Question                                                                   | The browser feature that answers it                                                                 |
-| -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| How large a box is, including the widest of several labels                 | grid and flex tracks, `min-content` and `max-content`, labels stacked in one grid cell, `data-room` |
-| Where a box sits relative to another box or its scroller                   | the containing block, sticky positioning, anchor positioning, scroll timelines                      |
-| Which of Leaf's surfaces paints over which, with the page beneath them all | the top layer, and stacking contexts: the theme's `--lf-z-*` ladder, and `main` as one context at 0 |
-| Whether a box is rendered at all                                           | `checkVisibility`                                                                                   |
-| Which rules reach an element                                               | cascade layers, `@scope`, and a shadow root as the boundary                                         |
+| Question                                                                   | The browser feature that answers it                                                                                               |
+| -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| How large a box is, including the widest of several labels                 | grid and flex tracks, `min-content` and `max-content`, labels stacked in one grid cell, `data-room`                               |
+| Where a box sits relative to another box or its scroller                   | the containing block, sticky positioning, anchor positioning, scroll timelines                                                    |
+| Which of Leaf's surfaces paints over which, with the page beneath them all | the top layer, and stacking contexts: the theme's `--lf-z-*` ladder, inside the chrome's root after `body` at the largest z-index |
+| Whether a box is rendered at all                                           | `checkVisibility`                                                                                                                 |
+| Which rules reach an element                                               | cascade layers, `@scope`, and a shadow root as the boundary                                                                       |
 
 Where a feature nearly fits, change what the runtime asks of it, such as where a box
 lives in the DOM. A module that answers one of these questions in script names in its
@@ -476,7 +477,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Which axes a box clips                                                                                | `rect.js` `clippingAxes`                                                           |
 | Whether a box is at its scroll end                                                                    | `scrolling.js` `atScrollEnd`, `SCROLL_SLACK`                                       |
 | Whether the reader or layout chose a box's scroll position                                            | `scrolling.js` `chosenSince`, `placeKept`                                          |
-| The page's `main`                                                                                     | `passages.js` `pageDocument`                                                       |
+| The authored body, excluding Leaf's runtime surfaces                                                  | `passages.js` `pageDocument`, `inPage`                                             |
 | The box the page's Layout arranges, and the shell it stands in (its parent)                           | `passages.js` `layoutBox`                                                          |
 | Whether a place is already shown, and the space a landing needs                                       | `landing-scroll.js` `alreadyShown`, `landingRoom`                                  |
 | Bring something into view without scrolling the page around it, or only inside one box (its `within`) | `landing-scroll.js` `scrollIntoView` (_lint_)                                      |

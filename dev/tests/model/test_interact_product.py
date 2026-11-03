@@ -49,7 +49,7 @@ def test_corpus_is_generated_from_the_examples():
     assert source.stat().st_mtime_ns == modified
 
 
-def test_corpus_rebuilds_sources_and_removes_retired_page_files(tmp_path, monkeypatch):
+def test_corpus_rebuilds_sources_and_removes_retired_page_files(tmp_path):
     """Regeneration follows authored edits and drops a removed custom widget."""
     examples = tmp_path / "examples"
     examples.mkdir()
@@ -65,7 +65,6 @@ def test_corpus_rebuilds_sources_and_removes_retired_page_files(tmp_path, monkey
     (docs / "examples.html").write_text(
         '<a class="example-link" href="/examples/sample/">Sample</a>'
     )
-    monkeypatch.setattr(corpus, "DEVELOPER_SOURCES", ())
     output = named_source("corpus", root=tmp_path)
     assert "Before" in output.read_text()
     assert (page_files(output) / "sample.js").is_file()

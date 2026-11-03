@@ -1,8 +1,10 @@
 """Run the eval catalog through Promptfoo on Claude Code and Codex.
 
-This command does only what Promptfoo cannot: it builds each Leaf arm (the working
-tree, and with `--base` a ref), gives each provider a home of its own seeded with the
-harness's login, and expands the catalog's task/context addresses into Promptfoo tests.
+This command does only what Promptfoo cannot: it builds each Leaf arm (`head` from the
+working tree, and with `--base` a `base` at the merge base or a ref, as
+`choose_arms(payload=True)` copies them), gives each provider a home of its own seeded
+with the harness's login, and expands the catalog's task/context addresses into
+Promptfoo tests.
 Native probes install the complete arm as a plugin and read it in fresh sessions;
 short authoring cases use isolated tool-capable children and grade the saved page;
 Codex shares one server per provider home while starting fresh ephemeral, read-only
@@ -51,11 +53,9 @@ from leaf_dev.arms import (
     MODELS,
     TURN_LIMIT,
     WORKFLOW_LIMIT,
-    Arm,
     base_option,
-    base_ref,
-    build_arm,
     child_class,
+    choose_arms,
     claude_child,
     codex_home,
     codex_program,
@@ -679,7 +679,7 @@ def saved_pairs(
             yield subject, (first, x), (second, y), number
 
 
-def description(scope: str, globs: tuple[str, ...]) -> str:
+def run_name(scope: str, globs: tuple[str, ...]) -> str:
     """The run's name in Promptfoo's viewer: branch, what it grades and the cases."""
     branch = subprocess.run(
         ["git", "-C", ROOT, "rev-parse", "--abbrev-ref", "HEAD"],
@@ -788,7 +788,8 @@ def eval(
         )
         preflight_formats(conditions)
         # Only the Leaf condition runs on more than the working tree.
-        base = base_ref(base) if base is not None and "leaf" in conditions else None
+        if "leaf" not in conditions:
+            base = None
     if not PROMPTFOO.is_file():
         raise click.ClickException(
             "Install development dependencies first: pnpm install --frozen-lockfile"
@@ -805,23 +806,16 @@ def eval(
         if runs:
             config = saved_config(runs, globs, judge, out, scratch)
             graded = f"{judge} judgment" if judge else "current assertions"
-            config["description"] = description(
+            config["description"] = run_name(
                 f"{graded} of saved {' '.join(run.name for run in runs)}", globs
             )
         else:
-            # Each arm is a copy of its payload alone, the head's too: a child agent
-            # must not read another arm's files, and grading again with --from must
-            # serve the original runtime after this invocation's scratch is retired.
-            refs: dict[str, str | None] = {"base": base} if base else {}
-            refs["head"] = None
-            payloads = {arm: out / "arms" / arm for arm in refs}
-            arms = {
-                arm: Arm(payloads[arm], build_arm(ref, payloads[arm]))
-                for arm, ref in refs.items()
-            }
+            # Grading again with --from must serve the original runtime after this
+            # invocation's private configuration directory is retired.
+            arms = choose_arms(base, out, payload=True)
             config = prepare(
                 cases,
-                payloads,
+                {name: arm.directory for name, arm in arms.items()},
                 scratch,
                 harnesses,
                 conditions,
@@ -829,7 +823,7 @@ def eval(
                 viewports,
                 model,
             )
-            config["description"] = description(describe(arms), globs) + (
+            config["description"] = run_name(describe(arms), globs) + (
                 f" [{model}]" if model else ""
             )
         config_file = out / "promptfooconfig.json"

@@ -12,22 +12,16 @@ Escape as Pi's own terminal does (`clear_queue`, then `abort`), and sends the
 user's comments at the journey's user end. It reads the page's log and claim in
 process, and stops at the first check that fails.
 
-The steps, in order:
+The steps, in order; all but `held-escape` are those more than one harness takes,
+as `journey.Terminal` has them:
 
-- `setup`: the user asks for a page to review; Pi serves it, and as the run settles
-  the extension starts watching the session's pages;
-- `release`: the journey's timed ask, sent while Pi is idle, starts a run that
-  answers it (`journey.run_journey`); with `--case working` it is sent during the
-  user's own run's shell command, which answers it;
-- `mid-turn`: a comment sent during a shell command is delivered into that run and
-  answered before it settles, with no run after it, and the claim holds the run's
-  turn open while it goes;
-- `escape`: Escape during a shell command closes the turn and leaves Pi idle, and a
-  comment sent afterwards starts a run that answers it;
+- `setup`, the extension watching the session's pages as the run settles;
+- `release`;
+- `mid-turn`;
+- `escape`, whose abort closes the claim's turn;
 - `held-escape`: a comment held during a shell command is not received before
   Escape, then enters a fresh run and is answered automatically;
-- `quit`: closing Pi's stdin ends the session, so its claim on the page is inactive
-  and its watch has ended.
+- `quit`, by closing Pi's stdin.
 
 Between steps every comment sent so far has exactly one reply and a pickup, the
 last one's thread was named by the page server's own title request
@@ -49,16 +43,9 @@ from pathlib import Path
 
 import click
 
-from leaf.delivery import pickup_receipts
-from leaf.event_log import read_events
-from leaf.leases import wait_is_live
-from leaf.server import running_server
-from leaf.service import claim_is_active, page_claim
-from leaf.state import session_live, session_record, turn_open
 from leaf_dev import ROOT
 from leaf_dev.arms import MODELS, environment, now, pi_home
 from leaf_dev.commands.journey import (
-    QUIET,
     STEP_LIMIT,
     Isolation,
     Terminal,
@@ -67,9 +54,9 @@ from leaf_dev.commands.journey import (
     user_at,
 )
 from leaf_dev.review_scenario import (
-    REQUEST,
     SLEEP,
     USER_TURN,
+    picked_up,
     prepare,
     require,
     settled,
@@ -105,10 +92,8 @@ class Pi(Terminal):
         self.heard: queue.Queue[dict] = queue.Queue()
         threading.Thread(target=self._read, daemon=True).start()
         self.ids = itertools.count()
-        # Whether a run is going, from `agent_start` until it settles, and how many
-        # have settled.
+        # Whether a run is going, from `agent_start` until it settles.
         self.running = False
-        self.settled = 0
         self.closed_watches = 0
         # The output of the response the next `turn_end` closes.
         self.output_tokens: int | None = None
@@ -129,7 +114,6 @@ class Pi(Terminal):
             self.trace.append({"type": "turn_start", "received_at": now()})
         elif kind == "agent_settled":
             self.running = False
-            self.settled += 1
             self.trace.append({"type": "turn_end", "received_at": now()})
         elif kind == "tool_execution_start":
             if record["toolName"] == "bash":
@@ -204,9 +188,8 @@ class Pi(Terminal):
                 return record.get("data")
         raise click.ClickException(f"Pi did not answer `{command}`")
 
-    def work(self) -> None:
-        """Type the user's own turn and wait for its shell command."""
-        self.say(USER_TURN)
+    def work(self, turn: str = USER_TURN) -> None:
+        self.say(turn)
         self.await_command(SLEEP, "the user's run did not start its command")
 
     def say(self, text: str) -> None:
@@ -217,101 +200,56 @@ class Pi(Terminal):
             started["disposition"] == "started", f"Pi did not start a run: {started}"
         )
 
-    def escape(self) -> None:
+    def press_escape(self) -> None:
         """Press Escape as Pi's terminal does: clear the queued messages, then abort
         the run, which answers once the session is idle."""
         self.request("clear_queue")
         self.request("abort")
+
+    def leave(self) -> None:
+        """Close Pi's stdin, as quitting its terminal does."""
+        assert self.process.stdin is not None
+        self.process.stdin.close()
+        try:
+            self.process.wait(timeout=STEP_LIMIT)
+        except subprocess.TimeoutExpired:
+            raise click.ClickException(
+                "Pi did not exit when its stdin closed"
+            ) from None
 
 
 def steps(pi: Pi, user: User, page: Path) -> None:
     """The steps after setup, as the module docstring lists them."""
     sent: list[str] = []
 
-    def check() -> tuple[dict, str]:
-        """What holds between steps, and how the page server titled the last
-        comment's thread."""
-        claim = settled(page, pi.session, {name: user.ids[name] for name in sent})
-        require(
-            wait_is_live(None, pi.session),
-            "no watch holds the session's pages between runs",
-        )
-        record = pi.page_server_title(page, user.ids[sent[-1]])
-        record = require(record, f"the page server did not title `{sent[-1]}`'s thread")
-        return claim, (
-            f"titled in {record['durationMs']} ms by {record['model']}, "
-            f"${record['costUsd']:.5f}"
-        )
+    def step(name: str, started: float) -> None:
+        """Record step `name` once what holds between steps does, with how the page
+        server titled the step's comment's thread."""
+        sent.append(name)
+        settled(page, pi.session, {each: user.ids[each] for each in sent})
+        require(pi.listening(), "no watch holds the session's pages between runs")
+        user.passed(name, started, pi.titled(page, name, user.ids[name]))
 
     started = time.monotonic()
-    user.release()
-    pi.settle(lambda: True, "the run that answered `release` did not settle")
-    sent.append("release")
-    claim, titled = check()
-    turn = claim["turn"]
-    user.passed("release", started, titled)
+    pi.release(user)
+    step("release", started)
 
     started = time.monotonic()
-    before = pi.settled
-    pi.work()
-    claim = page_claim(page)
-    assert claim is not None
-    require(
-        turn_open(claim) and claim["turn"] != turn,
-        "the claim does not hold the user's run open",
-    )
-    turn = claim["turn"]
-    mid_turn = user.comment("mid-turn")
-    pi.until(pi.idle, "the user's run did not settle")
-    require(
-        user.answered("mid-turn"),
-        "the user's run settled without answering the comment sent during it",
-    )
-    require(
-        any(
-            event["turn"] == turn
-            for event in pickup_receipts(
-                read_events(page), phase="opened", input_id=mid_turn
-            )
-        ),
-        f"the comment was not delivered into the user's turn {turn}",
-    )
-    pi.settle(lambda: True, "the session did not settle")
-    require(
-        pi.settled == before + 1,
-        "the comment sent during the user's run started another run",
-    )
-    sent.append("mid-turn")
-    user.passed("mid-turn", started, check()[1])
+    pi.mid_turn(user, page)
+    step("mid-turn", started)
 
     started = time.monotonic()
-    pi.work()
-    pi.escape()
-    require(not pi.running, "the run went on after Escape")
-    before = pi.settled
-    pi.hear(QUIET)
-    require(
-        pi.settled == before and not pi.running,
-        "Pi started a run after Escape with no new input",
-    )
-    check()
-    user.comment("escape")
-    pi.settle(lambda: user.answered("escape"), "`escape` was not answered")
-    sent.append("escape")
-    user.passed("escape", started, check()[1])
+    require(not pi.escape(user, page), "escape: Pi's abort left the claim's turn open")
+    step("escape", started)
 
     started = time.monotonic()
-    pi.work()
-    interrupted_turn = require(page_claim(page), "the page has no claim")["turn"]
+    interrupted_turn = pi.user_turn(page)
     closed_watches = pi.closed_watches
     held = user.comment("held-escape")
     # Pi's watch hears during the tool, but `turn_end` has not put that input
     # into context yet. Escape clears the queued handoff, so the replacement
     # watch must deliver it into a fresh run, not mistake a log look for pickup.
-    pi.until(
-        lambda: not wait_is_live(None, pi.session),
-        "the watch did not hear held input",
-    )
+    pi.until(lambda: not pi.listening(), "the watch did not hear held input")
     pi.until(
         lambda: pi.closed_watches != closed_watches,
         "Leaf did not complete the held-input watch notification",
@@ -322,42 +260,22 @@ def steps(pi: Pi, user: User, page: Path) -> None:
         "the held-input tool ended before Escape",
     )
     require(
-        not pickup_receipts(read_events(page), phase="opened", input_id=held),
+        not picked_up(page, held),
         "the held input already entered the run before Escape",
     )
-    pi.escape()
+    pi.press_escape()
     pi.settle(
         lambda: user.answered("held-escape"),
         "held input was stranded after Escape",
     )
     require(
-        any(
-            event["turn"] != interrupted_turn
-            for event in pickup_receipts(
-                read_events(page), phase="opened", input_id=held
-            )
-        ),
+        any(turn != interrupted_turn for turn in picked_up(page, held)),
         "held input did not enter a fresh turn after Escape",
     )
-    sent.append("held-escape")
-    user.passed("held-escape", started, check()[1])
+    step("held-escape", started)
 
     started = time.monotonic()
-    assert pi.process.stdin is not None
-    pi.process.stdin.close()
-    try:
-        pi.process.wait(timeout=STEP_LIMIT)
-    except subprocess.TimeoutExpired:
-        raise click.ClickException("Pi did not exit when its stdin closed") from None
-    require(
-        not session_live(session_record(pi.session)),
-        "Pi's session ended without Leaf's SessionEnd",
-    )
-    require(
-        not claim_is_active(page_claim(page)),
-        "the ended session's claim on the page is still active",
-    )
-    require(not wait_is_live(None, pi.session), "the ended session's watch still runs")
+    pi.quit(page)
     user.passed("quit", started)
 
 
@@ -396,15 +314,7 @@ def answering(browser) -> Generator[tuple[User, Callable]]:
         pi = Pi(executable, place.work, place.evidence / "pi.log")
         try:
             started = time.monotonic()
-            pi.say(REQUEST)
-            pi.settle(
-                lambda: (
-                    running_server(place.page) is not None
-                    and wait_is_live(None, pi.session)
-                ),
-                "the setup run did not serve the page and start the watch",
-            )
-            settled(place.page, pi.session, {})
+            pi.setup(place.page)
             with user_at(browser, place, pi, started) as user:
                 yield user, lambda: steps(pi, user, place.page)
         finally:

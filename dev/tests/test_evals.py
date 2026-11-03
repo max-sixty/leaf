@@ -376,19 +376,22 @@ def test_eval_command_delegates_configuration_and_status_to_promptfoo(
     promptfoo.write_text(f'#!/bin/sh\necho "$*" > {calls}\nexit 100\n')
     promptfoo.chmod(0o755)
 
-    def build_arm(ref, destination):
+    def build_arm(ref, destination, *, paths=arms.PAYLOAD):
+        assert paths == arms.PAYLOAD
         (destination / "skills" / "leaf").mkdir(parents=True)
         return "0123456789abcdef"
 
     monkeypatch.setattr(module, "PROMPTFOO", promptfoo)
     monkeypatch.setattr(module, "RUNS", tmp_path / "runs")
-    monkeypatch.setattr(module, "build_arm", build_arm)
+    monkeypatch.setattr(arms, "build_arm", build_arm)
     result = CliRunner().invoke(
         module.eval,
         [
             "--harness",
             "claude-code",
             "patch-review",
+            "--base",
+            "HEAD",
             "--viewport",
             "phone",
             "--viewport",
@@ -399,11 +402,17 @@ def test_eval_command_delegates_configuration_and_status_to_promptfoo(
     )
     assert result.exit_code == 100, result.output
     assert calls.read_text().strip().endswith("--repeat 3")
-    config = json.loads(
-        next((tmp_path / "runs").glob("*/promptfooconfig.json")).read_text()
-    )
-    assert config["providers"] and len(config["tests"]) == 1
-    assert len(config["providers"]) == 1
+    (run,) = (tmp_path / "runs").iterdir()
+    config = json.loads((run / "promptfooconfig.json").read_text())
+    assert len(config["tests"]) == 1
+    # Each arm is its own payload copy, kept with the run for grading again.
+    assert {
+        provider["label"]: provider["config"]["payload"]
+        for provider in config["providers"]
+    } == {
+        f"claude-code/{arm}/workflow": str(run / "arms" / arm)
+        for arm in ("base", "head")
+    }
     assert config["providers"][0]["config"]["viewports"] == ["phone", "desktop"]
     assert "--viewport" not in calls.read_text()
 

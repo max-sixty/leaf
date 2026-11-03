@@ -292,12 +292,12 @@ maintainer; a consolidation or delegation that keeps behavior is an ordinary fix
 ## Weekly: test tier budgets
 
 Read the latest daily `ci` run that finished (`gh run list -w ci -e schedule`): its
-`test` job's summary lists the tests over their directory's budget and the journeys
-within the browser budget (`leaf-dev suite-profile`). A test over budget in two daily
-runs either moves to `tests/journeys/` or gets faster; a journey within the browser
-budget in both moves to `tests/browser/` when its boundary is one page. A single
-reading moves nothing, since one run's time includes contention. Open one pull
-request with the moves, listing each test and the times behind it.
+`test` job's summary lists the tests over their directory's budget (`leaf-dev
+suite-profile`). A test over budget in two daily runs either moves to
+`tests/journeys/` or gets faster. A single reading moves nothing, since one run's time
+includes contention. The summary's journeys within the browser budget stay where they
+are: a test reaches an earlier tier only by being made cheaper (`tests/AGENTS.md`).
+Open one pull request with the moves, listing each test and the times behind it.
 
 ## Weekly: interface sweep
 

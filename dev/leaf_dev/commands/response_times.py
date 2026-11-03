@@ -31,7 +31,7 @@ unknown; browser diagnostic sessions are separate identities. Captured context
 identifies the harness and the provider of an explicitly recorded matching turn;
 no current claim or timestamp proximity supplies this identity.
 
-Every answered input carries the time the answering session's `leaf` commands
+Every input a session answered carries the time the session's `leaf` commands
 took on it (`leaf_commands_s`), from the `leaf_command` record each writes in the
 page (`leaf.interaction_log.record_command`), on any harness: those that started
 between the harness taking the input and the answer. Where the input has a reply
@@ -44,8 +44,9 @@ answering session's record can be read, the input also carries its reply's break
 idle time between its turns, and the model's time and calls. Its case is `working`
 where a turn was running at the admission, so the harness took the input at that
 turn's next tool boundary or its end, else `waiting`. An input a fork of the
-conversation answered (`leaf.forks`) has none, nor a pickup wait (below), since the
-session spent nothing on it and takes it only later. This command reads a Claude Code session's transcript still in this machine's Claude
+conversation answered (`leaf.forks`) has none, nor commands' time or a pickup wait
+(below), since the session spent nothing on it and takes it only later. This
+command reads a Claude Code session's transcript still in this machine's Claude
 Code projects (`transcript_of`), which times no request or first output, so the
 model's time stays unsplit; other harnesses' inputs carry no breakdown, and the
 summary's reply rows count them missing. `leaf-dev journey` reads the record of the
@@ -416,17 +417,17 @@ def page_timings(
             if answered is not None and command["session"] == answered["session"]
         ]
         # A reply a fork of the conversation wrote took nothing of the session's,
-        # which takes the input only later, so neither its reply nor its pickup
-        # waited on the session.
-        forks = answered is not None and answered["event_id"] in forked
-        row["reply"] = None if forks else breakdown(row, mine, records)
-        row["pickup"] = None if forks else waited(row, watches, records)
+        # which takes the input only later, so its reply, pickup and commands
+        # waited on nothing of the session's.
+        by_fork = answered is not None and answered["event_id"] in forked
+        row["reply"] = None if by_fork else breakdown(row, mine, records)
+        row["pickup"] = None if by_fork else waited(row, watches, records)
         # From where the harness took the input, so a working harness's
         # commands for the work it was busy with stay out.
         took = row["milestones"].get("opened", {}).get("at", row["admitted_at"])
         row["leaf_commands_s"] = (
             None
-            if answered is None
+            if answered is None or by_fork
             else row["reply"]["leafCommandsMs"] / 1000
             if row["reply"] is not None
             else leaf_commands_ms(mine, took, answered["at"]) / 1000
@@ -672,10 +673,10 @@ def response_times(
         f"Unlinked agent replies: {sum(len(reading['unlinked_agent_replies']) for reading in readings)}; missing means no exact-linked observation."
     )
     click.echo(
-        "leaf_commands reads each command's own record on any harness; whole_* and leaf_share_* read Claude Code transcripts, so their missing includes every other input."
+        "leaf_commands reads each command's own record on any harness; whole_* and leaf_share_* read Claude Code transcripts, so their missing includes every other input and those a fork answered."
     )
     click.echo(
-        "opened_* sorts each opened pickup a Claude Code transcript on this machine covers by what ended its wait (reply_phases.pickup_wait), over those inputs alone."
+        "opened_* sorts each opened pickup a Claude Code transcript on this machine covers by what ended its wait (reply_phases.pickup_wait), over those inputs alone, less those a fork answered."
     )
     click.echo(
         "milestone           observed  missing  clock errors      p50      p90      p95      max     total"

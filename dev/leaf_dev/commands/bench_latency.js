@@ -67,7 +67,9 @@
       return (
         Number(document.querySelector('meta[name="lf-revision"]')?.content) >=
           revision &&
-        document.body.hasAttribute("data-lf-presented") &&
+        document
+          .querySelector("script[data-lf-entry]")
+          ?.lfReadiness?.(null, "presented") === null &&
         shown(node) &&
         node.textContent.includes(words)
       );

@@ -8,7 +8,6 @@ from render_harness import (
     AVAILABLE_COMMANDS,
     BOARD_PAGE,
     INLINE_PAGE,
-    PANEL_THREAD,
     CutOff,
     _traffic,
     _until,
@@ -23,6 +22,7 @@ from render_harness import (
 )
 
 from leaf import event_log as events_model
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

@@ -13,7 +13,6 @@ from render_cases_navigation import NOTED_PAGE, compose
 from render_harness import (
     INLINE_PAGE,
     LONG_PAGE,
-    PANEL_THREAD,
     command_reference_rows,
     comment_note,
     holding,
@@ -36,6 +35,7 @@ from browser.navigation import READING_REGIONS_PAGE
 from browser.threads import open_panel_thread
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

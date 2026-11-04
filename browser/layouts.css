@@ -431,16 +431,15 @@
    * sidebar Layout standing in the column's flow does, such as a tab's view. A block
    * that states its width this way overrides the width a box of its own would take (a
    * table, an iframe). One that reaches before the prose starts there by a negative
-   * start margin, marked important since a page's own margin rule, such as
-   * `margin: 1rem 0` on the block, would otherwise put it back at the prose; its block
-   * margins stay the page's. A margin rather than a relative offset or a translate, so
-   * its box in flow is where it is drawn: Firefox counts a moved box's place in flow
-   * into its holder's overflow when a style change re-reads it, as a focus ring on a
-   * paragraph beside it does, and the page then scrolled sideways past the window
-   * (notes/browser-support.md). A box wider than its holder stands at the holder's
-   * start edge whatever its own direction, so the margin is on the holder's start side.
-   * A sheet has no window margin to borrow, so on paper every block keeps the prose's
-   * measure. */
+   * start margin, so its box in flow is where it is drawn. A relative offset or a
+   * translate would leave its place in flow past the window, which Firefox counts into
+   * the page's width once a style change re-reads its holder, as a focus ring on a
+   * paragraph beside it does (notes/browser-support.md). A page rule that sets the
+   * block's inline margins, such as `margin: 1rem 0`, replaces that margin, and the
+   * block then spills past the window, which the render check reports. A box wider
+   * than its holder stands at the holder's start edge whatever its own direction, so
+   * the margin is on the holder's start side. A sheet has no window margin to borrow,
+   * so on paper every block keeps the prose's measure. */
   /* A table with a breakout is only as wide as its columns need, up to its room, where
    * a breakout's width would spread two short columns across the whole room. */
   :is(.layout-column, .layout-flow) > table[data-lf-space] {
@@ -478,10 +477,10 @@
         --lf-breakout: 1;
       }
       &:dir(ltr) > :is([data-lf-space="available"], .layout-sidebar) {
-        margin-left: calc(-1 * var(--lf-free-start)) !important;
+        margin-left: calc(-1 * var(--lf-free-start));
       }
       &:dir(rtl) > :is([data-lf-space="available"], .layout-sidebar) {
-        margin-right: calc(-1 * var(--lf-free-start)) !important;
+        margin-right: calc(-1 * var(--lf-free-start));
       }
       > table[data-lf-space] {
         max-inline-size: min(var(--wide), 100% + var(--lf-free-end));
@@ -545,7 +544,7 @@
       position: static;
       inline-size: 100%;
       max-inline-size: 100%;
-      margin-inline: 0 !important;
+      margin-inline: 0;
       translate: none;
       --lf-breakout: 0;
     }

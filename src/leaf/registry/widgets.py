@@ -50,10 +50,11 @@ def _validate_widget_schema(tag: str, entry: dict, path) -> None:
         )
     if entry.get("x-text-format") == "markdown" and entry.get("x-content") != "data":
         raise registry_error("markdown-needs-data", path, tag)
-    # An unbound data widget's <pre> is its one x-data input's text (element-data.js,
-    # "Bound values"), so it can feed only one, and none where the <pre> is already
-    # the element's words or its recorded state.
-    inputs = entry.get("x-data", {})
+    # An unbound data widget's <pre> is the text of the x-data input it declares its
+    # `body` (element-data.js, "Bound values"), so it can feed only one, and none where
+    # the <pre> is already the element's words or its recorded state. Its other inputs
+    # are ordinary, as a code block's playhead is.
+    inputs = [spec for spec in entry.get("x-data", {}).values() if spec.get("body")]
     if entry.get("x-content") == "data" and inputs:
         if len(inputs) > 1:
             raise registry_error("data-input", path, tag, reason="inputs")

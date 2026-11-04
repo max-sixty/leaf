@@ -322,6 +322,9 @@ DATA_INPUTS_SCHEMA = {
             # The element property the runtime sets to the delivered value
             # (element-data.js, "Bound values").
             "property": {"type": "string", "pattern": "^[a-z][A-Za-z0-9]*$"},
+            # The input an `x-content: data` widget's <pre> stands in for: unbound,
+            # the <pre> is its text; bound, the element holds no <pre>.
+            "body": {"const": True},
         },
         "dependentRequired": {"reference": ["output"], "output": ["reference"]},
         "required": ["contract"],

@@ -1128,12 +1128,12 @@ _TEXT = {
     ),
     "data-input": _declared(
         lambda v: (
-            "its <pre> is the text of its x-data input when the markup binds"
+            "its <pre> is the text of its body input when the markup binds"
             " none, so x-content: data takes "
             + {
-                "inputs": "at most one input",
-                "words": "no input with x-text-format: markdown, whose <pre> is its words",
-                "state": "no input with a body record, whose <pre> is its state",
+                "inputs": "at most one body input",
+                "words": "no body input with x-text-format: markdown, whose <pre> is its words",
+                "state": "no body input with a body record, whose <pre> is its state",
             }[v["reason"]]
         )
     ),

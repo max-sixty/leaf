@@ -24,6 +24,17 @@
  *
  * `lfElementsFor(key)` answers a reference into the block (`navigateToDatum`) in that
  * same grammar. A number outside the block addresses nothing.
+ *
+ * `playhead` is the lines another widget is at, in that grammar too, or null: Leaf sets
+ * it from the `playhead` output of the widget `follows` names (registry `x-data`), and
+ * a plain host sets the property itself. The block marks the rows those numbers address
+ * (`data-lf-at`) in its own face, and as the value moves brings the first into view
+ * within the box that scrolls the block, never the page: a reader watching the widget
+ * it follows keeps their place while the source moves beside it. Several excerpts of one
+ * file can follow one widget, since a number outside an excerpt marks nothing there.
+ * It is a `LeafElement` only to be handed that property; it draws no Lit template, and
+ * its source draw is the update's completion, so Leaf's first anchor pass waits for the
+ * lines.
  * The reader can switch wrapping through the code block’s command scope without rebuilding source rows. This
  * is tab-local reading state, retained by widget id across revisions, not a decision.
  * Until the reader chooses, authored presentation remains the default. Paper wraps
@@ -32,17 +43,18 @@
  * It imports only the helpers that load in any document, so a plain HTML page that maps
  * `/runtime/` and `/vendor/` draws it too: coloured, numbered by its own stylesheet where
  * the page loads it, and with nothing of Leaf's. What Leaf adds it reads from outside:
- * the drawing under way as a `pending-task` event, the wrap key as the element's
+ * the drawing under way as the update's completion, the wrap key as the element's
  * `lfCommands`, the Copy control from the block's `data-lf-copy`, and the word a
  * listener hears on a highlighted line from its `data-lf-quiet`. */
 import {
+  LeafElement,
   setScroll,
-  PendingTaskEvent,
+  scrollersOf,
+  scrollIntoView,
   bodyText,
   commandsChanged,
   failSoft,
   layoutChanged,
-  once,
   synNodes,
   syntax,
   tabStore,
@@ -108,33 +120,75 @@ function* numbering(el) {
 
 customElements.define(
   "lf-code",
-  class extends HTMLElement {
+  class extends LeafElement {
+    static properties = { playhead: { attribute: false } };
+
+    constructor() {
+      super();
+      /** @type {string | null} */
+      this.playhead = null;
+    }
+
+    /** @type {Promise<void> | undefined} */
+    #source;
+
+    // The rendered rows, none before the lines are in.
+    #rows() {
+      return [...this.querySelectorAll("pre")]
+        .filter((pre) => pre.parentElement === this)
+        .flatMap((pre) =>
+          [...pre.querySelectorAll("span")].filter(
+            (row) =>
+              row.parentElement === pre &&
+              row.matches(".lf-code-line, .lf-code-elided"),
+          ),
+        );
+    }
+
     // The rendered lines a range addresses, none before the lines are in.
     /** @param {string} key */
     lfElementsFor(key) {
       const addressed = within(key);
-      return [
-        ...[...this.querySelectorAll("pre")]
-          .filter((pre) => pre.parentElement === this)
-          .flatMap((pre) =>
-            [...pre.querySelectorAll("span")].filter(
-              (row) =>
-                row.parentElement === pre &&
-                row.matches(".lf-code-line, .lf-code-elided"),
-            ),
-          ),
-      ].filter((row) => addressed(...rowSpan(row)));
+      return this.#rows().filter((row) => addressed(...rowSpan(row)));
     }
 
-    connectedCallback() {
-      if (!once(this)) return;
-      // Announced as a pending task so the runtime holds the first anchor pass until
-      // the lines are in — the tokenizer loads lazily, so even an uncolored block
-      // lands a microtask late and one writer has to finish before another reads.
-      this.dispatchEvent(new PendingTaskEvent(this.render()));
+    // The tokenizer loads lazily, so even an uncolored block lands a microtask late,
+    // and one writer has to finish before another reads.
+    setup() {
+      this.#source = this.#draw();
     }
 
-    async render() {
+    async getUpdateComplete() {
+      const result = await super.getUpdateComplete();
+      await this.#source;
+      return result;
+    }
+
+    /** @param {Map<PropertyKey, unknown>} changed */
+    updated(changed) {
+      super.updated(changed);
+      if (changed.has("playhead")) this.#mark(true);
+    }
+
+    // Mark the rows the playhead addresses; bring the first into view when it moved.
+    /** @param {boolean} follow */
+    #mark(follow) {
+      const at = within(this.playhead);
+      /** @type {HTMLSpanElement | undefined} */
+      let first;
+      for (const row of this.#rows()) {
+        const on = at(...rowSpan(row));
+        if (on) first ??= row;
+        if (row.hasAttribute("data-lf-at") !== on)
+          row.toggleAttribute("data-lf-at", on);
+      }
+      if (!follow || !first) return;
+      const [box] = scrollersOf(first);
+      if (box && box !== document.scrollingElement)
+        scrollIntoView(first, { block: "nearest", within: box });
+    }
+
+    async #draw() {
       // The code is the <pre>'s and nothing else's; notes are its siblings and say
       // which line they are about, so a note never sits between two halves of the
       // source and there is no interrupted-line arithmetic to get right.
@@ -239,6 +293,7 @@ customElements.define(
           ],
         };
         commandsChanged(this);
+        this.#mark(false);
         layoutChanged(this);
       } catch (err) {
         failSoft(this, err, source);

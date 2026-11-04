@@ -1,6 +1,6 @@
 {
   "lf-sort-film": {
-    "description": "An animated, scrubbable trace of the merge sort Rust shipped in 1.15, drawn as one SVG in the page's palette: the slice, the scratch buffer, and the run stack with its collapse() checks. The current step, each slot of the slice, the scratch lane, the run stack and each collapse() clause are commentable visual parts.",
+    "description": "An animated, scrubbable trace of the merge sort Rust shipped in 1.15, drawn as one SVG in the page's palette: the slice, the scratch buffer, and the run stack with its collapse() checks. Its playhead output is the slice.rs lines the current step executes, which lf-code excerpts that follow it mark. The current step, each slot of the slice, the scratch lane, the run stack and each collapse() clause are commentable visual parts.",
     "type": "object",
     "properties": {
       "id": { "type": "string" }
@@ -12,6 +12,9 @@
     "x-space": "wide",
     "x-visual": {
       "prefixes": ["v:", "lane:", "stack:", "check:", "moment:"]
+    },
+    "x-output": {
+      "playhead": { "contract": "source-lines" }
     }
   }
 }

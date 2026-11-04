@@ -615,7 +615,9 @@ test("a data widget the markup binds to nothing reads its written <pre> as its i
   adoptRegistry({
     [tag]: {
       "x-content": "data",
-      "x-data": { text: { source: "source", contract: "text", property: "value" } },
+      "x-data": {
+        text: { source: "source", contract: "text", property: "value", body: true },
+      },
     },
   });
   const drawn = [];

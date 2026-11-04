@@ -150,6 +150,56 @@ def test_sort_film_readout_and_narration(browser, serve):
     expect(note.locator("code")).to_have_text("buf")
 
 
+def test_sort_source_marks_the_line_each_step_runs(browser, serve):
+    """The film's playhead output lights the slice.rs line a step runs in the one
+    excerpt quoting it, in view in the source pane and without moving the page, as
+    the film's key steps it; the last step runs no line and clears the mark."""
+    context = browser.new_context(
+        reduced_motion="reduce", viewport={"width": 1440, "height": 900}
+    )
+    page = open_page(browser, serve(named_source("rust-sort")), context=context)
+    # For each excerpt, the step before the first whose line it quotes, and that line.
+    steps = page.evaluate(
+        """async () => {
+          const imports = JSON.parse(document.querySelector('script[type="importmap"]').textContent).imports;
+          const source = new URL('../page/sort.js', new URL(imports['/runtime/'], location.href));
+          const {LINES, makeInput, trace} = await import(source);
+          const film = trace(makeInput('random', 7));
+          const lines = film.steps.map(step => step.line ? LINES[step.line] : null);
+          return ['code-merge-sort', 'code-insert-head', 'code-merge'].map(block => {
+            const code = document.getElementById(block);
+            const at = lines.findIndex((line, i) => i && line && code.lfElementsFor(line).length);
+            const before = film.steps[at - 1];
+            return {block, time: before.start + before.dur - 0.01, line: lines[at].split(',')[0]};
+          });
+        }"""
+    )
+    scrub = page.locator("#sort-film .sort-scrub")
+    source = page.locator("#sort-source")
+    marked = source.locator("[data-lf-at]")
+    for step in steps:
+        scrub.evaluate(
+            "(element, time) => { element.value = time; element.dispatchEvent(new Event('input', {bubbles: true})); }",
+            step["time"],
+        )
+        scrub.focus()
+        page.keyboard.press("ArrowRight")
+        expect(marked.first).to_have_attribute("data-lf-line", step["line"])
+        expect(source.locator("lf-code:has([data-lf-at])")).to_have_attribute(
+            "id", step["block"]
+        )
+        pane, line = source.bounding_box(), marked.first.bounding_box()
+        assert (
+            pane["y"] <= line["y"]
+            and line["y"] + line["height"] <= pane["y"] + pane["height"]
+        )
+    assert page.evaluate("document.scrollingElement.scrollTop") == 0
+    scrub.evaluate(
+        "element => { element.value = element.max; element.dispatchEvent(new Event('input', {bubbles: true})); }"
+    )
+    expect(marked).to_have_count(0)
+
+
 def test_sort_film_fits_its_pane_where_the_panes_stand_side_by_side(browser, serve):
     """A workspace is a screen, so in a 900px-tall window at the narrowest width the
     page sets its panes side by side, the whole player shows in its pane, the last

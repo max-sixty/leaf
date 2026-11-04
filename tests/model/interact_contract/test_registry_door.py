@@ -284,7 +284,12 @@ def _second_document_input(registry):
 
 def _markdown_body_input(registry):
     registry["lf-draft"]["x-data"] = {
-        "text": {"contract": "text-document", "source": "source", "property": "value"}
+        "text": {
+            "contract": "text-document",
+            "source": "source",
+            "property": "value",
+            "body": True,
+        }
     }
 
 

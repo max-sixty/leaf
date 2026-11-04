@@ -51,6 +51,13 @@
         "schema": {
           "type": "string"
         }
+      },
+      "source-lines": {
+        "description": "Line numbers in one source file, in lf-code's range grammar (1569,1571 or 1505-1507): the lines a widget is at, such as the code an animation's current step executes.",
+        "schema": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*(-[1-9][0-9]*)?(,[1-9][0-9]*(-[1-9][0-9]*)?)*$"
+        }
       }
     }
   },
@@ -157,7 +164,8 @@
         "source": "source",
         "reference": "for",
         "output": "document",
-        "property": "value"
+        "property": "value",
+        "body": true
       }
     },
     "x-language": "language",
@@ -335,8 +343,8 @@
     "x-upgrade": false
   },
   "lf-code": {
-    "description": "A source-code excerpt with syntax coloring, highlighted lines, and line-anchored remarks.",
-    "x-instructions": "Write the exact code inside pre at column 0, HTML-escaping & before < and >. Set language for source code and omit it for plain transcripts or command output. For excerpts, set lines to the ascending source ranges quoted, such as 1505-1507,1520-1527; hi and lf-note at then use those source numbers. A note addressed to an omitted line captions the elided row.",
+    "description": "A source-code excerpt with syntax coloring, highlighted lines, line-anchored remarks, and a mark on the line another widget is at.",
+    "x-instructions": "Write the exact code inside pre at column 0, HTML-escaping & before < and >. Set language for source code and omit it for plain transcripts or command output. For excerpts, set lines to the ascending source ranges quoted, such as 1505-1507,1520-1527; hi and lf-note at then use those source numbers. A note addressed to an omitted line captions the elided row. To mark the line a widget is at, such as the code an animation's step runs, set follows to the id of a widget publishing a playhead output: the block marks the lines it quotes and keeps them in view, so several excerpts of one file can follow the same widget.",
     "type": "object",
     "properties": {
       "id": { "type": "string" },
@@ -350,11 +358,25 @@
       "lines": {
         "type": "string",
         "pattern": "^[1-9][0-9]*(-[1-9][0-9]*)?(,[1-9][0-9]*(-[1-9][0-9]*)?)*$"
+      },
+      "follows": {
+        "type": "string"
       }
     },
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "data",
+    "x-data": {
+      "playhead": {
+        "contract": "source-lines",
+        "reference": "follows",
+        "output": "playhead",
+        "property": "playhead"
+      }
+    },
+    "x-refers": {
+      "follows": {}
+    },
     "x-language": "language",
     "x-upgrade": true,
     "x-example": "<lf-code id=\"bracket-walk\" language=\"python\" hi=\"2\"><pre>\ndef bracket(temp):\n    if temp &lt; 0:\n        return \"steel\"\n    return \"cedar\"\n</pre>\n  <lf-note at=\"2\">Freezing is the only threshold that matters.</lf-note>\n</lf-code>"

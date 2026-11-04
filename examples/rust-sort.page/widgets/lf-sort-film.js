@@ -1,5 +1,9 @@
 // <lf-sort-film>: the player around sort.js. It owns playback, the input choice and the
 // narration, and paints with CSS theme tokens that the SVG resolves as the theme changes.
+//
+// As the step changes it publishes its `playhead` output: the slice.rs lines that step
+// executes, or null where it executes none. Each lf-code excerpt that follows the film
+// draws that mark itself, so one value lights only the block quoting those lines.
 
 import {
   frameFor,
@@ -11,6 +15,7 @@ import {
   offer,
   once,
   onMotionPreferenceChange,
+  publishOutput,
   reducedMotion,
   registerVisualParts,
   sizeObserver,
@@ -18,6 +23,7 @@ import {
 } from "/runtime/widget-api.js";
 import {
   INPUTS,
+  LINES,
   N,
   Painter,
   PHASE,
@@ -354,6 +360,7 @@ customElements.define(
               ? `. A plain top-down merge sort needs ${this.#plain} comparisons on this input.`
               : `, of ${this.#film.comparisons} in all.`),
         );
+        publishOutput(this, "playhead", s.line ? LINES[s.line] : null);
         // The stack and the clauses move as runs push and merge; re-read their geometry.
         this.parts?.update();
       }

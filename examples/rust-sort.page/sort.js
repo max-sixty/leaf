@@ -7,7 +7,9 @@
 //
 // The port keeps the Rust code's shape: the same backwards scan for natural runs, the
 // same insert_head with a lifted tmp and a travelling hole, the same collapse() on the
-// top four runs, and the same merge that copies the shorter run into buf.
+// top four runs, and the same merge that copies the shorter run into buf. Each step names
+// the source line it executes (`line`), and LINES gives that name's numbers in slice.rs,
+// which the film publishes as its playhead.
 // One liberty: MIN_RUN is 6 rather than 32, and the short-slice path (len <= 64: plain
 // insertion sort) is not taken, so a 40-element slice shows the run and merge structure.
 
@@ -139,10 +141,11 @@ export function trace(values) {
   let moves = 0;
   const steps = [];
 
-  const emit = (kind, note, extra = {}) => {
+  const emit = (kind, line, note, extra = {}) => {
     if (PHASE[kind]) phase = PHASE[kind];
     steps.push({
       kind,
+      line,
       note,
       phase,
       v: v.slice(),
@@ -170,6 +173,7 @@ export function trace(values) {
     const g = gt(v[s], v[s + 1]);
     emit(
       "compare",
+      "ih-test",
       g
         ? `\`v[${s}]\` = ${val[v[s]]} is greater than \`v[${s + 1}]\` = ${val[v[s + 1]]}, so it has to move right.`
         : `\`v[${s}]\` = ${val[v[s]]} is not greater than \`v[${s + 1}]\`: already in place.`,
@@ -179,18 +183,26 @@ export function trace(values) {
     tmp = { id: v[s], at: s };
     v[s] = null;
     moves++;
-    emit("lift", `Copy ${val[tmp.id]} out into \`tmp\`. Its slot is now the hole.`);
+    emit(
+      "lift",
+      "ih-tmp",
+      `Copy ${val[tmp.id]} out into \`tmp\`. Its slot is now the hole.`,
+    );
     v[s] = v[s + 1];
     v[s + 1] = null;
     tmp.at = s + 1;
     moves++;
-    emit("shift", `Slide \`v[${s + 1}]\` left into the hole; the hole moves right.`, {
-      wrote: at("v", s),
-    });
+    emit(
+      "shift",
+      "ih-first",
+      `Slide \`v[${s + 1}]\` left into the hole; the hole moves right.`,
+      { wrote: at("v", s) },
+    );
     for (let i = s + 2; i < e; i++) {
       const g2 = gt(tmp.id, v[i]);
       emit(
         "compare",
+        "ih-cmp",
         g2
           ? `\`tmp\` ${val[tmp.id]} > ${val[v[i]]}: keep sliding.`
           : `\`tmp\` ${val[tmp.id]} ≤ ${val[v[i]]}: stop here.`,
@@ -201,7 +213,7 @@ export function trace(values) {
       v[i] = null;
       tmp.at = i;
       moves++;
-      emit("shift", `Slide ${val[v[i - 1]]} left; the hole follows.`, {
+      emit("shift", "ih-shift", `Slide ${val[v[i - 1]]} left; the hole follows.`, {
         wrote: at("v", i - 1),
       });
     }
@@ -209,9 +221,12 @@ export function trace(values) {
     v[landed] = tmp.id;
     tmp = null;
     moves++;
-    emit("drop", "`hole` is dropped, and its Drop copies `tmp` into the hole.", {
-      wrote: at("v", landed),
-    });
+    emit(
+      "drop",
+      "ih-drop",
+      "`hole` is dropped, and its Drop copies `tmp` into the hole.",
+      { wrote: at("v", landed) },
+    );
   };
 
   // merge(&mut v[lo..hi], mid - lo, buf): the shorter run goes to buf.
@@ -221,6 +236,7 @@ export function trace(values) {
     win = { lo, mid, hi };
     emit(
       "choose",
+      "m-choose",
       L <= R
         ? `The left run (${L}) is the shorter: copy it into \`buf\` and merge forwards, smallest first.`
         : `The right run (${R}) is the shorter: copy it into \`buf\` and merge backwards, largest first.`,
@@ -234,6 +250,7 @@ export function trace(values) {
       moves += L;
       emit(
         "to-buf",
+        "m-copy-left",
         `${L} elements into \`buf\`. \`v[${lo}..${mid}]\` is now the hole the merge fills.`,
       );
       let left = 0;
@@ -248,6 +265,7 @@ export function trace(values) {
         const g = gt(buf[left], v[right]);
         emit(
           "compare",
+          "m-fwd-cmp",
           g
             ? `**${val[buf[left]]} > ${val[v[right]]}**: take from the right run.`
             : `**${val[buf[left]]} ≤ ${val[v[right]]}**: take from \`buf\` (ties go left, so the sort is stable).`,
@@ -266,7 +284,7 @@ export function trace(values) {
         v[out] = id;
         out++;
         moves++;
-        emit("copy", `Copy ${val[id]} to \`out\`, and advance.`, {
+        emit("copy", "m-fwd-copy", `Copy ${val[id]} to \`out\`, and advance.`, {
           ptr: ptr(),
           wrote: at("v", out - 1),
         });
@@ -279,6 +297,7 @@ export function trace(values) {
         moves += L - left;
         emit(
           "rest",
+          "m-drop",
           "The right run ran out first. Dropping `hole` copies what is left of `buf` into place.",
         );
       }
@@ -291,6 +310,7 @@ export function trace(values) {
       moves += R;
       emit(
         "to-buf",
+        "m-copy-right",
         `${R} elements into \`buf\`. \`v[${mid}..${hi}]\` is now the hole the merge fills.`,
       );
       let left = mid;
@@ -305,6 +325,7 @@ export function trace(values) {
         const g = gt(v[left - 1], buf[right - 1]);
         emit(
           "compare",
+          "m-bwd-cmp",
           g
             ? `**${val[v[left - 1]]} > ${val[buf[right - 1]]}**: take from the left run.`
             : `**${val[v[left - 1]]} ≤ ${val[buf[right - 1]]}**: take from \`buf\` (ties go right, so the sort is stable).`,
@@ -323,7 +344,7 @@ export function trace(values) {
         out--;
         v[out] = id;
         moves++;
-        emit("copy", `Copy ${val[id]} to \`out\`, and step back.`, {
+        emit("copy", "m-bwd-copy", `Copy ${val[id]} to \`out\`, and step back.`, {
           ptr: ptr(),
           wrote: at("v", out),
         });
@@ -336,6 +357,7 @@ export function trace(values) {
         moves += right;
         emit(
           "rest",
+          "m-drop",
           "The left run ran out first. Dropping `hole` copies what is left of `buf` into place.",
         );
       }
@@ -379,13 +401,14 @@ export function trace(values) {
     const first = list.findIndex((c) => c.fires);
     // `||` short-circuits: clauses after the first that fires are never evaluated.
     list.forEach((c, i) => (c.evaluated = first < 0 || i <= first));
-    if (first < 0) return { r: null, list };
+    if (first < 0) return { r: null, list, line: "c-none" };
     const r = k >= 3 && len(3) < len(1) ? k - 3 : k - 2;
-    return { r, list };
+    return { r, list, line: "c-pick" };
   };
 
   emit(
     "begin",
+    "loop",
     "Walk the slice from the end, cutting it into natural runs: stretches that are already in order.",
   );
   let end = n;
@@ -398,6 +421,7 @@ export function trace(values) {
       const desc = gt(v[start], v[start + 1]);
       emit(
         "compare",
+        "desc-test",
         desc
           ? `${val[v[start]]} > ${val[v[start + 1]]}: this run is strictly descending.`
           : `${val[v[start]]} ≤ ${val[v[start + 1]]}: this run is ascending.`,
@@ -408,6 +432,7 @@ export function trace(values) {
           const g = gt(v[start - 1], v[start]);
           emit(
             "compare",
+            "desc-scan",
             g
               ? `${val[v[start - 1]]} > ${val[v[start]]}: still descending.`
               : `${val[v[start - 1]]} ≤ ${val[v[start]]}: the descending run ends.`,
@@ -424,6 +449,7 @@ export function trace(values) {
         moves += end - start;
         emit(
           "reverse",
+          "reverse",
           `Reverse the ${end - start} descending elements in place: one pass, and they form an ascending run.`,
         );
       } else {
@@ -431,6 +457,7 @@ export function trace(values) {
           const g = gt(v[start - 1], v[start]);
           emit(
             "compare",
+            "asc-scan",
             !g
               ? `${val[v[start - 1]]} ≤ ${val[v[start]]}: still ascending.`
               : `${val[v[start - 1]]} > ${val[v[start]]}: the ascending run ends.`,
@@ -444,9 +471,10 @@ export function trace(values) {
         }
       }
     }
-    emit("run", `A natural run \`v[${start}..${end}]\`, ${end - start} long.`);
+    emit("run", "loop", `A natural run \`v[${start}..${end}]\`, ${end - start} long.`);
     while (start > 0 && end - start < MIN_RUN) {
       emit(
+        "extend",
         "extend",
         `The run is ${end - start} long, under \`MIN_RUN\` (${MIN_RUN}). Insertion sort pulls in the next element.`,
       );
@@ -458,6 +486,7 @@ export function trace(values) {
     focus = null;
     emit(
       "push",
+      "push",
       `Push the run \`v[${start}..${end}]\` onto the stack of runs waiting to be merged.`,
     );
     end = start;
@@ -466,6 +495,7 @@ export function trace(values) {
       checks = { list: c.list, r: c.r };
       emit(
         "collapse",
+        c.line,
         c.r === null
           ? runs.length < 2
             ? "One run on the stack: nothing to merge yet."
@@ -477,6 +507,7 @@ export function trace(values) {
       const right = runs[c.r];
       emit(
         "choose",
+        "merge-call",
         `Merge \`runs[${c.r + 1}]\` (${left.len}) and \`runs[${c.r}]\` (${right.len}): \`v[${left.start}..${right.start + right.len}]\`.`,
         {
           win: {
@@ -489,11 +520,15 @@ export function trace(values) {
       merge(left.start, left.start + left.len, right.start + right.len);
       runs[c.r] = { start: left.start, len: left.len + right.len };
       runs.splice(c.r + 1, 1);
-      emit("merged", `One run of ${left.len + right.len} replaces the two.`);
+      emit(
+        "merged",
+        "merged-run",
+        `One run of ${left.len + right.len} replaces the two.`,
+      );
     }
     checks = null;
   }
-  emit("done", `Sorted, with ${cmp} comparisons.`);
+  emit("done", null, `Sorted, with ${cmp} comparisons.`);
 
   let t = 0;
   for (const s of steps) {
@@ -1125,3 +1160,33 @@ export class Painter {
     });
   }
 }
+
+// Each line name a step uses, as the source line numbers it stands for in
+// slice.rs at 1.15.0. The quoted excerpts answer to those numbers.
+export const LINES = {
+  "asc-scan": "1561",
+  "c-none": "1627",
+  "c-pick": "1621",
+  "desc-scan": "1556",
+  "desc-test": "1555",
+  extend: "1569,1571",
+  "ih-cmp": "1351",
+  "ih-drop": "1357",
+  "ih-first": "1348",
+  "ih-shift": "1354",
+  "ih-test": "1313",
+  "ih-tmp": "1332",
+  loop: "1550",
+  "m-bwd-cmp": "1455",
+  "m-bwd-copy": "1460",
+  "m-choose": "1414",
+  "m-copy-left": "1416",
+  "m-copy-right": "1440",
+  "m-drop": "1463,1464",
+  "m-fwd-cmp": "1431",
+  "m-fwd-copy": "1436",
+  "merge-call": "1586",
+  "merged-run": "1589",
+  push: "1575",
+  reverse: "1559",
+};

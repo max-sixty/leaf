@@ -8,12 +8,13 @@
    declaration names (`property`): before each update that the input's delivery
    moves, this element sets `this[property]` to the delivered value, or null while the
    source has none, so the widget reads `this.value` as it would anywhere else a host
-   sets it. A widget whose body is data (`x-content: data`) declares at most one input,
-   and where the markup binds it to nothing, to a source or to another widget's output,
-   the widget reads the text the page wrote in its `<pre>` the same way: this element
-   sets the input's property to that string once, at setup, since the widget's drawing
-   replaces the `<pre>`. Any other unbound input, and one a module hosts on an element
-   it made without a `<pre>`, is left to the widget and whoever else hosts it.
+   sets it. A widget whose body is data (`x-content: data`) declares at most one input
+   its `body`, and where the markup binds that input to nothing, to a source or to
+   another widget's output, the widget reads the text the page wrote in its `<pre>` the
+   same way: this element sets the input's property to that string once, at setup,
+   since the widget's drawing replaces the `<pre>`. Any other unbound input, such as a
+   code block's playhead, and one a module hosts on an element it made without a
+   `<pre>`, is left to the widget and whoever else hosts it.
 
    The widget marks the items it drew with plain attributes (projection/data.js) and
    dispatches a non-bubbling `drawn` event whose detail names one bound property and
@@ -80,15 +81,16 @@ export class ElementData {
     const declaration = registry[element.localName];
     // Only an authored, unbound data body supplies an initial property. A host
     // creating an element without a pre owns its value itself.
+    const body = Object.values(declaration?.["x-data"] ?? {}).find(
+      (input) => input.body,
+    );
     if (
+      body?.property &&
       declaration?.["x-content"] === "data" &&
       element.querySelector(":scope > pre") &&
-      !Object.values(declaration["x-data"] ?? {}).some((input) =>
-        bindsInput(element, input),
-      )
+      !bindsInput(element, body)
     )
-      for (const { property } of this.#inputs)
-        Object.assign(element, { [property]: dataBody(element) });
+      Object.assign(element, { [body.property]: dataBody(element) });
   }
 
   awaitsDelivery() {

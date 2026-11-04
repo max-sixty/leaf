@@ -141,7 +141,8 @@
       "document": {
         "contract": "unified-diff",
         "source": "source",
-        "property": "value"
+        "property": "value",
+        "body": true
       }
     },
     "x-output": {

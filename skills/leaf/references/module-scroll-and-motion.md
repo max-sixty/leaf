@@ -118,6 +118,12 @@ it is, pass that box as `within`. Unlike native `Element.scrollIntoView`, it sta
 inside a live sample. Use it only for a deliberate move; focusing a visible control or
 redrawing keeps the scroll.
 
+`scrollersOf(node)`, also available from `portable-api.js`, yields every box whose
+scroll moves a node, innermost first, out to the page's `document.scrollingElement`.
+A widget that follows something another widget is at, and must not move the page under
+the user watching that widget, passes the first as `within` unless it is the page, as
+`lf-code` does for the line it follows.
+
 A landing keeps the target's `scroll-margin` clear on every side, so a focused
 control's ring shows. `fitsWhole(target)` says whether the target and those margins
 fit, so a widget can bring in a heading or label with an item where there is room, and

@@ -1,9 +1,10 @@
 """Pure folds over the append-only event model."""
 
 from collections import OrderedDict
+from copy import copy
 from typing import NamedTuple
 
-from leaf.event_log import PLAIN, Changes, folded
+from leaf.event_log import folded
 from leaf.findings import Finding
 from leaf.registry.kernel import kinds_declaring
 
@@ -298,10 +299,9 @@ class ThreadFold:
 
     def __init__(self, within: dict):
         self.in_force = InForce(within)
-        self.changes = PLAIN
         self.withdrawn: set[str] = set()
-        # Each message → the thread it is in, and each event naming a thread → that
-        # thread.
+        # Each message → the thread it is in, and each other event naming a thread →
+        # that thread.
         self.names: dict[str, str] = {}
         self.joined: dict[str, str] = {}
         # Each thread, in the order its comment opened it, or None once that comment
@@ -311,38 +311,33 @@ class ThreadFold:
         self.read: dict[str, dict] = {}
         self.changed: set[str] = set()
 
-    def use(self, changes) -> None:
-        self.changes = self.in_force.changes = changes
-
     def _answered(self, change: "Change | None") -> None:
         if change is not None:
             for winner in (change.before, change.after):
                 if winner is not None and (
                     (answer := winner["meaning"].get("answer")) in self.threads
                 ):
-                    self.changes.add(self.changed, answer)
+                    self.changed.add(answer)
 
     def step(self, event: dict) -> None:
-        changes = self.changes
         if undoes := event.get("undoes"):
-            changes.add(self.withdrawn, undoes)
+            self.withdrawn.add(undoes)
             self._answered(self.in_force.withdraw(undoes))
-            named = self.joined.get(undoes)
+            named = self.names.get(undoes) or self.joined.get(undoes)
             if named is not None and (thread := self.threads[named]) is not None:
-                changes.put(self.threads, named, _Thread.read(thread, self))
-                changes.add(self.changed, named)
+                self.threads[named] = _Thread.read(thread, self)
+                self.changed.add(named)
         kind = event["kind"]
         thread_id = None
         if kind == "comment":
             thread_id = event["id"]
-            changes.put(self.names, thread_id, thread_id)
-            changes.put(self.threads, thread_id, _Thread(event))
-            changes.put(self.joined, thread_id, thread_id)
-            changes.add(self.changed, thread_id)
+            self.names[thread_id] = thread_id
+            self.threads[thread_id] = _Thread(event)
+            self.changed.add(thread_id)
             return
         if kind == "reply":
             thread_id = self.names[event["parent"]]
-            changes.put(self.names, event["id"], thread_id)
+            self.names[event["id"]] = thread_id
         elif kind == "edit":
             thread_id = self.names.get(event["message"])
         elif kind in {"resolve", "unresolve"}:
@@ -356,11 +351,12 @@ class ThreadFold:
             for change in self.in_force.restate(event):
                 self._answered(change)
         if thread_id in self.threads:
-            changes.put(self.joined, event["id"], thread_id)
+            if kind != "reply":
+                self.joined[event["id"]] = thread_id
             if (thread := self.threads[thread_id]) is not None:
-                changes.append(thread.events, event)
-                thread.take(event, changes)
-                changes.add(self.changed, thread_id)
+                thread.events.append(event)
+                thread.take(event)
+                self.changed.add(thread_id)
 
     def reading(self) -> dict:
         threads = {}
@@ -372,11 +368,25 @@ class ThreadFold:
                 if thread_id in self.changed
                 else self.read[thread_id]
             )
-        # A reading of candidates leaves the fold as it found it.
-        if not self.changes.recording:
-            self.read = dict(threads)
-            self.changed.clear()
+        self.read = dict(threads)
+        self.changed.clear()
         return threads
+
+    def copy(self) -> "ThreadFold":
+        """A walk that goes on from here without changing this one: each thread is
+        copied, since a step changes the thread it names in place."""
+        twin = copy(self)
+        twin.in_force = self.in_force.copy()
+        twin.withdrawn = set(self.withdrawn)
+        twin.names = dict(self.names)
+        twin.joined = dict(self.joined)
+        twin.threads = {
+            thread_id: thread and thread.copy()
+            for thread_id, thread in self.threads.items()
+        }
+        twin.read = dict(self.read)
+        twin.changed = set(self.changed)
+        return twin
 
 
 class _Thread:
@@ -421,26 +431,37 @@ class _Thread:
         again = cls(comment)
         for event in rest:
             if event["id"] not in fold.withdrawn:
-                again.take(event, PLAIN)
+                again.take(event)
         again.events = list(thread.events)
         return again
 
-    def take(self, e: dict, changes: Changes) -> None:
-        """Step the thread by one event naming it, through `changes`."""
+    def take(self, e: dict) -> None:
+        """Step the thread by one event naming it."""
         kind = e["kind"]
+        if kind == "reply":
+            if e["parent"] not in self.at:
+                raise KeyError(e["parent"])
+            self.at[e["id"]] = len(self.msgs)
+            self.msgs.append(dict(e))
+            if self.title is None and "title" in e:
+                self.title = e["title"]
+            if "token" not in e and "failure" not in e and not e.get("ephemeral"):
+                self.closures.append((e, None))
+            if "anchor" in e:
+                self.detached_from = self.anchor if e["anchor"] is None else None
+                self.anchor = e["anchor"]
+                self.rewritten_from = None
         # Read the effect at its own log position, so a person's intervening
         # resolve remains the latest closure even after an answer is superseded.
-        if kind == "action":
-            changes.append(self.closures, (e, e))
+        elif kind == "action":
+            self.closures.append((e, e))
         elif kind == "thread_title":
-            changes.setattr(self, "title", e["title"])
+            self.title = e["title"]
         elif kind == "reanchor":
             previous = self.anchor
-            changes.setattr(self, "rewritten_from", previous if e["anchor"] else None)
-            changes.setattr(
-                self, "detached_from", previous if e["anchor"] is None else None
-            )
-            changes.setattr(self, "anchor", e["anchor"])
+            self.rewritten_from = previous if e["anchor"] else None
+            self.detached_from = previous if e["anchor"] is None else None
+            self.anchor = e["anchor"]
         elif kind == "edit":
             if (place := self.at.get(e["message"])) is not None:
                 message = self.msgs[place]
@@ -449,44 +470,34 @@ class _Thread:
                 # revision keeps the words it replaced, which answers already given
                 # were about.
                 if e["author"] != "agent":
-                    changes.append(self.revisions, {**e, "was": message["text"]})
-                    changes.append(self.closures, (e, None))
+                    self.revisions.append({**e, "was": message["text"]})
+                    self.closures.append((e, None))
                 # The message says when it was last rewritten, and what it said
                 # before, so a reader of the thread alone sees which answers were
                 # about other words.
-                changes.put(
-                    self.msgs,
-                    place,
-                    {
-                        **message,
-                        "edited": {
-                            **{key: e[key] for key in ("id", "seq", "ts")},
-                            "was": message["text"],
-                        },
-                        "text": e["text"],
+                self.msgs[place] = {
+                    **message,
+                    "edited": {
+                        **{key: e[key] for key in ("id", "seq", "ts")},
+                        "was": message["text"],
                     },
-                )
-        elif kind == "reply":
-            if e["parent"] not in self.at:
-                raise KeyError(e["parent"])
-            changes.put(self.at, e["id"], len(self.msgs))
-            changes.append(self.msgs, dict(e))
-            if self.title is None and "title" in e:
-                changes.setattr(self, "title", e["title"])
-            if "token" not in e and "failure" not in e and not e.get("ephemeral"):
-                changes.append(self.closures, (e, None))
-            if "anchor" in e:
-                changes.setattr(
-                    self, "detached_from", self.anchor if e["anchor"] is None else None
-                )
-                changes.setattr(self, "anchor", e["anchor"])
-                changes.setattr(self, "rewritten_from", None)
+                    "text": e["text"],
+                }
         # A resolve names a message the user may later take back — a reaction opening
         # its thread, withdrawn once the thread reopened — and then closes nothing.
         elif kind == "resolve" and e["parent"] in self.at:
-            changes.append(self.closures, (e, e))
+            self.closures.append((e, e))
         elif kind == "unresolve" and e["parent"] in self.at:
-            changes.append(self.closures, (e, None))
+            self.closures.append((e, None))
+
+    def copy(self) -> "_Thread":
+        twin = copy(self)
+        twin.events = list(self.events)
+        twin.msgs = list(self.msgs)
+        twin.at = dict(self.at)
+        twin.revisions = list(self.revisions)
+        twin.closures = list(self.closures)
+        return twin
 
     def record(self, in_force: "InForce") -> dict:
         """The thread as `build_threads` gives it."""
@@ -791,9 +802,21 @@ class InForce:
         self._admitted = 0
         # identity → the actions in force resting on it, in log order.
         self._resting: dict[str, OrderedDict[str, None]] = {}
-        # A walk kept with the log makes its changes through its fold's
-        # (`event_log.Fold.use`).
-        self.changes = PLAIN
+
+    def copy(self) -> "InForce":
+        """A walk that goes on from here without changing this one."""
+        twin = InForce(self.within, self.floors, self.withdrawn)
+        twin._at = {
+            coordinate: OrderedDict(actions) for coordinate, actions in self._at.items()
+        }
+        twin._coordinate = dict(self._coordinate)
+        twin._index = dict(self._index)
+        twin._admitted = self._admitted
+        twin._resting = {
+            identity: OrderedDict(resting)
+            for identity, resting in self._resting.items()
+        }
+        return twin
 
     def winner(self, coordinate: tuple) -> dict | None:
         actions = self._at.get(coordinate)
@@ -827,19 +850,14 @@ class InForce:
             action, self.floors, self.within
         ):
             return None
-        changes = self.changes
         coordinate = event_coordinate(action)
         before = self.winner(coordinate)
-        if coordinate not in self._at:
-            changes.put(self._at, coordinate, OrderedDict())
-        changes.put(self._at[coordinate], action["id"], action)
-        changes.put(self._coordinate, action["id"], coordinate)
-        changes.put(self._index, action["id"], self._admitted)
-        changes.setattr(self, "_admitted", self._admitted + 1)
+        self._at.setdefault(coordinate, OrderedDict())[action["id"]] = action
+        self._coordinate[action["id"]] = coordinate
+        self._index[action["id"]] = self._admitted
+        self._admitted += 1
         for identity in action_rests_on(action, self.within):
-            if identity not in self._resting:
-                changes.put(self._resting, identity, OrderedDict())
-            changes.put(self._resting[identity], action["id"], None)
+            self._resting.setdefault(identity, OrderedDict())[action["id"]] = None
         return Change(coordinate, before, action)
 
     def withdraw(self, identity: str) -> Change | None:
@@ -857,11 +875,7 @@ class InForce:
         earlier version, and raise its floors for actions admitted after it."""
         restated = note.get("restated", [])
         for identity in restated:
-            self.changes.put(
-                self.floors,
-                identity,
-                max(self.floors.get(identity, 0), note["revision"]),
-            )
+            self.floors[identity] = max(self.floors.get(identity, 0), note["revision"])
         hit: dict[tuple, dict[str, None]] = {}
         for identity in restated:
             for action_id in self._resting.get(identity, {}):
@@ -878,12 +892,8 @@ class InForce:
         return moved
 
     def _remove(self, identity: str) -> None:
-        changes = self.changes
-        # Only the orders of the actions at a coordinate and resting on an id mean
-        # anything, so only those are put back in place.
-        coordinate = changes.remove(self._coordinate, identity, keep_order=False)
-        changes.remove(self._index, identity, keep_order=False)
-        action = changes.remove(self._at[coordinate], identity)
+        coordinate = self._coordinate.pop(identity)
+        del self._index[identity]
+        action = self._at[coordinate].pop(identity)
         for rested in action_rests_on(action, self.within):
-            if identity in self._resting[rested]:
-                changes.remove(self._resting[rested], identity)
+            self._resting[rested].pop(identity, None)

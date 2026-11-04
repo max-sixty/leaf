@@ -4,7 +4,7 @@ from collections.abc import Callable
 from functools import lru_cache
 from typing import NamedTuple
 
-from leaf.event_log import PLAIN, folded
+from leaf.event_log import folded
 from leaf.events import (
     InForce,
     action_retracted,
@@ -304,28 +304,31 @@ class MembershipFold:
 
     def __init__(self, within: dict):
         self.in_force = InForce(within)
-        self.changes = PLAIN
         self.names: dict[str, str] = {}
         self.widgets: dict[str, str] = {}
         self.memberships: dict[str, list[str]] = {}
 
-    def use(self, changes) -> None:
-        self.changes = self.in_force.changes = changes
+    def copy(self) -> "MembershipFold":
+        twin = MembershipFold.__new__(MembershipFold)
+        twin.in_force = self.in_force.copy()
+        twin.names = dict(self.names)
+        twin.widgets = dict(self.widgets)
+        twin.memberships = dict(self.memberships)
+        return twin
 
     def step(self, event: dict) -> None:
-        changes = self.changes
         kind = event["kind"]
         if kind == "comment":
-            changes.put(self.names, event["id"], event["id"])
+            self.names[event["id"]] = event["id"]
         elif kind == "reply":
-            changes.put(self.names, event["id"], self.names[event["parent"]])
+            self.names[event["id"]] = self.names[event["parent"]]
         if event.get("markup"):
             thread = self.names.get(event["id"])
             for widget in logged_fragment(event).by_id:
-                if thread is not None:
-                    changes.put(self.widgets, widget, thread)
-                elif widget in self.widgets:
-                    changes.remove(self.widgets, widget, keep_order=False)
+                if thread is None:
+                    self.widgets.pop(widget, None)
+                else:
+                    self.widgets[widget] = thread
         if kind == "undo":
             named = self.memberships.get(event["undoes"], [])
             moved = [self.in_force.withdraw(event["undoes"])]
@@ -348,7 +351,7 @@ class MembershipFold:
                 if winner is not None and (answer := winner["meaning"].get("answer"))
             ),
         ]
-        changes.put(self.memberships, event["id"], list(dict.fromkeys(named)))
+        self.memberships[event["id"]] = list(dict.fromkeys(named))
 
     def reading(self) -> dict[str, list[str]]:
         return dict(self.memberships)

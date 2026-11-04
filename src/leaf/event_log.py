@@ -37,7 +37,7 @@ import weakref
 from collections.abc import Callable, Iterable, Iterator
 from copy import deepcopy
 from pathlib import Path
-from typing import Protocol
+from typing import Protocol, Self
 
 from leaf.files import file_stamp
 from leaf.findings import Finding, Rejected
@@ -103,94 +103,16 @@ def _attempt_payload(event: dict) -> dict:
 
 class Fold(Protocol):
     """A reading of the log made one event at a time from the first, which a reader
-    may keep with the log's lineage (`folded`).
-
-    A fold makes every change through the `Changes` it was last given (`use`), so it
-    can read events the log does not hold yet and then be reverted to stand as it
-    was, at the cost of what those events changed rather than a copy of the fold."""
+    may keep with the log's lineage (`folded`)."""
 
     def step(self, event: dict) -> None:
         """Take the log's next event into the fold."""
 
-    def use(self, changes: "Changes") -> None:
-        """Make every later change through `changes`."""
+    def copy(self) -> Self:
+        """A fold that steps on from here without changing this one."""
 
     def reading(self):
-        """What the fold has read so far, which later steps leave unchanged. A
-        reading while changes are recorded leaves the fold as it found it."""
-
-
-class Changes:
-    """The changes a fold makes, and while `recording`, the inverse of each, newest
-    last, which `revert` applies. A fold that is not trying candidates holds the
-    one that records nothing (`PLAIN`)."""
-
-    def __init__(self, *, recording: bool = False) -> None:
-        self.recording = recording
-        self._inverse: list[Callable[[], None]] = []
-
-    def put(self, mapping, key, value) -> None:
-        """Set `key` of a mapping, or an index a list holds already."""
-        if self.recording:
-            try:
-                previous = mapping[key]
-            except KeyError:
-                previous = _MISSING
-            self._inverse.append(lambda: _restore(mapping, key, previous))
-        mapping[key] = value
-
-    def remove(self, mapping, key, *, keep_order: bool = True):
-        """Take `key` out of `mapping`. Reverting puts it back, in its place where
-        `keep_order`, which costs the keys after it, and last otherwise."""
-        if not self.recording:
-            return mapping.pop(key)
-        later = []
-        if keep_order:
-            for other in reversed(mapping):
-                if other == key:
-                    break
-                later.append(other)
-        value = mapping.pop(key)
-        self._inverse.append(lambda: _reinsert(mapping, key, value, later[::-1]))
-        return value
-
-    def add(self, members: set, item) -> None:
-        if self.recording and item not in members:
-            self._inverse.append(lambda: members.discard(item))
-        members.add(item)
-
-    def append(self, items: list, item) -> None:
-        if self.recording:
-            self._inverse.append(items.pop)
-        items.append(item)
-
-    def setattr(self, owner, name: str, value) -> None:
-        if self.recording:
-            previous = getattr(owner, name)
-            self._inverse.append(lambda: setattr(owner, name, previous))
-        setattr(owner, name, value)
-
-    def revert(self) -> None:
-        for inverse in reversed(self._inverse):
-            inverse()
-        self._inverse.clear()
-
-
-PLAIN = Changes()
-_MISSING = object()
-
-
-def _restore(mapping, key, previous) -> None:
-    if previous is _MISSING:
-        del mapping[key]
-    else:
-        mapping[key] = previous
-
-
-def _reinsert(mapping, key, value, later: list) -> None:
-    mapping[key] = value
-    for other in later:
-        mapping[other] = mapping.pop(other)
+        """What the fold has read so far, which later steps leave unchanged."""
 
 
 class LogLineage:
@@ -237,17 +159,10 @@ class LogLineage:
                 raise
             if log.stored == len(log):
                 return held.fold.reading()
-            # The candidates are read into the kept fold and taken back out, under
-            # the lock, so no other reader sees them.
-            changes = Changes(recording=True)
-            held.fold.use(changes)
-            try:
-                for event in log[log.stored :]:
-                    held.fold.step(event)
-                return held.fold.reading()
-            finally:
-                changes.revert()
-                held.fold.use(PLAIN)
+            fold = held.fold.copy()
+        for event in log[log.stored :]:
+            fold.step(event)
+        return fold.reading()
 
 
 class _Kept:
@@ -267,10 +182,11 @@ class Log(list):
     its lineage, how many lines it read, a torn one included as `seq` counts it, and
     how many of its events the file holds: `plus` makes a log with candidates the
     file does not hold yet, which admission folds to read the page as an append
-    would leave it. A kept fold reads them and is reverted (`Fold.use`).
+    would leave it. A copy of each kept fold reads them (`Fold.copy`), about a
+    millisecond a fold at 4,000 events.
 
     Each reading is a list of its own, a copy of references costing about 14 µs at
-    4,000 events; the folds kept with the lineage are never copied."""
+    4,000 events."""
 
     __slots__ = ("lineage", "lines", "stored")
 

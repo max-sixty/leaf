@@ -69,6 +69,7 @@
    Experimental: the lists and the walk over them are new, and their shape is
    expected to change a lot. Change them freely.
 */
+import { alreadyShown } from "./landing-scroll.js";
 import { cycledRow, savedReadingSettled } from "./keyboard/bindings.js";
 import { pageCommand } from "./keyboard/register.js";
 import { paintKeys } from "./keyboard/scopes.js";
@@ -197,7 +198,7 @@ const givesUser = (step) => step.owner === "user" || step.steps.some(givesUser);
  * arriveAtThread: ReturnType<typeof import("./navigation.js").createNavigation>["arriveAtThread"],
  * threadPlace: (id: string) => Element | null,
  * prepareNavigationStep: Travel["prepareNavigationStep"], arrive: Travel["arrive"],
- * readableDestination: Travel["readableDestination"], announce: typeof import("./notifications.js").announce,
+ * announce: typeof import("./notifications.js").announce,
  * }} dependencies */
 export function createQueueWalk({
   arriveAtRecord,
@@ -205,7 +206,6 @@ export function createQueueWalk({
   threadPlace,
   prepareNavigationStep,
   arrive,
-  readableDestination,
   announce,
 }) {
   // The element a stop stands at on the page, if it has one.
@@ -479,7 +479,7 @@ export function createQueueWalk({
           at && {
             where: at,
             focus: at,
-            scroll: [{ at, when: () => !readableDestination(at) }],
+            scroll: [{ at, when: () => !alreadyShown(at) }],
           }
         );
       },

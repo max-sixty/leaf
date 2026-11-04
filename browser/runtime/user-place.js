@@ -63,13 +63,7 @@
    that act there. */
 import { inlineStyle } from "./keeps.js";
 import { cancelRender, nextFrame, nextRender } from "./rendering.js";
-import {
-  headerInset,
-  inWindowChrome,
-  seenRect,
-  stuckBox,
-  visibleBand,
-} from "./geometry.js";
+import { headerInset, seenRect, stuckBox, visibleBand } from "./geometry.js";
 import {
   aimedTop,
   moveScrollerBy,
@@ -85,7 +79,7 @@ import { watchScrollEnds } from "./arrivals.js";
 
 // The focused control while it marks where the user is: while any of it is in front of
 // them (geometry.js, `seenRect`), and it is not riding in a stuck sticky box
-// (`stuckBox`) or the window's chrome (`inWindowChrome`). A user who scrolled away from
+// or fixed box (`stuckBox`), as the floating panel is. A user who scrolled away from
 // the control they stand on is reading something else, though the control keeps focus,
 // and a stuck tab strip, title or reply row, like the floating panel's row, stays in view over whatever they scroll to, so it names no place in what it holds.
 // A reflow then holds, and a landing returns them to, what they see instead. A render
@@ -98,9 +92,7 @@ import { watchScrollEnds } from "./arrivals.js";
 // (thread/landing.js), whether the focused title stands wholly where a landing puts it.
 export function focusedInView() {
   const node = focused();
-  return node && !inWindowChrome(node) && seenRect(node, new Map()) && !stuckBox(node)
-    ? node
-    : null;
+  return node && seenRect(node, new Map()) && !stuckBox(node) ? node : null;
 }
 
 // Whether the user has scrolled away from the control focus stands on: a scroll has

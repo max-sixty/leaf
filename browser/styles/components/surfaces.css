@@ -216,21 +216,21 @@ a[data-lf-external]::after,
  *
  * An inset shadow rather than a background, because it composes instead of competing.
  * `background` is the one property a control's own dress is written in, and every layer
- * writes it: a chip states a fill, chrome's .lf-btn swaps one on hover, a package restates
- * both. A shared rule setting `background` has to out-specify all of them to be seen and
- * then wins against the ones that should have won. The shadow is painted over whatever
- * fill the control wears, so the chip keeps its ground, the .lf-btn keeps its swap, and
- * both deepen by the same amount under the pointer. It is inset, so it paints inside the
- * padding box, follows the corner the control already has, and adds nothing outside a
- * rectangle the movement tests are watching.
+ * writes it: a chip states a fill, a package restates it. A shared rule setting
+ * `background` has to out-specify all of them to be seen and then wins against the ones
+ * that should have won. The shadow is painted over whatever fill the control wears, so
+ * the chip keeps its ground and deepens under the pointer. It is inset, so it paints
+ * inside the padding box, follows the corner the control already has, and adds nothing
+ * outside a rectangle the movement tests are watching. The word, symbol and commit faces
+ * take their library's hover fill instead (controls.css).
  *
  * A spent press keeps its shape and gives up its opacity. That is the layer's one cue
  * for "there is nothing left to do here", and it is stated with the hand it withdraws so
  * the two cannot come apart: a press that had been used up once still wore the
  * full-strength border of a live one and differed only in ink, which greyscale drops and
- * a user scanning a column of eight of them never sees. Chrome's own .lf-btn says the
- * same pair for the same reason (chrome.css); this reaches the controls that are
- * not one.
+ * a user scanning a column of eight of them never sees. The pair is Web Awesome's, half
+ * the opacity and the not-allowed hand, which Leaf's presses, fields and choices take
+ * from the library (controls.css), so an offered control says it as theirs do.
  *
  * The ring is the layer's floor (below), which every box holding visible focus wears,
  * an offer or not.
@@ -485,8 +485,8 @@ a[data-lf-external]::after,
   box-shadow: var(--offer-hover-shadow);
 }
 [data-lf-offer]:where(:not([data-lf-offer=""])):is([aria-disabled="true"], :disabled) {
-  cursor: default;
-  opacity: 0.55;
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 /* The floor under every aim the layer offers, stated once for all of them rather
    than left to whatever each control's type and padding happened to add up to.

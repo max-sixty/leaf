@@ -1756,12 +1756,12 @@ _PRESS_FACE = re.compile(
 )
 
 
-def _face_overrides(sheets, faces, placed, home):
+def _face_overrides(sheets, faces, placed, homes):
     """Each rule among `sheets` that draws a press's face anywhere but its role's own
     rules: `(sheet, selector, reason)`. A rule draws a press's face when it sets one of
     `_PRESS_FACE` on an element wearing a role's face class (`faces`) or a class a role's
     builder writes beside it (`placed`), each alternative of an `:is()` read on its own.
-    A role's own rules stand in `home` and name the press by its face class, refined
+    A role's own rules stand in the sheets `homes` names and name the press by its face class, refined
     only by attributes and pseudo-classes, which are its states and the variants it
     declares, on the press or on what holds it, as a margin row says it stands as a
     pin; a press or holder named by a class, an id or a tag, or a rule under an
@@ -1876,7 +1876,7 @@ def _face_overrides(sheets, faces, placed, home):
             if not pressed:
                 continue
             reasons = [
-                *(["away from its role's rules"] if sheet.name != home else []),
+                *(["away from its role's rules"] if sheet.name not in homes else []),
                 *(
                     f"names {name}"
                     for name in sorted(
@@ -1917,11 +1917,18 @@ def _role_classes():
     return faces, placed - faces
 
 
+# The sheets a role's own rules stand in: Leaf's, and the library's generated onto the
+# faces it takes from Web Awesome (build/styles.mjs).
+FACE_HOMES = ("controls.css", "webawesome-native.css")
+
+
 def test_a_press_wears_its_role_s_face_alone():
     """A press built by a role (`test_every_press_is_built_by_role`) looks as its role
     draws it, and two presses of one role differ only by a variant the role declares
     (browser/AGENTS.md, "A control wears its role's face"). Every face is drawn in
-    controls.css, keyed by the role's face class and the attributes a press declares,
+    controls.css, and the word, symbol and commit in the library's rules generated for
+    them (styles/vendor/webawesome-native.css, build/styles.mjs), keyed by the role's
+    face class and the attributes a press declares,
     such as a tone (`data-lf-tone`) or news (`data-lf-news`); `js_facts.mjs dressings`
     reads the classes builders write beside a role, which place a press and never
     restyle it. The reading sees the classes a builder's call spells. A class a wrapper
@@ -1944,9 +1951,9 @@ def test_a_press_wears_its_role_s_face_alone():
         sheet
         for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES)
         for sheet in sorted(root.rglob("*.css"))
-        if "vendor" not in sheet.parts
+        if "vendor" not in sheet.parts or sheet.name in FACE_HOMES
     ]
-    refused = _face_overrides(sheets, faces, placed, "controls.css")
+    refused = _face_overrides(sheets, faces, placed, FACE_HOMES)
     assert not refused, (
         "these rules draw a press's face outside its role's:\n"
         + "\n".join(
@@ -1991,7 +1998,7 @@ def test_the_face_reading_refuses_what_restyles_a_press(tmp_path):
         [home, away],
         {"lf-icon-action", "lf-btn", "lf-row"},
         {"lf-dial-depth"},
-        home.name,
+        (home.name,),
     )
     assert [(sheet.name, selector, reason) for sheet, selector, reason in refused] == [
         (

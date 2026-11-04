@@ -481,14 +481,14 @@ customElements.define('lf-button-pairs', class extends HTMLElement {
     )
 
 
-FACE = "el => getComputedStyle(el).backgroundColor"
+FACE = "el => { const s = getComputedStyle(el); return [s.backgroundColor, s.outlineStyle]; }"
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_pressed_quiet_action_looks_like_its_neighbour(request, serve, engine):
     """A press leaves focus on a quiet action, as on any button, and leaves its face
     alone: once the pointer goes, it matches the action beside it until a key moves
-    focus there, which wears the chip."""
+    focus there, which wears the band."""
     page = open_page(request.getfixturevalue(engine), _button_pairs(serve))
     back, forward = page.locator("#quiet-back"), page.locator("#quiet-next")
     forward.click()

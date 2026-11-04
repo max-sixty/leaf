@@ -26,7 +26,7 @@
   const messages = (words) =>
     [
       ...document.querySelectorAll(
-        ":is(.lf-thread, .lf-page-thread) :is([data-mid], [data-event])",
+        ":is(.lf-thread, .lf-page-thread) :is([data-mid], [data-lf-event])",
       ),
     ].filter((node) => node.textContent.includes(words) && shown(node));
   let semantic = null;
@@ -47,7 +47,7 @@
       semantic.applicationPresented() &&
       semantic
         .readApplication()
-        .authoritative?.browser.receipts.some((receipt) => receipt.attempt === attempt),
+        .authoritative?.events.some((event) => event.attempt === attempt),
     card: ({ card, to }) => {
       const node = document.getElementById(card);
       return (

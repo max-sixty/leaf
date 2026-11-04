@@ -422,7 +422,7 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     drawing = events_model.read_events(directory)[-1]
     assert drawing["kind"] == "comment" and drawing["drawing"]
     assert drawing["anchor"]["visual"] == captured
-    posted = user.locator(f'.lf-drawing-posted[data-thread="{drawing["id"]}"]')
+    posted = user.locator(f'.lf-drawing-posted[data-lf-thread="{drawing["id"]}"]')
     expect(posted).to_have_count(1)
     user.keyboard.press("Escape")
     other_index = next(
@@ -847,7 +847,7 @@ def test_trace_bookmarks_jump_to_exact_evidence_in_page_flow(browser, serve):
             # The numbered flag on the timeline reaches the same result, and,
             # standing beside the evidence, moves nothing on the page.
             scroll = user.evaluate("scrollY")
-            widget.locator(f'.lf-trace-word[data-tip*="{label}"]').click()
+            widget.locator(f'.lf-trace-word[data-lf-tip*="{label}"]').click()
             expect_after_checkpoint(widget, elapsed)
             assert user.evaluate("scrollY") == scroll
             continue
@@ -1742,10 +1742,10 @@ def test_trace_zoom_and_pan_stay_within_the_fitted_recording(browser, serve):
         # Close moments share a flag at the overview; zoom separates them.
         pins = widget.locator(".lf-trace-moment-pin")
         tips = "\n".join(
-            pins.evaluate_all("nodes => nodes.map(node => node.dataset.tip)")
+            pins.evaluate_all("nodes => nodes.map(node => node.dataset.lfTip)")
         )
         assert re.findall(r"^(\d+) · ", tips, re.MULTILINE) == ["1", "2", "3"]
-        third = widget.locator('.lf-trace-moment-pin[data-tip^="3 ·"]')
+        third = widget.locator('.lf-trace-moment-pin[data-lf-tip^="3 ·"]')
         for _ in range(8):
             if third.count():
                 break
@@ -1839,7 +1839,7 @@ def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve
             offsets: marks.map(mark => {
               const r = mark.getBoundingClientRect();
               const at = track.left + edge + Number(mark.style.getPropertyValue('--t')) * span;
-              return Math.abs((mark.hasAttribute('data-flip') ? r.right : r.left) - at);
+              return Math.abs((mark.hasAttribute('data-lf-flip') ? r.right : r.left) - at);
             }),
             flags: [...node.querySelectorAll('.lf-trace-moment-pin')].map(pin => {
               const r = pin.getBoundingClientRect();
@@ -1863,7 +1863,9 @@ def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve
 
     first = visible_marks()
     # A shared flag lists every moment it stands for, in time order.
-    tips = "\n".join(pins.evaluate_all("nodes => nodes.map(node => node.dataset.tip)"))
+    tips = "\n".join(
+        pins.evaluate_all("nodes => nodes.map(node => node.dataset.lfTip)")
+    )
     for number in range(2, 22):
         assert re.search(rf"^{number} · ", tips, re.MULTILINE), number
     pins.first.click()
@@ -2082,7 +2084,7 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
     expect(tip).to_have_text(f"3 · {labels[2]} · {api_time:.3f} s")
     solo.click()
     expect(widget.locator(f'[data-lf-datum="{api}"]')).to_be_visible()
-    expect(solo).to_have_attribute("data-current", "")
+    expect(solo).to_have_attribute("data-lf-current", "")
     for index, (label, target) in enumerate(
         zip(labels, (docs, docs, api), strict=True)
     ):
@@ -2226,11 +2228,13 @@ def test_trace_frames_retain_saved_elements_and_disclosure_stays_closable(
     sent = pointer["phases"]["action"]["timestamp"]
     widget.get_by_role("button", name="Zoom in", exact=True).click()
     widget.get_by_role("button", name="Zoom in", exact=True).click()
-    bar = widget.locator(f'.lf-trace-input-bar[data-id="{following["id"]}"]')
+    bar = widget.locator(f'.lf-trace-input-bar[data-lf-id="{following["id"]}"]')
     bar.scroll_into_view_if_needed()
     rendered(user)
     first, last = (
-        widget.locator(f'.lf-trace-input-bar[data-id="{action["id"]}"]').bounding_box()
+        widget.locator(
+            f'.lf-trace-input-bar[data-lf-id="{action["id"]}"]'
+        ).bounding_box()
         for action in (pointer, following)
     )
     scale = (last["x"] - first["x"]) / (following["startTime"] - pointer["startTime"])
@@ -2285,7 +2289,7 @@ def test_trace_frames_retain_saved_elements_and_disclosure_stays_closable(
       const badge = widget.querySelector('.lf-trace-input-badge');
       window.badgeTexts = [];
       window.badgeWatch = new MutationObserver(() => {
-        if (!badge.hidden && widget.querySelector('[data-playing]'))
+        if (!badge.hidden && widget.querySelector('[data-lf-playing]'))
           window.badgeTexts.push(badge.textContent);
       });
       window.badgeWatch.observe(badge, {
@@ -2345,9 +2349,14 @@ def test_trace_frames_retain_saved_elements_and_disclosure_stays_closable(
     # Step to a filmstrip frame after this captured tree. Its identity remains
     # the checkpoint that produced it, and the disclosure label never changes.
     timeline.focus()
+    images = widget.locator(".lf-trace-images")
     for _ in range(100):
         timeline.press("ArrowRight")
-        # The caption names a frame once its Viewer commits.
+        # The caption names a frame once its Viewer commits, and the next press
+        # cancels a Viewer still decoding: read each stop's committed capture.
+        rendered(user)
+        expect(images).not_to_have_attribute("aria-busy", "true")
+        rendered(user)
         if "Captured frame" in widget.locator(".lf-trace-caption").inner_text():
             break
     else:

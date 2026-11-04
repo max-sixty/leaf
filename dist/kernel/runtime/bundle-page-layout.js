@@ -1,6 +1,6 @@
 import { HOLDS_WORD, LAYOUT, PENDING_TASK, PRESS, PRESSES, TEXT_FIELD, Z, actionIcon, afterScript, agentArrivalDuration, alreadyShown, atLayoutPrecision, beginWalk, bindQueuedWork, blurFocused, byRenderedOrder, canPlaceFocus, cancelRender, clamp, clippedContents, clipsPastSurfaces, closeLayer, closeNativeLayer, closestAcross, composedParentNode, currentLocationIn, d, dataBody, drawn, elementDirective, eventSource, failSoft, failSoftUnreported, fitsWhole, focusDestination, focused, frameVisibility, generatedElement, growthIsSeen, handBack, hasArea, headerCuts, holdFocus, holdRendering, iconTemplate, inChrome, inlineStyle, inputCount, installElementIntegration, intersect, isNativeLayer, keepFieldKeys, keeps, keepsHidden, layoutPx, layoutWindow, listWalkPosition, move, moveScrollerBy, nativeFocusTarget, nearObserver, nearWindow, nextRender, offer, offerAction, offeredActionElement, onCurrentLocation, onFrameVisibility, onUserInput, openLayer, openerOf, orderChildren, paintClips, placeBox, placeHolder, presented as presented$1, pressIsKeyboardActivation, readSampleVisibility, reducedMotion, renderedOrder, renderedParent, renderedUnder, restrictUserIntent, retainUserIntent, rowArrows, scrollBehavior, scrollIntoReadingBand, scrollIntoView, scrollsContent, seenRect, setChildren, setScroll, shadowHost, showNativeLayer, shownBox, shownWindow, sizeObserver, takesLetters, under, union, upFrom, watchOwner, watchRoom, whenLeft, whenNone, whileConnected, x } from "./bundle-portable.js";
 import { DRAFT_FORMAT, PENDING, PRESENTATION_DOM, TEXT_ENTRY, actionForWidget, agentName, agentSays, anchorKey, annotationMode, announce, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, claimsEsc, commandAvailable, commandBinding, commandRoutes, commandRun, controlAvailabilityOutput, cycledRow, discussed, documentChanged, drawingSchema, editable, el, hasObligationSource, hasRows, holdingError, html, isCommandScope, isMessageEvent, isThreadEvent, keys, leafSays, matchesWhen, moved, nativePress, notice, offlineInteractive, offlineState, pageUrl, paintKeys, paintKeysWithin, presentDocument, projectCommandScope, projectionOrigins, queueWidgetUpdate, raiseError, reactionsAt, readApplication, readPart, registry, render, repaint, responseAction, reveal, runtime, saidBy, savedReadingSettled, saying, setPresentationFailureReporter, shadowRootsIn, tagsDeclaring, threadKey, tokenChoices, turns, voiced, watchCommandAvailability, watchPresentation, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented, wordsText } from "./bundle-errors.js";
-import { admitResponse, completeData, countTraffic, dataHeaders, layerHeaders, postEvent, randomId, recordInteraction, removeRuntimeRootStyle, reportCarried, reportPageError, sameLayer, sessionIsActive, setRuntimeRootStyle, watchPendingTraffic } from "./bundle-layer-client.js";
+import { admitResponse, completeState, countTraffic, heldHeaders, heldReading, layerHeaders, postEvent, randomId, recordInteraction, removeRuntimeRootStyle, reportCarried, reportPageError, sameLayer, sessionIsActive, setRuntimeRootStyle, watchPendingTraffic } from "./bundle-layer-client.js";
 import { activityTransitionDue, addressableLabel, addressableWord, afterPresentation, ago, anchorAt, anchorBox, anchorElement, anchorForRange, anchorReaches, anchorReading, anchoringIsReady, commitPoint, cutFrames, declaredName, livePoint, markStateApplied, nameAnchor, observeServerNow, observeWorkingGrace, reachScrollers, readingRegionFor, saidNow, scheduleDocumentLayout, scrollsWith, sectionOf, settlePageInterface, targetSegments, tickClock, visualPartLabel, widgetWord } from "./bundle-content-layout.js";
 import { elementById, excerptWords, labelWords, leafSurface, pageParts, pageReadingVersion, quoteFrom, quotedWords, textNodesUnder } from "./bundle-passages.js";
 import { aborted, authoredStates, commitWidgetDescriptors, descriptorStillMatches, quoted, widgetDescriptor } from "./bundle-abort.js";
@@ -62,9 +62,9 @@ function createPendingLedger({ newAttempt, enqueue }) {
 		accept(entry, event) {
 			applicationState.accept(entry.event.attempt, event);
 		},
-		present(receipts) {
-			applicationState.present(receipts);
-			for (const receipt of receipts) if (receipt.attempt) handles.get(receipt.attempt)?.resolveRead(receipt);
+		present(events) {
+			applicationState.present(events);
+			for (const event of events) if (event.attempt) handles.get(event.attempt)?.resolveRead(event);
 		},
 		nameEvents(entry) {
 			return applicationState.nameEvents(entry.event.attempt);
@@ -158,7 +158,7 @@ function createDelivery({ ledger, applyAcceptedState, settleRejected, settlement
 			if (!ledger.nameEvents(entry)) return { accepted: null };
 			const { event } = entry;
 			if (entry.admitted) return { accepted: entry.admitted };
-			const held = runtime.data;
+			const held = heldReading();
 			const sent = await Promise.race([postEvent(event, held).then((response) => ({ response }), (error) => ({ error })), entry.read.then((accepted) => ({ accepted }))]);
 			if ("accepted" in sent) return { accepted: sent.accepted };
 			if ("error" in sent) {
@@ -178,15 +178,16 @@ function createDelivery({ ledger, applyAcceptedState, settleRejected, settlement
 			}
 			const answer = decoded.answer;
 			if (acceptedAnswer(sent.response, answer)) {
-				const accepted = answer.state.browser?.receipts?.find((candidate) => candidate.attempt === event.attempt);
+				const state = completeState(answer.state, held);
+				const accepted = state.events.findLast((candidate) => candidate.attempt === event.attempt);
 				if (accepted) return {
 					accepted,
-					application: applyAnswerState(applyAcceptedState, completeData(answer.state, held))
+					application: applyAnswerState(applyAcceptedState, state)
 				};
 			}
 			if (refusedAnswer(answer) && (!("attempt" in answer) || answer.attempt === event.attempt)) return {
 				accepted: null,
-				...answer.state ? { state: completeData(answer.state, held) } : {},
+				...answer.state ? { state: completeState(answer.state, held) } : {},
 				refusal: `Couldn't ${event.kind === "edit" ? "save the edit" : "take this"} — ${answer.error || "it was refused"}`
 			};
 			await retry("Not through yet — trying again…");
@@ -231,7 +232,7 @@ function createDelivery({ ledger, applyAcceptedState, settleRejected, settlement
 	return { drain };
 }
 async function deliverBookkeeping(event, applyState) {
-	const held = runtime.data;
+	const held = heldReading();
 	let response;
 	try {
 		response = await postEvent(event, held);
@@ -245,7 +246,7 @@ async function deliverBookkeeping(event, applyState) {
 	} catch {
 		return "unreached";
 	}
-	if (answer && answer.state) await applyAnswerState(applyState, completeData(answer.state, held));
+	if (answer && answer.state) await applyAnswerState(applyState, completeState(answer.state, held));
 	return acceptedAnswer(response, answer) ? "accepted" : refusedAnswer(answer) ? "refused" : "unreached";
 }
 
@@ -1244,7 +1245,7 @@ function editorViewOver({ Compartment, Direction, EditorState, EditorView, State
 				...config,
 				state: withNavigation(config.state ?? EditorState.create(config))
 			});
-			this.scrollDOM.classList.add("scroll");
+			this.scrollDOM.toggleAttribute("data-lf-scroll", true);
 			this.contentDOM.addEventListener("focus", () => {
 				if (!this.#focusing) this.placeSelection();
 			});
@@ -1653,7 +1654,7 @@ function fieldEditor({ EditorView, EditorState, EditorSelection, Prec, StateEffe
 		tagName: "div",
 		attributes: {
 			...attributes,
-			"data-level": String(level)
+			"data-lf-level": String(level)
 		},
 		rank: 100 - level
 	}).range(from, Math.max(from, to - 1));
@@ -2507,7 +2508,7 @@ var LeafText = class extends HTMLElement {
 				};
 			},
 			write: (reading) => {
-				if (this.hasAttribute("data-scrolls") !== reading.scrolls) this.toggleAttribute("data-scrolls", reading.scrolls);
+				if (this.hasAttribute("data-lf-overflows") !== reading.scrolls) this.toggleAttribute("data-lf-overflows", reading.scrolls);
 				const states = [
 					["more-above", reading.scrolls && reading.above],
 					["more-below", reading.scrolls && reading.below],
@@ -2719,7 +2720,7 @@ var LeafText = class extends HTMLElement {
 		this.#view?.placeSelection();
 	}
 	connectedCallback() {
-		this.classList.toggle("scroll", true);
+		this.toggleAttribute("data-lf-scroll", true);
 		if (this.#view) return;
 		if (!this.hasAttribute("role")) this.setAttribute("role", "textbox");
 		if (!this.hasAttribute("aria-multiline")) this.setAttribute("aria-multiline", "true");
@@ -4269,7 +4270,7 @@ const reactionAvailable = () => readThreads().phase === "ready";
 const anchorChoices = (anchor) => reactionAvailable() ? tokenChoices(reactionVocabulary(), anchor ? reactionsAt(allThreads(), anchor) : []) : [];
 function reactionChip({ name, glyph, label }, pressed) {
 	const chip = offerAction("response", `lf-react ${HOLDS_WORD}`);
-	chip.dataset.token = name;
+	chip.dataset.lfToken = name;
 	chip.title = label;
 	chip.setAttribute("aria-label", label);
 	responseAction(chip, {
@@ -4291,7 +4292,7 @@ function reactionChip({ name, glyph, label }, pressed) {
 function paintBarReactions(anchor) {
 	const by = new Map(anchorChoices(anchor).map((choice) => [choice.name, choice]));
 	for (const chip of fabBar.querySelectorAll(".lf-react-palette > .lf-react")) {
-		const inForce = by.get(chip.getAttribute("data-token") ?? "")?.inForce;
+		const inForce = by.get(chip.getAttribute("data-lf-token") ?? "")?.inForce;
 		keeps(chip, "aria-pressed", String(Boolean(inForce)));
 	}
 }
@@ -4719,7 +4720,7 @@ function placeOf(event) {
 	if (event.kind === "edit") return {
 		thread: null,
 		message: event.message,
-		nodes: [...document.querySelectorAll(`.lf-msg[data-event="${CSS.escape(event.message)}"]`)]
+		nodes: [...document.querySelectorAll(`.lf-msg[data-lf-event="${CSS.escape(event.message)}"]`)]
 	};
 	if (event.kind === "resolve" || event.kind === "unresolve" || event.kind === "reply") return {
 		thread: event.parent ? threadIdNamed(event.parent) : null,
@@ -6105,8 +6106,8 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
 				if (news) view.notice.set(news);
 				keepsHidden(view.node, !news);
 			} else {
-				keeps(view.node, "data-thread", item.thread.id);
-				keeps(view.node, "data-attempt", item.thread.root.attempt ?? null);
+				keeps(view.node, "data-lf-thread", item.thread.id);
+				keeps(view.node, "data-lf-attempt", item.thread.root.attempt ?? null);
 				const news = shown.get(item.key)?.news;
 				const nominated = selected.some((part) => part.key === item.key && part.kind === "news");
 				const first = selected.find((part) => part.key === item.key && (part.kind === "message" || part.kind === "transcript")) ?? selected.find((part) => part.key === item.key);
@@ -6163,7 +6164,7 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
 			const id = shown.get(key)?.source.msgs.find((item) => item.key === message)?.id;
 			if (!id) return null;
 			for (const view of parts) {
-				const node = view.node.querySelector(`.lf-msg[data-event="${CSS.escape(id)}"]`);
+				const node = view.node.querySelector(`.lf-msg[data-lf-event="${CSS.escape(id)}"]`);
 				if (node) return node;
 			}
 			return null;
@@ -7089,7 +7090,7 @@ function cardFor(change) {
 	card.append(el("p", "lf-change-card-head", `${redline.account} · ${redline.versions}`));
 	for (const block of redline.blocks) {
 		const line = el("p", "lf-change-card-block");
-		line.dataset.kind = block.kind;
+		line.dataset.lfKind = block.kind;
 		for (const run of block.runs) line.append(run.kind === "same" ? run.text : el(run.kind === "delete" ? "del" : "ins", "", run.text));
 		card.append(line);
 	}
@@ -7211,7 +7212,7 @@ function createMarginBars(inventory) {
 		}
 		for (const target of places) if (!targets.has(target)) {
 			const node = el("span", KINDS[kind].className);
-			keeps(node, "data-for", target.id || null);
+			keeps(node, "data-lf-for", target.id || null);
 			targets.set(target, node);
 			changed = true;
 		}
@@ -7236,8 +7237,8 @@ function createMarginBars(inventory) {
 		}
 		for (const change of empty) if (!gaps.has(change)) {
 			const node = el("span", "lf-change-bar");
-			keeps(node, "data-for", change.at.id || null);
-			node.dataset.gap = change.after ? "after" : "before";
+			keeps(node, "data-lf-for", change.at.id || null);
+			node.dataset.lfGap = change.after ? "after" : "before";
 			gaps.set(change, node);
 			changed = true;
 		}
@@ -7561,7 +7562,7 @@ function createStateApplication({ prepareActivation, acceptData, notifyDataSubsc
 				if (installed) await installed.land();
 				await notifyDataSubscribers();
 				markStateApplied(state);
-				accountPending(state.browser.receipts);
+				accountPending(state.events);
 				const newsReading = semanticNewsReading(readApplication());
 				const reading = observeSemanticNews(presentedNews?.observed ?? null, newsReading);
 				if (presentedNews) {
@@ -7614,11 +7615,11 @@ async function readState(bound) {
 			fault: null
 		};
 		const signal = globalThis.AbortSignal.timeout(bound);
-		const held = runtime.data;
+		const held = heldReading();
 		let res;
 		try {
 			res = await fetch(pageUrl("api/state"), {
-				headers: layerHeaders(dataHeaders(held)),
+				headers: layerHeaders(heldHeaders(held)),
 				signal
 			});
 		} catch {
@@ -7640,7 +7641,7 @@ async function readState(bound) {
 		}
 		const state = JSON.parse(text);
 		return {
-			state: completeData(state, held),
+			state: completeState(state, held),
 			fault: null
 		};
 	} finally {
@@ -8099,8 +8100,8 @@ function createApplication(dependencies) {
 		marginCommitted: () => marginPresentation?.committed() ?? Promise.resolve(),
 		read
 	});
-	const accountPending = (receipts) => {
-		ledger.present(receipts);
+	const accountPending = (events) => {
+		ledger.present(events);
 		releasePendingSafely("receipt presentation");
 	};
 	const installedState = createStateApplication({

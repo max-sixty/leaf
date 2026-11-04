@@ -9,9 +9,6 @@ import re
 from pathlib import Path
 from urllib.parse import urlsplit
 
-import jmespath
-from jmespath.exceptions import JMESPathError
-
 from .files import list_revisions
 from .findings import Finding, element_at
 from .refusals import Refused
@@ -38,6 +35,9 @@ def resource_urls(value, declaration: dict) -> set[str]:
     Local references use the canonical page media namespace; remote references
     stay remote and are never fetched by snapshot or export.
     """
+    import jmespath
+    from jmespath.exceptions import JMESPathError
+
     urls = set()
     for expression in declaration.get("resources", []):
         try:

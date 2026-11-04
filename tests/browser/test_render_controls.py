@@ -183,7 +183,9 @@ def test_sample_fixture_history_presents_before_ready_and_returns_on_reset(
     first = page.frame_locator("#first-history iframe")
     other = page.frame_locator("#second-history iframe")
     for frame in (first, other):
-        expect(frame.locator(f'{PANEL_THREAD}[data-thread="question"]')).to_be_visible()
+        expect(
+            frame.locator(f'{PANEL_THREAD}[data-lf-thread="question"]')
+        ).to_be_visible()
     first_state = first.locator("body").evaluate(
         "new URL('api/state', document.baseURI).href"
     )
@@ -205,7 +207,7 @@ def test_sample_fixture_history_presents_before_ready_and_returns_on_reset(
         "button", name="Reset", exact=True
     ).click()
     expect(page.locator("#arrivals")).to_have_text("3")
-    expect(first.locator(f'{PANEL_THREAD}[data-thread="question"]')).to_be_visible()
+    expect(first.locator(f'{PANEL_THREAD}[data-lf-thread="question"]')).to_be_visible()
     state = page.request.get(
         first.locator("body").evaluate("new URL('api/state', document.baseURI).href")
     ).json()
@@ -261,7 +263,7 @@ def test_sample_host_view_changes_leave_its_scroll_and_keyboard_position(
             assert page.evaluate("scrollY") == before
             if panel_open:
                 expect(
-                    child.locator(f'{PANEL_THREAD}[data-thread="question"]')
+                    child.locator(f'{PANEL_THREAD}[data-lf-thread="question"]')
                 ).to_be_visible()
             else:
                 expect(

@@ -485,14 +485,14 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     panel_settled(page, view="queue")
 
     def card(source):
-        return page.locator(f".lf-fp-on-item[data-key*='\"widget:{source}\"']")
+        return page.locator(f".lf-fp-on-item[data-lf-key*='\"widget:{source}\"']")
 
     expect(card("shape")).to_have_count(0)
     expect(card("sug-window")).to_have_count(1)
     # The picked group has left the user's list for its Done.
-    expect(card("picked")).to_have_attribute("data-list", "done")
+    expect(card("picked")).to_have_attribute("data-lf-list", "done")
     page.locator(".lf-fp-filters button").nth(2).click()
-    agent_rows = page.locator('.lf-fp-on-item[data-list="agent"]')
+    agent_rows = page.locator('.lf-fp-on-item[data-lf-list="agent"]')
     expect(agent_rows).to_have_count(1)
     expect(agent_rows).to_contain_text("Steel, unless the sealing is quick?")
     page.locator(".lf-fp-close").click()
@@ -539,7 +539,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
           let at = document.activeElement;
           while (at?.shadowRoot?.activeElement) at = at.shadowRoot.activeElement;
           return at?.matches('.lf-thread-reply leaf-text')
-            && at.closest('.lf-page-thread')?.dataset.thread === root;
+            && at.closest('.lf-page-thread')?.dataset.lfThread === root;
         }""",
         arg=roots[0],
     )
@@ -676,7 +676,7 @@ def test_c_in_a_seated_thread_reaches_the_thread_it_is_in(browser, serve):
     page.evaluate("() => document.activeElement?.blur()")
 
     # Located in the second thread, the press means that thread's box.
-    second = page.locator(f'.lf-page-thread[data-thread="{said[1]}"]')
+    second = page.locator(f'.lf-page-thread[data-lf-thread="{said[1]}"]')
     second.focus()
     page.keyboard.press("c")
     expect(second.locator("> .lf-thread-reply leaf-text")).to_be_focused()

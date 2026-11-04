@@ -683,7 +683,7 @@ def test_a_website_example_keeps_its_version_identity_and_history(
     expect(page.locator("main .lf-ins-block")).to_have_count(5)
 
     panel_menu(page, "versions").locator(
-        ".lf-fp-version:not([data-current]) > .lf-fp-item"
+        ".lf-fp-version:not([data-lf-current]) > .lf-fp-item"
     ).click()
     page.wait_for_url(
         re.compile(r"/examples/log-retention/versions/v1\.html(?:\?pin=)?$")
@@ -1512,7 +1512,7 @@ def test_a_published_example_has_no_agent_claim(served_example, browser):
             }"""
     )
     assert answer["status"] == 200
-    assert answer["body"]["browser"]["basis"] == {"through_seq": answer["through"]}
+    assert answer["body"]["browser"]["basis"]["through_seq"] == answer["through"]
     assert set(answer["body"]["browser"]["views"]) == {"1"}
 
 

@@ -189,7 +189,9 @@ def test_a_comparison_retries_when_the_live_projection_advances(browser, serve):
         expect(page.locator("#new-copy")).to_have_class(re.compile(r"lf-ins-block"))
         expect(page.locator("#t-parser")).not_to_have_class(re.compile(r"lf-ins-block"))
         versions = panel_menu(page, "versions")
-        expect(versions.locator(".lf-fp-version[data-current]")).to_contain_text("v2")
+        expect(versions.locator(".lf-fp-version[data-lf-current]")).to_contain_text(
+            "v2"
+        )
         expect(
             versions.get_by_role("button", name=re.compile(r"^Compare with v1\b"))
         ).to_have_attribute("aria-pressed", "true")

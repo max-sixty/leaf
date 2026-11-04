@@ -2,7 +2,7 @@
 changed.
 
     uv run leaf-dev stills [--base REF] [--state NAME]... [--authored]
-        [--viewport WIDTHxHEIGHT] [--scheme dark] [--touch] [--browser ENGINE]
+        [--viewport WIDTHxHEIGHT|NAME] [--scheme dark] [--touch] [--browser ENGINE]
 
 Each state of `leaf_dev.states` (all of them unless `--state` names some) is visited on
 both arms through the loop `leaf-dev probe` runs too (`leaf_dev.visits`), which brings

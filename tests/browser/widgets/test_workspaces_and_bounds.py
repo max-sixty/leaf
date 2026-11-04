@@ -294,7 +294,7 @@ def test_a_workspace_reaches_the_window_foot_and_its_readers_clear_the_panel(
     assert page.evaluate("document.scrollingElement.scrollHeight <= innerHeight + 1")
     page.locator("body").focus()
     page.keyboard.press(".")
-    expect(page.locator(".lf-floating-panel")).to_have_attribute("data-rest", "mark")
+    expect(page.locator(".lf-floating-panel")).to_have_attribute("data-lf-rest", "mark")
     assert page.locator("main").evaluate(
         "node => Math.abs(node.getBoundingClientRect().bottom - innerHeight) <= 1"
     )

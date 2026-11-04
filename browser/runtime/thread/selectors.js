@@ -5,12 +5,12 @@ import { TEXT_FIELD } from "../control-selectors.js";
 // A drawn thread: a thread on the page, in the margin or on a seat, or a chrome's view
 // of one thread (`data-lf-thread-view`, as the floating panel's thread view and its head
 // are), whose reply and Resolve the presentation draws outside it and declares on it
-// (`threadPart`, below). Each names its thread's id in `data-thread`, so focus
+// (`threadPart`, below). Each names its thread's id in `data-lf-thread`, so focus
 // anywhere in one stands in that thread for every reading of it, `c` included.
 export const THREAD = ".lf-page-thread, [data-lf-thread-view]";
 // The logged id a drawn thread carries. Each reader of the id takes it from here.
 /** @param {Element | null | undefined} node */
-export const drawnThreadId = (node) => node?.getAttribute("data-thread") ?? null;
+export const drawnThreadId = (node) => node?.getAttribute("data-lf-thread") ?? null;
 // Where a box the user writes in belongs: a drawn thread, or a seat holding none yet.
 export const SAYS_IN = `${THREAD}, .lf-thread-seat`;
 export const SAY_ROW = ".lf-thread-reply, .lf-say";

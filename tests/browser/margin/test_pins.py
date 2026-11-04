@@ -30,6 +30,7 @@ from browser.margin import (
     _comment_on,
 )
 from leaf.render_checks import rendered
+from leaf_dev.browser import WINDOWS
 from leaf_dev.commands import pins as pin_cases
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -496,7 +497,7 @@ def test_a_finger_hides_the_annotations_from_the_leaf_s_menu(browser, serve):
     toggle = panel_control(page, "command:annotations.toggle", at="annotate")
     expect(toggle).to_contain_text("Hide annotations")
     press_visible(page, toggle, touch=True)
-    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
+    expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
     expect(page.locator("html")).to_have_attribute("data-lf-annotations", "hidden")
     expect(pin).to_be_hidden()
     margins_laid_out(page)
@@ -525,14 +526,14 @@ def test_the_panel_says_the_annotations_are_hidden_while_they_are(browser, serve
 
     page.reload()
     page.wait_for_selector("body[data-lf-presented]")
-    expect(field).to_have_attribute("data-says", "status")
+    expect(field).to_have_attribute("data-lf-says", "status")
     expect(field).to_have_attribute(
         "placeholder", re.compile(r"^Annotations hidden · \S")
     )
 
     page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("w")
-    expect(field).to_have_attribute("data-says", "stance")
+    expect(field).to_have_attribute("data-lf-says", "stance")
     expect(field).to_have_attribute(
         "placeholder", re.compile("^In Draw mode · Annotations hidden")
     )
@@ -544,7 +545,7 @@ def test_the_panel_says_the_annotations_are_hidden_while_they_are(browser, serve
         "data-lf-annotations", re.compile(".*")
     )
     # The notice saying the annotations are shown passes, and the status stands alone.
-    expect(field).to_have_attribute("data-says", "status")
+    expect(field).to_have_attribute("data-lf-says", "status")
     expect(field).not_to_have_attribute("placeholder", re.compile("Annotations"))
 
 
@@ -730,7 +731,7 @@ def test_a_pin_by_a_card_full_of_controls_stands_on_it_clear_of_them(browser, se
         expect(action).to_have_text("Opened")
 
 
-@pytest.mark.parametrize("viewport", list(pin_cases.VIEWPORTS))
+@pytest.mark.parametrize("viewport", pin_cases.VIEWPORTS)
 def test_each_pin_case_seats_its_pins_by_their_targets_clear_of_what_they_hide(
     browser, serve, viewport
 ):
@@ -738,9 +739,12 @@ def test_each_pin_case_seats_its_pins_by_their_targets_clear_of_what_they_hide(
     target over no words, control or media, inside the window and clear of the other
     pins, except where the case accepts a fault and says why. A placement the gallery
     shows wrong becomes a case there, and so a failure here."""
-    (width, height), touch = pin_cases.VIEWPORTS[viewport]
+    window = WINDOWS[viewport]
+    width, height = window.size
     context = browser.new_context(
-        viewport={"width": width, "height": height}, has_touch=touch, is_mobile=touch
+        viewport={"width": width, "height": height},
+        has_touch=window.touch,
+        is_mobile=window.touch,
     )
     page = open_page(
         browser, serve(pin_cases.source(), events=pin_cases.events()), context=context

@@ -390,12 +390,12 @@ class Session:
         question = f"Bench question {run + 1}."
         opened = (
             "() => document.querySelector("
-            "'.lf-fp-view[data-view=thread]:not([data-leaving]) .lf-msg')"
+            "'.lf-fp-view[data-lf-route=thread]:not([data-lf-leaving]) .lf-msg')"
             "?.checkVisibility()"
         )
         if not self.page.evaluate(opened):
             self.threads()
-            self.page.locator(f'.lf-fp-thread[data-key="{self.thread}"]').click()
+            self.page.locator(f'.lf-fp-thread[data-lf-key="{self.thread}"]').click()
             until(self.page, opened, "the agent thread never opened")
         # The panel's field is the open thread's reply box.
         self.page.locator(".lf-fp-field leaf-text").focus()
@@ -404,7 +404,7 @@ class Session:
         until(
             self.page,
             "words => [...document.querySelectorAll("
-            "'.lf-fp-view[data-view=thread] .lf-msg')]"
+            "'.lf-fp-view[data-lf-route=thread] .lf-msg')]"
             ".some(node => node.textContent.includes(words) && node.checkVisibility())",
             "the user's turn never showed",
             question,

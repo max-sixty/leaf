@@ -1394,7 +1394,7 @@ def test_a_tab_strip_keeps_its_open_tab_in_its_one_row(browser, serve):
           strip.scrollLeft = 0;
           const expected = sign * Math.min(
             0.8 * strip.clientWidth, strip.scrollWidth - strip.clientWidth);
-          strip.querySelector('.lf-tabstrip-scroll[data-to="end"] > span').click();
+          strip.querySelector('.lf-tabstrip-scroll[data-lf-to="end"] > span').click();
           return {expected, actual: strip.scrollLeft};
         }""",
             [strip_id, sign],

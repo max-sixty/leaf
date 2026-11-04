@@ -428,7 +428,7 @@ def test_a_failed_agent_root_restores_the_focused_first_message_composer(
         )
     page.lf_errors.remove(console_finding(fault.value))
 
-    inline = seat.locator(f':scope > .lf-page-thread[data-thread="{root["id"]}"]')
+    inline = seat.locator(f':scope > .lf-page-thread[data-lf-thread="{root["id"]}"]')
     expect(inline).to_have_count(0)
     expect(composer).to_have_count(1)
     expect(composer).to_be_focused()
@@ -470,7 +470,9 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
         },
     )
     page = open_page(browser, live_url(url))
-    thread = page.locator(f'#proposal > .lf-thread-seat > [data-thread="{root["id"]}"]')
+    thread = page.locator(
+        f'#proposal > .lf-thread-seat > [data-lf-thread="{root["id"]}"]'
+    )
     reply = thread.locator(":scope > .lf-thread-reply leaf-text")
     write(reply, "keep this inline reply")
     reply.evaluate("node => node.setSelectionRange(5, 16, 'backward')")
@@ -518,7 +520,7 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
     # draft is in view. The user can reveal it without losing their reply.
     notice = thread.locator(".lf-thread-news")
     expect(notice).to_have_text("Resolved")
-    expect(thread).to_have_attribute("data-resolved", "false")
+    expect(thread).to_have_attribute("data-lf-resolved", "false")
     notice.click()
     expect(thread.get_by_role("button", name="Reopen")).to_be_visible()
     expect(reply).to_have_js_property("value", "keep this inline reply")
@@ -824,7 +826,9 @@ def test_a_focused_card_comment_never_paints_over_the_cards_contents(browser, se
     stand_on_thread(page, "blocked-card-comment")
 
     card = page.locator("#lp-k-checks")
-    mark = page.locator('.lf-visual-mark[data-for="lp-k-checks"].lf-visual-mark-here')
+    mark = page.locator(
+        '.lf-visual-mark[data-lf-for="lp-k-checks"].lf-visual-mark-here'
+    )
     expect(mark).to_be_visible()
     card.scroll_into_view_if_needed()
     # Include the floating thread's final placement and shadow in both captures.
@@ -882,7 +886,7 @@ def test_a_screenshot_margin_trace_paints_both_quiet_brackets(browser, serve):
     margins_laid_out(page)
     toggle = page.get_by_role("button", name="Review capture", exact=True)
     toggle.hover()
-    trace = page.locator('.lf-target-trace[data-for="rn-console-shot"]')
+    trace = page.locator('.lf-target-trace[data-lf-for="rn-console-shot"]')
     expect(trace).to_be_visible()
     ink = trace.evaluate(
         """element => {
@@ -1097,7 +1101,9 @@ def test_a_marked_scrolling_visual_keeps_its_keyboard_focus_ring(browser, serve)
     ring = current_location_ring(page)
     assert ring and ring["cuts"] == ring["covers"] == [], ring
     mark = page.locator(".lf-visual-mark")
-    expect(page.locator(".lf-visual-mark-focus")).to_have_attribute("data-for", "flow")
+    expect(page.locator(".lf-visual-mark-focus")).to_have_attribute(
+        "data-lf-for", "flow"
+    )
 
     resized(page, 1200, 900)
     stand_on_thread(page, "diagram-comment")

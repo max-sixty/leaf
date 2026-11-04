@@ -109,7 +109,7 @@ def test_the_pr_walkthrough_exercises_an_inline_diff_thread(browser, serve):
         },
     )
     told(page)
-    thread = diff.locator(f'.lf-page-thread[data-thread="{root["id"]}"]')
+    thread = diff.locator(f'.lf-page-thread[data-lf-thread="{root["id"]}"]')
     expect(thread).to_contain_text(
         "Keep this review note beside the line that changes it."
     )
@@ -153,7 +153,9 @@ def test_the_pr_walkthrough_exercises_an_inline_diff_thread(browser, serve):
     expect(heading).to_be_focused()
     page.keyboard.press("t")
     expect(
-        page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{prose["id"]}"]')
+        page.locator(
+            f'.lf-margin-preview .lf-page-thread[data-lf-thread="{prose["id"]}"]'
+        )
     ).to_be_focused()
     page.keyboard.press("t")
     expect(thread).to_be_focused()
@@ -176,7 +178,7 @@ def test_a_thread_walk_card_leaves_and_returns_with_its_anchor(browser, serve):
     card = page.locator(".lf-margin-preview")
     # Whichever thread the walk reaches first; the page's order decides that.
     expect(card.locator(".lf-page-thread")).to_be_focused()
-    walked = card.locator(".lf-page-thread").get_attribute("data-thread")
+    walked = card.locator(".lf-page-thread").get_attribute("data-lf-thread")
     owner = page.locator(
         '.lf-margin-marker[data-lf-kinds~="comment"]'
         '[aria-controls="lf-margin-preview"][aria-expanded="true"]:not([hidden])'
@@ -213,7 +215,7 @@ def test_a_thread_walk_card_leaves_and_returns_with_its_anchor(browser, serve):
     assert card.evaluate("node => node.getBoundingClientRect().top") == pytest.approx(
         placed, abs=0.5
     )
-    expect(card.locator(f'.lf-page-thread[data-thread="{walked}"]')).to_be_focused()
+    expect(card.locator(f'.lf-page-thread[data-lf-thread="{walked}"]')).to_be_focused()
     # A press the page answers leaves the window where the user put it: `g G` carries the
     # card away, and `g` then opens Go-to over the page's foot rather than bringing the
     # card back and mapping the window around it.
@@ -351,7 +353,7 @@ def test_thread_navigation_lands_after_resizing_an_open_reply(browser, serve):
     expect(reply).to_be_focused()
     page.keyboard.press("Escape")
     page.keyboard.press("Shift+t")
-    view = page.locator(".lf-fp-view:not([data-leaving])")
+    view = page.locator(".lf-fp-view:not([data-lf-leaving])")
     expect(view).to_be_focused()
     expect(view).to_contain_text("Is lunch provided")
     page.keyboard.press("c")

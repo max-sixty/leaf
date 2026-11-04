@@ -54,7 +54,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 def expect_accept_all(page, words):
     """The leaf's menu offers accepting every remaining suggestion, by its count; read
     the row enabled and put the menu away."""
-    row = panel_menu(page).locator('.lf-fp-item[data-row="blanket:accept"]')
+    row = panel_menu(page).locator('.lf-fp-item[data-lf-row="blanket:accept"]')
     expect(row).to_have_text(words)
     expect(row).to_be_enabled()
     page.locator(".lf-fp-leaf").click()

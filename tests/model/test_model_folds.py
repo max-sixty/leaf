@@ -607,48 +607,68 @@ def test_summary_protects_the_unanswered_obligation_after_later_agent_messages()
     assert summary["protected"] == ["e1"]
 
 
-def test_an_answer_sends_a_held_reading_only_what_happened_since():
-    """A browser that names the reading it holds is sent the events after it and the
-    entries those events added or changed, however long the log before it; the browser
-    keeps the rest (`served_state.tail`, and `tests/runtime/state-tail.test.mjs` for the
-    whole answer it completes to)."""
-    from served_records import TAIL_LOG, TAIL_PAGE
-
-    held = model.served_reading(TAIL_PAGE, TAIL_LOG[:4])
-    key = held["browser"]["basis"]["key"]
-    tail = model.served_reading(TAIL_PAGE, TAIL_LOG[:5], held=key)
-    [view] = tail["browser"]["views"].values()
-    # The undo of e2 withdraws a held entry, so that entry comes again as it now
-    # stands, and leaves the undo list.
-    assert [event["seq"] for event in tail["events"]] == [5]
-    assert [
-        (entry["event"]["id"], entry["stands"])
-        for entry in view["document"]["projection"]["entries"]
-    ] == [("e2", False)]
-    assert view["undo"] == []
-    assert tail["since"] == {
-        "through_seq": 4,
-        "dropped": {"1": {"document": [], "thread": [], "undo": ["e2"]}},
+def test_an_answer_sends_a_held_reading_only_what_changed():
+    """A browser that names the reading it holds is sent what changed since, however
+    many threads the page holds: a pick changes its widget's record and history, and
+    nothing of any thread (`served_state.tail`, and `tests/runtime/state-tail.test.mjs`
+    for the whole answer it completes to)."""
+    page = model.leaf_page(
+        "Tail",
+        '<p id="p">One.</p><lf-ask id="ask"><h2>Which?</h2>'
+        '<lf-options id="pick" choose><lf-option id="one">One</lf-option>'
+        '<lf-option id="two">Two</lf-option></lf-options></lf-ask>',
+    )
+    pick = {
+        "kind": "action",
+        "widget": "pick",
+        "action": "choose",
+        "detail": {"value": ["one"]},
+        "attempt": "tail-pick-attempt-01",
     }
 
+    def answer(threads: int) -> dict:
+        log = [
+            message
+            for at in range(threads)
+            for message in (
+                {"kind": "comment", "text": f"Why {at}?"},
+                {
+                    "kind": "reply",
+                    "author": "agent",
+                    "parent": f"e{2 * at + 1}",
+                    "text": "So.",
+                },
+            )
+        ]
+        held = model.served_reading(page, log)["browser"]["basis"]["key"]
+        return model.served_reading(page, [*log, pick], held=held)
 
-def test_an_answer_the_held_reading_cannot_extend_is_whole():
-    first = model.leaf_page("Tail", '<p id="p">One.</p>')
-    second = model.leaf_page("Tail", '<p id="p">Two.</p>')
-    log = ({"kind": "comment", "text": "Why?"},)
-    held = model.served_reading(first, log)["browser"]["basis"]["key"]
-    seq, active, views = held.split(":")
-    for documents, key, view_revision in (
-        # The page has since activated another revision.
-        ({1: first, 2: second}, held, None),
-        # The answer shows a revision the held reading had no view of.
-        ({1: first, 2: second}, f"{seq}:2:2", 1),
-        # The held reading is past the log.
-        (first, f"5:{active}:{views}", None),
-        (first, "not a key", None),
-    ):
-        whole = model.served_reading(
-            documents, log, view_revision=view_revision, held=key
-        )
+    few, many = answer(2), answer(40)
+    assert [change["at"] for change in few["patch"]] == [
+        change["at"] for change in many["patch"]
+    ]
+    [picked] = many["events"]
+    assert picked["attempt"] == "tail-pick-attempt-01"
+    changed = {tuple(change["at"]): change for change in many["patch"]}
+    assert ("browser", "views", "1", "thread", "threads") not in changed
+    # The pick answers its widget's question and owes the agent an update.
+    assert [
+        item["id"]
+        for item in changed[("browser", "views", "1", "obligations")]["items"]
+    ] == ["widget:pick", f"update:{picked['id']}"]
+
+
+def test_an_answer_to_a_reading_the_server_does_not_remember_is_whole():
+    """A key the server never named, or named so many readings ago that it has
+    forgotten it, gets the whole answer (`served_state.tail.REMEMBERED`)."""
+    from leaf.served_state.tail import REMEMBERED
+
+    page = model.leaf_page("Tail", '<p id="p">One.</p>')
+    log = [{"kind": "comment", "text": "Why?"}]
+    held = model.served_reading(page, log)["browser"]["basis"]["key"]
+    for at in range(REMEMBERED):
+        model.served_reading(page, [*log, {"kind": "comment", "text": f"And {at}?"}])
+    for key in (held, "not a key"):
+        whole = model.served_reading(page, log, held=key)
         assert "since" not in whole, key
         assert [event["id"] for event in whole["events"]] == ["e1"], key

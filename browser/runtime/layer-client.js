@@ -137,8 +137,9 @@ export function layerHeaders(headers) {
 /** @typedef {import("../types/contract.js").ServedState & {
  * active: NonNullable<import("../types/contract.js").ServedState["active"]>,
  * browser: NonNullable<import("../types/contract.js").ServedState["browser"]>
- * }} StateAnswer
- * @typedef {Omit<StateAnswer, "since" | "data"> & {
+ * }} WholeAnswer
+ * @typedef {WholeAnswer | import("../types/contract.js").ServedTail} StateAnswer
+ * @typedef {Omit<WholeAnswer, "data"> & {
  * data: {version: string, sources: Record<string, import("./data.js").SourceReading>}
  * }} CompletedState
  * @typedef {{
@@ -147,74 +148,95 @@ export function layerHeaders(headers) {
  * }} Held */
 
 // A state request names what the tab holds, and the answer leaves that out for its
-// reader to restore from the same holding (http.py, `page_state`). An answer at the
-// data version the tab names leaves out its sources, since data moves only when an
-// agent sets it. An answer that can extend the reading the tab adopted, named by its
-// `browser.basis.key`, carries `since` and only the history after that reading
-// (`served_state/tail.py`): the log and each view's entries and undo list grow with
-// every event. A newer reading can be adopted while a request is out, so its reader
-// captures the holding before asking and completes the answer from that.
+// reader to restore from the same holding (http.py, `page_state` and `sent`). An answer
+// at the data version the tab names leaves out its sources, since data moves only when
+// an agent sets it. An answer to a request naming the reading the tab adopted, by its
+// `browser.basis.key`, may instead carry only the changes since that reading and the
+// events logged after it (`served_state/tail.py`). A newer reading can be adopted while
+// a request is out, so its reader captures the holding before asking and completes the
+// answer from that.
 /** @returns {Held} */
 export const heldReading = () => ({ data: runtime.data, state: runtime.state });
 /** @param {Held} held */
 export const heldHeaders = ({ data, state }) => ({
   ...(data.version !== null && { "Leaf-Data-Version": data.version }),
-  ...(state && { "Leaf-Held-Basis": state.browser.basis.key }),
+  ...(state?.browser.basis.key && { "Leaf-Held-Basis": state.browser.basis.key }),
 });
 
-// An entry list `since` extended: the held entries it neither changed nor dropped,
-// beside the ones it sent, in the order of their events.
-/** @template {{event: {id: string, seq?: number}}} E
- * @param {readonly E[]} held @param {readonly E[]} sent @param {readonly string[]} dropped
- * @param {1 | -1} [order] 1 for log order, -1 for newest first */
-const extended = (held, sent, dropped, order = 1) => {
-  const replaced = new Set([...dropped, ...sent.map(({ event }) => event.id)]);
-  return [...held.filter(({ event }) => !replaced.has(event.id)), ...sent].sort(
-    (a, b) => order * ((a.event.seq ?? 0) - (b.event.seq ?? 0)),
-  );
-};
+/** @typedef {import("../types/contract.js").ServedChange} Change */
+/** @typedef {Record<string, unknown> | unknown[]} Container */
 
-// The whole answer: its data sources and its history restored from the holding its
-// request named, which is exactly the answer the server would have sent whole.
+// The list a change names, from the held one: the items it sent in their places, those
+// it moved or added after the item it pairs each with, in the list's order, and the
+// rest where they were (`served_state/tail.py`).
+/** @param {readonly unknown[]} held @param {Extract<Change, {by: unknown}>} change */
+function changedList(held, { by, items = [], dropped = [], after = [] }) {
+  /** @param {unknown} item */
+  const name = (item) =>
+    /** @type {string} */ (
+      by === "self"
+        ? item
+        : by === "id"
+          ? /** @type {{id: string}} */ (item).id
+          : /** @type {{event: {id: string}}} */ (item).event.id
+    );
+  const sent = new Map(items.map((item) => [name(item), item]));
+  const kept = new Map(held.map((item) => [name(item), item]));
+  const placed = new Set([...dropped, ...after.map(([key]) => key)]);
+  const order = [...kept.keys()].filter((key) => !placed.has(key));
+  for (const [key, before] of after)
+    order.splice(before === null ? 0 : order.indexOf(before) + 1, 0, key);
+  return order.map((key) => (sent.has(key) ? sent.get(key) : kept.get(key)));
+}
+
+// The held reading with each change applied in turn. Only the objects and lists on a
+// change's path are copied, so every record the changes leave alone is the very one the
+// held reading had, which is what lets the publisher and the folds after it skip it.
+/** @template T @param {T} reading @param {readonly Change[]} patch @returns {T} */
+function patched(reading, patch) {
+  /** @type {Set<unknown>} */
+  const copies = new Set();
+  /** @param {unknown} value @returns {Container} */
+  const copy = (value) => {
+    if (copies.has(value)) return /** @type {Container} */ (value);
+    const owned = Array.isArray(value)
+      ? [...value]
+      : { .../** @type {Record<string, unknown>} */ (value) };
+    copies.add(owned);
+    return owned;
+  };
+  const root = /** @type {Record<string, unknown>} */ (copy(reading));
+  for (const change of patch) {
+    const key = /** @type {string} */ (change.at.at(-1));
+    let parent = root;
+    for (const step of change.at.slice(0, -1))
+      parent = /** @type {Record<string, unknown>} */ (
+        parent[step] = copy(parent[step])
+      );
+    if ("by" in change)
+      parent[key] = changedList(/** @type {unknown[]} */ (parent[key]), change);
+    else if ("value" in change) parent[key] = change.value;
+    else delete parent[key];
+  }
+  return /** @type {T} */ (root);
+}
+
+// The whole answer: its data sources, and for an answer carrying the changes since the
+// reading its request named, the rest restored from that reading, which is exactly
+// the answer the server would have sent whole.
 /** @param {StateAnswer} answer @param {Held} held @returns {CompletedState} */
 export function completeState(answer, held) {
-  const { since, ...rest } = answer;
-  const data = { ...rest.data, sources: rest.data.sources ?? held.data.sources };
-  if (!since) return { ...rest, data };
+  const sources = answer.data.sources ?? held.data.sources;
+  if (!("since" in answer)) return { ...answer, data: { ...answer.data, sources } };
+  const { since, patch, events, data, ...added } = answer;
   const prior = held.state;
-  if (prior?.browser.basis.through_seq !== since.through_seq)
+  if (!prior || prior.browser.basis.key !== since.key)
     throw new Error("The state answer extends a reading this tab did not name");
-  const views = Object.fromEntries(
-    Object.entries(rest.browser.views).map(([revision, view]) => {
-      const before = prior.browser.views[revision];
-      const dropped = since.dropped[revision];
-      if (!before || !dropped)
-        throw new Error(`The state answer extends a view r${revision} this tab lacks`);
-      /** @param {"document" | "thread"} part */
-      const projection = (part) => ({
-        ...view[part].projection,
-        entries: extended(
-          before[part].projection.entries,
-          view[part].projection.entries,
-          dropped[part],
-        ),
-      });
-      return [
-        revision,
-        {
-          ...view,
-          document: { ...view.document, projection: projection("document") },
-          thread: { ...view.thread, projection: projection("thread") },
-          undo: extended(before.undo, view.undo, dropped.undo, -1),
-        },
-      ];
-    }),
-  );
   return {
-    ...rest,
-    data,
-    events: [...prior.events, ...rest.events],
-    browser: { ...rest.browser, views },
+    ...patched(prior, patch),
+    ...added,
+    data: { ...data, sources },
+    events: [...prior.events, ...events],
   };
 }
 

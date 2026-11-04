@@ -83,6 +83,7 @@ from .schema import (
     SERVED_PATH,
 )
 from .served_state.service import LivePage, PageSource, PageStateService
+from .served_state.tail import answer as tail_answer
 from .server import page_origin, preview_metadata, running_server
 from .structure import FRAME_ANCESTORS_CSP
 from .user_views import observe_user_view
@@ -500,21 +501,22 @@ class PageEndpoint:
         what it was just handed. Between the two, the worst case is a token already
         stale on arrival, which costs one more request and no news.
 
-        A tab names what it holds, and the answer leaves that out for the tab to
-        restore from the reading it named (`completeState` in `layer-client.js`):
-        `Leaf-Data-Version` names its data version, and an answer whose data is still
-        that version leaves out its sources, since data moves only when an agent sets
-        it; `Leaf-Held-Basis` names its reading, by the `browser.basis.key` that
-        reading carried, and an answer that can extend it carries only the history
-        since (`served_state.tail`). Without these every gesture's answer would carry
-        back each source value and every past event the tab already holds.
+        A tab names the data it holds by `Leaf-Data-Version`, and an answer whose data
+        is still that version leaves out its sources for the tab to restore
+        (`completeState` in `layer-client.js`), since data moves only when an agent
+        sets it. What a tab is sent of the rest is `sent`'s to say.
         """
-        state = self._state_service().page_state(
-            view_revision, held=self.headers.get("Leaf-Held-Basis")
-        )
+        state = self._state_service().page_state(view_revision)
         if self.headers.get("Leaf-Data-Version") == state["data"]["version"]:
             state["data"] = {"version": state["data"]["version"]}
         return state
+
+    def sent(self, state: dict) -> dict:
+        """What a tab is sent of `state`: only what changed since the reading it names
+        by `Leaf-Held-Basis`, where this process still remembers that reading, else
+        the whole of it (`served_state.tail`). Without this every gesture's answer
+        would carry back every record and past event the tab already holds."""
+        return tail_answer(state, self.headers.get("Leaf-Held-Basis"))
 
     def page_browser_view(self, view_revision: int, through_seq: int) -> dict:
         """One revision projected at an exact already-observed log boundary."""
@@ -1124,7 +1126,7 @@ class PageEndpoint:
             if revision is None and state["active"] is not None:
                 revision = state["active"]["revision"]
             self.response_layer = self._revision_layer(revision)
-            return self._json(state)
+            return self._json(self.sent(state))
         if path == "/api/deferred":
             try:
                 deferred = self.deferred_value()
@@ -1394,7 +1396,9 @@ class PageEndpoint:
     def _accept_event(self) -> Response:
         view_revision = self.requested_view_revision()
         status, answer = accept_event(
-            self.page_dir, self.posted, lambda: self.page_state(view_revision)
+            self.page_dir,
+            self.posted,
+            lambda: self.sent(self.page_state(view_revision)),
         )
         return self._json(answer, status)
 

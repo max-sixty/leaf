@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://leaf.page/schema/served-state.json",
   "title": "Served state",
-  "description": "The answer `GET /api/state` serves a page's runtime, which the POST /api/event answer carries as `state` and leaf.page publishes as `/_leaf/state/*.json`: `Reading`, which `served_state.page.read_served_page` composes, with what the serving route adds. Leaf alone writes it, so nothing validates it in flight; the tests validate real readings against this schema, and the browser build generates its type from it (`build/browser/contract-types.mjs`). It is not part of the page protocol: the runtime that reads it comes from the Leaf that serves it (`runtime_selection.py`), so a change needs no bump. `leaf:event` refers to any kernel event record, `leaf:event/<kind>` to one kind's and `leaf:verb` to an x-state verb, as `registry.schema.leaf_resources` composes them; an object here adding served fields to an event record closes it again with `unevaluatedProperties`.",
+  "description": "The answer `GET /api/state` serves a page's runtime, which the POST /api/event answer carries as `state` and leaf.page publishes as `/_leaf/state/*.json`: `Reading`, which `served_state.page.read_served_page` composes, with what the serving route adds; a request naming a reading the tab holds may be answered with a `Tail` instead. Leaf alone writes it, so nothing validates it in flight; the tests validate real readings against this schema, and the browser build generates its type from it (`build/browser/contract-types.mjs`). It is not part of the page protocol: the runtime that reads it comes from the Leaf that serves it (`runtime_selection.py`), so a change needs no bump. `leaf:event` refers to any kernel event record, `leaf:event/<kind>` to one kind's and `leaf:verb` to an x-state verb, as `registry.schema.leaf_resources` composes them; an object here adding served fields to an event record closes it again with `unevaluatedProperties`.",
   "$ref": "#/$defs/Reading",
   "properties": {
     "layer": {
@@ -265,31 +265,9 @@
           "anyOf": [{ "$ref": "#/$defs/Browser" }, { "type": "null" }]
         },
         "events": {
-          "description": "The log, as logged, or in an answer with `since` the events logged after its `through_seq`: a message's text is Markdown the page's vendored runtime renders, and its markup the fragment the CLI gate validated. The wire adds nothing, so the only vocabulary a page's frozen layer has to keep speaking is the log's own, which `$events` already stamps.",
+          "description": "The log, as logged: a message's text is Markdown the page's vendored runtime renders, and its markup the fragment the CLI gate validated. The wire adds nothing, so the only vocabulary a page's frozen layer has to keep speaking is the log's own, which `$events` already stamps.",
           "type": "array",
           "items": { "$ref": "#/$defs/Event" }
-        },
-        "since": {
-          "description": "Present when the answer completes a reading the browser holds, which its request named by that reading's `browser.basis.key` (`served_state.tail`). Then `events`, and each view's projection `entries` and `undo`, hold only what is new or changed after the held reading's `through_seq`; `dropped` names by event id, per view and list, the held entries the list no longer holds; and the browser keeps the rest (`completeState` in `layer-client.js`).",
-          "type": "object",
-          "properties": {
-            "through_seq": { "type": "integer" },
-            "dropped": {
-              "type": "object",
-              "additionalProperties": {
-                "type": "object",
-                "properties": {
-                  "document": { "type": "array", "items": { "type": "string" } },
-                  "thread": { "type": "array", "items": { "type": "string" } },
-                  "undo": { "type": "array", "items": { "type": "string" } }
-                },
-                "required": ["document", "thread", "undo"],
-                "additionalProperties": false
-              }
-            }
-          },
-          "required": ["through_seq", "dropped"],
-          "additionalProperties": false
         },
         "preview": {
           "description": "The identity a developer preview shows in browser chrome, as `leaf-dev preview` wrote it (`server.preview_metadata`); absent on a page that is not a preview.",
@@ -933,13 +911,13 @@
       "type": "object",
       "properties": {
         "basis": {
-          "description": "The log position the reading was taken through, and `key`, its name, which a request sends back in `Leaf-Held-Basis` to be answered with only what the reading lacks (`since`).",
+          "description": "The log position the reading was taken through, and, in an answer a page server sent, `key`, the reading's name, a digest of its content, which a request sends back in `Leaf-Held-Basis` to be answered with only what changed since (`Tail`).",
           "type": "object",
           "properties": {
             "through_seq": { "type": "integer" },
             "key": { "type": "string" }
           },
-          "required": ["through_seq", "key"],
+          "required": ["through_seq"],
           "additionalProperties": false
         },
         "history": {
@@ -1716,13 +1694,85 @@
       "required": ["browser"],
       "additionalProperties": false
     },
+    "Tail": {
+      "description": "What a page server sends a tab in place of a reading when the tab's request names, in `Leaf-Held-Basis`, the `browser.basis.key` of a reading it holds and the server still remembers that reading (`served_state.tail`). The browser applies `patch` to the reading `since` names and completes the whole answer from it (`completeState` in `layer-client.js`). A field the serving route adds to the reading after it is read, as leaf.page's `release`, comes whole beside them.",
+      "type": "object",
+      "properties": {
+        "since": {
+          "description": "The reading the changes start from.",
+          "type": "object",
+          "properties": { "key": { "type": "string" } },
+          "required": ["key"],
+          "additionalProperties": false
+        },
+        "patch": {
+          "description": "The changes from that reading to this one, in order. They leave out `events` and `data`.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/Change" }
+        },
+        "events": {
+          "description": "The events logged after that reading's `through_seq`.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/Event" }
+        },
+        "data": { "$ref": "#/$defs/Reading/properties/data" },
+        "release": { "type": "string" }
+      },
+      "required": ["since", "patch", "events", "data"],
+      "additionalProperties": false
+    },
+    "Change": {
+      "description": "One change a `Tail` makes to the reading it starts from, at `at`, a path of keys from the reading's root through its objects (`served_state.tail`).",
+      "anyOf": [
+        {
+          "description": "The value at `at` is now `value`, whole.",
+          "type": "object",
+          "properties": {
+            "at": { "type": "array", "items": { "type": "string" } },
+            "value": {}
+          },
+          "required": ["at", "value"],
+          "additionalProperties": false
+        },
+        {
+          "description": "The object holding the last key of `at` no longer holds it.",
+          "type": "object",
+          "properties": { "at": { "type": "array", "items": { "type": "string" } } },
+          "required": ["at"],
+          "additionalProperties": false
+        },
+        {
+          "description": "The list at `at`, whose items are each named by its `id` (`by` `id`), its event's `id` (`event`) or itself, a string (`self`), changed: `items` holds its new and changed items whole, `dropped` names those it no longer holds, and `after` pairs each item that is new or moved, in the list's order, with the name of the item now before it, or null for the first. Every other item keeps its place.",
+          "type": "object",
+          "properties": {
+            "at": { "type": "array", "items": { "type": "string" } },
+            "by": { "enum": ["id", "event", "self"] },
+            "items": { "type": "array" },
+            "dropped": { "type": "array", "items": { "type": "string" } },
+            "after": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "prefixItems": [{ "type": "string" }, { "type": ["string", "null"] }],
+                "items": false
+              }
+            }
+          },
+          "required": ["at", "by"],
+          "additionalProperties": false
+        }
+      ]
+    },
     "EventAnswer": {
       "description": "The answer `POST /api/event` gives once its gates pass (`event_endpoint`).",
       "anyOf": [
         {
           "description": "Accepted, with the page's state, which holds the event's receipt.",
           "type": "object",
-          "properties": { "ok": { "const": true }, "state": { "$ref": "#" } },
+          "properties": {
+            "ok": { "const": true },
+            "state": { "anyOf": [{ "$ref": "#" }, { "$ref": "#/$defs/Tail" }] }
+          },
           "required": ["ok", "state"],
           "additionalProperties": false
         },
@@ -1735,7 +1785,7 @@
             "error": { "type": "string" },
             "findings": { "type": "array", "items": { "$ref": "#/$defs/Finding" } },
             "attempt": { "description": "The posted `attempt`, echoed as it came." },
-            "state": { "$ref": "#" }
+            "state": { "anyOf": [{ "$ref": "#" }, { "$ref": "#/$defs/Tail" }] }
           },
           "required": ["ok", "final", "error", "findings"],
           "additionalProperties": false

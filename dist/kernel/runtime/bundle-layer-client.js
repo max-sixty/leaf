@@ -456,53 +456,56 @@ const heldReading = () => ({
 });
 const heldHeaders = ({ data, state }) => ({
 	...data.version !== null && { "Leaf-Data-Version": data.version },
-	...state && { "Leaf-Held-Basis": state.browser.basis.key }
+	...state?.browser.basis.key && { "Leaf-Held-Basis": state.browser.basis.key }
 });
-const extended = (held, sent, dropped, order = 1) => {
-	const replaced = /* @__PURE__ */ new Set([...dropped, ...sent.map(({ event }) => event.id)]);
-	return [...held.filter(({ event }) => !replaced.has(event.id)), ...sent].sort((a, b) => order * ((a.event.seq ?? 0) - (b.event.seq ?? 0)));
-};
+function changedList(held, { by, items = [], dropped = [], after = [] }) {
+	const name = (item) => by === "self" ? item : by === "id" ? item.id : item.event.id;
+	const sent = new Map(items.map((item) => [name(item), item]));
+	const kept = new Map(held.map((item) => [name(item), item]));
+	const placed = /* @__PURE__ */ new Set([...dropped, ...after.map(([key]) => key)]);
+	const order = [...kept.keys()].filter((key) => !placed.has(key));
+	for (const [key, before] of after) order.splice(before === null ? 0 : order.indexOf(before) + 1, 0, key);
+	return order.map((key) => sent.has(key) ? sent.get(key) : kept.get(key));
+}
+function patched(reading, patch) {
+	const copies = /* @__PURE__ */ new Set();
+	const copy = (value) => {
+		if (copies.has(value)) return value;
+		const owned = Array.isArray(value) ? [...value] : { ...value };
+		copies.add(owned);
+		return owned;
+	};
+	const root = copy(reading);
+	for (const change of patch) {
+		const key = change.at.at(-1);
+		let parent = root;
+		for (const step of change.at.slice(0, -1)) parent = parent[step] = copy(parent[step]);
+		if ("by" in change) parent[key] = changedList(parent[key], change);
+		else if ("value" in change) parent[key] = change.value;
+		else delete parent[key];
+	}
+	return root;
+}
 function completeState(answer, held) {
-	const { since, ...rest } = answer;
-	const data = {
-		...rest.data,
-		sources: rest.data.sources ?? held.data.sources
-	};
-	if (!since) return {
-		...rest,
-		data
-	};
-	const prior = held.state;
-	if (prior?.browser.basis.through_seq !== since.through_seq) throw new Error("The state answer extends a reading this tab did not name");
-	const views = Object.fromEntries(Object.entries(rest.browser.views).map(([revision, view]) => {
-		const before = prior.browser.views[revision];
-		const dropped = since.dropped[revision];
-		if (!before || !dropped) throw new Error(`The state answer extends a view r${revision} this tab lacks`);
-		const projection = (part) => ({
-			...view[part].projection,
-			entries: extended(before[part].projection.entries, view[part].projection.entries, dropped[part])
-		});
-		return [revision, {
-			...view,
-			document: {
-				...view.document,
-				projection: projection("document")
-			},
-			thread: {
-				...view.thread,
-				projection: projection("thread")
-			},
-			undo: extended(before.undo, view.undo, dropped.undo, -1)
-		}];
-	}));
-	return {
-		...rest,
-		data,
-		events: [...prior.events, ...rest.events],
-		browser: {
-			...rest.browser,
-			views
+	const sources = answer.data.sources ?? held.data.sources;
+	if (!("since" in answer)) return {
+		...answer,
+		data: {
+			...answer.data,
+			sources
 		}
+	};
+	const { since, patch, events, data, ...added } = answer;
+	const prior = held.state;
+	if (!prior || prior.browser.basis.key !== since.key) throw new Error("The state answer extends a reading this tab did not name");
+	return {
+		...patched(prior, patch),
+		...added,
+		data: {
+			...data,
+			sources
+		},
+		events: [...prior.events, ...events]
 	};
 }
 var LayerRefused = class extends Error {};

@@ -654,20 +654,24 @@ TAIL_LOG = (
 def tail_cases() -> list[dict]:
     """Answers that complete a reading the browser holds, each beside that reading and
     the whole answer at the same position, for the browser's completion to be held to
-    (`served_state.tail`)."""
+    (`served_state.tail`). The last changes only what the page's claim reads, with
+    nothing logged between."""
     cases = []
-    for name, held, through in (
-        ("a pick after a pick", 1, 2),
-        ("an undo of an older pick", 4, 5),
-        ("a pickup", 5, 6),
-        ("several events at once", 2, len(TAIL_LOG)),
-        ("nothing new", len(TAIL_LOG), len(TAIL_LOG)),
+    for name, held, through, presence in (
+        ("a pick after a pick", 1, 2, UNCLAIMED),
+        ("an undo of an older pick", 4, 5, UNCLAIMED),
+        ("a pickup", 5, 6, UNCLAIMED),
+        ("several events at once", 2, len(TAIL_LOG), UNCLAIMED),
+        ("nothing new", len(TAIL_LOG), len(TAIL_LOG), UNCLAIMED),
+        ("a session claims the page", 3, 3, HELD),
     ):
         reading = served_reading(TAIL_PAGE, TAIL_LOG[:held])
         key = reading["browser"]["basis"]["key"]
-        tail = served_reading(TAIL_PAGE, TAIL_LOG[:through], held=key)
+        tail = served_reading(
+            TAIL_PAGE, TAIL_LOG[:through], presence=presence, held=key
+        )
         assert "since" in tail, name
-        whole = served_reading(TAIL_PAGE, TAIL_LOG[:through])
+        whole = served_reading(TAIL_PAGE, TAIL_LOG[:through], presence=presence)
         cases.append({"name": name, "held": reading, "tail": tail, "whole": whole})
     return cases
 

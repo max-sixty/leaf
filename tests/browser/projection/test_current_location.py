@@ -159,17 +159,6 @@ def test_a_restated_obligation_returns_a_user_to_the_question_not_to_a_control(
     mark.focus()
     expect(mark).to_be_focused()
 
-    (serve.page_dir / "index.html").write_text(LIVE_KEYS_OBLIGATION_WITHDRAWN)
-    told(page)
-    expect(page).to_have_title("Live keys without it")
-    expect(page.locator("body")).to_be_focused()
-
-    (serve.page_dir / "index.html").write_text(LIVE_KEYS_V1)
-    told(page)
-    expect(page).to_have_title("Live keys first")
-    mark.focus()
-    expect(mark).to_be_focused()
-
     (serve.page_dir / "index.html").write_text(LIVE_KEYS_OBLIGATION_REWRITTEN)
     told(page)
     expect(page).to_have_title("Live keys rewritten")
@@ -180,6 +169,20 @@ def test_a_restated_obligation_returns_a_user_to_the_question_not_to_a_control(
     expect(page.locator("lf-option[chosen]")).to_have_count(0)
     page.keyboard.press("2")
     expect(page.locator("#lk-two")).to_have_attribute("chosen", "")
+
+
+def test_a_withdrawn_obligation_leaves_the_user_on_the_page(browser, serve):
+    """A revision that takes the question away has nowhere to put the user back."""
+    version_url = serve(LIVE_KEYS_V1)
+    page = open_page(browser, live_url(version_url))
+    mark = page.locator("#lk-two .lf-pick")
+    mark.focus()
+    expect(mark).to_be_focused()
+
+    (serve.page_dir / "index.html").write_text(LIVE_KEYS_OBLIGATION_WITHDRAWN)
+    told(page)
+    expect(page).to_have_title("Live keys without it")
+    expect(page.locator("body")).to_be_focused()
 
 
 def test_a_revision_gives_back_what_the_user_moved_and_nothing_they_left(

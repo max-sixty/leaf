@@ -25,11 +25,15 @@ no Layout: no gutter or column, and `data-width` does nothing there. A workspace
 holds its title and list fixed at the window's top, so it takes nothing beside `main`.
 Keep the page's
 title, and a Layout's `header` and `footer`, inside `main`, and lay out what stands
-beside it with the page's own CSS, such as a grid on `body`. A site header the page
-fixes at the window's top, or makes the sticky first thing in `body` or `main`, needs
-no `scroll-margin-top` or `scroll-padding-top`: Leaf lands links below it, and its
-comment marks and controls pass under it (`module-scroll-and-motion.md`, "Headers
-over the document").
+beside it with the page's own CSS, such as a grid on `body`.
+
+A site header the page fixes at the window's top, or makes sticky in `body` before
+`main` (a banner may stand above it) or at the start of `main`, needs no landing room of
+its own: Leaf lands links below it, and its own marks and controls pass under it
+(`module-scroll-and-motion.md`, "Headers over the document"). A sticky header further
+into `main` or inside a section isn't read that way, so its targets need their own
+`scroll-margin-top`. A `scroll-margin-top` the page gives a target replaces the room
+Leaf leaves above it, and Leaf sets the root's `scroll-padding-top` itself.
 
 On a column page, a board, diagram or diff declares its own width, and any other block,
 such as a table, a trace or a playground, can ask for one with `data-width` ("Bounds and

@@ -60,20 +60,18 @@
   );
   /* What a page reads of the chrome, and only where it needs a number: a box that fills
      the window takes --lf-view-height, and a box that sticks stops at --lf-top, below
-     the head room, the page's own head (base.css, at `--lf-top`) and any sticky header
+     the head room, the page's own heads (base.css, at `--lf-top`) and any sticky header
      under them. Ordinary content never sees either band; the document already keeps
      clear of both (html[data-lf-live], base.css). */
   --lf-view-height: calc(100dvh - var(--lf-head-room) - var(--lf-foot-room));
   --lf-top: var(--lf-head-room);
   /* A scroller's landing band, which its `scroll-padding-top` states (the root's, base.css),
      in two parts: how much of the sticky-header slot it covers whole (`--lf-top-covered`:
-     on the root, the head room, the page's own head and a page tab strip), and the room
-     it leaves below that for a landing's focus ring (`--lf-landing-room`). The layer's
-     focus margin reads both (shadow.css, at `--lf-head-inset`), and a box that scrolls
-     restarts them (state.css). */
-  --lf-top-covered: calc(
-    var(--lf-head-room) + var(--lf-page-head, 0px) + var(--lf-root-headers, 0px)
-  );
+     on the root, the head room and a page tab strip), and the room it leaves below that
+     for a landing's focus ring (`--lf-landing-room`). The layer's focus margin reads
+     both (shadow.css, at `--lf-head-inset`), and a box that scrolls restarts them
+     (state.css). */
+  --lf-top-covered: calc(var(--lf-head-room) + var(--lf-root-headers, 0px));
   --lf-landing-room: 12px;
   /* The page tab strip's stated height: its 8px head, a name's 38px face or the aim
      floor where that is taller, and its 1px rule. The default package draws the strip

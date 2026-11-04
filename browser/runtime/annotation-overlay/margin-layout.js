@@ -86,7 +86,7 @@ import { boundedBlockOf } from "../bounds.js";
 import { pageScroller } from "../scrolling.js";
 import { hearScrollsIn, watchScrollEnds } from "../arrivals.js";
 import { layoutBox, pageDocument } from "../passages.js";
-import { pageHead } from "../root-headers.js";
+import { pageHeads } from "../root-headers.js";
 import {
   arrivals,
   inSeatingOrder,
@@ -1062,22 +1062,23 @@ function childIndex() {
 }
 
 // A box that stands still in the window as the document scrolls past it: one fixed
-// there, or the page's head, which sticks at its top (root-headers.js, `pageHead`). What
+// there, or one of the page's heads, which sticks at its top (root-headers.js,
+// `pageHeads`). What
 // it holds and what scrolls under it move apart with every scroll, so a pin reads the
 // room in the one it stands in (`coverIn`), and the window bounds the seats of a pin in
 // such a box, since no scroll brings any other into view.
-/** @param {Element} box @param {Element | null} head */
-const standsStill = (box, head) => box === head || fixedInWindow(box);
-/** @param {Element} target @param {Element | null} head */
-function stillBox(target, head) {
+/** @param {Element} box @param {ReadonlyMap<Element, unknown>} heads */
+const standsStill = (box, heads) => heads.has(box) || fixedInWindow(box);
+/** @param {Element} target @param {ReadonlyMap<Element, unknown>} heads */
+function stillBox(target, heads) {
   /** @type {Element | null} */
   let at = target;
-  for (; at; at = renderedParent(at)) if (standsStill(at, head)) return at;
+  for (; at; at = renderedParent(at)) if (standsStill(at, heads)) return at;
   return null;
 }
 
-/** @param {Element} root @param {Pick<Box, "top" | "bottom">} band @param {Element} target @param {import("../geometry.js").ClipCache} bands @param {Element} stop @param {readonly DOMRect[]} standing where the block controls stand (`blockControlBoxes`) @param {ReturnType<typeof childIndex>} children the pass's index of what each parent holds @param {Element | null} head the page's head (`standsStill`) */
-function coverIn(root, band, target, bands, stop, standing, children, head) {
+/** @param {Element} root @param {Pick<Box, "top" | "bottom">} band @param {Element} target @param {import("../geometry.js").ClipCache} bands @param {Element} stop @param {readonly DOMRect[]} standing where the block controls stand (`blockControlBoxes`) @param {ReturnType<typeof childIndex>} children the pass's index of what each parent holds @param {ReadonlyMap<Element, unknown>} heads the page's heads (`standsStill`) */
+function coverIn(root, band, target, bands, stop, standing, children, heads) {
   /** @type {Box[]} */
   const cover = [];
   /** @type {Box[]} */
@@ -1100,7 +1101,7 @@ function coverIn(root, band, target, bands, stop, standing, children, head) {
       }
       const { node, box } = child;
       // A box standing still holds its own pins' room, not this one's.
-      if (standsStill(node, head)) continue;
+      if (standsStill(node, heads)) continue;
       const boxless = !box.width && !box.height;
       const holds = node !== target && renderedUnder(target, node);
       if (!boxless && !holds && node !== target) boxes.push({ node, box });
@@ -1246,7 +1247,7 @@ function standFolded(row, fold, on) {
 /** @param {PlacedRow[]} rows @param {{bands: import("../geometry.js").ClipCache, shell: number, pinInset: number}} options */
 function pinSeating(rows, { bands, shell, pinInset }) {
   const page = pageDocument();
-  const head = pageHead();
+  const heads = pageHeads();
   // A scrollable document can reveal seats beyond the viewport, but none above its own
   // top. A root whose overflow prevents user scrolling cannot, so its window bounds the
   // seats, as it does for a pin standing still in it (`stillBox`).
@@ -1324,7 +1325,7 @@ function pinSeating(rows, { bands, shell, pinInset }) {
     // page reads nothing standing still in the window, and one in such a box reads only
     // that box, where the window shows it (`stillBox`).
     const stop = read.scroller;
-    const still = stillBox(target, head);
+    const still = stillBox(target, heads);
     standing ??= blockControlBoxes();
     const room = coverIn(
       still ?? (stop === pageScroller ? page : stop),
@@ -1334,7 +1335,7 @@ function pinSeating(rows, { bands, shell, pinInset }) {
       stop,
       still ? [] : standing,
       children,
-      head,
+      heads,
     );
     const { cover, controls } = room;
     const end = parts.at(-1);

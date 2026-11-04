@@ -1,6 +1,6 @@
-"""The page's own head: a header the page fixes at the window's top, or makes the sticky
-first thing in `body` or `main`, which Leaf finds and starts its sticky-header slot
-below (root-headers.js, `pageHead`). A landing arrives below it, a block's Copy
+"""The page's own heads: a header the page fixes at the window's top, or makes sticky
+ahead of the page's content, which Leaf finds and starts its sticky-header slot below
+(root-headers.js, `pageHeads`). A landing arrives below it, a block's Copy
 scrolled under it passes under it, a box sticking at `var(--lf-top)` sticks below it,
 and a pin on its own words keeps one seat on screen wherever the document is
 scrolled."""
@@ -48,20 +48,35 @@ BODY = (
 
 def _fixed_beside_main():
     """A site header fixed at the window's top, in a box of its own in `body` beside
-    `main`, which only the hit test finds."""
+    `main`, which only the hit test finds, on a page that states its own landing room
+    for it as its target's `scroll-margin-top`, 100px."""
     style = (
         f"<style>{LOOK} #site-head {{ position: fixed; inset-inline: 0; }}"
-        " main { padding-block-start: 120px; }</style>"
+        " main { padding-block-start: 120px; } #risks { scroll-margin-top: 100px; }"
+        "</style>"
     )
-    return leaf_page("A fixed site header", BODY, head=style).replace(
+    source = leaf_page("A fixed site header", BODY, head=style).replace(
         "<body>", f'<body><div class="site">{HEAD}</div>'
     )
+    return source, 100
 
 
 def _sticky_in_main():
-    """A header sticking a gap below the window's top, the first thing in `main`."""
-    style = f"<style>{LOOK} #site-head {{ position: sticky; top: 8px; }}</style>"
-    return leaf_page("A sticky site header", HEAD + BODY, head=style)
+    """A header sticking a gap below the window's top in `main`, after a skip link moved
+    off screen and an empty anchor, below a banner in `body`, under a reading-progress
+    bar fixed across the window's top, on a page that states its own landing room for
+    it as the root's `scroll-padding-top`, 80px."""
+    style = (
+        f"<style>{LOOK} #site-head {{ position: sticky; top: 8px; }}"
+        " .skip { position: absolute; left: -9999px; }"
+        " #bar { position: fixed; top: 0; left: 0; right: 0; height: 4px; z-index: 9;"
+        " background: var(--accent); } html { scroll-padding-top: 80px; }</style>"
+    )
+    leading = '<a class="skip" href="#title">Skip to the brief</a><div id="top"></div>'
+    source = leaf_page("A sticky site header", leading + HEAD + BODY, head=style)
+    banner = '<p id="banner">Maintenance window Saturday night.</p>'
+    source = source.replace("<body>", f"<body>{banner}")
+    return source.replace("</main>", '</main><div id="bar"></div>'), 80
 
 
 READ = """async () => {
@@ -100,17 +115,32 @@ def test_the_pages_own_head_stands_over_what_leaf_draws_and_lands(
     """Leaf's chrome stands above every page box, so a Copy or a pin scrolled under the
     page's header was drawn over it, and a landing, Leaf's sticky boxes and a pin
     seated while the page was scrolled all counted the window's top as clear. On a
-    header nobody declares, each read the page as though the header weren't there."""
+    header nobody declares, each read the page as though the header weren't there. A
+    thin bar fixed over the header, or a skip link before it, leaves it the head, a
+    banner above a sticky one is under nothing, and the landing room a page states for
+    its header replaces Leaf's rather than adding to it."""
+    html, room = source()
     page = open_page(
         browser,
         serve(
-            source(),
+            html,
             events=[
                 _comment_on("head-words", quote="operations brief from the platform")
             ],
         ),
     )
     resized(page, 1280, 800)
+
+    if page.locator("#banner").count():
+        with subtests.test("a banner above a sticky head is under nothing"):
+            _scroll_to(page, 0)
+            shown = page.evaluate("""async () => {
+              const geometry = await window.__lfCheckApi();
+              const banner = document.getElementById('banner');
+              return {top: banner.getBoundingClientRect().top,
+                      shown: geometry.shownRect(banner, new Map())?.top};
+            }""")
+            assert shown["shown"] == pytest.approx(shown["top"], abs=0.5), shown
 
     with subtests.test("a pin on the head's words keeps its seat on screen"):
         # A pass made while the document is scrolled reads the same room: the head's
@@ -163,7 +193,7 @@ def test_the_pages_own_head_stands_over_what_leaf_draws_and_lands(
         read = page.evaluate(READ)
         assert read["tool"] == pytest.approx(read["head"], abs=1), read
 
-    with subtests.test("a link in the head lands below it"):
+    with subtests.test("a link in the head lands below it, once"):
         page.mouse.move(5, 400)
         _scroll_to(page, 0)
         page.locator("#to-risks").click()
@@ -176,3 +206,4 @@ def test_the_pages_own_head_stands_over_what_leaf_draws_and_lands(
         )
         assert landed["scrolled"] > 0, landed
         assert landed["risks"] >= landed["head"], landed
+        assert landed["risks"] < landed["head"] + room, landed

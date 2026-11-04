@@ -49,8 +49,9 @@ const makeCut = () => {
   return frame;
 };
 // Stands a document control in the frames its block's headers cut (`headerLevels`),
-// read again each time the control is revealed and once a frame after a resize, since a
-// header can come, go or change height while the control shows or while it hides.
+// read again each time the control is revealed and once a frame after a resize or a
+// change of the page's own heads (`restandControls`), since a header can come, go or
+// change height while the control shows or while it hides.
 /** @type {Map<HTMLElement, Element>} */
 const placed = new Map(); // document control → its block
 const wired = new WeakSet();
@@ -87,10 +88,13 @@ onCurrentLocation((node) => {
   }
   setActiveControl("focus", null);
 });
-let resized = 0;
-addEventListener("resize", () => {
-  resized ||= nextRender(() => {
-    resized = 0;
+let restanding = 0;
+/** Stand every document control in its block's frames again, in the next frame: after
+ * a resize, and when the page's own heads change what they cover (root-headers.js),
+ * which no resize says. */
+export function restandControls() {
+  restanding ||= nextRender(() => {
+    restanding = 0;
     // A hidden panel's old layout is invalid after resize. Reading its cuts would
     // force the browser to lay out each skipped subtree; revealControl reads them
     // when the user next reveals the control. Read every shown block before writing.
@@ -100,7 +104,8 @@ addEventListener("resize", () => {
     for (const { control, block, levels } of read)
       standInChrome(control, block, levels);
   });
-});
+}
+addEventListener("resize", restandControls);
 
 /** Where each document control with a footprint stands over its block, shown or
  * hidden at rest, so a margin pin keeps off it (margin-layout.js, `coverIn`) and

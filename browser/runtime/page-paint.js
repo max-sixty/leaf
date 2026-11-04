@@ -38,7 +38,7 @@ export const RUNTIME_PAINT_ATTRIBUTE = Object.freeze({
   traffic: "data-lf-traffic",
   // A recording playing through the runtime's controls (video-controls.js).
   player: "data-lf-player",
-  // The page's own header over the document (root-headers.js, `pageHead`).
+  // One of the page's own headers over the document (root-headers.js, `pageHeads`).
   pageHead: "data-lf-page-head",
 });
 

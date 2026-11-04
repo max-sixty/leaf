@@ -29,7 +29,6 @@ from render_harness import (
     INLINE_PAGE,
     LONG_PAGE,
     PANEL,
-    PANEL_THREAD,
     available_commands,
     consume_browser_errors,
     draft_control,
@@ -54,6 +53,7 @@ from browser.threads import open_panel_thread
 from browser.threads.test_rewrites import _rewrite_surface
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -602,6 +602,64 @@ def test_a_dialog_shown_as_a_popover_stands_as_a_popover(browser, serve):
       return {popover, modal};
     }""")
     assert kinds == {"popover": ["popover"], "modal": ["modal"]}
+
+
+def test_a_popover_its_control_opens_hands_the_user_back_to_the_control(browser, serve):
+    """A control that opens a popover with `popovertarget` holds the user as it opens, so
+    Escape hands them back to it. A script that opens a popover naming a control as its
+    source moves no one. Either way the control's `aria-expanded` follows the popover.
+
+    Safari and Firefox on macOS leave a pressed button unfocused, so the platform's
+    return went wherever focus stood before the press. `click()` presses the control
+    without focusing it, as those browsers do."""
+    page = open_page(browser, serve(LONG_PAGE))
+    page.evaluate("""() => {
+      const control = document.createElement('button');
+      control.id = 'menu-control';
+      control.textContent = 'Options';
+      control.setAttribute('popovertarget', 'menu');
+      control.setAttribute('aria-expanded', 'false');
+      const menu = document.createElement('div');
+      menu.id = 'menu';
+      menu.popover = 'auto';
+      menu.innerHTML = '<button>Choice</button>';
+      const opener = document.createElement('button');
+      opener.id = 'scripted-control';
+      opener.textContent = 'More';
+      opener.setAttribute('aria-expanded', 'false');
+      const list = document.createElement('div');
+      list.id = 'scripted-list';
+      list.popover = 'auto';
+      list.textContent = 'A list';
+      const outside = document.createElement('button');
+      outside.id = 'outside';
+      outside.textContent = 'Elsewhere';
+      document.querySelector('main').append(control, menu, opener, list, outside);
+      control.click();
+    }""")
+    control = page.locator("#menu-control")
+    expect(control).to_be_focused()
+    expect(control).to_have_attribute("aria-expanded", "true")
+    page.keyboard.press("Escape")
+    expect(page.locator("#menu")).to_be_hidden()
+    expect(control).to_be_focused()
+    expect(control).to_have_attribute("aria-expanded", "false")
+
+    outside = page.locator("#outside")
+    outside.focus()
+    page.evaluate("""async () => {
+      const {showNativeLayer} = await window.__lfWidgetApi();
+      showNativeLayer(document.querySelector('#scripted-list'), {
+        source: document.querySelector('#scripted-control'),
+      });
+    }""")
+    opener = page.locator("#scripted-control")
+    expect(page.locator("#scripted-list")).to_be_visible()
+    expect(opener).to_have_attribute("aria-expanded", "true")
+    expect(outside).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(page.locator("#scripted-list")).to_be_hidden()
+    expect(opener).to_have_attribute("aria-expanded", "false")
 
 
 def test_a_text_box_keeps_its_keys_from_the_widget_around_it(browser, serve):

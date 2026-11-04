@@ -55,11 +55,6 @@ lf-gloss:has(> .lf-gloss-mark[data-lf-focus-visible]) {
   max-width: min(22rem, calc(100vw - 24px));
   margin: var(--lf-gloss-gap) 0;
   padding: 10px 13px 11px;
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  background: var(--card);
-  color: var(--ink);
-  box-shadow: var(--raise-2);
   font: var(--font-message);
   text-align: left;
   white-space: normal;
@@ -75,9 +70,6 @@ lf-gloss:has(> .lf-gloss-mark[data-lf-focus-visible]) {
     inset: calc(-1 * var(--lf-gloss-gap)) 0;
     z-index: -1;
   }
-}
-.lf-gloss-popover::backdrop {
-  background: transparent;
 }
 @media print {
   lf-gloss > .lf-gloss-popover {

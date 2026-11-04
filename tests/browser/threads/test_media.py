@@ -12,7 +12,6 @@ from render_cases_interaction import live_url, panel_comment
 from render_cases_layout import solid_png
 from render_harness import (
     LONG_PAGE,
-    PANEL_THREAD,
     example_media,
     leaf_page,
     open_page,
@@ -34,6 +33,7 @@ from browser.threads import (
 from leaf import event_log as events_model
 from leaf import media as media_model
 from leaf.render_checks import rendered
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

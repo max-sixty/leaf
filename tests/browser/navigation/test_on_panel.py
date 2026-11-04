@@ -20,6 +20,7 @@ from render_harness import (
     round_trip,
     scroll_settled,
     sending,
+    show_done,
     stamp_page,
     wait_for_revision,
     write,
@@ -916,7 +917,7 @@ def test_a_completed_obligation_stays_reachable_through_on_me(browser, serve, wi
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     panel_settled(page, view="queue")
-    done = page.locator('.lf-fp-on-item[data-lf-list="done"]')
+    done = show_done(page)
     expect(done).to_have_count(1)
     expect(done).to_contain_text("Pick one")
     expect(page.locator('.lf-fp-on-item[data-lf-list="you"]')).to_have_count(0)
@@ -925,11 +926,11 @@ def test_a_completed_obligation_stays_reachable_through_on_me(browser, serve, wi
     page.keyboard.press("Shift+m")
     panel_settled(page, open=False)
 
-    # With nothing left on the user, On me opens on its Done.
+    # With nothing left on the user, On me opens on its folded Done.
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     panel_settled(page, view="queue")
-    expect(done).to_have_count(1)
+    expect(show_done(page)).to_have_count(1)
 
 
 def test_a_completed_obligation_keeps_its_answer_in_the_on_panel(browser, serve):
@@ -973,7 +974,7 @@ def test_a_completed_obligation_keeps_its_answer_in_the_on_panel(browser, serve)
         route.continue_()
     round_trip(page)
     toggle_queue(page)
-    done = page.locator('.lf-fp-on-item[data-lf-list="done"]')
+    done = show_done(page)
     expect(done).to_have_count(1)
     expect(done).to_contain_text("First")
 

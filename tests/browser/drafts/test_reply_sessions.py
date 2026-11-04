@@ -8,7 +8,6 @@ from render_cases_interaction import panel_comment
 from render_cases_navigation import source_revision
 from render_harness import (
     LONG_PAGE,
-    PANEL_THREAD,
     holding,
     leaf_page,
     open_page,
@@ -25,6 +24,7 @@ from browser.threads import PANEL_REPLY, open_panel_thread, seed_panel_threads
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

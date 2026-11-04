@@ -14,14 +14,12 @@
  * margin row. The note is a proxy for its block (control-faces.js, `proxy`): focus on it
  * rings the block and brings it into view (details-shelf.js).
  */
+import { counted } from "./words.js";
 import { aimTargetAt } from "./anchor-resolution.js";
 import { shelve, unshelve } from "./details-shelf.js";
 import { spokenSubject } from "./contribution-model.js";
 import { offerAction } from "./widget-elements.js";
 import { keeps, keepsText } from "./keeps.js";
-
-/** @param {number} count */
-const label = (count) => `${count} comment${count === 1 ? "" : "s"}`;
 
 /** @typedef {readonly [string, ...string[]]} CommentThreads */
 /** @param {{openThread: ReturnType<typeof import("./thread/destination.js").createThreadDestinations>["openPageThread"],
@@ -71,7 +69,7 @@ export function createAnchorNoteProjection({ openThread, labelAnchor }) {
       }
       shelve(holder, record.note);
       record.firstThreadId = threadIds[0];
-      const count = label(threadIds.length);
+      const count = counted(threadIds.length, "comment");
       const anchor = aimTargetAt(holder)?.anchor;
       keepsText(record.note, count);
       keeps(

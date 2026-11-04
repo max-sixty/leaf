@@ -15,7 +15,6 @@ from render_cases_interaction import (
     panel_comment,
 )
 from render_harness import (
-    PANEL_THREAD,
     RELEASE_FOCUS,
     open_page,
     panel_field,
@@ -41,6 +40,7 @@ from browser.threads import (
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

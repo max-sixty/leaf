@@ -53,6 +53,7 @@ import {
   syntaxState,
   textWidth,
   nextFrame,
+  MAX_EDIT_LENGTH,
 } from "/runtime/widget-api.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
 
@@ -127,7 +128,7 @@ function inRuns(code, rows) {
 // one for one, so an edited line keeps the row of the line it replaced. Exported for
 // its test.
 /** @param {readonly string[]} before @param {readonly string[]} after @param {number} [maxEditLength] @returns {number[] | null} */
-export function keptLines(before, after, maxEditLength = 1_000) {
+export function keptLines(before, after, maxEditLength = MAX_EDIT_LENGTH) {
   const changes = diffArrays([...before], [...after], { maxEditLength });
   if (!changes) return null;
   const kept = after.map(() => -1);
@@ -538,10 +539,7 @@ class TextDocument extends LeafElement {
         firstBox -
         this.getBoundingClientRect().height;
     else return;
-    const height = layoutPx(measured);
-    const { style } = panel;
-    if (style.getPropertyValue("--lf-preview-block") !== height)
-      style.setProperty("--lf-preview-block", height);
+    panel.style.setProperty("--lf-preview-block", layoutPx(measured));
   }
   // The press shows only while the box cuts lines off, as a thread's Full quote does.
   measureCut() {
@@ -705,9 +703,10 @@ class TextDocument extends LeafElement {
         if (this.lineLength)
           sizeRuns(this.sourceView.code, text, this.lineLength, this.drawn);
         const digits = "--lf-number-digits";
-        const drawnDigits = drawnPre.style.getPropertyValue(digits);
-        if (this.sourceView.pre.style.getPropertyValue(digits) !== drawnDigits)
-          this.sourceView.pre.style.setProperty(digits, drawnDigits);
+        this.sourceView.pre.style.setProperty(
+          digits,
+          drawnPre.style.getPropertyValue(digits),
+        );
       }
       const { code } = this.sourceView;
       for (const run of [...this.shown])

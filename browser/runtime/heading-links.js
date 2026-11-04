@@ -45,9 +45,7 @@ import { headerLevels } from "./css-anchors.js";
 import { focusDestination, focused, onCurrentLocation } from "./focus.js";
 import { layoutPx } from "./keeps.js";
 import { pageScope } from "./keyboard/register.js";
-import { inChrome, pageQueryAll } from "./passages.js";
-
-const HEADING = "h1, h2, h3, h4, h5, h6";
+import { HEADING, inChrome, pageQueryAll } from "./passages.js";
 
 /** @typedef {{heading: Element, control: ReturnType<typeof copyControl>, shown: Set<string>, events: AbortController, stop: () => void}} HeadingLink */
 /** @type {Map<Element, HeadingLink>} */
@@ -155,9 +153,7 @@ function writeLine(control, { top, height }) {
     "--lf-heading-link-top": top,
     "--lf-heading-link-line": height,
   })) {
-    const value = layoutPx(length);
-    if (control.style.getPropertyValue(property) !== value)
-      control.style.setProperty(property, value);
+    control.style.setProperty(property, layoutPx(length));
   }
 }
 

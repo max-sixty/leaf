@@ -15,7 +15,6 @@ from render_cases_interaction import (
 )
 from render_cases_navigation import source_revision
 from render_harness import (
-    PANEL_THREAD,
     leaf_page,
     open_page,
     open_threads,
@@ -35,6 +34,7 @@ from leaf import data as data_model
 from leaf import leases as leases_model
 from leaf import service as service_model
 from leaf.render_checks import rendered
+from leaf_dev.browser import PANEL_THREAD
 
 # The open thread's reply, the editor standing in the panel's field, and the thread's
 # held news, which the panel stands among its view's controls.

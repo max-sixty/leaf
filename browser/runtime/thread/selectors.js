@@ -11,6 +11,10 @@ export const THREAD = ".lf-page-thread, [data-lf-thread-view]";
 // The logged id a drawn thread carries. Each reader of the id takes it from here.
 /** @param {Element | null | undefined} node */
 export const drawnThreadId = (node) => node?.getAttribute("data-lf-thread") ?? null;
+// The page threads drawn under `root` that carry the logged id `id`, in tree order.
+/** @param {ParentNode} root @param {string} id */
+export const drawnThreadsWithId = (root, id) =>
+  root.querySelectorAll(`.lf-page-thread[data-lf-thread="${CSS.escape(id)}"]`);
 // Where a box the user writes in belongs: a drawn thread, or a seat holding none yet.
 export const SAYS_IN = `${THREAD}, .lf-thread-seat`;
 export const SAY_ROW = ".lf-thread-reply, .lf-say";

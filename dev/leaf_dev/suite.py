@@ -1,6 +1,7 @@
 """Run a selection of the suite in a checkout and read what each test did.
 
-`leaf-dev flake` and `leaf-dev bugback` run tests here.
+`leaf-dev flake` and `leaf-dev bugback` run tests here, and `leaf-dev suite-profile`
+reads a run's junit report through `junit_cases`.
 
 `collect` expands a selection of pytest node ids to the items it names and refuses one
 pytest would not run whole: piped or summarized, a selection that collects nothing
@@ -98,11 +99,12 @@ def run(
     }
 
 
-def read_junit(report: Path) -> dict[str, Outcome]:
-    """Each test's outcome in a junit report, by pytest node id. The suite has no test
-    classes, so a case's dotted `classname` is its module's path; a collection error
-    has none, and is keyed by its module's path."""
-    outcomes: dict[str, Outcome] = {}
+def junit_cases(report: Path) -> dict[str, list[ET.Element]]:
+    """Each test in a junit report, by pytest node id, with its cases in report
+    order: one, or two where a failed call's teardown also failed. The suite has no
+    test classes, so a case's dotted `classname` is its module's path; a collection
+    error has none, and is keyed by its module's path."""
+    tests: dict[str, list[ET.Element]] = {}
     for case in ET.parse(report).iter("testcase"):
         classname, name = case.get("classname", ""), case.get("name", "")
         nodeid = (
@@ -110,18 +112,30 @@ def read_junit(report: Path) -> dict[str, Outcome]:
             if classname
             else f"{name.replace('.', '/')}.py"
         )
+        tests.setdefault(nodeid, []).append(case)
+    return tests
+
+
+def read_junit(report: Path) -> dict[str, Outcome]:
+    """Each test's outcome in a junit report, by pytest node id (`junit_cases`)."""
+    return {nodeid: outcome(cases) for nodeid, cases in junit_cases(report).items()}
+
+
+def outcome(cases: list[ET.Element]) -> Outcome:
+    """One test's outcome from its cases. Of a failed call and its teardown's error,
+    the call's reading stands; an error replaces only a pass or a skip."""
+    reading = Outcome("passed")
+    for case in cases:
+        if reading.result not in ("passed", "skipped"):
+            break
         if bad := [e for e in case if e.tag in ("failure", "error")]:
             result = "failed" if bad[0].tag == "failure" else "error"
-            outcome = Outcome(result, message(bad[0]))
+            reading = Outcome(result, message(bad[0]))
         elif case.find("skipped") is not None:
-            outcome = Outcome("skipped")
+            reading = Outcome("skipped")
         else:
-            outcome = Outcome("passed")
-        # A failed call's teardown error comes as a second case; the call's reading
-        # stands, and the error replaces only a pass or a skip.
-        if nodeid not in outcomes or outcomes[nodeid].result in ("passed", "skipped"):
-            outcomes[nodeid] = outcome
-    return outcomes
+            reading = Outcome("passed")
+    return reading
 
 
 def message(failure: ET.Element) -> str:

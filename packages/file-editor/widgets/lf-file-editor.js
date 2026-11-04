@@ -323,6 +323,7 @@ customElements.define(
                 aria-description=${failure?.message ?? nothing}
                 popovertarget="lf-file-editor-choices"
                 aria-haspopup="menu"
+                aria-expanded="false"
               >
                 ${failure ? "Not saved" : "Changed on disk"}${iconTemplate(
                   "down",
@@ -332,7 +333,7 @@ customElements.define(
             >
           </div>
           <div
-            ${offered("lf-file-editor-choices")}
+            ${offered("lf-file-editor-choices lf-popover")}
             id="lf-file-editor-choices"
             popover="auto"
             role="menu"

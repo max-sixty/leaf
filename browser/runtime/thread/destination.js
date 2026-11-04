@@ -64,7 +64,7 @@ import { focusDestination, focused, onCurrentLocation } from "../focus.js";
 import { presented } from "../geometry.js";
 import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
 import { replyThreadKey } from "./replies.js";
-import { allThreads, threadIdNamed, threadNamed } from "./state.js";
+import { threadIdNamed, threadNamed } from "./state.js";
 import { heldThread, threadIn } from "./focus.js";
 import { showHeld, showHeldThread } from "./held-news.js";
 import { revealHeld, surfaceFocusTarget } from "./surfaces.js";
@@ -72,13 +72,13 @@ import { reveal } from "../widget-elements.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
 import { closestAcross } from "../passages.js";
 import { renderedUnder } from "../shadow.js";
-import { discussed, threadKey } from "./model.js";
+import { discussed } from "./model.js";
 import { openMessageEditIn } from "./message-edit.js";
 import { authoredHolder } from "./messages.js";
 import { drawnThreadId, THREAD } from "./selectors.js";
 import { threadPlace as placementOf } from "./placement.js";
 
-/** @typedef {ReturnType<typeof allThreads>[number]} ThreadRecord */
+/** @typedef {NonNullable<ReturnType<typeof threadNamed>>} ThreadRecord */
 /** @typedef {"thread" | "reply" | "message" | null} ThreadPart */
 /** @typedef {{part: ThreadPart, message: string | null, focus: boolean,
  * last: boolean, signal: AbortSignal, current: () => boolean}} PrimaryRequest */
@@ -132,7 +132,7 @@ export function createThreadDestinations({
   // the section its anchor names where the passage no longer resolves.
   /** @param {string} id */
   const threadPlace = (id) => {
-    const thread = allThreads().find((candidate) => candidate.id === id);
+    const thread = threadNamed(id);
     return thread ? placementOf(thread, placedAt) : null;
   };
   // The thread the user is at, the one every thread key acts on: the thread they hold,
@@ -480,7 +480,7 @@ export function createThreadDestinations({
     const selected = presentation?.owner.isConnected ? presentation : null;
     if (!selected) return;
     for (const key of [...lastResort]) {
-      const thread = allThreads().find((each) => threadKey(each) === key);
+      const thread = threadNamed(key);
       // A view the user has put away holds nothing to give back.
       const drawing = selected.reader.destination(key, { part: "thread" });
       if (!thread || !drawing?.checkVisibility()) {
@@ -539,9 +539,9 @@ export function createThreadDestinations({
   async function openThreadDraft(context, intent) {
     const route = threadDraft(context);
     if (!route) return null;
-    const thread = threadHoldingRoute(route);
-    if (!thread) return null;
     const { part, name } = route;
+    const thread = threadNamed(name);
+    if (!thread) return null;
     if (part === "reply") return openPageThread(thread.id, { part: "reply", intent });
     const landed = await openPageThread(name, { part: "message", intent });
     const card = landed && closestAcross(landed, THREAD);
@@ -552,13 +552,7 @@ export function createThreadDestinations({
   /** @param {string} context */
   function threadHolding(context) {
     const route = threadDraft(context);
-    return route ? threadHoldingRoute(route) : null;
-  }
-  /** @param {NonNullable<ReturnType<typeof threadDraft>>} route */
-  function threadHoldingRoute({ part, name }) {
-    return part === "reply"
-      ? allThreads().find((each) => threadKey(each) === name)
-      : allThreads().find((each) => each.msgs.some(({ id }) => id === name));
+    return route ? threadNamed(route.name) : null;
   }
 
   return {
@@ -571,9 +565,7 @@ export function createThreadDestinations({
     // to the page alone has somewhere to go: false only for a thread the primary holds
     // as the last resort while the page draws its place nowhere.
     showsOnPage: (/** @type {string} */ key) => {
-      const thread = lastResort.has(key)
-        ? allThreads().find((each) => threadKey(each) === key)
-        : null;
+      const thread = lastResort.has(key) ? threadNamed(key) : null;
       return !thread || placeDrawn(thread.id);
     },
     holdsThreadDraft: (/** @type {string} */ context) =>

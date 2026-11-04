@@ -130,7 +130,7 @@ const CUT_EDGES = [
 ];
 
 /** @param {{inventory: ReturnType<typeof import("../annotation-inventory.js").createAnnotationInventory>,
- * renderMarginThread: (host: HTMLElement, thread: ThreadRecord, controls: import("../thread/thread-card.js").MarginControls) => ReturnType<typeof import("../thread/inline.js").renderMarginThread>,
+ * renderMarginThread: (host: HTMLElement, thread: ThreadRecord, outlets: import("../thread/thread-card.js").ThreadOutlets) => ReturnType<typeof import("../thread/inline.js").renderMarginThread>,
  * placedAt: ReturnType<typeof import("../anchor-placement.js").createAnchorPlacement>["placedAt"],
  * scrollThreadIntoView: typeof import("../thread/reply-landing.js").scrollThreadIntoView,
  * scrollToElement: ReturnType<typeof import("../anchor-travel.js").createAnchorTravel>["scrollToElement"],
@@ -190,6 +190,16 @@ export function createThreadPreview({
     "Open in panel",
     { action: "expand" },
   );
+  // The card's head line: the thread's notice of held news, Previous and Next, Open in
+  // panel, the thread's Resolve or Reopen, and Close. It stands in the thread, over its
+  // first message's head, whose track it shares (annotation-chrome.css), and the thread
+  // draws its notice and its settlement in their places on it (thread-card.js,
+  // `ThreadOutlets`, `head`).
+  const previewHead = el("div", "lf-margin-thread-controls");
+  const previewActions = el("span", "lf-thread-meta-actions");
+  const previewNews = el("span", "lf-margin-thread-place");
+  const previewSettles = el("span", "lf-margin-thread-place");
+  previewHead.append(previewActions);
   const previewList = el("div", "lf-margin-preview-list");
   let dismiss = () => {};
   // Carried by its grip, the card stands where the user drops it, relative to what it is
@@ -361,6 +371,9 @@ export function createThreadPreview({
     session.stopRegion?.();
     session.stopRegion = null;
     session.transcript = transcript;
+    // The card scrolls its transcript, which grows only at its end (browser/AGENTS.md,
+    // `data-lf-reflow`).
+    if (transcript) keeps(transcript, "data-lf-reflow", "append");
     // The transcript stands on its foot beside the reply box: a reader at its end keeps
     // the turn there beside the box as the box takes room from it or gives it back,
     // whatever changed the box, and one read back keeps their offset, as the card hangs
@@ -1004,17 +1017,23 @@ export function createThreadPreview({
       dismiss();
       openInPanel(shownThread.id);
     };
+    setChildren(previewActions, [
+      previewNews,
+      ...(previewNav.hidden ? [] : [previewNav]),
+      previewOpenInPanel,
+      previewSettles,
+      previewClose,
+    ]);
     const rendered = renderMarginThread(body, shownThread, {
-      nav: previewNav.hidden ? null : previewNav,
-      expand: previewOpenInPanel,
-      close: previewClose,
-      anchor: session.anchor,
+      head: { line: previewHead, news: previewNews, controls: previewSettles },
       // A send from the card is the user's change joining the stream the card shows
       // (box-motion.js, "send"), read before the send draws.
-      sending: following.stream,
+      reply: { options: { sending: following.stream } },
+      anchor: session.anchor,
       // A resolved thread with no draft has no margin card, so resolving closes it and
-      // hands the user to its target.
-      prepareLanding: () => {
+      // hands the user to its target. Reopen lands as the thread's own does.
+      landing: (resolved) => {
+        if (resolved) return null;
         const target = targetFor(previewSession?.entry);
         if (!target) return () => false;
         const mayLand = retainUserIntent({

@@ -372,8 +372,8 @@ function createApplication(dependencies) {
     openPageMap: dependencies.annotationCommands.openPageMap,
     pageMapDialogContains: dependencies.annotationCommands.pageMapDialogContains,
     scrollThreadIntoView: dependencies.annotationCommands.scrollThreadIntoView,
-    renderMarginThread: (host, thread, controls) =>
-      renderMarginThread(host, thread, inlineView, controls),
+    renderMarginThread: (host, thread, outlets) =>
+      renderMarginThread(host, thread, inlineView, outlets),
     placedAt: dependencies.anchorPlacement.placedAt,
     marksFor: (id) => dependencies.anchorPaint?.marksFor(id) ?? [],
     currentLocationObligation:

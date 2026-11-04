@@ -256,16 +256,14 @@ export class Transcript {
   }
 
   /**
-   * Draws `model`, a thread's reading (thread-card.js, `threadReading`). `appends`
-   * declares that it grows at its end inside the scroller holding it, as a margin
-   * card's does (`data-lf-reflow`, tests/shift_watch.js). Returns the disclosure that
-   * took over the one the user was on, where this draw replaced it, as the answer's
-   * head takes progress over from the working message.
+   * Draws `model`, a thread's reading (thread-card.js, `threadReading`). Returns the
+   * disclosure that took over the one the user was on, where this draw replaced it, as
+   * the answer's head takes progress over from the working message.
    * @param {import("./thread-card.js").ThreadViewModel} model
-   * @param {{arrived?: boolean, appends?: boolean}} [options]
+   * @param {{arrived?: boolean}} [options]
    * @returns {HTMLElement | null}
    */
-  present(model, { arrived = false, appends = false } = {}) {
+  present(model, { arrived = false } = {}) {
     const prior = this.#model;
     const currentLocation = focused();
     const priorSummaries = new Set(prior?.summaries.map(({ id }) => id) ?? []);
@@ -506,7 +504,6 @@ export class Transcript {
       if (foot) node.style.setProperty("--lf-fold-foot", foot);
       else node.style.removeProperty("--lf-fold-foot");
     }
-    keeps(this.node, "data-lf-reflow", appends ? "append" : null);
     for (const row of transcript) row.tail = row === transcript.at(-1);
     this.#rows = this.#withFolds(transcript);
     this.#stopWorkingExposure?.();

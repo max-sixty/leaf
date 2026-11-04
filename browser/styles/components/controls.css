@@ -293,7 +293,7 @@ svg[data-lf-icon] {
    whole thread. An open rewrite's Discard and Save take the thread's place past the
    gap (response.css), so the rule leaves with it. It stands past the head's end rather
    than its controls', since a card short of room for a held notice of news lets them
-   run past the head into that gap (thread-card.js, `#fitMarginNews`). */
+   run past the head into that gap (thread-card.js, `#fitLineNews`). */
 :is(.lf-thread-content, .lf-page-thread):has(
     > :is(.lf-thread-controls, .lf-margin-thread-controls)
   )

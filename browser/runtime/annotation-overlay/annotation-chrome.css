@@ -704,9 +704,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item ~ .lf-chrome .lf-mark-el
      line (above), with the ground of the message whose head holds it, tinted while
      it arrives. Their padding keeps the head's own controls short of them, so a
      focused control's ring stays whole. A notice of held news stands first in the
-     row (thread-card.js); the card keeps its width while it holds news
-     (thread-preview.js), so the notice takes its room from the heads' track, and the
-     actions after it keep their places. */
+     row (thread-preview.js); the card keeps its width while it holds news, so the
+     notice takes its room from the heads' track, and the actions after it keep their
+     places. The places the thread draws its notice and settlement in lay out as what
+     they hold. */
   /* The row is a message head's line, so Reopen taking Resolve's place is as tall as
      Resolve was. */
   .lf-margin-thread .lf-page-thread > .lf-margin-thread-controls {
@@ -721,9 +722,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item ~ .lf-chrome .lf-mark-el
     min-height: var(--lf-msg-head-height);
     padding-inline-start: var(--sp-2);
   }
+  .lf-margin-thread-place {
+    display: contents;
+  }
   /* The notice takes at most a notice's room beside a head's words (`--lf-news-width`,
      surfaces.css), and no more than the heads leave beside each one's name and time
-     (`--lf-news-room`, thread-card.js, `#fitMarginNews`), and it says one count of
+     (`--lf-news-room`, thread-card.js, `#fitLineNews`), and it says one count of
      all that waits (held-news.js, `newsNotice`).
      A card's heads keep their names and times whole beside it under a fine pointer. A
      touch screen's card near its least width, whose three controls, notice and Edit
@@ -781,7 +785,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item ~ .lf-chrome .lf-mark-el
     outline: none;
   }
   /* A name cut to less than an em beside a notice of news shows none of itself
-     (thread-card.js, `#fitMarginNews`), rather than a sliver of its first letter. It
+     (thread-card.js, `#fitLineNews`), rather than a sliver of its first letter. It
      keeps its box, so hiding it changes nothing the fit measures, and its words stay
      for a screen reader. */
   .lf-margin-thread .lf-thread-transcript .lf-msg-head > b[data-lf-nameless] {

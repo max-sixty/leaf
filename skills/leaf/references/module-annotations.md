@@ -181,11 +181,12 @@ part optional:
 - `head: {news, controls}` names two places on the widget's head line. The notice of
   news the thread holds back stands in `news`, and Resolve, or Reopen, in `controls`.
   Without it, both stand beside the first message's head.
-- `reply: {outlet, options}` names where the reply box stands, with the options
-  `parts.reply` takes, except that `hint` is called with `{resolved, attention}`: the
-  thread as it is drawn, held news included, so the box's words agree with Resolve and
-  the notice. `attention` is what the thread waits on, with the `word` Threads says it
-  in, or null where it waits on nothing, as once it is resolved.
+- `reply: {outlet, options}` names where the reply box stands, at the thread's end
+  without `outlet`, with the options `parts.reply` takes, except that `hint` is called
+  with `{resolved, attention}`: the thread as it is drawn, held news included, so the
+  box's words agree with Resolve and the notice. `attention` is what the thread waits
+  on, with the `word` Threads says it in, or null where it waits on nothing, as once
+  it is resolved.
 - `quote: true` quotes the words the thread is about over its messages.
 - `landing(resolved)` is called as the user presses Resolve or Reopen, with whether
   the thread stood resolved before the press. It returns a step Leaf runs once the

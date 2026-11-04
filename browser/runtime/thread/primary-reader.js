@@ -4,7 +4,7 @@
 import { aborted } from "../abort.js";
 import { randomId } from "../ids.js";
 import { under, renderedUnder, shadowHost } from "../shadow.js";
-import { ThreadView, threadReading } from "./thread-card.js";
+import { ThreadView, apartPlaces, threadReading } from "./thread-card.js";
 import { MessageView, messageReading } from "./messages.js";
 import { createReplyView } from "./replies.js";
 import { keeps, keepsHidden } from "../keeps.js";
@@ -73,12 +73,11 @@ const placesOf = (item) => {
   /** @type {[Element, (view: RetainedPart) => Element][]} */
   const places = [[item.outlet, (view) => view.node]];
   if (item.kind !== "thread") return places;
-  /** @param {keyof ThreadView["apart"]} part @returns {(view: RetainedPart) => Element} */
-  const apart = (part) => (view) =>
-    view.kind === "thread" ? view.apart[part] : view.node;
-  const { head, reply } = item.options;
-  if (head) places.push([head.news, apart("news")], [head.controls, apart("controls")]);
-  if (reply) places.push([reply.outlet, apart("reply")]);
+  for (const [place, part] of apartPlaces(item.options))
+    places.push([
+      place,
+      (view) => (view.kind === "thread" ? view.apart[part] : view.node),
+    ]);
   return places;
 };
 // What a part stands in its places: its own box, and a whole thread's boxes apart.

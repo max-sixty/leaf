@@ -22,7 +22,7 @@ import { setChildren } from "../dom-children.js";
 import { generatedElement } from "../widget-elements.js";
 import { html, render } from "/runtime/framework.js";
 import { seatRoot, threadKey } from "./model.js";
-import { ThreadView, threadReading } from "./thread-card.js";
+import { ThreadView, apartPlaces, threadReading } from "./thread-card.js";
 import { holdFocus, focused, focusDestination, currentLocationIn } from "../focus.js";
 import { registry } from "../registry.js";
 import { loadDraft } from "../drafts.js";
@@ -37,7 +37,7 @@ import { foldBlock } from "../motion.js";
 /** @typedef {import("./thread-card.js").ThreadRecord} ThreadRecord */
 /** @typedef {import("./thread-card.js").ThreadReading} ThreadReading */
 /** @typedef {import("./thread-card.js").ThreadViewModel} ThreadViewModel */
-/** @typedef {import("./thread-card.js").MarginControls} MarginControls */
+/** @typedef {import("./thread-card.js").ThreadOutlets} ThreadOutlets */
 /** @typedef {{threads: readonly ThreadReading[], response: boolean, surface?: string, news?: null}} SeatReading */
 /** @typedef {{threads: readonly ThreadViewModel[], response: boolean, surface?: string,
  * news?: import("./held-news.js").NewsNotice | null}} SeatShowing */
@@ -128,18 +128,20 @@ class ThreadSeat {
   // places it (`claim`). A seat that stood there and left is pruned at the next commit;
   // one drawn but not yet placed is kept for its owner.
   #connected = false;
-  /** @type {MarginControls | null} */
-  #marginControls = null;
+  // Where the margin's floating card stands its thread's parts (thread-card.js,
+  // `ThreadOutlets`); a seat in the page's flow gives none.
+  /** @type {ThreadOutlets} */
+  #outlets = {};
 
   /** @param {Element} node @param {ThreadCommands} commands */
   constructor(node, commands) {
     this.node = node;
     this.#commands = commands;
   }
-  /** @param {() => HTMLElement | null} response @param {MarginControls | null} marginControls */
-  configure(response, marginControls = null) {
+  /** @param {() => HTMLElement | null} response @param {ThreadOutlets} outlets */
+  configure(response, outlets = {}) {
     this.#response = response;
-    this.#marginControls = marginControls;
+    this.#outlets = outlets;
   }
 
   /** @param {SeatReading} model @param {SeatBatch | null} [batch] */
@@ -234,7 +236,11 @@ class ThreadSeat {
           (view = new ThreadView(this.#commands, descriptor)),
         );
       const resolved = settled.includes(descriptor);
-      view.setMarginControls(this.#marginControls);
+      view.setOutlets(this.#outlets);
+      // The parts the thread draws apart stand in their places before it draws them, so
+      // what reads them as drawn reads them placed, as a primary reader places them.
+      for (const [place, part] of apartPlaces(this.#outlets))
+        setChildren(place, [view.apart[part]]);
       view.present(descriptor);
       view.setFoldedInto(
         resolved ? (this.#resolved?.node ?? null) : null,
@@ -399,15 +405,15 @@ class ThreadSeat {
 }
 
 /** @param {Element} host @param {ThreadCommands} commands
- * @param {() => HTMLElement | null} response @param {MarginControls | null} marginControls */
-function seatFor(host, commands, response = () => null, marginControls = null) {
+ * @param {() => HTMLElement | null} response @param {ThreadOutlets} outlets */
+function seatFor(host, commands, response = () => null, outlets = {}) {
   let seat = seats.get(host);
   if (!seat) {
     seat = new ThreadSeat(host, commands);
     seats.set(host, seat);
     activeSeats.add(seat);
   }
-  seat.configure(response, marginControls);
+  seat.configure(response, outlets);
   return seat;
 }
 /** @param {readonly ThreadRecord[]} threads @param {string} surface
@@ -462,9 +468,9 @@ export function renderSeats(threads, commands) {
 }
 
 /** @param {HTMLElement} host @param {ThreadRecord} thread @param {ThreadCommands} commands
- * @param {MarginControls | null} marginControls */
-export function renderMarginThread(host, thread, commands, marginControls = null) {
-  return seatFor(host, commands, () => null, marginControls)
+ * @param {ThreadOutlets} outlets */
+export function renderMarginThread(host, thread, commands, outlets) {
+  return seatFor(host, commands, () => null, outlets)
     .present(seatReading([thread], "margin", commands, false))
     .filter(({ descriptor }) => descriptor.key === threadKey(thread))
     .map(({ view }) => ({ thread: view.node, transcript: view.transcript }));

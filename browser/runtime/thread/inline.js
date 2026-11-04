@@ -442,6 +442,14 @@ export function mountFirstMessage(host, editor) {
   setChildren(host, [editor]);
 }
 
+// The card a page-owned seat (`renderSeats`) draws for the thread `id`, open or in its
+// Resolved disclosure, or null.
+/** @param {string} id @returns {HTMLElement | null} */
+export const pageSeatThread = (id) =>
+  document.querySelector(
+    `.lf-thread-seat[data-lf-thread-seat] .lf-page-thread[data-lf-thread="${CSS.escape(id)}"]`,
+  );
+
 /** @param {readonly ThreadRecord[]} threads @param {ThreadCommands} commands */
 export function renderSeats(threads, commands) {
   /** @type {NodeListOf<HTMLElement & {lfThreadSeatOwner: Element}>} */

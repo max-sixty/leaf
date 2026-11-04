@@ -398,8 +398,7 @@ export function createUndo({
 
   // Put the user on a thread, under the intent of the gesture that asked for it: in the
   // reader a settlement named (thread/folding.js), else where they see it drawn on the
-  // page, since opening it could choose another surface for it, as a margin card for a
-  // thread seated in a widget.
+  // page, which needs no travel, else where a route to it opens it.
   /** @param {string} id @param {UserIntent} intent @param {Reader} [reader] */
   async function returnToThread(id, intent, reader = null) {
     if (reader) return openThread(id, { part: "thread", intent, reader });

@@ -32,7 +32,7 @@ import { sameAnchor } from "../anchor-coordinate.js";
 import { closestAcross } from "../passages.js";
 import { tagsDeclaring } from "../registry.js";
 import { watchArrivals } from "../arrivals.js";
-import { renderThreadSurface, clearThreadSurface } from "./inline.js";
+import { renderThreadSurface, clearThreadSurface, pageSeatThread } from "./inline.js";
 import { readThreads, threadIdNamed } from "./state.js";
 import { threadFocusDestination } from "./focus.js";
 import { HeldArrivals } from "./held-news.js";
@@ -616,19 +616,20 @@ export function revealHeld(ids) {
   return null;
 }
 
+// The part of a thread a seat on the page draws: a widget's outlet, else the seat a
+// page-owned box keeps beside its element (inline.js, `pageSeatThread`), which holds
+// the thread's page position as an outlet does (margin-projection.js, `seatedOnPage`).
 // Resolve after reveal/presentation: a datum's outlet may have been replaced. Travel
 // takes the node rather than a callback that privately focuses and scrolls it.
 /** @param {string} name @param {{part?: import("./destination.js").ThreadPart}} [options] */
 export function surfaceFocusTarget(name, { part = "reply" } = {}) {
   const id = threadIdNamed(name);
-  for (const registration of registrations.values()) {
-    const thread = [...registration.outlets]
+  const thread =
+    [...registrations.values()]
+      .flatMap((registration) => [...registration.outlets])
       .map((outlet) =>
         outlet.querySelector(`.lf-page-thread[data-lf-thread="${CSS.escape(id)}"]`),
       )
-      .find(Boolean);
-    if (!thread) continue;
-    return threadFocusDestination(thread, { part, message: name });
-  }
-  return null;
+      .find(Boolean) ?? pageSeatThread(id);
+  return thread ? threadFocusDestination(thread, { part, message: name }) : null;
 }

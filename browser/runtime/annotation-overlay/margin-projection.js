@@ -147,6 +147,7 @@ import { threadNamed } from "../thread/state.js";
 import { carryingThreadPlace, currentLocationThreadId } from "../thread/focus.js";
 
 import { claimed, revealHeld } from "../thread/surfaces.js";
+import { pageSeatThread } from "../thread/inline.js";
 import { releaseReplies } from "../thread/replies.js";
 
 import { createMarginClusterViews } from "./margin-cluster-view.js";
@@ -1764,13 +1765,7 @@ export function createMarginProjection({
   // page position. The same card DOM drawn in the margin or by a primary reader leaves
   // that position and its margin preview available.
   /** @param {string} id */
-  const seatedOnPage = (id) =>
-    claimed(id) ||
-    [
-      ...document.querySelectorAll(
-        `.lf-page-thread[data-lf-thread="${CSS.escape(id)}"]`,
-      ),
-    ].some((seat) => closestAcross(seat, ".lf-thread-seat[data-lf-thread-seat]"));
+  const seatedOnPage = (id) => claimed(id) || pageSeatThread(id) !== null;
   // The innermost target holding the node whose threads the card would show. A thread is
   // about exactly its anchor's target (header), reached from anywhere
   // inside it and never from outside: after `m` the user is on the obligation element, so

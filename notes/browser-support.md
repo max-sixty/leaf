@@ -339,9 +339,10 @@ the table half its own width before the room's start. A page in the holder's
 direction does not scroll that way, but where the page and the holder differ in
 direction, as in `<main dir="rtl">` on a left-to-right page, a ring still widens the
 page by up to half the table's width (to 2544px for a 1680px table in a 1728px
-window). Centring the table without a translate needs either its own width in a
-margin, which CSS can't express, or `justify-self` on a block, which Firefox lacks
-(above).
+window). Centring the table without a translate needs its own width in a margin,
+which CSS can't express, `justify-self` on a block, which Firefox lacks (above), or
+an `available` wrapper the table centres in by `margin-inline: auto`, which would
+change how a page writes an available table.
 
 Mozilla's bugs [1801710](https://bugzilla.mozilla.org/show_bug.cgi?id=1801710) and
 [1820266](https://bugzilla.mozilla.org/show_bug.cgi?id=1820266) report a relatively

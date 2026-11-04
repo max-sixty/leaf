@@ -868,14 +868,14 @@ function focusDestination(destination, cause, { caret = null, ...unknown } = {})
 		preventScroll: true,
 		...!pressLed() && { focusVisible: true }
 	};
-	placed(cause, () => {
+	placed$1(cause, () => {
 		nativeFocusTarget(destination).focus(options);
 		if (!landedOn(destination) && lendable(destination)) lendStop(destination, options);
 	});
 	if (caret && holdsCaret(destination)) destination.setSelectionRange(...caret);
 }
 let placing = null;
-const placed = (cause, move) => {
+const placed$1 = (cause, move) => {
 	const was = placing;
 	placing ??= cause;
 	try {
@@ -1950,7 +1950,7 @@ function watchArrivalsIn(stage) {
 	stages$1.add(stage);
 	stageRefs.add(new WeakRef(stage));
 	for (const watch of watches$1) enroll(watch, stage);
-	stage.addEventListener("scroll", heardIn(stage), SCROLL);
+	hearScrollsIn(stage);
 }
 const scrollListeners = /* @__PURE__ */ new Set();
 const SCROLL = {
@@ -1958,6 +1958,7 @@ const SCROLL = {
 	passive: true
 };
 function announceScroll(box) {
+	if (box) inSequence(box);
 	for (const listener of scrollListeners) listener(box);
 }
 function setScroll(box, options) {
@@ -1967,58 +1968,86 @@ function setScroll(box, options) {
 		...options,
 		behavior
 	});
-	if (behavior === "instant" && (box.scrollTop !== scrollTop || box.scrollLeft !== scrollLeft)) announceScroll(box);
+	if (behavior !== "instant") return;
+	placed.set(box, {
+		top: box.scrollTop,
+		left: box.scrollLeft
+	});
+	if (box.scrollTop !== scrollTop || box.scrollLeft !== scrollLeft) announceScroll(box);
 }
-const heardIn = (stage) => (event) => {
-	const target = event.target;
-	if (target === document) {
-		if (stage === document) announceScroll(document.scrollingElement);
-	} else if (isElement(target) && target.getRootNode() === stage) announceScroll(target);
-};
-document.addEventListener("scroll", heardIn(document), SCROLL);
+const hearing = /* @__PURE__ */ new WeakSet();
+function hearScrollsIn(root) {
+	if (hearing.has(root)) return;
+	hearing.add(root);
+	const heard = ({ type, target }) => {
+		const box = target === document ? root === document ? document.scrollingElement : null : isElement(target) && target.getRootNode() === root ? target : null;
+		if (!box) return;
+		if (type === "scroll") announceScroll(box);
+		else endSequence(box);
+	};
+	root.addEventListener("scroll", heard, SCROLL);
+	root.addEventListener("scrollend", heard, SCROLL);
+}
+hearScrollsIn(document);
 function watchScrolls(listener) {
 	scrollListeners.add(listener);
 	return () => scrollListeners.delete(listener);
 }
 const SETTLE_MS = 80;
-const settleListeners = /* @__PURE__ */ new Set();
-let inFlight = false;
-let gliding = false;
-let settleTimer = 0;
-let trackingScrolls = false;
-function settle() {
-	if (!inFlight || gliding) return;
-	inFlight = false;
-	clearTimeout(settleTimer);
-	for (const listener of settleListeners) listener();
-}
-function trackScrolls() {
-	if (trackingScrolls) return;
-	trackingScrolls = true;
-	watchScrolls(() => {
-		inFlight = true;
-		clearTimeout(settleTimer);
-		settleTimer = setTimeout(settle, SETTLE_MS);
+const endListeners = /* @__PURE__ */ new Set();
+const sequences = /* @__PURE__ */ new Map();
+const holds = /* @__PURE__ */ new Map();
+const placed = /* @__PURE__ */ new WeakMap();
+function sequenceIn(box) {
+	let sequence = sequences.get(box);
+	if (!sequence) sequences.set(box, sequence = {
+		heard: 0,
+		at: performance.now()
 	});
-	document.addEventListener("scrollend", settle, SCROLL);
+	return sequence;
 }
-function scrollGlides(on) {
-	trackScrolls();
-	gliding = on;
-	if (on) inFlight = true;
-	else if (inFlight) {
-		clearTimeout(settleTimer);
-		settleTimer = setTimeout(settle, SETTLE_MS);
-	}
+function inSequence(box) {
+	const sequence = sequenceIn(box);
+	const heard = ++sequence.heard;
+	sequence.at = performance.now();
+	const quiet = () => {
+		if (sequences.get(box) !== sequence || sequence.heard !== heard) return;
+		if (performance.now() - sequence.at < SETTLE_MS) nextFrame(quiet);
+		else endSequence(box);
+	};
+	nextFrame(() => nextFrame(quiet));
 }
-function scrolling() {
-	trackScrolls();
-	return inFlight;
+function endSequence(box) {
+	if (!sequences.has(box) || holds.has(box)) return;
+	sequences.delete(box);
+	placed.delete(box);
+	for (const listener of endListeners) listener(box);
 }
+function holdScroll(box) {
+	holds.set(box, (holds.get(box) ?? 0) + 1);
+	sequenceIn(box);
+	let held = true;
+	return () => {
+		if (!held) return;
+		held = false;
+		const left = (holds.get(box) ?? 1) - 1;
+		if (left) {
+			holds.set(box, left);
+			return;
+		}
+		holds.delete(box);
+		inSequence(box);
+	};
+}
+const scrolling = () => sequences.size > 0;
+const browserScrolls = (box) => {
+	if (!sequences.has(box) || holds.has(box)) return false;
+	const at = placed.get(box);
+	return !at || at.top !== box.scrollTop || at.left !== box.scrollLeft;
+};
 function watchScrollEnds(listener) {
-	trackScrolls();
-	settleListeners.add(listener);
-	return () => settleListeners.delete(listener);
+	endListeners.add(listener);
+	return () => endListeners.delete(listener);
 }
 
 //#endregion
@@ -4384,8 +4413,24 @@ function uncovered(rect, box) {
 const nativeScroller = document.scrollingElement;
 if (!(nativeScroller instanceof HTMLElement)) throw new Error("Leaf requires an active HTML document scrollport");
 const pageScroller = nativeScroller;
-const moving = /* @__PURE__ */ new WeakMap();
-const headed = /* @__PURE__ */ new WeakMap();
+const started = /* @__PURE__ */ new WeakSet();
+const starts = /* @__PURE__ */ new WeakMap();
+const keyScrolled = /* @__PURE__ */ new WeakSet();
+const SCROLL_KEYS = /* @__PURE__ */ new Set([
+	" ",
+	"PageDown",
+	"PageUp",
+	"ArrowDown",
+	"ArrowUp",
+	"Home",
+	"End"
+]);
+let scrollKeyLast = false;
+inputs.observe((event) => {
+	if (event instanceof KeyboardEvent) {
+		if (SCROLL_KEYS.has(event.key)) scrollKeyLast = true;
+	} else if (event.type !== "input" && event.type !== "blur") scrollKeyLast = false;
+});
 const ended = /* @__PURE__ */ new WeakMap();
 const scrollSteps = /* @__PURE__ */ new WeakMap();
 const layoutMoved = /* @__PURE__ */ new WeakSet();
@@ -4446,27 +4491,15 @@ watchLayout(pageScroller);
 ended.set(pageScroller, pageScroller.scrollTop);
 function stopScroll(boxes) {
 	const all = [...boxes];
-	for (const box of all) {
-		stopGlide(box);
-		headed.delete(box);
-	}
-	const stopped = all.flatMap((box) => {
-		const sequence = moving.get(box);
-		return sequence ? [{
-			box,
-			sequence
-		}] : [];
-	});
+	const stopped = all.filter(browserScrolls);
+	for (const box of all) stopGlide(box);
 	if (!stopped.length) return null;
-	for (const { box } of stopped) setScroll(box, {
+	for (const box of stopped) setScroll(box, {
 		left: box.scrollLeft,
 		top: box.scrollTop,
 		behavior: "instant"
 	});
-	return new Promise((resolve) => nextFrame(() => nextFrame(() => {
-		for (const { box, sequence } of stopped) if (moving.get(box) === sequence) moving.delete(box);
-		resolve(void 0);
-	})));
+	return new Promise((resolve) => nextFrame(() => nextFrame(() => resolve(void 0))));
 }
 let choices = 0;
 const chosen = /* @__PURE__ */ new WeakMap();
@@ -4474,10 +4507,9 @@ const kept = /* @__PURE__ */ new WeakMap();
 const scrollChoices = () => choices;
 const chosenSince = (box, count) => (chosen.get(box) ?? 0) > count;
 const chooseScroll = (box) => chosen.set(box, ++choices);
-function startScroll(box, top) {
-	stopGlide(box);
-	headed.set(box, top);
-	moving.set(box, { glide: true });
+function startScroll(box) {
+	started.add(box);
+	starts.set(box, (starts.get(box) ?? 0) + 1);
 	chooseScroll(box);
 }
 let travel = null;
@@ -4494,12 +4526,8 @@ document.addEventListener("scroll", ({ target }) => {
 	if (skipped(box)) return;
 	watchLayout(box);
 	scrollSteps.set(box, (scrollSteps.get(box) ?? 0) + 1);
-	if (moving.get(box)?.glide) return;
-	const sequence = { glide: false };
-	moving.set(box, sequence);
-	nextFrame(() => nextFrame(() => {
-		if (moving.get(box) === sequence) moving.delete(box);
-	}));
+	if (scrollKeyLast) keyScrolled.add(box);
+	else keyScrolled.delete(box);
 }, {
 	capture: true,
 	passive: true
@@ -4507,30 +4535,23 @@ document.addEventListener("scroll", ({ target }) => {
 function placeKept(...boxes) {
 	for (const box of boxes) kept.set(box, box.scrollTop);
 }
-document.addEventListener("scrollend", ({ target }) => {
-	const box = eventScroller(target);
-	if (!box) return;
-	headed.delete(box);
+watchScrollEnds((box) => {
+	if (box.getRootNode() !== document) return;
+	const leafStarted = started.delete(box);
 	if (skipped(box)) {
-		moving.delete(box);
 		scrollSteps.delete(box);
 		layoutMoved.delete(box);
 		return;
 	}
 	watchLayout(box);
-	const wasMoving = moving.get(box);
-	moving.delete(box);
 	const extent = extentOf(box);
 	const repeated = (scrollSteps.get(box) ?? 0) > 1;
 	scrollSteps.delete(box);
-	if ((wasMoving?.glide || repeated || travel !== null || ended.get(box) !== box.scrollTop && !layoutMoved.has(box) && !changedExtent(extents.get(box), extent)) && kept.get(box) !== box.scrollTop) chooseScroll(box);
+	if ((leafStarted || repeated || travel !== null || ended.get(box) !== box.scrollTop && !layoutMoved.has(box) && !changedExtent(extents.get(box), extent)) && kept.get(box) !== box.scrollTop) chooseScroll(box);
 	ended.set(box, box.scrollTop);
 	layoutMoved.delete(box);
 	extents.set(box, extent);
 	kept.delete(box);
-}, {
-	capture: true,
-	passive: true
 });
 const riding = /* @__PURE__ */ new WeakSet();
 const contentRides = (box, rides) => rides ? riding.add(box) : riding.delete(box);
@@ -4548,23 +4569,22 @@ const scrollLimit = (box) => Math.max(0, (riding.has(box) ? laidOutHeight(box) :
 const SCROLL_SLACK = 2;
 const atScrollEnd = (box, top = box.scrollTop) => scrollLimit(box) - top <= 2;
 const scrollToEnd = (box, behavior = "instant") => {
-	if (behavior !== "instant" && !atScrollEnd(box)) startScroll(box, scrollLimit(box));
+	if (glides(box, behavior)) return glideTo(box, scrollLimit(box));
+	stopGlide(box);
 	setScroll(box, {
 		top: scrollLimit(box),
-		behavior
+		behavior: "instant"
 	});
 };
+const glides = (box, behavior) => behavior === "smooth" || behavior === "auto" && getComputedStyle(box).scrollBehavior === "smooth";
 const aims = /* @__PURE__ */ new WeakMap();
-const moveScrollerBy = (box, top, behavior = "instant") => {
+const moveScrollerBy = (box, top) => {
 	const aim = box.scrollTop + top;
-	if (Math.abs(top) >= .5) {
-		if (behavior !== "instant" && reachable(box, top)) startScroll(box, aim);
-		setScroll(box, {
-			top: aim,
-			behavior
-		});
-	}
-	if (behavior === "instant" && Math.abs(aim - box.scrollTop) < 1) aims.set(box, {
+	if (Math.abs(top) >= .5) setScroll(box, {
+		top: aim,
+		behavior: "instant"
+	});
+	if (Math.abs(aim - box.scrollTop) < 1) aims.set(box, {
 		aim,
 		at: box.scrollTop
 	});
@@ -4576,30 +4596,61 @@ const aimedTop = (box) => {
 };
 const reachable = (box, top) => Math.max(-box.scrollTop, Math.min(scrollLimit(box) - box.scrollTop, top));
 const SCROLL_MS = 140;
-let glide = null;
-const setGlide = (next) => {
-	glide = next;
-	scrollGlides(Boolean(next));
+const glideIn = /* @__PURE__ */ new Map();
+function stopGlide(box) {
+	const glide = glideIn.get(box);
+	if (!glide) return;
+	cancelRender(glide.raf);
+	glideIn.delete(box);
+	glide.release();
+}
+const holding = (box) => {
+	const glide = glideIn.get(box);
+	return glide && (glide.wrote === null || Math.abs(box.scrollTop - glide.wrote) <= 1) ? glide : null;
 };
-const holding = (box) => glide?.box === box && (glide.wrote === null || Math.abs(box.scrollTop - glide.wrote) <= 1) ? glide : null;
-const scrollGoal = (box) => Math.max(0, Math.min(scrollLimit(box), holding(box)?.goal ?? headed.get(box) ?? box.scrollTop));
+const scrollGoal = (box) => Math.max(0, Math.min(scrollLimit(box), holding(box)?.goal ?? box.scrollTop));
+const waiting = /* @__PURE__ */ new WeakMap();
+function afterBrowserScroll(box, then) {
+	const queued = waiting.get(box);
+	if (queued) {
+		queued.steps.push(then);
+		return true;
+	}
+	if (!keyScrolled.has(box) || !browserScrolls(box)) return false;
+	const wait = {
+		starts: starts.get(box) ?? 0,
+		steps: [then]
+	};
+	waiting.set(box, wait);
+	const stop = watchScrollEnds((ended) => {
+		if (ended !== box) return;
+		stop();
+		waiting.delete(box);
+		if ((starts.get(box) ?? 0) === wait.starts) for (const step of wait.steps) step();
+	});
+	return true;
+}
 function glideTo(box, top) {
-	const takesLanding = headed.delete(box) || glide?.box === box && glide.wrote === null;
+	const replaced = glideIn.get(box);
+	const takesOver = replaced ? replaced.wrote === null : browserScrolls(box);
 	const goal = Math.max(0, Math.min(scrollLimit(box), top));
+	if (!replaced && !takesOver && Math.abs(goal - box.scrollTop) < .5) return;
+	startScroll(box);
 	if (reducedMotion()) {
+		stopGlide(box);
 		setScroll(box, {
 			top: goal,
 			behavior: "instant"
 		});
 		return;
 	}
-	cancelRender(glide?.raf);
+	cancelRender(replaced?.raf);
 	let start = box.scrollTop;
 	const t0 = performance.now();
 	const tick = (now) => {
 		const current = holding(box);
 		if (!current) {
-			setGlide(null);
+			stopGlide(box);
 			return;
 		}
 		if (reducedMotion()) {
@@ -4607,7 +4658,7 @@ function glideTo(box, top) {
 				top: current.goal,
 				behavior: "instant"
 			});
-			setGlide(null);
+			stopGlide(box);
 			return;
 		}
 		const t = Math.max(0, Math.min(1, (now - t0) / SCROLL_MS));
@@ -4618,19 +4669,14 @@ function glideTo(box, top) {
 		});
 		if (current.wrote !== null || box.scrollTop !== start) current.wrote = box.scrollTop;
 		if (t < 1) current.raf = nextFrame(tick);
-		else setGlide(null);
+		else stopGlide(box);
 	};
-	setGlide({
-		box,
+	glideIn.set(box, {
 		goal,
-		wrote: takesLanding ? null : box.scrollTop,
-		raf: nextFrame(tick)
+		wrote: takesOver ? null : box.scrollTop,
+		raf: nextFrame(tick),
+		release: replaced?.release ?? holdScroll(box)
 	});
-}
-function stopGlide(box) {
-	if (glide?.box !== box) return;
-	cancelRender(glide.raf);
-	setGlide(null);
 }
 function keepFoot(box, { atEnd = false, kept } = {}) {
 	let foot = null;
@@ -4953,12 +4999,15 @@ function localScrollBy(source, { x, y }) {
 //#region runtime/landing-scroll.js
 const land = (box, by, behavior) => {
 	const top = box.scrollTop + (by.top ?? 0);
-	startScroll(box, top);
+	if (glides(box, behavior)) return glideTo(box, top);
+	stopGlide(box);
+	const { scrollTop, scrollLeft } = box;
 	setScroll(box, {
 		top,
-		left: box.scrollLeft + (by.left ?? 0),
-		behavior
+		left: scrollLeft + (by.left ?? 0),
+		behavior: "instant"
 	});
+	if (box.scrollTop !== scrollTop || box.scrollLeft !== scrollLeft) startScroll(box);
 };
 function scrollMargin(where, side = "Top") {
 	if (!(where instanceof Range)) return Number.parseFloat(getComputedStyle(where).getPropertyValue(`scroll-margin-${side.toLowerCase()}`)) || 0;
@@ -5538,4 +5587,4 @@ function textWidth(text, font) {
 }
 
 //#endregion
-export { ANNOUNCE, CARET_KEYS, CHROME_LEVEL, COMMANDS, DISCLOSE, DISCLOSURE_SELECTOR, HOLDS_WORD, J, LAYOUT, LENT_REACH_STOP, LeafElement, MODIFIER_KEYS, OUTPUT, PAGE_PAINT_ATTRIBUTE, PENDING_TASK, PRESS, PRESSES, PendingTaskEvent, ROLE_BUTTON_OFFER, RUNTIME_PAINT_ATTRIBUTE, SAID, SourcePairs, TAB_STOP, TEXT_BOX, TEXT_FIELD, UI_MARKS, W, WALK, WORKS, Z, actionClass, actionElement, actionIcon, actionName, actionTemplate, afterScript, afterSettling, agentArrivalDuration, aimedTop, alreadyShown, announce, assignRows, atLayoutPrecision, atScrollEnd, attachDeferredLoader, axisTicks, backgroundFlash, beginWalk, bindQueuedWork, blurFocused, bodyText, byRenderedOrder, canPlaceFocus, cancelAnimation, cancelRender, canvas2D, caretAtKey, chosenSince, claimReleaseClick, clamp, clippedContents, clippedPlace, clippedRect, clippingAxes, clipsPastSurfaces, closeLayer, closeNativeLayer, closestAcross, coarsePointer, commandsChanged, commandsChangedOn, composedParentNode, contentRides, controlNavigationKeys, coveredShare, currentLocationIn, currentLocationNodes, currentLocationTouches, d, dataBody, declareOccluder, declareReading, declareRelease, declareWindowChrome, deepFocus, describeFailure, disclosureAt, dismissPopoversOutside, drawn$1 as drawn, elementDirective, elementFrame, ensureSyntaxLanguage, eventSource, exceptionRecord, exceptionText, excludedByInert, failSoft, failSoftUnreported, failureContext, failureOf, fitsWhole, flashDuration, focusDestination, focusRevision, focused, foldBlock, foldDuration, frameFor, frameView, frameVisibility, generated, generatedElement, glideTo, growthAfterIsSeen, growthIsSeen, handBack, hasArea, headerCuts, headerInset, holdCurrentLocation, holdFocus, holdRendering, holdToRead, hoveringPointer, iconElement, iconTemplate, inBaseLayer, inChrome, inUi, inWindowChrome, inlineStyle, inputCount, inputInFrame, installElementIntegration, installLanguagePaths, installLayerStyleIntegration, installMoveFocus, installMoveKeys, installMoveSelection, installScrollerLookup, installStageIntegration, intersect, isElement, isHTML, isNativeLayer, isNode, isStage, isText, keepFieldKeys, keepFoot, keeps, keepsHidden, keepsText, landedBox, landingBand, landingInsets, landingRoom, langForPath, layerLanding, layoutChanged, layoutPx, layoutWindow, letGo, listWalkPosition, liveStages, loadDeferred, locationStandsDown, measure, motion, motionEasing, motionPlays, motionTime, move, moveScrollerBy, nameAction, nativeFocusTarget, nativeLayerHolding, nativeLayers, nativeModalAdmits, nearObserver, nearWindow, nextAnimation, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offerContentElement, offerElement, offered, offeredAction, offeredActionElement, onCurrentLocation, onFocusVisibility, onFrameVisibility, onLetGo, onMotionPreferenceChange, onPress, onPressAway, onUserInput, once, openLayer, openerOf, orderChildren, outputProducer, overIn, overlaps, overlapsAcross, pagePresented, pageScroller, pageUpgraded, paintClips, passOn, patchRetains, patchTree, placeBox, placeHolder, placeKept, placesFailure, plainPress, playMotion, pointerAt, presented, pressHolds, pressIsKeyboardActivation, pressLed, pressRecords, pressing, publishOutput, q, readCaret, readLeavingKeys, readSampleVisibility, recentPlaceInput, recoveredLabelFocus, reducedMotion, refuseCommands, refuseOutput, registerVisualParts, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, registrations, relabel, release, releaseFocus, releaseOutlets, renderedOrder, renderedParent, renderedUnder, renderingState, reportFailure, restorePointer, restrictUserIntent, retainUserIntent, returnDuration, revealRegisteredVisualPart, revealsVisualParts, rightCover, ringBox, roomPx, rove, rowArrows, scrollAxes, scrollBehavior, scrollChoices, scrollContainer, scrollGlides, scrollGoal, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollToEnd, scrollersOf, scrolling, scrollsBy, scrollsContent, searchField, seenRect, selectableOffer, selectableOffered, selectsAll, setChildLists, setChildren, setRegistration, setRenderedChildren, setScroll, shadowHost, shadowStage, shellRight, showNativeLayer, shownBand, shownBox, shownExtent, shownParts, shownRect, shownWindow, showsContents, sizeObserver, skipped, skipper, slotTop, stackLevel, startsAt, stopGlide, stopScroll, stuckBox, synNodes, syntax, syntaxLanguageNames, tabStops, tabStore, takesLetters, textWidth, threadSurface, tick, tokenLines, typesText, uiInside, under, underOccluder, union, upFrom, updateSurface, userScrollport, visibleBand, visibleFocus, visualPartAdmission, visualPartProblems, visualViewport, walkPosition, walkPositionLabel, watchArrivals, watchCurrentLocationIn, watchFrame, watchLayerChanges, watchOwner, watchRoom, watchScrollEnds, watchScrolls, wearsLentStop, whenLeft, whenNone, whileConnected, windowChromeBoxes, x$1 as x };
+export { ANNOUNCE, CARET_KEYS, CHROME_LEVEL, COMMANDS, DISCLOSE, DISCLOSURE_SELECTOR, HOLDS_WORD, J, LAYOUT, LENT_REACH_STOP, LeafElement, MODIFIER_KEYS, OUTPUT, PAGE_PAINT_ATTRIBUTE, PENDING_TASK, PRESS, PRESSES, PendingTaskEvent, ROLE_BUTTON_OFFER, RUNTIME_PAINT_ATTRIBUTE, SAID, SourcePairs, TAB_STOP, TEXT_BOX, TEXT_FIELD, UI_MARKS, W, WALK, WORKS, Z, actionClass, actionElement, actionIcon, actionName, actionTemplate, afterBrowserScroll, afterScript, afterSettling, agentArrivalDuration, aimedTop, alreadyShown, announce, assignRows, atLayoutPrecision, atScrollEnd, attachDeferredLoader, axisTicks, backgroundFlash, beginWalk, bindQueuedWork, blurFocused, bodyText, byRenderedOrder, canPlaceFocus, cancelAnimation, cancelRender, canvas2D, caretAtKey, chosenSince, claimReleaseClick, clamp, clippedContents, clippedPlace, clippedRect, clippingAxes, clipsPastSurfaces, closeLayer, closeNativeLayer, closestAcross, coarsePointer, commandsChanged, commandsChangedOn, composedParentNode, contentRides, controlNavigationKeys, coveredShare, currentLocationIn, currentLocationNodes, currentLocationTouches, d, dataBody, declareOccluder, declareReading, declareRelease, declareWindowChrome, deepFocus, describeFailure, disclosureAt, dismissPopoversOutside, drawn$1 as drawn, elementDirective, elementFrame, ensureSyntaxLanguage, eventSource, exceptionRecord, exceptionText, excludedByInert, failSoft, failSoftUnreported, failureContext, failureOf, fitsWhole, flashDuration, focusDestination, focusRevision, focused, foldBlock, foldDuration, frameFor, frameView, frameVisibility, generated, generatedElement, glideTo, growthAfterIsSeen, growthIsSeen, handBack, hasArea, headerCuts, headerInset, hearScrollsIn, holdCurrentLocation, holdFocus, holdRendering, holdScroll, holdToRead, hoveringPointer, iconElement, iconTemplate, inBaseLayer, inChrome, inUi, inWindowChrome, inlineStyle, inputCount, inputInFrame, installElementIntegration, installLanguagePaths, installLayerStyleIntegration, installMoveFocus, installMoveKeys, installMoveSelection, installScrollerLookup, installStageIntegration, intersect, isElement, isHTML, isNativeLayer, isNode, isStage, isText, keepFieldKeys, keepFoot, keeps, keepsHidden, keepsText, landedBox, landingBand, landingInsets, landingRoom, langForPath, layerLanding, layoutChanged, layoutPx, layoutWindow, letGo, listWalkPosition, liveStages, loadDeferred, locationStandsDown, measure, motion, motionEasing, motionPlays, motionTime, move, moveScrollerBy, nameAction, nativeFocusTarget, nativeLayerHolding, nativeLayers, nativeModalAdmits, nearObserver, nearWindow, nextAnimation, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offerContentElement, offerElement, offered, offeredAction, offeredActionElement, onCurrentLocation, onFocusVisibility, onFrameVisibility, onLetGo, onMotionPreferenceChange, onPress, onPressAway, onUserInput, once, openLayer, openerOf, orderChildren, outputProducer, overIn, overlaps, overlapsAcross, pagePresented, pageScroller, pageUpgraded, paintClips, passOn, patchRetains, patchTree, placeBox, placeHolder, placeKept, placesFailure, plainPress, playMotion, pointerAt, presented, pressHolds, pressIsKeyboardActivation, pressLed, pressRecords, pressing, publishOutput, q, readCaret, readLeavingKeys, readSampleVisibility, recentPlaceInput, recoveredLabelFocus, reducedMotion, refuseCommands, refuseOutput, registerVisualParts, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, registrations, relabel, release, releaseFocus, releaseOutlets, renderedOrder, renderedParent, renderedUnder, renderingState, reportFailure, restorePointer, restrictUserIntent, retainUserIntent, returnDuration, revealRegisteredVisualPart, revealsVisualParts, rightCover, ringBox, roomPx, rove, rowArrows, scrollAxes, scrollBehavior, scrollChoices, scrollContainer, scrollGoal, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollToEnd, scrollersOf, scrolling, scrollsBy, scrollsContent, searchField, seenRect, selectableOffer, selectableOffered, selectsAll, setChildLists, setChildren, setRegistration, setRenderedChildren, setScroll, shadowHost, shadowStage, shellRight, showNativeLayer, shownBand, shownBox, shownExtent, shownParts, shownRect, shownWindow, showsContents, sizeObserver, skipped, skipper, slotTop, stackLevel, startsAt, stopGlide, stopScroll, stuckBox, synNodes, syntax, syntaxLanguageNames, tabStops, tabStore, takesLetters, textWidth, threadSurface, tick, tokenLines, typesText, uiInside, under, underOccluder, union, upFrom, updateSurface, userScrollport, visibleBand, visibleFocus, visualPartAdmission, visualPartProblems, visualViewport, walkPosition, walkPositionLabel, watchArrivals, watchCurrentLocationIn, watchFrame, watchLayerChanges, watchOwner, watchRoom, watchScrollEnds, watchScrolls, wearsLentStop, whenLeft, whenNone, whileConnected, windowChromeBoxes, x$1 as x };

@@ -9604,18 +9604,14 @@ function createVersionController({ initialDocument, compositionInput, openThread
 			capture: true,
 			passive: true
 		});
-		document.addEventListener("scrollend", (event) => {
-			const box = scrollEventBox(event);
-			if (!box) return;
+		watchScrollEnds((box) => {
+			if (box.getRootNode() !== document) return;
 			const written = writing.get(box);
 			if (written !== void 0) {
 				if (!inputSince(box, written)) ownEnd.set(box, scrollChoices());
 				writing.delete(box);
 			}
 			nextRender(() => recordPlaces([box]));
-		}, {
-			capture: true,
-			passive: true
 		});
 		for (const type of ["popstate", "hashchange"]) addEventListener(type, releaseHolds);
 		const recordCurrentLocation = () => {

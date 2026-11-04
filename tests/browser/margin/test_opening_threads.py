@@ -887,14 +887,15 @@ def test_a_card_opens_on_its_first_unread_reply(browser, serve):
 
 
 @pytest.mark.parametrize(
-    ("width", "threads_open"), [(760, False), (1000, True), (1440, False)]
+    ("width", "threads_open", "card"),
+    [(760, False, False), (1000, True, True), (1440, False, True)],
 )
 def test_a_new_anchored_comment_keeps_the_users_thread_view(
-    browser, serve, width, threads_open
+    browser, serve, width, threads_open, card
 ):
     """A send continues beside the passage, keeping the page put, whether or not the
     panel's Threads view stood open: the panel shows a passage's thread only where the
-    page draws it nowhere."""
+    page draws it nowhere, as on a window narrower than `--lf-rail-room`."""
     page = open_page(browser, serve(OBLIGATION_PAGE))
     resized(page, width, 900)
     if threads_open:
@@ -913,6 +914,17 @@ def test_a_new_anchored_comment_keeps_the_users_thread_view(
         "Check the January failure mode.",
     )
     preview = page.locator(".lf-margin-preview")
+    if not card:
+        panel_thread = page.locator(PANEL_THREAD)
+        expect(panel_thread).to_contain_text(sent["text"])
+        expect(panel_thread).to_be_focused()
+        expect(preview).to_be_hidden()
+        passage_after = page.locator("#mounts-p").bounding_box()
+        for coordinate in ("x", "y", "width", "height"):
+            assert passage_after[coordinate] == pytest.approx(
+                passage_before[coordinate], abs=1
+            )
+        return
     expect(preview).to_be_visible()
     thread = preview.locator(
         f'.lf-margin-thread .lf-page-thread[data-lf-thread="{sent["id"]}"]'

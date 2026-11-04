@@ -28,7 +28,7 @@ from leaf.obligations import local_obligation_entry, shown_in
 from leaf.passages import SourceReading
 from leaf.projection import page_reading
 from leaf.registry.contract import matches_when
-from leaf.registry.kernel import kinds_declaring
+from leaf.registry.kernel import kinds_declaring, title_limit
 from leaf.revision_artifact import active_enclosing, read_revision
 from leaf.service import PageTransaction, delivery_reply_attempt, same_claim
 from leaf.thread_context import thread_message, thread_names
@@ -1035,6 +1035,18 @@ def _fail_markup_answer(
             return None
         [update] = [event for event in events if event["id"] == responds]
         return record_pickup(page, [update], phase="failed", failure=failure)
+
+
+def fit_title(words: str) -> str:
+    """`words` as a title a model wrote: on one line, and cut at a word to fit
+    `title_limit`, ending in an ellipsis where it was cut. A model can't count
+    characters, so Leaf fits its title rather than refusing it, which would leave
+    the thread untitled or drop the ask it names."""
+    title = " ".join(words.split())
+    limit = title_limit()
+    if len(title) <= limit:
+        return title
+    return title[: limit - 1].rsplit(" ", 1)[0].rstrip(" ,;:") + "…"
 
 
 def title_event(thread: str, title: str, identity: dict | None = None) -> dict:

@@ -170,6 +170,7 @@ from html import escape
 from itertools import chain, islice
 from pathlib import Path
 
+from .registry.kernel import title_limit
 from .schema import SKILL_FILE
 from .state import (
     STRING,
@@ -187,12 +188,6 @@ REFERENCE = SKILL_FILE.parent / "references" / "turn-end-check.md"
 # Where Leaf's rule for On me lives: the first paragraph of its "The On lists".
 ON_LISTS = SKILL_FILE.parent / "references" / "conversation-loop.md"
 ON_LISTS_HEADING = "## The On lists\n\n"
-
-# The length of a thread's or to-do's title (`comment` and `todo` in the kernel
-# registry), which the fork is asked to keep a title under. A model can't count characters, so the answer takes a
-# longer title and Leaf shortens it to fit (`_title`) rather than refusing the answer
-# and every ask it found.
-TITLE_LIMIT = 80
 
 _WORDS = {"type": "string", "minLength": 1, "pattern": r"\S"}
 
@@ -261,17 +256,21 @@ ANSWER = {
     "additionalProperties": False,
 }
 
-# The answer's form, which follows the pages' facts in the fork's question.
-FORM = (
-    "Reply with only this JSON object, no code fence, with empty lists where there is "
-    f"nothing, and each title under {TITLE_LIMIT} characters:\n"
-    '{"asks": [{"page": "<page path>", "kind": "question" or "step", "title": '
-    '"<title>", "text": "<message, empty for a step>", "passage": "<the page\'s '
-    'words, or empty>", "quote": "<the agent\'s words>"}], "findings": [{"kind": '
-    '"stale" or "settled" or "unshown", "page": "<page path>", "summary": '
-    '"<summary>", "quote": "<the words it rests on>", "edit": {"words": "<the '
-    'page\'s words>", "replacement": "<the new words>"} or null}]}'
-)
+
+def answer_form() -> str:
+    """The answer's form, which follows the pages' facts in the fork's question. A
+    title over `title_limit` is fitted rather than refused (`thread.fit_title`)."""
+    return (
+        "Reply with only this JSON object, no code fence, with empty lists where there "
+        f"is nothing, and each title under {title_limit()} characters:\n"
+        '{"asks": [{"page": "<page path>", "kind": "question" or "step", "title": '
+        '"<title>", "text": "<message, empty for a step>", "passage": "<the page\'s '
+        'words, or empty>", "quote": "<the agent\'s words>"}], "findings": [{"kind": '
+        '"stale" or "settled" or "unshown", "page": "<page path>", "summary": '
+        '"<summary>", "quote": "<the words it rests on>", "edit": {"words": "<the '
+        'page\'s words>", "replacement": "<the new words>"} or null}]}'
+    )
+
 
 # What each kind of finding is, as the agent's line names it.
 FOUND = {
@@ -403,11 +402,11 @@ def on_me_rule() -> str:
 def fork_prompt(pages: list[dict]) -> str:
     """The one message a fork answers: the skill's account of the check
     (`REFERENCE`), Leaf's rule for On me (`on_me_rule`), each page's facts
-    (`page_facts`) and the answer's form (`FORM`, `ANSWER`)."""
+    (`page_facts`) and the answer's form (`answer_form`, `ANSWER`)."""
     blocks = "\n\n".join(_block(facts) for facts in pages)
     return (
         f"{OPENING}\n{REFERENCE.read_text().strip()}\n\n## Leaf's rule for On me\n\n"
-        f"{on_me_rule()}\n\n## Page state\n\n{blocks}\n\n{FORM}\n</leaf-fork-check>"
+        f"{on_me_rule()}\n\n## Page state\n\n{blocks}\n\n{answer_form()}\n</leaf-fork-check>"
     )
 
 
@@ -553,15 +552,6 @@ def page_text(passages) -> str:
     return "".join(chars)
 
 
-def _title(words: str) -> str:
-    """`words` as a thread's title: on one line, and cut at a word to fit
-    `TITLE_LIMIT`, ending in an ellipsis where it was cut."""
-    title = " ".join(words.split())
-    if len(title) <= TITLE_LIMIT:
-        return title
-    return title[: TITLE_LIMIT - 1].rsplit(" ", 1)[0].rstrip(" ,;:") + "…"
-
-
 def apply_answer(
     session_id: str, answer: dict, asked: dict | None, run: dict | None = None
 ) -> dict:
@@ -652,6 +642,7 @@ def _ask(page_dir: Path, page, asks: list[dict], identity: dict):
     agent's message with an obligation, and a step as a to-do on the user; none whose
     title an ask the agent made there already has."""
     from .findings import Rejected
+    from .thread import fit_title
     from .todos import TodoReading
     from .validation.admission import checked_text
 
@@ -674,7 +665,7 @@ def _ask(page_dir: Path, page, asks: list[dict], identity: dict):
     messages = [
         (
             item["kind"],
-            _title(item["title"]),
+            fit_title(item["title"]),
             checked_text(page_dir, item["text"]) if item["kind"] == "question" else "",
             item["passage"].strip(),
         )

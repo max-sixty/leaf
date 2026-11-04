@@ -19,10 +19,7 @@
     "x-instructions": "Use this only in the feature gallery. Ordinary pages demonstrate controls through the live widgets that own them.",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      }
+      "id": { "type": "string" }
     },
     "required": ["id"],
     "additionalProperties": false,

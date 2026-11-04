@@ -84,7 +84,8 @@ let repliesFork = true;
 
 // The summary `hooks.json` gives the background watch's wake, which Claude Code
 // draws as a task notification's row, and the words of the nudge Leaf sends
-// through session messaging (`ClaudeCodeHarness.nudge`).
+// through session messaging (`harness.NUDGE_WORDS`). A module can import neither
+// home, so its test draws both rows from them (test_interact_claude_code_module.py).
 const WAKE_SUMMARY = "Leaf: new input";
 const NUDGE_WORDS = "has new input, which arrives with this message.";
 
@@ -113,13 +114,15 @@ const TONES: Record<string, string> = {
   away: "warning",
 };
 
-/** What a line says of the agent's work, in the words of an All pages row
- * (`leafRow` in activity-words.js), less its bare Listening and Awaits, since
- * listening is the usual case. */
+/** What a line says of the agent's work, in the band's own few words: the agent's
+ * sentence while it works, Quiet or Away when it has gone silent, and nothing while
+ * it is ready, the usual case, which the tone already says. An All pages row
+ * (`leafRow` in activity-words.js) says more, such as when the agent last checked
+ * in; this module can't import it, since its graph reaches the page's framework and
+ * Lit by the server's absolute paths, which no module loader here resolves. */
 function statusOf({ kind, detail }: Leaf["activity"]) {
   const stated = (word: string) => (detail ? `${word} — ${detail}` : word);
-  // The agent's own sentence, as the row gives it (`leafRow`), or none: the tone of
-  // the word Leaf says it works.
+  // The agent's own sentence, or none: the tone of the word Leaf says it works.
   if (kind === "working") return detail;
   if (kind === "stalled") return stated("Quiet");
   if (kind === "away") return "Away";

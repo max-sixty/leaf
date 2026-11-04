@@ -83,7 +83,6 @@ from leaf_dev.arms import (
     read_trace,
     trace_result,
 )
-from leaf_dev.commands.distribution import current_kernel
 from leaf_dev.eval_cases import definition
 from leaf_dev.page_fixtures import ADMIT, fixture_environment
 
@@ -190,7 +189,6 @@ def execute_scenario(
     if harness != ClaudeCodeHarness.name:
         raise ValueError("Leaf's conversation forks run only in Claude Code")
     scenario = CASES[case]
-    payload = current_kernel(payload)
     work.mkdir(parents=True, exist_ok=True)
     session = str(uuid.uuid4())
     page = work / "page"

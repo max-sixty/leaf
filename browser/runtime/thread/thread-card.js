@@ -78,7 +78,7 @@ import { ago, shortAgo } from "../presence.js";
 import { retainUserIntent } from "../user-intent.js";
 import { scrollThreadIntoView, pinnedReply } from "./reply-landing.js";
 import { threadRewrites } from "./message-edit.js";
-import { newsNotice, threadChange } from "./held-news.js";
+import { NEWS_ROOM, newsNotice, threadChange } from "./held-news.js";
 import { ReplyContinuity } from "./reply-continuity.js";
 import { Transcript } from "./transcript.js";
 
@@ -853,7 +853,7 @@ export class ThreadView {
     if (this.#observedHeader) this.#sizes.unobserve(this.#observedHeader);
     this.#observedHeader = null;
     this.#releaseHeaderItems();
-    this.#news.node.removeAttribute("data-room");
+    keeps(this.#news.node, "data-lf-room", null);
     this.#news.node.style.removeProperty("--lf-thread-news-start");
     this.#news.node.style.removeProperty("--lf-thread-news-visible-end");
   }
@@ -953,16 +953,16 @@ export class ThreadView {
     );
     notice.style.setProperty("--lf-thread-news-start", layoutPx(right - box.left));
     if (news) {
-      // While news stands, the notice keeps the width of the count it first showed, so
+      // While news stands, the notice holds the room of the widest count it says, so
       // later news never narrows or widens it under the pointer.
-      if (!notice.hasAttribute("data-room")) notice.dataset.room = news.text;
+      keeps(notice, "data-lf-room", NEWS_ROOM);
       const shown = shownRect(header, new Map());
       if (shown)
         notice.style.setProperty(
           "--lf-thread-news-visible-end",
           layoutPx(Math.max(0, shown.right - box.left)),
         );
-    } else notice.removeAttribute("data-room");
+    } else keeps(notice, "data-lf-room", null);
   }
 
   // Whether the progress behind the working message stood open when last drawn

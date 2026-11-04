@@ -24,7 +24,7 @@ export const styleEntries = [
   [
     "node_modules/@awesome.me/webawesome/dist/styles/native.css",
     "browser/styles/vendor/webawesome-choice.css",
-    { region: "Checkboxes + Radios", scope: ".choice" },
+    { region: "Checkboxes + Radios", scope: ".lf-choice, .choice" },
   ],
 ];
 
@@ -41,7 +41,7 @@ export async function styleOutputs() {
 /** One `#region` of a dependency's sheet, scoped to the Leaf face that takes it. Web
  * Awesome ships its styles for native controls only in `native.css`, which restyles
  * the whole document, so Leaf takes the region for radios and checkboxes and scopes it
- * to its `.choice` face (controls.css). A region that moves or goes fails the build
+ * to its choice face, Leaf's `.lf-choice` and the page's `.choice` (controls.css). A region that moves or goes fails the build
  * rather than shipping an empty sheet.
  * @typedef {{ region: string, scope: string }} Region
  * @param {string} source

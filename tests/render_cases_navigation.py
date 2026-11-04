@@ -26,7 +26,6 @@ from leaf import leases as leases_model
 from leaf import service as service_model
 from leaf.registry.storage import read_page_registry
 from leaf.render_checks import rendered
-from leaf.schema import ELEMENT_ID
 
 
 def call_node(label, file=None, line=None, *, status="same", children=(), kind="call"):
@@ -997,8 +996,8 @@ def data_projection_page(serve):
         "description": "A project-supplied live feed.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
-            "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+            "id": {"type": "string"},
+            "source": {"type": "string"},
         },
         "required": ["id", "source"],
         "additionalProperties": False,

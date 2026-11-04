@@ -238,7 +238,7 @@ export function createPlayground(host) {
   const nativeInputs = (control) => {
     /** @type {NodeListOf<HTMLInputElement | HTMLSelectElement>} */
     const inputs = control.querySelectorAll(
-      ":scope > input, :scope > select, :scope > .choice > input, :scope > .lf-playground-choices > lf-playground-choice > .choice > input",
+      ":scope > input, :scope > select, :scope > .lf-choice > input, :scope > .lf-playground-choices > lf-playground-choice > .lf-choice > input",
     );
     return [...inputs];
   };
@@ -367,7 +367,7 @@ export function createPlayground(host) {
     give(given) {
       view.given = given;
       given.submit.replaceChildren();
-      given.submit.dataset.room = submitRoom;
+      given.submit.dataset.lfRoom = submitRoom;
     },
     /** @param {HTMLElement} control @param {EventTarget | null} target */
     isInput(control, target) {
@@ -425,7 +425,7 @@ export function createPlayground(host) {
               html`
                 ${
                   interactive
-                    ? html`<label class="choice" data-lf-gen="1"
+                    ? html`<label class="lf-choice" data-lf-gen="1"
                         ><input
                           ${radioOffer}
                           type="radio"
@@ -497,7 +497,7 @@ export function createPlayground(host) {
                       ${choices}
                     </div>`
                   : kind === "toggle"
-                    ? html`<label class="choice" data-lf-gen="1">${field}</label>`
+                    ? html`<label class="lf-choice" data-lf-gen="1">${field}</label>`
                     : field
             }
             ${
@@ -539,7 +539,7 @@ export function createPlayground(host) {
             aria-controls=${instructionId}
             aria-expanded="false"
           ></button>
-          <button ${submitOffer} data-room=${submitRoom}>
+          <button ${submitOffer} data-lf-room=${submitRoom}>
             ${submitWords(chosen())}
           </button>
           <div

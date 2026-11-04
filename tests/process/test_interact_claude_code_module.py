@@ -28,6 +28,7 @@ from leaf import server as server_model
 from leaf import server_rows as server_rows_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf.harness import NUDGE_WORDS
 from leaf.interaction_log import read_interactions
 
 DRIVER = Path(__file__).parents[1].joinpath("claude_code_driver.mjs")
@@ -198,7 +199,7 @@ def test_leaves_own_rows_in_the_conversation_stay_quiet(spawn, sessionless):
         return "engine" if result == row else result
 
     wake = {"kind": "task-notification"}
-    nudge = "leaf: /p has new input, which arrives with this message."
+    nudge = f"leaf: /p {NUDGE_WORDS}"
     assert drawn(wake, summary) == {"tag": "Box", "props": {}, "children": []}
     assert drawn({"kind": "peer"}, nudge) == {
         "tag": "Text",

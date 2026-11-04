@@ -14,6 +14,7 @@ from leaf.agent_state import cmd_page_state
 from leaf.files import require_revision
 from leaf.interaction_log import read_interactions
 from leaf.refusals import Refused
+from leaf.registry.kernel import title_limit
 from leaf.revisioning import activate_source
 
 
@@ -243,7 +244,7 @@ def test_the_fork_is_asked_the_skills_account_of_the_check(claimed, capsys):
         "Started items, which the page shows as under way, each with its line:\n"
         f'- {todo["id"]}, the agent\'s to-do "Revise the plan": "revising the plan"'
     ) in prompt
-    assert f"each title under {clerk_model.TITLE_LIMIT} characters" in prompt
+    assert f"each title under {title_limit()} characters" in prompt
 
 
 def test_a_finding_reaches_the_agent_whatever_turn_opened_since(claimed, capsys):
@@ -696,12 +697,17 @@ def test_a_finding_needs_no_edit():
     assert clerk_model.read_answer(json.dumps(answer)) == answer
 
 
-def test_a_long_title_is_cut_at_a_word_to_fit_a_thread():
+def test_a_long_title_is_cut_at_a_word_to_fit_a_thread(claimed, capsys):
     """A model can't count characters, so a title past a thread's limit is cut rather
     than refusing the answer and the asks it found."""
+    page = claimed.resolve()
+    hook(capsys, "UserPromptSubmit")
     words = "Choose " + "the retry limit " * 8 + "for the suite?"
-    title = clerk_model._title(words)
-    assert len(title) <= clerk_model.TITLE_LIMIT
+    [record] = clerk_model.take_answer("s1", reply(page, words), asked()["basis"])[
+        "wrote"
+    ]
+    title = record["title"]
+    assert len(title) <= title_limit()
     assert title.endswith("…") and words.startswith(title[:-1] + " ")
 
 

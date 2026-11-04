@@ -571,11 +571,9 @@ def panel_dictating(page: Page) -> None:
 
 def comment_on(section: str) -> None:
     """A comment the user left on `section`, posted as another of their tabs would."""
-    client = PageClient(served_page.get().address)
-    client.post(
+    PageClient(served_page.get().address).post(
         {
             "kind": "comment",
-            "revision": client.state()["active"]["revision"],
             "attempt": f"stills-proxy-{section}",
             "text": "Worth a second look.",
             "anchor": {"section": section},
@@ -778,12 +776,10 @@ def held_news(page: Page, thread: Locator) -> None:
     as_agent("thread", "reply", root, "--text", "That one goes first.")
     notice = thread.locator(".lf-thread-news")
     expect(notice).to_have_attribute("title", "1 new reply")
-    client = PageClient(served_page.get().address)
-    client.post(
+    PageClient(served_page.get().address).post(
         {
             "kind": "reply",
             "parent": root,
-            "revision": client.state()["active"]["revision"],
             "attempt": "stills-held-news-other-tab",
             "text": "Sent from my other tab.",
         }

@@ -176,15 +176,12 @@ def execute_scenario(
                         )
                         if not ready:
                             continue
-                        client = PageClient(live.url)
                         # The log admits a retry key of 16 to 128 characters, and a
                         # comment's name may be a single character.
-                        attempt = f"delivery-eval-comment-{move['name']}"
-                        current = client.post(
+                        event = PageClient(live.url).post(
                             {
                                 "kind": "comment",
-                                "revision": client.state()["active"]["revision"],
-                                "attempt": attempt,
+                                "attempt": f"delivery-eval-comment-{move['name']}",
                                 "text": move["text"],
                                 **(
                                     {"anchor": move["anchor"]}
@@ -192,9 +189,6 @@ def execute_scenario(
                                     else {}
                                 ),
                             }
-                        )
-                        event = next(
-                            e for e in current["events"] if e.get("attempt") == attempt
                         )
                         injection = {
                             "name": move["name"],

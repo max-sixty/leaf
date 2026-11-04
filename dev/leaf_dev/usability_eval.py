@@ -741,7 +741,9 @@ def post_round(
         if move["kind"] != "error":
             event["attempt"] = move.get("attempt", attempt_key(n, i))
         if "anchor" in move and not isinstance(move["anchor"], dict):
+            # An anchor found in the active revision's file names that revision.
             event["anchor"] = anchor(html, *move["anchor"])
+            event["revision"] = served["active"]["revision"]
         if move.get("undoes") == "previous":
             event["undoes"] = posted_event(page, attempt_key(n, i - 1))["id"]
         if move.get("parent") == "latest":
@@ -753,22 +755,7 @@ def post_round(
                 origin=client.origin,
                 line=html[: html.find("replaceAll(")].count("\n") + 1,
             )
-        if move["kind"] != "undo":
-            event["revision"] = served["active"]["revision"]
-        before = {e["id"] for e in page_events(page)}
-        client.post(event)
-        if event["kind"] == "error":
-            admitted.append(
-                next(
-                    e
-                    for e in page_events(page)
-                    if e["id"] not in before
-                    and e["kind"] == "error"
-                    and e["text"] == event["text"]
-                )
-            )
-        else:
-            admitted.append(posted_event(page, event["attempt"]))
+        admitted.append(client.post(event))
     return {e["id"] for e in admitted if requires_agent_attention(e)}
 
 

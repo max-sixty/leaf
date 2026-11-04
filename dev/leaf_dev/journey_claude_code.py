@@ -579,14 +579,9 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, *, forks: bool) -> None:
         started = time.monotonic()
         url = require(running_server(page), "the page has no server")["url"]
         comment = post(url, "withdrawn", "Never mind, I'll check this myself.")
-        resolve = PageClient(url).post(
+        resolved = PageClient(url).post(
             {"kind": "resolve", "parent": comment, "attempt": attempt("resolve")}
-        )
-        resolved = next(
-            event["id"]
-            for event in resolve["events"]
-            if event.get("attempt") == attempt("resolve")
-        )
+        )["id"]
         held = drop(resolved)
         cc.until(
             lambda: delivery_ended(since(held), resolved),

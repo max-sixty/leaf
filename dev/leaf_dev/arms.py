@@ -57,6 +57,7 @@ from leaf.codex import APP_SERVER_ENV
 from leaf.delivery import opened_input_ids
 from leaf.event_log import initialized
 from leaf.harness import IDENTITY_VARIABLES, ClaudeCodeHarness, CodexHarness
+from leaf.registry.kernel import kernel_event_kinds
 from leaf.render_gate import browser as browser_model
 from leaf.render_gate import command as render_command_model
 from leaf_dev import ROOT, plain_html
@@ -1241,15 +1242,22 @@ class PageClient:
             return json.loads(response.read())
 
     def post(self, event: dict) -> dict:
-        """Post one move as the page does: keyed, on the served layer, and return the
-        state the server answers with, which shows the move. The caller names the
-        revision and the retry key, as the browser does.
+        """Post one move as the page's tab does, and return the event the log holds
+        for it, as the server's answer names it. The caller names the retry key.
+
+        The move is posted keyed and on the served layer. A move whose kind's record
+        has a `revision` (`$events.kinds` in the kernel registry) is posted against
+        the active revision unless it names one, as a tab posts against the revision
+        it shows. One state read gives both.
 
         An answer naming another layer than the one posted on admitted nothing: the
         page was re-initialized between the state read and the post. A tab reloads onto
         that layer and the user moves again, so the move is posted again under it.
         """
-        layer = self.state()["layer"]["generation"]
+        read = self.state()
+        layer = read["layer"]["generation"]
+        if "revision" in kernel_event_kinds()[event["kind"]]["record"]["properties"]:
+            event = {"revision": read["active"]["revision"], **event}
         while True:
             request = urllib.request.Request(
                 f"{self.origin}/api/event?t={self.token}",
@@ -1265,7 +1273,7 @@ class PageClient:
                     f"posting {event}: HTTP {error.code} {error.read().decode()}"
                 ) from error
             if answered == layer:
-                return answer["state"]
+                return answer["event"]
             layer = answered
 
 

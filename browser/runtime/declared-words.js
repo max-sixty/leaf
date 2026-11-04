@@ -462,12 +462,17 @@ function quietFacts(el) {
 
 /** @param {Scope} root @param {Iterable<Element>} [also] */
 export function renderQuiet(root, also = []) {
-  const painting = [
-    `[${PAGE_PAINT_ATTRIBUTE.restated}]`,
-    `[${PAGE_PAINT_ATTRIBUTE.userOverride}]`,
-    `[${PAGE_PAINT_ATTRIBUTE.reported}]`,
-  ].join(", ");
-  const targets = new Set(elementsIn(root, painting));
+  // One query a mark: a single attribute's query is answered far faster than one for the
+  // three as a selector list, which tests every element of the page against each, on
+  // every repaint of a page holding long text documents.
+  /** @type {Set<Element>} */
+  const targets = new Set();
+  for (const mark of [
+    PAGE_PAINT_ATTRIBUTE.restated,
+    PAGE_PAINT_ATTRIBUTE.userOverride,
+    PAGE_PAINT_ATTRIBUTE.reported,
+  ])
+    for (const el of elementsIn(root, `[${mark}]`)) targets.add(el);
   for (const el of also) if (el === root || root.contains(el)) targets.add(el);
   for (const el of targets) quietWord(el, quietFacts(el));
 }

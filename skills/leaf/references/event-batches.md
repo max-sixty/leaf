@@ -47,8 +47,7 @@ Events keep their stored fields and log order, and add:
 - `unsent`: on the user's message or edit in a thread anchored in a widget or one that
   sent it, the work they had made there without sending it, such as a playground's
   settings, as it stood when they wrote. It is what the widget showed them; page state
-  may already hold later work. `leaf page state <page> <message>` prints the same
-  `unsent` on each message of the thread, as it stood at the message's latest edit.
+  may already hold later work.
 - `waiting`: your questions the event may have answered, each its obligation `id` and
   the `text` that asked it: on a widget action, those still waiting on the user's
   words in a thread about that widget; on the user's reply, those still waiting on a
@@ -66,6 +65,12 @@ Events keep their stored fields and log order, and add:
 - `handling`: ids of clauses in the batch's `handling` object, in reading order. The
   object holds each clause's text once, and the ids mean nothing outside the batch.
   Follow every clause the event names.
+
+`leaf page state` prints the same fields, apart from `waiting`, `answer` and
+`handling`, on each action in force and on each message of a thread it reads, so
+what a delivery told you stays readable after a compaction. It prints a message as
+it now reads, with its latest rewrite's replaced words in `edited` and its `unsent`
+as it stood at that rewrite.
 
 The batch's `threads` give each thread's title (null until named), anchor, whether
 it is resolved, earlier messages, and the gestures in force on widgets sent in it. A

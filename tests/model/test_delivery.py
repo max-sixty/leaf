@@ -835,6 +835,16 @@ def test_a_delivered_gesture_says_what_the_user_chose_on_their_version(
     assert chose["attention"] is False
     [chosen] = freeze_events(page_dir, [chose])["batches"][0]["events"]
     assert chosen["names"] == {"flag-first": "Flag first"}
+    # A session that missed the delivery reads the same facts on the choice in force.
+    read = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
+    assert read.exit_code == 0, read.output
+    [in_force] = [
+        entry
+        for entry in json.loads(read.output)["state"]
+        if entry["seq"] == chose["seq"]
+    ]
+    facts = ("subject", "threads", "says", "names")
+    assert {key: in_force[key] for key in facts} == {key: chosen[key] for key in facts}
     [(widget, whole)] = shown[0]["says"].items()
     assert widget == "plan-choice"
     assert "Ship behind the flag, reworded." in whole and "Backfill first" in whole

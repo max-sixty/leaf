@@ -26,13 +26,12 @@ from .data import data_errors
 from .data_contracts import measurement_lag_entries, page_data_binding_inventory
 from .delivery import current_responses
 from .document_reading import DocumentReading
+from .event_facts import EventFacts
 from .events import bare_reaction, is_reaction
 from .files import revision_path
-from .gesture_words import GestureWords, revisions_on_disk
 from .passages import page_passages
 from .projection import FrozenThreadReading, retirement_outcomes
 from .publishing import authored_digest, authored_files
-from .read_state import content_version
 from .refusals import Refused
 from .registry.storage import layer_metadata
 from .revision_artifact import active_enclosing
@@ -42,7 +41,6 @@ from .served_state.context import read_page
 from .served_state.page import read_served_page
 from .server import running_server
 from .service import PageTransaction, unacknowledged
-from .thread_context import unsent_at_messages
 from .user_views import read_user_views, viewed_at
 from .validation.admission import logged_id
 from .work import page_subject
@@ -51,8 +49,9 @@ from .work import page_subject
 HISTORY_LIMIT = 50
 
 
-def state_entry(coordinate, e: dict, thread: str | None = None) -> dict:
-    """One action in force, in the shape `page state` reports every one of them.
+def state_entry(coordinate, e: dict, facts: dict, thread: str | None = None) -> dict:
+    """One action in force, in the shape `page state` reports every one of them,
+    with the facts its delivery carried about it (`event_facts`).
 
     `revision` is the exact document the action was taken on, which for a widget an agent
     sent is a fact about the gesture and none about the widget: thread markup is
@@ -67,6 +66,7 @@ def state_entry(coordinate, e: dict, thread: str | None = None) -> dict:
         "revision": e["revision"],
         "seq": e["seq"],
         "thread": thread,
+        **facts,
     }
 
 
@@ -193,6 +193,7 @@ def _apply_document_state(
     document: DocumentReading,
     stored_data: dict,
     registry: dict,
+    facts: EventFacts,
 ) -> None:
     parser = document.document
     projection = document.projection
@@ -206,16 +207,20 @@ def _apply_document_state(
         }
         for record in parser.lf_elements
     ]
+    in_force = projection.actions.items()
+    read = facts([event for _, (event, _) in in_force])
     state["state"] = [
-        state_entry(coordinate, event)
-        for coordinate, (event, _) in projection.actions.items()
+        state_entry(coordinate, event, read[event["id"]])
+        for coordinate, (event, _) in in_force
     ]
     state["measurement_lag"] = measurement_lag_entries(
         parser.lf_elements, registry, stored_data
     )
 
 
-def _apply_thread_state(state: dict, thread: FrozenThreadReading) -> None:
+def _apply_thread_state(
+    state: dict, thread: FrozenThreadReading, facts: EventFacts
+) -> None:
     # The panel's own document, listed and projected the way the version's is, and
     # for the same reason: a widget an agent sent is a widget, and the user
     # answering one is answering the page. The projection above is of the published
@@ -243,9 +248,11 @@ def _apply_thread_state(state: dict, thread: FrozenThreadReading) -> None:
     state["elements"].sort(
         key=lambda element: (element["thread"] or "", element["line"])
     )
+    in_force = thread_actions.actions.items()
+    read = facts([event for _, (event, _) in in_force])
     state["state"] += [
-        state_entry(coordinate, event, thread_of[coordinate[0]])
-        for coordinate, (event, _) in thread_actions.actions.items()
+        state_entry(coordinate, event, read[event["id"]], thread_of[coordinate[0]])
+        for coordinate, (event, _) in in_force
     ]
     state["state"].sort(
         key=lambda reading: (reading["widget"], reading["unit"], reading["action"])
@@ -417,11 +424,12 @@ def page_state(
         assert active is not None and registry is not None
         browser = served["browser"]
         view = browser["views"][str(active["revision"])]
+        facts = EventFacts(page_dir, events, registry)
         _apply_document_state(
-            state, reading.documents[active["revision"]], stored_data, registry
+            state, reading.documents[active["revision"]], stored_data, registry, facts
         )
         state["reports"] = view["reports"]
-        _apply_thread_state(state, reading.thread)
+        _apply_thread_state(state, reading.thread, facts)
         served_threads = {thread["id"]: thread for thread in view["thread"]["threads"]}
         # The user's side between their updates: which of your messages they have not
         # taken in yet, at their current content version.
@@ -504,17 +512,8 @@ def page_state(
         }
         # Read once for every message shown, whose passages and construction use it.
         outcomes = retirement_outcomes(thread_reading.projection.actions)
-        # The work the user hadn't sent when they wrote each message's current words,
-        # as its delivery carried it, so a session that never got that delivery reads
-        # it too.
-        by_id = {event["id"]: event for event in events}
-        words = GestureWords(events, registry, revisions_on_disk(page_dir))
-        unsent = unsent_at_messages(
-            events,
-            [by_id[content_version(event)] for event in shown],
-            active_enclosing(page_dir),
-            words.records_unsent,
-        )
+        # Each message as it now reads, with the facts its delivery carried.
+        message_facts = facts(shown)
         for event in shown:
             fragment = thread_reading.structure.fragments.get(event["id"])
             message = {
@@ -540,6 +539,7 @@ def page_state(
                 "ephemeral",
                 "revision",
                 "edited",
+                "suggestion",
                 "viewing",
             ):
                 if key in event:
@@ -548,8 +548,7 @@ def page_state(
                 message["text"] = event["text"]
             if "drawing" in event:
                 message["drawing"] = event["drawing"]
-            if work := unsent.get(content_version(event)):
-                message["unsent"] = work
+            message.update(message_facts[event["id"]])
             content.append(message)
             if fragment is None:
                 continue

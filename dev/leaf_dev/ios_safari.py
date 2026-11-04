@@ -93,8 +93,8 @@ class Tab:
     def evaluate(self, expression: str, arg=None):
         return evaluate(self.driver, expression, arg)
 
-    def screenshot(self, *, path) -> None:
-        self.driver.save_screenshot(str(path))
+    def screenshot(self) -> bytes:
+        return self.driver.get_screenshot_as_png()
 
 
 def evaluate(driver, expression: str, arg=None):

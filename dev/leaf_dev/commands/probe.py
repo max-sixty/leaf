@@ -305,7 +305,7 @@ def probe(
             visit.doing = "shot"
             shot = shots / f"{arm}.png"
             visit.reading["shot"] = str(shot)
-            screenshot(visit.page, shot)
+            shot.write_bytes(screenshot(visit.page))
 
     def record(page: Page, arm: str) -> AbstractContextManager:
         assert record_dir

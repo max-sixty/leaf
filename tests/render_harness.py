@@ -2114,6 +2114,29 @@ def open_page(
     return page
 
 
+def before_landing_frame(page, then, arg=None):
+    """Run a JS function once, with `arg`, before the next trip's first frame.
+
+    `then` is a JS expression for the function, or for a promise of it, so it can
+    fetch an API before the trip starts. A trip adds its return stop and sets off its landing in one task, and the landing
+    moves nothing until its first frame, so a call made as the entry is written, or a
+    microtask it queues, comes while the page still stands where the trip left it.
+    """
+    page.evaluate(
+        f"""async arg => {{
+      const then = await ({then});
+      const pushState = history.pushState;
+      history.pushState = function(...args) {{
+        history.pushState = pushState;
+        const result = pushState.apply(this, args);
+        then(arg);
+        return result;
+      }};
+    }}""",
+        arg,
+    )
+
+
 def opened_tab(page, destination, press):
     """Press once and return a controlled tab after Chromium opens `destination`.
 

@@ -14,6 +14,7 @@ from render_cases_interaction import (
     live_url,
 )
 from render_harness import (
+    before_landing_frame,
     holding,
     open_page,
     page_comment,
@@ -119,7 +120,7 @@ def test_a_settled_delivery_activates_one_fresh_document_with_continuity(
     [
         (True, True, 200, False, False),
         (True, False, 200, False, False),
-        # Back interrupts the native trip before its first compositor frame.
+        # Back interrupts the trip before its first frame.
         (False, True, 1000, False, True),
         # A contextual card's travel, slowed until it crosses into the viewport.
         (False, True, 1000, True, False),
@@ -166,18 +167,13 @@ def test_primary_arrival_records_a_return_place_only_when_travelling(
         # contextual card travels into the viewport and changes placement plane.
         slow_cpu(page, 6)
     if back_before_frame:
-        page.evaluate("""() => {
-          const scrollTo = Element.prototype.scrollTo;
-          Element.prototype.scrollTo = function(options) {
-            const result = scrollTo.call(this, options);
-            if (this === document.scrollingElement && options.behavior === 'smooth') {
-              Element.prototype.scrollTo = scrollTo;
+        before_landing_frame(
+            page,
+            """() => {
               window.backRequestedAt = scrollY;
               queueMicrotask(() => history.back());
-            }
-            return result;
-          };
-        }""")
+            }""",
+        )
     entries = page.evaluate("history.length")
     assert page.evaluate(
         """async ({travel, primary}) => {

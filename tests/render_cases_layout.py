@@ -845,13 +845,56 @@ AIM_POINT = """(el) => {
   }
   return null;
 }"""
-# The promise itself, read where the runtime states it: the aim's box in the chrome's
-# layer carries the aimed element's id (data-lf-for, refreshAim's one write of it). The
-# composer's own mark then stands on that same item once the press is made, so the box's
-# answer before the press and the draft's after it agreeing is the promise being kept.
-AIMED = (
-    """() => document.querySelector(".lf-aim")?.getAttribute("data-lf-for") ?? null"""
-)
+# The promise itself, read where the runtime states it: the aimed box wears `lf-aimed`
+# (target-paint.js, `paintAim`) and draws the aim round itself. The composer's own mark
+# then stands on that same item once the press is made, so the aim's answer before the
+# press and the draft's after it agreeing is the promise being kept.
+AIMED = """() => document.querySelector(".lf-aimed")?.closest("[id]")?.id ?? null"""
+# A mark round a box, read off the box that draws it as its own outline (surfaces.css,
+# "Every mark on a box is drawn by the box itself"): the outline's style, width, colour
+# and offset, whether the box cuts it to a gesture's brackets (`brackets`, its
+# `clip-path`), the box's border box (`box`) and `ring`, the rectangle the outline's
+# outer edge stands on: the box grown by its offset and width. Null where the box draws
+# no outline.
+MARK = """(box) => {
+  const s = getComputedStyle(box);
+  if (s.outlineStyle === "none") return null;
+  const width = parseFloat(s.outlineWidth) || 0;
+  const offset = parseFloat(s.outlineOffset) || 0;
+  const r = box.getBoundingClientRect();
+  const grow = offset + width;
+  return {
+    style: s.outlineStyle, width, offset, color: s.outlineColor,
+    brackets: s.clipPath !== "none",
+    box: {left: r.left, top: r.top, right: r.right, bottom: r.bottom},
+    ring: {left: r.left - grow, top: r.top - grow, right: r.right + grow,
+           bottom: r.bottom + grow},
+  };
+}"""
+# A mark on a drawing's part, read off the shapes the part draws (surfaces.css, "A
+# drawing's part"): the part's own outline style, which the mark leaves at none, and
+# each shape's stroke as [colour, width], which the mark sets.
+DRAWN_MARK = """(part) => {
+  const shapes = "path, rect, circle, ellipse, line, polyline, polygon";
+  const drawn = part.matches(shapes) ? [part] : [...part.querySelectorAll(shapes)];
+  return {
+    outline: getComputedStyle(part).outlineStyle,
+    strokes: drawn.map((shape) => {
+      const s = getComputedStyle(shape);
+      return [s.stroke, parseFloat(s.strokeWidth)];
+    }),
+  };
+}"""
+
+
+def assert_drawn_in(part, ink, width):
+    """A drawing's part wears its mark along each shape it draws: every shape stroked
+    in `ink` at `width` CSS px, and no outline round the part."""
+    drawn = part.evaluate(DRAWN_MARK)
+    assert drawn["outline"] == "none" and drawn["strokes"], drawn
+    assert all(stroke == [ink, width] for stroke in drawn["strokes"]), (drawn, ink)
+
+
 # The item the draft stands on, which is not always the element wearing the outline: a
 # mark hangs on the boxes its element shows through, and a display: contents wrapper shows
 # through its slots. Reading the raw id said the promise was broken for every suggestion
@@ -884,9 +927,9 @@ FOCUS_IN_PAGE = """() => {
 # check is for survives untouched — a stray pick writes `chosen` on the option and a
 # stray tab switch moves the panels' attributes, both of them authored rather than
 # generated, and structure is compared either way.
-# The page as a press leaves it. Where the pointer is resting, the projection Leaf
-# paints above descendants, and the generated binding seat are not authored state,
-# so none belongs in this reading.
+# The page as a press leaves it. Where the pointer is resting, the marks Leaf has a box
+# draw round itself (surfaces.css), and the generated binding seat are not authored
+# state, so none belongs in this reading.
 PAGE_MARKUP = r"""() => [...document.body.children]
     .filter((n) => !n.classList.contains("lf-chrome"))
     .map((n) => {
@@ -898,8 +941,12 @@ PAGE_MARKUP = r"""() => [...document.body.children]
                 "lf-mark-hover",
                 "lf-projected-mark",
                 "lf-projected-location",
+                "lf-aimed",
+                "lf-traced",
+                "lf-proxied",
                 "lf-binding-seat",
             );
+            el.removeAttribute?.("data-lf-mark");
             // Anchor naming is presentation state. The layout may copy a name
             // from a stylesheet into inline style while positioning a comment.
             el.style?.removeProperty("anchor-name");
@@ -1468,15 +1515,18 @@ RING_CANDIDATES = browser_function(
 # list; commas and whitespace within functions or strings keep their meaning.
 #
 # Only a declaration that draws with the ring's own token is a ring rule: `--focus-ring`
-# for an outline, `--focus-shadow` for the band cast as a shadow. A contour written out
-# as `2px solid var(--accent)`, such as an element mark's pointer feedback, paints the
-# same pixels and is not one.
+# for an outline, `--focus-shadow` for the band cast as a shadow, or the mark a box
+# draws round itself (`--lf-band-ink`, surfaces.css), which is the ring wherever it is
+# whole: the location ring, the proxy ring and a comment's focus state. Its brackets,
+# a gesture's mark, are never read as a ring (`bracketed`, focus_rings.js). A contour
+# written out as `2px solid var(--accent)`, such as an element mark's pointer feedback,
+# paints the same pixels and is not one.
 RING_CARRIERS = {
     "outline": ("outline", "outline-style"),
     "box-shadow": ("box-shadow",),
 }
 RING_TOKEN = {
-    "outline": re.compile(r"--focus-ring(?![\w-])"),
+    "outline": re.compile(r"--(?:focus-ring|lf-band-ink)(?![\w-])"),
     "box-shadow": re.compile(r"--focus-shadow(?![\w-])"),
 }
 _ring_sessions = WeakKeyDictionary()

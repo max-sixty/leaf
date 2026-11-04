@@ -260,7 +260,7 @@ a[data-lf-external]::after,
   outline-offset: var(--lf-ring-at, 0px);
 }
 /* A visible focus destination wears the layer's band unless its own rule supplies
-   a carrier, or a mark drawn over it carries it: a mark over the page
+   a carrier, or another mark on it carries it: a comment's mark
    (`.lf-projected-mark`, visual-mark-paint.js), or the location ring round the decision
    the user stands in (`.lf-projected-location`, target-paint.js). Each stands where the
    box says, as this band does. Controls and reading destinations follow browser focus
@@ -273,8 +273,150 @@ a[data-lf-external]::after,
   outline: var(--focus-ring);
   outline-offset: var(--lf-ring-at, var(--focus-ring-gap));
 }
-:where(.lf-projected-location:is(:focus-visible, [data-lf-focus-visible])) {
-  outline: none;
+/* Every mark on a box is drawn by the box itself, as its outline, so it moves with the
+   box through every scroll, transform and layout change in every engine, and passes
+   under what the page stacks over the box as the box's own words do. The Alt aim
+   (`.lf-aimed`), the margin trace (`.lf-traced`), a comment's mark (`data-lf-mark`,
+   visual-mark-paint.js), the location ring round the decision the user stands in
+   (`.lf-projected-location`) and the proxy ring (`.lf-proxied`) each stand where the
+   box says (`--lf-ring-at`), or where a region's or a control's marks stand when it
+   says nothing. The outline is important, so a rule of the page's or a widget's that
+   sets the box's outline, as one turning off a focus ring does, leaves the mark
+   standing while it shows. */
+:where(.lf-aimed, .lf-traced, .lf-proxied, [data-lf-mark], .lf-projected-location) {
+  --lf-band-gap: var(--lf-ring-at, var(--focus-region-gap));
+  outline: var(--lf-band-w, var(--focus-ring-w)) solid var(--lf-band-ink, var(--accent)) !important;
+  outline-offset: var(--lf-band-gap) !important;
+}
+:where(a[href], button, input, select, textarea, summary, [role]):where(
+  .lf-aimed,
+  .lf-traced,
+  .lf-proxied,
+  [data-lf-mark],
+  .lf-projected-location
+) {
+  --lf-band-gap: var(--lf-ring-at, var(--focus-ring-gap));
+}
+/* The margin trace takes its own ink, and an action's target alone a quieter line. */
+:where(.lf-traced) {
+  --lf-band-ink: var(--target-trace-ink);
+}
+:where([data-lf-mark="action"]:not(.lf-traced)) {
+  --lf-band-ink: var(--mark-contour-ink);
+  --lf-band-w: 1px;
+}
+/* Any other mark on the box keeps the accent over those two: the aim, a comment's
+   mark, the proxy or location ring, or the focus ring the box wears. */
+:where(
+  :is(.lf-traced, [data-lf-mark="action"]):is(
+    .lf-aimed,
+    .lf-proxied,
+    .lf-projected-location,
+    [data-lf-mark]:not([data-lf-mark="action"]),
+    [data-lf-focus-visible],
+    :has(> [data-lf-focus-visible])
+  )
+) {
+  --lf-band-ink: var(--accent);
+  --lf-band-w: var(--focus-ring-w);
+}
+/* A forced palette draws marks in its highlight, as it does the focus ring
+   (tokens.css). */
+@media (forced-colors: active) {
+  :where(.lf-aimed, .lf-traced, .lf-proxied, [data-lf-mark], .lf-projected-location) {
+    --lf-band-ink: Highlight;
+  }
+}
+/* The aim's veil fills the box and the gap round it, so it and its brackets read as
+   one box. */
+:where(.lf-aimed) {
+  --lf-aim-veil: color-mix(in srgb, var(--accent) 4%, transparent);
+  box-shadow:
+    inset 0 0 0 100vmax var(--lf-aim-veil),
+    0 0 0 max(0px, var(--lf-band-gap)) var(--lf-aim-veil);
+}
+/* A gesture's mark is brackets: the box clips the middle of its outline's top and
+   bottom runs, leaving 8px at each end. The clip cuts only the band the mark takes, so
+   outside the box it cuts nothing but what overflows into the band, and inside it, as
+   round a row, it shows what stands behind the box's own edge there. A focused or
+   arrived-at box draws its ring whole, as does a box wearing the ring for a control in
+   it (`--lf-wears-ring`, base.css), such as a choice whose radio holds focus. While
+   the brackets show, the box is a stacking
+   context, so a descendant it lifts stacks inside it, and what overflows into the
+   band's cut neither paints nor takes a press. A box that clips itself keeps its own
+   clip, which cuts the mark as it cuts the box. */
+:where(
+  :is(.lf-aimed, .lf-traced, [data-lf-mark]):not(
+    .lf-projected-location,
+    .lf-proxied,
+    [data-lf-mark~="focus"],
+    [data-lf-focus-visible],
+    :has(> [data-lf-focus-visible])
+  )
+) {
+  --lf-band-room: calc(var(--lf-band-gap) + var(--lf-band-w, var(--focus-ring-w)));
+  clip-path: polygon(
+    evenodd,
+    -9999px -9999px,
+    calc(100% + 9999px) -9999px,
+    calc(100% + 9999px) calc(100% + 9999px),
+    -9999px calc(100% + 9999px),
+    -9999px -9999px,
+    calc(8px - var(--lf-band-room)) calc(-0.5px - var(--lf-band-room)),
+    calc(100% + var(--lf-band-room) - 8px) calc(-0.5px - var(--lf-band-room)),
+    calc(100% + var(--lf-band-room) - 8px) calc(0.5px - var(--lf-band-gap)),
+    calc(8px - var(--lf-band-room)) calc(0.5px - var(--lf-band-gap)),
+    calc(8px - var(--lf-band-room)) calc(-0.5px - var(--lf-band-room)),
+    -9999px -9999px,
+    calc(8px - var(--lf-band-room)) calc(100% + var(--lf-band-gap) - 0.5px),
+    calc(100% + var(--lf-band-room) - 8px) calc(100% + var(--lf-band-gap) - 0.5px),
+    calc(100% + var(--lf-band-room) - 8px) calc(100% + var(--lf-band-room) + 0.5px),
+    calc(8px - var(--lf-band-room)) calc(100% + var(--lf-band-room) + 0.5px),
+    calc(8px - var(--lf-band-room)) calc(100% + var(--lf-band-gap) - 0.5px),
+    -9999px -9999px
+  );
+}
+/* A drawing's part, a shape or a group of them, takes the mark whole along the
+   contour of each shape it draws, as that shape's stroke, so a diamond's mark follows
+   its sides: no outline, brackets, veil or gap. The stroke is important, as the
+   outline is, so a drawing's own stroke rules leave the mark standing while it shows;
+   its words keep their own. A comment's mark there takes the quieter contour ink. */
+:where(svg *:not(foreignObject *)):where(
+  .lf-aimed,
+  .lf-traced,
+  .lf-proxied,
+  [data-lf-mark],
+  .lf-projected-location
+) {
+  --lf-shape-ink: var(--lf-band-ink, var(--accent));
+  --lf-shape-w: var(--lf-band-w, var(--focus-ring-w));
+  outline-style: none !important;
+  clip-path: none;
+  box-shadow: none;
+}
+:where(svg *:not(foreignObject *)):where(
+    .lf-aimed,
+    .lf-traced,
+    .lf-proxied,
+    [data-lf-mark],
+    .lf-projected-location
+  ):where(path, rect, circle, ellipse, line, polyline, polygon),
+:where(svg *:not(foreignObject *)):where(
+    .lf-aimed,
+    .lf-traced,
+    .lf-proxied,
+    [data-lf-mark],
+    .lf-projected-location
+  )
+  :where(path, rect, circle, ellipse, line, polyline, polygon) {
+  stroke: var(--lf-shape-ink) !important;
+  stroke-width: var(--lf-shape-w) !important;
+  stroke-dasharray: none !important;
+  vector-effect: non-scaling-stroke !important;
+}
+:where(svg [data-lf-mark]:not([data-lf-mark~="focus"])) {
+  --lf-band-ink: var(--mark-contour-ink);
+  --lf-band-w: var(--mark-contour-w);
 }
 /* A landing clears the sticky headers stacked over what it lands on. Its scroller's
    `scroll-padding` clears those over the whole scroller (the head room, a page tab

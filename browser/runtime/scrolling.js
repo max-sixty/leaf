@@ -53,7 +53,10 @@ export const pageScroller = nativeScroller;
 // The boxes whose sequence under way Leaf started, a landing or a glide
 // (`startScroll`), how many Leaf has started in each, and the boxes whose latest scroll
 // followed one of the keys the browser scrolls with, which Leaf leaves to it
-// (navigation.js), as the user's latest input (`afterBrowserScroll`).
+// (navigation.js), rather than a hand (`afterBrowserScroll`). Only the inputs that set
+// the browser scrolling decide which: a pointer, a wheel or a touch, or one of those
+// keys. Any other key, such as Leaf's `d`, moves nothing the browser drives, so a `d`
+// pressed during PageDown leaves PageDown's scroll a key's, and a second `d` waits too.
 /** @type {WeakSet<Element>} */
 const started = new WeakSet();
 /** @type {WeakMap<Element, number>} */
@@ -71,7 +74,9 @@ const SCROLL_KEYS = new Set([
 ]);
 let scrollKeyLast = false;
 inputs.observe((event) => {
-  scrollKeyLast = event instanceof KeyboardEvent && SCROLL_KEYS.has(event.key);
+  if (event instanceof KeyboardEvent) {
+    if (SCROLL_KEYS.has(event.key)) scrollKeyLast = true;
+  } else if (event.type !== "input" && event.type !== "blur") scrollKeyLast = false;
 });
 // Where each box's last sequence ended, the boxes layout has moved since, and each box's
 // extent where its layout last settled. A box is watched from its first scroll, through
@@ -420,18 +425,19 @@ const holding = (box) => {
 export const scrollGoal = (box) =>
   Math.max(0, Math.min(scrollLimit(box), holding(box)?.goal ?? box.scrollTop));
 // Run `then` once the scroll a key has the browser drive in `box`, as Space's and
-// PageDown's are, has ended, and say whether it waits. The steps waiting on one box run
-// in the order pressed, and none of them runs if Leaf moves the box meanwhile.
+// PageDown's are, has ended, and say whether it waits. A step pressed while others wait
+// on the box joins them, so they run in the order pressed, and none of them runs if Leaf
+// moves the box meanwhile.
 /** @type {WeakMap<Element, {starts: number, steps: (() => void)[]}>} */
 const waiting = new WeakMap();
 /** @param {Element} box @param {() => void} then */
 export function afterBrowserScroll(box, then) {
-  if (!keyScrolled.has(box) || !browserScrolls(box)) return false;
   const queued = waiting.get(box);
   if (queued) {
     queued.steps.push(then);
     return true;
   }
+  if (!keyScrolled.has(box) || !browserScrolls(box)) return false;
   const wait = { starts: starts.get(box) ?? 0, steps: [then] };
   waiting.set(box, wait);
   const stop = watchScrollEnds((ended) => {

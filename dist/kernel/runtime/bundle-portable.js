@@ -4427,7 +4427,9 @@ const SCROLL_KEYS = /* @__PURE__ */ new Set([
 ]);
 let scrollKeyLast = false;
 inputs.observe((event) => {
-	scrollKeyLast = event instanceof KeyboardEvent && SCROLL_KEYS.has(event.key);
+	if (event instanceof KeyboardEvent) {
+		if (SCROLL_KEYS.has(event.key)) scrollKeyLast = true;
+	} else if (event.type !== "input" && event.type !== "blur") scrollKeyLast = false;
 });
 const ended = /* @__PURE__ */ new WeakMap();
 const scrollSteps = /* @__PURE__ */ new WeakMap();
@@ -4609,12 +4611,12 @@ const holding = (box) => {
 const scrollGoal = (box) => Math.max(0, Math.min(scrollLimit(box), holding(box)?.goal ?? box.scrollTop));
 const waiting = /* @__PURE__ */ new WeakMap();
 function afterBrowserScroll(box, then) {
-	if (!keyScrolled.has(box) || !browserScrolls(box)) return false;
 	const queued = waiting.get(box);
 	if (queued) {
 		queued.steps.push(then);
 		return true;
 	}
+	if (!keyScrolled.has(box) || !browserScrolls(box)) return false;
 	const wait = {
 		starts: starts.get(box) ?? 0,
 		steps: [then]

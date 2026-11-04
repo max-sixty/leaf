@@ -751,8 +751,8 @@ def test_keys_pressed_while_the_page_moves_act_as_if_it_had_landed(browser, serv
     typed quickly ends where it ends typed slowly, `d m` lands the ask, `m Shift+m`
     returns to the ask `m` set off from, `j m` beside an ask `j` leaves in view
     moves no further than `j`, Back after `m m` returns to where the first `m` lands,
-    and `d` pressed while the browser's own PageDown still moves the page steps on from
-    where PageDown lands. Each ends where the same keys typed slowly end."""
+    and `d`, or `d d`, pressed while the browser's own PageDown still moves the page
+    steps on from where PageDown lands. Each ends where the same keys typed slowly end."""
     asks = "".join(
         f'<div style="height:3000px">Reading on</div><lf-ask id="ask-{index}">'
         f'<h2>Which route?</h2><lf-options id="routes-{index}" choose>'
@@ -837,6 +837,16 @@ def test_keys_pressed_while_the_page_moves_act_as_if_it_had_landed(browser, serv
     page.wait_for_function("scrollY > 0")
     page.keyboard.press("d")
     assert settled() == pytest.approx(paged_down + step, abs=2)
+    from_the_top()
+    page.keyboard.press("PageDown")
+    page.wait_for_function("scrollY > 0")
+    page.keyboard.press("d")
+    # Two frames of PageDown's scroll between the presses, as a typed pair gets.
+    page.evaluate(
+        "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
+    )
+    page.keyboard.press("d")
+    assert settled() == pytest.approx(paged_down + 2 * step, abs=2)
 
 
 def test_the_obligation_walk_uses_the_visible_reading_after_its_focus_is_released(

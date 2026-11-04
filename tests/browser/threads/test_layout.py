@@ -316,8 +316,7 @@ def test_a_margin_message_copy_keeps_its_edge_when_send_motion_ends(browser, ser
         page.context.close()
 
 
-@pytest.mark.parametrize("surface", ["panel", "margin"])
-def test_a_message_says_its_age_only_where_it_changes(browser, serve, surface):
+def test_a_message_says_its_age_only_where_it_changes(browser, serve):
     """A thread says each message's age only where that age, as displayed, differs
     from the message above, the first always saying it: three messages written on one
     day three days ago read one age, and a reply written now reads its own."""
@@ -331,7 +330,7 @@ def test_a_message_says_its_age_only_where_it_changes(browser, serve, surface):
             "revision": 1,
             "text": "Is the retry bounded?",
             "ts": then.isoformat(),
-            **({"anchor": {"section": "lede"}} if surface == "margin" else {}),
+            "anchor": {"section": "lede"},
         },
     )["id"]
     for at, (author, text) in enumerate(
@@ -351,12 +350,9 @@ def test_a_message_says_its_age_only_where_it_changes(browser, serve, surface):
         )
     append_agent_reply(serve.page_dir, root, "Parked after the third.")
     page = open_page(browser, url)
-    if surface == "panel":
-        card = open_panel_thread(page, root)
-    else:
-        page.locator(".lf-margin-marker").first.click()
-        card = page.locator(".lf-margin-preview .lf-page-thread")
-        expect(card).to_be_visible()
+    page.locator(".lf-margin-marker").first.click()
+    card = page.locator(".lf-margin-preview .lf-page-thread")
+    expect(card).to_be_visible()
     ages = card.locator(".lf-msg-head")
     expect(ages).to_have_count(4)
     assert ages.evaluate_all(

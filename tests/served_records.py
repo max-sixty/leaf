@@ -284,7 +284,6 @@ def build() -> dict:
                             "author": "agent",
                             "agent": "Agent",
                             "session": "served-records",
-                            "owner": "agent",
                             "subject": {"kind": "thread", "id": "e1"},
                             "title": "Rework the passage",
                         },

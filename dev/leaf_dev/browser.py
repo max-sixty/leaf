@@ -110,19 +110,42 @@ def engine_option(command):
 @contextmanager
 def launch(engine: str, scheme: str = "light"):
     """The browser `engine` names, closed however the block is left: Playwright's
-    Chromium shell (`headless_shell`) showing the scrollbars readers see, including
-    the room a classic bar takes; Playwright's Firefox or WebKit, which readers use
-    as well; or a WebDriver session on the iOS simulator's Safari in `scheme`
-    (`ios_safari`), for a difference only iPhones show. A host without a Playwright
-    engine gets Playwright's own error, which names the install command."""
+    Chromium shell (`headless_shell`'s build) showing the scrollbars readers see,
+    including the room a classic bar takes; Playwright's Firefox or WebKit, which
+    readers use as well; or a WebDriver session on the iOS simulator's Safari in
+    `scheme` (`ios_safari`), for a difference only iPhones show. A host without a
+    Playwright engine gets Playwright's own error, which names the install command.
+
+    An overlay scrollbar, such as a Mac's, shows when its box scrolls and starts to
+    fade out half a second later. This Chromium shell keeps it shown, as a reader sees
+    it while scrolling, until the pointer passes over it and leaves, so a screenshot
+    taken at any time after the scroll draws the same bar. Disabling Chromium's
+    `ScrollbarAnimations` feature does this; Chromium keeps the feature so that web
+    platform tests' screenshots can't flake on their timing. Playwright's Firefox and
+    WebKit draw no overlay bar on a Mac, and a classic bar never fades."""
     if engine == "ios":
         from leaf_dev.ios_safari import ios_safari
 
         with ios_safari(scheme) as driver:
             yield driver
     elif engine == "chromium":
-        with headless_shell(ignore_default_args=["--hide-scrollbars"]) as browser:
-            yield browser
+        with sync_playwright() as playwright:
+            # Chromium keeps only the last of a repeated switch, so ours extends the
+            # --disable-features Playwright passes, read from a shell it launched
+            # (CDP reads the command line only under --enable-automation).
+            with playwright.chromium.launch(args=["--enable-automation"]) as plain:
+                features = next(
+                    switch
+                    for switch in plain.new_browser_cdp_session().send(
+                        "Browser.getBrowserCommandLine"
+                    )["arguments"]
+                    if switch.startswith("--disable-features=")
+                )
+            with playwright.chromium.launch(
+                ignore_default_args=["--hide-scrollbars", features],
+                args=[f"{features},ScrollbarAnimations"],
+            ) as browser:
+                yield browser
     else:
         with (
             sync_playwright() as playwright,

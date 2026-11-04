@@ -15,6 +15,7 @@ import {
   foldProjection,
   foldedValue,
   foldWidgetStates,
+  widgetStateReader,
   obligationValue,
   isProjectionEntry,
   stateCoordinate,
@@ -903,7 +904,9 @@ function widgetReading(inputs, descriptor) {
 
 /** @param {{ presentation?: PresentationLifecycle }} [options] */
 export function createSemanticApplication({ presentation } = {}) {
-  // Each publication's thread records, read again only where what one reads changed.
+  // Each publication's widget states and thread records, read again only where what
+  // one reads changed (`kept.js`).
+  const widgetStates = widgetStateReader();
   const threadRecords = threadRecordReader();
   const initial = {
     document: /** @type {SemanticDocument} */ ({
@@ -1051,7 +1054,7 @@ export function createSemanticApplication({ presentation } = {}) {
               : [],
     );
     const folded = foldThreads(view?.thread.threads ?? [], gestures);
-    const widgets = foldWidgetStates(document.authored, projection);
+    const widgets = widgetStates(document.authored, projection);
     const { parents: widgetParents, memberships } = currentWidgetRelations(
       document,
       widgets,

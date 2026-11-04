@@ -292,6 +292,30 @@ function createApplicationPublisher(initial) {
 }
 
 //#endregion
+//#region runtime/kept.js
+const BETWEEN = Symbol("between");
+const same = (held, inputs) => held.length === inputs.length && inputs.every((input, at) => Object.is(input, held[at]));
+function keptReadings() {
+	let kept = /* @__PURE__ */ new Map();
+	let reading = /* @__PURE__ */ new Map();
+	return {
+		read(key, inputs, make) {
+			const held = kept.get(key);
+			const value = held && same(held.inputs, inputs) ? held.value : make(held?.value);
+			reading.set(key, {
+				inputs,
+				value
+			});
+			return value;
+		},
+		done() {
+			kept = reading;
+			reading = /* @__PURE__ */ new Map();
+		}
+	};
+}
+
+//#endregion
 //#region runtime/projection/model.js
 const stateCoordinate = (owner, unit, verb) => JSON.stringify([
 	owner,
@@ -449,13 +473,32 @@ function rankAt({ value, ranks }, container, index, unit) {
 	const after = others[index];
 	return rankBetween(before ? ranks[before] ?? "" : "", after ? ranks[after] ?? null : null);
 }
-function foldWidgetStates(authoredSnapshots, projection) {
-	const copyState = (state) => structuredClone(state);
-	const states = new Map([...authoredSnapshots].map(([id, authored]) => [id, {
-		state: copyState(authored.state),
-		entries: [],
-		specs: authored.specs
-	}]));
+function widgetStateReader() {
+	const folded = keptReadings();
+	return function foldWidgetStates(authoredSnapshots, projection) {
+		const inForce = /* @__PURE__ */ new Map();
+		for (const entry of [...projection.desired.values()].sort(compareProjected)) {
+			const entries = inForce.get(entry.e.widget);
+			if (entries) entries.push(entry);
+			else inForce.set(entry.e.widget, [entry]);
+		}
+		const states = /* @__PURE__ */ new Map();
+		for (const [id, authored] of authoredSnapshots) {
+			const entries = inForce.get(id) ?? [];
+			states.set(id, folded.read(id, [authored, ...entries.flatMap((entry) => [
+				entry.e,
+				entry.unit,
+				entry.spec,
+				entry.absorbed,
+				entry.value
+			])], () => foldWidget(authored, entries)));
+		}
+		folded.done();
+		return states;
+	};
+}
+function foldWidget(authored, entries) {
+	const state = structuredClone(authored.state);
 	const place = ({ value: containers, ranks }, unit, detail) => {
 		const { value, rank } = detail;
 		const destination = containers[value];
@@ -467,9 +510,7 @@ function foldWidgetStates(authoredSnapshots, projection) {
 		destination.push(unit);
 		ranks[unit] = rank;
 	};
-	for (const entry of [...projection.desired.values()].sort(compareProjected)) {
-		const owner = states.get(entry.e.widget);
-		if (!owner) continue;
+	for (const entry of entries) {
 		const { spec, e, unit } = entry;
 		const value = spec.record ? structuredClone(e.detail.value) : e.action;
 		const current = {
@@ -477,19 +518,23 @@ function foldWidgetStates(authoredSnapshots, projection) {
 			value,
 			detail: structuredClone(e.detail)
 		};
-		owner.entries.push(entry);
-		const target = owner.state[e.action];
+		const target = state[e.action];
 		if (target && "units" in target) {
 			target.units[unit] = current;
 			if ("ranks" in target && !entry.absorbed) place(target, unit, e.detail);
 		} else {
 			if (spec.unit !== "widget") throw new Error(`Missing authored units for ${e.widget}/${e.action}`);
-			owner.state[e.action] = current;
+			state[e.action] = current;
 		}
 	}
-	for (const { state } of states.values()) for (const position of Object.values(state)) if ("ranks" in position) for (const ids of Object.values(position.value)) ids.sort(byRank(position.ranks));
-	return states;
+	for (const position of Object.values(state)) if ("ranks" in position) for (const ids of Object.values(position.value)) ids.sort(byRank(position.ranks));
+	return {
+		state,
+		entries,
+		specs: authored.specs
+	};
 }
+const foldWidgetStates = (authoredSnapshots, projection) => widgetStateReader()(authoredSnapshots, projection);
 function obligationValue(widget, verb, answered, unit) {
 	const complete = widget.state[verb];
 	const state = unit !== void 0 && complete && "units" in complete ? complete.units[unit] : complete;
@@ -569,18 +614,13 @@ const PENDING = "pending:";
 //#region runtime/thread/model.js
 const isReaction = (message) => Boolean(message.token);
 const isAddressable = (message) => message.addressable !== false;
-function reactionChoices(thread, message, tokens) {
-	if (thread.resolved || message.author !== "agent" || !isAddressable(message) || !Object.keys(tokens).length) return null;
-	const latest = thread.msgs.findLast((item) => item.author === "agent" && isAddressable(item));
-	const inForce = thread.msgs.filter((item) => isReaction(item) && item.author === "user" && item.parent === message.id);
-	return {
-		thread: thread.key,
-		message: message.key,
-		latest: latest?.id === message.id,
-		agent: message.agent,
-		choices: tokenChoices(tokens, inForce)
-	};
-}
+const reactionChoices = (thread, message, latest, tokens, inForce) => ({
+	thread,
+	message: message.key,
+	latest,
+	agent: message.agent,
+	choices: tokenChoices(tokens, inForce)
+});
 const tokenChoices = (tokens, inForce) => Object.entries(tokens).map(([name, entry]) => ({
 	name,
 	glyph: entry.glyph,
@@ -750,7 +790,8 @@ function lastMovedAt(thread) {
 	return latest;
 }
 const versionKey = ({ message, version }) => `${message}\u0000${version}`;
-const BETWEEN = Symbol("between");
+const NO_TOKENS = Object.freeze({});
+const NONE = Object.freeze([]);
 function grouped(items, key) {
 	const groups = /* @__PURE__ */ new Map();
 	for (const item of items) {
@@ -762,24 +803,32 @@ function grouped(items, key) {
 	}
 	return groups;
 }
-const NONE = Object.freeze([]);
-const NO_TOKENS = Object.freeze({});
 function threadRecordReader() {
-	let kept = /* @__PURE__ */ new Map();
+	const records = keptReadings();
 	return function readThreadRecords(threads, document, widgets, workflows, todos = [], obligations = [], markingRead = [], ready = true) {
 		const locallyRead = new Set(markingRead.map(versionKey));
 		const tokens = document.registry.$reactions?.tokens ?? NO_TOKENS;
+		const reacts = ready && Object.keys(tokens).length > 0;
 		const unitsByMessage = /* @__PURE__ */ new Map();
+		const unitsByThread = /* @__PURE__ */ new Map();
 		for (const descriptor of document.descriptors.values()) {
 			if (descriptor.document.kind !== "thread") continue;
-			const units = unitsByMessage.get(descriptor.document.message) ?? [];
-			units.push({
+			const unit = {
 				id: descriptor.id,
 				tag: descriptor.tag,
 				state: widgets.get(descriptor.id)?.state ?? {}
-			});
-			unitsByMessage.set(descriptor.document.message, units);
+			};
+			for (const [by, key] of [[unitsByMessage, descriptor.document.message], [unitsByThread, descriptor.document.thread]]) {
+				const units = by.get(key);
+				if (units) units.push(unit);
+				else by.set(key, [unit]);
+			}
 		}
+		const unitInputs = (units) => (units ?? NONE).flatMap((unit) => [
+			unit.id,
+			unit.tag,
+			unit.state
+		]);
 		let published;
 		const workflowsIn = grouped(workflows, (workflow) => workflow.thread);
 		const workflowsOf = grouped(workflows, (workflow) => workflow.message);
@@ -795,33 +844,7 @@ function threadRecordReader() {
 			const order = published ??= new Map(workflows.map((each, at) => [each, at]));
 			return [...all].sort((a, b) => order.get(a) - order.get(b));
 		};
-		const readingOf = (thread) => {
-			const unread = thread.unread.filter((item) => !locallyRead.has(versionKey(item)));
-			const inputs = [
-				thread,
-				ready,
-				tokens,
-				...unread,
-				BETWEEN,
-				...workflowsIn.get(thread.id) ?? NONE,
-				BETWEEN,
-				...obligationsIn.get(thread.id) ?? NONE,
-				BETWEEN,
-				...agentTodosIn.get(thread.id) ?? NONE,
-				BETWEEN,
-				...userTodosIn.get(thread.id) ?? NONE
-			];
-			for (const message of thread.msgs) {
-				const body = document.messageBodies?.get(message.id);
-				inputs.push(BETWEEN, body?.text, body?.markup, ...messageWorkflows(message));
-				for (const unit of unitsByMessage.get(message.id) ?? NONE) inputs.push(BETWEEN, unit.id, unit.tag, JSON.stringify(unit.state));
-			}
-			return {
-				unread,
-				inputs
-			};
-		};
-		const readMessage = (message, unreadMessages, thread) => {
+		const readMessage = (message, unread, thread) => {
 			const { markup, plainText, attention, session, publication, responds, start, title, ...record } = message;
 			const units = unitsByMessage.get(message.id) ?? [];
 			const authored = document.messageBodies?.get(message.id);
@@ -837,32 +860,54 @@ function threadRecordReader() {
 			return {
 				...record,
 				thread,
-				unread: unreadMessages.has(message.id),
+				unread,
 				key: messageKey(message),
 				body,
 				workflows: messageWorkflows(message)
 			};
 		};
-		const readRecord = (thread, unread) => {
+		const readRecord = (thread, unread, earlier) => {
+			const key = threadKey(thread);
 			const unreadMessages = new Set(unread.map((item) => item.message));
-			const msgs = thread.msgs.map((message) => readMessage(message, unreadMessages, threadKey(thread)));
-			const reactions = {
-				key: threadKey(thread),
-				resolved: thread.resolved,
-				msgs
-			};
-			const messages = msgs.map((message) => ({
+			const bases = earlier?.bases ?? keptReadings();
+			const msgs = thread.msgs.map((message) => bases.read(message.id, [
+				message,
+				key,
+				unreadMessages.has(message.id),
+				BETWEEN,
+				...messageWorkflows(message),
+				BETWEEN,
+				...unitInputs(unitsByMessage.get(message.id))
+			], () => readMessage(message, unreadMessages.has(message.id), key)));
+			bases.done();
+			const resolved = Boolean(thread.resolved);
+			const latest = msgs.findLast((message) => message.author === "agent" && isAddressable(message));
+			const reactionsOn = grouped(msgs.filter((message) => isReaction(message) && message.author === "user"), (message) => message.parent);
+			const withReactions = (message, choosing, inForce) => ({
 				...message,
-				reactions: ready ? reactionChoices(reactions, message, tokens) : null
-			}));
-			const root = messages.find((message) => message.id === thread.root.id);
+				reactions: choosing ? reactionChoices(key, message, latest === message, tokens, inForce) : null
+			});
+			const messages = earlier?.messages ?? keptReadings();
+			const published = msgs.map((message) => {
+				const choosing = reacts && !resolved && message.author === "agent" && isAddressable(message);
+				const inForce = choosing ? reactionsOn.get(message.id) ?? [] : [];
+				return messages.read(message.id, [
+					message,
+					choosing,
+					choosing && latest === message,
+					tokens,
+					...inForce
+				], () => withReactions(message, choosing, inForce));
+			});
+			messages.done();
+			const root = published.find((message) => message.id === thread.root.id);
 			if (!root) throw new Error(`Thread ${thread.id} has no root message`);
 			return {
 				id: thread.id,
-				key: threadKey(thread),
+				key,
 				title: thread.title,
 				root,
-				msgs: messages,
+				msgs: published,
 				unread: Object.freeze(unread),
 				anchor: thread.anchor,
 				detached_from: thread.detached_from,
@@ -878,19 +923,38 @@ function threadRecordReader() {
 				summaries: thread.summaries
 			};
 		};
-		const reading = /* @__PURE__ */ new Map();
-		const records = threads.map((thread) => {
-			const { unread, inputs } = readingOf(thread);
-			const prior = kept.get(thread.id);
-			const record = prior && prior.inputs.length === inputs.length && inputs.every((input, at) => Object.is(input, prior.inputs[at])) ? prior.record : readRecord(thread, unread);
-			reading.set(thread.id, {
-				inputs,
-				record
-			});
-			return record;
+		const read = threads.map((thread) => {
+			const unread = thread.unread.filter((item) => !locallyRead.has(versionKey(item)));
+			return records.read(thread.id, [
+				thread,
+				ready,
+				tokens,
+				...unread,
+				BETWEEN,
+				...workflowsIn.get(thread.id) ?? NONE,
+				BETWEEN,
+				...obligationsIn.get(thread.id) ?? NONE,
+				BETWEEN,
+				...agentTodosIn.get(thread.id) ?? NONE,
+				BETWEEN,
+				...userTodosIn.get(thread.id) ?? NONE,
+				BETWEEN,
+				...unitInputs(unitsByThread.get(thread.id))
+			], (earlier) => {
+				const bases = earlier?.bases ?? keptReadings();
+				const messages = earlier?.messages ?? keptReadings();
+				return {
+					record: readRecord(thread, unread, {
+						bases,
+						messages
+					}),
+					bases,
+					messages
+				};
+			}).record;
 		});
-		kept = reading;
-		return records;
+		records.done();
+		return read;
 	};
 }
 
@@ -1383,6 +1447,7 @@ function widgetReading(inputs, descriptor) {
 	};
 }
 function createSemanticApplication({ presentation } = {}) {
+	const widgetStates = widgetStateReader();
 	const threadRecords = threadRecordReader();
 	const initial = {
 		document: {
@@ -1456,7 +1521,7 @@ function createSemanticApplication({ presentation } = {}) {
 			...namedParent ? { localParent: namedParent } : {}
 		}] : event.kind === "undo" ? [event] : []);
 		const folded = foldThreads(view?.thread.threads ?? [], gestures);
-		const widgets = foldWidgetStates(document.authored, projection);
+		const widgets = widgetStates(document.authored, projection);
 		const { parents: widgetParents, memberships } = currentWidgetRelations(document, widgets, projection);
 		const todos = ready ? localTodos(state, local) : {
 			open: [],

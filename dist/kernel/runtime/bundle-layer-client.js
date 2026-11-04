@@ -458,10 +458,11 @@ const heldHeaders = ({ data, state }) => ({
 	...data.version !== null && { "Leaf-Data-Version": data.version },
 	...state?.browser.basis.key && { "Leaf-Held-Basis": state.browser.basis.key }
 });
-function changedList(held, { by, items = [], dropped = [], after = [] }) {
+function changedList(held, { by, items = [], changed = [], dropped = [], after = [] }) {
 	const name = (item) => by === "self" ? item : by === "id" ? item.id : item.event.id;
 	const sent = new Map(items.map((item) => [name(item), item]));
 	const kept = new Map(held.map((item) => [name(item), item]));
+	for (const [key, patch] of changed) sent.set(key, patched(kept.get(key), patch));
 	const placed = /* @__PURE__ */ new Set([...dropped, ...after.map(([key]) => key)]);
 	const order = [...kept.keys()].filter((key) => !placed.has(key));
 	for (const [key, before] of after) order.splice(before === null ? 0 : order.indexOf(before) + 1, 0, key);
@@ -504,7 +505,7 @@ function completeState(answer, held) {
 			...data,
 			sources
 		},
-		events: [...prior.events, ...events]
+		events: events.length ? [...prior.events, ...events] : prior.events
 	};
 }
 var LayerRefused = class extends Error {};

@@ -121,6 +121,51 @@ test("a reading keeps the record of every thread nothing it reads has changed", 
   );
 });
 
+test("a reply to a thread reads its own message and the reactions it moves", () => {
+  const reacting = {
+    ...NO_DOCUMENT,
+    registry: { $reactions: { tokens: { yes: { glyph: "+" } } } },
+  };
+  const root = agent("root", { kind: "comment", author: "user" });
+  const first = agent("first", { seq: 2 });
+  const liked = {
+    ...agent("liked", { seq: 3, author: "user" }),
+    parent: "first",
+    token: "yes",
+  };
+  const second = agent("second", { seq: 4 });
+  const thread = servedThread([root, first, liked, second]);
+  const read = threadRecordReader();
+  const [before] = read([thread], reacting, new Map(), []);
+  const third = agent("third", { seq: 5 });
+  const [after] = read(
+    [{ ...thread, msgs: [...thread.msgs, third] }],
+    reacting,
+    new Map(),
+    [],
+  );
+  // The new message is the agent's latest now, which moves the one that was; every
+  // other message keeps the record it had, the reaction in force on one included.
+  assert.deepEqual(
+    after.msgs.map((message, at) => message === before.msgs[at]),
+    [true, true, true, false, false],
+  );
+  assert.deepEqual(
+    after.msgs.map((message) => message.reactions?.latest ?? null),
+    [null, false, null, false, true],
+  );
+  assert.equal(after.msgs[1].reactions?.choices[0]?.inForce?.id, "liked");
+  assert.deepEqual(
+    [after],
+    readThreadRecords(
+      [{ ...thread, msgs: [...thread.msgs, third] }],
+      reacting,
+      new Map(),
+      [],
+    ),
+  );
+});
+
 test("a gesture copies only the thread it stands in", () => {
   const threads = ["a", "b"].map((id) =>
     servedThread([agent(id, { kind: "comment" })]),

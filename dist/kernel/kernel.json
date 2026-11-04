@@ -200,7 +200,7 @@
 
     "runtime/framework.js": "9f71bf57ffc03f55a6a09b6cda840c1c7e208bfed089f97f8b21e163b1f40fbb",
 
-    "runtime/framework/application.js": "41043cc29ec3338f5bc1b940e32890d37e961a0a6a9a0d6aac1141bbbe20417c",
+    "runtime/framework/application.js": "1efc42fe82af8a99bf5a419fb4e26bc9e0bddcab5457732b7fadd9433b23cde6",
 
     "runtime/framework/presentation.js": "1d2cd21628fc4c21a759b3d969588d71269921f970a0f49ee0671eb934790816",
 
@@ -229,6 +229,8 @@
     "runtime/interaction-log.js": "f101a06877393bcb48252440b7fdafd791fb78b368734d3fb9a7c0a99ff41c6b",
 
     "runtime/keeps.js": "a41c1d22007f1526897c158aded9856aac6285d1f2373a4243578fad9359c3a7",
+
+    "runtime/kept.js": "97b50b9ceca0c5e76111d9e8f110761f657ccd68b73c17d2d796fb67108d9b2f",
 
     "runtime/kernel-facts.js": "a115be58af0138cc01234a9d6c16caa066237d7988b94e056039810edcf9b53e",
 
@@ -278,7 +280,7 @@
 
     "runtime/language-paths.js": "038583c5c8c80b5f772323aa1f47b6d8d865e615d632014ac2c12cd92f90006f",
 
-    "runtime/layer-client.js": "1425f3b99486ab3cbc296c806a895006e01a66b56502a7454e60ebd81c7542c6",
+    "runtime/layer-client.js": "6ceb473710885cabaa65d9b80b49bfa8b4b93f2dc6d62c8f0da3351a7ebe5e06",
 
     "runtime/leaf-element.js": "105e501f7c6db5fc476c6c97834599c95a376befb02958935985dff92cba9abb",
 
@@ -366,7 +368,7 @@
 
     "runtime/projection/data.js": "45801dd52abd2a3b2967373bb4e2c1e4249cd2ae1dbf0d5c3e3de450548cdeec",
 
-    "runtime/projection/model.js": "c936918e0cef2691ba7a1e8f7fe4847e7d2e88c818e1b3f17d8f847693dff972",
+    "runtime/projection/model.js": "a1dbdff04fbe8336a02a2e049c59808aa8281ad8d4a433cc2a69994f54198004",
 
     "runtime/projection/presentation.js": "2136cc9fa72b73f417b01cb286c23bad368c17db047083d7011e483d98c19392",
 
@@ -486,7 +488,7 @@
 
     "runtime/thread/messages.js": "31f14a80eecad3298b13d80f34e66e943ad5f6731bca5646249f6ee8d0da68f7",
 
-    "runtime/thread/model.js": "3f7266a46a2ce2b0f4a9d20d8c44b7ca069a77c32eeacdf8f8ada03f846a0731",
+    "runtime/thread/model.js": "68458d77aa90455fe67c27409fa847f91acfea5e267f718c693613edd7494f42",
 
     "runtime/thread/placement.js": "2090ac624e57a1aac69f9d61cb22bd88e54e3a0b52399a20256a5852c8353c62",
 
@@ -858,6 +860,8 @@
     "runtime/interaction-log.js",
 
     "runtime/keeps.js",
+
+    "runtime/kept.js",
 
     "runtime/kernel-facts.js",
 

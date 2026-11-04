@@ -30,9 +30,12 @@
 
 ## Backlog
 
-Every other item is a GitHub issue labelled `backlog`, and its priority label runs
-from `now` to `next` to `etc`. An `etc` item waits for the trigger it states and is
-not an active queue. Theme labels, such as `ux` and `layout`, group related work
+Every other item is a GitHub issue labelled `backlog`: work planned before release,
+with priority `now` or `next`. An idea, or a wait on a trigger, that nothing needs
+before release gets no open issue. Close it as not planned with the `postponed`
+label, and say in the closing comment what would bring it back, such as a user's
+report or an upstream release (`gh issue list --state closed --label postponed`
+lists them). Theme labels, such as `ux` and `layout`, group related work
 (`gh label list`). An issue's title is an outcome, not an implementation plan;
 linked notes hold the evidence and detailed briefs. Completed work lives in closed
 issues and git history, and rejected ideas in a closed issue or the relevant

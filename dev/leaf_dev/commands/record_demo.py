@@ -44,7 +44,14 @@ from leaf.thread import post_reply
 from leaf.todos import cmd_start
 from leaf.vendoring import cmd_init
 from leaf_dev import LEAF_COMMAND
-from leaf_dev.browser import Window, headless_shell, open_threads, settle, tab
+from leaf_dev.browser import (
+    Window,
+    headless_shell,
+    open_threads,
+    screenshot,
+    settle,
+    tab,
+)
 from leaf_dev.leaf_assets import publish, stage
 from leaf_dev.page_fixtures import fixture_environment
 from leaf_dev.recording import write_gif
@@ -315,8 +322,7 @@ def record(
     durations: list[int] = []
 
     def shot(duration: int) -> None:
-        png = page.screenshot(animations="disabled", caret="hide")
-        frames.append(Image.open(io.BytesIO(png)).convert("RGB"))
+        frames.append(Image.open(io.BytesIO(screenshot(page))).convert("RGB"))
         durations.append(duration)
 
     # The page's own readiness, not the document's stamp: a gesture taken before the
@@ -403,17 +409,13 @@ def record(
     )
     page.mouse.up()
     page.wait_for_selector("#col-during #card-oncall")
-    # The floating panel's field acknowledges the move in its status's place.
-    page.wait_for_function(
-        """() => document.querySelector(
-            '.lf-fp-field leaf-text[data-lf-says="notice"]'
-        )?.getAttribute('placeholder')?.startsWith('Moved to During')"""
-    )
-    shot(2400)
+    # The last frame shows the page once it has applied the server's reading of the
+    # move, so what that reading draws stands in every recording.
     page.wait_for_function(
         "before => document.body.getAttribute('data-lf-applied') !== before",
         arg=applied_before_move,
     )
+    shot(2400)
     if "card-oncall" not in folded_board(page_dir)["col-during"]:
         raise RuntimeError("the board move did not reach the page's current log")
     return frames, durations
@@ -452,9 +454,7 @@ def shoot_stills(browser, url: str, page_dir: Path, into: Path) -> None:
             )
             page.locator("#top").scroll_into_view_if_needed()
             settle(page)
-            page.screenshot(
-                path=into / f"{name}.png", animations="disabled", caret="hide"
-            )
+            (into / f"{name}.png").write_bytes(screenshot(page))
 
 
 @contextmanager

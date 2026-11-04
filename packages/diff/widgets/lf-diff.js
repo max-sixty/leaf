@@ -86,6 +86,8 @@ import {
   readDiffCoordinate,
 } from "./diff-coordinates.js";
 import { overflowFor } from "./overflow.js";
+// The search field's `wa-input`, which a plain page has no chrome to define.
+import "/vendor/webawesome-chrome.js";
 import { pierre, markSyntax } from "/widgets/pierre.js";
 // Only a diff that is actually rendering has any use for Pierre's renderer —
 // an authored <lf-diff> bound to data

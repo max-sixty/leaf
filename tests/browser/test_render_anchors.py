@@ -5287,7 +5287,7 @@ new file mode 120000
       const { says, wrote } = await window.__lfWidgetApi();
       return {
         rendered: host.classList.contains('lf-rendered'),
-        error: host.querySelector('.lf-error')?.firstChild?.textContent ?? null,
+        error: host.shadowRoot?.querySelector('.lf-error')?.firstChild?.textContent ?? null,
         details: shadow?.querySelectorAll('details').length ?? 0,
         diffs: shadow?.querySelectorAll('pre').length ?? 0,
         renameCount: renames.length,

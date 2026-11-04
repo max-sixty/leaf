@@ -996,8 +996,6 @@ customElements.define(
     /** @type {import("../../../browser/types/contract.js").DataUnifiedDiff | null | undefined} */
     #shown;
     #showing = false;
-    /** @type {ReturnType<typeof threadSurface>["open"]} */
-    #opener = null;
     // The rendering the update under way started, which its `updateComplete` waits for.
     /** @type {Promise<void> | undefined} */
     #rendered;
@@ -1043,19 +1041,6 @@ customElements.define(
       super();
       /** @type {import("../../../browser/types/contract.js").DataUnifiedDiff | null} */
       this.value = null;
-    }
-
-    /** @param {import("lit").PropertyValues} changed */
-    shouldUpdate(changed) {
-      const ready = super.shouldUpdate(changed);
-      if (!ready) return false;
-      // Evidence and annotation availability are independent inputs. Other no-op
-      // updates must not clear a completed refusal.
-      return (
-        this.#shown === undefined ||
-        this.value !== this.#shown ||
-        threadSurface(this).open !== this.#opener
-      );
     }
 
     setup() {
@@ -1174,7 +1159,9 @@ customElements.define(
 
     render() {
       this.#delivered = this.value;
-      this.#opener = threadSurface(this).open;
+      // Drawn files offer Comment while a surface is registered; reading the opener
+      // here draws again when it changes, and `updated` reconciles the controls.
+      void threadSurface(this).open;
       return nothing;
     }
 
@@ -1373,8 +1360,11 @@ customElements.define(
         this.filesBody = null;
         this.classList.toggle("lf-rendered", false);
         // The failure box quotes a patch text; a manifest has none to quote. It takes
-        // the place of every outlet, which core's composer leaves first.
+        // the place of every outlet, which core's composer leaves first. It stands as
+        // the shadow stage, as files do, so it lasts until the next `show` stages
+        // another rendering; an update that leaves the source unchanged keeps it.
         releaseOutlets(this);
+        shadowStage(this, []);
         failSoft(this, err, typeof source === "string" ? source : undefined);
         this.markFiles(source);
       }

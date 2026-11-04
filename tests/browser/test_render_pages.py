@@ -586,9 +586,10 @@ def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
     expect(draft).to_have_js_property("value", "keep this unfinished reply")
     news.click()
     expect(view).to_be_visible()
+    # A thread the agent resolved names the agent before Reopen, as a card's does.
     expect(
         page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)")
-    ).to_have_accessible_name("Reopen")
+    ).to_have_accessible_name(re.compile(r"Resolved by \w+ · Reopen$"))
     expect(draft).to_have_js_property("value", "keep this unfinished reply")
 
 

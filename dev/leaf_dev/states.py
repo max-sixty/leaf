@@ -1001,7 +1001,7 @@ def on_agent(page: Page) -> None:
 def threads_scrolled(page: Page) -> None:
     """Threads scrolled in a short window, with Open's band stuck over its rows."""
     go_to_threads(page)
-    page.locator(panel_view("threads")).evaluate("view => { view.scrollTop = 30; }")
+    page.locator(panel_view("threads")).evaluate("view => { view.scrollTop = 36; }")
     settle(page)
 
 
@@ -1107,7 +1107,7 @@ def page_map(page: Page) -> None:
 def page_map_scrolled(page: Page) -> None:
     """The Page Map scrolled into a group, whose band stands stuck."""
     page_map(page)
-    page.locator(".lf-page-map-list").evaluate("list => { list.scrollTop = 60; }")
+    page.locator(".lf-page-map-list").evaluate("list => { list.scrollTop = 100; }")
     settle(page)
 
 

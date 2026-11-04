@@ -1656,8 +1656,9 @@ def test_threads_holds_a_row_that_joins_or_moves_behind_a_notice(browser, serve)
 
 def test_resolved_news_unfolds_resolved_to_land_on_its_row(browser, serve):
     """A thread resolved elsewhere while Threads stands with Resolved folded keeps its
-    row in place behind the notice, and Enter on the notice unfolds Resolved, where the
-    row now stands, and lands on it."""
+    row in place behind the notice, with Open's band counting it out as the tab does,
+    and Enter on the notice unfolds Resolved, where the row now stands, and lands on
+    it."""
     url = serve(LONG_PAGE, comments=2)
     settling = panel_comment(serve.page_dir, "Is the opening right?", {"section": "p0"})
     page = floating(browser, url)
@@ -1674,11 +1675,15 @@ def test_resolved_news_unfolds_resolved_to_land_on_its_row(browser, serve):
     told(page)
     expect(notice).to_have_attribute("title", "1 thread resolved")
     expect(row).to_be_visible()
+    expect(view.locator(".lf-rows-group > .lf-rows-head")).to_have_text(
+        [re.compile(r"^\s*Open\s*2\s*$")]
+    )
 
     notice.focus()
     page.keyboard.press("Enter")
     expect(notice).to_have_count(0)
     expect(heading).to_have_attribute("aria-expanded", "true")
+    expect(heading).to_have_text(re.compile(r"^\s*Resolved\s*1\s*$"))
     expect(row).to_have_attribute("data-lf-resolved", "")
     expect(row).to_be_focused()
 

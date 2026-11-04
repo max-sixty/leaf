@@ -1976,9 +1976,10 @@ textarea.field {
    band reads as the band's. Its name takes one line, cut where the count begins, so a
    stuck band always covers the height a landing clears. A row the pointer or the keys
    stand on wears a wash a shade off the surface too, so the band keeps a gap of the
-   surface below it: the first row's wash met the band, and the two read as one block. The rows of a group inside a list take the
-   list's columns (`subgrid`), so a row's name starts on one edge in every group; a
-   group that holds a list of its own has its rows' columns to itself.
+   surface below it: the first row's wash met the band, and the two read as one block.
+   The rows of a group inside a list take the list's columns (`subgrid`), so a row's name
+   starts on one edge in every group; a group that holds a list of its own has its rows'
+   columns to itself.
 
    The band sticks at its scroller's top while its group passes under it, as a message's
    head sticks in a thread card (annotation-chrome.css), so the group being read is

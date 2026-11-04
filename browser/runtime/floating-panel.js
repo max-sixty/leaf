@@ -2847,11 +2847,11 @@ export function createFloatingPanel({
   // user unfolds, so a page whose conversations have all settled takes one row rather
   // than a row for each. The heading is a row of the list, which the arrows walk to and
   // Enter opens, and a section stays unfolded while the panel stays open (`unfolded`).
-  // It is its group's band (controls.css, `.lf-rows-group`), its disclosure arrow
-  // hanging in the band's start padding, so its name starts where every band's does. The user chose the fold on 27 October over the newest three resolved with the
-  // rest behind a row, which put a second order in a list read in the page's, and over
-  // resolved threads only searched for, which left them nothing to browse. The heading
-  // is its group's band, and takes the band's ink (controls.css, `data-lf-band`).
+  // It is its group's band (controls.css, `.lf-rows-group`, `data-lf-band`), its
+  // disclosure arrow hanging in the band's start padding, so its name starts where every
+  // band's does. The user chose the fold on 27 October over the newest three resolved
+  // with the rest behind a row, which put a second order in a list read in the page's,
+  // and over resolved threads only searched for, which left them nothing to browse.
   /** @param {string} key @param {string} title @param {number} count */
   function settledHeading(key, title, count) {
     const open = unfolded.has(key);
@@ -2903,21 +2903,21 @@ export function createFloatingPanel({
     // Every thread stands in a group, as every item does in On's lists (`groupedItems`).
     // The open ones keep their group's box as a search narrows them to its matches, so
     // the rows stay under the box they stood in.
-    // A band counts the threads that are what it names now, as the tab does, so a row
-    // the list holds in its old section until the user takes in the news counts where
-    // it now belongs.
+    // A band counts the threads the page holds in that state now, as the tab does, so
+    // it says the same number while the list holds a row in its old section or a new
+    // thread behind the notice; a search counts its matches.
     const groups = [
       {
         key: "open",
         title: searched ? "Matches" : "Open",
         items: listed,
-        count: searched ? listed.length : listed.filter((t) => !t.resolved).length,
+        count: searched ? listed.length : threadCounts(threads()).open,
       },
       {
         key: "resolved",
         title: "Resolved",
         items: resolved,
-        count: resolved.filter((thread) => thread.resolved).length,
+        count: threads().filter((thread) => thread.resolved).length,
         folds: true,
       },
     ].filter((group) => group.items.length);

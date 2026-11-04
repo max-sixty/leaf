@@ -69,7 +69,7 @@ from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
 
-from .events import note_settlements, taken_back
+from .events import note_settlements, taken_back, unshown
 from .findings import Finding, Rejected
 from .obligations import asked_in_a_message
 from .thread_context import thread_ids, thread_names
@@ -284,9 +284,8 @@ def todo_error(
     if kind == "todo":
         subject = event["subject"]
         if subject["kind"] == "thread":
-            if (
-                subject["id"] not in thread_ids(log.events)
-                or subject["id"] in log.withdrawn
+            if subject["id"] not in thread_ids(log.events) or subject["id"] in unshown(
+                log.events, log.withdrawn
             ):
                 return Finding("missing-thread", values={"thread": subject["id"]})
             return None

@@ -344,6 +344,9 @@ MESSAGE_FIELDS = (
     # where its "this one" points once the batch that carried it is gone.
     "viewing",
     "edited",
+    # A message the user took back while something stood on it, which keeps its
+    # place with nothing in it (`events.build_threads`).
+    "withdrawn",
 )
 
 # How much of one thread a wait digest carries: the message that opened it,

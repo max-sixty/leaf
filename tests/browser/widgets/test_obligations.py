@@ -1222,6 +1222,23 @@ def test_obligation_binding_badges_do_not_cover_their_key_line(browser, serve):
     ), geometry
 
 
+def walked_to(page, key, target):
+    """Press `key`, then wait for the walk to put focus on `target` and its travel to end.
+
+    The arrival focuses and issues its smooth scroll in one task, but the page's scroll
+    position first moves frames later, and `scroll_settled` counts those frames as
+    stillness. So the travel must be seen to start before its end is waited for, which
+    holds only for a destination the arrival moves the page to.
+    """
+    before = page.evaluate("document.scrollingElement.scrollTop")
+    page.keyboard.press(key)
+    expect(page.locator(target)).to_be_focused()
+    page.wait_for_function(
+        "(before) => document.scrollingElement.scrollTop !== before", arg=before
+    )
+    scroll_settled(page)
+
+
 def test_an_obligation_that_cannot_name_itself_arrives_on_the_words_that_explain_it(
     browser, serve
 ):
@@ -1251,9 +1268,7 @@ def test_an_obligation_that_cannot_name_itself_arrives_on_the_words_that_explain
         }"""
     ), "the fixture already shows the change on the first screen"
 
-    page.keyboard.press("m")
-    expect(page.locator("#sc-sug")).to_be_focused()
-    scroll_settled(page)
+    walked_to(page, "m", "#sc-sug")
 
     landed = page.evaluate(
         """() => {
@@ -1305,9 +1320,7 @@ def test_an_arrival_region_fits_above_the_floating_panel(browser, serve):
     # The region misses the room above the band by a few pixels; the change alone fits.
     resized(page, 900, round(before["span"] + before["top"] + before["bottom"] - 8))
 
-    page.keyboard.press("m")
-    expect(page.locator("#sc-sug")).to_be_focused()
-    scroll_settled(page)
+    walked_to(page, "m", "#sc-sug")
 
     landed = page.evaluate(measure)
     assert landed["span"] == pytest.approx(before["span"], abs=1), (
@@ -1342,11 +1355,8 @@ def test_an_arrival_does_not_reach_back_into_the_obligation_before_it(browser, s
     )
     scroll_settled(page)
 
-    page.keyboard.press(
-        "Shift+m"
-    )  # back to the nearest obligation above, which is the change
-    expect(page.locator("#ar-sug")).to_be_focused()
-    scroll_settled(page)
+    # Back to the nearest obligation above, which is the change.
+    walked_to(page, "Shift+m", "#ar-sug")
 
     landed = page.evaluate(
         """() => {
@@ -1451,9 +1461,7 @@ def test_an_obligation_already_in_front_of_the_user_is_not_travelled_to(browser,
     page = open_page(browser, serve(SUGGESTION_IN_CONTEXT_PAGE))
     resized(page, 900, 500)
 
-    page.keyboard.press("m")
-    expect(page.locator("#sc-sug")).to_be_focused()
-    scroll_settled(page)
+    walked_to(page, "m", "#sc-sug")
     arrived = page.evaluate("() => document.scrollingElement.scrollTop")
     assert arrived > 0, "the walk did not travel to the obligation at all"
 
@@ -1593,7 +1601,7 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
     # promise.
     marks = page.evaluate("""() => [...document.querySelectorAll('main [data-lf-obligation]')].map(e => {
       return { what: e.id || e.tagName, fragments: e.getClientRects().length,
-               ring: e.classList.contains('lf-projected-location')
+               ring: e.hasAttribute('data-lf-projected-location')
                  && getComputedStyle(e).outlineStyle === 'solid' };
     })""")
     assert [m["what"] for m in marks] == ["sug-refill"]
@@ -1683,7 +1691,7 @@ def test_the_walk_travels_to_an_obligation_a_page_left_boxless(browser, serve):
     # round itself (target-paint.js, `paintLocation`).
     rings = page.evaluate("""() => ['lf-old', 'lf-new'].map(tag => {
       const slot = document.querySelector(`#sug-refill > ${tag}`);
-      return slot.classList.contains('lf-projected-location')
+      return slot.hasAttribute('data-lf-projected-location')
         && getComputedStyle(slot).outlineStyle === 'solid'; })""")
     assert rings == [True, True], f"a slot of the decision wears no ring: {rings}"
 

@@ -1266,10 +1266,10 @@ undo:
     kind: undo
   told:
     - text: >-
-        The user took back the gesture `undoes` names. Treat the two as cancelled:
-        don't answer or record the withdrawn gesture. Undoing an action that answered
-        or closed a thread reopens that thread, and undoing an `edit` takes that
-        rewrite of its message back.
+        The user took back the gesture `undoes` names. Treat it as withdrawn: don't
+        answer or record it, and if you have already acted on it, undo or redo what
+        depended on it. Undoing an action that answered or closed a thread reopens
+        that thread, and undoing an `edit` takes that rewrite of its message back.
 
 report:
   event:

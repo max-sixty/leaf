@@ -121,16 +121,16 @@
   // decision that holds focus itself, as an arrival leaves it, and on each box it shows
   // through.
   const carriesFocus = (el, focused) =>
-    el.matches('[data-lf-mark~="focus"], .lf-proxied') ||
-    (el.matches(".lf-projected-location") &&
-      Boolean(focused?.matches?.(".lf-projected-location")));
+    el.matches('[data-lf-mark~="focus"], [data-lf-proxied]') ||
+    (el.matches("[data-lf-projected-location]") &&
+      Boolean(focused?.matches?.("[data-lf-projected-location]")));
 
   // A gesture's mark on a box: the aim, the margin trace or a comment's mark, which the
   // box draws as its outline cut to brackets (surfaces.css, "A gesture's mark is
   // brackets"). It shares the ring's ink and token, but its cut runs say which object
   // is referenced, not where keyboard input goes.
   const bracketed = (el) =>
-    el.matches(".lf-aimed, .lf-traced, [data-lf-mark]") &&
+    el.matches("[data-lf-aimed], [data-lf-traced], [data-lf-mark]") &&
     getComputedStyle(el).clipPath !== "none";
 
   function ringCandidates() {
@@ -835,7 +835,7 @@
     // shows through (`carriesFocus`). Each box draws it as its own outline. The
     // painter's other states are reference brackets.
     for (const box of e.ownerDocument.querySelectorAll(
-      '[data-lf-mark~="focus"], .lf-proxied, .lf-projected-location',
+      '[data-lf-mark~="focus"], [data-lf-proxied], [data-lf-projected-location]',
     ))
       if (
         carriesFocus(box, e) &&
@@ -849,11 +849,6 @@
         if (ringed(getComputedStyle(child))) carriers.push([child, null]);
         overlaid(child);
       }
-    // A diff's scroller gives its ring to the following frame so its rows cannot
-    // paint over the band. The frame is outside the focused node's ancestry.
-    const frame = e.nextElementSibling;
-    if (frame?.matches(".lf-diff-frame") && ringed(getComputedStyle(frame)))
-      carriers.push([frame, null]);
     for (let el = flatParent(e); el; el = flatParent(el)) {
       const up = getComputedStyle(el);
       if (up.outlineStyle === "auto") return null;

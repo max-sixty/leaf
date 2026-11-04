@@ -3,6 +3,8 @@
    drive arrival delivery; only rendering frames are advanced explicitly. */
 import assert from "node:assert/strict";
 import test from "node:test";
+import { setFlagsFromString } from "node:v8";
+import { runInNewContext } from "node:vm";
 
 const frames = new Map();
 let nextFrame = 0;
@@ -13,6 +15,8 @@ globalThis.requestAnimationFrame = (callback) => {
 globalThis.cancelAnimationFrame = (id) => frames.delete(id);
 
 const {
+  watchOwner,
+  watchArrivalsIn,
   whileConnected,
   frameFor,
   browserScrolls,
@@ -24,14 +28,15 @@ const {
 const { clockValue, tickClock } = await import("/runtime/presence.js");
 const { observeQueuedWork } = await import("/runtime/queued-work.js");
 
-// A second observer acknowledges delivery of the same mutation batch as arrivals.
-async function mutate(change) {
+// A second observer acknowledges delivery of the same mutation batch as arrivals, in
+// the tree the change is made in.
+async function mutate(change, tree = document.body) {
   const observed = new Promise((resolve) => {
     const observer = new MutationObserver(() => {
       observer.disconnect();
       resolve();
     });
-    observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(tree, { childList: true, subtree: true });
   });
   change();
   await observed;
@@ -44,6 +49,24 @@ async function renderFrame() {
   await Promise.all(due.map((callback) => callback(0)));
   await new Promise((resolve) => setTimeout(resolve, 0));
 }
+
+// First in the file, so its owner is the first the shared watch serves.
+test("the first owner the shared watch serves is collected once it leaves", async () => {
+  setFlagsFromString("--expose-gc");
+  const collect = runInNewContext("gc");
+  const ref = (() => {
+    const owner = document.createElement("section");
+    document.body.append(owner);
+    whileConnected(owner, () => {});
+    owner.remove();
+    return new WeakRef(owner);
+  })();
+  for (let turn = 0; turn < 12 && ref.deref(); turn++) {
+    await new Promise((resolve) => setTimeout(resolve));
+    collect();
+  }
+  assert.equal(ref.deref(), undefined);
+});
 
 test("resources survive a move, release on departure, and restart with a fresh signal", async () => {
   const owner = document.createElement("section");
@@ -87,6 +110,64 @@ test("resources survive a move, release on departure, and restart with a fresh s
     stop();
     owner.remove();
     holder.remove();
+  }
+});
+
+// An owner arrives inside what a change adds, not only as the added node itself: a
+// widget inside a section a revision patches in, or inside a shadow stage's content.
+/** @param {Element} owner */
+function connections(owner) {
+  /** @type {string[]} */
+  const log = [];
+  const stop = watchOwner(owner, {
+    connect: () => log.push("connect"),
+    disconnect: () => log.push("disconnect"),
+  });
+  return { log, stop };
+}
+
+test("an owner inside an added subtree connects, leaves with it and returns with it", async () => {
+  const section = document.createElement("section");
+  const paragraph = document.createElement("p");
+  const owner = document.createElement("span");
+  paragraph.append(owner);
+  section.append(paragraph);
+  const { log, stop } = connections(owner);
+  try {
+    assert.deepEqual(log, []);
+    await mutate(() => document.body.append(section));
+    assert.deepEqual(log, ["connect"]);
+    await mutate(() => section.remove());
+    assert.deepEqual(log, ["connect", "disconnect"]);
+    await mutate(() => document.body.append(section));
+    assert.deepEqual(log, ["connect", "disconnect", "connect"]);
+  } finally {
+    stop();
+    section.remove();
+  }
+});
+
+test("an owner inside a shadow stage connects, leaves with its host and returns with it", async () => {
+  const outer = document.createElement("div");
+  const host = document.createElement("div");
+  outer.append(host);
+  document.body.append(outer);
+  const stage = host.attachShadow({ mode: "open" });
+  watchArrivalsIn(stage);
+  const content = document.createElement("div");
+  const owner = document.createElement("span");
+  content.append(owner);
+  const { log, stop } = connections(owner);
+  try {
+    await mutate(() => stage.append(content), stage);
+    assert.deepEqual(log, ["connect"]);
+    await mutate(() => outer.remove());
+    assert.deepEqual(log, ["connect", "disconnect"]);
+    await mutate(() => document.body.append(outer));
+    assert.deepEqual(log, ["connect", "disconnect", "connect"]);
+  } finally {
+    stop();
+    outer.remove();
   }
 });
 

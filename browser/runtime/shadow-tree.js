@@ -97,6 +97,19 @@ export const inChrome = (node) => Boolean(node && closestAcross(node, ".lf-chrom
 /** @param {Node | null | undefined} node @returns {Element | null} */
 export const renderedParent = (node) =>
   (isSlottable(node) ? node.assignedSlot : null) ?? upFrom(node);
+// The same step taken down: the elements whose `renderedParent` is `element`. A slot's
+// assigned elements, each once, slots forwarded into it included; a host's open shadow
+// tree; and the light children no slot takes. A closed tree answers no `shadowRoot` and
+// hides its slots from `assignedSlot`, so its elements are left to whoever holds the
+// tree, as the climb leaves its host's light children in place.
+/** @param {Element} element @returns {Element[]} */
+export const renderedChildElements = (element) => [
+  ...(isHTML(element, "slot")
+    ? element.assignedElements().filter((child) => child.assignedSlot === element)
+    : []),
+  ...(element.shadowRoot?.children ?? []),
+  ...[...element.children].filter((child) => !child.assignedSlot),
+];
 
 // The same two climbs through every node rather than every element: a root, a shadow root
 // or the document, is a step of its own, so a reading can stop at a root as well as at an

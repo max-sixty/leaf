@@ -5,7 +5,7 @@ import re
 from math import hypot
 
 import pytest
-from interact_support import append_carried_log_record
+from interact_support import append_carried_log_record, element_declaration
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE
 from render_cases_widgets import RAIL_BAND_PAGE
@@ -328,6 +328,196 @@ def test_a_choice_s_pin_stands_on_none_of_its_option_cards(browser, serve, optio
     for entry in reading["entries"]:
         assert not any(_meets(entry, card) for card in cards), (reading, cards)
     assert pin_distance(reading["carrier"], reading["parts"]) <= 12, reading
+
+
+def test_an_option_s_key_moves_no_pin_and_stands_under_none(browser, serve):
+    """An option card lends its key the seat of its own mark (options.css), which a pin
+    keeps clear of as a control, so the keys showing as focus enters the options leave
+    every pin where it stood and under none of them. Read as cover, a shown key moved
+    each pin beside the options a few pixels whenever focus entered or left them."""
+    options = "".join(
+        f'<lf-option id="c-{n}"><strong>Option {n}</strong> what choosing it does.'
+        "</lf-option>"
+        for n in range(1, 5)
+    )
+    body = f'<lf-ask id="q"><h2>Which way?</h2><lf-options id="c" choose>{options}</lf-options></lf-ask>'
+    comments = [_comment_on(f"c-{n}") for n in range(1, 5)]
+    page = open_page(
+        browser,
+        serve(
+            leaf_page("keys beside pins", f"<div>{body}</div>", layout="sidebar"),
+            events=comments,
+        ),
+    )
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    targets = [f"c-{n}" for n in range(1, 5)]
+    for target in targets:
+        row = page.locator(f'.lf-margin-cluster[data-lf-margin-for="{target}"]')
+        expect(row).to_have_attribute("data-lf-place", "pin")
+    before = [pin_reading(page, target)["entries"] for target in targets]
+    page.locator("#c-1 lf-option-control").focus()
+    keys = page.locator("#c .lf-key-badge[data-lf-binding-badge]")
+    expect(keys.first).to_be_visible()
+    margins_laid_out(page)
+    after = [pin_reading(page, target)["entries"] for target in targets]
+    assert after == before
+    shown = keys.evaluate_all(
+        """(keys) => keys.map((key) => {
+          const {left, top, right, bottom} = key.getBoundingClientRect();
+          return {left, top, right, bottom};
+        })"""
+    )
+    assert shown
+    for entry in (entry for entries in after for entry in entries):
+        assert not any(_meets(entry, key) for key in shown), (entry, shown)
+
+
+def test_a_control_an_authored_anchor_name_moves_into_a_pin_s_seat_moves_the_pin(
+    browser, serve
+):
+    """A page script can hand an anchor name from one box to another of the same size,
+    which carries a button positioned by that name onto the pin by a paragraph and
+    resizes nothing. The margin hears the author's write, as it hears any other restyle,
+    and seats the pin clear of the button; only the runtime's own anchor names are paint
+    it does not hear."""
+    body = (
+        '<div id="here" style="width: 32rem"><p id="t">A paragraph with a comment '
+        "on it, which the pin stands beside at its top right corner.</p></div>"
+        '<div id="there" style="width: 32rem; height: 3rem; margin-top: 30rem; '
+        'anchor-name: --spot"></div>'
+        '<button id="act" style="position: absolute; position-anchor: --spot; '
+        'top: anchor(top); left: anchor(right); width: 8rem; height: 2.5rem">Act</button>'
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page("a moved anchor", f"<div>{body}</div>", layout="sidebar"),
+            events=[_comment_on("t")],
+        ),
+    )
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    expect(
+        page.locator('.lf-margin-cluster[data-lf-margin-for="t"]')
+    ).to_have_attribute("data-lf-place", "pin")
+    page.evaluate(
+        """() => {
+          document.getElementById('there').style.anchorName = 'none';
+          document.getElementById('here').style.anchorName = '--spot';
+        }"""
+    )
+    page.wait_for_function(
+        """() => {
+          const act = document.getElementById('act').getBoundingClientRect();
+          const here = document.getElementById('here').getBoundingClientRect();
+          if (Math.abs(act.top - here.top) > 1) return false;
+          const row = document.querySelector('[data-lf-margin-for="t"]');
+          return [...row.querySelectorAll('.lf-margin-entry')]
+            .filter((entry) => entry.checkVisibility())
+            .every((entry) => {
+              const b = entry.getBoundingClientRect();
+              return b.right <= act.left || act.right <= b.left
+                || b.bottom <= act.top || act.bottom <= b.top;
+            });
+        }""",
+        timeout=5000,
+    )
+
+
+# Ways a page's own code can move a button onto the pin by `#t` in reaction to the trace
+# a margin entry draws on `#a`, each changing no box's size: a restyle, a class whose
+# words a no-break space runs together so a rule stops matching, and an anchor name
+# handed to a box standing on the pin.
+REACTIONS = {
+    "style": "act.style.translate = 'none';",
+    "class": "act.className = 'off\\u00a0away';",
+    "anchor-name": (
+        "document.getElementById('there').style.anchorName = 'none';"
+        "document.getElementById('spot').style.anchorName = '--spot';"
+    ),
+}
+
+
+@pytest.mark.parametrize("reaction", REACTIONS)
+def test_a_page_s_reaction_to_a_runtime_mark_moves_a_pin_clear(
+    browser, serve, reaction
+):
+    """The runtime draws its marks in attributes of its own, which the margin does not
+    hear, but a page's code can react to one at once, in the same task, with a change
+    of its own that moves a button onto a pin. The margin hears that change as any other
+    and seats the pin clear of the button."""
+    body = (
+        '<lf-test-reactor id="a"><p>A paragraph whose margin entry the pointer rests '
+        "on.</p></lf-test-reactor>"
+        '<p id="t">Another paragraph, with a pin at its top right corner.</p>'
+        '<div id="there" style="height: 2rem; margin-top: 40rem; anchor-name: --spot"></div>'
+        '<div id="spot" style="position: absolute; width: 1px; height: 1px"></div>'
+        "<style>lf-test-reactor { display: block; } .away { translate: 0 60rem; }"
+        "#act { position: absolute; width: 8rem; height: 2.5rem; }"
+        "#act.anchored { position-anchor: --spot; top: anchor(top); left: anchor(left); }"
+        "</style>"
+    )
+    button = (
+        '<button id="act" class="anchored">Act</button>'
+        if reaction == "anchor-name"
+        else '<button id="act" class="off away"'
+        + (' style="translate: 0 60rem"' if reaction == "style" else "")
+        + ">Act</button>"
+    )
+    reactor = (
+        "customElements.define('lf-test-reactor', class extends HTMLElement {"
+        "static observedAttributes = ['data-lf-traced'];"
+        "attributeChangedCallback(name, was, now) {"
+        "if (now === null) return;"
+        "const act = document.getElementById('act');"
+        f"{REACTIONS[reaction]}" + "}});"
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page("a reaction", f"<div>{body}{button}</div>", layout="sidebar"),
+            events=[_comment_on("a"), _comment_on("t")],
+            layer_registry={
+                "lf-test-reactor": element_declaration("lf-test-reactor", upgrade=True)
+            },
+            layer_widgets={"lf-test-reactor.js": reactor},
+        ),
+    )
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    for target in ("a", "t"):
+        expect(
+            page.locator(f'.lf-margin-cluster[data-lf-margin-for="{target}"]')
+        ).to_have_attribute("data-lf-place", "pin")
+    # The button, and the box an anchor name can carry it to, wait over the pin by `#t`,
+    # kept off it by the translation, the class or the anchor name the reaction changes.
+    page.evaluate(
+        """(id) => {
+          const pin = document.querySelector('[data-lf-margin-for="t"] .lf-margin-entry')
+            .getBoundingClientRect();
+          const box = document.getElementById(id);
+          const holder = (box.offsetParent ?? document.body).getBoundingClientRect();
+          box.style.left = `${pin.left - holder.left - 8}px`;
+          box.style.top = `${pin.top - holder.top - 4}px`;
+        }""",
+        "spot" if reaction == "anchor-name" else "act",
+    )
+    margins_laid_out(page)
+    page.locator('[data-lf-margin-for="a"] .lf-margin-marker').hover()
+    expect(page.locator("#a")).to_have_attribute("data-lf-traced", "")
+    page.wait_for_function(
+        """() => {
+          const act = document.getElementById('act').getBoundingClientRect();
+          const pin = document.querySelector('[data-lf-margin-for="t"] .lf-margin-entry');
+          const here = document.getElementById('t').getBoundingClientRect();
+          if (act.top > here.bottom + 40) return false;
+          const b = pin.getBoundingClientRect();
+          return b.right <= act.left || act.right <= b.left
+            || b.bottom <= act.top || act.bottom <= b.top;
+        }""",
+        timeout=5000,
+    )
 
 
 def test_a_pin_on_a_contents_target_stands_at_its_last_part(browser, serve):

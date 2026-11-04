@@ -1,7 +1,8 @@
 /* One reply draft and send lifecycle shared by every view of a thread.
 
    A reply send draws its turn in the gesture that makes it. Its provisional result
-   masks the words while the session still owes a refusal; acceptance finishes editing.
+   masks the words while the session still owes a refusal; acceptance finishes editing,
+   and the session begins again when the user comes back to the box or types in it.
    The send preserves the panel's narrowing and, whichever control sent it, leaves the
    caret in the box for the next message, on a card or a seat as in the floating
    panel's field; Escape takes the user to the thread. The user chose this on 31
@@ -382,9 +383,15 @@ function wireReply(
     // localStorage notifies other tabs but skips this document. Page, margin, and panel
     // reply boxes are views of one draft here, so they take the same bus directly.
     // Other draft kinds still have one view per document.
+    // The user's own edit is writing a reply, so it opens the session where none
+    // stands: the box Send leaves the caret in counts as written in once they type.
     save: (v) => {
       saveDraft(draftCtx, v);
       tellDraft(draftCtx, v);
+      if (composition.binding && !compositions.has(draftCtx)) {
+        adopt(draftCtx, composition);
+        composition.changed();
+      }
       remember(composition);
     },
     // The new turn is drawn above the box, which keeps the caret; the landing shows the

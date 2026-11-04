@@ -1,13 +1,6 @@
+/* Web Awesome's theme, its custom properties only: the tokens its components read. */
 @import "./styles/vendor/webawesome-theme.css" layer(lf-vendor);
 @import "./styles/tokens.css";
-/* Web Awesome's theme, imported for the tokens its components read, also gives the root
-   a colour, a light colour scheme and its sans. Leaf's core gives the root none of them,
-   so a page that takes no theme keeps the browser's (the reading theme sets its own). */
-:where(:root) {
-  color: revert;
-  color-scheme: revert;
-  font-family: revert;
-}
 
 /* Leaf's core sheet, composed into each page's layer and served at /theme.css with the
  * selected packages' contributions after it. It holds what Leaf's own interface and its
@@ -378,11 +371,9 @@ body {
  * wins. This anonymous layer sits early in lf-base, which only lf-reset precedes, so
  * these declarations outrank every later layer and every unlayered stylesheet
  * declaration without reserving a named layer custom CSS could append to. What ranks
- * higher is what comes earlier: lf-reset and markup's reading face
- * (lf-base.lf-reading-face, reading.css), which state nothing important; Web
- * Awesome's sheet (lf-base.lf-vendor, imported at the top of this file), whose one
- * important rule hides its own page frame's desktop or mobile parts; and inline
- * importance.
+ * higher is what comes earlier: lf-reset, markup's reading face
+ * (lf-base.lf-reading-face, reading.css) and Web Awesome's tokens (lf-base.lf-vendor),
+ * which state nothing important; and inline importance.
  *
  * The same rank makes `hidden` hide whatever display another rule states for the
  * element, which the UA's own rule loses to, so no rule restores it per selector.
@@ -1006,25 +997,14 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
  * Tab to (reach.js), and the layer's ring stands outside the box it names. A held pane
  * stands flush with the scrollport of the workspace body holding it, so that ring lost
  * its right and bottom sides to the scrollport's edge and ran over the header's rule.
- * The body's ring is drawn inset instead, on a later box sharing its grid cell, as the
- * floating panel draws its view's (floating-panel.css, `.lf-fp-stage`): an outline on
- * the body itself paints under whatever positioned content scrolls across its edges. */
-[data-lf-reading-role="pane"] > :not(header, footer)[data-lf-focus-visible] {
-  outline: none;
-}
-[data-lf-reading-role="pane"]:has(> :not(header, footer)[data-lf-focus-visible]) {
-  --lf-wears-ring: 1;
-}
-[data-lf-reading-role="pane"]:has(
-    > :not(header, footer)[data-lf-focus-visible]
-  )::after {
-  content: "";
+ * The pane is the body's ring frame instead (surfaces.css, `.lf-ring-frame`), drawing
+ * the ring inset on a later box sharing the body's grid cell: an outline on the body
+ * itself paints under whatever positioned content scrolls across its edges. */
+[data-lf-reading-role="pane"]::after {
+  position: static;
   grid-row: 2;
   grid-column: 1;
   z-index: 1;
-  pointer-events: none;
-  outline: var(--focus-ring);
-  outline-offset: var(--focus-ring-inset);
 }
 /* The pane role's box: a grid of header, body and footer, whose rows the grammar
  * (layouts.css) places. It stands with the base its widget's rules share, so a widget

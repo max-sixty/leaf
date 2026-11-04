@@ -48,12 +48,14 @@
        in the corner past its 6px end padding (`.lf-fp-field`). */
     --lf-fp-send-room: calc(max(var(--lf-line), var(--aim-floor)) - 6px);
     /* The panel is as wide as its measure (`--lf-fp-max`, wider while the field has
-       more room) where the window holds it, and the window less a gutter where not. */
+       more room) where the window holds it, and the window less a gutter where not.
+       The window is the viewport the panel is fixed to (`100%`), which a page's root
+       `zoom` scales with the panel; `100vw` doesn't, so a zoomed panel overran it. */
     --lf-fp-max: 540px;
     --lf-fp-gutter: 24px;
     --lf-fp-width: min(
       var(--lf-fp-max),
-      calc(100vw - var(--lf-fp-gutter) - var(--lf-safe-left) - var(--lf-safe-right))
+      calc(100% - var(--lf-fp-gutter) - var(--lf-safe-left) - var(--lf-safe-right))
     );
     /* A view is as tall as what it holds, up to this: the window less the row's band
        and a band of the page above the box, so a long thread or list reads in most of
@@ -887,8 +889,8 @@
   }
 
   /* ---------- an opened view: its head line over it, a list's tabs at its foot ---------- */
-  /* Drawn only while a view is open, since it stands over the page while it is
-     (geometry.js, `declareOccluder`). */
+  /* Drawn only while a view is open, since it covers the page while it is
+     (geometry.js, `declareCover`). */
   /* A symbol in a view stands as tall as the panel's other presses, a line under a
      finger (`--lf-fp-press`). */
   .lf-fp-opened {

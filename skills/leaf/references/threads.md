@@ -260,5 +260,6 @@ without a summary, pass an empty `--text`:
 leaf thread summarize <page> --from <first-message-id> --through <last-message-id> --label 'Previous progress messages' --text ''
 ```
 
-Editing a message inside a summary with prose cancels that summary, so
-stale prose cannot hide the correction; a fold without prose stays.
+Editing a message inside a summary with prose, or the user taking back a message
+the thread held when you wrote it, cancels that summary, so stale prose cannot hide
+the change; a fold without prose stays.

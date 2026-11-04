@@ -18,9 +18,11 @@ chromeRoot.className = "lf-chrome";
 // `show()`, it performs no dialog focusing steps, so mounting the chrome borrows no
 // author's focus. It is an empty box, so it is no Tab stop: Firefox gives an open
 // dialog one (Firefox 157), which drew nothing, and both engines already focus it on a
-// press between the panel's controls, which `tabindex="-1"` leaves as it was.
+// press between the panel's controls, which `tabindex="-1"` leaves as it was. Its role
+// is `generic`, not `presentation`: a focusable element's presentational role is
+// ignored, which would expose the layer as an unnamed dialog around the panel.
 export const chromeForeground = document.createElement("dialog");
 chromeForeground.className = "lf-ui lf-foreground";
 chromeForeground.setAttribute("open", "");
-chromeForeground.setAttribute("role", "presentation");
+chromeForeground.setAttribute("role", "generic");
 chromeForeground.tabIndex = -1;

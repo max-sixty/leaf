@@ -373,6 +373,58 @@ def test_an_option_s_key_moves_no_pin_and_stands_under_none(browser, serve):
         assert not any(_meets(entry, key) for key in shown), (entry, shown)
 
 
+def test_a_control_an_authored_anchor_name_moves_into_a_pin_s_seat_moves_the_pin(
+    browser, serve
+):
+    """A page script can hand an anchor name from one box to another of the same size,
+    which carries a button positioned by that name onto the pin by a paragraph and
+    resizes nothing. The margin hears the author's write, as it hears any other restyle,
+    and seats the pin clear of the button; only the runtime's own anchor names are paint
+    it does not hear."""
+    body = (
+        '<div id="here" style="width: 32rem"><p id="t">A paragraph with a comment '
+        "on it, which the pin stands beside at its top right corner.</p></div>"
+        '<div id="there" style="width: 32rem; height: 3rem; margin-top: 30rem; '
+        'anchor-name: --spot"></div>'
+        '<button id="act" style="position: absolute; position-anchor: --spot; '
+        'top: anchor(top); left: anchor(right); width: 8rem; height: 2.5rem">Act</button>'
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page("a moved anchor", f"<div>{body}</div>", layout="sidebar"),
+            events=[_comment_on("t")],
+        ),
+    )
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    expect(
+        page.locator('.lf-margin-cluster[data-lf-margin-for="t"]')
+    ).to_have_attribute("data-lf-place", "pin")
+    page.evaluate(
+        """() => {
+          document.getElementById('there').style.anchorName = 'none';
+          document.getElementById('here').style.anchorName = '--spot';
+        }"""
+    )
+    page.wait_for_function(
+        """() => {
+          const act = document.getElementById('act').getBoundingClientRect();
+          const here = document.getElementById('here').getBoundingClientRect();
+          if (Math.abs(act.top - here.top) > 1) return false;
+          const row = document.querySelector('[data-lf-margin-for="t"]');
+          return [...row.querySelectorAll('.lf-margin-entry')]
+            .filter((entry) => entry.checkVisibility())
+            .every((entry) => {
+              const b = entry.getBoundingClientRect();
+              return b.right <= act.left || act.right <= b.left
+                || b.bottom <= act.top || act.bottom <= b.top;
+            });
+        }""",
+        timeout=5000,
+    )
+
+
 def test_a_pin_on_a_contents_target_stands_at_its_last_part(browser, serve):
     """A `display: contents` target anchors through its first shown part, but its pin
     stands at the top-right corner of every part together, and shows while they do."""

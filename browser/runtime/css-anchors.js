@@ -67,6 +67,7 @@ import { watchArrivals } from "./arrivals.js";
 import { inlineStyle, keeps, layoutPx } from "./keeps.js";
 import { move } from "./dom-move.js";
 import { chromeRoot } from "./chrome.js";
+import { paint } from "./page-paint.js";
 
 /** @typedef {import("./rect.js").Box} Box
  * @typedef {{scroller: Element, name: string, getBoundingClientRect(): DOMRect}} ContentStart
@@ -166,12 +167,13 @@ export function anchorReading(el, name) {
     write: !authored || authored === "none" ? name : `${authored}, ${name}`,
   };
 }
+// A name the runtime gives is paint: only the chrome positions by it (page-paint.js).
 /** @param {ReturnType<typeof anchorReading>} reading */
 export function nameAnchor({ el, name, write, part }) {
   // Two readings of one box can both find it unnamed before either names it.
   if (write && part) {
-    if (!partNamed(el)) namePart(el, name);
-  } else if (write) inlineStyle(el).anchorName = write;
+    if (!partNamed(el)) paint(() => namePart(el, name));
+  } else if (write) paint(() => (inlineStyle(el).anchorName = write));
   return name;
 }
 

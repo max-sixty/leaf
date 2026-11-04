@@ -85,6 +85,7 @@ import { boundedBlockOf } from "../bounds.js";
 import { pageScroller } from "../scrolling.js";
 import { hearScrollsIn, watchScrollEnds } from "../arrivals.js";
 import { closestAcross, layoutBox, pageDocument } from "../passages.js";
+import { readsLayout } from "../page-paint.js";
 import {
   arrivals,
   inSeatingOrder,
@@ -152,6 +153,16 @@ const rows = new Map();
 // Withhold its row at the mutation checkpoint, before another frame can paint it.
 /** @type {WeakMap<HTMLElement, Element>} */
 const anchors = new WeakMap();
+// The rows withheld now, kept where they are withheld, so a scroll of the document,
+// which carries every other row, reads only these again (`scheduleStirReading`).
+/** @type {Set<HTMLElement>} */
+const withheldRows = new Set();
+/** @param {HTMLElement} row @param {boolean} on */
+function withhold(row, on) {
+  row.classList.toggle("lf-withheld", on);
+  if (on) withheldRows.add(row);
+  else withheldRows.delete(row);
+}
 /** @param {Element} target */
 const targetBox = (target) => shownParts(target)[0] ?? target;
 /** @type {Set<Element>} */
@@ -188,21 +199,6 @@ const GAP = 4;
 const SURFACES = ".lf-chrome, .lf-binding-seat";
 /** @param {Node} node */
 const onSurface = (node) => Boolean(closestAcross(node, SURFACES));
-// Whether a restyle of a page box changed more than the anchor names it gives: a name
-// another box positions itself by moves nothing, as the margin's own carriers name their
-// anchors and heading links name a heading the pointer reaches.
-const scratchStyle = document.createElement("div").style;
-/** @param {string | null} style */
-const unnamed = (style) => {
-  scratchStyle.cssText = style ?? "";
-  scratchStyle.removeProperty("anchor-name");
-  return scratchStyle.cssText;
-};
-/** @param {MutationRecord} record */
-const restyles = (record) =>
-  record.attributeName !== "style" ||
-  !(record.target instanceof Element) ||
-  unnamed(record.oldValue) !== unnamed(record.target.getAttribute("style"));
 // The id of the thread card a margin row opens (thread-preview.js).
 export const THREAD_CARD = "lf-margin-preview";
 // A row the user holds, which packing seats before every other (`packRow`): one under
@@ -790,6 +786,45 @@ const faces = new MutationObserver((records) => {
   });
 });
 
+// What changed in the page, on the document or a shadow tree holding a target. A change on
+// Leaf's own surfaces moves no seat, and the runtime's paint on the page is not heard at
+// all (page-paint.js, `paint`).
+/** @param {MutationRecord[]} records */
+function heardPage(records) {
+  const page = records.filter((record) => !onSurface(record.target));
+  if (
+    page.some(
+      (record) =>
+        record.type === "attributes" ||
+        (record.target instanceof Element && wantedGeometry.has(record.target)),
+    )
+  )
+    afterScript(layoutMarginRows);
+  // Each row climbs once from its target and its anchor, rather than asking of every
+  // moved node whether it holds them: a first paint moves a node per widget.
+  /** @type {Set<Node>} */
+  const moved = new Set(
+    page
+      .flatMap((record) => [...record.removedNodes, ...record.addedNodes])
+      .filter((node) => node instanceof Element),
+  );
+  if (!moved.size) return;
+  /** @param {Node | null | undefined} node */
+  const movedWith = (node) => {
+    for (let at = node; at; at = composedParentNode(at)) if (moved.has(at)) return true;
+    return false;
+  };
+  for (const [row, options] of rows) {
+    const target = options.anchor();
+    const anchor = anchors.get(row);
+    if (!movedWith(target) && !movedWith(anchor)) continue;
+    if (!target?.isConnected || (anchor && !anchor.isConnected)) withhold(row, true);
+    scheduleMarginLayout();
+  }
+}
+const pageChanges = new MutationObserver(heardPage);
+readsLayout(pageChanges, heardPage);
+
 // Neither scroll events nor mutation records leave their shadow tree, so a target
 // inside one is heard on each tree holding it as well as on the document.
 const heard = new WeakSet();
@@ -804,46 +839,11 @@ function hearTargetChanges(root) {
   // Child-list changes in the measured layout can move a target without resizing it,
   // including when native scroll anchoring preserves its viewport position.
   // Hear those changes and target moves at their mutation checkpoint, before paint;
-  // a remove-and-reinsert in one batch is a move, not a departure. A change on Leaf's
-  // own surfaces, or a restyle that only names an anchor, moves no seat (`restyles`).
-  new MutationObserver((records) => {
-    const page = records.filter((record) => !onSurface(record.target));
-    if (
-      page.some((record) =>
-        record.type === "attributes"
-          ? restyles(record)
-          : record.target instanceof Element && wantedGeometry.has(record.target),
-      )
-    )
-      afterScript(layoutMarginRows);
-    // Each row climbs once from its target and its anchor, rather than asking of every
-    // moved node whether it holds them: a first paint moves a node per widget.
-    /** @type {Set<Node>} */
-    const moved = new Set(
-      page
-        .flatMap((record) => [...record.removedNodes, ...record.addedNodes])
-        .filter((node) => node instanceof Element),
-    );
-    if (!moved.size) return;
-    /** @param {Node | null | undefined} node */
-    const movedWith = (node) => {
-      for (let at = node; at; at = composedParentNode(at))
-        if (moved.has(at)) return true;
-      return false;
-    };
-    for (const [row, options] of rows) {
-      const target = options.anchor();
-      const anchor = anchors.get(row);
-      if (!movedWith(target) && !movedWith(anchor)) continue;
-      if (!target?.isConnected || (anchor && !anchor.isConnected))
-        row.classList.toggle("lf-withheld", true);
-      scheduleMarginLayout();
-    }
-  }).observe(root, {
+  // a remove-and-reinsert in one batch is a move, not a departure (`heardPage`).
+  pageChanges.observe(root, {
     childList: true,
     subtree: true,
     attributes: true,
-    attributeOldValue: true,
     attributeFilter: ["style", "class", "hidden", "open"],
   });
   root.addEventListener(
@@ -1486,6 +1486,7 @@ export function unregisterMarginRow(row) {
   registered.delete(row);
   restyled.delete(row);
   anchors.delete(row);
+  withheldRows.delete(row);
   pushes.delete(row);
   folded.delete(row);
   if (!rows.size) {
@@ -1579,22 +1580,27 @@ function scheduleStirReading() {
     }
     /** @type {import("../geometry.js").ClipCache} */
     const bands = new Map();
-    for (const [row, options] of rows) {
-      const target = options.anchor();
-      if (!target?.isConnected) continue;
+    // The document carries ordinary rows and their lanes together, and scrolls every
+    // target, so its scroll alone reads again only the rows it may bring back.
+    const documentOnly = boxes.every((box) => box === pageScroller);
+    for (const row of documentOnly ? [...withheldRows] : [...rows.keys()]) {
+      const options = rows.get(row);
+      const target = options?.anchor();
+      if (!options || !target?.isConnected) continue;
       const words = quotedBoxes(options);
       const start = words.length ? wordsStart(options) : null;
       // A box inside the target that scrolls a passage's words moves them too.
-      const moving = boxes.some((box) => {
-        /** @type {Node | null} */
-        let at = start ?? target;
-        for (; at; at = renderedParent(at)) if (at === box) return true;
-        return false;
-      });
+      const moving =
+        documentOnly ||
+        boxes.some((box) => {
+          /** @type {Node | null} */
+          let at = start ?? target;
+          for (; at; at = renderedParent(at)) if (at === box) return true;
+          return false;
+        });
       if (!moving) continue;
-      // The document carries ordinary rows and their lanes together.
-      const withheld = row.classList.contains("lf-withheld");
-      if (!withheld && boxes.every((box) => box === pageScroller)) continue;
+      const withheld = withheldRows.has(row);
+      if (!withheld && documentOnly) continue;
       // A transform that moved the row's subject brings the pass, which stands the row
       // by it again.
       const point = options.point?.() ?? null;
@@ -1806,7 +1812,7 @@ function layoutMountedRows(layer) {
   // Posture determines row size. Write every posture before measuring those sizes;
   // every coordinate is then written together after packing.
   for (const { row, target, shown, place } of reads) {
-    row.classList.toggle("lf-withheld", !shown);
+    withhold(row, !shown);
     if (!target) continue;
     if (row.dataset.lfPlace !== place) {
       // A push in one posture says nothing of where the row stands in the other.
@@ -2179,7 +2185,7 @@ function layoutMountedRows(layer) {
   });
   for (const { row, rect, read, push, left, top, level, withheld } of seated) {
     pushes.set(row, push);
-    if (read.place === "pin") row.classList.toggle("lf-withheld", withheld);
+    if (read.place === "pin") withhold(row, withheld);
     const across = read.axes === "xy";
     const at = read.carrierPaint?.box;
     const fromTop = at ? at.top : -windowY;

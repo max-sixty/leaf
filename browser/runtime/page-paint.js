@@ -54,6 +54,36 @@ export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   quiet: "data-lf-quiet",
 });
 
+// The runtime's paint on elements the page owns changes how a box looks and moves none:
+// the outline a mark draws (target-paint.js), an anchor name only the chrome positions by
+// (css-anchors.js, `nameAnchor`). So it is written through `paint`, unheard by the
+// observers that read where the page's boxes stand from its mutations (`readsLayout`):
+// each is handed what it heard before the write, and what the write produced is dropped,
+// as the margin's pass drops its own writes to its rows. An author's change, an anchor
+// name included, is heard as any other.
+/** @type {Map<MutationObserver, (records: MutationRecord[]) => void>} */
+const layoutReaders = new Map();
+let painting = 0;
+/** @param {MutationObserver} observer @param {(records: MutationRecord[]) => void} read its callback */
+export function readsLayout(observer, read) {
+  layoutReaders.set(observer, read);
+}
+/** @template T @param {() => T} write @returns {T} */
+export function paint(write) {
+  if (!painting)
+    for (const [observer, read] of layoutReaders) {
+      const heard = observer.takeRecords();
+      if (heard.length) read(heard);
+    }
+  painting += 1;
+  try {
+    return write();
+  } finally {
+    painting -= 1;
+    if (!painting) for (const observer of layoutReaders.keys()) observer.takeRecords();
+  }
+}
+
 // Whether the page has presented: the stamp presentation.js writes once on `body` and
 // never takes back.
 export const pagePresented = () =>

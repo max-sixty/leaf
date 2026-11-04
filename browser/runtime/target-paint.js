@@ -13,7 +13,7 @@ import { move } from "./dom-move.js";
 import { keeps } from "./keeps.js";
 import { inChrome } from "./passages.js";
 import { shownParts } from "./geometry.js";
-import { locationStandsDown } from "./page-paint.js";
+import { locationStandsDown, paint } from "./page-paint.js";
 import { paintStand, placement, standAt, standBox } from "./target-paint-geometry.js";
 
 // One mark: a class on what it marks at a time, which is each box the element shows
@@ -28,9 +28,11 @@ function markOne(className) {
   let marked = [];
   function draw() {
     const boxes = target?.isConnected ? shownParts(target) : [];
-    for (const box of marked)
-      if (!boxes.includes(box)) box.classList.toggle(className, false);
-    for (const box of boxes) box.classList.toggle(className, true);
+    paint(() => {
+      for (const box of marked)
+        if (!boxes.includes(box)) box.classList.toggle(className, false);
+      for (const box of boxes) box.classList.toggle(className, true);
+    });
     marked = boxes;
   }
   return {
@@ -166,9 +168,11 @@ function drawLocation() {
     element?.isConnected && !locationStandsDown(element)
       ? [element, ...shownParts(element)]
       : [];
-  for (const box of locationProjected)
-    if (!boxes.includes(box)) box.classList.toggle(PROJECTED_LOCATION, false);
-  for (const box of boxes) box.classList.toggle(PROJECTED_LOCATION, true);
+  paint(() => {
+    for (const box of locationProjected)
+      if (!boxes.includes(box)) box.classList.toggle(PROJECTED_LOCATION, false);
+    for (const box of boxes) box.classList.toggle(PROJECTED_LOCATION, true);
+  });
   locationProjected = boxes;
 }
 

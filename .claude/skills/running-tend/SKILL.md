@@ -176,8 +176,10 @@ changes the test or the behavior.
 
 Merge a pull request that fixes tests, without waiting for maintainer approval,
 once each test it claims to fix failed before the change and passes after it
-(a skipped or deleted test has not passed). Pull requests run only the later-tier
-tests they edit, so run the claimed ones yourself. The pull request's CI must
+(a skipped or deleted test has not passed); for a test only `test-macos` runs, the
+checks Linux can run suffice, and **A red `ci` on main is live** settles the rest.
+Pull requests run only the later-tier tests they edit, so run the claimed ones
+yourself. The pull request's CI must
 reach a terminal result on the exact head (`monitor-ci`). A failure there outside
 the tests it claims, and not caused by its change, neither blocks the merge nor
 calls for a rerun: the report for that run carries it to its own cause. GitHub's
@@ -198,7 +200,11 @@ hit its timeout, and that is a failure.
 The scheduled run's `test-macos` job runs every tier on macOS, which your Linux runner
 can't reproduce. For a failure only that job shows, the failing run is the evidence
 from before the fix. For the evidence from after it, dispatch `ci` on the fix's branch
-(`gh workflow run ci --ref <branch>`) and read that run's `test-macos` job.
+(`gh workflow run ci --ref <branch>`), whose `test-macos` job takes hours. Don't wait
+for it in the session: triage runs one batch at a time, so a session waiting on that
+job holds every queued issue behind it. The fix lands on the checks Linux can run;
+name the dispatched run on the cause issue and leave the issue open, and the session
+that next handles the issue reads that run's `test-macos` job to settle it.
 
 ## Cloudflare logs
 

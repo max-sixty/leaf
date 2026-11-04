@@ -12,9 +12,10 @@
  * quote: a reflow the reader asks for. The cut box doesn't scroll, so the press is the
  * one way to the rest, and stays at the box's foot rather than scrolling off with the
  * lines.
- * Pierre draws numbered source using the same static renderer as diffs. Its sheets
- * are scoped to the listing; gutter glyphs are generated content, so selecting or
- * copying the source never includes line numbers. The listing's rows stand in runs that
+ * Pierre draws numbered source using the same static renderer as diffs. Its sheets,
+ * one copy every listing shares (`listingSheet`), are scoped to the listing; gutter
+ * glyphs are generated content, so selecting or copying the source never includes
+ * line numbers. The listing's rows stand in runs that
  * the browser draws only in view (`inRuns`), each sized ahead of drawing by the lines
  * its rows fill (`sizeRuns`). The Markdown preview renders a file, whose soft line
  * breaks are spaces, so a paragraph wraps to the preview's width. The source and
@@ -62,6 +63,27 @@ const mark = (node, key) => {
   keeps(node, "data-lf-identity", key);
 };
 
+// Every listing in a document or shadow root shares one copy of Pierre's sheets, which
+// that root adopts. Pierre writes the sheets into each file it renders, the same for
+// every file, since they depend only on the syntax theme and the options
+// `sourceListing` passes. Their `:host` rules describe the file box, here the listing,
+// without adding a second shadow-tree owner. Kept in each listing, the sheets entered
+// the page again with each document that drew, and Firefox restyles the whole page
+// whenever a sheet holding `@scope` enters or leaves it: 29 empty documents in tabs
+// beside one of 4 MB added about 6 s to the page's load.
+/** @type {CSSStyleSheet | undefined} */
+let listingSheet;
+/** @param {string} css */
+function scopedSheet(css) {
+  const sheet = new CSSStyleSheet();
+  sheet.replaceSync(
+    inBaseLayer(
+      `@scope (.lf-text-document-listing) { ${css.replaceAll(":host", ":scope")} }`,
+    ),
+  );
+  return sheet;
+}
+
 /** @param {string} source @param {string | null} language */
 async function sourceListing(source, language) {
   const [{ preloadFile }, { themeName, foreground }] = await Promise.all([
@@ -76,19 +98,15 @@ async function sourceListing(source, language) {
   template.innerHTML = prerenderedHTML;
   const rendered = template.content;
   rendered.querySelector("svg[data-icon-sprite]")?.remove();
-  for (const style of rendered.querySelectorAll("style")) {
-    // A style's implicit @scope root is its parent listing. Pierre's :host rules
-    // describe that file box here, without adding a second shadow-tree owner.
-    style.textContent = inBaseLayer(
-      `@scope { ${style.textContent.replaceAll(":host", ":scope")} }`,
-    );
-  }
-  // A line number is Leaf's control, drawn from `data-number`; dropping Pierre's
+  const styles = [...rendered.querySelectorAll("style")];
+  listingSheet ??= scopedSheet(styles.map((style) => style.textContent).join("\n"));
+  for (const style of styles) style.remove();
+  // A line number is Leaf's control, drawn from `data-lf-number`; dropping Pierre's
   // attribute keeps its sheet's rule for that span (a positioned, stacked
   // inline-block) off it.
   for (const number of rendered.querySelectorAll("span[data-line-number-content]")) {
     number.removeAttribute("data-line-number-content");
-    number.setAttribute("data-number", number.textContent);
+    number.setAttribute("data-lf-number", number.textContent);
     number.textContent = "";
     number.classList.add("lf-ui");
     generatedElement(number, { says: false });
@@ -112,7 +130,7 @@ async function sourceListing(source, language) {
   if (code.textContent !== source)
     throw new Error("Pierre did not return the source unchanged");
   markSyntax(rendered, foreground);
-  return { rendered, pre, code, text };
+  return { rendered, pre, code, text, sheet: listingSheet };
 }
 
 // Rows per run: several times the lines a document's box shows, so the runs in view
@@ -472,12 +490,16 @@ class TextDocument extends LeafElement {
         pre: drawnPre,
         code: drawnCode,
         text,
+        sheet,
       } = await sourceListing(source, language);
       if (preview === "markdown") {
         let failure;
         if (!(await loadMarkdown((error) => (failure = error)))) throw failure;
       }
       if (rendering !== this.rendering || !this.isConnected) return;
+      const root = /** @type {Document | ShadowRoot} */ (this.getRootNode());
+      if (!root.adoptedStyleSheets.includes(sheet))
+        root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet];
       const view = (this.view ??= this.build(preview));
       const label =
         this.getAttribute("label") ??
@@ -565,7 +587,8 @@ class TextDocument extends LeafElement {
     figure.className = "lf-text-document-view";
     const caption = document.createElement("figcaption");
     const listing = document.createElement("div");
-    listing.className = "lf-text-document-listing scroll";
+    listing.className = "lf-text-document-listing";
+    listing.toggleAttribute("data-lf-scroll", true);
     figure.append(caption);
     if (!preview) {
       figure.append(listing);

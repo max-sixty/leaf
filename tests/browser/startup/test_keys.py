@@ -100,7 +100,7 @@ def test_history_dependent_keys_wait_for_the_first_read(browser, serve, command)
     release()
     wait_until_ready(page)
     if command == "unread":
-        expect(page.locator('.lf-msg[data-event="unread-note"]')).to_be_focused()
+        expect(page.locator('.lf-msg[data-lf-event="unread-note"]')).to_be_focused()
     elif command == "version":
         expect(page.locator(panel_view("versions"))).to_be_visible()
     else:
@@ -139,7 +139,7 @@ def test_response_reaction_controls_wait_for_history(browser, serve, route):
     page.keyboard.press("c")
     expect(page.locator(".lf-fab-input")).to_be_focused()
     page.keyboard.press("Tab")
-    chip = page.locator('.lf-response-options .lf-react[data-token="keep"]')
+    chip = page.locator('.lf-response-options .lf-react[data-lf-token="keep"]')
     expect(chip).to_be_visible()
     expect(chip).to_have_attribute("aria-disabled", "true")
     if route == "pointer":
@@ -335,7 +335,7 @@ def test_upgrade_relinquishes_the_bootstrap_timeout_for_held_keys(browser, serve
     expect(page.locator(".lf-held-keys kbd")).to_have_text("t")
     release()
     page.clock.resume()
-    expect(page.locator('[data-thread="held-thread"]').first).to_be_focused()
+    expect(page.locator('[data-lf-thread="held-thread"]').first).to_be_focused()
     expect(page.locator(".lf-held-keys")).to_have_count(0)
 
 
@@ -370,7 +370,7 @@ def test_a_key_pressed_before_presentation_runs_once_the_page_presents(
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
 
     release()
-    expect(page.locator('[data-thread="held-thread"]').first).to_be_focused()
+    expect(page.locator('[data-lf-thread="held-thread"]').first).to_be_focused()
     expect(echo).to_have_count(0)
 
 
@@ -388,7 +388,7 @@ def test_a_checkbox_keeps_page_keys_after_reveal(browser, serve):
     page = open_page(browser, url)
     page.locator("#box").focus()
     page.keyboard.press("t")
-    expect(page.locator('[data-thread="held-thread"]').first).to_be_focused()
+    expect(page.locator('[data-lf-thread="held-thread"]').first).to_be_focused()
 
 
 def test_editors_and_select_typeahead_keep_letters_while_history_waits(browser, serve):
@@ -420,7 +420,7 @@ def test_editors_and_select_typeahead_keep_letters_while_history_waits(browser, 
     page.keyboard.press("t")
     expect(page.locator(".lf-held-keys kbd")).to_have_text("t")
     release()
-    expect(page.locator('[data-thread="held-thread"]').first).to_be_focused()
+    expect(page.locator('[data-lf-thread="held-thread"]').first).to_be_focused()
     expect(page.locator("#editor")).to_have_value("c")
 
 
@@ -442,7 +442,7 @@ def test_disabled_quick_shortcuts_are_not_held_before_presentation(
     expect(page.locator(".lf-held-keys")).to_have_count(0)
     release()
     wait_until_ready(page)
-    expect(page.locator('[data-thread="held-thread"]:focus')).to_have_count(0)
+    expect(page.locator('[data-lf-thread="held-thread"]:focus')).to_have_count(0)
     expect(page.locator(".lf-held-keys")).to_have_count(0)
 
 
@@ -466,9 +466,9 @@ def test_disabling_quick_shortcuts_discards_keys_already_held(browser, serve):
         release()
     wait_until_ready(page)
     expect(page.locator(".lf-held-keys")).to_have_count(0)
-    expect(page.locator(PANEL)).not_to_have_attribute("data-open", "threads")
+    expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", "threads")
     page.keyboard.press("t")
-    expect(page.locator('[data-thread="held-thread"]:focus')).to_have_count(0)
+    expect(page.locator('[data-lf-thread="held-thread"]:focus')).to_have_count(0)
 
 
 def test_a_key_pressed_while_held_keys_run_waits_its_turn(browser, serve):
@@ -493,7 +493,7 @@ def test_a_key_pressed_while_held_keys_run_waits_its_turn(browser, serve):
     expect(page.locator(".lf-held-keys kbd")).to_have_text("g")
 
     release()
-    expect(page.locator(PANEL)).to_have_attribute("data-open", "threads")
+    expect(page.locator(PANEL)).to_have_attribute("data-lf-open", "threads")
 
 
 def test_held_keys_after_one_that_opens_a_box_are_typed_into_it(browser, serve):
@@ -570,10 +570,10 @@ def test_escape_or_a_pointer_press_lets_go_of_held_keys(browser, serve, gesture)
     wait_until_ready(page)
     # A replay would run a frame after presentation; let the repaint it causes land.
     rendered(page)
-    assert page.evaluate("() => !document.activeElement?.closest('[data-thread]')")
+    assert page.evaluate("() => !document.activeElement?.closest('[data-lf-thread]')")
     # The positive control: the same key on the presented page walks to the thread.
     page.keyboard.press("t")
-    expect(page.locator('[data-thread="held-thread"]').first).to_be_focused()
+    expect(page.locator('[data-lf-thread="held-thread"]').first).to_be_focused()
 
 
 def test_the_help_overlay_answers_to_one_owner(browser, serve):
@@ -619,7 +619,7 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
     # Help is a scope: the table stands down behind it, so c must open nothing under
     # the sheet, neither a panel view nor the page comment in the panel's field.
     page.keyboard.press("c")
-    expect(page.locator(f"{PANEL}[data-open]")).to_have_count(0)
+    expect(page.locator(f"{PANEL}[data-lf-open]")).to_have_count(0)
     expect(panel_field(page)).not_to_be_focused()
     expect(page.locator(".lf-command-reference")).to_be_visible()
     page.keyboard.press("Escape")

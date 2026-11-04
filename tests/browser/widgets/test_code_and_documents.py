@@ -82,7 +82,7 @@ def test_a_markdown_document_switches_between_rendered_content_and_exact_source(
         "el => el.getBoundingClientRect().right"
     ) <= content.evaluate("el => el.getBoundingClientRect().left")
     assert (
-        document.locator("[data-number]").first.evaluate(
+        document.locator("[data-lf-number]").first.evaluate(
             "el => getComputedStyle(el, '::before').content"
         )
         == '"1"'
@@ -495,6 +495,39 @@ def test_a_document_in_a_tab_set_keeps_its_strip_under_its_caption(
             assert read["panelOnTop"], read
 
 
+def test_every_document_draws_from_one_copy_of_pierres_sheet(browser, serve):
+    """Each document stands its line numbers beside its lines, as Pierre's sheet draws
+    them, and the page holds one copy of that sheet however many documents it has. A
+    copy in each listing was a sheet holding `@scope` entering the page as each
+    document drew, and Firefox restyles every element of the page for each one: 29
+    empty documents in tabs beside one of 4 MB held the long document's first draw back
+    about 6 s."""
+    tabs = "".join(
+        f'<lf-tab id="tab-{at}" label="Doc {at}"><lf-text-document id="doc-{at}" '
+        f'source="text-{at}"></lf-text-document></lf-tab>'
+        for at in range(3)
+    )
+    url = serve(
+        leaf_page("Documents", f'<lf-tabs id="docs" list="side">{tabs}</lf-tabs>')
+    )
+    data_model.cmd_data_set(serve.page_dir, "text-0", "first line\nsecond line\n")
+    page = open_page(browser, url)
+    expect(page.locator("lf-text-document.lf-rendered")).to_have_count(3)
+    copies = page.evaluate("""() =>
+      [...document.styleSheets, ...document.adoptedStyleSheets].filter((sheet) =>
+        [...sheet.cssRules].some((rule) => rule.cssText.includes('--diffs-font-fallback'))
+      ).length""")
+    assert copies == 1
+    beside = """doc => {
+      const number = doc.querySelector('[data-lf-number]').getBoundingClientRect();
+      const line = doc.querySelector('[data-line]').getBoundingClientRect();
+      return {beside: number.right <= line.left, top: line.top - number.top};
+    }"""
+    for at in range(3):
+        page.get_by_role("tab", name=f"Doc {at}", exact=True).click()
+        assert page.locator(f"#doc-{at}").evaluate(beside) == {"beside": True, "top": 0}
+
+
 def test_document_views_remember_independently_and_follow_live_source_updates(
     browser, serve
 ):
@@ -816,8 +849,8 @@ def test_a_text_document_update_keeps_a_selection_it_carries_into_another_run(
             assert "selected passage" in now and not {"line", "added"} & set(
                 now.split()
             )
-        numbers = page.locator("#log [data-number]").evaluate_all(
-            "cells => cells.map(cell => +cell.dataset.number)"
+        numbers = page.locator("#log [data-lf-number]").evaluate_all(
+            "cells => cells.map(cell => +cell.dataset.lfNumber)"
         )
         assert numbers == [
             *range(1, page.locator("#log [data-content] > *").count() + 1)
@@ -982,7 +1015,7 @@ only
     expect(rows).to_have_count(8)
     assert rows.evaluate_all(
         """rs => rs.map(r => r.classList.contains('lf-code-elided')
-                   ? ['elided', r.dataset.elided, r.textContent]
+                   ? ['elided', r.dataset.lfElided, r.textContent]
                    : r.localName === 'lf-note' ? ['note']
                    : [getComputedStyle(r, '::before').content, r.hasAttribute('data-lf-hi')])"""
     ) == [
@@ -1029,7 +1062,7 @@ only
 
     # The rows a key addresses, as `navigateToDatum` reads them through lfElementsFor.
     addressed = """key => [...document.querySelector('#walk').lfElementsFor(key)]
-        .map(l => l.dataset.line ?? `${l.dataset.from}-${l.dataset.to}`)"""
+        .map(l => l.dataset.lfLine ?? `${l.dataset.lfFrom}-${l.dataset.lfTo}`)"""
     assert page.evaluate(addressed, "1507-1550") == ["1507", "1508-1549", "1550"]
     assert page.evaluate(addressed, "1520") == ["1508-1549"]
     assert page.evaluate(addressed, "3") == []

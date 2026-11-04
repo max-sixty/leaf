@@ -396,11 +396,11 @@ svg[data-lf-icon] {
    and whatever Leaf says, such as Delivered, Not answered or a notice, stands apart from
    them in that face's italic, as a stage direction does from the lines. The seat keeps
    only its size and leading, which rank the words among its others. */
-span[data-voice] {
+span[data-lf-voice] {
   font-weight: 400;
   font-style: normal;
 }
-span[data-voice="leaf"] {
+span[data-lf-voice="leaf"] {
   font-style: italic;
 }
 .lf-msg-sending::before {
@@ -431,7 +431,7 @@ span[data-voice="leaf"] {
 }
 /* Scroll surfaces contain out-of-flow descendants and opt into keyboard reach and
  * continuation cues. Their owner declares overflow, including at breakpoints. */
-:where(.scroll) {
+:where(.scroll, [data-lf-scroll]) {
   position: relative;
 }
 /* The layer's marks for a box that shows less than it holds (reachScrollers, for why the
@@ -616,8 +616,9 @@ summary,
  * word once also came framed on the card ground, a second look for the same press,
  * until the user chose the quiet one on 25 October. A toggle's `aria-pressed` keeps
  * its own selected face (below), so the chosen mode still shows. Authored
- * .button controls wear the word face too, and `.button.primary` the commit face, so
- * a page's own controls match Leaf's (page-layout.md). Labels wrap within their
+ * .button controls wear the word face too, and `.button.primary` the commit face
+ * (`.lf-btn.lf-commit` on Leaf's), so a page's own controls match Leaf's
+ * (page-layout.md). Labels wrap within their
  * available width; controls that require one line declare it locally. The block
  * padding stands one line of words a line tall (`--lf-line`), less the 1px border,
  * and a finger's floor is the button's reach (surfaces.css), so a rule restating the
@@ -642,9 +643,10 @@ summary,
  * a second frame or selected fill. The target owns its ring room inside its box,
  * padded by it, so a choice at a clipped toolbar edge keeps all four sides, and so
  * does every mark on it. A list that sets its marks on a heading's edge hangs each
- * face out by that padding, `--choice-pad`. Used by authored controls and packages
- * alike. */
-.choice {
+ * face out by that padding, `--choice-pad`. A page's label is `.choice`, and one
+ * Leaf or a package draws is `.lf-choice`, so the page's own CSS for `.choice` leaves
+ * Leaf's alone. */
+:is(.lf-choice, .choice) {
   --choice-pad: max(var(--sp-1), var(--focus-ring-room));
   display: inline-flex;
   align-items: center;
@@ -658,100 +660,60 @@ summary,
   font: var(--font-ui);
   --lf-ring-at: var(--focus-ring-inset);
 }
-/* The mark is Web Awesome's, so a choice looks like the library's wa-radio and
- * wa-checkbox and follows Leaf's mapping of its tokens (webawesome.css). These are
- * the input rules of its native styles (native.css, "Checkboxes + Radios", 3.14),
- * copied because that sheet restyles the whole document. The mark is 1.25em of the
- * label's type, as the library sizes it beside its value text; the label's gap
- * spaces it, and the label wears the focus ring. Its selectors weigh no more than
- * `.choice > input`, so a page's own rule for its inputs, such as a width, still
- * wins. Rejected (the user's direction, 3 November 2026, after comparing marks,
- * chosen faces and arrangements live): the browser's own mark, small, filled white
- * on the page's cream and different in each browser; a mark Leaf draws itself; no
- * mark, with the chosen label tinted; framed or joined buttons. The user preferred
- * a reasonable design from a UI library to a look of Leaf's own. */
-.choice > input {
+/* The mark is Web Awesome's: the radio and checkbox region of its native styles,
+ * generated into vendor/webawesome-choice.css and scoped to the face, so a choice
+ * looks like the library's wa-radio and wa-checkbox and follows Leaf's mapping of its
+ * tokens (webawesome.css). shadow.css imports it before this sheet, in the same layer,
+ * so it outranks Leaf's `:where()` defaults for inputs, such as `.lf-ui-face`'s ink. A
+ * scoped rule also outranks an unscoped one of equal weight, so the rules that adapt
+ * it below weigh one attribute more than the library's. The mark is 1.25em of the
+ * label's own type, as the library sizes it beside its value text, and the label's gap
+ * spaces it. Its outline is the library's default control border, since Leaf's field
+ * border, which the token takes elsewhere, left an unchosen mark under 1.5:1 against a
+ * card. A disabled choice fades as a whole, as the library's own label does; the
+ * generated rules reach only its mark, since inside `@scope` a selector without
+ * `:scope` matches only below the root, so the region's `label:has()` rules never
+ * style the label itself. In forced colours the platform draws the control,
+ * whose checked state the library paints as a background those modes replace. Rejected
+ * (the user's direction, 3 November 2026, after comparing marks, chosen faces and
+ * arrangements live): the browser's own mark, small, filled white on the page's cream
+ * and different in each browser; a mark Leaf draws itself; no mark, with the chosen
+ * label tinted; framed or joined buttons. The user preferred a reasonable design from
+ * a UI library to a look of Leaf's own. */
+:is(.lf-choice, .choice) {
+  --wa-form-control-border-color: var(--wa-color-neutral-border-loud);
+}
+:is(.lf-choice, .choice):has(> input:disabled) {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+:is(.lf-choice, .choice) > input {
   flex: none;
   margin: 0;
 }
-.choice > input:where([type="radio"], [type="checkbox"]) {
-  appearance: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
+:is(.lf-choice, .choice) > input[type] {
+  margin: 0;
   font-size: inherit;
-  inline-size: var(--wa-form-control-toggle-size);
-  block-size: var(--wa-form-control-toggle-size);
-  /* The library's own outline for a control, its loud neutral border. Leaf's field
-     border, which its form-control token takes (webawesome.css), drew an unchosen
-     mark under 1.5:1 against a card, barely there in either scheme. */
-  border: var(--wa-form-control-border-width) var(--wa-border-style)
-    var(--wa-color-neutral-border-loud);
-  background-color: var(--wa-form-control-background-color);
-  cursor: inherit;
-  transition:
-    background var(--wa-transition-normal),
-    border-color var(--wa-transition-fast),
-    color var(--wa-transition-fast);
-  transition-timing-function: var(--wa-transition-easing);
-  &:checked {
-    border-color: var(--wa-form-control-activated-color);
-  }
-  &:checked::after {
-    content: "";
-    background-color: currentColor;
+  &:disabled {
+    opacity: 1;
   }
   @media (forced-colors: active) {
     appearance: auto;
   }
 }
-.choice > input:where([type="radio"]) {
-  color: transparent;
-  border-radius: 50%;
-  &:checked {
-    color: var(--wa-form-control-activated-color);
-  }
-  &:checked::after {
-    aspect-ratio: 1;
-    inline-size: 100%;
-    scale: 0.7;
-    border-radius: 50%;
-  }
-}
-.choice > input:where([type="checkbox"]) {
-  border-radius: min(
-    calc(var(--wa-form-control-toggle-size) * 0.375),
-    var(--wa-border-radius-s)
-  );
-  &:checked {
-    color: var(--wa-color-brand-on-loud);
-    background-color: var(--wa-form-control-activated-color);
-  }
-  &:checked::after {
-    inline-size: var(--wa-form-control-toggle-size);
-    block-size: var(--wa-form-control-toggle-size);
-    scale: 0.8;
-    mask: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc. --><path fill="currentColor" d="M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z"/></svg>')
-      center / 1em 1em no-repeat;
-  }
-}
-.choice:has(> input:disabled) {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.choice > input:is(:focus-visible, [data-lf-focus-visible]) {
+:is(.lf-choice, .choice) > input:is(:focus-visible, [data-lf-focus-visible]) {
   outline: none;
 }
-.choice:has(> input:is(:focus-visible, [data-lf-focus-visible])) {
+:is(.lf-choice, .choice):has(> input:is(:focus-visible, [data-lf-focus-visible])) {
   outline: var(--focus-ring);
   --lf-wears-ring: 1;
 }
 
 /* A label whose words change holds one room for all of them, so a count or a result
- * changing moves nothing beside it. `data-room` lists representative strings
- * that set its width, one per line, on an element whose one child holds the words. Authored markup and
- * generated controls use the same declaration, including before startup. Its ::before lays the
+ * changing moves nothing beside it. `data-room` lists representative strings that set
+ * its width, one per line, on an element whose one child holds the words; the page
+ * writes `data-room`, and Leaf and its packages write `data-lf-room`, so the page's own
+ * CSS for the one leaves the other alone. Both hold the room before startup. Its ::before lays the
  * room out as an invisible block of no height, so the element is as wide as the
  * widest line in its own face, with no script. The words take no part in that width:
  * they fill the room and are cut past it with an ellipsis, so the control never widens
@@ -761,19 +723,24 @@ summary,
  * text and accessible name; generated content is in neither. The room wraps at its
  * spaces, so it never holds the element wider than its container. The words' line is
  * the element's baseline. The element's own rules outrank this one. */
-:where([data-room]) {
+:where([data-room], [data-lf-room]) {
   display: inline-block;
   max-inline-size: 100%;
 }
 [data-room]::before {
   content: attr(data-room);
+}
+[data-lf-room]::before {
+  content: attr(data-lf-room);
+}
+:is([data-room], [data-lf-room])::before {
   display: block;
   block-size: 0;
   overflow: hidden;
   visibility: hidden;
   white-space: pre-line;
 }
-[data-room] > * {
+:is([data-room], [data-lf-room]) > * {
   display: block;
   inline-size: 0;
   min-inline-size: 100%;
@@ -846,13 +813,13 @@ wa-copy-button.lf-icon-action {
    softened accent hairline, with the tint rising on hover: the one framed word on a
    surface. The selected face (below) is its neighbour — a full accent border
    on the chip ground — so a toggle and a commitment never read as one. */
-:is(.lf-btn, .button).primary {
+:is(.lf-btn.lf-commit, .button.primary) {
   color: var(--accent);
   border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
   background: var(--card);
 }
 @media (hover: hover) {
-  :is(.lf-btn, .button).primary:not(:disabled, [aria-disabled="true"]):hover {
+  :is(.lf-btn.lf-commit, .button.primary):not(:disabled, [aria-disabled="true"]):hover {
     background: var(--accent-tint);
   }
 }
@@ -863,7 +830,7 @@ wa-copy-button.lf-icon-action {
   opacity: 0.55;
   cursor: default;
 }
-:is(.lf-btn, .button).primary:is(:disabled, [aria-disabled="true"]) {
+:is(.lf-btn.lf-commit, .button.primary):is(:disabled, [aria-disabled="true"]) {
   opacity: 1;
   color: var(--muted);
   background: var(--paper);
@@ -1025,7 +992,7 @@ wa-copy-button.lf-icon-action {
    block's corner (`.lf-mark-bar`, integration.css), as a code block's Copy and a
    draft's Edit, Save and Discard do. Every mark wears this one face at one size: the
    face the user chose on 22 October from the panel's fold, its icon in the dim ink and
-   full ink under the pointer, at the fold's 20px (`--mark-size`, base.css). On 25
+   full ink under the pointer, at the fold's 20px (`--mark-size`, tokens.css). On 25
    October the user gave it to the toolbars' marks as well, which had been 26px with a
    quiet wash under the pointer, a second look for the same kind of press. A seat gives
    its marks only a place and a ground: a corner mark a patch of its own, a toolbar's
@@ -1197,7 +1164,7 @@ wa-copy-button.lf-icon-action {
    four drew four faces (held news bold at 10px, the feed's notice underlined at rest,
    Next unread at the body's weight and Full quote muted, those two washed under the
    pointer) until the user chose this one on 28 October. Words a press says in a
-   speaker's voice take that speaker's face instead (`span[data-voice]`, above), so
+   speaker's voice take that speaker's face instead (`span[data-lf-voice]`, above), so
    held news, which is Leaf's, is regular italic and stands apart by its ink: the user
    kept that over bold news on 31 October. A generated control in the document takes
    the chrome's size (surfaces.css, `.lf-ui-face`), so the face inherits its line's; a

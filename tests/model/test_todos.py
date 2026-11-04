@@ -1276,7 +1276,7 @@ def asking(page_dir):
 def done(page_dir, todo: str) -> tuple[int, dict]:
     """A Done on `todo` posted to the browser's door, which takes none."""
     return endpoint_model.accept_event(
-        page_dir, {"kind": "todo_end", "todo": todo, "outcome": "done"}, dict
+        page_dir, {"kind": "todo_end", "todo": todo, "outcome": "done"}
     )
 
 

@@ -25,7 +25,12 @@ from leaf.revision_artifact import (
 )
 from leaf.sample_content import initial_sample_events
 from leaf.structure import SourceDocument
-from leaf.thread_context import thread_ids, thread_names, thread_structure
+from leaf.thread_context import (
+    placed_thread,
+    thread_ids,
+    thread_names,
+    thread_structure,
+)
 from leaf.validation.instances import (
     instance_errors,
     reference_errors,
@@ -256,10 +261,8 @@ def moved_threads(
     names = thread_names(events)
     placed = {}
     for event in events:
-        if event["kind"] == "reanchor":
-            placed[event["thread"]] = event
-        elif event["kind"] == "reply" and "anchor" in event:
-            placed[names[event["parent"]]] = event
+        if event["kind"] != "comment" and (thread := placed_thread(event, names)):
+            placed[thread] = event
     threads = build_threads(events, active_enclosing(page_dir))
     recorded = [
         Finding(

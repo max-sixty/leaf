@@ -357,7 +357,7 @@ def test_a_transient_notice_does_not_move_generated_address_hints(browser, serve
     # notice wide enough to reach under the hint could move it.
     page.evaluate("async () => (await window.__lfWidgetApi()).notice('Moved to Done.')")
     expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
-        "data-says", "notice"
+        "data-lf-says", "notice"
     )
     page.keyboard.press("g")
     expect(fixed_link_hint).to_be_visible()
@@ -369,7 +369,7 @@ def test_a_transient_notice_does_not_move_generated_address_hints(browser, serve
         == quiet_top
     )
     expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
-        "data-says", "notice"
+        "data-lf-says", "notice"
     )
 
 
@@ -771,6 +771,6 @@ def test_global_destinations_switch_from_a_covering_workspace(
     )
     page.keyboard.press("Escape")
     expect(versions).to_have_count(0)
-    expect(page.locator(PANEL)).to_have_attribute("data-open", "menu")
+    expect(page.locator(PANEL)).to_have_attribute("data-lf-open", "menu")
     page.keyboard.press("Escape")
-    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
+    expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))

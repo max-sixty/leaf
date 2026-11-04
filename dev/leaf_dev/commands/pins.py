@@ -40,7 +40,14 @@ from PIL import Image, ImageDraw
 from leaf.media import media_name
 from leaf_dev import ROOT
 from leaf_dev.arms import base_option, choose_arms, run_directory, serving_source
-from leaf_dev.browser import headless_shell, load, tab, use_linux_fonts
+from leaf_dev.browser import (
+    WINDOWS,
+    headless_shell,
+    load,
+    screenshot,
+    tab,
+    use_linux_fonts,
+)
 
 OUT = ROOT / ".tmp" / "pins"
 # The report every run rewrites, so a preview of it follows each run as a revision of
@@ -55,8 +62,8 @@ SLIVER = 2
 # column draws it wider than the phone.
 SCALE = 2
 
-# Each viewport's size and whether a finger, rather than a mouse, drives it.
-VIEWPORTS = {"desktop": ((1280, 800), False), "phone": ((390, 844), True)}
+# The windows (`leaf_dev.browser.WINDOWS`) every case is read at.
+VIEWPORTS = ("desktop", "phone")
 
 
 @dataclass(frozen=True)
@@ -622,13 +629,13 @@ def capture(browser, address: str, out: Path) -> dict:
     """Open `address` at each viewport, screenshot each case under `out`, and return
     `{case: {viewport: {"faults", "unaccepted", "reading", "shot"}}}`."""
     result = {case.name: {} for case in CASES}
-    for viewport, (size, touch) in VIEWPORTS.items():
-        with tab(browser, size, touch=touch, scale=SCALE) as page:
+    for viewport in VIEWPORTS:
+        with tab(browser, WINDOWS[viewport], scale=SCALE) as page:
             load(page, address)
             for case in CASES:
                 reading = read(page, case)
                 shot = out / f"{case.name}-{viewport}-full.png"
-                page.screenshot(path=shot)
+                shot.write_bytes(screenshot(page))
                 result[case.name][viewport] = {
                     "faults": faults(reading),
                     "unaccepted": unaccepted(case, reading, viewport),
@@ -729,7 +736,7 @@ def report(arms: dict[str, tuple[str, dict]], out: Path) -> Path:
 <header id="intro">
 <h1>Pin cases</h1>
 <p>{len(CASES)} cases on this working tree{against}, at
-{" and ".join(f"{v} ({s[0][0]}px)" for v, s in VIEWPORTS.items())}. Targets are
+{" and ".join(f"{v} ({WINDOWS[v].size[0]}px)" for v in VIEWPORTS)}. Targets are
 outlined in blue.{PAIRS if base else ""}</p>
 <p>These are few, and not chosen to flatter the placement: they are the shapes that
 came to mind for a pin to sit on. Where a page shows a placement that looks wrong,

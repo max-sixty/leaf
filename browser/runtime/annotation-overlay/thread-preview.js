@@ -47,6 +47,8 @@ import {
   scrollToEnd,
   scrollLimit,
 } from "../scrolling.js";
+import { computed, signal } from "/runtime/framework.js";
+import { tick } from "../version-signal.js";
 import { cancelRender, nextRender } from "../rendering.js";
 import { spokenSubject } from "../contribution-model.js";
 import { labelWords } from "../words.js";
@@ -59,6 +61,7 @@ import {
   onCurrentLocation,
   onUserInput,
   focused,
+  focusRevision,
   tabStops,
 } from "../focus.js";
 import { TEXT_FIELD } from "../control-selectors.js";
@@ -144,6 +147,10 @@ export function createThreadPreview({
 }) {
   /** @type {Session | null} */
   let previewSession = null;
+  // The entry the card hangs from changes as the card opens, closes or moves to another
+  // entry, which a row asking whether the user is on that entry reads through this
+  // revision, as it reads where the user is through focus.js's (`onOpener`).
+  const cardRevision = signal(0);
   const { targetFor, entryPoint, entryPlace } = inventory;
   // The card is the margin's, as the cluster it hangs from is, rather than a layer over
   // the page: a top-layer popover made every press on the page a light dismissal and
@@ -252,7 +259,14 @@ export function createThreadPreview({
   // there, as the floating panel's menu does.
   const opener = () =>
     previewSession?.control?.checkVisibility() ? previewSession.control : null;
-  const onOpener = () => Boolean(opener()) && focused() === opener();
+  // Every cluster declares the entry's half of these keys (`openerKeys`), so whether the
+  // user is on the entry is one computed their reflections share.
+  const onOpener = computed(() => {
+    focusRevision();
+    void cardRevision.value;
+    const target = opener();
+    return Boolean(target) && focused() === target;
+  });
   // The stops in `root` before (-1) or after (1) `at`, in the browser's order.
   /** @param {Element} root @param {Element} at @param {number} side */
   const stopsBeside = (root, at, side) =>
@@ -304,7 +318,7 @@ export function createThreadPreview({
       title: "into the thread card",
       repeat: true,
       runFromCommandReference: false,
-      when: () => onOpener() && tabStops(preview).length > 0,
+      when: () => onOpener.value && tabStops(preview).length > 0,
       get run() {
         const target = tabStops(preview)[0];
         return target ? () => focusDestination(target, "step") : undefined;
@@ -318,11 +332,9 @@ export function createThreadPreview({
       repeat: true,
       runFromCommandReference: false,
       when: () => {
-        const target = opener();
+        const target = onOpener.value ? opener() : null;
         return (
-          target !== null &&
-          onOpener() &&
-          under(stopsBeside(chromeRoot, target, -1).at(-1), preview)
+          target !== null && under(stopsBeside(chromeRoot, target, -1).at(-1), preview)
         );
       },
       run: () => focusDestination(preview, "return"),
@@ -356,8 +368,8 @@ export function createThreadPreview({
     session.stopFoot = transcript ? keepFoot(transcript, { atEnd: true }) : null;
     session.place = transcript
       ? placeKeeper(transcript, {
-          items: ".lf-msg[data-event]",
-          identity: (message) => message.getAttribute("data-event"),
+          items: ".lf-msg[data-lf-event]",
+          identity: (message) => message.getAttribute("data-lf-event"),
         })
       : null;
     if (previewRegionMounted && transcript) {
@@ -476,6 +488,7 @@ export function createThreadPreview({
     session.stopFoot?.();
     preview.style.removeProperty("visibility");
     previewSession = null;
+    tick(cardRevision);
   }
   // A card's focus waits for its placement; a newer input the user gave meanwhile, or
   // focus they took elsewhere, keeps them where they went.
@@ -804,6 +817,7 @@ export function createThreadPreview({
     if (!session) return;
     forgetThreadPreviewPlacement(session);
     session.control = button;
+    tick(cardRevision);
     if (carry && button) focusDestination(button, "return");
   }
 
@@ -859,6 +873,7 @@ export function createThreadPreview({
       followed: false,
     };
     previewSession = session;
+    tick(cardRevision);
     if (origin) session.side.adopt(origin);
     // A card Send opened stands at once where its box stood and grows out of the box's
     // field, rather than fade in (annotation-chrome.css).
@@ -1163,7 +1178,7 @@ export function createThreadPreview({
   function focusTarget(name, { part = null } = {}) {
     const id = threadIdNamed(name);
     const thread = [...previewList.querySelectorAll(".lf-page-thread")].find(
-      (candidate) => candidate.getAttribute("data-thread") === id,
+      (candidate) => candidate.getAttribute("data-lf-thread") === id,
     );
     return thread
       ? threadFocusDestination(thread, { part: part ?? "thread", message: name })

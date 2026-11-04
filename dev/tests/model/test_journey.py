@@ -58,7 +58,10 @@ def test_journey_declares_automation_after_a_user_preview_starts(
         tmp_path, tmp_path, tmp_path, page_dir, tmp_path, evidence
     )
     monkeypatch.setattr(journey, "running_server", lambda page: {"url": "http://page/"})
-    with journey.user_at(None, place, journey.Terminal(), time.monotonic()):
+    terminal = journey.Terminal()
+    # The setup step's checks read a session's claim, which this page has none of.
+    monkeypatch.setattr(terminal, "passed", lambda *args, **kwargs: None)
+    with journey.user_at(None, place, terminal, time.monotonic()):
         contexts = read_interactions(page_dir, types=("run_context",))
         assert [row["purpose"] for row in contexts] == ["user-review", "automated"]
         assert contexts[-1]["run"] == str(evidence)
@@ -164,6 +167,7 @@ def test_a_steps_comments_are_timed_from_the_log_and_in_a_browser_the_page(
             "parent": "c1",
             "responds": "c1",
             "text": "Two items block it.",
+            "session": "s",
             "ts": at(9),
         },
     ]
@@ -185,7 +189,7 @@ def test_a_steps_comments_are_timed_from_the_log_and_in_a_browser_the_page(
         },
     ]
     terminal = journey.Terminal()
-    terminal.trace = records
+    terminal.session, terminal.trace = "s", records
     shown = []
 
     class Page:
@@ -218,7 +222,7 @@ def test_a_steps_comments_are_timed_from_the_log_and_in_a_browser_the_page(
         if end == "browser"
         else journey.HttpEnd(url, page, time.sleep)
     )
-    user = journey.User(user_end, "v", lambda: events, terminal, list)
+    user = journey.User(user_end, "v", lambda: events, terminal)
     user.release_reading = {
         "version": "v",
         "comment": {
@@ -296,8 +300,9 @@ def test_a_steps_comments_are_timed_from_the_log_and_in_a_browser_the_page(
 
 def test_a_comment_a_fork_decided_on_keeps_the_forks_record(tmp_path):
     """A comment a fork of the conversation answered carries the fork's outcome,
-    time and tokens, and no breakdown of a reply the session spent nothing on; one
-    the fork handed over carries both."""
+    time and tokens, and no breakdown of a reply the session spent nothing on,
+    though the fork posts it as the session's; one the fork handed over carries
+    both."""
     events = [
         {
             "kind": "comment",
@@ -313,6 +318,7 @@ def test_a_comment_a_fork_decided_on_keeps_the_forks_record(tmp_path):
             "parent": "c1",
             "responds": "c1",
             "text": "You asked me to serve it for review.",
+            "session": "s",
             "ts": at(4),
         },
         {
@@ -337,12 +343,15 @@ def test_a_comment_a_fork_decided_on_keeps_the_forks_record(tmp_path):
             "parent": "c2",
             "responds": "c2",
             "text": "Renamed it.",
+            "session": "s",
             "ts": at(30),
         },
     ]
     usage = {"input_tokens": 12, "output_tokens": 80, "cache_read_input_tokens": 9000}
     forks = [
         {
+            "ts": at(4),
+            "source": "cli",
             "type": "fork_reply",
             "thread": "c1",
             "inputs": ["c1"],
@@ -353,6 +362,8 @@ def test_a_comment_a_fork_decided_on_keeps_the_forks_record(tmp_path):
             "usage": usage,
         },
         {
+            "ts": at(12),
+            "source": "cli",
             "type": "fork_reply",
             "thread": "c2",
             "inputs": ["c2"],
@@ -361,12 +372,14 @@ def test_a_comment_a_fork_decided_on_keeps_the_forks_record(tmp_path):
             "elapsedMs": 2100.0,
         },
     ]
-    end = journey.HttpEnd(
-        "http://127.0.0.1:1/?t=t", logged(tmp_path / "page", events), time.sleep
+    page = logged(tmp_path / "page", events)
+    (page / "observations.jsonl").write_text(
+        "".join(json.dumps(fork) + "\n" for fork in forks)
     )
-    user = journey.User(
-        end, "v", lambda: events, journey.Terminal(), list, lambda: forks
-    )
+    terminal = journey.Terminal()
+    terminal.session = "s"
+    end = journey.HttpEnd("http://127.0.0.1:1/?t=t", page, time.sleep)
+    user = journey.User(end, "v", lambda: events, terminal, lambda: forks)
     for name, comment in (("fork-idle", "c1"), ("fork-work", "c2")):
         profile = journey.AgentProfile()
         profile.event_ids = [comment]
@@ -381,13 +394,13 @@ def test_a_comment_a_fork_decided_on_keeps_the_forks_record(tmp_path):
     [step] = user.sample()["steps"]
     answered, handed = step["comments"]["fork-idle"], step["comments"]["fork-work"]
     assert answered["fork"] == {"outcome": "reply", "elapsedMs": 3200.0, "usage": usage}
-    assert "reply" not in answered
+    assert answered["reply"] is None
     assert handed["fork"] == {
         "outcome": "hand_over",
         "why": "it asks for a change",
         "elapsedMs": 2100.0,
     }
-    assert "reply" in handed
+    assert handed["reply"] is not None
 
 
 PROMPT = """
@@ -958,7 +971,7 @@ def test_pis_events_give_the_turn_phases(monkeypatch):
     monkeypatch.setattr(journey_pi, "now", lambda: at(next(seconds)))
     pi = journey_pi.Pi.__new__(journey_pi.Pi)
     journey.Terminal.__init__(pi)
-    pi.running, pi.settled, pi.closed_watches = False, 0, 0
+    pi.running, pi.closed_watches = False, 0
     pi.output_tokens = None
     assistant = {"role": "assistant", "usage": {"output": 90}}
     for event in (
@@ -979,7 +992,7 @@ def test_pis_events_give_the_turn_phases(monkeypatch):
     ):
         pi._hear(event)
     assert pi.commands == ["sleep 1"] and pi.running_commands == {}
-    assert (pi.settled, pi.closed_watches, pi.idle()) == (1, 1, True)
+    assert (pi.closed_watches, pi.idle()) == (1, True)
     assert [record["type"] for record in pi.records()] == [
         "turn_start",
         "first_output",

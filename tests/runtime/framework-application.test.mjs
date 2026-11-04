@@ -108,7 +108,6 @@ const state = (taken, events = []) => ({
   reading: `reading-${taken}`,
   browser: {
     basis: { through_seq: events.length },
-    receipts: events,
     thread_memberships: {},
     todos: [],
     views: {
@@ -116,7 +115,6 @@ const state = (taken, events = []) => ({
         basis: { revision: 1, through_seq: events.length },
         thread: { threads: [], projection: empty() },
         items: [],
-        coverage: [],
         undo: [],
         reports: [],
         published_at: null,
@@ -363,13 +361,17 @@ test("widget undo candidates name only exact attempts currently in force", () =>
   assert.deepEqual(selected.read().actions.decide.undo, []);
 });
 
-test("widget action history excludes terminal coverage records", () => {
+test("widget action history excludes an action the view classifies nowhere", () => {
   const app = setup();
   const terminal = { ...action("old"), id: "e-old", seq: 1 };
   const read = state(2);
-  read.browser.views[1].coverage = [{ event: terminal, coordinate: null }];
+  read.events = [terminal];
   app.adopt(read);
   assert.deepEqual(app.selectWidget(descriptor).read().actions.decide.history, []);
+  // The log's widget events count toward the applied stamp all the same.
+  assert.deepEqual(app.read().effective.coverage, [
+    { event: terminal, coordinate: null },
+  ]);
 });
 
 test("the selected revision keeps carried action history from earlier revisions", () => {
@@ -775,9 +777,7 @@ test("a version being marked read reads read, outside the gesture ledger", () =>
     text: "Answer",
   };
   reading.browser.views[1].thread.threads = [
-    servedThread([root], {
-      unread: [{ message: "agent-root", version: "agent-root" }],
-    }),
+    servedThread([root], { unread: { "agent-root": "agent-root" } }),
   ];
   app.adopt(reading);
   const thread = () => app.read().effective.thread.all[0];
@@ -796,9 +796,7 @@ test("a version being marked read reads read, outside the gesture ledger", () =>
 
   // Marking read names one exact version; an edit's version is not it.
   const edited = structuredClone(reading);
-  edited.browser.views[1].thread.threads[0].unread = [
-    { message: "agent-root", version: "edit-2" },
-  ];
+  edited.browser.views[1].thread.threads[0].unread = { "agent-root": "edit-2" };
   app.adopt(edited);
   app.markRead(original);
   assert.equal(thread().msgs[0].unread, true);
@@ -1080,7 +1078,7 @@ for (const { name, event, steps } of lifecycle)
     const app = setup();
     const logged = { ...event, id: "e1", seq: 1, author: "user", ts: "now" };
     const reading = state(2, event.kind === "action" ? [logged] : []);
-    reading.browser.receipts = [logged];
+    reading.events = [logged];
     if (event.kind === "comment")
       reading.browser.views[1].thread.threads = [servedThread([logged])];
     // Where the page draws the gesture from: its own entry, the log, or nowhere.
@@ -1166,7 +1164,7 @@ test("a comment the log holds leaves the ledger once its POST accepts it", () =>
   assert.equal(app.read().effective.thread.collection.threads.length, 1);
   const accepted = { ...comment, id: "e1", author: "user", ts: "now" };
   const read = state(2);
-  read.browser.receipts = [accepted];
+  read.events = [accepted];
   read.browser.views[1].thread.threads = [servedThread([accepted])];
   app.adopt(read);
   assert.equal(app.read().effective.thread.all.length, 1);
@@ -1184,7 +1182,7 @@ test("the reading that logs an accepted comment retires it in its own publicatio
   const logged = { ...comment, id: "e1", seq: 1, author: "user", ts: "now" };
   app.accept("note", logged);
   const reading = state(2);
-  reading.browser.receipts = [logged];
+  reading.events = [logged];
   reading.browser.views[1].thread.threads = [servedThread([logged])];
   app.adopt(reading);
   assert.deepEqual(app.read().unresolved, []);
@@ -1229,7 +1227,7 @@ for (const { name, steps, gestured } of settling)
       accept: () => app.accept("note", logged),
       log: () => {
         const reading = state(++taken);
-        reading.browser.receipts = [logged];
+        reading.events = [logged];
         reading.browser.views[1].thread.threads = [servedThread([logged])];
         app.adopt(reading);
       },
@@ -1331,7 +1329,7 @@ for (const resolved of [null, { author: "user" }]) {
     const answer = { kind: "reply", attempt: "answer", id: "e-answer" };
     app.accept("answer", answer);
     const logged = state(3);
-    logged.browser.receipts = [answer];
+    logged.events = [answer];
     logged.browser.views[1].thread.threads = accepted.browser.views[1].thread.threads;
     app.adopt(logged);
     assert.deepEqual(app.read().unresolved, []);
@@ -1503,7 +1501,6 @@ test("an unsettled report supplies desired widget state", () => {
   };
   accepted.events = [report];
   accepted.browser.basis.through_seq = 1;
-  accepted.browser.receipts = [report];
   accepted.browser.views[1].basis.through_seq = 1;
   accepted.browser.views[1].document.projection = {
     entries: [

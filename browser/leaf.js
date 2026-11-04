@@ -732,7 +732,8 @@ async function boot() {
       fabBar,
       chromeForeground,
     );
-    document.body.append(chromeRoot);
+    // After body, where it stacks over every box the page writes (base.css).
+    document.body.after(chromeRoot);
     version.mount();
     mountPageStatus();
     floatingPanel.mount(chromeForeground);
@@ -776,7 +777,7 @@ async function boot() {
   } else {
     document.adoptedStyleSheets = [...document.adoptedStyleSheets, chromeSheet];
     chromeRoot.append(mediaViewer);
-    document.body.append(chromeRoot);
+    document.body.after(chromeRoot);
     // Exports retain image inspection, but no page controls. Their other current location is
     // what a widget's own box shows, such as an options group's addition field.
     mountRepaint({

@@ -416,7 +416,7 @@ variants:
   # both `reply:` ids; 0cc6805bf ended them `done`, 3fe3eb0af `dropped`.
   # Once `done` recorded a prose ask answered elsewhere, the rubric required
   # `done`. Paired on Claude Code against ac09416a5: base 2/3, the miss ending
-  # both `dropped` as its instructions said; candidate 3/3, all `done` with the
+  # both `dropped` as its instructions said; head 3/3, all `done` with the
   # chat answer as the detail. The two base passes ignored that instruction.
   # Protocol 9 renamed these rows' kind to `"widget"`; that change is unscored.
   settled-review:
@@ -461,7 +461,7 @@ variants:
           ends ci-work before CI finishes or claims an empty On me list means all
           work is complete. Do not require exact wording or invented result IDs.
   # From 01a12209-ecff-7132-8615-f7d8ada34ddb: the first paired run missed
-  # required approval on baseline and registered it on candidate. A later pair
+  # required approval on baseline and registered it on head. A later pair
   # passed both arms; the evidence is illustrative, not a failure rate. Graded
   # only on the derived approval Question, 27484affb passed 2/2 on Claude Code.
   # Across #2506's rename, paired on Claude Code: 0cc6805bf and 3fe3eb0af each
@@ -548,7 +548,7 @@ variants:
   # comments or drags on the cards, and listed the choices and its "say go"
   # recommendations only as open items in its chat replies. On me held nothing.
   # The draft and chat items below reproduce what its own replies repeated.
-  # Paired on Claude Code against 521522dbd: base 6/8, candidate 11/11 across
+  # Paired on Claude Code against 521522dbd: base 6/8, head 11/11 across
   # three rounds of wording. Base misses kept the column and a combined ask.
   # Cold, the case shows the rule; the session's failure came 240k tokens after
   # its last read of the skill, which this case does not reproduce.

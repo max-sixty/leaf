@@ -90,7 +90,7 @@ def test_a_conversation_keeps_its_face_and_sends_from_margin_and_panel(
     viewed = faces(page.locator(".lf-floating-panel"))
     assert viewed["messages"] == anchored["messages"], scheme
     assert viewed["metadata"] == anchored["metadata"], scheme
-    expect(panel.locator(f'.lf-msg[data-event="{answer["id"]}"]')).to_contain_text(
+    expect(panel.locator(f'.lf-msg[data-lf-event="{answer["id"]}"]')).to_contain_text(
         "Keep the evidence."
     )
     write(panel_field(page), "Sent from Threads.")

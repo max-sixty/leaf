@@ -1,5 +1,6 @@
 """HTTP event and service-address tests."""
 
+import asyncio
 import base64
 import builtins
 import errno
@@ -351,7 +352,8 @@ def test_samples_use_captured_resources_and_independent_event_logs(
     assert b"data-lf-share-url" not in document
     served = structure_model.SourceDocument(document.decode()).tree
     assert f'data-lf-page-root="{child.removeprefix(server)}"'.encode() in document
-    find_result = served.find("body")
+    # The root, so Leaf's chrome after the body is inert too until the sample presents.
+    find_result = served.find("html")
     assert find_result is not None
     assert "inert" in find_result.attrs
     find_result_2 = served.find("script", attrs={"data-lf-entry": True})
@@ -2110,8 +2112,9 @@ def test_action_door_owns_created_child_meaning(server, page_dir):
 def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_dir):
     """The browser receives a reading, not a log it must interpret again.
 
-    Its receipt, semantic coordinate, winner, undo offer, and readiness coverage all
-    name the event accepted by this same POST response and the same sequence boundary.
+    Its receipt, semantic coordinate, winner and undo offer all name the event
+    accepted by this same POST response and the same sequence boundary, and a tab
+    that names the reading it held is sent only what followed it.
     """
     version = page_dir / "index.html"
     version.write_text(
@@ -2134,25 +2137,34 @@ def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_d
         "attempt": "attempt-browser-view-1",
     }
 
-    status, body = fetch(f"{server}/api/event", data=json.dumps(sent).encode())
+    held = json.loads(fetch(f"{server}/api/state")[1])["browser"]["basis"]
+
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps(sent).encode(),
+        headers={"Leaf-Held-Basis": held["key"]},
+    )
 
     assert status == 200, body
-    state = json.loads(body)["state"]
-    accepted = state["events"][-1]
+    tail = json.loads(body)["state"]
+    assert tail["since"] == {"key": held["key"]}
+    [accepted] = tail["events"]
+    assert accepted["attempt"] == sent["attempt"]
+    assert ["browser", "views", "1", "undo"] in [
+        change["at"] for change in tail["patch"]
+    ]
+    # The whole reading at the same position, as the tab completes it.
+    state = json.loads(fetch(f"{server}/api/state")[1])
     browser = state["browser"]
     view = browser["views"]["1"]
     [entry] = view["document"]["projection"]["entries"]
-    assert browser["basis"] == {"through_seq": accepted["seq"]}
+    assert browser["basis"]["through_seq"] == accepted["seq"]
     assert view["basis"] == {"revision": 1, "through_seq": accepted["seq"]}
-    assert browser["receipts"][-1]["id"] == accepted["id"]
     assert entry["event"]["id"] == accepted["id"]
     assert entry["coordinate"] == ["delivery", "delivery", "choose"]
     assert entry["value"] == ["delivery-now"]
     assert view["document"]["projection"]["actions"] == [accepted["id"]]
     assert view["undo"][0]["event"]["id"] == accepted["id"]
-    assert view["coverage"] == [
-        {"event": accepted, "coordinate": ["delivery", "delivery", "choose"]}
-    ]
 
 
 def test_undo_candidate_names_the_prior_durable_winner(server, page_dir):
@@ -2610,7 +2622,7 @@ def test_a_comparison_view_uses_the_requested_log_boundary(server, page_dir):
     browser = json.loads(body)["browser"]
     assert set(browser["views"]) == {"1"}
     view = browser["views"]["1"]
-    assert browser["basis"] == {"through_seq": first["seq"]}
+    assert browser["basis"]["through_seq"] == first["seq"]
     assert view["basis"] == {"revision": 1, "through_seq": first["seq"]}
     assert view["document"]["projection"]["desired"] == [first["id"]]
 
@@ -3575,6 +3587,101 @@ def test_temporary_server_close_is_bounded_by_an_idle_connection(page_dir):
     assert not closer.is_alive()
 
 
+def test_temporary_server_close_drops_a_client_that_stops_sending(
+    page_dir, monkeypatch
+):
+    """A client that stops partway through its request cannot hold a close open.
+
+    Its route waits for bytes that never come. Once the grace a stop gives its
+    clients has passed, the server drops the connection, the route ends as
+    disconnected, and close returns having waited for it. The grace is zero here, so
+    the drop is due on the stop's first poll.
+    """
+    monkeypatch.setattr(hosting_model, "STOP_GRACE_SECONDS", 0)
+    reading = threading.Event()
+    read_body = http_model.PageEndpoint.read_body
+
+    def reading_body(endpoint, limit):
+        reading.set()
+        return read_body(endpoint, limit)
+
+    monkeypatch.setattr(http_model.PageEndpoint, "read_body", reading_body)
+    server = hosting_model.TemporaryPageServer(page_dir, token=TOKEN).start()
+    closer = threading.Thread(target=server.close, daemon=True)
+    client = socket.create_connection(("127.0.0.1", server.port))
+    try:
+        client.sendall(
+            (
+                f"POST /api/event?t={TOKEN} HTTP/1.1\r\n"
+                f"Host: 127.0.0.1:{server.port}\r\nOrigin: {server.origin}\r\n"
+                "Content-Type: application/json\r\nContent-Length: 100\r\n\r\n{"
+            ).encode()
+        )
+        assert reading.wait(STATED_TIMEOUT), "the route never began reading the body"
+        closer.start()
+        closer.join(timeout=STATED_TIMEOUT)
+        assert not closer.is_alive(), "close waited on a client that stopped sending"
+        client.settimeout(STATED_TIMEOUT)
+        try:
+            ended = client.recv(1) == b""
+        except ConnectionResetError:
+            ended = True
+        assert ended, "the server kept the stalled client's connection"
+    finally:
+        client.close()
+        if closer.is_alive():
+            closer.join(timeout=STATED_TIMEOUT)
+        server.close()
+
+
+def test_temporary_server_close_asks_a_connection_made_as_it_stops(
+    page_dir, monkeypatch
+):
+    """A connection the listener accepted before the stop, which asyncio makes only
+    after the stop has asked the others to finish, is asked too.
+
+    A browser's preconnect is such a connection: it says nothing, so nothing else
+    would end it before the grace a stop gives its clients. Here its making is held
+    until the stop has closed the listener, and the grace outlasts the test's wait,
+    so close returns only if the stop asks it.
+    """
+    from uvicorn.protocols.http.h11_impl import H11Protocol
+
+    monkeypatch.setattr(hosting_model, "STOP_GRACE_SECONDS", 2 * STATED_TIMEOUT)
+    server = hosting_model.TemporaryPageServer(page_dir, token=TOKEN).start()
+    connection_made = H11Protocol.connection_made
+    made = threading.Event()
+
+    def made_once_stopping(protocol, transport):
+        loop = asyncio.get_running_loop()
+
+        def make():
+            if any(listener.is_serving() for listener in server.httpd._uvicorn.servers):
+                loop.call_soon(make)
+                return
+            connection_made(protocol, transport)
+            made.set()
+
+        server.httpd.shutdown()
+        make()
+
+    monkeypatch.setattr(H11Protocol, "connection_made", made_once_stopping)
+    closer = threading.Thread(target=server.close, daemon=True)
+    client = socket.create_connection(("127.0.0.1", server.port))
+    try:
+        assert made.wait(STATED_TIMEOUT), "the server never made the connection"
+        closer.start()
+        closer.join(timeout=STATED_TIMEOUT)
+        assert not closer.is_alive(), "a connection made during the stop held it open"
+        client.settimeout(STATED_TIMEOUT)
+        assert client.recv(1) == b"", "the server left the connection open"
+    finally:
+        client.close()
+        if closer.is_alive():
+            closer.join(timeout=STATED_TIMEOUT)
+        server.close()
+
+
 def test_temporary_server_answers_a_connection_opened_before_its_request(page_dir):
     """A connection that waits before speaking is a browser preconnecting, not a
     socket that will never speak.
@@ -4119,7 +4226,7 @@ def test_frozen_history_and_comparisons_do_not_reopen_the_page(page_dir):
     ]
     assert gesture["gesture"] == {"form": "choice", "chosen": ["Flag first"]}
     comparison = service.page_browser_view(2, picked["seq"])
-    assert comparison["basis"] == {"through_seq": picked["seq"]}
+    assert comparison["basis"]["through_seq"] == picked["seq"]
     assert comparison["history"][0]["gesture"] == gesture["gesture"]
 
     shutil.rmtree(page_dir)

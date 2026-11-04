@@ -56,6 +56,8 @@
 import { createThreadPreview } from "./thread-preview.js";
 import { proseRect, windowHoldsRail } from "../content-layout.js";
 
+import { computed, signal } from "/runtime/framework.js";
+import { tick } from "../version-signal.js";
 import { afterScript, cancelRender, nextRender } from "../rendering.js";
 import { spokenSubject } from "../contribution-model.js";
 import {
@@ -65,7 +67,6 @@ import {
   paintedBox,
   registerMarginRow,
   scheduleMarginEntryLabels,
-  scheduleMarginLayout,
   standsFolded,
   standsWithheld,
   unregisterMarginRow,
@@ -117,6 +118,7 @@ import {
   onCurrentLocation,
   pressLed,
   focused,
+  focusRevision,
   closeLayer,
   rove,
   currentLocationIn,
@@ -141,6 +143,7 @@ import { arrivalOf, declareSide } from "../current-target.js";
 import { closestAcross, inChrome } from "../passages.js";
 import { visualAt } from "../anchor-resolution.js";
 import { paintTrace } from "../target-paint.js";
+import { outlineChange } from "../margin-bars.js";
 
 import { threadNamed } from "../thread/state.js";
 import { carryingThreadPlace, currentLocationThreadId } from "../thread/focus.js";
@@ -882,21 +885,36 @@ export function createMarginProjection({
   });
 
   let marginKeysAvailable = false;
+  // Every cluster declares the margin's keys, and what they ask of where the user is has
+  // one answer for all of them: whether focus is on an entry of a cluster with more than
+  // one, and whether it is on a marker. Each answer is one computed the clusters'
+  // reflections share, worked out once for a focus move rather than once for each
+  // cluster. Each cluster's reflection still reads its keys again on every focus move,
+  // since keyboard/scopes.js has every scope follow `focusRevision`. Which entries a
+  // cluster offers changes as the margin renders (`drawnMargin`).
+  const drawnMargin = signal(0);
+  const onSteppableEntry = computed(() => {
+    focusRevision();
+    void drawnMargin.value;
+    const active = focused();
+    const host = closestAcross(active, "[data-lf-margin-for]");
+    return (
+      active !== null &&
+      active.matches(".lf-margin-entry") &&
+      clusterMarginEntries(host).length > 1
+    );
+  });
+  const onMarker = computed(() => {
+    focusRevision();
+    return Boolean(focused()?.matches(".lf-margin-marker"));
+  });
   const marginKeys = [
     {
       id: "margin.controls",
       keys: ["ArrowLeft", "ArrowRight"],
       title: "move through margin entries",
       repeat: true,
-      when: () => {
-        const active = focused();
-        const host = closestAcross(active, "[data-lf-margin-for]");
-        return (
-          active !== null &&
-          active.matches(".lf-margin-entry") &&
-          clusterMarginEntries(host).length > 1
-        );
-      },
+      when: () => onSteppableEntry.value,
       runKey: stepClusterMarginEntries,
     },
     // The walk answers from a marker, not from the entries beside it, which Left and
@@ -910,8 +928,7 @@ export function createMarginProjection({
       scroll: false,
     }).map((row) => ({
       ...row,
-      when: () =>
-        Boolean(focused()?.matches(".lf-margin-marker")) && visibleRows().length > 0,
+      when: () => onMarker.value && visibleRows().length > 0,
     })),
     // Tab from the entry a card hangs from enters the card (thread-preview.js).
     ...card.openerKeys,
@@ -1130,6 +1147,9 @@ export function createMarginProjection({
         host.remove();
         hosts.delete(key);
       }
+    // Each row's place among the rows, which an entry with no row of its own leaves
+    // the same (margin-layout.js, `registerMarginRow`).
+    let rank = 0;
     pageInventory.forEach((entry, order) => {
       if (!entryHasMarginHost(entry)) return;
       let host = hosts.get(entry.key);
@@ -1179,7 +1199,7 @@ export function createMarginProjection({
         hosts.set(entry.key, created);
       }
       const { marker, more } = host;
-      registerMarginRow(host, markerOptions(host, order));
+      registerMarginRow(host, markerOptions(host, rank++));
       // Insert in inventory order; the theme keeps the row unpainted and measurable
       // until the layout pass assigns its anchored posture.
       if (!host.isConnected)
@@ -1256,7 +1276,10 @@ export function createMarginProjection({
     if (room && railRoom === false) queueMicrotask(() => void returnToPage());
     railRoom = room;
     refreshHighlight();
-    scheduleMarginLayout();
+    tick(drawnMargin);
+    // The layout runs a pass where this render changed what a seat reads: a row registered
+    // for another target, or a face drawn at another size (margin-layout.js,
+    // `registerMarginRow`, `faces`).
     scheduleRoving();
     scheduleMarginEntryLabels();
     // Every Page Map host contributes the same keyboard section. Its capability is the
@@ -1330,7 +1353,22 @@ export function createMarginProjection({
     // An obligation's location ring already identifies this target, including when
     // its margin marker holds focus. Quiet brackets on that perimeter cover the ring.
     const obligationShown = target && target === currentLocationObligation();
-    highlight(drawingOnly || currentLocationShown || obligationShown ? null : target);
+    // A Change entry under the pointer or focus outlines its whole change, every block
+    // and its gap, in place of the brackets round its first block (margin-bars.js), until
+    // its card stands open over the change.
+    const changeSource = marker
+      ? entry?.items.map((item) => sourceItem(item)).find((source) => source?.change)
+      : null;
+    outlineChange(
+      changeSource?.change && !changeSource.discloses?.()?.open
+        ? changeSource.change
+        : null,
+    );
+    highlight(
+      changeSource || drawingOnly || currentLocationShown || obligationShown
+        ? null
+        : target,
+    );
   }
 
   function previewChanged() {
@@ -1413,7 +1451,7 @@ export function createMarginProjection({
   // (thread/replies.js, `releaseReplies`), or the thread. A widened window gives it back
   // (thread/destination.js, `returnToPage`).
   function yieldPreview() {
-    const id = card.thread()?.getAttribute("data-thread");
+    const id = card.thread()?.getAttribute("data-lf-thread");
     const inCard = currentLocationIn(preview);
     const replying = card.replying();
     const intent = retainUserIntent();
@@ -1751,7 +1789,9 @@ export function createMarginProjection({
   const seatedOnPage = (id) =>
     claimed(id) ||
     [
-      ...document.querySelectorAll(`.lf-page-thread[data-thread="${CSS.escape(id)}"]`),
+      ...document.querySelectorAll(
+        `.lf-page-thread[data-lf-thread="${CSS.escape(id)}"]`,
+      ),
     ].some((seat) => closestAcross(seat, ".lf-thread-seat[data-lf-thread-seat]"));
   // The innermost target holding the node whose threads the card would show. A thread is
   // about exactly its anchor's target (header), reached from anywhere

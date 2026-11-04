@@ -1,4 +1,5 @@
-"""The complete state response for one served page.
+"""The state response for one served page, whole; the page server sends a tab that
+holds an earlier reading only what changed since (`tail.py`).
 
 `state.schema.json` beside this module declares its shape and is each field's home: a
 field's meaning is its description there. The tests hold real readings to it
@@ -51,6 +52,7 @@ def read_served_page(
     source_error: str | None = None,
     view_revision: int | None = None,
 ) -> ServedPage:
+    """The whole answer."""
     active = context.active
     projected = project_browser_state(context, view_revision)
     browser, reading = projected if projected is not None else (None, None)

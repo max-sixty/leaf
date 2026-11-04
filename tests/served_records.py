@@ -5,7 +5,9 @@ through `model_folds.served_reading` rather than written by hand, so a Node test
 every field the server sends and cannot omit one the runtime relies on. `thread`,
 `workflow` and `activity` are one record of each, which `served.mjs` hands out for a
 test to change only the fields the server sends; `gestures` holds an admitted edit, undo, refusal
-and revision sequence shared across runtimes; `obligation_values` holds typed values
+and revision sequence shared across runtimes; `tails` holds answers that complete a
+reading the browser holds, each beside that reading and the whole answer;
+`obligation_values` holds typed values
 folded by Python for comparison with the browser; `state_definitions` holds the
 operation definitions Python records, for the browser's comparison of them; `readings`
 holds whole served readings whose premise is the case under test. `served.mjs` reads this output directly, so its
@@ -20,7 +22,13 @@ from model_folds import NOW, UNCLAIMED, leaf_page, served_reading
 
 from leaf.event_log import EventRefused
 from leaf.passages import SourceReading
-from leaf.projection import StateProjection, authored_rank, obligation_value
+from leaf.projection import (
+    AuthoredOrders,
+    StateProjection,
+    attribute_marks,
+    authored_rank,
+    obligation_value,
+)
 from leaf.registry.contract import state_definition
 from leaf.structure import SourceDocument
 
@@ -153,6 +161,7 @@ def build() -> dict:
         # The page-wide activity of a page a live session holds, owing nothing.
         "activity": served_reading(PAGE, presence=HELD)["activity"],
         "gestures": gesture_sequence(),
+        "tails": tail_cases(),
         "obligation_row": _served_obligation_row(),
         "state_definitions": state_definition_cases(),
         "readings": {
@@ -382,8 +391,8 @@ def obligation_value_cases():
             "set",
             spec,
             source.document.by_id,
-            source.spoken,
-            registry,
+            attribute_marks(source.document.by_id, source.spoken, registry),
+            AuthoredOrders(source.document.by_id, registry),
             projection,
             answered=answered,
             unit=selected_unit,
@@ -558,6 +567,167 @@ def gesture_sequence() -> dict:
         "states": states,
         "refused": duplicate,
     }
+
+
+TAIL_PAGE = leaf_page(
+    "Served tails",
+    '<p id="p">Two questions.</p>'
+    '<lf-ask id="kinds-ask"><h2>Which kinds?</h2><lf-options id="kinds" choose multiple>'
+    '<lf-option id="red">Red</lf-option><lf-option id="blue">Blue</lf-option>'
+    "</lf-options></lf-ask>"
+    '<lf-ask id="ship-ask"><h2>Ship it?</h2><lf-options id="ship" choose>'
+    '<lf-option id="now">Now</lf-option><lf-option id="later">Later</lf-option>'
+    "</lf-options></lf-ask>",
+)
+# Picks, a comment and its answer, an undo of an older pick, which withdraws a held
+# projection entry and drops it from the undo list, and a pickup, which marks held
+# undo entries picked up.
+TAIL_LOG = (
+    {
+        "kind": "action",
+        "widget": "kinds",
+        "action": "choose",
+        "detail": {"value": ["red"]},
+        "attempt": "tail-attempt-0001",
+    },
+    {
+        "kind": "action",
+        "widget": "kinds",
+        "action": "choose",
+        "detail": {"value": ["red", "blue"]},
+        "attempt": "tail-attempt-0002",
+    },
+    {"kind": "comment", "text": "Why both?", "attempt": "tail-attempt-0003"},
+    {
+        "kind": "action",
+        "widget": "ship",
+        "action": "choose",
+        "detail": {"value": ["now"]},
+        "attempt": "tail-attempt-0004",
+    },
+    {"kind": "undo", "undoes": "e2", "attempt": "tail-attempt-0005"},
+    {
+        "kind": "pickup",
+        "author": "page",
+        "events": ["e1", "e3", "e4"],
+        "phase": "opened",
+        "session": "served-records",
+        "turn": "turn-1",
+    },
+    {
+        "kind": "reply",
+        "author": "agent",
+        "agent": "Agent",
+        "session": "served-records",
+        "parent": "e3",
+        "responds": "e3",
+        "text": "Red alone, then.",
+    },
+    {
+        "kind": "action",
+        "widget": "kinds",
+        "action": "answer",
+        "detail": {},
+        "attempt": "tail-attempt-0008",
+    },
+)
+
+
+def tail_cases() -> list[dict]:
+    """Answers that complete a reading the browser holds, each beside that reading and
+    the whole answer at the same position, for the browser's completion to be held to
+    (`served_state.tail`). One changes only what the page's claim reads, with nothing
+    logged between, and the last is a reply that joins a long thread, which changes
+    that thread from within."""
+    # A thread the agent and the user have gone back and forth in, and one more reply.
+    exchange = (
+        *TAIL_LOG[:3],
+        *(
+            {"kind": "reply", "parent": "e3", "text": f"And {at}?"}
+            if at % 2
+            else {
+                "kind": "reply",
+                "author": "agent",
+                "parent": "e3",
+                "text": f"So {at}.",
+            }
+            for at in range(6)
+        ),
+        {"kind": "reply", "parent": "e3", "text": "Thanks."},
+    )
+    cases = []
+    for name, log, held, through, presence in (
+        ("a pick after a pick", TAIL_LOG, 1, 2, UNCLAIMED),
+        ("an undo of an older pick", TAIL_LOG, 4, 5, UNCLAIMED),
+        ("a pickup", TAIL_LOG, 5, 6, UNCLAIMED),
+        ("several events at once", TAIL_LOG, 2, len(TAIL_LOG), UNCLAIMED),
+        ("nothing new", TAIL_LOG, len(TAIL_LOG), len(TAIL_LOG), UNCLAIMED),
+        ("a session claims the page", TAIL_LOG, 3, 3, HELD),
+        (
+            "a reply to a long thread",
+            exchange,
+            len(exchange) - 1,
+            len(exchange),
+            UNCLAIMED,
+        ),
+    ):
+        reading = served_reading(TAIL_PAGE, log[:held])
+        key = reading["browser"]["basis"]["key"]
+        tail = served_reading(TAIL_PAGE, log[:through], presence=presence, held=key)
+        assert "since" in tail, name
+        whole = served_reading(TAIL_PAGE, log[:through], presence=presence)
+        cases.append({"name": name, "held": reading, "tail": tail, "whole": whole})
+    # A widget's value set twice to values a careless patch confuses: `false` then
+    # `0`, which Python's own equality takes for the same value; an empty list then a
+    # list of one empty string; and an object that gains a field named `__proto__`,
+    # which assigning would make the object's prototype rather than its field.
+    registry = {
+        **model_layer(),
+        "lf-value-ask": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "active": {"type": "boolean"},
+                "value": {
+                    "type": ["boolean", "integer", "array", "object"],
+                    "items": {"type": "string"},
+                },
+            },
+            "required": ["id"],
+            "additionalProperties": False,
+            "x-content": "none",
+            "x-awaits": {
+                "when": {"active": [True]},
+                "value": "set",
+                "answered": {"set": {}},
+            },
+            "x-state": {
+                "set": {"unit": "widget", "record": {"kind": "value", "attr": "value"}}
+            },
+        },
+    }
+    typed = leaf_page("Typed", '<lf-value-ask id="typed" active></lf-value-ask>')
+    for name, values in (
+        ("false, then 0", (False, 0)),
+        ('[], then [""]', ([], [""])),
+        ("{}, then __proto__", ({}, {"__proto__": {"n": 1}})),
+    ):
+        sets = [
+            {
+                "kind": "action",
+                "widget": "typed",
+                "action": "set",
+                "detail": {"value": value},
+            }
+            for value in values
+        ]
+        reading = served_reading(typed, sets[:1], registry=registry)
+        key = reading["browser"]["basis"]["key"]
+        tail = served_reading(typed, sets, registry=registry, held=key)
+        assert "since" in tail, name
+        whole = served_reading(typed, sets, registry=registry)
+        cases.append({"name": name, "held": reading, "tail": tail, "whole": whole})
+    return cases
 
 
 def state_definition_cases() -> list[dict]:

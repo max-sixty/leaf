@@ -24,7 +24,6 @@ const reading = (onUser) => ({
   activity: null,
   browser: {
     basis: { through_seq: 0 },
-    receipts: [],
     thread_memberships: {},
     todos: [],
     version_notes: {},
@@ -47,7 +46,6 @@ const reading = (onUser) => ({
           projection: { entries: [], actions: [], reports: [], desired: [] },
           obligations: noObligations(),
         },
-        coverage: [],
         undo: [],
         reports: [],
         queues: { on_user: onUser, on_agent: [], done: [] },

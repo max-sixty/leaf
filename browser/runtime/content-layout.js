@@ -11,6 +11,7 @@ import { elementFrame } from "./element-frame.js";
 import { layoutWindow, shellRight } from "./geometry.js";
 import { union } from "./rect.js";
 import { syncLayoutRegion } from "./reading-regions.js";
+import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 
 let documentLayoutOpen = false;
 /** @type {((changed: boolean) => unknown) | null | undefined} */
@@ -40,8 +41,8 @@ function readDocumentLayout() {
     pageControlsChanged();
   }
   if (changed) {
-    const main = pageDocument();
-    if (main) layoutChanged(main);
+    const page = pageDocument();
+    if (page) layoutChanged(page);
     repaintPage();
   }
 }
@@ -123,7 +124,7 @@ export const railStands = (main = layoutBox()) => {
   return shellRight() - proseRect(main).right >= width;
 };
 // Whether the window has room for the rail: as wide as the column with a rail on either
-// side (`--lf-rail-room`, base.css), the width at which a column page's rail stands
+// side (`--lf-rail-room`, styles/tokens.css), the width at which a column page's rail stands
 // (`railStands`), whatever this page's own Layout or body does with the room. A
 // workspace keeps no rail at any width, and still has this room on a desktop's window.
 export const windowHoldsRail = () =>
@@ -147,8 +148,8 @@ const title = () => {
     node;
     node = node.previousElementSibling
   ) {
-    if (!node.classList.contains("scroll")) {
-      node.classList.add("scroll");
+    if (!node.hasAttribute(PAGE_PAINT_ATTRIBUTE.scrollSurface)) {
+      node.toggleAttribute(PAGE_PAINT_ATTRIBUTE.scrollSurface, true);
       marked = true;
     }
   }

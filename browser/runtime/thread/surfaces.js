@@ -143,8 +143,8 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
     const thread = closestAcross(node, ".lf-page-thread");
     if (thread && under(thread, outlet))
       return (
-        registration.placements?.placedAt(thread.getAttribute("data-thread"))?.place ??
-        null
+        registration.placements?.placedAt(thread.getAttribute("data-lf-thread"))
+          ?.place ?? null
       );
     return outlet === composition.outlet()
       ? (registration.placements?.pendingAt()?.place ?? null)
@@ -624,7 +624,7 @@ export function surfaceFocusTarget(name, { part = "reply" } = {}) {
   for (const registration of registrations.values()) {
     const thread = [...registration.outlets]
       .map((outlet) =>
-        outlet.querySelector(`.lf-page-thread[data-thread="${CSS.escape(id)}"]`),
+        outlet.querySelector(`.lf-page-thread[data-lf-thread="${CSS.escape(id)}"]`),
       )
       .find(Boolean);
     if (!thread) continue;

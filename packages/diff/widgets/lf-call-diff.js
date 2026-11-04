@@ -158,8 +158,9 @@ function buildGroup(owner, key, open) {
   // datum, and its source control beside it rather than around the whole call tree.
   const location = el("div", "lf-call-root-location");
   const summary = buildLine("summary");
-  const body = el("div", "lf-call-group-body lf-text-scroller scroll");
-  group.dataset.callGroup = key;
+  const body = el("div", "lf-call-group-body lf-text-scroller");
+  body.toggleAttribute("data-lf-scroll", true);
+  group.dataset.lfCallGroup = key;
   summary.classList.add("lf-call-group-summary", "lf-disclosure-marker");
   group.append(summary, body);
   group.addEventListener("toggle", () => updateDisclosureControl(owner));
@@ -214,9 +215,9 @@ function locationLink(record, owner) {
 
 /** @param {CallRecord} record @param {HTMLElement} line @param {HTMLElement} owner @param {string | null} [count] */
 function renderLine(record, line, owner, count = null) {
-  keeps(line, "data-status", record.status);
-  line.toggleAttribute("data-root", record.root);
-  line.toggleAttribute("data-meta", record.meta);
+  keeps(line, "data-lf-status", record.status);
+  line.toggleAttribute("data-lf-root", record.root);
+  line.toggleAttribute("data-lf-meta", record.meta);
   render(
     html`<span class="lf-call-marker" aria-hidden="true"
         >${
@@ -327,7 +328,7 @@ customElements.define(
           () => owned.summary,
           groupLabel([root, ...children]),
         );
-        keeps(owned.location, "data-status", root.status);
+        keeps(owned.location, "data-lf-status", root.status);
         render(locationLink(root, this), owned.location);
         return {
           key: root.key,

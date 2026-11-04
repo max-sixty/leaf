@@ -100,7 +100,7 @@ export interface Thread {
     covers: readonly string[];
     protected: readonly string[];
   })[];
-  unread: readonly ContentVersion[];
+  unread: Readonly<Record<string, string>>;
   attention: Attention;
 }
 export type Settlement = Extract<Command, { kind: "resolve" | "unresolve" }> & {
@@ -135,9 +135,11 @@ export type PendingProjection =
       coordinate: string;
       localOrder: number;
     };
-interface Coverage {
+// A widget event or undo in the log, at the coordinate its view classifies it at, an
+// undo at its target's, or null (`logCoverage` in `framework/application.js`).
+export interface Coverage {
   event: Event;
-  coordinate: unknown;
+  coordinate: readonly string[] | null;
 }
 export interface ProjectionInput {
   entries?: readonly ProjectionEntry[];

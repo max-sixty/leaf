@@ -119,7 +119,9 @@ packages win ties. The page's own CSS is unlayered above these normal rules. Lay
 do not reach inside shadow trees. A theme's rules, like the page's own, reach the
 controls widgets build (`page-layout.md`, "Page CSS and Leaf's controls"). Being
 layered, they also outrank the layered faces of the controls in Leaf's panel and thread
-cards, so a theme's element rules name the content they style, such as `main button`. Use public inputs and selectors to customise a widget rather than
+cards, so a theme's element rules name the content they style, such as `body button`,
+which reaches the page and none of Leaf's panel or threads, since those stand after
+`body`. Use public inputs and selectors to customise a widget rather than
 `!important` or inline overrides.
 
 A package's sheet can be split into files: `@import "./styles/tabs.css";`, optionally
@@ -231,6 +233,12 @@ them: an author revising a page re-reads those instructions, not the entry.
 
 A `boolean` attribute works as in HTML. Name it for what its presence means and make
 absence the default, as in `lf-diff collapsed`.
+
+Leaf owns the grammar of each name it looks up: an element's `id`, an `x-data`
+input's source attribute and a verb's `contract` attribute. Declare each as
+`{"type": "string"}`; composition writes its `pattern` into the merged registry,
+replacing any the declaration gives. An `x-refers` attribute needs no pattern either,
+since `page check` requires its value to name an element the page holds.
 
 The shipped declarations are the worked examples. For the keys that change a widget's
 role on the page:

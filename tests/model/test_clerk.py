@@ -11,6 +11,7 @@ from leaf import event_log as events_model
 from leaf import hooks as hooks_model
 from leaf.agent_state import cmd_page_state
 from leaf.refusals import Refused
+from leaf.registry.kernel import title_limit
 
 
 def hook(capsys, event: str, prompt_id: str = "p1") -> str:
@@ -202,12 +203,17 @@ def test_an_answer_outside_the_schema_writes_nothing(text):
         clerk_model.read_answer(text)
 
 
-def test_a_long_title_is_cut_at_a_word_to_fit_a_thread():
+def test_a_long_title_is_cut_at_a_word_to_fit_a_thread(claimed, capsys):
     """A model can't count characters, so a title past a thread's limit is cut rather
     than refusing the answer and the asks it found."""
+    page = claimed.resolve()
+    hook(capsys, "UserPromptSubmit")
     words = "Choose " + "the retry limit " * 8 + "for the suite?"
-    title = clerk_model._title(words)
-    assert len(title) <= clerk_model.TITLE_LIMIT
+    [record] = clerk_model.take_answer("s1", reply(page, words), asked()["basis"])[
+        "wrote"
+    ]
+    title = record["title"]
+    assert len(title) <= title_limit()
     assert title.endswith("…") and words.startswith(title[:-1] + " ")
 
 

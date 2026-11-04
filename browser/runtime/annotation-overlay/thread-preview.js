@@ -75,6 +75,7 @@ import { chromeRoot, chromeForeground } from "../chrome.js";
 import { boxMotion } from "../box-motion.js";
 import { paintKeysWithin } from "../keyboard/scopes.js";
 import { closestAcross } from "../passages.js";
+import { drawnThreadsWithId } from "../thread/selectors.js";
 import { threadIdNamed } from "../thread/state.js";
 import { turns } from "../thread/model.js";
 import { anchorLabel, releaseAuthoredUnder } from "../thread/messages.js";
@@ -1177,9 +1178,7 @@ export function createThreadPreview({
   /** @param {string} name @param {{part?: import("../thread/destination.js").ThreadPart}} [options] */
   function focusTarget(name, { part = null } = {}) {
     const id = threadIdNamed(name);
-    const thread = [...previewList.querySelectorAll(".lf-page-thread")].find(
-      (candidate) => candidate.getAttribute("data-lf-thread") === id,
-    );
+    const thread = drawnThreadsWithId(previewList, id)[0];
     return thread
       ? threadFocusDestination(thread, { part: part ?? "thread", message: name })
       : null;

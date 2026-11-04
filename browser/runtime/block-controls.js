@@ -202,9 +202,7 @@ export function writeInsets(control, { dx, dy, dw, dh }) {
     "--lf-block-control-dw": dw,
     "--lf-block-control-dh": dh,
   })) {
-    const value = length ? layoutPx(length) : "";
-    if (control.style.getPropertyValue(property) !== value)
-      control.style.setProperty(property, value);
+    control.style.setProperty(property, length ? layoutPx(length) : "");
   }
 }
 /** @param {HTMLElement} control @param {Element} block */

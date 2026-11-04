@@ -1026,11 +1026,13 @@ def retained_quote(page: Page) -> None:
 
 
 def retained_quote_full(page: Page) -> None:
-    """The same original words opened locally. Full quote shows a frame after the
-    thread's messages, once the panel has measured the quotation as cut, so the click
-    waits for it."""
+    """The same original words opened locally. Full quote stands with the quote's first
+    paint, before the view has finished arriving; the click waits until the reply has
+    been read where it stood, as a reader's would, since opening the quote at once
+    pushes the reply out of view unread and offers Next unread."""
     retained_quote(page)
     child = page.locator("#bg-retained-quote-sample").frame_locator("iframe")
+    expect(child.locator(f"{panel_view('thread')} .lf-msg-new")).to_have_count(0)
     full = child.get_by_role("button", name="Full quote", exact=True)
     full.click()
     expect(full).to_have_attribute("aria-expanded", "true")

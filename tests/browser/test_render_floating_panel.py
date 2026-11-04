@@ -2649,8 +2649,8 @@ def test_a_package_s_whole_thread_takes_its_notice_where_a_card_does(browser, se
 
 
 # A package's reader that stands a thread's head controls and reply box apart, in its
-# own shadow tree, beside the outlet that holds the thread (`parts.thread`'s `head` and
-# `reply`).
+# own shadow tree, beside the outlet that holds the thread, and asks for its quote
+# (`parts.thread`'s `head`, `reply` and `quote`).
 APART_READER = """async (outside) => {
   const api = await window.__lfWidgetApi();
   const host = document.createElement('div');
@@ -2671,6 +2671,7 @@ APART_READER = """async (outside) => {
         parts.thread(thread.key, outlet, {
           head: { news: outside ? stray : news, controls },
           reply: { outlet: reply },
+          quote: true,
         });
       }
     },
@@ -2691,10 +2692,16 @@ def test_a_package_s_places_for_a_thread_s_parts_take_them_as_its_outlet_does(
     """Every place a package names for a thread's parts is held to what its outlet is:
     one outside the widget refuses the update, and one in the widget's shadow tree takes
     the part through a slot, so the document's styles reach Resolve, the notice and the
-    reply box as they reach the messages. Reopen there lands in the reply box, wherever
-    the package stands it, as a card's does."""
+    reply box as they reach the messages. The quote the package asks for reads as the
+    panel's does, in three lines with Full quote over them. Reopen there lands in the
+    reply box, wherever the package stands it, as a card's does."""
     url = serve(LONG_PAGE)
-    panel_comment(serve.page_dir, "Is the window long enough?")
+    words = "The earlier plan required a manual review before every rollout. " * 6
+    panel_comment(
+        serve.page_dir,
+        "Is the window long enough?",
+        {"section": "gone", "quote": words + "FINAL WORDS"},
+    )
     page = floating(browser, url)
     assert page.evaluate(APART_READER, True) == "refused"
     # The refused reader gives its place back to Leaf's own.
@@ -2714,6 +2721,15 @@ def test_a_package_s_places_for_a_thread_s_parts_take_them_as_its_outlet_does(
         """() => ['.lf-resolve', 'leaf-text', '.lf-msg'].map(
           (part) => Boolean(document.querySelector('#reader').querySelector(part)))"""
     ) == [True, True, True]
+    quote = reader.locator(".lf-thread-quote")
+    expect(quote).to_contain_text("FINAL WORDS")
+    assert quote.evaluate("el => getComputedStyle(el).webkitLineClamp") == "3"
+    assert quote.evaluate("el => el.scrollHeight > el.clientHeight")
+    full = reader.get_by_role("button", name="Full quote", exact=True)
+    expect(full).to_be_visible()
+    full.click()
+    expect(full).to_have_attribute("aria-expanded", "true")
+    assert quote.evaluate("el => el.scrollHeight <= el.clientHeight + 1")
     with sending(page, "the resolve"):
         reader.locator(".lf-resolve").click()
     with sending(page, "the reopen"):

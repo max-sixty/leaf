@@ -990,7 +990,7 @@ export function createFloatingPanel({
   // `drawn` is the thread as its view draws it, which the reply box's words read
   // (`replyOptionsFor`).
   /** @param {string | null} key @param {Element | null} input
-   * @param {import("./thread/thread-card.js").ThreadViewModel | null} [drawn] */
+   * @param {import("./thread/thread-card.js").DrawnThread | null} [drawn] */
   function fieldReading(key, input, drawn = null) {
     const [error] = sayable();
     if (error) return { says: "error", words: leafSays(error.message) };
@@ -1044,13 +1044,14 @@ export function createFloatingPanel({
   // the Go-to word, which pass in a moment, take the reply's place. The thread's word
   // is the one its view draws (`drawn`), held news included, as its Resolve says it.
   /** @param {string | null} key @param {Element | null} input
-   * @param {import("./thread/thread-card.js").ThreadViewModel} drawn */
+   * @param {import("./thread/thread-card.js").DrawnThread} drawn */
   function turnLead(key, input, drawn) {
     if (fieldReading(key, input).says !== "turn") return "";
+    const thread = threadByKey(key);
     const { walk } = statusContextReading();
     const position = !walk?.shown
       ? ""
-      : walk.kind === "thread" && walk.target === drawn.id
+      : walk.kind === "thread" && walk.target === thread?.id
         ? `${walk.position} of ${walk.total}`
         : walk.text;
     // A walk gone on to the page, leaving the thread's view open above the stop it
@@ -1076,7 +1077,7 @@ export function createFloatingPanel({
   // speaker says, such as an error or Leaf's own state, mark the editor with that voice,
   // which its native placeholder wears whole (`voiceOf`).
   /** @param {string | null} key @param {Element | null} input
-   * @param {import("./thread/thread-card.js").ThreadViewModel | null} [drawn] */
+   * @param {import("./thread/thread-card.js").DrawnThread | null} [drawn] */
   function saying(key, input, drawn = null) {
     const { says, words, offers } = fieldReading(key, input, drawn);
     if (input) {
@@ -1090,7 +1091,7 @@ export function createFloatingPanel({
   // them: words whose speakers differ, and the agent's sentence, whose node the
   // status's exposure registers (`statusParts`). Null leaves the native placeholder.
   /** @param {string | null} key @param {Element | null} input
-   * @param {import("./thread/thread-card.js").ThreadViewModel | null} [drawn] */
+   * @param {import("./thread/thread-card.js").DrawnThread | null} [drawn] */
   function fieldHint(key, input, drawn = null) {
     const { words } = fieldReading(key, input, drawn);
     const parts = [words].flat();

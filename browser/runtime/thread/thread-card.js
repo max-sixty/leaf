@@ -436,12 +436,15 @@ function wordsWidth(node) {
    of its own (`apart`), which the container places in the place it names, as it
    places the thread's box in its outlet. The reply's options are read as the box is
    made, once for the view. What the box's empty words say reads the thread as the
-   thread draws it (`drawn`), held news included, so they agree with its settlement
-   and notice, as a card's own words do (`#createReply`). */
+   thread draws it (`DrawnThread`), held news included, so they agree with its
+   settlement and notice, as a card's own words do (`#createReply`). */
+/** The thread as a thread draws it, held news included, which its reply box's words
+ * read: whether it is resolved, and whose turn it is (workflow.js, `threadAttention`).
+ * @typedef {{resolved: boolean, attention: ThreadReading["attention"]}} DrawnThread */
 /** @typedef {Omit<import("./replies.js").ReplyOptions, "hint" | "hintParts" | "hintLead"> & {
- * hint?: (drawn: ThreadViewModel) => string,
- * hintParts?: (drawn: ThreadViewModel) => unknown,
- * hintLead?: (drawn: ThreadViewModel) => unknown}} ThreadReplyOptions */
+ * hint?: (drawn: DrawnThread) => string,
+ * hintParts?: (drawn: DrawnThread) => unknown,
+ * hintLead?: (drawn: DrawnThread) => unknown}} ThreadReplyOptions */
 /** @typedef {{
  * head?: {news: HTMLElement, controls: HTMLElement},
  * reply?: {outlet: HTMLElement, options?: ThreadReplyOptions},
@@ -506,9 +509,9 @@ export class ThreadView {
   #quoteExpanded = signal(false);
   /** @type {(() => void) | null} */
   #quoteEffect = null;
-  // Full quote shows only where three lines cut the words. The press resizes the view
-  // its container's observers watch, so it shows in the next frame rather than inside
-  // this observer's delivery.
+  // Full quote shows only where three lines cut the words. Once the quote stands, a
+  // change of its size resizes the view its container's observers watch, so the press
+  // follows in the next frame rather than inside this observer's delivery.
   #quoteSize = sizeObserver(() => nextRender(() => this.#fitQuote()));
 
   /** @param {ThreadCommands} commands @param {ThreadViewModel} model */
@@ -837,6 +840,9 @@ export class ThreadView {
     render(head ? news : nothing, this.#apart.news);
     render(head ? settlement : nothing, this.#apart.controls);
     render(replyApart ? this.#reply.node : nothing, this.#apart.reply);
+    // Full quote stands from the quote's first paint, so its arrival moves nothing below
+    // it; later changes of the quote's size follow by its observer (`#quoteSize`).
+    if (this.#outlets.quote) measure(this.#quoteHead, () => this.#fitQuote());
     if (beside && model.news) measure(this.node, () => this.#retainHeaderSlot());
     else this.#releaseHeaderSlot();
     if (marginControls && model.news) measure(this.node, () => this.#watchMarginNews());
@@ -1260,7 +1266,11 @@ export class ThreadView {
     // so they change with its settlement and notice, when the user shows the news, and
     // not before. They read the drawn reading as a signal, so the box draws them again
     // with each reading the thread draws.
-    const drawn = () => this.#shown.value;
+    /** @returns {DrawnThread} */
+    const drawn = () => {
+      const { resolved, attention } = this.#shown.value;
+      return { resolved, attention };
+    };
     return createReplyView(
       model.key,
       {

@@ -679,7 +679,7 @@ def test_the_menu_runs_in_descending_number_order_past_v9(browser, serve):
     # Pinned to the oldest, the row naming the newest is the runtime's one place that
     # spells a version out in a sentence.
     page = open_page(browser, url, pin=True)
-    expect(panel_menu(page).locator('.lf-fp-item[data-row="latest"]')).to_have_text(
+    expect(panel_menu(page).locator('.lf-fp-item[data-lf-row="latest"]')).to_have_text(
         "New page available → open v10"
     )
 
@@ -1007,8 +1007,8 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
     )
     page = open_page(browser, url)
     resized(page, 1920, 900)
-    thread = page.locator(f'lf-diff .lf-page-thread[data-thread="{root["id"]}"]')
-    panel_thread = page.locator(f'{PANEL_THREAD}[data-thread="{root["id"]}"]')
+    thread = page.locator(f'lf-diff .lf-page-thread[data-lf-thread="{root["id"]}"]')
+    panel_thread = page.locator(f'{PANEL_THREAD}[data-lf-thread="{root["id"]}"]')
     expect(thread).to_have_count(1)
     expect(thread.locator("leaf-text")).to_be_visible()
     open_panel_thread(page, root["id"])
@@ -1076,7 +1076,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
 
-    expect(thread.locator(f'.lf-msg[data-event="{reply["id"]}"]')).to_be_visible()
+    expect(thread.locator(f'.lf-msg[data-lf-event="{reply["id"]}"]')).to_be_visible()
 
     # Each message's workflow line reads the same in both views.
     question = append_carried_log_record(
@@ -1124,18 +1124,18 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
         if view == panel_thread:
             open_panel_thread(page, root["id"])
         expect(
-            view.locator(f'.lf-msg[data-event="{question["id"]}"]').locator(line)
+            view.locator(f'.lf-msg[data-lf-event="{question["id"]}"]').locator(line)
         ).to_have_text("On it")
         expect(
-            view.locator(f'.lf-msg[data-event="{followup["id"]}"]').locator(line)
+            view.locator(f'.lf-msg[data-lf-event="{followup["id"]}"]').locator(line)
         ).to_have_text(re.compile(r"^Queued for "))
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
 
-    strip = thread.locator(f'.lf-msg[data-event="{reply["id"]}"] .lf-react-strip')
-    thread.locator(f'.lf-msg[data-event="{reply["id"]}"] .lf-react-trigger').click()
+    strip = thread.locator(f'.lf-msg[data-lf-event="{reply["id"]}"] .lf-react-strip')
+    thread.locator(f'.lf-msg[data-lf-event="{reply["id"]}"] .lf-react-trigger').click()
     with sending(page, "the inline reaction"):
-        strip.locator('.lf-react[data-token="change"]').click()
+        strip.locator('.lf-react[data-lf-token="change"]').click()
     reacted = events_model.read_events(serve.page_dir)[-1]
     assert (reacted["kind"], reacted["parent"], reacted["token"]) == (
         "reply",

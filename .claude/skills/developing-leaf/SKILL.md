@@ -189,7 +189,10 @@ To ask a page where an element sits, what style it computes, or what holds focus
 a key, run `uv run leaf-dev probe` rather than writing a Playwright script or a scratch
 test. It builds the page from this working tree, with `--log` adding threads and
 messages to its log, runs your input steps, and prints what a JavaScript expression
-returns, with `--base` for the merge base beside it (`leaf-dev probe --help`).
+returns, with `--base` for the merge base beside it and `--browser` for another engine
+(`leaf-dev probe --help`). To reach a surface a stills state reaches, open the state
+with `--state NAME`, which brings its page there in its window, rather than repeating
+its input as steps.
 
 When an interaction depends on a sequence of inputs or changes over time, record it
 with `leaf-dev probe --record .tmp/recordings/NAME` (its `--help` covers journeys and
@@ -201,15 +204,15 @@ returning from the input doesn't prove an asynchronous update finished.
 
 `uv run leaf-dev stills` crops each changed catalogue state into a before/after pair
 and lists the computed styles that differ in it, shadow trees included, with the
-declarations behind them (its module header covers `--base` and
-`--authored`). For a change to where a rule sits,
+declarations behind them (its module header covers `--base`, `--authored` and
+`--browser`). For a change to where a rule sits,
 such as its sheet, layer or selector, read those lists, with the corpus states
 covering every composed page, rather than writing a computed-style sweep. Cover states
 reached by interaction, including focus states where layout can cover a focus ring.
-Where no state reaches a surface the change touches, add one to `STATES` rather than
-driving it by hand: one state per surface, never one per scheme, size or pointer,
-which a run chooses with `--scheme`, `--viewport` and `--touch` (the `stills.py`
-header says when a state keeps its own).
+Where no state reaches a surface the change touches, add one to `STATES`
+(`dev/leaf_dev/states.py`) rather than driving it by hand: one state per surface,
+never one per scheme, size or pointer, which a run chooses with `--scheme`,
+`--viewport` and `--touch` (the `states.py` header says when a state keeps its own).
 
 Hand off every difference a still can show as a Leaf page with an `lf-shot` of the
 crops and a sentence saying what changed, and link the page in the reply; a live

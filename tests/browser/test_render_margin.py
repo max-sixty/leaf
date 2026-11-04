@@ -206,7 +206,7 @@ def test_margin_target_pointer_ownership_ends_with_its_host(browser, serve):
         "y": int(box["y"] + box["height"] / 2),
     }
     page.mouse.move(pointer["x"], pointer["y"])
-    trace = page.locator('.lf-target-trace[data-for="s-replace"]')
+    trace = page.locator('.lf-target-trace[data-lf-for="s-replace"]')
     expect(trace).to_be_visible()
 
     suggestion = target.element_handle()
@@ -282,7 +282,7 @@ def test_margin_target_hover_requires_pointer_movement(browser, serve):
         }""",
         arg=pointer,
     )
-    trace = page.locator('.lf-target-trace[data-for="route-ask"]')
+    trace = page.locator('.lf-target-trace[data-lf-for="route-ask"]')
     expect(
         trace,
         "moving the margin under a stationary pointer claimed pointer ownership",

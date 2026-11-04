@@ -12,11 +12,11 @@ from ..projection import (
     canonical_reports,
     page_reading,
 )
-from ..registry.kernel import verb_writers
 from ..thread_context import thread_memberships
 from .context import PageRead
 from .document import browser_document, browser_undo_candidates
 from .queues import queues
+from .tail import basis_key
 from .thread import browser_thread
 from .work import WorkState, work_state
 
@@ -129,8 +129,9 @@ def browser_state(
     Documents and the append-only log remain the authorities. Each of `readings`
     is one revision's document under the registry it is read in. This object is an
     ephemeral transport projection, keyed by the exact log sequence and revisions
-    from which it was read. `revisions` reads a revision a gesture names that is
-    not among `readings`; without it every such revision must be there.
+    from which it was read, which `basis.key` names (`tail.basis_key`). `revisions`
+    reads a revision a gesture names that is not among `readings`; without it every
+    such revision must be there.
     """
     through_seq = events[-1]["seq"] if events else 0
 
@@ -190,26 +191,6 @@ def browser_state(
         _apply_thread_attention(items, workflows, thread["threads"], agent_todos)
         documents[revision] = reading
         projection = reading.projection
-        classified = {
-            **projection.classified,
-            **thread_reading.projection.classified,
-        }
-        coverage = []
-        for event in events:
-            if event["kind"] in verb_writers():
-                classified_entry = classified.get(event["id"])
-            elif event["kind"] == "undo":
-                classified_entry = classified.get(event["undoes"])
-            else:
-                continue
-            coverage.append(
-                {
-                    "event": event,
-                    "coordinate": (
-                        list(classified_entry[0]) if classified_entry else None
-                    ),
-                }
-            )
         published_at = next(
             (
                 event["ts"]
@@ -231,7 +212,6 @@ def browser_state(
                 undo_reading=undo_reading,
                 words=words,
             ),
-            "coverage": coverage,
             "published_at": published_at,
             "queues": queues(workflows, todos, items, threads, reading.within),
         }
@@ -248,12 +228,14 @@ def browser_state(
     else:
         page_history = {}
     wire = {
-        "basis": {"through_seq": through_seq},
+        "basis": {
+            "through_seq": through_seq,
+            "key": basis_key(through_seq, active_revision, view_revisions),
+        },
         **page_history,
         "views": views,
         "todos": todos,
         "plan": durable.plan,
-        "receipts": [event for event in events if event.get("attempt")],
         "thread_memberships": {
             identity: threads
             for identity, threads in thread_memberships(

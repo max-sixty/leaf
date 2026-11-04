@@ -1,4 +1,4 @@
-/* Browser-side latency measurement for leaf-dev bench-latency and profile.
+/* Browser-side latency measurement for leaf-dev bench-latency.
  *
  * Installed before each document. The goals stay in sessionStorage so a revision
  * that reloads the page is sampled by the document that replaces it. Sampling
@@ -26,7 +26,7 @@
   const messages = (words) =>
     [
       ...document.querySelectorAll(
-        ":is(.lf-thread, .lf-page-thread) :is([data-mid], [data-event])",
+        ":is(.lf-thread, .lf-page-thread) :is([data-mid], [data-lf-event])",
       ),
     ].filter((node) => node.textContent.includes(words) && shown(node));
   let semantic = null;
@@ -47,7 +47,7 @@
       semantic.applicationPresented() &&
       semantic
         .readApplication()
-        .authoritative?.browser.receipts.some((receipt) => receipt.attempt === attempt),
+        .authoritative?.events.some((event) => event.attempt === attempt),
     card: ({ card, to }) => {
       const node = document.getElementById(card);
       return (
@@ -92,7 +92,7 @@
             const met = facts[goal.fact](goal.arg, goal.attempt);
             if (met) {
               goal.at = at;
-              // Where a trace of the page finds this frame (`leaf-dev profile`).
+              // Where a trace of the page finds this frame (`bench-latency --profile`).
               performance.mark(`lf-bench:${goal.name}`);
             } else open = true;
           }
@@ -167,12 +167,11 @@
       frames: () => window.__leafMainThread.reading().frames,
       revision: () =>
         Number(document.querySelector('meta[name="lf-revision"]')?.content),
+      // Every trip the runtime's ledger counts, its event posts and state reads, has
+      // ended (runtime/traffic.js).
       quiet() {
-        const ready =
-          document.querySelector("script[data-lf-entry]")?.lfReadiness?.() === null;
         const trips = ledger();
         return (
-          ready &&
           trips.acked === trips.sends &&
           trips.heard === trips.asked &&
           !trips.pending?.length

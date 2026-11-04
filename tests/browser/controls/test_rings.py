@@ -19,7 +19,6 @@ from render_cases_layout import (
     token_colour,
 )
 from render_harness import (
-    EXAMPLES,
     LONG_PAGE,
     REPLAYED_PAGE,
     any_suggestion_control,
@@ -38,6 +37,7 @@ from browser.controls import (
 from browser.threads import open_panel_thread
 from leaf import data as data_model
 from leaf.render_checks import rendered
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -368,7 +368,7 @@ customElements.define('lf-shadow-focus', class extends HTMLElement {
         rendered(page)
         if control is button:
             projected = page.locator(".lf-visual-mark-focus")
-            expect(projected).to_have_attribute("data-for", "focus-button")
+            expect(projected).to_have_attribute("data-lf-for", "focus-button")
             assert (
                 projected.evaluate(
                     "node => getComputedStyle(node, '::after').outlineStyle"
@@ -612,7 +612,7 @@ def test_a_marked_element_draws_nothing_under_the_pointer(browser, serve):
         inside = (box["x"] + 6, box["y"] + box["height"] / 2)
         page.mouse.move(*inside)
         expect(page.locator("body")).to_have_class(re.compile(r"\blf-over-mark\b"))
-        expect(page.locator(f'.lf-visual-mark[data-for="{ident}"]')).to_have_count(0)
+        expect(page.locator(f'.lf-visual-mark[data-lf-for="{ident}"]')).to_have_count(0)
         rest = mark_edges(page, ident, ink)
         assert all(seen == {0} for seen in rest.values()), (
             f"the comment on #{ident} drew a contour under the pointer: {rest}"
@@ -659,7 +659,7 @@ def test_a_contour_stands_inside_a_target_its_clip_leaves_no_room_around(
             "button", name="Show on page", exact=True
         ).click()
         panel_settled(page, open=False)
-        mark = page.locator(f'.lf-visual-mark-here[data-for="{ident}"]')
+        mark = page.locator(f'.lf-visual-mark-here[data-lf-for="{ident}"]')
         expect(mark).to_be_visible()
         room = mark.evaluate(
             "n => { const s = getComputedStyle(n, '::after');"
@@ -698,7 +698,7 @@ def test_the_ring_reading_names_every_way_a_box_can_draw_nothing_past_its_edge(
     they clip. The first case is the control: without it a reading that reported at every
     stop would pass the other three and prove nothing.
     """
-    example = next(e for e in EXAMPLES if e.stem == "release-notes")
+    example = named_source("release-notes")
     url = serve(example, comments=2, seed_log=False)
     page = open_page(browser, url)
     any_suggestion_control(page, "accept").first.focus()
@@ -751,7 +751,7 @@ def test_the_ring_reading_distinguishes_target_brackets_from_focus(browser, serv
     target.hover()
     page.keyboard.down("Alt")
     aim = page.locator(".lf-aim")
-    expect(aim).to_have_attribute("data-for", "target")
+    expect(aim).to_have_attribute("data-lf-for", "target")
     assert (
         aim.evaluate("node => getComputedStyle(node, '::before').outlineStyle")
         == "solid"
@@ -1347,7 +1347,7 @@ def test_an_obligations_margin_marker_keeps_its_location_ring_whole(browser, ser
     )
     marker = page.locator('.lf-margin-entry[data-lf-kinds="on-me"]')
     marker.hover()
-    expect(page.locator('.lf-target-trace[data-for="decision"]')).to_be_visible()
+    expect(page.locator('.lf-target-trace[data-lf-for="decision"]')).to_be_visible()
     page.mouse.move(0, 0)
     for _ in range(40):
         page.keyboard.press("Tab")
@@ -1357,7 +1357,7 @@ def test_an_obligations_margin_marker_keeps_its_location_ring_whole(browser, ser
         pytest.fail("Tab did not reach the obligation's margin marker")
     rendered(page)
     expect(page.locator(".lf-target-trace")).to_be_hidden()
-    expect(page.locator(".lf-location[data-for='decision']")).to_be_visible()
+    expect(page.locator(".lf-location[data-lf-for='decision']")).to_be_visible()
     drawn = rings_drawn(page)
     assert any(".lf-location" in ring["who"] for ring in drawn), drawn
     assert not ring_faults(drawn, "on the obligation's margin marker")

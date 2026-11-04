@@ -126,18 +126,6 @@ html[data-lf-region-capture]
 :root[data-lf-annotations="hidden"] {
   --lf-change-bar: transparent;
 }
-/* A marked block becomes one inline text diff when its Change disclosure opens
-   (version.js). The version label and deletions wear `.lf-ui`, so comments, copies and
-   the next comparison read the current page; the deletion inherits the document's
-   face. */
-.lf-version-inline-deletion {
-  font: inherit;
-}
-.lf-version-inline-deletion del {
-  margin-inline-end: 0.28em;
-  background: var(--del-tint);
-  color: var(--danger-ink);
-}
 /* The unanswered decision the user is in (markHere) wears the location ring, drawn over
    it (`.lf-location`, below). The ring stands outside the decision, so a landing keeps
    its room at the scroller's edge, as a margin entry's does (base.css): an obligation
@@ -1167,6 +1155,61 @@ html[data-lf-region-capture]
   }
   .lf-change-bar {
     background: var(--lf-change-bar, var(--ok));
+  }
+  /* The change a Change entry points at, outlined round all its blocks, in the quiet
+     contour a margin control draws round what it concerns (`.lf-target-trace`). */
+  .lf-change-outline {
+    position: absolute;
+    pointer-events: none;
+    box-sizing: border-box;
+    border-radius: var(--r);
+    outline: var(--focus-ring-w) solid var(--target-trace-ink);
+  }
+  /* What a change replaced, over the change (margin-bars.js): a card lifted over the
+     page, its words in a widget's font, the old struck as an edit's deletion and the
+     new tinted as its insertion. A long redline scrolls inside the card, which stays
+     short enough to read whole above the floating panel's room. */
+  .lf-change-card {
+    position: absolute;
+    display: grid;
+    align-content: start;
+    gap: 0.5em;
+    max-block-size: calc(100dvh - var(--lf-foot-room) - 2rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 9px 12px 12px;
+    border: 1px solid var(--border-2);
+    border-radius: var(--r);
+    background: var(--card);
+    color: var(--ink);
+    box-shadow: var(--raise-2);
+    font: var(--font-widget);
+    pointer-events: auto;
+    & p {
+      margin: 0;
+    }
+    & del {
+      margin-inline-end: 0.28em;
+      background: var(--del-tint);
+      color: var(--danger-ink);
+    }
+    & ins {
+      background: var(--add-tint);
+      text-decoration: none;
+    }
+  }
+  .lf-change-card-head {
+    font: var(--font-small);
+    color: var(--ink-2);
+  }
+  .lf-change-card-block[data-lf-kind="heading"] {
+    font-weight: 600;
+  }
+  .lf-change-card-block[data-lf-kind="code"] {
+    font-family: var(--mono);
+    font-size: var(--code-size);
+    line-height: var(--code-line);
+    white-space: pre-wrap;
   }
   .lf-page-search-match {
     position: absolute;

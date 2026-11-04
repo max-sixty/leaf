@@ -79,7 +79,7 @@ export class ReplyContinuity {
       ? null
       : placeKeeper(scrollerFor(this.#owner), {
           items: ".lf-reply-continuity",
-          identity: (node) => node.getAttribute("data-thread"),
+          identity: (node) => node.getAttribute("data-lf-thread"),
           preferred: () => this.#owner,
         });
     return { extent, place, held: place?.take({ spans: false }) };

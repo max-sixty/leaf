@@ -3,7 +3,7 @@ when detached. Playback and seeking remain local presentation state."""
 
 import pytest
 from playwright.sync_api import expect
-from render_harness import consume_browser_errors, leaf_page, open_page
+from render_harness import leaf_page, open_page, reported_browser_errors
 
 from leaf.render_checks import wait_until_ready
 
@@ -286,7 +286,7 @@ document.getElementById('sketch').renderFrame = time => {
     recording.locator(".lf-motion-play").click()
     expect(recording.locator(".lf-motion-clock")).to_have_text("Failed")
     expect(recording.locator(".lf-motion-play")).to_have_accessible_name("Play")
-    consume_browser_errors(page, "Playback failed: no source to play")
+    reported_browser_errors(page, "Playback failed: no source to play")
 
     # A frame that throws shows the box beside the transport, leaves the study whole,
     # and stops the clock: the box stays one, however often the failure recurs.
@@ -304,7 +304,8 @@ document.getElementById('sketch').renderFrame = time => {
     expect(sketch.locator(".lf-motion-controls")).to_be_visible()
     expect(page.locator("#sketch-study #dot")).to_be_visible()
     expect(sketch.locator(".lf-motion-play")).to_have_accessible_name("Play")
-    consume_browser_errors(page, "the frame broke")
+    # The agent hears each of the three draws that threw: End, ArrowLeft and Play.
+    reported_browser_errors(page, *["the frame broke"] * 3)
     # A frame that draws again takes the box away.
     time.press("Home")
     expect(box).to_have_count(0)

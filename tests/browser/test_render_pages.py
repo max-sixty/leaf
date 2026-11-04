@@ -354,7 +354,7 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
     expect(
         thread.locator(".lf-msg[data-lf-author=agent] > .lf-msg-head b")
     ).to_have_text("Codex")
-    expect(thread.locator(".lf-fp-quote")).to_contain_text(
+    expect(thread.locator(".lf-thread-quote")).to_contain_text(
         "“Retries are capped at three”"
     )
 
@@ -363,7 +363,7 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
         page.keyboard.press("ControlOrMeta+Enter")
     expect(thread.locator(".lf-msg[data-lf-author=user]")).to_have_count(1)
     with sending(page, "the resolve"):
-        page.locator(".lf-fp-settle").click()
+        page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)").click()
 
     kinds = [(e["kind"], e.get("author")) for e in events_model.read_events(d)]
     assert ("comment", "agent") in kinds
@@ -586,7 +586,10 @@ def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
     expect(draft).to_have_js_property("value", "keep this unfinished reply")
     news.click()
     expect(view).to_be_visible()
-    expect(page.locator(".lf-fp-settle")).to_have_accessible_name("Reopen")
+    # A thread the agent resolved names the agent before Reopen, as a card's does.
+    expect(
+        page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)")
+    ).to_have_accessible_name(re.compile(r"Resolved by \w+ · Reopen$"))
     expect(draft).to_have_js_property("value", "keep this unfinished reply")
 
 
@@ -883,7 +886,7 @@ def test_a_screenshot_margin_trace_paints_both_quiet_brackets(browser, serve):
     margins_laid_out(page)
     toggle = page.get_by_role("button", name="Review capture", exact=True)
     toggle.hover()
-    expect(shot).to_have_class(re.compile(r"\blf-traced\b"))
+    expect(shot).to_have_attribute("data-lf-traced", "")
     ink = shot.evaluate(_MARK_INK)
     traced = screenshot()
 
@@ -1089,17 +1092,39 @@ def test_a_marked_scrolling_visual_keeps_its_keyboard_focus_ring(browser, serve)
     expect(diagram).to_have_css("outline-style", "solid")
 
 
-def test_a_widget_that_failed_soft_claims_no_room(browser, serve):
+# A patch naming one file twice, with a line wider than the column.
+_WIDE_LINE = "+" + "wide " * 60
+_REFUSED_DIFF_PAGE = leaf_page(
+    "refused diff",
+    '<h1 id="t">Refused</h1>\n<lf-diff id="bad"><pre>\n'
+    + (
+        "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-x\n"
+        + _WIDE_LINE
+        + "\n"
+    )
+    * 2
+    + "</pre></lf-diff>",
+)
+
+
+@pytest.mark.parametrize(
+    ("source", "tag"),
+    [(BROKEN_DIAGRAM_PAGE, "lf-diagram"), (_REFUSED_DIFF_PAGE, "lf-diff")],
+    ids=["light", "shadow"],
+)
+def test_a_widget_that_failed_soft_claims_no_room(browser, serve, source, tag):
     """A wide widget's room is for the thing it draws, and a widget whose upgrade failed
     has not drawn it: what stands there is the message and the source it choked on, which
     is prose and belongs in the measure the page's prose is set to. Taking the room
-    anyway put a parse error across the whole window with its message on one line."""
-    page = open_page(browser, serve(BROKEN_DIAGRAM_PAGE))
+    anyway put a parse error across the whole window with its message on one line. A
+    shadow widget shows its failure in its stage, where page layout can't look."""
+    page = open_page(browser, serve(source))
     # The page reports the renderer's refusal, which is what the fixture is for.
-    consume_browser_errors(page, '<lf-diagram id="bad"> failed: ')
+    consume_browser_errors(page, f'<{tag} id="bad"> failed: ')
     resized(page, 1600, 900)
     at = page.evaluate("""() => {
-        const box = document.getElementById('bad').querySelector('.lf-error');
+        const bad = document.getElementById('bad');
+        const box = (bad.shadowRoot ?? bad).querySelector('.lf-error');
         const column = document.querySelector('main > h1').getBoundingClientRect();
         return { failed: !!box,
                  box: box ? box.getBoundingClientRect().width : 0,

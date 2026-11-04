@@ -533,12 +533,12 @@
             a progress message or a failure notice does not.
           </p>
           <p id="withdrawing">
-            A reaction is the only message the user can take back. Its mark's undo
-            control, or <kbd>z</kbd> while it is the user's latest action, withdraws it:
-            the log gains an <code>undo</code> naming it, and the mark and any thread it
-            started leave the page. This works only while the thread is open and
-            nothing, not even another reaction, has answered it. A message with words
-            cannot be withdrawn.
+            <kbd>z</kbd> takes back the user's latest action, a message they just sent
+            included: a comment, reply or reaction. A reaction's mark also has an undo
+            control of its own. The log gains an <code>undo</code> naming the message,
+            and the message leaves the page, with any thread it started. Where something
+            has already answered it, it stays in its place instead and reads Deleted. To
+            delete an older message, the user rewrites it to no words.
           </p>
           <p id="unsent-words">
             Words typed but not sent are kept after their box closes. If a new version

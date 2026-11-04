@@ -1634,6 +1634,153 @@ def test_layout_style_and_widgets_never_read_each_other():
     assert not typed, "layouts.css sets type:\n" + "\n".join(typed)
 
 
+def _simple_selectors(compound):
+    """The simple selectors of one compound, a functional pseudo-class whole."""
+    parts, depth = [""], 0
+    for char in compound:
+        if not depth and char in ".#[:*&" and parts[-1] not in ("", ":"):
+            parts.append("")
+        parts[-1] += char
+        depth += (char in "([") - (char in ")]")
+    return [part for part in parts if part]
+
+
+def _arguments(pseudo):
+    """The subject compound of each selector inside a functional pseudo-class."""
+    inner = pseudo[pseudo.index("(") + 1 : -1]
+    return [_split_top(each, " >+~") for each in _split_top(inner, ",")]
+
+
+def _names_an_element(compound):
+    """Whether the compound states something an element carries: a type, class, id or
+    attribute, the nesting parent, or an `:is()` or `:where()` whose every argument
+    does. `*`, `:not()` and `:first-child` state none."""
+    return any(
+        part[0].isalpha()
+        or part[0] in ".#[&-_\\"
+        or (
+            part.startswith((":is(", ":where("))
+            and all(_names_an_element(each[-1]) for each in _arguments(part))
+        )
+        for part in _simple_selectors(compound)
+    )
+
+
+def _only_has(compound):
+    """Whether the compound is `:has()` and nothing else, written alone or inside
+    `:is()`, `:where()` or `:not()`."""
+
+    def alone(part):
+        return part.startswith(":has(") or (
+            part.startswith((":is(", ":where(", ":not("))
+            and all(len(each) == 1 and _only_has(each[0]) for each in _arguments(part))
+        )
+
+    parts = [part for part in _simple_selectors(compound) if part != "*"]
+    return bool(parts) and all(map(alone, parts))
+
+
+def _scope_roots(sheet):
+    """The start selectors of every `@scope` in a sheet, the first parenthesised list in
+    its prelude."""
+
+    def visit(rules):
+        for rule in rules:
+            if rule.type not in ("at-rule", "qualified-rule") or rule.content is None:
+                continue
+            if rule.type == "at-rule" and rule.lower_at_keyword == "scope":
+                for start in rule.prelude:
+                    if start.type == "() block":
+                        yield from _split_top(
+                            " ".join(tinycss2.serialize(start.content).split()), ","
+                        )
+                        break
+            yield from visit(
+                tinycss2.parse_blocks_contents(
+                    rule.content, skip_comments=True, skip_whitespace=True
+                )
+            )
+
+    yield from visit(
+        tinycss2.parse_stylesheet(
+            sheet.read_text(), skip_comments=True, skip_whitespace=True
+        )
+    )
+
+
+def test_an_untyped_has_leads_only_to_a_typed_subject():
+    """A `:has()` that is the whole of its compound, with no compound before it, names
+    no element. In Chromium, such a `:has()` that leads on to a subject naming no
+    element either, as `:has(> lf-toc) > :not(lf-toc)` does, or that stands as an
+    `@scope`'s root, makes the browser restyle the whole document after any write to an
+    element's text, or to an attribute another `:has()` reads, anywhere on the page.
+    The rule costs that without matching anything: toc.css's `@scope (:has(> lf-toc))`,
+    under a container query that a page without a sidebar never meets, made each of the
+    16 style recalcs in a Tab on a page of 64 questions restyle the whole page (938 ms
+    against 26 ms). Measured in Chromium 156 by a trace's restyled-element count:
+    naming an element on either side, as `.a :has(…) > *` and base.css's
+    `:has(…) > pre` do, keeps the restyle to the elements near a write to text.
+
+    A scope's root names its element by a class, id or attribute, not by a type alone.
+    Chromium tests the root's `:has()` on every element of that type, and adding or
+    removing a node inside any of them restyled the page: with `@scope (div:has(>
+    lf-toc))`, a heading's link moving into the chrome restyled 20,255 of the 28,335
+    elements of the 512-section asks page of `leaf-dev scaling`, against 58 with
+    toc.css's `lf-toc + *`, which asks no `:has()` at all."""
+    found = []
+
+    def keyed(compound):
+        """Whether the compound names a class, id or attribute, alone or in an `:is()`
+        or `:where()` whose every argument does."""
+        return any(
+            part[0] in ".#["
+            or (
+                part.startswith((":is(", ":where("))
+                and all(keyed(each[-1]) for each in _arguments(part))
+            )
+            for part in _simple_selectors(compound)
+        )
+
+    for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES):
+        for sheet in sorted(root.rglob("*.css")):
+            if "vendor" in sheet.parts:
+                continue
+            where = sheet.relative_to(ROOT)
+            for selector in _scope_roots(sheet):
+                *before, subject = _split_top(selector, " >+~")
+                if _only_has(subject) and not any(map(_names_an_element, before)):
+                    found.append(f"{where}: @scope ({selector})")
+                elif any(
+                    ":has(" in compound and not keyed(compound)
+                    for compound in _split_top(selector, " >+~")
+                ):
+                    found.append(f"{where}: @scope ({selector}), a type alone")
+            for _conditions, enclosing, selector, _declarations in _style_rules(sheet):
+                # Inside a scope, the scope's root stands before every compound.
+                if "scope" in enclosing:
+                    continue
+                compounds = _split_top(selector, " >+~")
+                lead = next(
+                    (
+                        at
+                        for at, compound in enumerate(compounds)
+                        if _only_has(compound)
+                    ),
+                    None,
+                )
+                if (
+                    lead is not None
+                    and lead < len(compounds) - 1
+                    and not any(map(_names_an_element, compounds[:lead]))
+                    and not _names_an_element(compounds[-1])
+                ):
+                    found.append(f"{where}: {selector}")
+    assert not found, (
+        "name an element beside this `:has()` or in its subject, and a scope's root by "
+        "a class, id or attribute:\n" + "\n".join(found)
+    )
+
+
 def test_controls_are_built_by_role_and_never_by_face():
     """Leaf's controls come from a closed set of roles, each with one face, so a widget
     cannot draw two controls of one kind two ways. The classes of a role's face are
@@ -1756,12 +1903,12 @@ _PRESS_FACE = re.compile(
 )
 
 
-def _face_overrides(sheets, faces, placed, home):
+def _face_overrides(sheets, faces, placed, homes):
     """Each rule among `sheets` that draws a press's face anywhere but its role's own
     rules: `(sheet, selector, reason)`. A rule draws a press's face when it sets one of
     `_PRESS_FACE` on an element wearing a role's face class (`faces`) or a class a role's
     builder writes beside it (`placed`), each alternative of an `:is()` read on its own.
-    A role's own rules stand in `home` and name the press by its face class, refined
+    A role's own rules stand in the sheets `homes` names and name the press by its face class, refined
     only by attributes and pseudo-classes, which are its states and the variants it
     declares, on the press or on what holds it, as a margin row says it stands as a
     pin; a press or holder named by a class, an id or a tag, or a rule under an
@@ -1876,7 +2023,7 @@ def _face_overrides(sheets, faces, placed, home):
             if not pressed:
                 continue
             reasons = [
-                *(["away from its role's rules"] if sheet.name != home else []),
+                *(["away from its role's rules"] if sheet.name not in homes else []),
                 *(
                     f"names {name}"
                     for name in sorted(
@@ -1917,11 +2064,18 @@ def _role_classes():
     return faces, placed - faces
 
 
+# The sheets a role's own rules stand in: Leaf's, and the library's generated onto the
+# faces it takes from Web Awesome (build/styles.mjs).
+FACE_HOMES = ("controls.css", "webawesome-native.css")
+
+
 def test_a_press_wears_its_role_s_face_alone():
     """A press built by a role (`test_every_press_is_built_by_role`) looks as its role
     draws it, and two presses of one role differ only by a variant the role declares
     (browser/AGENTS.md, "A control wears its role's face"). Every face is drawn in
-    controls.css, keyed by the role's face class and the attributes a press declares,
+    controls.css, and the word, symbol and commit in the library's rules generated for
+    them (styles/vendor/webawesome-native.css, build/styles.mjs), keyed by the role's
+    face class and the attributes a press declares,
     such as a tone (`data-lf-tone`) or news (`data-lf-news`); `js_facts.mjs dressings`
     reads the classes builders write beside a role, which place a press and never
     restyle it. The reading sees the classes a builder's call spells. A class a wrapper
@@ -1944,9 +2098,9 @@ def test_a_press_wears_its_role_s_face_alone():
         sheet
         for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES)
         for sheet in sorted(root.rglob("*.css"))
-        if "vendor" not in sheet.parts
+        if "vendor" not in sheet.parts or sheet.name in FACE_HOMES
     ]
-    refused = _face_overrides(sheets, faces, placed, "controls.css")
+    refused = _face_overrides(sheets, faces, placed, FACE_HOMES)
     assert not refused, (
         "these rules draw a press's face outside its role's:\n"
         + "\n".join(
@@ -1991,7 +2145,7 @@ def test_the_face_reading_refuses_what_restyles_a_press(tmp_path):
         [home, away],
         {"lf-icon-action", "lf-btn", "lf-row"},
         {"lf-dial-depth"},
-        home.name,
+        (home.name,),
     )
     assert [(sheet.name, selector, reason) for sheet, selector, reason in refused] == [
         (

@@ -333,10 +333,13 @@ def settle(page: Page) -> None:
 
 
 # Where a mouse was last over a frame, in the frame's own viewport, which of its
-# buttons it held, and when: each frame of a `tab` keeps this.
-POINTER = """for (const type of ["pointermove", "pointerdown", "pointerup"])
+# buttons it held, and when: each frame of a `tab` keeps this. A native drag sends no
+# `pointerup`; it ends in `dragend` where it drops, with no button held. On 2026-11-04
+# its `pointercancel` read (0, 0) in Chromium and the button still held in Firefox,
+# and WebKit sent none.
+POINTER = """for (const type of ["pointermove", "pointerdown", "pointerup", "dragend"])
   addEventListener(type, (event) => {
-    if (event.pointerType === "mouse")
+    if ((event.pointerType ?? "mouse") === "mouse")
       globalThis.__lfPointer = {
         x: event.clientX, y: event.clientY, buttons: event.buttons, at: Date.now(),
       };

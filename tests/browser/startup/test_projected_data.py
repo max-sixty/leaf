@@ -126,7 +126,7 @@ def test_a_comment_on_external_data_stays_with_the_revision_the_user_saw(
         "revision": replaced,
         "path": [1, "value"],
     }, "the source coordinate must follow construction order, not the datum key"
-    quote = open_panel_thread(page, comment["id"]).locator(".lf-fp-quote")
+    quote = open_panel_thread(page, comment["id"]).locator(".lf-thread-quote")
     expect(quote).to_contain_text("Ready")
     expect(quote.locator(".lf-anchor-status")).to_have_text("Earlier data")
     expect(quote).not_to_have_attribute("data-lf-detached", "")
@@ -342,8 +342,11 @@ ENTRY_TOPS = """() => {
 }"""
 
 # Whether a text document's `line` is marked, with a margin entry level with it.
+# The rows of the text document `#log`, one a line, in order across its runs.
+LOG_ROWS = "#log .lf-text-document-run > *"
+
 ROW_COMMENT = f"""line => {{
-  const row = document.querySelector(`#log [data-line="${{line}}"]`);
+  const row = document.querySelectorAll('{LOG_ROWS}')[line - 1];
   const box = row.getBoundingClientRect();
   const marked = [...(CSS.highlights.get('lf-mark') ?? [])].some(
     range => row.contains(range.startContainer) && range.toString().trim());
@@ -378,7 +381,7 @@ def test_a_text_document_keeps_comments_on_their_lines_across_updates(
     data_model.cmd_data_set(serve.page_dir, "log-text", "\n".join(lines) + "\n")
     page = open_page(request.getfixturevalue(engine), url)
     for row in (128, 310):
-        select_words(page, f'#log [data-line="{row}"] span')
+        select_words(page, f"{LOG_ROWS} >> nth={row - 1}")
         anchor = page.evaluate(
             "async () => (await window.__lfCheckApi()).selectionAnchor(getSelection())"
         )
@@ -401,16 +404,16 @@ def test_a_text_document_keeps_comments_on_their_lines_across_updates(
             data_model.cmd_data_set(serve.page_dir, "log-text", "\n".join(lines) + "\n")
             told(page)
         for row in (128 + offset, 310 + offset):
-            page.locator(f'#log [data-line="{row}"]').evaluate(SHOW_ROW)
+            page.locator(LOG_ROWS).nth(row - 1).evaluate(SHOW_ROW)
             rendered(page)
             page.wait_for_function(ROW_COMMENT, arg=row)
     lines[127 + offset] = "a rewritten row"
     data_model.cmd_data_set(serve.page_dir, "log-text", "\n".join(lines) + "\n")
     told(page)
-    page.locator(f'#log [data-line="{310 + offset}"]').evaluate(SHOW_ROW)
+    page.locator(LOG_ROWS).nth(309 + offset).evaluate(SHOW_ROW)
     rendered(page)
     page.wait_for_function(ROW_COMMENT, arg=310 + offset)
-    page.locator('#log [data-line="1"]').evaluate(SHOW_ROW)
+    page.locator(LOG_ROWS).first.evaluate(SHOW_ROW)
     rendered(page)
     assert page.evaluate(ENTRY_TOPS) == [], "a margin entry stands at the top"
 
@@ -504,7 +507,7 @@ customElements.define('lf-derived', class extends LeafElement {
         re.compile(r"\blf-mark-el\b")
     )
     assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
-    quote = open_panel_thread(page, comment["id"]).locator(".lf-fp-quote")
+    quote = open_panel_thread(page, comment["id"]).locator(".lf-thread-quote")
     expect(quote).to_contain_text("Ready")
     expect(quote.locator(".lf-anchor-status")).to_have_text("Changed")
 

@@ -32,14 +32,7 @@
    paired with `d` in whichever reading region the user is in. */
 import { nextRender, sizeObserver } from "../rendering.js";
 import { signal } from "/runtime/framework.js";
-import {
-  layoutWindow,
-  presented,
-  seenRect,
-  watchRoom,
-  clippedContents,
-  shownWindow,
-} from "../geometry.js";
+import { layoutWindow, presented, seenRect, watchRoom } from "../geometry.js";
 import { intersect, hasArea } from "../rect.js";
 import { recordInteraction } from "../interaction-log.js";
 import { sessionIsActive } from "../layer-client.js";
@@ -104,7 +97,7 @@ function visibleInterval(body, clips, band) {
 }
 
 // An element's box can intersect the viewport while all its words are clipped or
-// below it. Measure the text itself through the shared clipping/chrome reading.
+// below it. Measure the text itself through the one reading of what is seen.
 /** @param {Element} body @param {import("../geometry.js").ClipCache} clips @param {import("../rect.js").Box} band */
 function wordsAreVisible(body, clips, band) {
   if (!presented(body) || !body.checkVisibility({ opacityProperty: true }))
@@ -122,10 +115,8 @@ function wordsAreVisible(body, clips, band) {
       continue;
     range.selectNodeContents(node);
     for (const box of range.getClientRects()) {
-      const clipped = clippedContents(box, holder, clips);
-      if (!clipped) continue;
-      const room = shownWindow({ within: clipped, item: holder });
-      if (hasArea(intersect(intersect(clipped, room), band))) return true;
+      const seen = seenRect(range, clips, box);
+      if (seen && hasArea(intersect(seen, band))) return true;
     }
   }
   return false;

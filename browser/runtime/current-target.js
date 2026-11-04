@@ -92,7 +92,8 @@ export function declareSide(bridge, { beside = false } = {}) {
 // those waiting on the user, placed as the whole `inventory` places them. Only the
 // obligations whose place names one of the node's ancestors are placed
 // (`namedPlaces`), so a keystroke, which asks this many times, costs the node's depth
-// rather than the inventory.
+// rather than the inventory. The names are read once per list, so that holds for a
+// list the state keeps, such as the inventory, and not for one built for the call.
 /** @template {import("./framework/application.js").ObligationRecord} T
  * @param {readonly T[]} items @param {Node | null} node
  * @param {readonly import("./framework/application.js").ObligationRecord[]} inventory */
@@ -162,6 +163,13 @@ export const placeOf = (node) => placeFrom(node, new Set(), true);
 // page shows the node, which arrives nowhere.
 /** @param {Node | null | undefined} node */
 export const arrivalOf = (node) => placeFrom(node, new Set(), false);
+// The obligation, answered or not, holding the place `node` stands for, read from the
+// inventory the state publishes, which keeps its identity between readings, so the
+// lookup costs the node's depth (`obligationHolding`). DOM containment says where the
+// node is; it never decides whether the obligation belongs to that inventory.
+/** @param {Node | null | undefined} node */
+export const obligationAt = (node) =>
+  obligationHolding(readObligations().all, placeOf(node));
 
 /** @param {Node | null | undefined} node @param {Set<Element>} visited
  * @param {boolean} countBeside @returns {Element | null} */
@@ -298,6 +306,5 @@ export function stepFrom(list, { place: here, kind }, dir, placeOfItem) {
 // The obligation the user is in, answered or not: where letting go lands, and the extent
 // of what `c` counts as the element they are at.
 export function heldObligation(node = focused()) {
-  const item = obligationHolding(readObligations().all, placeOf(node));
-  return obligationPlace(item).node;
+  return obligationPlace(obligationAt(node)).node;
 }

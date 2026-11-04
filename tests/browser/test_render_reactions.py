@@ -1210,7 +1210,7 @@ def test_a_visual_fallback_yields_to_stable_targets_inside_the_picture(browser, 
     nested_picture.hover()
     page.keyboard.down("Alt")
     expect(
-        page.locator(".lf-aimed"),
+        page.locator("[data-lf-aimed]"),
         "the aim promised the picture box while its anchor resolved to the section",
     ).to_have_id("outer")
     page.keyboard.up("Alt")
@@ -1533,8 +1533,8 @@ def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser,
     # It shows nothing of its own: the part wears the focus ring, whole, along the edge
     # of what it draws.
     assert control.evaluate("control => getComputedStyle(control).opacity") == "0"
-    expect(page.locator(".lf-proxied")).to_have_count(1)
-    expect(part).to_have_class(re.compile(r"\blf-proxied\b"))
+    expect(page.locator("[data-lf-proxied]")).to_have_count(1)
+    expect(part).to_have_attribute("data-lf-proxied", "")
     assert_drawn_in(part, token_colour(page, "--accent"), 2)
 
 
@@ -2095,7 +2095,7 @@ def test_a_message_reaction_trigger_meets_its_header_and_covers_no_words(
           const metadata = [
             ...message.querySelectorAll('.lf-msg-head > :not(.lf-msg-control-room)'),
           ].map(node => node.getBoundingClientRect());
-          const resolve = document.querySelector('.lf-fp-settle');
+          const resolve = document.querySelector('.lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)');
           const action = resolve.getBoundingClientRect();
           const range = document.createRange();
           range.selectNodeContents(message.querySelector('.lf-msg-text'));
@@ -2137,7 +2137,7 @@ def test_a_message_reaction_trigger_meets_its_header_and_covers_no_words(
         expect(message.locator(".lf-react-palette:popover-open")).to_have_count(0)
 
     with sending(page, "resolve beside the agent-root reaction"):
-        activate(page.locator(".lf-fp-settle"))
+        activate(page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)"))
     expect(card).to_have_count(0)
 
 
@@ -2522,6 +2522,56 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
     told(page)
     expect_open_threads(page, 0)
     assert page.evaluate("() => CSS.highlights.get('lf-mark').size") == 0
+
+
+def test_z_takes_back_a_reaction_the_agent_answered_into_its_place(browser, serve):
+    """A reaction someone has answered is the user's to take back, as one nobody has
+    answered is, where the log used to refuse it and `z` did nothing. Taking it back
+    draws its place in the thread Deleted in the press, before the log answers, above
+    the answer, which stays, as does the thread; the mark stays off the page."""
+    url = serve(PANEL_PAGE)
+    reaction = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "token": "change",
+            "anchor": {"section": "merge-both", "quote": "one document offline"},
+        },
+    )
+    thread_model.post_reply(
+        serve.page_dir,
+        {"parent": reaction["id"]},
+        "Which part — the case, or the answer?",
+    )
+    page = open_page(browser, url)
+    thread = open_panel_thread(page, reaction["id"])
+    thread.focus()
+    root = thread.locator(f'.lf-msg[data-lf-event="{reaction["id"]}"]')
+    expect(root.locator(".lf-react-said")).to_have_text("❌ change")
+    undo_offered(page)
+
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    page.keyboard.press("z")
+    expect(root.locator(".lf-msg-deleted")).to_have_text("Deleted")
+    expect(root.locator(".lf-react-said")).to_have_count(0)
+    expect(thread).to_contain_text("Which part — the case, or the answer?")
+    page.unroute("**/api/event")
+    for route in held:
+        route.continue_()
+    round_trip(page)
+    taken = events_model.read_events(serve.page_dir)[-1]
+    assert (taken["kind"], taken["undoes"]) == ("undo", reaction["id"])
+
+    page.reload()
+    expect_open_threads(page, 1)
+    thread = open_panel_thread(page, reaction["id"])
+    root = thread.locator(f'.lf-msg[data-lf-event="{reaction["id"]}"]')
+    expect(root.locator(".lf-msg-deleted")).to_have_text("Deleted")
+    expect(thread).to_contain_text("Which part — the case, or the answer?")
+    assert painted(page, []) == {"washed": "", "glyphs": [], "projected": 0}
 
 
 def test_escape_clears_selection_and_keeps_actions_dismissed(browser, serve):

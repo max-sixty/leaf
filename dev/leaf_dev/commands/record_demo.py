@@ -27,6 +27,7 @@ import click
 from PIL import Image
 from playwright.sync_api import Page
 
+from leaf import inference, thread_titles
 from leaf.delivery import freeze_delivery, receive_held
 from leaf.harness import detached_environment, session_harness
 from leaf.hook_transport import read_plans
@@ -315,9 +316,10 @@ TITLE_ENDS = ("thread_title_generated", "thread_title_failed", "thread_title_ski
 def wait_for_title(page_dir: Path) -> None:
     """Wait until the page server has written the title the harness's model gave the
     demo's one thread (`thread_titles.name_admitted_thread`), or fail with what its
-    request recorded. The model words the title afresh each run; a request ends within
-    three minutes, its retries for rate limits included."""
-    deadline = time.monotonic() + 180
+    request recorded. The model words the title afresh each run. A request ends by its
+    last retry for rate limits plus one request's time."""
+    patience = thread_titles.RETRY_FOR + inference.TIMEOUT
+    deadline = time.monotonic() + patience
     # The reader keeps its own gap rows under any type filter.
     while not (
         ended := [
@@ -328,10 +330,11 @@ def wait_for_title(page_dir: Path) -> None:
     ):
         if time.monotonic() > deadline:
             raise click.ClickException(
-                "no request for the thread's title ended in 180 s"
+                f"no request for the thread's title ended in {patience} s"
             )
         time.sleep(0.2)
-    if ended[0]["type"] != "thread_title_generated":
+    # A generated title the server didn't write leaves the thread untitled.
+    if ended[0]["type"] != "thread_title_generated" or not ended[0]["written"]:
         raise click.ClickException(f"the demo's thread got no title: {ended[0]}")
 
 
@@ -368,20 +371,15 @@ def record(
 
     field.press("ControlOrMeta+Enter")
     page.wait_for_selector(".lf-margin-thread")
-    # The agent takes the comment and waits again, and Leaf titles its thread, before
-    # the frame. The wait ends the moment the comment arrives, so a frame taken sooner
-    # read Ready or Away by how far it had got, and later ones caught the title on its
-    # way.
+    # The agent takes the comment, says what it is doing and waits again, and Leaf
+    # titles its thread, before the frame. The wait ends the moment the comment
+    # arrives, so a frame taken sooner read Ready or Away by how far it had got, and
+    # later ones caught the title on its way.
     comment_id = next(
         event["id"] for event in waiter.receive() if event["kind"] == "comment"
     )
-    wait_for_title(page_dir)
-    shot(1500)
-    open_threads(page)
-    thread = page.locator(f"{panel_view('threads')} .lf-fp-thread").first
-    thread.wait_for()
-
     cmd_start(page_dir, comment_id, "answering the backfill question")
+    wait_for_title(page_dir)
     # The floating panel's empty field says what the agent is doing, once any passing
     # notice has had its seat.
     page.wait_for_function(
@@ -389,6 +387,10 @@ def record(
             '.lf-fp-field leaf-text[data-lf-says="status"]'
         )?.getAttribute('placeholder')?.includes('answering')"""
     )
+    shot(1500)
+    open_threads(page)
+    thread = page.locator(f"{panel_view('threads')} .lf-fp-thread").first
+    thread.wait_for()
     shot(900)
 
     post_reply(

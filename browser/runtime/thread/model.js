@@ -6,8 +6,8 @@
    Every drawing of a thread, a card or the message parts a presentation names
    (thread/primary-reader.js), shows its turns: its spoken messages and its root, so a
    thread that grew out of a reaction opens on the mark, whose body thread/messages.js
-   writes as the glyph and its word, and any other reaction stands as its chip on the
-   message it answers. Whose turn a thread is is read
+   writes as the glyph and its word, or as Deleted once the user takes the mark back
+   (`deleted`), and any other reaction stands as its chip on the message it answers. Whose turn a thread is is read
    from the complete browser Thread's `attention` and nothing else: a user obligation
    outranks concurrent agent work, which stays the card's secondary status.
 
@@ -111,11 +111,12 @@ export const editable = (message) =>
   Boolean(message.text);
 
 // A message its author deleted: a rewrite took all its words, and no drawing stands in
-// for them (events.md, "Messages"). It keeps its place in its thread, where answers to
-// it still stand.
-/** @param {{text?: string | undefined, edited?: unknown, drawing?: unknown}} message */
+// for them, or they took it back while something stood on it (events.md, "Messages").
+// It keeps its place in its thread, where answers to it still stand.
+/** @param {{text?: string | undefined, edited?: unknown, withdrawn?: unknown, drawing?: unknown}} message */
 export const deleted = (message) =>
-  Boolean(message.edited) && !message.text && !message.drawing;
+  Boolean(message.withdrawn) ||
+  (Boolean(message.edited) && !message.text && !message.drawing);
 
 /** @template {{readonly bare_reaction: boolean, readonly root: {readonly token?: string | null}}} T
  * @param {T} thread
@@ -163,9 +164,11 @@ const pendingSeat = (message) =>
 // tab made them, as `events.build_threads` folds the log. A comment opens a thread where
 // it was written; a reply joins the thread it answers; a rewrite shows as its message's
 // new words; settlement changes the thread's state, and a turn reopens a resolved one;
-// taking back a reaction, the one message the user can withdraw, drops it from its
-// thread, and a thread it opened goes with it; taking back a rewrite gives its message
-// the words it replaced. They leave again when the server accepts or refuses them, so
+// taking back a message takes its words or mark away, and taking back a rewrite gives
+// its message the words it replaced. Whether a message taken back keeps its place,
+// and a thread it opened stands, depends on what else the log holds, so the press
+// leaves the message's place Deleted and the server's reading decides; a mark drawn
+// as a chip, or alone on the page, has no place of its own and comes off. They leave again when the server accepts or refuses them, so
 // this is a reading of the same outbox and log the server projects rather than a second
 // store beside it.
 //
@@ -201,6 +204,23 @@ function unedited(thread, message, withdrawn) {
   };
 }
 
+// A message the user is taking back, as the press draws it: in its place, with no words
+// and no mark, saying the words it was sent with, which its first rewrite replaced, as
+// the log's placeholder does (`events.message_reading`).
+/** @param {Thread} thread @param {Thread["msgs"][number]} message
+ * @returns {Thread["msgs"][number]} */
+function takenBack(thread, message) {
+  const { token, drawing, suggestion, edited, ...rest } = message;
+  const sent = thread.revisions.find((edit) => edit.message === message.id)?.was;
+  const was = token ?? sent ?? message.text ?? "";
+  return {
+    ...rest,
+    text: "",
+    content_version: message.id,
+    withdrawn: { was, pending: true },
+  };
+}
+
 // `gestures` are the ledger's thread gestures, oldest first: each comment, reply or
 // rewrite as the thread draws it, each settlement with the `localParent` its pending
 // parent went by, and each undo.
@@ -218,11 +238,16 @@ export function foldThreads(threads, gestures) {
   // threads this fold made, which a gesture may change in place.
   /** @type {Set<Thread>} */
   const owned = new Set();
-  /** @param {Thread} thread @returns {Thread} */
+  /** @param {Thread} thread @returns {Thread[]} */
   const without = (thread) => {
-    const msgs = thread.msgs
-      .filter((message) => !withdrawn.has(message.id))
-      .map((message) => unedited(thread, message, withdrawn));
+    if (thread.bare_reaction && withdrawn.has(thread.root.id)) return [];
+    const msgs = thread.msgs.flatMap((message) =>
+      !withdrawn.has(message.id) || message.withdrawn
+        ? [unedited(thread, message, withdrawn)]
+        : isReaction(message) && message.id !== thread.root.id
+          ? []
+          : [takenBack(thread, message)],
+    );
     // A thread whose closing event the user is taking back stands open again; the
     // log's answer restores any earlier closure.
     const reopened = Boolean(
@@ -233,7 +258,7 @@ export function foldThreads(threads, gestures) {
       msgs.length === thread.msgs.length &&
       msgs.every((message, at) => message === thread.msgs[at])
     )
-      return thread;
+      return [thread];
     /** @type {Thread} */
     const copy = {
       ...thread,
@@ -242,12 +267,10 @@ export function foldThreads(threads, gestures) {
       ...(reopened ? { resolved: null } : {}),
     };
     owned.add(copy);
-    return copy;
+    return [copy];
   };
   /** @type {Thread[]} */
-  const copies = withdrawn.size
-    ? threads.filter((thread) => !withdrawn.has(thread.root.id)).map(without)
-    : [...threads];
+  const copies = withdrawn.size ? threads.flatMap(without) : [...threads];
   // A thread the user opened answers to two names for as long as this tab holds a
   // reply written against the first: the one this page gave it, and the one the log
   // gave back. Both reach the one thread, so a reply written into the card a

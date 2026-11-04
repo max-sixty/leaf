@@ -290,7 +290,7 @@ svg[data-lf-icon] {
    whole thread. An open rewrite's Discard and Save take the thread's place past the
    gap (response.css), so the rule leaves with it. It stands past the head's end rather
    than its controls', since a card short of room for a held notice of news lets them
-   run past the head into that gap (thread-card.js, `#fitMarginNews`). */
+   run past the head into that gap (thread-card.js, `#fitLineNews`). */
 :is(.lf-thread-content, .lf-page-thread):has(
     > :is(.lf-thread-controls, .lf-margin-thread-controls)
   )
@@ -441,8 +441,11 @@ span[data-lf-voice="leaf"] {
   align-self: center;
 }
 /* Scroll surfaces contain out-of-flow descendants and opt into keyboard reach and
- * continuation cues. Their owner declares overflow, including at breakpoints. */
-:where(.scroll, [data-lf-scroll]) {
+ * continuation cues. Their owner declares overflow, including at breakpoints. A text
+ * field holds none: its closed tree lays its words and placeholder in one grid cell
+ * (text-field.js), so it stays unpositioned, which Chromium's hit test, visiting every
+ * positioned box on every call, would otherwise pay for in each field on the page. */
+:where(:is(.scroll, [data-lf-scroll]):not(leaf-text)) {
   position: relative;
 }
 /* The layer's marks for a box that shows less than it holds (reachScrollers, for why the
@@ -623,36 +626,62 @@ summary,
  * (`test_a_press_wears_its_role_s_face_alone`). The response face wears the response
  * bar's shared frame (response.css), as the field there does.
  *
- * The word face: words in the muted ink with no frame, until a hovering pointer or
- * visible focus lays the chip under them and inks them. A press leaves focus on the
- * control, and a chip that stayed would set it apart from its unpressed neighbours. A
- * word once also came framed on the card ground, a second look for the same press,
- * until the user chose the quiet one on 25 October. A toggle's `aria-pressed` keeps
- * its own selected face (below), so the chosen mode still shows. Authored
- * .button controls wear the word face too, and `.button.primary` the commit face
- * (`.lf-btn.lf-commit` on Leaf's), so a page's own controls match Leaf's
- * (page-layout.md). Labels wrap within their
- * available width; controls that require one line declare it locally. The block
- * padding stands one line of words a line tall (`--lf-line`), less the 1px border,
- * and a finger's floor is the button's reach (surfaces.css), so a rule restating the
- * padding restates the line with it. */
-:is(.lf-btn, .button) {
-  /* How far its words stand in from its edge, which a seat that sets a word at the
-     start of a line hangs into the margin, so the words align with the line's. */
-  --lf-word-inset: 11px;
-  padding: max(4px, (var(--lf-line) - 1lh) / 2 - 1px) calc(var(--lf-word-inset) - 1px);
-  border: 1px solid transparent;
-  border-radius: var(--r);
-  background: transparent;
-  cursor: pointer;
-  color: var(--muted);
-  display: inline-block;
+ * The word, symbol and commit faces are Web Awesome's native buttons: the "Buttons"
+ * region of its native styles, generated onto these faces into
+ * vendor/webawesome-native.css (build/styles.mjs says how). A word and a symbol are
+ * the library's plain button, words with no frame that a hovering pointer lays its
+ * quiet fill under, and the commit is its outlined button in the brand variant, so
+ * Leaf's presses look like the library's wa-button, and the radios, sliders and
+ * selects Leaf takes from it. The generated rules weigh nothing, so the rules below
+ * state only where Leaf departs from the library, and any rule of a component's
+ * outranks both. Authored .button controls wear the word face too, and
+ * `.button.primary` the commit face (`.lf-btn.lf-commit` on Leaf's), so a page's own
+ * controls match Leaf's (page-layout.md).
+ *
+ * A word keeps Leaf's muted ink and its ui weight, the library's quiet ink and action
+ * weight being darker and heavier than controls that stay secondary to the work
+ * should be (the user's direction, 3 November 2026). Its label is a line of inline
+ * content, as an arrow after "Next unchecked" is, where the library's flex box would
+ * set the arrow apart as an item and drop the space before it, and it wraps as the
+ * words around it do, where the library's stands a line tall on one line; controls
+ * that require one line declare it locally. The block padding stands one line of words a
+ * line tall (`--lf-line`), less the 1px border, and a finger's floor is the button's
+ * reach (surfaces.css), so a rule restating the padding restates the line with it. A
+ * finger leaves the last control it tapped matching :hover until the next tap
+ * elsewhere, so the library's hover fill waits for a pointer that hovers; under a
+ * finger the press shows its result instead. The fill stands in for the shadow the
+ * layer lays under an offered control's pointer (surfaces.css), so a press built by a
+ * widget looks as an authored one does. Visible focus wears the layer's band
+ * (surfaces.css), which the library's own ring would duplicate. Rejected: Leaf's
+ * own faces, drawn in the chip under a hovering pointer or visible focus, kept until
+ * the user preferred a reasonable design from a UI library to looks of Leaf's own
+ * (3 November 2026); before them a word framed on the card ground, a second look
+ * for the same press, until the user chose the quiet one on 25 October. */
+:is(.lf-btn, .button, .lf-icon-action) {
+  --wa-color-neutral-on-quiet: var(--muted);
 }
-:is(.lf-btn, .button):where(
-  :not(:disabled, [aria-disabled="true"])[data-lf-focus-visible]
-) {
-  background: var(--chip);
-  color: var(--ink);
+:is(.lf-btn.lf-commit, .button.primary) {
+  --wa-color-on-quiet: var(--wa-color-brand-on-quiet);
+  --wa-color-fill-quiet: var(--wa-color-brand-fill-quiet);
+  --wa-color-border-loud: var(--wa-color-brand-border-loud);
+}
+:where(.lf-btn, .button) {
+  /* How far its words stand in from its edge, the library's padding and the frame,
+     which a seat that sets a word at the start of a line hangs into the margin, so the
+     words align with the line's. */
+  --lf-word-inset: calc(var(--wa-form-control-padding-inline) + 1px);
+  display: inline-block;
+  height: auto;
+  padding-block: max(4px, (var(--lf-line) - 1lh) / 2 - 1px);
+  white-space: inherit;
+}
+@media not (hover: hover) {
+  :where(:is(.lf-btn, .button, .lf-icon-action):hover) {
+    background-color: transparent;
+  }
+}
+:is(.lf-btn, .button, .lf-icon-action):hover {
+  box-shadow: none;
 }
 /* A native radio or checkbox and its label form one compact target. The mark
  * carries selection; the label supplies the aim floor and focus ring without
@@ -677,25 +706,19 @@ summary,
   --lf-ring-at: var(--focus-ring-inset);
 }
 /* The mark is Web Awesome's: the radio and checkbox region of its native styles,
- * generated into vendor/webawesome-choice.css and scoped to the face, so a choice
+ * generated onto the face's input into vendor/webawesome-native.css, so a choice
  * looks like the library's wa-radio and wa-checkbox and follows Leaf's mapping of its
- * tokens (webawesome.css). shadow.css imports it before this sheet, in the same layer,
- * so it outranks Leaf's `:where()` defaults for inputs, such as `.lf-ui-face`'s ink. A
- * scoped rule also outranks an unscoped one of equal weight, so the rules that adapt
- * it below weigh one attribute more than the library's. The mark is 1.25em of the
- * label's own type, as the library sizes it beside its value text, and the label's gap
- * spaces it. Its outline is the library's default control border, since Leaf's field
- * border, which the token takes elsewhere, left an unchosen mark under 1.5:1 against a
- * card. A disabled choice fades as a whole, as the library's own label does; the
- * generated rules reach only its mark, since inside `@scope` a selector without
- * `:scope` matches only below the root, so the region's `label:has()` rules never
- * style the label itself. In forced colours the platform draws the control,
- * whose checked state the library paints as a background those modes replace. Rejected
- * (the user's direction, 3 November 2026, after comparing marks, chosen faces and
- * arrangements live): the browser's own mark, small, filled white on the page's cream
- * and different in each browser; a mark Leaf draws itself; no mark, with the chosen
- * label tinted; framed or joined buttons. The user preferred a reasonable design from
- * a UI library to a look of Leaf's own. */
+ * tokens (webawesome.css). The mark is 1.25em of the label's own type, as the library
+ * sizes it beside its value text, and the label's gap spaces it. Its outline is the
+ * library's default control border, since Leaf's field border, which the token takes
+ * elsewhere, left an unchosen mark under 1.5:1 against a card. A disabled choice
+ * fades as a whole, as the library's own label does. In forced colours the platform
+ * draws the control, whose checked state the library paints as a background those
+ * modes replace. Rejected (the user's direction, 3 November 2026, after comparing
+ * marks, chosen faces and arrangements live): the browser's own mark, small, filled
+ * white on the page's cream and different in each browser; a mark Leaf draws itself;
+ * no mark, with the chosen label tinted; framed or joined buttons. The user preferred
+ * a reasonable design from a UI library to a look of Leaf's own. */
 :is(.lf-choice, .choice) {
   --wa-form-control-border-color: var(--wa-color-neutral-border-loud);
 }
@@ -705,9 +728,6 @@ summary,
 }
 :is(.lf-choice, .choice) > input {
   flex: none;
-  margin: 0;
-}
-:is(.lf-choice, .choice) > input[type] {
   margin: 0;
   font-size: inherit;
   &:disabled {
@@ -764,22 +784,13 @@ summary,
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* A finger leaves the last control it tapped matching :hover until the next tap
-   elsewhere, so a button's hover face waits for a pointer that hovers; under a finger
-   the press shows its result instead. */
-@media (hover: hover) {
-  :is(.lf-btn, .button):where(:not(:disabled, [aria-disabled="true"])):hover {
-    background: var(--chip);
-    color: var(--ink);
-    box-shadow: none;
-  }
-}
 /* The symbol face: one of Leaf's icons on a square face, `--lf-icon-action-face` tall
- * and as wide as its hit box (response.css), quiet until a hovering pointer or visible
- * focus lays the chip under it, as a word's does. A symbol once also came on the
- * word face's bordered card in some widgets, a second look for the same press, until
- * the two merged here. A control that draws its state in its own ink, such as Send
- * or Resolve (response.css), states that ink after this rule, at least as heavily. */
+ * and as wide as its hit box (response.css), the library's plain button as a word is
+ * (above). A symbol once also came on the word face's bordered card in some widgets, a
+ * second look for the same press, until the two merged here. A control that draws its
+ * state in its own ink, such as Send or Resolve (response.css), states that ink after
+ * this rule, at least as heavily. Its grid lays out what it holds, such as the On me
+ * mark's symbol and count, which the library's centring would pack together. */
 .lf-icon-action {
   box-sizing: border-box;
   width: var(--lf-icon-action-hit);
@@ -789,21 +800,7 @@ summary,
   padding: 0;
   display: grid;
   place-items: center;
-  border: 1px solid transparent;
-  border-radius: var(--r);
-  background: transparent;
-  color: var(--muted);
-}
-.lf-icon-action:where(:not(:disabled, [aria-disabled="true"])[data-lf-focus-visible]) {
-  background: var(--chip);
-  color: var(--ink);
-}
-@media (hover: hover) {
-  .lf-icon-action:where(:not(:disabled, [aria-disabled="true"])):hover {
-    background: var(--chip);
-    color: var(--ink);
-    box-shadow: none;
-  }
+  justify-content: normal;
 }
 /* A symbol in the accent's tone (`data-lf-tone`) is the commit of what it stands in,
    such as the composer's Send and a rewrite's Save, and keeps the accent under the
@@ -837,39 +834,12 @@ wa-copy-button.lf-icon-action {
   background: none;
   color: inherit;
 }
-/* The committing action carries the accent as ink on the card ground, under a
-   softened accent hairline, with the tint rising on hover: the one framed word on a
-   surface. The selected face (below) is its neighbour — a full accent border
-   on the chip ground — so a toggle and a commitment never read as one. */
-:is(.lf-btn.lf-commit, .button.primary) {
-  color: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
-  background: var(--card);
-}
 /* A commit pressed, such as a multiple-choice question's Done once it is answered,
    is marked in the ok tone, as a chosen answer is (below). */
-:is(.lf-btn, .button).primary[aria-pressed="true"] {
+:is(.lf-btn.lf-commit, .button.primary)[aria-pressed="true"] {
   color: var(--ok-ink);
   border-color: var(--ok);
   background: var(--ok-tint);
-}
-@media (hover: hover) {
-  :is(.lf-btn.lf-commit, .button.primary):not(:disabled, [aria-disabled="true"]):hover {
-    background: var(--accent-tint);
-  }
-}
-/* Two selectors, two mechanisms, one look: the platform's own on a real button, and the
-   attribute wireInput sets, which is the only one a span press can wear. */
-:is(.lf-btn, .button):disabled,
-:is(.lf-btn, .button)[aria-disabled="true"] {
-  opacity: 0.55;
-  cursor: default;
-}
-:is(.lf-btn.lf-commit, .button.primary):is(:disabled, [aria-disabled="true"]) {
-  opacity: 1;
-  color: var(--muted);
-  background: var(--paper);
-  border-color: var(--border-2);
 }
 /* A toggle's selected face, a word's or a symbol's: a full accent border on the chip
    ground. It is the faces' own state, so it stands here beside them; a disc, which
@@ -906,9 +876,14 @@ wa-copy-button.lf-icon-action {
   background: var(--lf-disc-ground, transparent);
   box-shadow: none;
 }
+/* The disc and the glyph share the symbol's one grid cell, centred, the disc drawn first,
+   so neither is a positioned box, which Chromium's hit test visits on every call. */
+.lf-icon-action[data-lf-disc]::before,
+.lf-icon-action[data-lf-disc] > .lf-action-icon {
+  grid-area: 1 / 1;
+}
 .lf-icon-action[data-lf-disc]::before {
   content: "";
-  position: absolute;
   box-sizing: border-box;
   inline-size: var(--lf-icon-action-face);
   block-size: var(--lf-icon-action-face);
@@ -978,7 +953,6 @@ wa-copy-button.lf-icon-action {
 .lf-icon-action[data-lf-disc]:is(:disabled, [aria-disabled="true"]) {
   opacity: 1;
   color: var(--muted);
-  cursor: default;
 }
 /* The answer face: one of the answers a question offers, as On me's cards offer a
    decision's choices (floating-panel.js). Each stands in a hairline frame in the ink,
@@ -1002,7 +976,7 @@ wa-copy-button.lf-icon-action {
   cursor: pointer;
 }
 /* It declines the wash every generated press takes under the pointer (surfaces.css),
-   which a finger's tap leaves behind too, for the chip a word takes. */
+   which a finger's tap leaves behind too, for the chip. */
 .lf-answer:hover {
   box-shadow: none;
 }
@@ -1383,6 +1357,53 @@ wa-copy-button.lf-icon-action {
   visibility: hidden;
   transition: none;
 }
+/* In the margin's projection a face is drawn with its label only while the label can
+   show: revealed, held, or placed by the geometry owner, which measures it drawn
+   (margin-layout.js, `placeMarginEntryLabel`). Its glyph, unread dot and count share
+   its one grid cell, the dot and count standing in its corner by alignment as their
+   insets stand them elsewhere, so the face is the containing block of its label alone,
+   and only while the label stands: Chromium's hit test visits every positioned box on
+   every call, and a page of 512 questions held a face for each. */
+.lf-margin-projection .lf-margin-face {
+  position: static;
+  display: inline-grid;
+  place-content: normal;
+  place-items: center;
+}
+.lf-margin-projection .lf-margin-face > :not(.lf-margin-entry-label),
+.lf-margin-projection .lf-margin-face[data-lf-unread]::after {
+  grid-area: 1 / 1;
+}
+.lf-margin-projection .lf-margin-face[data-lf-unread]::after {
+  position: static;
+  align-self: start;
+  justify-self: end;
+}
+.lf-margin-projection .lf-margin-face > .lf-margin-count {
+  position: static;
+  align-self: start;
+  justify-self: right;
+  margin: -7px -7px 0 0;
+}
+.lf-margin-projection
+  .lf-margin-face:is(
+    :hover,
+    [data-lf-focus],
+    [data-lf-held-word],
+    [data-lf-label-side]
+  ) {
+  position: relative;
+}
+.lf-margin-projection
+  .lf-margin-face:not(
+    :hover,
+    [data-lf-focus],
+    [data-lf-held-word],
+    [data-lf-label-side]
+  )
+  > .lf-margin-entry-label {
+  display: none;
+}
 .lf-margin-count {
   position: absolute;
   top: -7px;
@@ -1677,11 +1698,20 @@ wa-copy-button.lf-icon-action {
   max-height: 50vh;
   overflow-y: auto;
 }
-/* A single-line field or select, authored as .field or offered by a widget, wears the text box's frame at a
-   button's height, so a row of them beside .lf-btn reads as one set of controls. With
-   no face the browser drew its own: a 2px inset border and square corners, 21px tall
-   beside 30px buttons. At a class's weight, so a component rule naming its own field
-   still wins by coming later. */
+/* A single-line field or select, authored as .field or offered by a widget, is Web
+   Awesome's native text field or select, generated onto these elements into
+   vendor/webawesome-native.css: the field's frame a line tall (`--lf-line`), and a
+   select's chevron, so a row of them beside .lf-btn reads as one set of controls. It
+   stands on the card ground Leaf's wa-input takes, at its own width (a select's
+   widest option, a text field's `size`), since it sits in a row beside presses, where
+   the library's fills its form's width, and a line tall wherever a surface sets its
+   line. At a class's weight, so a component rule naming its own field still wins by
+   coming later.
+   With no face the browser drew its own: a 2px inset border and square corners, 21px
+   tall beside 30px buttons; Leaf drew a frame and chevron of its own until the user
+   preferred a reasonable design from a UI library (3 November 2026). An authored
+   textarea.field takes the library's text box; Leaf's own text boxes keep theirs
+   (above). */
 :where(
   select,
   input:not(
@@ -1696,43 +1726,29 @@ wa-copy-button.lf-icon-action {
     [type="image"]
   )
 ):is(.lf-ui, .field) {
-  --lf-field-pad-inline: 8px;
+  --wa-form-control-background-color: var(--card);
+  --wa-form-control-height: var(--lf-line);
   box-sizing: border-box;
-  min-height: var(--lf-line);
-  padding: 4px var(--lf-field-pad-inline);
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  background: var(--card);
-  color: var(--ink);
+  width: auto;
   --lf-ring-at: 0;
   &[data-lf-focus-visible] {
     border-color: transparent;
   }
 }
-/* Native picker arrows ignore padding. Draw only the closed control's chevron;
-   the browser still owns opening, selection and keyboard input. Listboxes keep
-   their native face. The two strokes use the text color in either scheme. */
+textarea.field {
+  --wa-form-control-background-color: var(--card);
+  --wa-form-control-height: var(--lf-line);
+  box-sizing: border-box;
+}
+/* The library places a select's chevron at the right whatever the text's direction.
+   In forced colours the platform's own control takes its place, since the chevron is a
+   picture the palette can't recolour. */
 :where(select:not([multiple]):is(:not([size]), [size="0"], [size="1"])):is(
   .lf-ui,
   .field
 ) {
-  --lf-select-arrow-wing: 4px;
-  appearance: none;
-  padding-inline-end: calc(
-    2 * (var(--lf-field-pad-inline) + var(--lf-select-arrow-wing))
-  );
-  background-image:
-    linear-gradient(45deg, transparent 25%, currentColor 25% 75%, transparent 75%),
-    linear-gradient(135deg, transparent 25%, currentColor 25% 75%, transparent 75%);
-  background-size: var(--lf-select-arrow-wing) var(--lf-select-arrow-wing);
-  background-repeat: no-repeat;
-  background-position:
-    right calc(var(--lf-field-pad-inline) + var(--lf-select-arrow-wing)) center,
-    right var(--lf-field-pad-inline) center;
   &:dir(rtl) {
-    background-position:
-      left var(--lf-field-pad-inline) center,
-      left calc(var(--lf-field-pad-inline) + var(--lf-select-arrow-wing)) center;
+    background-position: center left var(--wa-form-control-padding-inline);
   }
   @media (forced-colors: active) {
     appearance: auto;
@@ -2061,4 +2077,62 @@ wa-copy-button.lf-icon-action {
   margin: 0;
   padding: 5px 8px;
   color: var(--muted);
+}
+/* A time axis, drawn by every widget that has one (`axisTicks`, runtime/time-axis.js).
+   Each thing placed on it, a ruler's tick (`.lf-axis-tick`), a gridline
+   (`.lf-axis-gridline`) and a widget's own marks, labels and playhead (`.lf-on-axis`),
+   stands at its fraction of the axis (`--lf-axis-at`) inside the drawing's edge
+   (`--lf-axis-edge`, set to `AXIS_EDGE` pixels; none where a drawing sets none), so it
+   holds at any width, a printed page's included. The box it stands in is as wide as
+   the axis. */
+:is(.lf-on-axis, .lf-axis-tick, .lf-axis-gridline) {
+  position: absolute;
+  left: calc(
+    var(--lf-axis-edge, 0px) + var(--lf-axis-at, 0) *
+      (100% - 2 * var(--lf-axis-edge, 0px))
+  );
+}
+/* The ruler: a tick at each time, where a major tick runs the ruler's height and
+   carries its time, and the last one reads back from its tick (`data-lf-flip`) where
+   its words would run past the axis's end. */
+.lf-axis-ruler {
+  position: relative;
+  color: var(--muted);
+}
+.lf-axis-tick {
+  inset-block-end: 0;
+  block-size: 4px;
+  border-inline-start: 1px solid var(--border-2);
+  white-space: nowrap;
+}
+.lf-axis-tick[data-lf-major] {
+  block-size: 100%;
+  box-sizing: border-box;
+  padding-inline-start: 3px;
+  padding-block-start: 3px;
+  border-inline-start-color: var(--muted);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+.lf-axis-tick[data-lf-flip] {
+  translate: -100% 0;
+  padding-inline: 0 3px;
+  border-inline-start: 0;
+  border-inline-end: 1px solid var(--muted);
+}
+/* A gridline at each major tick's time runs down the drawing below the ruler, so a
+   mark far below it, in a later lane, still reads against it. The widget places their
+   layer (`.lf-axis-grid`) over its lanes, from the ruler's foot to the drawing's, as it
+   places its playhead. The line is dotted, so it reads under a lane's solid rule, in
+   the contour ink, so it reads on either scheme's ground. A flipped tick's line stands
+   at its box's end, so its gridline does too. */
+.lf-axis-grid {
+  pointer-events: none;
+}
+.lf-axis-gridline {
+  inset-block: 0;
+  border-inline-start: 1px dotted var(--border-2);
+}
+.lf-axis-gridline[data-lf-flip] {
+  translate: -100% 0;
 }

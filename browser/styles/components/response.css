@@ -289,8 +289,6 @@ leaf-composition-field {
   }
 }
 .lf-action-icon {
-  position: relative;
-  z-index: 1;
   pointer-events: none;
 }
 /* Send stands in the field's end corner, and Dictate in its place while it shows. They,

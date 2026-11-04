@@ -38,6 +38,7 @@ import { createQueueActions } from "./queue-api.js";
 import { createPrimaryReader } from "./thread/primary-reader.js";
 import { nextRender } from "./rendering.js";
 import { createReadTracking } from "./thread/read.js";
+import { createSinceSeen } from "./since-seen.js";
 import { createMarginBars } from "./margin-bars.js";
 import { renderMarginThread } from "./thread/inline.js";
 import { showHeld } from "./thread/held-news.js";
@@ -248,6 +249,13 @@ function createApplication(dependencies) {
       applicationState.settleMarkRead(messages);
     }
   };
+  // The revision a visible tab showed, sent as the user leaves; the event door keeps a
+  // send alive past its document (layer-client.js, `postEvent`). Nothing draws it ahead
+  // of the answer.
+  createSinceSeen({
+    markSeen: (revision) =>
+      deliverBookkeeping({ kind: "seen", revision }, receiveState),
+  });
   const read = createReadTracking({
     markRead,
     openThread: openPageThread,
@@ -282,6 +290,8 @@ function createApplication(dependencies) {
     reply: replyView,
     settlement: settlementView,
     reaction: reactionView,
+    // Where the words a thread is about stand, which a thread quoting them reads.
+    placedAt: dependencies.anchorPlacement.placedAt,
     read,
     openThread: openPageThread,
     landInThread: dependencies.landInThread,
@@ -364,8 +374,8 @@ function createApplication(dependencies) {
     openPageMap: dependencies.annotationCommands.openPageMap,
     pageMapDialogContains: dependencies.annotationCommands.pageMapDialogContains,
     scrollThreadIntoView: dependencies.annotationCommands.scrollThreadIntoView,
-    renderMarginThread: (host, thread, controls) =>
-      renderMarginThread(host, thread, inlineView, controls),
+    renderMarginThread: (host, thread, outlets) =>
+      renderMarginThread(host, thread, inlineView, outlets),
     placedAt: dependencies.anchorPlacement.placedAt,
     marksFor: (id) => dependencies.anchorPaint?.marksFor(id) ?? [],
     currentLocationObligation:
@@ -682,7 +692,6 @@ function createApplication(dependencies) {
     consumeAnnotations,
     threadActions,
     queueActions,
-    settlement: settlementView,
     /** @param {string} id */
     openObligation(id) {
       const item = readObligations().all.find((item) => item.id === id);

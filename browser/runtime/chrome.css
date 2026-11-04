@@ -80,7 +80,7 @@
 :is(button, [role="button"])[aria-busy="true"] {
   animation: lf-runtime-4f3c2a8d-working 140ms linear 200ms both;
 }
-/* Holding ⌥ changes what a click means. The aim's mark (`.lf-aimed`, surfaces.css)
+/* Holding ⌥ changes what a click means. The aim's mark (`[data-lf-aimed]`, surfaces.css)
    answers which item a press takes; the cursor answers whether it takes any: the hand over an item, the
    arrow elsewhere (claimPress). Derived at the paint from what refreshAim resolved, so
    cursor and mark cannot disagree. A control stating its own cursor keeps it while
@@ -123,7 +123,7 @@ html[data-lf-region-capture]
   --lf-change-bar: transparent;
 }
 /* The unanswered decision the user is in (markHere) wears the location ring
-   (`.lf-projected-location`, surfaces.css). The ring stands outside the decision, so a
+   (`[data-lf-projected-location]`, surfaces.css). The ring stands outside the decision, so a
    landing keeps its room at the scroller's edge, as a margin entry's does (controls.css): an obligation
    landed at the top of a scrolling pane stood flush with it, the top of its ring cut
    off under the pane's header rule. */
@@ -176,22 +176,13 @@ html[data-lf-region-capture]
       background: CanvasText;
     }
   }
-  /* The foreground dialog (chrome.js) is an empty box at the document's origin, so what
-     it holds positions against the window or that origin and never reads its size. Left
-     to the browser's dialog face, it drew an empty bordered square where the page ends. */
+  /* The foreground (chrome.js) is an empty box at the document's origin, so what it
+     holds positions against the window or that origin and never reads its size. */
   .lf-foreground {
     position: absolute;
     inset: 0 auto auto 0;
     width: 0;
     height: 0;
-    max-width: none;
-    max-height: none;
-    margin: 0;
-    padding: 0;
-    border: 0;
-    overflow: visible;
-    background: transparent;
-    color: inherit;
   }
   /* Capture paint leaves page hit tests intact; the controller owns its input. */
   .lf-region-capture {
@@ -334,43 +325,6 @@ html[data-lf-region-capture]
      box, so the fold starts from the box the user was looking at rather than from
      a second description of it. The retiring box says the outcome in paint without
      also stating that in metrics the fold is animating. */
-
-  .lf-quote-label {
-    min-width: 0;
-  }
-  .lf-anchor-status {
-    margin-inline-start: 7px;
-    color: var(--muted);
-    font: var(--font-status);
-  }
-
-  .lf-quote {
-    margin: 0 0 12px;
-    padding: 2px 8px 2px 10px;
-    border-inline-start: 1px solid var(--border-2);
-    color: var(--muted);
-    font: var(--font-compact);
-    cursor: pointer;
-    overflow-wrap: anywhere;
-  }
-  .lf-quote:is(:hover, [data-lf-focus]) {
-    color: var(--ink-2);
-  }
-
-  .lf-quote[data-lf-detached] {
-    border-inline-start-color: var(--border-2);
-    color: var(--muted);
-    cursor: default;
-  }
-  .lf-quote-expand {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-  }
-  .lf-quote-expand::before {
-    inline-size: 1em;
-    text-align: center;
-  }
 
   /* The response bar and thread card are fixed and anchored to what they point at, and
      placed only while the visible boundary holds them (floating.js), so they never sit
@@ -988,7 +942,7 @@ html[data-lf-region-capture]
      one pixel outside its border box. Every item but a widget's parts (x-owners) also
      wears its tag and id above the corner; parts are named under the pointer. Dashed,
      because a legend is structural and a solid contour is a gesture's. Under the pointer
-     the aim marks one item (`.lf-aimed`) with its full name (.lf-inspect). No pointer
+     the aim marks one item (`[data-lf-aimed]`) with its full name (.lf-inspect). No pointer
      events, so a click lands on the item. */
   /* A key chip stands in a seat anchored to what it names (chip-seats.js), in a paint
      stand that stacks under the panel it keeps clear of, so a chip riding a
@@ -1060,7 +1014,7 @@ html[data-lf-region-capture]
     background: var(--lf-change-bar, var(--ok));
   }
   /* The change a Change entry points at, outlined round all its blocks, in the quiet
-     contour a margin control draws round what it concerns (`.lf-traced`,
+     contour a margin control draws round what it concerns (`[data-lf-traced]`,
      surfaces.css). */
   .lf-change-outline {
     position: absolute;

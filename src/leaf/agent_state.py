@@ -413,7 +413,7 @@ def page_state(
         page_dir, active["revision"] if active is not None else None
     )
     # The newest revision a tab showed the user, recorded as they left it
-    # (`read_state.seen_revision`). The browser posts none at present.
+    # (`read_state.seen_revision`).
     seen = served["seen"]
     state["seen"] = (
         {"revision": seen["revision"], "label": seen["label"]} if seen else None
@@ -537,6 +537,7 @@ def page_state(
                 "ephemeral",
                 "revision",
                 "edited",
+                "withdrawn",
                 "suggestion",
                 "viewing",
             ):

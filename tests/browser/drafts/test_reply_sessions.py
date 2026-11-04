@@ -1,6 +1,8 @@
 """A reply editor's native session: what typing, clicks, sends, resolution and a
 replaced outlet leave of its caret, focus, reading position and Send."""
 
+import re
+
 import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
@@ -218,10 +220,13 @@ def open_reply(page, surface, root):
 
 def expect_resolved(page, surface, thread, resolved):
     """The thread reads resolved, or not: the panel's by its head's Resolve or Reopen,
-    a margin card by its own state."""
+    which names the agent that resolved it before Reopen, a margin card by its own
+    state."""
     if surface == "panel":
-        expect(page.locator(".lf-fp-settle")).to_have_accessible_name(
-            "Reopen" if resolved else "Resolve thread"
+        expect(
+            page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)")
+        ).to_have_accessible_name(
+            re.compile(r"Reopen$") if resolved else "Resolve thread"
         )
     else:
         expect(thread).to_have_attribute("data-lf-resolved", str(resolved).lower())
@@ -310,6 +315,37 @@ def test_reply_admission_finishes_or_restores_its_native_session(
     assert stored_draft_text(page, "reply:" + root) == next_words
 
 
+def test_typing_in_the_box_a_send_left_keeps_its_reply_through_settlement(
+    browser, serve
+):
+    """The box Send leaves the caret in counts as written in once the user types there.
+
+    An agent's Resolve then retains the card and its editor, as it does for any reply
+    the user is writing, though the caret never left the box to come back to it.
+    """
+    url = serve(LONG_PAGE, anchored=[("p3", "Paragraph 3.")])
+    root = thread_root(serve.page_dir, "margin")
+    page = open_page(browser, url)
+    card, field = open_reply(page, "margin", root)
+    write(field, "The first reply.")
+    with sending(page, "the first reply"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    rendered(page)
+    expect(field).to_be_focused()
+    words = "A second reply, typed without leaving the box."
+    page.keyboard.type(words)
+    expect(field).to_have_js_property("value", words)
+    events_model.append_event(
+        serve.page_dir,
+        {"kind": "resolve", "author": "agent", "agent": "Codex", "parent": root},
+    )
+    told(page)
+    rendered(page)
+    expect_resolved(page, "margin", card, True)
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", words)
+
+
 @pytest.mark.parametrize(
     "surface, resolution",
     [("panel", "user"), ("margin", "active-agent"), ("panel", "inactive-agent")],
@@ -332,7 +368,7 @@ def test_reply_editing_and_saved_words_have_separate_resolution_lifetimes(
     field.evaluate("box => box.setSelectionRange(5, 5)")
     if resolution == "user":
         with sending(page, "the deliberate resolution"):
-            page.locator(".lf-fp-settle").click()
+            page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)").click()
     else:
         if resolution == "inactive-agent":
             page.keyboard.press("Escape")
@@ -371,7 +407,7 @@ def test_reply_editing_and_saved_words_have_separate_resolution_lifetimes(
     recovered = open_panel_thread(page, root)
     expect(page.locator(PANEL_REPLY)).to_have_js_property("value", words)
     with sending(page, "reopen with the saved reply"):
-        page.locator(".lf-fp-settle").click()
+        page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)").click()
     expect(recovered).to_be_visible()
     expect(page.locator(PANEL_REPLY)).to_be_visible()
     expect(page.locator(PANEL_REPLY)).to_have_js_property("value", words)

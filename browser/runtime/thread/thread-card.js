@@ -1,39 +1,48 @@
-/* One synchronous Lit owner for complete page, outlet and margin threads.
+/* One synchronous Lit owner for complete page, outlet and margin threads, and for the
+   floating panel's view of a thread: every surface that draws a thread draws it here.
 
    Every surface uses the same metadata, transcript, message and reply vocabulary.
    Containers own navigation and placement, including whether their transcript scrolls;
    shadow.css owns the conversation's appearance through widget shadow boundaries.
    Conversation flow stays inside a content region, separate from the outer body's
-   retained reply space. A margin card instead allocates its own scrolling transcript
-   and overlay controls. Thread controls stay outside message and summary folds. MessageView
-   owns each complete message, so no container extracts or reparents its header.
-   Independent controls stand on its first header line, in the room the line keeps at
-   its end, and a held-news notice stands on the same line after the header's words,
-   each a box of its own anchored to the header, so no box stands over the words. That
-   line reserves a notice's minimum hit area from its first paint; the metadata edge
-   measured before news arrives is retained while it waits, including when its
-   workflow receipt goes.
+   retained reply space, except where a container's head line shares the transcript's
+   tracks (`CardOutlets`, `line`). Thread controls stay outside message and
+   summary folds. MessageView owns each complete message, so no container extracts or
+   reparents its header.
+   Where the container gives no head line, independent controls stand on the first
+   header line, in the room the line keeps at its end, and a held-news notice stands on
+   the same line after the header's words, each a box of its own anchored to the
+   header, so no box stands over the words. That line reserves a notice's minimum hit
+   area from its first paint; the metadata edge measured before news arrives is
+   retained while it waits, including when its workflow receipt goes.
    Each message header text item keeps its allocated width while news waits, so a later
    receipt grows only inside its own clipped box. The first notice may use spare
    room for its new receipt without moving the author or time already shown.
-   The panel's thread view gives its controls a line of their own above the messages.
-   The card tried that and dropped it: the line made the card 36px taller for little
-   more than its presses, which cost the card too much density. A title could fill the
-   line, but the passage the card points at already says what the thread is about.
+
+   Each container says where the parts of the thread it holds stand, and how a send and
+   a settlement land there (`ViewOutlets`): the floating panel gives the notice and the
+   settlement places on its view's head line, which stands outside the view that
+   scrolls, and the reply box the row's field, and asks for the words the thread is
+   about over its messages, since nothing beside it shows them; a margin card stands the
+   notice and the settlement on its row of presses, which stands in the thread over its
+   first message's head. The thread draws each of them there, so the panel's view and a
+   card share one notice, one settlement and one reply box. The card tried a head line
+   above its messages and dropped it: the line made the card 36px taller for little more
+   than its presses, which cost the card too much density. A title could fill the line,
+   but the passage the card points at already says what the thread is about, so the card
+   draws no quote either.
 
    Immutable descriptors contain generated presentation only. Retained native editors,
-   margin controls and frozen message widgets keep their mechanical lifetime outside
-   those values. The card draws its messages as every reader of a whole thread does,
-   folds and working message included (transcript.js), around them its head's controls
-   and its reply box.
-
-   A quotation whose original words are no longer on the page keeps a local
-   full-reading disclosure, including when a rewritten section still has a navigation
-   destination. Its expansion lives with the card through presentation. The owner
-   alone renders its native card root and all generated descendants; a failed
-   candidate is restored by presenting its committed descriptor again. It owns title
-   gesture policy, outgoing fold paint and local draft repaint. Surfaces receive
-   whole-thread geometry readings rather than descendant nodes. */
+   a container's places and presses, and frozen message widgets keep their mechanical
+   lifetime outside those values. The card draws its messages as every reader of a
+   whole thread does, folds and working message included (transcript.js), around them
+   its head's controls and its reply box. The owner alone renders its native card root,
+   the boxes it draws apart, and all generated descendants; a failed candidate is
+   restored by presenting its committed descriptor again. It owns title gesture policy,
+   outgoing fold paint and local draft repaint. Surfaces receive whole-thread geometry
+   readings rather than descendant nodes. It decides nothing by the reading's surface,
+   which read tracking reports (transcript.js) and which ranks where a message's
+   authored widgets stand (`threadReading`). */
 import { nextRender, sizeObserver } from "../rendering.js";
 import {
   holdFocus,
@@ -42,7 +51,17 @@ import {
   currentLocationTouches,
   currentLocationIn,
 } from "../focus.js";
-import { html, render, nothing, share, signal } from "/runtime/framework.js";
+import {
+  effect,
+  html,
+  nothing,
+  ref,
+  render,
+  share,
+  signal,
+  untracked,
+} from "/runtime/framework.js";
+import { randomId } from "../ids.js";
 import { turns, threadKey } from "./model.js";
 import {
   anchorLabel,
@@ -52,7 +71,7 @@ import {
 } from "./messages.js";
 import { generatedElement, offeredAction } from "../widget-elements.js";
 import { measure } from "../shown-box.js";
-import { keeps, layoutPx, roomPx } from "../keeps.js";
+import { keeps, keepsHidden, layoutPx, roomPx } from "../keeps.js";
 import { commandsOn } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import {
@@ -61,7 +80,7 @@ import {
   dismissReply,
   threadHoldsDraft,
 } from "./replies.js";
-import { atScrollEnd } from "../scrolling.js";
+import { followsEnd } from "../scrolling.js";
 import { settleThread } from "./folding.js";
 import { answeredInWords } from "../obligations/model.js";
 import { SAY_BOX } from "./selectors.js";
@@ -72,7 +91,7 @@ import {
   hasWorkflowLine,
 } from "./workflow.js";
 import { leafSays } from "../voice.js";
-import { agentName } from "../semantic-state.js";
+import { agentName, documentChanged } from "../semantic-state.js";
 import { growthIsSeen, shownRect } from "../geometry.js";
 import { ago, shortAgo } from "../presence.js";
 import { retainUserIntent } from "../user-intent.js";
@@ -98,9 +117,9 @@ import { Transcript } from "./transcript.js";
  * messages: readonly MessageReading[], working: WorkingMessage | null,
  * source: ThreadRecord, reread: (held: ThreadRecord) => ThreadReading}} ThreadReading */
 
-// What a thread's head says of the words it is about: the quote, whether it still
-// stands on the page, and its hover. A card's head draws it, and so does the floating
-// panel's view of a thread (floating-panel.js, `quoteHead`).
+// What a thread says of the words it is about: the quote, whether it still stands on the
+// page, and its hover. A thread draws it where its container asks (`ThreadOutlets`,
+// `quote`), as the floating panel's view does, and Threads finds a thread by its label.
 /** @param {ThreadRecord} thread
  * @param {Pick<ReturnType<typeof import("../anchor-placement.js").createAnchorPlacement>, "placedAt">} anchors */
 export function quoteReading(thread, anchors) {
@@ -371,12 +390,71 @@ function wordsWidth(node) {
  * read: Pick<ReturnType<typeof import("./read.js").createReadTracking>, "observeMessage" | "observeFeedback">,
  * reaction: Omit<import("./messages.js").MessageCommands["reaction"], "pressed">,
  * settlement: Omit<Parameters<typeof settleThread>[0], "parent" | "key" | "resolved" | "prepareLanding" | "reader">,
+ * placedAt: Parameters<typeof quoteReading>[1]["placedAt"],
  * landInThread: import("./replies.js").ReplyCommands["landInThread"]}} ThreadCommands */
 
-/** @typedef {{nav: Element | null, expand: Element, close: Element,
- * anchor: import("./card-anchor.js").CardAnchor,
- * sending: () => void,
- * prepareLanding: NonNullable<Parameters<typeof settleThread>[0]["prepareLanding"]>}} MarginControls */
+/* Where a container stands the thread's parts, and what it asks the thread to draw and
+   do (the header), each optional. Any container gives these, a package's included
+   (module-annotations.md, "Owning the primary conversation presentation"):
+   - `head`, the places on the container's own head line, outside the thread, for the
+     held-news notice and the settlement, which otherwise stand beside the first
+     message's head.
+   - `reply`, the place for the reply box (`outlet`), which otherwise closes the thread,
+     and what its empty box reads and how a send lands (`options`, replies.js,
+     `createReplyView`).
+   - `quote`, whether the thread draws the words it is about over its messages.
+   - `landing(resolved)`, given whether the thread stood resolved as the press came, the
+     step that takes the user where Resolve or Reopen leaves them, or null for the
+     thread's own: Reopen in its reply box, Resolve where the user stands (folding.js,
+     `settleThread`).
+   Only Leaf's own containers say the rest (`ViewOutlets`):
+   - `reader`, the reader a way back reopens the thread in once a settlement is taken
+     back (folding.js): the page, for a margin card, which stands for the thread there;
+     the primary reader, for a whole thread it draws whose nomination lands the user
+     elsewhere, as the floating panel's view does. A seat, and a primary reader's thread
+     that keeps the user where they pressed, name none and leave the route to choose.
+   - The margin card's own (`CardOutlets`): `line`, its head line, which it arranges
+     around the boxes the thread draws its notice and settlement in, and which the thread
+     stands after its messages, where it shares their heads' track
+     (annotation-chrome.css) and the notice takes only the room the heads leave
+     (`#fitLineNews`); and `anchor`, the edge the floating card holds while its contents
+     change (card-anchor.js), which decides when news may grow the card and keeps a
+     send's foot, and since the card stands itself, a landing in it scrolls nothing into
+     view.
+   The thread draws each part apart in a box of its own (`apart`), which the container
+   places in the place it names before the thread draws it, as it places the thread's
+   box in its outlet. The reply's options are read as the box is made, once for the
+   view. What the box's empty words say reads the thread as the thread draws it
+   (`DrawnThread`), held news included, so they agree with its settlement and notice, as
+   a card's own words do (`#createReply`). */
+/** The thread as a thread draws it, held news included, which its reply box's words
+ * read: whether it is resolved, and whose turn it is (workflow.js, `threadAttention`).
+ * @typedef {{resolved: boolean, attention: ThreadReading["attention"]}} DrawnThread */
+/** @typedef {Omit<import("./replies.js").ReplyOptions, "hint" | "hintParts" | "hintLead"> & {
+ * hint?: (drawn: DrawnThread) => string,
+ * hintParts?: (drawn: DrawnThread) => unknown,
+ * hintLead?: (drawn: DrawnThread) => unknown}} ThreadReplyOptions */
+/** @typedef {{
+ * head?: {news: HTMLElement, controls: HTMLElement},
+ * reply?: {outlet?: HTMLElement, options?: ThreadReplyOptions},
+ * quote?: boolean,
+ * landing?: (resolved: boolean) => import("./folding.js").Landing | null,
+ * }} ThreadOutlets */
+/** @typedef {{
+ * line?: (apart: ThreadView["apart"]) => HTMLElement,
+ * anchor?: import("./card-anchor.js").CardAnchor,
+ * }} CardOutlets */
+/** @typedef {ThreadOutlets & CardOutlets & {reader?: "page" | "primary"}} ViewOutlets */
+
+// A box a thread draws a part in where its container stands the part apart: it lays
+// out as what it holds (surfaces.css) and, as the thread's own box is, is Leaf's.
+const apartBox = () => {
+  const box = document.createElement("div");
+  box.className = "lf-thread-apart lf-ui";
+  box.dataset.lfRuntime = ""; // passages.js, leafSurface
+  generatedElement(box, { says: false });
+  return box;
+};
 
 export class ThreadView {
   #commands;
@@ -397,8 +475,6 @@ export class ThreadView {
   #reply = null;
   /** @type {(() => Element | null) | null} */
   #settlesAt = null;
-  /** @type {MarginControls | null} */
-  #marginControls = null;
   // What a thread in the page's flow holds back says so in its control row (held-news.js).
   #news = newsNotice();
   #continuity;
@@ -409,7 +485,26 @@ export class ThreadView {
   /** @type {Element | null} */
   #observedHeader = null;
   #sizes = sizeObserver(() => this.#retainHeaderSlot());
-  #marginNews = sizeObserver(() => nextRender(() => this.#fitMarginNews()));
+  #lineNews = sizeObserver(() => nextRender(() => this.#fitLineNews()));
+  /** @type {ViewOutlets} */
+  #outlets = {};
+  // The boxes of the parts it draws where its container stands them (`ThreadOutlets`).
+  #apart = Object.freeze({ news: apartBox(), controls: apartBox(), reply: apartBox() });
+  get apart() {
+    return this.#apart;
+  }
+  // The words the thread is about, where its container asks for them (`#drawQuote`).
+  #quoteHead = Object.assign(document.createElement("header"), {
+    className: "lf-thread-quote-head",
+  });
+  #quoteId = `lf-thread-quote-${randomId()}`;
+  #quoteExpanded = signal(false);
+  /** @type {(() => void) | null} */
+  #quoteEffect = null;
+  // Full quote shows only where three lines cut the words. Once the quote stands, a
+  // change of its size resizes the view its container's observers watch, so the press
+  // follows in the next frame rather than inside this observer's delivery.
+  #quoteSize = sizeObserver(() => nextRender(() => this.#fitQuote()));
 
   /** @param {ThreadCommands} commands @param {ThreadViewModel} model */
   constructor(commands, model) {
@@ -420,7 +515,8 @@ export class ThreadView {
     this.#rewrites = threadRewrites({
       views: () => this.#transcript.views,
       paint: () => this.repaint(),
-      box: () => this.node.querySelector(SAY_BOX),
+      // Its reply box where it stands, in the thread or where its container stands it.
+      box: () => this.#reply?.input ?? null,
       home: () => this.node,
       // Opening a rewrite shows what the thread holds (held-news.js), and unfolds a
       // summary holding the message, since it opens to be seen.
@@ -447,15 +543,17 @@ export class ThreadView {
     });
     this.#continuity = new ReplyContinuity(this.node);
     this.node.tabIndex = -1;
-    this.node.classList.add("lf-page-thread", "lf-ui");
+    this.node.classList.add("lf-page-thread", "lf-ring-overlay", "lf-ui");
     this.node.dataset.lfRuntime = ""; // passages.js, leafSurface
     generatedElement(this.node, { says: false });
     this.node.dataset.lfOffer = "";
   }
 
-  /** @param {MarginControls | null} controls */
-  setMarginControls(controls) {
-    this.#marginControls = controls;
+  // What the container asks of the thread and where it stands its parts
+  // (`ViewOutlets`), given before each presentation.
+  /** @param {ViewOutlets} outlets */
+  setOutlets(outlets) {
+    this.#outlets = outlets;
   }
 
   get model() {
@@ -546,8 +644,10 @@ export class ThreadView {
     const foot =
       footFold &&
       !folds.messages.some((key) => currentLocationTouches(this.#messageNode(key)));
-    // The margin's floating card grows at one of its own edges: the one its placement
-    // does not hold (card-anchor.js, whose send hold arriving words end).
+    // A floating card grows at one of its own edges: the one its anchor does not hold
+    // (`CardOutlets`, `anchor`; card-anchor.js, whose send hold arriving words end).
+    // That edge is the card's alone, since it stands itself rather than in a flow its
+    // growth moves, so no place its parts stand in says it.
     // News shows at once only where it changes the thread's end and the card holds its
     // top for it with the user not writing in it: the card grows down, moving its reply
     // row and nothing above. A change to the last message is such news where it is a
@@ -555,11 +655,12 @@ export class ThreadView {
     // end, follows it there (thread-preview.js). Anything else would move the head row
     // or the messages being read, so it waits. A settlement keeps the editor it
     // interrupts, as every thread keeps its reply box.
-    if (this.#model?.surface === "margin") {
+    const { anchor } = this.#outlets;
+    if (anchor) {
       if (news.settled) return false;
-      const last = this.#model.messages.at(-1);
+      const last = this.#model?.messages.at(-1);
       const list = this.#transcript.node;
-      const follows = list.scrollHeight > list.clientHeight + 0.5 && atScrollEnd(list);
+      const follows = list.scrollHeight > list.clientHeight + 0.5 && followsEnd(list);
       const atEnd =
         (!news.appended || appendedAtEnd) &&
         !news.summaries &&
@@ -567,10 +668,7 @@ export class ThreadView {
           (key) => key === last?.key && (last.provisional || follows),
         ) &&
         (foot || (!folds.messages.length && !folds.summaries.length));
-      return (
-        growthIsSeen(this.node) &&
-        (!atEnd || Boolean(this.#marginControls?.anchor.newsMoves(joined)))
-      );
+      return growthIsSeen(this.node) && (!atEnd || anchor.newsMoves(joined));
     }
     const followed = pinned && !news.settled ? this.#foot : null;
     return (
@@ -628,9 +726,18 @@ export class ThreadView {
     const prior = this.#received ? this.#model : null;
     this.#received = model;
     this.#drawnWith = this.#outside(model);
+    // Where the container stands the thread's parts, and its own edge (`ViewOutlets`).
+    const { head, line, reply, quote, anchor } = this.#outlets;
+    // A margin card's head line, arranged around the boxes the notice and the
+    // settlement stand in before they are drawn (`CardOutlets`, `line`).
+    const inLine = line?.(this.#apart) ?? null;
+    // Whether the container gives the thread a head line, outside it or in it.
+    const lined = Boolean(head || inLine);
+    const replyApart = Boolean(reply?.outlet);
     // Capture the current words only when news starts waiting, before its update
     // removes a receipt. This allocation lives with the held view, not its reading.
-    if (model.news && !prior?.news) this.#retainHeaderSlot({ observe: false });
+    if (!lined && model.news && !prior?.news)
+      this.#retainHeaderSlot({ observe: false });
     // The rewrites the user has open, and the messages leaving, change their own room.
     const bodyPlace = published
       ? this.#continuity?.before([
@@ -642,18 +749,16 @@ export class ThreadView {
       : null;
     const restoreFocus = holdFocus(this.node);
     this.#model = model;
-    const marginControls = model.surface === "margin" ? this.#marginControls : null;
-    if (marginControls && prior)
-      marginControls.anchor.presented(threadChange(prior, model)?.joined);
-    // Where the settlement stands:
-    // - on a margin card, its own controls row, which also stands the notice before
-    //   Previous and Next: its own place with the thread's facts, as the floating
-    //   panel's head holds it (the user's choice, 16 October), rather than over the end
-    //   of the message head beside it. The notice takes the room the heads leave it
-    //   (`#fitMarginNews`).
+    if (anchor && prior) anchor.presented(threadChange(prior, model)?.joined);
+    // Where the notice and the settlement stand:
+    // - where the container gives the thread a head line, in their boxes on it: after
+    //   the floating panel's view's name, and before a margin card's Previous and Next,
+    //   with the thread's facts, rather than over the end of the message head beside it
+    //   (the user's choices, 16 October).
     // - elsewhere, the head's controls row, which reserves the room of one icon control
     //   (shadow.css, `--lf-thread-action-room`) beside the first message's own
-    //   controls. A foot row of its own drew resolved threads unlike open ones.
+    //   controls, and the notice beside the first message's head. A foot row of its own
+    //   drew resolved threads unlike open ones.
     const notice = this.#news;
     if (model.news) notice.set(model.news);
     const news = model.news ? notice.node : nothing;
@@ -665,80 +770,84 @@ export class ThreadView {
     // thread's name.
     keeps(this.node, "role", "group");
     keeps(this.node, "aria-label", `Thread, ${model.summary.topic}`);
+    // A thread whose reply stands elsewhere ends with its messages, so it grows only at
+    // its foot, the growing tail of the region holding it, as the panel's view is
+    // (tests/shift_watch.js).
+    keeps(this.node, "data-lf-append-tail", replyApart ? "" : null);
     const settlement = model.settlement
       ? this.#settlement(model, model.settlement)
       : nothing;
-    const threadActions =
-      marginControls || model.settlement || model.news
-        ? html`<span class="lf-thread-meta-actions">
-            ${marginControls ? news : nothing} ${marginControls?.nav ?? nothing}
-            ${marginControls?.expand ?? nothing}${settlement}
-            ${marginControls?.close ?? nothing}
-          </span>`
-        : nothing;
-    const handedOn = this.#transcript.present(model, {
-      arrived: Boolean(prior),
-      appends: model.surface === "margin",
-    });
+    const handedOn = this.#transcript.present(model, { arrived: Boolean(prior) });
     this.#reply ??= this.#createReply(model);
-    // In the head place the notice is a box of its own on the first header's line,
+    // Beside the first header the notice is a box of its own on that header's line,
     // anchored to the header beside the controls' box at its end (surfaces.css,
     // `.lf-thread-content > .lf-thread-news`); its words change in place.
-    keeps(notice.node, "data-lf-reflow", marginControls ? null : "text");
+    keeps(notice.node, "data-lf-reflow", lined ? null : "text");
     const body = html`
-      ${this.#transcript.node}
+      ${quote ? this.#drawQuote() : nothing}${this.#transcript.node}
       ${
-        threadActions !== nothing
-          ? marginControls
-            ? html`<div class="lf-margin-thread-controls">${threadActions}</div>`
-            : html`${news}
+        lined
+          ? (inLine ?? nothing)
+          : model.settlement || model.news
+            ? html`${news}
                 <div class="lf-thread-controls" data-lf-reflow="text">
-                  ${threadActions}
+                  <span class="lf-thread-meta-actions">${settlement}</span>
                 </div>`
-          : nothing
+            : nothing
       }
     `;
+    // A head line standing in the thread shares the transcript's grid, whose tracks the
+    // line's width sets (annotation-chrome.css), so the two stand as the thread's own
+    // children rather than in a content region.
     render(
       html`
-        ${
-          model.surface === "margin"
-            ? body
-            : html`<div class="lf-thread-content">${body}</div>`
-        }
-        ${this.#continuity?.gap ?? nothing} ${this.#reply.node}
+        ${inLine ? body : html`<div class="lf-thread-content">${body}</div>`}
+        ${this.#continuity?.gap ?? nothing} ${replyApart ? nothing : this.#reply.node}
       `,
       this.node,
     );
-    if (!marginControls && model.news)
-      measure(this.node, () => this.#retainHeaderSlot());
+    render(lined ? news : nothing, this.#apart.news);
+    render(lined ? settlement : nothing, this.#apart.controls);
+    render(replyApart ? this.#reply.node : nothing, this.#apart.reply);
+    // Full quote stands from the quote's first paint, so its arrival moves nothing below
+    // it; later changes of the quote's size follow by its observer (`#quoteSize`).
+    if (quote) measure(this.#quoteHead, () => this.#fitQuote());
+    if (!lined && model.news) measure(this.node, () => this.#retainHeaderSlot());
     else this.#releaseHeaderSlot();
-    if (marginControls && model.news) measure(this.node, () => this.#watchMarginNews());
-    else this.#releaseMarginNews();
+    if (inLine && model.news) measure(this.node, () => this.#watchLineNews());
+    else this.#releaseLineNews();
     this.#continuity?.after(bodyPlace);
-    // The reply box's empty words follow the settlement (`#createReply`).
-    if (prior && Boolean(prior.resolved) !== Boolean(model.resolved))
-      this.#reply.sync();
     // A page thread whose render took the user's place puts them in its reply, or on
     // the thread itself.
     // Handing it on is the card's own act, which the list holding the card defers to.
     // A progress disclosure the user was on that this render replaced hands them to
-    // its successor (transcript.js).
+    // its successor (transcript.js). A thread whose container stands its reply apart
+    // lands no one there: as one rewrite gives way to the next, a landing in the
+    // panel's field would let go of the height its view holds for a rewrite and take it
+    // again in the same press (floating-panel.js, `holdThread`).
     restoreFocus?.(
-      handedOn
-        ? () => (focusDestination(handedOn, "return"), true)
-        : () =>
-            this.#commands.landInThread(this.node.querySelector(SAY_BOX) ?? this.node),
+      ...(handedOn
+        ? [() => (focusDestination(handedOn, "return"), true)]
+        : replyApart
+          ? []
+          : [
+              () =>
+                this.#commands.landInThread(
+                  this.node.querySelector(SAY_BOX) ?? this.node,
+                ),
+            ]),
     );
     return this.node;
   }
 
-  // A margin card's notice stands in its actions row, whose track takes its width from
-  // the heads' track (annotation-chrome.css), so the notice takes only the room the
-  // heads leave beside each one's name and time, its padding and its controls' room
-  // included. A head lends that room to its words while its controls hide, and the
-  // controls stand over whatever runs into it when they show (controls.css), so the
-  // fit keeps it, and Edit covers no name or time beside news. Where the room is short
-  // of its count the notice is cut (held-news.js, `newsNotice`).
+  // A notice on a head line standing in the thread, as a margin card's row of presses
+  // does, stands in a track that takes its width from the heads' track
+  // (annotation-chrome.css), so the notice takes only the room the heads leave beside
+  // each one's name and time, its padding and its controls' room included. A head lends
+  // that room to its words while its controls hide, and the controls stand over whatever
+  // runs into it when they show (controls.css), so the fit keeps it, and Edit covers no
+  // name or time beside news. Where the room is short of its count the notice is cut
+  // (held-news.js, `newsNotice`).
   // The room is the notice's width and the narrowest head's spare width together,
   // which the two tracks trade one for one, so drawing the notice at it changes nothing
   // it was read from. A notice at a finger's floor can still leave a head short, and
@@ -746,7 +855,13 @@ export class ThreadView {
   // to less than an em, none of it shows (`data-lf-nameless`), so no sliver of a letter
   // or an ellipsis stands in the head. The fit reads what of each name the notice
   // leaves as drawn, and a hidden name keeps its box, so the reading holds.
-  #fitMarginNews() {
+  // The tracks can't size this themselves: every head the transcript shows bounds the
+  // room, but only the first message's and the one standing beside the line keep to the
+  // heads' track, and a later head spans both until it scrolls beside the line
+  // (thread-preview.js, `data-lf-beside-actions`), so a track sized by its heads would
+  // widen and narrow the notice as the user scrolls; and no track hides a name its
+  // width cuts below an em.
+  #fitLineNews() {
     const notice = this.#news.node;
     const heads = [];
     for (const head of this.node.querySelectorAll(
@@ -771,7 +886,7 @@ export class ThreadView {
       heads.push({ name, spare: head.getBoundingClientRect().width - need });
     }
     if (!heads.length || !notice.isConnected) {
-      this.#clearMarginNews();
+      this.#clearLineNews();
       return;
     }
     const width = notice.getBoundingClientRect().width;
@@ -793,23 +908,23 @@ export class ThreadView {
   // because of the fit itself, so watching them would deliver the fit its own change,
   // and a time's change fits it in the next frame, since the fit resizes boxes the
   // observer's delivery has already passed.
-  #watchMarginNews() {
-    this.#marginNews.disconnect();
+  #watchLineNews() {
+    this.#lineNews.disconnect();
     for (const time of this.node.querySelectorAll(
       ".lf-thread-transcript .lf-msg-head > .lf-msg-meta > time",
     ))
-      this.#marginNews.observe(time);
-    this.#fitMarginNews();
+      this.#lineNews.observe(time);
+    this.#fitLineNews();
   }
 
-  #releaseMarginNews() {
-    this.#marginNews.disconnect();
-    this.#clearMarginNews();
+  #releaseLineNews() {
+    this.#lineNews.disconnect();
+    this.#clearLineNews();
   }
 
   // The fit writes the notice's room and each name it hides, and a message's head
   // outlives the notice (each MessageView keeps its own, messages.js), so both go together.
-  #clearMarginNews() {
+  #clearLineNews() {
     this.#news.node.style.removeProperty("--lf-news-room");
     for (const name of this.node.querySelectorAll(
       ".lf-thread-transcript .lf-msg-head > b[data-lf-nameless]",
@@ -933,6 +1048,90 @@ export class ThreadView {
     } else keeps(notice, "data-lf-room", null);
   }
 
+  // The words the thread is about, over its to-dos and messages (`quoteReading`), in
+  // three lines: where they still stand on the page, the container's way there goes to
+  // them; where they no longer do, as for a thread a revision detached from its
+  // passage, the quotation the thread kept is all that is left of them, so Full quote
+  // shows the whole of it, its press standing above the words it grows so the press
+  // never moves itself. It shows only where three lines cut them, and the quote stays
+  // whole while the view stands. Where the words stand is read from the page, which the
+  // thread's pass reads again after drawing (presentation.js, `readTargets`) and a data
+  // refresh changes without changing the thread, so the quote draws by an effect of its
+  // own that follows that reading as well as the thread.
+  #drawQuote() {
+    this.#quoteEffect ??= effect(() => {
+      const thread = this.#shown.value.source;
+      documentChanged();
+      const quote = quoteReading(thread, this.#commands);
+      const expanded = this.#quoteExpanded.value;
+      untracked(() => {
+        keepsHidden(this.#quoteHead, !quote);
+        render(this.#quoteTemplate(quote, expanded), this.#quoteHead);
+      });
+    });
+    return this.#quoteHead;
+  }
+
+  /** @param {ReturnType<typeof quoteReading>} quote @param {boolean} expanded */
+  #quoteTemplate(quote, expanded) {
+    if (!quote) return nothing;
+    return html`${
+        quote.localReading
+          ? html`<button
+              type="button"
+              ${offeredAction(
+                "inline",
+                "lf-thread-disclosure lf-quote-expand lf-disclosure-marker",
+              )}
+              aria-label="Full quote"
+              hidden
+              aria-expanded=${String(expanded)}
+              aria-controls=${this.#quoteId}
+              @click=${() => {
+                this.#quoteExpanded.value = !this.#quoteExpanded.peek();
+              }}
+            >
+              Full quote
+            </button>`
+          : nothing
+      }
+      <blockquote
+        ${ref(this.#watchQuote)}
+        id=${this.#quoteId}
+        class="lf-quote lf-thread-quote"
+        ?data-lf-detached=${quote.anchored && !quote.found}
+        data-lf-expanded=${String(quote.localReading && expanded)}
+        title=${(quote.anchored && !quote.found && quote.title) || nothing}
+      >
+        <span class="lf-quote-label">${quote.label}</span>${
+          quote.outdated
+            ? html`<span class="lf-anchor-status">Earlier data</span>`
+            : quote.changed
+              ? html`<span class="lf-anchor-status">Changed</span>`
+              : nothing
+        }
+      </blockquote>`;
+  }
+
+  /** @param {Element | undefined} node */
+  #watchQuote = (node) => {
+    this.#quoteSize.disconnect();
+    if (node) this.#quoteSize.observe(node);
+  };
+
+  #fitQuote() {
+    const quote = this.#quoteHead.querySelector(":scope > .lf-thread-quote");
+    const press = this.#quoteHead.querySelector(":scope > .lf-quote-expand");
+    if (quote && press)
+      keeps(
+        press,
+        "hidden",
+        !this.#quoteExpanded.peek() && quote.scrollHeight <= quote.clientHeight
+          ? ""
+          : null,
+      );
+  }
+
   // Whether the progress behind the working message stood open when last drawn
   // (transcript.js, `progressOpen`).
   get progressOpen() {
@@ -982,30 +1181,36 @@ export class ThreadView {
   // waits, it sends nothing (actions.js, `settle`).
   #settle = () => {
     const model = this.#model;
+    const { landing } = this.#outlets;
     this.#showNews();
     if (!model.resolved) dismissReply(model.key);
     void settleThread({
       parent: () => this.#model.id,
       key: model.key,
       resolved: model.resolved,
-      prepareLanding:
-        model.surface === "margin" && !model.resolved
-          ? (this.#marginControls?.prepareLanding ?? null)
-          : this.#prepareThreadLanding,
-      // A margin card stands for the thread on the page, which a way back returns to;
-      // a seat or a primary reader's part leaves the route to choose (folding.js).
-      reader: model.surface === "margin" ? "page" : null,
+      // Where the container says a settlement takes the user, as the floating panel
+      // moves on to the next thread and a margin card's Resolve closes it on its
+      // passage (`ThreadOutlets`, `landing`), else the thread's own.
+      prepareLanding: () => landing?.(model.resolved) ?? this.#prepareThreadLanding(),
+      // The reader a way back reopens the thread in, which its container names
+      // (`ViewOutlets`, `reader`).
+      reader: this.#outlets.reader ?? null,
       ...this.#commands.settlement,
     }).catch(() => {});
   };
 
   // Reopening lands in the reply on every card, even when Lit retains the pressed
-  // button. A page thread also moves into or out of its seat's Resolved disclosure
-  // (inline.js), so keep its destination in view once the departing pixels finish.
+  // button, wherever the thread stands its reply box and its settlement, as the
+  // floating panel stands them apart. A page thread also moves into or out of its
+  // seat's Resolved disclosure (inline.js), so keep its destination in view once the
+  // departing pixels finish.
   #prepareThreadLanding = () => {
     const reopening = this.#model.resolved;
     const mayLand = retainUserIntent({
-      source: this.node,
+      source:
+        [this.node, ...Object.values(this.#apart)].find((at) =>
+          currentLocationIn(at),
+        ) ?? this.node,
       available: () => this.node.isConnected,
     });
     return async () => {
@@ -1014,12 +1219,13 @@ export class ThreadView {
       // while its pixels leave; a later user move still vetoes the landing.
       await this.#retirement?.catch(() => {});
       const place = this.#fold?.querySelector(":scope > summary") ?? this.node;
-      if (!mayLand() || !currentLocationIn(place)) return false;
-      if (reopening)
-        this.#commands.landInThread(this.node.querySelector(SAY_BOX) ?? this.node);
+      const places = [place, ...Object.values(this.#apart)];
+      if (!mayLand() || !places.some((at) => currentLocationIn(at))) return false;
+      if (reopening) this.#commands.landInThread(this.#reply?.input ?? this.node);
+      // A floating card stands itself (`CardOutlets`, `anchor`), so landing in it
+      // scrolls nothing into view.
       const control = focused();
-      if (this.#model.surface !== "margin" && control)
-        scrollThreadIntoView(place, control);
+      if (!this.#outlets.anchor && control) scrollThreadIntoView(place, control);
       return true;
     };
   };
@@ -1029,6 +1235,17 @@ export class ThreadView {
   /** @param {ThreadViewModel} model */
   #createReply(model) {
     const commands = this.#commands.reply;
+    const { hint, hintParts, hintLead, ...options } =
+      this.#outlets.reply?.options ?? {};
+    // The box's empty words say the thread as this view draws it, held news included,
+    // so they change with its settlement and notice, when the user shows the news, and
+    // not before. They read the drawn reading as a signal, so the box draws them again
+    // with each reading the thread draws.
+    /** @returns {DrawnThread} */
+    const drawn = () => {
+      const { resolved, attention } = this.#shown.value;
+      return { resolved, attention };
+    };
     return createReplyView(
       model.key,
       {
@@ -1036,8 +1253,10 @@ export class ThreadView {
         actions: {
           ...commands.actions,
           reply: (key, text, options) => {
-            // The operation owns this promise before it publishes the local turn.
-            const anchor = this.#marginControls?.anchor;
+            // The operation owns this promise before it publishes the local turn. A
+            // floating card keeps its foot through the send (card-anchor.js), which is
+            // its own edge rather than a place its parts stand in.
+            const { anchor } = this.#outlets;
             anchor?.sending(options.attempt);
             const flight = commands.actions.reply(key, text, options);
             if (!flight) anchor?.writing();
@@ -1047,10 +1266,15 @@ export class ThreadView {
       },
       () => this.repaint(),
       {
-        hint: () => (this.#model?.resolved ? "Reply to reopen" : "Reply"),
+        hint: hint
+          ? () => hint(drawn())
+          : () => (drawn().resolved ? "Reply to reopen" : "Reply"),
+        ...(hintParts && { hintParts: () => hintParts(drawn()) }),
+        ...(hintLead && { hintLead: () => hintLead(drawn()) }),
+        // A container says what the box reads and how a send lands there, as a margin
+        // card moves with the send it presents (`ThreadOutlets`, `reply`).
+        ...options,
         editLast: this.#rewrites.editLast,
-        // A margin card moves with the send it presents (thread-preview.js).
-        sending: () => this.#marginControls?.sending?.(),
       },
     );
   }
@@ -1074,7 +1298,10 @@ export class ThreadView {
   dispose() {
     this.#sizes.disconnect();
     this.#releaseHeaderSlot();
-    this.#marginNews.disconnect();
+    this.#lineNews.disconnect();
+    this.#quoteSize.disconnect();
+    this.#quoteEffect?.();
+    this.#quoteEffect = null;
     this.#continuity?.release();
     this.retire();
     this.#reply?.dispose();

@@ -146,7 +146,7 @@ def test_one_field_starts_a_thread_takes_its_reply_and_settles_it(browser, serve
     expect(page.locator(".lf-fp-field .lf-compose-submit")).to_be_hidden()
     expect(page.locator(".lf-fp-head .lf-fp-close")).to_be_visible()
 
-    settle = page.locator(".lf-fp-settle")
+    settle = page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)")
     with sending(page, "the resolve"):
         settle.click()
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "resolve"
@@ -368,7 +368,7 @@ def test_a_thread_s_keys_answer_in_its_view(browser, serve):
     page.locator("body").focus()
     page.keyboard.press("t")
     thread = page.locator(panel_view("thread"))
-    settle = page.locator(".lf-fp-settle")
+    settle = page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)")
     expect(thread).to_be_visible()
     field(page).click()
     page.keyboard.type("Make it the weekend.")
@@ -393,8 +393,8 @@ def test_a_thread_s_keys_answer_in_its_view(browser, serve):
     expect(thread).to_be_focused()
     expect(settle).to_have_accessible_name("Resolve thread")
 
-    # A click on a message's words stands on the part of the thread drawing it.
-    message = thread.locator(".lf-primary-part", has_text="Is the window long enough?")
+    # A click on a message's words stands on the thread drawing it.
+    message = thread.locator(".lf-page-thread", has_text="Is the window long enough?")
     message.click()
     expect(message).to_be_focused()
     page.keyboard.press("e")
@@ -520,9 +520,9 @@ def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
     """The row's "Resolved “…” · Undo" names one gesture. The log refusing that
     Resolve takes the notice away with it, and its press takes back that Resolve
     even once another gesture of the user's is the newest, the one `z` would take: a
-    press that ran `z` took back an earlier gesture once its own was refused. Where
-    the agent has picked that Resolve up, the press shows it first, and `z`, the key
-    the notice offers, then takes that Resolve, not the newest gesture."""
+    press that ran `z` took back an earlier gesture once its own was refused. The
+    agent having picked that Resolve up changes nothing: the press still takes that
+    Resolve, not the newest gesture (#5320)."""
     url = serve(LONG_PAGE)
     roots = {
         text: panel_comment(serve.page_dir, text)
@@ -569,8 +569,7 @@ def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
     append_carried_log_record(
         serve.page_dir, {"kind": "resolve", "author": "user", "parent": roots[other]}
     )
-    # The agent picks that Resolve up, so the press shows it and says "Press again"
-    # before taking it, and `z`, the key the notice offers, then takes that Resolve too.
+    # The agent picks that Resolve up, and the notice's press still takes it back.
     (resolved,) = (
         event["id"]
         for event in events_model.read_events(serve.page_dir)
@@ -588,10 +587,8 @@ def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
         },
     )
     told(page)
-    notice.get_by_role("button").click()
-    expect(page.get_by_text("Press again to undo", exact=False)).to_be_visible()
     with sending(page, "the undo"):
-        page.keyboard.press("z")
+        notice.get_by_role("button").click()
     events = events_model.read_events(serve.page_dir)
     assert [event["undoes"] for event in events if event["kind"] == "undo"] == [
         resolved
@@ -604,22 +601,29 @@ def test_resolve_opens_the_next_thread_as_tall_as_it_holds(browser, serve):
     a press on ✓ and by `r` alike: a longer one grows the view to show it whole and a
     shorter one shrinks it, its ✓ standing where that height puts it. It once opened at
     the height the resolved one stood at, so ✓ stayed under the pointer, which showed a
-    longer thread cut off behind a scroll until the user's next turn."""
+    longer thread cut off behind a scroll until the user's next turn. Each thread holds
+    a reply the user reads as it opens, which gives the reading a new record of the
+    thread: Resolve once went back to Threads there, its thread no longer found among
+    the open ones."""
     url = serve(LONG_PAGE)
-    panel_comment(serve.page_dir, "Is the window long enough?")
-    panel_comment(
-        serve.page_dir,
-        "Should the mobile cohort wait? " * 12
-        + "\n\nThe last release took a week to reach it, and the one before took two.",
-    )
-    panel_comment(serve.page_dir, "Who watches the weekend?")
+    roots = [
+        panel_comment(serve.page_dir, "Is the window long enough?"),
+        panel_comment(
+            serve.page_dir,
+            "Should the mobile cohort wait? " * 12
+            + "\n\nThe last release took a week to reach it, and the one before took two.",
+        ),
+        panel_comment(serve.page_dir, "Who watches the weekend?"),
+    ]
+    for root in roots:
+        agent_said(serve.page_dir, root, "Noted.")
     page = floating(browser, url)
     open_threads(page)
     page.locator(".lf-fp-thread", has_text="Is the window long enough?").click()
     title = page.locator(".lf-fp-head .lf-fp-title")
     expect(title).to_have_text("Is the window long enough?")
     thread = page.locator(panel_view("thread"))
-    settle = page.locator(".lf-fp-head .lf-fp-settle")
+    settle = page.locator(".lf-fp-head .lf-resolve")
     fits = "(view) => view.scrollHeight - view.clientHeight < 1"
     settled(page)
     short = thread.bounding_box()["height"]
@@ -699,7 +703,7 @@ def test_the_field_is_the_thread_s_reply_box(browser, serve):
     )
     expect(field(page)).to_be_focused()
 
-    page.locator(".lf-fp-settle").focus()
+    page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)").focus()
     with sending(page, "the resolve"):
         page.keyboard.press("Enter")
     expect(page.locator(panel_view("threads"))).to_be_visible()
@@ -908,7 +912,7 @@ SEATS = """() => {
     name: [title[0], title[1]],
     back: seat('.lf-fp-head .lf-fp-back'),
     on: seat('.lf-fp-head .lf-fp-on-page'),
-    settle: seat('.lf-fp-head .lf-fp-settle'),
+    settle: seat('.lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)'),
     close: seat('.lf-fp-head .lf-fp-close'),
   };
 }"""
@@ -918,7 +922,8 @@ def test_news_in_an_open_thread_moves_none_of_its_controls(browser, serve):
     """A thread's controls each stand where they stood while the thread changes. Retitled
     long or short, the name over the view gives or takes room at its own end, and Back,
     Show on page, Resolve and Close stay put; detached by a revision, Show on page leaves
-    its seat empty; resolved by the agent, the thread's Reopen takes Resolve's seat."""
+    its seat empty; resolved by the agent, the thread holds the news, its Resolve and the
+    field's words agreeing with it, and shown, Reopen takes Resolve's seat."""
     url = serve(LONG_PAGE, comments=3, anchored=[("p3", "Paragraph 3.")])
     root = events_model.read_events(serve.page_dir)[-1]["id"]
     page = floating(browser, url)
@@ -971,8 +976,29 @@ def test_news_in_an_open_thread_moves_none_of_its_controls(browser, serve):
     settled(page)
     assert page.evaluate(SEATS) == seats
 
+    # Resolved by the agent while the user reads it, the thread holds the news behind
+    # its notice, its Resolve and the field's words saying the thread as it stood, as a
+    # card's do; shown, all three change together, and Reopen takes Resolve's seat.
+    box = field(page)
+    box.focus()
+    words = page.locator(".lf-fp-field .lf-compose-placeholder-words")
+    expect(words).to_have_text("Reply in this thread")
     agent({"kind": "resolve", "parent": root})
+    notice = page.locator(".lf-fp-news-outlet .lf-thread-news")
+    expect(notice).to_have_attribute("title", "Resolved")
+    expect(page.locator(".lf-fp-head .lf-resolve")).to_be_visible()
+    expect(words).to_have_text("Reply in this thread")
+    # Off the field, it says the thread's word before Reply, which isn't Resolved yet.
+    page.locator(panel_view("thread")).focus()
+    expect(lead(page)).not_to_contain_text("Resolved")
+    expect(notice).to_be_visible()
+    settled(page)
+    assert page.evaluate(SEATS) == seats
+    notice.click()
     expect(page.locator(".lf-fp-head .lf-reopen")).to_be_visible()
+    expect(lead(page)).to_contain_text("Resolved")
+    box.focus()
+    expect(words).to_have_text("Reply to reopen")
     settled(page)
     assert page.evaluate(SEATS) == seats
 
@@ -1068,7 +1094,7 @@ def test_on_a_phone_a_thread_s_presses_take_a_line_beside_next_unread(browser, s
             ".lf-fp-back",
             ".lf-fp-next-unread",
             ".lf-fp-on-page",
-            ".lf-fp-settle",
+            ".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)",
             ".lf-fp-close",
         )
     )
@@ -2489,9 +2515,11 @@ FOOT = """([parts, fromEnd]) => {
 
 
 def test_an_open_view_covers_the_page_beneath_it(browser, serve):
-    """What a view open above the row stands over is hidden from every reading of what
-    the user sees (geometry.js, `declareOccluder`): a paragraph under it reads as seen
-    only beside it, and whole again once the view is put away."""
+    """The floating panel declares the one box it covers (geometry.js, `declareCover`),
+    and what a view open above the row covers is hidden from every reading of what the
+    user sees: a paragraph in the band the view stands across reads as unseen while the
+    view is open, though part of it stands beside the view, since the user sees it only
+    in pieces there; and it reads whole again once the view is put away."""
     page = floating(browser, serve(LONG_PAGE, comments=12))
     seen = """async () => {
       const {seenRect} = await window.__lfCheckApi();
@@ -2501,17 +2529,18 @@ def test_an_open_view_covers_the_page_beneath_it(browser, serve):
         return box.top > view.top + 20 && box.bottom < view.bottom - 20;
       });
       window.under = under;
-      const shown = seenRect(under, new Map());
-      return {view: {left: view.left, top: view.top, right: view.right,
-                     bottom: view.bottom}, shown};
+      const box = under.getBoundingClientRect();
+      return {view: {left: view.left, right: view.right},
+              under: {left: box.left, right: box.right},
+              shown: seenRect(under, new Map())};
     }"""
     open_threads(page)
     expect(page.locator(".lf-fp-thread")).to_have_count(12)
     settled(page)
     reading = page.evaluate(seen)
-    view, shown = reading["view"], reading["shown"]
-    assert shown, reading
-    assert shown["right"] <= view["left"] or shown["left"] >= view["right"], reading
+    view, under = reading["view"], reading["under"]
+    assert under["left"] < view["left"] or under["right"] > view["right"], reading
+    assert reading["shown"] is None, reading
 
     page.keyboard.press("Escape")
     expect(page.locator(".lf-fp-view")).to_have_count(0)
@@ -2524,6 +2553,80 @@ def test_an_open_view_covers_the_page_beneath_it(browser, serve):
         }"""
     )
     assert whole
+
+
+def test_a_tab_into_a_popover_over_an_open_view_leaves_the_view_open(browser, serve):
+    """The top layer paints over the panel, so a popover standing over an open view is
+    in front of the user and the panel's cover takes none of it (geometry.js,
+    `covered`): a Tab's arrival there leaves the view open, as it does a stop the view
+    stands clear of."""
+    popover = (
+        '<div id="pop" popover="manual" style="position:fixed;inset:auto 0 120px 0;'
+        'margin:0 auto;width:360px"><button id="in-pop">Inside</button></div></main>'
+    )
+    page = floating(
+        browser, serve(LONG_PAGE.replace("</main>", popover, 1), comments=12)
+    )
+    open_threads(page)
+    expect(page.locator(".lf-fp-thread")).to_have_count(12)
+    settled(page)
+    reading = page.evaluate(
+        """async () => {
+          const {seenRect} = await window.__lfCheckApi();
+          const {focusDestination} = await window.__lfWidgetApi();
+          document.querySelector('#pop').showPopover();
+          const button = document.querySelector('#in-pop');
+          const view = document.querySelector('.lf-fp-view').getBoundingClientRect();
+          const box = button.getBoundingClientRect();
+          focusDestination(button, 'step');
+          const seen = seenRect(button, new Map());
+          return {over: box.top < view.bottom && box.bottom > view.top
+                    && box.left < view.right && box.right > view.left,
+                  whole: Boolean(seen) && seen.bottom - seen.top >= box.height - 0.5};
+        }"""
+    )
+    assert reading == {"over": True, "whole": True}
+    expect(page.locator("#in-pop")).to_be_focused()
+    rendered(page)
+    expect(page.locator(".lf-fp-view:not([data-lf-leaving])")).to_have_count(1)
+
+
+def test_an_arrival_the_opening_view_will_cover_puts_it_away(browser, serve):
+    """Whether the panel stands over an arrival is read where its box comes to rest, not
+    where its motion has drawn it so far (geometry.js, `covered`): a Tab's arrival at a
+    stop at the page's foot while Threads is still opening over it puts the view away,
+    as it does once the view stands open, and the stop ends in sight."""
+    foot = '<p><button id="foot" style="width:100%">At the foot</button></p></main>'
+    page = floating(browser, serve(LONG_PAGE.replace("</main>", foot, 1), comments=12))
+    page.evaluate(
+        "() => scrollTo({top: document.scrollingElement.scrollHeight,"
+        " behavior: 'instant'})"
+    )
+    scroll_settled(page)
+    page.locator(".lf-floating-panel").evaluate(
+        """host => {
+          for (const motion of ["--lf-motion-disclosure", "--lf-motion-box-resize",
+                                "--lf-motion-view-in"])
+            host.style.setProperty(motion, "3s");
+        }"""
+    )
+    dev_browser.open_threads(page)
+    page.evaluate(
+        """async () => {
+          const {focusDestination} = await window.__lfWidgetApi();
+          focusDestination(document.querySelector('#foot'), 'step');
+        }"""
+    )
+    expect(page.locator(".lf-fp-view:not([data-lf-leaving])")).to_have_count(0)
+    seen = page.evaluate(
+        """async () => {
+          await Promise.all(document.getAnimations().map((motion) => motion.finished
+            .catch(() => {})));
+          const {seenRect} = await window.__lfCheckApi();
+          return Boolean(seenRect(document.querySelector('#foot'), new Map()));
+        }"""
+    )
+    assert seen
 
 
 def test_a_page_s_own_conversation_reader_takes_the_panel_s_threads(browser, serve):
@@ -2583,12 +2686,11 @@ def test_a_conversation_reader_arriving_later_takes_the_open_thread(browser, ser
     assert asked["message"] == stood_on
 
 
-def test_a_package_s_transcript_takes_its_notice_where_every_part_does(browser, serve):
-    """A package that draws a thread's head itself may name its transcript alone
-    (`parts.transcript`, as the panel's view does) without naming where the thread's
-    notice goes: Leaf draws the transcript, and news that would move it waits behind
-    the notice at the head of its first message, where every part takes it by
-    default."""
+def test_a_package_s_whole_thread_takes_its_notice_where_a_card_does(browser, serve):
+    """A package that names a whole thread and none of its head's places
+    (`parts.thread`, no `head`): Leaf draws the thread, and news that would move it
+    waits behind the notice beside its first message's head, as a card's does, which
+    stands there from its first paint."""
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Is the window long enough?")
     page = floating(browser, url)
@@ -2605,7 +2707,7 @@ def test_a_package_s_transcript_takes_its_notice_where_every_part_does(browser, 
               for (const thread of collection.threads) {
                 const outlet = document.createElement('div');
                 host.replaceChildren(outlet);
-                parts.transcript(thread.key, outlet);
+                parts.thread(thread.key, outlet);
               }
             },
             reveal: () => {},
@@ -2617,9 +2719,98 @@ def test_a_package_s_transcript_takes_its_notice_where_every_part_does(browser, 
     expect(reader.locator(".lf-msg")).to_contain_text("Is the window long enough?")
     agent_said(serve.page_dir, root, "Forty-eight hours covers the first cohort.")
     told(page)
-    expect(reader.locator(".lf-msg-head .lf-thread-news")).to_have_text("1 new")
+    expect(reader.locator(".lf-thread-content > .lf-thread-news")).to_have_text("1 new")
     expect(reader.locator(".lf-msg")).to_have_count(1)
     assert page.evaluate("() => window.reader.primary")
+
+
+# A package's reader that stands a thread's head controls and reply box apart, in its
+# own shadow tree, beside the outlet that holds the thread, and asks for its quote
+# (`parts.thread`'s `head`, `reply` and `quote`).
+APART_READER = """async (outside) => {
+  const api = await window.__lfWidgetApi();
+  const host = document.createElement('div');
+  host.id = 'reader';
+  host.style = 'position: fixed; inset: 0 0 auto auto; width: 320px';
+  document.querySelector('main').append(host);
+  const root = host.attachShadow({ mode: 'open' });
+  const stray = document.createElement('span');
+  document.body.append(stray);
+  window.reader = api.registerThreadPresentation(host, {
+    render: (collection, parts) => {
+      for (const thread of collection.threads) {
+        const news = document.createElement('span');
+        const controls = document.createElement('span');
+        const outlet = document.createElement('div');
+        const reply = document.createElement('div');
+        root.replaceChildren(news, controls, outlet, reply);
+        parts.thread(thread.key, outlet, {
+          head: { news: outside ? stray : news, controls },
+          reply: { outlet: reply },
+          quote: true,
+        });
+      }
+    },
+    reveal: () => {},
+  });
+  try {
+    await window.reader.update();
+    return 'drawn';
+  } catch {
+    return 'refused';
+  }
+}"""
+
+
+def test_a_package_s_places_for_a_thread_s_parts_take_them_as_its_outlet_does(
+    browser, serve
+):
+    """Every place a package names for a thread's parts is held to what its outlet is:
+    one outside the widget refuses the update, and one in the widget's shadow tree takes
+    the part through a slot, so the document's styles reach Resolve, the notice and the
+    reply box as they reach the messages. The quote the package asks for reads as the
+    panel's does, in three lines with Full quote over them. Reopen there lands in the
+    reply box, wherever the package stands it, as a card's does."""
+    url = serve(LONG_PAGE)
+    words = "The earlier plan required a manual review before every rollout. " * 6
+    panel_comment(
+        serve.page_dir,
+        "Is the window long enough?",
+        {"section": "gone", "quote": words + "FINAL WORDS"},
+    )
+    page = floating(browser, url)
+    assert page.evaluate(APART_READER, True) == "refused"
+    # The refused reader gives its place back to Leaf's own.
+    page.wait_for_function("() => !window.reader.primary")
+    consume_browser_errors(
+        page,
+        "leaf: Presentation failed: A primary Thread outlet must remain inside its "
+        "connected owner",
+    )
+    page.reload()
+    wait_until_ready(page)
+    assert page.evaluate(APART_READER, False) == "drawn"
+    reader = page.locator("#reader")
+    expect(reader.locator(".lf-msg")).to_have_count(1)
+    # The parts stand in the widget's light tree, each slotted into its place.
+    assert page.evaluate(
+        """() => ['.lf-resolve', 'leaf-text', '.lf-msg'].map(
+          (part) => Boolean(document.querySelector('#reader').querySelector(part)))"""
+    ) == [True, True, True]
+    quote = reader.locator(".lf-thread-quote")
+    expect(quote).to_contain_text("FINAL WORDS")
+    assert quote.evaluate("el => getComputedStyle(el).webkitLineClamp") == "3"
+    assert quote.evaluate("el => el.scrollHeight > el.clientHeight")
+    full = reader.get_by_role("button", name="Full quote", exact=True)
+    expect(full).to_be_visible()
+    full.click()
+    expect(full).to_have_attribute("aria-expanded", "true")
+    assert quote.evaluate("el => el.scrollHeight <= el.clientHeight + 1")
+    with sending(page, "the resolve"):
+        reader.locator(".lf-resolve").click()
+    with sending(page, "the reopen"):
+        reader.locator(".lf-reopen").click()
+    expect(reader.locator("leaf-text")).to_be_focused()
 
 
 def test_a_reader_arriving_later_leaves_focus_the_user_moved_elsewhere(browser, serve):
@@ -5056,7 +5247,7 @@ def test_a_thread_s_words_start_on_its_head_s_edge(browser, serve):
         return range.getClientRects()[0].left - edge;
       };
       const view = document.querySelector('.lf-fp-view[data-lf-route=thread]');
-      const quote = view.querySelector('.lf-fp-quote');
+      const quote = view.querySelector('.lf-thread-quote');
       const frame = view.querySelector('.lf-msg-editor .lf-compose-field');
       const text = frame?.querySelector('leaf-text');
       const back = document.querySelector('.lf-fp-head .lf-fp-back').getBoundingClientRect();

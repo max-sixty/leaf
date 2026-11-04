@@ -5,15 +5,16 @@
    so two controls of one kind cannot be drawn two ways; this table is the only place
    the classes are spelled (`test_controls_are_built_by_role_and_never_by_face` in
    `tests/model/test_interact_layer.py` holds that), and every press a bundled module
-   builds wears one (`test_every_press_is_built_by_role`). Only the role's rules in
-   controls.css draw its ink, ground, frame and lift, keyed by its face class and the
+   builds wears one (`test_every_press_is_built_by_role`). Only the role's rules, the
+   library's generated into styles/vendor/webawesome-native.css and Leaf's in
+   controls.css, draw its ink, ground, frame and lift, keyed by its face class and the
    attributes a press declares, which are its states and the variants named below
    (`test_a_press_wears_its_role_s_face_alone`); the class a widget writes beside the
    role places the press, and the widget sets its type and density.
 
    - `symbol`: a press drawn as one of Leaf's icons, named by its tooltip and
-     accessible name (browser/AGENTS.md): quiet at rest, the chip under a hovering
-     pointer or visible focus, or while what it opens shows (`aria-expanded`). One
+     accessible name (browser/AGENTS.md): quiet at rest, with the library's fill under
+     a hovering pointer, and the chip while what it opens shows (`aria-expanded`). One
      that commits what it stands in, as Send and a rewrite's Save do, is in the
      accent (`data-lf-tone="accent"`). A disc (`data-lf-disc`) is drawn in its
      action's own ink (`data-lf-tone`: `accent`, `ink`, `positive` or `negative`) and

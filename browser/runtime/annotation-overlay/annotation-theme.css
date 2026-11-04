@@ -26,6 +26,18 @@
   width: 0;
   height: 0;
 }
+/* Every box that holds rows stands them in its one grid cell, each offset from the
+   cell's corner by its seat as margins, so no row is a positioned box: Chromium's hit
+   test visits every positioned box on every call, and a page of 512 questions held a
+   row for each. A row paints in document order among its lane's, and above the page
+   by its lane's stacking. The seat is physical, from the lane's left (margin-layout.js
+   writes it so), so a row stands from the cell's left in a right-to-left page too. */
+.lf-margin-toolbar,
+.lf-margin-lane,
+.lf-margin-carrier {
+  display: grid;
+  grid-template: 0px / 0px;
+}
 .lf-margin-lane,
 .lf-margin-cut {
   z-index: 2;
@@ -42,10 +54,11 @@
   position-visibility: always;
 }
 .lf-margin-cluster {
-  position: absolute;
-  z-index: 2;
-  left: var(--lf-margin-x, 0px);
-  top: var(--lf-margin-y, 0px);
+  grid-area: 1 / 1;
+  justify-self: left;
+  align-self: start;
+  margin-left: var(--lf-margin-x, 0px);
+  margin-top: var(--lf-margin-y, 0px);
   display: inline-flex;
   align-items: center;
   gap: var(--margin-gap);
@@ -71,10 +84,11 @@
   visibility: hidden;
 }
 /* A pin's count stands on its left, over the block it is about: at the window's edge one
- * on the right would stand past the window. */
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-count {
-  right: auto;
-  left: -7px;
+ * on the right would stand past the window. The count shares its face's grid cell
+ * (controls.css), so it stands there by alignment. */
+.lf-margin-cluster[data-lf-place="pin"] .lf-margin-face > .lf-margin-count {
+  justify-self: left;
+  margin: -7px 0 0 -7px;
 }
 /* What a hovered or focused item says about the target it acts on is said on the target:
  * `highlight` (margin-projection.js) hands every item to target paint, which traces the

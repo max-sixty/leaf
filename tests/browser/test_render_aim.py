@@ -183,7 +183,7 @@ def test_the_catalog_sidenote_can_be_aimed_whole(browser, serve):
 
     note.hover()
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aimed")).to_have_id("logout-frequency")
+    expect(page.locator("[data-lf-aimed]")).to_have_id("logout-frequency")
     note.click()
     page.keyboard.up("Alt")
 
@@ -288,11 +288,11 @@ def test_an_aimed_comment_keeps_its_place_with_on_me_open(browser, serve, width)
     # where the comment press below also lands.
     target.hover(position={"x": 12, "y": 12})
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aimed")).to_have_id("lq-keep")
+    expect(page.locator("[data-lf-aimed]")).to_have_id("lq-keep")
     # Open by script so the pointer remains parked on the target while the view arrives.
     page.locator(".lf-fp-on-user").evaluate("node => node.click()")
     panel_settled(page, view="queue")
-    expect(page.locator(".lf-aimed")).to_have_id("lq-keep")
+    expect(page.locator("[data-lf-aimed]")).to_have_id("lq-keep")
     aligned = page.evaluate(
         """() => {
           const chrome = document.querySelector('.lf-chrome');
@@ -1815,7 +1815,7 @@ def test_a_margin_label_covers_the_target_trace(browser, serve, monkeypatch):
     label = marker.locator(":scope > .lf-margin-entry-label")
     traced = page.locator("#jobs")
     expect(label).to_be_visible()
-    expect(traced).to_have_class(re.compile(r"\blf-traced\b"))
+    expect(traced).to_have_attribute("data-lf-traced", "")
     label.evaluate(
         "node => Promise.all(node.getAnimations().map(animation => animation.finished))"
     )
@@ -1876,7 +1876,7 @@ def test_the_aim_reads_the_pointer_where_the_press_is_dispatched_from(browser, s
 
     page.mouse.move(seam["x"], seam["y"])
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aimed")).to_have_id(seam["at"])
+    expect(page.locator("[data-lf-aimed]")).to_have_id(seam["at"])
     page.mouse.click(seam["x"], seam["y"])
     page.keyboard.up("Alt")
 
@@ -2041,12 +2041,12 @@ def test_a_reload_under_a_held_aim_rearms_on_the_first_move(browser, serve):
     heading = page.locator("#t")
     heading.hover()
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aimed")).to_have_id("t")
+    expect(page.locator("[data-lf-aimed]")).to_have_id("t")
     page.reload()
     wait_until_ready(page)
-    expect(page.locator(".lf-aimed")).to_have_count(0)  # the latch is gone
+    expect(page.locator("[data-lf-aimed]")).to_have_count(0)  # the latch is gone
     heading.hover()  # the first move under the still-held key
-    expect(page.locator(".lf-aimed")).to_have_id("t")
+    expect(page.locator("[data-lf-aimed]")).to_have_id("t")
     page.keyboard.up("Alt")
 
 
@@ -2096,7 +2096,7 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     # draws the aim's own box on it, the promise about the next press.
     option.hover()
     expect(page.locator(".lf-inspect")).to_have_text("lf-option · opt-shim")
-    expect(page.locator(".lf-aimed")).to_have_id("opt-shim")
+    expect(page.locator("[data-lf-aimed]")).to_have_id("opt-shim")
     option.click(modifiers=["Alt"])
     composer = page.locator(".lf-composer")
     expect(composer).to_be_visible()
@@ -2128,7 +2128,7 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     # on the thread in the panel's thread view.
     panel = page.locator(PANEL_THREAD)
     expect(panel).to_be_visible()
-    expect(page.locator(".lf-fp-quote")).to_contain_text(
+    expect(page.locator(".lf-thread-quote")).to_contain_text(
         "design · lf-option · opt-shim"
     )
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
@@ -2766,7 +2766,7 @@ def test_the_legend_follows_the_page_it_is_a_reading_of(browser, serve):
     # page as on a fresh one.
     p.hover()
     expect(page.locator(".lf-inspect")).to_have_text("paragraph · p20")
-    expect(page.locator(".lf-aimed")).to_have_id("p20")
+    expect(page.locator("[data-lf-aimed]")).to_have_id("p20")
     _label_stands_on_the_aim(page, p)
     # Threads opens over the page. Opened by key.
     page.keyboard.press("g")
@@ -2776,7 +2776,7 @@ def test_the_legend_follows_the_page_it_is_a_reading_of(browser, serve):
     # The legend's repaint above consumed the reflow's edge, and the aim was refreshed
     # in the same pageShifted, so one plain read is the settled answer: the pointer
     # still rests in p20, and the name stands where p20 stands now.
-    expect(page.locator(".lf-aimed")).to_have_id("p20")
+    expect(page.locator("[data-lf-aimed]")).to_have_id("p20")
     _label_stands_on_the_aim(page, p)
 
 
@@ -2834,7 +2834,7 @@ def test_a_picture_is_one_addressable_element_however_many_ids_its_renderer_coin
     expect(node).to_be_visible()
     node.hover()
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aimed")).to_have_id("flow")
+    expect(page.locator("[data-lf-aimed]")).to_have_id("flow")
     page.keyboard.up("Alt")
     page.keyboard.press("l")
     assert set(
@@ -2871,11 +2871,11 @@ height="56" fill="#ddd"></rect><text x="52" y="34" text-anchor="middle">Drawer</
     corner = {"x": 8, "y": 8}
     drawer.hover(position=corner)
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aimed")).to_have_id("fig-drawer")
+    expect(page.locator("[data-lf-aimed]")).to_have_id("fig-drawer")
     page.keyboard.up("Alt")
     page.locator("#fig svg > rect").hover()
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aimed")).to_have_id("fig")
+    expect(page.locator("[data-lf-aimed]")).to_have_id("fig")
     page.keyboard.up("Alt")
 
     drawer.click(modifiers=["Alt"], position=corner)
@@ -2908,7 +2908,7 @@ def test_a_generic_package_gets_nested_hits_and_can_narrow_a_paint_surface(
     page.locator("#outer-surface").hover(position={"x": 20, "y": 20})
     page.keyboard.down("Alt")
     # The outer part's surface draws its aim, leaving out its decorative line.
-    expect(page.locator(".lf-aimed")).to_have_id("outer-surface")
+    expect(page.locator("[data-lf-aimed]")).to_have_id("outer-surface")
     accent = token_colour(page, "--accent")
     assert_drawn_in(page.locator("#outer-surface"), accent, 2)
     assert (
@@ -2922,7 +2922,7 @@ def test_a_generic_package_gets_nested_hits_and_can_narrow_a_paint_surface(
     page.locator("#inner path").hover()
     page.keyboard.down("Alt")
     # The inner part, with no surface of its own, draws it along all it holds.
-    expect(page.locator(".lf-aimed")).to_have_id("inner")
+    expect(page.locator("[data-lf-aimed]")).to_have_id("inner")
     assert_drawn_in(page.locator("#inner"), accent, 2)
     page.keyboard.up("Alt")
 
@@ -3096,7 +3096,7 @@ def test_a_non_geometry_visual_surface_uses_one_box_for_aim_and_mark(browser, se
 
     surface.hover()
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aimed")).to_have_id("html-surface")
+    expect(page.locator("[data-lf-aimed]")).to_have_id("html-surface")
     aimed = surface.evaluate(MARK)
     assert aimed["ring"] == marked["ring"], (aimed, marked)
     page.keyboard.up("Alt")
@@ -3132,7 +3132,7 @@ def test_a_shadow_visual_surface_is_clipped_by_its_host(browser, serve):
     assert surface.bounding_box()["width"] > host.bounding_box()["width"] + 10
 
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aimed")).to_have_id("wide-surface")
+    expect(page.locator("[data-lf-aimed]")).to_have_id("wide-surface")
     assert_drawn_in(surface, token_colour(page, "--mark-contour-ink"), 1.5)
     page.keyboard.up("Alt")
 
@@ -3150,7 +3150,7 @@ def test_a_rounded_diagram_part_aim_follows_its_rounded_edge(browser, serve):
     border = rounded.evaluate(DRAWN_MARK)["strokes"]
     rounded.hover()
     page.keyboard.down("Alt")
-    aimed = page.locator(".lf-aimed")
+    aimed = page.locator("[data-lf-aimed]")
     expect(aimed).to_have_count(1)
     assert_drawn_in(aimed, token_colour(page, "--accent"), 2)
     assert (
@@ -3189,7 +3189,7 @@ def test_a_declared_flowchart_node_keeps_its_comment_across_renderings(browser, 
         {"section": "flow", "visual": "node:S"}
     ]
     open_panel_thread(page, posted[0]["id"])
-    expect(page.locator(".lf-fp-quote")).to_have_text("§ diagram · Start request")
+    expect(page.locator(".lf-thread-quote")).to_have_text("§ diagram · Start request")
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
     expect_comment_notes(page, "#flow", 1)
@@ -3280,7 +3280,7 @@ def test_a_scroll_under_a_held_aim_moves_the_promise_with_the_page(browser, serv
     )
     page.wait_for_function(
         """(first) => {
-      const promised = document.querySelector(".lf-aimed")?.closest("[id]")?.id;
+      const promised = document.querySelector("[data-lf-aimed]")?.closest("[id]")?.id;
       const at = document.elementFromPoint(600, 300)?.closest("[id]:not(.lf-ui)");
       return Boolean(promised) && promised === at?.id && promised !== first;
     }""",
@@ -3338,7 +3338,7 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
             node = page.locator(f"#{target}")
             node.hover(position={"x": 10, "y": 10})
             page.keyboard.down("Alt")
-            expect(page.locator(".lf-aimed")).to_have_id(target)
+            expect(page.locator("[data-lf-aimed]")).to_have_id(target)
             boundary(node, brackets=True)
             page.mouse.down()
             page.mouse.up()
@@ -3380,7 +3380,7 @@ def test_the_aim_and_a_comment_stand_inside_a_cell_their_frame_leaves_no_room(
     cell = page.locator("#ship-thursday")
     cell.hover(position={"x": 300, "y": 10})
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aimed")).to_have_id("ship-thursday")
+    expect(page.locator("[data-lf-aimed]")).to_have_id("ship-thursday")
     aimed = cell.evaluate(MARK)
     assert aimed["offset"] + aimed["width"] <= 0, aimed
     page.mouse.down()
@@ -3410,7 +3410,7 @@ def test_the_aim_round_a_field_stands_on_its_edge_where_its_ring_does(browser, s
     field = page.locator("#name")
     field.hover(position={"x": 8, "y": 6})
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aimed")).to_have_id("name")
+    expect(page.locator("[data-lf-aimed]")).to_have_id("name")
     aim = field.evaluate(MARK)
     assert aim and aim["style"] == "solid" and aim["offset"] == 0, aim
 
@@ -3530,7 +3530,7 @@ def test_a_replay_under_a_held_aim_repaints_the_promise(browser, serve):
     )
     page.mouse.move(*spot)
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aimed")).to_have_id("card-importer")
+    expect(page.locator("[data-lf-aimed]")).to_have_id("card-importer")
     append_command(
         serve.page_dir,
         {
@@ -3547,7 +3547,7 @@ def test_a_replay_under_a_held_aim_repaints_the_promise(browser, serve):
     page.wait_for_function(
         """([x, y]) => {
       const promised =
-        document.querySelector(".lf-aimed")?.closest("[id]")?.id ?? null;
+        document.querySelector("[data-lf-aimed]")?.closest("[id]")?.id ?? null;
       const at = document.elementFromPoint(x, y)?.closest("[id]:not(.lf-ui)") ?? null;
       return promised === (at?.id ?? null) && promised !== "card-importer";
     }""",
@@ -3581,7 +3581,7 @@ def test_the_aim_shows_over_the_widgets_own_paint(browser, serve):
     clip |= {"width": math.floor(box["width"]), "height": math.floor(box["height"])}
     quiet = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aimed")).to_have_id("card-star")
+    expect(page.locator("[data-lf-aimed]")).to_have_id("card-star")
     armed = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
     assert quiet.size == armed.size
     pixels = zip(
@@ -3645,22 +3645,22 @@ def test_the_armed_cursor_says_whether_a_press_would_take_anything(browser, serv
 
     page.mouse.move(*on_item)
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aimed")).to_have_id("p2")
+    expect(page.locator("[data-lf-aimed]")).to_have_id("p2")
     assert page.evaluate(at_pointer, on_item) == "pointer", (
         "the aim boxed the paragraph and the cursor declined to promise the press"
     )
 
     page.mouse.move(*in_gap)
-    expect(page.locator(".lf-aimed")).to_have_count(0)
+    expect(page.locator("[data-lf-aimed]")).to_have_count(0)
     assert page.evaluate(at_pointer, in_gap) == "default", (
         "the aim had nothing to take and the hand promised a press anyway"
     )
 
     # Back on the item, so the arm coming off is read from the state that promises most.
     page.mouse.move(*on_item)
-    expect(page.locator(".lf-aimed")).to_have_id("p2")
+    expect(page.locator("[data-lf-aimed]")).to_have_id("p2")
     page.keyboard.up("Alt")
-    expect(page.locator(".lf-aimed")).to_have_count(0)
+    expect(page.locator("[data-lf-aimed]")).to_have_count(0)
     assert page.evaluate(at_pointer, on_item) == "auto", (
         "the key came up and the page went on offering the aim's press"
     )

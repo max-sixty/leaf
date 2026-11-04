@@ -461,7 +461,60 @@ test("prepared thread readings consume only their own held-news release", async 
     );
 });
 
-test("a transcript commits when drawn, and abandoned renders call nothing", async (t) => {
+test("held news keeps a reaction taken back elsewhere as it was drawn", async () => {
+  const { HeldNews } = await import("/runtime/thread/held-news.js");
+  /** @param {boolean} taken */
+  const reading = (taken) => {
+    const said = (id, seq, author, parent, text) => ({
+      id,
+      seq,
+      kind: parent ? "reply" : "comment",
+      author,
+      ...(parent ? { parent } : {}),
+      text,
+      body: { text },
+    });
+    const mark = {
+      ...said("mark", 3, "user", "answer", ""),
+      ...(taken
+        ? { withdrawn: { id: "undo", ts: "now", was: "keep" } }
+        : { token: "keep" }),
+    };
+    if (!taken) delete mark.text;
+    const source = servedThread([
+      said("opening", 1, "user", null, "Ship it?"),
+      said("answer", 2, "agent", "opening", "Ready."),
+      mark,
+      said("kept", 4, "agent", "mark", "Keeping it."),
+    ]);
+    const descriptor = (source) => ({
+      id: source.id,
+      key: source.key,
+      source,
+      messages: source.msgs,
+      resolved: source.resolved,
+      summaries: source.summaries,
+      reread: descriptor,
+    });
+    return { threads: [descriptor(source)] };
+  };
+  const owner = document.createElement("section");
+  document.body.append(owner);
+  const held = new HeldNews(
+    owner,
+    () => ({ node: owner, newsMoves: () => true }),
+    () => {},
+  );
+  held.hold(reading(false), { row: false });
+  const next = held.prepare(reading(true), { row: false });
+  const mark = next.reading.threads[0].source.msgs.find(({ id }) => id === "mark");
+  held.dispose();
+  owner.remove();
+  assert.equal(mark?.token, "keep");
+  assert.equal(mark?.withdrawn, undefined);
+});
+
+test("a thread commits when drawn, and abandoned renders call nothing", async (t) => {
   const { createPrimaryReader } = await import("/runtime/thread/primary-reader.js");
   const { applicationState } = await import("/runtime/semantic-state.js");
   applicationState.identify(1);
@@ -496,13 +549,23 @@ test("a transcript commits when drawn, and abandoned renders call nothing", asyn
     owner,
     (reading, parts) => {
       const captured = intent;
-      parts.transcript(reading.threads[0].key, outlet, {
+      parts.thread(reading.threads[0].key, outlet, {
         drawn: (answer) => drawn.push({ captured, answer, text: outlet.textContent }),
       });
       return deferred?.promise;
     },
     {
-      reply: {},
+      // Every thread draws its reply box; this stands in for the box's input wiring,
+      // which composing-input.test.mjs covers.
+      reply: {
+        wireInput: () =>
+          Object.assign(() => {}, {
+            value: () => "",
+            button: null,
+            load() {},
+            cancelDictation() {},
+          }),
+      },
       reaction: {},
       read: { observeMessage: () => () => {}, observeFeedback: () => () => {} },
     },

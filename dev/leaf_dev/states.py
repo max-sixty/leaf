@@ -90,6 +90,42 @@ def captured_source(page: Page) -> None:
     page.locator("#bg-source-captures").scroll_into_view_if_needed()
 
 
+def long_source_selected(page: Page) -> None:
+    """A long captured source scrolled to where its 128th line, which ends the first
+    run of lines the listing draws, meets the next, each coloured as it shows, with a
+    selection from the middle of one into the other."""
+    page.locator("#pr-prepared-diff-evidence > summary").click()
+    pre = page.locator("#pr-prepared-diff-source pre")
+    pre.scroll_into_view_if_needed()
+    pre.evaluate("pre => { pre.scrollTop = 2400; }")
+    scroll_settled(page, "#pr-prepared-diff-source pre")
+    start, end = pre.evaluate("""pre => {
+      const walker = document.createTreeWalker(pre, NodeFilter.SHOW_TEXT);
+      const at = (words) => {
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+          const index = node.data.indexOf(words);
+          if (index < 0) continue;
+          const range = document.createRange();
+          range.setStart(node, index);
+          range.setEnd(node, index + words.length);
+          return range.getBoundingClientRect().toJSON();
+        }
+      };
+      return [at('from_slice'), at('stream')];
+    }""")
+    page.mouse.move(start["left"] + 1, start["top"] + start["height"] / 2)
+    page.mouse.down()
+    page.mouse.move(end["left"] + 1, end["top"] + end["height"] / 2, steps=6)
+    page.mouse.up()
+
+
+def captured_source_by_keyboard(page: Page) -> None:
+    """The captured source's scroller focused by keyboard, its ring over the lines."""
+    captured_source(page)
+    page.keyboard.press("Tab")
+    page.locator("#bg-source-live .lf-text-document-listing > pre").focus()
+
+
 def native_code(page: Page) -> None:
     """Native fenced code using short language labels."""
     page.locator("#bg-gallery-tabs").get_by_role(
@@ -169,6 +205,13 @@ def boxed_tab_by_keyboard(page: Page) -> None:
     page.locator("#bg-tabs").scroll_into_view_if_needed()
     page.keyboard.press("Tab")
     page.locator("#bg-tabs .lf-tab-btn").first.focus()
+
+
+def boxed_tab_panel_by_keyboard(page: Page) -> None:
+    """A boxed tab set's open panel focused by keyboard, ringed inside its border."""
+    boxed_tab_by_keyboard(page)
+    page.keyboard.press("Tab")
+    expect(page.locator("#bg-tabs > lf-tab:not([hidden])")).to_be_focused()
 
 
 def drawing_comment(page: Page) -> None:
@@ -1083,11 +1126,13 @@ def retained_quote(page: Page) -> None:
 
 
 def retained_quote_full(page: Page) -> None:
-    """The same original words opened locally. Full quote shows a frame after the
-    thread's messages, once the panel has measured the quotation as cut, so the click
-    waits for it."""
+    """The same original words opened locally. Full quote stands with the quote's first
+    paint, before the view has finished arriving; the click waits until the reply has
+    been read where it stood, as a reader's would, since opening the quote at once
+    pushes the reply out of view unread and offers Next unread."""
     retained_quote(page)
     child = page.locator("#bg-retained-quote-sample").frame_locator("iframe")
+    expect(child.locator(f"{panel_view('thread')} .lf-msg-new")).to_have_count(0)
     full = child.get_by_role("button", name="Full quote", exact=True)
     full.click()
     expect(full).to_have_attribute("aria-expanded", "true")
@@ -1738,7 +1783,7 @@ def aim_cut_by_pane(page: Page) -> None:
     page.mouse.move(box["x"] + 120, box["y"] + 20)
     page.keyboard.down("Alt")
     page.wait_for_function(
-        "() => document.getElementById('sort-source-note')?.classList.contains('lf-aimed')"
+        "() => document.getElementById('sort-source-note')?.hasAttribute('data-lf-aimed')"
     )
 
 
@@ -2125,6 +2170,13 @@ def live_sample_full_view(page: Page) -> None:
     expect(sample.get_by_role("dialog", name="practice release note")).to_be_visible()
 
 
+def trace_image_by_keyboard(page: Page) -> None:
+    """The recording's captured image focused by keyboard, its ring over the marks."""
+    trace_controls(page)
+    page.keyboard.press("Tab")
+    page.locator("#release-trace .lf-trace-canvas").first.focus()
+
+
 def trace_timeline_by_keyboard(page: Page) -> None:
     """The timeline focused, after tabbing away from it and back."""
     trace_controls(page)
@@ -2201,10 +2253,22 @@ STATES = (
         region="#bg-markdown-preview",
     ),
     State(
+        "long-source-selected",
+        "pr-walkthrough",
+        long_source_selected,
+        region="#pr-prepared-diff-source",
+    ),
+    State(
         "captured-source",
         "feature-gallery",
         captured_source,
         region="#bg-source-captures",
+    ),
+    State(
+        "captured-source-keyboard",
+        "feature-gallery",
+        captured_source_by_keyboard,
+        region="#bg-source-live",
     ),
     State(
         "recorded-video",
@@ -2463,6 +2527,12 @@ STATES = (
         "playwright-trace-gallery",
         trace_timeline_by_keyboard,
     ),
+    State(
+        "trace-image-keyboard",
+        "playwright-trace-gallery",
+        trace_image_by_keyboard,
+        region="#release-trace .lf-trace-canvas",
+    ),
     State("retained-quote", "feature-gallery", retained_quote),
     State("retained-quote-full", "feature-gallery", retained_quote_full),
     State(
@@ -2510,6 +2580,12 @@ STATES = (
     State("gallery-tab-focus", "feature-gallery", tab_by_keyboard),
     State("gallery-tab-hover", "feature-gallery", tab_by_pointer),
     State("gallery-boxed-tab-focus", "feature-gallery", boxed_tab_by_keyboard),
+    State(
+        "boxed-tab-panel-keyboard",
+        "feature-gallery",
+        boxed_tab_panel_by_keyboard,
+        region="#bg-tabs",
+    ),
     State("side-tab-focus", "alert-review", tab_by_keyboard),
     State("frame-edges", "feature-gallery", frame_edges),
     State("gallery-metrics", "feature-gallery", gallery_metrics),

@@ -118,11 +118,11 @@ import {
   createGoToSequence,
   goToHintLayer,
 } from "./runtime/keyboard/go-to-sequence.js";
-import { presented, windowChromeBoxes } from "./runtime/geometry.js";
+import { coverBoxes, presented } from "./runtime/geometry.js";
 // The page's own keyboard parts join the register as this module evaluates; every other
 // owner contributes its own as it is constructed below.
 import { declareCurrentLocation } from "./runtime/keyboard/page.js";
-import { mountKeyboard } from "./runtime/keyboard/controller.js";
+import { letHeldKeysGo, mountKeyboard } from "./runtime/keyboard/controller.js";
 import { paintCoreControls } from "./runtime/keyboard/control-keys.js";
 import { paintTouchControls } from "./runtime/keyboard/touch-controls.js";
 import { paintCloseRequests } from "./runtime/keyboard/close-requests.js";
@@ -168,7 +168,7 @@ async function boot() {
   initializeServedDocument();
   const initialStateRead = beginRead();
   const initialDocument = takeInitialDocument();
-  if (!(await prepareDocument(initialDocument))) return;
+  if (!(await prepareDocument(initialDocument))) return letHeldKeysGo();
   holdArrivingBounds();
 
   // A published shell may bundle the entry without publishing its source modules beside
@@ -257,9 +257,9 @@ async function boot() {
     },
   });
 
-  // The fixed furniture every generated-hint map is spread around: the window's declared
-  // chrome (geometry.js). Both maps read the same boxes.
-  const hintChrome = { barriers: windowChromeBoxes };
+  // The fixed furniture every generated-hint map is spread around: the boxes the chrome
+  // covers (geometry.js, `coverBoxes`). Both maps read the same boxes.
+  const hintChrome = { barriers: () => coverBoxes() };
   const anchorPlacement = createAnchorPlacement();
   /** @type {ReturnType<NonNullable<typeof annotationRenderer>["createVisualMarkPaint"]> | undefined} */
   let visualMarkPaint;
@@ -484,7 +484,6 @@ async function boot() {
     threadPlace: (id) => app.threadDestinations.threadPlace(id),
     prepareNavigationStep: anchorTravel.prepareNavigationStep,
     arrive: anchorTravel.arrive,
-    readableDestination: anchorTravel.readableDestination,
     announce,
   });
   const changeWalk = createChangeWalk();
@@ -508,7 +507,6 @@ async function boot() {
     arrivesAt: (item) => queueWalk.arrivesAt(item),
     onMe: queueWalk.onMe,
     withdraw: app.withdraw,
-    settlement: app.settlement,
     placedAt: anchorPlacement.placedAt,
     openThreadSubject: (id, options) =>
       app.threadDestinations.openThreadSubject(id, options),
@@ -745,7 +743,7 @@ async function boot() {
     app.mountAnnotations();
     app.overlay?.mount();
     // Margin rows insert before the permanent foreground home, so these chips are laid
-    // out after every target they name while retaining their native modal ancestor.
+    // out after every target they name.
     chromeForeground.append(goToHintLayer, commandHintLayer, targetPickerHintLayer);
     app.mountRead();
     layout.mountLayoutObservers();

@@ -996,11 +996,11 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
     page = open_page(browser, url)
     resized(page, 1024, 900)
     if quote_anchor:
-        # The code box also spans the gutter and blank column; drag on its words.
-        words = page.locator("#source [data-content] [data-line] span").evaluate(
-            """span => {
+        # The row also spans the numbers' column and blank room; drag on its words.
+        words = page.locator("#source .lf-text-document-run > *").evaluate(
+            """row => {
               const range = document.createRange();
-              range.selectNodeContents(span);
+              range.selectNodeContents(row);
               return range.getBoundingClientRect().toJSON();
             }"""
         )
@@ -1071,7 +1071,7 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
     if quote_anchor:
         # Its words are gone, so the thread stands nowhere on the page, and its head
         # says so.
-        quote = open_panel_thread(page, comment["id"]).locator(".lf-fp-quote")
+        quote = open_panel_thread(page, comment["id"]).locator(".lf-thread-quote")
         expect(quote).to_have_attribute("data-lf-detached", "")
         expect(page.locator(".lf-margin-marker")).to_have_count(0)
         return

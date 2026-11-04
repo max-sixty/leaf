@@ -118,7 +118,7 @@ Two classic models.</pre></lf-code>
     expect(rows).to_have_count(3)
     # The comment on the code's words found them: its quote is no detached one.
     rows.filter(has_text="Still anchored?").click()
-    quote = page.locator(f"{PANEL_THREAD} .lf-fp-quote")
+    quote = page.locator(f"{PANEL_THREAD} .lf-thread-quote")
     expect(quote).to_be_visible()
     expect(quote).not_to_have_attribute("data-lf-detached", "")
 

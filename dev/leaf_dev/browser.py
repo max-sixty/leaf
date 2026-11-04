@@ -94,11 +94,11 @@ def launch(engine: str, scheme: str = "light"):
 
     An overlay scrollbar, such as a Mac's, shows when its box scrolls and starts to
     fade out half a second later. This Chromium shell keeps it shown, as a reader sees
-    it while scrolling, so a screenshot taken at any time after the scroll draws the
-    same bar. Disabling Chromium's `ScrollbarAnimations` feature does this, as web
-    platform tests do so that a screenshot's timing can't flake a comparison.
-    Playwright's Firefox and WebKit draw no overlay bar on a Mac, and a classic bar
-    never fades."""
+    it while scrolling, until the pointer passes over it and leaves, so a screenshot
+    taken at any time after the scroll draws the same bar. Disabling Chromium's
+    `ScrollbarAnimations` feature does this; Chromium keeps the feature so that web
+    platform tests' screenshots can't flake on their timing. Playwright's Firefox and
+    WebKit draw no overlay bar on a Mac, and a classic bar never fades."""
     if engine == "ios":
         from leaf_dev.ios_safari import ios_safari
 

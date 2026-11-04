@@ -23,10 +23,19 @@ from pathlib import Path
 
 from leaf_dev.arms import observed_sum, run_agent, scratch, trace_result, trace_summary
 from leaf_dev.arrangement_eval import judge_pages
+from leaf_dev.browser import WINDOWS
 from leaf_dev.eval_cases import definition
 
 DEFINITION = definition("page_defects")
 SKILL_PREFIX = definition("eval")["skill_prefix"]
+# Each window the judge uses the page in, as its instructions describe it.
+WIDTHS = {
+    name: {
+        "viewport": list(WINDOWS[name].size),
+        "description": WINDOWS[name].description,
+    }
+    for name in DEFINITION["widths"]
+}
 
 
 def match(defects: list[dict], response: dict, evidence: Path) -> tuple[dict, dict]:
@@ -76,7 +85,7 @@ def get_assert(output: str, context: dict) -> dict:
                 "condition": "leaf",
             }
         },
-        DEFINITION["widths"],
+        WIDTHS,
         DEFINITION["judge"].format(
             request=context["vars"]["prompt"].removeprefix(SKILL_PREFIX)
         ),

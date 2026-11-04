@@ -43,7 +43,6 @@ from PIL import Image, ImageDraw
 from playwright.sync_api import expect
 from render_harness import (
     FOLLOWER_MARK,
-    ROOT,
     SUBJECT_MARK,
     assert_follows_in_every_frame,
     compositor_trace,
@@ -66,6 +65,7 @@ from render_harness import (
 from browser.threads import append_agent_reply
 from leaf import event_log
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.example_data import named_source
 
 # One source line, so a phrase's offset in the source is its offset in the text node.
 LONG = (
@@ -637,7 +637,7 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
             + f"""<style>
               #paint-code {{ display:block; width:420px; }}
               #paint-code > pre {{ height:240px; max-height:240px; overflow:auto; }}
-              .lf-code-line[data-line="6"] {{ background:{SUBJECT_MARK} !important; }}
+              .lf-code-line[data-lf-line="6"] {{ background:{SUBJECT_MARK} !important; }}
             </style>""",
         )
         size, wheel, scroller = (1200, 700), 900, "#paint-code > pre"
@@ -700,7 +700,7 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
     )
     resized(page, *size)
     target = page.locator(
-        '#paint-code .lf-code-line[data-line="6"]'
+        '#paint-code .lf-code-line[data-lf-line="6"]'
         if region == "code"
         else "#paint-target"
     )
@@ -1134,7 +1134,7 @@ def test_a_card_grows_past_a_region_that_does_not_scroll_its_subject(
     the card, rather than scrolling inside a card the shot or the pane cuts short."""
     shot = None
     if subject.startswith("shot"):
-        page = open_page(browser, serve(ROOT / "examples/release-notes.html"))
+        page = open_page(browser, serve(named_source("release-notes")))
         resized(page, 1440, 900)
         shot = page.locator("#rn-console-shot")
         shot.scroll_into_view_if_needed()

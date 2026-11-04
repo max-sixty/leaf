@@ -89,10 +89,10 @@ acceptance decisions, use the
 [hill-climbing playbook](../.claude/skills/hill-climb-ui/SKILL.md).
 This section describes the commands that execute a selected experiment.
 
-`evals/workflows/eval.yaml` owns viewport presets and the default. Case definitions
-do not select resolutions. Use `--viewport large`, `--viewport short` or
-`--viewport phone` to choose an alternative; repeat the option to inspect several
-sizes within each sample.
+`WINDOWS` in `dev/leaf_dev/browser.py` names the windows a run can open, and
+`evals/workflows/eval.yaml` sets the default. Case definitions do not select
+resolutions. Use `--viewport NAME` to choose another window; repeat the option to
+inspect several sizes within each sample.
 The first selected size drives the comment and decision journey. All selected
 sizes reach the author's window preference, report captures and final judge.
 Full workflows introduce that preference after the first draft; short authoring

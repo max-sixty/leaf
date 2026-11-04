@@ -8,7 +8,8 @@ Each page in PAGES is built from this checkout's example by the arm's own launch
 then checked RUNS times by that arm's `bin/leaf`, alternating arms so drift in machine
 load falls on both. Wall time is the child process's, launcher included. Other
 processes' load moves every run, so read the spread and the load average before the
-median; `leaf-dev profile` says where a browser transition's time goes.
+median; `leaf-dev bench-latency --profile` says where a browser transition's
+time goes.
 
 Each invocation builds its base, pages, and state in a unique run directory under
 `.tmp/bench-check/` and prints that directory.

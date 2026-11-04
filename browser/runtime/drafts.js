@@ -193,7 +193,7 @@ export const storedDraft = (ctx) => {
 };
 /** @param {string} attempt */
 const attemptAccepted = (attempt) =>
-  runtime.receipts.some((event) => event.attempt === attempt);
+  runtime.events.some((event) => event.attempt === attempt);
 /** @param {string} ctx @param {DraftRecord} record */
 const writeDraftRecord = (ctx, record) =>
   draftStore.set(DRAFT + ctx, JSON.stringify(record));

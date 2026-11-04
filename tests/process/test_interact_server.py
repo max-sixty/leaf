@@ -2112,8 +2112,9 @@ def test_action_door_owns_created_child_meaning(server, page_dir):
 def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_dir):
     """The browser receives a reading, not a log it must interpret again.
 
-    Its receipt, semantic coordinate, winner, undo offer, and readiness coverage all
-    name the event accepted by this same POST response and the same sequence boundary.
+    Its receipt, semantic coordinate, winner and undo offer all name the event
+    accepted by this same POST response and the same sequence boundary, and a tab
+    that names the reading it held is sent only what followed it.
     """
     version = page_dir / "index.html"
     version.write_text(
@@ -2136,25 +2137,29 @@ def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_d
         "attempt": "attempt-browser-view-1",
     }
 
-    status, body = fetch(f"{server}/api/event", data=json.dumps(sent).encode())
+    held = json.loads(fetch(f"{server}/api/state")[1])["browser"]["basis"]
+
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps(sent).encode(),
+        headers={"Leaf-Held-Basis": held["key"]},
+    )
 
     assert status == 200, body
     state = json.loads(body)["state"]
-    accepted = state["events"][-1]
+    assert state["since"]["through_seq"] == held["through_seq"]
+    [accepted] = state["events"]
+    assert accepted["attempt"] == sent["attempt"]
     browser = state["browser"]
     view = browser["views"]["1"]
     [entry] = view["document"]["projection"]["entries"]
-    assert browser["basis"] == {"through_seq": accepted["seq"]}
+    assert browser["basis"]["through_seq"] == accepted["seq"]
     assert view["basis"] == {"revision": 1, "through_seq": accepted["seq"]}
-    assert browser["receipts"][-1]["id"] == accepted["id"]
     assert entry["event"]["id"] == accepted["id"]
     assert entry["coordinate"] == ["delivery", "delivery", "choose"]
     assert entry["value"] == ["delivery-now"]
     assert view["document"]["projection"]["actions"] == [accepted["id"]]
     assert view["undo"][0]["event"]["id"] == accepted["id"]
-    assert view["coverage"] == [
-        {"event": accepted, "coordinate": ["delivery", "delivery", "choose"]}
-    ]
 
 
 def test_undo_candidate_names_the_prior_durable_winner(server, page_dir):
@@ -2612,7 +2617,7 @@ def test_a_comparison_view_uses_the_requested_log_boundary(server, page_dir):
     browser = json.loads(body)["browser"]
     assert set(browser["views"]) == {"1"}
     view = browser["views"]["1"]
-    assert browser["basis"] == {"through_seq": first["seq"]}
+    assert browser["basis"]["through_seq"] == first["seq"]
     assert view["basis"] == {"revision": 1, "through_seq": first["seq"]}
     assert view["document"]["projection"]["desired"] == [first["id"]]
 
@@ -4216,7 +4221,7 @@ def test_frozen_history_and_comparisons_do_not_reopen_the_page(page_dir):
     ]
     assert gesture["gesture"] == {"form": "choice", "chosen": ["Flag first"]}
     comparison = service.page_browser_view(2, picked["seq"])
-    assert comparison["basis"] == {"through_seq": picked["seq"]}
+    assert comparison["basis"]["through_seq"] == picked["seq"]
     assert comparison["history"][0]["gesture"] == gesture["gesture"]
 
     shutil.rmtree(page_dir)

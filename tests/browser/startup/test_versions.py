@@ -53,12 +53,12 @@ def expect_resolved(page, thread_id, resolved=True):
     """Read whether the panel's Threads lists the thread `thread_id` under Resolved,
     rather than among the open threads."""
     open_threads(page)
-    row = f"{panel_view('threads')} .lf-fp-thread[data-key='{thread_id}']"
+    row = f"{panel_view('threads')} .lf-fp-thread[data-lf-key='{thread_id}']"
     if resolved:
         show_resolved(page)
-        expect(page.locator(f"{row}[data-resolved]")).to_have_count(1)
+        expect(page.locator(f"{row}[data-lf-resolved]")).to_have_count(1)
     else:
-        expect(page.locator(f"{row}:not([data-resolved])")).to_have_count(1)
+        expect(page.locator(f"{row}:not([data-lf-resolved])")).to_have_count(1)
 
 
 def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):
@@ -438,7 +438,7 @@ def test_a_comparison_reads_nothing_from_a_server_running_another_runtime(
     expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
         "placeholder", re.compile("Couldn't load v1")
     )
-    panel_menu(page).locator('.lf-fp-item[data-row="errors"]').click()
+    panel_menu(page).locator('.lf-fp-item[data-lf-row="errors"]').click()
     expect(
         page.locator(panel_view("errors"))
         .locator(".lf-fp-error-words b")
@@ -556,8 +556,8 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
     expect(page.locator("#sug-fix")).to_have_attribute("data-lf-state", "reject")
     # Threads was already open: incoming news keeps its rows in place until the
     # reader asks to settle them. The row's reading changes before its section does.
-    row = page.locator(f"{panel_view('threads')} .lf-fp-thread[data-key='c1']")
-    expect(row).not_to_have_attribute("data-resolved", "")
+    row = page.locator(f"{panel_view('threads')} .lf-fp-thread[data-lf-key='c1']")
+    expect(row).not_to_have_attribute("data-lf-resolved", "")
     notice = page.locator(".lf-fp-joined .lf-thread-news")
     expect(notice).to_have_attribute("title", "1 thread reopened")
     notice.click()

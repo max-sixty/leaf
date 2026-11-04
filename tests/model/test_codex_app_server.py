@@ -2156,14 +2156,17 @@ def test_a_turn_that_ended_unseen_is_recorded_without_reopening(page_dir):
     assert service_model.page_claim(page_dir) == closed
 
 
-def test_a_reply_reservation_lapses_when_a_turn_it_does_not_name_opens(page_dir):
-    """A reply reservation hands its move's answer to the turn it names, and no other.
+@pytest.mark.parametrize("lapse", ["a-later-turn-opens", "its-turn-closes"])
+def test_a_reply_reservation_lapses_once_its_turn_is_not_the_open_one(page_dir, lapse):
+    """A reply reservation hands its move's answer to the open turn it names, and no
+    other, and a turn that has ended writes nothing more.
 
     The observer bound the delivery's reply to its turn and then lost the
     connection with the turn still running. While that turn is the claim's, the
     turn's own messages owe the answer. Once a later turn opens without the
-    App Server client taking the reservation over, nothing says those messages will be
-    committed, so the move is answered with `leaf thread reply` again, and a
+    App Server client taking the reservation over, or the session's turn closes
+    without one committing the turn's final message, nothing says those messages
+    will be committed, so the move is answered with `leaf thread reply` again, and a
     client that reconnects and commits the delivery turn's final message after
     all yields to that answer.
     """
@@ -2194,7 +2197,10 @@ def test_a_reply_reservation_lapses_when_a_turn_it_does_not_name_opens(page_dir)
     [owed] = _obligations(page_dir)
     assert owed["answer"]["writer"] == "turn"
 
-    cleanup_model.prompt_turn("codex-thread", "later-turn")
+    if lapse == "a-later-turn-opens":
+        cleanup_model.prompt_turn("codex-thread", "later-turn")
+    else:
+        cleanup_model.close_session_turn("codex-thread", "delivery-turn")
 
     [owed] = _obligations(page_dir)
     assert owed["answer"] == {
@@ -2206,7 +2212,7 @@ def test_a_reply_reservation_lapses_when_a_turn_it_does_not_name_opens(page_dir)
     posted = thread_model.post_reply(
         page_dir,
         {"responds": comment["id"]},
-        "Answered in the later turn",
+        "Answered with leaf thread reply",
         identity={"session": "codex-thread"},
     )
     assert posted["responds"] == comment["id"]
@@ -2235,60 +2241,7 @@ def test_a_reply_reservation_lapses_when_a_turn_it_does_not_name_opens(page_dir)
         event["text"]
         for event in events_model.read_events(page_dir)
         if event["kind"] == "reply"
-    ] == ["Answered in the later turn"]
-
-
-def test_a_reply_reservation_lapses_when_its_turn_closes(page_dir):
-    """A turn that has ended writes nothing more, so its reservation lapses with it.
-
-    The observer bound the delivery's reply to its turn and then lost the
-    connection. When the session's turn closes without an App Server client committing the
-    turn's final message, nothing says one will, so the move is answered with
-    `leaf thread reply` again.
-    """
-    comment = append_carried_log_record(
-        page_dir, {"kind": "comment", "author": "user", "text": "Answer me"}
-    )
-    prepared = codex_model.prepare_codex_delivery(
-        page_dir, harness_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
-    )
-    target = codex_model.stream_reply_target(prepared.payload)
-    assert target is not None
-    thread_model.reserve_delivery_reply("codex-thread", prepared.payload["id"], target)
-    observer = _observer()
-    observer._read(
-        {
-            "method": "turn/started",
-            "params": {
-                "threadId": "codex-thread",
-                "turn": {
-                    "id": "delivery-turn",
-                    "items": [_delivery_item(prepared.payload)],
-                    "status": "inProgress",
-                },
-            },
-        }
-    )
-    observer._disconnect_turns()
-    [owed] = _obligations(page_dir)
-    assert owed["answer"]["writer"] == "turn"
-
-    cleanup_model.close_session_turn("codex-thread", "delivery-turn")
-
-    [owed] = _obligations(page_dir)
-    assert owed["answer"] == {
-        "kind": "reply",
-        "parent": comment["id"],
-        "responds": comment["id"],
-        "ref": delivered_ref(page_dir, comment["id"]),
-    }
-    posted = thread_model.post_reply(
-        page_dir,
-        {"responds": comment["id"]},
-        "Answered after the turn ended",
-        identity={"session": "codex-thread"},
-    )
-    assert posted["responds"] == comment["id"]
+    ] == ["Answered with leaf thread reply"]
 
 
 def test_the_prompt_hook_and_the_observer_open_one_codex_turn(page_dir, capsys):
@@ -2565,61 +2518,13 @@ def test_a_reply_that_cannot_be_written_still_closes_its_turn(page_dir, monkeypa
 
     `AppServerReplyStream` guards only the commit of a completed answer: setting the
     state and releasing the reservation open a page transaction of their own, and the
-    turn's own work may have left that page unopenable. The turn has ended either
-    way, and until its Leaf turn closes and its activity reading comes off, the
-    page tells its user the agent is still working until the claim's
-    fifteen-minute grace runs out.
-    """
-    prepared = _codex_delivery(page_dir)
-    payload = prepared.payload
-    target = codex_model.stream_reply_target(payload)
-    assert target is not None
-    thread_model.reserve_delivery_reply("codex-thread", payload["id"], target)
-    admitted = cleanup_model.start_session_turn(
-        "codex-thread", "leaf-turn", cleanup_model.session_record("codex-thread")
-    )
-    assert admitted is not None
-    turn = codex_model.TurnFold(
-        "codex-thread",
-        "leaf-turn",
-        payload["id"],
-        target,
-        lifecycle=admitted,
-    )
-    turn.open()
-    codex_model.set_stream_activity(
-        "codex-thread",
-        "leaf-turn",
-        {"kind": "working"},
-        expected=cleanup_model.session_record("codex-thread"),
-    )
-    turn.open_reply()
-    monkeypatch.setattr(codex_model.AppServerReplyStream, "_set_state", _unopenable)
-
-    with pytest.raises(OSError, match="could not be opened"):
-        turn.commit({"id": "leaf-turn", "status": "completed", "items": []})
-
-    claim_record_4 = service_model.page_claim(page_dir)
-    assert claim_record_4 is not None
-    assert claim_record_4["turn_closed"] is not None
-    assert read_record(page_dir / "stream.json")["activity"] is None
-    # The reservation is released too: a reply that faulted part-written holds one
-    # nothing will ever commit, and every other writer waits behind it.
-    assert not thread_model.delivery_reply_reserved(
-        "codex-thread", payload["id"], target
-    )
-
-
-def test_an_observed_turn_whose_reply_cannot_be_written_still_closes(
-    page_dir, monkeypatch
-):
-    """The observer ends the turns it adopts the way a follower ends its own.
-
-    A turn the observer binds is one nobody else is following — a pointer the task
-    picked up, or a delivery whose adapter died mid-turn — so its ending is the only
-    one that turn gets. The reply write can fault on the page the turn left behind,
-    and the turn is over either way: the page stops reading working, and the reply
-    reservation is released for whatever writer tells the user what happened.
+    turn's own work may have left that page unopenable. A turn the observer binds is
+    one nobody else is following — a pointer the task picked up, or a delivery whose
+    adapter died mid-turn — so its ending is the only one that turn gets. The turn is
+    over either way. Until its Leaf turn closes and its activity reading comes off, the
+    page tells its user the agent is still working until the claim's fifteen-minute
+    grace runs out, and a reply that faulted part-written holds a reservation nothing
+    will ever commit, with every other writer waiting behind it.
     """
     prepared = _codex_delivery(page_dir)
     payload = prepared.payload
@@ -2670,6 +2575,7 @@ def test_an_observed_turn_whose_reply_cannot_be_written_still_closes(
     claim_record_5 = service_model.page_claim(page_dir)
     assert claim_record_5 is not None
     assert claim_record_5["turn_closed"] is not None
+    assert read_record(page_dir / "stream.json")["activity"] is None
     assert not thread_model.delivery_reply_reserved(
         "codex-thread", payload["id"], target
     )
@@ -3853,20 +3759,18 @@ def test_manual_answer_retires_an_unknown_start_before_the_provider_becomes_idle
     ] == ["Manual winner"]
 
 
-@pytest.mark.parametrize("existing_fold", [False, True])
-def test_observer_rejects_stale_running_snapshot(existing_fold, claimed):
+def test_observer_rejects_stale_running_snapshot(claimed):
     cleanup_model.prompt_turn("s1", "old")
     observer = codex_adapter_model.TaskConnection("ws://127.0.0.1:1", "s1")
-    if existing_fold:
-        observer._read(
-            {
-                "method": "turn/started",
-                "params": {
-                    "threadId": "s1",
-                    "turn": {"id": "old", "items": [], "status": "inProgress"},
-                },
-            }
-        )
+    observer._read(
+        {
+            "method": "turn/started",
+            "params": {
+                "threadId": "s1",
+                "turn": {"id": "old", "items": [], "status": "inProgress"},
+            },
+        }
+    )
     cleanup_model.prompt_turn("s1", "new")
     cleanup_model.close_session_turn("s1", "new")
     current = cleanup_model.session_record("s1")

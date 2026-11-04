@@ -198,7 +198,11 @@ hit its timeout, and that is a failure.
 The scheduled run's `test-macos` job runs every tier on macOS, which your Linux runner
 can't reproduce. For a failure only that job shows, the failing run is the evidence
 from before the fix. For the evidence from after it, dispatch `ci` on the fix's branch
-(`gh workflow run ci --ref <branch>`) and read that run's `test-macos` job.
+(`gh workflow run ci --ref <branch>`), whose `test-macos` job takes hours. Don't wait
+for it in the session: triage runs one batch at a time, so a session waiting on that
+job holds every queued issue behind it. The fix lands on the checks Linux can run;
+name the dispatched run on the cause issue and leave the issue open, and the session
+that next handles the issue reads that run's `test-macos` job to settle it.
 
 ## Cloudflare logs
 

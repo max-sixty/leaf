@@ -35,6 +35,9 @@ export const RUNTIME_PAINT_ATTRIBUTE = Object.freeze({
   scrollDirection: "data-lf-scroll-direction",
   moreBelow: "data-lf-more-below",
   goto: "data-lf-go-to-active",
+  // On the root while the user is in an editor a floating surface holds
+  // (annotation-overlay/floating.js).
+  floatingEditor: "data-lf-floating-editor",
   traffic: "data-lf-traffic",
   // A recording playing through the runtime's controls (video-controls.js).
   player: "data-lf-player",

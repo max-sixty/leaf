@@ -52,11 +52,23 @@
    Neither surface stands before the user acts, so the bundle stays off the presentation
    path and loads as soon as the page has presented, as an arrival the page answers for.
    A surface's first placement then lands in the frame that asks for it rather than
-   after a fetch. */
+   after a fetch.
+
+   The root's scroll padding keeps a landing clear of the chrome (base.css). Chromium
+   applies it to a caret reveal in an editor these surfaces hold too, carrying the
+   reveal through the box's anchor and moving the document beneath an editor already in
+   view (#4821). So while the user is in a `leaf-text` inside a box standing in a plane,
+   the root says so (`data-lf-floating-editor`, annotation-chrome.css), and is read again
+   as the user moves and as a box takes or leaves its plane (`readFloatingEditor`). The
+   root is the scroller the padding belongs to; a `:has()` on it matched its argument
+   against the whole document at each write, 4 ms a write in the chrome on the
+   512-section asks page of `leaf-dev scaling`. */
 
 import { afterPresentation } from "../presentation.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
 import { keeps, layoutPx as px, atLayoutPrecision } from "../keeps.js";
+import { focused, onCurrentLocation } from "../focus.js";
+import { RUNTIME_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { anchorBox, anchorElement, anchorFor, anchorName } from "../css-anchors.js";
 import { shownBand } from "../geometry.js";
 import { containingReadingRegionFor } from "../reading-regions.js";
@@ -207,6 +219,17 @@ const INSETS = ["left", "right", "top", "bottom"];
 /** @type {Map<HTMLElement, FloatingSelection>} */
 const stood = new Map();
 export const floatingSelections = () => [...stood.values()];
+
+// Whether the user is in an editor a floating box holds, said on the root (header).
+function readFloatingEditor() {
+  const editing = focused()?.closest?.("[data-lf-plane] leaf-text");
+  keeps(
+    document.documentElement,
+    RUNTIME_PAINT_ATTRIBUTE.floatingEditor,
+    editing ? "" : null,
+  );
+}
+onCurrentLocation(readFloatingEditor);
 
 /** @param {Node | null | undefined} context */
 const physicalContext = (context) =>
@@ -447,6 +470,7 @@ export function floatingPlacement({ floating, update }) {
         y: offset.y + (frameBox?.top ?? 0) / scale.y,
       };
       keeps(floating, "data-lf-plane", plane);
+      readFloatingEditor();
       stopScrollInvalidation?.();
       stopScrollInvalidation = null;
       if (plane !== "page") {
@@ -599,6 +623,7 @@ export function floatingPlacement({ floating, update }) {
       stoodSize = null;
       stood.delete(floating);
       delete floating.dataset.lfPlane;
+      readFloatingEditor();
       for (const property of ["position-anchor", ...INSETS])
         floating.style.removeProperty(property);
     },

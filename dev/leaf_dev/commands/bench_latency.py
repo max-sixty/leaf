@@ -896,7 +896,8 @@ def bench_latency(
         json.dumps({"commits": commits, "results": results}, indent=1)
     )
     click.echo(
-        f"{describe(arms)}, {runs} runs, Chrome {chrome}, {WINDOW_SIZE[0]}x{WINDOW_SIZE[1]}\n"
+        f"{describe(arms)}, {runs} runs, Chrome {chrome}, "
+        f"{WINDOW_SIZE[0]}x{WINDOW_SIZE[1]}\n"
         f"load average {load_before} before, {load_average()} after\n"
         "times are median [min-max] ms from input or write to the painted frame"
         f"{', under the profiler, which slows the page' if profile else ''}\n"

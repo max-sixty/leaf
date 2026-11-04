@@ -162,10 +162,10 @@ class Run:
 
     @property
     def journey_window(self) -> Window:
-        """The window the user's comment and decision open the page in: the first
-        selected window's size, under a mouse. The scripted comment selects with
-        mouse events, and a coarse pointer changes how the composer keeps a
-        selection (`composing/surface.js`)."""
+        """The one window the user opens the page in, comments from and decides in,
+        as one person would: the first selected window's size, under a mouse. The
+        scripted comment selects with mouse events, and a coarse pointer changes how
+        the composer keeps a selection (`composing/surface.js`)."""
         return Window(self.windows[self.viewports[0]].size)
 
     @property

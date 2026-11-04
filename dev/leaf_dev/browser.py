@@ -29,12 +29,14 @@ class Window:
 
 
 # The windows a tool opens a page in by name, as `eval --viewport large` or
-# `stills --viewport phone` does. `tab` opens `macbook` unless told another, and so
-# stills and probe open it for a state that names no window of its own. An eval
+# `stills --viewport phone` does. `tab`, and stills and probe for a state that names
+# no window of its own (`states.State`), open `macbook` unless told another. An eval
 # author's request and a judge's instructions give a window's description, which
 # states its size, so a change to either changes what those agents are asked.
 WINDOWS = {
-    "macbook": Window((1440, 900), description="a 1440px by 900px MacBook screen"),
+    "macbook": Window(
+        (1440, 900), description="a 1440px by 900px MacBook content viewport"
+    ),
     "desktop": Window(
         (1280, 800), description="a 1280px by 800px desktop content viewport"
     ),
@@ -194,7 +196,7 @@ def tab(
         context.close()
 
 
-def window(value: str) -> Window:
+def parse_window(value: str) -> Window:
     """The window `--viewport` names, or one under a mouse at the size it spells as
     WIDTHxHEIGHT."""
     if value in WINDOWS:
@@ -231,7 +233,7 @@ def tab_options(command):
     return click.option(
         "--viewport",
         metavar="WIDTHxHEIGHT|NAME",
-        callback=lambda c, p, value: value and window(value),
+        callback=lambda c, p, value: value and parse_window(value),
         help="By default the state's own window, macbook unless it names another. "
         f"A NAME is one of the windows {named}; a WIDTHxHEIGHT window has a mouse.",
     )(command)
@@ -239,7 +241,8 @@ def tab_options(command):
 
 def chosen_window(own: Window, viewport: Window | None, touch: bool | None) -> Window:
     """The window a tab opens in when its command (`tab_options`) would open `own`:
-    the window `--viewport` gave in its place, under the pointer `--touch` gave."""
+    the window `--viewport` gave, if any, in its place, and under a finger or a mouse
+    where `--touch` or `--no-touch` says so."""
     window = viewport or own
     return window if touch is None else replace(window, touch=touch)
 

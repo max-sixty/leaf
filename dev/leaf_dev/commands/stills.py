@@ -20,9 +20,9 @@ held checkpoints capture a send before its POST completes; a still cannot hold o
 
 `--viewport`, `--scheme` and `--touch` set the window of every state a run captures;
 a state that names its own window keeps it unless `--viewport` gives another, and
-`--touch` sets the pointer of either (the `leaf_dev.states` header says when a state
-may name one). Raw
-screenshots always preserve the full viewport and its geometry.
+`--touch` or `--no-touch` sets the pointer of either (the `leaf_dev.states` header
+says when a state may name one). Raw screenshots always preserve the full viewport
+and its geometry.
 Use repeated `--state` options to compare only the states a change touches.
 
 Whether a state changed, and where, is `lf-shot`'s reading of its two stills, from the
@@ -539,8 +539,8 @@ def stills(
 
     --viewport, --scheme and --touch set the window of every state captured; a state
     that names its own window keeps it unless --viewport gives another, and --touch
-    sets the pointer of either. The iPhone sets its own window, and its Safari takes
-    no input, so only a state at rest captures there."""
+    or --no-touch sets the pointer of either. The iPhone sets its own window, and its
+    Safari takes no input, so only a state at rest captures there."""
     states = [state for state in STATES if not names or state.name in names]
     sources = {state.name: named_source(state.source) for state in states}
     out = run_directory(OUT)

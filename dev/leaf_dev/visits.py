@@ -96,10 +96,11 @@ def visits(
     `source` is an authored page, served from the arm (its own copy when `authored`,
     `own_source`, with `log`'s events admitted), or a URL, opened as it is. The tab
     opens in `window` and `scheme`, at `scale` device pixels to a CSS pixel and with
-    `motion`, unless `browser` is the simulator's Safari. After the state's input, each of `steps` runs,
-    then `run`, whose return is the reading's `result`, and once the page has settled,
-    `read(arm, visit)`. `record(page, arm)` wraps the tab's visit, as a recording
-    does; `throttle` slows Chromium's CPU from before the page loads."""
+    `motion`, unless `browser` is the simulator's Safari. After the state's input,
+    each of `steps` runs, then `run`, whose return is the reading's `result`, and once
+    the page has settled, `read(arm, visit)`. `record(page, arm)` wraps the tab's
+    visit, as a recording does; `throttle` slows Chromium's CPU from before the page
+    loads."""
     ios = isinstance(browser, WebDriver)
     leaf = not isinstance(source, str)
     inputs = [*([(state.name, state.drive)] if state.drive else []), *steps]

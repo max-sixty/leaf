@@ -9,8 +9,8 @@ one per size, scheme or pointer: `--viewport`, `--scheme` and `--touch` choose t
 for every state a run opens, in stills and probe alike, and a surface laid out
 differently on a phone is still one state. A state names its own window only where
 its surface appears in no other, such as a card in a short window or the floating
-panel's view of a thread on a phone; `--viewport` replaces it, and `--touch` sets its
-pointer (`browser.chosen_window`).
+panel's view of a thread on a phone; `--viewport` replaces it, and `--touch` or
+`--no-touch` sets its pointer (`browser.chosen_window`).
 A state may name a region whose before/after bounds frame stills' comparison,
 retaining related controls without shrinking their details behind unrelated viewport
 changes.

@@ -126,13 +126,9 @@ def launch(engine: str, scheme: str = "light"):
     `scheme` (`ios_safari`), for a difference only iPhones show. A host without a
     Playwright engine gets Playwright's own error, which names the install command.
 
-    An overlay scrollbar, such as a Mac's, shows when its box scrolls and starts to
-    fade out half a second later. This Chromium shell keeps it shown, as a reader sees
-    it while scrolling, until the pointer passes over it and leaves, so a screenshot
-    taken at any time after the scroll draws the same bar. Disabling Chromium's
-    `ScrollbarAnimations` feature does this; Chromium keeps the feature so that web
-    platform tests' screenshots can't flake on their timing. Playwright's Firefox and
-    WebKit draw no overlay bar on a Mac, and a classic bar never fades."""
+    The Chromium shell keeps an overlay scrollbar shown after a scroll, as `screenshot`
+    requires, by disabling Chromium's `ScrollbarAnimations` feature, which Chromium
+    keeps so that web platform tests' screenshots can't flake on their timing."""
     if engine == "ios":
         from leaf_dev.ios_safari import ios_safari
 
@@ -268,6 +264,42 @@ def chosen_window(own: Window, viewport: Window | None, touch: bool | None) -> W
     where `--touch` or `--no-touch` says so."""
     window = viewport or own
     return window if touch is None else replace(window, touch=touch)
+
+
+# The style `screenshot` adds to every document it shows, for the length of the shot.
+HELD = """:root { caret-animation: manual; }
+@supports not (caret-animation: manual) {
+  * { caret-color: transparent !important; }
+}"""
+
+
+def screenshot(page, path: Path) -> None:
+    """Screenshot the viewport of `page`, a tab `visits` brought to a state, to `path`.
+
+    A capture holds each animation the browser draws in one state, so two captures of
+    one state draw the same pixels whenever they are taken, however loaded the host:
+
+    - A caret stands steady where the engine can stop its blink, as Chromium can
+      (`caret-animation: manual`), and is hidden where it can't: Playwright's WebKit
+      fades it in and out, and its Firefox draws none. Both rules reach a field inside
+      a closed shadow root by inheritance, which Leaf's text field takes its caret's
+      colour by (`runtime/composing/text-field.js`).
+    - An overlay scrollbar, such as a Mac's, starts to fade half a second after its
+      box scrolls. The Chromium shell `launch` opens keeps it shown until the pointer
+      passes over it and leaves, as a reader sees it while scrolling; Playwright's
+      Firefox and WebKit draw no overlay bar, and a classic bar never fades.
+
+    A smooth scroll and the page's finite motion have ended before a reading, since
+    `settle` waits for both, and the page's endless motion, such as the sheen on
+    work under way, runs only as the tab's `motion` lets it: stills reduces motion,
+    and probe shows it as the user sees it unless told to reduce it.
+
+    Safari on the iOS simulator takes no input, so it draws no caret or scrollbar to
+    hold."""
+    if isinstance(page, Page):
+        page.screenshot(path=path, caret="initial", style=HELD)
+    else:
+        page.screenshot(path=path)
 
 
 def slow_cpu(page: Page, rate: float) -> None:

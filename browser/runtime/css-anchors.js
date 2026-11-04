@@ -404,19 +404,24 @@ export const anchorName = (el) => nameAnchor(anchorReading(el));
 // no anchor in a native layer.
 /** @type {boolean | undefined} */
 let dropsTransforms;
-// Firefox lacks transforms in `anchor()`; read once whether this engine does.
+// Firefox lacks transforms in `anchor()`; read once whether this engine does. The probe
+// stands in a box with layout containment, which holds its anchor and the box anchored
+// to it: in the window's containing block, Chromium restyled every anchored element on
+// the page when they left, 200 ms on a page of 512 asks.
 function anchorDropsTransforms() {
   if (dropsTransforms !== undefined) return dropsTransforms;
+  const probe = document.createElement("div");
   const moved = document.createElement("div");
   const anchored = document.createElement("div");
+  probe.style.cssText = "position: fixed; left: 0; top: 0; contain: layout";
   moved.style.cssText =
     "position: fixed; left: 0; top: 0; translate: 8px 0; anchor-name: --lf-moved";
   anchored.style.cssText =
     "position: fixed; top: 0; position-anchor: --lf-moved; left: anchor(left, 8px)";
-  chromeRoot.append(moved, anchored);
+  probe.append(moved, anchored);
+  chromeRoot.append(probe);
   dropsTransforms = anchored.getBoundingClientRect().left < 4;
-  moved.remove();
-  anchored.remove();
+  probe.remove();
   return dropsTransforms;
 }
 // Whether `style` moves its box from where layout put it.
@@ -546,12 +551,7 @@ const cutPath = ({ x, y }, band) => {
   const open = 100000;
   const width = band.right - band.left;
   const height = band.bottom - band.top;
-  // A mark may spend its band outside the band on each side its stand allows
-  // (target-paint-geometry.js, `standOver`); all other paint cuts exactly at it.
-  /** @param {number} value @param {string} side */
-  const edge = (value, side) =>
-    `calc(${layoutPx(value)} - var(--lf-paint-outset-${side}, 0px))`;
-  return `inset(${edge(y ? 0 : -open, "top")} ${edge(-width - (x ? 0 : open), "right")} ${edge(-height - (y ? 0 : open), "bottom")} ${edge(x ? 0 : -open, "left")})`;
+  return `inset(${layoutPx(y ? 0 : -open)} ${layoutPx(-width - (x ? 0 : open))} ${layoutPx(-height - (y ? 0 : open))} ${layoutPx(x ? 0 : -open)})`;
 };
 
 // The levels a box following `item` is cut at so that it passes under the sticky headers

@@ -100,7 +100,7 @@ export interface Thread {
     covers: readonly string[];
     protected: readonly string[];
   })[];
-  unread: readonly ContentVersion[];
+  unread: Readonly<Record<string, string>>;
   attention: Attention;
 }
 export type Settlement = Extract<Command, { kind: "resolve" | "unresolve" }> & {

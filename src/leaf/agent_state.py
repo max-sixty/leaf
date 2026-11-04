@@ -423,9 +423,7 @@ def page_state(
         # The user's side between their updates: which of your messages they have not
         # taken in yet, at their current content version.
         for thread in state["threads"]:
-            thread["unread"] = [
-                item["message"] for item in served_threads[thread["id"]]["unread"]
-            ]
+            thread["unread"] = list(served_threads[thread["id"]]["unread"])
             thread["attention"] = served_threads[thread["id"]]["attention"]
         state["obligations"] = view["obligations"]
         state["todos"] = [todo for todo in browser["todos"] if todo["state"] == "open"]

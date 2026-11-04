@@ -273,8 +273,8 @@ HELD = """:root { caret-animation: manual; }
 }"""
 
 
-def screenshot(page, path: Path) -> None:
-    """Screenshot the viewport of `page`, a tab `visits` brought to a state, to `path`.
+def screenshot(page) -> bytes:
+    """The PNG of `page`'s viewport, a tab brought to a state.
 
     A capture holds each animation the browser draws of its own accord in one state,
     so two captures of one state draw it alike whenever each is taken, however loaded
@@ -289,20 +289,20 @@ def screenshot(page, path: Path) -> None:
     - An overlay scrollbar, such as a Mac's, starts to fade half a second after its
       box scrolls. The Chromium shell `launch` opens keeps it shown until the pointer
       passes over it and leaves, as a reader sees it while scrolling; Playwright's
-      Firefox and WebKit draw no overlay bar, and a classic bar never fades.
+      Firefox and WebKit draw no overlay bar, `headless_shell` draws no bar at all, and
+      a classic bar never fades.
 
-    The page's own motion is the page's: `visits` waits for a Leaf page whose runtime
-    runs to settle, so no smooth scroll or finite transition is under way, and an
-    endless one, such as the sheen on work under way, follows the tab's `motion`.
-    Stills reduces motion, and probe shows what a user sees unless told to reduce it,
-    so a probe shot can catch that motion at any point.
+    The page's own motion is the page's, and follows the tab's `motion`. A `tab`
+    reduces it unless told otherwise, so Leaf's runtime and theme play none; probe
+    shows what a user sees unless told to reduce it, so a probe shot can catch that
+    motion at any point. `visits` also waits for a Leaf page whose runtime runs to
+    settle, so no smooth scroll or finite transition is under way.
 
     Safari on the iOS simulator takes no input, so it draws no caret or scrollbar to
     hold."""
     if isinstance(page, Page):
-        page.screenshot(path=path, caret="initial", style=HELD)
-    else:
-        page.screenshot(path=path)
+        return page.screenshot(caret="initial", style=HELD)
+    return page.screenshot()
 
 
 def slow_cpu(page: Page, rate: float) -> None:

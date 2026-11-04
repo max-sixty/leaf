@@ -403,7 +403,6 @@ def test_a_re_vendor_waits_for_the_reply_being_written(browser, serve):
     accepted, _ = endpoint_model.accept_event(
         page_dir,
         {"kind": "seen", "revision": revised.revision},
-        dict,
     )
     assert accepted == 200
     replies = [

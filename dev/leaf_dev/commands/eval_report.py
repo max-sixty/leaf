@@ -34,6 +34,7 @@ from urllib.parse import quote
 import click
 from PIL import Image
 
+from leaf.event_log import initialized
 from leaf.registry.storage import layer_packages
 from leaf.schema import MEDIA_TYPES
 from leaf_dev import LEAF_COMMAND
@@ -2057,7 +2058,7 @@ def eval_report(
     to open saved pages and raw evidence from the report. Without that URL the
     report names the exported files but does not claim they are reachable."""
     assessment = json.loads(review.read_text()) if review else None
-    packages = list(layer_packages(page)) if (page / "events.jsonl").exists() else []
+    packages = list(layer_packages(page)) if initialized(page) else []
     required = ["diff", *(["diagram"] if (assessment or {}).get("campaign") else [])]
     if any(name not in packages for name in required):
         leaf(

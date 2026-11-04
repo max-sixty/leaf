@@ -25,6 +25,7 @@ from render_cases_interaction import (
 from render_cases_layout import (
     AIM_SEAM,
     AIM_SEAM_PAGE,
+    MARK,
     SHOT_SRC,
     SHOTS,
 )
@@ -93,7 +94,6 @@ from leaf import event_log as events_model
 from leaf import structure as structure_model
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import rendered
-from leaf.schema import ELEMENT_ID
 from leaf_dev.example_data import named_source, patch_manifest
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -2770,27 +2770,21 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
     expect_open_threads(page, 2)
     stranded = stranded_quotes(page)
     assert stranded == [], f"outlined on screen, reported missing: {stranded}"
-    # The projected contour an open thread raises stays above the figure's own paint
-    # without putting any paint over its contents: it stands outside the figure.
+    # The contour an open thread raises puts no paint over the figure's contents: the
+    # figure draws it as its outline, outside itself at the region's gap.
     figure = page.locator("#fig")
     expect(figure).to_have_class(re.compile(r"\blf-mark-el\b"))
     figure.scroll_into_view_if_needed()
     figure.click()
     expect(figure).to_have_class(re.compile(r"\blf-projected-mark\b"))
-    mark = page.locator('.lf-visual-mark[data-lf-for="fig"]')
-    expect(mark).to_be_visible()
-    look = mark.evaluate(
-        """node => { const style = getComputedStyle(node, '::after'); return {
-          background: getComputedStyle(node).backgroundImage,
-          outline: [style.outlineStyle, style.outlineWidth],
-          offset: parseFloat(style.outlineOffset),
-          region: parseFloat(getComputedStyle(document.documentElement)
-            .getPropertyValue('--focus-region-gap')),
-        }; }"""
+    expect(figure).to_have_attribute("data-lf-mark", re.compile("."))
+    look = figure.evaluate(MARK)
+    region = page.evaluate(
+        "() => parseFloat(getComputedStyle(document.documentElement)"
+        ".getPropertyValue('--focus-region-gap'))"
     )
-    assert look["background"] == "none", look
-    assert look["outline"][0] == "solid" and look["outline"][1] != "0px", look
-    assert look["offset"] == look["region"], look
+    assert look and look["style"] == "solid" and look["width"] > 0, look
+    assert look["offset"] == region, (look, region)
 
 
 FOCUSED_THREAD = "document.activeElement?.closest('.lf-page-thread')"
@@ -3042,10 +3036,9 @@ def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
     page = open_page(browser, url)
     figure = page.locator("#fig")
     figure.scroll_into_view_if_needed()
-    mark = page.locator('.lf-visual-mark[data-lf-for="fig"]')
-    expect(mark).to_have_count(0)
+    expect(figure).not_to_have_attribute("data-lf-mark", re.compile(".*"))
 
-    look = """node => { const style = getComputedStyle(node, '::after'); return {
+    look = """node => { const style = getComputedStyle(node); return {
       line: style.outlineStyle,
       drawn: parseFloat(style.outlineWidth) > 0,
     }; }"""
@@ -3057,7 +3050,8 @@ def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
     # The compact preview card reveals its reply box on request, so what a press lands on
     # is the thread itself; the paint under test is the same either way.
     assert thread_a_press_opened(page) is not None, "the press opened no thread"
-    selected = mark.evaluate(look)
+    expect(figure).to_have_attribute("data-lf-mark", re.compile(r"\bhere\b"))
+    selected = figure.evaluate(look)
 
     assert selected == {"line": "solid", "drawn": True}
     expect(page.locator("[data-lf-target-selected]")).to_have_count(1)
@@ -3069,7 +3063,7 @@ def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
           const sample = () => {
             window.lfFrames.push({
               contour: Boolean(document.querySelector(
-                '.lf-visual-mark-here[data-lf-for="fig"]')),
+                '#fig[data-lf-mark~="here"]')),
               entry: document.querySelectorAll('[data-lf-target-selected]').length,
             });
             if (window.lfFrames.length < 400) requestAnimationFrame(sample);
@@ -3870,7 +3864,7 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
             "lf-decoration": {
                 "description": "Generated prose and a graphic with its own marker.",
                 "type": "object",
-                "properties": {"id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"}},
+                "properties": {"id": {"type": "string"}},
                 "required": ["id"],
                 "additionalProperties": False,
                 "x-content": "markup",

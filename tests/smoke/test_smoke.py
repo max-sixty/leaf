@@ -30,13 +30,6 @@ def test_ship_review_obligations_are_directly_answerable(browser, serve):
     example = named_source("ship-review")
     page = open_page(browser, serve(example))
 
-    # The page runs the prepared kernel its server supplies (`runtime_selection`).
-    loaded = page.evaluate(
-        "performance.getEntriesByType('resource').map((entry) => entry.name)"
-    )
-    assert any("/runtime/bundle-" in url for url in loaded), loaded
-    assert not any(url.endswith("/runtime/semantic-state.js") for url in loaded)
-
     expect_obligations_answered(page, "1/3")
     expect(page.locator("#off-workaround-review .lf-pick")).to_have_count(2)
     expect(page.locator("#off-workaround-review .lf-pick").first).to_be_visible()

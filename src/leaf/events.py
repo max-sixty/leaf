@@ -423,33 +423,35 @@ def progress_completions(thread: dict) -> dict[str, dict]:
 def _thread_summaries(thread: dict, summaries: list, edits: dict) -> list[dict]:
     message_ids = [message["id"] for message in thread["msgs"]]
     positions = {identity: index for index, identity in enumerate(message_ids)}
-    active = []
+    # The summaries in force cover disjoint messages, so each message names the one
+    # summary covering it, and a new summary finds the ones it replaces through the
+    # messages it covers rather than by reading every earlier summary.
+    active: dict[str, dict] = {}
+    holder: dict[str, str] = {}
     for event in summaries:
         start = positions.get(event["from"])
         end = positions.get(event["through"])
         if start is None or end is None or start > end:
             continue
         covers = message_ids[start : end + 1]
-        covered = set(covers)
-        active = [
-            summary for summary in active if covered.isdisjoint(summary["covers"])
-        ]
+        for replaced in {holder[identity] for identity in covers if identity in holder}:
+            for identity in active.pop(replaced)["covers"]:
+                del holder[identity]
         if event["text"] and any(
             edits.get(identity, 0) > event["seq"] for identity in covers
         ):
             continue
-        active.append(
-            {
-                "id": event["id"],
-                "seq": event["seq"],
-                "from": event["from"],
-                "through": event["through"],
-                "covers": covers,
-                "text": event["text"],
-                "label": event.get("label", "Earlier discussion"),
-            }
-        )
-    return sorted(active, key=lambda summary: positions[summary["from"]])
+        active[event["id"]] = {
+            "id": event["id"],
+            "seq": event["seq"],
+            "from": event["from"],
+            "through": event["through"],
+            "covers": covers,
+            "text": event["text"],
+            "label": event.get("label", "Earlier discussion"),
+        }
+        holder.update(dict.fromkeys(covers, event["id"]))
+    return sorted(active.values(), key=lambda summary: positions[summary["from"]])
 
 
 def unanswered_turns(thread: dict) -> list[dict]:

@@ -12,7 +12,6 @@ from render_harness import (
 from leaf import anchor_capture as anchor_capture_model
 from leaf import passages as passages_model
 from leaf.registry import storage as registry_storage
-from leaf.schema import ELEMENT_ID
 from leaf.structure import SourceDocument
 
 # A page-owned widget whose drawing, delivery and asynchronous preparation can be
@@ -72,7 +71,7 @@ PAGE_DECLARATION = {
         "description": "A page-owned local widget.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
+            "id": {"type": "string"},
             "choice": {"type": "string"},
             "restated": {"type": "boolean"},
         },
@@ -180,7 +179,7 @@ GENERIC_VISUAL_LAYER: dict[str, dict] = {
         "description": "A generic rendered visual used to exercise Leaf's package contract.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
+            "id": {"type": "string"},
             "parts": {"const": "all"},
         },
         "required": ["id", "parts"],
@@ -250,7 +249,7 @@ SHADOW_VISUAL_LAYER = {
         "description": "A clipped shadow-root visual used to exercise Leaf's package contract.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
+            "id": {"type": "string"},
             "parts": {"const": "all"},
         },
         "required": ["id", "parts"],
@@ -264,24 +263,6 @@ SHADOW_VISUAL_LAYER = {
 }
 SHADOW_VISUAL_WIDGETS = {
     "lf-test-shadow-visual.js": browser_source("widgets/shadow-visual.js")
-}
-SHADOW_SCROLLER_PAGE = leaf_page(
-    "shadow scroller",
-    """
-<h1 id="title">Shadow scroller</h1>
-<lf-test-shadow-scroller id="shadow-scroller" parts="all"></lf-test-shadow-scroller>
-""",
-)
-SHADOW_SCROLLER_LAYER = {
-    "lf-test-shadow-scroller": {
-        **SHADOW_VISUAL_LAYER["lf-test-shadow-visual"],
-        "description": "A visual part in a shadow-stage scroller.",
-        "x-example": '<lf-test-shadow-scroller id="shadow-scroller" parts="all">'
-        "</lf-test-shadow-scroller>",
-    }
-}
-SHADOW_SCROLLER_WIDGETS = {
-    "lf-test-shadow-scroller.js": browser_source("widgets/shadow-scroller.js")
 }
 # Every supported structural diagram whose authored ids reach a drawn box. State
 # machines carry nested boxes and ER entities carry attribute tables, while sequence

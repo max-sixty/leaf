@@ -14,7 +14,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 /** Source and output pairs, readable without build dependencies by the trusted
  * dependency publisher as well as the compiler. A third member takes regions of the
- * source onto Leaf's faces instead of the whole sheet (`regions`).
+ * source onto Leaf's faces instead of the whole sheet (`regions`, below).
  * @type {[source: string, output: string, faces?: Faces][]} */
 export const styleEntries = [
   [
@@ -69,10 +69,13 @@ const LEAF_OWNS = /^(font|line-height|outline)(-|$)/;
  *
  * A type or class a region's map doesn't name, and anything it maps to null, matches
  * no Leaf face: a selector that requires one goes, `:not()` of one goes from the
- * selector it stands in, and a selector that names nothing in the map goes too. Every rule then weighs nothing
- * (`:where()`), as the library's own sheet stands in its lowest layer, so that every
- * rule of Leaf's own outranks it and the rules stand in the library's order. A region
- * that moves or goes fails the build rather than shipping an empty sheet.
+ * selector it stands in, and a selector that names nothing in the map goes too. Every
+ * rule then weighs nothing (`:where()`), as the library's own sheet stands in its
+ * lowest layer, and the rules keep the library's order, which alone ranks them among
+ * themselves. shadow.css imports the result after the layer's defaults for every
+ * control, such as `.lf-ui-face`'s ink, which it replaces, and before controls.css,
+ * whose rules state where Leaf departs from it. A region that moves or goes fails the
+ * build rather than shipping an empty sheet.
  * @typedef {Record<string, Record<string, string | null>>} Faces
  * @param {string} source
  * @param {Faces} faces */

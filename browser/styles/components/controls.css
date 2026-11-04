@@ -624,9 +624,11 @@ summary,
  *
  * A word keeps Leaf's muted ink and its ui weight, the library's quiet ink and action
  * weight being darker and heavier than controls that stay secondary to the work
- * should be (the user's direction, 3 November 2026). Its labels wrap within their
- * available width, where the library's stand a line tall on one line; controls that
- * require one line declare it locally. The block padding stands one line of words a
+ * should be (the user's direction, 3 November 2026). Its label is a line of inline
+ * content, as an arrow after "Next unchecked" is, where the library's flex box would
+ * set the arrow apart as an item and drop the space before it, and it wraps as the
+ * words around it do, where the library's stands a line tall on one line; controls
+ * that require one line declare it locally. The block padding stands one line of words a
  * line tall (`--lf-line`), less the 1px border, and a finger's floor is the button's
  * reach (surfaces.css), so a rule restating the padding restates the line with it. A
  * finger leaves the last control it tapped matching :hover until the next tap
@@ -646,9 +648,10 @@ summary,
   --wa-color-border-loud: var(--wa-color-brand-border-loud);
 }
 :where(.lf-btn, .button) {
+  display: inline-block;
   height: auto;
   padding-block: max(4px, (var(--lf-line) - 1lh) / 2 - 1px);
-  white-space: normal;
+  white-space: inherit;
 }
 @media not (hover: hover) {
   :where(:is(.lf-btn, .button, .lf-icon-action):hover) {
@@ -816,7 +819,7 @@ wa-copy-button.lf-icon-action {
   color: var(--ink);
   font: inherit;
   text-align: start;
-  white-space: normal;
+  white-space: inherit;
   cursor: pointer;
 }
 /* It declines the wash every generated press takes under the pointer (surfaces.css),

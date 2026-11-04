@@ -45,6 +45,7 @@ from render_harness import (
     resized,
     rgb_pixels,
     round_trip,
+    scroll_settled,
     select_words,
     sending,
     show_resolved,
@@ -4467,6 +4468,27 @@ def test_each_view_s_list_is_one_tab_stop_its_keys_walk(browser, serve):
     expect(rows.nth(1)).to_be_focused()
     expect(view.locator("[tabindex='0']")).to_have_count(1)
     expect(rows.nth(1)).to_have_attribute("tabindex", "0")
+
+
+def test_threads_arrows_move_on_from_a_row_scrolled_out_of_the_list(browser, serve):
+    """Wheeling Threads' list until its focused row leaves the list's view doesn't take
+    the user off that row, though keys skip a place scrolled off screen: the panel still
+    shows the list, so ↓ moves on to the next row and brings it into view."""
+    page = floating(browser, serve(LONG_PAGE, comments=30))
+    page.locator("body").focus()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel_settled(page, view="threads")
+    rows = page.locator(panel_view("threads")).locator(".lf-fp-thread")
+    expect(rows.first).to_be_focused()
+    box = rows.nth(3).bounding_box()
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.wheel(0, 3000)
+    scroll_settled(page)
+    expect(rows.first).not_to_be_in_viewport()
+    page.keyboard.press("ArrowDown")
+    expect(rows.nth(1)).to_be_focused()
+    expect(rows.nth(1)).to_be_in_viewport()
 
 
 def test_a_menu_row_that_puts_the_menu_away_leaves_the_user_on_the_leaf(browser, serve):

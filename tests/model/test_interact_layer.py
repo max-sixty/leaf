@@ -1634,6 +1634,127 @@ def test_layout_style_and_widgets_never_read_each_other():
     assert not typed, "layouts.css sets type:\n" + "\n".join(typed)
 
 
+def _simple_selectors(compound):
+    """The simple selectors of one compound, a functional pseudo-class whole."""
+    parts, depth = [""], 0
+    for char in compound:
+        if not depth and char in ".#[:*&" and parts[-1] not in ("", ":"):
+            parts.append("")
+        parts[-1] += char
+        depth += (char in "([") - (char in ")]")
+    return [part for part in parts if part]
+
+
+def _arguments(pseudo):
+    """The subject compound of each selector inside a functional pseudo-class."""
+    inner = pseudo[pseudo.index("(") + 1 : -1]
+    return [_split_top(each, " >+~") for each in _split_top(inner, ",")]
+
+
+def _names_an_element(compound):
+    """Whether the compound states something an element carries: a type, class, id or
+    attribute, the nesting parent, or an `:is()` or `:where()` whose every argument
+    does. `*`, `:not()` and `:first-child` state none."""
+    return any(
+        part[0].isalpha()
+        or part[0] in ".#[&-_\\"
+        or (
+            part.startswith((":is(", ":where("))
+            and all(_names_an_element(each[-1]) for each in _arguments(part))
+        )
+        for part in _simple_selectors(compound)
+    )
+
+
+def _only_has(compound):
+    """Whether the compound is `:has()` and nothing else, written alone or inside
+    `:is()`, `:where()` or `:not()`."""
+
+    def alone(part):
+        return part.startswith(":has(") or (
+            part.startswith((":is(", ":where(", ":not("))
+            and all(len(each) == 1 and _only_has(each[0]) for each in _arguments(part))
+        )
+
+    parts = [part for part in _simple_selectors(compound) if part != "*"]
+    return bool(parts) and all(map(alone, parts))
+
+
+def _scope_roots(sheet):
+    """The start selectors of every `@scope` in a sheet, the first parenthesised list in
+    its prelude."""
+
+    def visit(rules):
+        for rule in rules:
+            if rule.type not in ("at-rule", "qualified-rule") or rule.content is None:
+                continue
+            if rule.type == "at-rule" and rule.lower_at_keyword == "scope":
+                for start in rule.prelude:
+                    if start.type == "() block":
+                        yield from _split_top(
+                            " ".join(tinycss2.serialize(start.content).split()), ","
+                        )
+                        break
+            yield from visit(
+                tinycss2.parse_blocks_contents(
+                    rule.content, skip_comments=True, skip_whitespace=True
+                )
+            )
+
+    yield from visit(
+        tinycss2.parse_stylesheet(
+            sheet.read_text(), skip_comments=True, skip_whitespace=True
+        )
+    )
+
+
+def test_an_untyped_has_leads_only_to_a_typed_subject():
+    """A `:has()` that is the whole of its compound, with no compound before it, names
+    no element. In Chromium, such a `:has()` that leads on to a subject naming no
+    element either, as `:has(> lf-toc) > :not(lf-toc)` does, or that stands as an
+    `@scope`'s root, makes the browser restyle the whole document after any write to an
+    element's text, or to an attribute another `:has()` reads, anywhere on the page.
+    The rule costs that without matching anything: toc.css's `@scope (:has(> lf-toc))`,
+    under a container query that a page without a sidebar never meets, made each of the
+    16 style recalcs in a Tab on a page of 64 questions restyle the whole page (938 ms
+    against 26 ms). Measured in Chromium 156 by a trace's restyled-element count:
+    naming an element on either side, as `div:has(> lf-toc)`, `.a :has(…) > *` and
+    base.css's `:has(…) > pre` do, keeps the restyle to the elements near the write."""
+    found = []
+    for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES):
+        for sheet in sorted(root.rglob("*.css")):
+            if "vendor" in sheet.parts:
+                continue
+            where = sheet.relative_to(ROOT)
+            for selector in _scope_roots(sheet):
+                *before, subject = _split_top(selector, " >+~")
+                if _only_has(subject) and not any(map(_names_an_element, before)):
+                    found.append(f"{where}: @scope ({selector})")
+            for _conditions, enclosing, selector, _declarations in _style_rules(sheet):
+                # Inside a scope, the scope's root stands before every compound.
+                if "scope" in enclosing:
+                    continue
+                compounds = _split_top(selector, " >+~")
+                lead = next(
+                    (
+                        at
+                        for at, compound in enumerate(compounds)
+                        if _only_has(compound)
+                    ),
+                    None,
+                )
+                if (
+                    lead is not None
+                    and lead < len(compounds) - 1
+                    and not any(map(_names_an_element, compounds[:lead]))
+                    and not _names_an_element(compounds[-1])
+                ):
+                    found.append(f"{where}: {selector}")
+    assert not found, (
+        "name an element beside this `:has()` or in its subject:\n" + "\n".join(found)
+    )
+
+
 def test_controls_are_built_by_role_and_never_by_face():
     """Leaf's controls come from a closed set of roles, each with one face, so a widget
     cannot draw two controls of one kind two ways. The classes of a role's face are

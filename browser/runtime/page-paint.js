@@ -49,6 +49,9 @@ export const RUNTIME_PAINT_ATTRIBUTE = Object.freeze({
   traced: "data-lf-traced",
   proxied: "data-lf-proxied",
   location: "data-lf-projected-location",
+  // The anchor name a heading holds while its link shows (heading-links.js, marks.css),
+  // which the margin likewise does not hear.
+  headingLink: "data-lf-heading-link",
 });
 
 export const PAGE_PAINT_ATTRIBUTE = Object.freeze({

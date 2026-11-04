@@ -4,10 +4,7 @@
     "x-instructions": "Write each card as a direct child, usually an `lf-ask` holding its question, evidence and widget, so each can be answered without the others. Put the deck's heading and any shared context before it. Order the cards as the user should take them. Use a deck when the user has several independent things to get through; use a side-list `lf-tabs` when they need to see the whole queue and move around it.",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      }
+      "id": { "type": "string" }
     },
     "required": ["id"],
     "additionalProperties": false,

@@ -145,7 +145,7 @@ def test_a_press_away_puts_the_panel_s_view_away(browser, serve):
     outside = centre(page.locator("h1"))
     on_me.click()
     panel_settled(page, view="queue")
-    view = page.locator(".lf-fp-view:not([data-leaving])")
+    view = page.locator(".lf-fp-view:not([data-lf-leaving])")
     # A drag that ends in the view, as a selection overshooting into it does, began on
     # the page but did not end there.
     drag(page, outside, centre(view))

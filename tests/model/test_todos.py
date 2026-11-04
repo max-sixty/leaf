@@ -1297,7 +1297,7 @@ def asking(page_dir):
 def done(page_dir, todo: str) -> tuple[int, dict]:
     """The user's Done on `task`, posted as the On panel posts it."""
     return endpoint_model.accept_event(
-        page_dir, {"kind": "todo_end", "todo": todo, "outcome": "done"}, dict
+        page_dir, {"kind": "todo_end", "todo": todo, "outcome": "done"}
     )
 
 
@@ -1348,7 +1348,7 @@ def test_a_todo_on_the_user_stands_on_any_element_until_their_done(page_dir):
 
     # Done is a gesture the user can take back, which puts the to-do on them again.
     status, answer = endpoint_model.accept_event(
-        page_dir, {"kind": "undo", "undoes": end["id"]}, dict
+        page_dir, {"kind": "undo", "undoes": end["id"]}
     )
     assert status == 200, answer
     state = state_json(page_dir)

@@ -50,12 +50,18 @@ from types import MappingProxyType
 
 from pywhatwgurl import URL
 
-from leaf.files import file_stamp, latest_revision, list_revisions, revision_path
+from leaf.files import (
+    file_stamp,
+    latest_revision,
+    list_revisions,
+    revision_names,
+    revision_path,
+)
 from leaf.findings import Finding, Rejected
 from leaf.page_memory import Slot, memo
 from leaf.passages import SourceReading, enclosing_ids
 from leaf.registry.contract import is_element_name
-from leaf.registry.storage import revision_vocabulary, selected
+from leaf.registry.storage import revision_inputs, revision_vocabulary, selected
 from leaf.resource_urls import ReferenceError, resource_reference
 from leaf.schema import CONTENT_TYPES, kernel_registry
 from leaf.state import fsync_parents
@@ -1280,6 +1286,14 @@ class RevisionReading(SourceReading):
         return _bundle_vocabulary(self.bundle)
 
     @cached_property
+    def inputs(self) -> tuple[dict, dict]:
+        """The layer vocabulary and page declarations `registry` composes
+        (`registry.storage.revision_inputs`)."""
+        return revision_inputs(
+            self.manifest, _bundle_declarations(self.bundle), self.bundle.parent.parent
+        )
+
+    @cached_property
     def inventory(self):
         """Historical consumers outlive eviction of the expensive parse.
 
@@ -1351,8 +1365,8 @@ class _Readings:
     whether or not their document has been parsed yet, so 8 MB of source keeps one
     page's readings under about 160 MB. A normal history fits whole: some 180
     revisions of the largest shipped example page (44 KB), about 700 of the median
-    one. A longer one re-parses what a whole-history scan
-    (`validation.admission.version_ids`) reaches after the budget is spent.
+    one. A longer one re-parses an evicted revision a reader asks for again; a scan
+    of the whole history reads each revision once (`revision_history`).
 
     Endpoints read from a thread pool, so every change is under the lock."""
 
@@ -1447,6 +1461,56 @@ class _CompactReadings:
             return value
 
 
+@dataclass(frozen=True)
+class RevisionHistory:
+    """What a scan across every stored revision reads: each id any revision
+    authored, and each revision's data consumers (`SourceInventory`), oldest
+    first. Callers read these and change neither."""
+
+    ids: frozenset[str] = frozenset()
+    data_documents: tuple[tuple[int, list], ...] = ()
+
+
+class _History:
+    """A page's `RevisionHistory` and the revision markers it has read.
+
+    Markers are named by their content and only ever added, so a newer listing
+    extends the one read, and only the revisions it adds are read. A scan that read
+    each revision on every call re-parsed each one the compact budget had evicted:
+    on 1,600 versions of a page of 16 questions, `leaf page state` took a second."""
+
+    def __init__(self) -> None:
+        self.lock = threading.Lock()
+        self.markers: tuple = ()
+        self.history = RevisionHistory()
+
+
+def revision_history(page_dir: Path) -> RevisionHistory:
+    """The page's `RevisionHistory` through its newest revision."""
+    markers = tuple(revision_names(page_dir).items())
+    held = memo(page_dir, _History)
+    with held.lock:
+        if markers[: len(held.markers)] != held.markers:
+            held.markers, held.history = (), RevisionHistory()
+        if added := markers[len(held.markers) :]:
+            inventories = [
+                (revision, read_revision(page_dir, revision).inventory)
+                for revision, _name in added
+            ]
+            held.history = RevisionHistory(
+                held.history.ids.union(
+                    *(inventory.ids for _, inventory in inventories)
+                ),
+                held.history.data_documents
+                + tuple(
+                    (revision, inventory.data_documents)
+                    for revision, inventory in inventories
+                ),
+            )
+            held.markers = markers
+        return held.history
+
+
 def active_enclosing(page_dir: Path) -> dict:
     """Where every id sits on the page the user is looking at.
 
@@ -1460,12 +1524,17 @@ def active_enclosing(page_dir: Path) -> dict:
 
 def _bundle_vocabulary(bundle: Path) -> dict:
     """The vocabulary of a stored bundle, as `RevisionArtifact.registry` reads it."""
-    declarations = bundle / ("resources" + PAGE_DECLARATIONS)
     return revision_vocabulary(
         json.loads((bundle / "manifest.json").read_bytes()),
-        declarations.read_bytes() if declarations.is_file() else None,
+        _bundle_declarations(bundle),
         bundle.parent.parent,
     )
+
+
+def _bundle_declarations(bundle: Path) -> bytes | None:
+    """The page declarations a stored bundle captured, if it captured any."""
+    declarations = bundle / ("resources" + PAGE_DECLARATIONS)
+    return declarations.read_bytes() if declarations.is_file() else None
 
 
 def _materialize(path: Path, bundle: Path) -> RevisionArtifact:

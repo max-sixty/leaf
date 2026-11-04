@@ -171,10 +171,7 @@ def instance_input_registry():
     registry = deepcopy(model_layer())
     entry = element_declaration("lf-input-box", upgrade=True)
     entry["properties"]["restated"] = {"type": "boolean"}
-    entry["properties"]["shape"] = {
-        "type": "string",
-        "pattern": f"^{schema_model.DATA_CONTRACT_NAME}$",
-    }
+    entry["properties"]["shape"] = {"type": "string"}
     entry["x-state"] = {
         "submit": {
             "unit": "widget",

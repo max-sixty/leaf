@@ -36,7 +36,6 @@ from render_harness import (
     EXAMPLE_PACKAGES,
     INLINE_PAGE,
     LONG_PAGE,
-    PANEL_THREAD,
     RELEASE_FOCUS,
     REPLAYED_PAGE,
     SETTLED_PAGE,
@@ -67,7 +66,6 @@ from render_harness import (
     resized,
     root_overflow,
     round_trip,
-    said,
     scroll_settled,
     sending,
     stamp_page,
@@ -87,7 +85,7 @@ from leaf import schema as schema_model
 from leaf.registry.contract import RANK
 from leaf.render_checks import rendered
 from leaf.render_gate.scheme import console_finding
-from leaf_dev.browser import threads_tab
+from leaf_dev.browser import PANEL_THREAD, threads_tab
 
 DRAG_HELD = "async () => (await window.__lfCheckApi()).dragHeld()"
 
@@ -230,7 +228,9 @@ def test_z_waits_for_an_unanswered_thread_resolution(browser, serve):
     page.route("**/api/event", lambda route: held.append(route))
     sent = _traffic(page).sends
     # Resolving the thread open from Threads moves the user on to the next one.
-    expect(page.locator(PANEL_THREAD)).to_have_attribute("data-thread", comment_ids[1])
+    expect(page.locator(PANEL_THREAD)).to_have_attribute(
+        "data-lf-thread", comment_ids[1]
+    )
     page.locator(".lf-fp-settle").click()
     holding(page, held, 1, "the second resolution")
     undo_offered(page, offered=False)
@@ -378,7 +378,7 @@ def _shown(page, thread):
     """The thread's transcript, open and in the window."""
     expect(
         page.locator(
-            f'.lf-page-thread[data-thread="{thread}"][data-lf-part="transcript"]'
+            f'.lf-page-thread[data-lf-thread="{thread}"][data-lf-part="transcript"]'
         )
     ).to_be_in_viewport()
 
@@ -3047,10 +3047,10 @@ def test_an_optimistic_presentation_fault_does_not_change_delivery_result(
     # One fault, one report, from the widget paint that raised it. The gesture's own
     # promise carries the same rejection for a caller that restores a draft from it, and
     # accounts for it no second time.
-    errors = take_browser_errors(page)
-    assert [said(error) for error in errors] == [
-        'leaf: <lf-suggestion id="sug-refill"> failed: injected optimistic presentation fault'
-    ], errors
+    reported_browser_errors(
+        page,
+        'leaf: <lf-suggestion id="sug-refill"> failed: injected optimistic presentation fault',
+    )
 
 
 def test_a_draft_that_outlives_its_passage_returns_with_that_passage(browser, serve):

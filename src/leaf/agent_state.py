@@ -423,9 +423,7 @@ def page_state(
         # The user's side between their updates: which of your messages they have not
         # taken in yet, at their current content version.
         for thread in state["threads"]:
-            thread["unread"] = [
-                item["message"] for item in served_threads[thread["id"]]["unread"]
-            ]
+            thread["unread"] = list(served_threads[thread["id"]]["unread"])
             thread["attention"] = served_threads[thread["id"]]["attention"]
         state["obligations"] = view["obligations"]
         state["todos"] = [todo for todo in browser["todos"] if todo["state"] == "open"]
@@ -499,6 +497,8 @@ def page_state(
             "limit": limit,
             "next_after": shown[-1]["seq"] if len(matching) > limit else None,
         }
+        # Read once for every message shown, whose passages and construction use it.
+        outcomes = retirement_outcomes(thread_reading.projection.actions)
         for event in shown:
             fragment = thread_reading.structure.fragments.get(event["id"])
             message = {
@@ -536,11 +536,7 @@ def page_state(
             content.append(message)
             if fragment is None:
                 continue
-            passages = page_passages(
-                fragment,
-                registry,
-                retirement_outcomes(thread_reading.projection.actions),
-            )
+            passages = page_passages(fragment, registry, outcomes)
             message["content"] = constructed_content(
                 fragment,
                 thread_reading.projection,
@@ -548,6 +544,7 @@ def page_state(
                 registry,
                 stored_data,
                 page_dir,
+                outcomes=outcomes,
                 retired=set(passages.retired) | set(passages.gone),
                 thread=thread_id,
             )

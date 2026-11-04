@@ -382,7 +382,7 @@ customElements.define(
                     ><span class="lf-row-main">${record.title}</span
                     ><span
                       class="lf-vr-case-status lf-row-end"
-                      data-approved=${String(approved)}
+                      data-lf-approved=${String(approved)}
                       >${iconTemplate("check")}<span class="lf-quiet"
                         >Looks right</span
                       ></span
@@ -502,7 +502,7 @@ customElements.define(
           </div>
           <div class="lf-vr-decision">
             <div class="lf-vr-review-actions">
-              <label class="choice lf-vr-approval"
+              <label class="lf-choice lf-vr-approval"
                 ><input
                   ${offered("lf-vr-approval-input")}
                   type="checkbox"
@@ -529,7 +529,8 @@ customElements.define(
                         ${threads.length} ${threads.length === 1 ? "thread" : "threads"}
                       </button>
                       <div
-                        class="lf-vr-thread-list scroll"
+                        class="lf-vr-thread-list"
+                        data-lf-scroll
                         id=${`${this.id}-${record.id}-threads`}
                         popover
                       >
@@ -586,7 +587,8 @@ customElements.define(
                 Capture details
               </button>
               <div
-                class="lf-vr-details scroll"
+                class="lf-vr-details"
+                data-lf-scroll
                 id=${`${this.id}-${record.id}-inspection`}
                 popover
               >

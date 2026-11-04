@@ -2,9 +2,10 @@
 
 A selection has two compositions, each held for the process by the inputs it
 resolves to. Its vocabulary (`selected_vocabulary`, `LayerVocabulary`) is all a
-reader of the page needs. The full composition (`selected_layer`,
-`LayerComposition`) is built over that vocabulary and reads and validates every
-sheet and module the layer serves; `validation.command.cmd_check` and
+reader of the page needs, merged and stamped but not validated. The full composition
+(`selected_layer`, `LayerComposition`) is built over that vocabulary, validates its
+registry, and reads and validates every sheet and module the layer serves;
+`validation.command.cmd_check` and
 `http.page_endpoint` compose it so that `page check` and `server start` refuse a
 package that no longer composes (`layer-registry.md`)."""
 
@@ -12,6 +13,7 @@ import hashlib
 import json
 import re
 import subprocess
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from functools import cache, cached_property, lru_cache
@@ -655,7 +657,9 @@ def _vocabulary(inputs: tuple[Path, ...], copies: tuple) -> LayerVocabulary:
 
 @cache
 def _composed(inputs: tuple[Path, ...], copies: tuple) -> LayerComposition:
-    return _composition(checked_layer_inputs(list(inputs)), _vocabulary(inputs, copies))
+    return _composition(
+        checked_layer_inputs(list(inputs)), lambda: _vocabulary(inputs, copies)
+    )
 
 
 def files_identity(files: dict[str, bytes]) -> str:
@@ -887,12 +891,16 @@ def provenance_label(provenance: dict) -> str:
 
 
 def compose_vocabulary(roots: list[Path]) -> LayerVocabulary:
-    """Read and validate the vocabulary of the layer checked inputs produce
-    (`LayerVocabulary`), refusing a registry that marks a widget upgraded whose
-    module no input holds."""
-    from .validation.composition import incoming_registry
+    """Read the vocabulary of the layer checked inputs produce (`LayerVocabulary`),
+    refusing a registry that marks a widget upgraded whose module no input holds.
 
-    incoming = incoming_registry(roots)
+    Its registry is merged and stamped but not validated. `page init` validated the
+    selection, and every Leaf that serves, exports or checks the page validates it
+    again when it composes the layer's files (`_composition`). A reader of the page
+    doesn't validate it."""
+    from .registry.layer import merged_registry, stamp_composition
+
+    incoming = stamp_composition(merged_registry(roots)[0])
     widgets = frozenset(composed_dir_files(roots, "widgets"))
     missing_modules = sorted(
         tag
@@ -916,17 +924,25 @@ def compose_layer(roots: list[Path]) -> LayerComposition:
     not part of it: the Leaf serving a page supplies that (`runtime_selection`), so
     the layer holds what packages add beside it, and the registry, theme and widgets
     every root contributes."""
-    return _composition(roots, compose_vocabulary(roots))
+    return _composition(roots, lambda: compose_vocabulary(roots))
 
 
-def _composition(roots: list[Path], vocabulary: LayerVocabulary) -> LayerComposition:
-    """The layer `roots` produce, over the `vocabulary` they compose: its modules
-    checked for private kernel imports, and its sheets and browser files read."""
+def _composition(
+    roots: list[Path], vocabulary_of: Callable[[], LayerVocabulary]
+) -> LayerComposition:
+    """The layer `roots` produce: its registry validated as `page init` vendors it,
+    then the vocabulary `vocabulary_of` composes, whose stamping reads the registry
+    as valid, its modules checked for private kernel imports, and its sheets and
+    browser files read."""
     from .revision_artifact import (
         PUBLIC_MODULES,
         dependency_reference,
         javascript_imports,
     )
+    from .validation.composition import incoming_registry
+
+    incoming_registry(roots)
+    vocabulary = vocabulary_of()
 
     protected = kernel_runtime_paths()
     private_modules = {"/leaf.js", *(f"/runtime/{name}" for name in protected)} - set(

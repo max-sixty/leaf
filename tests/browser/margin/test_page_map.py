@@ -118,9 +118,9 @@ def test_page_map_qualifies_only_duplicate_subjects_with_their_reading_region(
     expect(dialog).to_be_hidden()
     # A phone has no room for the rail, so the thread opens in the floating panel, the
     # user in its reply as in any thread the panel opens for a route naming no part.
-    view = page.locator(".lf-fp-view:not([data-leaving])")
+    view = page.locator(".lf-fp-view:not([data-lf-leaving])")
     expect(
-        view.locator('.lf-page-thread[data-thread="comment-proposed-deployment"]')
+        view.locator('.lf-page-thread[data-lf-thread="comment-proposed-deployment"]')
     ).to_contain_text("Check this subject.")
     expect(page.locator(".lf-fp-field leaf-text")).to_be_focused()
 
@@ -660,7 +660,7 @@ def test_the_page_map_dialog_walks_its_rows_from_the_search(browser, serve):
         if event.get("text") == "Map note 12"
     )
     thread = page.locator(
-        f'.lf-margin-preview .lf-page-thread[data-thread="{thread_id}"]'
+        f'.lf-margin-preview .lf-page-thread[data-lf-thread="{thread_id}"]'
     )
     expect(thread).to_be_focused()
     expect(thread).to_contain_text("Map note 12")
@@ -1115,7 +1115,7 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, ope
     else:
         assert page.evaluate("() => document.activeElement === document.body")
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before
-    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
+    expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
 
 
 def test_the_complete_page_map_survives_a_crossing_to_the_wide_screen(browser, serve):
@@ -1227,8 +1227,8 @@ def test_a_live_version_retargets_an_open_margin_preview(browser, serve):
     close.focus()
     expect(close).to_be_focused()
     # The card's thread, which the user is located in, marks its element.
-    mark = page.locator('.lf-visual-mark-here[data-for="bracket"]')
-    expect(mark).to_be_visible()
+    marked, here = page.locator("#bracket"), re.compile(r"\bhere\b")
+    expect(marked).to_have_attribute("data-lf-mark", here)
 
     (serve.page_dir / "index.html").write_text(
         OBLIGATION_PAGE.replace("Three jobs", "Four jobs")
@@ -1237,7 +1237,7 @@ def test_a_live_version_retargets_an_open_margin_preview(browser, serve):
     expect(page.get_by_role("heading", name="Four jobs")).to_be_visible()
     expect(close).to_be_focused()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
-    expect(mark).to_be_visible()
+    expect(marked).to_have_attribute("data-lf-mark", here)
 
 
 def test_a_version_comparison_joins_the_same_map_and_leaves_with_it(browser, serve):

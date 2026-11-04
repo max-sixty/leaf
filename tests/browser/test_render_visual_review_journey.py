@@ -9,7 +9,6 @@ from render_cases_layout import (
     ring_faults,
 )
 from render_harness import (
-    CORPUS_SOURCES,
     consume_browser_errors,
     holding,
     leaf_page,
@@ -26,12 +25,11 @@ from render_harness import (
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
-VISUAL_REVIEW_GALLERY = next(
-    path for path in CORPUS_SOURCES if path.stem == "visual-review-gallery"
-)
+VISUAL_REVIEW_GALLERY = named_source("visual-review-gallery")
 
 
 def test_a_visual_review_in_flow_takes_its_evidence_height(browser, serve):
@@ -473,7 +471,7 @@ def test_visual_review_returns_to_case_feedback_on_phone(browser, serve):
         page.keyboard.press("ControlOrMeta+Enter")
     case.get_by_role("button", name="2 threads", exact=True).click()
     case.get_by_role("button", name="Keep the return route", exact=True).click()
-    selected = case.locator(f'.lf-page-thread[data-thread="{first_thread}"]')
+    selected = case.locator(f'.lf-page-thread[data-lf-thread="{first_thread}"]')
     expect(selected).to_be_focused()
     expect(selected).to_be_in_viewport(ratio=1)
 

@@ -356,8 +356,8 @@ to-do is made from an obligation.
   the messages (`events.exchange`).
 - A comment or reply's `title` names its thread atomically with the message, and
   leaves an existing name in place. `thread_title` names or renames a thread with a
-  single line of plain text of at most 80 characters. An unnamed thread has a null
-  title.
+  single line of plain text no longer than its registry `title` allows
+  (`registry.kernel.title_limit`). An unnamed thread has a null title.
 - `summary` covers an inclusive `from`–`through` range of at least two spoken turns in
   one thread; a reaction may lie inside it but not at an endpoint. `text` may be empty
   and `label` defaults to “Earlier discussion”. `events.active_summaries` says which

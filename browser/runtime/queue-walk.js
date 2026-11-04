@@ -441,7 +441,7 @@ export function createQueueWalk({
   // and null on a card whose item no longer waits on them, as in Done.
   /** @param {Origin} origin */
   function cardItem(origin) {
-    const card = closestAcross(origin.node, ON_CARD)?.getAttribute("data-key");
+    const card = closestAcross(origin.node, ON_CARD)?.getAttribute("data-lf-key");
     if (card == null) return undefined;
     return readQueues().on_user.find((item) => queueItemKey(item) === card) ?? null;
   }
@@ -572,10 +572,14 @@ export function createQueueWalk({
       : null;
 
   // The to-do Done ends now: the one the user is on. On a card that is the card's own,
-  // even where another to-do shares its place and so its stop.
+  // even where another to-do shares its place and so its stop. The keys ask this on
+  // every keystroke (the to-do stance's `at`), so the walk's stops, which On me's groups
+  // order, are read only where a to-do waits on the user and the user stands on a place.
   function doneTodo() {
+    if (!readQueues().on_user.some((item) => item.offers.done)) return null;
     const origin = currentLocationOrigin();
-    const shown = origin?.kind === "current-location" ? cardItem(origin) : undefined;
+    if (origin?.kind !== "current-location") return null;
+    const shown = cardItem(origin);
     if (shown !== undefined) return shown?.offers.done ? shown : null;
     return doneAt(currentLocationStop(stops(), origin));
   }

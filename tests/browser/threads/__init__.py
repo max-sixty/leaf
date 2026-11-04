@@ -15,7 +15,6 @@ from render_cases_interaction import (
 )
 from render_cases_navigation import source_revision
 from render_harness import (
-    PANEL_THREAD,
     leaf_page,
     open_page,
     open_threads,
@@ -35,6 +34,7 @@ from leaf import data as data_model
 from leaf import leases as leases_model
 from leaf import service as service_model
 from leaf.render_checks import rendered
+from leaf_dev.browser import PANEL_THREAD
 
 # The open thread's reply, the editor standing in the panel's field, and the thread's
 # held news, which the panel stands among its view's controls.
@@ -57,7 +57,7 @@ def thread_row(page, key):
         key,
     )
     open_threads(page)
-    row = page.locator(f'{panel_view("threads")} .lf-fp-thread[data-key="{key}"]')
+    row = page.locator(f'{panel_view("threads")} .lf-fp-thread[data-lf-key="{key}"]')
     if resolved and not row.count():
         show_resolved(page)
     return row
@@ -69,7 +69,7 @@ def open_panel_thread(page, thread_id):
     Resolved. A thread already open there is left as it stands. A row is keyed by the
     thread's key, which for a thread this tab started is the attempt that sent it
     (thread/model.js, `threadKey`), so the page's own reading finds it."""
-    view = page.locator(f'{PANEL_THREAD}[data-thread="{thread_id}"]')
+    view = page.locator(f'{PANEL_THREAD}[data-lf-thread="{thread_id}"]')
     if view.count():
         return view
     key, resolved = page.evaluate(
@@ -82,7 +82,7 @@ def open_panel_thread(page, thread_id):
     )
     assert key, f"the page holds no thread {thread_id}"
     open_threads(page)
-    row = page.locator(f'.lf-fp-thread[data-key="{key}"]')
+    row = page.locator(f'.lf-fp-thread[data-lf-key="{key}"]')
     if resolved and not row.count():
         show_resolved(page)
     row.click()
@@ -382,7 +382,7 @@ def reply_by_keyboard(page, root):
 # Where a node stands against the open panel view's landing band: its scrollport less
 # the scroll padding the focus ring takes.
 IN_LANDING_BAND = """node => {
-  const list = document.querySelector('.lf-fp-view:not([data-leaving])');
+  const list = document.querySelector('.lf-fp-view:not([data-lf-leaving])');
   const shown = list.getBoundingClientRect();
   const style = getComputedStyle(list);
   const band = [shown.top + (parseFloat(style.scrollPaddingTop) || 0),
@@ -530,7 +530,7 @@ def pressed_send_surface(browser, serve, surface):
     elif surface == "diff-reply":
         url, root = long_diff_thread(serve)
         page = open_page(browser, url)
-        thread = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+        thread = page.locator(f'lf-diff .lf-page-thread[data-lf-thread="{root}"]')
         box = thread.locator(".lf-thread-reply leaf-text")
         box.click()
         send = thread.locator(".lf-thread-reply .lf-compose-submit")
@@ -673,7 +673,7 @@ def open_capture_area(page, *, touch=False):
     annotations = panel_menu(page, "annotate", touch=touch)
     press_visible(
         page,
-        annotations.locator('.lf-fp-item[data-row="command:capture.region.open"]'),
+        annotations.locator('.lf-fp-item[data-lf-row="command:capture.region.open"]'),
         touch=touch,
     )
     surface = page.get_by_role("region", name="Capture area", exact=True)

@@ -20,6 +20,7 @@ from render_cases_interaction import (
     live_url,
 )
 from render_cases_layout import (
+    MARK,
     SHOT_SRC,
     SHOTS,
     current_location_ring,
@@ -50,7 +51,6 @@ from render_cases_widgets import (
     WIDE_DIAGRAM_PAGE,
 )
 from render_harness import (
-    EXAMPLES,
     INLINE_PAGE,
     LONG_PAGE,
     REPLY_HOST_PAGE,
@@ -86,13 +86,14 @@ from leaf import schema as schema_model
 from leaf.registry.storage import load_registry
 from leaf.render_checks import evaluate_probe, rendered, wait_until_ready
 from leaf.render_gate.scheme import console_finding
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
 def test_sort_film_readout_and_narration(browser, serve):
     """Changing step numbers hold their space, and narration renders inline Markdown."""
-    example = next(path for path in EXAMPLES if path.stem == "rust-sort")
+    example = named_source("rust-sort")
     page = open_page(browser, serve(example))
     assert (
         "collapse(): merge if one is true"
@@ -152,7 +153,7 @@ def test_sort_film_fits_its_pane_where_the_panes_stand_side_by_side(browser, ser
     """A workspace is a screen, so in a 900px-tall window at the narrowest width the
     page sets its panes side by side, the whole player shows in its pane, the last
     step's longer summary included (page-layout.md, "A workspace")."""
-    example = next(path for path in EXAMPLES if path.stem == "rust-sort")
+    example = named_source("rust-sort")
     context = browser.new_context(
         reduced_motion="reduce", viewport={"width": 720, "height": 900}
     )
@@ -175,7 +176,7 @@ def test_sort_film_fits_its_pane_where_the_panes_stand_side_by_side(browser, ser
 
 
 def test_ship_review_summary_is_addressable_and_baseline_aligned(browser, serve):
-    example = next(path for path in EXAMPLES if path.stem == "ship-review")
+    example = named_source("ship-review")
     page = open_page(browser, serve(example))
     summary = page.locator("#off-facts")
     expect(summary).to_be_visible()
@@ -428,7 +429,7 @@ def test_a_failed_agent_root_restores_the_focused_first_message_composer(
         )
     page.lf_errors.remove(console_finding(fault.value))
 
-    inline = seat.locator(f':scope > .lf-page-thread[data-thread="{root["id"]}"]')
+    inline = seat.locator(f':scope > .lf-page-thread[data-lf-thread="{root["id"]}"]')
     expect(inline).to_have_count(0)
     expect(composer).to_have_count(1)
     expect(composer).to_be_focused()
@@ -470,7 +471,9 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
         },
     )
     page = open_page(browser, live_url(url))
-    thread = page.locator(f'#proposal > .lf-thread-seat > [data-thread="{root["id"]}"]')
+    thread = page.locator(
+        f'#proposal > .lf-thread-seat > [data-lf-thread="{root["id"]}"]'
+    )
     reply = thread.locator(":scope > .lf-thread-reply leaf-text")
     write(reply, "keep this inline reply")
     reply.evaluate("node => node.setSelectionRange(5, 16, 'backward')")
@@ -518,7 +521,7 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
     # draft is in view. The user can reveal it without losing their reply.
     notice = thread.locator(".lf-thread-news")
     expect(notice).to_have_text("Resolved")
-    expect(thread).to_have_attribute("data-resolved", "false")
+    expect(thread).to_have_attribute("data-lf-resolved", "false")
     notice.click()
     expect(thread.get_by_role("button", name="Reopen")).to_be_visible()
     expect(reply).to_have_js_property("value", "keep this inline reply")
@@ -653,23 +656,19 @@ def test_a_widget_declaring_it_renders_a_picture_exposes_a_comment_target(
     page.locator("#flow svg").click(modifiers=["Alt"])
     page.locator(".lf-fab-input").click()
     page.locator("#flow.lf-mark-el.lf-pending.lf-projected-mark").wait_for()
-    expect(page.locator(".lf-visual-mark-pending")).to_be_visible()
+    expect(page.locator("#flow")).to_have_attribute(
+        "data-lf-mark", re.compile(r"\bpending\b")
+    )
     assert not composer_quote(page)["shown"], "a picture has no words to quote back"
     page.keyboard.press("Escape")
 
     page.locator("#tree").click(modifiers=["Alt"])
     page.locator(".lf-fab-input").click()
     page.locator("#tree.lf-mark-el.lf-pending.lf-projected-mark").wait_for()
-    overlay = page.locator(".lf-visual-mark-pending")
-    expect(overlay).to_be_visible()
-    look = overlay.evaluate(
-        """el => { const style = getComputedStyle(el, '::after'); return {
-          background: getComputedStyle(el).backgroundImage,
-          outline: [style.outlineStyle, style.outlineWidth],
-        }; }"""
-    )
-    assert look["background"] == "none", look
-    assert look["outline"][0] == "solid" and look["outline"][1] != "0px", look
+    tree = page.locator("#tree")
+    expect(tree).to_have_attribute("data-lf-mark", re.compile(r"\bpending\b"))
+    look = tree.evaluate(MARK)
+    assert look and look["style"] == "solid" and look["width"] > 0, look
     page.keyboard.press("Escape")
 
     # And a paragraph is still text: the click reaches no picture and raises nothing.
@@ -678,6 +677,27 @@ def test_a_widget_declaring_it_renders_a_picture_exposes_a_comment_target(
         page.locator(".lf-fab-input"),
         "a click on prose was read as a click on a picture",
     ).not_to_be_visible()
+
+
+# The ink a box draws its mark in (MARK), as the screenshot holds it: a mixed ink
+# computes as color(srgb ...), and a canvas reads any colour as bytes.
+_MARK_INK = """element => {
+          const pen = document.createElement('canvas').getContext('2d');
+          pen.fillStyle = getComputedStyle(element).outlineColor;
+          pen.fillRect(0, 0, 1, 1);
+          return [...pen.getImageData(0, 0, 1, 1).data.slice(0, 3)];
+        }"""
+
+
+def _outer_box(mark):
+    """The outer edge of a box's mark (MARK) as a rectangle."""
+    ring = mark["ring"]
+    return {
+        "x": ring["left"],
+        "y": ring["top"],
+        "width": ring["right"] - ring["left"],
+        "height": ring["bottom"] - ring["top"],
+    }
 
 
 def _bracket_ink_changes(quiet, painted, target, clip, ink):
@@ -746,7 +766,7 @@ def test_a_screenshot_comment_contour_paints_above_its_edge_to_edge_frame(
     down both sides. Both projected brackets, including their end caps, remain above
     the frame.
     """
-    example = next(path for path in EXAMPLES if path.stem == "release-notes")
+    example = named_source("release-notes")
     page = open_page(browser, serve(example))
     shot = page.locator("#rn-console-shot")
     shot.get_by_role("button", name="Slider", exact=True).click()
@@ -768,44 +788,27 @@ def test_a_screenshot_comment_contour_paints_above_its_edge_to_edge_frame(
     expect(comparison).to_have_attribute("position", "50")
     expect(page.locator(".lf-fab-input")).to_be_visible()
     expect(shot).to_have_class(re.compile(r"\blf-projected-mark\b"))
-    overlay = page.locator(".lf-visual-mark-pending")
-    expect(overlay).to_be_visible()
-    contour = overlay.evaluate(
-        """element => { const style = getComputedStyle(element, '::after');
-          // A mixed ink computes as color(srgb …); a canvas reads any colour as bytes.
-          const pen = document.createElement('canvas').getContext('2d');
-          pen.fillStyle = style.outlineColor;
-          pen.fillRect(0, 0, 1, 1);
-          return {
-            ink: [...pen.getImageData(0, 0, 1, 1).data.slice(0, 3)],
-            outset: parseFloat(style.outlineOffset) + parseFloat(style.outlineWidth),
-          }; }"""
-    )
+    expect(shot).to_have_attribute("data-lf-mark", re.compile(r"\bpending\b"))
+    ink = shot.evaluate(_MARK_INK)
     marked = screenshot()
 
     # The contour stands outside the frame, so its edges are the outline's outer box.
-    outset = contour["outset"]
-    outer = {
-        "x": box["x"] - outset,
-        "y": box["y"] - outset,
-        "width": box["width"] + 2 * outset,
-        "height": box["height"] + 2 * outset,
-    }
-    changed, _ = _bracket_ink_changes(quiet, marked, outer, clip, contour["ink"])
+    outer = _outer_box(shot.evaluate(MARK))
+    changed, _ = _bracket_ink_changes(quiet, marked, outer, clip, ink)
     assert all(changed[side] > 0 for side in changed), (
         f"the screenshot frame covered part of its annotation contour: {changed}"
     )
 
 
 def test_a_focused_card_comment_never_paints_over_the_cards_contents(browser, serve):
-    """The selected thread may strengthen its contour, but its overlay stays hollow.
+    """The selected thread may strengthen its contour, but it stays hollow.
 
     This is the checkout-release regression: the metric fills its host edge to edge,
-    so a mark projected above the widget also sits above every word the widget draws.
-    Comparing the interior with that overlay hidden makes the guarantee independent of
-    the widget's DOM, colors, and stacking choices.
+    so a mark projected above the widget also sat above every word the widget draws.
+    Comparing the interior with the card's mark taken off makes the guarantee
+    independent of the widget's DOM, colors, and stacking choices.
     """
-    example = next(path for path in EXAMPLES if path.stem == "live-progress")
+    example = named_source("live-progress")
     url = serve(example)
     append_carried_log_record(
         serve.page_dir,
@@ -824,8 +827,7 @@ def test_a_focused_card_comment_never_paints_over_the_cards_contents(browser, se
     stand_on_thread(page, "blocked-card-comment")
 
     card = page.locator("#lp-k-checks")
-    mark = page.locator('.lf-visual-mark[data-for="lp-k-checks"].lf-visual-mark-here')
-    expect(mark).to_be_visible()
+    expect(card).to_have_attribute("data-lf-mark", re.compile(r"\bhere\b"))
     card.scroll_into_view_if_needed()
     # Include the floating thread's final placement and shadow in both captures.
     rendered(page)
@@ -835,7 +837,9 @@ def test_a_focused_card_comment_never_paints_over_the_cards_contents(browser, se
         return Image.open(io.BytesIO(page.screenshot(clip=box))).convert("RGB")
 
     marked = screenshot()
-    mark.evaluate("element => { element.style.visibility = 'hidden'; }")
+    card.evaluate(
+        "element => { element.style.setProperty('outline', 'none', 'important'); }"
+    )
     bare = screenshot()
     inset = math.ceil(3 * page.evaluate("devicePixelRatio"))
     interior = (inset, inset, marked.width - inset, marked.height - inset)
@@ -843,12 +847,12 @@ def test_a_focused_card_comment_never_paints_over_the_cards_contents(browser, se
     assert difference.getbbox() is None, (
         "the selected comment painted inside the metric card instead of only around it"
     )
-    mark.evaluate("element => { element.style.removeProperty('visibility'); }")
+    card.evaluate("element => { element.style.removeProperty('outline'); }")
 
 
 def test_a_screenshot_margin_trace_paints_both_quiet_brackets(browser, serve):
     """A margin control traces a visual target above its edge-to-edge children."""
-    example = next(path for path in EXAMPLES if path.stem == "release-notes")
+    example = named_source("release-notes")
     page = open_page(browser, serve(example))
     resized(page, 1200, 900)
     margins_laid_out(page)
@@ -882,34 +886,15 @@ def test_a_screenshot_margin_trace_paints_both_quiet_brackets(browser, serve):
     margins_laid_out(page)
     toggle = page.get_by_role("button", name="Review capture", exact=True)
     toggle.hover()
-    trace = page.locator('.lf-target-trace[data-for="rn-console-shot"]')
-    expect(trace).to_be_visible()
-    ink = trace.evaluate(
-        """element => {
-          const canvas = document.createElement('canvas');
-          const context = canvas.getContext('2d');
-          context.fillStyle = getComputedStyle(element, '::after').outlineColor;
-          context.fillRect(0, 0, 1, 1);
-          return [...context.getImageData(0, 0, 1, 1).data.slice(0, 3)];
-        }"""
-    )
+    expect(shot).to_have_class(re.compile(r"\blf-traced\b"))
+    ink = shot.evaluate(_MARK_INK)
     traced = screenshot()
 
-    outset = trace.evaluate(
-        "element => { const s = getComputedStyle(element, '::after');"
-        " return parseFloat(s.outlineOffset) + parseFloat(s.outlineWidth); }"
-    )
-    outer = {
-        "x": box["x"] - outset,
-        "y": box["y"] - outset,
-        "width": box["width"] + 2 * outset,
-        "height": box["height"] + 2 * outset,
-    }
+    outer = _outer_box(shot.evaluate(MARK))
     changed, missing = _bracket_ink_changes(quiet, traced, outer, clip, ink)
     assert not missing, (
         f"the screenshot frame covered the trace's {missing} edge: {changed} ink pixels"
     )
-    assert shot.evaluate("element => getComputedStyle(element).outlineStyle") == "none"
     shot.get_by_role("button", name="Pair", exact=True).click()
     expect(shot.locator('.lf-shotframe[data-lf-state="after"]')).to_be_visible()
 
@@ -1073,8 +1058,8 @@ def test_a_diagram_takes_the_room_and_scrolls_only_past_it(browser, serve):
 
 
 def test_a_marked_scrolling_visual_keeps_its_keyboard_focus_ring(browser, serve):
-    """A focused visual paints one projected ring; entering its thread keeps the
-    reference on the same target without restoring a second source outline."""
+    """A focused visual draws one ring, its own mark; entering its thread keeps the
+    mark on the same target, one outline, rather than adding a second."""
     url = serve(WIDE_DIAGRAM_PAGE)
     append_carried_log_record(
         serve.page_dir,
@@ -1096,14 +1081,15 @@ def test_a_marked_scrolling_visual_keeps_its_keyboard_focus_ring(browser, serve)
     rendered(page)
     ring = current_location_ring(page)
     assert ring and ring["cuts"] == ring["covers"] == [], ring
-    mark = page.locator(".lf-visual-mark")
-    expect(page.locator(".lf-visual-mark-focus")).to_have_attribute("data-for", "flow")
+    expect(diagram).to_have_attribute("data-lf-mark", re.compile(r"\bfocus\b"))
+    expect(page.locator("[data-lf-mark]")).to_have_count(1)
 
     resized(page, 1200, 900)
     stand_on_thread(page, "diagram-comment")
     expect(diagram).to_have_class(re.compile(r"\blf-mark-here\b"))
-    expect(diagram).to_have_css("outline-style", "none")
-    expect(mark).to_have_class(re.compile(r"\blf-visual-mark-here\b"))
+    expect(diagram).to_have_attribute("data-lf-mark", re.compile(r"\bhere\b"))
+    expect(page.locator("[data-lf-mark]")).to_have_count(1)
+    expect(diagram).to_have_css("outline-style", "solid")
 
 
 def test_a_widget_that_failed_soft_claims_no_room(browser, serve):
@@ -1734,6 +1720,13 @@ def test_a_table_granted_room_stands_on_the_prose_axis(
             assert at[kept][edge] == pytest.approx(at["cell"][edge], abs=1), (kept, at)
     assert width(at["beside"]) == pytest.approx(width(at["cell"]), abs=1), at
     assert root_overflow(page) == 0
+    # A focus ring beside the tables leaves nothing to scroll sideways either
+    # (test_a_breakout_grows_only_from_a_holder_that_spans_the_column).
+    page.evaluate(
+        """() => { const p = document.getElementById('prose');
+          p.tabIndex = -1; p.focus({focusVisible: true}); }"""
+    )
+    assert root_overflow(page) == 0
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
@@ -2086,12 +2079,17 @@ INDENTED_PAGE = leaf_page(
 def test_a_breakout_grows_only_from_a_holder_that_spans_the_column(
     request, serve, direction, engine
 ):
-    """An explicit flow shares the column's room; ordinary holders contain their exhibits."""
+    """An explicit flow shares the column's room; ordinary holders contain their exhibits.
+    A focus ring beside a breakout leaves nothing to scroll sideways: Firefox counted a
+    breakout moved by a relative offset at its place in flow once a ring restyled its
+    holder, so closing a thread card, which rings the paragraph it leaves the user at,
+    left the page 456px wider than a 1728px window."""
     browser = request.getfixturevalue(engine)
     source = leaf_page(
         "Native exhibit tracks",
         '<h1>Evidence</h1><p id="prose">Reading measure.</p>'
-        '<section class="layout-flow"><div id="wide" data-width="wide">Wide</div>'
+        '<section class="layout-flow"><p id="beside">Beside the breakouts.</p>'
+        '<div id="wide" data-width="wide">Wide</div>'
         '<div id="available" data-width="available">Available</div></section>'
         '<div id="holder" style="margin-inline-start:40px"><div id="nested" data-width="available">Contained</div></div>'
         '<div id="grid" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">'
@@ -2112,6 +2110,12 @@ def test_a_breakout_grows_only_from_a_holder_that_spans_the_column(
             (at["grid"]["width"] - 16) / 2, abs=1
         )
         assert root_overflow(page) == 0
+    resized(page, 1440, 900)
+    page.evaluate(
+        """() => { const p = document.getElementById('beside');
+          p.tabIndex = -1; p.focus({focusVisible: true}); }"""
+    )
+    assert root_overflow(page) == 0
 
 
 def test_a_breakout_a_revision_inserts_deeper_lands_before_it_paints(browser, serve):

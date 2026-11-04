@@ -384,7 +384,7 @@
   --mark-strong: light-dark(#dfd1ed, #6152a099);
   --mark-ink: light-dark(#4a3b7d, #9d8fd6);
   /* The draft's wash, relative to the accent so one definition serves both schemes; the
-     passage highlight (marks.css) and a draft's element mark (chrome.css) read it. */
+     passage highlight (annotation-marks.css) reads it. */
   --mark-pending: color-mix(in srgb, var(--accent) 20%, transparent);
   /* A reaction's wash: the same hue one step under the resting mark, so a passage
      someone reacted to reads as touched and a passage someone commented on reads as
@@ -401,29 +401,28 @@
 
      What it says:
      - The focus ring, whole: what takes the next key or press (`data-lf-focus-visible`).
-     - The location ring, whole: the decision the user stands in (`[data-lf-obligation]`),
-       drawn over it (target-paint.js, `paintLocation`), and the decision's focus ring
-       too. A control inside it that carries the location itself stands it down
+     - The location ring, whole: the decision the user stands in (`[data-lf-obligation]`)
+       (target-paint.js, `paintLocation`), and the decision's focus ring too. A control
+       inside it that carries the location itself stands it down
        (`--lf-obligation-ring: none`).
-     - Brackets, the band's two ends (chrome.css): what a gesture under way addresses,
+     - Brackets, the band's two ends (surfaces.css): what a gesture under way addresses,
        such as the Alt aim, a comment's element, the thread the user is in or its row
        under the pointer in Threads. In the trace ink, the target of the margin entry
        in hand; at 1px in the contour ink, the target of an action.
-     - A shape's own contour, stroked along its path in place of either
-       (target-paint-geometry.js).
+     - A drawing's part, a shape or a group of them: any of these whole, along the
+       contour of each shape it draws (surfaces.css).
      - A quiet ground (--focus-surface): a large composite holding focus, such as a
        thread, where a band would be a second box round the box.
 
      Where it stands, which the box decides and the mark never does. The box states it
      once, as `--lf-ring-at`, in the rule that draws its face rather than one that waits
-     for focus, and every mark reads it there: each box's outline stands at it
-     (surfaces.css), so its focus ring does, and the overlay's marks, the location ring
-     among them, read it off the box (target-paint-geometry.js, `standOver`). A box that
-     wears the ring for a control inside it states it on itself; a pseudo-element that
-     draws a box's ring above the box's contents states the same place as its own
-     `outline-offset`. A box that states none stands at a control's gap when it holds
-     focus (the floor, surfaces.css), and under an overlay mark at a control's gap if it
-     takes a press and at a region's if not. A rule names the token of the box's kind,
+     for focus. Every mark is the box's own outline, which stands at it (surfaces.css),
+     so its focus ring, the location ring and every gesture's brackets stand on one
+     perimeter. A box that wears the ring for a control inside it states it on itself; a
+     pseudo-element that draws a box's ring above the box's contents states the same
+     place as its own `outline-offset`. A box that states none stands its focus ring at a
+     control's gap (the floor, surfaces.css), and its other marks at a control's gap if
+     it takes a press and at a region's if not. A rule names the token of the box's kind,
      never a length (`test_every_ring_stands_at_a_kind_of_box`):
      - A region, a block of the page standing among others (a section, a question, a
        figure, a paragraph): outside it at --focus-region-gap. Every mark on a region
@@ -435,9 +434,11 @@
        a reaction beside others: on its edge, at 0. A field's ring replaces its border.
      - A box packed edge to edge with others, such as a list's row or a table's cell, a
        box padded inside a frame it fills, or one whose clip leaves no room outside it:
-       one band inside its edge, at --focus-ring-inset. An overlay mark stands there too:
-       on every side once a box clipping its target leaves it no room on one, and on any
-       side the window leaves no room (target-paint-geometry.js, `sideGaps`).
+       one band inside its edge, at --focus-ring-inset. A box that clips a mark standing
+       outside its target cuts it, as it cuts the target. A box the page's layout leaves
+       less room round than a region's gap, as a full-height workspace's body
+       (layouts.css), stands its marks at a control's gap: inside, they would run over
+       its words and under what it holds.
 
      The width is a token of its own because the ring is drawn outside the box it
      names, so a scroll region has to reserve room for it: a shorthand cannot be
@@ -486,11 +487,9 @@
      own: the suite asks the browser which rule drew a ring it sees, and the token is
      what tells that rule from a contour painted in the same ink. */
   --focus-shadow: 0 0 0 var(--focus-ring-w) var(--accent);
-  --target-trace-w: 1.5px;
   --target-trace-ink: color-mix(in srgb, var(--ink-2) 42%, var(--paper));
-  /* SVG annotations stroke their actual contour in this quieter ink. Rectangular
-     annotations use the focus outline cut into brackets (chrome.css), on the region's
-     perimeter. */
+  /* A drawing's part wears a comment's mark in this quieter ink and width, and an
+     action's target wears its brackets at 1px in this ink (surfaces.css). */
   --mark-contour-w: 1.5px;
   --mark-contour-ink: color-mix(in srgb, var(--accent) 72%, var(--paper));
   /* A pressable never wears the accent as a solid fill: the accent is its ink and its
@@ -558,7 +557,7 @@
    fold opening over several lines moves nothing by a fraction. It keeps the entry
    floor, since a message turns into the editor that rewrites it. Its size is a token
    of its own, so a measure set in it, such as the floating panel's widened field
-   (floating-panel.css, `data-expanded`), follows the face. */
+   (floating-panel.css, `data-lf-expanded`), follows the face. */
 :root,
 .lf-chrome [part] {
   --msg-size: max(var(--entry-floor), var(--t-5));

@@ -2,6 +2,7 @@
    of focusable rows (`rowWalk`). Walk owners keep their list and motion; the portable
    declaration holds their live position reader. Native focus traversal and gestures
    that rearrange state are not walks through a named list. */
+import { capitalized } from "./words.js";
 import { scrollIntoView } from "./landing-scroll.js";
 import { clampedRow } from "./keyboard/bindings.js";
 import { holdStatus } from "./notifications.js";
@@ -41,8 +42,6 @@ window.addEventListener(WALK, () => {
 // (keyboard/bindings.js); the page's queue walk steps by document position.
 /** @type {readonly [string, string, string, string]} */
 const STEPS = Object.freeze(["previous", "next", "first", "last"]);
-/** @param {string} word */
-const capital = (word) => word.slice(0, 1).toUpperCase() + word.slice(1);
 /** @param {{
  *   id: string,
  *   noun: string,
@@ -68,7 +67,7 @@ export function rowWalk({
   const route = (binding, step) => ({
     id: `${id}.${step}`,
     binding,
-    title: `${capital(step)} ${noun.toLowerCase()}`,
+    title: `${capitalized(step)} ${noun.toLowerCase()}`,
   });
   /** @param {(rows: HTMLElement[]) => HTMLElement | undefined} pick */
   const land = (pick) => {

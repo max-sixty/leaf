@@ -101,12 +101,12 @@ async function sourceListing(source, language) {
   const styles = [...rendered.querySelectorAll("style")];
   listingSheet ??= scopedSheet(styles.map((style) => style.textContent).join("\n"));
   for (const style of styles) style.remove();
-  // A line number is Leaf's control, drawn from `data-number`; dropping Pierre's
+  // A line number is Leaf's control, drawn from `data-lf-number`; dropping Pierre's
   // attribute keeps its sheet's rule for that span (a positioned, stacked
   // inline-block) off it.
   for (const number of rendered.querySelectorAll("span[data-line-number-content]")) {
     number.removeAttribute("data-line-number-content");
-    number.setAttribute("data-number", number.textContent);
+    number.setAttribute("data-lf-number", number.textContent);
     number.textContent = "";
     number.classList.add("lf-ui");
     generatedElement(number, { says: false });
@@ -399,10 +399,7 @@ class TextDocument extends LeafElement {
         firstBox -
         this.getBoundingClientRect().height;
     else return;
-    const height = layoutPx(measured);
-    const { style } = panel;
-    if (style.getPropertyValue("--lf-preview-block") !== height)
-      style.setProperty("--lf-preview-block", height);
+    panel.style.setProperty("--lf-preview-block", layoutPx(measured));
   }
   // The press shows only while the box cuts lines off, as a thread's Full quote does.
   measureCut() {
@@ -526,9 +523,10 @@ class TextDocument extends LeafElement {
         if (this.lineLength)
           sizeRuns(this.sourceView.code, text, this.lineLength, this.drawn);
         const width = "--diffs-min-number-column-width-default";
-        const drawnWidth = drawnPre.style.getPropertyValue(width);
-        if (this.sourceView.pre.style.getPropertyValue(width) !== drawnWidth)
-          this.sourceView.pre.style.setProperty(width, drawnWidth);
+        this.sourceView.pre.style.setProperty(
+          width,
+          drawnPre.style.getPropertyValue(width),
+        );
       }
       let loaded = this.frameLoaded;
       const previewNode = view.preview;
@@ -587,7 +585,8 @@ class TextDocument extends LeafElement {
     figure.className = "lf-text-document-view";
     const caption = document.createElement("figcaption");
     const listing = document.createElement("div");
-    listing.className = "lf-text-document-listing scroll";
+    listing.className = "lf-text-document-listing";
+    listing.toggleAttribute("data-lf-scroll", true);
     figure.append(caption);
     if (!preview) {
       figure.append(listing);

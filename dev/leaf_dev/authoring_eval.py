@@ -138,7 +138,7 @@ def operated_interaction(
     case: str, condition: str, page: Path, payload: Path, evidence: Path
 ) -> dict:
     """Probe a disposable live copy; the author's page remains the saved artifact."""
-    from leaf_dev.arrangement_plain import serving as serve_plain
+    from leaf_dev.plain_html import serving as serve_plain
 
     with tempfile.TemporaryDirectory(prefix="leaf-format-probe-") as temporary:
         temporary = Path(temporary)
@@ -320,8 +320,8 @@ def execute(
             operable = False
             if format_valid:
                 if not leaf:
-                    from leaf_dev.arrangement_plain import load, serving
                     from leaf_dev.browser import headless_shell, tab
+                    from leaf_dev.plain_html import load, serving
 
                     errors = []
                     with (
@@ -405,8 +405,8 @@ def execute(
                             "phases": {"": "1"},
                             "author_phases": [1],
                             "widths": {
-                                name: list(viewport)
-                                for name, (viewport, _) in run.widths.items()
+                                name: list(window.size)
+                                for name, window in run.windows.items()
                             },
                         },
                         "phases": {

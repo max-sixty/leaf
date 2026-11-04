@@ -2,10 +2,12 @@
 and their paths, the pinned file header, hunk landing, and print."""
 
 import json
+import re
 
 import pytest
 from playwright.sync_api import expect
 from render_cases_interaction import panel_comment
+from render_cases_layout import MARK
 from render_cases_widgets import (
     DIFF_CLIPPING,
     DIFF_LANDING,
@@ -499,8 +501,21 @@ def test_inline_diff_lines_and_files_can_start_comments(browser, serve):
     with sending(page, "inline file comment"):
         page.keyboard.press("ControlOrMeta+Enter")
     line.hover()
-    page.locator("lf-diff .lf-diff-line-comment").last.click()
+    press = page.locator("lf-diff .lf-diff-line-comment").last
+    press.click()
     expect(page.locator(".lf-composer")).to_be_visible()
+    # The line's draft wears its brackets one band inside the line's edges, and the
+    # press's + stands clear of that band, so the left bracket shows beside it.
+    expect(line).to_have_attribute("data-lf-mark", re.compile(r"\bpending\b"))
+    band = line.evaluate(MARK)
+    assert band and band["brackets"] and band["offset"] + band["width"] <= 0, band
+    plus = press.evaluate(
+        """press => {
+          const s = getComputedStyle(press, '::before');
+          return [s.left, s.top, s.bottom].map(parseFloat);
+        }"""
+    )
+    assert min(plus) >= -band["offset"], (plus, band)
     write(page.locator(".lf-composer leaf-text"), "Line note")
     with sending(page, "inline line comment"):
         page.keyboard.press("ControlOrMeta+Enter")
@@ -899,7 +914,7 @@ def test_a_file_row_a_revision_brings_reads_its_cut_path(browser, serve):
     told(page)
     rendered(page)
     head = page.locator("lf-diff .lf-diff-head").first
-    expect(head).to_have_attribute("data-path-cut", "")
+    expect(head).to_have_attribute("data-lf-path-cut", "")
     expect(head.locator(".lf-diff-path")).to_have_attribute("title", path)
 
     # A changed source path can retain exactly the old clipped width. Its title

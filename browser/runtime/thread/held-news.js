@@ -140,14 +140,15 @@
    exception: it draws its lists at first paint, with "Lists current" as the control.
    A fixed-height box that scrolls the rows is no answer: a scroller shows no edge until
    it is scrolled, so nothing tells the reader a row is cut off. */
+import { counted } from "../words.js";
 import { growthAfterIsSeen, growthIsSeen, whenNone } from "../geometry.js";
 import { offer, offerAction } from "../widget-elements.js";
 import { keeps, keepsText, layoutPx } from "../keeps.js";
 import { keys } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { focusThread } from "./focus.js";
-import { isReaction, messageKey, threadKey } from "./model.js";
-import { allThreads, threadIdNamed, threadState } from "./state.js";
+import { isReaction, messageKey } from "./model.js";
+import { threadIdNamed, threadNamed, threadState } from "./state.js";
 import { drawnThreadId, THREAD } from "./selectors.js";
 import { closestAcross } from "../passages.js";
 import { runtime } from "../context.js";
@@ -171,8 +172,8 @@ export const gesturedOn = (thread) => threadState().gestured.includes(thread.id)
 // Whether the user acts in the thread a seat draws under `key` (`gesturedOn`).
 /** @param {string | undefined} key */
 const gestured = (key) => {
-  const thread = allThreads().find((each) => threadKey(each) === key);
-  return thread !== undefined && gesturedOn(thread);
+  const thread = key === undefined ? null : threadNamed(key);
+  return thread !== null && gesturedOn(thread);
 };
 
 // The reactions in force a strip draws, by token, since a reaction keeps its token but
@@ -423,8 +424,6 @@ function withheld(was, now) {
   });
 }
 
-/** @param {number | undefined} count @param {string} one @param {string} many */
-const counted = (count, one, many) => count && `${count} ${count === 1 ? one : many}`;
 /** @param {{
  *   settled?: string | null,
  *   replies?: number,
@@ -445,12 +444,12 @@ const newsParts = ({
 }) =>
   [
     settled,
-    counted(replies, "new reply", "new replies"),
-    counted(messages, "new message", "new messages"),
-    counted(edits, "message edited", "messages edited"),
-    counted(reactions, "reaction changed", "reactions changed"),
-    counted(summaries, "summary changed", "summaries changed"),
-    counted(threads, "new thread", "new threads"),
+    replies && counted(replies, "new reply", "new replies"),
+    messages && counted(messages, "new message"),
+    edits && counted(edits, "message edited", "messages edited"),
+    reactions && counted(reactions, "reaction changed", "reactions changed"),
+    summaries && counted(summaries, "summary changed", "summaries changed"),
+    threads && counted(threads, "new thread"),
   ].flatMap((part) => (typeof part === "string" && part.length > 0 ? [part] : []));
 
 // How a notice says that things wait: one count of them all ("2 new"), a settling
@@ -458,6 +457,11 @@ const newsParts = ({
 // joining rows included.
 /** @param {number} total */
 export const newsCount = (total) => `${total} new`;
+
+// The room a card holds for its notice's count: the widest count it says, in two
+// figures of one width (`button.lf-thread-news`, surfaces.css), so a count past 99
+// is cut.
+export const NEWS_ROOM = newsCount(99);
 
 // What a notice says: the count (`text`), and each fact of the news, most telling
 // first, as the line its title, and so its accessible description, reads (`label`).
@@ -491,8 +495,8 @@ const said = (news) => {
  *  of facts that dropped those past its room and counted them at its end ("1 new reply
  *  +1"), and said "2 new" only where even the first fact didn't fit, so one piece of
  *  news read three ways, in the danger ink an error wears. The words have a span of
- *  their own, so a card that holds the notice's room (`data-room`, controls.css) keeps
- *  it at the width of the count it first said. */
+ *  their own, so a card that holds the notice's room (`data-lf-room`, controls.css)
+ *  keeps it at the width of the widest count it says (`NEWS_ROOM`). */
 export function newsNotice(header = false) {
   const node = offerAction(
     "inline",
@@ -502,7 +506,7 @@ export function newsNotice(header = false) {
   const words = document.createElement("span");
   // The news is Leaf's, so the words wear Leaf's voice, as the panel's field does a
   // reading all Leaf says (voice.js).
-  words.dataset.voice = "leaf";
+  words.dataset.lfVoice = "leaf";
   node.append(words);
   /** @type {() => Element | null} */
   let open = () => null;
@@ -1075,9 +1079,7 @@ export class HeldArrivals {
   /** @param {(held: HeldArrival) => boolean} which */
   #lapse(which) {
     const currentLocation = new Set(
-      currentLocationNodes().map((node) =>
-        closestAcross(node, THREAD)?.getAttribute("data-thread"),
-      ),
+      currentLocationNodes().map((node) => drawnThreadId(closestAcross(node, THREAD))),
     );
     return this.#release((held) => which(held) && !currentLocation.has(held.id));
   }

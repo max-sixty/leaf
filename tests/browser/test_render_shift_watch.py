@@ -78,7 +78,7 @@ def field_page(browser, key=""):
 def within(node, place):
     """Whether a node the watch placed, by its steps innermost first, is the element
     `place` or inside it, as a text node in it (`["#text", "button#control"]`) or a
-    node in its shadow tree (`["div.cm-line", "#shadow-root", "leaf-text#field.scroll"]`)."""
+    node in its shadow tree (`["div.cm-line", "#shadow-root", "leaf-text#field"]`)."""
     return any(place_step_matches(step, place) for step in node)
 
 
@@ -429,15 +429,15 @@ def test_editcontext_growth_keeps_input_credit_with_its_actual_field(
             page,
             {
                 "code": "typing-moved",
-                "field": ["leaf-text#field.scroll"],
-                "node": ["leaf-text#field.scroll"],
+                "field": ["leaf-text#field"],
+                "node": ["leaf-text#field"],
             },
         )
     else:
         assert field.bounding_box()["y"] == pytest.approx(before["y"])
         page.evaluate("document.getElementById('above').style.height = '40px'")
         judge_watches()
-        consume_browser_errors(page, moved_within("leaf-text#field.scroll"))
+        consume_browser_errors(page, moved_within("leaf-text#field"))
 
 
 @pytest.mark.parametrize(
@@ -1579,8 +1579,7 @@ def test_an_input_owns_the_landing_of_a_widget_preparation_it_began(browser, ser
     judge_watches()
     moved = consume_browser_errors(page, {"code": "moved-without-input"})
     assert any(
-        within(error.values["node"], "lf-diff#patch.scroll.lf-rendered")
-        for error in moved
+        within(error.values["node"], "lf-diff#patch.lf-rendered") for error in moved
     ), moved
 
 
@@ -1970,7 +1969,7 @@ def test_an_activation_that_opens_nothing_leaves_a_later_open_passive(
                 "node": [
                     "details.lf-diff-fold",
                     "#shadow-root",
-                    "lf-diff#patch.scroll.lf-rendered",
+                    "lf-diff#patch.lf-rendered",
                 ],
             },
         )
@@ -4034,53 +4033,48 @@ start.onclick = () => {
 def test_native_anchor_follows_owned_translation_but_not_an_independent_offset(
     browser, fault, guard
 ):
+    anchored = (
+        "position:fixed;position-anchor:--source;left:anchor(left);top:anchor(bottom)"
+    )
+    # The guard rules stand in the document, so the surface is never restyled after
+    # it first presents: a restyle that moved the control would spend the watch's one
+    # report for it before the fault it is here to catch.
+    guards = {
+        "none": "",
+        # A rollback followed by the surface's own rule retains native anchoring.
+        # The independent margin fault must still report with that reset present.
+        "loses": f"#tip {{ all: revert-layer }} #tip {{ {anchored} }}",
+        # Keep the named anchor, but let the rollback remove its insets.
+        "wins": f"""#tip {{ all: revert-layer }} #tip {{ {anchored} }}
+          #tip {{ all:revert-layer;position:fixed;position-anchor:--source }}""",
+        # An important rollback exposes normal insets, not the losing anchor.
+        "lower": f"""#tip {{ all: revert-layer }} #tip {{ {anchored} }}
+          @layer fallback {{
+            #tip {{position:fixed;position-anchor:--source;left:350px;top:100px}}
+          }}
+          #tip {{left:anchor(left)!important;top:anchor(bottom)!important}}
+          #tip {{all:revert-layer!important}}""",
+    }[guard]
     page = browser.new_page()
     page.goto(
         "data:text/html,"
-        + quote("""<!doctype html><body style="margin:0">
+        + quote(f"""<!doctype html><style>{guards}</style><body style="margin:0">
 <button id="start">Start</button>
 <button id="source" style="position:absolute;left:350px;top:100px;anchor-name:--source">Anchor</button>
-<div id="tip" style="position:fixed;position-anchor:--source;left:anchor(left);top:anchor(bottom)">
+<div id="tip" style="{anchored if guard == "none" else ""}">
 <button id="control">Attached control</button></div>
 <p id="trigger" style="position:absolute;left:10px;top:400px">Paint checkpoint</p>
-<script>start.onclick=()=>{
-window.motion=source.animate([{translate:'-200px 0px'},{translate:'0px 0px'}],
-  {duration:1000,fill:'forwards'});
+<script>start.onclick=()=>{{
+window.motion=source.animate([{{translate:'-200px 0px'}},{{translate:'0px 0px'}}],
+  {{duration:1000,fill:'forwards'}});
 motion.pause();motion.currentTime=150;
-}</script></body>""")
+}}</script></body>""")
     )
-    if guard != "none":
-        # A rollback followed by the surface's own rule retains native anchoring.
-        # The independent margin fault must still report with that reset present.
-        page.add_style_tag(
-            content="""
-          #tip { all: revert-layer }
-          #tip { position:fixed;position-anchor:--source;
-            left:anchor(left);top:anchor(bottom) }
-        """
-        )
-        if guard == "wins":
-            # Keep the named anchor, but let the rollback remove its insets.
-            page.add_style_tag(
-                content="""
-              #tip { all:revert-layer;position:fixed;position-anchor:--source }
-            """
-            )
-        if guard == "lower":
-            # An important rollback exposes normal insets, not the losing anchor.
-            page.add_style_tag(
-                content="""
-              @layer fallback {
-                #tip {position:fixed;position-anchor:--source;left:350px;top:100px}
-              }
-              #tip {left:anchor(left)!important;top:anchor(bottom)!important}
-              #tip {all:revert-layer!important}
-            """
-            )
-        page.locator("#tip").evaluate("node => node.removeAttribute('style')")
     paint(page)
     page.locator("#start").click()
     paint(page)
+    judge_watches()
+    assert not take_browser_errors(page)
     before = page.locator("#control").bounding_box()
     page.evaluate(
         """({fault, guard}) => {

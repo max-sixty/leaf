@@ -79,10 +79,10 @@
 :is(button, [role="button"])[aria-busy="true"] {
   animation: lf-runtime-4f3c2a8d-working 140ms linear 200ms both;
 }
-/* Holding ⌥ changes what a click means. The aim's box (.lf-aim) answers which item a
-   press takes; the cursor answers whether it takes any: the hand over an item, the
+/* Holding ⌥ changes what a click means. The aim's mark (`.lf-aimed`, surfaces.css)
+   answers which item a press takes; the cursor answers whether it takes any: the hand over an item, the
    arrow elsewhere (claimPress). Derived at the paint from what refreshAim resolved, so
-   cursor and box cannot disagree. A control stating its own cursor keeps it while
+   cursor and mark cannot disagree. A control stating its own cursor keeps it while
    armed; covering that would need an important universal rule. One declaration on the
    body, inherited; the chrome holds itself out from inside its own scope. */
 body:is(.lf-aiming, [data-lf-design-mode]) {
@@ -126,21 +126,9 @@ html[data-lf-region-capture]
 :root[data-lf-annotations="hidden"] {
   --lf-change-bar: transparent;
 }
-/* A marked block becomes one inline text diff when its Change disclosure opens
-   (version.js). The version label and deletions wear `.lf-ui`, so comments, copies and
-   the next comparison read the current page; the deletion inherits the document's
-   face. */
-.lf-version-inline-deletion {
-  font: inherit;
-}
-.lf-version-inline-deletion del {
-  margin-inline-end: 0.28em;
-  background: var(--del-tint);
-  color: var(--danger-ink);
-}
-/* The unanswered decision the user is in (markHere) wears the location ring, drawn over
-   it (`.lf-location`, below). The ring stands outside the decision, so a landing keeps
-   its room at the scroller's edge, as a margin entry's does (base.css): an obligation
+/* The unanswered decision the user is in (markHere) wears the location ring
+   (`.lf-projected-location`, surfaces.css). The ring stands outside the decision, so a
+   landing keeps its room at the scroller's edge, as a margin entry's does (base.css): an obligation
    landed at the top of a scrolling pane stood flush with it, the top of its ring cut
    off under the pane's header rule. */
 [data-lf-obligation] {
@@ -294,80 +282,6 @@ html[data-lf-region-capture]
     width: 0;
     height: 0;
   }
-  /* Every margin-projection control traces the content it concerns through one quiet
-     overlay. Painting above the target keeps a package-owned frame from covering the
-     contour; the stronger accent ring remains a separate focus fact. */
-  .lf-target-trace {
-    position: absolute;
-    display: none;
-    pointer-events: none;
-    box-sizing: border-box;
-    --lf-target-outline: var(--focus-ring-w) solid var(--target-trace-ink);
-    --lf-shape-ink: var(--target-trace-ink);
-    --lf-shape-stroke: var(--target-trace-w);
-    --lf-shape-dash: none;
-  }
-  /* The focus ring drawn as a mark over what it rings, whole, on the perimeter that
-     thing's other marks take: the location ring round the decision the user stands in
-     (target-paint.js, `paintLocation`) and the proxy ring round what a focused proxy
-     stands for (`paintProxyRing`), in a drawn part's own contour. */
-  :is(.lf-location, .lf-proxy-ring) {
-    position: absolute;
-    display: none;
-    pointer-events: none;
-    box-sizing: border-box;
-    --lf-shape-ink: var(--accent);
-    --lf-shape-stroke: var(--focus-ring-w);
-  }
-  /* On the target's perimeter, where its focus ring stands too (base.css, "Where it
-     stands"): brackets are two 8px end strips of the outline keyboard focus and the
-     location ring draw whole there. No state changes bounds, radius or offset, and an
-     outline drawn at the gap rounds its corners as the focus ring's does. The
-     placement owner (target-paint-geometry.js, `standOver`) supplies the target
-     rectangle, its corner shape and the gap, `--lf-mark-offset`. `--lf-mark-room` is
-     how far the band reaches outside the target, which each strip's clip starts from.
-     Keep this in shared chrome so Aim, the location and proxy rings and an optional
-     annotation painter agree. */
-  :is(.lf-aim, .lf-target-trace, .lf-visual-mark, .lf-location, .lf-proxy-ring):not(
-    .lf-shaped
-  ) {
-    --lf-mark-room: calc(var(--focus-ring-w) + var(--lf-mark-offset));
-    &::before,
-    &::after {
-      content: "";
-      position: absolute;
-      inset: 0;
-      border-radius: inherit;
-      outline: var(--lf-target-outline, var(--focus-ring));
-      outline-offset: var(--lf-mark-offset);
-      pointer-events: none;
-    }
-    &::before {
-      clip-path: inset(
-        calc(-1 * var(--lf-mark-room)) calc(100% + var(--lf-mark-room) - 8px)
-          calc(-1 * var(--lf-mark-room)) calc(-1 * var(--lf-mark-room))
-      );
-    }
-    &::after {
-      clip-path: inset(
-        calc(-1 * var(--lf-mark-room)) calc(-1 * var(--lf-mark-room))
-          calc(-1 * var(--lf-mark-room)) calc(100% + var(--lf-mark-room) - 8px)
-      );
-    }
-    &:is(.lf-visual-mark-focus, .lf-location, .lf-proxy-ring)::after {
-      clip-path: none;
-    }
-    &:is(.lf-visual-mark-focus, .lf-location, .lf-proxy-ring)::before {
-      content: none;
-    }
-  }
-  :is(.lf-target-trace-shape, .lf-proxy-ring-shape) {
-    display: block;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-  }
-
   /* Leaf's state is carried by the leaf rather than an anonymous traffic light. The
      mask is the layer's own mark, so a package that replaces icon.svg does
      not keep an unrelated leaf-like glyph in the panel. Shape is identity and colour
@@ -490,39 +404,6 @@ html[data-lf-region-capture]
     :is(.lf-fab-bar, .lf-margin-preview) {
       --lf-comment-reply-row: calc(var(--lf-comment-foot-gap) + var(--lf-compose-h));
     }
-  }
-  /* The ⌥ aim's promise: the item a press would take, whole, drawn in the chrome's layer
-     rather than on the element, since no band of a page element is reliably the
-     runtime's to paint (a scroller clips outside, a group's cells paint over inside, and
-     an accent border already fills the border band). Items supply their shown rectangle;
-     a generated SVG part supplies its painted geometry, cloned so its contour holds. A
-     veil says how much a press takes and a ring where it stops, over everything the page
-     paints. No pointer events, so the press and elementFromPoint land on the item.
-     Document-anchored like the page paints (place), under the floats. */
-  .lf-aim {
-    position: absolute;
-    display: none;
-    pointer-events: none;
-    --lf-shape-ink: var(--accent);
-    --lf-shape-stroke: 2px;
-    --lf-shape-dash: none;
-    /* The veil fills the perimeter its brackets stand on, so the two read as one box. */
-    --lf-aim-veil: color-mix(in srgb, var(--accent) 4%, transparent);
-    background: var(--lf-aim-veil);
-    box-shadow: 0 0 0 var(--lf-mark-offset) var(--lf-aim-veil);
-  }
-  .lf-aim-shape {
-    display: block;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-  }
-  /* A shaped box's SVG child draws its contour and veil (target-paint.js), so the box
-     draws no ground of its own. It follows the aim it shapes, which states its ground at
-     the same specificity, and its placement writes no corner (`standOver` is given 0). */
-  .lf-shaped {
-    background: none;
-    box-shadow: none;
   }
   /* Each drawing stands in a paint stand over what it was drawn on (drawing-ink.js),
      anchored to it, so a stroke crosses content boundaries without becoming part of the
@@ -1097,7 +978,7 @@ html[data-lf-region-capture]
      one pixel outside its border box. Every item but a widget's parts (x-owners) also
      wears its tag and id above the corner; parts are named under the pointer. Dashed,
      because a legend is structural and a solid contour is a gesture's. Under the pointer
-     the aim lifts one item (.lf-aim) with its full name (.lf-inspect). No pointer
+     the aim marks one item (`.lf-aimed`) with its full name (.lf-inspect). No pointer
      events, so a click lands on the item. */
   /* A key chip stands in a seat anchored to what it names (chip-seats.js), in a paint
      stand that stacks under the panel it keeps clear of, so a chip riding a
@@ -1167,6 +1048,62 @@ html[data-lf-region-capture]
   }
   .lf-change-bar {
     background: var(--lf-change-bar, var(--ok));
+  }
+  /* The change a Change entry points at, outlined round all its blocks, in the quiet
+     contour a margin control draws round what it concerns (`.lf-traced`,
+     surfaces.css). */
+  .lf-change-outline {
+    position: absolute;
+    pointer-events: none;
+    box-sizing: border-box;
+    border-radius: var(--r);
+    outline: var(--focus-ring-w) solid var(--target-trace-ink);
+  }
+  /* What a change replaced, over the change (margin-bars.js): a card lifted over the
+     page, its words in a widget's font, the old struck as an edit's deletion and the
+     new tinted as its insertion. A long redline scrolls inside the card, which stays
+     short enough to read whole above the floating panel's room. */
+  .lf-change-card {
+    position: absolute;
+    display: grid;
+    align-content: start;
+    gap: 0.5em;
+    max-block-size: calc(100dvh - var(--lf-foot-room) - 2rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 9px 12px 12px;
+    border: 1px solid var(--border-2);
+    border-radius: var(--r);
+    background: var(--card);
+    color: var(--ink);
+    box-shadow: var(--raise-2);
+    font: var(--font-widget);
+    pointer-events: auto;
+    & p {
+      margin: 0;
+    }
+    & del {
+      margin-inline-end: 0.28em;
+      background: var(--del-tint);
+      color: var(--danger-ink);
+    }
+    & ins {
+      background: var(--add-tint);
+      text-decoration: none;
+    }
+  }
+  .lf-change-card-head {
+    font: var(--font-small);
+    color: var(--ink-2);
+  }
+  .lf-change-card-block[data-lf-kind="heading"] {
+    font-weight: 600;
+  }
+  .lf-change-card-block[data-lf-kind="code"] {
+    font-family: var(--mono);
+    font-size: var(--code-size);
+    line-height: var(--code-line);
+    white-space: pre-wrap;
   }
   .lf-page-search-match {
     position: absolute;

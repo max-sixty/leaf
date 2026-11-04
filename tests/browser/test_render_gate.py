@@ -58,11 +58,9 @@ from render_cases_widgets import (
     visual_widgets,
 )
 from render_harness import (
-    CORPUS_SOURCES,
     EXAMPLE_PACKAGES,
     LONG_PAGE,
     OPEN_THREAD_COUNT,
-    ROOT,
     TOKEN,
     _traffic,
     _until,
@@ -113,6 +111,7 @@ from leaf.render_gate import scheme as render_gate_scheme
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.widget_quality import own_tags
 from leaf.validation import composition as validation_model
+from leaf_dev.example_data import authored_sources, named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -1181,8 +1180,8 @@ def test_a_pane_compares_its_words_without_its_opaque_children_rendered_data(
         "</pre></lf-diff></div><footer>Tests not run</footer></lf-pane>",
     )
     page = open_page(browser, live_url(serve(source, packages=("diff", "file-tree"))))
-    # The pane's prose, without its opaque children's rendered data, owns the inline
-    # explanation of a revision.
+    # The pane's prose, without its opaque children's rendered data, owns what its
+    # change's card says of a revision.
     stamp_page(
         serve.page_dir,
         source.replace(">Patch</header>", ">xxx  </header>").replace(
@@ -1194,14 +1193,13 @@ def test_a_pane_compares_its_words_without_its_opaque_children_rendered_data(
     compare_with(page, 1)
     change = page.locator('[data-lf-margin-for="code"] [data-lf-kinds~="change"]')
     change.click()
-    expect(page.locator("#code .lf-version-inline-deletion del")).to_have_text(
-        "Patch Tests not run"
-    )
-    assert page.evaluate(
-        "() => [...CSS.highlights.get('lf-version-insert') ?? []].map(range => range.toString())"
-    ) == ["xxx  ", "  yyy"]
-    expect(page.locator("#patch .lf-version-inline-deletion")).to_have_count(0)
+    card = page.locator("#lf-change-card")
+    expect(card.locator("del")).to_have_text("Patch Tests not run")
+    expect(card.locator("ins")).to_have_text(re.compile(r"^\s*xxx\s+yyy\s*$"))
+    expect(card).not_to_contain_text("diff --git")
+    expect(card).not_to_contain_text("UNCHANGED DRAWING")
     change.click()
+    expect(card).to_have_count(0)
     expect(page.locator("#code > header")).to_have_text("xxx")
 
 
@@ -1881,7 +1879,7 @@ def has_open_thread(page):
 def other_pages(page):
     """Whether the leaf's menu offers All pages, which it does only while other pages
     are live; the menu is put away again."""
-    offered = panel_menu(page, "navigate").locator('.lf-fp-item[data-row="leaves"]')
+    offered = panel_menu(page, "navigate").locator('.lf-fp-item[data-lf-row="leaves"]')
     count = offered.count()
     close_panel_menu(page)
     return count > 0
@@ -2606,7 +2604,7 @@ def test_every_idiom_in_the_catalog_stands_in_a_corpus_source(browser):
     assert idioms, "no idioms read — an empty catalog demonstrates itself"
     page = browser.new_page()
     held, invalid = set(), set()
-    for example in CORPUS_SOURCES:
+    for example in authored_sources():
         page.set_content(example.read_text(), wait_until="domcontentloaded")
         answer = page.evaluate(
             """(selectors) => {
@@ -3071,7 +3069,7 @@ def test_a_box_of_text_that_scrolls_leaves_its_last_line_clear_of_the_bar(
         + TEXT_CLEAR_OF_BAR
         + """;
         const [wide, fits] = document.querySelectorAll(
-          '.lf-fp-view[data-view="thread"] .lf-msg-body pre');
+          '.lf-fp-view[data-lf-route="thread"] .lf-msg-body pre');
         const reading = { table: read(document.querySelector('#sessions')),
                           wide: read(wide), fits: read(fits),
                           fitsPad: parseFloat(getComputedStyle(fits).paddingBottom),
@@ -3162,7 +3160,7 @@ def test_a_diagrams_reserved_box_includes_its_scrollbar_clearance(
     font metrics. Removing it exposes the natural drawing and native track sizes;
     the overlay and classic track share the drawing's own blank bottom padding.
     """
-    source = (ROOT / "examples" / "security-boundary.html").read_text()
+    source = named_source("security-boundary").read_text()
     # The example draws its five-step chain top-down so it fits a phone; drawn
     # left-to-right it runs past a 678px viewport and scrolls, which this test needs.
     source = source.replace("flowchart TD", "flowchart LR", 1).replace(
@@ -3701,6 +3699,33 @@ def test_declared_space_names_containing_holders_as_advice(browser, serve):
     assert "put data-width on that holder" in str(advice[0])
 
 
+def test_the_sweep_reads_each_width_as_a_load_there_shows_it(browser, serve):
+    """A width the sweep steps to is read as it settles, not partway through a
+    transition the step started, which no load at that width shows. A sidebar's
+    contents map, once the window is wide enough to lay it in the margin, fades its
+    labels out at the places they take over the column; the sweep up from a phone's
+    window read them mid-fade and failed the page for words they covered for a fifth
+    of a second."""
+    source = leaf_page(
+        "Settling",
+        """<div id="stage"><p id="prose">Words a fading label passes over.</p>
+        <p id="label">A label that fades out</p></div>""",
+        head="""<style>
+#stage { position: relative; }
+#stage > p { margin: 0; }
+#label { transition: opacity 60s linear; }
+@media (min-width: 1000px) {
+  #label { position: absolute; inset: 0 auto auto 0; opacity: 0; }
+}
+</style>""",
+    )
+    # Loaded where the label stands in flow, so the step to 1200px starts the whole fade.
+    context = browser.new_context(viewport={"width": 800, "height": 720})
+    page = open_page(browser, serve(source), context=context)
+    readings = render_gate_readings.sweep(page, [1200], [])
+    assert render_gate_readings.swept_faults(readings) == []
+
+
 def test_unpainted_padding_can_hold_focus_rings_inside_the_page_gutter(browser, serve):
     """Blank padding may cross the content edge; paint and words still may not."""
     source = leaf_page(
@@ -3982,7 +4007,7 @@ def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):
     panel on nothing and reports the control as missing."""
     seeded = [
         path
-        for path in CORPUS_SOURCES
+        for path in authored_sources()
         if (log := path.with_suffix(".jsonl")).exists()
         and any(
             event.get("kind") == "comment" and event.get("anchor")

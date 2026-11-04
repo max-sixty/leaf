@@ -739,7 +739,7 @@ def diff_refresh_keeps_selection(page, serve, diff, source, value, edit):
         """diff => {
       const widget = document.querySelector(diff);
       const entry = widget.fileEntries[0];
-      return entry.lines.map(line => {
+      return entry.rendered.lines.map(line => {
         const row = line.node.parentElement;
         const comment = row.querySelector('.lf-diff-line-comment');
         const number = String(line.side === 'old' ? line.oldLine : line.newLine);

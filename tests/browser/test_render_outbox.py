@@ -405,6 +405,22 @@ def test_z_shows_an_old_resolve_out_of_view_before_taking_it(browser, serve):
     expect(page.locator(".lf-live")).to_have_text("Undid: resolved “Feeder” · 21d ago")
 
 
+def test_the_menus_undo_shows_then_takes_too(browser, serve):
+    """A finger's way to Undo is the leaf's menu row, and it goes the same two steps:
+    the first press opens the thread, and pressing the row again takes it back, the
+    presses on the leaf to reach it keeping what the first one showed."""
+    url, thread, resolve = _old_resolve_below_the_fold(serve)
+    page = open_page(browser, url)
+    panel_control(page, "command:history.undo").click()
+    expect(page.locator(".lf-live")).to_have_text(ARMED)
+    _shown(page, thread)
+    told(page)
+    assert _undos(serve.page_dir) == []
+    with sending(page, "the withdrawal"):
+        panel_control(page, "command:history.undo").click()
+    assert _undos(serve.page_dir) == [resolve]
+
+
 def test_a_key_between_ends_what_the_shown_gesture_promised(browser, serve):
     """The press that showed an old Resolve promises the next `z` that Resolve, even
     over a newer gesture, but only while the user stays on it. Once another key comes
@@ -2613,7 +2629,7 @@ PANED_LONG_PAGE = leaf_page(
 
 # The item field is the one that used to retire; the passage field rides the pane.
 @pytest.mark.parametrize(
-    ("target", "scroller"), [("item", "page"), ("passage", "pane")]
+    ("target", "scroller"), [("item", "page"), ("item", "pane"), ("passage", "pane")]
 )
 def test_a_comment_field_scrolled_away_and_back_is_still_there(
     browser, serve, target, scroller

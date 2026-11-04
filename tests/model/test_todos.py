@@ -912,7 +912,7 @@ def test_a_widget_todo_needs_a_seat_and_a_completing_stamp_ends_it(page_dir):
     assert dropped.exit_code == 0, dropped.output
     assert [item["id"] for item in state_json(page_dir)["todos"]] == [todo["id"]]
     (page_dir / "index.html").write_text(
-        WORK_PAGE.replace("<title>t</title>", "<title>t · v3</title>")
+        FLOW_PAGE.replace("<title>t</title>", "<title>t · v3</title>")
     )
     done = stamp(page_dir, "Rollout checked", completes=("rollout-card",))
     assert done.exit_code == 0, done.output

@@ -403,8 +403,7 @@ variants:
           Each decision needs an answering widget offering acceptance and rejection,
           on the page or in an agent thread or reply, optionally framed by lf-ask.
           A bare lf-ask question or conversational obligation does not record a choice.
-          A user to-do whose Done merely reports completion cannot record acceptance
-          or rejection of a rewrite. A status line, chat list, ordinary HTML
+          A status line, chat list, ordinary HTML
           comparison, or promise to add questions later fails. Home must remain
           settled; it must not acquire a new request for approval. Do not require
           exact wording, synthetic event IDs, or a particular choice widget.
@@ -496,8 +495,7 @@ variants:
           prose alone fails. CI stays agent work, with no request for
           authorization to continue an authorized wait. The optional explorer
           creates no required request. The handoff does not equate an empty
-          On me list with all work done. Do not require exact wording or a
-          particular number of user to-dos.
+          On me list with all work done. Do not require exact wording.
   drafted-report:
     metadata:
       purpose: "Asks: completing an assessment replaces prose requests for decisions with independently answerable obligations."

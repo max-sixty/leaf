@@ -498,9 +498,9 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
     assert all(p["cursor"] == "pointer" for p in live), (
         f"a control a widget built does not take the hand: {live}"
     )
-    assert all(p["cursor"] == "default" and p["face"] != p["armed"] for p in spent), (
-        f"a control with nothing left to do still offers itself: {spent}"
-    )
+    assert all(
+        p["cursor"] == "not-allowed" and p["face"] != p["armed"] for p in spent
+    ), f"a control with nothing left to do still offers itself: {spent}"
     assert not any(s["cursor"] == "pointer" for s in rest["said"]), (
         "a label the page wrote takes the hand, so the user is invited to press words"
     )

@@ -26,7 +26,6 @@ from render_harness import (
     open_page,
     panel_settled,
     resized,
-    round_trip,
     sending,
     stamp_page,
     told,
@@ -203,67 +202,6 @@ def test_a_message_obligation_opens_its_question_and_accepts_an_answer(
         and event["text"] == "02:00–02:40 UTC on Thursday"
         for event in events_model.read_events(serve.page_dir)
     )
-
-
-def test_a_thread_task_stays_on_me_until_done(browser, serve):
-    """Discussion of outside work is not completion; Done and Undo are explicit."""
-    url = serve(PANEL_PAGE)
-    root = panel_comment(serve.page_dir, "Can you check the mobile build?")
-    todo = todos_model.cmd_create(
-        serve.page_dir, root, "Try the build on your phone", "user"
-    )
-    assert todo["subject"] == {"kind": "thread", "id": root}
-    page = open_page(browser, url)
-    mark = page.locator(".lf-fp-on-user")
-    expect_on_me(page, 1)
-    mark.click()
-    row = page.locator(f'.lf-fp-on-item[data-lf-obligation-id="{todo["id"]}"]')
-    expect(row).to_contain_text("Try the build on your phone")
-    row.get_by_role("button", name="Discuss", exact=True).click()
-    reply = page.locator(PANEL_REPLY)
-    write(reply, "Which phone should I use?")
-    with sending(page, "the device clarification"):
-        page.keyboard.press("ControlOrMeta+Enter")
-    expect_on_me(page, 1)
-    page.get_by_role("button", name="Back to On me").click()
-    with sending(page, "the completed phone check"):
-        row.get_by_role("button", name="Done", exact=True).click()
-    expect_on_me(page, 0)
-    expect(row.locator(".lf-fp-said")).to_have_text("Done")
-    with sending(page, "undo the phone check"):
-        row.get_by_role("button", name="Undo", exact=True).click()
-    expect_on_me(page, 1)
-    expect(row.get_by_role("button", name="Done", exact=True)).to_be_visible()
-
-
-def test_a_thread_heads_with_the_task_it_holds_on_me(browser, serve):
-    """A to-do on the user that sits on a thread heads the thread with its title and a
-    Done, so a reader discussing it ends it there, and the line goes as they press."""
-    url = serve(PANEL_PAGE)
-    root = panel_comment(serve.page_dir, "Can you check the mobile build?")
-    todo = todos_model.cmd_create(
-        serve.page_dir, root, "Try the build on your phone", "user"
-    )
-    page = open_page(browser, url)
-    mark = page.locator(".lf-fp-on-user")
-    mark.click()
-    page.locator(f'.lf-fp-on-item[data-lf-obligation-id="{todo["id"]}"]').get_by_role(
-        "button", name="Discuss", exact=True
-    ).click()
-    line = page.locator(".lf-thread-todo:visible")
-    expect(line).to_have_count(1)
-    expect(line).to_contain_text("To-do · Try the build on your phone")
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
-    line.get_by_role("button", name="Done", exact=True).click()
-    holding(page, held, 1, "the thread's Done")
-    expect(line).to_have_count(0)
-    expect_on_me(page, 0)
-    page.unroute("**/api/event")
-    for route in held:
-        route.continue_()
-    round_trip(page)
-    assert events_model.read_events(serve.page_dir)[-1]["todo"] == todo["id"]
 
 
 def test_a_durable_answer_retires_the_placeholder_its_attempt_reserved(

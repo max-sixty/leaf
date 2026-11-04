@@ -161,6 +161,20 @@ them in `browser/runtime/annotation-overlay/annotation-marks.css` and
 `tests/browser/navigation/test_comment_marks.py` passes with them in supported
 engines. Chromium 153.0.8010.12 passed both forms in that check.
 
+### Font style in syntax highlights
+
+`lf-text-document` colours its source with CSS custom highlights
+(`packages/default/widgets/lf-text-document.js`, `RunColours`), and `::highlight()`
+carries only properties that don't change layout (css-highlight-api-1), so a token keeps
+its theme colour but not its font style: a comment, italic in a code block, `lf-code`
+and a diff, stands upright in a text document. This is the specification, not an engine
+gap. On 2026-11-03, Playwright's Chromium 156.0.8078.4 (build 1248), Firefox 157.0
+(build 1555) and WebKit 27.2 (build 2370) each painted a `StaticRange` highlight's
+colour, ignored its `font-style`, kept that colour under a higher-priority highlight
+that set only `background-color`, and painted one in a shadow root; Chromium's printed
+PDF kept the colour. Recheck when css-highlight-api allows `font-style`: a highlight
+rule setting it on a range of monospace text, read by eye or from a screenshot.
+
 ### Intrinsic block retirement motion
 
 `browser/runtime/motion.js` (`foldBlock`) animates block retirement, a decided

@@ -43,20 +43,19 @@ def _served(events: tuple[dict, ...]) -> dict:
     }
 
 
-# A to-do the agent put on the user, about the page.
-USER_TODO = {
-    "kind": "todo",
+# A question the agent asked in a thread of its own, about the page.
+QUESTION = {
+    "kind": "comment",
     "author": "agent",
     "agent": "Agent",
     "session": "served-records",
-    "owner": "user",
-    "subject": {"kind": "page"},
-    "title": "Try the build on a phone",
+    "text": "Can you try the build on a phone, and reply once it opens?",
+    "obligation": True,
 }
 
-# Something of every kind on each list: a widget obligation, a question, a to-do the agent put
-# on the user, a reply that failed and a page action whose pickup failed are on On me;
-# a comment owed a reply and a to-do the agent has in hand are on On <agent>.
+# Something of every kind on each list: a widget obligation, a question, a reply that
+# failed and a page action whose pickup failed are on On me; a comment owed a reply and
+# a to-do the agent has in hand are on On <agent>.
 BOTH_SIDES = (
     {"kind": "comment", "text": "Weekly?"},
     {
@@ -114,7 +113,6 @@ BOTH_SIDES = (
         "item": "e5",
         "text": "Redrawing the chart",
     },
-    USER_TODO,
 )
 
 
@@ -142,6 +140,39 @@ REWRITTEN_TWICE = (
     {"kind": "comment", "text": "Chart 2024."},
     {"kind": "edit", "message": "e1", "text": "Chart 2025."},
     {"kind": "edit", "message": "e1", "text": "Chart 2026."},
+)
+
+# A reaction the agent answered, and the user's own reaction on that answer.
+ANSWERED_REACTION = (
+    {"kind": "comment", "token": "change"},
+    {
+        "kind": "reply",
+        "author": "agent",
+        "agent": "Agent",
+        "parent": "e1",
+        "text": "Which part?",
+    },
+    {"kind": "reply", "parent": "e2", "token": "keep"},
+)
+
+# A reply the user sent in a thread, and the agent's answer to it.
+ANSWERED_REPLY = (
+    {"kind": "comment", "text": "Too long?"},
+    {
+        "kind": "reply",
+        "author": "agent",
+        "agent": "Agent",
+        "parent": "e1",
+        "text": "Which part?",
+    },
+    {"kind": "reply", "parent": "e2", "text": "The rollout section."},
+    {
+        "kind": "reply",
+        "author": "agent",
+        "agent": "Agent",
+        "parent": "e3",
+        "text": "Cutting it.",
+    },
 )
 
 
@@ -218,19 +249,78 @@ def build() -> dict:
                     ),
                 )
             },
-            # The agent put a to-do on the user, the only thing On me holds.
-            "user to-do": served_answer(PAGE, (USER_TODO,)),
+            # The user took an answered reply back, which keeps its place.
+            **{
+                name: _served(ANSWERED_REPLY + tail)
+                for name, tail in (
+                    ("a reply answered", ()),
+                    (
+                        "a reply answered, taken back",
+                        ({"kind": "undo", "undoes": "e3"},),
+                    ),
+                )
+            },
+            # The user took both reactions back: the answered one keeps its place.
+            **{
+                name: _served(ANSWERED_REACTION + tail)
+                for name, tail in (
+                    ("a reaction answered", ()),
+                    (
+                        "a reaction answered, both reactions taken back",
+                        (
+                            {"kind": "undo", "undoes": "e3"},
+                            {"kind": "undo", "undoes": "e1"},
+                        ),
+                    ),
+                )
+            },
+            # A reaction the agent attached a to-do to, then taken back.
+            **{
+                name: _served(
+                    (
+                        {"kind": "comment", "token": "change"},
+                        {
+                            "kind": "todo",
+                            "author": "agent",
+                            "agent": "Agent",
+                            "session": "served-records",
+                            "subject": {"kind": "thread", "id": "e1"},
+                            "title": "Rework the passage",
+                        },
+                        *tail,
+                    )
+                )
+                for name, tail in (
+                    ("a reaction holding a to-do", ()),
+                    (
+                        "a reaction holding a to-do taken back",
+                        ({"kind": "undo", "undoes": "e1"},),
+                    ),
+                )
+            },
+            # A reaction the user marked with another, the first taken back, then both.
+            **{
+                name: _served(
+                    (
+                        {"kind": "comment", "token": "change"},
+                        {"kind": "reply", "parent": "e1", "token": "keep"},
+                        {"kind": "undo", "undoes": "e1"},
+                        *tail,
+                    )
+                )
+                for name, tail in (
+                    ("a reaction on a reaction taken back", ()),
+                    (
+                        "a reaction on a reaction, both taken back",
+                        ({"kind": "undo", "undoes": "e2"},),
+                    ),
+                )
+            },
+            # The agent asked the user a question, the only thing On me holds.
+            "question": served_answer(PAGE, (QUESTION,)),
             "queues on both sides": served_reading(
                 OBLIGATION_PAGE,
                 BOTH_SIDES,
-            ),
-            # The same page once the user has marked their to-do done.
-            "user done": served_reading(
-                OBLIGATION_PAGE,
-                (
-                    *BOTH_SIDES,
-                    {"kind": "todo_end", "todo": "e11", "outcome": "done"},
-                ),
             ),
             # Two to-dos the agent holds on a page it is working on: a start running
             # on one went quiet past the working grace, and the other's is current.
@@ -243,7 +333,6 @@ def build() -> dict:
                             "author": "agent",
                             "agent": "Agent",
                             "session": "served-records",
-                            "owner": "agent",
                             "subject": {"kind": "page"},
                             "title": title,
                         }

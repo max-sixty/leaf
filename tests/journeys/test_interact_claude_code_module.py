@@ -65,11 +65,11 @@ def test_the_band_follows_the_pages_the_session_holds(
     append_carried_log_record(
         page_dir,
         {
-            "kind": "todo",
+            "kind": "reply",
             "author": "agent",
-            "owner": "user",
-            "subject": {"kind": "page"},
-            "title": "Try it",
+            "parent": comment["id"],
+            "text": "Can you try it?",
+            "obligation": True,
         },
     )
     band([(f"Leaf {title} · On me 1 · Threads 1, 1 new", url)])

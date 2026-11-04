@@ -30,7 +30,7 @@
     --lf-fp-faint: color-mix(in srgb, var(--ink) 8%, transparent);
     --lf-fp-hover: color-mix(in srgb, var(--ink) 5%, transparent);
     /* What the panel raises, its corner marks and attached pictures, meets its ground
-       (controls.css, `.lf-corner-mark`; response.css, `.lf-composer-media`). */
+       (controls.css, `data-lf-corner`; response.css, `.lf-composer-media`). */
     --lf-ground: var(--lf-fp-surface);
     --lf-ring: var(--lf-fp-ring);
     --lf-fp-folded: 42px;
@@ -48,12 +48,14 @@
        in the corner past its 6px end padding (`.lf-fp-field`). */
     --lf-fp-send-room: calc(max(var(--lf-line), var(--aim-floor)) - 6px);
     /* The panel is as wide as its measure (`--lf-fp-max`, wider while the field has
-       more room) where the window holds it, and the window less a gutter where not. */
+       more room) where the window holds it, and the window less a gutter where not.
+       The window is the viewport the panel is fixed to (`100%`), which a page's root
+       `zoom` scales with the panel; `100vw` doesn't, so a zoomed panel overran it. */
     --lf-fp-max: 540px;
     --lf-fp-gutter: 24px;
     --lf-fp-width: min(
       var(--lf-fp-max),
-      calc(100vw - var(--lf-fp-gutter) - var(--lf-safe-left) - var(--lf-safe-right))
+      calc(100% - var(--lf-fp-gutter) - var(--lf-safe-left) - var(--lf-safe-right))
     );
     /* A view is as tall as what it holds, up to this: the window less the row's band
        and a band of the page above the box, so a long thread or list reads in most of
@@ -359,9 +361,9 @@
      the card's, so the panel leaves them out, matching the card's own selectors. */
   .lf-fp-editors,
   .lf-fp-box,
-  .lf-fp-reply,
-  .lf-fp-reply > .lf-primary-part,
-  .lf-fp-reply .lf-thread-reply,
+  .lf-fp-reply-outlet,
+  .lf-fp-reply-outlet > .lf-primary-part,
+  .lf-fp-reply-outlet .lf-thread-reply,
   .lf-fp-field .lf-compose-field {
     flex: 1;
     min-width: 0;
@@ -887,8 +889,8 @@
   }
 
   /* ---------- an opened view: its head line over it, a list's tabs at its foot ---------- */
-  /* Drawn only while a view is open, since it stands over the page while it is
-     (geometry.js, `declareOccluder`). */
+  /* Drawn only while a view is open, since it covers the page while it is
+     (geometry.js, `declareCover`). */
   /* A symbol in a view stands as tall as the panel's other presses, a line under a
      finger (`--lf-fp-press`). */
   .lf-fp-opened {
@@ -1346,11 +1348,6 @@
   :is(.lf-fp-thread, .lf-fp-on-line)[data-lf-resolved] .lf-fp-label {
     color: var(--muted);
   }
-  /* The row half of the mark the pointer is indicating (anchor-paint.js, `markRow`):
-     its passage's hover wash, so the row and the lit words read as one thread. */
-  .lf-fp-thread.lf-mark-hover {
-    background: var(--mark-hover);
-  }
   /* The words a thread in the panel is about, over its messages, as a card's head
      quotes them (chrome.css, `.lf-quote`): three lines, the whole on Full quote, its
      press above the words it grows (floating-panel.js, `quoteHead`). */
@@ -1403,8 +1400,6 @@
     gap: 8px;
     min-height: 34px;
     padding: 5px 8px;
-    color: inherit;
-    text-decoration: none;
   }
   .lf-fp-page .lf-dot {
     --lf-mark-w: 14px;
@@ -1609,8 +1604,6 @@
     block-size: 100%;
     /* The row face's stripe room (controls.css, `.lf-row`) takes 2px of the start. */
     padding: 0 14px 0 12px;
-    border-radius: 0;
-    color: inherit;
   }
   .lf-fp-on-group > .lf-rows-head > .lf-fp-settled > .lf-row-end {
     margin-inline-start: auto;
@@ -1754,6 +1747,11 @@
   }
   .lf-fp-show {
     margin-inline-start: auto;
+  }
+  /* Reply leading the line hangs its inset (controls.css, `--lf-word-inset`), so its
+     word stands on the card's edge, as the card's heading and an answered line do. */
+  .lf-fp-answers > .lf-fp-reply:first-child {
+    margin-inline-start: calc(-1 * var(--lf-word-inset));
   }
   /* A card's first line ends in its Show (floating-panel.js, `cardHead`), centred on
      a line that holds one, else on the first line of the message's face. */

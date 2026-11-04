@@ -261,7 +261,9 @@ CONTROL_ARCHETYPES = (
 
 # The layer's focus floor (surfaces.css), which rings every box holding visible focus
 # where no carrier wears the ring for it: the panel's own controls and rows among them.
-FLOOR_RING = "[data-lf-focus-visible]:not(.lf-projected-mark, .lf-projected-location)"
+FLOOR_RING = (
+    "[data-lf-focus-visible]:not(.lf-projected-mark, [data-lf-projected-location])"
+)
 
 
 # The page the chrome's surfaces are sampled on: small, with a board's grips, and served
@@ -299,21 +301,18 @@ RING_CASES = (
             ),
             # A picture's response proxy, which a screen reader reaches from the
             # picture, rings the picture (details-shelf.js).
-            "heat-loss": ((".lf-visual-action", ".lf-proxied"),),
+            "heat-loss": ((".lf-visual-action", "[data-lf-proxied]"),),
             # Working density, where a choice's gap is narrowest beside the next face.
             "notification-playground": (
                 ("lf-playground input[type=radio]", ":is(.lf-choice, .choice):has"),
             ),
             "pr-walkthrough": (
                 ("#pr-path-tree > summary", "[data-lf-mark]"),
-                (
-                    "#pr-flow-tab",
-                    "[data-lf-views]:has(> :is(lf-tab, lf-part)",
-                ),
+                ("#pr-flow-tab", ".lf-ring-frame"),
                 ("lf-gloss:visible > .lf-gloss-mark", ".lf-gloss-mark"),
                 (".lf-diff-search input", "wa-input::part"),
                 ("lf-diff summary", FLOOR_RING),
-                ("lf-diff code", ".lf-diff-frame"),
+                ("lf-diff code", ".lf-ring-frame"),
             ),
             "release-notes": (
                 ("main p.lf-mark-el", "[data-lf-mark]"),
@@ -487,7 +486,6 @@ RING_EXAMPLE_FILES = {
 # paint so an unrelated ring drawn by the same rule cannot credit the sample.
 RING_REMOTE_CARRIER = {
     ".lf-key-hint.lf-current": ".lf-target-picker-hint.lf-current",
-    ".lf-diff-frame": "lf-diff code[data-lf-focus-visible] + .lf-diff-frame",
     # A pane draws its focused body's band inset over the body's cell (base.css).
     "[data-lf-reading-role=pane]": '[data-lf-reading-role="pane"]:has(> [data-lf-focus])',
 }
@@ -1751,7 +1749,8 @@ def test_a_newer_wheel_supersedes_a_panel_resize_landing(browser, serve):
     page.keyboard.press("Shift+t")
     panel_settled(page, view="threads")
     threads = page.locator(panel_view("threads"))
-    for _ in range(6):
+    # `g T` stands on the first row, so five steps reach the sixth.
+    for _ in range(5):
         page.keyboard.press("ArrowDown")
     title = threads.locator(".lf-fp-thread").nth(5)
     rendered(page)

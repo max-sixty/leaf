@@ -436,7 +436,7 @@ def test_show_on_page_on_a_phone_lands_on_the_thread_s_marker(browser, serve):
     page.locator(".lf-fp-on-page").click()
     expect(view).to_have_count(0)
     expect(marker).to_be_focused()
-    expect(page.locator("#open-words")).to_have_class(re.compile(r"\blf-traced\b"))
+    expect(page.locator("#open-words")).to_have_attribute("data-lf-traced", "")
     page.keyboard.press("Enter")
     expect(view.locator(".lf-page-thread")).to_be_visible()
 
@@ -568,7 +568,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     expect(marker.locator(".lf-margin-entry-label")).to_be_hidden()
     # The thread the user now stands in marks its element; no trace doubles it.
     expect(page.locator('[data-lf-mark~="here"]')).to_have_id("bracket")
-    expect(page.locator("#bracket")).not_to_have_class(re.compile(r"\blf-traced\b"))
+    expect(page.locator("#bracket")).not_to_have_attribute("data-lf-traced", "")
     preview_box = preview.bounding_box()
     assert preview_box["x"] >= page.evaluate(WORDS_RIGHT) + 7.5
     assert preview_box["x"] >= 0
@@ -887,14 +887,15 @@ def test_a_card_opens_on_its_first_unread_reply(browser, serve):
 
 
 @pytest.mark.parametrize(
-    ("width", "threads_open"), [(760, False), (1000, True), (1440, False)]
+    ("width", "threads_open", "card"),
+    [(760, False, False), (1000, True, True), (1440, False, True)],
 )
 def test_a_new_anchored_comment_keeps_the_users_thread_view(
-    browser, serve, width, threads_open
+    browser, serve, width, threads_open, card
 ):
     """A send continues beside the passage, keeping the page put, whether or not the
     panel's Threads view stood open: the panel shows a passage's thread only where the
-    page draws it nowhere."""
+    page draws it nowhere, as on a window narrower than `--lf-rail-room`."""
     page = open_page(browser, serve(OBLIGATION_PAGE))
     resized(page, width, 900)
     if threads_open:
@@ -913,6 +914,17 @@ def test_a_new_anchored_comment_keeps_the_users_thread_view(
         "Check the January failure mode.",
     )
     preview = page.locator(".lf-margin-preview")
+    if not card:
+        panel_thread = page.locator(PANEL_THREAD)
+        expect(panel_thread).to_contain_text(sent["text"])
+        expect(panel_thread).to_be_focused()
+        expect(preview).to_be_hidden()
+        passage_after = page.locator("#mounts-p").bounding_box()
+        for coordinate in ("x", "y", "width", "height"):
+            assert passage_after[coordinate] == pytest.approx(
+                passage_before[coordinate], abs=1
+            )
+        return
     expect(preview).to_be_visible()
     thread = preview.locator(
         f'.lf-margin-thread .lf-page-thread[data-lf-thread="{sent["id"]}"]'
@@ -1404,7 +1416,9 @@ def test_an_open_thread_refresh_keeps_the_current_margin_entry_target_highlighte
     suggestion.locator(".lf-margin-more").click()
     suggestion.locator('.lf-margin-reading-option[data-lf-kinds="comment"]').click()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
-    page.locator('[data-lf-margin-for="sug-thistle"] .lf-sug-accept').focus()
+    page.locator(
+        '[data-lf-margin-for="sug-thistle"] [data-lf-margin-entry-key=accept]'
+    ).focus()
     # This suggestion is the current obligation, so its ring identifies the target
     # instead of the duplicate margin trace, even while another card stays open.
     drawn = rings_drawn(page)
@@ -1435,7 +1449,7 @@ def test_focusing_a_thread_margin_entry_does_not_open_its_card(browser, serve):
 
     expect(toggle).to_be_focused()
     expect(preview).to_be_hidden()
-    expect(page.locator("#bracket")).not_to_have_class(re.compile(r"\blf-traced\b"))
+    expect(page.locator("#bracket")).not_to_have_attribute("data-lf-traced", "")
 
 
 def test_a_card_follows_the_margin_entry_it_hangs_from_in_the_tab_order(browser, serve):

@@ -484,8 +484,9 @@ def portable_sheet(inputs: list[Path], tags: list[str]) -> bytes:
     """The look a page without Leaf links for the widgets it runs (module-authoring.md,
     "A widget that also runs off Leaf"), served as the layer's portable.css.
 
-    It holds the kernel's tokens, then the kernel's shared sheet (shadow.css) nested
-    under `:where(<the layer's tags>)`, then the sheets of each package that ships
+    It holds the kernel's tokens, Web Awesome's (its theme's custom properties) and
+    Leaf's values for them, since the faces Leaf takes from that library read them,
+    then the kernel's shared sheet (shadow.css) nested under `:where(<the layer's tags>)`, then the sheets of each package that ships
     widgets (widget-shadow.css and defaults.css), all in lf-base, the tier a widget
     module's adopted rules take off Leaf too (runtime/base-layer.js). The nesting keeps
     the shared sheet's page-wide control faces (`.button`, `.field`, a native control's
@@ -507,8 +508,13 @@ def portable_sheet(inputs: list[Path], tags: list[str]) -> bytes:
     def place(sheet):
         parts.append(f"@layer lf-base {{\n{sheet}}}\n")
 
-    if (tokens := kernel / "styles/tokens.css").is_file():
-        place(stylesheet(tokens, kernel))
+    for name in (
+        "styles/vendor/webawesome-theme.css",
+        "styles/tokens.css",
+        "styles/webawesome-tokens.css",
+    ):
+        if (tokens := kernel / name).is_file():
+            place(stylesheet(tokens, kernel))
     if (shared := kernel / "shadow.css").is_file() and tags:
         place(f":where({', '.join(tags)}) {{\n{stylesheet(shared, kernel)}}}\n")
     for root in packages:

@@ -1261,24 +1261,15 @@ unresolve:
         the thread's latest user message was never answered, `leaf page state <page>
         <message>` shows the `answer` still owed.
 
-Done on a to-do on the user:
-  event:
-    kind: todo_end
-  told:
-    - text: >-
-        The user pressed Done on the to-do `todo`, which ends it and owes no reply.
-        Continue the work it was waiting for; if you still need something from them,
-        ask again.
-
 undo:
   event:
     kind: undo
   told:
     - text: >-
-        The user took back the gesture `undoes` names. Treat the two as cancelled:
-        don't answer or record the withdrawn gesture. Undoing an action that answered
-        or closed a thread reopens that thread, and undoing an `edit` takes that
-        rewrite of its message back.
+        The user took back the gesture `undoes` names. Treat it as withdrawn: don't
+        answer or record it, and if you have already acted on it, undo or redo what
+        depended on it. Undoing an action that answered or closed a thread reopens
+        that thread, and undoing an `edit` takes that rewrite of its message back.
 
 report:
   event:

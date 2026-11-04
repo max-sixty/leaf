@@ -12,10 +12,10 @@ restores, from the merge base with `main`, every path but the tests, the tooling
 import, and the environment's manifests and locks (`KEPT`). Compiled bundles are
 committed, so they revert with their sources.
 
-Both runs happen in a snapshot of the working tree taken as the command starts
-(`suite.snapshot`) and removed when it ends, so an edit made during the runs reaches
-neither. Output and reports stay under `.tmp/bugback/`. Exits 1 unless every test is
-caught.
+Both runs happen in one checkout (`suite.checkout`) of a snapshot of the working tree
+taken as the command starts (`suite.snapshot`), removed when it ends, so an edit made
+during the runs reaches neither. Output and reports stay under `.tmp/bugback/`. Exits 1
+unless every test is caught.
 
 This keeps its own revert rather than taking a base from `arms.choose_arms`: that base
 is the whole tree at the merge base, tests included, while the reverted run needs this
@@ -31,7 +31,7 @@ import click
 
 from leaf_dev import ROOT
 from leaf_dev.arms import merge_base
-from leaf_dev.suite import collect, run, snapshot
+from leaf_dev.suite import Outcome, checkout, collect, run, snapshot
 
 OUT = ROOT / ".tmp" / "bugback"
 # What the revert leaves as the working tree has it: the tests, the tooling they
@@ -61,25 +61,44 @@ def bugback(selection: tuple[str, ...]) -> None:
     reports per test whether it was caught. Exits 1 unless every test is caught.
     """
     base = merge_base()
+    kept = [f":(exclude){path}" for path in KEPT]
+    # The tracked paths the working tree changes, and the untracked ones it adds.
+    if not (
+        git("diff", "--name-only", base, "--", ".", *kept, cwd=ROOT)
+        + git("ls-files", "--others", "--exclude-standard", "--", ".", *kept, cwd=ROOT)
+    ):
+        raise click.ClickException(
+            f"the working tree changes nothing outside {', '.join(KEPT)} "
+            f"since {base[:12]}"
+        )
     OUT.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().astimezone().strftime("%Y%m%d-%H%M%S-")
     out = Path(tempfile.mkdtemp(prefix=stamp, dir=OUT))
-    kept = [f":(exclude){path}" for path in KEPT]
     with tempfile.TemporaryDirectory(prefix="leaf-bugback-") as directory:
-        scratch = Path(directory) / "checkout"
-        snapshot(scratch)
-        if not git("diff", "--name-only", base, "HEAD", "--", ".", *kept, cwd=scratch):
-            raise click.ClickException(
-                f"the working tree changes nothing outside {', '.join(KEPT)} "
-                f"since {base[:12]}"
-            )
-        items = collect(scratch, selection, out / "collect.log")
-        control = run(scratch, selection, items, out / "control")
-        git("restore", f"--source={base}", "--", ".", *kept, cwd=scratch)
+        candidate, tree = Path(directory) / "snapshot", Path(directory) / "checkout"
+        snapshot(candidate)
+        checkout(candidate, tree)
+        items = collect(tree, selection, out / "collect.log")
+        control = run(tree, selection, items, out / "control")
+        git("restore", f"--source={base}", "--", ".", *kept, cwd=tree)
         reverted = run(
-            scratch, selection, items, out / "reverted",
+            tree, selection, items, out / "reverted",
             "--continue-on-collection-errors",
         )  # fmt: skip
+        # Reported before the snapshot is removed, so a failure to remove it can't
+        # hide the verdicts.
+        caught = report(items, control, reverted, out)
+    raise SystemExit(0 if caught else 1)
+
+
+def report(
+    items: list[str],
+    control: dict[str, Outcome],
+    reverted: dict[str, Outcome],
+    out: Path,
+) -> bool:
+    """Print each test's verdict and the first line of each message, and return
+    whether every test was caught."""
 
     def verdict(item: str) -> str:
         if control[item].result != "passed":
@@ -97,4 +116,4 @@ def bugback(selection: tuple[str, ...]) -> None:
             if first := outcomes[item].message.strip().partition("\n")[0]:
                 click.echo(f"- {name}, `{item}`: {first}")
     click.echo(f"\nlogs: {out.relative_to(ROOT)}/")
-    raise SystemExit(0 if all(v == "caught" for v in verdicts.values()) else 1)
+    return all(v == "caught" for v in verdicts.values())

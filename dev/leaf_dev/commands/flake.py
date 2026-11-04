@@ -21,7 +21,6 @@ copy of every test passed; a skip is not a pass.
 """
 
 import shutil
-import subprocess
 import tempfile
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor
@@ -31,7 +30,7 @@ from pathlib import Path
 import click
 
 from leaf_dev import ROOT
-from leaf_dev.suite import collect, run, snapshot
+from leaf_dev.suite import checkout, collect, run, snapshot
 
 COPIES = 18
 WORKERS = 6
@@ -64,42 +63,15 @@ def flake(selection: tuple[str, ...], throttle: float | None) -> None:
         scratch = Path(directory)
         candidate = scratch / "snapshot"
         snapshot(candidate)
-        ignored = subprocess.check_output(
-            [
-                "git",
-                "-C",
-                ROOT,
-                "ls-files",
-                "-z",
-                "--others",
-                "--ignored",
-                "--directory",
-                "--exclude-standard",
-            ],
-            text=True,
-        ).split("\0")
-        dependencies = [
-            Path(p.rstrip("/"))
-            for p in ignored
-            if Path(p.rstrip("/")).name == "node_modules"
-        ]
-
-        def checkout(target: Path):
-            subprocess.run(["git", "clone", "-q", candidate, target], check=True)
-            for dependency in dependencies:
-                (target / dependency).symlink_to(
-                    ROOT / dependency, target_is_directory=True
-                )
-
         options = ("-n0", *((f"--cpu-throttle={throttle}",) if throttle else ()))
         collection = scratch / "collection"
-        checkout(collection)
+        checkout(candidate, collection)
         items = collect(collection, selection, out / "collect.log")
         shutil.rmtree(collection)
 
         def copy(n: int):
             target = scratch / f"copy-{n:02}"
-            checkout(target)
+            checkout(candidate, target)
             try:
                 return run(target, selection, items, out / target.name, *options)
             finally:

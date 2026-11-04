@@ -130,7 +130,7 @@ import {
  * words: DOMRect[] | null, passageNode: Text | null, block: {node: Element, box: Box} | null,
  * shownWords: Box[], preformatted: Box | null, anchor: Element,
  * scroller: Element, lane: HTMLElement | null, shown: boolean,
- * place: "pin" | "rail", box: DOMRect, subject: DOMRect, extent: Box | null, top: number | undefined,
+ * place: "pin" | "rail", box: DOMRect, subject: DOMRect, extent: Box | null, view: Box | null, top: number | undefined,
  * carrier: Anchor | null, cuts: HeaderLevel[], cutKey: string,
  * carrierStand: {box: DOMRect, reading: ReturnType<typeof anchorReading>} | null,
  * carrierPaint: {node: Element, box: DOMRect, reading: ReturnType<typeof anchorReading>} | null,
@@ -1026,7 +1026,8 @@ function childIndex() {
         if (box) sized.push({ node, order, box, lines });
         continue;
       }
-      if (!(node instanceof Element) || node.closest(SURFACES)) continue;
+      // The walk reaches what a surface holds only through the surface.
+      if (!(node instanceof Element) || node.matches(SURFACES)) continue;
       if (skipped(node)) continue;
       const box = node.getBoundingClientRect();
       (box.width || box.height ? sized : boxless).push({
@@ -1519,11 +1520,19 @@ function setStyle(row, property, value) {
 // shows of them: a scroll that carries it past them answers no here, and the pass that
 // answer brings seats it by the first line that still shows.
 /** @param {Element} target @param {Box | null} extent @param {{top: number | undefined, right?: number, bottom?: number, level?: boolean} | null} stands @param {import("../geometry.js").ClipCache} bands */
-function targetShown(target, extent, stands, bands) {
+const targetShown = (target, extent, stands, bands) =>
+  shownWithin(targetView(target, bands), extent, stands);
+// What the target's scrollers leave of the window across it, or null where no part of it
+// is drawn there (`targetShown`), read once for a row and asked again of its seat.
+/** @param {Element} target @param {import("../geometry.js").ClipCache} bands */
+function targetView(target, bands) {
   const shown = (/** @type {Element} */ part) =>
     clippedRect(part.getBoundingClientRect(), part, bands, pageScroller);
-  if (!visibleTargetParts(target).some(shown)) return false;
-  const view = clippedRect(EVERYWHERE, target, bands, pageScroller);
+  if (!visibleTargetParts(target).some(shown)) return null;
+  return clippedRect(EVERYWHERE, target, bands, pageScroller);
+}
+/** @param {Box | null} view @param {Box | null} extent @param {{top: number | undefined, right?: number, bottom?: number, level?: boolean} | null} stands */
+function shownWithin(view, extent, stands) {
   if (!extent || !view || !overlaps(extent, view)) return false;
   if (!stands) return true;
   if (stands.level) {
@@ -1764,7 +1773,8 @@ function layoutMountedRows(layer) {
         (note) => note.top < Number(level) + size && note.bottom > Number(level),
       ),
     });
-    const shown = targetShown(target, extent, place === "pin" ? null : { top }, bands);
+    const view = targetView(target, bands);
+    const shown = shownWithin(view, extent, place === "pin" ? null : { top });
     reads.push({
       row,
       options,
@@ -1783,6 +1793,7 @@ function layoutMountedRows(layer) {
       box,
       subject: line ?? box,
       extent,
+      view,
       top,
       carrier: null,
       cuts: [],
@@ -2149,12 +2160,12 @@ function layoutMountedRows(layer) {
     const level = read.place === "pin" && Boolean(read.preformatted && read.words);
     const withheld =
       read.place === "pin" &&
-      !targetShown(
-        read.target,
-        read.extent,
-        { top, bottom: rect.bottom + push, right: rect.right, level },
-        bands,
-      );
+      !shownWithin(read.view, read.extent, {
+        top,
+        bottom: rect.bottom + push,
+        right: rect.right,
+        level,
+      });
     return {
       row,
       rect,

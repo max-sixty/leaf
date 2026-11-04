@@ -47,7 +47,7 @@
       semantic.applicationPresented() &&
       semantic
         .readApplication()
-        .authoritative?.browser.receipts.some((receipt) => receipt.attempt === attempt),
+        .authoritative?.events.some((event) => event.attempt === attempt),
     card: ({ card, to }) => {
       const node = document.getElementById(card);
       return (

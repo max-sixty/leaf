@@ -35,21 +35,24 @@ as it ends one asked in words (`asked_in_a_message`)."""
 
 import hashlib
 import json
+from bisect import bisect_right
 from collections.abc import Callable
 from functools import partial
+from math import inf
 from typing import TYPE_CHECKING, NamedTuple
 from urllib.parse import quote
 
 from leaf.events import (
     awaits_agent,
     is_reaction,
-    retractions,
+    report_settled_at,
     taken_back,
     unanswered_agent_turn,
 )
 from leaf.gesture_words import element_name
 from leaf.page_memory import Slot
 from leaf.projection import (
+    AuthoredOrders,
     FrozenThreadReading,
     StateProjection,
     attribute_marks,
@@ -59,7 +62,6 @@ from leaf.projection import (
     obligation_value,
     page_reading,
     projected_action_holders,
-    state_projection,
 )
 from leaf.registry.contract import exhibits, matches_when
 from leaf.registry.kernel import verb_writers
@@ -237,42 +239,50 @@ def previously_requested(
     projection: StateProjection,
     when: dict,
     revision: int | None,
-    events: list,
-    byid: dict,
-    spoken: dict,
-    registry: dict,
-    cache: dict,
+    settled: dict,
 ) -> bool:
     """Registration at relevant gestures in their own immutable source basis.
 
-    The canonical state fold reads each relevant log prefix, sharing cached prefixes
-    across sources. This includes report settlement and Undo without a second replay
-    rule. Surviving actions and reports can originate a conditional request between
-    document revisions; retracted actions cannot.
+    Each of the element's value writes in `revision` asks whether `when` held on
+    the log's prefix through it. The fold of that prefix (`state_projection`) takes
+    its floors and withdrawals from the whole log, so it admits the actions
+    `projection`, the fold of the whole log in `revision`, holds in force; and it
+    settles only the reports a note through the write settles (`settled`, from
+    `events.report_settled_at` through `revision`). So one walk of the value writes
+    at the element's unit reads every prefix by the rule `state_projection` builds
+    `desired` by: a coordinate stands at its newest action in force so far, else at
+    its newest report not yet settled. An attribute then reads the newest write
+    standing at any of its coordinates (`replayed_attrs`), which is its newest write
+    no note has settled: a newer write at a coordinate is a newer write of its
+    attribute. So each attribute keeps its writes in log order, and a write reads
+    each attribute `when` names from the newest of them. Surviving actions and
+    reports can originate a conditional request between document revisions;
+    retracted actions cannot.
     """
     unit = record["attrs"].get("id")
-    for coordinate, (event, spec) in projection.classified_by_owner.get(unit, ()):
+    writes: dict[str, list] = {}
+    for coordinate, (event, spec) in projection.classified_by_unit.get(unit, ()):
         effect = spec.get("record") or {}
+        if effect.get("kind") != "value" or (
+            event["kind"] == "action" and event["id"] not in projection.in_force
+        ):
+            continue
+        writes.setdefault(effect["attr"], []).append((event, spec))
         if (
-            coordinate[1] != unit
-            or (event["kind"] == "action" and event["id"] not in projection.in_force)
+            coordinate[0] != unit
             or (revision is not None and event["revision"] != revision)
-            or effect.get("kind") != "value"
             or effect["attr"] not in when
         ):
             continue
-        key = (id(projection), event["seq"])
-        if key not in cache:
-            cache[key] = state_projection(
-                [item for item in events if item["seq"] <= event["seq"]],
-                byid,
-                spoken,
-                registry,
-                revision,
-                floors=retractions(events, revision) if revision is not None else {},
-                withdrawn=taken_back(events),
-            )
-        if matches_when(replayed_attrs(record, cache[key]), when):
+        attrs = dict(record["attrs"])
+        for attr in when:
+            held = writes.get(attr)
+            # A report a note has settled stays settled on every longer prefix.
+            while held and settled.get(held[-1][0]["id"], inf) <= event["seq"]:
+                held.pop()
+            if held:
+                attrs[attr] = folded_value(*held[-1])
+        if matches_when(attrs, when):
             return True
     return False
 
@@ -658,6 +668,7 @@ class _ObligationReducer:
         self.byid = byid
         self.spk = spk
         self.marks = attribute_marks(byid, spk, registry)
+        self.orders = AuthoredOrders(byid, registry)
         self.registry = registry
         self.revision = revision
         self.events = [] if events is None else events
@@ -757,7 +768,7 @@ class _ObligationReducer:
                 entry["x-state"][verb],
                 self.byid,
                 self.marks,
-                self.registry,
+                self.orders,
                 self.projection,
                 answered=answered,
                 unit=unit,
@@ -801,7 +812,7 @@ class _ObligationReducer:
     def inventory(self, settled_away: set[str], prior=None) -> list:
         """Every present source remains identifiable after completion or withdrawal."""
         records = []
-        history_projections = {}
+        settled_at = {}
         history_readings = {}
         history_keys = {}
         # Only writers in the exact historical revision can originate a request
@@ -812,6 +823,12 @@ class _ObligationReducer:
                 written.setdefault((event["revision"], event["widget"]), set()).add(
                     event["action"]
                 )
+
+        def settled(revision):
+            """The seq each report is first settled at through `revision`."""
+            if revision not in settled_at:
+                settled_at[revision] = report_settled_at(self.events, revision)
+            return settled_at[revision]
 
         def historical_request(old_revision, old, unit):
             previous = old.document.by_id[unit]
@@ -826,11 +843,7 @@ class _ObligationReducer:
                 basis.projection,
                 declaration.get("when", {}),
                 old_revision,
-                self.events,
-                old.document.by_id,
-                old.spoken,
-                old.registry,
-                history_projections,
+                settled(old_revision),
             )
 
         # A historical fold reads writers and notes through its revision, plus
@@ -867,11 +880,7 @@ class _ObligationReducer:
                     self.projection,
                     self._declaration(record).get("when", {}),
                     self.revision,
-                    self.events,
-                    self.byid,
-                    self.spk,
-                    self.registry,
-                    history_projections,
+                    settled(self.revision),
                 )
                 or any(
                     "answer" in (held[0].get("meaning") or {})
@@ -934,7 +943,7 @@ class _ObligationReducer:
                 entry["x-state"][value_verb],
                 self.byid,
                 self.marks,
-                self.registry,
+                self.orders,
                 self.projection,
                 answered=answered,
             )
@@ -1053,30 +1062,22 @@ def thread_obligation_readings(
         if message.get("obligation")
     )
     tokens = registry.get("$reactions", {}).get("tokens", {})
+    # The newest open to-do on each thread.
+    newest_todo: dict[str, int] = {}
+    for todo in log.owed:
+        if todo["subject"]["kind"] == "thread":
+            identity = todo["subject"]["id"]
+            newest_todo[identity] = max(newest_todo.get(identity, 0), todo["seq"])
+    readings: dict[str, ThreadAnswers] = {}
     for record in records:
         thread = threads[record["thread"]]
+        if record["thread"] not in readings:
+            readings[record["thread"]] = ThreadAnswers(thread, tokens)
+        answers = readings[record["thread"]]
         in_words = answered_in_words(record)
-        asked = next(
-            message["seq"]
-            for message in thread["msgs"]
-            if message["id"] == record["message"]
-        )
+        asked = answers.seq(record["message"])
         if record["status"] == "open" and in_words:
-            answer = next(
-                (
-                    message
-                    for message in thread["msgs"]
-                    if message["seq"] > asked
-                    and message["author"] == "user"
-                    and (
-                        settles(message, record["message"], tokens)
-                        if is_reaction(message)
-                        # A message the user deleted has no words left to answer.
-                        else bool(message.get("text")) and not message.get("ephemeral")
-                    )
-                ),
-                None,
-            )
+            answer = answers.first_answer(record["message"])
             settle_by_words(record, answer, log.ends.get(record["id"]))
         # No revision can write a frozen widget's state, so an answer in words
         # retires its question through the agent's end, as for a question in words.
@@ -1084,21 +1085,56 @@ def thread_obligation_readings(
             end_question(record, ending)
         if record["next_actor"] is None:
             continue
-        owed = unanswered_agent_turn(thread)
+        owed = answers.owed
         if thread["resolved"]:
             record["next_actor"] = None
         # Only the user's words answer a question asked in words, so a turn the agent
         # owes after it, such as one a user's edit up the thread opens, leaves it theirs.
         elif not in_words and (
             (owed is not None and owed["seq"] > asked)
-            or any(
-                todo["seq"] > asked
-                for todo in log.owed
-                if todo["subject"] == {"kind": "thread", "id": record["thread"]}
-            )
+            or newest_todo.get(record["thread"], 0) > asked
         ):
             record["next_actor"] = "agent"
     return collection(records)
+
+
+class ThreadAnswers:
+    """What answers the questions one thread asks, read once for every obligation
+    in it: where each message stands, the user's messages in words, each message's
+    first reaction whose token settles it (`settles`), and the turn the agent owes
+    (`unanswered_agent_turn`)."""
+
+    def __init__(self, thread: dict, tokens: dict):
+        self.messages = thread["msgs"]
+        self.position = {message["id"]: i for i, message in enumerate(self.messages)}
+        # A message the user deleted has no words left to answer.
+        self.words = [
+            i
+            for i, message in enumerate(self.messages)
+            if message["author"] == "user"
+            and not is_reaction(message)
+            and bool(message.get("text"))
+            and not message.get("ephemeral")
+        ]
+        self.settling: dict[str, int] = {}
+        for i, message in enumerate(self.messages):
+            parent = message.get("parent")
+            if parent is not None and settles(message, parent, tokens):
+                self.settling.setdefault(parent, i)
+        self.owed = unanswered_agent_turn(thread)
+
+    def seq(self, message: str) -> int:
+        return self.messages[self.position[message]]["seq"]
+
+    def first_answer(self, message: str) -> dict | None:
+        """The first message after `message` that answers it: the user's words, or
+        their reaction on it whose token settles it."""
+        at = self.position[message]
+        later = bisect_right(self.words, at)
+        found = [i for i in (self.settling.get(message),) if i is not None]
+        if later < len(self.words):
+            found.append(self.words[later])
+        return self.messages[min(found)] if found else None
 
 
 def answered_in_words(record: dict) -> bool:

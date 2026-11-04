@@ -323,11 +323,16 @@ const elementById = (id, root = document) => {
 const pageDocument = (doc = document) => doc.body;
 const inPage = (node) => under(node, pageDocument()) && !leafSurface(node);
 const isLayoutBox = (box) => getComputedStyle(box).getPropertyValue("--lf-layout-box").trim() === "1";
+const PARTS = ":scope > [data-lf-views=\"parts\"]";
 const layoutBox = () => {
 	const main = document.querySelector("body > main");
 	if (!main || isLayoutBox(main)) return main;
-	const parts = main.querySelector(":scope > [data-lf-views=\"parts\"]");
+	const parts = main.querySelector(PARTS);
 	return [...main.children, ...[...parts?.children ?? []].flatMap((part) => [...part.children])].find((box) => box.checkVisibility() && isLayoutBox(box)) ?? main;
+};
+const layoutParts = () => {
+	const main = document.querySelector("body > main");
+	return main && !isLayoutBox(main) ? main.querySelector(PARTS) : null;
 };
 const authoredScope = (node) => closestAcross(node, ".lf-msg-body") ?? pageDocument(node?.ownerDocument ?? document);
 const elementFromPointAcross = (x, y) => {
@@ -809,4 +814,4 @@ function pageParts(sel) {
 }
 
 //#endregion
-export { DATUM, GENERATED, HEADING, LEAF_SURFACE, alignInlineText, alignText, authored, authoredScope, blockAt, contextAround, cut, elementById, elementFromPointAcross, elementOver, elementReading, fencePassageParts, fencedAt, fileModelsPassage, findQuote, findText, inPage, layoutBox, leafSurface, neighbourhood, pageBlocks, pageDocument, pageParts, pageQueryAll, pageReadingVersion, pageText, pageWords, pointAt, quoteFrom, rangeOf, readingFrom, renderRetired, says, segmentBlock, segmentsIn, sentenceUnits, settledAway, showsWords, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity, watchPassageRoot, wrote };
+export { DATUM, GENERATED, HEADING, LEAF_SURFACE, alignInlineText, alignText, authored, authoredScope, blockAt, contextAround, cut, elementById, elementFromPointAcross, elementOver, elementReading, fencePassageParts, fencedAt, fileModelsPassage, findQuote, findText, inPage, layoutBox, layoutParts, leafSurface, neighbourhood, pageBlocks, pageDocument, pageParts, pageQueryAll, pageReadingVersion, pageText, pageWords, pointAt, quoteFrom, rangeOf, readingFrom, renderRetired, says, segmentBlock, segmentsIn, sentenceUnits, settledAway, showsWords, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity, watchPassageRoot, wrote };

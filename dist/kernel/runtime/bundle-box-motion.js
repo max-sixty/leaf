@@ -1,4 +1,4 @@
-import { TEXT_FIELD, afterSettling, cancelRender, contentRides, inChrome, inlineStyle, keeps, locationStandsDown, motionEasing, motionPlays, motionTime, move, nativeLayerHolding, nextRender, onUserInput, playMotion, shownParts, sizeObserver } from "./bundle-portable.js";
+import { TEXT_FIELD, afterSettling, cancelRender, contentRides, inChrome, inlineStyle, keeps, locationStandsDown, motionEasing, motionPlays, motionTime, move, nativeLayerHolding, nextRender, onUserInput, playMotion, shownParts, sizeObserver, userScrollport } from "./bundle-portable.js";
 import { el } from "./bundle-errors.js";
 import "./bundle-passages.js";
 import { SVG_NS, paintGeometry, paintShape, paintStand, placement, standBox, standOver, vacate } from "./bundle-page-layout.js";
@@ -443,7 +443,7 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer: g
 			box: shifted(boxOf(element.getBoundingClientRect()), -dx, -dy),
 			window: style.position === "fixed",
 			parts: [],
-			scrolls: /auto|scroll/.test(`${style.overflowX} ${style.overflowY}`),
+			scrolls: userScrollport(style.overflowX) || userScrollport(style.overflowY),
 			whole: false,
 			holdsWindow: false
 		};
@@ -891,7 +891,7 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer: g
 			stopStreaming = new AbortController();
 			const { signal } = stopStreaming;
 			for (const element of rests?.keys() ?? []) {
-				if (element.matches(TEXT_FIELD) || !/auto|scroll/.test(getComputedStyle(element).overflowY)) continue;
+				if (element.matches(TEXT_FIELD) || !userScrollport(getComputedStyle(element).overflowY)) continue;
 				const child = [...element.children].find((node) => node.checkVisibility());
 				if (!child) continue;
 				streamFrom.set(element, {

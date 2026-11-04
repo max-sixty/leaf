@@ -30,6 +30,7 @@ import { reportPageError } from "../layer-client.js";
 import { aimTargetAt, datumAimTarget } from "../anchor-resolution.js";
 import { sameAnchor } from "../anchor-coordinate.js";
 import { closestAcross } from "../passages.js";
+import { drawnThreadId, drawnThreadsWithId } from "./selectors.js";
 import { tagsDeclaring } from "../registry.js";
 import { watchArrivals } from "../arrivals.js";
 import { renderThreadSurface, clearThreadSurface } from "./inline.js";
@@ -143,10 +144,7 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
     if (!outlet) return null;
     const thread = closestAcross(node, ".lf-page-thread");
     if (thread && under(thread, outlet))
-      return (
-        registration.placements?.placedAt(thread.getAttribute("data-lf-thread"))
-          ?.place ?? null
-      );
+      return registration.placements?.placedAt(drawnThreadId(thread))?.place ?? null;
     return outlet === composition.outlet()
       ? (registration.placements?.pendingAt()?.place ?? null)
       : null;
@@ -624,9 +622,7 @@ export function surfaceFocusTarget(name, { part = "reply" } = {}) {
   const id = threadIdNamed(name);
   for (const registration of registrations.values()) {
     const thread = [...registration.outlets]
-      .map((outlet) =>
-        outlet.querySelector(`.lf-page-thread[data-lf-thread="${CSS.escape(id)}"]`),
-      )
+      .map((outlet) => drawnThreadsWithId(outlet, id)[0])
       .find(Boolean);
     if (!thread) continue;
     return threadFocusDestination(thread, { part, message: name });

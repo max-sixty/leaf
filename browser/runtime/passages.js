@@ -775,15 +775,22 @@ export const inPage = (node) => under(node, pageDocument()) && !leafSurface(node
 /** @param {Element} box */
 const isLayoutBox = (box) =>
   getComputedStyle(box).getPropertyValue("--lf-layout-box").trim() === "1";
+const PARTS = ':scope > [data-lf-views="parts"]';
 export const layoutBox = () => {
   const main = document.querySelector("body > main");
   if (!main || isLayoutBox(main)) return main;
-  const parts = main.querySelector(':scope > [data-lf-views="parts"]');
+  const parts = main.querySelector(PARTS);
   const boxes = [
     ...main.children,
     ...[...(parts?.children ?? [])].flatMap((part) => [...part.children]),
   ];
   return boxes.find((box) => box.checkVisibility() && isLayoutBox(box)) ?? main;
+};
+// A page of parts' views: the parts a `main` with no Layout of its own shows one at a
+// time (layouts.css, "A page of parts"), or null on any other page.
+export const layoutParts = () => {
+  const main = document.querySelector("body > main");
+  return main && !isLayoutBox(main) ? main.querySelector(PARTS) : null;
 };
 
 /** @param {Node} node */

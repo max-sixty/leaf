@@ -1071,9 +1071,7 @@ export class HeldArrivals {
   /** @param {(held: HeldArrival) => boolean} which */
   #lapse(which) {
     const currentLocation = new Set(
-      currentLocationNodes().map((node) =>
-        closestAcross(node, THREAD)?.getAttribute("data-lf-thread"),
-      ),
+      currentLocationNodes().map((node) => drawnThreadId(closestAcross(node, THREAD))),
     );
     return this.#release((held) => which(held) && !currentLocation.has(held.id));
   }

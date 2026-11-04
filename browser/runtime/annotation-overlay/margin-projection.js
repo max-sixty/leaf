@@ -139,6 +139,7 @@ import { repaint } from "../repaint.js";
 import { chromeRoot, chromeForeground } from "../chrome.js";
 import { arrivalOf, declareSide } from "../current-target.js";
 import { closestAcross, inChrome } from "../passages.js";
+import { drawnThreadId, drawnThreadsWithId } from "../thread/selectors.js";
 import { visualAt } from "../anchor-resolution.js";
 import { paintTrace } from "../target-paint.js";
 import { outlineChange } from "../margin-bars.js";
@@ -1427,7 +1428,7 @@ export function createMarginProjection({
   // (thread/replies.js, `releaseReplies`), or the thread. A widened window gives it back
   // (thread/destination.js, `returnToPage`).
   function yieldPreview() {
-    const id = card.thread()?.getAttribute("data-lf-thread");
+    const id = drawnThreadId(card.thread());
     const inCard = currentLocationIn(preview);
     const replying = card.replying();
     const intent = retainUserIntent();
@@ -1764,11 +1765,9 @@ export function createMarginProjection({
   /** @param {string} id */
   const seatedOnPage = (id) =>
     claimed(id) ||
-    [
-      ...document.querySelectorAll(
-        `.lf-page-thread[data-lf-thread="${CSS.escape(id)}"]`,
-      ),
-    ].some((seat) => closestAcross(seat, ".lf-thread-seat[data-lf-thread-seat]"));
+    [...drawnThreadsWithId(document, id)].some((seat) =>
+      closestAcross(seat, ".lf-thread-seat[data-lf-thread-seat]"),
+    );
   // The innermost target holding the node whose threads the card would show. A thread is
   // about exactly its anchor's target (header), reached from anywhere
   // inside it and never from outside: after `m` the user is on the obligation element, so

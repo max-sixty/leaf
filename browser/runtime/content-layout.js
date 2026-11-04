@@ -5,7 +5,7 @@ import { setRuntimeRootStyle, removeRuntimeRootStyle } from "./root-state.js";
 import { nextFrame, nextRender, sizeObserver } from "./rendering.js";
 import { repaintPage } from "./repaint.js";
 import { layoutChanged } from "./widget-upgrade.js";
-import { layoutBox, pageDocument } from "./passages.js";
+import { layoutBox, layoutParts, pageDocument } from "./passages.js";
 import { pageControlsChanged } from "./page-controls.js";
 import { elementFrame } from "./element-frame.js";
 import { layoutWindow, shellRight } from "./geometry.js";
@@ -137,11 +137,7 @@ export const windowHoldsRail = () =>
 // surface alongside the layout, so reach need not discover it by scanning content.
 // CSS anchors its list below the title (layouts.css, "A page of parts").
 const title = () => {
-  const main = document.querySelector("body > main");
-  const parts =
-    main && getComputedStyle(main).getPropertyValue("--lf-layout-box").trim() !== "1"
-      ? main.querySelector(':scope > [data-lf-views="parts"]')
-      : null;
+  const parts = layoutParts();
   let marked = false;
   for (
     let node = parts?.previousElementSibling;

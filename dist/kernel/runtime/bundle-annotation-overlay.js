@@ -4,7 +4,7 @@ import { setRuntimeRootAttribute } from "./bundle-layer-client.js";
 import { chromeForeground, chromeRoot, exactTarget, passageGeometry, pointBand, proseRect, rangeGeometry, readingRegionFor, registerReadingRegion, scrollerFor, targetElement, targetParts, targetRange, targetSegments, targetSurface, visualAt, windowHoldsRail } from "./bundle-content-layout.js";
 import { ANNOTATIONS_KEY } from "./bundle-restore-state.js";
 import { blockAt, elementFromPointAcross, pageWords, quoteFrom, rangeOf, segmentsIn } from "./bundle-passages.js";
-import { anchorLabel, arrivalOf, carryingThreadPlace, claimSeatReplies, claimed, currentLocationThreadId, declareOffFlowSurface, declareSide, keepThreadLanding, pageCommand, pageRung, pageScope, pageSelection, placeKeeper, releaseAuthoredUnder, releaseReplies, revealHeld, rowWalk, selectionAnchor, showReturnTurn, threadFocusDestination, threadIdNamed, threadNamed } from "./bundle-data.js";
+import { anchorLabel, arrivalOf, carryingThreadPlace, claimSeatReplies, claimed, currentLocationThreadId, declareOffFlowSurface, declareSide, drawnThreadId, drawnThreadsWithId, keepThreadLanding, pageCommand, pageRung, pageScope, pageSelection, placeKeeper, releaseAuthoredUnder, releaseReplies, revealHeld, rowWalk, selectionAnchor, showReturnTurn, threadFocusDestination, threadIdNamed, threadNamed } from "./bundle-data.js";
 import { SVG_NS, activateContributionControl, awaitingUser, canFold, choosePrimary, clearContributionControls, clusterProjection, contributionEntry, contributionEntryRecord, contributionEntrySource, dropStand, entryEngaged, entryHasMarginHost, focusedOfferOf, markerFace, materializeContributionControls, optionsOffered, outlineChange, paintGeometry, paintShape, paintStand, placement, presentContributionEntry, presentContributionReceipts, primaryReading, readingBehavior, readingChoices, readingContext, readingFace, readingKey, readingLabel, readingState, spokenContext, spokenSubject, standOver, syncContributionSelection, syncContributionUnread, threadReading, unreadIn } from "./bundle-page-layout.js";
 import { boxMotion, paintTrace } from "./bundle-box-motion.js";
 import { THREAD_CARD, cardMeasure, cardMinimum, commentAttachment, commentBoundary, commentPlacement, commentReference, floatingGeometry, floatingPlacement, floatingSelections, floatingUi, layoutMarginRows, makeRoom, marginColumn, mountMarginLayer, paintedBox, registerMarginRow, scheduleMarginEntryLabels, scheduleMarginLayout, standsFolded, standsWithheld, syncMarginContentLayout, unregisterMarginRow } from "./bundle-comment-placement.js";
@@ -894,7 +894,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 	}
 	function focusTarget(name, { part = null } = {}) {
 		const id = threadIdNamed(name);
-		const thread = [...previewList.querySelectorAll(".lf-page-thread")].find((candidate) => candidate.getAttribute("data-lf-thread") === id);
+		const thread = drawnThreadsWithId(previewList, id)[0];
 		return thread ? threadFocusDestination(thread, {
 			part: part ?? "thread",
 			message: name
@@ -1896,7 +1896,7 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 		paintKeys();
 	}
 	function yieldPreview() {
-		const id = card.thread()?.getAttribute("data-lf-thread");
+		const id = drawnThreadId(card.thread());
 		const inCard = currentLocationIn(preview);
 		const replying = card.replying();
 		const intent = retainUserIntent();
@@ -2060,7 +2060,7 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 		return choice ? threadIdOf(choice) : null;
 	};
 	const threadIdsOf = (choice) => choice.items.map((item) => item.thread.id);
-	const seatedOnPage = (id) => claimed(id) || [...document.querySelectorAll(`.lf-page-thread[data-lf-thread="${CSS.escape(id)}"]`)].some((seat) => closestAcross(seat, ".lf-thread-seat[data-lf-thread-seat]"));
+	const seatedOnPage = (id) => claimed(id) || [...drawnThreadsWithId(document, id)].some((seat) => closestAcross(seat, ".lf-thread-seat[data-lf-thread-seat]"));
 	const threadEntryAt = (node) => {
 		const ids = threadIdsAt(node);
 		const here = (entry) => {

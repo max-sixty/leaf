@@ -4873,7 +4873,7 @@ function keepFoot(box, { atEnd = false, kept } = {}) {
 //#endregion
 //#region runtime/scroll-containers.js
 let lookup = (node) => {
-	for (let at = node instanceof Element ? node : node?.parentElement; at; at = renderedParent(at)) if (at === pageScroller || /^(auto|scroll)$/.test(getComputedStyle(at).overflowY)) return at;
+	for (let at = node instanceof Element ? node : node?.parentElement; at; at = renderedParent(at)) if (at === pageScroller || userScrollport(getComputedStyle(at).overflowY)) return at;
 	return pageScroller;
 };
 function installScrollerLookup(read) {

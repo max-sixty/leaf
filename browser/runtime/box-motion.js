@@ -126,6 +126,7 @@ import { TEXT_FIELD } from "./control-selectors.js";
 import { onUserInput } from "./focus.js";
 import { afterSettling, nextRender, sizeObserver } from "./rendering.js";
 import { contentRides } from "./scrolling.js";
+import { userScrollport } from "./geometry.js";
 
 /** @typedef {import('./rect.js').Box} Box
  * @typedef {keyof Box} Edge
@@ -492,7 +493,7 @@ export function boxMotion({
       box: shifted(boxOf(element.getBoundingClientRect()), -dx, -dy),
       window: style.position === "fixed",
       parts: [],
-      scrolls: /auto|scroll/.test(`${style.overflowX} ${style.overflowY}`),
+      scrolls: userScrollport(style.overflowX) || userScrollport(style.overflowY),
       whole: false,
       holdsWindow: false,
     };
@@ -1098,7 +1099,7 @@ export function boxMotion({
       for (const element of rests?.keys() ?? []) {
         if (
           element.matches(TEXT_FIELD) ||
-          !/auto|scroll/.test(getComputedStyle(element).overflowY)
+          !userScrollport(getComputedStyle(element).overflowY)
         )
           continue;
         const child = [...element.children].find((node) => node.checkVisibility());

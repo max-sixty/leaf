@@ -1,7 +1,7 @@
 import { J, LAYOUT, LENT_REACH_STOP, PAGE_PAINT_ATTRIBUTE, PRESSES, TEXT_BLOCK, TEXT_BOX, WORKS, Z, afterScript, atScrollEnd, clamp, clippedContents, closestAcross, deepFocus, elementFrame, eventSource, excerptWords, focusDestination, headerCuts, hostIn, inChrome, inUi, inlineStyle, installScrollerLookup, isElement, isHTML, isText, keeps, keepsHidden, labelWords, landingBand, layoutChanged, layoutPx, layoutWindow, marks, move, nativeLayerHolding, nearObserver, nearWindow, nextFrame, nextRender, onCurrentLocation, overlaps, pagePresented, pageScroller, pressing, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, renderedParent, renderedUnder, renderingState, revealRegisteredVisualPart, revealsVisualParts, scrollContainer, scrollToEnd, scrollersOf, scrollsBy, scrollsContent, shadowHost, shellRight, shownParts, shownRect, sizeObserver, skipped, tabStops, tick, uiInside, under, union, upFrom, userScrollport, visualPartAdmission, watchArrivals, watchScrolls, wearsLentStop, whileConnected } from "./bundle-portable.js";
 import { PRESSABLE, anchorKey, applicationPresented, documentChanged, fragmentId, fragmentKey, isElementName, registry, repaintPage, shadowRootsIn, tagsDeclaring } from "./bundle-errors.js";
 import { removeRuntimeRootStyle, reportPageError, setRuntimeRootAttribute, setRuntimeRootStyle } from "./bundle-layer-client.js";
-import { DATUM, HEADING, authoredScope, blockAt, contextAround, cut, elementById, elementReading, fencedAt, fileModelsPassage, findQuote, inPage, layoutBox, leafSurface, neighbourhood, pageDocument, pageQueryAll, pageText, quoteFrom, rangeOf, readingFrom, segmentsIn, settledAway, spanIn, textNodesUnder } from "./bundle-passages.js";
+import { DATUM, HEADING, authoredScope, blockAt, contextAround, cut, elementById, elementReading, fencedAt, fileModelsPassage, findQuote, inPage, layoutBox, layoutParts, leafSurface, neighbourhood, pageDocument, pageQueryAll, pageText, quoteFrom, rangeOf, readingFrom, segmentsIn, settledAway, spanIn, textNodesUnder } from "./bundle-passages.js";
 
 //#region runtime/presence.js
 let clockSkew = 0;
@@ -2272,8 +2272,7 @@ const railStands = (main = layoutBox()) => {
 };
 const windowHoldsRail = () => layoutWindow().right >= (parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--lf-rail-room")) || 0);
 const title = () => {
-	const main = document.querySelector("body > main");
-	const parts = main && getComputedStyle(main).getPropertyValue("--lf-layout-box").trim() !== "1" ? main.querySelector(":scope > [data-lf-views=\"parts\"]") : null;
+	const parts = layoutParts();
 	let marked = false;
 	for (let node = parts?.previousElementSibling; node; node = node.previousElementSibling) if (!node.hasAttribute(PAGE_PAINT_ATTRIBUTE.scrollSurface)) {
 		node.toggleAttribute(PAGE_PAINT_ATTRIBUTE.scrollSurface, true);

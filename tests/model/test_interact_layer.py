@@ -1718,9 +1718,29 @@ def test_an_untyped_has_leads_only_to_a_typed_subject():
     under a container query that a page without a sidebar never meets, made each of the
     16 style recalcs in a Tab on a page of 64 questions restyle the whole page (938 ms
     against 26 ms). Measured in Chromium 156 by a trace's restyled-element count:
-    naming an element on either side, as `div:has(> lf-toc)`, `.a :has(…) > *` and
-    base.css's `:has(…) > pre` do, keeps the restyle to the elements near the write."""
+    naming an element on either side, as `.a :has(…) > *` and base.css's
+    `:has(…) > pre` do, keeps the restyle to the elements near a write to text.
+
+    A scope's root names its element by a class, id or attribute, not by a type alone.
+    Chromium tests the root's `:has()` on every element of that type, and adding or
+    removing a node inside any of them restyled the page: with `@scope (div:has(>
+    lf-toc))`, a heading's link moving into the chrome restyled 20,255 of the 28,335
+    elements of the 512-section asks page of `leaf-dev scaling`, against 58 with
+    toc.css's `lf-toc + *`, which asks no `:has()` at all."""
     found = []
+
+    def keyed(compound):
+        """Whether the compound names a class, id or attribute, alone or in an `:is()`
+        or `:where()` whose every argument does."""
+        return any(
+            part[0] in ".#["
+            or (
+                part.startswith((":is(", ":where("))
+                and all(keyed(each[-1]) for each in _arguments(part))
+            )
+            for part in _simple_selectors(compound)
+        )
+
     for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES):
         for sheet in sorted(root.rglob("*.css")):
             if "vendor" in sheet.parts:
@@ -1730,6 +1750,11 @@ def test_an_untyped_has_leads_only_to_a_typed_subject():
                 *before, subject = _split_top(selector, " >+~")
                 if _only_has(subject) and not any(map(_names_an_element, before)):
                     found.append(f"{where}: @scope ({selector})")
+                elif any(
+                    ":has(" in compound and not keyed(compound)
+                    for compound in _split_top(selector, " >+~")
+                ):
+                    found.append(f"{where}: @scope ({selector}), a type alone")
             for _conditions, enclosing, selector, _declarations in _style_rules(sheet):
                 # Inside a scope, the scope's root stands before every compound.
                 if "scope" in enclosing:
@@ -1751,7 +1776,8 @@ def test_an_untyped_has_leads_only_to_a_typed_subject():
                 ):
                     found.append(f"{where}: {selector}")
     assert not found, (
-        "name an element beside this `:has()` or in its subject:\n" + "\n".join(found)
+        "name an element beside this `:has()` or in its subject, and a scope's root by "
+        "a class, id or attribute:\n" + "\n".join(found)
     )
 
 

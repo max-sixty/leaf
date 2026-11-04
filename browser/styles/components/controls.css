@@ -441,8 +441,11 @@ span[data-lf-voice="leaf"] {
   align-self: center;
 }
 /* Scroll surfaces contain out-of-flow descendants and opt into keyboard reach and
- * continuation cues. Their owner declares overflow, including at breakpoints. */
-:where(.scroll, [data-lf-scroll]) {
+ * continuation cues. Their owner declares overflow, including at breakpoints. A text
+ * field holds none: its closed tree lays its words and placeholder in one grid cell
+ * (text-field.js), so it stays unpositioned, which Chromium's hit test, visiting every
+ * positioned box on every call, would otherwise pay for in each field on the page. */
+:where(:is(.scroll, [data-lf-scroll]):not(leaf-text)) {
   position: relative;
 }
 /* The layer's marks for a box that shows less than it holds (reachScrollers, for why the
@@ -873,9 +876,14 @@ wa-copy-button.lf-icon-action {
   background: var(--lf-disc-ground, transparent);
   box-shadow: none;
 }
+/* The disc and the glyph share the symbol's one grid cell, centred, the disc drawn first,
+   so neither is a positioned box, which Chromium's hit test visits on every call. */
+.lf-icon-action[data-lf-disc]::before,
+.lf-icon-action[data-lf-disc] > .lf-action-icon {
+  grid-area: 1 / 1;
+}
 .lf-icon-action[data-lf-disc]::before {
   content: "";
-  position: absolute;
   box-sizing: border-box;
   inline-size: var(--lf-icon-action-face);
   block-size: var(--lf-icon-action-face);
@@ -1348,6 +1356,53 @@ wa-copy-button.lf-icon-action {
   opacity: 0;
   visibility: hidden;
   transition: none;
+}
+/* In the margin's projection a face is drawn with its label only while the label can
+   show: revealed, held, or placed by the geometry owner, which measures it drawn
+   (margin-layout.js, `placeMarginEntryLabel`). Its glyph, unread dot and count share
+   its one grid cell, the dot and count standing in its corner by alignment as their
+   insets stand them elsewhere, so the face is the containing block of its label alone,
+   and only while the label stands: Chromium's hit test visits every positioned box on
+   every call, and a page of 512 questions held a face for each. */
+.lf-margin-projection .lf-margin-face {
+  position: static;
+  display: inline-grid;
+  place-content: normal;
+  place-items: center;
+}
+.lf-margin-projection .lf-margin-face > :not(.lf-margin-entry-label),
+.lf-margin-projection .lf-margin-face[data-lf-unread]::after {
+  grid-area: 1 / 1;
+}
+.lf-margin-projection .lf-margin-face[data-lf-unread]::after {
+  position: static;
+  align-self: start;
+  justify-self: end;
+}
+.lf-margin-projection .lf-margin-face > .lf-margin-count {
+  position: static;
+  align-self: start;
+  justify-self: right;
+  margin: -7px -7px 0 0;
+}
+.lf-margin-projection
+  .lf-margin-face:is(
+    :hover,
+    [data-lf-focus],
+    [data-lf-held-word],
+    [data-lf-label-side]
+  ) {
+  position: relative;
+}
+.lf-margin-projection
+  .lf-margin-face:not(
+    :hover,
+    [data-lf-focus],
+    [data-lf-held-word],
+    [data-lf-label-side]
+  )
+  > .lf-margin-entry-label {
+  display: none;
 }
 .lf-margin-count {
   position: absolute;
@@ -1937,4 +1992,62 @@ textarea.field {
   margin: 0;
   padding: 5px 8px;
   color: var(--muted);
+}
+/* A time axis, drawn by every widget that has one (`axisTicks`, runtime/time-axis.js).
+   Each thing placed on it, a ruler's tick (`.lf-axis-tick`), a gridline
+   (`.lf-axis-gridline`) and a widget's own marks, labels and playhead (`.lf-on-axis`),
+   stands at its fraction of the axis (`--lf-axis-at`) inside the drawing's edge
+   (`--lf-axis-edge`, set to `AXIS_EDGE` pixels; none where a drawing sets none), so it
+   holds at any width, a printed page's included. The box it stands in is as wide as
+   the axis. */
+:is(.lf-on-axis, .lf-axis-tick, .lf-axis-gridline) {
+  position: absolute;
+  left: calc(
+    var(--lf-axis-edge, 0px) + var(--lf-axis-at, 0) *
+      (100% - 2 * var(--lf-axis-edge, 0px))
+  );
+}
+/* The ruler: a tick at each time, where a major tick runs the ruler's height and
+   carries its time, and the last one reads back from its tick (`data-lf-flip`) where
+   its words would run past the axis's end. */
+.lf-axis-ruler {
+  position: relative;
+  color: var(--muted);
+}
+.lf-axis-tick {
+  inset-block-end: 0;
+  block-size: 4px;
+  border-inline-start: 1px solid var(--border-2);
+  white-space: nowrap;
+}
+.lf-axis-tick[data-lf-major] {
+  block-size: 100%;
+  box-sizing: border-box;
+  padding-inline-start: 3px;
+  padding-block-start: 3px;
+  border-inline-start-color: var(--muted);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+.lf-axis-tick[data-lf-flip] {
+  translate: -100% 0;
+  padding-inline: 0 3px;
+  border-inline-start: 0;
+  border-inline-end: 1px solid var(--muted);
+}
+/* A gridline at each major tick's time runs down the drawing below the ruler, so a
+   mark far below it, in a later lane, still reads against it. The widget places their
+   layer (`.lf-axis-grid`) over its lanes, from the ruler's foot to the drawing's, as it
+   places its playhead. The line is dotted, so it reads under a lane's solid rule, in
+   the contour ink, so it reads on either scheme's ground. A flipped tick's line stands
+   at its box's end, so its gridline does too. */
+.lf-axis-grid {
+  pointer-events: none;
+}
+.lf-axis-gridline {
+  inset-block: 0;
+  border-inline-start: 1px dotted var(--border-2);
+}
+.lf-axis-gridline[data-lf-flip] {
+  translate: -100% 0;
 }

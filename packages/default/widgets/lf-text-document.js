@@ -837,7 +837,7 @@ class TextDocument extends LeafElement {
     figure.className = "lf-text-document-view";
     const caption = document.createElement("figcaption");
     const listing = document.createElement("div");
-    listing.className = "lf-text-document-listing";
+    listing.className = "lf-text-document-listing lf-ring-frame";
     listing.toggleAttribute("data-lf-scroll", true);
     figure.append(caption);
     if (!preview) {

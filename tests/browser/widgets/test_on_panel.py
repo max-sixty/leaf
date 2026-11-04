@@ -178,6 +178,8 @@ Adds --dry-run to every mutating command.
         ("cache", "add", {"option": "cache-redis", "text": "**Redis** in front"}),
         ("cache", "choose", {"value": ["cache-redis"]}),
         ("tags", "answer", {}),
+        # The controls draw the tune in force, which submitting records first.
+        ("tone", "tune", {"values": {"format": "strip"}}),
         (
             "tone",
             "choose",
@@ -202,6 +204,7 @@ Adds --dry-run to every mutating command.
     page.locator("#tone").get_by_role("radio", name="Banner").click()
     expect(output).to_contain_text("banner")
     open_on_me(page)
+    show_done(page)
     answers = {
         "widget:note": "Adds --dry-run to every command.",
         "widget:cache": "Redis in front",
@@ -209,9 +212,9 @@ Adds --dry-run to every mutating command.
         "widget:tone": "Build the strip one.",
     }
     for at, words in answers.items():
-        expect(on_card(page, at).locator(".lf-fp-said")).to_contain_text(
-            f"Answered: {words}"
-        )
+        expect(
+            on_card(page, at).locator(".lf-fp-on-says > .lf-fp-value")
+        ).to_contain_text(f"Answered: {words}")
 
 
 def test_obligation_cards_keep_identity_and_walk_order_when_the_live_dom_moves(

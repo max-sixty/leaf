@@ -139,7 +139,9 @@ A document sidebar takes the shared sidebar measure, leaving prose its own measu
 Beside the body, `layout-track` sticks within its sidebar and scrolls within the
 window when tall. Stacked, it flows whole with the page. The authored wrapper is the
 same node from the first paint through revisions: Leaf inserts no body around it.
-Style its blocks by their classes or ids, or as `.layout-track > p`.
+Style its blocks by their classes or ids, or as `.layout-track > p`. Put a contents
+map first in the track and follow it with one block, which stands clear of the
+map's spine; wrap several blocks in one element.
 
 Add `layout-notes` to the `layout-column` that should leave room beside its
 prose for notes, such as `<main class="layout-column layout-notes">`. This is an

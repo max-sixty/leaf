@@ -63,7 +63,6 @@ from render_cases_widgets import (
 from render_harness import (
     CORPUS_SOURCES,
     EXAMPLE_PACKAGES,
-    EXAMPLES,
     INLINE_PAGE,
     LONG_PAGE,
     at_rest,
@@ -844,7 +843,7 @@ def test_the_runtime_holds_a_declared_scroll_surface(browser, serve):
     )
     page.close()
 
-    example = next(e for e in EXAMPLES if e.stem == "pr-walkthrough")
+    example = named_source("pr-walkthrough")
     page = open_page(browser, serve(example))
     # The lines a diff has drawn, which is not every diff on the page: the shipped patch
     # stands collapsed and fetches one file when it is asked for, so its shadow tree

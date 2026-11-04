@@ -29,8 +29,6 @@ from render_cases_navigation import (
     address_codes,
 )
 from render_harness import (
-    CORPUS_SOURCES,
-    EXAMPLES,
     FEATURE_GALLERY,
     PANEL,
     PANEL_THREAD,
@@ -62,7 +60,7 @@ from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf_dev.browser import show_resolved
-from leaf_dev.example_data import published_sources
+from leaf_dev.example_data import named_source, published_sources
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -180,7 +178,7 @@ def test_a_let_go_keeps_the_user_in_the_pane_they_read(browser, serve):
 def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyboard(
     browser, serve
 ):
-    example = next(e for e in CORPUS_SOURCES if e.stem == "review-queue")
+    example = named_source("review-queue")
 
     seeded = serve(example)
     first = seeded.replace("/versions/v2.html", "/versions/v1.html")
@@ -252,7 +250,7 @@ def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyb
 
 def test_comparison_choice_replays_and_is_applied_by_the_next_revision(browser, serve):
     """One v1 choice remains authoritative in the v2 policy and rollout."""
-    example = next(e for e in CORPUS_SOURCES if e.stem == "current-proposed-comparison")
+    example = named_source("current-proposed-comparison")
 
     seeded = serve(example)
     first = seeded.replace("/versions/v2.html", "/versions/v1.html")
@@ -1376,7 +1374,7 @@ def test_pr_walkthrough_navigation_starts_the_review_at_every_width(
     when the tracks stacked, it also came after the entire article. The authored
     reading order now puts navigation first and supporting evidence in the article.
     """
-    source = next(example for example in EXAMPLES if example.stem == "pr-walkthrough")
+    source = named_source("pr-walkthrough")
     url = serve(source)
     width, height = viewport
     context = browser.new_context(

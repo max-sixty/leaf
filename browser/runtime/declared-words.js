@@ -460,21 +460,19 @@ function quietFacts(el) {
   return words.join(", ");
 }
 
-/** @param {Scope} root */
-export function renderQuiet(root) {
-  const painting = [
-    `[${PAGE_PAINT_ATTRIBUTE.restated}]`,
-    `[${PAGE_PAINT_ATTRIBUTE.userOverride}]`,
-    `[${PAGE_PAINT_ATTRIBUTE.reported}]`,
-  ].join(", ");
-  renderQuietOn(elementsIn(root, painting));
-}
-
-// The quiet word of each of `targets`. The projection's repaint passes the elements whose
-// provenance marks it has just written or taken off, which are all the elements carrying
-// one. Asked of the page, the query above visited every element in it on each repaint:
-// 25 ms a repaint beside 30 documents of 50,000 lines.
-/** @param {Iterable<Element>} targets */
-export function renderQuietOn(targets) {
+/** @param {Scope} root @param {Iterable<Element>} [also] */
+export function renderQuiet(root, also = []) {
+  // One query a mark: a single attribute's query is answered far faster than one for the
+  // three as a selector list, which tests every element of the page against each, on
+  // every repaint of a page holding long text documents.
+  /** @type {Set<Element>} */
+  const targets = new Set();
+  for (const mark of [
+    PAGE_PAINT_ATTRIBUTE.restated,
+    PAGE_PAINT_ATTRIBUTE.userOverride,
+    PAGE_PAINT_ATTRIBUTE.reported,
+  ])
+    for (const el of elementsIn(root, `[${mark}]`)) targets.add(el);
+  for (const el of also) if (el === root || root.contains(el)) targets.add(el);
   for (const el of targets) quietWord(el, quietFacts(el));
 }

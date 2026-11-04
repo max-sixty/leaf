@@ -131,7 +131,11 @@ export function commitPoint(key, element, passage) {
 // it holds and forgets nothing.
 /** @param {Iterable<{key: string, target: Element | null}>} threads @param {ReadonlySet<string>} known */
 export function placePoints(threads, known) {
-  const text = pageText();
+  // The page reading is taken only for a point to find again. A pass in which every
+  // point still stands, as after each closed tab's document draws once the page has
+  // presented, reads no page: reading it walks every element the page holds.
+  /** @type {ReturnType<typeof pageText> | undefined} */
+  let text;
   for (const [key, { element, passage }] of handed) {
     if (!known.has(key)) continue;
     handed.delete(key);
@@ -145,7 +149,7 @@ export function placePoints(threads, known) {
     const point = points.get(key);
     if (!point) continue;
     let element = livePoint(target, point.element);
-    if (!element && point.passage && point.readFor !== text) {
+    if (!element && point.passage && point.readFor !== (text ??= pageText())) {
       point.readFor = text;
       const found = resolveAnchor(point.passage);
       element = livePoint(target, pointInto(target, targetSegments(found)[0]?.node));

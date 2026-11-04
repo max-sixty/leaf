@@ -581,9 +581,11 @@ def test_the_page_presents_without_waiting_for_a_closed_tab_s_document(browser, 
 def test_a_listing_s_scroll_mark_changes_nothing_its_rows_inherit(browser, serve):
     """The runtime marks a document's listing as a box that scrolls once it has drawn,
     and the mark restarts the sticky-header slot. The listing states that restart from
-    the first paint, so the mark changes no value its rows inherit: Firefox styles the
-    rows of runs it doesn't draw too, and a mark that changed three of them took a 300
-    to 570 ms frame on a listing of 97,000 rows."""
+    the first paint, so the mark changes nothing its rows inherit: Firefox styles the
+    rows of runs it doesn't draw too, and a mark that changed three inherited values
+    took a 250 to 570 ms frame on a listing of 97,000 rows. The listing's `code`, which
+    every row inherits from, computes the same style, custom properties included, with
+    the mark and without it, whatever the mark's rule sets."""
     url = serve(
         leaf_page(
             "Log", '<lf-text-document id="log" source="log-text"></lf-text-document>'
@@ -593,13 +595,21 @@ def test_a_listing_s_scroll_mark_changes_nothing_its_rows_inherit(browser, serve
     page = open_page(browser, url)
     pre = page.locator("#log pre")
     expect(pre).to_have_attribute("data-lf-scrolls", "")
-    inherited = """pre => Object.fromEntries(
-      ['--lf-top', '--lf-top-covered', '--lf-landing-room', '--lf-track-scroll-behavior']
-        .map((name) => [name, getComputedStyle(pre.querySelector('code'))
-          .getPropertyValue(name).trim()]))"""
+    inherited = """pre => {
+      const style = getComputedStyle(pre.querySelector('code'));
+      return Object.fromEntries([...style].map((name) => [name, style.getPropertyValue(name)]));
+    }"""
     marked = pre.evaluate(inherited)
+    # The computed style lists custom properties, the slot's among them.
+    assert "--lf-top-covered" in marked
     pre.evaluate("pre => pre.removeAttribute('data-lf-scrolls')")
-    assert pre.evaluate(inherited) == marked
+    unmarked = pre.evaluate(inherited)
+    changed = {
+        name
+        for name in marked.keys() | unmarked.keys()
+        if marked.get(name) != unmarked.get(name)
+    }
+    assert not changed, changed
 
 
 # How many syntax-colour ranges stand in the element `selector` names.

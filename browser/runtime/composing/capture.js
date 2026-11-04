@@ -63,19 +63,16 @@ export function createPassageSelection({ restore }) {
       touch: "Restore selection",
       menu: "keys",
       when: () => previous !== null,
-      get run() {
+      run: async () => {
         const saved = previous;
-        return saved
-          ? async () => {
-              const intent = retainUserIntent();
-              const restored = await restore(saved.anchor, {
-                backward: saved.backward,
-                intent,
-              });
-              if (!restored && intent())
-                raiseError("That selected passage is unavailable on this version");
-            }
-          : undefined;
+        if (!saved) return;
+        const intent = retainUserIntent();
+        const restored = await restore(saved.anchor, {
+          backward: saved.backward,
+          intent,
+        });
+        if (!restored && intent())
+          raiseError("That selected passage is unavailable on this version");
       },
     },
   };

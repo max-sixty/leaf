@@ -103,7 +103,7 @@ def test_code_wrapping_keeps_source_copy_and_reader_choice(browser, serve):
     # A finger starts at the source, then uses the existing command reference.
     pre.tap(position={"x": 30, "y": 20})
     open_keyboard_shortcuts(page)
-    page.get_by_role("button", name="Unwrap lines", exact=True).tap()
+    page.get_by_role("option", name="Unwrap lines", exact=True).tap()
     expect(pre).to_be_focused()
     assert pre.evaluate("e => e.scrollWidth > e.clientWidth")
     assert pre.evaluate("e => e.clientHeight") < before["height"]
@@ -127,7 +127,7 @@ def test_code_wrapping_keeps_source_copy_and_reader_choice(browser, serve):
     assert pre.evaluate("e => e.scrollLeft") >= horizontal
     open_keyboard_shortcuts(page)
     page.locator(".lf-command-reference").get_by_role(
-        "button", name="Copy code", exact=True
+        "option", name="Copy code", exact=True
     ).tap()
     expect(pre).to_be_focused()
     assert page.evaluate("navigator.clipboard.readText()") == code.rstrip("\n")

@@ -602,9 +602,9 @@ const diffMarked = new Set();
  * @typedef {Readonly<{id: string, tag: string, word: string, words: string}>} Removed */
 /** A change: one hunk of the block diff as the page shows it. `blocks` are its changed
  * blocks in page order, none where it only took blocks out; `removed` the base blocks it
- * took out; `at` where it stands, its first block or the block its gap stands before,
- * or after where the gap ends the page (`after`).
- * @typedef {Readonly<{blocks: readonly Element[], removed: readonly Removed[], at: Element, after: boolean}>} Change */
+ * took out; `at` where it stands, its first block, or for one that only took blocks out,
+ * the element its gap stands before, after or in, as `gap` says (`changedSince`).
+ * @typedef {Readonly<{blocks: readonly Element[], removed: readonly Removed[], at: Element, gap: "before" | "after" | "in" | null}>} Change */
 /** @type {readonly Change[]} */
 let diffChanges = [];
 // Where each block a change took out stood among the base version's blocks, so its card
@@ -866,6 +866,16 @@ const heldAnywhere = (before, after) => {
     return { value: [key], added: !left, removed: false };
   });
 };
+// The nearest element holding both of two elements of one document.
+/** @param {Element} one @param {Element} other */
+const around = (one, other) => {
+  let at = one.parentElement;
+  while (at && !at.contains(other)) at = at.parentElement;
+  return at;
+};
+/** Base blocks a hunk took out with nothing in their place, and the element their gap
+ * stands beside, or in (`gapIn`).
+ * @typedef {{gone: [Element, string][], at: Element}} Gap */
 // The content half: the live nodes standing for the blocks of `current` that changed
 // since `base` (`changed`), both painted sources, and for the unchanged blocks that
 // separate one change from the next (`kept`). An ordered diff of the two sources'
@@ -873,9 +883,21 @@ const heldAnywhere = (before, after) => {
 // such as a table's "No" cell is unchanged only where it lines up with the base, not
 // wherever the base holds the same words. A block the diff inserts with words it
 // removed elsewhere has only moved, and stays unmarked, and the base block it came from
-// was not taken out. Every other base block the diff removes stands at the gap before
-// the next live block (`removedAt`), or after the last (`trailing`). A revision landing
-// asks this of the source it replaced, to tint the blocks the revision changed.
+// was not taken out.
+//
+// Every other base block the diff removes stands in the gap it left, in the part of the
+// page it stood in. It stands after the unchanged block before the gap where it shared
+// an element with that block that the block after the gap is outside, as the last
+// paragraph of a `details` does (`gapAfter`, keyed by the block before), and otherwise
+// before the block after the gap, which, where it is new, replaced it (`gapBefore`,
+// keyed by the block after). Where the gap ends the page, it stands after the last
+// block. Where it was the last block of an element neither of those blocks is in, such
+// as a tab whose every paragraph was removed, it stands in that element, found by its
+// id (`gapIn`, keyed by the element). The element its gap stands beside is the block,
+// or the block's ancestor inside the element the two shared, so a paragraph removed just
+// before a `details` stands before the `details` rather than before its summary (`at`).
+// A revision landing asks this of the source it replaced, to tint the blocks the
+// revision changed.
 /** @param {ReturnType<typeof paintedSource>} base @param {ReturnType<typeof paintedSource>} [current] */
 function changedSince(base, current = currentSource()) {
   const baseBlocks = diffBlocks(base.root);
@@ -898,10 +920,83 @@ function changedSince(base, current = currentSource()) {
   const kept = new Set();
   /** @type {Map<string, number>} */
   const moved = new Map();
-  /** @type {Map<Element, [Element, string][]>} */
-  const removedAt = new Map();
+  /** @type {Map<Element, Gap>} */
+  const gapBefore = new Map();
+  /** @type {Map<Element, Gap>} */
+  const gapAfter = new Map();
+  /** @type {Map<Element, Gap>} */
+  const gapIn = new Map();
+  /** A live block, the current source's block it stands for, and the base block it
+   * kept, null where it is new.
+   * @typedef {{live: Element, source: Element, was: Element | null}} Placed */
+  // The live element `taken` stands in where it was the last block of it: the nearest
+  // element that held it and neither block beside its gap, with an id the live page
+  // still has, holding neither block there either.
+  /** @param {Element} taken @param {Placed[]} beside */
+  const emptied = (taken, beside) => {
+    for (let at = taken.parentElement; at; at = at.parentElement) {
+      if (beside.some(({ was }) => was && at.contains(was))) return null;
+      const same = at.id ? current.doc.getElementById(at.id) : null;
+      const live = same && standingFor(same, current);
+      if (live && !beside.some((each) => live.contains(each.live))) return live;
+    }
+    return null;
+  };
+  // The element the taken block `near` shared with the base block `by` kept, found in
+  // this version's source as many elements up from `by` as it was in the base, and its
+  // child holding `by`, beside which a gap between them stands.
+  /** @param {Placed} by @param {Element} near */
+  const sharedWith = (by, near) => {
+    let child = by.source;
+    const shared = by.was && around(near, by.was);
+    if (shared)
+      for (let up = by.was; up?.parentElement && up.parentElement !== shared;) {
+        up = up.parentElement;
+        child = child.parentElement ?? child;
+      }
+    return { holder: child.parentElement, child };
+  };
+  /** @param {Map<Element, Gap>} gaps @param {Element} key @param {Element} at @param {[Element, string][]} gone */
+  const stand = (gaps, key, at, gone) => {
+    const gap = gaps.get(key);
+    if (gap) gap.gone.push(...gone);
+    else gaps.set(key, { gone, at });
+  };
   /** @type {[Element, string][]} */
   let pending = [];
+  // Stand the blocks taken out since `last` in their gap, before `next`.
+  /** @param {Placed | null} last @param {Placed | null} next */
+  const flush = (last, next) => {
+    const flanks = [last, next].filter((each) => each !== null);
+    /** @type {{gaps: Map<Element, Gap>, by: Placed | Element, gone: [Element, string][]}[]} */
+    const groups = [];
+    for (const entry of pending) {
+      const [taken] = entry;
+      const inside = emptied(taken, flanks);
+      const behind =
+        last &&
+        (!next || (last.was && !sharedWith(last, taken).holder?.contains(next.source)));
+      const [gaps, by] = inside
+        ? [gapIn, inside]
+        : behind
+          ? [gapAfter, last]
+          : [gapBefore, next];
+      if (!by) continue;
+      const group = groups.at(-1);
+      if (group?.gaps === gaps && group.by === by) group.gone.push(entry);
+      else groups.push({ gaps, by, gone: [entry] });
+    }
+    for (const { gaps, by, gone } of groups)
+      if (by instanceof Element) stand(gaps, by, by, gone);
+      else {
+        const near = gaps === gapAfter ? gone[0] : gone.at(-1);
+        const child = near && sharedWith(by, near[0]).child;
+        stand(gaps, by.live, (child && standingFor(child, current)) ?? by.live, gone);
+      }
+    pending = [];
+  };
+  /** @type {Placed | null} */
+  let last = null;
   let next = 0;
   let gone = 0;
   for (const part of parts) {
@@ -909,24 +1004,26 @@ function changedSince(base, current = currentSource()) {
       pending.push(...baseBlocks.slice(gone, (gone += part.value.length)));
       continue;
     }
+    const from = gone;
     if (!part.added) gone += part.value.length;
-    const blocks = after
-      .slice(next, (next += part.value.length))
-      .map(([block]) => standingFor(block, current));
-    part.value.forEach((key, i) => {
-      const block = blocks[i];
-      if (!block) return;
-      if (!part.added) kept.add(block);
+    const sources = after.slice(next, (next += part.value.length));
+    for (const [i, key] of part.value.entries()) {
+      const source = sources[i]?.[0];
+      const block = source && standingFor(source, current);
+      if (!source || !block) continue;
+      const was = part.added ? null : (baseBlocks[from + i]?.[0] ?? null);
+      if (was) kept.add(block);
       else if (removed.get(key)) {
         removed.set(key, (removed.get(key) ?? 0) - 1);
         moved.set(key, (moved.get(key) ?? 0) + 1);
-        return;
+        continue;
       } else changed.add(block);
-      if (pending.length)
-        removedAt.set(block, [...(removedAt.get(block) ?? []), ...pending]);
-      pending = [];
-    });
+      const placed = { live: block, source, was };
+      flush(last, placed);
+      last = placed;
+    }
   }
+  flush(last, null);
   // A moved block's base copy was not taken out.
   const takenOut = (/** @type {[Element, string][]} */ list) =>
     list.flatMap(([block, key]) => {
@@ -935,11 +1032,20 @@ function changedSince(base, current = currentSource()) {
       moved.set(key, left - 1);
       return [];
     });
+  /** @param {Map<Element, Gap>} gaps */
+  const taken = (gaps) =>
+    new Map(
+      [...gaps].map(([block, gap]) => [
+        block,
+        { at: gap.at, gone: takenOut(gap.gone) },
+      ]),
+    );
   return {
     changed,
     kept,
-    removedAt: new Map([...removedAt].map(([block, list]) => [block, takenOut(list)])),
-    trailing: takenOut(pending),
+    gapBefore: taken(gapBefore),
+    gapAfter: taken(gapAfter),
+    gapIn: taken(gapIn),
     order: new Map(baseBlocks.map(([block], i) => [block, i])),
   };
 }
@@ -964,51 +1070,63 @@ function viewOf(block, controls) {
 // in rendered order, as a diff's hunk is a run of changed lines, holding the base blocks
 // its hunks took out. A reader takes such a run, such as a section rewritten whole, for
 // one edit. A hunk that only took blocks out is a change like any other, with no blocks:
-// it stands at its gap, before the unchanged block that follows it, so the reader meets
-// no break where a change's new side reaches zero. Each marked block keeps its own bar
-// and a gap a short one (margin-bars.js), and everything that counts or visits changes
-// reads the runs (`comparisonChanges`), so a run has one margin entry, one stop of the
-// walk and one place in a widget's count. An unchanged block inside a marked one, such as
-// a widget a changed paragraph holds, doesn't end its run. A run ends where a view does,
-// so a change hidden in a closed disclosure or another tab doesn't hold the margin entry
-// of one the reader can see. A base block that kept its id in a run's blocks is that
-// block edited, and reads there (`changeRedline`) rather than as taken out.
+// it stands at its gap, by the unchanged block beside it (`changedSince`), so the reader
+// meets no break where a change's new side reaches zero. Each marked block keeps its own
+// bar and a gap a short one (margin-bars.js), and everything that counts or visits
+// changes reads the runs (`comparisonChanges`), so a run has one margin entry, one stop
+// of the walk and one place in a widget's count. An unchanged block inside a marked one,
+// such as a widget a changed paragraph holds, doesn't end its run. A run ends where a
+// view does, so a change hidden in a closed disclosure or another tab doesn't hold the
+// margin entry of one the reader can see. A base block that kept its id in a run's
+// blocks is that block edited, and reads there (`changeRedline`) rather than as taken
+// out.
+/** @typedef {Map<Element, {at: Element, gone: Removed[]}>} Gaps */
 /** @param {Set<Element>} marked @param {Set<Element>} kept
- * @param {Map<Element, Removed[]>} removedAt @param {Removed[]} trailing */
-function changeRuns(marked, kept, removedAt, trailing) {
-  /** @type {{blocks: Element[], removed: Removed[], at: Element, after: boolean}[]} */
+ * @param {{gapBefore: Gaps, gapAfter: Gaps, gapIn: Gaps}} gaps */
+function changeRuns(marked, kept, { gapBefore, gapAfter, gapIn }) {
+  /** @type {{blocks: Element[], removed: Removed[], at: Element, gap: Change["gap"]}[]} */
   const runs = [];
   /** @type {(typeof runs)[number] | null} */
   let run = null;
+  // The view the run stands in.
+  /** @type {Element | null} */
+  let view = null;
   /** @type {Map<string, Element>} */
   const controls = new Map();
   for (const control of document.querySelectorAll("[aria-expanded][aria-controls]"))
     for (const id of (control.getAttribute("aria-controls") ?? "").split(/\s+/))
       controls.set(id, control);
-  const ordered = byRenderedOrder([...new Set([...marked, ...kept])], (n) => n);
+  // A gap's blocks join the run where it stands in the run's view, else stand alone.
+  /** @param {{at: Element, gone: Removed[]} | undefined} found @param {"before" | "after" | "in"} gap */
+  const place = (found, gap) => {
+    if (!found?.gone.length) return;
+    const { at, gone } = found;
+    if (run && view === viewOf(gapHolder({ at, gap }), controls))
+      run.removed.push(...gone);
+    else runs.push({ blocks: [], removed: [...gone], at, gap });
+  };
+  const ordered = byRenderedOrder(
+    [...new Set([...marked, ...kept, ...gapIn.keys()])],
+    (n) => n,
+  );
   for (const node of ordered) {
-    const gone = removedAt.get(node) ?? [];
-    const joins = run && viewOf(node, controls) === viewOf(run.at, controls);
+    const found = gapBefore.get(node);
     if (marked.has(node)) {
-      if (run && joins) {
+      const here = viewOf(node, controls);
+      const gone = found?.gone ?? [];
+      if (run && view === here) {
         run.blocks.push(node);
         run.removed.push(...gone);
-      } else
-        runs.push(
-          (run = { blocks: [node], removed: [...gone], at: node, after: false }),
-        );
-      continue;
+      } else {
+        runs.push((run = { blocks: [node], removed: [...gone], at: node, gap: null }));
+        view = here;
+      }
+    } else {
+      place(found, "before");
+      if (!run?.blocks.some((block) => under(node, block))) run = null;
     }
-    if (gone.length) {
-      if (run && joins) run.removed.push(...gone);
-      else runs.push({ blocks: [], removed: [...gone], at: node, after: false });
-    }
-    if (!run?.blocks.some((block) => under(node, block))) run = null;
-  }
-  const last = ordered.at(-1);
-  if (trailing.length && last) {
-    if (run) run.removed.push(...trailing);
-    else runs.push({ blocks: [], removed: [...trailing], at: last, after: true });
+    place(gapIn.get(node), "in");
+    place(gapAfter.get(node), "after");
   }
   return runs.map((each) => {
     const ids = new Set(each.blocks.map((block) => block.id).filter(Boolean));
@@ -1072,7 +1190,10 @@ function applyDiff(doc, baseAuthored, baseRevision, baseReading) {
     throw new Error("A comparison revision must contain its authored document");
   const base = paintedSource(source, baseWidgets);
   const current = currentSource();
-  const { changed, kept, removedAt, trailing, order } = changedSince(base, current);
+  const { changed, kept, gapBefore, gapAfter, gapIn, order } = changedSince(
+    base,
+    current,
+  );
   for (const block of changed) mark(block);
   // The state half: block keys catch words, and a pure state change — a card
   // in a different column, a pick on a different option — has no text of its
@@ -1161,12 +1282,16 @@ function applyDiff(doc, baseAuthored, baseRevision, baseReading) {
       stoodAt.set(record, /** @type {number} */ (order.get(block)));
       return record;
     });
-  diffChanges = changeRuns(
-    diffMarked,
-    kept,
-    new Map([...removedAt].map(([block, gone]) => [block, takenOut(gone)])),
-    takenOut(trailing),
-  );
+  /** @param {Map<Element, {at: Element, gone: Element[]}>} gaps */
+  const read = (gaps) =>
+    new Map(
+      [...gaps].map(([block, { at, gone }]) => [block, { at, gone: takenOut(gone) }]),
+    );
+  diffChanges = changeRuns(diffMarked, kept, {
+    gapBefore: read(gapBefore),
+    gapAfter: read(gapAfter),
+    gapIn: read(gapIn),
+  });
   return diffChanges.length;
 }
 // ---------- what a change replaced ----------
@@ -1223,6 +1348,12 @@ export function changeAccount({ blocks, removed }) {
       parts[i - 1]?.[1] === noun ? `${n} ${verb}` : `${plural(noun, n)} ${verb}`,
     )
     .join(", ");
+}
+/** What a change did and since which version: "1 paragraph removed since v1".
+ * @param {Change} change */
+export function changeSince(change) {
+  const base = comparisonBase();
+  return `${changeAccount(change)}${base ? ` since ${base.name}` : ""}`;
 }
 // Whether a change has words to show: a block it took out, or one whose words it edited.
 const shows = (/** @type {Change} */ { blocks, removed }) =>
@@ -1425,6 +1556,10 @@ export const comparisonBase = () => (diffOn.value ? diffBase.value : null);
 // while the public projection above stays paired with the marks that have settled.
 const selectedBase = () => diffPendingBase.value ?? comparisonBase();
 
+/** The element a change that only took blocks out stands in: the one its gap is in.
+ * @param {Pick<Change, "at" | "gap">} change */
+export const gapHolder = ({ at, gap }) =>
+  gap === "in" ? at : (at.parentElement ?? at);
 /** The changes the comparison marks (`changeRuns`), in page order; under `owner`, each
  * change with blocks inside it, holding only those, and each one that only took blocks
  * out whose gap stands inside it.
@@ -1437,7 +1572,7 @@ export function comparisonChanges(owner = null) {
   /** @param {Element} node */
   const inside = (node) => node !== owner && under(node, owner);
   return changes.flatMap((change) => {
-    if (!change.blocks.length) return inside(change.at) ? [change] : [];
+    if (!change.blocks.length) return under(gapHolder(change), owner) ? [change] : [];
     const blocks = change.blocks.filter(inside);
     const [at] = blocks;
     return at ? [Object.freeze({ ...change, blocks: Object.freeze(blocks), at })] : [];

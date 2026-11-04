@@ -455,6 +455,19 @@ def show_resolved(page: Page | FrameLocator):
     return threads.locator(".lf-fp-thread[data-lf-resolved]")
 
 
+def show_done(page: Page | FrameLocator):
+    """Unfold what left the open On list, On me's or the agent's, which stands folded
+    under its Done band (`.lf-fp-settled`) until the user presses it, and return its
+    items."""
+    view = page.locator('.lf-fp-view[data-lf-route="queue"]:not([data-lf-leaving])')
+    heading = view.locator(".lf-fp-settled")
+    if heading.get_attribute("aria-expanded") != "true":
+        heading.click()
+    return view.locator(
+        ".lf-fp-on-group:has(> .lf-rows-head > .lf-fp-settled) > .lf-fp-on-item"
+    )
+
+
 def go_to_threads(page: Page, frame: FrameLocator | None = None) -> None:
     """Open the floating panel's Threads view by Go to Threads (`g` then `T`), in
     `frame`'s page where given, a live sample's. The pointer's route to Threads has

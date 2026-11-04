@@ -77,7 +77,19 @@ inputs.observe((event) => {
   if (event instanceof KeyboardEvent) {
     if (SCROLL_KEYS.has(event.key)) scrollKeyLast = true;
   } else if (event.type !== "input" && event.type !== "blur") scrollKeyLast = false;
+  if (!glideIn.size || !aimsScroll(event)) return;
+  const path = event.composedPath();
+  for (const box of glideIn.keys()) if (path.includes(box)) stopGlide(box);
 });
+// Whether `event` asks the browser to scroll the boxes on its path: a wheel, a touch, or
+// one of its scroll keys pressed anywhere but a field that takes it.
+/** @param {Event} event */
+const aimsScroll = (event) =>
+  event.type === "wheel" ||
+  event.type === "touchstart" ||
+  (event instanceof KeyboardEvent &&
+    SCROLL_KEYS.has(event.key) &&
+    !inputs.takesLetters(event.composedPath()[0]));
 // Where each box's last sequence ended, the boxes layout has moved since, and each box's
 // extent where its layout last settled. A box is watched from its first scroll, through
 // its own size and its children's, where content grows, so content that grew between
@@ -388,8 +400,11 @@ export const reachable = (box, top) =>
 // drives, a wheel's or a touch's momentum, has no destination, so a step takes the box
 // from it at once, as the browser's own keys do, and so does a landing, whose
 // destination is a place rather than a distance; either moves on from wherever that
-// motion has brought the box. A glide stands down the moment the box moves under any
-// later hand, such as a wheel, and a return takes the box from it (`stopScroll`).
+// motion has brought the box. A glide stands down when the reader aims a scroll at its
+// box (`aimsScroll`), even one that moves nothing, as Home does at the top: the glide
+// would otherwise carry the page away from where the reader asked it to stay. It stands
+// down too the moment the box moves under any other hand, such as a scrollbar's drag,
+// and a return takes the box from it (`stopScroll`).
 const SCROLL_MS = 140;
 /** @typedef {{goal: number, wrote: number | null, raf: ReturnType<typeof nextFrame>, release: () => void}} Glide */
 // The glide under way in each box, which holds the box's scroll sequence open from its

@@ -22,6 +22,7 @@ from render_cases_navigation import (
 )
 from render_harness import (
     RELEASE_FOCUS,
+    held_frames,
     leaf_page,
     open_page,
     open_threads,
@@ -751,7 +752,9 @@ def test_keys_pressed_while_the_page_moves_act_as_if_it_had_landed(browser, serv
     returns to the ask `m` set off from, `j m` beside an ask `j` leaves in view
     moves no further than `j`, Back after `m m` returns to where the first `m` lands,
     and `d`, or `d d`, pressed while the browser's own PageDown still moves the page
-    steps on from where PageDown lands. Each ends where the same keys typed slowly end."""
+    steps on from where PageDown lands. Each ends where the same keys typed slowly end.
+    Home pressed before `d` has moved the page keeps it at the top, though at the top
+    Home itself moves nothing."""
     asks = "".join(
         f'<div style="height:3000px">Reading on</div><lf-ask id="ask-{index}">'
         f'<h2>Which route?</h2><lf-options id="routes-{index}" choose>'
@@ -846,6 +849,13 @@ def test_keys_pressed_while_the_page_moves_act_as_if_it_had_landed(browser, serv
     )
     page.keyboard.press("d")
     assert settled() == pytest.approx(paged_down + 2 * step, abs=2)
+
+    from_the_top()
+    with held_frames(page):
+        page.keyboard.press("d")
+        page.keyboard.press("Home")
+    rendered(page)
+    assert settled() == 0
 
 
 def test_the_obligation_walk_uses_the_visible_reading_after_its_focus_is_released(

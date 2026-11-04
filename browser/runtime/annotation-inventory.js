@@ -50,7 +50,7 @@ import { scrollBehavior } from "./motion.js";
 import {
   changeAccount,
   changeCard,
-  comparisonBase,
+  changeSince,
   comparisonChanges,
   toggleChangeCard,
 } from "./version.js";
@@ -519,15 +519,14 @@ export function createAnnotationInventory({
       });
     }
 
-    const base = comparisonBase();
     // One entry per change (version.js, `changeRuns`), beside the block the change starts
-    // with, or the block after the gap where it only took blocks out, so a section
+    // with, or the block beside its gap where it only took blocks out, so a section
     // rewritten whole gets one entry rather than one per paragraph. It says what the
     // change did in blocks (`changeAccount`): "2 paragraphs replaced by 3".
     comparisonChanges().forEach((change, index) => {
       const target = change.at;
       const did = changeAccount(change);
-      const account = `${did}${base == null ? "" : ` since ${base.name}`}`;
+      const account = changeSince(change);
       const card = changeCard(change);
       const mapAccount = card ? did : account;
       add(groups, target, {

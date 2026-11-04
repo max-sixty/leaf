@@ -1,7 +1,7 @@
 # Contrasts a compact exchange whose exact claims still matter with a thread
 # whose earlier topics have settled. Scores proposed commands, not execution.
 # Initial A/B: both harnesses kept the originals under both wordings. An
-# exploratory old-guidance Claude run folded needed originals; the candidate
+# exploratory old-guidance Claude run folded needed originals; the head
 # kept them on each harness. This guards judgment, not live-session frequency.
 description: thread-summary-preserves-needed-exchange
 metadata:

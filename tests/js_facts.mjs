@@ -7,6 +7,7 @@
 //   node tests/js_facts.mjs queries FILE...   {file: [selector]} handed to DOM queries
 //   node tests/js_facts.mjs literals FILE...  {file: {constants, calls}} literal values
 //   node tests/js_facts.mjs presses FILE...   {file: [press]} each press and its dressing
+//   node tests/js_facts.mjs marks FILE...     {file: [mark]} classes and data attributes written
 //
 // Every module is read with oxc, which parses JavaScript and TypeScript, the language
 // chosen by the file's extension, into one ESTree, so a TypeScript module's exported
@@ -538,7 +539,114 @@ function templatePresses(node, parents, press) {
   new Tokenizer({ sourceCodeLocationInfo: true }, handler).write(markup, true);
 }
 
-const commands = { keydown, exports, queries, literals, presses };
+// Every class and data attribute a module writes on an element it builds or holds:
+// `{file: [{line, kind, name}]}`, `kind` being "class" or "attribute". Read from
+// templates and HTML strings (a start tag's `class` words and `data-` attributes,
+// Lit's `?`, `.` and `@` prefixes dropped), from `className` and `dataset`
+// assignments, from `classList.add` and `toggle`, from `setAttribute`,
+// `toggleAttribute`, `keeps` and `keepsAttribute`, and from the class an element
+// maker or a role's builder is handed (`el`, `offer`, `offerAction`,
+// `offeredAction`). Only words `words` can read count: a name built from a dynamic
+// part is unknown and left out.
+function marks() {
+  const read = {};
+  for (const file of files) {
+    const source = readFileSync(file, "utf8");
+    const program = tree(file);
+    const parents = new Map();
+    walk(program, (node, _loops, parent) => parents.set(node, parent));
+    const found = [];
+    const add = (offset, kind, name) =>
+      found.push({ line: source.slice(0, offset).split("\n").length, kind, name });
+    const attributes = (node, offset) => {
+      for (const name of words(node, parents))
+        if (name.startsWith("data-")) add(offset, "attribute", name);
+    };
+    const classes = (node, offset) => {
+      for (const name of words(node, parents)) add(offset, "class", name);
+    };
+    walk(program, (node) => {
+      if (
+        node.type === "TemplateLiteral" ||
+        (node.type === "Literal" && typeof node.value === "string")
+      )
+        templateMarks(node, parents, add);
+      const name = callee(node);
+      const args = node.arguments ?? [];
+      if (["setAttribute", "toggleAttribute"].includes(name) && method(node))
+        attributes(args[0], node.start);
+      if (["keeps", "keepsAttribute"].includes(name)) attributes(args[1], node.start);
+      if (
+        ["add", "toggle"].includes(method(node)) &&
+        node.callee.object.type === "MemberExpression" &&
+        node.callee.object.property.name === "classList"
+      )
+        for (const arg of method(node) === "toggle" ? args.slice(0, 1) : args)
+          classes(arg, node.start);
+      if (["el", "offer", "offerAction", "offeredAction"].includes(name))
+        classes(args[1], node.start);
+      if (
+        node.type === "AssignmentExpression" &&
+        node.left.type === "MemberExpression"
+      ) {
+        const { object, property, computed } = node.left;
+        if (!computed && property.name === "className") classes(node.right, node.start);
+        if (
+          !computed &&
+          object.type === "MemberExpression" &&
+          !object.computed &&
+          object.property.name === "dataset"
+        )
+          add(
+            node.start,
+            "attribute",
+            `data-${property.name.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}`,
+          );
+      }
+    });
+    read[file] = found;
+  }
+  return JSON.stringify(read);
+}
+
+// The classes and data attributes a template literal or an HTML string writes
+// (`marks`), read as `templatePresses` reads its markup.
+function templateMarks(node, parents, add) {
+  const expressions = node.expressions ?? [];
+  let markup = "";
+  if (node.type === "Literal") markup = node.value;
+  else
+    node.quasis.forEach((quasi, i) => {
+      markup +=
+        (quasi.value.cooked ?? quasi.value.raw) +
+        (i < expressions.length ? `lfexpr${i}z` : "");
+    });
+  if (!/<[a-z]/i.test(markup)) return;
+  const valueWords = (value) =>
+    joined(
+      value
+        .split(/(lfexpr\d+z)/)
+        .map((piece, i) => (i % 2 ? expressions[piece.slice(6, -1)] : piece)),
+      parents,
+      new Set(),
+    );
+  const onStartTag = ({ attrs }) => {
+    for (const attr of attrs) {
+      const name = attr.name.replace(/^[?.@]/, "");
+      if (name.startsWith("data-") && !name.includes("lfexpr"))
+        add(node.start, "attribute", name);
+      if (name === "class")
+        for (const word of valueWords(attr.value)) add(node.start, "class", word);
+    }
+  };
+  const handler = new Proxy(
+    { onStartTag },
+    { get: (own, name) => own[name] ?? (() => {}) },
+  );
+  new Tokenizer({}, handler).write(markup, true);
+}
+
+const commands = { keydown, exports, queries, literals, presses, marks };
 if (!commands[command])
   throw new Error(`usage: js_facts.mjs ${Object.keys(commands).join("|")} FILE...`);
 process.stdout.write(commands[command]());

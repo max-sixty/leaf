@@ -34,7 +34,6 @@ export const chromeSharedClasses = Object.freeze([
   "lf-over-item",
   "lf-react-mark",
   "lf-ui",
-  "lf-version-inline-deletion",
 ]);
 export const marksSheet = constructSheet(sheets.marks);
 export const annotationMarkSheets = sheets.annotations

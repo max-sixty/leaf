@@ -59,7 +59,7 @@ test("late authored and native scroll surfaces enter reach", async () => {
   try {
     document.body.append(authored, native);
     await new Promise((resolve) => setTimeout(resolve, 0));
-    assert.ok(native.classList.contains("scroll"));
+    assert.ok(native.hasAttribute("data-lf-scroll"));
     await new Promise((resolve) => requestAnimationFrame(resolve));
     assert.equal(authored.getAttribute("data-lf-scrolls"), "");
     assert.equal(native.getAttribute("data-lf-scrolls"), "");

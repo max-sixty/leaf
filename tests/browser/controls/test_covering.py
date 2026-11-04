@@ -27,7 +27,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 # The box in an open view that scrolls what it holds, or null where it holds all of it.
 VIEW_SCROLLER = """() => {
-  const view = document.querySelector('.lf-fp-view:not([data-leaving])');
+  const view = document.querySelector('.lf-fp-view:not([data-lf-leaving])');
   return [view, ...view.querySelectorAll('*')].find((node) =>
     node.scrollHeight > node.clientHeight + 1
       && ['auto', 'scroll'].includes(getComputedStyle(node).overflowY)) ?? null;
@@ -62,7 +62,7 @@ def test_a_selection_that_reaches_the_layer_stops_at_the_page(browser, serve):
 
     aim = page.evaluate(
         """() => {
-          const view = document.querySelector('.lf-fp-view[data-view="thread"]')
+          const view = document.querySelector('.lf-fp-view[data-lf-route="thread"]')
             .getBoundingClientRect();
           const para = [...document.querySelectorAll('main p')].find((el) => {
             const r = el.getBoundingClientRect();
@@ -146,7 +146,7 @@ def test_an_open_view_stands_through_a_replaced_document(browser, serve):
     stamp_page(serve.page_dir, revised, "replace the document")
     told(page)
     expect(page.locator("#t")).to_have_text("Long after replacement")
-    expect(page.locator(PANEL)).to_have_attribute("data-open", "queue")
+    expect(page.locator(PANEL)).to_have_attribute("data-lf-open", "queue")
     assert view.evaluate("view => view.contains(document.activeElement)"), (
         "the replaced document took the user out of the view they stood in"
     )

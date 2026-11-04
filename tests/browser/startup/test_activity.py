@@ -58,7 +58,7 @@ def expect_status_says(page, words):
 def workflow_of(scope, message):
     """The workflow line on `message`'s head where `scope` draws it."""
     return scope.locator(
-        f'.lf-msg[data-event="{message}"] > .lf-msg-head .lf-msg-sending'
+        f'.lf-msg[data-lf-event="{message}"] > .lf-msg-head .lf-msg-sending'
     )
 
 
@@ -66,8 +66,8 @@ def thread_row_says(page, thread, resolved=False):
     """Open the panel's Threads and return what `thread`'s row says of where it stands,
     beside its name, among the open threads or, where `resolved`, under Resolved."""
     open_threads(page)
-    state = "[data-resolved]" if resolved else ":not([data-resolved])"
-    return page.locator(f'.lf-fp-thread[data-key="{thread}"]{state} .lf-row-end')
+    state = "[data-lf-resolved]" if resolved else ":not([data-lf-resolved])"
+    return page.locator(f'.lf-fp-thread[data-lf-key="{thread}"]{state} .lf-row-end')
 
 
 def test_the_page_dates_a_claim_by_the_clock_that_wrote_it(browser, serve):
@@ -528,7 +528,9 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
     work_button.click()
-    inline = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{held}"]')
+    inline = page.locator(
+        f'.lf-margin-preview .lf-page-thread[data-lf-thread="{held}"]'
+    )
     expect(inline).to_be_visible()
     expect(inline).not_to_have_attribute("data-lf-agent-workflow", re.compile(".+"))
     assert inline.evaluate("node => getComputedStyle(node).boxShadow") == "none"

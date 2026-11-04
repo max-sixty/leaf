@@ -1,6 +1,6 @@
 # Guards a widget's readings across removal independently of native resources.
-# One base/candidate run distinguished teardown/recreation from retained subscriptions.
-# One run per arm retained the three lifecycle passes; only the candidate passed
+# One base/head run distinguished teardown/recreation from retained subscriptions.
+# One run per arm retained the three lifecycle passes; only the head passed
 # renderer-owned placement with shared datum provenance (20261006-135659-8dka43l3).
 # The first two rubrics moved from controller.subscribe and watchData to LeafElement's
 # render reads when those routes were deleted, and from this.data and projectData to

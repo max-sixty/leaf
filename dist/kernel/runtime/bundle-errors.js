@@ -1,5 +1,5 @@
 import { __exportAll } from "./bundle-rolldown-runtime.js";
-import { ANNOUNCE, CARET_KEYS, COMMANDS, J, PRESS, PRESSES, ROLE_BUTTON_OFFER, W, WORKS, Z, actionTemplate, bindQueuedWork, coarsePointer, commandsChangedOn, controlNavigationKeys, d, focusDestination, focusRevision, holdFocus, installLanguagePaths, installMoveFocus, isElement, isHTML, isNativeLayer, isStage, keeps, liveStages, move, nextRender, offer, offerAction, onCurrentLocation, onFocusVisibility, onUserInput, pressIsKeyboardActivation, refuseCommands, renderedParent, renderedUnder, shadowHost, showNativeLayer, takesLetters, tick, under, watchCurrentLocationIn, x } from "./bundle-portable.js";
+import { ANNOUNCE, CARET_KEYS, COMMANDS, J, PRESS, PRESSES, ROLE_BUTTON_OFFER, W, WORKS, Z, actionTemplate, bindQueuedWork, coarsePointer, commandsChangedOn, composedParentNode, controlNavigationKeys, d, focusDestination, focusRevision, holdFocus, installLanguagePaths, installMoveFocus, installMoveKeys, isElement, isHTML, isNativeLayer, isStage, keeps, liveStages, move, nextRender, offer, offerAction, onCurrentLocation, onFocusVisibility, onUserInput, pressIsKeyboardActivation, refuseCommands, renderedParent, renderedUnder, shadowHost, showNativeLayer, takesLetters, tick, watchCurrentLocationIn, x } from "./bundle-portable.js";
 import { AsyncDirective, LitElement as LitElement$1, PartType as PartType$1, directive as directive$1, guard, html, html as html$1, keyed, live as live$1, noChange, nothing as nothing$1, ref, render as render$1, repeat } from "/vendor/lit.js";
 
 //#region runtime/move-focus.js
@@ -11,6 +11,188 @@ installMoveFocus({
 //#endregion
 //#region runtime/obligations/source.js
 const hasObligationSource = (item, kind) => item?.source.kind === kind;
+
+//#endregion
+//#region runtime/kernel-facts.js
+const COLLAPSE = /[\u0009\u000a\u000b\u000c\u000d\u0020\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]+/g;
+const DRAFT_FORMAT = "leaf-draft/17";
+const MESSAGE_KINDS = /* @__PURE__ */ new Set(["comment", "reply"]);
+const TEXT_BLOCK = "p,li,h1,h2,h3,h4,h5,h6,td,th,pre,blockquote,dd,dt,figcaption,summary";
+const VERB_WRITERS = {
+	"action": "user",
+	"report": "agent"
+};
+const WIDGET_NAME = /^lf-[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const drawingSchema = {
+	"type": "object",
+	"properties": {
+		"strokes": {
+			"type": "array",
+			"minItems": 1,
+			"maxItems": 32,
+			"items": {
+				"type": "array",
+				"minItems": 2,
+				"maxItems": 256,
+				"items": {
+					"type": "array",
+					"minItems": 2,
+					"maxItems": 2,
+					"prefixItems": [{
+						"type": "number",
+						"minimum": -33554432,
+						"maximum": 33554432
+					}, {
+						"type": "number",
+						"minimum": -33554432,
+						"maximum": 33554432
+					}],
+					"items": false
+				}
+			}
+		},
+		"box": {
+			"type": "array",
+			"minItems": 2,
+			"maxItems": 2,
+			"prefixItems": [{
+				"type": "number",
+				"exclusiveMinimum": 0,
+				"maximum": 33554432
+			}, {
+				"type": "number",
+				"exclusiveMinimum": 0,
+				"maximum": 33554432
+			}],
+			"items": false
+		},
+		"frame": {
+			"type": "object",
+			"properties": {
+				"root": {
+					"type": "string",
+					"maxLength": 128,
+					"pattern": "^[A-Za-z][A-Za-z0-9_.:-]*$"
+				},
+				"path": {
+					"type": "array",
+					"maxItems": 32,
+					"items": {
+						"type": "object",
+						"properties": {
+							"tag": {
+								"type": "string",
+								"maxLength": 128,
+								"pattern": "^[A-Za-z][A-Za-z0-9_.:-]*$"
+							},
+							"index": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 65535
+							},
+							"siblings": {
+								"type": "integer",
+								"minimum": 1,
+								"maximum": 65536
+							},
+							"shadow": { "type": "boolean" }
+						},
+						"required": [
+							"tag",
+							"index",
+							"siblings"
+						],
+						"additionalProperties": false
+					}
+				}
+			},
+			"required": ["root", "path"],
+			"additionalProperties": false
+		},
+		"says": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 500
+		},
+		"viewport": {
+			"type": "array",
+			"minItems": 2,
+			"maxItems": 2,
+			"prefixItems": [{
+				"type": "number",
+				"exclusiveMinimum": 0,
+				"maximum": 33554432
+			}, {
+				"type": "number",
+				"exclusiveMinimum": 0,
+				"maximum": 33554432
+			}],
+			"items": false
+		},
+		"scheme": { "enum": ["light", "dark"] }
+	},
+	"required": [
+		"strokes",
+		"box",
+		"viewport",
+		"scheme"
+	],
+	"additionalProperties": false
+};
+const marks = {
+	"x-content": {
+		"paint": "data-lf-content",
+		"message": true
+	},
+	"x-verbatim": {
+		"paint": "data-lf-verbatim",
+		"message": true
+	},
+	"x-space": {
+		"paint": "data-lf-space",
+		"authored": "data-width",
+		"authored_on": "content",
+		"message": false
+	},
+	"x-inline": {
+		"paint": "data-lf-inline",
+		"message": true
+	},
+	"x-exhibit": {
+		"paint": "data-lf-exhibit",
+		"message": true
+	},
+	"x-bound": {
+		"paint": "data-lf-bound",
+		"authored": "data-bound",
+		"authored_on": "content",
+		"message": true
+	},
+	"x-height": {
+		"paint": "data-lf-height",
+		"authored": "data-height",
+		"authored_on": "declared",
+		"message": true
+	},
+	"x-reading-role": {
+		"paint": "data-lf-reading-role",
+		"message": true
+	},
+	"x-views": {
+		"paint": "data-lf-views",
+		"message": true
+	},
+	"x-visual": {
+		"paint": "data-lf-visual",
+		"presence": true,
+		"message": true
+	},
+	"x-awaits": {
+		"paint": "data-lf-awaits",
+		"presence": true,
+		"message": true
+	}
+};
 
 //#endregion
 //#region runtime/framework/snapshot.js
@@ -326,188 +508,6 @@ function obligationValue(widget, verb, answered, unit) {
 	};
 }
 const isProjectionEntry = (entry) => entry.coordinate !== void 0;
-
-//#endregion
-//#region runtime/kernel-facts.js
-const COLLAPSE = /[\u0009\u000a\u000b\u000c\u000d\u0020\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]+/g;
-const DRAFT_FORMAT = "leaf-draft/17";
-const MESSAGE_KINDS = /* @__PURE__ */ new Set(["comment", "reply"]);
-const TEXT_BLOCK = "p,li,h1,h2,h3,h4,h5,h6,td,th,pre,blockquote,dd,dt,figcaption,summary";
-const VERB_WRITERS = {
-	"action": "user",
-	"report": "agent"
-};
-const WIDGET_NAME = /^lf-[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const drawingSchema = {
-	"type": "object",
-	"properties": {
-		"strokes": {
-			"type": "array",
-			"minItems": 1,
-			"maxItems": 32,
-			"items": {
-				"type": "array",
-				"minItems": 2,
-				"maxItems": 256,
-				"items": {
-					"type": "array",
-					"minItems": 2,
-					"maxItems": 2,
-					"prefixItems": [{
-						"type": "number",
-						"minimum": -33554432,
-						"maximum": 33554432
-					}, {
-						"type": "number",
-						"minimum": -33554432,
-						"maximum": 33554432
-					}],
-					"items": false
-				}
-			}
-		},
-		"box": {
-			"type": "array",
-			"minItems": 2,
-			"maxItems": 2,
-			"prefixItems": [{
-				"type": "number",
-				"exclusiveMinimum": 0,
-				"maximum": 33554432
-			}, {
-				"type": "number",
-				"exclusiveMinimum": 0,
-				"maximum": 33554432
-			}],
-			"items": false
-		},
-		"frame": {
-			"type": "object",
-			"properties": {
-				"root": {
-					"type": "string",
-					"maxLength": 128,
-					"pattern": "^[A-Za-z][A-Za-z0-9_.:-]*$"
-				},
-				"path": {
-					"type": "array",
-					"maxItems": 32,
-					"items": {
-						"type": "object",
-						"properties": {
-							"tag": {
-								"type": "string",
-								"maxLength": 128,
-								"pattern": "^[A-Za-z][A-Za-z0-9_.:-]*$"
-							},
-							"index": {
-								"type": "integer",
-								"minimum": 0,
-								"maximum": 65535
-							},
-							"siblings": {
-								"type": "integer",
-								"minimum": 1,
-								"maximum": 65536
-							},
-							"shadow": { "type": "boolean" }
-						},
-						"required": [
-							"tag",
-							"index",
-							"siblings"
-						],
-						"additionalProperties": false
-					}
-				}
-			},
-			"required": ["root", "path"],
-			"additionalProperties": false
-		},
-		"says": {
-			"type": "string",
-			"minLength": 1,
-			"maxLength": 500
-		},
-		"viewport": {
-			"type": "array",
-			"minItems": 2,
-			"maxItems": 2,
-			"prefixItems": [{
-				"type": "number",
-				"exclusiveMinimum": 0,
-				"maximum": 33554432
-			}, {
-				"type": "number",
-				"exclusiveMinimum": 0,
-				"maximum": 33554432
-			}],
-			"items": false
-		},
-		"scheme": { "enum": ["light", "dark"] }
-	},
-	"required": [
-		"strokes",
-		"box",
-		"viewport",
-		"scheme"
-	],
-	"additionalProperties": false
-};
-const marks = {
-	"x-content": {
-		"paint": "data-lf-content",
-		"message": true
-	},
-	"x-verbatim": {
-		"paint": "data-lf-verbatim",
-		"message": true
-	},
-	"x-space": {
-		"paint": "data-lf-space",
-		"authored": "data-width",
-		"authored_on": "content",
-		"message": false
-	},
-	"x-inline": {
-		"paint": "data-lf-inline",
-		"message": true
-	},
-	"x-exhibit": {
-		"paint": "data-lf-exhibit",
-		"message": true
-	},
-	"x-bound": {
-		"paint": "data-lf-bound",
-		"authored": "data-bound",
-		"authored_on": "content",
-		"message": true
-	},
-	"x-height": {
-		"paint": "data-lf-height",
-		"authored": "data-height",
-		"authored_on": "declared",
-		"message": true
-	},
-	"x-reading-role": {
-		"paint": "data-lf-reading-role",
-		"message": true
-	},
-	"x-views": {
-		"paint": "data-lf-views",
-		"message": true
-	},
-	"x-visual": {
-		"paint": "data-lf-visual",
-		"presence": true,
-		"message": true
-	},
-	"x-awaits": {
-		"paint": "data-lf-awaits",
-		"presence": true,
-		"message": true
-	}
-};
 
 //#endregion
 //#region runtime/registry-contract.js
@@ -872,7 +872,7 @@ function voiceOf(words) {
 	const [voice = null] = voices;
 	return voices.size === 1 ? voice : null;
 }
-const voiced = (words) => runOf(words).map((part) => typeof part === "string" ? part : html`<span data-voice=${part.voice}>${part.text}</span>`);
+const voiced = (words) => runOf(words).map((part) => typeof part === "string" ? part : html`<span data-lf-voice=${part.voice}>${part.text}</span>`);
 
 //#endregion
 //#region runtime/queues.js
@@ -928,9 +928,9 @@ const UNPRESENTED = /* @__PURE__ */ new Set([
 	"sending:logged",
 	"accepted:logged"
 ]);
-function admittedId(attempt, unresolved, receipts) {
+function admittedId(attempt, unresolved, events) {
 	if (!attempt) return null;
-	return unresolved.find((entry) => entry.event.attempt === attempt)?.admitted?.id ?? receipts.find((receipt) => receipt.attempt === attempt)?.id ?? null;
+	return unresolved.find((entry) => entry.event.attempt === attempt)?.admitted?.id ?? events.findLast((event) => event.attempt === attempt)?.id ?? null;
 }
 function advance(entry, signal, admitted = null) {
 	const action = entry.event.kind === "action";
@@ -974,9 +974,20 @@ function normalizedProjection(view) {
 		entries,
 		actionIds,
 		reportIds,
-		desiredIds,
-		coverage: view?.coverage ?? []
+		desiredIds
 	};
+}
+function logCoverage(view, events) {
+	if (!view) return [];
+	const coordinates = /* @__PURE__ */ new Map();
+	for (const { projection } of [view.document, view.thread]) for (const entry of projection.entries) coordinates.set(entry.event.id, entry.coordinate);
+	return events.flatMap((event) => {
+		const target = event.kind === "undo" ? event.undoes : Object.hasOwn(VERB_WRITERS, event.kind) ? event.id : null;
+		return target === null ? [] : [{
+			event,
+			coordinate: coordinates.get(target) ?? null
+		}];
+	});
 }
 const NO_OBLIGATIONS = {
 	all: [],
@@ -1320,12 +1331,13 @@ function createSemanticApplication({ presentation } = {}) {
 	let activePresentation = null;
 	if (presentation) presentation.seal(presentation.begin());
 	function derive(document, state, unresolved, settled, markingRead, phase, hostAvailable) {
-		const receipts = state?.browser.receipts ?? [];
+		const events = state?.events ?? [];
 		const local = unresolved.filter((entry) => DRAWN_LOCALLY.has(entry.state));
 		const refused = unresolved.filter((entry) => entry.state === "refused");
 		const served = state?.browser.views[String(document.revision)];
 		const view = served ? (({ basis: _basis, ...rest }) => rest)(served) : null;
 		const admitted = normalizedProjection(view);
+		const coverage = logCoverage(view, events);
 		const classifiedIds = new Set(admitted.entries.map(({ e }) => e.id));
 		const drawsAction = (e) => {
 			const descriptor = document.descriptors.get(e.widget);
@@ -1337,7 +1349,7 @@ function createSemanticApplication({ presentation } = {}) {
 			if (!projection) return [];
 			if (projection.kind !== "undo") return drawsAction(projection.e) ? [projection] : [];
 			const { target } = projection;
-			const targetId = admittedId(entry.undoTarget, unresolved, receipts);
+			const targetId = admittedId(entry.undoTarget, unresolved, events);
 			const pending = !Number.isInteger(target.e.seq);
 			return classifiedIds.has(targetId ?? target.e.id) || pending && drawsAction(target.e) ? [{
 				...projection,
@@ -1346,6 +1358,7 @@ function createSemanticApplication({ presentation } = {}) {
 		});
 		const projection = foldProjection({
 			...admitted,
+			coverage,
 			pendingEntries: localProjections
 		});
 		const ready = phase === "ready";
@@ -1506,6 +1519,7 @@ function createSemanticApplication({ presentation } = {}) {
 				done: contextual(selectedQueues.done)
 			},
 			view,
+			coverage,
 			memberships,
 			widgetParents,
 			sending: unresolved.filter((entry) => SENDING.has(entry.state)).map((entry) => entry.event.attempt),
@@ -1548,10 +1562,10 @@ function createSemanticApplication({ presentation } = {}) {
 		return Boolean(view && view.basis.revision === revision && view.basis.through_seq === state.browser.basis.through_seq);
 	};
 	const unresolvedPart = publisher.select((root) => root.unresolved);
-	const receiptsPart = publisher.select((root) => root.authoritative?.browser.receipts ?? []);
+	const eventsPart = publisher.select((root) => root.authoritative?.events ?? []);
 	const widgetsPart = publisher.select((root) => root.effective.widgets);
 	const entry = (attempt) => unresolvedPart.read().find((item) => item.event.attempt === attempt);
-	const ledgerAndReceipts = () => [unresolvedPart.read(), receiptsPart.read()];
+	const ledgerAndLog = () => [unresolvedPart.read(), eventsPart.read()];
 	const update = (attempt, change) => publish({ unresolved: publisher.peek().unresolved.map((item) => item.event.attempt === attempt ? change(item) : item) });
 	const transition = (signal, admitted) => {
 		const left = [];
@@ -1572,7 +1586,7 @@ function createSemanticApplication({ presentation } = {}) {
 			moved
 		};
 	};
-	const byAttempt = (receipts) => new Map(receipts.flatMap((receipt) => receipt.attempt ? [[receipt.attempt, receipt]] : []));
+	const byAttempt = (events) => new Map(events.flatMap((receipt) => receipt.attempt ? [[receipt.attempt, receipt]] : []));
 	return Object.freeze({
 		read: publisher.read,
 		select: publisher.select,
@@ -1659,7 +1673,7 @@ function createSemanticApplication({ presentation } = {}) {
 			const prior = publisher.peek();
 			if (!adoptable(state, document)) return false;
 			const authoritative = state;
-			const { unresolved, left } = transition("log", byAttempt(authoritative.browser.receipts));
+			const { unresolved, left } = transition("log", byAttempt(authoritative.events));
 			const settled = [...prior.settled.filter((item) => !drawn.has(item.event.attempt)), ...left];
 			for (const attempt of drawn) if (!unresolved.some((item) => item.event.attempt === attempt)) drawn.delete(attempt);
 			publish({
@@ -1745,9 +1759,9 @@ function createSemanticApplication({ presentation } = {}) {
 			publish({ unresolved: unresolved.filter((item) => !dependents.includes(item.event.attempt)) });
 			return dependents;
 		},
-		present(receipts) {
+		present(events) {
 			const { unresolved, settled } = publisher.peek();
-			const attempts = byAttempt(receipts);
+			const attempts = byAttempt(events);
 			for (const item of [...settled, ...unresolved]) if (attempts.has(item.event.attempt)) drawn.add(item.event.attempt);
 			const { unresolved: next, moved } = transition("present", attempts);
 			if (moved) publish({ unresolved: next });
@@ -1760,7 +1774,7 @@ function createSemanticApplication({ presentation } = {}) {
 		nameEvents(attempt) {
 			const item = entry(attempt);
 			if (!item) return true;
-			const event = nameAdmitted(item.event, (pending) => admittedId(pending, ...ledgerAndReceipts()));
+			const event = nameAdmitted(item.event, (pending) => admittedId(pending, ...ledgerAndLog()));
 			if (event !== item.event) update(attempt, (item) => ({
 				...item,
 				...event.parent !== item.event.parent && typeof item.event.parent === "string" ? { namedParent: item.event.parent } : {},
@@ -2285,7 +2299,7 @@ const part = {
 	view: readPart((root) => root.effective.view),
 	undo: readPart((root) => root.effective.view?.undo ?? []),
 	todos: readPart((root) => root.authoritative?.browser.todos ?? []),
-	receipts: readPart((root) => root.authoritative?.browser.receipts ?? []),
+	events: readPart((root) => root.authoritative?.events ?? []),
 	revisionLabels: readPart((root) => root.authoritative?.revision_labels)
 };
 const shownActive = () => {
@@ -2346,8 +2360,8 @@ const runtime = {
 	get todos() {
 		return part.todos();
 	},
-	get receipts() {
-		return part.receipts();
+	get events() {
+		return part.events();
 	}
 };
 const revisionLabel = (revision) => part.revisionLabels()?.[revision];
@@ -2476,11 +2490,12 @@ const selectionEnds = (selection) => {
 	];
 };
 function holdSelection(placed) {
+	const moving = new Set([...placed].filter((node) => node.isConnected));
+	if (!moving.size) return null;
 	const selection = getSelection();
 	if (!selection?.rangeCount) return null;
 	const { anchorNode, anchorOffset, focusNode, focusOffset } = selection;
 	if (!anchorNode || !focusNode) return null;
-	const moving = new Set(placed);
 	const inside = (node) => {
 		for (let at = node; at; at = at.parentNode) if (moving.has(at)) return true;
 		return false;
@@ -3425,6 +3440,7 @@ function reflectAvailabilityReaders() {
 	if (failure) throw failure;
 }
 function reflectButtonsTracked() {
+	claimPaintedRoots();
 	if (!buttonsDirty && !dirtyButtons.size && !availabilityDirty) return;
 	const every = buttonsDirty;
 	buttonsDirty = false;
@@ -3479,6 +3495,7 @@ function reflectTracked(element) {
 	if (failure) throw failure;
 }
 function reflectKeys() {
+	claimPaintedRoots();
 	if (!keysDirty && !dirtyElements.size) return;
 	const every = keysDirty;
 	keysDirty = false;
@@ -3502,15 +3519,46 @@ const paintKeys = () => {
 	repaint();
 };
 const paintKeysWithin = (root) => {
-	for (const ref of scopeRefs) {
-		const scoped = ref.deref();
-		if (scoped && under(scoped, root)) {
-			dirtyElements.add(scoped);
-			dirtyButtons.add(scoped);
-		}
-	}
+	paintedRoots.add(root);
 	repaint();
 };
+const paintedRoots = /* @__PURE__ */ new Set();
+installMoveKeys((node) => {
+	if (!paintedRoots.size) return;
+	for (let at = node; at; at = composedParentNode(at)) if (paintedRoots.has(at)) return markScopedIn(node);
+});
+function markScopedIn(node) {
+	if (isElement(node) && scopeRefFor.has(node)) {
+		dirtyElements.add(node);
+		dirtyButtons.add(node);
+	}
+	for (const child of node.childNodes) markScopedIn(child);
+	if (isElement(node) && node.shadowRoot) markScopedIn(node.shadowRoot);
+}
+function claimPaintedRoots() {
+	if (!paintedRoots.size) return;
+	const covered = /* @__PURE__ */ new Map();
+	const coveredFrom = (node) => {
+		const passed = [];
+		let answer = false;
+		for (let at = node; at; at = composedParentNode(at)) {
+			const known = covered.get(at);
+			if (known !== void 0) {
+				answer = known;
+				break;
+			}
+			passed.push(at);
+			if (paintedRoots.has(at)) {
+				answer = true;
+				break;
+			}
+		}
+		for (const at of passed) covered.set(at, answer);
+		return answer;
+	};
+	for (const root of paintedRoots) if (!coveredFrom(composedParentNode(root))) markScopedIn(root);
+	paintedRoots.clear();
+}
 const saying = (rows) => activeRows(rows, "an announced scope").map((row) => `${spoken(row)} ${titleOf(row)}`).join(", ");
 const spoken = (row) => {
 	const active = bindings(row);

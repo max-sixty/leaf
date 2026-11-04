@@ -32,7 +32,7 @@ def test_a_reply_asking_the_user_is_heard_whole_and_shown_as_the_question(
     toggle = page.locator(".lf-fp-on-user")
     toggle.focus()
     expect(toggle).to_be_focused()
-    said(page).not_to_have_attribute("data-says", "notice")
+    said(page).not_to_have_attribute("data-lf-says", "notice")
 
     thread_model.post_reply(
         serve.page_dir,
@@ -56,7 +56,7 @@ def test_a_new_agent_comment_is_announced_without_moving_focus(browser, serve):
     toggle = page.locator(".lf-fp-on-user")
     toggle.focus()
     expect(toggle).to_be_focused()
-    said(page).not_to_have_attribute("data-says", "notice")
+    said(page).not_to_have_attribute("data-lf-says", "notice")
 
     thread_model.cmd_comment(
         serve.page_dir, None, None, None, "A new page-wide agent note.", None
@@ -73,7 +73,7 @@ def test_terminal_failure_is_a_response_notice_not_an_agent_reply(browser, serve
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Please run this request.")
     page = open_page(browser, url)
-    said(page).not_to_have_attribute("data-says", "notice")
+    said(page).not_to_have_attribute("data-lf-says", "notice")
 
     thread_model.post_reply(
         serve.page_dir,
@@ -87,7 +87,7 @@ def test_terminal_failure_is_a_response_notice_not_an_agent_reply(browser, serve
     expect(page.locator(".lf-live")).to_have_text("Not answered")
     # What became of the answer is Leaf's reading, which the field's placeholder wears
     # in Leaf's italic (floating-panel.css), as Threads sets it.
-    said(page).to_have_attribute("data-voice", "leaf")
+    said(page).to_have_attribute("data-lf-voice", "leaf")
 
 
 def test_interrupted_live_response_announces_its_exact_attempt(browser, serve, request):
@@ -114,7 +114,7 @@ def test_interrupted_live_response_announces_its_exact_attempt(browser, serve, r
             "active",
         )
     page = open_page(browser, url)
-    said(page).not_to_have_attribute("data-says", "notice")
+    said(page).not_to_have_attribute("data-lf-says", "notice")
 
     with service_model.PageTransaction(serve.page_dir) as transaction:
         assert transaction.set_stream_reply_state(
@@ -177,5 +177,5 @@ def test_the_agent_starting_work_is_said_by_the_status_not_a_notice(browser, ser
     for line in ("Checking the page", "Using a tool"):
         working(serve.page_dir, line)
         told(page)
-        said(page).to_have_attribute("data-says", "status")
+        said(page).to_have_attribute("data-lf-says", "status")
         said(page).to_have_attribute("placeholder", re.compile(f"^{line}"))

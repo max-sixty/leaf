@@ -123,7 +123,6 @@ function observeUserView() {
 		if (!view) return;
 		const basis = JSON.stringify([
 			view.revision,
-			view.through_seq,
 			view.viewport,
 			view.visual_viewport,
 			view.shown_window,

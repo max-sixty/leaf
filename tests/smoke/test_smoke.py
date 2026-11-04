@@ -1,7 +1,6 @@
 """The real-browser gate the broad selection keeps."""
 
 import re
-from pathlib import Path
 
 import pytest
 from model_folds import leaf_page
@@ -19,17 +18,16 @@ from render_harness import (
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
 from leaf.render_gate import version as render_gate_model
-
-ROOT = Path(__file__).parents[2]
+from leaf_dev.example_data import named_source
 
 
 def test_a_shipped_page_passes_the_real_browser_gate(browser, serve):
-    example = ROOT / "examples" / "ship-review.html"
+    example = named_source("ship-review")
     assert render_gate_model.render_version(browser, serve(example)).failures == []
 
 
 def test_ship_review_obligations_are_directly_answerable(browser, serve):
-    example = ROOT / "examples" / "ship-review.html"
+    example = named_source("ship-review")
     page = open_page(browser, serve(example))
 
     # The page runs the prepared kernel its server supplies (`runtime_selection`).
@@ -85,7 +83,7 @@ def test_a_sent_margin_reply_shows_its_words_while_delivery_is_pending(
     page = open_page(browser, url)
     resized(page, *size)
     page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
-    card = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+    card = page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]')
     rendered(page)
     # The card opens on its first unread message, the first of the agent's turns.
     expect(card.locator(".lf-msg", has_text="Turn 0.")).to_be_in_viewport()
@@ -159,7 +157,7 @@ def test_a_pending_reply_keeps_the_transcript_end_when_card_fitting_reduces_room
     page = open_page(browser, url)
     resized(page, 1000, 536)
     page.locator('[data-lf-margin-for="candidate"] .lf-margin-marker').click()
-    card = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+    card = page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]')
     page.keyboard.press("c")
     expect(card.locator("leaf-text")).to_be_focused()
     words = "Please scroll down to show this reply."
@@ -228,7 +226,7 @@ def test_reading_keys_follow_a_submitted_comment_s_viewport(browser, serve):
         message = page.locator(".lf-margin-preview .lf-msg").first
         body = page.locator(".lf-margin-preview .lf-thread-transcript")
         expect(message).to_contain_text("Line 29:")
-        expect(message).to_have_attribute("data-event", re.compile("pending:.*"))
+        expect(message).to_have_attribute("data-lf-event", re.compile("pending:.*"))
         rendered(page)
         before = body.evaluate("body => body.scrollTop")
         assert before > 0, "The submitted comment must start at its last lines"
@@ -246,7 +244,7 @@ def test_reading_keys_follow_a_submitted_comment_s_viewport(browser, serve):
         after = body.evaluate("body => body.scrollTop")
         assert after < before
         pending.pop().continue_()
-        expect(message).not_to_have_attribute("data-event", re.compile("pending:.*"))
+        expect(message).not_to_have_attribute("data-lf-event", re.compile("pending:.*"))
         rendered(page)
         assert abs(body.evaluate("body => body.scrollTop") - after) <= 1
         page.keyboard.press("d")

@@ -3,7 +3,7 @@
 # strips before reading the lf-shot guidance, and the page drew them at half size; the
 # user asked why the diff read so small. The captures are that session's. Against the
 # earlier wording, 7 of 9 base runs kept their frames near the column (6 of 9 on their
-# first crop) and 12 of 12 candidate runs did; a variant handing over the session's
+# first crop) and 12 of 12 head runs did; a variant handing over the session's
 # full-width crops passed on both arms (3 of 3 each).
 description: shot-frames-read-at-size
 metadata:

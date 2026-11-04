@@ -122,7 +122,7 @@ function whileInterfaceConnected(element, { declare, connect }) {
 
 //#endregion
 //#region runtime/reach.js
-const SCROLL_SURFACE = ".scroll";
+const SCROLL_SURFACE = ".scroll, [data-lf-scroll]";
 const seenDeclarations = /* @__PURE__ */ new WeakMap();
 const scrollAncestors = /* @__PURE__ */ new WeakSet();
 const styleRoots = /* @__PURE__ */ new WeakSet();
@@ -182,7 +182,7 @@ watchScrolls((box) => {
 	if (sideways.has(box)) paintSidewaysReach(box, true);
 });
 function reachReadingScroller(el, paintContinuation) {
-	el.classList.toggle("scroll", true);
+	el.toggleAttribute(PAGE_PAINT_ATTRIBUTE.scrollSurface, true);
 	downwards.set(el, paintContinuation);
 	sweep(el);
 	paintReach();
@@ -221,7 +221,11 @@ function reachScrollers(root) {
 	paintReach();
 	if (watchingSurfaces) return;
 	watchingSurfaces = true;
-	watchArrivals(SCROLL_SURFACE, ["class", "style"], {
+	watchArrivals(SCROLL_SURFACE, [
+		"class",
+		"data-lf-scroll",
+		"style"
+	], {
 		arriveBatch(surfaces) {
 			for (const el of surfaces) {
 				const classes = el.getAttribute("class");
@@ -1564,14 +1568,16 @@ const anchorName = (el) => nameAnchor(anchorReading(el));
 let dropsTransforms;
 function anchorDropsTransforms() {
 	if (dropsTransforms !== void 0) return dropsTransforms;
+	const probe = document.createElement("div");
 	const moved = document.createElement("div");
 	const anchored = document.createElement("div");
+	probe.style.cssText = "position: fixed; left: 0; top: 0; contain: layout";
 	moved.style.cssText = "position: fixed; left: 0; top: 0; translate: 8px 0; anchor-name: --lf-moved";
 	anchored.style.cssText = "position: fixed; top: 0; position-anchor: --lf-moved; left: anchor(left, 8px)";
-	chromeRoot.append(moved, anchored);
+	probe.append(moved, anchored);
+	chromeRoot.append(probe);
 	dropsTransforms = anchored.getBoundingClientRect().left < 4;
-	moved.remove();
-	anchored.remove();
+	probe.remove();
 	return dropsTransforms;
 }
 const moves = (style) => style.transform !== "none" || style.translate !== "none" || style.rotate !== "none" || style.scale !== "none" || style.offsetPath !== "none";
@@ -2272,8 +2278,8 @@ const title = () => {
 	const main = document.querySelector("body > main");
 	const parts = main && getComputedStyle(main).getPropertyValue("--lf-layout-box").trim() !== "1" ? main.querySelector(":scope > [data-lf-views=\"parts\"]") : null;
 	let marked = false;
-	for (let node = parts?.previousElementSibling; node; node = node.previousElementSibling) if (!node.classList.contains("scroll")) {
-		node.classList.add("scroll");
+	for (let node = parts?.previousElementSibling; node; node = node.previousElementSibling) if (!node.hasAttribute(PAGE_PAINT_ATTRIBUTE.scrollSurface)) {
+		node.toggleAttribute(PAGE_PAINT_ATTRIBUTE.scrollSurface, true);
 		marked = true;
 	}
 	return marked;

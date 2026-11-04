@@ -26,10 +26,10 @@ another. Fitting the cost itself would let fixed work hide that: 30 ms per click
 
 --server times the server's paths on each page instead, in this process with no
 browser (`leaf_dev.server_scaling` names the paths and how it reads them), and names
-each path that breaks the rule: growth fitting an exponent above SUPERLINEAR, a
-click's path taking more than its budget at REFERENCE, or, on the session's page, an
-append growing past INPUT_CEILING. The daily `tests/journeys/test_server_scaling.py`
-fails those.
+each path that breaks the rule: growth fitting an exponent above SUPERLINEAR, or a
+click's path taking more than its budget at REFERENCE, or after
+`server_scaling.SESSION_REFERENCE` events on the session's page. The daily
+`tests/journeys/test_server_scaling.py` fails those.
 
 --base also measures the merge base with main (or REF), chosen as every A/B command
 chooses its arms (`arms.choose_arms`), so a change shows its exponents beside the
@@ -92,10 +92,6 @@ BASE = 8
 # An exponent above this is superlinear growth. It stands halfway between linear and
 # quadratic: above BASE, linear growth fits about 1.07 over 64-256, and n log n 1.25.
 SUPERLINEAR = 1.5
-# An input's work whose growth fits an exponent above this grows with what the page
-# holds or how long the session has run, and an input's work does neither (root
-# `AGENTS.md`, "Responsiveness"); halfway between flat and linear.
-INPUT_CEILING = 0.5
 # How many of the largest sizes the exponent is fitted over.
 FITTED = 3
 # Where a cost grows by less than this above BASE, what little it grew is the host's

@@ -266,7 +266,7 @@ def chosen_window(own: Window, viewport: Window | None, touch: bool | None) -> W
     return window if touch is None else replace(window, touch=touch)
 
 
-# The style `screenshot` adds to every document it shows, for the length of the shot.
+# The style `screenshot` adds to the page and its open shadow roots for the shot.
 HELD = """:root { caret-animation: manual; }
 @supports not (caret-animation: manual) {
   * { caret-color: transparent !important; }
@@ -276,23 +276,26 @@ HELD = """:root { caret-animation: manual; }
 def screenshot(page, path: Path) -> None:
     """Screenshot the viewport of `page`, a tab `visits` brought to a state, to `path`.
 
-    A capture holds each animation the browser draws in one state, so two captures of
-    one state draw the same pixels whenever they are taken, however loaded the host:
+    A capture holds each animation the browser draws of its own accord in one state,
+    so two captures of one state draw it alike whenever each is taken, however loaded
+    the host:
 
-    - A caret stands steady where the engine can stop its blink, as Chromium can
-      (`caret-animation: manual`), and is hidden where it can't: Playwright's WebKit
-      fades it in and out, and its Firefox draws none. Both rules reach a field inside
-      a closed shadow root by inheritance, which Leaf's text field takes its caret's
-      colour by (`runtime/composing/text-field.js`).
+    - A caret is drawn steadily where the engine can stop its blink, as Chromium can
+      (`caret-animation: manual`), and hidden where it can't: on 2026-11-03
+      Playwright's WebKit (build 2370) faded it in and out, and its Firefox (build
+      1555) drew none. Both declarations are inherited, so they reach the caret
+      inside Leaf's text field, whose closed shadow root takes the caret's colour
+      from its host (`runtime/composing/text-field.js`).
     - An overlay scrollbar, such as a Mac's, starts to fade half a second after its
       box scrolls. The Chromium shell `launch` opens keeps it shown until the pointer
       passes over it and leaves, as a reader sees it while scrolling; Playwright's
       Firefox and WebKit draw no overlay bar, and a classic bar never fades.
 
-    A smooth scroll and the page's finite motion have ended before a reading, since
-    `settle` waits for both, and the page's endless motion, such as the sheen on
-    work under way, runs only as the tab's `motion` lets it: stills reduces motion,
-    and probe shows it as the user sees it unless told to reduce it.
+    The page's own motion is the page's: `visits` waits for a Leaf page whose runtime
+    runs to settle, so no smooth scroll or finite transition is under way, and an
+    endless one, such as the sheen on work under way, follows the tab's `motion`.
+    Stills reduces motion, and probe shows what a user sees unless told to reduce it,
+    so a probe shot can catch that motion at any point.
 
     Safari on the iOS simulator takes no input, so it draws no caret or scrollbar to
     hold."""

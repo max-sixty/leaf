@@ -303,8 +303,9 @@ def probe(
             visit.reading["result"] = visit.page.evaluate(expression)
         if shots:
             visit.doing = "shot"
-            visit.reading["shot"] = str(shots / f"{arm}.png")
-            screenshot(visit.page, visit.reading["shot"])
+            shot = shots / f"{arm}.png"
+            visit.reading["shot"] = str(shot)
+            screenshot(visit.page, shot)
 
     def record(page: Page, arm: str) -> AbstractContextManager:
         assert record_dir

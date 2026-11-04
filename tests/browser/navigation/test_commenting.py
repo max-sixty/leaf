@@ -150,8 +150,11 @@ def test_a_passage_selection_keeps_native_copy_and_context_menu(browser, serve):
 def test_comment_enters_the_selected_passage_s_field_and_takes_its_letters(
     browser, serve
 ):
-    """Comment enters a selected passage's field, where letters and `?` are words."""
-    page = open_page(browser, serve(TARGETS_PAGE))
+    """Comment enters a selected passage's field, where letters and `?` are words; once
+    the field closes, the page's own keys answer again."""
+    url = serve(TARGETS_PAGE)
+    _publish(serve.page_dir, 2, TARGETS_PAGE, "two")
+    page = open_page(browser, url)
     help_el = page.locator(".lf-command-reference")
 
     # Nothing in hand: the reference names the page comment `c` enters directly.
@@ -174,38 +177,10 @@ def test_comment_enters_the_selected_passage_s_field_and_takes_its_letters(
     expect(field).not_to_be_focused()
     page.keyboard.press("c")
     expect(field).to_be_focused()
+    page.keyboard.press("c")
+    expect(field).to_have_js_property("value", "c")
     page.keyboard.type("?")
-    expect(field).to_have_js_property("value", "?")
-    page.keyboard.press("Escape")
-
-    # An explicit visual target follows the same contract, but its accessible field name
-    # identifies the item rather than a quoted passage.
-    page.locator("#fig svg").click(modifiers=["Alt"])
-    expect(field).to_be_focused()
-    expect(field).to_have_attribute("aria-label", re.compile("figure"))
-    page.keyboard.press("Escape")
-
-
-def test_typing_in_a_selected_comment_wins_over_page_shortcuts(browser, serve):
-    """Once Comment focuses a selected passage's field, shortcut letters are text."""
-    url = serve(TARGETS_PAGE)
-    _publish(serve.page_dir, 2, TARGETS_PAGE, "two")
-    page = open_page(browser, url)
-
-    box = page.locator("#prose").bounding_box()
-    select(
-        page,
-        (box["x"] + 1, box["y"] + 4),
-        (box["x"] + box["width"] - 1, box["y"] + box["height"] - 4),
-        steps=12,
-    )
-    fab = page.locator(".lf-fab-input")
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
-    expect(fab).not_to_be_focused()
-    page.keyboard.press("c")
-    expect(fab).to_be_focused()
-    page.keyboard.press("c")
-    expect(fab).to_have_js_property("value", "c")
+    expect(field).to_have_js_property("value", "c?")
     page.keyboard.press("Escape")
     page.evaluate(RELEASE_FOCUS)
 
@@ -217,10 +192,16 @@ def test_typing_in_a_selected_comment_wins_over_page_shortcuts(browser, serve):
     expect(page.locator(panel_view("menu"))).to_have_count(0)
 
     page.keyboard.press("?")
-    reference = page.locator(".lf-command-reference")
-    expect(reference).to_be_visible()
+    expect(help_el).to_be_visible()
     page.keyboard.press("Escape")
-    expect(reference).to_be_hidden()
+    expect(help_el).to_be_hidden()
+
+    # An explicit visual target follows the same contract, but its accessible field name
+    # identifies the item rather than a quoted passage.
+    page.locator("#fig svg").click(modifiers=["Alt"])
+    expect(field).to_be_focused()
+    expect(field).to_have_attribute("aria-label", re.compile("figure"))
+    page.keyboard.press("Escape")
 
 
 def test_submit_shortcuts_activate_the_controls_that_promise_the_action(browser, serve):

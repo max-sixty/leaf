@@ -435,9 +435,10 @@
      - A box packed edge to edge with others, such as a list's row or a table's cell, a
        box padded inside a frame it fills, or one whose clip leaves no room outside it:
        one band inside its edge, at --focus-ring-inset. A box that clips a mark standing
-       outside its target cuts it, as it cuts the target, so a box the page's layout
-       fills with no room round it states this place, as a full-height workspace's body
-       does (layouts.css).
+       outside its target cuts it, as it cuts the target. A box the page's layout leaves
+       less room round than a region's gap, as a full-height workspace's body
+       (layouts.css), stands its marks at a control's gap: inside, they would run over
+       its words and under what it holds.
 
      The width is a token of its own because the ring is drawn outside the box it
      names, so a scroll region has to reserve room for it: a shorthand cannot be

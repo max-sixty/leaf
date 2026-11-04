@@ -1439,16 +1439,17 @@ def test_an_obligation_landed_in_a_pane_keeps_its_ring_inside_the_pane(browser, 
 ASK_WORDS = """() => {
   const words = document.createRange();
   words.selectNodeContents(document.querySelector('lf-ask[data-lf-obligation] h2'));
-  return {words: words.getClientRects()[0].left, foot: innerHeight};
+  return {words: words.getClientRects()[0].left};
 }"""
 
 
 def test_the_ring_round_a_question_stands_clear_of_its_words(browser, serve):
     """The ring the user stands in goes round a question outside its box, as every
     obligation's does, so it does not run over the first letter of each line. A
-    question that is a full-height workspace's body fills the window, which leaves no
-    room round it, so it states its marks one band inside it (layouts.css): the window
-    cut the ring's top and foot."""
+    question that is a full-height workspace's body has only the workspace's gutter
+    round it, so its ring stands at a control's gap (layouts.css), inside the window
+    on top and at the sides: inside the question it ran over the heading's first letter
+    and under the panes the question holds."""
     ask = (
         '<lf-ask id="rollout"><h2>Include self-hosted runners?</h2>'
         "<p>They need administrator-configured namespaces.</p>"
@@ -1471,5 +1472,6 @@ def test_the_ring_round_a_question_stands_clear_of_its_words(browser, serve):
     question = page.locator("#rollout")
     expect(question).to_have_class(re.compile(r"\blf-projected-location\b"))
     ring, workspace = question.evaluate(MARK), page.evaluate(ASK_WORDS)
-    assert ring["ring"]["top"] >= 0, ring
-    assert ring["ring"]["bottom"] <= workspace["foot"], (ring, workspace)
+    assert ring["offset"] > 0, ring
+    assert ring["ring"]["top"] >= 0 and ring["ring"]["left"] >= 0, ring
+    assert ring["ring"]["left"] + ring["width"] < workspace["words"], (ring, workspace)

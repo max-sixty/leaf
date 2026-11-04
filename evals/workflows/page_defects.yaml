@@ -1,14 +1,6 @@
 # The page-defect grader for authoring cases (`dev/leaf_dev/page_defects.py`).
-widths:
-  wide:
-    viewport: [1600, 1000]
-    description: a fullscreen desktop window
-  middle:
-    viewport: [900, 700]
-    description: a laptop window beside other work
-  phone:
-    viewport: [390, 844]
-    description: a phone held upright, with touch
+# The judge uses the page in each of these windows (`leaf_dev.browser.WINDOWS`).
+widths: [large, middle, phone]
 judge: |-
   A user asked an agent for this page:
 

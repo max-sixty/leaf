@@ -5,7 +5,8 @@ import os
 import subprocess
 import sys
 from contextlib import contextmanager
-from functools import cache
+from dataclasses import dataclass
+from functools import cache, wraps
 from pathlib import Path
 
 import click
@@ -17,6 +18,28 @@ from leaf_dev import ROOT
 
 DESKTOP = (1440, 900)
 PHONE = (390, 844)
+
+
+@dataclass(frozen=True)
+class Window:
+    """A window a tab opens at: its size in CSS pixels, whether a finger drives it
+    (`tab`'s `touch`), and the words a prompt uses for it."""
+
+    size: tuple[int, int]
+    description: str
+    touch: bool = False
+
+
+# The windows a tool opens a page in by name, as `eval --viewport large` or
+# `stills --viewport phone` does. An eval author's request and a judge's instructions
+# give a window's description, so rewording one changes what those agents are asked.
+WINDOWS = {
+    "desktop": Window((1280, 800), "a 1280px by 800px desktop content viewport"),
+    "large": Window((1600, 1000), "a large 1600px by 1000px desktop content viewport"),
+    "short": Window((900, 600), "a short 900px by 600px desktop window"),
+    "middle": Window((900, 700), "a 900px by 700px laptop window beside other work"),
+    "phone": Window(PHONE, "a 390px by 844px phone window", touch=True),
+}
 
 # The fixed fontconfig that lays text out in DejaVu faces on Linux (`use_linux_fonts`).
 LINUX_FONTCONFIG = ROOT / "tests/fonts.conf"
@@ -163,36 +186,54 @@ def tab(
         context.close()
 
 
-def window_size(value: str) -> tuple[int, int]:
+def window(value: str) -> Window | tuple[int, int]:
+    """The window `--viewport` names, or the size it spells as WIDTHxHEIGHT."""
+    if value in WINDOWS:
+        return WINDOWS[value]
     width, _, height = value.partition("x")
     if not (width.isdigit() and height.isdigit()):
-        raise click.BadParameter(f"{value!r} is not WIDTHxHEIGHT")
+        raise click.BadParameter(
+            f"{value!r} is neither WIDTHxHEIGHT nor a window: {', '.join(WINDOWS)}"
+        )
     return int(width), int(height)
 
 
 def tab_options(command):
     """Give a command `tab`'s viewport, scheme and pointer as `--viewport`, `--scheme`
-    and `--touch`. `viewport` and `touch` reach the command as None unless given, so
-    it can tell a default from a choice."""
-    command = click.option(
+    and `--touch`. A window `--viewport` names brings its pointer unless `--touch` or
+    `--no-touch` is given. `viewport` and `touch` reach the command as a size and a
+    flag, each None unless given, so it can tell a default from a choice."""
+
+    @wraps(command)
+    def sized(*args, viewport, touch, **kwargs):
+        if isinstance(viewport, Window):
+            viewport, touch = viewport.size, viewport.touch if touch is None else touch
+        return command(*args, viewport=viewport, touch=touch, **kwargs)
+
+    sized = click.option(
         "--touch/--no-touch",
         default=None,
         help="Show the page under a finger: a coarse pointer and mobile emulation, at "
-        "--viewport's size. Off by default.",
-    )(command)
-    command = click.option(
+        "--viewport's size. By default as the window --viewport names sets it, "
+        "and otherwise off.",
+    )(sized)
+    sized = click.option(
         "--scheme",
         type=click.Choice(["light", "dark"]),
         default="light",
         help="The colour scheme the page is shown in.",
-    )(command)
+    )(sized)
+    named = ", ".join(
+        f"{name} ({each.size[0]}x{each.size[1]}{', touch' if each.touch else ''})"
+        for name, each in WINDOWS.items()
+    )
     return click.option(
         "--viewport",
-        metavar="WIDTHxHEIGHT",
-        callback=lambda c, p, value: value and window_size(value),
-        help=f"By default {DESKTOP[0]}x{DESKTOP[1]}. A phone also needs --touch: "
-        f"--viewport {PHONE[0]}x{PHONE[1]} --touch.",
-    )(command)
+        metavar="WIDTHxHEIGHT|NAME",
+        callback=lambda c, p, value: value and window(value),
+        help=f"By default {DESKTOP[0]}x{DESKTOP[1]}. A NAME is one of the windows "
+        f"{named}.",
+    )(sized)
 
 
 def slow_cpu(page: Page, rate: float) -> None:

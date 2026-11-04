@@ -60,13 +60,15 @@ from leaf_dev.arms import (
     trace_result,
     trace_summary,
 )
-from leaf_dev.browser import headless_shell, load, shell_executable, tab
-from leaf_dev.eval_cases import (
-    DEFAULT_VIEWPORTS,
-    VIEWPORTS,
-    definition,
-    selected_viewports,
+from leaf_dev.browser import (
+    WINDOWS,
+    Window,
+    headless_shell,
+    load,
+    shell_executable,
+    tab,
 )
+from leaf_dev.eval_cases import DEFAULT_VIEWPORTS, definition, selected_viewports
 from leaf_dev.eval_user import (
     CLIPBOARD_PERMISSIONS,
     COMMAND_LIMIT,
@@ -155,7 +157,7 @@ class Run:
     viewports: tuple[str, ...] = DEFAULT_VIEWPORTS
 
     @property
-    def widths(self) -> dict:
+    def windows(self) -> dict[str, Window]:
         return selected_viewports(self.viewports)
 
     @property
@@ -218,7 +220,9 @@ def first_prompt(payload: Path, page: Path, subject: str, condition="leaf") -> s
 def preference(viewports: tuple[str, ...]) -> str:
     """The same run-level work environment reaches the author and its judges."""
     return PREFERENCE.format(
-        windows="; ".join(label for _, label in selected_viewports(viewports).values())
+        windows="; ".join(
+            window.description for window in selected_viewports(viewports).values()
+        )
     )
 
 
@@ -377,7 +381,7 @@ def open_as_user(run: Run, url: str) -> None:
     while the user's stated window was 1600×1000: authors hunted for a way to
     change it, setting `LEAF_RENDER_VIEWPORT=1600x1000` and grepping Leaf's source,
     in 8 of 12 width revisions on 2026-10-24."""
-    viewport = next(iter(run.widths.values()))[0]
+    viewport = next(iter(run.windows.values())).size
     with headless_shell() as browser, tab(browser, viewport=viewport) as view:
         load(view, url)
         deadline = time.monotonic() + 20
@@ -476,7 +480,7 @@ def comment(run: Run, live: LiveSession):
             remark.text,
             comment_message(remark),
             scenario.reveal,
-            viewport=next(iter(run.widths.values()))[0],
+            viewport=next(iter(run.windows.values())).size,
         )
     )
     live.note({"type": "eval_post", **posted, "received_at": now()})
@@ -515,7 +519,7 @@ def decision_round(run: Run, live: LiveSession) -> None:
     page = run.authored_page
     before = latest_seq(page)
 
-    viewport = next(iter(run.widths.values()))[0]
+    viewport = next(iter(run.windows.values())).size
 
     def deciding():
         if run.leaf_condition:
@@ -562,7 +566,7 @@ def capture_phase(run: Run, phase: int, page: Path | None = None) -> dict:
     A capture failure leaves completed images intact and names every unavailable
     viewport. It never discards the saved page, native trace or author checks.
     """
-    captures = {name: [] for name in run.widths}
+    captures = {name: [] for name in run.windows}
     result = {"captures": captures, "capture_errors": {}}
     page = page or run.page(phase)
     if page is None:
@@ -571,7 +575,7 @@ def capture_phase(run: Run, phase: int, page: Path | None = None) -> dict:
     try:
         run.shots.mkdir(parents=True, exist_ok=True)
         with headless_shell() as browser:
-            for name, (viewport, _) in run.widths.items():
+            for name, window in run.windows.items():
                 with tempfile.TemporaryDirectory(prefix="leaf-capture-") as temporary:
                     copied = Path(temporary) / "page"
                     shutil.copytree(page, copied)
@@ -582,7 +586,7 @@ def capture_phase(run: Run, phase: int, page: Path | None = None) -> dict:
                     )
                     with (
                         server as url,
-                        tab(browser, viewport=viewport, touch=name == "phone") as view,
+                        tab(browser, viewport=window.size, touch=window.touch) as view,
                     ):
                         (plain_html.load if html else load)(view, url)
                         image = run.shots / f"p{phase}-{name}-0.png"
@@ -704,10 +708,11 @@ def judge_pages(
                 if any(label.endswith("before_revision") for label in pages)
                 else ""
             )
+            mobile = " and ".join(name for name, each in WINDOWS.items() if each.touch)
             instructions = f"""Judge the live pages below against the task and criterion.
 Use this browser CLI: {shlex.join(command)}
 Open your own headless Chromium with -s=<session> open <URL> --config {browser_config}.
-Use --mobile for phone and resize W H for each required viewport. Choose your own
+Use --mobile for {mobile} and resize W H for each required viewport. Choose your own
 tabs, navigation, actions and screenshots. Use one browser session
 at a time and close it before opening another. Evaluate the page without editing
 its source; do not consult expected verdicts or control answers.
@@ -858,7 +863,7 @@ def listing(captures: dict[str, list[str]]) -> list[str]:
     """Report screenshot paths by viewport for static reader evals."""
     lines = []
     for name, paths in captures.items():
-        _, label = VIEWPORTS[name]
+        label = WINDOWS[name].description
         lines.append(f"  On {label}, top to bottom:")
         lines += [f"    {path}" for path in paths]
     return lines
@@ -941,8 +946,8 @@ def comparison_inputs(
         "phases": versions,
         "author_phases": list(order),
         "widths": {
-            name: list(viewport)
-            for name, (viewport, _) in selected_viewports(viewports).items()
+            name: list(window.size)
+            for name, window in selected_viewports(viewports).items()
         },
     }
 

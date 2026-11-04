@@ -30,6 +30,7 @@ from browser.margin import (
     _comment_on,
 )
 from leaf.render_checks import rendered
+from leaf_dev.browser import WINDOWS
 from leaf_dev.commands import pins as pin_cases
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -730,7 +731,7 @@ def test_a_pin_by_a_card_full_of_controls_stands_on_it_clear_of_them(browser, se
         expect(action).to_have_text("Opened")
 
 
-@pytest.mark.parametrize("viewport", list(pin_cases.VIEWPORTS))
+@pytest.mark.parametrize("viewport", pin_cases.VIEWPORTS)
 def test_each_pin_case_seats_its_pins_by_their_targets_clear_of_what_they_hide(
     browser, serve, viewport
 ):
@@ -738,9 +739,12 @@ def test_each_pin_case_seats_its_pins_by_their_targets_clear_of_what_they_hide(
     target over no words, control or media, inside the window and clear of the other
     pins, except where the case accepts a fault and says why. A placement the gallery
     shows wrong becomes a case there, and so a failure here."""
-    (width, height), touch = pin_cases.VIEWPORTS[viewport]
+    window = WINDOWS[viewport]
+    width, height = window.size
     context = browser.new_context(
-        viewport={"width": width, "height": height}, has_touch=touch, is_mobile=touch
+        viewport={"width": width, "height": height},
+        has_touch=window.touch,
+        is_mobile=window.touch,
     )
     page = open_page(
         browser, serve(pin_cases.source(), events=pin_cases.events()), context=context

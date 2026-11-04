@@ -13,26 +13,24 @@ import { move } from "./dom-move.js";
 import { keeps } from "./keeps.js";
 import { inChrome } from "./passages.js";
 import { shownParts } from "./geometry.js";
-import { locationStandsDown, paint } from "./page-paint.js";
+import { locationStandsDown, RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { paintStand, placement, standAt, standBox } from "./target-paint-geometry.js";
 
-// One mark: a class on what it marks at a time, which is each box the element shows
-// through (`shownParts`), so an element with no box of its own, such as a section
-// styled `display: contents`, is marked on the boxes it shows. A layout change can
-// replace those boxes, so `refresh` reads them again.
-/** @param {string} className */
-function markOne(className) {
+// One mark: an attribute on what it marks at a time (page-paint.js), which is each box
+// the element shows through (`shownParts`), so an element with no box of its own, such
+// as a section styled `display: contents`, is marked on the boxes it shows. A layout
+// change can replace those boxes, so `refresh` reads them again.
+/** @param {string} attribute */
+function markOne(attribute) {
   /** @type {Element | null} */
   let target = null;
   /** @type {Element[]} */
   let marked = [];
   function draw() {
     const boxes = target?.isConnected ? shownParts(target) : [];
-    paint({ attribute: "class", token: className }, () => {
-      for (const box of marked)
-        if (!boxes.includes(box)) box.classList.toggle(className, false);
-      for (const box of boxes) box.classList.toggle(className, true);
-    });
+    for (const box of marked)
+      if (!boxes.includes(box)) box.toggleAttribute(attribute, false);
+    for (const box of boxes) box.toggleAttribute(attribute, true);
     marked = boxes;
   }
   return {
@@ -45,9 +43,9 @@ function markOne(className) {
   };
 }
 
-const aimMark = markOne("lf-aimed");
-const traceMark = markOne("lf-traced");
-const proxyMark = markOne("lf-proxied");
+const aimMark = markOne(RUNTIME_PAINT_ATTRIBUTE.aimed);
+const traceMark = markOne(RUNTIME_PAINT_ATTRIBUTE.traced);
+const proxyMark = markOne(RUNTIME_PAINT_ATTRIBUTE.proxied);
 
 const labelStand = paintStand();
 // What leaf.js mounts in the chrome: the stand the design label stands in.
@@ -148,7 +146,7 @@ let locationElement = null;
 let locationFrame = 0;
 /** @type {Element[]} */
 let locationProjected = [];
-const PROJECTED_LOCATION = "lf-projected-location";
+const PROJECTED_LOCATION = RUNTIME_PAINT_ATTRIBUTE.location;
 
 // The location ring round `element`, the decision the user stands in, or none
 // (obligations/view.js, `markHere`). Each box the decision shows through draws it, as
@@ -168,11 +166,9 @@ function drawLocation() {
     element?.isConnected && !locationStandsDown(element)
       ? [element, ...shownParts(element)]
       : [];
-  paint({ attribute: "class", token: PROJECTED_LOCATION }, () => {
-    for (const box of locationProjected)
-      if (!boxes.includes(box)) box.classList.toggle(PROJECTED_LOCATION, false);
-    for (const box of boxes) box.classList.toggle(PROJECTED_LOCATION, true);
-  });
+  for (const box of locationProjected)
+    if (!boxes.includes(box)) box.toggleAttribute(PROJECTED_LOCATION, false);
+  for (const box of boxes) box.toggleAttribute(PROJECTED_LOCATION, true);
   locationProjected = boxes;
 }
 

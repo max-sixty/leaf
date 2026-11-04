@@ -1206,7 +1206,7 @@ def test_a_visual_fallback_yields_to_stable_targets_inside_the_picture(browser, 
     nested_picture.hover()
     page.keyboard.down("Alt")
     expect(
-        page.locator(".lf-aimed"),
+        page.locator("[data-lf-aimed]"),
         "the aim promised the picture box while its anchor resolved to the section",
     ).to_have_id("outer")
     page.keyboard.up("Alt")
@@ -1529,8 +1529,8 @@ def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser,
     # It shows nothing of its own: the part wears the focus ring, whole, along the edge
     # of what it draws.
     assert control.evaluate("control => getComputedStyle(control).opacity") == "0"
-    expect(page.locator(".lf-proxied")).to_have_count(1)
-    expect(part).to_have_class(re.compile(r"\blf-proxied\b"))
+    expect(page.locator("[data-lf-proxied]")).to_have_count(1)
+    expect(part).to_have_attribute("data-lf-proxied", "")
     assert_drawn_in(part, token_colour(page, "--accent"), 2)
 
 

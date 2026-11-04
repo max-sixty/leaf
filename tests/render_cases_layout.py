@@ -845,11 +845,13 @@ AIM_POINT = """(el) => {
   }
   return null;
 }"""
-# The promise itself, read where the runtime states it: the aimed box wears `lf-aimed`
+# The promise itself, read where the runtime states it: the aimed box wears `data-lf-aimed`
 # (target-paint.js, `paintAim`) and draws the aim round itself. The composer's own mark
 # then stands on that same item once the press is made, so the aim's answer before the
 # press and the draft's after it agreeing is the promise being kept.
-AIMED = """() => document.querySelector(".lf-aimed")?.closest("[id]")?.id ?? null"""
+AIMED = (
+    """() => document.querySelector("[data-lf-aimed]")?.closest("[id]")?.id ?? null"""
+)
 # A mark round a box, read off the box that draws it as its own outline (surfaces.css,
 # "Every mark on a box is drawn by the box itself"): the outline's style, width, colour
 # and offset, whether the box cuts it to a gesture's brackets (`brackets`, its
@@ -940,15 +942,13 @@ PAGE_MARKUP = r"""() => [...document.body.children]
             el.classList?.remove(
                 "lf-mark-hover",
                 "lf-projected-mark",
-                "lf-projected-location",
-                "lf-aimed",
-                "lf-traced",
-                "lf-proxied",
                 "lf-binding-seat",
             );
-            el.removeAttribute?.("data-lf-mark");
-            // Anchor naming is presentation state. The layout may copy a name
-            // from a stylesheet into inline style while positioning a comment.
+            for (const paint of ["data-lf-mark", "data-lf-aimed", "data-lf-traced",
+                "data-lf-proxied", "data-lf-projected-location", "data-lf-anchor"])
+                el.removeAttribute?.(paint);
+            // Anchor naming is presentation state. The layout names a box the
+            // author names too inline, beside the author's name.
             el.style?.removeProperty("anchor-name");
             if (!el.getAttribute("style")) el.removeAttribute("style");
         }

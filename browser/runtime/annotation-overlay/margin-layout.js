@@ -85,7 +85,6 @@ import { boundedBlockOf } from "../bounds.js";
 import { pageScroller } from "../scrolling.js";
 import { hearScrollsIn, watchScrollEnds } from "../arrivals.js";
 import { closestAcross, layoutBox, pageDocument } from "../passages.js";
-import { readsLayout } from "../page-paint.js";
 import {
   arrivals,
   inSeatingOrder,
@@ -153,18 +152,21 @@ const rows = new Map();
 // Withhold its row at the mutation checkpoint, before another frame can paint it.
 /** @type {WeakMap<HTMLElement, Element>} */
 const anchors = new WeakMap();
-// The withheld rows whose targets are drawn, kept where they are withheld, so a scroll of
-// the document, which carries every other row, reads only these again
-// (`scheduleStirReading`). A scroll draws no target that has left the page or stands in
-// skipped content, such as a closed disclosure or a tab not chosen; the change that
-// reveals one brings its own pass.
+// The withheld rows a scroll of the document can bring back, kept where they are
+// withheld, so that scroll, which carries every other row, reads only these again
+// (`scheduleStirReading`). A scroll can draw a target the window only kept from showing,
+// or one in content the browser skips until it nears the window (`content-visibility:
+// auto`), which `checkVisibility` counts as drawn. It draws none that has left the page,
+// or that stands in a closed disclosure, a tab not chosen or a hidden box; the change
+// that reveals one brings its own pass.
 /** @type {Set<HTMLElement>} */
-const withheldDrawn = new Set();
-/** @param {HTMLElement} row @param {boolean} on @param {boolean} [drawn] whether its target is */
-function withhold(row, on, drawn = true) {
+const scrollReveals = new Set();
+/** @param {HTMLElement} row @param {boolean} on */
+function withhold(row, on) {
   row.classList.toggle("lf-withheld", on);
-  if (on && drawn) withheldDrawn.add(row);
-  else withheldDrawn.delete(row);
+  const target = on ? rows.get(row)?.anchor() : null;
+  if (target?.isConnected && target.checkVisibility()) scrollReveals.add(row);
+  else scrollReveals.delete(row);
 }
 /** @param {Element} target */
 const targetBox = (target) => shownParts(target)[0] ?? target;
@@ -790,8 +792,8 @@ const faces = new MutationObserver((records) => {
 });
 
 // What changed in the page, on the document or a shadow tree holding a target. A change on
-// Leaf's own surfaces moves no seat, and the runtime's paint on the page is not heard at
-// all (page-paint.js, `paint`).
+// Leaf's own surfaces moves no seat. The runtime's own paint on page boxes, its marks and
+// anchor names, stands in attributes and rules this does not hear (page-paint.js).
 /** @param {MutationRecord[]} records */
 function heardPage(records) {
   const page = records.filter((record) => !onSurface(record.target));
@@ -821,13 +823,11 @@ function heardPage(records) {
     const target = options.anchor();
     const anchor = anchors.get(row);
     if (!movedWith(target) && !movedWith(anchor)) continue;
-    if (!target?.isConnected || (anchor && !anchor.isConnected))
-      withhold(row, true, false);
+    if (!target?.isConnected || (anchor && !anchor.isConnected)) withhold(row, true);
     scheduleMarginLayout();
   }
 }
 const pageChanges = new MutationObserver(heardPage);
-readsLayout(pageChanges, heardPage);
 
 // Neither scroll events nor mutation records leave their shadow tree, so a target
 // inside one is heard on each tree holding it as well as on the document.
@@ -848,8 +848,6 @@ function hearTargetChanges(root) {
     childList: true,
     subtree: true,
     attributes: true,
-    // What tells the runtime's paint from any other change (page-paint.js, `paint`).
-    attributeOldValue: true,
     attributeFilter: ["style", "class", "hidden", "open"],
   });
   root.addEventListener(
@@ -1492,7 +1490,7 @@ export function unregisterMarginRow(row) {
   registered.delete(row);
   restyled.delete(row);
   anchors.delete(row);
-  withheldDrawn.delete(row);
+  scrollReveals.delete(row);
   pushes.delete(row);
   folded.delete(row);
   if (!rows.size) {
@@ -1589,7 +1587,7 @@ function scheduleStirReading() {
     // The document carries ordinary rows and their lanes together, and scrolls every
     // target, so its scroll alone reads again only the rows it may bring back.
     const documentOnly = boxes.every((box) => box === pageScroller);
-    for (const row of documentOnly ? [...withheldDrawn] : [...rows.keys()]) {
+    for (const row of documentOnly ? [...scrollReveals] : [...rows.keys()]) {
       const options = rows.get(row);
       const target = options?.anchor();
       if (!options || !target?.isConnected) continue;
@@ -1818,7 +1816,7 @@ function layoutMountedRows(layer) {
   // Posture determines row size. Write every posture before measuring those sizes;
   // every coordinate is then written together after packing.
   for (const { row, target, shown, place } of reads) {
-    withhold(row, !shown, Boolean(target));
+    withhold(row, !shown);
     if (!target) continue;
     if (row.dataset.lfPlace !== place) {
       // A push in one posture says nothing of where the row stands in the other.

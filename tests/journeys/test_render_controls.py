@@ -261,7 +261,9 @@ CONTROL_ARCHETYPES = (
 
 # The layer's focus floor (surfaces.css), which rings every box holding visible focus
 # where no carrier wears the ring for it: the panel's own controls and rows among them.
-FLOOR_RING = "[data-lf-focus-visible]:not(.lf-projected-mark, .lf-projected-location)"
+FLOOR_RING = (
+    "[data-lf-focus-visible]:not(.lf-projected-mark, [data-lf-projected-location])"
+)
 
 
 # The page the chrome's surfaces are sampled on: small, with a board's grips, and served
@@ -299,7 +301,7 @@ RING_CASES = (
             ),
             # A picture's response proxy, which a screen reader reaches from the
             # picture, rings the picture (details-shelf.js).
-            "heat-loss": ((".lf-visual-action", ".lf-proxied"),),
+            "heat-loss": ((".lf-visual-action", "[data-lf-proxied]"),),
             # Working density, where a choice's gap is narrowest beside the next face.
             "notification-playground": (
                 ("lf-playground input[type=radio]", ":is(.lf-choice, .choice):has"),

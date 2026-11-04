@@ -886,7 +886,7 @@ def test_a_screenshot_margin_trace_paints_both_quiet_brackets(browser, serve):
     margins_laid_out(page)
     toggle = page.get_by_role("button", name="Review capture", exact=True)
     toggle.hover()
-    expect(shot).to_have_class(re.compile(r"\blf-traced\b"))
+    expect(shot).to_have_attribute("data-lf-traced", "")
     ink = shot.evaluate(_MARK_INK)
     traced = screenshot()
 

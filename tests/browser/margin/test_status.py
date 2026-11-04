@@ -1065,7 +1065,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
             expect(marker).to_have_attribute("data-identity-probe", "kept")
         page.evaluate("() => document.activeElement.blur()")
         page.mouse.move(0, 0)
-        expect(page.locator(".lf-traced")).to_have_count(0)
+        expect(page.locator("[data-lf-traced]")).to_have_count(0)
         expect(control.locator(":scope > .lf-margin-entry-label")).to_be_hidden()
         words_still()
         current = face(control)
@@ -1104,7 +1104,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         }
         control.hover()
         traced = page.locator("#jobs")
-        expect(traced).to_have_class(re.compile(r"\blf-traced\b"))
+        expect(traced).to_have_attribute("data-lf-traced", "")
         label = control.locator(":scope > .lf-margin-entry-label")
         expect(label).to_be_visible()
         words_still()
@@ -1355,11 +1355,10 @@ def test_status_hover_trace_uses_a_registered_visual_surface(browser, serve):
     status.hover()
     # The surface draws the trace along its own edge, whole, in the trace's ink; the
     # part it stands for, which holds a decoration too, draws none.
-    traced = re.compile(r"\blf-traced\b")
     surface = page.locator("#outer-surface")
-    expect(surface).to_have_class(traced)
-    expect(page.locator("#outer")).not_to_have_class(traced)
+    expect(surface).to_have_attribute("data-lf-traced", "")
+    expect(page.locator("#outer")).not_to_have_attribute("data-lf-traced", "")
     assert_drawn_in(surface, token_colour(page, "--target-trace-ink"), 2)
 
     page.mouse.move(0, 0)
-    expect(page.locator(".lf-traced")).to_have_count(0)
+    expect(page.locator("[data-lf-traced]")).to_have_count(0)

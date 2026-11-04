@@ -1585,7 +1585,7 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
     # promise.
     marks = page.evaluate("""() => [...document.querySelectorAll('main [data-lf-obligation]')].map(e => {
       return { what: e.id || e.tagName, fragments: e.getClientRects().length,
-               ring: e.classList.contains('lf-projected-location')
+               ring: e.hasAttribute('data-lf-projected-location')
                  && getComputedStyle(e).outlineStyle === 'solid' };
     })""")
     assert [m["what"] for m in marks] == ["sug-refill"]
@@ -1675,7 +1675,7 @@ def test_the_walk_travels_to_an_obligation_a_page_left_boxless(browser, serve):
     # round itself (target-paint.js, `paintLocation`).
     rings = page.evaluate("""() => ['lf-old', 'lf-new'].map(tag => {
       const slot = document.querySelector(`#sug-refill > ${tag}`);
-      return slot.classList.contains('lf-projected-location')
+      return slot.hasAttribute('data-lf-projected-location')
         && getComputedStyle(slot).outlineStyle === 'solid'; })""")
     assert rings == [True, True], f"a slot of the decision wears no ring: {rings}"
 

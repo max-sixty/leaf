@@ -1,8 +1,6 @@
 """The obligation walk with `m`: where it lands, how it reveals an obligation in tabs and scrollers,
 and an obligation's digits and thread."""
 
-import re
-
 import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
@@ -1456,7 +1454,7 @@ def test_an_obligation_landed_in_a_pane_keeps_its_ring_inside_the_pane(browser, 
     expect(item).to_be_focused()
     expect(item).to_have_attribute("data-lf-obligation", "1")
     scroll_settled(page, "#ask-detail > :not(header, footer)")
-    expect(item).to_have_class(re.compile(r"\blf-projected-location\b"))
+    expect(item).to_have_attribute("data-lf-projected-location", "")
     ring = item.evaluate(MARK)
     pane_top = item.evaluate(
         """ask => {
@@ -1492,7 +1490,7 @@ def test_the_ring_round_a_question_stands_clear_of_its_words(browser, serve):
     resized(page, 1280, 800)
     page.keyboard.press("m")
     question = page.locator("#rollout")
-    expect(question).to_have_class(re.compile(r"\blf-projected-location\b"))
+    expect(question).to_have_attribute("data-lf-projected-location", "")
     ring, column = question.evaluate(MARK), page.evaluate(ASK_WORDS)
     assert ring["ring"]["left"] + ring["width"] < column["words"], (ring, column)
     page.close()
@@ -1501,7 +1499,7 @@ def test_the_ring_round_a_question_stands_clear_of_its_words(browser, serve):
     resized(page, 1280, 800)
     page.keyboard.press("m")
     question = page.locator("#rollout")
-    expect(question).to_have_class(re.compile(r"\blf-projected-location\b"))
+    expect(question).to_have_attribute("data-lf-projected-location", "")
     ring, workspace = question.evaluate(MARK), page.evaluate(ASK_WORDS)
     assert ring["offset"] > 0, ring
     assert ring["ring"]["top"] >= 0 and ring["ring"]["left"] >= 0, ring

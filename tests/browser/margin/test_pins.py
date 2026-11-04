@@ -5,7 +5,7 @@ import re
 from math import hypot
 
 import pytest
-from interact_support import append_carried_log_record
+from interact_support import append_carried_log_record, element_declaration
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE
 from render_cases_widgets import RAIL_BAND_PAGE
@@ -420,6 +420,101 @@ def test_a_control_an_authored_anchor_name_moves_into_a_pin_s_seat_moves_the_pin
               return b.right <= act.left || act.right <= b.left
                 || b.bottom <= act.top || act.bottom <= b.top;
             });
+        }""",
+        timeout=5000,
+    )
+
+
+# Ways a page's own code can move a button onto the pin by `#t` in reaction to the trace
+# a margin entry draws on `#a`, each changing no box's size: a restyle, a class whose
+# words a no-break space runs together so a rule stops matching, and an anchor name
+# handed to a box standing on the pin.
+REACTIONS = {
+    "style": "act.style.translate = 'none';",
+    "class": "act.className = 'off\\u00a0away';",
+    "anchor-name": (
+        "document.getElementById('there').style.anchorName = 'none';"
+        "document.getElementById('spot').style.anchorName = '--spot';"
+    ),
+}
+
+
+@pytest.mark.parametrize("reaction", REACTIONS)
+def test_a_page_s_reaction_to_a_runtime_mark_moves_a_pin_clear(
+    browser, serve, reaction
+):
+    """The runtime draws its marks in attributes of its own, which the margin does not
+    hear, but a page's code can react to one at once, in the same task, with a change
+    of its own that moves a button onto a pin. The margin hears that change as any other
+    and seats the pin clear of the button."""
+    body = (
+        '<lf-test-reactor id="a"><p>A paragraph whose margin entry the pointer rests '
+        "on.</p></lf-test-reactor>"
+        '<p id="t">Another paragraph, with a pin at its top right corner.</p>'
+        '<div id="there" style="height: 2rem; margin-top: 40rem; anchor-name: --spot"></div>'
+        '<div id="spot" style="position: absolute; width: 1px; height: 1px"></div>'
+        "<style>lf-test-reactor { display: block; } .away { translate: 0 60rem; }"
+        "#act { position: absolute; width: 8rem; height: 2.5rem; }"
+        "#act.anchored { position-anchor: --spot; top: anchor(top); left: anchor(left); }"
+        "</style>"
+    )
+    button = (
+        '<button id="act" class="anchored">Act</button>'
+        if reaction == "anchor-name"
+        else '<button id="act" class="off away"'
+        + (' style="translate: 0 60rem"' if reaction == "style" else "")
+        + ">Act</button>"
+    )
+    reactor = (
+        "customElements.define('lf-test-reactor', class extends HTMLElement {"
+        "static observedAttributes = ['data-lf-traced'];"
+        "attributeChangedCallback(name, was, now) {"
+        "if (now === null) return;"
+        "const act = document.getElementById('act');"
+        f"{REACTIONS[reaction]}" + "}});"
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page("a reaction", f"<div>{body}{button}</div>", layout="sidebar"),
+            events=[_comment_on("a"), _comment_on("t")],
+            layer_registry={
+                "lf-test-reactor": element_declaration("lf-test-reactor", upgrade=True)
+            },
+            layer_widgets={"lf-test-reactor.js": reactor},
+        ),
+    )
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    for target in ("a", "t"):
+        expect(
+            page.locator(f'.lf-margin-cluster[data-lf-margin-for="{target}"]')
+        ).to_have_attribute("data-lf-place", "pin")
+    # The button, and the box an anchor name can carry it to, wait over the pin by `#t`,
+    # kept off it by the translation, the class or the anchor name the reaction changes.
+    page.evaluate(
+        """(id) => {
+          const pin = document.querySelector('[data-lf-margin-for="t"] .lf-margin-entry')
+            .getBoundingClientRect();
+          const box = document.getElementById(id);
+          const holder = (box.offsetParent ?? document.body).getBoundingClientRect();
+          box.style.left = `${pin.left - holder.left - 8}px`;
+          box.style.top = `${pin.top - holder.top - 4}px`;
+        }""",
+        "spot" if reaction == "anchor-name" else "act",
+    )
+    margins_laid_out(page)
+    page.locator('[data-lf-margin-for="a"] .lf-margin-marker').hover()
+    expect(page.locator("#a")).to_have_attribute("data-lf-traced", "")
+    page.wait_for_function(
+        """() => {
+          const act = document.getElementById('act').getBoundingClientRect();
+          const pin = document.querySelector('[data-lf-margin-for="t"] .lf-margin-entry');
+          const here = document.getElementById('t').getBoundingClientRect();
+          if (act.top > here.bottom + 40) return false;
+          const b = pin.getBoundingClientRect();
+          return b.right <= act.left || act.right <= b.left
+            || b.bottom <= act.top || act.bottom <= b.top;
         }""",
         timeout=5000,
     )

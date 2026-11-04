@@ -2468,7 +2468,9 @@ def test_a_remote_resolve_disarms_the_open_reply_list_it_takes_away(browser, ser
 
     thread_model.cmd_resolve(serve.page_dir, root)
     told(page)
-    expect(page.locator(".lf-fp-head .lf-thread-news")).to_have_text("Resolved")
+    news = page.locator(".lf-fp-head .lf-thread-news")
+    expect(news).to_have_text("1 new")
+    expect(news).to_have_attribute("title", "Resolved")
     expect(strip.locator(".lf-react-palette:popover-open")).to_have_count(1)
     count = len(events_model.read_events(serve.page_dir))
     page.keyboard.press("1")

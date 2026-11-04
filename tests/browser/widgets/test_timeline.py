@@ -180,6 +180,39 @@ RUNS = """<h1>Race</h1>
 </lf-timeline>"""
 
 
+def test_a_tall_timeline_s_gridlines_reach_its_last_lane(browser, serve):
+    """Each major time's line runs from the ruler's foot to the chart's, however many
+    lanes the chart holds, as its playhead does."""
+    lanes = "".join(
+        f'<lf-lane label="Worker {n}"><lf-event id="w{n}" at="{n * 100}" '
+        f'end="{n * 100 + 2000}" label="Job {n}"></lf-event></lf-lane>'
+        for n in range(60)
+    )
+    source = leaf_page(
+        "Tall",
+        f'<h1>Tall</h1><lf-timeline id="tall" aria-label="Workers">{lanes}</lf-timeline>',
+    )
+    page = open_page(browser, serve(source, packages=("timeline",)))
+    reading = page.evaluate(
+        """() => {
+          const tall = document.querySelector('#tall');
+          const box = (node) => node.getBoundingClientRect();
+          return {
+            chart: box(tall.querySelector('.lf-timeline-chart')),
+            ruler: box(tall.querySelector('.lf-timeline-ruler')),
+            playhead: box(tall.querySelector('.lf-timeline-playhead-line')),
+            lines: [...tall.querySelectorAll('.lf-axis-gridline')].map(box),
+          };
+        }"""
+    )
+    assert reading["chart"]["height"] > 2000, reading["chart"]
+    assert reading["lines"], reading
+    for line in reading["lines"]:
+        assert abs(line["top"] - reading["ruler"]["bottom"]) < 0.5, (line, reading)
+        assert abs(line["bottom"] - reading["chart"]["bottom"]) < 0.5, (line, reading)
+    assert abs(reading["playhead"]["bottom"] - reading["chart"]["bottom"]) < 0.5
+
+
 def test_compared_runs_line_up_on_one_axis_under_one_playhead(browser, serve):
     page = open_page(browser, serve(leaf_page("Race", RUNS), packages=("timeline",)))
     reading = page.evaluate(

@@ -218,6 +218,18 @@ export function render(host, current, model, layout) {
           )
         }
       </div>
+      <div class="lf-timeline-grid lf-axis-grid">
+        ${repeat(
+          (layout?.ticks ?? []).filter((tick) => tick.major),
+          (tick) => tick.time,
+          (tick) =>
+            html`<span
+              class="lf-axis-gridline"
+              ?data-lf-flip=${tick.flip}
+              style="--lf-axis-at: ${along(tick.time)}"
+            ></span>`,
+        )}
+      </div>
       ${model.lanes.map(
         (lane) =>
           html`<div
@@ -237,15 +249,15 @@ export function render(host, current, model, layout) {
                   data-lf-state=${state}
                 >
                   <span
-                    class="lf-timeline-label"
+                    class="lf-timeline-label lf-on-axis"
                     data-lf-place=${label?.place ?? "start"}
-                    style="--lf-timeline-row-index: ${label?.row ?? 0}; --lf-timeline-at: ${along(event.at)}"
+                    style="--lf-timeline-row-index: ${label?.row ?? 0}; --lf-axis-at: ${along(event.at)}"
                     >${event.label}</span
                   >
                   <span
-                    class="lf-timeline-mark"
+                    class="lf-timeline-mark lf-on-axis"
                     data-lf-kind=${event.end === null ? "instant" : "span"}
-                    style="--lf-timeline-at: ${along(
+                    style="--lf-axis-at: ${along(
                       event.at,
                     )}; --lf-timeline-span: ${along(
                       (event.end ?? event.at) - event.at,
@@ -258,8 +270,8 @@ export function render(host, current, model, layout) {
       )}
       <div class="lf-timeline-playhead">
         <span
-          class="lf-timeline-playhead-line"
-          style="--lf-timeline-at: ${along(now)}"
+          class="lf-timeline-playhead-line lf-on-axis"
+          style="--lf-axis-at: ${along(now)}"
         ></span>
       </div>
     </div>

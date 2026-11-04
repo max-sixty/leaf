@@ -215,7 +215,6 @@ lf-trace[hidden="until-found"] {
   min-inline-size: 0;
   scrollbar-width: thin;
 }
-/* The track clips the ruler's lines at its foot (controls.css, `.lf-axis-tick`). */
 .lf-trace-track {
   --lf-trace-span: calc(100% - 2 * var(--lf-axis-edge));
   position: relative;
@@ -226,18 +225,14 @@ lf-trace[hidden="until-found"] {
   cursor: crosshair;
   overflow: hidden;
 }
+/* The axis's gridlines (controls.css, `.lf-axis-grid`) run from the ruler's foot down
+   every lane, as the playhead does. */
+.lf-trace-grid {
+  position: absolute;
+  inset: var(--lf-trace-ruler-h) 0 0;
+}
 .lf-trace-lane {
   position: relative;
-}
-:is(
-  .lf-trace-moment-pin,
-  .lf-trace-input-label,
-  .lf-trace-bar,
-  .lf-trace-input-send,
-  .lf-trace-capture
-) {
-  position: absolute;
-  left: calc(var(--lf-axis-edge) + var(--t) * var(--lf-trace-span));
 }
 /* Bars span their recorded call; a 2px floor keeps an instant visible. */
 .lf-trace-bar {
@@ -398,9 +393,7 @@ lf-trace[hidden="until-found"] {
 }
 /* The playhead: one line across every lane on the shared time coordinate. */
 .lf-trace-playhead {
-  position: absolute;
   inset-block: 0;
-  left: calc(var(--lf-axis-edge) + var(--lf-trace-time, 0) * var(--lf-trace-span));
   inline-size: 2px;
   translate: -1px 0;
   background: var(--accent);

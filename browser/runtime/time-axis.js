@@ -38,16 +38,16 @@ function tickStep(pxPerMs) {
   return 1e9;
 }
 
-/** The decimals a whole number of milliseconds needs in seconds. */
-/** @param {number} ms */
-const decimals = (ms) =>
-  ms % 1000 === 0 ? 0 : ms % 100 === 0 ? 1 : ms % 10 === 0 ? 2 : 3;
+/** The decimals that show every multiple of a tick step in seconds. */
+/** @param {number} step */
+const decimals = (step) => (step >= 1000 ? 0 : step >= 100 ? 1 : step >= 10 ? 2 : 3);
 
 /** A time in milliseconds as seconds, such as "1.2 s": with `digits` decimals, or
- * with as few as show it to the millisecond. */
+ * rounded to the millisecond and written with as few decimals as show it. */
 /** @param {number} ms @param {number} [digits] */
-export function seconds(ms, digits = decimals(ms)) {
-  return `${(ms / 1000).toFixed(digits)} s`;
+export function seconds(ms, digits) {
+  const s = ms / 1000;
+  return `${digits === undefined ? Number(s.toFixed(3)) : s.toFixed(digits)} s`;
 }
 
 /** The ticks between `from` and `to`, clipped to `[0, duration]`: `{time, major,

@@ -233,7 +233,9 @@ def test_z_waits_for_an_unanswered_thread_resolution(browser, serve):
     page.route("**/api/event", lambda route: held.append(route))
     sent = _traffic(page).sends
     # Resolving the thread open from Threads moves the user on to the next one.
-    expect(page.locator(PANEL_THREAD)).to_have_attribute("data-thread", comment_ids[1])
+    expect(page.locator(PANEL_THREAD)).to_have_attribute(
+        "data-lf-thread", comment_ids[1]
+    )
     page.locator(".lf-fp-settle").click()
     holding(page, held, 1, "the second resolution")
     undo_offered(page, offered=False)
@@ -398,7 +400,7 @@ def _shown(page, thread):
     """The thread's transcript, open and in the window."""
     expect(
         page.locator(
-            f'.lf-page-thread[data-thread="{thread}"][data-lf-part="transcript"]'
+            f'.lf-page-thread[data-lf-thread="{thread}"][data-lf-part="transcript"]'
         )
     ).to_be_in_viewport()
 

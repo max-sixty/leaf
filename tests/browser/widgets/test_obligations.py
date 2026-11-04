@@ -1586,7 +1586,7 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
     marks = page.evaluate("""() => [...document.querySelectorAll('main [data-lf-obligation]')].map(e => {
       const ring = document.querySelector('.lf-location');
       return { what: e.id || e.tagName, fragments: e.getClientRects().length,
-               ring: ring?.dataset.for === e.id && getComputedStyle(ring).display !== 'none' };
+               ring: ring?.dataset.lfFor === e.id && getComputedStyle(ring).display !== 'none' };
     })""")
     assert [m["what"] for m in marks] == ["sug-refill"]
     assert marks[0]["ring"]
@@ -1674,7 +1674,7 @@ def test_the_walk_travels_to_an_obligation_a_page_left_boxless(browser, serve):
     # One ring, round every box the decision shows through: rings on the pieces read
     # as boxes touching rather than as the one decision the user is in.
     assert page.evaluate("""() => {
-      const ring = document.querySelector('.lf-location[data-for="sug-refill"]');
+      const ring = document.querySelector('.lf-location[data-lf-for="sug-refill"]');
       const w = ring.getBoundingClientRect();
       return ['refill-was', 'refill-now'].every(id => {
         const r = document.getElementById(id).getBoundingClientRect();

@@ -269,7 +269,7 @@ def test_a_card_s_head_row_cuts_the_name_before_the_time(browser, serve):
     expect(notice).to_have_text("2 new")
     rendered(page)
     assert notice.evaluate("node => node.scrollWidth <= node.clientWidth")
-    card = preview.locator(f'.lf-page-thread[data-thread="{root}"]')
+    card = preview.locator(f'.lf-page-thread[data-lf-thread="{root}"]')
     times = card.evaluate(TIMES_WHOLE)
     assert times and all(time["whole"] for time in times), times
     name = card.locator(".lf-msg-head b").first
@@ -302,7 +302,7 @@ def test_a_card_head_without_its_time_parts_its_words_from_the_name_once(
     append_user_reply(serve.page_dir, root, "And the banner where it is too.")
     page = open_page(browser, url)
     page.locator(".lf-margin-marker").first.click()
-    card = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+    card = page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]')
     expect(card.get_by_text("And the banner where it is too.")).to_be_visible()
     rendered(page)
     heads = card.evaluate(AFTER_NAME)
@@ -374,7 +374,7 @@ def test_a_card_s_head_stands_whole_beside_news(browser, serve, finger):
     expect(notice).to_have_attribute("title", "1 new reply · 1 new message")
     expect(notice).to_have_text("2 new")
     rendered(page)
-    card = preview.locator(f'.lf-page-thread[data-thread="{root}"]')
+    card = preview.locator(f'.lf-page-thread[data-lf-thread="{root}"]')
     head = card.locator(".lf-msg-head").first
     stands = page.evaluate(
         NEWS_BESIDE_HEAD, [notice.element_handle(), head.element_handle()]
@@ -467,7 +467,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
                   borderLeft: cardStyle.borderLeftWidth,
                   borderRight: cardStyle.borderRightWidth,
                   replyTop: reply.top, replyBottom: reply.bottom,
-                  panelOpen: 'open' in document.querySelector('.lf-floating-panel').dataset};
+                  panelOpen: 'lfOpen' in document.querySelector('.lf-floating-panel').dataset};
         }"""
     )
     assert geometry["cardLeft"] >= page.evaluate(WORDS_RIGHT) + 7.5, geometry
@@ -588,13 +588,13 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     expect(preview).to_be_visible()
     expect(marker).to_have_attribute("aria-controls", "lf-margin-preview")
     expect(marker).to_have_attribute("aria-expanded", "true")
-    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile(""))
+    expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile(""))
     leave_card(page)
     marker.hover()
     expect(preview).to_be_hidden()
     marker.click()
     expect(preview).to_be_visible()
-    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile(""))
+    expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile(""))
 
     leave_card(page)
     resized(page, 1280, 600)
@@ -657,7 +657,7 @@ def test_crossing_to_the_small_screen_moves_the_card_s_thread_to_the_panel(
 
     resized(page, 1440, 900)
     expect(card).to_be_visible()
-    expect(page.locator(".lf-fp-view:not([data-leaving])")).to_have_count(0)
+    expect(page.locator(".lf-fp-view:not([data-lf-leaving])")).to_have_count(0)
     typed = card.locator("leaf-text")
     expect(typed).to_be_focused()
     assert typed.evaluate("el => el === window.lfTypedIn")
@@ -675,7 +675,7 @@ def test_widening_from_a_thread_in_the_panel_lands_in_its_card(browser, serve):
     resized(page, 390, 760)
     margins_laid_out(page)
     page.locator('.lf-margin-marker[data-lf-kinds~="comment"]').click()
-    expect(page.locator(".lf-fp-view:not([data-leaving])")).to_be_focused()
+    expect(page.locator(".lf-fp-view:not([data-lf-leaving])")).to_be_focused()
 
     resized(page, 1440, 900)
     card = page.locator(".lf-margin-preview")

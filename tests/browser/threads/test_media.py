@@ -281,7 +281,7 @@ def test_a_tap_at_the_comment_field_s_edge_stays_the_field_s(
     passage.click(click_count=3)
     # Under a finger the panel's field offers the selected words, and a press there
     # opens the comment box on them.
-    page.locator('.lf-fp-field leaf-text[data-says="selection"]').click()
+    page.locator('.lf-fp-field leaf-text[data-lf-says="selection"]').click()
     field = page.locator(".lf-fab-input")
     field.click()
     paste_image(field, picture())

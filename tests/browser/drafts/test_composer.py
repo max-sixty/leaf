@@ -486,7 +486,7 @@ def test_resume_writing_reveals_page_editor_from_a_covering_panel_and_keeps_back
     source_entry = page.evaluate("navigation.currentEntry.key")
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(page.locator(PANEL)).to_have_attribute("data-open", "threads")
+    expect(page.locator(PANEL)).to_have_attribute("data-lf-open", "threads")
     page.keyboard.press("g")
     page.keyboard.press("i")
     if hidden_tab:

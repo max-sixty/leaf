@@ -1396,7 +1396,7 @@ function placeKeeper(scroller, { items, identity, active = () => true, preferred
 //#endregion
 //#region runtime/thread/selectors.js
 const THREAD = ".lf-page-thread, [data-lf-thread-view]";
-const drawnThreadId = (node) => node?.getAttribute("data-thread") ?? null;
+const drawnThreadId = (node) => node?.getAttribute("data-lf-thread") ?? null;
 const SAYS_IN = `${THREAD}, .lf-thread-seat`;
 const SAY_ROW = ".lf-thread-reply, .lf-say";
 const SAY_BOX = SAY_ROW.split(", ").map((row) => `:scope > ${row} ${TEXT_FIELD}`).join(", ");
@@ -1452,7 +1452,7 @@ const landingTarget = (held, control) => {
 const onScreen = (node) => seenRect(node, /* @__PURE__ */ new Map()) !== null;
 const returnTurn = (transcript, unread) => {
 	const turns = [...transcript.querySelectorAll(":scope > :is(.lf-msg, .lf-thread-checkpoint)")];
-	let start = unread ? turns.find((node) => node.getAttribute("data-message") === unread) ?? null : null;
+	let start = unread ? turns.find((node) => node.getAttribute("data-lf-message") === unread) ?? null : null;
 	while (start && !showsContents(start)) start = start.previousElementSibling;
 	return start ?? turns.findLast((node) => showsContents(node)) ?? null;
 };
@@ -1662,7 +1662,7 @@ function openMessageEdit(id, view, thread) {
 const keptRewrite = (id) => !open.has(id) && !sending.has(id) && draftHasContent(rewriteContext(id));
 const watchRewrite = (id, changed) => watchDraft(rewriteContext(id), changed);
 function openMessageEditIn(thread, id) {
-	const message = [...thread?.querySelectorAll(".lf-msg") ?? []].find((node) => node.getAttribute("data-event") === id);
+	const message = [...thread?.querySelectorAll(".lf-msg") ?? []].find((node) => node.getAttribute("data-lf-event") === id);
 	message?.dispatchEvent(new CustomEvent(OPEN_MESSAGE_EDIT));
 	return message?.querySelector(`:scope > .lf-msg-body > .lf-msg-editor ${TEXT_FIELD}`) ?? null;
 }
@@ -2384,7 +2384,7 @@ function watchCodeBlocks() {
 		}
 	});
 	watchArrivals("pre, table:not([role='presentation']), [data-lf-content='data']:not([data-lf-verbatim])", [], {
-		arrive: (block) => block.classList.toggle("scroll", true),
+		arrive: (block) => block.toggleAttribute(PAGE_PAINT_ATTRIBUTE.scrollSurface, true),
 		leave: () => {}
 	});
 	prepareDocumentBlocks = (blocks) => {
@@ -2839,7 +2839,7 @@ function toggle(video) {
 	});
 }
 function paintRecordingControls(video, bar, enterFullScreen) {
-	keeps(bar, "data-playing", video.paused ? null : "");
+	keeps(bar, "data-lf-playing", video.paused ? null : "");
 	keeps(bar, "role", "group");
 	keeps(bar, "aria-label", video.getAttribute("aria-label") || "Recording");
 	render$1(html`<button
@@ -2914,7 +2914,7 @@ function prepare(video) {
 	});
 	const show = (flag, force) => {
 		if (force) revealControl(bar, video);
-		keeps(bar, `data-${flag}`, force ? "" : null);
+		keeps(bar, `data-lf-${flag}`, force ? "" : null);
 	};
 	on("pointerenter", () => show("hovered", true));
 	on("pointerleave", () => show("hovered", false));
@@ -3185,7 +3185,7 @@ var ReactionStripView = class {
 		render$1(html`
         ${repeat(model.choices, (choice) => choice.name, (choice) => html` <button
               ${offeredAction("reaction", `lf-react ${HOLDS_WORD}`)}
-              data-token=${choice.name}
+              data-lf-token=${choice.name}
               title=${choice.label}
               aria-label=${choice.label}
               aria-pressed=${String(Boolean(choice.inForce))}
@@ -3212,7 +3212,7 @@ var ReactionStripView = class {
 			if (event.newState === "closed") registration.close();
 		};
 		this.node.onclick = (event) => {
-			if (!event.composedPath().some((node) => node instanceof HTMLButtonElement && node.matches(".lf-react[data-token]"))) return;
+			if (!event.composedPath().some((node) => node instanceof HTMLButtonElement && node.matches(".lf-react[data-lf-token]"))) return;
 			registration.close();
 			this.#commands.pressed?.();
 		};
@@ -3432,7 +3432,7 @@ var MessageView = class {
 		this.#dated = dated;
 		if (!prior) {
 			this.node.classList.add("lf-msg");
-			this.node.dataset.message = model.key;
+			this.node.dataset.lfMessage = model.key;
 			this.node.classList.add("lf-ui");
 			generatedElement(this.node, { says: false });
 			this.node.dataset.lfOffer = "";
@@ -3464,11 +3464,11 @@ var MessageView = class {
 			if (keptRewrite(presentation.model.id) !== this.#kept) this.#commands.edit.paint(this.node);
 		});
 		keeps(this.node, "data-lf-author", model.author);
-		keeps(this.node, "data-event", model.id);
+		keeps(this.node, "data-lf-event", model.id);
 		this.node.classList.toggle("lf-unread", Boolean(model.unread));
-		keeps(this.node, "data-attempt", model.attempt || null);
+		keeps(this.node, "data-lf-attempt", model.attempt || null);
 		keeps(this.node, "aria-busy", model.pending ? "true" : null);
-		keeps(this.node, "data-failure", model.failure || null);
+		keeps(this.node, "data-lf-failure", model.failure || null);
 		const authoredKey = model.attempt ?? model.id;
 		const authored = model.body.authored ? authoredMessage(model).nodes : [];
 		let displaced = null;
@@ -4380,7 +4380,7 @@ const threadReplyInput = (thread) => {
 	return input && shownBox(input).height ? input : null;
 };
 function threadFocusDestination(thread, options = {}) {
-	if (options.part === "message") return thread.querySelector(`.lf-msg[data-event="${CSS.escape(options.message)}"]`);
+	if (options.part === "message") return thread.querySelector(`.lf-msg[data-lf-event="${CSS.escape(options.message)}"]`);
 	return (options.part === "thread" ? thread : null) ?? threadReplyInput(thread) ?? thread;
 }
 function focusedThreadTarget() {
@@ -4659,7 +4659,7 @@ function newsNotice(header = false) {
 	const node = offerAction("inline", header ? "lf-thread-header-action lf-thread-news" : "lf-thread-news");
 	keeps(node, "data-lf-news", "");
 	const words = document.createElement("span");
-	words.dataset.voice = "leaf";
+	words.dataset.lfVoice = "leaf";
 	node.append(words);
 	let open = () => null;
 	node.addEventListener("mousedown", (event) => event.preventDefault());
@@ -4998,7 +4998,7 @@ var HeldArrivals = class {
 		});
 	}
 	#lapse(which) {
-		const currentLocation = new Set(currentLocationNodes().map((node) => closestAcross(node, THREAD)?.getAttribute("data-thread")));
+		const currentLocation = new Set(currentLocationNodes().map((node) => closestAcross(node, THREAD)?.getAttribute("data-lf-thread")));
 		return this.#release((held) => which(held) && !currentLocation.has(held.id));
 	}
 	#watch(threads) {
@@ -5073,7 +5073,7 @@ var ReplyContinuity = class {
 		const extent = parseFloat(getComputedStyle(this.#owner).blockSize);
 		const place = offFlowSurfaceOf(this.#owner) ? null : placeKeeper(scrollerFor(this.#owner), {
 			items: ".lf-reply-continuity",
-			identity: (node) => node.getAttribute("data-thread"),
+			identity: (node) => node.getAttribute("data-lf-thread"),
 			preferred: () => this.#owner
 		});
 		return {
@@ -5202,9 +5202,9 @@ function workingPlace(ranges, position) {
 //#endregion
 //#region runtime/thread/transcript.js
 const MESSAGE_NAMES = [
-	"data-message",
-	"data-event",
-	"data-attempt"
+	"data-lf-message",
+	"data-lf-event",
+	"data-lf-attempt"
 ];
 function workingView(working, controls = nothing, observe = null) {
 	return html`<div class="lf-thread-working-head">
@@ -5268,7 +5268,7 @@ var Transcript = class {
 		return [...this.#messages].flatMap(([key, { node }]) => wanted.has(key) || !node.isConnected ? [] : [node]);
 	}
 	summaryNode(id) {
-		return this.node.querySelector(`:scope > [data-summary-id="${CSS.escape(id)}"]`);
+		return this.node.querySelector(`:scope > [data-lf-summary-id="${CSS.escape(id)}"]`);
 	}
 	get foot() {
 		return [...this.node.children].findLast((node) => showsContents(node)) ?? null;
@@ -5393,7 +5393,7 @@ var Transcript = class {
 				key: `face:${id}`,
 				body: (tail) => html`<div
             class="lf-thread-working"
-            data-face=${id}
+            data-lf-face=${id}
             aria-live="polite"
             data-lf-live=${reading.live ? "" : nothing}
             data-lf-append-tail=${tail ? "" : nothing}
@@ -5443,7 +5443,7 @@ var Transcript = class {
 		this.#stopWorkingExposure?.();
 		this.#stopWorkingExposure = null;
 		this.#paint();
-		const faceNode = (row) => this.node.querySelector(`:scope > [data-face="${CSS.escape(row.key.slice(5))}"]`);
+		const faceNode = (row) => this.node.querySelector(`:scope > [data-lf-face="${CSS.escape(row.key.slice(5))}"]`);
 		this.#facing = new Map([...facing].map(([key, row]) => [key, faceNode(row)]));
 		for (const [key, fold] of this.#folding) {
 			if (fold.played) continue;
@@ -5457,8 +5457,8 @@ var Transcript = class {
 			}, () => {});
 		}
 		if (!currentLocationToggle || currentLocationToggle.isConnected) return null;
-		const toggleFor = (id) => this.node.querySelector(`.lf-summary-expand[data-summary-toggle="${CSS.escape(id)}"]`);
-		const succeeded = currentLocationToggle.dataset.summaryToggle;
+		const toggleFor = (id) => this.node.querySelector(`.lf-summary-expand[data-lf-summary-toggle="${CSS.escape(id)}"]`);
+		const succeeded = currentLocationToggle.dataset.lfSummaryToggle;
 		return [...succeeded ? [succeeded, ...(successors.get(succeeded) ?? []).map(({ summary }) => summary.id)] : []].map(toggleFor).find(Boolean) ?? null;
 	}
 	#withFolds(rows) {
@@ -5486,8 +5486,8 @@ var Transcript = class {
 		const progress = Boolean(range.summary.pending);
 		return html`<section
       class="lf-thread-checkpoint"
-      data-summary-id=${range.summary.id}
-      data-expanded=${range.expanded}
+      data-lf-summary-id=${range.summary.id}
+      data-lf-expanded=${range.expanded}
       ?hidden=${progress && !range.expanded}
       aria-owns=${covered.map(({ id }) => id).join(" ")}
       style=${`--lf-fold-head: ${anchor}; --lf-fold-foot: ${anchor}-foot;`}
@@ -5515,7 +5515,7 @@ var Transcript = class {
 		return html`<button
       type="button"
       ${offeredAction("inline", `lf-thread-disclosure lf-disclosure-marker lf-summary-expand${progress ? " lf-progress-expand" : ""}`)}
-      data-summary-toggle=${ids[0]}
+      data-lf-summary-toggle=${ids[0]}
       aria-expanded=${String(expanded)}
       aria-controls=${ranges.flatMap((range) => range.messages.map(({ key }) => this.messageNode(key)?.id)).filter(Boolean).join(" ")}
       @click=${() => this.#setSummaryExpanded(ids, !expanded)}
@@ -5527,7 +5527,7 @@ var Transcript = class {
 		for (const id of ids) if (expanded) this.#expandedSummaries.add(id);
 		else this.#expandedSummaries.delete(id);
 		this.#repaint();
-		const toggle = this.node.querySelector(`.lf-summary-expand[data-summary-toggle="${CSS.escape(ids[0])}"]`);
+		const toggle = this.node.querySelector(`.lf-summary-expand[data-lf-summary-toggle="${CSS.escape(ids[0])}"]`);
 		if (toggle) {
 			focusDestination(toggle, "return");
 			scrollThreadIntoView(this.#home(), toggle, "instant");
@@ -5856,9 +5856,9 @@ var ThreadView = class {
 		const notice = this.#news;
 		if (model.news) notice.set(model.news);
 		const news = model.news ? notice.node : nothing;
-		keeps(this.node, "data-thread", model.id);
-		keeps(this.node, "data-resolved", model.resolved);
-		keeps(this.node, "data-attempt", model.attempt || null);
+		keeps(this.node, "data-lf-thread", model.id);
+		keeps(this.node, "data-lf-resolved", model.resolved);
+		keeps(this.node, "data-lf-attempt", model.attempt || null);
 		keeps(this.node, "role", "group");
 		keeps(this.node, "aria-label", `Thread, ${model.summary.topic}`);
 		const settlement = model.settlement ? this.#settlement(model, model.settlement) : nothing;
@@ -6452,7 +6452,7 @@ function obligationsIn(region, items = readObligations().all) {
 //#endregion
 //#region runtime/obligations/view-elements.js
 const OBLIGATION_CONTROL = ":is(button[data-lf-offer], [data-lf-offer][tabindex])";
-const ON_CARD = ".lf-fp-on-item[data-obligation]";
+const ON_CARD = ".lf-fp-on-item[data-lf-obligation-id]";
 
 //#endregion
 //#region runtime/reading-place.js
@@ -7093,7 +7093,7 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
 			const outlet = [...registration.outlets].find((outlet) => under(node, outlet));
 			if (!outlet) return null;
 			const thread = closestAcross(node, ".lf-page-thread");
-			if (thread && under(thread, outlet)) return registration.placements?.placedAt(thread.getAttribute("data-thread"))?.place ?? null;
+			if (thread && under(thread, outlet)) return registration.placements?.placedAt(thread.getAttribute("data-lf-thread"))?.place ?? null;
 			return outlet === composition.outlet() ? registration.placements?.pendingAt()?.place ?? null : null;
 		}),
 		handle: {
@@ -7377,7 +7377,7 @@ function revealHeld(ids) {
 function surfaceFocusTarget(name, { part = "reply" } = {}) {
 	const id = threadIdNamed(name);
 	for (const registration of registrations.values()) {
-		const thread = [...registration.outlets].map((outlet) => outlet.querySelector(`.lf-page-thread[data-thread="${CSS.escape(id)}"]`)).find(Boolean);
+		const thread = [...registration.outlets].map((outlet) => outlet.querySelector(`.lf-page-thread[data-lf-thread="${CSS.escape(id)}"]`)).find(Boolean);
 		if (!thread) continue;
 		return threadFocusDestination(thread, {
 			part,

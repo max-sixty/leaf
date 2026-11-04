@@ -872,7 +872,7 @@ function voiceOf(words) {
 	const [voice = null] = voices;
 	return voices.size === 1 ? voice : null;
 }
-const voiced = (words) => runOf(words).map((part) => typeof part === "string" ? part : html`<span data-voice=${part.voice}>${part.text}</span>`);
+const voiced = (words) => runOf(words).map((part) => typeof part === "string" ? part : html`<span data-lf-voice=${part.voice}>${part.text}</span>`);
 
 //#endregion
 //#region runtime/queues.js

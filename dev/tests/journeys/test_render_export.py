@@ -61,7 +61,7 @@ def expect_preview_named(page, words):
     """The leaf's menu names a preview page's preview on its diagnostics row, whose
     title says who drives it and which checkout serves it; read it and put the menu
     away."""
-    row = panel_menu(page).locator('.lf-fp-item[data-row="preview"]')
+    row = panel_menu(page).locator('.lf-fp-item[data-lf-row="preview"]')
     expect(row).to_have_attribute("title", re.compile(re.escape(words)))
     page.locator(".lf-fp-leaf").click()
 

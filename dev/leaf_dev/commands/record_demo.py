@@ -329,7 +329,7 @@ def record(
     select_text(page, "#p2", "Backfill history")
     # The panel's field offers the selected words, quoting them. A press there opens
     # their comment before typing, then the focused field sends with Mod+Enter.
-    page.locator('.lf-fp-field leaf-text[data-says="selection"]').click()
+    page.locator('.lf-fp-field leaf-text[data-lf-says="selection"]').click()
     field = page.locator(".lf-fab-input")
     field.focus()
     page.keyboard.insert_text("Can the backfill stay online?")
@@ -343,7 +343,7 @@ def record(
     page.wait_for_selector(".lf-margin-thread")
     shot(1500)
     open_threads(page)
-    thread = page.locator(".lf-fp-view[data-view=threads] .lf-fp-thread").first
+    thread = page.locator(".lf-fp-view[data-lf-route=threads] .lf-fp-thread").first
     thread.wait_for()
 
     comment_id = next(
@@ -354,7 +354,7 @@ def record(
     # notice has had its seat.
     page.wait_for_function(
         """() => document.querySelector(
-            '.lf-fp-field leaf-text[data-says="status"]'
+            '.lf-fp-field leaf-text[data-lf-says="status"]'
         )?.getAttribute('placeholder')?.includes('answering')"""
     )
     shot(900)
@@ -378,7 +378,7 @@ def record(
     # The thread opened from Threads shows its answer in the floating panel's view.
     thread.click()
     page.locator(
-        ".lf-fp-view[data-view=thread] .lf-msg[data-lf-author=agent]"
+        ".lf-fp-view[data-lf-route=thread] .lf-msg[data-lf-author=agent]"
     ).get_by_text(
         "Yes. The fixed rate limit keeps the backfill online.", exact=True
     ).wait_for(state="visible")
@@ -407,7 +407,7 @@ def record(
     # The floating panel's field acknowledges the move in its status's place.
     page.wait_for_function(
         """() => document.querySelector(
-            '.lf-fp-field leaf-text[data-says="notice"]'
+            '.lf-fp-field leaf-text[data-lf-says="notice"]'
         )?.getAttribute('placeholder')?.startsWith('Moved to During')"""
     )
     shot(2400)
@@ -449,7 +449,7 @@ def shoot_stills(browser, url: str, page_dir: Path, into: Path) -> None:
             open_threads(page)
             page.locator(".lf-fp-thread").first.click()
             page.wait_for_selector(
-                ".lf-fp-view[data-view=thread] .lf-msg[data-lf-author=agent]"
+                ".lf-fp-view[data-lf-route=thread] .lf-msg[data-lf-author=agent]"
             )
             page.locator("#top").scroll_into_view_if_needed()
             settle(page)

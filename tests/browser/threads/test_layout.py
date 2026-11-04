@@ -892,7 +892,7 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
     resized(page, 1200, 900)
     page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
     selector = (
-        f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]'
+        f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]'
         " > .lf-thread-transcript"
     )
     transcript = page.locator(selector)
@@ -1041,7 +1041,7 @@ def test_words_scrolled_past_a_card_head_show_nowhere_above_it(
         page.emulate_media(forced_colors="active")
     page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
     transcript = page.locator(
-        f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]'
+        f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]'
         " > .lf-thread-transcript"
     )
     expect(transcript).to_be_visible()
@@ -1050,7 +1050,7 @@ def test_words_scrolled_past_a_card_head_show_nowhere_above_it(
     # Through the first messages, including where one pushes the last one's head off.
     assert travel > 300, travel
     actions = page.locator(
-        f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]'
+        f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]'
         " > .lf-margin-thread-controls"
     )
 
@@ -1085,7 +1085,7 @@ def test_words_scrolled_past_a_card_head_show_nowhere_above_it(
                 actions: controls.getBoundingClientRect().toJSON(),
                 // The focus-ring room, which the transcript's landings also keep.
                 ring: parseFloat(getComputedStyle(box).scrollPaddingTop),
-                event: head.parentElement.dataset.event};
+                event: head.parentElement.dataset.lfEvent};
             }"""
         )
         # A head the next message pushes off rises with it; every other stands on the
@@ -1107,7 +1107,7 @@ def test_words_scrolled_past_a_card_head_show_nowhere_above_it(
             continue
         if not forced and not reading["pushed"]:
             # The head holding the line lends its arrival tint to the actions' track.
-            held = transcript.locator(f'.lf-msg[data-event="{reading["event"]}"]')
+            held = transcript.locator(f'.lf-msg[data-lf-event="{reading["event"]}"]')
             held.evaluate("m => m.style.setProperty('--lf-msg-arrival', '1')")
             rendered(page)
             tinted = shot(beneath, hidden=actions)
@@ -1170,14 +1170,14 @@ def test_a_stuck_card_head_keeps_the_name_and_lets_its_annotations_scroll_out(
     page = open_page(browser, url, context=context)
     page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
     selector = (
-        f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]'
+        f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]'
         " > .lf-thread-transcript"
     )
     transcript = page.locator(selector)
     expect(transcript).to_be_visible()
     rendered(page)
     scroll_settled(page, selector)
-    message = transcript.locator(f'.lf-msg[data-event="{answer}"]')
+    message = transcript.locator(f'.lf-msg[data-lf-event="{answer}"]')
     expect(message.locator(".lf-edited")).to_be_visible()
 
     def scrolled_past(distance):
@@ -1190,7 +1190,7 @@ def test_a_stuck_card_head_keeps_the_name_and_lets_its_annotations_scroll_out(
               box.scrollTop += message.getBoundingClientRect().top
                 - box.getBoundingClientRect().top + distance;
             }""",
-            [f'.lf-msg[data-event="{answer}"]', distance],
+            [f'.lf-msg[data-lf-event="{answer}"]', distance],
         )
         rendered(page)
         return transcript.evaluate(
@@ -1213,7 +1213,7 @@ def test_a_stuck_card_head_keeps_the_name_and_lets_its_annotations_scroll_out(
                       nameShown: seen.every(node => name.contains(node)),
                       head: head.offsetHeight};
             }""",
-            f'.lf-msg[data-event="{answer}"]',
+            f'.lf-msg[data-lf-event="{answer}"]',
         )
 
     rest = scrolled_past(0)

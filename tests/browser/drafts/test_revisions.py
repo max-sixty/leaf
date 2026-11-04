@@ -176,7 +176,7 @@ def test_an_untouched_and_an_emptied_reply_follow_live_revisions(browser, serve)
 
     sent = events_model.read_events(serve.page_dir)[-1]
     thread = page.locator(
-        f'.lf-margin-thread .lf-page-thread[data-thread="{sent["id"]}"]'
+        f'.lf-margin-thread .lf-page-thread[data-lf-thread="{sent["id"]}"]'
     )
     reply = thread.locator("leaf-text")
     expect(thread).to_be_focused()

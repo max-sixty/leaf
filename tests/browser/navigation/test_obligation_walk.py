@@ -312,7 +312,7 @@ def test_keys_answer_an_obligation_from_its_marks(browser, serve):
         }"""
     )
     expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
-        "data-says", "notice"
+        "data-lf-says", "notice"
     )
     expect(
         page.locator(
@@ -356,7 +356,7 @@ def test_keys_answer_an_obligation_from_its_marks(browser, serve):
     # The pick's notice takes the panel's seat for passing words, and focus never left
     # the second option, so the walk's reading stands behind it rather than retiring.
     expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
-        "data-says", "notice"
+        "data-lf-says", "notice"
     )
     assert (
         page.evaluate(
@@ -1050,7 +1050,9 @@ def test_walking_to_an_obligation_shows_its_discussion_clear_of_its_choices(
     page.set_viewport_size({"width": 1200, "height": 900})
     page.keyboard.press("m")
     expect(page.locator("#cache-ask")).to_be_focused()
-    thread = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+    thread = page.locator(
+        f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]'
+    )
     expect(thread).to_be_visible()
     rendered(page)
     card = page.locator(".lf-margin-preview").bounding_box()
@@ -1087,7 +1089,7 @@ def test_walking_to_an_obligation_on_a_phone_continues_its_discussion_in_the_pan
     page.keyboard.press("1")
     expect(page.locator("#cache-disk")).to_have_attribute("chosen", "")
     page.keyboard.press("c")
-    thread = page.locator(f'{PANEL_THREAD}[data-thread="{root}"]')
+    thread = page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')
     expect(thread).to_be_visible()
     expect(panel_field(page)).to_be_focused()
     expect(page.locator(".lf-fab-input")).to_be_hidden()
@@ -1115,14 +1117,16 @@ def test_walking_to_an_obligation_opens_its_discussion(browser, serve, family):
     )
     page = open_page(browser, url)
     card = page.locator(".lf-margin-preview")
-    discussion = card.locator(f'.lf-page-thread[data-thread="{root}"]')
+    discussion = card.locator(f'.lf-page-thread[data-lf-thread="{root}"]')
     page.keyboard.press("Shift")
     page.locator("#passage").focus()
-    expect(card.locator(f'.lf-page-thread[data-thread="{passive}"]')).to_be_visible()
+    expect(card.locator(f'.lf-page-thread[data-lf-thread="{passive}"]')).to_be_visible()
     page.keyboard.press("m")
     expect(page.locator("#work")).to_be_focused()
     expect(discussion).to_be_visible()
-    expect(card.locator(f'.lf-page-thread[data-thread="{passive}"]')).to_have_count(0)
+    expect(card.locator(f'.lf-page-thread[data-lf-thread="{passive}"]')).to_have_count(
+        0
+    )
     if family == "decision":
         page.keyboard.press("Tab")
     else:
@@ -1161,7 +1165,7 @@ def test_an_obligation_and_its_thread_are_one_current_target(browser, serve):
     card = page.locator(".lf-margin-preview")
     item = page.locator("#cache-ask")
     obligation_thread = card.locator(
-        f'.lf-page-thread[data-thread="{about_obligation}"]'
+        f'.lf-page-thread[data-lf-thread="{about_obligation}"]'
     )
 
     # `m` lands on the obligation and its thread comes up in the card beside it, which `c`
@@ -1189,7 +1193,9 @@ def test_an_obligation_and_its_thread_are_one_current_target(browser, serve):
     page.keyboard.press("m")
     expect(page.locator("#ship-ask")).to_be_focused()
     page.keyboard.press("t")
-    expect(card.locator(f'.lf-page-thread[data-thread="{about_task}"]')).to_be_focused()
+    expect(
+        card.locator(f'.lf-page-thread[data-lf-thread="{about_task}"]')
+    ).to_be_focused()
     page.keyboard.press("Shift+t")
     expect(obligation_thread).to_be_focused()
     expect(item).to_have_attribute("data-lf-obligation", "1")
@@ -1222,7 +1228,9 @@ def test_c_continues_the_card_beside_an_obligation_in_a_commented_block(browser,
         serve.page_dir, "Need better choices.", {"section": "calls"}
     )
     page = open_page(browser, url)
-    thread = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+    thread = page.locator(
+        f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]'
+    )
     page.keyboard.press("m")
     expect(page.locator("#mark-ask")).to_be_focused()
     expect(thread).to_be_visible()
@@ -1442,7 +1450,7 @@ LOCATION_RING = """() => {
   const edges = (out) => ({left: at.left - out, top: at.top - out,
                            right: at.right + out, bottom: at.bottom + out});
   const offset = parseFloat(ring.outlineOffset);
-  return {for: box.dataset.for, inner: edges(offset),
+  return {for: box.dataset.lfFor, inner: edges(offset),
           outer: edges(offset + parseFloat(ring.outlineWidth))};
 }"""
 
@@ -1470,7 +1478,7 @@ def test_the_ring_round_a_clipped_question_stands_inside_it(browser, serve):
     page = open_page(browser, serve(leaf_page("a clipped question", ask)))
     resized(page, 1280, 800)
     page.keyboard.press("m")
-    expect(page.locator(".lf-location[data-for='rollout']")).to_be_visible()
+    expect(page.locator(".lf-location[data-lf-for='rollout']")).to_be_visible()
     ring = page.evaluate(LOCATION_RING)
     frame = page.locator("#frame").bounding_box()
     assert frame is not None
@@ -1497,7 +1505,7 @@ def test_the_ring_round_a_question_stands_clear_of_its_words(browser, serve):
     page = open_page(browser, serve(leaf_page("a question", ask)))
     resized(page, 1280, 800)
     page.keyboard.press("m")
-    expect(page.locator(".lf-location[data-for='rollout']")).to_be_visible()
+    expect(page.locator(".lf-location[data-lf-for='rollout']")).to_be_visible()
     ring, column = page.evaluate(LOCATION_RING), page.evaluate(ASK_WORDS)
     assert ring["inner"]["left"] < column["words"], (ring, column)
     page.close()
@@ -1505,7 +1513,7 @@ def test_the_ring_round_a_question_stands_clear_of_its_words(browser, serve):
     page = open_page(browser, serve(leaf_page("a question", ask, layout="workspace")))
     resized(page, 1280, 800)
     page.keyboard.press("m")
-    expect(page.locator(".lf-location[data-for='rollout']")).to_be_visible()
+    expect(page.locator(".lf-location[data-lf-for='rollout']")).to_be_visible()
     ring, workspace = page.evaluate(LOCATION_RING), page.evaluate(ASK_WORDS)
     assert ring["outer"]["bottom"] <= workspace["foot"], (ring, workspace)
     assert ring["inner"]["left"] < workspace["words"], (ring, workspace)

@@ -284,7 +284,7 @@ def threads_tab(page: Page | FrameLocator):
         page.locator("html").element_handle().owner_frame(), facts=("updatesSettled",)
     )
     host = page.locator(".lf-floating-panel")
-    if host.get_attribute("data-open") not in ("queue", "threads"):
+    if host.get_attribute("data-lf-open") not in ("queue", "threads"):
         exit_control = page.locator(".lf-fp-exit")
         if exit_control.count():
             exit_control.click()
@@ -303,27 +303,31 @@ def open_threads(page: Page | FrameLocator) -> None:
     unless the mark opened Threads itself. The view lists the open threads, then the
     resolved ones folded under a Resolved heading (`show_resolved`)."""
     host = page.locator(".lf-floating-panel")
-    if host.get_attribute("data-open") == "threads":
+    if host.get_attribute("data-lf-open") == "threads":
         return
     back = page.get_by_role("button", name="Back to Threads")
     if back.count():
         back.click()
     else:
         tab = threads_tab(page)
-        if host.get_attribute("data-open") != "threads":
+        if host.get_attribute("data-lf-open") != "threads":
             tab.click()
-    page.locator('.lf-fp-view[data-view="threads"]:not([data-leaving])').wait_for()
+    page.locator(
+        '.lf-fp-view[data-lf-route="threads"]:not([data-lf-leaving])'
+    ).wait_for()
 
 
 def show_resolved(page: Page | FrameLocator):
     """Unfold the resolved threads in the open Threads, which stand folded under their
     Resolved heading (`.lf-fp-settled`) until the user presses it, and return their
     rows."""
-    threads = page.locator('.lf-fp-view[data-view="threads"]:not([data-leaving])')
+    threads = page.locator(
+        '.lf-fp-view[data-lf-route="threads"]:not([data-lf-leaving])'
+    )
     heading = threads.locator(".lf-fp-settled")
     if heading.get_attribute("aria-expanded") != "true":
         heading.click()
-    return threads.locator(".lf-fp-thread[data-resolved]")
+    return threads.locator(".lf-fp-thread[data-lf-resolved]")
 
 
 def go_to_threads(page: Page, frame: FrameLocator | None = None) -> None:
@@ -334,7 +338,7 @@ def go_to_threads(page: Page, frame: FrameLocator | None = None) -> None:
     route, which both share."""
     within = frame or page
     # Completing `g T` again closes the view (keyboard/go-to-sequence.js).
-    if within.locator(".lf-floating-panel").get_attribute("data-open") == "threads":
+    if within.locator(".lf-floating-panel").get_attribute("data-lf-open") == "threads":
         return
     # A press at the frame's top corner gives its document the keys; the page's own
     # only needs focus off any control.
@@ -344,4 +348,6 @@ def go_to_threads(page: Page, frame: FrameLocator | None = None) -> None:
         page.evaluate("() => document.activeElement?.blur()")
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    within.locator('.lf-fp-view[data-view="threads"]:not([data-leaving])').wait_for()
+    within.locator(
+        '.lf-fp-view[data-lf-route="threads"]:not([data-lf-leaving])'
+    ).wait_for()

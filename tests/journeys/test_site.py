@@ -683,7 +683,7 @@ def test_a_website_example_keeps_its_version_identity_and_history(
     expect(page.locator("main .lf-ins-block")).to_have_count(5)
 
     panel_menu(page, "versions").locator(
-        ".lf-fp-version:not([data-current]) > .lf-fp-item"
+        ".lf-fp-version:not([data-lf-current]) > .lf-fp-item"
     ).click()
     page.wait_for_url(
         re.compile(r"/examples/log-retention/versions/v1\.html(?:\?pin=)?$")

@@ -473,7 +473,7 @@ def test_visual_review_returns_to_case_feedback_on_phone(browser, serve):
         page.keyboard.press("ControlOrMeta+Enter")
     case.get_by_role("button", name="2 threads", exact=True).click()
     case.get_by_role("button", name="Keep the return route", exact=True).click()
-    selected = case.locator(f'.lf-page-thread[data-thread="{first_thread}"]')
+    selected = case.locator(f'.lf-page-thread[data-lf-thread="{first_thread}"]')
     expect(selected).to_be_focused()
     expect(selected).to_be_in_viewport(ratio=1)
 

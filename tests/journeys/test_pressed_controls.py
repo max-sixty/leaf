@@ -27,7 +27,7 @@ VIEWS = ".lf-fp-view, .lf-fp-aux"
 def open_on_me(page):
     """Open On me by its keys, unless it stands open already, since the same keys put
     it away."""
-    if page.locator(".lf-floating-panel").get_attribute("data-open") != "queue":
+    if page.locator(".lf-floating-panel").get_attribute("data-lf-open") != "queue":
         page.locator("body").focus()
         page.keyboard.press("g")
         page.keyboard.press("Shift+m")
@@ -38,7 +38,7 @@ def open_thread(page, key):
     """The thread `key`'s view, from its row in Threads, folded under Resolved once it
     is resolved."""
     open_threads(page)
-    row = page.locator(f'{panel_view("threads")} .lf-fp-thread[data-key="{key}"]')
+    row = page.locator(f'{panel_view("threads")} .lf-fp-thread[data-lf-key="{key}"]')
     if not row.count():
         show_resolved(page)
     row.click()
@@ -61,7 +61,7 @@ def test_a_pressed_panel_control_keeps_its_face_and_takes_the_next_press(
     if page.locator(f"{panel_view('threads')} .lf-fp-settled").count():
         show_resolved(page)
     keys = page.locator(f"{panel_view('threads')} .lf-fp-thread").evaluate_all(
-        "(rows) => rows.map((row) => row.dataset.key)"
+        "(rows) => rows.map((row) => row.dataset.lfKey)"
     )
     unsettled = []
     for key in keys:

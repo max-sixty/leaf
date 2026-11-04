@@ -1121,7 +1121,7 @@ def test_an_open_composer_does_not_eat_the_next_click(browser, serve):
     page.locator("#p").scroll_into_view_if_needed()
     page.mouse.click(*mark_point(page, "lf-mark"))
     expect(page.locator(".lf-margin-preview")).to_be_visible()
-    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
+    expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
 
     # And the composer's own mark belongs to no thread, so it opens nothing. Its first
     # range runs up to the posted one, so this lands on the draft and nothing else.
@@ -1133,7 +1133,7 @@ def test_an_open_composer_does_not_eat_the_next_click(browser, serve):
     )
     page.mouse.click(*mark_point(page, "lf-pending"))
     rendered(page)
-    assert page.locator(PANEL).get_attribute("data-open") is None, (
+    assert page.locator(PANEL).get_attribute("data-lf-open") is None, (
         "clicking the composer's own highlight opened the panel, but it belongs to no thread"
     )
 
@@ -1168,7 +1168,7 @@ def test_a_click_on_a_mark_decides_once(browser, serve):
                                     return {x: r.left + r.width / 2, y: r.top + r.height / 2}; }""")
     page.mouse.click(spot["x"], spot["y"])
     expect(page.locator(".lf-margin-preview")).to_be_visible()
-    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
+    expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
     expect(
         page.locator(".lf-fab-input"),
         "the click opened the thread and then offered to comment on it as well",
@@ -2778,7 +2778,7 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
     figure.scroll_into_view_if_needed()
     figure.click()
     expect(figure).to_have_class(re.compile(r"\blf-projected-mark\b"))
-    mark = page.locator('.lf-visual-mark[data-for="fig"]')
+    mark = page.locator('.lf-visual-mark[data-lf-for="fig"]')
     expect(mark).to_be_visible()
     look = mark.evaluate(
         """node => { const style = getComputedStyle(node, '::after'); return {
@@ -3043,7 +3043,7 @@ def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
     page = open_page(browser, url)
     figure = page.locator("#fig")
     figure.scroll_into_view_if_needed()
-    mark = page.locator('.lf-visual-mark[data-for="fig"]')
+    mark = page.locator('.lf-visual-mark[data-lf-for="fig"]')
     expect(mark).to_have_count(0)
 
     look = """node => { const style = getComputedStyle(node, '::after'); return {
@@ -3070,7 +3070,7 @@ def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
           const sample = () => {
             window.lfFrames.push({
               contour: Boolean(document.querySelector(
-                '.lf-visual-mark-here[data-for="fig"]')),
+                '.lf-visual-mark-here[data-lf-for="fig"]')),
               entry: document.querySelectorAll('[data-lf-target-selected]').length,
             });
             if (window.lfFrames.length < 400) requestAnimationFrame(sample);
@@ -4456,11 +4456,11 @@ def test_back_returns_from_a_thread_a_widget_surface_holds(browser, serve, arriv
 
     page.keyboard.press("t")
     expect(
-        page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+        page.locator(f'lf-diff .lf-page-thread[data-lf-thread="{root}"]')
     ).to_be_focused()
     # Card focus precedes the smooth scroll; observe arrival before settling it.
     expect(
-        page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+        page.locator(f'lf-diff .lf-page-thread[data-lf-thread="{root}"]')
     ).to_be_in_viewport()
     scroll_settled(page)
     assert page.evaluate("document.scrollingElement.scrollTop") < reading - 1000
@@ -5466,7 +5466,7 @@ def test_a_revised_example_travels_between_its_own_versions(browser, serve):
     # Served at the newest version, with the earlier one under Versions.
     versions = panel_menu(page, "versions")
     expect(
-        versions.locator(".lf-fp-version[data-current] .lf-fp-item")
+        versions.locator(".lf-fp-version[data-lf-current] .lf-fp-item")
     ).to_contain_text("v2")
     expect(versions.locator(".lf-fp-version")).to_have_count(2)
     page.locator(".lf-fp-leaf").click()
@@ -5516,11 +5516,13 @@ def test_a_revised_example_travels_between_its_own_versions(browser, serve):
     # And the older document is a real destination, not just a row: choosing it pins
     # the user to the virtual version address the picker named.
     panel_menu(page, "versions").locator(
-        ".lf-fp-version:not([data-current]) > .lf-fp-item"
+        ".lf-fp-version:not([data-lf-current]) > .lf-fp-item"
     ).click()
     page.wait_for_url(re.compile(r"/versions/v1\.html"))
     expect(
-        panel_menu(page, "versions").locator(".lf-fp-version[data-current] .lf-fp-item")
+        panel_menu(page, "versions").locator(
+            ".lf-fp-version[data-lf-current] .lf-fp-item"
+        )
     ).to_contain_text("v1")
     page.locator(".lf-fp-leaf").click()
     expect(page.locator("#ret-cost-keep")).to_have_count(0)

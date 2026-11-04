@@ -56,8 +56,8 @@ LIST_ORDER = """async () => {
   const {readThreads} = await window.__lfWidgetApi();
   const ids = new Map(readThreads().threads.map((t) => [t.key, t.id]));
   return [...document.querySelectorAll(
-    '.lf-fp-view[data-view="threads"]:not([data-leaving]) .lf-fp-thread')]
-    .map((row) => ids.get(row.dataset.key));
+    '.lf-fp-view[data-lf-route="threads"]:not([data-lf-leaving]) .lf-fp-thread')]
+    .map((row) => ids.get(row.dataset.lfKey));
 }"""
 
 
@@ -687,10 +687,10 @@ MESSAGE_ROOM_PAGE = leaf_page(
 # "agent" or "done"), its title, its prompt where its card is open, and what it says of
 # its ending (such as "Answered: …"), each null where the item has none, and its box.
 ON_ITEM_SAYS = """() => [...document.querySelectorAll(
-    '.lf-fp-view[data-view="queue"]:not([data-leaving]) .lf-fp-on-item')].map((c) => ({
-  kind: JSON.parse(c.dataset.key)[0],
-  id: JSON.parse(c.dataset.key)[1],
-  list: c.dataset.list,
+    '.lf-fp-view[data-lf-route="queue"]:not([data-lf-leaving]) .lf-fp-on-item')].map((c) => ({
+  kind: JSON.parse(c.dataset.lfKey)[0],
+  id: JSON.parse(c.dataset.lfKey)[1],
+  list: c.dataset.lfList,
   title: c.querySelector('.lf-fp-on-title, .lf-fp-on-line .lf-fp-label')?.textContent
     ?? null,
   prompt: c.querySelector('.lf-fp-prompt')?.textContent ?? null,
@@ -951,7 +951,7 @@ RING = """(el) => { const s = getComputedStyle(el);
 # as RING reads an outline: its band's style, width and colour, or "none" where no ring
 # stands over `el`.
 LOCATION_RING = """(el) => { const box = document.querySelector('.lf-location');
-    if (!box || box.dataset.for !== el.id || getComputedStyle(box).display === 'none')
+    if (!box || box.dataset.lfFor !== el.id || getComputedStyle(box).display === 'none')
       return ['none'];
     const s = getComputedStyle(box, '::after');
     return [s.outlineStyle, s.outlineWidth, s.outlineColor]; }"""

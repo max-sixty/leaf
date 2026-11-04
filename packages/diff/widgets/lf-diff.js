@@ -304,17 +304,18 @@ function pathTemplate(path) {
     }<span class="lf-diff-base">${base}</span>`;
 }
 
-// While a file's row cuts its path short, the row wears `data-path-cut`, which draws the
-// whole path for the keyboard and a held press (widget-shadow.css), and the path's title holds
-// it for a pointer resting there. A path the row shows whole has neither, since each
-// would repeat it. Whether the row cuts the path changes only with the width of a part
-// of it, the folders or the name (at a new window width, face or press beside it), so
-// each part's size is watched rather than polled. A part is cut where its words run
-// past its box, measured by a Range to the layout unit: `scrollWidth` rounds to whole
-// pixels, and the ellipsis is drawn for a fraction of one. A folder region too small
-// for this font's ellipsis is left blank: the browser otherwise paints a glyph sliver.
-// Its CSS measurement box supplies the native width. Opacity elides only paint, leaving
-// flex allocation and the full path for accessibility, title and held-word intact.
+// While a file's row cuts its path short, the row wears `data-lf-path-cut`, which draws
+// the whole path for the keyboard and a held press (widget-shadow.css), and the path's
+// title holds it for a pointer resting there. A path the row shows whole has neither,
+// since each would repeat it. Whether the row cuts the path changes only with the width
+// of a part of it, the folders or the name (at a new window width, face or press beside
+// it), so each part's size is watched rather than polled. A part is cut where its words
+// run past its box, measured by a Range to the layout unit: `scrollWidth` rounds to
+// whole pixels, and the ellipsis is drawn for a fraction of one. A folder region too
+// small for this font's ellipsis is left blank: the browser otherwise paints a glyph
+// sliver. Its CSS measurement box supplies the native width. Opacity elides only paint,
+// leaving flex allocation and the full path for accessibility, title and held-word
+// intact.
 //
 // One observer watches every file's row, so a delivery reads every row it names before
 // writing any. A summary's paint starts watching its path parts and moves that
@@ -363,10 +364,10 @@ const pathSizes = sizeObserver((entries) => {
     };
   });
   for (const { path, header, cut, folders } of readings) {
-    header.toggleAttribute("data-path-cut", cut);
+    header.toggleAttribute("data-lf-path-cut", cut);
     keeps(path, "title", cut ? path.textContent : null);
     for (const { part, hidden } of folders)
-      part.toggleAttribute("data-folder-hidden", hidden);
+      part.toggleAttribute("data-lf-folder-hidden", hidden);
   }
 });
 
@@ -384,7 +385,7 @@ function filePathTemplate({ path, previousPath }) {
   const displayPath = previousPath ? `${previousPath} → ${path}` : name;
   return html`<span
     class="lf-diff-path"
-    data-path=${displayPath.replaceAll("/", "/\u200b")}
+    data-lf-path=${displayPath.replaceAll("/", "/\u200b")}
     >${
       previousPath
         ? html`<span class="lf-diff-source-path">${pathTemplate(previousPath)}</span
@@ -810,7 +811,8 @@ async function renderFile(file, overflow) {
   pre.dataset.overflow = overflow;
   const viewport = document.createElement("code");
   viewport.dataset.code = "";
-  viewport.className = "lf-text-scroller scroll";
+  viewport.className = "lf-text-scroller";
+  viewport.toggleAttribute("data-lf-scroll", true);
   viewport.setAttribute("role", "region");
   viewport.setAttribute("aria-label", file.name || "diff");
   const rows = document.createElement("div");

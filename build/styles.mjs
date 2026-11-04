@@ -141,14 +141,10 @@ async function regions(source, faces) {
             declarations.declarations.length +
             declarations.importantDeclarations.length;
           if (!selectors.length || !count) return [];
-          // lightningcss 1.33 hands optional fields over as null and refuses them
-          // back unless the key is absent.
-          return JSON.parse(
-            JSON.stringify(
-              { ...rule, value: { ...rule.value, selectors, declarations } },
-              (key, value) => (value === null ? undefined : value),
-            ),
-          );
+          return revived({
+            ...rule,
+            value: { ...rule.value, selectors, declarations },
+          });
         },
       },
       RuleExit: {
@@ -238,6 +234,15 @@ function weightless(selector) {
   return [{ type: "pseudo-class", kind: "where", selectors: [head] }, ...tail];
 }
 
+/** A rule handed back to lightningcss 1.33, which hands optional fields over as null
+ * and refuses them back unless the key is absent.
+ * @param {any} rule */
+function revived(rule) {
+  return JSON.parse(
+    JSON.stringify(rule, (key, value) => (value === null ? undefined : value)),
+  );
+}
+
 /** @param {any} declaration */
 function declared(declaration) {
   return declaration.property === "unparsed" || declaration.property === "custom"
@@ -245,6 +250,11 @@ function declared(declaration) {
     : declaration.property;
 }
 
+/** A dependency's whole sheet, bundled, with only its custom properties: the tokens its
+ * components read. Its rules for the document, such as Web Awesome's root colour,
+ * colour scheme and sans and its page frame, stay out, so a page without Leaf can
+ * take the tokens at its root (`leaf.layer.portable_sheet`) and keep its own look.
+ * @param {string} source */
 async function sheet(source) {
   const { build } = await import("./esbuild.mjs");
   const result = await build({
@@ -266,7 +276,6 @@ async function sheet(source) {
         },
       },
     ],
-    banner: { css: `/* @noformat Generated from ${source} by build/styles.mjs. */` },
   });
   if (result.warnings.length)
     throw new Error(
@@ -277,5 +286,27 @@ async function sheet(source) {
     .filter((item) => item.kind === "import-rule");
   if (deferredImports.length)
     throw new Error(`Stylesheets must be complete at distribution: ${source}`);
-  return result.outputFiles[0].text;
+  const { transform } = await import("lightningcss");
+  const empty = (/** @type {any} */ rule) => (rule.value.rules.length ? undefined : []);
+  const tokens = transform({
+    filename: source,
+    code: Buffer.from(result.outputFiles[0].text),
+    visitor: {
+      // A declaration kept is left untouched, since lightningcss 1.33 can't take back
+      // every value it hands over, such as a colour in a custom property.
+      Declaration: (/** @type {any} */ d) =>
+        declared(d).startsWith("--") ? undefined : [],
+      RuleExit: {
+        style: (/** @type {any} */ rule) =>
+          rule.value.declarations.declarations?.length ||
+          rule.value.declarations.importantDeclarations?.length
+            ? undefined
+            : [],
+        "layer-block": empty,
+        media: empty,
+        supports: empty,
+      },
+    },
+  }).code.toString();
+  return `/* @noformat Generated from ${source} by build/styles.mjs. */\n${tokens}`;
 }

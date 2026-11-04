@@ -1565,7 +1565,7 @@ def test_built_code_reader_design_comment_keeps_its_identity_after_revision(
     expect(page.locator("#target-reader-heading")).to_have_text(
         "Revised reader treatment"
     )
-    quote = open_panel_thread(page, event["id"]).locator(".lf-fp-quote")
+    quote = open_panel_thread(page, event["id"]).locator(".lf-thread-quote")
     expect(quote).to_contain_text("target-reader-heading")
     expect(quote).not_to_have_attribute("data-lf-detached", "")
 

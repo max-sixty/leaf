@@ -124,16 +124,19 @@ export const coverBoxes = (item = null, { rest = false } = {}) =>
 // instead. `across` names the columns a box asking for its room stands in, where they
 // are narrower than the room: a cover beside them takes none of its height, as the
 // floating panel under the page column leaves a thread card in the margin the window's
-// whole height. A chrome owner that changes the box it covers says so (`announceRoom`),
-// since no scroll or resize tells a reader.
+// whole height. `item` names the node the room is read for, so a surface's own box
+// takes no room from what it holds (`coverBoxes`), as the floating panel's open view
+// covers none of the thread it shows. A chrome owner that changes the box it covers
+// says so (`announceRoom`), since no scroll or resize tells a reader.
 /** @param {{within?: Partial<import('./rect.js').Box> | null,
  * gap?: number, viewport?: "visual" | "layout",
- * across?: {left: number, right: number} | null}} [options] */
+ * across?: {left: number, right: number} | null, item?: Node | null}} [options] */
 export function shownWindow({
   within = null,
   gap = 0,
   viewport = "visual",
   across = null,
+  item = null,
 } = {}) {
   const layout = layoutWindow();
   const { offsetLeft, offsetTop, width, height } =
@@ -145,7 +148,7 @@ export function shownWindow({
   let top = Math.max(offsetTop, within?.top ?? -Infinity);
   let bottom = Math.min(offsetTop + height, within?.bottom ?? Infinity);
   const middle = offsetTop + height / 2;
-  for (const box of coverBoxes()) {
+  for (const box of coverBoxes(item)) {
     if (!overlapsAcross(box, across ?? { left, right })) continue;
     if (box.top + box.bottom < 2 * middle) top = Math.max(top, box.bottom);
     else bottom = Math.min(bottom, box.top);
@@ -708,7 +711,7 @@ function motionBand(item, clips) {
   }));
   const cut = cutBy(all, heights, item.ownerDocument.scrollingElement, true);
   if (!cut) return null;
-  const room = shownWindow({ within: cut });
+  const room = shownWindow({ within: cut, item });
   if (room.height <= 0) return null;
   const scroller = walk.cuts.find(
     ({ box, scrolls }) => scrolls && box.scrollHeight > box.clientHeight,

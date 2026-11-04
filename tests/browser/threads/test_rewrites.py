@@ -1746,7 +1746,7 @@ def test_a_rewrite_saved_in_a_resolved_thread_goes_with_its_thread(browser, serv
     reply box, with nothing moving after the key (#46, the user's decision,
     2026-10-07)."""
     page, _, message = _rewrite_surface(browser, serve, "panel", resolved=True)
-    settle = page.locator(".lf-fp-settle")
+    settle = page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)")
     expect(settle).to_have_accessible_name("Reopen")
     reply = page.locator(PANEL_REPLY)
     held = []
@@ -1776,7 +1776,7 @@ def test_a_refused_rewrite_puts_the_resolved_thread_back(browser, serve):
     resolved, with the user on it, and its words wait on the message. The refusal lands
     after the input window, so nothing it puts back may move."""
     page, thread, message = _rewrite_surface(browser, serve, "panel", resolved=True)
-    settle = page.locator(".lf-fp-settle")
+    settle = page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)")
     held = []
     page.route(
         "**/api/event",

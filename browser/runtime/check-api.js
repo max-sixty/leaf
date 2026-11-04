@@ -35,6 +35,7 @@ export {
   stuckBox,
   stackLevel,
   shownParts,
+  windowChromeBoxes,
 } from "./geometry.js";
 export { skipped } from "./shown-box.js";
 export { windowHoldsRail } from "./content-layout.js";

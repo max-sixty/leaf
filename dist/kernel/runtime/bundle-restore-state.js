@@ -153,8 +153,7 @@ const chromeSharedClasses = Object.freeze([
 	"lf-aiming",
 	"lf-over-item",
 	"lf-react-mark",
-	"lf-ui",
-	"lf-version-inline-deletion"
+	"lf-ui"
 ]);
 const marksSheet = constructSheet(sheets.marks);
 const annotationMarkSheets = sheets.annotations ? [constructSheet(sheets.annotations.marks)] : [];

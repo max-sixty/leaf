@@ -21,7 +21,7 @@ status changes rather than appending the investigation's chronology.
 `uv run leaf-dev probe SOURCE --browser firefox` (or `webkit`) runs a probe or
 journey in Playwright's Firefox or WebKit, and `--browser ios` runs a probe in
 Safari on an iPhone simulator, whose WebKit can differ from Playwright's desktop
-build.
+build. `leaf-dev stills --browser` compares a change's states in any of them.
 
 Minor visual differences are acceptable when content remains readable and
 controls remain usable. Lost drafts, broken actions, inaccessible controls, and
@@ -316,6 +316,46 @@ relative offset and a translate instead. Recheck with that two-box fixture; once
 Firefox centres it, the table can take `justify-self: center` and lose the offset
 and the translate.
 
+### A moved box's place in flow in Firefox's scroll size
+
+Firefox recomputes a block's overflow without laying it out again when a child's
+outline or other painted extent changes, as a focus ring does. That recomputation
+counts each child moved by a relative offset or a translate at its place in flow as
+well as where it is drawn, and the page keeps the larger scroll size until the block
+is laid out again. On 2026-11-03, in Playwright Firefox 157.0 (build 1555), a 1680px
+block moved 480px back by `left: -480px` or `translate: -480px` from a 720px column
+centred in a 1728px window left `document.documentElement.scrollWidth` at 1728 until
+a paragraph beside it took an outline, and at 2184 after that, outline removed or
+not; the same block placed by `margin-left: -480px` left it at 1728. Playwright
+Chromium 156.0.8078.4 kept 1728 throughout. In the user's Firefox 159, closing a
+thread card, which rings the paragraph it leaves the user at, left the page
+scrolling 456px sideways while breakouts were placed by an offset.
+
+So `browser/layouts.css` places an `available` block by a negative start margin, so
+its place in flow is where it is drawn. An `available` table starts at the room's
+start the same way, and its relative offset and translate then centre it on the
+room's axis. Firefox applies the translate to the table's place in flow, so it counts
+the table half its own width before the room's start. A page in the holder's
+direction does not scroll that way, but where the page and the holder differ in
+direction, as in `<main dir="rtl">` on a left-to-right page, a ring still widens the
+page by up to half the table's width (to 2544px for a 1680px table in a 1728px
+window). Centring the table without a translate needs its own width in a margin,
+which CSS can't express, `justify-self` on a block, which Firefox lacks (above), or
+an `available` wrapper the table centres in by `margin-inline: auto`, which would
+change how a page writes an available table.
+
+Mozilla's bugs [1801710](https://bugzilla.mozilla.org/show_bug.cgi?id=1801710) and
+[1820266](https://bugzilla.mozilla.org/show_bug.cgi?id=1820266) report a relatively
+positioned box's place in flow counting toward scroll size on first layout; this
+case, right after layout and wrong after a restyle, is not filed. Recheck with that
+fixture in Firefox: a 720px `main` centred in the window, holding a paragraph and a
+`position: relative; left: -480px; width: calc(100% + 960px)` block. Give the
+paragraph an outline and read the root's `scrollWidth`; once it stays at the
+window's width, a breakout may move by an offset again. In Leaf,
+`test_a_breakout_grows_only_from_a_holder_that_spans_the_column` and
+`test_a_table_granted_room_stands_on_the_prose_axis` ring a paragraph beside
+breakouts and fail if the page then scrolls sideways.
+
 ### An inherited length after a container resize in WebKit
 
 A registered custom property that does not inherit, computed from `100cqi` on the
@@ -540,8 +580,9 @@ Playwright Firefox 155 screencasts intermittently omitted fixed layers on
 2026-10-22, including a stationary marker outside Leaf's chrome. Native
 screenshots sampled during the same journeys retained those layers; whether
 the omission occurs in native-window paint remains unresolved.
-`leaf-dev bench-panel-motion` reports missing mark and focus-outline paint in
-Chromium's sampled frames; the functional test checks their settled paint.
+The probe journey in `dev/leaf_dev/panel_paint.py` reports missing mark and
+focus-outline paint in Chromium's sampled frames; the functional test checks
+their settled paint.
 Firefox recordings remain diagnostic
 evidence and cannot establish all-frame visibility. Recheck the same
 fold/unfold journey with a stationary fixed marker, native screenshots and a

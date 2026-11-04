@@ -441,7 +441,7 @@ export function createQueueWalk({
   // and null on a card whose item no longer waits on them, as in Done.
   /** @param {Origin} origin */
   function cardItem(origin) {
-    const card = closestAcross(origin.node, ON_CARD)?.getAttribute("data-key");
+    const card = closestAcross(origin.node, ON_CARD)?.getAttribute("data-lf-key");
     if (card == null) return undefined;
     return readQueues().on_user.find((item) => queueItemKey(item) === card) ?? null;
   }

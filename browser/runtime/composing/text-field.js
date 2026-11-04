@@ -162,14 +162,19 @@ import { keepFieldKeys } from "../field-keys.js";
 
 const sheet = new CSSStyleSheet();
 sheet.replaceSync(`
-  :host { display: block; cursor: text; }
+  /* The caret is drawn in the ink of the words it stands in, unless a rule on the
+     field gives it another colour, as one on a textarea does. A screenshot's style
+     hides it that way where the browser can't hold its blink
+     (dev/leaf_dev/browser.py, \`screenshot\`). */
+  :host { display: block; cursor: text; caret-color: currentColor; }
   /* CodeMirror's provider places its defaults in lf-base. This control owns the
-     unlayered editor face: the host supplies type and colour, and these are the
-     only internal padding declarations before Markdown's explicit insets below. */
+     unlayered editor face: the host supplies type and colour, caret colour included,
+     and these are the only internal padding declarations before Markdown's explicit
+     insets below. */
   .cm-editor { font: inherit; color: inherit; background-color: transparent; }
   .cm-editor.cm-focused { outline: none; }
   .cm-scroller { font-family: inherit; line-height: inherit; overflow: visible; }
-  .cm-content { padding: 0; caret-color: currentColor; min-height: 1lh; }
+  .cm-content { padding: 0; caret-color: inherit; min-height: 1lh; }
   /* An empty field draws no editor until the user arrives in it (#build). This box
      holds the empty line's place, as tall as the editor's line, and takes the focus
      that builds the editor; while the editor loads, it holds the words, wrapped as
@@ -434,7 +439,7 @@ class LeafText extends HTMLElement {
     return travel < 0 ? Math.floor(travel) : Math.ceil(travel);
   }
 
-  // Whether the host's words overflow it (`data-scrolls`), and which edges they run
+  // Whether the host's words overflow it (`data-lf-overflows`), and which edges they run
   // past (`more-above`, `more-below`), read again as the host scrolls, so an owner can
   // show there is more without a scrollbar. The host stops at the page's height limit
   // while words grow inside it, so the reading watches the editor's content too, in the
@@ -462,8 +467,8 @@ class LeafText extends HTMLElement {
       write: (reading) => {
         // WebKit can retain style from a removed custom state after the words shrink.
         // An attribute invalidates the field's CSS at the same layout boundary.
-        if (this.hasAttribute("data-scrolls") !== reading.scrolls)
-          this.toggleAttribute("data-scrolls", reading.scrolls);
+        if (this.hasAttribute("data-lf-overflows") !== reading.scrolls)
+          this.toggleAttribute("data-lf-overflows", reading.scrolls);
         /** @type {readonly (readonly [string, boolean])[]} */
         const states = [
           ["more-above", reading.scrolls && reading.above],
@@ -762,7 +767,7 @@ class LeafText extends HTMLElement {
   }
 
   connectedCallback() {
-    this.classList.toggle("scroll", true);
+    this.toggleAttribute("data-lf-scroll", true);
     // A move by `insertBefore` reconnects within the task, keeping the view
     // (`disconnectedCallback`); the hold that returns the user restores the caret.
     if (this.#view) return;

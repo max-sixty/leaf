@@ -15,7 +15,6 @@ from typing import NamedTuple
 
 from .contract import gathering, is_element_name, registry_error
 from .layer import merge_layer_declarations, stamp_composition
-from .validation import validate_registry
 
 
 class PageRegistry(NamedTuple):
@@ -55,6 +54,8 @@ def compose_page_registry(
     # unstamped merge of the same inputs.
     fresh = (layer_registry, page_declarations) != validated
     if fresh:
+        from .validation import validate_registry
+
         validate_registry(registry, source)
     if fresh or page_declarations:
         # Examples validate against the vocabulary as pages read it, stamped.

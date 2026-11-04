@@ -10,8 +10,6 @@ from render_cases_interaction import NESTED_PROPOSAL_PAGE, executable_revision, 
 from render_cases_layout import page_at_rest, ring_faults, rings_drawn
 from render_cases_navigation import pending_text, wait_for_pending_mark
 from render_harness import (
-    CORPUS_SOURCES,
-    EXAMPLES,
     RELEASE_FOCUS,
     comment_note,
     holding,
@@ -37,6 +35,7 @@ from browser.navigation import (
 from browser.threads import open_panel_thread
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -497,7 +496,7 @@ def test_a_passage_read_in_a_flowing_pane_returns_after_the_panes_scroll_alone(
     scrolls on its own, and layout settling moves boxes nobody chose to move. Narrowed
     again, the panes flow into the page, which returns to the passage the reader read:
     a place only the layout made never outranks the reader's."""
-    page = open_page(browser, serve(next(p for p in EXAMPLES if p.stem == "wt-merge")))
+    page = open_page(browser, serve(named_source("wt-merge")))
     resized(page, 390, 800)
     rendered(page)
     # Reach the Steps pane before reading it; the preceding film grows on a phone.
@@ -1017,7 +1016,7 @@ def test_a_new_revision_restores_each_panes_semantic_landmark(browser, serve, na
 def test_review_queue_links_are_its_only_navigator_and_keep_both_readings(
     browser, serve
 ):
-    example = next(e for e in CORPUS_SOURCES if e.stem == "review-queue")
+    example = named_source("review-queue")
     page = open_page(browser, serve(example))
     # Short, but tall enough to hold the workspace, so each pane scrolls on its own.
     resized(page, 1100, 640)
@@ -1242,7 +1241,7 @@ def test_current_and_proposed_results_share_one_review_and_flow_in_order(
     browser, serve
 ):
     """The comparison is simultaneous when room permits and sequential when it does not."""
-    example = next(e for e in CORPUS_SOURCES if e.stem == "current-proposed-comparison")
+    example = named_source("current-proposed-comparison")
     page = open_page(browser, serve(example))
     current = page.locator("#comparison-current")
     proposed = page.locator("#comparison-proposed")

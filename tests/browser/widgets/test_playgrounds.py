@@ -12,7 +12,6 @@ from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_cases_navigation import actions
 from render_harness import (
-    ROOT,
     consume_browser_errors,
     displayed,
     holding,
@@ -38,6 +37,7 @@ from browser.widgets import (
 )
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -1154,7 +1154,7 @@ def test_a_short_workspace_shows_more_below_its_playground_regions(browser, serv
         delta = rgb_pixels(ImageChops.difference(marked, bare))
         return sum(1 for pixel in delta if max(pixel) > 24)
 
-    page = open_page(browser, serve(ROOT / "examples" / "code-comparison.html"))
+    page = open_page(browser, serve(named_source("code-comparison")))
     resized(page, 1280, 540)
     preview = page.locator("#code-comparison-playground .lf-playground-preview-body")
     assert preview.evaluate("el => el.scrollHeight > el.clientHeight + 1")
@@ -1171,7 +1171,7 @@ def test_a_short_workspace_shows_more_below_its_playground_regions(browser, serv
         titles.nth(1).bounding_box()["y"], abs=1
     )
 
-    page = open_page(browser, serve(ROOT / "examples" / "notification-playground.html"))
+    page = open_page(browser, serve(named_source("notification-playground")))
     # Without a Controls label or a Starting points label over them, the list fits
     # at 700px tall; 600 still runs it past the rail's foot.
     resized(page, 1100, 600)
@@ -1292,7 +1292,7 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
     shorter than 480px keeps the rail beside the stage but doesn't hold it in view,
     since the rail would show a few lines and its actions only by scrolling inside it.
     Either way each is a named reading region."""
-    source = ROOT / "examples" / "notification-playground.html"
+    source = named_source("notification-playground")
     page = open_page(browser, serve(source))
     playground = page.locator("#notification-playground")
     controls = playground.locator(".lf-playground-controls")
@@ -1524,7 +1524,7 @@ def test_a_playground_opens_its_instruction_over_the_page(browser, serve):
 def test_notification_playground_admits_only_its_exact_page_configuration(
     browser, serve
 ):
-    source = ROOT / "examples" / "notification-playground.html"
+    source = named_source("notification-playground")
     url = serve(source)
     page = open_page(browser, url)
     playground = page.locator("#notification-playground")
@@ -1582,7 +1582,7 @@ def test_built_code_reader_design_comment_keeps_its_identity_after_revision(
     """The shared comment loop carries a design request through a real reader revision.
     Design mode's keyboard and touch routes to a target are the aim tests'
     (`test_render_aim.py`); this picks the built reader's heading by pointer."""
-    source_path = ROOT / "examples" / "code-comparison.html"
+    source_path = named_source("code-comparison")
     source = source_path.read_text(encoding="utf-8")
     page = open_page(browser, live_url(serve(source_path)))
     page.get_by_role("tab", name="Comment on the reader").click()
@@ -1600,7 +1600,7 @@ def test_built_code_reader_design_comment_keeps_its_identity_after_revision(
         corner["x"] + corner["width"] / 2, corner["y"] + corner["height"] / 2
     )
     expect(page.locator(".lf-fab-bar .lf-compose-field")).to_have_attribute(
-        "data-send-armed", ""
+        "data-lf-send-armed", ""
     )
     with sending(page, "the reader design comment"):
         send.click()
@@ -1698,7 +1698,7 @@ def test_a_playground_control_written_in_the_preview_stands_beside_its_item(
     replay, and the page budget as the playground's own child. The budget stands in the
     rail; each alert's controls are drawn where they are written, and a press there
     changes the playground's one configuration and the instruction it sends."""
-    source = ROOT / "examples" / "alert-thresholds.html"
+    source = named_source("alert-thresholds")
     page = open_page(browser, serve(source))
     playground = page.locator("#alert-playground")
     rail = playground.locator(".lf-playground-controls")
@@ -1745,7 +1745,7 @@ def test_undoing_a_playground_choice_leaves_the_controls_as_the_user_set_them(
 ):
     """Undo withdraws the decision and leaves the controls where the user left them,
     to adjust and send again; Reset still returns them to the authored defaults."""
-    page = open_page(browser, serve(ROOT / "examples" / "alert-thresholds.html"))
+    page = open_page(browser, serve(named_source("alert-thresholds")))
     playground = page.locator("#alert-playground")
     budget = playground.get_by_role("slider", name="On-call page budget")
     expect(budget).to_have_value("10")
@@ -1868,7 +1868,7 @@ def test_a_page_drawn_preset_sets_its_whole_slice_as_one_gesture(browser, serve)
     slice. A press, by pointer or key, sets all three elevations at once and shows
     pressed; the playground records it as one gesture, so Undo restores the scale the
     preset replaced."""
-    page = open_page(browser, serve(ROOT / "examples" / "shadow-scale.html"))
+    page = open_page(browser, serve(named_source("shadow-scale")))
     playground = page.locator("#shadow-playground")
     presets = playground.get_by_role("group", name="Start from")
     soft, deep, flat = (
@@ -1917,7 +1917,7 @@ def test_a_playground_rail_stays_in_view_beside_a_tall_stage(browser, serve):
     sends what they set where they set it. In a window shorter than 480px the rail
     flows with the page, which scrolls to its submit button, and stacked at phone width
     its shared controls stay above the stage while the instruction follows it."""
-    page = open_page(browser, serve(ROOT / "examples" / "alert-thresholds.html"))
+    page = open_page(browser, serve(named_source("alert-thresholds")))
     resized(page, 1024, 768)
     playground = page.locator("#alert-playground")
     stage = playground.locator(".lf-playground-preview-region")
@@ -2066,7 +2066,7 @@ def test_a_quoted_playground_draws_no_box_its_preview_wrote_only_for_controls(
     of its own, so it goes with them rather than standing empty beside its alert;
     the rate box also held a sentence, which stays. The stage ends below its last
     alert without leaving the hidden controls' space empty under it."""
-    source = ROOT / "tests/fixtures/pages/quoted-playground.html"
+    source = named_source("quoted-playground")
     page = open_page(browser, serve(source))
     playground = page.locator("#quoted-alerts")
 

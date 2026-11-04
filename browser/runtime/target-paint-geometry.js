@@ -1,5 +1,10 @@
 /* Where paint over the page's targets stands: traces, visual marks, the design
- * legend, key chips, the search's mark and drawing ink.
+ * legend, key chips, the search's mark, drawing ink, and the comparison's bars and
+ * change card.
+ *
+ * A stand says nothing to assistive technology of its own: each painter hides what
+ * only the eye reads, as the key chips' layers do beside the live region that speaks
+ * them, and leaves readable what is read, as a change's card is.
  *
  * Read the provider's drawn SVG primitives and clone them into a caller-owned shape,
  * and stand each box in the planes of what carries its target (`paintStand`), alone or
@@ -211,7 +216,6 @@ export function paintShape(host, geometry, { left, top, right, bottom }, options
 export function paintStand(box = null) {
   const root = document.createElement("div");
   root.className = "lf-ui lf-target-paint lf-paint-stand";
-  root.setAttribute("aria-hidden", "true");
   root.style.position = "fixed";
   const carrier = document.createElement("div");
   carrier.className = "lf-paint-carrier";

@@ -96,7 +96,8 @@ def selected(record: dict, page_dir: Path):
 def selected_vocabulary(record: dict, page_dir: Path):
     """The vocabulary of the layer `record` selects, all a reader of the page's
     documents needs (`layer.selected_vocabulary`), refused as `selected` refuses
-    a selected package that is gone or whose registry is invalid."""
+    a selected package that is gone or whose registry can't be read or merged. Its
+    registry is not validated (`layer.compose_vocabulary`)."""
     from leaf.layer import selected_vocabulary
 
     return _compose_selected(selected_vocabulary, record, page_dir)
@@ -177,8 +178,9 @@ def _compose_revision(
 ) -> tuple[dict, tuple[dict, dict]]:
     from .page import compose_page_registry
 
-    # The selected layer was validated where it was composed, so a revision
-    # declaring nothing over it is not validated again.
+    # The selected layer is validated where a Leaf composes its files
+    # (`layer-registry.md`), so a revision declaring nothing over it is not
+    # validated on a read.
     vocabulary = layer_vocabulary(record, page_dir)
     declared = json.loads(declarations) if declarations else {}
     composed = compose_page_registry(

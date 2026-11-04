@@ -2,9 +2,19 @@
 
 import json
 
+import pytest
+
 from leaf.structure import SourceDocument
 from leaf_dev.commands import corpus
-from leaf_dev.example_data import data_file, named_source, page_files, seed_log
+from leaf_dev.example_data import (
+    CORPUS,
+    authored_sources,
+    data_file,
+    named_source,
+    page_files,
+    published_sources,
+    seed_log,
+)
 
 
 def test_corpus_is_generated_from_the_examples():
@@ -73,3 +83,37 @@ def test_corpus_rebuilds_sources_and_removes_retired_page_files(tmp_path):
     assert named_source("corpus", root=tmp_path) == output
     assert "After" in output.read_text()
     assert not (page_files(output) / "sample.js").exists()
+
+
+def test_only_the_generated_corpus_is_not_an_authored_page(tmp_path):
+    """Every reader takes its pages from `example_data`, so a worked example named
+    like the corpus is composed, published and picked by name as any other is."""
+    pages = {
+        "notes": tmp_path / "examples" / "corpus-notes.html",
+        "gallery": tmp_path / "examples" / "developer" / "gallery.html",
+        "fixture": tmp_path / "tests" / "fixtures" / "pages" / "fixture.html",
+    }
+    for name, page in pages.items():
+        page.parent.mkdir(parents=True, exist_ok=True)
+        page.write_text(
+            f"<html><head><title>{name}</title></head>"
+            f'<body><main><p id="{name}">{name}</p></main></body></html>'
+        )
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "examples.html").write_text("")
+
+    generated = named_source("corpus", root=tmp_path)
+    assert generated == tmp_path / CORPUS
+    assert corpus.source_root(generated) == tmp_path
+    assert 'id="corpus-corpus-notes"' in generated.read_text()
+    assert authored_sources(tmp_path) == list(pages.values())
+    assert published_sources(tmp_path) == [pages["notes"], pages["gallery"]]
+    assert named_source("corpus-notes", root=tmp_path) == pages["notes"]
+    assert corpus.source_root(pages["notes"]) is None
+
+    # A page that shares the corpus's name is authored, so the name picks two sources.
+    shadow = tmp_path / "examples" / "developer" / "corpus.html"
+    shadow.write_text(pages["gallery"].read_text().replace("gallery", "shadow"))
+    assert shadow in published_sources(tmp_path)
+    with pytest.raises(ValueError, match="corpus names more than one source"):
+        named_source("corpus", root=tmp_path)

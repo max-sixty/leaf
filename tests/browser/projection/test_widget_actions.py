@@ -119,7 +119,7 @@ customElements.define("lf-conditional", class extends LeafElement {
     )
     expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On me")
     view = page.locator(panel_view("queue"))
-    items = ".lf-fp-on-item[data-key^='[\"widget\"']"
+    items = ".lf-fp-on-item[data-lf-key^='[\"widget\"']"
 
     for phase, count in (("open", 1), ("closed", 0)):
         append_command(
@@ -144,8 +144,8 @@ customElements.define("lf-conditional", class extends LeafElement {
             panel_settled(page, open=False)
         page.locator(".lf-fp-on-user").click()
         panel_settled(page, view="queue")
-        expect(view.locator(f'{items}[data-list="you"]')).to_have_count(count)
-        withdrawn = view.locator(f'{items}[data-list="done"]')
+        expect(view.locator(f'{items}[data-lf-list="you"]')).to_have_count(count)
+        withdrawn = view.locator(f'{items}[data-lf-list="done"]')
         expect(withdrawn).to_have_count(1 - count)
         if not count:
             expect(withdrawn).to_contain_text("Withdrawn")

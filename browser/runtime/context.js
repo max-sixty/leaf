@@ -170,7 +170,7 @@ const part = {
   view: readPart((root) => root.effective.view),
   undo: readPart((root) => root.effective.view?.undo ?? []),
   todos: readPart((root) => root.authoritative?.browser.todos ?? []),
-  receipts: readPart((root) => root.authoritative?.browser.receipts ?? []),
+  events: readPart((root) => root.authoritative?.events ?? []),
   revisionLabels: readPart((root) => root.authoritative?.revision_labels),
 };
 
@@ -248,9 +248,10 @@ export const runtime = {
   get todos() {
     return part.todos();
   },
-  // The events the server has admitted from this tab's attempts.
-  get receipts() {
-    return part.receipts();
+  // The log as the adopted reading holds it; an event carrying an `attempt` is the
+  // receipt of the gesture that sent it.
+  get events() {
+    return part.events();
   },
 };
 

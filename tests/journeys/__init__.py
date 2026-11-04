@@ -22,7 +22,7 @@ def listed_threads(page):
     if page.locator(f"{panel_view('threads')} .lf-fp-settled").count():
         show_resolved(page)
     keys = page.locator(f"{panel_view('threads')} .lf-fp-thread").evaluate_all(
-        "rows => rows.map(row => row.dataset.key)"
+        "rows => rows.map(row => row.dataset.lfKey)"
     )
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
@@ -38,7 +38,7 @@ def detached_threads(page, thread_ids):
         expect(view).to_be_visible()
         if view.locator(".lf-fp-quote[data-lf-detached]").count():
             detached.add(thread_id)
-    if page.locator(PANEL).get_attribute("data-open") is not None:
+    if page.locator(PANEL).get_attribute("data-lf-open") is not None:
         page.locator(".lf-fp-close").click()
         panel_settled(page, open=False)
     return detached
@@ -58,6 +58,6 @@ def expect_showing(page, version):
     """The leaf's menu names the version the page shows on its Versions row; read it
     and put the menu away."""
     expect(
-        panel_menu(page).locator('.lf-fp-item[data-row="versions"]')
+        panel_menu(page).locator('.lf-fp-item[data-lf-row="versions"]')
     ).to_contain_text(f"v{version}")
     close_panel_menu(page)

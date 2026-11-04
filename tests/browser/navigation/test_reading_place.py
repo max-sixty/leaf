@@ -12,6 +12,7 @@ from render_cases_navigation import CHIPS, DIFF_PAGE, _publish
 from render_harness import (
     LONG_PAGE,
     PANEL,
+    RELEASE_FOCUS,
     leaf_page,
     open_page,
     panel_control,
@@ -614,14 +615,26 @@ def test_reading_landmarks_use_drawn_segments_in_mixed_blocks(
     assert returned["top"] == pytest.approx(chosen["top"], abs=2)
 
 
-def test_reading_place_keeps_a_projected_row_among_repeated_words(browser, serve):
-    """A long text block's row identity survives capture, serialization and reflow."""
+def test_reading_place_names_a_projected_datum(browser, serve, subtests):
+    """A paragraph's later words cannot precede the datum that splits its reading, and a
+    long text block's row identity survives capture, serialization and reflow."""
+    record = (
+        "The projected record is the first visible passage the reader should keep. "
+    )
     page = open_page(
         browser,
         serve(
             leaf_page(
-                "Reading a projected row",
-                '<h1>Projected text</h1><pre id="rows">'
+                "Projected reading places",
+                '<section id="source"><p id="paragraph">'
+                '<span style="display:block;height:1100px">Earlier paragraph words.</span>'
+                '<span id="record" style="display:block">'
+                + record
+                * 4
+                + '</span><span style="display:block">'
+                "The later continuation follows the record and must not take its place."
+                '</span></p></section><div style="height:900px"></div>'
+                '<pre id="rows">'
                 + "".join(
                     f'<span id="row-{n}" style="display:block">'
                     "The same words occur on every independently addressed row.</span>"
@@ -631,76 +644,55 @@ def test_reading_place_keeps_a_projected_row_among_repeated_words(browser, serve
             )
         ),
     )
-    page.evaluate("""() => {
-      for (const row of document.querySelector('#rows').children) {
-        row.dataset.lfProjection = 'rows';
-        row.dataset.lfDatum = row.id;
-      }
-      window.scrollBy(0, document.querySelector('#row-40').getBoundingClientRect().top - 100);
-    }""")
-    scroll_settled(page)
-    reading = page.evaluate("""async () => {
-      const api = await window.__lfWidgetApi();
-      const place = api.capturePlace();
-      return {place, top: document.getElementById(place.datum)?.getBoundingClientRect().top};
-    }""")
-    assert reading["place"].get("datum"), reading
-    assert reading["place"]["quote"].startswith("The same words")
-    assert reading["top"] is not None
-    # A serialized checkpoint has no live node to disguise a lost datum identity.
-    page.evaluate("""() => {
-      document.querySelector('#row-0').style.height = '400px';
-      window.scrollTo({top: 0, behavior: 'instant'});
-    }""")
-    scroll_settled(page)
-    page.evaluate(
-        """async place => {
-      (await window.__lfWidgetApi()).restorePlace(place);
-    }""",
-        reading["place"],
-    )
-    scroll_settled(page)
-    assert page.locator(f"#{reading['place']['datum']}").bounding_box()[
-        "y"
-    ] == pytest.approx(reading["top"], abs=2)
 
+    with subtests.test(case="a passage inside a paragraph"):
+        page.evaluate("""() => {
+          const record = document.querySelector('#record');
+          record.dataset.lfGen = '1';
+          record.dataset.lfProjection = 'source';
+          record.dataset.lfDatum = 'record';
+          window.scrollBy(0, record.getBoundingClientRect().top - 80);
+        }""")
+        scroll_settled(page)
+        place = page.evaluate(
+            """async () => (await window.__lfWidgetApi()).capturePlace()"""
+        )
+        assert place.get("datum") == "record", place
+        assert place["quote"].startswith(record)
 
-def test_reading_place_visits_a_projected_passage_before_its_parent_continuation(
-    browser, serve
-):
-    """A paragraph's later words cannot precede the datum that splits its reading."""
-    record = (
-        "The projected record is the first visible passage the reader should keep. "
-    )
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "A projected passage inside a paragraph",
-                '<section id="source"><p id="paragraph">'
-                '<span style="display:block;height:1100px">Earlier paragraph words.</span>'
-                '<span id="record" style="display:block">'
-                + record
-                * 4
-                + '</span><span style="display:block">'
-                "The later continuation follows the record and must not take its place."
-                '</span></p></section><div style="height:900px"></div>',
-            )
-        ),
-    )
-    page.evaluate("""() => {
-      const record = document.querySelector('#record');
-      record.dataset.lfGen = '1';
-      record.dataset.lfProjection = 'source';
-      record.dataset.lfDatum = 'record';
-      window.scrollBy(0, record.getBoundingClientRect().top - 80);
-    }""")
-    scroll_settled(page)
-    place = page.evaluate(
-        """async () => (await window.__lfWidgetApi()).capturePlace()"""
-    )
-    assert place.get("datum") == "record", place
-    assert place["quote"].startswith(record)
+    with subtests.test(case="a row among repeated words"):
+        page.evaluate("""() => {
+          for (const row of document.querySelector('#rows').children) {
+            row.dataset.lfProjection = 'rows';
+            row.dataset.lfDatum = row.id;
+          }
+          window.scrollBy(0, document.querySelector('#row-40').getBoundingClientRect().top - 100);
+        }""")
+        scroll_settled(page)
+        reading = page.evaluate("""async () => {
+          const api = await window.__lfWidgetApi();
+          const place = api.capturePlace();
+          return {place, top: document.getElementById(place.datum)?.getBoundingClientRect().top};
+        }""")
+        assert reading["place"].get("datum"), reading
+        assert reading["place"]["quote"].startswith("The same words")
+        assert reading["top"] is not None
+        # A serialized checkpoint has no live node to disguise a lost datum identity.
+        page.evaluate("""() => {
+          document.querySelector('#row-0').style.height = '400px';
+          window.scrollTo({top: 0, behavior: 'instant'});
+        }""")
+        scroll_settled(page)
+        page.evaluate(
+            """async place => {
+          (await window.__lfWidgetApi()).restorePlace(place);
+        }""",
+            reading["place"],
+        )
+        scroll_settled(page)
+        assert page.locator(f"#{reading['place']['datum']}").bounding_box()[
+            "y"
+        ] == pytest.approx(reading["top"], abs=2)
 
 
 def test_reading_restore_leaves_a_concealed_landmark_alone(browser, serve, subtests):
@@ -1189,135 +1181,144 @@ def test_align_current_thread_stays_in_its_panel_without_travel(browser, serve):
     )
 
 
-def test_a_box_is_already_shown_where_a_nearest_landing_would_move_nothing(
-    browser, serve
+def test_a_nearest_landing_asks_whether_its_box_is_already_shown(
+    browser, serve, subtests
 ):
     """Every nearest landing first asks whether its box is already shown, which it is
     where the landing would move nothing: all of it in view where it fits its room, and
-    filling the room where it is longer. So a box taller than the window that shows only
-    in part still comes in as far as it fits, its opening at the band's top, and is then
-    shown. A wrapper clipping only sideways bounds no height, so an editor standing in an
-    `overflow-x: clip` row 20px tall still fits, and 30px of it in view is not yet
-    shown."""
-    source = leaf_page(
-        "Room",
-        '<div style="height:2000px"></div>'
-        '<div style="overflow-x:clip;height:20px"><div id="box" style="height:100px"></div></div>'
-        '<div style="height:2000px"></div><div id="tall" style="height:5000px"></div>',
-    )
-    page = open_page(browser, serve(source))
-    reading = page.evaluate("""async () => {
-      const {alreadyShown, fitsWhole, landingBand} = await window.__lfCheckApi();
-      const {scrollIntoView, shownWindow} = await window.__lfWidgetApi();
-      const partly = (node) => {
-        const top = node.getBoundingClientRect().top - (shownWindow().bottom - 30);
-        scrollBy({top, behavior: 'instant'});
-        return [fitsWhole(node), alreadyShown(node)];
-      };
-      const tall = document.querySelector('#tall');
-      const readings = [partly(document.querySelector('#box')), partly(tall)];
-      scrollIntoView(tall, {block: 'nearest', behavior: 'instant'});
-      return {readings, landed: alreadyShown(tall),
-              top: tall.getBoundingClientRect().top,
-              band: landingBand(document.scrollingElement).top};
-    }""")
-    assert reading["readings"] == [[True, False], [False, False]], reading
-    assert reading["landed"], reading
-    assert reading["top"] == pytest.approx(reading["band"], abs=1), reading
+    filling the room where it is longer. Each case stands in a part of the page of its
+    own and scrolls to it first, so the cases share one page.
 
+    A box taller than the window that shows only in part still comes in as far as it
+    fits, its opening at the band's top, and is then shown. A wrapper clipping only
+    sideways bounds no height, so an editor standing in an `overflow-x: clip` row 20px
+    tall still fits, and 30px of it in view is not yet shown.
 
-def test_a_box_whole_in_a_pane_below_the_window_is_not_yet_shown(browser, serve):
-    """The room a box has is what a landing could give it, not what the boxes around it
+    The room a box has is what a landing could give it, not what the boxes around it
     show where they stand now: a 250px box a 300px pane holds whole, the pane's foot
     below the window, fits the pane, so it is not yet shown, and a nearest landing
-    brings the page up until all of it is."""
-    source = leaf_page(
-        "Room in a pane",
-        '<div style="height:1200px"></div>'
-        '<div id="pane" style="height:300px;overflow:auto">'
-        '<div id="box" style="height:250px"></div><div style="height:600px"></div>'
-        '</div><div style="height:1600px"></div>',
-    )
-    page = open_page(browser, serve(source))
-    page.set_viewport_size({"width": 1280, "height": 900})
-    reading = page.evaluate("""async () => {
-      const {alreadyShown, landingBand} = await window.__lfCheckApi();
-      const {scrollIntoView} = await window.__lfWidgetApi();
-      const pane = document.querySelector('#pane');
-      const box = document.querySelector('#box');
-      scrollBy({top: pane.getBoundingClientRect().top - (innerHeight - 200),
-                behavior: 'instant'});
-      const before = {shown: alreadyShown(box), bottom: box.getBoundingClientRect().bottom};
-      scrollIntoView(box, {block: 'nearest', behavior: 'instant'});
-      return {before, after: alreadyShown(box), bottom: box.getBoundingClientRect().bottom,
-              band: landingBand(document.scrollingElement).bottom};
-    }""")
-    assert reading["before"]["bottom"] > reading["band"], reading
-    assert reading["before"]["shown"] is False, reading
-    assert reading["bottom"] <= reading["band"] + 1, reading
-    assert reading["after"] is True, reading
+    brings the page up until all of it is.
 
-
-def test_a_box_longer_than_its_pane_is_not_shown_while_its_pane_could_show_more(
-    browser, serve
-):
-    """A 300px box 100px down a 250px pane that stands 100px above the band shows 150px
-    of itself. A nearest landing scrolls the pane 100px to show 250px, and the page back
+    A 300px box 100px down a 250px pane that stands 100px above the band shows 150px of
+    itself. A nearest landing scrolls the pane 100px to show 250px, and the page back
     100px to keep the pane's top in the band, so the box stands where it stood: the two
     moves cancel on screen but not in what the user sees, so it is not yet shown, and
-    the landing makes both."""
+    the landing makes both.
+
+    A fixed box stands still while every box around it scrolls, so a landing on one the
+    window doesn't show, as a Tab's arrival makes, moves none of them. A fixed box a
+    transformed box holds is placed in that box, not the window, so it rides the page's
+    scroll and a landing scrolls the page to show it."""
     source = leaf_page(
-        "A box longer than its pane",
+        "Room",
+        '<button id="fixed" style="position:fixed;left:20px;top:1200px">Fixed</button>'
+        '<div style="height:100px"></div><div style="transform:translateZ(0)">'
+        '<button id="carried" style="position:fixed;left:20px;top:1300px">Carried'
+        '</button></div><div style="height:2000px"></div>'
+        '<div style="overflow-x:clip;height:20px"><div id="box" style="height:100px"></div></div>'
+        '<div style="height:2000px"></div><div id="tall" style="height:5000px"></div>'
         '<div style="height:1200px"></div>'
-        '<div id="pane" style="height:250px;overflow:auto">'
-        '<div style="height:100px"></div><div id="box" style="height:300px"></div>'
+        '<div id="pane" style="height:300px;overflow:auto">'
+        '<div id="whole" style="height:250px"></div><div style="height:600px"></div>'
+        '</div><div style="height:1600px"></div>'
+        '<div id="short-pane" style="height:250px;overflow:auto">'
+        '<div style="height:100px"></div><div id="long" style="height:300px"></div>'
         '<div style="height:600px"></div></div><div style="height:1600px"></div>',
     )
     page = open_page(browser, serve(source))
     page.set_viewport_size({"width": 1280, "height": 900})
-    reading = page.evaluate("""async () => {
-      const {alreadyShown, landingBand, seenRect} = await window.__lfCheckApi();
-      const {scrollIntoView} = await window.__lfWidgetApi();
-      const pane = document.querySelector('#pane');
-      const box = document.querySelector('#box');
-      const band = landingBand(document.scrollingElement).top;
-      scrollBy({top: pane.getBoundingClientRect().top - (band - 100), behavior: 'instant'});
-      const seenHeight = () => {
-        const seen = seenRect(box, new Map());
-        return seen ? Math.round(seen.bottom - seen.top) : 0;
-      };
-      const before = {shown: alreadyShown(box), seen: seenHeight(),
-                      top: Math.round(box.getBoundingClientRect().top)};
-      scrollIntoView(box, {block: 'nearest', behavior: 'instant'});
-      return {before, pane: pane.scrollTop, seen: seenHeight(),
-              top: Math.round(box.getBoundingClientRect().top), after: alreadyShown(box)};
-    }""")
-    assert reading["before"]["seen"] == 150, reading
-    assert reading["before"]["shown"] is False, reading
-    assert reading["pane"] == 100, reading
-    assert reading["seen"] == 250, reading
-    assert reading["top"] == reading["before"]["top"], reading
-    assert reading["after"] is True, reading
 
+    with subtests.test(case="a fixed box"):
+        assert (
+            page.evaluate("""async () => {
+              const {scrollIntoView} = await window.__lfWidgetApi();
+              scrollTo({top: 100, behavior: 'instant'});
+              const fixed = document.querySelector('#fixed');
+              scrollIntoView(fixed, {block: 'nearest', behavior: 'instant'});
+              return scrollY;
+            }""")
+            == 100
+        )
 
-def test_a_landing_on_a_fixed_box_moves_nothing_around_it(browser, serve):
-    """A fixed box stands still while every box around it scrolls, so a landing on one
-    the window doesn't show, as a Tab's arrival makes, moves none of them."""
-    source = leaf_page(
-        "A fixed box",
-        '<button id="fixed" style="position:fixed;left:20px;top:1200px">Fixed</button>'
-        '<div style="height:3000px"></div>',
-    )
-    page = open_page(browser, serve(source))
-    page.set_viewport_size({"width": 1280, "height": 900})
-    reading = page.evaluate("""async () => {
-      const {scrollIntoView} = await window.__lfWidgetApi();
-      scrollTo({top: 100, behavior: 'instant'});
-      const fixed = document.querySelector('#fixed');
-      scrollIntoView(fixed, {block: 'nearest', behavior: 'instant'});
-      return scrollY;
-    }""")
-    assert reading == 100
+    with subtests.test(case="a fixed box a transformed box holds"):
+        reading = page.evaluate("""async () => {
+          const {landingBand, seenRect} = await window.__lfCheckApi();
+          const {scrollIntoView} = await window.__lfWidgetApi();
+          scrollTo({top: 0, behavior: 'instant'});
+          const carried = document.querySelector('#carried');
+          const before = carried.getBoundingClientRect().top;
+          scrollIntoView(carried, {block: 'nearest', behavior: 'instant'});
+          const box = carried.getBoundingClientRect();
+          return {before, bottom: box.bottom, y: scrollY, seen: Boolean(seenRect(carried, new Map())),
+                  band: landingBand(document.scrollingElement).bottom};
+        }""")
+        assert reading["before"] > 900, reading
+        assert reading["y"] > 0, reading
+        assert reading["seen"], reading
+        assert reading["bottom"] <= reading["band"] + 1, reading
+
+    with subtests.test(case="what the window shows"):
+        reading = page.evaluate("""async () => {
+          const {alreadyShown, fitsWhole, landingBand} = await window.__lfCheckApi();
+          const {scrollIntoView, shownWindow} = await window.__lfWidgetApi();
+          const partly = (node) => {
+            const top = node.getBoundingClientRect().top - (shownWindow().bottom - 30);
+            scrollBy({top, behavior: 'instant'});
+            return [fitsWhole(node), alreadyShown(node)];
+          };
+          const tall = document.querySelector('#tall');
+          const readings = [partly(document.querySelector('#box')), partly(tall)];
+          scrollIntoView(tall, {block: 'nearest', behavior: 'instant'});
+          return {readings, landed: alreadyShown(tall),
+                  top: tall.getBoundingClientRect().top,
+                  band: landingBand(document.scrollingElement).top};
+        }""")
+        assert reading["readings"] == [[True, False], [False, False]], reading
+        assert reading["landed"], reading
+        assert reading["top"] == pytest.approx(reading["band"], abs=1), reading
+
+    with subtests.test(case="a box whole in a pane below the window"):
+        reading = page.evaluate("""async () => {
+          const {alreadyShown, landingBand} = await window.__lfCheckApi();
+          const {scrollIntoView} = await window.__lfWidgetApi();
+          const pane = document.querySelector('#pane');
+          const box = document.querySelector('#whole');
+          scrollBy({top: pane.getBoundingClientRect().top - (innerHeight - 200),
+                    behavior: 'instant'});
+          const before = {shown: alreadyShown(box), bottom: box.getBoundingClientRect().bottom};
+          scrollIntoView(box, {block: 'nearest', behavior: 'instant'});
+          return {before, after: alreadyShown(box), bottom: box.getBoundingClientRect().bottom,
+                  band: landingBand(document.scrollingElement).bottom};
+        }""")
+        assert reading["before"]["bottom"] > reading["band"], reading
+        assert reading["before"]["shown"] is False, reading
+        assert reading["bottom"] <= reading["band"] + 1, reading
+        assert reading["after"] is True, reading
+
+    with subtests.test(case="a box longer than its pane"):
+        reading = page.evaluate("""async () => {
+          const {alreadyShown, landingBand, seenRect} = await window.__lfCheckApi();
+          const {scrollIntoView} = await window.__lfWidgetApi();
+          const pane = document.querySelector('#short-pane');
+          const box = document.querySelector('#long');
+          const band = landingBand(document.scrollingElement).top;
+          scrollBy({top: pane.getBoundingClientRect().top - (band - 100), behavior: 'instant'});
+          const seenHeight = () => {
+            const seen = seenRect(box, new Map());
+            return seen ? Math.round(seen.bottom - seen.top) : 0;
+          };
+          const before = {shown: alreadyShown(box), seen: seenHeight(),
+                          top: Math.round(box.getBoundingClientRect().top)};
+          scrollIntoView(box, {block: 'nearest', behavior: 'instant'});
+          return {before, pane: pane.scrollTop, seen: seenHeight(),
+                  top: Math.round(box.getBoundingClientRect().top), after: alreadyShown(box)};
+        }""")
+        assert reading["before"]["seen"] == 150, reading
+        assert reading["before"]["shown"] is False, reading
+        assert reading["pane"] == 100, reading
+        assert reading["seen"] == 250, reading
+        assert reading["top"] == reading["before"]["top"], reading
+        assert reading["after"] is True, reading
 
 
 def test_align_current_tall_block_in_a_pane_in_a_pane_lands_its_opening(browser, serve):
@@ -1357,34 +1358,6 @@ def test_align_current_tall_block_in_a_pane_in_a_pane_lands_its_opening(browser,
     _expect_aligned(page, "#tall")
     assert page.locator("#inner").evaluate("box => box.scrollTop") == 0
     expect(page.locator("#tall")).to_be_focused()
-
-
-def test_a_landing_brings_in_a_fixed_box_a_transformed_box_holds(browser, serve):
-    """A fixed box a transformed box holds is placed in that box, not the window, so it
-    rides the page's scroll and a landing scrolls the page to show it; one fixed in the
-    window is left where it stands (`test_a_landing_on_a_fixed_box_moves_nothing_around_it`)."""
-    source = leaf_page(
-        "A fixed box carried",
-        '<div style="height:100px"></div><div style="transform:translateZ(0)">'
-        '<button id="carried" style="position:fixed;left:20px;top:1300px">Carried'
-        '</button></div><div style="height:4000px"></div>',
-    )
-    page = open_page(browser, serve(source))
-    page.set_viewport_size({"width": 1280, "height": 900})
-    reading = page.evaluate("""async () => {
-      const {landingBand, seenRect} = await window.__lfCheckApi();
-      const {scrollIntoView} = await window.__lfWidgetApi();
-      const carried = document.querySelector('#carried');
-      const before = carried.getBoundingClientRect().top;
-      scrollIntoView(carried, {block: 'nearest', behavior: 'instant'});
-      const box = carried.getBoundingClientRect();
-      return {before, bottom: box.bottom, y: scrollY, seen: Boolean(seenRect(carried, new Map())),
-              band: landingBand(document.scrollingElement).bottom};
-    }""")
-    assert reading["before"] > 900, reading
-    assert reading["y"] > 0, reading
-    assert reading["seen"], reading
-    assert reading["bottom"] <= reading["band"] + 1, reading
 
 
 def test_align_current_tall_block_reveals_its_opening_through_outer_scrollers(
@@ -2005,66 +1978,57 @@ def test_restore_selection_tracks_late_native_adjustment_and_retires_write_prove
 
 
 def test_closing_a_surface_leaves_the_next_tab_where_the_user_is_reading(
-    browser, serve
+    browser, serve, subtests
 ):
-    """A step that lands the user in the document moves the Tab starting point there.
+    """A step that lands the user in the document moves the Tab starting point there, and
+    closing a mode gives back the press that opened it with the user's place.
 
     The landing is blurred, so `activeElement` reads `body` whether or not it moved, and
     every journey that asserts only that would pass over a landing that had quietly reset
     the user to the top of the page. The press that tells them apart is the Tab after
     it: from a panel opened four screens down, it belongs on from the words in front of
     the user rather than at the document's first stop.
-    """
-    page = open_page(browser, serve(READING_CONTROLS_PAGE))
-    page.evaluate("() => document.getElementById('p40').scrollIntoView()")
-    page_at_rest(page)
-
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+t")
-    expect(page.locator(panel_view("threads"))).to_be_focused()
-    page.keyboard.press("Escape")
-    panel_settled(page, open=False)
-    assert page.evaluate("() => document.activeElement === document.body")
-
-    page.keyboard.press("Tab")
-    expect(page.locator("#next-control")).to_be_focused()
-    # And nothing of the borrow is left on the author's paragraph.
-    assert (
-        page.evaluate("() => document.querySelectorAll('main [tabindex]').length") == 0
-    )
-
-
-def test_the_reference_hands_the_user_back_to_the_page_they_were_reading(
-    browser, serve
-):
-    """Closing a mode gives back the press that opened it, and the user's place with it.
 
     A user working from the page stands on `body`: `letGo` puts them there so Space and
     PageDown reach the document's own scroll box. `?` from there recorded `body` as the
-    door and closing handed focus back to it — and focusing `body` resets the browser's
+    door and closing handed focus back to it, and focusing `body` resets the browser's
     sequential focus navigation starting point, so the next Tab began at the top of the
-    document. A user who opened the reference four screens down to look a key up was
-    charged the whole page to get back to where they had been.
-
-    The reading is the next Tab rather than the focused element, because that is the fact
-    that was wrong: the restore itself looked fine both before and after, focus being on
-    nothing either way. Authored controls before and after the reading distinguish
-    restarting at the top from carrying on where the user was.
-    """
+    document. Authored controls before and after the reading distinguish restarting at
+    the top from carrying on where the user was. Each case starts from there:
+    `RELEASE_FOCUS` puts the starting point back at the top, where a new page has it."""
     page = open_page(browser, serve(READING_CONTROLS_PAGE))
-    page.evaluate("() => document.getElementById('p40').scrollIntoView()")
-    page_at_rest(page)
+    threads = page.locator(panel_view("threads"))
+    reference = page.locator(".lf-command-reference")
 
-    page.keyboard.press("?")
-    expect(page.locator(".lf-command-reference")).to_be_visible()
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-command-reference")).to_be_hidden()
+    def close_threads():
+        page.keyboard.press("g")
+        page.keyboard.press("Shift+t")
+        expect(threads).to_be_focused()
+        page.keyboard.press("Escape")
+        panel_settled(page, open=False)
 
-    page.keyboard.press("Tab")
-    expect(page.locator("#next-control")).to_be_focused()
-    # And nothing of the borrow is left on the author's paragraph: `tabindex` is not in
-    # PAGE_PAINT_ATTRIBUTES, so a stop left in place would be runtime paint the replay
-    # signature has no vocabulary for.
-    assert (
-        page.evaluate("() => document.querySelectorAll('main [tabindex]').length") == 0
-    )
+    def close_reference():
+        page.keyboard.press("?")
+        expect(reference).to_be_visible()
+        page.keyboard.press("Escape")
+        expect(reference).to_be_hidden()
+
+    for surface, close in (("threads", close_threads), ("reference", close_reference)):
+        with subtests.test(surface=surface):
+            page.evaluate(RELEASE_FOCUS)
+            page.evaluate("() => document.getElementById('p40').scrollIntoView()")
+            page_at_rest(page)
+            close()
+            assert page.evaluate("() => document.activeElement === document.body")
+
+            page.keyboard.press("Tab")
+            expect(page.locator("#next-control")).to_be_focused()
+            # And nothing of the borrow is left on the author's paragraph: `tabindex` is
+            # not in PAGE_PAINT_ATTRIBUTES, so a stop left in place would be runtime paint
+            # the replay signature has no vocabulary for.
+            assert (
+                page.evaluate(
+                    "() => document.querySelectorAll('main [tabindex]').length"
+                )
+                == 0
+            )

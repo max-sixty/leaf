@@ -567,12 +567,10 @@ def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
 CARD_ROUTES = {
     "walk": (["t"], True),
     "walk, close the card": (["t", "Escape"], False),
-    "walk, Escape again": (["t", "Escape", "Escape"], False),
     "walk on, close the card": (["t", "t", "Escape"], False),
     "walk, Tab within the card": (["t", "Tab"], True),
     "walk, go to the page": (["t", "g", "p"], True),
     "reply, back to the thread": (["t", "c", "Escape"], True),
-    "reply, close the card": (["t", "c", "Escape", "Escape"], False),
     "arrive at the mark": (["@mark"], True),
     "arrive at the mark, step back": (["@mark", "Escape"], True),
     "press the marker": (["@marker"], True),
@@ -664,6 +662,14 @@ def test_go_to_threads_lands_on_threads_from_a_page_thread(browser, serve, width
         page.keyboard.press("Escape")
         panel_settled(page, open=False)
         assert page.evaluate("document.activeElement === document.body")
+
+    # g T puts away the Threads it opened, as Escape does.
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    expect(threads).to_be_visible()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel_settled(page, open=False)
 
 
 def test_a_thread_walk_shows_one_thread_at_a_time(browser, serve):

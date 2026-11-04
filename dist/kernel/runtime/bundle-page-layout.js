@@ -4694,6 +4694,8 @@ function gestureWords(event, gesture) {
 			const was = message?.edited?.id === event.id ? message.edited.was : null;
 			return `${event.text ? "edited" : "deleted"} ${was ? quotedWords(was, 48) : "a message"}`;
 		}
+		case "comment":
+		case "reply": return `${event.kind === "comment" ? "commented" : "replied"} ${event.text ? quotedWords(event.text, 48) : "with a drawing"}`;
 		case "todo_end": {
 			const todo = runtime.todos.find(({ id }) => id === event.todo);
 			return TODO_ENDINGS[event.outcome](todo ? quotedWords(todo.title) : "a to-do");
@@ -4702,10 +4704,11 @@ function gestureWords(event, gesture) {
 	}
 }
 function placeOf(event) {
-	if (event.kind === "edit") return {
+	const message = event.kind === "edit" ? event.message : (event.kind === "comment" || event.kind === "reply") && !event.token ? event.id : null;
+	if (message) return {
 		thread: null,
-		message: event.message,
-		nodes: [...document.querySelectorAll(`.lf-msg[data-event="${CSS.escape(event.message)}"]`)]
+		message,
+		nodes: [...document.querySelectorAll(`.lf-msg[data-event="${CSS.escape(message)}"]`)]
 	};
 	if (event.kind === "resolve" || event.kind === "unresolve" || event.kind === "reply") return {
 		thread: event.parent ? threadIdNamed(event.parent) : null,

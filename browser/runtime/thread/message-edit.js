@@ -86,10 +86,11 @@
    Delete message and its Save turning to Delete, so no dialog asks again: `z` takes a
    saved rewrite back, a deletion as any other (undo.js).
    Rejected: refusing an empty rewrite, which left a Save that drew as live and did
-   nothing, so the user typed a placeholder such as "[removed]" over their words; and
-   withdrawing the message (`undo`), which the log admits only while nothing answers
-   it, so a message the agent had answered couldn't be deleted (the user's decision,
-   1 November 2026). */
+   nothing, so the user typed a placeholder such as "[removed]" over their words (the
+   user's decision, 1 November 2026); and deleting by withdrawing the message (`undo`),
+   which nothing could then take back, as `z` takes back a deletion. `z` withdraws the
+   message the user sent last instead, and the empty save deletes an older one (the
+   user's decision, 3 November 2026). */
 import {
   clearDraft,
   draftHasContent,

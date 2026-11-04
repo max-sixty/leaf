@@ -232,7 +232,7 @@
 
     "runtime/kernel-facts.js": "a115be58af0138cc01234a9d6c16caa066237d7988b94e056039810edcf9b53e",
 
-    "runtime/kernel-registry.json": "a949cc6e145a7ccc4ada5fbfe2c1cdf211bd3741c5cba0ff7d2314abc497b1c7",
+    "runtime/kernel-registry.json": "8876e653c46a449bece3e59a3c42000ee91b44e1bcb556bbdb484ff1e41f0138",
 
     "runtime/keyboard/bindings.js": "67c3dd0c589fc877dc7b84a00e03ce3599524455bc13984dd0be7f2637c8c837",
 
@@ -474,7 +474,7 @@
 
     "runtime/thread/folding.js": "d3ee0b9bfa919bc62fe82b33c89423841edb002f14d1366a91a083ddeee86baf",
 
-    "runtime/thread/held-news.js": "7ba0b90e297c4becfaf65c6f1279cc3082e6663f4b5492d0283c33b624593906",
+    "runtime/thread/held-news.js": "35aae79b02137b971d2ee51a45263192d403d6b2332aa2914c2818edbee7b676",
 
     "runtime/thread/identity.js": "a108cf62a230a32aa426de09e2dcd11a5102ee0c8c40817585e40a9f97f7c00c",
 
@@ -482,11 +482,11 @@
 
     "runtime/thread/landing.js": "6d43ce70e92f906d4cada3f4a222bb9b124ee362d344da18de279ebe55a6e840",
 
-    "runtime/thread/message-edit.js": "1b6e17a6f1c9d87605fb96b793b1e264e6e10a9eb50aad66b423d3b9e1a1888c",
+    "runtime/thread/message-edit.js": "8eec576f0f12ca619b95b257175d0ef58400db7c4ed53f476830d3d162945a72",
 
     "runtime/thread/messages.js": "d2eeddaf4b8a9debb609f06e85653e8f68bf886e0ef47412c6fdc50aeadb5ab7",
 
-    "runtime/thread/model.js": "aa1097bfba5300f4ce6f6ba0116aa958ea449ce764b51d190fec84baa287e5a5",
+    "runtime/thread/model.js": "f139a05ab30fdddc5f90edc5058ca83428190616050ab3ec985fc768f0c3ff91",
 
     "runtime/thread/placement.js": "e73aebe5fcdc99563a3006462c3b6bee2452284ad5112d26acd9e4bd939fb820",
 
@@ -524,7 +524,7 @@
 
     "runtime/traffic.js": "fe8f837580f221f033af888c3e7870b3cdc69664a5466f825756af1722625364",
 
-    "runtime/undo.js": "723aff5393f85de4c5348f648ffa5ea201ec2e480976017499623ba2a2bf7f2c",
+    "runtime/undo.js": "cfec64bb0aad4c390a29e6ed311af8f569da9d62dc7db2b7b6c7fc90cc7faa44",
 
     "runtime/user-intent.js": "91a05c1dc0c6061110958f2715488e62a68088e9d807545c5796d85f7c8cf9f7",
 

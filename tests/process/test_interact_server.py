@@ -2251,14 +2251,16 @@ def test_undo_candidates_keep_only_user_gestures_in_force():
     )
 
     # An answered reaction is the user's to take back as an unanswered one is, so the
-    # newest, rx2, heads the list for `z`.
+    # newest, rx2, heads the list for `z`, and the comment is theirs to take back too.
     assert [candidate["event"]["id"] for candidate in candidates] == [
         "rx2",
         "rx1",
         "r2",
+        "c1",
     ]
     assert [candidate.get("newest", False) for candidate in candidates] == [
         True,
+        False,
         False,
         False,
     ]
@@ -2266,7 +2268,8 @@ def test_undo_candidates_keep_only_user_gestures_in_force():
 
 def test_undo_walk_ends_at_the_users_newest_gesture():
     """`z` takes the head only while it is the user's newest gesture. Bookkeeping
-    and gestures already withdrawn do not end the walk; a sent reply does."""
+    and gestures already withdrawn do not end the walk, and a comment the user sent
+    is taken as any gesture is; an action this document does not paint ends it."""
     events = [
         {"id": "c1", "kind": "comment", "author": "user", "text": "question"},
         {"id": "r1", "kind": "resolve", "author": "user", "parent": "c1"},
@@ -2274,6 +2277,7 @@ def test_undo_walk_ends_at_the_users_newest_gesture():
         {"id": "c2", "kind": "comment", "author": "user", "text": "another"},
         {"id": "r2", "kind": "resolve", "author": "user", "parent": "c2"},
         {"id": "u2", "kind": "undo", "author": "user", "undoes": "r2"},
+        {"id": "a1", "kind": "action", "author": "user", "widget": "gone"},
     ]
     empty = projection_model.StateProjection(
         {}, {}, {}, {}, {}, frozenset(), frozenset()
@@ -2294,10 +2298,15 @@ def test_undo_walk_ends_at_the_users_newest_gesture():
         )
         return [(item["event"]["id"], item.get("newest", False)) for item in candidates]
 
-    # c2 was said after r1 and r2 is withdrawn: the newest gesture in force is c2.
-    assert walk(events) == [("r1", False)]
-    # Without c2, the read and the withdrawn r2 leave r1 the newest gesture.
-    assert walk([e for e in events if e["id"] != "c2"]) == [("r1", True)]
+    # a1 is the newest gesture, and this document paints nothing of it.
+    assert walk(events) == [("c2", False), ("r1", False), ("c1", False)]
+    # Without it, the withdrawn r2 leaves c2 the newest gesture in force.
+    assert walk(events[:-1]) == [("c2", True), ("r1", False), ("c1", False)]
+    # Without c2, the read leaves r1 the newest gesture.
+    assert walk([e for e in events[:-1] if e["id"] != "c2"]) == [
+        ("r1", True),
+        ("c1", False),
+    ]
 
 
 def test_each_view_offers_only_the_gestures_it_paints(page_dir):

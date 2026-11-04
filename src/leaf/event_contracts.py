@@ -606,7 +606,8 @@ def _parent_error(event: dict, events: list) -> Finding | None:
 def _edit_error(event: dict, events: list) -> Finding | None:
     """An edit revises the words of a message its own author wrote: the user's own,
     or an agent's, whichever session posted it, so a successor can correct what a
-    predecessor said. A reaction or a bare drawing has none to revise.
+    predecessor said. A reaction or a bare drawing has none to revise, and a message
+    the user took back has none left.
 
     An edit that names its `base`, the revision its words were written over (the
     message's own id, or the latest edit of it still in force; a browser names an edit
@@ -634,6 +635,8 @@ def _edit_error(event: dict, events: list) -> Finding | None:
     if "text" not in target:
         return Finding("wordless-message", values=message)
     withdrawn = taken_back(events)
+    if name in withdrawn:
+        return Finding("withdrawn-message", values=message)
     revisions = [
         logged
         for logged in events

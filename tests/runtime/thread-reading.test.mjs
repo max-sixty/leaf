@@ -331,57 +331,60 @@ test("prepared thread readings consume only their own held-news release", async 
     );
 });
 
-test("held news keeps a reaction taken back elsewhere as it was drawn", async () => {
+test("held news keeps a message taken back elsewhere as it was drawn", async () => {
   const { HeldNews } = await import("/runtime/thread/held-news.js");
-  /** @param {boolean} taken */
-  const reading = (taken) => {
-    const said = (id, seq, author, parent, text) => ({
-      id,
-      seq,
-      kind: parent ? "reply" : "comment",
-      author,
-      ...(parent ? { parent } : {}),
-      text,
-      body: { text },
-    });
-    const mark = {
-      ...said("mark", 3, "user", "answer", ""),
-      ...(taken
-        ? { withdrawn: { id: "undo", ts: "now", was: "keep" } }
-        : { token: "keep" }),
+  for (const [kept, was] of [
+    [{ token: "keep" }, "keep"],
+    [{ text: "The beta.", body: { text: "The beta." } }, "The beta."],
+  ]) {
+    /** @param {boolean} taken */
+    const reading = (taken) => {
+      const said = (id, seq, author, parent, text) => ({
+        id,
+        seq,
+        kind: parent ? "reply" : "comment",
+        author,
+        ...(parent ? { parent } : {}),
+        text,
+        body: { text },
+      });
+      const mark = {
+        ...said("mark", 3, "user", "answer", ""),
+        ...(taken ? { withdrawn: { id: "undo", ts: "now", was } } : kept),
+      };
+      if (!taken && kept.token) delete mark.text;
+      const source = servedThread([
+        said("opening", 1, "user", null, "Ship it?"),
+        said("answer", 2, "agent", "opening", "Ready."),
+        mark,
+        said("kept", 4, "agent", "mark", "Keeping it."),
+      ]);
+      const descriptor = (source) => ({
+        id: source.id,
+        key: source.key,
+        source,
+        messages: source.msgs,
+        resolved: source.resolved,
+        summaries: source.summaries,
+        reread: descriptor,
+      });
+      return { threads: [descriptor(source)] };
     };
-    if (!taken) delete mark.text;
-    const source = servedThread([
-      said("opening", 1, "user", null, "Ship it?"),
-      said("answer", 2, "agent", "opening", "Ready."),
-      mark,
-      said("kept", 4, "agent", "mark", "Keeping it."),
-    ]);
-    const descriptor = (source) => ({
-      id: source.id,
-      key: source.key,
-      source,
-      messages: source.msgs,
-      resolved: source.resolved,
-      summaries: source.summaries,
-      reread: descriptor,
-    });
-    return { threads: [descriptor(source)] };
-  };
-  const owner = document.createElement("section");
-  document.body.append(owner);
-  const held = new HeldNews(
-    owner,
-    () => ({ node: owner, newsMoves: () => true }),
-    () => {},
-  );
-  held.hold(reading(false), { row: false });
-  const next = held.prepare(reading(true), { row: false });
-  const mark = next.reading.threads[0].source.msgs.find(({ id }) => id === "mark");
-  held.dispose();
-  owner.remove();
-  assert.equal(mark?.token, "keep");
-  assert.equal(mark?.withdrawn, undefined);
+    const owner = document.createElement("section");
+    document.body.append(owner);
+    const held = new HeldNews(
+      owner,
+      () => ({ node: owner, newsMoves: () => true }),
+      () => {},
+    );
+    held.hold(reading(false), { row: false });
+    const next = held.prepare(reading(true), { row: false });
+    const mark = next.reading.threads[0].source.msgs.find(({ id }) => id === "mark");
+    held.dispose();
+    owner.remove();
+    assert.equal(mark?.token ?? mark?.text, was);
+    assert.equal(mark?.withdrawn, undefined);
+  }
 });
 
 test("a transcript commits when drawn, and abandoned renders call nothing", async (t) => {

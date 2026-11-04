@@ -377,7 +377,7 @@ export function threadChange(was, now, { progressOpen = false } = {}) {
 // The thread `now` with what `was`, the thread as the seat drew it, did not show held
 // back: what the log's news changed, as drawn. That is its settlement; its messages, the
 // new ones left out, a reaction taken off or a streaming reply gone still present, and
-// each one's words or mark as drawn, which only an edit, an undo of a reaction or a
+// each one's words or mark as drawn, which only an edit, an undo of a message or a
 // stream changes; and its summaries as drawn. A held thread is read from this as from
 // any other, so what the reading derives from those, such as its title, its reaction
 // strips or its controls, agrees with what it draws.
@@ -391,8 +391,9 @@ function withheld(was, now) {
   const msgs = was.msgs.flatMap((prior) => {
     const message = current.get(messageKey(prior));
     if (!message) return isReaction(prior) || prior.provisional ? [prior] : [];
-    // A reaction taken back while something stands on it is still the mark drawn.
-    if (isReaction(prior) && !isReaction(message)) return [prior];
+    // A message taken back while something stands on it is still the words or mark
+    // drawn.
+    if (message.withdrawn && !prior.withdrawn) return [prior];
     // A streaming reply held as drawn is still the reply arriving, whatever completed it.
     // Its content version is the one its drawn words are, so the words a rewrite holds
     // back are neither marked read nor taken for the rewrite.

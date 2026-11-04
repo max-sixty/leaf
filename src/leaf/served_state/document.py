@@ -42,10 +42,10 @@ def browser_undo_candidates(
 
     `z` takes back the user's newest gesture or nothing, so the head carries
     `newest` only when it is that gesture: the newest of the user's events that
-    is neither bookkeeping, an undo, nor already withdrawn. A reply sent after a
-    resolve ends the walk rather than letting `z` reach past it, and so does a
-    gesture this document no longer paints. Every entry stays on the list for the
-    exact control that names it.
+    is neither bookkeeping, an undo, nor already withdrawn. A gesture the door
+    refuses or this document no longer paints, such as a move a later revision's
+    markup places, ends the walk rather than letting `z` reach past it. Every entry
+    stays on the list for the exact control that names it.
 
     The head carries `gesture`, what an action did in its own document's words
     (`GestureWords.gesture`), so `z` names what it takes in every tab and after a

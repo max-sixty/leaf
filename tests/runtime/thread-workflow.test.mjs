@@ -313,6 +313,38 @@ test("taking back an answered reaction keeps its place as the log's answer will"
   assert.equal(folded.bare_reaction, taken.bare_reaction);
 });
 
+test("taking back a sent reply keeps its place where answered, as the log's answer will", () => {
+  const [answered] = servedReading("a reply answered").threads;
+  const [taken] = servedReading("a reply answered, taken back").threads;
+  /** @param {import("../../browser/types/domain.js").Message} message */
+  const place = (message) => ({
+    id: message.id,
+    text: message.text,
+    was: message.withdrawn?.was,
+    deleted: deleted(message),
+  });
+  const [folded] = foldThreads([answered], [{ kind: "undo", undoes: "e3" }], NONE);
+  assert.deepEqual(folded.msgs.map(place)[2], {
+    id: "e3",
+    text: "",
+    was: "The rollout section.",
+    deleted: true,
+  });
+  assert.deepEqual(folded.msgs.map(place), taken.msgs.map(place));
+  // A reply nothing answers leaves the thread, and a comment nothing answers takes
+  // its thread with it.
+  const loose = { ...answered.msgs[2], id: "loose", parent: "e4", text: "And this?" };
+  const sent = { ...answered, msgs: [...answered.msgs, loose] };
+  assert.deepEqual(
+    foldThreads([sent], [{ kind: "undo", undoes: "loose" }], NONE)[0].msgs.map(
+      ({ id }) => id,
+    ),
+    ["e1", "e2", "e3", "e4"],
+  );
+  const alone = { ...answered, msgs: [answered.root] };
+  assert.deepEqual(foldThreads([alone], [{ kind: "undo", undoes: "e1" }], NONE), []);
+});
+
 test("a to-do attached to a thread keeps its taken-back opening in place", () => {
   const attached = new Set(["e1"]);
   const [holding] = servedReading("a reaction holding a to-do").threads;

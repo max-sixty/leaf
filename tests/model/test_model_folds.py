@@ -9,6 +9,7 @@ putting one in the claim.
 """
 
 import model_folds as model
+import pytest
 from interact_support import page_packages, served_obligations
 
 HUB = model.leaf_page(
@@ -111,6 +112,223 @@ def test_a_reaction_taken_back_retires_the_summaries_written_after_it():
     assert summaries("e7") == ["e6"]
     assert summaries("e2") == []
     assert summaries("e4", "e2") == []
+
+
+AGENT = {"author": "agent", "agent": "Agent", "session": "session-1"}
+
+
+def test_a_message_taken_back_keeps_no_rewrite_of_it():
+    """A message the user takes back while an answer stands on it keeps its place,
+    saying the words it was sent with, and a rewrite made before the withdrawal, as a
+    second tab may have made, no longer stands or asks for an answer."""
+    log = (
+        {"kind": "comment", "text": "Ship it?"},
+        {"kind": "reply", **AGENT, "parent": "e1", "responds": "e1", "text": "Which?"},
+        {"kind": "reply", "parent": "e2", "text": "The beta."},
+        {"kind": "reply", **AGENT, "parent": "e3", "responds": "e3", "text": "OK."},
+        {"kind": "edit", "message": "e3", "text": "The release."},
+        {"kind": "undo", "undoes": "e3"},
+    )
+    state = model.reading(HUB, log)
+    thread = model.threads(state)["e1"]
+    taken = next(message for message in thread["msgs"] if message["id"] == "e3")
+    assert (taken["text"], taken["withdrawn"]["was"]) == ("", "The beta.")
+    assert "edited" not in taken
+    assert thread["revisions"] == []
+    assert state["workflows"] == []
+
+
+@pytest.mark.parametrize(
+    "log",
+    [
+        pytest.param(
+            (
+                {"kind": "reply", "parent": "e1", "text": "And the docs?"},
+                {
+                    "kind": "reply",
+                    **AGENT,
+                    "parent": "e2",
+                    "responds": "e2",
+                    "text": ".",
+                },
+                {"kind": "undo", "undoes": "e2"},
+            ),
+            id="the answered message",
+        ),
+        pytest.param(
+            (
+                {"kind": "reply", "parent": "e1", "text": "And the docs?"},
+                {
+                    "kind": "reply",
+                    **AGENT,
+                    "parent": "e1",
+                    "responds": "e2",
+                    "text": ".",
+                },
+                {"kind": "undo", "undoes": "e2"},
+            ),
+            id="the answered message, which nothing stands on",
+        ),
+        pytest.param(
+            (
+                {"kind": "reply", "parent": "e1", "text": "And the docs?"},
+                {"kind": "edit", "message": "e2", "text": "And the tests?"},
+                {
+                    "kind": "reply",
+                    **AGENT,
+                    "parent": "e2",
+                    "responds": "e3",
+                    "text": ".",
+                },
+                {"kind": "undo", "undoes": "e2"},
+            ),
+            id="the message whose rewrite was answered",
+        ),
+        pytest.param(
+            (
+                {"kind": "reply", "parent": "e1", "text": "And the docs?"},
+                {"kind": "edit", "message": "e2", "text": "And the tests?"},
+                {
+                    "kind": "reply",
+                    **AGENT,
+                    "parent": "e2",
+                    "responds": "e3",
+                    "text": ".",
+                },
+                {"kind": "undo", "undoes": "e3"},
+            ),
+            id="the answered rewrite",
+        ),
+        pytest.param(
+            (
+                {"kind": "reply", "parent": "e1", "text": "And the docs?"},
+                {"kind": "reply", "parent": "e2", "token": "keep"},
+                {
+                    "kind": "reply",
+                    **AGENT,
+                    "parent": "e3",
+                    "responds": "e2",
+                    "text": ".",
+                },
+                {"kind": "undo", "undoes": "e3"},
+            ),
+            id="a reaction the answer stands on",
+        ),
+        pytest.param(
+            (
+                {"kind": "reply", "parent": "e1", "text": "And the docs?"},
+                {"kind": "reply", "parent": "e2", "text": "And the tests?"},
+                {"kind": "undo", "undoes": "e3"},
+                {
+                    "kind": "reply",
+                    **AGENT,
+                    "parent": "e2",
+                    "responds": "e2",
+                    "text": ".",
+                },
+            ),
+            id="a turn taken back before the answer",
+        ),
+        pytest.param(
+            (
+                {"kind": "reply", "parent": "e1", "text": "And the docs?"},
+                {"kind": "edit", "message": "e2", "text": "And the tests?"},
+                {"kind": "undo", "undoes": "e3"},
+                {
+                    "kind": "reply",
+                    **AGENT,
+                    "parent": "e2",
+                    "responds": "e2",
+                    "text": ".",
+                },
+            ),
+            id="a rewrite taken back before the answer",
+        ),
+        pytest.param(
+            (
+                {"kind": "reply", "parent": "e1", "text": "And the docs?"},
+                {"kind": "reply", "parent": "e2", "text": "And the tests?"},
+                {"kind": "edit", "message": "e3", "text": "And the build?"},
+                {"kind": "undo", "undoes": "e3"},
+                {
+                    "kind": "reply",
+                    **AGENT,
+                    "parent": "e2",
+                    "responds": "e2",
+                    "text": ".",
+                },
+            ),
+            id="a rewritten turn taken back before the answer",
+        ),
+        pytest.param(
+            (
+                {
+                    "kind": "reply",
+                    **AGENT,
+                    "parent": "e1",
+                    "responds": "e1",
+                    "failure": "turn_failed",
+                    "text": "No answer is coming.",
+                },
+                {"kind": "reply", "parent": "e2", "text": "Try again?"},
+                {
+                    "kind": "reply",
+                    **AGENT,
+                    "parent": "e3",
+                    "responds": "e3",
+                    "text": ".",
+                },
+                {"kind": "undo", "undoes": "e3"},
+            ),
+            id="an answered retry of a failed answer",
+        ),
+    ],
+)
+def test_taking_back_a_turn_leaves_what_an_answer_settled_settled(log):
+    """The agent's answer to the user's newest turn settles every turn before it, and
+    taking back that turn, its rewrite, or a reaction the answer stands on leaves
+    them settled, as a failed answer the settled turn came after stays answered. A
+    turn taken back before the answer is no part of what it settles."""
+    state = model.reading(HUB, ({"kind": "comment", "text": "Ship it?"}, *log))
+    assert state["workflows"] == []
+
+
+def test_taking_back_an_unanswered_retry_hands_the_failed_answer_back():
+    """A retry the user takes back before any answer leaves the failed answer it
+    followed theirs to act on again."""
+    log = (
+        {"kind": "comment", "text": "Ship it?"},
+        {
+            "kind": "reply",
+            **AGENT,
+            "parent": "e1",
+            "responds": "e1",
+            "failure": "turn_failed",
+            "text": "No answer is coming.",
+        },
+        {"kind": "reply", "parent": "e2", "text": "Try again?"},
+        {"kind": "undo", "undoes": "e3"},
+    )
+    [failed] = model.reading(HUB, log)["workflows"]
+    assert failed["input"] == "e1"
+
+
+def test_a_reply_taken_back_reopens_nothing():
+    """A reply the user takes back keeps its place where something stands on it,
+    and nothing else: the thread it had reopened is resolved again."""
+    log = (
+        {"kind": "comment", "text": "Ship it?"},
+        {"kind": "reply", **AGENT, "parent": "e1", "responds": "e1", "text": "Done."},
+        {"kind": "resolve", "parent": "e1"},
+        {"kind": "reply", "parent": "e2", "text": "One more thing."},
+        {"kind": "reply", "parent": "e4", "token": "keep"},
+        {"kind": "undo", "undoes": "e4"},
+    )
+    state = model.reading(HUB, log)
+    thread = model.threads(state)["e1"]
+    assert [message["id"] for message in thread["msgs"]] == ["e1", "e2", "e4", "e5"]
+    assert thread["resolved"]["id"] == "e3"
+    assert state["workflows"] == []
 
 
 def test_summary_leaves_messages_after_its_range_visible():

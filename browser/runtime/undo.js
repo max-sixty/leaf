@@ -3,8 +3,9 @@
    The server's view of the shown revision lists, newest first, the user's gestures this
    document can take back (`served_state/document.py`); nothing here judges a candidate
    again. `z` takes the head of that list only when the server marks it `newest`, the
-   user's newest gesture, so a reply sent since ends the walk, unless the press before
-   armed another gesture (below), which it then takes; a widget's Undo, a
+   user's newest gesture, so a gesture the list doesn't hold, such as a move a later
+   revision's markup places, ends the walk, unless the press before armed another
+   gesture (below), which it then takes; a widget's Undo, a
    reaction chip, and a reaction strip each name an exact entry, and a notice's Undo
    takes the gesture it reports by `z`'s rules (`offerUndo`). All of them withdraw
    through `withdraw`.
@@ -13,8 +14,8 @@
    floating panel's menu row and the notice its undo leaves ("Undo: resolved “Rollout
    safety” · 3d ago", then "Undid: resolved “Rollout safety” · 3d ago"), in
    every tab and after a reload. A thread goes by its name as it stands now, a rewrite
-   by the words it replaced, a to-do by its title and a reaction by where it stands, all
-   of which the page already holds. An action's ids are words only in
+   by the words it replaced, a message by the words it was sent with, a to-do by its
+   title and a reaction by where it stands, all of which the page already holds. An action's ids are words only in
    the document it was made in, so the server serves what the head did in that
    document's words (`gesture`, `GestureWords.gesture`), and the widget goes by its
    name on this page.
@@ -22,8 +23,8 @@
    widget. The age is the gesture's own `ts`, worded by the page's one clock (`ago`).
 
    `z` leaves the user at what it takes back, the gesture's place: the thread a
-   settlement or reaction is in, the message a rewrite changed, the message holding a
-   widget an agent sent, or the element changed. A to-do's Done changes only the leaf's
+   settlement or reaction is in, the message a rewrite changed or the user sent, the
+   message holding a widget an agent sent, or the element changed. A to-do's Done changes only the leaf's
    own rows, which stand in front of the user, so it has none. A press reaches the place
    one of three ways:
 
@@ -162,6 +163,9 @@ function gestureWords(event, gesture) {
       const was = message?.edited?.id === event.id ? message.edited.was : null;
       return `${event.text ? "edited" : "deleted"} ${was ? quoted(was, 48) : "a message"}`;
     }
+    case "comment":
+    case "reply":
+      return `${event.kind === "comment" ? "commented" : "replied"} ${event.text ? quoted(event.text, 48) : "with a drawing"}`;
     case "todo_end": {
       const todo = runtime.todos.find(({ id }) => id === event.todo);
       return TODO_ENDINGS[event.outcome](todo ? quoted(todo.title) : "a to-do");
@@ -172,20 +176,24 @@ function gestureWords(event, gesture) {
 }
 
 // Where taking `event` back shows on the page: the thread it settled or reacted in, the
-// message a rewrite changed, a widget an agent sent in a message (its message is its
-// place), or the element it changed. A to-do's Done changes only the leaf's own rows,
+// message a rewrite changed or the user sent, a widget an agent sent in a message (its
+// message is its place), or the element it changed. A to-do's Done changes only the leaf's own rows,
 // which stand in front of the user, so it has no place. A rewrite changes only its
 // message's words, so the thread's passage or marker in view doesn't show it.
 /** @param {UndoEvent} event @returns {UndoPlace | null} */
 function placeOf(event) {
-  if (event.kind === "edit")
+  const message =
+    event.kind === "edit"
+      ? event.message
+      : (event.kind === "comment" || event.kind === "reply") && !event.token
+        ? event.id
+        : null;
+  if (message)
     return {
       thread: null,
-      message: event.message,
+      message,
       nodes: [
-        ...document.querySelectorAll(
-          `.lf-msg[data-event="${CSS.escape(event.message)}"]`,
-        ),
+        ...document.querySelectorAll(`.lf-msg[data-event="${CSS.escape(message)}"]`),
       ],
     };
   // A reaction in a thread is a reply naming the message it reacts to.

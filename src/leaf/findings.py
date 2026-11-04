@@ -1749,6 +1749,7 @@ _TEXT = {
     "wordless-message": lambda at, v: (
         f"message {v['message']!r} has no words to revise"
     ),
+    "withdrawn-message": lambda at, v: f"message {v['message']!r} has been taken back",
     "stale-edit": lambda at, v: (
         f"edit of {v['message']!r} was written over {v['base']!r}, and"
         f" {v['latest']!r} has since revised it"
@@ -1776,13 +1777,9 @@ _TEXT = {
         f"{v['target']} {v['undoes']} is not the user's own gesture"
     ),
     "withdrawn-gesture": lambda at, v: f"{v['undoes']} has already been taken back",
-    "said-message": lambda at, v: (
-        f"{v['target']} {v['undoes']} is not a reaction; a message with words in it"
-        " is said rather than unsaid"
-    ),
     "unundoable": lambda at, v: (
         f"{v['target']} events cannot be taken back (the kinds that can are"
-        f" {', '.join(v['undoable'])} and a reaction)"
+        f" {', '.join(v['undoable'])})"
     ),
     "absorbed-move": lambda at, v: (
         f"move {v['undoes']} was made on r{v['revision']}, and a later revision's"

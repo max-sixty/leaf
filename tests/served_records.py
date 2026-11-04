@@ -146,6 +146,26 @@ ANSWERED_REACTION = (
     {"kind": "reply", "parent": "e2", "token": "keep"},
 )
 
+# A reply the user sent in a thread, and the agent's answer to it.
+ANSWERED_REPLY = (
+    {"kind": "comment", "text": "Too long?"},
+    {
+        "kind": "reply",
+        "author": "agent",
+        "agent": "Agent",
+        "parent": "e1",
+        "text": "Which part?",
+    },
+    {"kind": "reply", "parent": "e2", "text": "The rollout section."},
+    {
+        "kind": "reply",
+        "author": "agent",
+        "agent": "Agent",
+        "parent": "e3",
+        "text": "Cutting it.",
+    },
+)
+
 
 def build() -> dict:
     """A thread the agent answered and the user has read, which is nobody's turn,
@@ -213,6 +233,17 @@ def build() -> dict:
                     ("rewritten twice", ()),
                     (
                         "rewritten twice, the last taken back",
+                        ({"kind": "undo", "undoes": "e3"},),
+                    ),
+                )
+            },
+            # The user took an answered reply back, which keeps its place.
+            **{
+                name: _served(ANSWERED_REPLY + tail)
+                for name, tail in (
+                    ("a reply answered", ()),
+                    (
+                        "a reply answered, taken back",
                         ({"kind": "undo", "undoes": "e3"},),
                     ),
                 )

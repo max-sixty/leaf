@@ -627,9 +627,8 @@ def test_server_takes_back_only_a_gesture_in_force_of_the_users_own(server, page
     """`undoes` is checked completely where it enters, so nothing downstream asks a
     second time whether it points at something real. What an undo may name is one
     unwithdrawn gesture of the user's own: an agent's `leaf thread resolve` is not
-    theirs to take back, a comment is speech rather than state, an undo is not
-    itself undoable (that would be a redo), and one gesture cannot be taken back
-    twice."""
+    theirs to take back, an undo is not itself undoable (that would be a redo), and
+    one gesture cannot be taken back twice."""
     publish(page_dir)
     posted = json.loads(
         fetch(
@@ -649,12 +648,11 @@ def test_server_takes_back_only_a_gesture_in_force_of_the_users_own(server, page
 
     for bad, says in [
         ({"kind": "undo", "undoes": "nope"}, "unknown"),
-        # The user's own gestures only, and only the kinds that carry state.
+        # The user's own gestures only.
         (
             {"kind": "undo", "undoes": agent_closed["id"]},
             "not the user's own gesture",
         ),
-        ({"kind": "undo", "undoes": posted["id"]}, "is not a reaction"),
         # The one field it carries, and the door refuses it in any other shape.
         ({"kind": "undo"}, "'undoes' is a required property"),
         (
@@ -806,8 +804,7 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
     """A reaction is a comment or reply carrying `token` in place of `text`: one of
     the two and never both, a word the merged vocabulary declares, and no
     suggestion, hold, or markup riding beside it. What the door lets through it
-    also lets the user take back, answered or not; a message with words in it was
-    never a mark."""
+    also lets the user take back, answered or not."""
     publish(page_dir)
     root = json.loads(
         fetch(
@@ -864,12 +861,6 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
     )["state"]["events"][-1]
     assert nod["token"] == "keep" and nod["parent"] == root["id"]
 
-    # A message with words in it is said rather than unsaid.
-    status, body = fetch(
-        f"{server}/api/event",
-        data=json.dumps({"kind": "undo", "undoes": root["id"]}).encode(),
-    )
-    assert status == 400 and refused_on(body).code == "said-message"
     # The mark on the thread comes off with one press.
     status, body = fetch(
         f"{server}/api/event",

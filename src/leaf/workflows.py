@@ -68,6 +68,7 @@ from .events import (
     conversation_turns,
     exchange,
     is_answer,
+    settled_through,
     turn_message,
     unanswered_turns,
 )
@@ -440,11 +441,18 @@ def handed_over(
         target = {"kind": "thread", "id": thread_id}
         coordinate = ["thread", thread_id]
         turns_by_id = {message["id"]: message for message in turns}
+        # A failed answer stands until the user says something since that still
+        # stands, or the agent settles a turn said since, whatever became of it.
+        settled = settled_through(thread)
         for input_id, response in failed_responses.items():
             source = turns_by_id.get(input_id)
-            if source is None or any(
-                message["author"] != "agent" and message["seq"] > response["seq"]
-                for message in turns
+            if (
+                source is None
+                or settled > response["seq"]
+                or any(
+                    message["author"] != "agent" and message["seq"] > response["seq"]
+                    for message in turns
+                )
             ):
                 continue
             handed_back = publish(

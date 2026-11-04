@@ -91,16 +91,19 @@ and the anchor moves that depend on it land together.
 
 ## Undo
 
-The user may withdraw a resolve, unresolve, action, edit, or Done on a to-do (the kinds
-`$events.kinds` marks `undoable`), or a reaction, however far the agent has got with it.
-A withdrawn message leaves every reading, except where a message or to-do still in force
-stands on it: there it keeps its place with no words and no mark, `withdrawn` naming the
-undo and what it said, and the browser draws it as Deleted, so what answered it keeps its
-context (`events.build_threads`). It is no turn, so nothing is owed it. Spoken messages
-cannot be withdrawn; their writer deletes one by rewriting it to no words, which leaves
-it in place ("Messages"), and withdrawing that edit gives the message its words back. An
-undo cannot itself be undone. The door refuses an `undoes` naming anything but an
-unwithdrawn gesture of the user's own (`events.UndoReading`).
+The user may withdraw a comment or reply, a reaction included, a resolve, unresolve,
+action, edit, or Done on a to-do (the kinds `$events.kinds` marks `undoable`), however
+far the agent has got with it. A withdrawn message leaves every reading, except where a
+message or to-do still in force stands on it: there it keeps its place with no words and
+no mark, `withdrawn` naming the undo and the words or mark it was sent with, and the
+draws it as Deleted, so what answered it keeps its context (`events.build_threads`). It
+is no turn: nothing is owed it, it reopens no thread and its rewrites ask for nothing,
+while an answer to it still settles the messages before it. The undo key reaches a
+message only while it is the user's newest gesture; the user deletes an older one by
+rewriting it to no words, which leaves it in place ("Messages"), and withdrawing that
+edit gives the message its words back. An undo cannot itself be undone. The door refuses
+an `undoes` naming anything but an unwithdrawn gesture of the user's own
+(`events.UndoReading`).
 
 `undo` names its gesture and nothing else. It withdraws rather than deletes: the event
 stays in the log and every fold skips it, so the page shows what the revision says
@@ -109,8 +112,8 @@ author's side. A widget's `render()` paints a withdrawal like any other change,
 keeping the widget and its independent children.
 
 The page's undo key takes back the user's newest gesture or nothing: a newer gesture it
-cannot take back, such as a sent reply, ends the walk, while bookkeeping and gestures
-already withdrawn do not. It says what it would take back and how long ago, in every tab
+cannot take back, such as a move a later revision's markup now places, ends the walk,
+while bookkeeping and gestures already withdrawn do not. It says what it would take back and how long ago, in every tab
 and after a reload, so a gesture made weeks ago is not taken back unseen. Where the
 gesture's thread, message or element is out of view, the first press opens that place
 and only the next press, with nothing pressed between, withdraws it; showing writes
@@ -340,7 +343,7 @@ to-do is made from an obligation.
   message or of its latest edit still in force, and lands only while that is still the
   latest, so a tab cannot silently replace words another tab has since rewritten. A
   withdrawn edit no longer stands: the message says what its latest edit still in force
-  says, else its own words.
+  says, else its own words. A message the user took back takes no edit.
 - An `edit` whose `text` is empty deletes the message. Readings keep it in its place,
   with empty `text` and `edited.was` holding what it said, since answers to it still
   stand and name it; the browser draws it as Deleted, and offers no rewrite of it.

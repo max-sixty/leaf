@@ -173,9 +173,9 @@ const pendingSeat = (message) =>
 // tab made them, as `events.build_threads` folds the log. A comment opens a thread where
 // it was written; a reply joins the thread it answers; a rewrite shows as its message's
 // new words; settlement changes the thread's state, and a turn reopens a resolved one;
-// taking back a reaction, the one message the user can withdraw, drops it from its
-// thread, and a thread it opened goes with it; taking back a rewrite gives its message
-// the words it replaced. They leave again when the server accepts or refuses them, so
+// taking back a message drops it from its thread, or leaves it Deleted in its place
+// where something stands on it, and a thread it opened goes with it; taking back a
+// rewrite gives its message the words it replaced. They leave again when the server accepts or refuses them, so
 // this is a reading of the same outbox and log the server projects rather than a second
 // store beside it.
 //
@@ -226,12 +226,21 @@ function standingIn(thread, gone, attached) {
   return standing;
 }
 
-// A reaction taken back as the log's answer will draw it: in its place, with no words
-// and no mark, saying what it said.
-/** @param {Thread["msgs"][number]} message @returns {Thread["msgs"][number]} */
-function takenBack(message) {
-  const { token, ...rest } = message;
-  return { ...rest, text: "", withdrawn: { was: token ?? "", pending: true } };
+// A message taken back as the log's answer will draw it: in its place, with no words
+// and no mark, saying the words it was sent with, which its first rewrite replaced
+// (`events.message_reading`).
+/** @param {Thread} thread @param {Thread["msgs"][number]} message
+ * @returns {Thread["msgs"][number]} */
+function takenBack(thread, message) {
+  const { token, drawing, suggestion, edited, ...rest } = message;
+  const sent = thread.revisions.find((edit) => edit.message === message.id)?.was;
+  const was = token ?? sent ?? message.text ?? "";
+  return {
+    ...rest,
+    text: "",
+    content_version: message.id,
+    withdrawn: { was, pending: true },
+  };
 }
 
 // `gestures` are the ledger's thread gestures, oldest first: each comment, reply or
@@ -264,7 +273,7 @@ export function foldThreads(threads, gestures, attached) {
           ? []
           : message.withdrawn
             ? [message]
-            : [takenBack(message)],
+            : [takenBack(thread, message)],
     );
     return [
       {

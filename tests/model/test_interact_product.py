@@ -2111,6 +2111,110 @@ def test_a_reaction_something_answered_is_taken_back_into_its_place(page_dir):
     assert state["reactions"] == []
 
 
+def test_a_message_the_user_sent_is_taken_back_into_its_place(page_dir):
+    """A message with words is the user's to take back as a reaction is, where the
+    door used to refuse it as said rather than unsaid. One the agent answered keeps
+    its place, Deleted, with the words it was sent with; one nothing answered leaves
+    every reading, and nothing is owed to it; a comment nothing answered takes its
+    thread with it. The agent hears of each withdrawal as it heard of the message, and
+    a rewrite of a message taken back is refused."""
+    published(page_dir)
+    asked = append_command(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Too long?"},
+    )
+    answer = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "reply",
+            response_reference(page_dir, asked),
+            "--obligation",
+            "--text",
+            "Which part?",
+        ],
+    )
+    assert answer.exit_code == 0, answer.output
+    answer = json.loads(answer.output)
+    said = append_command(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "revision": 1,
+            "parent": answer["id"],
+            "text": "The rollout section.",
+        },
+    )
+    kept = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "reply",
+            response_reference(page_dir, said),
+            "--done",
+            "--text",
+            "Cutting it.",
+        ],
+    )
+    assert kept.exit_code == 0, kept.output
+    kept = json.loads(kept.output)
+    loose = append_command(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "revision": 1,
+            "parent": kept["id"],
+            "text": "And the appendix.",
+        },
+    )
+    lone = append_command(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Typo here."},
+    )
+    undos = [
+        append_command(
+            page_dir, {"kind": "undo", "author": "user", "undoes": gesture["id"]}
+        )
+        for gesture in (lone, loose, said)
+    ]
+    assert [undo["attention"] for undo in undos] == [True, True, True]
+
+    threads = event_folds_model.build_threads(events_model.read_events(page_dir), {})
+    assert list(threads) == [asked["id"]]
+    thread = threads[asked["id"]]
+    assert [message["id"] for message in thread["msgs"]] == [
+        asked["id"],
+        answer["id"],
+        said["id"],
+        kept["id"],
+    ]
+    placed = thread["msgs"][2]
+    assert placed["text"] == ""
+    assert placed["withdrawn"] == {
+        "id": undos[2]["id"],
+        "ts": undos[2]["ts"],
+        "was": "The rollout section.",
+    }
+    assert event_folds_model.unanswered_turns(thread) == []
+    state = state_json(page_dir)
+    assert [t["id"] for t in state["threads"]] == [asked["id"]]
+    assert owed(state) == []
+
+    with pytest.raises(Rejected) as refused:
+        append_command(
+            page_dir,
+            {
+                "kind": "edit",
+                "author": "user",
+                "message": said["id"],
+                "text": "The rollout.",
+            },
+        )
+    assert refused.value.findings[0].code == "withdrawn-message"
+
+
 def test_an_agent_names_and_renames_a_thread_without_changing_its_speech(
     page_dir,
 ):

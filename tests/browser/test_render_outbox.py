@@ -248,34 +248,31 @@ def test_z_waits_for_an_unanswered_thread_resolution(browser, serve):
     ] == ["resolve", "resolve", "undo"]
 
 
-def test_z_stops_at_a_newer_gesture_it_cannot_take_back(browser, serve):
-    """`z` takes back the user's newest gesture or nothing. A reply sent after a
-    resolve cannot be unsaid, so the resolve behind it is no longer the last change
-    the user made, and the press reopens nothing."""
-    page = open_page(browser, serve(LONG_PAGE, comments=3))
-    first, second = [
+def test_z_takes_back_a_reply_the_user_sent(browser, serve):
+    """`z` takes back the user's newest gesture, a reply they sent included, where it
+    used to stop at the reply as said rather than unsaid. The reply's thread is out
+    of view, so the first press opens it and says what the next takes; the second
+    takes the reply back."""
+    url = serve(LONG_PAGE, comments=3)
+    second = [
         event["id"]
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
-    ][:2]
-    open_panel_thread(page, first)
-    page.locator(".lf-fp-settle").click()
-    round_trip(page)
-    undo_offered(page)
-
-    append_carried_log_record(
+    ][1]
+    reply = append_carried_log_record(
         serve.page_dir,
         {"kind": "reply", "author": "user", "parent": second, "text": "And this?"},
     )
-    told(page)
-    undo_offered(page, offered=False)
+    page = open_page(browser, url)
+    undo_offered(page)
     page.keyboard.press("z")
-    told(page)
-    assert [
-        event["kind"]
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "undo"
-    ] == []
+    expect(page.locator(".lf-live")).to_contain_text(
+        "Press again to undo: replied “And this?”"
+    )
+    page.keyboard.press("z")
+    round_trip(page)
+    taken = events_model.read_events(serve.page_dir)[-1]
+    assert (taken["kind"], taken["undoes"]) == ("undo", reply["id"])
 
 
 def test_z_names_what_it_takes_and_how_long_ago_in_a_fresh_tab(browser, serve):

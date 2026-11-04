@@ -653,13 +653,16 @@ function standingIn(thread, gone, attached) {
 	for (const message of thread.msgs.toReversed()) if ("parent" in message && (!gone(message) || standing.has(message.id))) standing.add(message.parent);
 	return standing;
 }
-function takenBack(message) {
-	const { token, ...rest } = message;
+function takenBack(thread, message) {
+	const { token, drawing, suggestion, edited, ...rest } = message;
+	const sent = thread.revisions.find((edit) => edit.message === message.id)?.was;
+	const was = token ?? sent ?? message.text ?? "";
 	return {
 		...rest,
 		text: "",
+		content_version: message.id,
 		withdrawn: {
-			was: token ?? "",
+			was,
 			pending: true
 		}
 	};
@@ -671,7 +674,7 @@ function foldThreads(threads, gestures, attached) {
 	const copies = threads.flatMap((thread) => {
 		const standing = standingIn(thread, gone, attached);
 		if (gone(thread.root) && !standing.has(thread.root.id)) return [];
-		const msgs = thread.msgs.flatMap((message) => !gone(message) ? [unedited(thread, message, withdrawn)] : !standing.has(message.id) ? [] : message.withdrawn ? [message] : [takenBack(message)]);
+		const msgs = thread.msgs.flatMap((message) => !gone(message) ? [unedited(thread, message, withdrawn)] : !standing.has(message.id) ? [] : message.withdrawn ? [message] : [takenBack(thread, message)]);
 		return [{
 			...thread,
 			root: msgs.find(({ id }) => id === thread.root.id) ?? thread.root,

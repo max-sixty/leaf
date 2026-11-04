@@ -134,10 +134,7 @@ class UndoReading:
             return Finding("foreign-gesture", values=named)
         if target["id"] in self.withdrawn:
             return Finding("withdrawn-gesture", values=named)
-        if target["kind"] in kinds_declaring("message"):
-            if not is_reaction(target):
-                return Finding("said-message", values=named)
-        elif target["kind"] not in kinds_declaring("undoable"):
+        if target["kind"] not in kinds_declaring("undoable"):
             return Finding(
                 "unundoable",
                 values={**named, "undoable": sorted(kinds_declaring("undoable"))},
@@ -162,12 +159,12 @@ def undo_error(event: dict, events: list, absorbed: frozenset) -> Finding | None
     notice where accepting it would leave two withdrawals of one gesture in a log
     whose every other line is something the user did.
 
-    A reaction is the one message a user takes back rather than rewrites. Like every
-    other gesture of the user's own, a rewrite included, it is theirs to take back
-    however far the agent has got with it, answered or resolved: what answered it
-    keeps its place (`build_threads`), and the agent is told of the withdrawal as it
-    was of the gesture (`event_contracts.admitted_event`). The browser offers exactly
-    the gestures this reading admits (`served_state.document.browser_undo_candidates`).
+    Every gesture of the user's own, a message or a reaction included, is theirs to
+    take back however far the agent has got with it, answered or resolved: what
+    answered a message keeps its place (`build_threads`), and the agent is told of the
+    withdrawal as it was of the gesture (`event_contracts.admitted_event`). The browser
+    offers exactly the gestures this reading admits
+    (`served_state.document.browser_undo_candidates`).
 
     `absorbed` is the newest revision's absorbed moves, whose units its markup
     places."""
@@ -215,6 +212,9 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     ``revisions`` holds the user's edits in log order, each with ``was``, the words
     it replaced: each shows as its message's wording and stands in the exchange as a
     turn of its own (`exchange`), so it resumes the thread as a reply does.
+    ``turns`` holds every turn said in the thread, the ones since taken back
+    included, and each undo that took one back, in log order, as what settles a
+    batch of them (`settled_through`); only the server reads it.
 
     Each thread is keyed by, and carries as ``id``, the id of the comment that
     opened it, its ``root``: the name every obligation, workflow, summary, and title
@@ -225,7 +225,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     in force stands on it (`standing_withdrawn`): there it keeps its place with no
     words and no mark, and ``withdrawn`` names the undo and what it said, as a
     deleted message's ``edited`` does. It is no turn (`spoken_turns`), so nothing is
-    owed it.
+    owed it, and it names, reopens and moves nothing, and its rewrites change nothing.
     """
     if withdrawn is None:
         withdrawn = taken_back(events)
@@ -241,12 +241,24 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     threads = {}
     thread_for = {}
     messages = {}
+    said_in: dict[str, dict] = {}
     for e in events:
+        # Every turn said in a thread stays in its history, and so does the user
+        # taking one back, so what an answer settled stays settled
+        # (`settled_through`).
+        home = (
+            said_in.get(e["undoes"])
+            if e["kind"] == "undo"
+            else thread_for.get(e.get("parent", e.get("message")))
+        )
+        if home is not None and (turn := _turn(e)):
+            home["turns"].append(turn)
+            said_in[e["id"]] = home
         # A gesture the user took back settles nothing, whichever way it settled:
         # the log holds it and no reading of the log stands on it.
         if e["id"] in withdrawn and e["id"] not in standing:
-            # A resolve may name a reaction since taken back from its thread, and
-            # still closes that thread.
+            # A resolve may name a reply since taken back from its thread, and still
+            # closes that thread.
             if e["kind"] == "reply" and e["parent"] in thread_for:
                 thread_for[e["id"]] = thread_for[e["parent"]]
             continue
@@ -262,10 +274,14 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                 "rewritten_from": None,
                 "msgs": [message],
                 "revisions": [],
+                "turns": [],
                 "resolved": None,
             }
             threads[e["id"]] = thread
             thread_for[e["id"]] = thread
+            if turn := _turn(e):
+                thread["turns"].append(turn)
+                said_in[e["id"]] = thread
             continue
         # Read the effect at its own log position, so a person's intervening
         # resolve remains the latest closure even after an answer is superseded.
@@ -286,7 +302,9 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                 thread["anchor"] = e["anchor"]
             continue
         if e["kind"] == "edit":
-            if message := messages.get(e["message"]):
+            message = messages.get(e["message"])
+            # A rewrite of a message since taken back changes words no reading shows.
+            if message is not None and "withdrawn" not in message:
                 # The user rewriting their words speaks again, as a reply would: the
                 # agent owes the new wording an answer, and a closed thread opens. The
                 # revision keeps the words it replaced, which answers already given
@@ -309,6 +327,11 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
             message = message_reading(e, undos.get(e["id"]))
             messages[e["id"]] = message
             thread["msgs"].append(message)
+            thread_for[e["id"]] = thread
+            # A reply taken back keeps only its place: it names, reopens and moves
+            # nothing.
+            if "withdrawn" in message:
+                continue
             if thread["title"] is None and "title" in e:
                 thread["title"] = e["title"]
             if "token" not in e and "failure" not in e and not e.get("ephemeral"):
@@ -319,9 +342,8 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                 )
                 thread["anchor"] = e["anchor"]
                 thread["rewritten_from"] = None
-            thread_for[e["id"]] = thread
-        # A resolve naming a reaction that opened a thread nothing else stands in
-        # closes nothing once the user takes the reaction back: the thread is gone.
+        # A resolve naming a comment that opened a thread nothing else stands on
+        # closes nothing once the user takes the comment back: the thread is gone.
         elif e["kind"] == "resolve" and (thread := thread_for.get(e["parent"])):
             thread["resolved"] = e
         elif e["kind"] == "unresolve" and (thread := thread_for.get(e["parent"])):
@@ -329,16 +351,39 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     return threads
 
 
+def _turn(event: dict) -> dict | None:
+    """What a thread's history keeps of a turn, a spoken message that is no progress
+    or the user's rewrite of one (`exchange`), or of an undo, which `build_threads`
+    keeps only where it takes a turn back: what settles a batch of turns. Other
+    events keep nothing."""
+    spoken = (
+        event["kind"] in kinds_declaring("message")
+        and "token" not in event
+        and not event.get("ephemeral")
+    )
+    rewrite = event["kind"] == "edit" and event["author"] != "agent"
+    if not (spoken or rewrite or event["kind"] == "undo"):
+        return None
+    keep = ("id", "seq", "author", "responds", "undoes", "message")
+    return {key: event[key] for key in keep if key in event}
+
+
+# What a message says: its words, its reaction's mark and its drawing, and whether its
+# words suggest a rewrite of the page.
+SAID = ("text", "token", "drawing", "suggestion")
+
+
 def message_reading(event: dict, undo: dict | None) -> dict:
     """A message as a thread holds it: the record, or, where `undo` took it back and
-    something still stands on it, its place with no words and no mark. Only a
-    reaction is taken back (`UndoReading`), so what it said is its token."""
+    something still stands on it, its place with no words and no mark, `was` keeping
+    the words it was sent with, or its reaction's token."""
     if undo is None:
         return dict(event)
-    kept = {key: value for key, value in event.items() if key != "token"}
+    kept = {key: value for key, value in event.items() if key not in SAID}
+    was = event.get("token", event.get("text", ""))
     return kept | {
         "text": "",
-        "withdrawn": {"id": undo["id"], "ts": undo["ts"], "was": event["token"]},
+        "withdrawn": {"id": undo["id"], "ts": undo["ts"], "was": was},
     }
 
 
@@ -347,8 +392,8 @@ def active_summaries(events: list, threads: dict) -> dict[str, list[dict]]:
 
     Summaries replace overlapping summaries whole. Editing a covered message, or
     undoing an edit of it, invalidates a summary containing prose, and so does
-    taking back a reaction its thread held when the summary was written, which the
-    prose may report wherever the reaction stood. A fold without prose keeps showing
+    taking back a message its thread held when the summary was written, which the
+    prose may report wherever the message stood. A fold without prose keeps showing
     the revised originals. Progress completion is separate (`progress_completions`),
     so opening a summary never restores completed progress.
     """
@@ -459,27 +504,46 @@ def unanswered_turns(thread: dict) -> list[dict]:
     thread, so an `ok` the user puts on the agent's answer does not hand the thread
     back, and a reaction nobody has replied to is no thread at all. Resolution does
     not enter here; `awaits_agent` adds it. A user's revision is a turn here
-    (`exchange`)."""
-    turns = exchange(thread)
-    floor = -1
-    newest_before = None
-    for index, message in enumerate(turns):
-        if message["author"] != "agent":
-            newest_before = message
-        elif (
-            newest_before is not None and message.get("responds") == newest_before["id"]
-        ):
-            floor = index
-            newest_before = None
-    since = turns[floor + 1 :]
+    (`exchange`).
+
+    The batches are those of the thread's history (`settled_through`), so taking
+    back a turn an answer settled leaves the turns before it settled; only the turns
+    still in the exchange can be owed."""
+    floor = settled_through(thread)
     responses = {
-        message.get("responds") for message in since if message["author"] == "agent"
+        turn.get("responds")
+        for turn in thread["turns"]
+        if turn["seq"] > floor and turn["author"] == "agent"
     }
     return [
         message
-        for message in since
-        if message["author"] != "agent" and message["id"] not in responses
+        for message in exchange(thread)
+        if message["seq"] > floor
+        and message["author"] != "agent"
+        and message["id"] not in responses
     ]
+
+
+def settled_through(thread: dict) -> int:
+    """The seq of the agent's answer that settled the thread's latest batch of the
+    user's turns, else 0: the answer whose `responds` names the newest turn of the
+    batch standing when it was written. The walk replays the thread's history
+    (`build_threads`, ``turns``), so a turn taken back before the answer, with its
+    rewrites, is no part of its batch, and one taken back after it leaves the batch
+    settled."""
+    floor = 0
+    batch = []
+    for turn in thread["turns"]:
+        if "undoes" in turn:
+            gone = turn["undoes"]
+            batch = [
+                each for each in batch if gone not in (each["id"], each.get("message"))
+            ]
+        elif turn["author"] != "agent":
+            batch.append(turn)
+        elif batch and turn.get("responds") == batch[-1]["id"]:
+            floor, batch = turn["seq"], []
+    return floor
 
 
 def unanswered_agent_turn(thread: dict) -> dict | None:

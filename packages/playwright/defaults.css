@@ -837,8 +837,8 @@ lf-trace-bookmark {
   font-variant-numeric: tabular-nums;
 }
 /* The viewer and the marks over it are positioned boxes on the paper, which paint over
- * an outline on the canvas itself, so the canvas is its own ring frame (surfaces.css,
- * `.lf-ring-frame`), whose ring stands above the highest of them, the input's badge
+ * an outline on the canvas itself, so the canvas is a ring overlay (surfaces.css,
+ * `.lf-ring-overlay`), whose ring stands above the highest of them, the input's badge
  * and point; the canvas's own layer keeps them all under that ring. */
 .lf-trace-canvas::after {
   z-index: 3;

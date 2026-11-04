@@ -500,8 +500,11 @@ main {
  * scrolling, whoever made it scroll: a box with the page's `scroll` class or the
  * runtime's and modules' `data-lf-scroll`, which a reading region's body takes when it
  * registers (reach.js, `paintSlot`). The mark restarts the slot ([data-lf-scrolls],
- * state.css). The runtime reads no other box's overflow, so a box CSS makes scroll
- * without stating a restart or carrying either keeps the slot it met, and a header
+ * state.css). Each value it changes is one everything in the box inherits, so a box
+ * that holds thousands of elements states the whole restart beside its overflow and
+ * the mark changes nothing there (a text document's listing). The runtime reads no
+ * other box's overflow, so a box CSS makes scroll without stating a restart or
+ * carrying either keeps the slot it met, and a header
  * inside it sticks that far below the box's top. The mark sits above packages and
  * Layouts, so it outranks a value stacked onto a box that scrolls (a page tab's panel
  * the page makes scroll), and it restarts at `--lf-top-start`, which a

@@ -546,7 +546,8 @@ def test_a_summary_folds_its_messages_where_they_stand(request, serve, engine):
     reloaded its frame in WebKit, which lacks `moveBefore`, and lost the selection in
     every engine. The checkpoint groups its messages for assistive technology by
     `aria-owns`, since it no longer contains them. Its toggle takes a press while those
-    words stay selected."""
+    words stay selected. Standing on that toggle, the user is in the thread, so the
+    edit that retracts the summary draws at once."""
     url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(serve.page_dir, "Which job first?", {"section": "jobs"})
     framed = append_agent_reply(
@@ -634,8 +635,8 @@ def test_a_summary_folds_its_messages_where_they_stand(request, serve, engine):
         },
     )
     told(page)
-    show_held_news(card)
     expect(checkpoint).to_have_count(0)
+    expect(card.locator(".lf-thread-news")).to_have_count(0)
     expect(covered[2]).to_contain_text("The camera takes three.")
     kept()
 

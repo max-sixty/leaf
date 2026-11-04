@@ -1195,9 +1195,10 @@ def test_a_long_rewrite_keeps_its_caret_in_view(browser, serve, subtests):
 
 def test_opening_a_rewrite_keeps_room_the_thread_holds(browser, serve):
     """A thread holds the room news gave back while its reply box is in view, so the box
-    stays under the user's hand. Opening a rewrite let all of that room go at once, moving
-    the message being rewritten. Opening and closing one changes the held room only by
-    the message's own change of height."""
+    stays under the user's hand: an edit shortening a message above the box the user
+    stands in draws at once, as news in the thread they are in does. Opening a rewrite
+    let all of that room go at once, moving the message being rewritten. Opening and
+    closing one changes the held room only by the message's own change of height."""
     url = serve(THREAD_DIFF_PAGE)
     d = serve.page_dir
     mine = append_carried_log_record(
@@ -1254,7 +1255,9 @@ def test_opening_a_rewrite_keeps_room_the_thread_holds(browser, serve):
         },
     )
     told(page)
-    thread.get_by_role("button", name="1 new", exact=True).click()
+    edited = thread.locator(f'.lf-msg[data-lf-event="{agents[1]["id"]}"] .lf-msg-text')
+    expect(edited).to_have_text("Short.")
+    expect(thread.locator(".lf-thread-news")).to_have_count(0)
     reply.click()
     rendered(page)
     latest = thread.locator(".lf-msg").last

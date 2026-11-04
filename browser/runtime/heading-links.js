@@ -59,7 +59,7 @@ import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { HEADING, inChrome, pageQueryAll } from "./passages.js";
 import { upFrom } from "./shadow-tree.js";
 
-/** @typedef {{heading: Element, control: ReturnType<typeof copyControl>, shown: Set<string>, named: boolean, events: AbortController, stop: () => void}} HeadingLink */
+/** @typedef {{heading: Element, control: ReturnType<typeof copyControl>, shown: Set<string>, events: AbortController, stop: () => void}} HeadingLink */
 /** @type {Map<Element, HeadingLink>} */
 const links = new Map(); // heading → its link, from the first reveal until it leaves
 /** @type {WeakMap<Element, Element>} */
@@ -126,8 +126,6 @@ function makeLink(heading) {
     control,
     /** @type {Set<string>} */
     shown: new Set(),
-    // Whether the heading has a name already, read before the link gives it one.
-    named: getComputedStyle(heading).anchorName !== "none",
     events: new AbortController(),
     stop: () => {},
   };
@@ -194,24 +192,28 @@ function retire(link) {
   links.delete(link.heading);
 }
 
-// The name a shown link's control stands by: one its heading already answers to, or
-// one of the two lent to it, or none while the link hides, which leaves the control
-// nowhere near the page.
+// The name a shown link's control stands by: one of the two lent to its heading, or one
+// its heading already answers to, or none while the link hides, which leaves the
+// control nowhere near the page. Whether the heading has names is read each time the
+// link starts to show, since a stylesheet or another owner can name it in between.
 /** @param {HeadingLink} link */
 function place(link) {
   const { heading, control } = link;
   let name = "";
   if (!link.shown.size) giveBack(link);
-  else if (link.named || inlineStyle(heading).anchorName) {
-    giveBack(link);
-    name = nameAnchor(anchorReading(heading));
-  } else name = lend(link);
+  else if (borrowers.includes(link) || getComputedStyle(heading).anchorName === "none")
+    name = lend(link);
+  else name = nameAnchor(anchorReading(heading));
   if (control.style.positionAnchor !== name) control.style.positionAnchor = name;
 }
 /** @param {HeadingLink} link */
 function lend(link) {
   let held = borrowers.indexOf(link);
-  if (held < 0) borrowers[(held = borrowers[0] ? 1 : 0)] = link;
+  if (held < 0) {
+    held = borrowers.indexOf(null);
+    if (held < 0) throw new Error("A third heading link asked for an anchor name");
+    borrowers[held] = link;
+  }
   keeps(link.heading, LENT, held + 1);
   return `--lf-heading-link-${held + 1}`;
 }

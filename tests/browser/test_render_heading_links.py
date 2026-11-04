@@ -116,17 +116,20 @@ def test_each_shown_link_stands_by_its_heading(browser, serve):
     """A link stands in the gutter beside its own heading wherever it shows: for the
     heading the user is on and the one under the pointer at once, after a press while
     focus stays in it, beside a heading whose author named it for a box of their own,
-    which stays where the author put it, and after another box anchored to a heading
-    while its link showed."""
+    which stays where the author put it, after another box anchored to a heading while
+    its link showed, and beside a heading the author's stylesheet names only after its
+    link first showed."""
     source = leaf_page(
         "Links",
         '<section id="a"><h2>First</h2><p>Words.</p></section>'
         '<section id="b"><h2>Second</h2><p>Words.</p></section>'
         '<section id="c"><h2 id="named">Named</h2><p>Words.</p>'
         '<p class="tag">Tag</p></section>'
-        '<section id="d"><h2>Fourth</h2><p>Words.</p></section>',
+        '<section id="d"><h2>Fourth</h2><p>Words.</p></section>'
+        '<section id="e"><h2 id="late">Late</h2><p>Words.</p></section>',
         head="<style>#named { anchor-name: --mine; } .tag { position: absolute;"
-        " position-anchor: --mine; top: anchor(bottom); left: anchor(right); }</style>",
+        " position-anchor: --mine; top: anchor(bottom); left: anchor(right); }"
+        " #late.anchored { anchor-name: --late; }</style>",
     )
     page = open_page(browser, live_url(serve(source)))
     links = page.locator(LINK)
@@ -181,6 +184,18 @@ def test_each_shown_link_stands_by_its_heading(browser, serve):
     assert standing() == ["Fourth"]
     page.locator("#a > h2").hover()
     assert standing() == ["First"]
+
+    # A rule of the author's that starts naming a heading after its link first showed,
+    # here through a class the page's script adds, keeps its name and outranks the
+    # runtime's sheet, so the link stands by the heading under a name beside it.
+    page.locator("#late").hover()
+    assert standing() == ["Late"]
+    page.mouse.move(2, 2)
+    page.evaluate("document.querySelector('#late').classList.add('anchored')")
+    page.locator("#late").hover()
+    assert standing() == ["Late"]
+    names = page.locator("#late").evaluate("h => getComputedStyle(h).anchorName")
+    assert "--late" in names.split(", ")
 
 
 def test_enter_copies_a_link_no_pointer_has_shown(browser, serve):

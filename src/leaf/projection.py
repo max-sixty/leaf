@@ -30,12 +30,7 @@ from leaf.registry.kernel import verb_writers
 from leaf.registry.schema import schema_error
 from leaf.schema import agent_name
 from leaf.structure import SourceDocument
-from leaf.thread_context import (
-    ThreadStructure,
-    thread_names,
-    thread_structure,
-    thread_widgets,
-)
+from leaf.thread_context import ThreadStructure, logged_fragment
 
 
 def _reports(projection) -> list[dict]:
@@ -350,9 +345,21 @@ class ProjectionFold:
         self.definitions: dict[tuple, tuple | None] = {}
         self._orders = None
 
+    def grow(self, byid: dict, spk: dict) -> None:
+        """Take in a part of the document that came with an event, whose ids no
+        earlier event names: the frozen thread markup, which each message carrying
+        markup adds to (`FrozenFold`)."""
+        self.byid.update(byid)
+        self.in_force.within.update(enclosing_of(spk))
+        self._orders = None
+
     def copy(self) -> "ProjectionFold":
+        """A walk that goes on from here without changing this one, the document
+        `grow` adds to included."""
         twin = copy(self)
+        twin.byid = dict(self.byid)
         twin.in_force = self.in_force.copy()
+        twin.in_force.within = dict(self.in_force.within)
         twin.classified = dict(self.classified)
         twin.position = dict(self.position)
         twin.specs = dict(self.specs)
@@ -473,23 +480,78 @@ def with_action(
     )
 
 
-def frozen_thread_reading(events: list, registry: dict) -> FrozenThreadReading:
-    """Project every frozen message fragment through one shared reading."""
-    structure = thread_structure(events)
-    by_name = thread_names(events)
-    spk = {}
-    for fragment in structure.fragments.values():
-        spk.update(SourceReading(fragment, registry).spoken)
-    by_widget = thread_widgets(structure, by_name)
-    return FrozenThreadReading(
-        structure,
-        spk,
-        by_name,
-        by_widget,
-        state_projection(
-            events, structure.by_id, spk, registry, None, retracting=False
-        ),
+def frozen_thread_reading(
+    events: list, registry: dict, *, anchor: object | None = None
+) -> FrozenThreadReading:
+    """Project every frozen message fragment through one shared reading. Given
+    `anchor`, a reading whose registry is `registry`, the walk is kept with a page's
+    log (`event_log.folded`)."""
+    return folded(
+        events, anchor, ("frozen", id(registry)), lambda: FrozenFold(registry)
     )
+
+
+class FrozenFold:
+    """`frozen_thread_reading`'s walk over the log, one event at a time.
+
+    The panel's document is the markup the log's messages froze, so each message
+    carrying markup adds its fragment (`logged_fragment`) as it arrives, and the
+    projection steps on against the document as it then stands (`ProjectionFold.grow`):
+    an action names a widget a message logged before it declared, and no fragment
+    declares an id another already holds (`validation.admission.check_markup`).
+    For the same reasons each message's thread and each widget's are read where
+    they fall, as `thread_names` and `thread_widgets` read them from the whole log."""
+
+    def __init__(self, registry: dict):
+        self.registry = registry
+        self.ids: set[str] = set()
+        self.fragments: dict[str, SourceDocument] = {}
+        self.spoken: dict = {}
+        self.names: dict[str, str] = {}
+        self.widgets: dict[str, str] = {}
+        self.projection = ProjectionFold({}, {}, registry, None, retracting=False)
+
+    def step(self, event: dict) -> None:
+        kind = event["kind"]
+        if kind == "comment":
+            self.names[event["id"]] = event["id"]
+        elif kind == "reply":
+            self.names[event["id"]] = self.names[event["parent"]]
+        if event.get("markup"):
+            fragment = logged_fragment(event)
+            spoken = SourceReading(fragment, self.registry).spoken
+            self.fragments[event["id"]] = fragment
+            self.ids.update(fragment.ids)
+            self.spoken.update(spoken)
+            self.projection.grow(fragment.by_id, spoken)
+            thread = self.names.get(event["id"])
+            for widget in fragment.by_id:
+                if thread is None:
+                    self.widgets.pop(widget, None)
+                else:
+                    self.widgets[widget] = thread
+        self.projection.step(event)
+
+    def reading(self) -> FrozenThreadReading:
+        return FrozenThreadReading(
+            ThreadStructure(
+                set(self.ids), dict(self.projection.byid), dict(self.fragments)
+            ),
+            dict(self.spoken),
+            dict(self.names),
+            dict(self.widgets),
+            self.projection.reading(),
+        )
+
+    def copy(self) -> "FrozenFold":
+        twin = copy(self)
+        twin.ids = set(self.ids)
+        twin.fragments = dict(self.fragments)
+        twin.spoken = dict(self.spoken)
+        twin.names = dict(self.names)
+        twin.widgets = dict(self.widgets)
+        twin.projection = self.projection.copy()
+        return twin
 
 
 def projected_action_holders(

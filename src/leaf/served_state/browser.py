@@ -163,7 +163,12 @@ def browser_state(
         todo for todo in todos if todo["owner"] == "agent" and todo["state"] == "open"
     ]
 
-    words = GestureWords(events, active_registry, revisions or readings.__getitem__)
+    words = GestureWords(
+        events,
+        active_registry,
+        revisions or readings.__getitem__,
+        thread=durable.thread,
+    )
     views = {}
     documents = {}
     for revision in sorted(view_revisions):

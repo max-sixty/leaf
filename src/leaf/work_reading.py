@@ -72,10 +72,15 @@ class WorkReading:
 
     @cached_property
     def thread(self):
-        return (
-            self._thread
-            if self._thread is not None
-            else frozen_thread_reading(self.events, self.registry)
+        if self._thread is not None:
+            return self._thread
+        page = self.page
+        return frozen_thread_reading(
+            self.events,
+            self.registry,
+            anchor=page.reading
+            if page is not None and page.registry is self.registry
+            else None,
         )
 
     @cached_property

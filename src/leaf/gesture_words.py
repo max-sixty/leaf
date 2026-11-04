@@ -25,7 +25,7 @@ from pathlib import Path
 
 from .events import event_document
 from .passages import SourceReading, collapse, shown_words
-from .projection import frozen_thread_reading
+from .projection import FrozenThreadReading, frozen_thread_reading
 from .revision_artifact import read_revision
 
 TITLES = frozenset({"summary", "h1", "h2", "h3", "h4", "h5", "h6", "strong"})
@@ -102,12 +102,21 @@ class GestureWords:
     """Readings of each document a page's gestures name, parsed once per document.
 
     `registry` is the active one, which frozen thread markup reads under for the
-    page's whole lifetime; a page revision keeps the registry captured with it."""
+    page's whole lifetime; a page revision keeps the registry captured with it. A
+    caller that already read the frozen markup under it passes that `thread`."""
 
-    def __init__(self, events: list, registry: dict, revisions: RevisionReader):
+    def __init__(
+        self,
+        events: list,
+        registry: dict,
+        revisions: RevisionReader,
+        *,
+        thread: FrozenThreadReading | None = None,
+    ):
         self.events = events
         self.registry = registry
         self.revisions = revisions
+        self.thread = thread
         self.by_id = {event["id"]: event for event in events}
         self._documents: dict[int | None, _Document] = {}
 
@@ -118,7 +127,11 @@ class GestureWords:
         revision = document.get("revision")
         if revision not in self._documents:
             if document["kind"] == "thread":
-                reading = frozen_thread_reading(self.events, self.registry)
+                reading = (
+                    self.thread
+                    if self.thread is not None
+                    else frozen_thread_reading(self.events, self.registry)
+                )
                 self._documents[revision] = _Document(
                     [
                         fragment.authoring.content

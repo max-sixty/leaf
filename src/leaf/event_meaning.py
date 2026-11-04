@@ -53,7 +53,15 @@ class AdmissionReadings:
 
     @cached_property
     def thread(self):
-        return frozen_thread_reading(self.events, self.registry)
+        revisions = self.view.revisions
+        reading = self.view.reading(revisions[-1], self.registry) if revisions else None
+        return frozen_thread_reading(
+            self.events,
+            self.registry,
+            anchor=reading
+            if reading is not None and reading.registry is self.registry
+            else None,
+        )
 
     def page(self, revision: int):
         if revision not in self._pages:

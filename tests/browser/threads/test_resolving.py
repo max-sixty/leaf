@@ -376,6 +376,9 @@ def card_surface(browser, serve, gesture):
         expect(passage).not_to_be_in_viewport()
 
     def shown():
+        # No card or margin control draws a resolved thread, so the user lands on its
+        # passage.
+        expect(passage).to_be_focused()
         expect(passage).to_be_in_viewport()
         expect(page.locator(PANEL_THREAD)).to_have_count(0)
 

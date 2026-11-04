@@ -176,8 +176,10 @@ changes the test or the behavior.
 
 Merge a pull request that fixes tests, without waiting for maintainer approval,
 once each test it claims to fix failed before the change and passes after it
-(a skipped or deleted test has not passed). Pull requests run only the later-tier
-tests they edit, so run the claimed ones yourself. The pull request's CI must
+(a skipped or deleted test has not passed); for a test only `test-macos` runs, the
+checks Linux can run suffice, and **A red `ci` on main is live** settles the rest.
+Pull requests run only the later-tier tests they edit, so run the claimed ones
+yourself. The pull request's CI must
 reach a terminal result on the exact head (`monitor-ci`). A failure there outside
 the tests it claims, and not caused by its change, neither blocks the merge nor
 calls for a rerun: the report for that run carries it to its own cause. GitHub's

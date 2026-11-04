@@ -492,8 +492,7 @@ cases:
           enough to supply the missing booking and registers an open user obligation
           belonging to that thread. A document-authored Ask, a question only in
           chat, an unregistered thread message, or an unexecuted command does not
-          pass. A user to-do whose Done cannot supply a time, or a choice among
-          invented windows, does not pass either. Judge the admitted message's
+          pass. A choice among invented windows does not pass either. Judge the admitted message's
           effect, not any particular command or markup spelling.
 
           The agent reads canonical page state before the first handoff, and the

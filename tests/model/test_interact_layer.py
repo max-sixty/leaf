@@ -1744,6 +1744,289 @@ def test_every_press_is_built_by_role():
     )
 
 
+# What a role's face draws a press in: its ink, its ground, its frame and its lift. A
+# surface sets the rest: its type, a theme font it names (test_interface_fonts.py), its
+# size, through the density tokens the face reads (`--lf-line`,
+# `--lf-icon-action-face`), its focus ring, the shared ring, and whether it shows, its
+# opacity.
+_PRESS_FACE = re.compile(
+    r"color|fill|stroke|box-shadow|filter|background(-color|-image)?"
+    r"|border(-(top|right|bottom|left|block|inline)(-(start|end))?)?"
+    r"(-(color|width|style|radius))?|border-(\w+-){0,2}radius"
+)
+
+
+def _face_overrides(sheets, faces, placed, home):
+    """Each rule among `sheets` that draws a press's face anywhere but its role's own
+    rules: `(sheet, selector, reason)`. A rule draws a press's face when it sets one of
+    `_PRESS_FACE` on an element wearing a role's face class (`faces`) or a class a role's
+    builder writes beside it (`placed`), each alternative of an `:is()` read on its own.
+    A role's own rules stand in `home` and name the press by its face class, refined
+    only by attributes and pseudo-classes, which are its states and the variants it
+    declares, on the press or on what holds it, as a margin row says it stands as a
+    pin; a press or holder named by a class, an id or a tag, or a rule under an
+    `@scope`, would let one widget or place draw a role its own way. A glyph a
+    pseudo-element masks into the press from an image, as a disclosure arrow is, painted
+    `currentColor`, wears the ink the face gives the press and chooses none of its own. An alternative naming only an element no press is,
+    such as a link, draws no press."""
+
+    def compound_tokens(compound):
+        return tinycss2.parse_component_value_list(compound)
+
+    def alternatives(compound):
+        """`(classes, names, tags, nested)` for each element `compound` can match: the
+        classes it gives it, `:not()` and `:has()` naming other elements; whether an
+        id or a `class` or `id` attribute names it; its tags; and whether an
+        alternative of an `:is()` stands it in a holder of its own."""
+        found, tags, named, choices = (
+            set(),
+            set(),
+            False,
+            [[(set(), False, set(), False)]],
+        )
+        previous = None
+        for token in compound_tokens(compound):
+            if token.type == "ident":
+                if previous is not None and previous.type == "literal":
+                    if previous.value == ".":
+                        found.add(token.value)
+                elif previous is None or previous.type == "whitespace":
+                    tags.add(token.lower_value)
+            elif token.type == "hash":
+                named = True
+            elif token.type == "[] block":
+                said = tinycss2.serialize(token.content).strip()
+                attribute = re.fullmatch(
+                    r"(class|id)\s*([~^$*|]?=)\s*[\"']?([^\"'\]]*)[\"']?(\s+[is])?",
+                    said,
+                    re.IGNORECASE,
+                )
+                if attribute or re.fullmatch(r"(class|id)", said, re.IGNORECASE):
+                    named = True
+                if attribute and attribute[1].lower() == "class":
+                    operator, value = attribute[2], attribute[3]
+                    found |= (
+                        set(value.split())
+                        if operator in ("=", "~=")
+                        else {
+                            name
+                            for name in faces | placed
+                            if (operator == "*=" and value in name)
+                            or (operator in ("^=", "|=") and name.startswith(value))
+                            or (operator == "$=" and name.endswith(value))
+                        }
+                    )
+            elif token.type == "function" and token.lower_name in ("is", "where"):
+                options = []
+                for each in _split_top(tinycss2.serialize(token.arguments), ","):
+                    *held, last = _split_top(each, " >+~")
+                    options += [
+                        (c, n, t, bool(held) or h) for c, n, t, h in alternatives(last)
+                    ]
+                choices.append(options)
+            previous = token
+        read = [(found, named, tags, False)]
+        for options in choices:
+            read = [
+                (c1 | c2, n1 or n2, t1 | t2, h1 or h2)
+                for c1, n1, t1, h1 in read
+                for c2, n2, t2, h2 in options
+            ]
+        return read
+
+    def declared(compound):
+        """Whether a compound the press stands in names its holder only by what the
+        holder declares, its attributes and states, rather than by which it is."""
+        tokens = compound_tokens(compound)
+        said = [getattr(token, "value", None) for token in tokens]
+        return all(
+            (
+                token.type == "[] block"
+                and not any(
+                    t.type == "ident" and t.lower_value in ("class", "id")
+                    for t in token.content
+                )
+            )
+            or (token.type == "literal" and token.value in (":", "*"))
+            or (token.type == "ident" and at > 0 and said[at - 1] == ":")
+            for at, token in enumerate(tokens)
+        )
+
+    refused = []
+    for sheet in sheets:
+        for _conditions, enclosing, selector, declarations in _style_rules(sheet):
+            *context, subject = _split_top(selector, " >+~")
+            glyph = "::" in subject and any(
+                name in ("mask", "mask-image", "-webkit-mask", "-webkit-mask-image")
+                and re.search(r"url\(|gradient\(", value)
+                for name, value in declarations
+            )
+            if not any(
+                _PRESS_FACE.fullmatch(name)
+                and not (glyph and value.lower() == "currentcolor")
+                for name, value in declarations
+            ):
+                continue
+            pressed = [
+                (named, by_name, held)
+                for named, by_name, tags, held in alternatives(subject)
+                if named & (faces | placed)
+                and (not tags or any(tag == "button" or "-" in tag for tag in tags))
+            ]
+            if not pressed:
+                continue
+            reasons = [
+                *(["away from its role's rules"] if sheet.name != home else []),
+                *(
+                    f"names {name}"
+                    for name in sorted(
+                        set().union(*(n for n, _, _ in pressed)) & placed
+                    )
+                ),
+                *(["by a name of its own"] if any(b for _, b, _ in pressed) else []),
+                *(
+                    ["by where it stands"]
+                    if not all(map(declared, context))
+                    or any(h for _, _, h in pressed)
+                    or "scope" in enclosing
+                    else []
+                ),
+            ]
+            if reasons:
+                refused.append((sheet, selector, ", ".join(reasons)))
+    return refused
+
+
+def _role_classes():
+    """The classes of each role's face (control-faces.js, `ACTION_FACES`), and every
+    class a bundled module's builder writes beside a role."""
+    owner = schema_model.ASSETS / "runtime" / "control-faces.js"
+    constants = json.loads(js_facts("literals", [owner]))[str(owner)]["constants"]
+    faces = {
+        name
+        for key, value in constants.items()
+        if key.startswith("ACTION_FACES.")
+        for name in value.split()
+    }
+    placed = {
+        name
+        for dressings in json.loads(js_facts("dressings", _bundled_modules())).values()
+        for dressing in dressings
+        for name in dressing["classes"]
+    }
+    return faces, placed - faces
+
+
+def test_a_press_wears_its_role_s_face_alone():
+    """A press built by a role (`test_every_press_is_built_by_role`) looks as its role
+    draws it, and two presses of one role differ only by a variant the role declares
+    (browser/AGENTS.md, "A control wears its role's face"). Every face is drawn in
+    controls.css, keyed by the role's face class and the attributes a press declares,
+    such as a tone (`data-lf-tone`) or news (`data-lf-news`); `js_facts.mjs dressings`
+    reads the classes builders write beside a role, which place a press and never
+    restyle it. The reading sees the classes a builder's call spells. A class a wrapper
+    hands on from its own caller, as `closeControl` does, an imported constant, and a
+    class a module's own `classList` call adds are out of its reach, as an inline style
+    is; so is a press a selector names by a tag other than `button` or a custom
+    element, such as the margin's `span.lf-margin-marker`.
+
+    Before this check a sheet could restyle a press it placed: Send and Dictate drew
+    a disc of their own in response.css, a margin entry's face lived in base.css, the
+    floating panel and a package each inked a row or a word their own way. A runtime
+    census of computed looks, grouped by face, grew with every state it sampled; keyed
+    by role, the question has one answer per role and needs no browser."""
+    faces, placed = _role_classes()
+    assert {"lf-icon-action", "lf-btn", "lf-row"} <= faces, faces
+    assert {"lf-compose-dictate", "lf-fp-tab"} <= placed, (
+        "the dressings reading has stopped finding builders' classes"
+    )
+    sheets = [
+        sheet
+        for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES)
+        for sheet in sorted(root.rglob("*.css"))
+        if "vendor" not in sheet.parts
+    ]
+    refused = _face_overrides(sheets, faces, placed, "controls.css")
+    assert not refused, (
+        "these rules draw a press's face outside its role's:\n"
+        + "\n".join(
+            f"{sheet.relative_to(ROOT)}: {selector} ({reason})"
+            for sheet, selector, reason in refused
+        )
+        + "\nDraw the look on the role's face in controls.css, keyed by its face class"
+        " and an attribute the press declares as a variant, as `data-lf-tone` is, and"
+        " name the variant in the role's description (control-faces.js). A surface"
+        " sets a press's type and density, never its face."
+    )
+
+
+def test_the_face_reading_refuses_what_restyles_a_press(tmp_path):
+    """`_face_overrides` passes a role's own rules and a surface's density, and refuses
+    each way a sheet can restyle a press: away from controls.css, by a placing class,
+    an id or a class attribute, or by where the press stands."""
+    home = tmp_path / "controls.css"
+    home.write_text(
+        ".lf-icon-action { color: var(--muted); font: var(--font-ui); }\n"
+        ".lf-icon-action[data-lf-disc]::before { background: var(--chip); }\n"
+        ":is(.lf-row, .lf-btn):hover { background: var(--chip); }\n"
+        '[data-lf-place="pin"]:hover > .lf-btn { border-color: var(--accent); }\n'
+        ":is(summary, .lf-dial-depth)::before { mask: url(a.svg); background: currentColor; }\n"
+        '.lf-dial-depth.lf-btn[data-lf-tone="ok"] { color: var(--ok-ink); }\n'
+        ".lf-page .lf-btn { border-color: var(--accent); }\n"
+        '[class~="lf-page"] .lf-btn { border-color: var(--accent); }\n'
+        "#dial.lf-btn { color: var(--accent); }\n"
+        "@scope (.lf-page) { .lf-btn { color: var(--accent); } }\n"
+    )
+    away = tmp_path / "widget.css"
+    away.write_text(
+        ".lf-dial-depth { padding: 4px; opacity: 0; font: var(--font-small); }\n"
+        "a.lf-dial-depth { color: var(--accent); }\n"
+        ".lf-dial-depth { background-color: currentColor; }\n"
+        ".lf-dial-depth:is(a, .lf-btn) { color: var(--ink); }\n"
+        ".lf-dial > .lf-btn:hover { box-shadow: none; }\n"
+        '[class~="lf-btn"] { background: var(--chip); }\n'
+        ".lf-icon-action::before { mask: none; background: currentColor; }\n"
+    )
+    refused = _face_overrides(
+        [home, away],
+        {"lf-icon-action", "lf-btn", "lf-row"},
+        {"lf-dial-depth"},
+        home.name,
+    )
+    assert [(sheet.name, selector, reason) for sheet, selector, reason in refused] == [
+        (
+            "controls.css",
+            '.lf-dial-depth.lf-btn[data-lf-tone="ok"]',
+            "names lf-dial-depth",
+        ),
+        ("controls.css", ".lf-page .lf-btn", "by where it stands"),
+        ("controls.css", '[class~="lf-page"] .lf-btn', "by where it stands"),
+        ("controls.css", "#dial.lf-btn", "by a name of its own"),
+        ("controls.css", ".lf-btn", "by where it stands"),
+        (
+            "widget.css",
+            ".lf-dial-depth",
+            "away from its role's rules, names lf-dial-depth",
+        ),
+        (
+            "widget.css",
+            ".lf-dial-depth:is(a, .lf-btn)",
+            "away from its role's rules, names lf-dial-depth",
+        ),
+        (
+            "widget.css",
+            ".lf-dial > .lf-btn:hover",
+            "away from its role's rules, by where it stands",
+        ),
+        (
+            "widget.css",
+            '[class~="lf-btn"]',
+            "away from its role's rules, by a name of its own",
+        ),
+        ("widget.css", ".lf-icon-action::before", "away from its role's rules"),
+    ]
+
+
 def test_no_rule_rounds_a_box_edged_on_one_side(tmp_path):
     """A box marked by a thick edge on one side is not also rounded (browser/AGENTS.md,
     "Visual treatment carries meaning"): a stripe bent around a corner reads as decoration rather than a

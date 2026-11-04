@@ -239,7 +239,6 @@ customElements.define(
           accessibleLabel: `${WORDS[kind]} the suggested change: ${change()}`,
           disabled: !this.controller.read().actions.decide?.available,
           activation: kind,
-          className: `lf-sug-${kind}`,
           scope: this.#commandScope,
         });
       return this.#offered().map((key) =>

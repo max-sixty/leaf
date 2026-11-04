@@ -2,8 +2,8 @@
 
 `browser/widgets/test_pressed_controls.py` holds the rule and presses each bundled
 package's widgets. Leaf's own controls that send a reader's gestures stand in the
-floating panel's views: in On me, where a reader answers a question and ends a to-do,
-and in a thread's view, where they resolve and reopen the thread and react to its
+floating panel's views: in On me, where a reader answers a question, and in a
+thread's view, where they resolve and reopen the thread and react to its
 messages. A thread lives only in a page's log, so this opens On me and then each
 thread the Threads view lists, on every corpus page with its log, and presses every
 control in the view. A thread's card in the margin offers the same gestures, but each

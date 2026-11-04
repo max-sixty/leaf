@@ -140,7 +140,7 @@ def test_target_picker_takes_a_margin_press_as_the_target_it_stands_by(browser, 
     """Over a suggestion's ✓ Accept, the picker comments on the change, as Alt does."""
     page = open_page(browser, serve(named_source("release-notes")))
     before = len(events_model.read_events(serve.page_dir))
-    accept = page.locator(".lf-margin-cluster .lf-sug-accept").first
+    accept = page.locator(".lf-margin-cluster [data-lf-margin-entry-key=accept]").first
     accept.scroll_into_view_if_needed()
     accept.hover()
     page.keyboard.press("s")

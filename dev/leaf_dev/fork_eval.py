@@ -92,7 +92,7 @@ CASES = DEFINITION["cases"]
 MODEL = MODELS[ClaudeCodeHarness.name]
 
 # The parts of a turn-end answer, with the kinds each holds.
-PARTS = {"asks": ("question", "step"), "findings": ("stale", "settled", "unshown")}
+PARTS = {"asks": ("question",), "findings": ("stale", "settled", "unshown")}
 
 # The fork's settings: a hook that refuses every tool call, keeping the definitions.
 BLOCKED = {
@@ -657,7 +657,7 @@ def score_turn_end(
     items = [
         *(
             {
-                "kind": "question" if record["kind"] == "comment" else "step",
+                "kind": "question",
                 "title": record["title"],
                 "text": record.get("text", ""),
                 "passage": (record.get("anchor") or {}).get("quote", ""),

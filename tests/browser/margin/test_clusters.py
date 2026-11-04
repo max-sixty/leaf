@@ -529,22 +529,24 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     suggestion = suggestion_item
     expect(suggestion_item).to_have_class(re.compile(r"lf-margin-cluster"))
     expect(suggestion_item.locator(":scope > .lf-margin-marker")).to_have_count(1)
-    expect(suggestion_item.locator(".lf-sug-accept")).to_be_visible()
-    expect(suggestion_item.locator(".lf-sug-reject")).to_be_hidden()
+    expect(suggestion_item.locator("[data-lf-margin-entry-key=accept]")).to_be_visible()
+    expect(suggestion_item.locator("[data-lf-margin-entry-key=reject]")).to_be_hidden()
     expect(suggestion_item.locator(":scope > .lf-margin-marker")).to_be_hidden()
     more = suggestion_item.locator(":scope > .lf-margin-more")
     expect(more).to_be_visible()
-    for button in (suggestion_item.locator(".lf-sug-accept"), more):
+    for button in (suggestion_item.locator("[data-lf-margin-entry-key=accept]"), more):
         expect(button).to_have_class(re.compile(r"lf-margin-entry"))
     expect(
-        suggestion_item.locator(".lf-sug-accept .lf-margin-entry-label")
+        suggestion_item.locator(
+            "[data-lf-margin-entry-key=accept] .lf-margin-entry-label"
+        )
     ).to_be_hidden()
-    expect(suggestion_item.locator(".lf-sug-accept")).to_have_attribute(
-        "data-lf-behavior", "action"
-    )
-    expect(suggestion_item.locator(".lf-sug-accept")).not_to_have_attribute(
-        "aria-expanded", re.compile(".+")
-    )
+    expect(
+        suggestion_item.locator("[data-lf-margin-entry-key=accept]")
+    ).to_have_attribute("data-lf-behavior", "action")
+    expect(
+        suggestion_item.locator("[data-lf-margin-entry-key=accept]")
+    ).not_to_have_attribute("aria-expanded", re.compile(".+"))
     expect(more).to_have_attribute("data-lf-behavior", "disclosure")
     expect(more).to_have_attribute("aria-expanded", "false")
 
@@ -578,7 +580,7 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     expect(options).to_be_hidden()
     expect(more).to_be_focused()
 
-    accept = suggestion.locator(".lf-sug-accept")
+    accept = suggestion.locator("[data-lf-margin-entry-key=accept]")
     expect(page.locator(".lf-margin-entry[title]")).to_have_count(0)
     page.mouse.move(0, 0)
     page.evaluate("() => document.activeElement.blur()")
@@ -628,7 +630,7 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
 
     # In the rail; a pin's entries are smaller, since a pin covers what it stands on.
     shapes = page.locator(
-        ".lf-sug-accept:visible, .lf-margin-more:visible, .lf-margin-marker:visible"
+        "[data-lf-margin-entry-key=accept]:visible, .lf-margin-more:visible, .lf-margin-marker:visible"
     ).evaluate_all(
         "els => els.filter(el => el.closest('[data-lf-place=\"rail\"]'))"
         ".map(el => { const box = el.getBoundingClientRect(); "
@@ -657,9 +659,9 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     reactions = suggestion_item.locator(":scope > .lf-margin-options")
     expect(preview).to_be_hidden()
     expect(suggestion_item.locator(".lf-margin-entry:visible")).to_have_count(6)
-    expect(reactions.locator(".lf-react").first).to_have_class(
-        re.compile(r"lf-margin-entry")
-    )
+    expect(
+        reactions.locator('[data-lf-margin-entry-owner="responses"]').first
+    ).to_have_class(re.compile(r"lf-margin-entry"))
     ok = reactions.get_by_role("button", name="keep", exact=True)
     expect(ok).to_have_attribute("aria-label", "keep")
     expect(ok).not_to_have_attribute("title", re.compile(".+"))
@@ -684,19 +686,27 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     page.mouse.move(0, 0)
     page.evaluate("() => document.activeElement.blur()")
     expect(
-        suggestion_item.locator(".lf-sug-accept .lf-margin-entry-label")
+        suggestion_item.locator(
+            "[data-lf-margin-entry-key=accept] .lf-margin-entry-label"
+        )
     ).to_be_hidden()
     accept.hover()
     expect(
-        suggestion_item.locator(".lf-sug-accept .lf-margin-entry-label")
+        suggestion_item.locator(
+            "[data-lf-margin-entry-key=accept] .lf-margin-entry-label"
+        )
     ).to_be_visible()
     page.mouse.move(0, 0)
     expect(
-        suggestion_item.locator(".lf-sug-accept .lf-margin-entry-label")
+        suggestion_item.locator(
+            "[data-lf-margin-entry-key=accept] .lf-margin-entry-label"
+        )
     ).to_be_hidden()
     accept.focus()
     expect(
-        suggestion_item.locator(".lf-sug-accept .lf-margin-entry-label")
+        suggestion_item.locator(
+            "[data-lf-margin-entry-key=accept] .lf-margin-entry-label"
+        )
     ).to_be_visible()
     page.mouse.move(0, 0)
     accept.focus()
@@ -704,7 +714,9 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     expect(suggestion_item.locator(".lf-margin-entry:visible")).to_have_count(6)
 
     page.keyboard.press("Escape")
-    expect(suggestion_item.locator(".lf-react:visible")).to_have_count(0)
+    expect(
+        suggestion_item.locator('[data-lf-margin-entry-owner="responses"]:visible')
+    ).to_have_count(0)
     expect(options).to_be_visible()
     page.keyboard.press("Escape")
     expect(options).to_be_hidden()
@@ -735,7 +747,7 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     page.evaluate("() => document.activeElement.blur()")
     resized(page, 390, 900)
     margins_laid_out(page)
-    suggestion.locator(".lf-sug-accept").focus()
+    suggestion.locator("[data-lf-margin-entry-key=accept]").focus()
     expect(page.locator("#sug-refill")).to_be_in_viewport()
     expect(suggestion_item).to_have_attribute("data-lf-place", "pin")
     stands = suggestion_item.evaluate(

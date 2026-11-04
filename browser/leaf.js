@@ -479,13 +479,11 @@ async function boot() {
     repaint,
   });
   const queueWalk = createQueueWalk({
-    actions: app.queueActions,
     arriveAtRecord: items.arriveAtRecord,
     arriveAtThread: navigation.arriveAtThread,
     threadPlace: (id) => app.threadDestinations.threadPlace(id),
     prepareNavigationStep: anchorTravel.prepareNavigationStep,
     arrive: anchorTravel.arrive,
-    showOnMe: (obligation) => floatingPanel.showOnMe(obligation),
     announce,
   });
   const changeWalk = createChangeWalk();

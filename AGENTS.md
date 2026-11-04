@@ -276,8 +276,8 @@ preparation, gesture holds and semantic presentation proof.
 A gesture's own result shows in the task that sends it, before the server
 answers ("Responsiveness"); a disabled control, spinner or delivery status is
 not that result. The browser adds only what a gesture decides by itself: a
-to-do the user ends, a thread the user opens, the user's own reply and its wait
-for an answer, and the resend a refused send leaves. A refusal restores the
+thread the user opens, the user's own reply and its wait for an answer, and the
+resend a refused send leaves. A refusal restores the
 server's state.
 
 Focus, scroll, selection, open disclosures, a draft being typed, a drag and

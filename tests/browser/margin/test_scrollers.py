@@ -140,14 +140,16 @@ def test_a_keyboard_arrival_brings_its_card_once_its_row_is_shown(browser, serve
     row = page.locator('[data-lf-margin-for="work"]')
     expect(row).to_be_hidden()
     page.keyboard.press("t")
-    leaving = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{left}"]')
+    leaving = page.locator(
+        f'.lf-margin-preview .lf-page-thread[data-lf-thread="{left}"]'
+    )
     expect(leaving).to_be_focused()
     page.keyboard.press("m")
     expect(page.locator("#work")).to_be_focused()
     expect(leaving).to_have_count(0)
     expect(row).to_be_visible()
     expect(
-        page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+        page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]')
     ).to_be_visible()
     expect(page.locator("#work")).to_be_focused()
 

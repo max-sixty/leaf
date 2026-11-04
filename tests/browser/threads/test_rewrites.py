@@ -178,7 +178,7 @@ def test_the_keyboard_walks_up_through_the_users_messages_to_rewrite_one(
     page.locator(PANEL_REPLY).focus()
     page.keyboard.press("ArrowUp")
     latest = thread.locator(
-        f'.lf-msg[data-event="{second["id"]}"] .lf-msg-editor leaf-text'
+        f'.lf-msg[data-lf-event="{second["id"]}"] .lf-msg-editor leaf-text'
     )
     expect(latest).to_be_focused()
     # ↑ on the box's first line goes to its start, as in any box, and ↑ from there on.
@@ -189,7 +189,7 @@ def test_the_keyboard_walks_up_through_the_users_messages_to_rewrite_one(
     expect(latest).to_have_js_property("selectionStart", 0)
     page.keyboard.press("ArrowUp")
     earlier = thread.locator(
-        f'.lf-msg[data-event="{first["id"]}"] .lf-msg-editor leaf-text'
+        f'.lf-msg[data-lf-event="{first["id"]}"] .lf-msg-editor leaf-text'
     )
     expect(earlier).to_be_focused()
     expect(thread.locator(".lf-msg-editor")).to_have_count(1)
@@ -288,21 +288,23 @@ def _rewrite_surface(
     resized(page, *size)
     if surface == "panel":
         thread = open_panel_thread(page, mine["id"])
-        message = thread.locator(f'.lf-msg[data-event="{mine["id"]}"]')
+        message = thread.locator(f'.lf-msg[data-lf-event="{mine["id"]}"]')
     elif surface == "seat":
         thread = page.locator("#cd-q .lf-page-thread").first
-        message = thread.locator(f'.lf-msg[data-event="{mine["id"]}"]')
+        message = thread.locator(f'.lf-msg[data-lf-event="{mine["id"]}"]')
     elif surface == "feed":
         thread = page.locator("#workspace")
         thread.get_by_role("button", name="Feed", exact=True).click()
-        message = thread.locator(f'.lf-primary-part .lf-msg[data-event="{mine["id"]}"]')
+        message = thread.locator(
+            f'.lf-primary-part .lf-msg[data-lf-event="{mine["id"]}"]'
+        )
     elif surface == "shelf":
         thread = page.locator("#workspace")
-        message = thread.locator(f'.lf-msg[data-event="{mine["id"]}"]')
+        message = thread.locator(f'.lf-msg[data-lf-event="{mine["id"]}"]')
     else:
         page.locator(f'[data-lf-margin-for="{anchor}"] .lf-margin-marker').click()
         thread = page.locator(".lf-margin-preview")
-        message = thread.locator(f'.lf-msg[data-event="{mine["id"]}"]')
+        message = thread.locator(f'.lf-msg[data-lf-event="{mine["id"]}"]')
     expect(message).to_be_visible()
     rendered(page)
     return page, thread, message
@@ -542,7 +544,7 @@ def test_a_package_feed_keeps_a_rewrite_where_a_card_would(browser, serve):
     under Resume writing on the message where Feed draws it, the reader staying in
     Feed."""
     page, workspace, message = _rewrite_surface(browser, serve, "feed")
-    mine = message.get_attribute("data-event")
+    mine = message.get_attribute("data-lf-event")
     feed = workspace.get_by_role("button", name="Feed", exact=True)
     expect(
         workspace.locator(".lf-msg[data-lf-author=agent] .lf-msg-edit")
@@ -592,7 +594,7 @@ def test_a_rewrite_opened_on_held_words_starts_from_the_words_as_they_stand(
     refused it. Until the user changes them, the editor's words follow the message, so
     it shows the other rewrite and is written over it."""
     page, workspace, message = _rewrite_surface(browser, serve, "feed")
-    mine = message.get_attribute("data-event")
+    mine = message.get_attribute("data-lf-event")
     words = message.locator(".lf-msg-text")
     other = append_carried_log_record(
         serve.page_dir,
@@ -629,11 +631,11 @@ def test_one_editor_shows_a_message_across_its_readers(browser, serve):
     Opening it in one reader closes it in the other, the message there reading as it
     stands."""
     page, _workspace, message = _rewrite_surface(browser, serve, "feed")
-    mine = message.get_attribute("data-event")
+    mine = message.get_attribute("data-lf-event")
     message.locator(".lf-msg-text").dblclick()
     expect(message.locator(".lf-msg-editor leaf-text")).to_be_focused()
     page.locator('[data-lf-margin-for="cd-q"] .lf-margin-marker').click()
-    card = page.locator(f'.lf-margin-preview .lf-msg[data-event="{mine}"]')
+    card = page.locator(f'.lf-margin-preview .lf-msg[data-lf-event="{mine}"]')
     card.locator(".lf-msg-text").dblclick()
     expect(card.locator(".lf-msg-editor leaf-text")).to_be_focused()
     expect(message.locator(".lf-msg-editor")).to_have_count(0)
@@ -656,7 +658,7 @@ def test_one_unchanged_rewrite_stands_open_in_a_thread_across_its_readers(
     )
     # Named by its id, since an open rewrite holds its words in the box, not as text.
     thanks = page.locator(
-        f'.lf-margin-preview .lf-msg[data-event="{said.get_attribute("data-event")}"]'
+        f'.lf-margin-preview .lf-msg[data-lf-event="{said.get_attribute("data-lf-event")}"]'
     )
     thanks.locator(".lf-msg-text").dblclick()
     expect(thanks.locator(".lf-msg-editor leaf-text")).to_be_focused()
@@ -713,7 +715,7 @@ def test_walking_up_through_rewrites_shows_each_one(browser, serve):
     page.keyboard.press("ArrowUp")
     for name in [*reversed(mine), first["id"]]:
         editor = thread.locator(
-            f'.lf-msg[data-event="{name}"] .lf-msg-editor leaf-text'
+            f'.lf-msg[data-lf-event="{name}"] .lf-msg-editor leaf-text'
         )
         expect(editor).to_be_focused()
         rendered(page)
@@ -756,7 +758,7 @@ def test_an_emptied_rewrite_keeps_nothing_and_saved_deletes_its_message(browser,
     page.keyboard.press("ControlOrMeta+a")
     page.keyboard.press("Backspace")
     rendered(page)
-    mine = message.get_attribute("data-event")
+    mine = message.get_attribute("data-lf-event")
     page.reload()
     wait_until_ready(page)
     open_panel_thread(page, mine)
@@ -937,7 +939,7 @@ def test_a_rewrite_under_a_finger_keeps_its_message_head(browser, serve):
     )
     page = open_page(browser, url, context=context)
     thread = open_panel_thread(page, first["id"])
-    message = thread.locator(f'.lf-msg[data-event="{second["id"]}"]')
+    message = thread.locator(f'.lf-msg[data-lf-event="{second["id"]}"]')
     expect(message).to_be_visible()
     rendered(page)
     head = message.locator(".lf-msg-head")
@@ -1060,7 +1062,7 @@ def test_a_rewrite_keeps_its_pair_while_its_head_sticks_beside_the_actions(
         resized(page, 1200, 700)
     page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
     card = page.locator(".lf-margin-preview")
-    message = card.locator(f'.lf-msg[data-event="{later}"]')
+    message = card.locator(f'.lf-msg[data-lf-event="{later}"]')
     expect(message).to_be_visible()
     rendered(page)
     message.locator(".lf-msg-text").dblclick()
@@ -1068,7 +1070,7 @@ def test_a_rewrite_keeps_its_pair_while_its_head_sticks_beside_the_actions(
     # The message's opening stands a line above the transcript's top.
     card.locator(".lf-thread-transcript").evaluate(
         """(box, id) => {
-          const message = box.querySelector(`.lf-msg[data-event="${id}"]`);
+          const message = box.querySelector(`.lf-msg[data-lf-event="${id}"]`);
           box.scrollTop += message.getBoundingClientRect().top
             - box.getBoundingClientRect().top + 20;
         }""",
@@ -1105,7 +1107,7 @@ def test_a_discarded_rewrite_hands_resume_writing_back(browser, serve, previous)
         reply.click()
         page.keyboard.type("A reply in progress")
         if previous == "reply-after-empty-composer":
-            mine = message.get_attribute("data-event")
+            mine = message.get_attribute("data-lf-event")
             page.keyboard.press("Escape")
             page.locator("#cd-lede").click(modifiers=["Alt"])
             field = page.locator(".lf-fab-input")
@@ -1121,7 +1123,7 @@ def test_a_discarded_rewrite_hands_resume_writing_back(browser, serve, previous)
             page.keyboard.press("Escape")
             open_panel_thread(page, mine)
     else:
-        mine = message.get_attribute("data-event")
+        mine = message.get_attribute("data-lf-event")
         page.keyboard.press("Escape")
         draw_over(page, page.locator("#cd-q"))
         resume = page.locator(".lf-fab-input")
@@ -1170,14 +1172,14 @@ def test_a_long_rewrite_opens_where_its_caret_stands(browser, serve):
     page.locator(PANEL_REPLY).focus()
     page.keyboard.press("ArrowUp")
     editor = thread.locator(
-        f'.lf-msg[data-event="{mine["id"]}"] .lf-msg-editor leaf-text'
+        f'.lf-msg[data-lf-event="{mine["id"]}"] .lf-msg-editor leaf-text'
     )
     expect(editor).to_be_focused()
     rendered(page)
     last = editor.evaluate(
         """n => { const box = n.getBoundingClientRect();
           const line = parseFloat(getComputedStyle(n).lineHeight);
-          const list = document.querySelector('.lf-fp-view[data-view="thread"]')
+          const list = document.querySelector('.lf-fp-view[data-lf-route="thread"]')
             .getBoundingClientRect();
           const reply = document.querySelector('.lf-fp-field .lf-thread-reply')
             .getBoundingClientRect();
@@ -1223,8 +1225,8 @@ def test_changed_words_are_not_walked_past(browser, serve):
     page = open_page(browser, url)
     resized(page, 1200, 900)
     thread = open_panel_thread(page, first["id"])
-    latest = thread.locator(f'.lf-msg[data-event="{second["id"]}"]')
-    earlier = thread.locator(f'.lf-msg[data-event="{first["id"]}"]')
+    latest = thread.locator(f'.lf-msg[data-lf-event="{second["id"]}"]')
+    earlier = thread.locator(f'.lf-msg[data-lf-event="{first["id"]}"]')
     page.locator(PANEL_REPLY).focus()
     page.keyboard.press("ArrowUp")
     editor = latest.locator(".lf-msg-editor leaf-text")
@@ -1336,7 +1338,7 @@ def test_a_second_rewrite_lands_over_a_first_still_sending(browser, serve):
     page = open_page(browser, url)
     resized(page, 1200, 900)
     thread = open_panel_thread(page, mine["id"])
-    message = thread.locator(f'.lf-msg[data-event="{mine["id"]}"]')
+    message = thread.locator(f'.lf-msg[data-lf-event="{mine["id"]}"]')
     held = []
     page.route(
         "**/api/event",
@@ -1389,7 +1391,7 @@ def test_a_second_rewrite_over_a_refused_first_goes_with_it(browser, serve):
     page = open_page(browser, url)
     resized(page, 1200, 900)
     thread = open_panel_thread(page, mine["id"])
-    message = thread.locator(f'.lf-msg[data-event="{mine["id"]}"]')
+    message = thread.locator(f'.lf-msg[data-lf-event="{mine["id"]}"]')
     held = []
     later = []
 
@@ -1468,7 +1470,7 @@ def test_typing_in_a_long_rewrite_keeps_the_view(browser, serve):
     reply.click()
     page.keyboard.press("ArrowUp")
     editor = thread.locator(
-        f'.lf-msg[data-event="{mine["id"]}"] .lf-msg-editor leaf-text'
+        f'.lf-msg[data-lf-event="{mine["id"]}"] .lf-msg-editor leaf-text'
     )
     expect(editor).to_be_focused()
     rendered(page)
@@ -1517,7 +1519,7 @@ def test_a_rewrite_leaves_a_card_at_the_windows_foot_as_it_stood(browser, serve)
     rendered(page)
     page.locator('[data-lf-margin-for="p30"] .lf-margin-marker').click()
     card = page.locator(".lf-margin-preview")
-    message = card.locator(f'.lf-msg[data-event="{mine["id"]}"]')
+    message = card.locator(f'.lf-msg[data-lf-event="{mine["id"]}"]')
     words = message.locator(".lf-msg-text")
     editor = message.locator(".lf-msg-editor leaf-text")
     expect(message).to_be_visible()
@@ -1612,7 +1614,7 @@ def test_a_card_at_the_windows_foot_grows_back_to_how_it_stood(browser, serve):
     rendered(page)
     page.locator('[data-lf-margin-for="p30"] .lf-margin-marker').click()
     card = page.locator(".lf-margin-preview")
-    message = card.locator(f'.lf-msg[data-event="{mine["id"]}"]')
+    message = card.locator(f'.lf-msg[data-lf-event="{mine["id"]}"]')
     body = message.locator(".lf-msg-body")
     editor = message.locator(".lf-msg-editor leaf-text")
     expect(message).to_be_visible()
@@ -1709,8 +1711,8 @@ def test_saving_one_of_two_open_rewrites_leaves_no_gap(browser, serve):
     page = open_page(browser, url)
     resized(page, 1400, 900)
     thread = page.locator("#cd-q .lf-page-thread").first
-    earlier = thread.locator(f'.lf-msg[data-event="{first["id"]}"]')
-    latest = thread.locator(f'.lf-msg[data-event="{second["id"]}"]')
+    earlier = thread.locator(f'.lf-msg[data-lf-event="{first["id"]}"]')
+    latest = thread.locator(f'.lf-msg[data-lf-event="{second["id"]}"]')
     reply = thread.locator(".lf-thread-reply leaf-text").first
     earlier.scroll_into_view_if_needed()
     earlier.locator(".lf-msg-text").dblclick()

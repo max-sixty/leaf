@@ -1538,7 +1538,7 @@ export class Trace extends LeafElement {
       keeps(
         button,
         "aria-pressed",
-        button.dataset.scale === "fit"
+        button.dataset.lfScale === "fit"
           ? fitted
           : !fitted && this.#picture?.imageData.ratio === 1,
       );
@@ -2308,7 +2308,7 @@ export class Trace extends LeafElement {
         class="lf-trace-evidence"
         @click=${{ handleEvent: (/** @type {Event} */ event) => this.#inspect(event), capture: true }}
       >
-        <div class="lf-trace-stage" ?data-ready=${!!trace} ${ref(this.#stage)}>
+        <div class="lf-trace-stage" ?data-lf-ready=${!!trace} ${ref(this.#stage)}>
           <div class="lf-trace-heading" ?hidden=${!trace}>
             <div class="lf-trace-toolbar" ?hidden=${!trace}>
               <div class="lf-trace-transport">
@@ -2321,7 +2321,7 @@ export class Trace extends LeafElement {
                     { action: "play" },
                   )}
                   ${ref(this.#play)}
-                  data-playing=${this.#playing ? "" : nothing}
+                  data-lf-playing=${this.#playing ? "" : nothing}
                   ?disabled=${q}
                   @pointerdown=${(/** @type {PointerEvent} */ event) => {
                     this.#pressedPlay = {
@@ -2348,7 +2348,7 @@ export class Trace extends LeafElement {
                   }}
                 >
                   <!-- Pause stands drawn beside Play, so the clock turning shows
-                      it at once (defaults.css, .lf-trace-play[data-playing]). -->
+                      it at once (defaults.css, .lf-trace-play[data-lf-playing]). -->
                   ${actionTemplate("pause", "lf-action-icon")}
                 </button>
                 ${transport(
@@ -2413,7 +2413,7 @@ export class Trace extends LeafElement {
                 aspectRatio: extent ? `${extent.width} / ${extent.height}` : undefined,
                 maxWidth: extent ? `${extent.width}px` : undefined,
               })}
-              ?data-sized=${!!extent}
+              ?data-lf-sized=${!!extent}
             ></div>
           </div>
           <div class="lf-trace-image-tools" ?hidden=${!extent} ${ref(this.#imageTools)}>
@@ -2498,7 +2498,7 @@ export class Trace extends LeafElement {
                 ({ scale, text, label, run }) =>
                   html`<button
                     ${offeredAction("word", "")}
-                    data-scale=${scale}
+                    data-lf-scale=${scale}
                     aria-label=${label}
                     @click=${() => {
                       run();

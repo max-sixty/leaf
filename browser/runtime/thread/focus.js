@@ -37,7 +37,9 @@ export const threadReplyInput = (thread) => {
  * @param {{part?: "thread" | "reply" | "message" | null, message: string} | {part?: "thread" | "reply" | null, message?: null}} [options] */
 export function threadFocusDestination(thread, options = {}) {
   if (options.part === "message")
-    return thread.querySelector(`.lf-msg[data-event="${CSS.escape(options.message)}"]`);
+    return thread.querySelector(
+      `.lf-msg[data-lf-event="${CSS.escape(options.message)}"]`,
+    );
   return (
     (options.part === "thread" ? thread : null) ?? threadReplyInput(thread) ?? thread
   );

@@ -423,33 +423,35 @@ def progress_completions(thread: dict) -> dict[str, dict]:
 def _thread_summaries(thread: dict, summaries: list, edits: dict) -> list[dict]:
     message_ids = [message["id"] for message in thread["msgs"]]
     positions = {identity: index for index, identity in enumerate(message_ids)}
-    active = []
+    # The summaries in force cover disjoint messages, so each message names the one
+    # summary covering it, and a new summary finds the ones it replaces through the
+    # messages it covers rather than by reading every earlier summary.
+    active: dict[str, dict] = {}
+    holder: dict[str, str] = {}
     for event in summaries:
         start = positions.get(event["from"])
         end = positions.get(event["through"])
         if start is None or end is None or start > end:
             continue
         covers = message_ids[start : end + 1]
-        covered = set(covers)
-        active = [
-            summary for summary in active if covered.isdisjoint(summary["covers"])
-        ]
+        for replaced in {holder[identity] for identity in covers if identity in holder}:
+            for identity in active.pop(replaced)["covers"]:
+                del holder[identity]
         if event["text"] and any(
             edits.get(identity, 0) > event["seq"] for identity in covers
         ):
             continue
-        active.append(
-            {
-                "id": event["id"],
-                "seq": event["seq"],
-                "from": event["from"],
-                "through": event["through"],
-                "covers": covers,
-                "text": event["text"],
-                "label": event.get("label", "Earlier discussion"),
-            }
-        )
-    return sorted(active, key=lambda summary: positions[summary["from"]])
+        active[event["id"]] = {
+            "id": event["id"],
+            "seq": event["seq"],
+            "from": event["from"],
+            "through": event["through"],
+            "covers": covers,
+            "text": event["text"],
+            "label": event.get("label", "Earlier discussion"),
+        }
+        holder.update(dict.fromkeys(covers, event["id"]))
+    return sorted(active.values(), key=lambda summary: positions[summary["from"]])
 
 
 def unanswered_turns(thread: dict) -> list[dict]:
@@ -546,14 +548,28 @@ def retractions(events: list, upto=None) -> dict:
     return at
 
 
+def _report_notes(events: list, upto):
+    """Each report id a note through revision `upto` settles, with that note."""
+    for event in events:
+        if event["kind"] == "note" and (upto is None or event["revision"] <= upto):
+            for identity in note_settlements(event, "report"):
+                yield identity, event
+
+
 def report_settlements(events: list, upto=None) -> dict:
     """Report event id → the greatest revision whose note settled it."""
     at = {}
-    for event in events:
-        if event["kind"] != "note" or (upto is not None and event["revision"] > upto):
-            continue
-        for identity in note_settlements(event, "report"):
-            at[identity] = max(at.get(identity, 0), event["revision"])
+    for identity, note in _report_notes(events, upto):
+        at[identity] = max(at.get(identity, 0), note["revision"])
+    return at
+
+
+def report_settled_at(events: list, upto=None) -> dict:
+    """Report event id → the seq of the first note that settled it: every prefix
+    of the log through that seq, and none shorter, reads it settled."""
+    at = {}
+    for identity, note in _report_notes(events, upto):
+        at[identity] = min(at.get(identity, note["seq"]), note["seq"])
     return at
 
 

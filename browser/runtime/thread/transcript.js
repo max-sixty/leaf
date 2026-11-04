@@ -63,7 +63,7 @@ import { foldBlock, motionPlays } from "../motion.js";
 import { voiced } from "../voice.js";
 
 // The names a reader finds a drawn message by (messages.js), which a folding one gives up.
-const MESSAGE_NAMES = ["data-message", "data-event", "data-attempt"];
+const MESSAGE_NAMES = ["data-lf-message", "data-lf-event", "data-lf-attempt"];
 
 // A progress run's face: its latest step, drawn as a message is, with who wrote it and
 // when at its head, but dimmed, and under a passing sheen while it is the working
@@ -207,7 +207,7 @@ export class Transcript {
   // The checkpoint a summary stands in.
   /** @param {string} id */
   summaryNode(id) {
-    return this.node.querySelector(`:scope > [data-summary-id="${CSS.escape(id)}"]`);
+    return this.node.querySelector(`:scope > [data-lf-summary-id="${CSS.escape(id)}"]`);
   }
 
   // The last node the transcript shows. The messages a closed fold covers, progress
@@ -447,7 +447,7 @@ export class Transcript {
         body: (tail) =>
           html`<div
             class="lf-thread-working"
-            data-face=${id}
+            data-lf-face=${id}
             aria-live="polite"
             data-lf-live=${reading.live ? "" : nothing}
             data-lf-append-tail=${tail ? "" : nothing}
@@ -524,7 +524,9 @@ export class Transcript {
     this.#paint();
     /** @param {Row} row */
     const faceNode = (row) =>
-      this.node.querySelector(`:scope > [data-face="${CSS.escape(row.key.slice(5))}"]`);
+      this.node.querySelector(
+        `:scope > [data-lf-face="${CSS.escape(row.key.slice(5))}"]`,
+      );
     this.#facing = new Map([...facing].map(([key, row]) => [key, faceNode(row)]));
     for (const [key, fold] of this.#folding) {
       if (fold.played) continue;
@@ -544,9 +546,9 @@ export class Transcript {
     /** @type {(id: string) => HTMLElement | null} */
     const toggleFor = (id) =>
       this.node.querySelector(
-        `.lf-summary-expand[data-summary-toggle="${CSS.escape(id)}"]`,
+        `.lf-summary-expand[data-lf-summary-toggle="${CSS.escape(id)}"]`,
       );
-    const succeeded = currentLocationToggle.dataset.summaryToggle;
+    const succeeded = currentLocationToggle.dataset.lfSummaryToggle;
     return (
       [
         ...(succeeded
@@ -610,8 +612,8 @@ export class Transcript {
     const progress = Boolean(range.summary.pending);
     return html`<section
       class="lf-thread-checkpoint"
-      data-summary-id=${range.summary.id}
-      data-expanded=${range.expanded}
+      data-lf-summary-id=${range.summary.id}
+      data-lf-expanded=${range.expanded}
       ?hidden=${progress && !range.expanded}
       aria-owns=${covered.map(({ id }) => id).join(" ")}
       style=${`--lf-fold-head: ${anchor}; --lf-fold-foot: ${anchor}-foot;`}
@@ -666,7 +668,7 @@ export class Transcript {
           progress ? " lf-progress-expand" : ""
         }`,
       )}
-      data-summary-toggle=${ids[0]}
+      data-lf-summary-toggle=${ids[0]}
       aria-expanded=${String(expanded)}
       aria-controls=${ranges
         .flatMap((range) => range.messages.map(({ key }) => this.messageNode(key)?.id))
@@ -687,7 +689,7 @@ export class Transcript {
     this.#repaint();
     /** @type {HTMLButtonElement | null} */
     const toggle = this.node.querySelector(
-      `.lf-summary-expand[data-summary-toggle="${CSS.escape(ids[0])}"]`,
+      `.lf-summary-expand[data-lf-summary-toggle="${CSS.escape(ids[0])}"]`,
     );
     if (toggle) {
       focusDestination(toggle, "return");

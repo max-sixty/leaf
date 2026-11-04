@@ -1202,10 +1202,10 @@ html[data-lf-region-capture]
     font: var(--font-small);
     color: var(--ink-2);
   }
-  .lf-change-card-block[data-kind="heading"] {
+  .lf-change-card-block[data-lf-kind="heading"] {
     font-weight: 600;
   }
-  .lf-change-card-block[data-kind="code"] {
+  .lf-change-card-block[data-lf-kind="code"] {
     font-family: var(--mono);
     font-size: var(--code-size);
     line-height: var(--code-line);

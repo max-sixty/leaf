@@ -725,7 +725,7 @@ def test_offline_reaction_waits_for_its_saved_state(browser, serve):
     select_words(page, "#target")
     page.keyboard.press("c")
     page.keyboard.press("Tab")
-    chip = page.locator('.lf-response-options .lf-react[data-token="keep"]')
+    chip = page.locator('.lf-response-options .lf-react[data-lf-token="keep"]')
     expect(chip).to_have_attribute("aria-disabled", "true")
     chip.dispatch_event("click")
     chip.focus()

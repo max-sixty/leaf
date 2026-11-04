@@ -605,3 +605,50 @@ def test_summary_protects_the_unanswered_obligation_after_later_agent_messages()
     [summary] = thread["summaries"]
     assert summary["covers"] == ["e1", "e2"]
     assert summary["protected"] == ["e1"]
+
+
+def test_an_answer_sends_a_held_reading_only_what_happened_since():
+    """A browser that names the reading it holds is sent the events after it and the
+    entries those events added or changed, however long the log before it; the browser
+    keeps the rest (`served_state.tail`, and `tests/runtime/state-tail.test.mjs` for the
+    whole answer it completes to)."""
+    from served_records import TAIL_LOG, TAIL_PAGE
+
+    held = model.served_reading(TAIL_PAGE, TAIL_LOG[:4])
+    key = held["browser"]["basis"]["key"]
+    tail = model.served_reading(TAIL_PAGE, TAIL_LOG[:5], held=key)
+    [view] = tail["browser"]["views"].values()
+    # The undo of e2 withdraws a held entry, so that entry comes again as it now
+    # stands, and leaves the undo list.
+    assert [event["seq"] for event in tail["events"]] == [5]
+    assert [
+        (entry["event"]["id"], entry["stands"])
+        for entry in view["document"]["projection"]["entries"]
+    ] == [("e2", False)]
+    assert view["undo"] == []
+    assert tail["since"] == {
+        "through_seq": 4,
+        "dropped": {"1": {"document": [], "thread": [], "undo": ["e2"]}},
+    }
+
+
+def test_an_answer_the_held_reading_cannot_extend_is_whole():
+    first = model.leaf_page("Tail", '<p id="p">One.</p>')
+    second = model.leaf_page("Tail", '<p id="p">Two.</p>')
+    log = ({"kind": "comment", "text": "Why?"},)
+    held = model.served_reading(first, log)["browser"]["basis"]["key"]
+    seq, active, views = held.split(":")
+    for documents, key, view_revision in (
+        # The page has since activated another revision.
+        ({1: first, 2: second}, held, None),
+        # The answer shows a revision the held reading had no view of.
+        ({1: first, 2: second}, f"{seq}:2:2", 1),
+        # The held reading is past the log.
+        (first, f"5:{active}:{views}", None),
+        (first, "not a key", None),
+    ):
+        whole = model.served_reading(
+            documents, log, view_revision=view_revision, held=key
+        )
+        assert "since" not in whole, key
+        assert [event["id"] for event in whole["events"]] == ["e1"], key

@@ -474,8 +474,8 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     const unpoint = () => {
       clearTimeout(dwell);
       dwell = 0;
-      ta.parentElement?.removeAttribute("data-send-pointed");
-      ta.parentElement?.removeAttribute("data-send-armed");
+      ta.parentElement?.removeAttribute("data-lf-send-pointed");
+      ta.parentElement?.removeAttribute("data-lf-send-armed");
     };
     /** @param {PointerEvent & {currentTarget: HTMLElement}} event */
     const point = (event) => {
@@ -489,11 +489,11 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         event.clientY >= send.top &&
         event.clientY < send.bottom;
       if (!on) return unpoint();
-      if (box.hasAttribute("data-send-pointed")) return;
-      box.setAttribute("data-send-pointed", "");
+      if (box.hasAttribute("data-lf-send-pointed")) return;
+      box.setAttribute("data-lf-send-pointed", "");
       dwell = setTimeout(() => {
         dwell = 0;
-        box.setAttribute("data-send-armed", "");
+        box.setAttribute("data-lf-send-armed", "");
       }, SEND_DWELL);
     };
     let sending = false;
@@ -603,7 +603,8 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         removeMedia,
       });
       const shelf = html`<div
-        class=${sentMedia ? "lf-msg-media" : "lf-composer-media scroll"}
+        class=${sentMedia ? "lf-msg-media" : "lf-composer-media"}
+        ?data-lf-scroll=${!sentMedia}
         role="group"
         aria-label="Attachments"
         ?hidden=${!drawn && attachedMedia.length === 0}
@@ -627,7 +628,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
               title: live || !status ? micAction : `${micAction} (${status})`,
             })}
             ?hidden=${!micShown}
-            data-dictation=${dictationState}
+            data-lf-dictation=${dictationState}
             aria-pressed=${String(live)}
             aria-description=${status || nothing}
             @mousedown=${/** @param {MouseEvent} event */ (event) => event.preventDefault()}
@@ -667,7 +668,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       return html`${sentMedia ? nothing : shelf}
         <div
           class="lf-compose-field"
-          ?data-words=${hasWords}
+          ?data-lf-words=${hasWords}
           @pointermove=${point}
           @pointerleave=${point}
           @pointerdown=${

@@ -8,6 +8,7 @@ task and extracts structured evidence. Assertions use Promptfoo's schema unchang
 import yaml
 
 from leaf_dev import ROOT
+from leaf_dev.browser import WINDOWS, Window
 
 
 def definition(name: str) -> dict:
@@ -15,14 +16,9 @@ def definition(name: str) -> dict:
     return yaml.safe_load((ROOT / "evals/workflows" / f"{name}.yaml").read_text())
 
 
-_EVAL = definition("eval")
-DEFAULT_VIEWPORTS = tuple(_EVAL["default_viewports"])
-VIEWPORTS = {
-    name: (tuple(value["viewport"]), value["description"])
-    for name, value in _EVAL["viewports"].items()
-}
+DEFAULT_VIEWPORTS = tuple(definition("eval")["default_viewports"])
 
 
-def selected_viewports(names: tuple[str, ...] = DEFAULT_VIEWPORTS) -> dict:
-    """The run's centrally selected sizes, independent of its task cases."""
-    return {name: VIEWPORTS[name] for name in names}
+def selected_viewports(names: tuple[str, ...] = DEFAULT_VIEWPORTS) -> dict[str, Window]:
+    """The run's centrally selected windows, independent of its task cases."""
+    return {name: WINDOWS[name] for name in names}

@@ -59,7 +59,7 @@ export function clearAim() {
   aimBox.style.display = "none";
   aimBox.classList.toggle("lf-shaped", false);
   aimShape.replaceChildren();
-  aimBox.removeAttribute("data-for");
+  aimBox.removeAttribute("data-lf-for");
   delete aimStand.root.dataset.lfPaintPlane;
 }
 
@@ -85,7 +85,7 @@ export function paintAim(element, surface) {
   });
   aimBox.classList.toggle("lf-shaped", shaped);
   if (!shaped) aimShape.replaceChildren();
-  keeps(aimBox, "data-for", element.id);
+  keeps(aimBox, "data-lf-for", element.id);
   keeps(aimStand.root, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
   const stood = standOver(
     aimStand,
@@ -206,7 +206,7 @@ function createTrace(className) {
     if (!shaped) shape.replaceChildren();
     shapeKeyDrawn = shaped ? shapeKey : "";
     box.classList.toggle("lf-shaped", shaped);
-    keeps(box, "data-for", element.id || null);
+    keeps(box, "data-lf-for", element.id || null);
     keeps(stand.root, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
     standOver(stand, placed, shaped ? null : getComputedStyle(surface).borderRadius);
   }
@@ -309,12 +309,12 @@ function drawLocation() {
     projectLocation([]);
     vacate(locationStand);
     locationBox.style.display = "none";
-    locationBox.removeAttribute("data-for");
+    locationBox.removeAttribute("data-lf-for");
     delete locationStand.root.dataset.lfPaintPlane;
     return;
   }
   projectLocation([element, ...shownParts(element)]);
-  keeps(locationBox, "data-for", element.id || null);
+  keeps(locationBox, "data-lf-for", element.id || null);
   keeps(
     locationStand.root,
     "data-lf-paint-plane",

@@ -416,9 +416,9 @@ export class RecordingTimeline {
     const word = (/** @type {LabelItem} */ item) =>
       html`<span
         class="lf-trace-word"
-        data-word=${item.id}
-        data-tip=${item.title}
-        ?data-current=${item.current}
+        data-lf-word=${item.id}
+        data-lf-tip=${item.title}
+        ?data-lf-current=${item.current}
         >${item.label}</span
       >`;
     const kind = lane === "moments" ? "moments" : "inputs";
@@ -426,9 +426,9 @@ export class RecordingTimeline {
       return html`${word(cluster.items[0])}
         <span
           class="lf-trace-more"
-          data-more
-          ?data-current=${cluster.items.slice(1).some((item) => item.current)}
-          data-tip=${
+          data-lf-more
+          ?data-lf-current=${cluster.items.slice(1).some((item) => item.current)}
+          data-lf-tip=${
             cluster.spread
               ? `${cluster.items.length - 1} more ${kind}: zoom to separate them`
               : `${cluster.items.length - 1} more ${kind} at this time; ${kind === "moments" ? "the Moments list" : "Shift with Left and Right"} reaches each`
@@ -483,7 +483,8 @@ export class RecordingTimeline {
           )}
         </div>
         <div
-          class="lf-trace-scroller scroll"
+          class="lf-trace-scroller"
+          data-lf-scroll
           @scroll=${() => this.#scrolled()}
           @wheel=${(/** @type {WheelEvent} */ event) => this.#wheel(event)}
         >
@@ -510,12 +511,12 @@ export class RecordingTimeline {
                         (cluster, index) =>
                           html`<span
                             class="lf-trace-moment-pin"
-                            ?data-flip=${cluster.flip}
-                            data-pick="moments"
-                            data-id=${cluster.items[0].id}
-                            data-cluster=${index}
-                            data-tip=${cluster.items.map((item) => item.title).join("\n")}
-                            ?data-current=${cluster.items.some((item) => item.current)}
+                            ?data-lf-flip=${cluster.flip}
+                            data-lf-pick="moments"
+                            data-lf-id=${cluster.items[0].id}
+                            data-lf-cluster=${index}
+                            data-lf-tip=${cluster.items.map((item) => item.title).join("\n")}
+                            ?data-lf-current=${cluster.items.some((item) => item.current)}
                             style="--t: ${fraction(cluster.items[0].at)}; max-inline-size: ${this.#labelRoom(
                               this.#labels.moments,
                               index,
@@ -536,11 +537,11 @@ export class RecordingTimeline {
                         (cluster, index) =>
                           html`<span
                             class="lf-trace-input-label"
-                            ?data-flip=${cluster.flip}
-                            data-pick="input"
-                            data-id=${cluster.items[0].id}
-                            data-cluster=${index}
-                            data-tip=${cluster.items.map((item) => item.title).join("\n")}
+                            ?data-lf-flip=${cluster.flip}
+                            data-lf-pick="input"
+                            data-lf-id=${cluster.items[0].id}
+                            data-lf-cluster=${index}
+                            data-lf-tip=${cluster.items.map((item) => item.title).join("\n")}
                             style="--t: ${fraction(cluster.items[0].at)}; max-inline-size: ${this.#labelRoom(
                               this.#labels.input,
                               index,
@@ -555,10 +556,10 @@ export class RecordingTimeline {
                         (input) =>
                           html`<span
                             class="lf-trace-input-send"
-                            data-pick="input"
-                            data-id=${input.id}
-                            data-tip=${input.title}
-                            ?data-current=${input.current}
+                            data-lf-pick="input"
+                            data-lf-id=${input.id}
+                            data-lf-tip=${input.title}
+                            ?data-lf-current=${input.current}
                             style="--t: ${fraction(input.send)}"
                           ></span>`,
                       )}
@@ -568,11 +569,11 @@ export class RecordingTimeline {
                         (input) =>
                           html`<span
                             class="lf-trace-bar lf-trace-input-bar"
-                            data-pick="input"
-                            data-id=${input.id}
-                            data-tip=${input.title}
-                            ?data-current=${input.current}
-                            ?data-active=${input.active}
+                            data-lf-pick="input"
+                            data-lf-id=${input.id}
+                            data-lf-tip=${input.title}
+                            ?data-lf-current=${input.current}
+                            ?data-lf-active=${input.active}
                             style="--t: ${fraction(input.start)}; --d: ${length(
                               input.start,
                               input.end,
@@ -594,12 +595,12 @@ export class RecordingTimeline {
                         (call) =>
                           html`<span
                             class="lf-trace-bar lf-trace-call-bar"
-                            data-pick="calls"
-                            data-id=${call.id}
-                            data-tip=${call.title}
-                            ?data-current=${call.current}
-                            ?data-active=${call.active}
-                            ?data-error=${call.error}
+                            data-lf-pick="calls"
+                            data-lf-id=${call.id}
+                            data-lf-tip=${call.title}
+                            ?data-lf-current=${call.current}
+                            ?data-lf-active=${call.active}
+                            ?data-lf-error=${call.error}
                             style="--t: ${fraction(call.start)}; --d: ${length(
                               call.start,
                               call.end,
@@ -617,8 +618,8 @@ export class RecordingTimeline {
                   (capture) =>
                     html`<span
                       class="lf-trace-capture"
-                      ?data-image=${capture.image}
-                      ?data-current=${capture.current}
+                      ?data-lf-image=${capture.image}
+                      ?data-lf-current=${capture.current}
                       style="--t: ${fraction(capture.time)}"
                     ></span>`,
                 )}
@@ -667,7 +668,7 @@ export class RecordingTimeline {
       "--lf-trace-window-size",
       String(clientWidth / scrollWidth),
     );
-    keeps(overview, "data-zoomed", this.#zoom > 1 ? "" : null);
+    keeps(overview, "data-lf-zoomed", this.#zoom > 1 ? "" : null);
   }
 
   /** @param {PointerEvent} event */
@@ -716,7 +717,7 @@ export class RecordingTimeline {
         (tick) =>
           html`<span
             class="lf-trace-tick ${tick.major ? "lf-trace-tick-major" : ""}"
-            ?data-flip=${tick.major && (this.#recording.duration - tick.time) * pxPerMs < 44}
+            ?data-lf-flip=${tick.major && (this.#recording.duration - tick.time) * pxPerMs < 44}
             style="--t: ${this.#fraction(tick.time)}"
             >${tick.label ?? nothing}</span
           >`,
@@ -819,7 +820,7 @@ export class RecordingTimeline {
     if (event.pointerType === "touch" && !handle) return;
     if (
       !handle &&
-      (target.closest("[data-pick]") ||
+      (target.closest("[data-lf-pick]") ||
         this.#nearMark({ target, clientX: event.clientX }))
     )
       return;
@@ -856,22 +857,22 @@ export class RecordingTimeline {
     if (!(target instanceof Element)) return;
     const at = touched ?? { target, clientX: event.clientX };
     const time = this.#eventTime(at);
-    const pick = target.closest("[data-pick]") ?? this.#nearMark(at);
+    const pick = target.closest("[data-lf-pick]") ?? this.#nearMark(at);
     if (pick) {
-      const lane = pick.getAttribute("data-pick");
+      const lane = pick.getAttribute("data-lf-pick");
       if (lane !== "input" && lane !== "moments" && lane !== "calls") return;
       const labels = lane === "calls" ? null : this.#labels[lane];
-      const index = pick.getAttribute("data-cluster");
+      const index = pick.getAttribute("data-lf-cluster");
       const cluster = index === null ? null : labels?.[Number(index)];
-      if (cluster && target.closest("[data-more]") && cluster.spread) {
+      if (cluster && target.closest("[data-lf-more]") && cluster.spread) {
         this.#separate(cluster);
         this.#options.onUserPan?.();
         this.#options.onZoom?.();
         return;
       }
       const id =
-        target.closest("[data-word]")?.getAttribute("data-word") ??
-        pick.getAttribute("data-id");
+        target.closest("[data-lf-word]")?.getAttribute("data-lf-word") ??
+        pick.getAttribute("data-lf-id");
       if (id !== null) this.#options.onPick(lane, id, time);
       return;
     }
@@ -898,8 +899,8 @@ export class RecordingTimeline {
   /** @param {PointerEvent} event @param {boolean} [leaving] */
   #hover(event, leaving = false) {
     const target = event.target;
-    const pick = target instanceof Element ? target.closest("[data-tip]") : null;
-    const text = pick?.getAttribute("data-tip");
+    const pick = target instanceof Element ? target.closest("[data-lf-tip]") : null;
+    const text = pick?.getAttribute("data-lf-tip");
     if (leaving || !pick || text == null || this.#scrubbing !== null) {
       if (
         !leaving ||

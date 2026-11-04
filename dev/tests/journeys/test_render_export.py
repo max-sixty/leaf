@@ -22,7 +22,7 @@ from interact_support import (
     wait_for,
     woken,
 )
-from journeys.test_render_export import ROOT, _reachable
+from journeys.test_render_export import _reachable
 from playwright.sync_api import expect
 from render_harness import (
     REPLAYED_PAGE,
@@ -45,7 +45,9 @@ from leaf import state as cleanup_model
 from leaf.findings import Finding
 from leaf.render_checks import HANDOVER_DEADLINE_MS, wait_until_ready
 from leaf.structure import SourceDocument
+from leaf_dev import ROOT
 from leaf_dev.commands import preview as preview_model
+from leaf_dev.example_data import named_source
 
 
 def end_preview(process) -> None:
@@ -61,7 +63,7 @@ def expect_preview_named(page, words):
     """The leaf's menu names a preview page's preview on its diagnostics row, whose
     title says who drives it and which checkout serves it; read it and put the menu
     away."""
-    row = panel_menu(page).locator('.lf-fp-item[data-row="preview"]')
+    row = panel_menu(page).locator('.lf-fp-item[data-lf-row="preview"]')
     expect(row).to_have_attribute("title", re.compile(re.escape(words)))
     page.locator(".lf-fp-leaf").click()
 
@@ -245,7 +247,7 @@ preview.preview.main(args=sys.argv[1:])
             sys.executable,
             str(worker),
             "--source",
-            str(ROOT / "examples" / "heat-loss.html"),
+            str(named_source("heat-loss")),
             "--slot",
             slot,
             "--user",
@@ -913,7 +915,7 @@ def test_the_example_preview_command_exports_a_file_that_opens_on_its_own(
         ),
     )
     page.goto(out.as_uri(), wait_until="load")
-    source = (ROOT / "examples" / "pr-walkthrough.html").read_text(encoding="utf-8")
+    source = named_source("pr-walkthrough").read_text(encoding="utf-8")
     select_one_result = SourceDocument(source).tree.select_one("h1")
     assert select_one_result is not None
     title = " ".join(select_one_result.text.split())

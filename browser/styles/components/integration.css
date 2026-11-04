@@ -207,9 +207,9 @@ html[data-lf-draw-mode] body {
   }
 }
 .lf-video-controls:is(
-  :not([data-playing]),
-  [data-hovered],
-  [data-keyed],
+  :not([data-lf-playing]),
+  [data-lf-hovered],
+  [data-lf-keyed],
   :hover,
   :has(:focus-visible)
 ) {
@@ -229,8 +229,8 @@ html[data-lf-draw-mode] body {
 .lf-video-play > .lf-action-icon {
   grid-area: 1 / 1;
 }
-.lf-video-controls:not([data-playing]) .lf-video-play > [data-lf-icon="pause"],
-.lf-video-controls[data-playing] .lf-video-play > [data-lf-icon="play"] {
+.lf-video-controls:not([data-lf-playing]) .lf-video-play > [data-lf-icon="pause"],
+.lf-video-controls[data-lf-playing] .lf-video-play > [data-lf-icon="play"] {
   visibility: hidden;
 }
 .lf-video-time {

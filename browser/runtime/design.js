@@ -215,7 +215,7 @@ export function createDesignMode({
       let entry = legendBoxes.get(addressable);
       if (!entry) {
         const box = el("div", "lf-legend-box lf-page-paint");
-        box.dataset.for = addressable.id;
+        box.dataset.lfFor = addressable.id;
         const tag = parts.has(addressable.tagName.toLowerCase())
           ? null
           : el("span", "lf-legend-tag", designName(addressable));

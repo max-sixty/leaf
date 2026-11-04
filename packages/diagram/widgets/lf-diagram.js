@@ -110,7 +110,8 @@ customElements.define(
           });
         }
         this.visualParts = visualParts;
-        this.classList.add("lf-rendered", "scroll");
+        this.classList.add("lf-rendered");
+        this.toggleAttribute("data-lf-scroll", true);
         this.visualPartRegistration.update();
       } catch (err) {
         failSoft(this, err, source);

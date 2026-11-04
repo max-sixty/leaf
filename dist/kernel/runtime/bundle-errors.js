@@ -691,7 +691,7 @@ function voiceOf(words) {
 	const [voice = null] = voices;
 	return voices.size === 1 ? voice : null;
 }
-const voiced = (words) => runOf(words).map((part) => typeof part === "string" ? part : html`<span data-voice=${part.voice}>${part.text}</span>`);
+const voiced = (words) => runOf(words).map((part) => typeof part === "string" ? part : html`<span data-lf-voice=${part.voice}>${part.text}</span>`);
 
 //#endregion
 //#region runtime/queues.js
@@ -747,9 +747,9 @@ const UNPRESENTED = /* @__PURE__ */ new Set([
 	"sending:logged",
 	"accepted:logged"
 ]);
-function admittedId(attempt, unresolved, receipts) {
+function admittedId(attempt, unresolved, events) {
 	if (!attempt) return null;
-	return unresolved.find((entry) => entry.event.attempt === attempt)?.admitted?.id ?? receipts.find((receipt) => receipt.attempt === attempt)?.id ?? null;
+	return unresolved.find((entry) => entry.event.attempt === attempt)?.admitted?.id ?? events.findLast((event) => event.attempt === attempt)?.id ?? null;
 }
 function advance(entry, signal, admitted = null) {
 	const action = entry.event.kind === "action";
@@ -793,9 +793,20 @@ function normalizedProjection(view) {
 		entries,
 		actionIds,
 		reportIds,
-		desiredIds,
-		coverage: view?.coverage ?? []
+		desiredIds
 	};
+}
+function logCoverage(view, events) {
+	if (!view) return [];
+	const coordinates = /* @__PURE__ */ new Map();
+	for (const { projection } of [view.document, view.thread]) for (const entry of projection.entries) coordinates.set(entry.event.id, entry.coordinate);
+	return events.flatMap((event) => {
+		const target = event.kind === "undo" ? event.undoes : Object.hasOwn(VERB_WRITERS, event.kind) ? event.id : null;
+		return target === null ? [] : [{
+			event,
+			coordinate: coordinates.get(target) ?? null
+		}];
+	});
 }
 const NO_OBLIGATIONS = {
 	all: [],
@@ -1139,12 +1150,13 @@ function createSemanticApplication({ presentation } = {}) {
 	let activePresentation = null;
 	if (presentation) presentation.seal(presentation.begin());
 	function derive(document, state, unresolved, settled, markingRead, phase, hostAvailable) {
-		const receipts = state?.browser.receipts ?? [];
+		const events = state?.events ?? [];
 		const local = unresolved.filter((entry) => DRAWN_LOCALLY.has(entry.state));
 		const refused = unresolved.filter((entry) => entry.state === "refused");
 		const served = state?.browser.views[String(document.revision)];
 		const view = served ? (({ basis: _basis, ...rest }) => rest)(served) : null;
 		const admitted = normalizedProjection(view);
+		const coverage = logCoverage(view, events);
 		const classifiedIds = new Set(admitted.entries.map(({ e }) => e.id));
 		const drawsAction = (e) => {
 			const descriptor = document.descriptors.get(e.widget);
@@ -1156,7 +1168,7 @@ function createSemanticApplication({ presentation } = {}) {
 			if (!projection) return [];
 			if (projection.kind !== "undo") return drawsAction(projection.e) ? [projection] : [];
 			const { target } = projection;
-			const targetId = admittedId(entry.undoTarget, unresolved, receipts);
+			const targetId = admittedId(entry.undoTarget, unresolved, events);
 			const pending = !Number.isInteger(target.e.seq);
 			return classifiedIds.has(targetId ?? target.e.id) || pending && drawsAction(target.e) ? [{
 				...projection,
@@ -1165,6 +1177,7 @@ function createSemanticApplication({ presentation } = {}) {
 		});
 		const projection = foldProjection({
 			...admitted,
+			coverage,
 			pendingEntries: localProjections
 		});
 		const ready = phase === "ready";
@@ -1325,6 +1338,7 @@ function createSemanticApplication({ presentation } = {}) {
 				done: contextual(selectedQueues.done)
 			},
 			view,
+			coverage,
 			memberships,
 			widgetParents,
 			sending: unresolved.filter((entry) => SENDING.has(entry.state)).map((entry) => entry.event.attempt),
@@ -1367,10 +1381,10 @@ function createSemanticApplication({ presentation } = {}) {
 		return Boolean(view && view.basis.revision === revision && view.basis.through_seq === state.browser.basis.through_seq);
 	};
 	const unresolvedPart = publisher.select((root) => root.unresolved);
-	const receiptsPart = publisher.select((root) => root.authoritative?.browser.receipts ?? []);
+	const eventsPart = publisher.select((root) => root.authoritative?.events ?? []);
 	const widgetsPart = publisher.select((root) => root.effective.widgets);
 	const entry = (attempt) => unresolvedPart.read().find((item) => item.event.attempt === attempt);
-	const ledgerAndReceipts = () => [unresolvedPart.read(), receiptsPart.read()];
+	const ledgerAndLog = () => [unresolvedPart.read(), eventsPart.read()];
 	const update = (attempt, change) => publish({ unresolved: publisher.peek().unresolved.map((item) => item.event.attempt === attempt ? change(item) : item) });
 	const transition = (signal, admitted) => {
 		const left = [];
@@ -1391,7 +1405,7 @@ function createSemanticApplication({ presentation } = {}) {
 			moved
 		};
 	};
-	const byAttempt = (receipts) => new Map(receipts.flatMap((receipt) => receipt.attempt ? [[receipt.attempt, receipt]] : []));
+	const byAttempt = (events) => new Map(events.flatMap((receipt) => receipt.attempt ? [[receipt.attempt, receipt]] : []));
 	return Object.freeze({
 		read: publisher.read,
 		select: publisher.select,
@@ -1478,7 +1492,7 @@ function createSemanticApplication({ presentation } = {}) {
 			const prior = publisher.peek();
 			if (!adoptable(state, document)) return false;
 			const authoritative = state;
-			const { unresolved, left } = transition("log", byAttempt(authoritative.browser.receipts));
+			const { unresolved, left } = transition("log", byAttempt(authoritative.events));
 			const settled = [...prior.settled.filter((item) => !drawn.has(item.event.attempt)), ...left];
 			for (const attempt of drawn) if (!unresolved.some((item) => item.event.attempt === attempt)) drawn.delete(attempt);
 			publish({
@@ -1564,9 +1578,9 @@ function createSemanticApplication({ presentation } = {}) {
 			publish({ unresolved: unresolved.filter((item) => !dependents.includes(item.event.attempt)) });
 			return dependents;
 		},
-		present(receipts) {
+		present(events) {
 			const { unresolved, settled } = publisher.peek();
-			const attempts = byAttempt(receipts);
+			const attempts = byAttempt(events);
 			for (const item of [...settled, ...unresolved]) if (attempts.has(item.event.attempt)) drawn.add(item.event.attempt);
 			const { unresolved: next, moved } = transition("present", attempts);
 			if (moved) publish({ unresolved: next });
@@ -1579,7 +1593,7 @@ function createSemanticApplication({ presentation } = {}) {
 		nameEvents(attempt) {
 			const item = entry(attempt);
 			if (!item) return true;
-			const event = nameAdmitted(item.event, (pending) => admittedId(pending, ...ledgerAndReceipts()));
+			const event = nameAdmitted(item.event, (pending) => admittedId(pending, ...ledgerAndLog()));
 			if (event !== item.event) update(attempt, (item) => ({
 				...item,
 				...event.parent !== item.event.parent && typeof item.event.parent === "string" ? { namedParent: item.event.parent } : {},
@@ -2104,7 +2118,7 @@ const part = {
 	view: readPart((root) => root.effective.view),
 	undo: readPart((root) => root.effective.view?.undo ?? []),
 	todos: readPart((root) => root.authoritative?.browser.todos ?? []),
-	receipts: readPart((root) => root.authoritative?.browser.receipts ?? []),
+	events: readPart((root) => root.authoritative?.events ?? []),
 	revisionLabels: readPart((root) => root.authoritative?.revision_labels)
 };
 const shownActive = () => {
@@ -2165,8 +2179,8 @@ const runtime = {
 	get todos() {
 		return part.todos();
 	},
-	get receipts() {
-		return part.receipts();
+	get events() {
+		return part.events();
 	}
 };
 const revisionLabel = (revision) => part.revisionLabels()?.[revision];
@@ -3328,23 +3342,35 @@ installMoveKeys((node) => {
 	for (let at = node; at; at = composedParentNode(at)) if (paintedRoots.has(at)) return markScopedIn(node);
 });
 function markScopedIn(node) {
-	if (node instanceof Element && scopeRefFor.has(node)) {
+	if (isElement(node) && scopeRefFor.has(node)) {
 		dirtyElements.add(node);
 		dirtyButtons.add(node);
 	}
 	for (const child of node.childNodes) markScopedIn(child);
-	if (node instanceof Element && node.shadowRoot) markScopedIn(node.shadowRoot);
+	if (isElement(node) && node.shadowRoot) markScopedIn(node.shadowRoot);
 }
 function claimPaintedRoots() {
 	if (!paintedRoots.size) return;
-	for (const ref of scopeRefs) {
-		const scoped = ref.deref();
-		for (let at = scoped ?? null; at; at = composedParentNode(at)) if (paintedRoots.has(at)) {
-			dirtyElements.add(scoped);
-			dirtyButtons.add(scoped);
-			break;
+	const covered = /* @__PURE__ */ new Map();
+	const coveredFrom = (node) => {
+		const passed = [];
+		let answer = false;
+		for (let at = node; at; at = composedParentNode(at)) {
+			const known = covered.get(at);
+			if (known !== void 0) {
+				answer = known;
+				break;
+			}
+			passed.push(at);
+			if (paintedRoots.has(at)) {
+				answer = true;
+				break;
+			}
 		}
-	}
+		for (const at of passed) covered.set(at, answer);
+		return answer;
+	};
+	for (const root of paintedRoots) if (!coveredFrom(composedParentNode(root))) markScopedIn(root);
 	paintedRoots.clear();
 }
 const saying = (rows) => activeRows(rows, "an announced scope").map((row) => `${spoken(row)} ${titleOf(row)}`).join(", ");

@@ -160,7 +160,7 @@ function cardFor(change) {
   );
   for (const block of redline.blocks) {
     const line = el("p", "lf-change-card-block");
-    line.dataset.kind = block.kind;
+    line.dataset.lfKind = block.kind;
     for (const run of block.runs)
       line.append(
         run.kind === "same"
@@ -300,7 +300,7 @@ export function createMarginBars(inventory) {
     for (const target of places)
       if (!targets.has(target)) {
         const node = el("span", KINDS[kind].className);
-        keeps(node, "data-for", target.id || null);
+        keeps(node, "data-lf-for", target.id || null);
         targets.set(target, node);
         changed = true;
       }
@@ -329,8 +329,8 @@ export function createMarginBars(inventory) {
     for (const change of empty)
       if (!gaps.has(change)) {
         const node = el("span", "lf-change-bar");
-        keeps(node, "data-for", change.at.id || null);
-        node.dataset.gap = change.after ? "after" : "before";
+        keeps(node, "data-lf-for", change.at.id || null);
+        node.dataset.lfGap = change.after ? "after" : "before";
         gaps.set(change, node);
         changed = true;
       }

@@ -30,6 +30,7 @@
 import { capitalized } from "./words.js";
 import { copyControl, copyTrigger } from "./copy-control.js";
 import { watchArrivals } from "./arrivals.js";
+import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import {
   aimControl,
   anchorControl,
@@ -191,7 +192,8 @@ export function watchCodeBlocks() {
     "pre, table:not([role='presentation']), [data-lf-content='data']:not([data-lf-verbatim])",
     [],
     {
-      arrive: (block) => block.classList.toggle("scroll", true),
+      arrive: (block) =>
+        block.toggleAttribute(PAGE_PAINT_ATTRIBUTE.scrollSurface, true),
       leave: () => {},
     },
   );

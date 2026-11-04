@@ -64,7 +64,7 @@ def test_a_heading_copies_the_link_to_the_section_it_opens(browser, serve):
     page.evaluate("navigator.clipboard.writeText('')")
     page.keyboard.press("?")
     page.locator(".lf-command-reference").get_by_role(
-        "button", name="Copy link to section", exact=True
+        "option", name="Copy link to section", exact=True
     ).click()
     until_copied(page, link)
 

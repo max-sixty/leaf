@@ -9,7 +9,6 @@ from render_cases_navigation import (
 )
 from render_harness import (
     PANEL,
-    PANEL_THREAD,
     expect_panel_offers,
     open_page,
     panel_control,
@@ -21,6 +20,7 @@ from render_harness import (
 )
 
 from leaf import event_log as events_model
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -50,7 +50,7 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     expect_panel_offers(page, "command:history.undo")
     with sending(page, "the withdrawal"):
         panel_control(page, "command:history.undo").tap()
-    expect(host).not_to_have_attribute("data-open", re.compile("."))
+    expect(host).not_to_have_attribute("data-lf-open", re.compile("."))
     expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "opt-b")
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "undo"
 
@@ -85,10 +85,10 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     leaf = page.locator(".lf-fp-leaf")
     leaf.tap()
     expect(
-        page.locator(panel_view("menu")).locator('[data-row="command:history.undo"]')
+        page.locator(panel_view("menu")).locator('[data-lf-row="command:history.undo"]')
     ).to_be_visible()
     leaf.tap()
-    expect(host).not_to_have_attribute("data-open", re.compile("."))
+    expect(host).not_to_have_attribute("data-lf-open", re.compile("."))
     page.locator("#h").tap()
     field = page.locator(".lf-fab-input")
     expect(field).to_be_focused()

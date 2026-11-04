@@ -24,7 +24,9 @@ markup in an agent's message, that message's own markup. `elementById(id, root)`
 or the whole document, including the shadow trees `getElementById` misses.
 `under(node, root)` says whether `node` is in `root` across shadow boundaries, and
 `inChrome(node)` whether it is in Leaf's own interface, as a widget in a Thread reply
-is.
+is. A widget that acts on the document around it, as a contents list or a depth dial
+does, reads it with `viewDocument(node)`: the view member holding the node (`x-views`,
+`module-authoring.md`), else the `main` holding it, else null.
 
 ### Naming elements
 
@@ -137,7 +139,9 @@ pass it as `trigger` instead. Set its `value` before it copies, and it reports
 
 `alignText(before, after)` aligns two texts by words and returns runs `{kind, text}`,
 with `kind` `same`, `delete` or `insert`. To align by sentences, pass an
-`Intl.Segmenter` with `granularity: "sentence"` as the third argument.
+`Intl.Segmenter` with `granularity: "sentence"` as the third argument. Its walk gives
+up after `MAX_EDIT_LENGTH` edits and returns the whole text replaced; a widget that
+walks its own units with jsdiff, such as a document's lines, passes the same cap.
 
 ### Media URLs
 
@@ -288,12 +292,18 @@ published, for showing how long a worker has been quiet.
 
 `comparisonChanges(owner)` returns the changes inside `owner` in the current version
 comparison, or every change with no owner, and an empty array with no comparison
-active. A change is a run of changed elements in one view, such as a tab, a
-`details`, or the content a disclosure control (`aria-expanded`) names in
-`aria-controls`, with no unchanged block between them, as a rewritten section is. Each
-change is an array of its elements inside `owner`, in page order, so the result's
-length counts changes as the reader does. Reading it during a `LeafElement` render
-subscribes that render to comparison changes.
+active. A change is one stretch of the comparison: a run of changed elements in one
+view, such as a tab, a `details`, or the content a disclosure control
+(`aria-expanded`) names in `aria-controls`, with no unchanged block between them, as a
+rewritten section is, together with the blocks the earlier version had there. A
+paragraph removed with nothing in its place is a change too, with no elements. Each
+change is an object: `blocks`, its elements inside `owner` in page order; `removed`,
+what the earlier version's blocks said (`{id, tag, word, words}`); and `at`, the
+element it stands by: its first block, or for a removal the element beside its gap, or
+the element the removal emptied of every block. A removal's `at` is in the part of the
+page the blocks were taken from, so a paragraph removed from a tab counts in that tab.
+The result's length counts changes as the reader does. Reading it during a
+`LeafElement` render subscribes that render to comparison changes.
 
 `revisionLabel(event.revision)` is the page's name for the version an event was
 recorded in.

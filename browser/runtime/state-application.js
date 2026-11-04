@@ -39,7 +39,7 @@ import {
  * prepareActivation: ReturnType<typeof import("./version.js").createVersionController>["prepareActivation"],
  * acceptData: typeof import("./data.js").acceptData,
  * notifyDataSubscribers: typeof import("./data.js").notifyDataSubscribers,
- * accountPending: (receipts: readonly import("../types/domain.js").Event[]) => void
+ * accountPending: (events: readonly import("../types/domain.js").Event[]) => void
  * }} dependencies */
 export function createStateApplication({
   prepareActivation,
@@ -175,7 +175,7 @@ export function createStateApplication({
         if (installed) await installed.land();
         await notifyDataSubscribers();
         markStateApplied(state);
-        accountPending(state.browser.receipts);
+        accountPending(state.events);
         // Only the accepted candidate that this full document just presented can
         // establish news. A queued notice formats against the latest such reading,
         // so a later answer does not repeat a superseded failure or edit.

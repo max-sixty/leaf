@@ -5,6 +5,7 @@ import os
 import subprocess
 import sys
 from contextlib import contextmanager
+from dataclasses import dataclass, replace
 from functools import cache
 from pathlib import Path
 
@@ -15,8 +16,41 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from leaf.render_checks import rendered, wait_for_probe, wait_until_ready
 from leaf_dev import ROOT
 
-DESKTOP = (1440, 900)
-PHONE = (390, 844)
+
+@dataclass(frozen=True)
+class Window:
+    """A window a tab opens in (`tab`): its size in CSS pixels, whether a finger
+    drives it, with a coarse pointer and mobile emulation, and the words a prompt
+    uses for it, which only a window a tool names (`WINDOWS`) has."""
+
+    size: tuple[int, int]
+    touch: bool = False
+    description: str = ""
+
+
+# The windows a tool opens a page in by name, as `eval --viewport large` or
+# `stills --viewport phone` does. `tab`, and stills and probe for a state that names
+# no window of its own (`states.State`), open `macbook` unless told another. An eval
+# author's request and a judge's instructions give a window's description, which
+# states its size, so a change to either changes what those agents are asked.
+WINDOWS = {
+    "macbook": Window(
+        (1440, 900), description="a 1440px by 900px MacBook content viewport"
+    ),
+    "desktop": Window(
+        (1280, 800), description="a 1280px by 800px desktop content viewport"
+    ),
+    "large": Window(
+        (1600, 1000), description="a large 1600px by 1000px desktop content viewport"
+    ),
+    "short": Window((900, 600), description="a short 900px by 600px desktop window"),
+    "middle": Window(
+        (900, 700), description="a 900px by 700px laptop window beside other work"
+    ),
+    "phone": Window(
+        (390, 844), touch=True, description="a 390px by 844px phone window"
+    ),
+}
 
 # The fixed fontconfig that lays text out in DejaVu faces on Linux (`use_linux_fonts`).
 LINUX_FONTCONFIG = ROOT / "tests/fonts.conf"
@@ -68,13 +102,62 @@ def headless_shell(**options):
         yield browser
 
 
+ENGINES = ("chromium", "firefox", "webkit", "ios")
+
+
+def engine_option(command):
+    """Give a command the engine it opens pages in (`launch`), as `--browser`."""
+    return click.option(
+        "--browser",
+        "engine",
+        type=click.Choice(ENGINES),
+        default="chromium",
+        help="The engine to run in: Playwright's Chromium shell, Firefox or WebKit, or "
+        "Safari on an iPhone simulator through WebDriver.",
+    )(command)
+
+
 @contextmanager
-def headless_engine(name: str):
-    """Playwright's Firefox or WebKit, for a probe of an engine-specific difference:
-    readers use Leaf in both, and the suite and `headless_shell` drive Chromium. A host
-    without the engine gets Playwright's own error, which names the install command."""
-    with sync_playwright() as playwright, getattr(playwright, name).launch() as browser:
-        yield browser
+def launch(engine: str, scheme: str = "light"):
+    """The browser `engine` names, closed however the block is left: Playwright's
+    Chromium shell (`headless_shell`'s build) showing the scrollbars readers see,
+    including the room a classic bar takes; Playwright's Firefox or WebKit, which
+    readers use as well; or a WebDriver session on the iOS simulator's Safari in
+    `scheme` (`ios_safari`), for a difference only iPhones show. A host without a
+    Playwright engine gets Playwright's own error, which names the install command.
+
+    The Chromium shell keeps an overlay scrollbar shown after a scroll, as `screenshot`
+    requires, by disabling Chromium's `ScrollbarAnimations` feature, which Chromium
+    keeps so that web platform tests' screenshots can't flake on their timing."""
+    if engine == "ios":
+        from leaf_dev.ios_safari import ios_safari
+
+        with ios_safari(scheme) as driver:
+            yield driver
+    elif engine == "chromium":
+        with sync_playwright() as playwright:
+            # Chromium keeps only the last of a repeated switch, so ours extends the
+            # --disable-features Playwright passes, read from a shell it launched
+            # (CDP reads the command line only under --enable-automation).
+            with playwright.chromium.launch(args=["--enable-automation"]) as plain:
+                features = next(
+                    switch
+                    for switch in plain.new_browser_cdp_session().send(
+                        "Browser.getBrowserCommandLine"
+                    )["arguments"]
+                    if switch.startswith("--disable-features=")
+                )
+            with playwright.chromium.launch(
+                ignore_default_args=["--hide-scrollbars", features],
+                args=[f"{features},ScrollbarAnimations"],
+            ) as browser:
+                yield browser
+    else:
+        with (
+            sync_playwright() as playwright,
+            getattr(playwright, engine).launch() as browser,
+        ):
+            yield browser
 
 
 @cache
@@ -105,25 +188,24 @@ def shell_executable() -> str:
 @contextmanager
 def tab(
     browser: Browser,
-    viewport=DESKTOP,
+    window: Window = WINDOWS["macbook"],
     scheme="light",
-    touch=False,
     *,
     motion="reduce",
     scale=1,
 ):
-    """A fresh blank tab at `viewport` and in `scheme`, with reduced motion so a still
+    """A fresh blank tab in `window` and `scheme`, with reduced motion so a still
     never catches a transition midway (pass motion="no-preference" for a journey),
-    and under a finger (a coarse pointer, a mobile
-    viewport) when `touch`, drawing `scale` device pixels to a CSS pixel. A caller
-    listens on it before it `load`s."""
+    drawing `scale` device pixels to a CSS pixel. A caller listens on it before it
+    `load`s."""
+    width, height = window.size
     context = browser.new_context(
-        viewport={"width": viewport[0], "height": viewport[1]},
+        viewport={"width": width, "height": height},
         device_scale_factor=scale,
         color_scheme=scheme,
         reduced_motion=motion,
-        has_touch=touch,
-        is_mobile=touch,
+        has_touch=window.touch,
+        is_mobile=window.touch,
     )
     try:
         page = context.new_page()
@@ -133,22 +215,29 @@ def tab(
         context.close()
 
 
-def window_size(value: str) -> tuple[int, int]:
+def parse_window(value: str) -> Window:
+    """The window `--viewport` names, or one under a mouse at the size it spells as
+    WIDTHxHEIGHT."""
+    if value in WINDOWS:
+        return WINDOWS[value]
     width, _, height = value.partition("x")
     if not (width.isdigit() and height.isdigit()):
-        raise click.BadParameter(f"{value!r} is not WIDTHxHEIGHT")
-    return int(width), int(height)
+        raise click.BadParameter(
+            f"{value!r} is neither WIDTHxHEIGHT nor a window: {', '.join(WINDOWS)}"
+        )
+    return Window((int(width), int(height)))
 
 
 def tab_options(command):
-    """Give a command `tab`'s viewport, scheme and pointer as `--viewport`, `--scheme`
-    and `--touch`. `viewport` and `touch` reach the command as None unless given, so
-    it can tell a default from a choice."""
+    """Give a command `tab`'s window and scheme as `--viewport`, `--touch` and
+    `--scheme`. The command receives `viewport`, the window `--viewport` gives, and
+    `touch`, the pointer `--touch` or `--no-touch` gives, each None unless given, and
+    opens each tab in the window `chosen_window` makes of them."""
     command = click.option(
         "--touch/--no-touch",
         default=None,
-        help="Show the page under a finger: a coarse pointer and mobile emulation, at "
-        "--viewport's size. Off by default.",
+        help="Show the page under a finger (a coarse pointer and mobile emulation), "
+        "or under a mouse with --no-touch, in place of the window's own pointer.",
     )(command)
     command = click.option(
         "--scheme",
@@ -156,13 +245,64 @@ def tab_options(command):
         default="light",
         help="The colour scheme the page is shown in.",
     )(command)
+    named = ", ".join(
+        f"{name} ({each.size[0]}x{each.size[1]}{', touch' if each.touch else ''})"
+        for name, each in WINDOWS.items()
+    )
     return click.option(
         "--viewport",
-        metavar="WIDTHxHEIGHT",
-        callback=lambda c, p, value: value and window_size(value),
-        help=f"By default {DESKTOP[0]}x{DESKTOP[1]}. A phone also needs --touch: "
-        f"--viewport {PHONE[0]}x{PHONE[1]} --touch.",
+        metavar="WIDTHxHEIGHT|NAME",
+        callback=lambda c, p, value: value and parse_window(value),
+        help="By default the state's own window, macbook unless it names another. "
+        f"A NAME is one of the windows {named}; a WIDTHxHEIGHT window has a mouse.",
     )(command)
+
+
+def chosen_window(own: Window, viewport: Window | None, touch: bool | None) -> Window:
+    """The window a tab opens in when its command (`tab_options`) would open `own`:
+    the window `--viewport` gave, if any, in its place, and under a finger or a mouse
+    where `--touch` or `--no-touch` says so."""
+    window = viewport or own
+    return window if touch is None else replace(window, touch=touch)
+
+
+# The style `screenshot` adds to the page and its open shadow roots for the shot.
+HELD = """:root { caret-animation: manual; }
+@supports not (caret-animation: manual) {
+  * { caret-color: transparent !important; }
+}"""
+
+
+def screenshot(page) -> bytes:
+    """The PNG of `page`'s viewport, a tab brought to a state.
+
+    A capture holds each animation the browser draws of its own accord in one state,
+    so two captures of one state draw it alike whenever each is taken, however loaded
+    the host:
+
+    - A caret is drawn steadily where the engine can stop its blink, as Chromium can
+      (`caret-animation: manual`), and hidden where it can't: on 2026-11-03
+      Playwright's WebKit (build 2370) faded it in and out, and its Firefox (build
+      1555) drew none. Both declarations are inherited, so they reach the caret
+      inside Leaf's text field, whose closed shadow root takes the caret's colour
+      from its host (`runtime/composing/text-field.js`).
+    - An overlay scrollbar, such as a Mac's, starts to fade half a second after its
+      box scrolls. The Chromium shell `launch` opens keeps it shown until the pointer
+      passes over it and leaves, as a reader sees it while scrolling; Playwright's
+      Firefox and WebKit draw no overlay bar, `headless_shell` draws no bar at all, and
+      a classic bar never fades.
+
+    The page's own motion is the page's, and follows the tab's `motion`. A `tab`
+    reduces it unless told otherwise, so Leaf's runtime and theme play none; probe
+    shows what a user sees unless told to reduce it, so a probe shot can catch that
+    motion at any point. `visits` also waits for a Leaf page whose runtime runs to
+    settle, so no smooth scroll or finite transition is under way.
+
+    Safari on the iOS simulator takes no input, so it draws no caret or scrollbar to
+    hold."""
+    if isinstance(page, Page):
+        return page.screenshot(caret="initial", style=HELD)
+    return page.screenshot()
 
 
 def slow_cpu(page: Page, rate: float) -> None:
@@ -234,6 +374,25 @@ def scroll_settled(page, scroller=None, axis="y", frames=SCROLL_STILL_FRAMES):
 # ends a list's tabs or another view's head line instead.
 ON_ME_MARK = ".lf-fp-on-user"
 
+# The floating panel (runtime/floating-panel.js) is Leaf's one chrome: a row of the leaf,
+# the field and the On me and Threads marks, with a view opened above it, the leaf's
+# menu among them. Its state stands on its host as attributes: `data-lf-open` names the
+# open view (menu, versions, group, errors, threads, thread, queue, leaves) and
+# `data-lf-rest="mark"` the panel folded to the leaf.
+PANEL = ".lf-floating-panel"
+
+
+def panel_view(name: str) -> str:
+    """The selector of the panel's `name` view (`data-lf-open`'s values, above) that
+    stands open. A view put away keeps its node, marked `data-lf-leaving`, until its
+    exit motion ends, so this never matches one: a selector that did would find two
+    views mid-switch, or a view already on its way out."""
+    return f'.lf-fp-view[data-lf-route="{name}"]:not([data-lf-leaving])'
+
+
+# A view of one thread, which names the thread it shows by id in `data-lf-thread`.
+PANEL_THREAD = panel_view("thread")
+
 
 def panel_tab(page: Page | FrameLocator, name: str):
     """The On view's tab `name` at the foot of the menu, On and Threads, each one of
@@ -253,8 +412,8 @@ def threads_tab(page: Page | FrameLocator):
     rendered(
         page.locator("html").element_handle().owner_frame(), facts=("updatesSettled",)
     )
-    host = page.locator(".lf-floating-panel")
-    if host.get_attribute("data-open") not in ("queue", "threads"):
+    host = page.locator(PANEL)
+    if host.get_attribute("data-lf-open") not in ("queue", "threads"):
         exit_control = page.locator(".lf-fp-exit")
         if exit_control.count():
             exit_control.click()
@@ -272,28 +431,41 @@ def open_threads(page: Page | FrameLocator) -> None:
     thread opened over Threads by its way back, else by the Threads tab (`threads_tab`)
     unless the mark opened Threads itself. The view lists the open threads, then the
     resolved ones folded under a Resolved heading (`show_resolved`)."""
-    host = page.locator(".lf-floating-panel")
-    if host.get_attribute("data-open") == "threads":
+    host = page.locator(PANEL)
+    if host.get_attribute("data-lf-open") == "threads":
         return
     back = page.get_by_role("button", name="Back to Threads")
     if back.count():
         back.click()
     else:
         tab = threads_tab(page)
-        if host.get_attribute("data-open") != "threads":
+        if host.get_attribute("data-lf-open") != "threads":
             tab.click()
-    page.locator('.lf-fp-view[data-view="threads"]:not([data-leaving])').wait_for()
+    page.locator(panel_view("threads")).wait_for()
 
 
 def show_resolved(page: Page | FrameLocator):
     """Unfold the resolved threads in the open Threads, which stand folded under their
     Resolved heading (`.lf-fp-settled`) until the user presses it, and return their
     rows."""
-    threads = page.locator('.lf-fp-view[data-view="threads"]:not([data-leaving])')
+    threads = page.locator(panel_view("threads"))
     heading = threads.locator(".lf-fp-settled")
     if heading.get_attribute("aria-expanded") != "true":
         heading.click()
-    return threads.locator(".lf-fp-thread[data-resolved]")
+    return threads.locator(".lf-fp-thread[data-lf-resolved]")
+
+
+def show_done(page: Page | FrameLocator):
+    """Unfold what left the open On list, On me's or the agent's, which stands folded
+    under its Done band (`.lf-fp-settled`) until the user presses it, and return its
+    items."""
+    view = page.locator('.lf-fp-view[data-lf-route="queue"]:not([data-lf-leaving])')
+    heading = view.locator(".lf-fp-settled")
+    if heading.get_attribute("aria-expanded") != "true":
+        heading.click()
+    return view.locator(
+        ".lf-fp-on-group:has(> .lf-rows-head > .lf-fp-settled) > .lf-fp-on-item"
+    )
 
 
 def go_to_threads(page: Page, frame: FrameLocator | None = None) -> None:
@@ -303,6 +475,9 @@ def go_to_threads(page: Page, frame: FrameLocator | None = None) -> None:
     as `stills`, `bench-latency`, thread snapshots and `verify-site` do, takes this
     route, which both share."""
     within = frame or page
+    # Completing `g T` again closes the view (keyboard/go-to-sequence.js).
+    if within.locator(PANEL).get_attribute("data-lf-open") == "threads":
+        return
     # A press at the frame's top corner gives its document the keys; the page's own
     # only needs focus off any control.
     if frame:
@@ -311,4 +486,4 @@ def go_to_threads(page: Page, frame: FrameLocator | None = None) -> None:
         page.evaluate("() => document.activeElement?.blur()")
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    within.locator('.lf-fp-view[data-view="threads"]:not([data-leaving])').wait_for()
+    within.locator(panel_view("threads")).wait_for()

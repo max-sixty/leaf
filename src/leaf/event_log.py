@@ -145,10 +145,22 @@ def _append_event_unlocked(
     return {**event, "seq": seq}
 
 
+def initialized(page_dir: Path) -> bool:
+    """Whether `page_dir` is an initialized page, which is whether its event log is
+    a file.
+
+    `page init` writes the log last and whole (`start_log`), after the package
+    copies and the layer record, so a directory without a log is not yet a page,
+    whatever else it holds. A lock on the log opens it without creating it
+    (`state.flocked`), so a transaction racing the page's deletion can't make the
+    directory a page again."""
+    return (page_dir / EVENTS_FILE).is_file()
+
+
 def start_log(page_dir: Path, events: list[dict] | tuple[dict, ...] = ()) -> None:
     """Start a page's log holding `events`, each already admitted, in order: empty
-    for a page `page init` starts, or a sample's starting history (`samples`). The
-    log's inode is the page's successful-init marker, so it is written whole."""
+    for a page `page init` starts, or a sample's starting history (`samples`). It is
+    written whole, since its inode marks the page `initialized`."""
     stored = "".join(
         jsonl_line({key: value for key, value in event.items() if key != "seq"}) + "\n"
         for event in events
@@ -171,8 +183,10 @@ def append_event(page_dir: Path, event: dict) -> dict:
         )
 
 
-def _parse_events(data: bytes, before: int = 0) -> list[dict]:
-    """The events in `data`, whose first line is the log's line `before + 1`."""
+def _stored_events(data: bytes, before: int = 0) -> list[dict]:
+    """The events in `data` as the log stores them, private session `context`
+    included, each numbered by its line as `seq`, the first being the log's line
+    `before + 1`."""
     events = []
     # The log's grammar is events joined by "\n" — the writer's own separator,
     # not splitlines()'s wider class, which once read a U+2028 inside a comment's
@@ -197,9 +211,17 @@ def _parse_events(data: bytes, before: int = 0) -> list[dict]:
             # and there is nothing anyone could do with a fragment — so it is
             # skipped, not raised over, and the page keeps reading.
             continue
-        event.pop("context", None)
         event["seq"] = before + i + 1
         events.append(event)
+    return events
+
+
+def _parse_events(data: bytes, before: int = 0) -> list[dict]:
+    """The events in `data` as application readings take them (`_stored_events`),
+    less their private session context."""
+    events = _stored_events(data, before)
+    for event in events:
+        event.pop("context", None)
     return events
 
 
@@ -208,6 +230,15 @@ def read_events(page_dir: Path) -> list:
     if not path.exists():
         return []
     return _parse_events(path.read_bytes())
+
+
+def read_stored_events(page_dir: Path) -> list[dict]:
+    """Every event in the page's log as stored, private session context included,
+    for the page's diagnostics (`interaction_log.read_interactions`)."""
+    path = page_dir / EVENTS_FILE
+    if not path.exists():
+        return []
+    return _stored_events(path.read_bytes())
 
 
 def _line_start(data: bytes, n: int) -> int:

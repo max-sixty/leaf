@@ -116,8 +116,8 @@ line to renew. Whether the work has moved on is the agent's judgement; the hook 
 says how long the line has stood. This was the user's choice (28 October 2026) over
 Leaf reading the turn's liveness, or its current step, from the hooks itself.
 
-The prompt hook and a tool boundary also carry each ask Leaf's clerk put On me at the
-last turn's end, and each reply a fork of the conversation posted, one line each
+The prompt hook and a tool boundary also carry what Leaf's clerk wrote or found at
+the last turn's end, and each reply a fork of the conversation posted, one line each
 (`clerk.queued`), and take them off the queue once printed (`clerk.heard`). Stop
 carries none: the clerk forks only after the turn has ended, and a fork's reply
 reaches the session with the settled message, which wakes no idle session.
@@ -578,7 +578,7 @@ def carry_turn(
     into the one hook output its harness reads, recording a delivery it hands
     over inline by `CONFIRM_WITHIN` after `started`, the hook's
     `time.monotonic()` as it began."""
-    # The asks Leaf's clerk put On me and the replies forks posted since the agent
+    # What Leaf's clerk wrote or found and the replies forks posted since the agent
     # last heard (`clerk.queued`), which the next prompt or tool boundary carries.
     told = queued(sid) if event in {"UserPromptSubmit", "PostToolBatch"} else []
     due = event == "PostToolBatch" and status_check_due(sid)

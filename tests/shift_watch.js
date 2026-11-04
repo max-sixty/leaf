@@ -256,7 +256,7 @@
   // whose targets are in shadow trees, so each connected shadow root adds its own.
   const allAnimations = () => [
     ...new Set(
-      [document, ...[...roots].filter((root) => root.host.isConnected)].flatMap(
+      [document, ...[...eachRoot()].filter((root) => root.host.isConnected)].flatMap(
         (tree) => tree.getAnimations(),
       ),
     ),
@@ -328,6 +328,10 @@
     condition instanceof CSSMediaRule
       ? matchMedia(condition.conditionText).matches
       : CSS.supports(condition.conditionText);
+  // Chrome's CSSOM reports a longhand that only an important `all` sets as
+  // normal, and keeps its importance on `all` alone.
+  const priority = (style, property) =>
+    style.getPropertyPriority(property) || style.getPropertyPriority("all");
   // An inline inset loses only to an important rule, so a box with one reads those
   // alone: the comment box's placer writes its insets on every frame it moves.
   const declaredRules = (node, property, importantOnly) => {
@@ -339,8 +343,7 @@
     ])
       for (const { rule, conditions } of rulesStating(sheet, property)) {
         const value = rule.style.getPropertyValue(property);
-        if (!value || (importantOnly && !rule.style.getPropertyPriority(property)))
-          continue;
+        if (!value || (importantOnly && !priority(rule.style, property))) continue;
         if (!conditions.every(holds)) continue;
         let matches = false;
         try {
@@ -349,9 +352,7 @@
           // A selector `matches` cannot take, such as a pseudo-element's.
         }
         if (matches)
-          found[rule.style.getPropertyPriority(property) ? "important" : "normal"].push(
-            value,
-          );
+          found[priority(rule.style, property) ? "important" : "normal"].push(value);
       }
     return found;
   };
@@ -360,7 +361,7 @@
   // every candidate in the winning tier must name the same animated variable.
   const declaredValues = (node, property) => {
     const inline = node.style.getPropertyValue(property);
-    if (inline && node.style.getPropertyPriority(property)) return [inline];
+    if (inline && priority(node.style, property)) return [inline];
     const rules = declaredRules(node, property, Boolean(inline));
     return rules.important.length ? rules.important : inline ? [inline] : rules.normal;
   };
@@ -371,7 +372,7 @@
     if (target && keys.length) {
       const trees = [
         target,
-        ...[...roots].filter((root) => {
+        ...[...eachRoot()].filter((root) => {
           for (let at = root.host; at; at = up(at)) if (at === target) return true;
           return false;
         }),
@@ -490,8 +491,7 @@
   };
   const anchoredInset = (node, style, property, axis) => {
     const inline = node.style.getPropertyValue(property);
-    if (inline && node.style.getPropertyPriority(property))
-      return anchorInset(inline, axis);
+    if (inline && priority(node.style, property)) return anchorInset(inline, axis);
     if (!style.positionAnchor.startsWith("--"))
       return inline ? anchorInset(inline, axis) : false;
     const candidates = declaredValues(node, property);
@@ -740,12 +740,27 @@
       return clear.call(this);
     },
   });
-  // Every shadow root, a closed one included, so a reading reaches every element.
-  const roots = new Set();
+  // Every shadow root, a closed one included, so a reading reaches every element. Held
+  // weakly: a tree the page let go of goes with it, so the watch keeps nothing alive
+  // that a count of what the page retains (`live_counts`) would read as its leak.
+  const rootRefs = new Set();
+  const knownRoots = new WeakSet();
+  const addRoot = (root) => {
+    knownRoots.add(root);
+    rootRefs.add(new WeakRef(root));
+  };
+  // Live iteration, so a root added while it runs is visited too.
+  function* eachRoot() {
+    for (const ref of rootRefs) {
+      const root = ref.deref();
+      if (root) yield root;
+      else rootRefs.delete(ref);
+    }
+  }
   const attachShadow = Element.prototype.attachShadow;
   Element.prototype.attachShadow = function (init) {
     const root = attachShadow.call(this, init);
-    roots.add(root);
+    addRoot(root);
     watchTree(root);
     announce();
     return root;
@@ -795,13 +810,13 @@
     // The HTML parser creates declarative roots without calling attachShadow.
     // Discover them in the same traversal that records their rendered ancestors.
     const discover = (node) => {
-      if (node.shadowRoot && !roots.has(node.shadowRoot)) {
-        roots.add(node.shadowRoot);
+      if (node.shadowRoot && !knownRoots.has(node.shadowRoot)) {
+        addRoot(node.shadowRoot);
         watchTree(node.shadowRoot);
       }
     };
     nodes.forEach(discover);
-    for (const root of roots)
+    for (const root of eachRoot())
       if (root.host.isConnected) {
         const children = [...root.querySelectorAll("*")];
         children.forEach(discover);

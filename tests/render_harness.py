@@ -44,6 +44,7 @@ from contextlib import contextmanager
 from datetime import UTC, datetime
 from functools import cache
 from pathlib import Path
+from socket import gethostname
 from types import SimpleNamespace
 from typing import Protocol, cast
 from urllib.parse import parse_qsl, urlencode, urlsplit
@@ -80,10 +81,18 @@ from leaf.findings import Finding, placed
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import scheme as render_gate_model
 from leaf_dev import browser as dev_browser
-from leaf_dev.browser import ON_ME_MARK, scroll_settled, slow_cpu, threads_tab
-from leaf_dev.example_data import regression_sources
+from leaf_dev.browser import (
+    ON_ME_MARK,
+    PANEL,
+    panel_view,
+    scroll_settled,
+    slow_cpu,
+    threads_tab,
+)
+from leaf_dev.example_data import WORKED_EXAMPLES, authored_sources, named_source
 from leaf_dev.page_fixtures import (
     example_media,
+    leaf_in_process,
     prepare_page,
     read_fixture,
     record_run_context,
@@ -177,28 +186,21 @@ def shift_watch_source():
 
 
 EXAMPLE_PACKAGES = json.loads((ROOT / "examples" / "layer.json").read_text())
-EXAMPLES = sorted(p for p in (ROOT / "examples").glob("*.html") if p.stem != "corpus")
+EXAMPLES = authored_sources(directories=(WORKED_EXAMPLES,))
 assert EXAMPLES, "no examples found — parametrizing over an empty list tests nothing"
-FEATURE_GALLERY = ROOT / "examples" / "developer" / "feature-gallery.html"
-assert FEATURE_GALLERY.is_file(), "the developer feature gallery is missing"
-DEVELOPER_PAGES = tuple(sorted((ROOT / "examples" / "developer").glob("*.html")))
-# The inputs `leaf-dev corpus` composes. The corpus is a generated presentation of
-# the public pages plus the feature gallery, not another author source. Every authored-
-# content sweep uses this source set, while public-site tests read the top-level glob.
-PUBLIC_EXAMPLES = tuple(EXAMPLES)
-CORPUS_SOURCES = (*PUBLIC_EXAMPLES, *regression_sources(), *DEVELOPER_PAGES)
+FEATURE_GALLERY = named_source("feature-gallery")
 
 PASSAGE_SOURCES = (
     FEATURE_GALLERY,
-    ROOT / "examples" / "pr-walkthrough.html",
-    ROOT / "examples" / "ship-review.html",
-    ROOT / "examples" / "developer" / "visual-review-gallery.html",
+    named_source("pr-walkthrough"),
+    named_source("ship-review"),
+    named_source("visual-review-gallery"),
 )
 
 ANCHOR_SOURCES = (
     FEATURE_GALLERY,
-    ROOT / "examples" / "pr-walkthrough.html",
-    ROOT / "examples" / "ship-review.html",
+    named_source("pr-walkthrough"),
+    named_source("ship-review"),
 )
 
 
@@ -572,16 +574,12 @@ def serve(tmp_path, monkeypatch, initialized_page, request):
         )
         d = tmp_path / f"page{len(servers)}"
 
-        def run_leaf(*args, input_text=None):
-            result = CliRunner().invoke(cli_model.cli, list(args), input=input_text)
-            assert result.exit_code == 0, result.output
-
         def prepare(target):
             assert fixture is not None
             prepare_page(
                 target,
                 fixture,
-                run_leaf,
+                leaf_in_process,
                 initialize=False,
                 seed_log=seed_log,
                 final_status=None,
@@ -1129,6 +1127,20 @@ def wait_for_check_api(page, predicate: str, arg=None, **kwargs):
 def refuse(route):
     """Stop this request with nothing for the page's console to report."""
     route.abort("aborted")
+
+
+# A tab names the reading it holds in `Leaf-Held-Basis`, and the server answers it
+# with a `Tail`, a patch against that reading (`served_state/tail.py`). A test that
+# rewrites the reading itself drops the header, so the server answers whole.
+def fetch_whole_state(route):
+    """Fetch this state read as a whole reading; return the response and its body."""
+    headers = {
+        name: value
+        for name, value in route.request.headers.items()
+        if name != "leaf-held-basis"
+    }
+    response = route.fetch(headers=headers)
+    return response, response.json()
 
 
 # A tab a test holds stale is stale only while nothing reaches it: every state
@@ -1746,26 +1758,6 @@ def open_versions(page):
     page.keyboard.press("Shift+v")
 
 
-# The floating panel (runtime/floating-panel.js) is Leaf's one chrome: a row of the leaf,
-# the field and the On me and Threads marks, with a view opened above it, the leaf's
-# menu among them. Its state stands on its host as attributes: `data-open` names the
-# open view (menu, versions, group, errors, threads, thread, queue, leaves) and
-# `data-rest="mark"` the panel folded to the leaf.
-PANEL = ".lf-floating-panel"
-
-
-def panel_view(name: str) -> str:
-    """The selector of the panel's `name` view (`data-open`'s values, above) that
-    stands open. A view put away keeps its node, marked `data-leaving`, until its
-    exit motion ends, so this never matches one: a selector that did would find two
-    views mid-switch, or a view already on its way out."""
-    return f'.lf-fp-view[data-view="{name}"]:not([data-leaving])'
-
-
-# A view of one thread, which names the thread it shows by id in `data-thread`.
-PANEL_THREAD = panel_view("thread")
-
-
 def panel_field(page):
     """The editor standing in the panel's field now: the page comment's (`name` is
     `comment`) or, while a thread's view is open, that thread's reply (`reply`)."""
@@ -1791,9 +1783,9 @@ def panel_settled(page, open=True, view=None):
             Number.isFinite(move.effect?.getComputedTiming().endTime));
           const moving = [host, ground].flatMap(finite);
           for (const move of moving) move.finish();
-          const shown = host.dataset.open ?? null;
+          const shown = host.dataset.lfOpen ?? null;
           return (open ? shown !== null && (!view || shown === view) : shown === null)
-            && !host.querySelector('.lf-fp-view[data-leaving]')
+            && !host.querySelector('.lf-fp-view[data-lf-leaving]')
             && [host, ground].every((n) => !finite(n).length);
         }""",
         arg=[open, view],
@@ -1833,6 +1825,14 @@ def show_resolved(page):
     rows = dev_browser.show_resolved(page)
     panel_settled(page, view="threads")
     return rows
+
+
+def show_done(page):
+    """Unfold what left the open On list (`leaf_dev.browser.show_done`), returning its
+    items once the view's motion ends."""
+    items = dev_browser.show_done(page)
+    panel_settled(page, view="queue")
+    return items
 
 
 # How many open threads the page's reading holds, the number the Threads tab says
@@ -1882,17 +1882,18 @@ def panel_menu(page, at=None, *, touch=False):
 
     The leaf opens the panel's view on the menu, the On view's first tab
     (floating-panel.js, `VIEWS.menu`); a list it leads to opens as a view over it, whose
-    way back returns to the menu. A row's `data-row` is its key among the page's control
-    rows (page-controls.js). The menu holds the rows it opened with while it stands
-    (floating-panel.js, `holdMenu`), a row news took away staying disabled and one news
-    offered waiting for the next opening, so a reading of it is a reading of the moment
-    it opened. A mouse's press on the leaf leaves the user in the menu's search."""
+    way back returns to the menu. A row's `data-lf-row` is its key among the page's
+    control rows (page-controls.js). The menu holds the rows it opened with while it
+    stands (floating-panel.js, `holdMenu`), a row news took away staying disabled and
+    one news offered waiting for the next opening, so a reading of it is a reading of
+    the moment it opened. A mouse's press on the leaf leaves the user in the menu's
+    search."""
     host = page.locator(PANEL)
     leaf = page.locator(".lf-fp-leaf")
-    if host.get_attribute("data-rest") == "mark":
+    if host.get_attribute("data-lf-rest") == "mark":
         press_visible(page, leaf, touch=touch)
-        expect(host).to_have_attribute("data-rest", "row")
-    if host.get_attribute("data-open") != "menu":
+        expect(host).to_have_attribute("data-lf-rest", "row")
+    if host.get_attribute("data-lf-open") != "menu":
         back = page.locator(".lf-fp-head").get_by_role(
             "button", name="Back to Menu", exact=True
         )
@@ -1903,7 +1904,7 @@ def panel_menu(page, at=None, *, touch=False):
         return menu
     view = "versions" if at == "versions" else "group"
     door = "versions" if at == "versions" else f"group:{at}"
-    press_visible(page, menu.locator(f'.lf-fp-item[data-row="{door}"]'), touch=touch)
+    press_visible(page, menu.locator(f'.lf-fp-item[data-lf-row="{door}"]'), touch=touch)
     panel_settled(page, view=view)
     return page.locator(panel_view(view))
 
@@ -1933,7 +1934,7 @@ def panel_control(page, key, at=None):
     elif key == "threads":
         control = threads_tab(page)
     else:
-        control = panel_menu(page, at).locator(f'.lf-fp-item[data-row="{key}"]')
+        control = panel_menu(page, at).locator(f'.lf-fp-item[data-lf-row="{key}"]')
     expect(control).to_be_visible()
     return control
 
@@ -1941,7 +1942,9 @@ def panel_control(page, key, at=None):
 def expect_panel_offers(page, key, *, offered=True, at=None):
     """Wait until the leaf's menu offers the row `key`, enabled, in the list `at` names,
     or, with `offered` false, until it doesn't, then put the menu away."""
-    row = panel_menu(page, at).locator(f'.lf-fp-item[data-row="{key}"]:not(:disabled)')
+    row = panel_menu(page, at).locator(
+        f'.lf-fp-item[data-lf-row="{key}"]:not(:disabled)'
+    )
     expect(row).to_have_count(1 if offered else 0)
     close_panel_menu(page)
 
@@ -1951,7 +1954,9 @@ def selection_field(page):
     selected on the page: its placeholder quotes them, and a press on it comments on
     them (floating-panel.js, `selectedWords`). Nothing matches while no words are
     offered, so the locator reads as hidden then."""
-    return page.locator('.lf-fp-field leaf-text[name="comment"][data-says="selection"]')
+    return page.locator(
+        '.lf-fp-field leaf-text[name="comment"][data-lf-says="selection"]'
+    )
 
 
 def page_comment(page):
@@ -1962,10 +1967,10 @@ def page_comment(page):
     field becoming its reply, so this puts an open view away first, and unfolds a panel
     folded to the leaf."""
     host = page.locator(PANEL)
-    if host.get_attribute("data-rest") == "mark":
+    if host.get_attribute("data-lf-rest") == "mark":
         page.locator(".lf-fp-leaf").click()
-        expect(host).to_have_attribute("data-rest", "row")
-    if host.get_attribute("data-open") is not None:
+        expect(host).to_have_attribute("data-lf-rest", "row")
+    if host.get_attribute("data-lf-open") is not None:
         page.locator(".lf-fp-close").click()
         panel_settled(page, open=False)
     box = page.locator('.lf-fp-field leaf-text[name="comment"]')
@@ -1980,7 +1985,7 @@ def page_comment(page):
 # over the field's words (composing/input.js), else the empty field's placeholder.
 PANEL_SAYS = """() => {
   const peek = document.querySelector('.lf-fp-peek');
-  if (peek?.hasAttribute('data-shown')) return peek.textContent.trim();
+  if (peek?.hasAttribute('data-lf-shown')) return peek.textContent.trim();
   const line = document.querySelector('.lf-fp-context');
   if (line && !line.hidden && line.textContent.trim()) return line.textContent.trim();
   const cover = document.querySelector('.lf-fp-field .lf-compose-error:not([hidden])');
@@ -2020,7 +2025,7 @@ def expect_error_waits_in_menu(page, message):
     about a box outside the panel, such as a passage's composer, or about nothing while
     the field holds words."""
     expect(page.locator(".lf-fp-error-dot")).to_be_visible()
-    panel_menu(page).locator('.lf-fp-item[data-row="errors"]').click()
+    panel_menu(page).locator('.lf-fp-item[data-lf-row="errors"]').click()
     errors = page.locator(panel_view("errors"))
     expect(errors.locator(".lf-fp-error-words b").first).to_have_text(message)
     close_panel_menu(page)
@@ -2114,6 +2119,48 @@ def open_page(
         upgraded=upgraded,
     )
     return page
+
+
+def before_landing_frame(page, then, arg=None):
+    """Run a JS function once, with `arg`, before the next trip's first frame.
+
+    `then` is a JS expression for the function, or for a promise of it, so it can
+    fetch an API before the trip starts. A trip adds its return stop and sets off its landing in one task, and the landing
+    moves nothing until its first frame, so a call made as the entry is written, or a
+    microtask it queues, comes while the page still stands where the trip left it.
+    """
+    page.evaluate(
+        f"""async arg => {{
+      const then = await ({then});
+      const pushState = history.pushState;
+      history.pushState = function(...args) {{
+        history.pushState = pushState;
+        const result = pushState.apply(this, args);
+        then(arg);
+        return result;
+      }};
+    }}""",
+        arg,
+    )
+
+
+def over_plain_http(browser, local_url):
+    """A context reading `local_url` by this machine's name over plain HTTP, as another
+    machine reads a page `leaf --host` serves, and the URL to open in it. Such a page is
+    no secure context, so it has no Clipboard API; the context may read the clipboard
+    back from `local_url`, which is one.
+
+    The browser lower-cases a URL's host, so the route rewrites that spelling to
+    loopback; the machine's name needn't resolve there, as on CI's macOS runner."""
+    host = gethostname().lower()
+    context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
+
+    def fetch_from_loopback(route):
+        response = route.fetch(url=route.request.url.replace(host, "127.0.0.1"))
+        route.fulfill(response=response)
+
+    context.route(f"http://{host}:**/*", fetch_from_loopback)
+    return context, local_url.replace("127.0.0.1", host)
 
 
 def opened_tab(page, destination, press):
@@ -2978,8 +3025,8 @@ _GESTURE = """async ([scroller, by, sample, frames]) => {
   const start = box.scrollTop;
   const samples = [];
   let frame = 0;
-  const {scrollGlides, watchScrollEnds} = await window.__lfCheckApi();
-  scrollGlides(true);
+  const {holdScroll, watchScrollEnds} = await window.__lfCheckApi();
+  const release = holdScroll(box);
   // A task posted from a frame callback runs once that frame has rendered.
   const rendered = () => new Promise((then) => {
     const {port1, port2} = new MessageChannel();
@@ -2996,9 +3043,9 @@ _GESTURE = """async ([scroller, by, sample, frames]) => {
     samples.push({scrolled: box.scrollTop, read: read()});
   }
   const settled = new Promise((then) => {
-    const stop = watchScrollEnds(() => { stop(); then(); });
+    const stop = watchScrollEnds((ended) => { if (ended === box) { stop(); then(); } });
   });
-  scrollGlides(false);
+  release();
   await settled;
   await new Promise(requestAnimationFrame);
   await rendered();
@@ -3018,10 +3065,9 @@ def gesture_writes(page, by, scroller="document.scrollingElement", sample=None):
     so read in one it stands where the frame before drew it.
 
     The test drives the frames, rather than a smooth `scrollBy`, so a slow host draws
-    as many as a fast one. The runtime settles on each write's own `scrollend`, and
-    between frames further apart than `SETTLE_MS`, so the gesture holds it as the
-    runtime's own frame-by-frame scrolls do (arrivals.js, `scrollGlides`) and lets it
-    settle once, after the last frame."""
+    as many as a fast one. The runtime ends a scroll at each write's own `scrollend`,
+    so the gesture holds the box as the runtime's own glide does (arrivals.js,
+    `holdScroll`) and lets its scroll end once, after the last frame."""
     page.mouse.move(2, 300)
     rendered(page)
     start = page.evaluate(f"() => {scroller}.scrollTop")
@@ -3160,8 +3206,8 @@ def left_alone(page):
     # A passing notice stands in the panel's empty field, in the line over it once the
     # field is written in, or in the leaf's peek (notifications.js).
     notice = (
-        ".lf-floating-panel :is([data-says='notice'], .lf-fp-context[data-notice],"
-        " .lf-fp-peek[data-shown])"
+        ".lf-floating-panel :is([data-lf-says='notice'], .lf-fp-context[data-notice],"
+        " .lf-fp-peek[data-lf-shown])"
     )
     while any(frame.locator(notice).count() for frame in page.frames):
         assert time.monotonic() < deadline, "the arrival notice never retired"

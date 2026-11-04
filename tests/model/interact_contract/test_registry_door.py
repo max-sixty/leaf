@@ -19,6 +19,7 @@ from interact_support import (
     _report_without_upgrade,
     _user_verb_text,
     check_findings,
+    element_declaration,
     found,
     queue_board_registry,
     registry_refusal,
@@ -28,6 +29,7 @@ from leaf.registry import contract as registry_contract
 from leaf.registry import schema as registry_schema
 from leaf.registry import validation as registry_validation
 from leaf.registry.storage import read_page_registry
+from leaf.schema import DATA_CONTRACT_NAME, DATA_SOURCE_NAME, ELEMENT_ID
 from model.interact_contract import declare_vocabulary, vocabulary
 
 
@@ -66,6 +68,16 @@ def test_a_custom_units_identity_rule_keeps_the_details_reference_base():
     assert value_2 is not None
     assert "non-empty" in value_2
     assert spec["detail"]["properties"]["item"] == {"type": "string"}
+
+
+def test_the_id_of_a_created_child_reads_as_an_element_id(page_dir):
+    """A verb that creates a child names it by its fold unit, so the detail field
+    carrying it holds an element id, though the declaration spells only a string."""
+    entry = vocabulary(page_dir)["lf-options"]
+    schema = registry_contract.detail_schema(entry, entry["x-state"]["add"])
+    added = {"option": "ship-option-1", "text": "Ship it"}
+    assert registry_schema.schema_error(schema, added) is None
+    assert registry_schema.schema_error(schema, {**added, "option": "Ship 1"})
 
 
 def test_a_recorded_body_accepts_empty_text_but_not_a_missing_value():
@@ -407,7 +419,7 @@ def test_generated_child_declaration_closes_its_boundary(page_dir, mutation, cod
     elif mutation == "extra-required":
         option["required"].append("for")
     elif mutation == "wrong-id":
-        option["properties"]["id"]["pattern"] = "^option-.+$"
+        option["properties"]["id"] = {"type": "integer"}
     elif mutation == "report-creates":
         registry["lf-test-worker"]["x-state"]["state"]["creates"] = {
             "child": "lf-option",
@@ -419,6 +431,51 @@ def test_generated_child_declaration_closes_its_boundary(page_dir, mutation, cod
 
     assert status != 0
     assert found(findings, code), findings
+
+
+def test_composition_writes_the_grammar_of_each_name_leaf_looks_up(page_dir):
+    """A widget declares only that its id, its data source and its contract attribute
+    are strings. The composed vocabulary carries Leaf's grammar for each
+    (`registry.contract.stamp_grammars`), replacing one the declaration gave, so
+    validation and an author reading the entry read Leaf's. A reference to another
+    element keeps what it declares, since `page check` resolves it to its target."""
+    registry = vocabulary(page_dir)
+    widgets = page_dir / "page" / "widgets"
+    widgets.mkdir(parents=True, exist_ok=True)
+    (widgets / "lf-named.js").write_text("export function upgrade() {}\n")
+    named = element_declaration("lf-named", upgrade=True)
+    named["properties"].update(
+        id={"type": "string", "pattern": "^anything$"},
+        about={"type": "string"},
+        source={"type": "string"},
+        shape={"type": "string"},
+        restated={"type": "boolean"},
+    )
+    named["x-refers"] = {"about": {}}
+    named["x-data"] = {"feed": {"contract": "measured-scalar", "source": "source"}}
+    named["x-state"] = {
+        "submit": {
+            "unit": "widget",
+            "contract": {"field": "values", "attribute": "shape"},
+            "detail": {
+                "type": "object",
+                "properties": {"values": {"type": "object"}},
+                "required": ["values"],
+                "additionalProperties": False,
+            },
+        }
+    }
+    registry["lf-named"] = named
+    declare_vocabulary(page_dir, registry)
+
+    properties = read_page_registry(page_dir).registry["lf-named"]["properties"]
+    expected = {
+        "id": f"^{ELEMENT_ID}$",
+        "about": None,
+        "source": f"^{DATA_SOURCE_NAME}$",
+        "shape": f"^{DATA_CONTRACT_NAME}$",
+    }
+    assert {attr: properties[attr].get("pattern") for attr in expected} == expected
 
 
 @pytest.mark.parametrize("kind", [None, "string"])

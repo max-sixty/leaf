@@ -77,7 +77,7 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     # The complete answer is news, since nothing on arrival shows it (the question's
     # reply is shown, and so read, at once), and the row's mark says so, in words to
     # assistive tech alone.
-    expect(thread_row(page, answered)).to_have_attribute("data-unread", "")
+    expect(thread_row(page, answered)).to_have_attribute("data-lf-unread", "")
     expect(thread_row(page, answered)).to_have_accessible_name(re.compile(r"^New Why"))
 
     thread_model.post_reply(
@@ -155,7 +155,7 @@ def test_a_title_on_its_way_reads_as_one(browser, serve, request):
     page.locator(".lf-fp-on-user").click()
     panel_settled(page, view="queue")
     page.locator(".lf-fp-filters button").filter(has_text="On Codex").click()
-    owed = page.locator('.lf-fp-on-item[data-list="agent"]')
+    owed = page.locator('.lf-fp-on-item[data-lf-list="agent"]')
     expect(owed.locator(".lf-thread-name-pending")).to_have_text(pending)
     open_panel_thread(page, root)
     title = page.locator(".lf-fp-head .lf-fp-title")

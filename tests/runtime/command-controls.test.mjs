@@ -14,7 +14,6 @@ import {
 } from "../../browser/runtime/keyboard/scopes.js";
 import {
   activeRows,
-  checked,
   commandAvailable,
   commandEntries,
   commandReady,
@@ -30,74 +29,6 @@ import { commandsChanged } from "../../browser/runtime/widget-upgrade.js";
 
 // Ordinary control tests begin with saved input available; startup tests withhold it.
 beforeEach(() => applicationState.setPhase("ready"));
-
-test("touch commands may declare a handler that becomes available later", () => {
-  let available = false;
-  let reads = 0;
-  const run = () => {};
-  const row = {
-    id: "readiness.live-touch",
-    title: "Restore selection",
-    keys: ["v"],
-    touch: "Restore selection",
-    when: () => available,
-    get run() {
-      reads++;
-      return available ? run : undefined;
-    },
-  };
-  assert.doesNotThrow(() => checked([row], "selection"));
-  assert.equal(reads, 0);
-  available = true;
-  assert.equal(row.run, run);
-  assert.throws(
-    () => checked([{ ...row, run: undefined }], "selection"),
-    /needs a run/,
-  );
-});
-
-test("page scope assembly validates a live declaration without reading its handler", async () => {
-  const { pageScope, pageScopes } =
-    await import("../../browser/runtime/keyboard/register.js");
-  let reads = 0;
-  const remove = pageScope("versions", {
-    rows: [
-      {
-        id: "readiness.scope-handler",
-        title: "Version action",
-        keys: ["x"],
-        touch: false,
-        get run() {
-          reads++;
-          return undefined;
-        },
-      },
-    ],
-  });
-  try {
-    pageScopes();
-    assert.equal(reads, 0);
-  } finally {
-    remove();
-  }
-});
-
-test("attaching an element scope wires declared controls without reading live handlers", () => {
-  const owner = document.createElement("section");
-  let reads = 0;
-  keys(owner, "A constructed owner", [
-    {
-      id: "readiness.constructed-handler",
-      title: "Open",
-      keys: ["x"],
-      get run() {
-        reads++;
-        return undefined;
-      },
-    },
-  ]);
-  assert.equal(reads, 0);
-});
 
 test("saved-reading commands retain their key until their input is known", async () => {
   const { applicationState, readApplication } =

@@ -1,7 +1,7 @@
 # Guardrail for surface-page-takes-the-window: a playground that is one exhibit in a
 # document preserves the reading sequence and stays beside its explanation.
 # Historical exact-layout rubric: Claude Code base 9/9 (c20bf406f twice, c71562813 once),
-# candidate 9/9. The current rubric judges reading flow instead of a Layout class.
+# head 9/9. The current rubric judges reading flow instead of a Layout class.
 description: exhibit-playground-stays-in-the-column
 metadata:
   purpose: "Arranging a page: a document read top to bottom keeps its reading flow, with the retry-policy playground beside the explanation it supports."

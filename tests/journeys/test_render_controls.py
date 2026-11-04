@@ -35,14 +35,11 @@ from render_cases_navigation import (
 )
 from render_harness import (
     BOARD_PAGE,
-    CORPUS_SOURCES,
     EXAMPLES,
     FEATURE_GALLERY,
     LONG_PAGE,
     PANEL,
-    PANEL_THREAD,
     RELEASE_FOCUS,
-    ROOT,
     Traffic,
     any_draft_control,
     any_owner_entry,
@@ -71,13 +68,13 @@ from render_harness import (
 
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.browser import PANEL_THREAD
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
-VISUAL_REVIEW_GALLERY = next(
-    path for path in CORPUS_SOURCES if path.stem == "visual-review-gallery"
-)
+VISUAL_REVIEW_GALLERY = named_source("visual-review-gallery")
 
 
 # One practice page, for the journeys that need no second child to compare against:
@@ -302,13 +299,13 @@ RING_CASES = (
             ),
             # A picture's response proxy, which a screen reader reaches from the
             # picture, rings the picture (details-shelf.js).
-            "heat-loss": ((".lf-visual-action", ".lf-proxy-ring"),),
+            "heat-loss": ((".lf-visual-action", ".lf-proxied"),),
             # Working density, where a choice's gap is narrowest beside the next face.
             "notification-playground": (
-                ("lf-playground input[type=radio]", ".choice:has"),
+                ("lf-playground input[type=radio]", ":is(.lf-choice, .choice):has"),
             ),
             "pr-walkthrough": (
-                ("#pr-path-tree > summary", ".lf-visual-mark"),
+                ("#pr-path-tree > summary", "[data-lf-mark]"),
                 (
                     "#pr-flow-tab",
                     "[data-lf-views]:has(> :is(lf-tab, lf-part)",
@@ -319,7 +316,7 @@ RING_CASES = (
                 ("lf-diff code", ".lf-diff-frame"),
             ),
             "release-notes": (
-                ("main p.lf-mark-el", ".lf-visual-mark"),
+                ("main p.lf-mark-el", "[data-lf-mark]"),
                 (
                     'lf-shot .lf-shotcomparison [part~="handle"]',
                     "wa-comparison::part(",
@@ -480,7 +477,7 @@ RING_EXAMPLE_FILES = {
     for example in (
         *EXAMPLES,
         FEATURE_GALLERY,
-        ROOT / "tests/fixtures/pages/current-proposed-comparison.html",
+        named_source("current-proposed-comparison"),
     )
 }
 
@@ -501,7 +498,7 @@ RING_SCOPE_SURFACE = {
     "an inline response": (
         'lf-diff .lf-fab-bar[data-lf-presentation="inline"] .lf-composer[data-lf-open]'
     ),
-    "the Threads view": '.lf-floating-panel[data-open="threads"]',
+    "the Threads view": '.lf-floating-panel[data-lf-open="threads"]',
     "a resolved thread": PANEL_THREAD,
     "an inline thread": ".lf-margin-preview:not([hidden])",
     "a thread card": ".lf-margin-preview:not([hidden])",
@@ -513,10 +510,10 @@ RING_SCOPE_SURFACE = {
     # frame and shows only for an anchor.
     "target hints": ".lf-target-picker-hint.lf-current",
     "the response bar": ".lf-fab-bar .lf-composer[data-lf-open]",
-    "On me": '.lf-floating-panel[data-open="queue"]',
-    "All pages": '.lf-floating-panel[data-open="leaves"]',
-    "the leaf's menu": '.lf-floating-panel[data-open="menu"]',
-    "the versions menu": '.lf-floating-panel[data-open="versions"]',
+    "On me": '.lf-floating-panel[data-lf-open="queue"]',
+    "All pages": '.lf-floating-panel[data-lf-open="leaves"]',
+    "the leaf's menu": '.lf-floating-panel[data-lf-open="menu"]',
+    "the versions menu": '.lf-floating-panel[data-lf-open="versions"]',
     "the command reference": ".lf-command-reference[open]",
     "a reaction palette": ".lf-react-strip:has(> .lf-react-palette:popover-open)",
 }
@@ -561,11 +558,11 @@ def open_panel_thread_holding(page, selector):
     `selector`, walking Threads' rows in turn, the folded resolved ones unfolded."""
     show_resolved(page)
     keys = page.locator(".lf-fp-thread").evaluate_all(
-        "rows => rows.map(row => row.dataset.key)"
+        "rows => rows.map(row => row.dataset.lfKey)"
     )
     for key in keys:
         show_resolved(page)
-        page.locator(f'.lf-fp-thread[data-key="{key}"]').click()
+        page.locator(f'.lf-fp-thread[data-lf-key="{key}"]').click()
         panel_settled(page, view="thread")
         if page.locator(f"{PANEL} {selector}").count():
             return
@@ -698,7 +695,7 @@ def _each_aim_surface(page, page_dir):
     # The leaf's menu, its preview diagnostics in About, and Versions with Compare.
     menu = panel_menu(page)
     yield
-    menu.locator('[data-row="inspection"]').click()
+    menu.locator('[data-lf-row="inspection"]').click()
     preview = page.get_by_role("button", name="Copy Preview diagnostics", exact=True)
     expect(preview).to_be_visible()
     yield
@@ -831,8 +828,7 @@ def test_live_sample_full_view_keeps_the_child_and_returns_after_inner_escape(
 
 def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
     """Child pages hold independent panel and anchored views across sample Reset."""
-    gallery = FEATURE_GALLERY.parent / "thread-panel-gallery.html"
-    page = open_page(browser, serve(gallery))
+    page = open_page(browser, serve(named_source("thread-panel-gallery")))
     views = {
         "overview": page.frame_locator("#overview-sample iframe"),
         "you": page.frame_locator("#on-you-sample iframe"),
@@ -841,7 +837,7 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
     }
     threads = panel_view("threads")
     for name in ("overview", "resolved"):
-        expect(views[name].locator(PANEL)).to_have_attribute("data-open", "threads")
+        expect(views[name].locator(PANEL)).to_have_attribute("data-lf-open", "threads")
     expect(views["overview"].locator(f"{threads} .lf-fp-thread").first).to_be_visible()
 
     expect(views["overview"].locator(f"{threads} .lf-fp-thread")).to_have_count(3)
@@ -858,7 +854,7 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
     expect(views["resolved"].locator(f"{threads} .lf-fp-settled")).to_have_attribute(
         "aria-expanded", "false"
     )
-    summary = views["summary"].locator(f'{PANEL_THREAD}[data-thread="c1a39980"]')
+    summary = views["summary"].locator(f'{PANEL_THREAD}[data-lf-thread="c1a39980"]')
     expect(summary).to_be_visible()
     expect(views["summary"].locator(".lf-fp-title")).to_have_text("Afternoon workshop")
 
@@ -867,7 +863,7 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
     )
     views["overview"].locator(".lf-fp-close").click()
     expect(views["overview"].locator(PANEL)).not_to_have_attribute(
-        "data-open", re.compile(".*")
+        "data-lf-open", re.compile(".*")
     )
     expect(anchored).to_be_visible()
     reset = page.locator("#overview-sample").get_by_role(
@@ -875,7 +871,9 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
     )
     reset.click()
     expect(reset).to_be_enabled()
-    expect(views["overview"].locator(PANEL)).to_have_attribute("data-open", "threads")
+    expect(views["overview"].locator(PANEL)).to_have_attribute(
+        "data-lf-open", "threads"
+    )
     expect(views["overview"].locator(f"{threads} .lf-fp-thread")).to_have_count(3)
     reset.focus()
     expect(reset).to_be_focused()
@@ -1040,7 +1038,7 @@ def test_share_copies_access_after_a_bare_reload(browser, serve):
     expect(page).not_to_have_url(re.compile(r"[?&]t="))
     page.reload()
     wait_until_ready(page)
-    panel_menu(page).locator('.lf-fp-item[data-row="share"]').click()
+    panel_menu(page).locator('.lf-fp-item[data-lf-row="share"]').click()
     expect_panel_says(page, "Link copied")
     copied = page.evaluate("navigator.clipboard.readText()")
     assert parse_qs(urlsplit(copied).query) == {
@@ -1315,7 +1313,7 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
 
     # A tab's label carries focus inside its larger click target. Removing that child
     # ring must still report the focused tab, rather than crediting selection's fill.
-    page = open_page(browser, serve(ROOT / "tests/fixtures/pages/root-tabs.html"))
+    page = open_page(browser, serve(named_source("root-tabs")))
     page.keyboard.press("Tab")
     page.locator(".lf-tab-btn").first.focus()
     assert seen_stop(page) is None
@@ -1691,9 +1689,10 @@ def test_every_control_the_layer_offers_is_a_box_the_user_can_hit(
 
 from render_harness import (
     EXAMPLES,
-    PANEL_THREAD,
     leaf_page,
 )
+
+from leaf_dev.browser import PANEL_THREAD
 
 
 @pytest.mark.shifts_unsurveyed
@@ -1771,7 +1770,7 @@ def test_a_newer_wheel_supersedes_a_panel_resize_landing(browser, serve):
         page.mouse.wheel(0, 2000)
         page.wait_for_function(
             "start => document.querySelector("
-            "'.lf-fp-view[data-view=threads]').scrollTop > start + 20",
+            "'.lf-fp-view[data-lf-route=threads]').scrollTop > start + 20",
             arg=start,
             polling=50,
         )

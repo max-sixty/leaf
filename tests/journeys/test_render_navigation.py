@@ -29,15 +29,9 @@ from render_cases_navigation import (
     address_codes,
 )
 from render_harness import (
-    CORPUS_SOURCES,
-    DEVELOPER_PAGES,
-    EXAMPLES,
     FEATURE_GALLERY,
     PANEL,
-    PANEL_THREAD,
-    PUBLIC_EXAMPLES,
     RELEASE_FOCUS,
-    ROOT,
     command_reference_rows,
     expect_obligations_answered,
     expect_open_threads,
@@ -63,7 +57,8 @@ from journeys import expect_showing
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
-from leaf_dev.browser import show_resolved
+from leaf_dev.browser import PANEL_THREAD, show_resolved
+from leaf_dev.example_data import named_source, published_sources
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -181,7 +176,7 @@ def test_a_let_go_keeps_the_user_in_the_pane_they_read(browser, serve):
 def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyboard(
     browser, serve
 ):
-    example = next(e for e in CORPUS_SOURCES if e.stem == "review-queue")
+    example = named_source("review-queue")
 
     seeded = serve(example)
     first = seeded.replace("/versions/v2.html", "/versions/v1.html")
@@ -253,7 +248,7 @@ def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyb
 
 def test_comparison_choice_replays_and_is_applied_by_the_next_revision(browser, serve):
     """One v1 choice remains authoritative in the v2 policy and rollout."""
-    example = next(e for e in CORPUS_SOURCES if e.stem == "current-proposed-comparison")
+    example = named_source("current-proposed-comparison")
 
     seeded = serve(example)
     first = seeded.replace("/versions/v2.html", "/versions/v1.html")
@@ -316,13 +311,13 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     expect(item).to_be_focused()
     page.keyboard.press("Escape")
     assert page.evaluate("() => document.activeElement === document.body")
-    expect(page.locator(PANEL)).to_have_attribute("data-open", "queue")
+    expect(page.locator(PANEL)).to_have_attribute("data-lf-open", "queue")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
 
     # `m` from a heading into a thread's obligation, with Threads already open: each Escape
     # leaves one layer, the innermost first, without returning to the heading.
-    page = open_page(browser, serve(ROOT / "examples" / "ship-review.html"))
+    page = open_page(browser, serve(named_source("ship-review")))
     open_threads(page)
     heading = page.locator("main h2").first
     heading.evaluate("el => { el.tabIndex = -1; el.focus(); }")
@@ -333,7 +328,7 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     page.keyboard.press("Escape")
     expect(card).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
-    expect(page.locator(PANEL)).to_have_attribute("data-open", "threads")
+    expect(page.locator(PANEL)).to_have_attribute("data-lf-open", "threads")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
     assert page.evaluate("() => document.activeElement === document.body")
@@ -807,7 +802,7 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
     )
     expect(map_obligation).to_have_count(1)
     expect(map_obligation).to_have_attribute(
-        "data-key", '["widget","widget:bg-choice"]'
+        "data-lf-key", '["widget","widget:bg-choice"]'
     )
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
@@ -840,14 +835,18 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
     shown = frame.locator(panel_view("thread"))
     expect(shown).to_have_count(0)
     page.locator('#bg-panel-presets [data-view="overview"]').click()
-    expect(shown).to_have_attribute("data-thread", "72e031c5bf0d485ba9054628e09869d4")
+    expect(shown).to_have_attribute(
+        "data-lf-thread", "72e031c5bf0d485ba9054628e09869d4"
+    )
 
     page.keyboard.press("Tab")
     you_button = page.locator('#bg-panel-presets [data-view="you"]')
     expect(you_button).to_be_focused()
     assert you_button.evaluate("element => element.matches(':focus-visible')")
     page.keyboard.press("Space")
-    expect(shown).to_have_attribute("data-thread", "2be2443f0bb6cc49fc86b52f340e6073")
+    expect(shown).to_have_attribute(
+        "data-lf-thread", "2be2443f0bb6cc49fc86b52f340e6073"
+    )
     expect(you_button).to_be_focused()
 
     for view, thread, title in (
@@ -862,16 +861,20 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
         ),
     ):
         page.locator(f'#bg-panel-presets [data-view="{view}"]').click()
-        expect(shown).to_have_attribute("data-thread", thread)
+        expect(shown).to_have_attribute("data-lf-thread", thread)
         expect(frame.locator(".lf-fp-title")).to_have_text(title)
 
     page.locator('#bg-panel-presets [data-view="resolved"]').click()
-    expect(shown).to_have_attribute("data-thread", "bab3cdfcfb8c02aacbb27da731de947a")
+    expect(shown).to_have_attribute(
+        "data-lf-thread", "bab3cdfcfb8c02aacbb27da731de947a"
+    )
     page.locator("#bg-panel-sample").get_by_role(
         "button", name="Reset", exact=True
     ).click()
     page.locator("#bg-panel-sample").evaluate("async sample => { await sample.ready; }")
-    expect(shown).to_have_attribute("data-thread", "bab3cdfcfb8c02aacbb27da731de947a")
+    expect(shown).to_have_attribute(
+        "data-lf-thread", "bab3cdfcfb8c02aacbb27da731de947a"
+    )
     # Latest commands and Reset cancel pending presentation across the port.
     result = page.locator("#bg-panel-sample").evaluate(
         """sample => Promise.all([
@@ -1275,9 +1278,7 @@ def _stale_keys(page):
     return stale
 
 
-@pytest.mark.parametrize(
-    "example", (*PUBLIC_EXAMPLES, *DEVELOPER_PAGES), ids=lambda path: path.stem
-)
+@pytest.mark.parametrize("example", published_sources(), ids=lambda path: path.stem)
 def test_presses_and_fills_leave_no_element_naming_stale_keys(browser, serve, example):
     """Each element's `aria-keyshortcuts` and a button's `aria-disabled` reflect its
     rows, and a reflection is a tracked effect: it reads again when a signal it read
@@ -1325,7 +1326,7 @@ def test_a_panel_thread_closes_with_the_panel_as_go_to_threads_does(browser, ser
     root = panel_comment(serve.page_dir, "This thread has no page anchor.")
     panel_comment(serve.page_dir, "Another panel thread.")
     page = open_page(browser, url)
-    view = page.locator(f'{PANEL_THREAD}[data-thread="{root}"]')
+    view = page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')
     threads = page.locator(panel_view("threads"))
 
     page.keyboard.press("t")
@@ -1333,7 +1334,7 @@ def test_a_panel_thread_closes_with_the_panel_as_go_to_threads_does(browser, ser
     # Threads, from the thread the user is located in, opens on that thread's row.
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(threads.locator(f'.lf-fp-thread[data-key="{root}"]')).to_be_focused()
+    expect(threads.locator(f'.lf-fp-thread[data-lf-key="{root}"]')).to_be_focused()
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
     assert page.evaluate("() => document.activeElement === document.body")
@@ -1371,7 +1372,7 @@ def test_pr_walkthrough_navigation_starts_the_review_at_every_width(
     when the tracks stacked, it also came after the entire article. The authored
     reading order now puts navigation first and supporting evidence in the article.
     """
-    source = next(example for example in EXAMPLES if example.stem == "pr-walkthrough")
+    source = named_source("pr-walkthrough")
     url = serve(source)
     width, height = viewport
     context = browser.new_context(
@@ -1791,7 +1792,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     )
     page.keyboard.press("Escape")
     page.wait_for_function("() => window.__lfPageMapClosed")
-    expect(page.locator(PANEL)).to_have_attribute("data-open", "queue")
+    expect(page.locator(PANEL)).to_have_attribute("data-lf-open", "queue")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
 

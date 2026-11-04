@@ -7,6 +7,7 @@ import re
 import pytest
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE, PANEL_PAGE, answered_comment
+from render_cases_layout import MARK
 from render_harness import (
     FOLLOWER_MARK,
     SUBJECT_MARK,
@@ -140,14 +141,16 @@ def test_a_keyboard_arrival_brings_its_card_once_its_row_is_shown(browser, serve
     row = page.locator('[data-lf-margin-for="work"]')
     expect(row).to_be_hidden()
     page.keyboard.press("t")
-    leaving = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{left}"]')
+    leaving = page.locator(
+        f'.lf-margin-preview .lf-page-thread[data-lf-thread="{left}"]'
+    )
     expect(leaving).to_be_focused()
     page.keyboard.press("m")
     expect(page.locator("#work")).to_be_focused()
     expect(leaving).to_have_count(0)
     expect(row).to_be_visible()
     expect(
-        page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+        page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]')
     ).to_be_visible()
     expect(page.locator("#work")).to_be_focused()
 
@@ -293,17 +296,16 @@ def test_marks_stand_on_a_widened_table_in_every_engine(request, serve, engine):
 
 
 def _outline_and_copy_stand_on(page, hovered, outlined):
-    """The outline Alt raises over `hovered` stands on `outlined`, and the Copy of the
-    `#command` code block, which CSS anchors alone, stands inside the block's top-right
-    corner."""
+    """The outline Alt raises over `hovered` is drawn by `outlined`, so it moves with
+    that box through its transforms, and the Copy of the `#command` code block, which
+    CSS anchors alone, stands inside the block's top-right corner."""
     hovered.hover()
     page.keyboard.down("Alt")
-    aim = page.locator(".lf-aim")
-    expect(aim).to_be_visible()
-    target, outline = page.locator(outlined).bounding_box(), aim.bounding_box()
+    target = page.locator(outlined)
+    expect(target).to_have_class(re.compile(r"\blf-aimed\b"))
+    mark = target.evaluate(MARK)
     page.keyboard.up("Alt")
-    assert outline["x"] == pytest.approx(target["x"], abs=1), (outline, target)
-    assert outline["y"] == pytest.approx(target["y"], abs=1), (outline, target)
+    assert mark and mark["style"] == "solid", mark
     code = page.locator("#command").bounding_box()
     page.mouse.move(code["x"] + 5, code["y"] + code["height"] / 2)
     copy = page.locator(".lf-code-copy")

@@ -9,10 +9,7 @@ import re
 from pathlib import Path
 from urllib.parse import urlsplit
 
-import jmespath
-from jmespath.exceptions import JMESPathError
-
-from .files import list_revisions
+from .files import latest_revision
 from .findings import Finding, element_at
 from .refusals import Refused
 from .registry.contract import element_declarations
@@ -20,7 +17,7 @@ from .registry.schema import (
     json_validator,
     json_value,
 )
-from .revision_artifact import read_revision
+from .revision_artifact import read_revision, revision_history
 from .schema import DATA_SOURCE_NAME, DIR_FILES, MEDIA_DIR
 from .structure import SourceDocument
 from .thread_context import logged_fragment
@@ -38,6 +35,9 @@ def resource_urls(value, declaration: dict) -> set[str]:
     Local references use the canonical page media namespace; remote references
     stay remote and are never fetched by snapshot or export.
     """
+    import jmespath
+    from jmespath.exceptions import JMESPathError
+
     urls = set()
     for expression in declaration.get("resources", []):
         try:
@@ -192,25 +192,23 @@ def page_data_document_readings(
     without revisions uses the initial registry. These readings permit historical
     producers and inventories without restricting later documents' bindings.
     """
-    documents = []
-    registries = {}
-    for revision in list_revisions(page_dir):
-        reading = read_revision(page_dir, revision)
-        registries[revision] = reading.registry
-        documents.append(
-            [
-                (records, f"revision r{revision}{label}", declarations)
-                for records, label, declarations in reading.inventory.data_documents
-            ]
-        )
+    documents = [
+        [
+            (records, f"revision r{revision}{label}", declarations)
+            for records, label, declarations in readings
+        ]
+        for revision, readings in revision_history(page_dir).data_documents
+    ]
     active_document = documents.pop() if documents else None
+    newest = latest_revision(page_dir)
     for event in events:
         if event.get("markup"):
-            revision = event.get("revision") or max(registries, default=None)
-            selected_registry = registry
-            if registries:
-                assert revision is not None
-                selected_registry = registries[revision]
+            revision = event.get("revision") or newest
+            selected_registry = (
+                registry
+                if revision is None
+                else read_revision(page_dir, revision).registry
+            )
             documents.append(
                 data_document_readings(
                     logged_fragment(event),

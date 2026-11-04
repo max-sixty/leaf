@@ -60,15 +60,15 @@ lf-text-document .lf-text-document-listing {
   --diffs-fg: var(--code-ink);
   --diffs-fg-number: var(--code-muted);
 }
-lf-text-document [data-number]::before {
-  content: attr(data-number);
+lf-text-document [data-lf-number]::before {
+  content: attr(data-lf-number);
 }
 /* A run of rows (lf-text-document.js, `inRuns`) spans the listing's grid and lays out
    Pierre's two columns itself, and the browser draws it only while it is in view. Each
    run sizes its number column to its own numbers, so every number takes the width of
    the text's widest one (Pierre's `--diffs-min-number-column-width-default`), and
    every run's lines start at the same x. */
-lf-text-document [data-number] {
+lf-text-document [data-lf-number] {
   display: inline-block;
   min-inline-size: var(--diffs-min-number-column-width-default);
 }
@@ -182,9 +182,9 @@ lf-text-document:has(> [data-lf-prepaint]) {
 /* A long capture's `pre` becomes a keyboard-reachable scroller inside the evidence
    frame. Its lines are positioned boxes on the capture's ground, which paint over an
    outline on the `pre` itself, so the ring is drawn on a later box over it, as the
-   Threads list draws its own (chrome.css, .lf-threads-frame); the `pre`'s zero layer
-   keeps its lines under that box. The ring stands inside, since the figure clips at
-   its rounded corners. */
+   floating panel draws its view's (floating-panel.css, `.lf-fp-stage`); the `pre`'s
+   zero layer keeps its lines under that box. The ring stands inside, since the figure
+   clips at its rounded corners. */
 lf-text-document .lf-text-document-listing {
   position: relative;
 }

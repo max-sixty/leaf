@@ -8,12 +8,14 @@
  * Promises, rendering instances, and proof of presentation stay outside this owner.
  */
 import { hasObligationSource } from "../obligations/source.js";
+import { VERB_WRITERS } from "../kernel-facts.js";
 import { createApplicationPublisher, share } from "./snapshot.js";
 import {
   coordinateOf,
   foldProjection,
   foldedValue,
   foldWidgetStates,
+  widgetStateReader,
   obligationValue,
   isProjectionEntry,
   stateCoordinate,
@@ -22,7 +24,7 @@ import { stampedState, sameStateDefinition } from "../registry-contract.js";
 import {
   discussed,
   foldThreads,
-  readThreadRecords,
+  threadRecordReader,
   threadNames,
 } from "../thread/model.js";
 import {
@@ -138,17 +140,17 @@ const UNPRESENTED = new Set([
  */
 
 // The log's id for a gesture this tab sent: its ledger entry's while it stands, its
-// receipt's once released.
+// receipt's, the logged event carrying its attempt, once released.
 /**
  * @param {string | null | undefined} attempt
  * @param {readonly Immutable<LedgerEntry>[]} unresolved
- * @param {readonly Immutable<Event>[]} receipts
+ * @param {readonly Immutable<Event>[]} events
  */
-function admittedId(attempt, unresolved, receipts) {
+function admittedId(attempt, unresolved, events) {
   if (!attempt) return null;
   return (
     unresolved.find((entry) => entry.event.attempt === attempt)?.admitted?.id ??
-    receipts.find((receipt) => receipt.attempt === attempt)?.id ??
+    events.findLast((event) => event.attempt === attempt)?.id ??
     null
   );
 }
@@ -319,7 +321,33 @@ function normalizedProjection(view) {
     reportIds.push(...projection.reports);
     desiredIds.push(...projection.desired);
   }
-  return { entries, actionIds, reportIds, desiredIds, coverage: view?.coverage ?? [] };
+  return { entries, actionIds, reportIds, desiredIds };
+}
+
+// Each widget event and undo in the log, with the coordinate the view's projections
+// classify it at, an undo at its target's, or null where they classify none: what the
+// page's applied stamp counts (`projection/presentation.js`), and what `foldProjection`
+// keeps classified as terminal where the view draws nothing for it.
+/** @param {PageView | null} view @param {readonly Event[]} events
+ * @returns {import("../../types/domain.js").Coverage[]} */
+function logCoverage(view, events) {
+  if (!view) return [];
+  /** @type {Map<string, readonly string[]>} */
+  const coordinates = new Map();
+  for (const { projection } of [view.document, view.thread])
+    for (const entry of projection.entries)
+      coordinates.set(entry.event.id, entry.coordinate);
+  return events.flatMap((event) => {
+    const target =
+      event.kind === "undo"
+        ? event.undoes
+        : Object.hasOwn(VERB_WRITERS, event.kind)
+          ? event.id
+          : null;
+    return target === null
+      ? []
+      : [{ event, coordinate: coordinates.get(target) ?? null }];
+  });
 }
 
 const NO_OBLIGATIONS = {
@@ -876,6 +904,10 @@ function widgetReading(inputs, descriptor) {
 
 /** @param {{ presentation?: PresentationLifecycle }} [options] */
 export function createSemanticApplication({ presentation } = {}) {
+  // Each publication's widget states and thread records, read again only where what
+  // one reads changed (`kept.js`).
+  const widgetStates = widgetStateReader();
+  const threadRecords = threadRecordReader();
   const initial = {
     document: /** @type {SemanticDocument} */ ({
       revision: null,
@@ -960,7 +992,7 @@ export function createSemanticApplication({ presentation } = {}) {
     phase,
     hostAvailable,
   ) {
-    const receipts = state?.browser.receipts ?? [];
+    const events = state?.events ?? [];
     const local = unresolved.filter((entry) => DRAWN_LOCALLY.has(entry.state));
     const refused = unresolved.filter((entry) => entry.state === "refused");
     // The shown revision's server view, resolved here once for every reader of this
@@ -971,6 +1003,7 @@ export function createSemanticApplication({ presentation } = {}) {
     /** @type {PageView | null} */
     const view = served ? (({ basis: _basis, ...rest }) => rest)(served) : null;
     const admitted = normalizedProjection(view);
+    const coverage = logCoverage(view, events);
     const classifiedIds = new Set(admitted.entries.map(({ e }) => e.id));
     // A revision may reuse a widget/verb with a different operation. Keep its pending
     // delivery, but stop drawing it against that new declaration. This tab wrote a
@@ -991,7 +1024,7 @@ export function createSemanticApplication({ presentation } = {}) {
         if (projection.kind !== "undo")
           return drawsAction(projection.e) ? [projection] : [];
         const { target } = projection;
-        const targetId = admittedId(entry.undoTarget, unresolved, receipts);
+        const targetId = admittedId(entry.undoTarget, unresolved, events);
         const pending = !Number.isInteger(target.e.seq);
         const draws =
           classifiedIds.has(targetId ?? target.e.id) ||
@@ -1001,6 +1034,7 @@ export function createSemanticApplication({ presentation } = {}) {
     );
     const projection = foldProjection({
       ...admitted,
+      coverage,
       pendingEntries: localProjections,
     });
     // A local comment belongs to the shown document even before saved history arrives.
@@ -1020,7 +1054,7 @@ export function createSemanticApplication({ presentation } = {}) {
               : [],
     );
     const folded = foldThreads(view?.thread.threads ?? [], gestures);
-    const widgets = foldWidgetStates(document.authored, projection);
+    const widgets = widgetStates(document.authored, projection);
     const { parents: widgetParents, memberships } = currentWidgetRelations(
       document,
       widgets,
@@ -1188,7 +1222,7 @@ export function createSemanticApplication({ presentation } = {}) {
       ],
       unanswered: [...servedItems.unanswered, ...localRecords],
     };
-    const threads = readThreadRecords(
+    const threads = threadRecords(
       obligated,
       document,
       widgets,
@@ -1248,6 +1282,7 @@ export function createSemanticApplication({ presentation } = {}) {
       // Part of the effective reading, so a read that changes only the view's
       // reports, publication time, or undo list opens an epoch and reaches its readers.
       view,
+      coverage,
       memberships,
       widgetParents,
       // The attempts still waiting for their POST's answer, in ledger order.
@@ -1263,6 +1298,10 @@ export function createSemanticApplication({ presentation } = {}) {
   function publish(changes) {
     const prior = publisher.peek();
     const next = /** @type {typeof initial} */ ({ ...prior, ...changes });
+    // The folds read the server's reading as the root holds it, so each record the new
+    // answer left alone is the very object they read last time, and the record readers
+    // that keep what they read (`threadRecordReader`) keep it too.
+    next.authoritative = share(prior.authoritative, next.authoritative);
     // Shared against the current reading, so a part whose contents did not move keeps
     // its identity: that is what an epoch and every selection compare.
     next.effective = share(
@@ -1339,17 +1378,16 @@ export function createSemanticApplication({ presentation } = {}) {
   };
 
   // The ledger's own readings select their parts, so a paint that reads one follows
-  // the ledger and the receipts rather than every publication.
+  // the ledger and the log, whose events carrying an attempt are receipts, rather than
+  // every publication.
   const unresolvedPart = publisher.select((root) => root.unresolved);
-  const receiptsPart = publisher.select(
-    (root) => root.authoritative?.browser.receipts ?? [],
-  );
+  const eventsPart = publisher.select((root) => root.authoritative?.events ?? []);
   const widgetsPart = publisher.select((root) => root.effective.widgets);
   /** @param {string} attempt */
   const entry = (attempt) =>
     unresolvedPart.read().find((item) => item.event.attempt === attempt);
-  const ledgerAndReceipts = () =>
-    /** @type {const} */ ([unresolvedPart.read(), receiptsPart.read()]);
+  const ledgerAndLog = () =>
+    /** @type {const} */ ([unresolvedPart.read(), eventsPart.read()]);
   /** @param {string} attempt @param {(entry: LedgerEntry) => LedgerEntry} change */
   const update = (attempt, change) =>
     publish({
@@ -1377,10 +1415,11 @@ export function createSemanticApplication({ presentation } = {}) {
     });
     return { unresolved, left, moved };
   };
-  /** @param {readonly Event[]} receipts @returns {Map<string, Event | null>} */
-  const byAttempt = (receipts) =>
+  // Each receipt among `events`, by the attempt it carries.
+  /** @param {readonly Event[]} events @returns {Map<string, Event | null>} */
+  const byAttempt = (events) =>
     new Map(
-      receipts.flatMap((receipt) =>
+      events.flatMap((receipt) =>
         receipt.attempt ? [/** @type {const} */ ([receipt.attempt, receipt])] : [],
       ),
     );
@@ -1542,10 +1581,7 @@ export function createSemanticApplication({ presentation } = {}) {
       // The reading and what it logs are one publication: the entries whose receipts
       // it holds stop drawing from the gesture as the log starts drawing them, and an
       // accepted one other than an action leaves with it.
-      const { unresolved, left } = transition(
-        "log",
-        byAttempt(authoritative.browser.receipts),
-      );
+      const { unresolved, left } = transition("log", byAttempt(authoritative.events));
       const settled = [
         ...prior.settled.filter((item) => !drawn.has(item.event.attempt)),
         ...left,
@@ -1695,12 +1731,12 @@ export function createSemanticApplication({ presentation } = {}) {
       });
       return dependents;
     },
-    // A document pass carrying these receipts has run, which moves only the actions
-    // among them, and publishes only where one moved.
-    /** @param {readonly Event[]} receipts */
-    present(receipts) {
+    // A document pass drawing these logged events has run, which moves only the actions
+    // whose receipts are among them, and publishes only where one moved.
+    /** @param {readonly Event[]} events */
+    present(events) {
       const { unresolved, settled } = publisher.peek();
-      const attempts = byAttempt(receipts);
+      const attempts = byAttempt(events);
       for (const item of [...settled, ...unresolved])
         if (attempts.has(item.event.attempt)) drawn.add(item.event.attempt);
       const { unresolved: next, moved } = transition("present", attempts);
@@ -1735,7 +1771,7 @@ export function createSemanticApplication({ presentation } = {}) {
       const item = entry(attempt);
       if (!item) return true;
       const event = nameAdmitted(item.event, (pending) =>
-        admittedId(pending, ...ledgerAndReceipts()),
+        admittedId(pending, ...ledgerAndLog()),
       );
       if (event !== item.event)
         update(attempt, (item) => ({

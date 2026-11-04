@@ -26,6 +26,7 @@ from interact_support import (
     append_carried_log_record as append_event,
 )
 from playwright.sync_api import BrowserContext, Page
+from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from process.website_server import (  # noqa: F401
     _no_harness_outlives_its_test_fixture,
     accept_in_turn,
@@ -36,6 +37,7 @@ from process.website_server import (  # noqa: F401
 import leaf_website as website_server
 from leaf.event_log import read_events
 from leaf.files import revision_path
+from leaf.render_checks import OUTSTANDING
 from leaf.state import session_record
 from leaf_dev import ROOT, startup
 from leaf_dev.commands import journey, journey_chart, refresh_previews, verify_site
@@ -102,7 +104,7 @@ class _FailedTurn:
 
     def locator(self, selector: str):
         assert selector in {
-            ".lf-floating-panel[data-open]",
+            ".lf-floating-panel[data-lf-open]",
             ".lf-fp-close",
             ".lf-fp-field leaf-text",
         }
@@ -195,14 +197,6 @@ class _FailedTurn:
         }
 
 
-class _PresentationWait:
-    def __init__(self, waits: list[int]):
-        self.waits = waits
-
-    def wait_for(self, timeout: int) -> None:
-        self.waits.append(timeout)
-
-
 class _Text:
     def __init__(self, text: str):
         self.text = text
@@ -224,8 +218,11 @@ class _DeployedPage:
         follows_revision: bool = False,
         presentation_pending: bool = False,
         initial_presented_at: float | None = None,
+        reload_stalls_at: str | None = None,
     ):
         self.recorded = recorded
+        self.reload_stalls_at = reload_stalls_at
+        self.reloaded = False
         self.revision = revision
         self.presented_at = presented_at
         self.reload_ok = reload_ok
@@ -252,27 +249,32 @@ class _DeployedPage:
         return _Read({})
 
     def reload(self, **kwargs) -> _Read:
+        self.reloaded = True
         answered = _Read({})
         answered.ok = self.reload_ok
         return answered
 
-    def wait_for_function(
-        self, expression: str, *, arg: int | None = None, timeout: int
-    ) -> None:
-        assert expression == "window.__leafVerifier.revisionAtLeast" and arg is not None
+    def wait_for_function(self, expression: str, *, arg, timeout: int):
+        if expression == OUTSTANDING:
+            return SimpleNamespace(json_value=lambda: self.reload_stalls_at)
+        if expression != "window.__leafVerifier.revisionAtLeast":
+            # The readiness the verifier waits on (`wait_until_ready`).
+            assert arg == {"held": None, "through": "presented"}
+            self.presentation_waits.append(timeout)
+            if self.reloaded and self.reload_stalls_at is not None:
+                raise PlaywrightTimeout("the page never got ready")
+            return None
         self.revision_waits.append((arg, timeout))
         if self.revision >= arg and not self.presentation_pending:
             return
         if self.follows_revision:
             self.revision = arg
             return
-        raise verify_site.PlaywrightTimeout("revision did not arrive")
+        raise PlaywrightTimeout("revision did not arrive")
 
     def locator(self, selector: str):
-        if selector == "main":
-            return _Text(self.recorded)
-        assert selector == "body[data-lf-presented]"
-        return _PresentationWait(self.presentation_waits)
+        assert selector == "main"
+        return _Text(self.recorded)
 
     def evaluate(self, script: str, arg=None):
         if script == "window.__leafVerifier.startVisibleReplyClock":
@@ -1427,9 +1429,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
     assert page.presentation_waits == [30_000, journey.TURN_PRESENTATION]
     assert page.revision_waits == [(2, journey.TURN_PRESENTATION)]
     assert journey.TURN_PRESENTATION > 30_000
-    # The stamps the message needs to say which stall it was. Without them a page that
-    # upgraded and stalled on its first state read reports the same "no startup
-    # milestone" as one whose modules never arrived.
+    # The startup profile the run reports, and the verifier's own readings.
     assert page.init_scripts == [startup.SCRIPT, verify_site.VERIFIER_SCRIPT]
     # A green run reports startup and the post-presentation revision follow separately.
     reported = capsys.readouterr().err
@@ -1537,7 +1537,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
     assert pending.revision_waits == [(2, journey.TURN_PRESENTATION)]
 
 
-def test_a_reload_that_presented_offline_reports_the_status_it_presented_under(
+def test_a_reload_that_never_heard_its_server_is_told_apart_from_a_stale_answer(
     monkeypatch,
 ):
     """A stale revision has two causes, and the message has to separate them.
@@ -1545,8 +1545,9 @@ def test_a_reload_that_presented_offline_reports_the_status_it_presented_under(
     `publish-site` failed on release `5b6be522…` with `stands on revision 1 rather than
     following the published 2` and nothing else, which reads the same whether the
     container answered the reload's first state read with revision 1 or never answered
-    it at all. The gate cannot watch that read, but the page says which it was: an
-    answer it never got leaves the offline status standing over the authored document.
+    it at all. The gate cannot watch that read, but the page says which it was: a page
+    that never applied an answer stops at readiness's `log` stage, which the wait for
+    presentation names, while one that applied an old answer stands under its status.
     """
     release = "5b6be522" + "0" * 56
     recorded = f"Deployment {release[:8]} verified"
@@ -1590,6 +1591,7 @@ def test_a_reload_that_presented_offline_reports_the_status_it_presented_under(
         revision=1,
         presented_at=11_000.0,
         status="Server offline — reconnecting",
+        reload_stalls_at="log",
     )
     with pytest.raises(RuntimeError) as reported:
         run_browser_journey(
@@ -1600,12 +1602,11 @@ def test_a_reload_that_presented_offline_reports_the_status_it_presented_under(
                 direct_agent=False,
             )
         )
-    assert "stands on revision 1" in str(reported.value)
-    assert "Server offline — reconnecting" in str(reported.value)
-    # Reported after the gate's own patience ran out, not at presentation: the status is
-    # quoted for a read that never answered rather than for one a second slower than the
-    # runtime's wait.
-    assert offline.revision_waits == [(2, journey.TURN_PRESENTATION)]
+    assert "never presented" in str(reported.value)
+    assert "never finished replaying the log" in str(reported.value)
+    # Reported once the gate's own patience ran out, at presentation.
+    assert offline.presentation_waits == [30_000, journey.TURN_PRESENTATION]
+    assert offline.revision_waits == []
 
     # A page whose read answered is standing under an ordinary activity line rather
     # than an empty status — a presented page always has one — so the two causes are

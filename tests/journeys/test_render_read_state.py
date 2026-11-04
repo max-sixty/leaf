@@ -5,7 +5,6 @@ from interact_support import append_carried_log_record, served_thread
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
 from render_harness import (
-    PANEL_THREAD,
     Traffic,
     _traffic,
     leaf_page,
@@ -25,6 +24,7 @@ from leaf.render_checks import (
     SERVED_TIMEOUT_MS,
     rendered,
 )
+from leaf_dev.browser import PANEL_THREAD
 
 
 def _read_events(page_dir):
@@ -44,13 +44,13 @@ def _on_me_mark(page):
 def _expect_news(page, news=True):
     dot = page.locator(".lf-fp-news-dot")
     if news:
-        expect(dot).to_have_attribute("data-shown", "")
+        expect(dot).to_have_attribute("data-lf-shown", "")
     else:
-        expect(dot).not_to_have_attribute("data-shown", "")
+        expect(dot).not_to_have_attribute("data-lf-shown", "")
 
 
 def _has_news(page):
-    return page.locator(".lf-fp-news-dot").get_attribute("data-shown") is not None
+    return page.locator(".lf-fp-news-dot").get_attribute("data-lf-shown") is not None
 
 
 def _first_unread(page):
@@ -65,7 +65,9 @@ def _said(page):
 
 
 def _thread_row(page, thread):
-    return page.locator(f'{panel_view("threads")} .lf-fp-thread[data-key="{thread}"]')
+    return page.locator(
+        f'{panel_view("threads")} .lf-fp-thread[data-lf-key="{thread}"]'
+    )
 
 
 def _select_new_route(page):
@@ -166,7 +168,7 @@ def _sample_reading_page(browser, serve, body, style):
 
 def _message_body(child):
     return child.locator(
-        f'{PANEL_THREAD} .lf-msg[data-message="{SAMPLE_READER}"] .lf-msg-body'
+        f'{PANEL_THREAD} .lf-msg[data-lf-message="{SAMPLE_READER}"] .lf-msg-body'
     )
 
 
@@ -180,7 +182,7 @@ def _open_first_unread(page, child):
     page.keyboard.press("g")
     page.keyboard.press("u")
     expect(
-        child.locator(f'{PANEL_THREAD}[data-thread="{SAMPLE_READER}"]')
+        child.locator(f'{PANEL_THREAD}[data-lf-thread="{SAMPLE_READER}"]')
     ).to_be_visible()
     panel_settled(child, view="thread")
     assert _message_body(child).evaluate("""body => {
@@ -236,7 +238,7 @@ def _read_by_the_sample(page, child):
     state = page.request.get(f"{child.url}api/state").json()
     (thread,) = served_thread(state["browser"])["threads"]
     assert thread["id"] == SAMPLE_READER
-    assert thread["unread"] == []
+    assert thread["unread"] == {}
 
 
 def test_clipped_sample_cannot_acknowledge_child_viewport(browser, serve):
@@ -420,9 +422,9 @@ def test_keyboard_first_unread_exposes_authored_reply(browser, serve, origin):
         else:
             page.keyboard.press("g")
             page.keyboard.press("u")
-    card = page.locator(f'{PANEL_THREAD}[data-thread="{root}"]')
+    card = page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')
     expect(card).to_be_visible()
-    expect(card.locator(f'.lf-msg[data-message="{root}"]')).to_be_focused()
+    expect(card.locator(f'.lf-msg[data-lf-message="{root}"]')).to_be_focused()
     _expect_news(page, False)
     assert _read_events(serve.page_dir)[-1]["messages"] == [
         {"message": root, "version": root}

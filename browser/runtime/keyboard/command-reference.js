@@ -39,6 +39,7 @@
    door as their Keyboard shortcuts row (page-controls.js), for a pointer. That row
    opens it from where the user was before pressing it, and Escape returns to the row's
    door. */
+import { labelWords } from "../words.js";
 import { setScroll } from "../arrivals.js";
 import {
   showNativeLayer,
@@ -290,11 +291,7 @@ let commandReferenceView = {
 };
 
 /** @param {string | null | undefined} value */
-const commandReferenceWords = (value) =>
-  String(value ?? "")
-    .toLocaleLowerCase()
-    .replace(/\s+/g, " ")
-    .trim();
+const commandReferenceWords = (value) => labelWords(value).toLocaleLowerCase();
 
 // A binding query retains a trailing separator: `g ` means the routes below the `g`
 // prefix. Case is retained for the first rank so `g t` and `g T` remain distinct.

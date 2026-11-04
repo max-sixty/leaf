@@ -400,10 +400,7 @@ class TextDocument extends LeafElement {
         firstBox -
         this.getBoundingClientRect().height;
     else return;
-    const height = layoutPx(measured);
-    const { style } = panel;
-    if (style.getPropertyValue("--lf-preview-block") !== height)
-      style.setProperty("--lf-preview-block", height);
+    panel.style.setProperty("--lf-preview-block", layoutPx(measured));
   }
   // The press shows only while the box cuts lines off, as a thread's Full quote does.
   measureCut() {
@@ -527,9 +524,10 @@ class TextDocument extends LeafElement {
         if (this.lineLength)
           sizeRuns(this.sourceView.code, text, this.lineLength, this.drawn);
         const width = "--diffs-min-number-column-width-default";
-        const drawnWidth = drawnPre.style.getPropertyValue(width);
-        if (this.sourceView.pre.style.getPropertyValue(width) !== drawnWidth)
-          this.sourceView.pre.style.setProperty(width, drawnWidth);
+        this.sourceView.pre.style.setProperty(
+          width,
+          drawnPre.style.getPropertyValue(width),
+        );
       }
       let loaded = this.frameLoaded;
       const previewNode = view.preview;

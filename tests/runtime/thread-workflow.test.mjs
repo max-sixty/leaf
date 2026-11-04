@@ -212,7 +212,7 @@ test("a thread the user is still sending waits on that send", () => {
   };
   const [thread] = foldThreads([], [root]);
   const [record] = readThreadRecords(
-    [{ ...thread, unread: [] }],
+    [{ ...thread, unread: {} }],
     { revision: 1, registry: {}, descriptors: new Map(), messageBodies: new Map() },
     new Map(),
     [sending],

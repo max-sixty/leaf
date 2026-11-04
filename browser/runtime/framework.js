@@ -27,7 +27,7 @@ export {
   signal,
 } from "/vendor/signals-core.js";
 export { createSemanticApplication } from "./framework/application.js";
-export { share, untracked } from "./framework/snapshot.js";
+export { defineOwn, share, untracked } from "./framework/snapshot.js";
 export {
   createPresentationCoordinator,
   createPresentationSchedule,

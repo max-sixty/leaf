@@ -2,6 +2,7 @@
  * when clipboard access is refused; use copy-control.js for clipboard permissions,
  * plain-HTTP copying, outcome icons and announcements. This template keeps the control
  * at its render position across paints, rather than making each text's caller own one. */
+import { capitalized } from "./words.js";
 import { guard, html } from "/runtime/framework.js";
 import { copyControl } from "./copy-control.js";
 
@@ -13,8 +14,8 @@ export function copyableText(label, value) {
       ${guard([label, value], () => {
         const copy = copyControl("", {
           label: `Copy ${label}`,
-          success: `${label.charAt(0).toUpperCase()}${label.slice(1)} copied`,
-          error: `${label.charAt(0).toUpperCase()}${label.slice(1)} not copied · select the text to copy`,
+          success: `${capitalized(label)} copied`,
+          error: `${capitalized(label)} not copied · select the text to copy`,
           role: "symbol",
         });
         copy.value = value;

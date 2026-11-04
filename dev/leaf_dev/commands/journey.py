@@ -133,7 +133,7 @@ from leaf.structure import SourceDocument
 from leaf.thread import successful_replies
 from leaf_dev import ROOT
 from leaf_dev.arms import PAYLOAD, PageClient, extract_payload, run_directory, run_leaf
-from leaf_dev.browser import WINDOWS, headless_shell
+from leaf_dev.browser import PANEL, WINDOWS, headless_shell
 from leaf_dev.commands.response_times import Records, page_timings
 from leaf_dev.commands.verify_site import (
     LocalWorker,
@@ -449,7 +449,7 @@ def write_comment(session: Session, text: str, passage: str | None = None) -> Lo
         # The field writes a page comment while no view stands open over it. A send
         # opens its thread there, the field becoming its reply box, so a later page
         # comment closes that view first.
-        if page.locator(".lf-floating-panel[data-lf-open]").count():
+        if page.locator(f"{PANEL}[data-lf-open]").count():
             page.locator(".lf-fp-close").click()
         box = page.locator(".lf-fp-field leaf-text")
         box.click()
@@ -1223,10 +1223,11 @@ class BrowserEnd:
             )
             await_presentation(page, url, failures, timeout=TURN_PRESENTATION)
             startup = startup_reading(page)
-            # Startup can present the offline authored fallback when its first read fails.
-            # A later answer brings the revision back, with its own wait and timing.
-            # The revision marker advances as the patch begins; its presentation proof
-            # must finish before the text below is a reading of that revision.
+            # Startup can present the offline authored fallback when its first read
+            # fails; the wait above then lasts until a later answer is applied. The
+            # first answer can still hold an older revision, and the revision marker
+            # advances as the patch begins; its presentation proof must finish
+            # before the text below is a reading of that revision.
             followed_at = time.monotonic()
             try:
                 page.wait_for_function(
@@ -1241,8 +1242,8 @@ class BrowserEnd:
             # revision it never reached.
             check(not failures, f"{url} reported browser errors: {said(failures)}")
             shown = page.evaluate("window.__leafVerifier.revision")
-            # The page's status separates a page whose first read answered with an old
-            # revision from one that presented offline and was never told.
+            # The page's status says whether a page left on an older revision still
+            # hears its server.
             status = page.evaluate("window.__leafVerifier.status")
             check(
                 (shown or "").isdigit() and int(shown) >= published["revision"],

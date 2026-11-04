@@ -692,9 +692,7 @@ export class TabSet extends LeafElement {
       const size = label.getBoundingClientRect().width;
       const apart = size + gap + btn.getBoundingClientRect().width > room;
       run.toggleAttribute("data-lf-group-apart", apart);
-      const measured = layoutPx(size);
-      if (run.style.getPropertyValue("--lf-tab-group-size") !== measured)
-        run.style.setProperty("--lf-tab-group-size", measured);
+      run.style.setProperty("--lf-tab-group-size", layoutPx(size));
       scrollIntoView(btn, { block: "nearest", within: strip });
       return;
     }

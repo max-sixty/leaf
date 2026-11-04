@@ -71,6 +71,7 @@ import { skipped, skipper } from "./shown-box.js";
 import {
   blockAt,
   closestAcross,
+  HEADING,
   inChrome,
   pageBlocks,
   pageDocument,
@@ -174,7 +175,6 @@ const draws = (element) => element.matches(DRAWING) || element.localName.include
 const LANDMARK_CAP = 160;
 // The shortest run of words that names a reading place (`capturePlace`).
 const QUOTABLE = 24;
-const HEADING = "h1, h2, h3, h4, h5, h6";
 
 // The page's own text blocks the user can see, in document order, with the rect of each
 // one's first line — one reading of what is in front of them, for the two questions that

@@ -185,6 +185,8 @@ summary from before a compaction, doesn't carry its rules.
   summarizing or resolving a thread.
 - `references/page-checkpoints.md`: before a pre-handover review, stamping,
   or ending a page.
+- `references/turn-end-check.md`: in Claude Code, what Leaf's turn-end check asks a
+  fork of your session, when one of its messages or records puzzles you.
 
 ### Serve or extend a page
 

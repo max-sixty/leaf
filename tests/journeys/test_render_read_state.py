@@ -5,7 +5,6 @@ from interact_support import append_carried_log_record, served_thread
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
 from render_harness import (
-    PANEL_THREAD,
     Traffic,
     _traffic,
     leaf_page,
@@ -25,6 +24,7 @@ from leaf.render_checks import (
     SERVED_TIMEOUT_MS,
     rendered,
 )
+from leaf_dev.browser import PANEL_THREAD
 
 
 def _read_events(page_dir):
@@ -238,7 +238,7 @@ def _read_by_the_sample(page, child):
     state = page.request.get(f"{child.url}api/state").json()
     (thread,) = served_thread(state["browser"])["threads"]
     assert thread["id"] == SAMPLE_READER
-    assert thread["unread"] == []
+    assert thread["unread"] == {}
 
 
 def test_clipped_sample_cannot_acknowledge_child_viewport(browser, serve):

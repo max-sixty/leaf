@@ -31,10 +31,12 @@ from playwright.sync_api import Locator, Page, expect
 from leaf.render_checks import wait_until_ready
 from leaf_dev.arms import PageClient, served_page
 from leaf_dev.browser import (
+    PANEL,
     WINDOWS,
     Window,
     go_to_threads,
     load,
+    panel_view,
     scroll_settled,
     settle,
 )
@@ -322,9 +324,7 @@ def open_thread(page: Page, key: str) -> None:
     """The thread `key`, opened from Threads in the floating panel's view."""
     go_to_threads(page)
     page.locator(f'.lf-fp-thread[data-lf-key="{key}"]').click()
-    expect(
-        page.locator(".lf-fp-view[data-lf-route=thread] .lf-msg").first
-    ).to_be_visible()
+    expect(page.locator(f"{panel_view('thread')} .lf-msg").first).to_be_visible()
 
 
 def floating_thread(page: Page) -> None:
@@ -332,7 +332,7 @@ def floating_thread(page: Page) -> None:
     its view, and under it, on the row, the way back, Show on page, Resolve and Close."""
     go_to_threads(page)
     page.locator(".lf-fp-thread", has_text="One reconnect in forty").click()
-    expect(page.locator(".lf-fp-view[data-lf-route=thread]")).to_be_visible()
+    expect(page.locator(panel_view("thread"))).to_be_visible()
 
 
 def thread_code_copy(page: Page) -> None:
@@ -345,7 +345,7 @@ def thread_code_copy(page: Page) -> None:
         "Run this command:\n\n```sh\necho hello\n```\n\nThen continue.",
     )
     floating_thread(page)
-    page.locator(".lf-fp-view[data-lf-route=thread] pre").hover()
+    page.locator(f"{panel_view('thread')} pre").hover()
 
 
 def floating_thread_unread(page: Page) -> None:
@@ -367,7 +367,7 @@ def panel_new_reply(page: Page) -> None:
     """The same thread after the user's own turn, with the agent's answer to it too long
     for the view, arrived below the fold behind New reply."""
     floating_thread(page)
-    view = page.locator(".lf-fp-view[data-lf-route=thread]")
+    view = page.locator(panel_view("thread"))
     messages = view.locator(".lf-msg")
     sent = messages.count() + 1
     page.locator(".lf-fp-field leaf-text").click()
@@ -422,9 +422,7 @@ def reaction_palette(page: Page) -> None:
     """A reply's reactions in the floating panel's thread, the palette opened from the
     strip's trigger, none in force."""
     floating_thread(page)
-    message = page.locator(
-        ".lf-fp-view[data-lf-route=thread] .lf-msg:has(.lf-react-strip)"
-    )
+    message = page.locator(f"{panel_view('thread')} .lf-msg:has(.lf-react-strip)")
     message.first.hover()
     message.first.locator(".lf-react-trigger").click()
     expect(message.first.locator(".lf-react-palette:popover-open")).to_be_visible()
@@ -434,11 +432,11 @@ def reaction_pressed(page: Page) -> None:
     """The same reply once the user has added its first reaction, which the closed
     strip keeps in sight in the accent, under the pointer and away from it."""
     reaction_palette(page)
-    strip = page.locator(".lf-fp-view[data-lf-route=thread] .lf-react-strip").first
+    strip = page.locator(f"{panel_view('thread')} .lf-react-strip").first
     strip.locator(".lf-react").first.click()
     expect(strip.locator('.lf-react[aria-pressed="true"]')).to_have_count(1)
     # A press beside the palette puts it away, as any popover is.
-    page.locator(".lf-fp-view[data-lf-route=thread] .lf-msg-body").first.click()
+    page.locator(f"{panel_view('thread')} .lf-msg-body").first.click()
     expect(strip.locator(".lf-react-palette:popover-open")).to_have_count(0)
     settle(page)
 
@@ -447,7 +445,7 @@ def floating_thread_retitled(page: Page) -> None:
     """The same thread once its opening message is rewritten short, so its title is far
     narrower than the view it names."""
     floating_thread(page)
-    page.locator(".lf-fp-view[data-lf-route=thread] .lf-msg-body").first.dblclick()
+    page.locator(f"{panel_view('thread')} .lf-msg-body").first.dblclick()
     page.keyboard.press("ControlOrMeta+a")
     page.keyboard.type("Ship it?")
     page.keyboard.press("Enter")
@@ -551,7 +549,7 @@ def panel_reply_empty(page: Page) -> None:
     in its empty reply."""
     go_to_threads(page)
     page.locator(".lf-fp-thread:not([data-lf-resolved])").last.click()
-    expect(page.locator(".lf-fp-view[data-lf-route=thread]")).to_be_visible()
+    expect(page.locator(panel_view("thread"))).to_be_visible()
     page.locator(".lf-fp-field leaf-text").click()
     expect(page.locator(".lf-fp-field leaf-text")).to_be_focused()
 
@@ -879,7 +877,7 @@ def option_references(page: Page) -> None:
 def on_me(page: Page) -> None:
     """On me, opened from the floating panel's On me mark."""
     page.locator(".lf-fp-on-user").click()
-    expect(page.locator(".lf-fp-view[data-lf-route=queue]")).to_be_visible()
+    expect(page.locator(panel_view("queue"))).to_be_visible()
 
 
 def on_me_todo(page: Page) -> None:
@@ -925,7 +923,7 @@ def on_agent(page: Page) -> None:
     page.locator(".lf-fp-filters button").filter(
         has_text=re.compile(r"^\s*On (?!me)")
     ).first.click()
-    expect(page.locator(".lf-fp-view[data-lf-route=queue]")).to_be_visible()
+    expect(page.locator(panel_view("queue"))).to_be_visible()
 
 
 def threads_returning(page: Page) -> None:
@@ -1024,9 +1022,7 @@ def retained_quote(page: Page) -> None:
     child = sample.frame_locator("iframe")
     go_to_threads(page, child)
     child.locator('.lf-fp-thread[data-lf-key="bg-retained-quote-thread"]').click()
-    expect(
-        child.locator(".lf-fp-view[data-lf-route=thread] .lf-msg").first
-    ).to_be_visible()
+    expect(child.locator(f"{panel_view('thread')} .lf-msg").first).to_be_visible()
 
 
 def retained_quote_full(page: Page) -> None:
@@ -1104,9 +1100,7 @@ def image_in_page(page: Page) -> None:
 def thread_picture(page: Page) -> None:
     """The gallery's pasted screenshot, a white page, in its message in the panel."""
     open_thread(page, "2be2443f0bb6cc49fc86b52f340e6073")
-    picture = page.locator(
-        ".lf-fp-view[data-lf-route=thread] .lf-message-media img"
-    ).first
+    picture = page.locator(f"{panel_view('thread')} .lf-message-media img").first
     picture.evaluate("image => image.decode()")
     picture.scroll_into_view_if_needed()
 
@@ -1114,7 +1108,7 @@ def thread_picture(page: Page) -> None:
 def image_preview(page: Page) -> None:
     """Inspect the gallery's pasted screenshot through the shared image viewer."""
     open_thread(page, "2be2443f0bb6cc49fc86b52f340e6073")
-    page.locator(".lf-fp-view[data-lf-route=thread] .lf-media-open").first.click()
+    page.locator(f"{panel_view('thread')} .lf-media-open").first.click()
     page.get_by_role("dialog", name="Image preview").wait_for(state="visible")
     page.wait_for_function("""() => {
       const zoom = document.querySelector('.lf-media-viewer-zoom');
@@ -1127,7 +1121,8 @@ def panel_by_keyboard(page: Page) -> None:
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     page.wait_for_function(
-        "() => document.activeElement?.matches('.lf-fp-view[data-lf-route=threads] .lf-fp-thread')"
+        "selector => document.activeElement?.matches(selector)",
+        arg=f"{panel_view('threads')} .lf-fp-thread",
     )
 
 
@@ -1291,7 +1286,7 @@ def panel_reply_long(page: Page) -> None:
     of two wrapped paragraphs in the panel's field, its reply box."""
     go_to_threads(page)
     page.locator(".lf-fp-thread:not([data-lf-resolved])").last.click()
-    expect(page.locator(".lf-fp-view[data-lf-route=thread]")).to_be_visible()
+    expect(page.locator(panel_view("thread"))).to_be_visible()
     page.locator(".lf-fp-field leaf-text").click()
     page.keyboard.insert_text(LONG_DRAFT)
 
@@ -1673,7 +1668,7 @@ def pane_focused(page: Page) -> None:
 
 def aim_cut_by_pane(page: Page) -> None:
     """The aim over a paragraph whose top a workspace pane has scrolled out of view:
-    paint over a target cut where the pane cuts the target."""
+    the pane cuts the aim where it cuts the paragraph."""
     page.locator("#sort-source").evaluate(
         """source => {
           const note = document.getElementById('sort-source-note');
@@ -1686,7 +1681,7 @@ def aim_cut_by_pane(page: Page) -> None:
     page.mouse.move(box["x"] + 120, box["y"] + 20)
     page.keyboard.down("Alt")
     page.wait_for_function(
-        "() => document.querySelector('.lf-aim')?.dataset.lfFor === 'sort-source-note'"
+        "() => document.getElementById('sort-source-note')?.classList.contains('lf-aimed')"
     )
 
 
@@ -2201,7 +2196,7 @@ STATES = (
         region=".lf-fp-opened",
     ),
     State("panel-new-reply", "ship-review", panel_new_reply, region=".lf-fp-opened"),
-    State("plan-head", "ship-review", plan_head, region=".lf-floating-panel"),
+    State("plan-head", "ship-review", plan_head, region=PANEL),
     State(
         "playground-choice",
         "notification-playground",
@@ -2464,12 +2459,12 @@ STATES = (
     State("gallery-multiline-passage", "feature-gallery", multiline_passage),
     State("plan-execution", "review-a-plan", plan_execution, region="#plan-execute"),
     State("plan-caveat", "review-a-plan", plan_caveat, region="#plan-network"),
-    State("page-search", "review-a-plan", page_search, region=".lf-floating-panel"),
+    State("page-search", "review-a-plan", page_search, region=PANEL),
     State(
         "accepted-page-search",
         "review-a-plan",
         accepted_page_search,
-        region=".lf-floating-panel",
+        region=PANEL,
     ),
     State("selected-passage-responses", "review-a-plan", selected_passage_responses),
     State("command-reference-search", "review-a-plan", command_reference_search),

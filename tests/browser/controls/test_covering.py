@@ -8,7 +8,6 @@ from render_cases_layout import ONE_OBLIGATION, toggle_queue
 from render_harness import (
     LONG_PAGE,
     PANEL,
-    PANEL_THREAD,
     SHELL_BOX,
     open_page,
     open_threads,
@@ -21,6 +20,7 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

@@ -20,7 +20,7 @@
 
     "runtime/anchor-travel.js": "187fbe97836671099bed09b7dc26736f63d8f832ce94e13c932f02855faf8825",
 
-    "runtime/annotation-inventory.js": "03318a2c81e7cf6a79a21291449aef3d8dcf9dbf761e32011c952c755b97313d",
+    "runtime/annotation-inventory.js": "049afde5a158ef24d22d775c4c5b4a15de289b68f4d1f6986953f34602009603",
 
     "runtime/annotation-overlay/anchor-paint.js": "3ead2423eb5280061cccc4f6cbb1706f1884a8637caa21d64aa6df36a129340d",
 
@@ -278,7 +278,7 @@
 
     "runtime/language-paths.js": "038583c5c8c80b5f772323aa1f47b6d8d865e615d632014ac2c12cd92f90006f",
 
-    "runtime/layer-client.js": "30266dde8639bf19e6d58c74a1019836c65975027c5185270f820845f1d0d377",
+    "runtime/layer-client.js": "1425f3b99486ab3cbc296c806a895006e01a66b56502a7454e60ebd81c7542c6",
 
     "runtime/leaf-element.js": "105e501f7c6db5fc476c6c97834599c95a376befb02958935985dff92cba9abb",
 
@@ -486,7 +486,7 @@
 
     "runtime/thread/messages.js": "31f14a80eecad3298b13d80f34e66e943ad5f6731bca5646249f6ee8d0da68f7",
 
-    "runtime/thread/model.js": "00cc40a8ca35b33481260c8fff099b017ee80c9bbac9721ac824398408ee82a2",
+    "runtime/thread/model.js": "3f7266a46a2ce2b0f4a9d20d8c44b7ca069a77c32eeacdf8f8ada03f846a0731",
 
     "runtime/thread/placement.js": "2090ac624e57a1aac69f9d61cb22bd88e54e3a0b52399a20256a5852c8353c62",
 

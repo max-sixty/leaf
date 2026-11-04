@@ -228,13 +228,12 @@ function patched(reading, patch) {
 export function completeState(answer, held) {
   const sources = answer.data.sources ?? held.data.sources;
   if (!("since" in answer)) return { ...answer, data: { ...answer.data, sources } };
-  const { since, patch, events, data, ...added } = answer;
+  const { since, patch, events, data } = answer;
   const prior = held.state;
   if (!prior || prior.browser.basis.key !== since.key)
     throw new Error("The state answer extends a reading this tab did not name");
   return {
     ...patched(prior, patch),
-    ...added,
     data: { ...data, sources },
     events: [...prior.events, ...events],
   };

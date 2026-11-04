@@ -1695,7 +1695,7 @@
       "additionalProperties": false
     },
     "Tail": {
-      "description": "What a page server sends a tab in place of a reading when the tab's request names, in `Leaf-Held-Basis`, the `browser.basis.key` of a reading it holds and the server still remembers that reading (`served_state.tail`). The browser applies `patch` to the reading `since` names and completes the whole answer from it (`completeState` in `layer-client.js`). A field the serving route adds to the reading after it is read, as leaf.page's `release`, comes whole beside them.",
+      "description": "What a page server sends a tab in place of a reading when the tab's request names, in `Leaf-Held-Basis`, the `browser.basis.key` of a reading it holds and the server still remembers that reading (`served_state.tail`). The browser applies `patch` to the reading `since` names and completes the whole answer from it (`completeState` in `layer-client.js`).",
       "type": "object",
       "properties": {
         "since": {
@@ -1715,8 +1715,7 @@
           "type": "array",
           "items": { "$ref": "#/$defs/Event" }
         },
-        "data": { "$ref": "#/$defs/Reading/properties/data" },
-        "release": { "type": "string" }
+        "data": { "$ref": "#/$defs/Reading/properties/data" }
       },
       "required": ["since", "patch", "events", "data"],
       "additionalProperties": false

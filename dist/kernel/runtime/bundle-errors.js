@@ -780,7 +780,7 @@ function threadRecordReader() {
 			});
 			unitsByMessage.set(descriptor.document.message, units);
 		}
-		const published = new Map(workflows.map((workflow, at) => [workflow, at]));
+		let published;
 		const workflowsIn = grouped(workflows, (workflow) => workflow.thread);
 		const workflowsOf = grouped(workflows, (workflow) => workflow.message);
 		const workflowsOn = grouped(workflows, (workflow) => workflow.subject.kind === "widget" ? workflow.subject.id : null);
@@ -791,7 +791,9 @@ function threadRecordReader() {
 			const own = workflowsOf.get(message.id) ?? [];
 			const units = unitsByMessage.get(message.id);
 			if (!units) return own;
-			return [.../* @__PURE__ */ new Set([...own, ...units.flatMap((unit) => workflowsOn.get(unit.id) ?? [])])].sort((a, b) => published.get(a) - published.get(b));
+			const all = /* @__PURE__ */ new Set([...own, ...units.flatMap((unit) => workflowsOn.get(unit.id) ?? [])]);
+			const order = published ??= new Map(workflows.map((each, at) => [each, at]));
+			return [...all].sort((a, b) => order.get(a) - order.get(b));
 		};
 		const readingOf = (thread) => {
 			const unread = thread.unread.filter((item) => !locallyRead.has(versionKey(item)));

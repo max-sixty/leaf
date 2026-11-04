@@ -399,9 +399,9 @@ const versionKey = ({ message, version }) => `${message}\u0000${version}`;
    the served thread, its workflows, obligations, to-dos and unread versions, and its
    messages' workflows, captured words and frozen widgets' state. Every other thread
    keeps the very record it had, which the publisher then shares without comparing it,
-   so a reading costs what changed rather than what the page holds. Each input is
-   compared by identity, which holds because the served reading keeps every record the
-   server didn't change (`completeState` in `layer-client.js`) and the folds before
+   so a reading builds only the records that changed, and checks the rest by the
+   identity of what each read. That holds because the served reading keeps every record
+   the server didn't change (`completeState` in `layer-client.js`) and the folds before
    this one keep every thread a gesture doesn't touch (`foldThreads`). */
 
 // Between the lists a record's inputs hold, so an item moving from one to the next
@@ -469,7 +469,8 @@ export function threadRecordReader() {
     }
     // Each list a thread or message holds, selected once for every thread, in the
     // published order.
-    const published = new Map(workflows.map((workflow, at) => [workflow, at]));
+    /** @type {Map<unknown, number> | undefined} */
+    let published;
     const workflowsIn = grouped(workflows, (workflow) => workflow.thread);
     const workflowsOf = grouped(workflows, (workflow) => workflow.message);
     const workflowsOn = grouped(workflows, (workflow) =>
@@ -496,10 +497,10 @@ export function threadRecordReader() {
         ...own,
         ...units.flatMap((unit) => workflowsOn.get(unit.id) ?? []),
       ]);
+      const order = (published ??= new Map(workflows.map((each, at) => [each, at])));
       return [...all].sort(
         (a, b) =>
-          /** @type {number} */ (published.get(a)) -
-          /** @type {number} */ (published.get(b)),
+          /** @type {number} */ (order.get(a)) - /** @type {number} */ (order.get(b)),
       );
     };
     /** @param {Thread} thread */

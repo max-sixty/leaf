@@ -495,12 +495,11 @@ function completeState(answer, held) {
 			sources
 		}
 	};
-	const { since, patch, events, data, ...added } = answer;
+	const { since, patch, events, data } = answer;
 	const prior = held.state;
 	if (!prior || prior.browser.basis.key !== since.key) throw new Error("The state answer extends a reading this tab did not name");
 	return {
 		...patched(prior, patch),
-		...added,
 		data: {
 			...data,
 			sources

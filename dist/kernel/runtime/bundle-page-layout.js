@@ -3879,6 +3879,7 @@ function regionLabel(node) {
 
 //#endregion
 //#region runtime/annotation-inventory.js
+const inProgress = readPart((root) => new Map(root.effective.workflows.flatMap((workflow, at) => isWorkflowProgress(workflow) ? [[workflow.id, at]] : [])));
 const annotationSelection = (root) => ({
 	projection: root.effective.projection,
 	obligations: root.effective.obligations,
@@ -3945,8 +3946,14 @@ function createAnnotationInventory({ readObligations, placedAt, openThread, goTo
 	}
 	const workflows = () => runtime.workflows;
 	const workflowReceipt = (items) => {
-		const receipts = new Set(items.map((item) => item.workflowReceipt?.id));
-		return strongestWorkflow(workflows().filter((workflow) => receipts.has(workflow.id) && isWorkflowProgress(workflow)));
+		const at = inProgress();
+		const published = workflows();
+		const receipts = /* @__PURE__ */ new Set();
+		for (const { workflowReceipt } of items) {
+			const index = workflowReceipt ? at.get(workflowReceipt.id) : void 0;
+			if (index !== void 0) receipts.add(index);
+		}
+		return strongestWorkflow([...receipts].sort((a, b) => a - b).flatMap((index) => published[index] ?? []));
 	};
 	function groupFor(groups, target, pointed = null) {
 		const key = pointed ? `${targetPath(target)}@${pointed.key}` : targetPath(target);

@@ -3662,10 +3662,11 @@ export function createFloatingPanel({
     // (queue-walk.js, `arriveAtItem`), wherever that leads anywhere but this card. On a
     // card it stands at the end of the card's first line, as a thread's Show on page
     // stands on its head line, beside what it shows and where an answer moves it
-    // nowhere; on a line opened into its card, at the end of its answers. Rejected: the
-    // end of a card's answers, under a long message far from the question it shows.
-    // The arrival may open a thread in this panel; keep
-    // its current route until the destination decides, then close only for page travel.
+    // nowhere; on a line opened into its card, at the end of its answers. The user chose
+    // this on 4 November over the end of a card's answers, where under a long message it
+    // stood far from the question it shows. The arrival may open a thread in this
+    // panel; keep its current route until the destination decides, then close only for
+    // page travel.
     // A card drawing the message it asks (`message`) holds that message's drawing ahead
     // of the page's (thread/messages.js, `authoredRank`), so an arrival with On me
     // standing landed in this card, and the user fell to the page as it closed. Where

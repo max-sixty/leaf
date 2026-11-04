@@ -226,6 +226,23 @@ def execution_identity(artifact: RevisionArtifact) -> str:
     return executing(artifact).identity
 
 
+def named_execution(
+    artifact: RevisionArtifact, identity: str
+) -> _ExecutingArtifact | None:
+    """The execution of `artifact` an address names by `identity`, or None where
+    this process runs it under no such identity.
+
+    An address names the same bytes for as long as a browser may cache it, so the
+    execution a document was served under answers the few hundred resource requests
+    its load makes without `executing` reading the page's package copies again for
+    each; the next document load is where a replaced copy shows."""
+    held = serving_runtime()._executed.get(artifact)
+    if held is not None and held[1].identity == identity:
+        return held[1]
+    executed = executing(artifact)
+    return executed if executed.identity == identity else None
+
+
 def executing(artifact: RevisionArtifact) -> _ExecutingArtifact:
     """Freeze one execution of `artifact`: its runtime, selected layer, vocabulary
     and resources under one identity. An execution passed back is already frozen.

@@ -1,8 +1,8 @@
 /* The marks a gesture or the user's place puts on a box of the page: the Alt aim, the
  * margin trace, the proxy ring and the location ring.
  *
- * Each is a class on the box it marks, and the box draws the mark itself, as its own
- * outline (surfaces.css). So the mark moves with the box through every scroll,
+ * Each is an attribute on the box it marks (page-paint.js, `RUNTIME_PAINT_ATTRIBUTE`),
+ * and the box draws the mark itself, as its own outline (surfaces.css). So the mark moves with the box through every scroll,
  * transform and layout change in every engine, passes under what the page stacks over
  * the box, and needs no placement here. Only the design label, which names what the
  * aim marks, stands in Leaf's chrome beside the box (`labelAim`). Persistent

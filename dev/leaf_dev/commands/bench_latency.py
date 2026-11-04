@@ -78,7 +78,7 @@ from leaf_dev.arms import (
     run_leaf,
     serving,
 )
-from leaf_dev.browser import DESKTOP, go_to_threads, headless_shell
+from leaf_dev.browser import WINDOWS, go_to_threads, headless_shell
 from leaf_dev.commands.distribution import current_kernel
 from leaf_dev.example_data import named_source
 from leaf_dev.main_thread import SCRIPT as MAIN_THREAD_SCRIPT
@@ -87,6 +87,8 @@ from leaf_dev.main_thread import main_thread
 OUT = ROOT / ".tmp" / "bench-latency"
 RUNS = 5
 SOURCES = ("triage-board", "corpus")
+# The size of the window every session opens.
+WINDOW_SIZE = WINDOWS["macbook"].size
 # How long a transition may take before the run records it as never shown.
 DEADLINE_S = 30
 # How long a page must stay quiet before its traffic for a transition is read.
@@ -483,9 +485,8 @@ def served(
         leaf("task", "create", str(page_dir), "page", "--title", "Bench task").stdout
     )["id"]
     with serving(arm_dir, state, page_dir) as address:
-        context = browser.new_context(
-            viewport={"width": DESKTOP[0], "height": DESKTOP[1]}
-        )
+        width, height = WINDOW_SIZE
+        context = browser.new_context(viewport={"width": width, "height": height})
         try:
             context.add_init_script(path=MAIN_THREAD_SCRIPT)
             context.add_init_script(path=PROBE)
@@ -895,7 +896,8 @@ def bench_latency(
         json.dumps({"commits": commits, "results": results}, indent=1)
     )
     click.echo(
-        f"{describe(arms)}, {runs} runs, Chrome {chrome}, {DESKTOP[0]}x{DESKTOP[1]}\n"
+        f"{describe(arms)}, {runs} runs, Chrome {chrome}, "
+        f"{WINDOW_SIZE[0]}x{WINDOW_SIZE[1]}\n"
         f"load average {load_before} before, {load_average()} after\n"
         "times are median [min-max] ms from input or write to the painted frame"
         f"{', under the profiler, which slows the page' if profile else ''}\n"

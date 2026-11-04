@@ -1,6 +1,9 @@
 """Stills report failed catalogue states and compare the captures that complete."""
 
+import tempfile
 from contextlib import contextmanager, nullcontext
+from dataclasses import replace
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -9,7 +12,7 @@ from PIL import Image
 
 from leaf_dev import visits
 from leaf_dev.arms import Arm
-from leaf_dev.browser import DESKTOP, WINDOWS
+from leaf_dev.browser import WINDOWS, Window
 from leaf_dev.commands import stills
 from leaf_dev.states import State
 
@@ -60,8 +63,8 @@ def stills_catalogue(tmp_path, monkeypatch):
     windows = []
 
     @contextmanager
-    def tab(browser, viewport, scheme, touch, *, motion, scale):
-        windows.append((viewport, scheme, touch))
+    def tab(browser, window, scheme, *, motion, scale):
+        windows.append((window, scheme))
         page = SimpleNamespace(
             url="",
             screenshot=lambda *, path: Image.new("RGB", (4, 4), "white").save(path),
@@ -259,40 +262,44 @@ def test_a_failed_analysis_preserves_later_comparisons_and_crops(
 def test_the_run_opens_each_state_in_its_own_window_unless_told_another(
     stills_catalogue, monkeypatch, tmp_path
 ):
-    short = (1440, 480)
+    short = Window((1440, 480))
+    finger = Window((1440, 900), touch=True)
     monkeypatch.setattr(
         stills,
         "STATES",
         (
             State("anywhere", "fixture"),
-            State("short", "fixture", viewport=short),
-            State("finger", "fixture", touch=True),
+            State("short", "fixture", window=short),
+            State("finger", "fixture", window=finger),
         ),
     )
-    windows = stills_catalogue.windows
 
-    assert CliRunner().invoke(stills.stills).exit_code == 0
-    assert windows[::2] == [
-        (DESKTOP, "light", False),
-        (short, "light", False),
-        (DESKTOP, "light", True),
-    ]
+    def windows(*options):
+        """The window and scheme of each tab a run with `options` opens."""
+        out = Path(tempfile.mkdtemp(dir=tmp_path))
+        monkeypatch.setattr(stills, "run_directory", lambda path: out)
+        stills_catalogue.windows.clear()
+        result = CliRunner().invoke(stills.stills, options)
+        assert result.exit_code == 0, result.output
+        return set(stills_catalogue.windows)
 
-    windows.clear()
-    monkeypatch.setattr(stills, "run_directory", lambda path: tmp_path)
-    result = CliRunner().invoke(
-        stills.stills, ["--viewport", "390x844", "--scheme", "dark", "--no-touch"]
-    )
-    assert result.exit_code == 0, result.output
-    assert set(windows) == {((390, 844), "dark", False)}
-
+    assert windows() == {
+        (WINDOWS["macbook"], "light"),
+        (short, "light"),
+        (finger, "light"),
+    }
+    # A size --viewport spells has a mouse, in place of the state's finger.
+    assert windows("--viewport", "390x844", "--scheme", "dark") == {
+        (Window((390, 844)), "dark")
+    }
     # A named window brings its pointer.
-    windows.clear()
-    (tmp_path / "phone").mkdir()
-    monkeypatch.setattr(stills, "run_directory", lambda path: tmp_path / "phone")
-    result = CliRunner().invoke(stills.stills, ["--viewport", "phone"])
-    assert result.exit_code == 0, result.output
-    assert set(windows) == {(WINDOWS["phone"].size, "light", True)}
+    assert windows("--viewport", "phone") == {(WINDOWS["phone"], "light")}
+    # --touch puts each state's own window under a finger.
+    assert windows("--touch") == {
+        (replace(WINDOWS["macbook"], touch=True), "light"),
+        (Window(short.size, touch=True), "light"),
+        (finger, "light"),
+    }
 
 
 def test_the_run_lists_lines_whose_words_split_their_baseline(

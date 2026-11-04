@@ -19,9 +19,10 @@ Message delivery belongs to thread_journey and test_render_thread_snapshots, who
 held checkpoints capture a send before its POST completes; a still cannot hold one.
 
 `--viewport`, `--scheme` and `--touch` set the window of every state a run captures;
-a state that names its own viewport or pointer keeps it unless `--viewport` or
-`--touch` is given (the `leaf_dev.states` header says when a state may). Raw
-screenshots always preserve the full viewport and its geometry.
+a state that names its own window keeps it unless `--viewport` gives another, and
+`--touch` or `--no-touch` sets the pointer of either (the `leaf_dev.states` header
+says when a state may name one). Raw screenshots always preserve the full viewport
+and its geometry.
 Use repeated `--state` options to compare only the states a change touches.
 
 Whether a state changed, and where, is `lf-shot`'s reading of its two stills, from the
@@ -88,7 +89,14 @@ from leaf.revision_artifact import resource_type
 from leaf.runtime_selection import read_runtime
 from leaf_dev import ROOT
 from leaf_dev.arms import base_option, choose_arms, describe, run_directory
-from leaf_dev.browser import engine_option, headless_shell, launch, tab_options
+from leaf_dev.browser import (
+    Window,
+    chosen_window,
+    engine_option,
+    headless_shell,
+    launch,
+    tab_options,
+)
 from leaf_dev.example_data import named_source
 from leaf_dev.states import STATES, State
 from leaf_dev.visits import Visit, said, visits
@@ -520,7 +528,7 @@ def stills(
     base: str,
     names: tuple[str, ...],
     authored: bool,
-    viewport: tuple[int, int] | None,
+    viewport: Window | None,
     scheme: str,
     touch: bool | None,
     engine: str,
@@ -530,9 +538,9 @@ def stills(
     each state that changed into a before/after pair under .tmp/stills/.
 
     --viewport, --scheme and --touch set the window of every state captured; a state
-    that names its own viewport or pointer keeps it unless --viewport or --touch is
-    given. The iPhone sets its own window, and its Safari takes no input, so only a
-    state at rest captures there."""
+    that names its own window keeps it unless --viewport gives another, and --touch
+    or --no-touch sets the pointer of either. The iPhone sets its own window, and its
+    Safari takes no input, so only a state at rest captures there."""
     states = [state for state in STATES if not names or state.name in names]
     sources = {state.name: named_source(state.source) for state in states}
     out = run_directory(OUT)
@@ -567,7 +575,8 @@ def stills(
                 state,
                 sources[state.name],
                 scratch / state.name,
-                window=state.window(viewport, scheme, touch),
+                window=chosen_window(state.window, viewport, touch),
+                scheme=scheme,
                 read=partial(capture, state, folder),
                 scale=SCALE,
                 authored=authored,

@@ -149,9 +149,11 @@ property.
 
 A widget output reads through the same property, as the value its producer published
 with `publishOutput(element, name, value)` (package-data.md, "Widget outputs"). The
-producer publishes in the turn that commits the matching rendering, and publishes
-`null` rather than keep stale records after a failed replacement. Leaf doesn't check a
-published value against its contract, so publish only values that fit it.
+reader has to be a `LeafElement`, which is how Leaf delivers an input. The producer can
+be any element with an `id` whose tag declares the output. It publishes in the turn that
+commits the matching rendering, and publishes `null` rather than keep stale records
+after a failed replacement. Leaf doesn't check a published value against its contract,
+so publish only values that fit it.
 
 Rows whose contract declares a `deferred` field arrive without it. Fetch one row's field
 with `loadDeferred(value, key)`, passing the value Leaf delivered that the row came

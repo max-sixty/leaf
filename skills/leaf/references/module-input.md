@@ -187,6 +187,31 @@ Every visible button, checkbox, radio or selectable control a widget builds with
 `offer()` or `selectableOffer()` is a target the `g` key reaches, with nothing more to
 declare.
 
+### Invoker commands
+
+An authored button asks a widget to do something now through HTML's invoker commands.
+A value the widget holds is an output instead (`package-data.md`, "Widget outputs").
+
+```html
+<button commandfor="merge-film" command="--seek" value="merge">Merge</button>
+```
+
+The browser fires a `command` event on the target, whose `command` names the command and
+whose `source` is the button, so a value on the button reaches the widget:
+
+```js
+this.addEventListener("command", ({ command, source }) => {
+  if (command === "--seek") this.#seek(source.value);
+});
+```
+
+Declare each custom command in the tag's registry entry:
+`"x-commands": {"--seek": "Holds the step the button's value names."}`. The browser
+reports nothing for a command that reaches no handler, so `page check` refuses a
+`commandfor` naming no element, a `--` command the target's tag doesn't declare, and any
+other command but HTML's own, such as `toggle-popover`. A button in a thread message may
+name a widget on the page.
+
 ## Focus and layers
 
 Move focus with `focusDestination(element, cause)`. The cause tells Leaf why focus

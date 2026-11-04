@@ -303,10 +303,15 @@ share one:
 
 ### Widget outputs
 
-A widget may also publish a typed value derived from its current inputs. Its registry
-entry declares `"x-output": {"files": {"contract": "file-list"}}`; the contract is
-an ordinary `$data.contracts` entry. A consumer uses the same `x-data` input API for
-an external source or another widget's output:
+When a value one widget holds now decides what another shows, such as the step a film
+is playing or the files a diff holds, the first publishes it as an output, and the
+second binds it and draws its own mark from it. The reader gets the current value
+whichever of the two upgrades first, and needn't know the producer's tag. A request to
+do something now is a command instead (`module-input.md`, "Invoker commands").
+
+A producer's registry entry declares `"x-output": {"files": {"contract": "file-list"}}`;
+the contract is an ordinary `$data.contracts` entry. A consumer uses the same `x-data`
+input API for an external source or another widget's output:
 
 ```json
 "x-data": {

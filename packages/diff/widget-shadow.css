@@ -556,18 +556,6 @@ pre[data-overflow="wrap"] .lf-diff-rows {
   font: var(--font-small);
   line-height: var(--code-line);
 }
-/* A sibling carries the viewport's ring above its positioned rows without
-   scrolling with them. Unlike a parent's :has() pseudo-element, its selector
-   also invalidates reliably in Firefox when focus moves into a source row. */
-.lf-diff-frame {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  --lf-ring-at: var(--focus-ring-inset);
-}
-[data-lf-focus-visible] + .lf-diff-frame {
-  outline: var(--focus-ring);
-}
 /* Container units are the visible reader width, while max-content lets source rows
    extend horizontally. Inline-size containment keeps a long remark from widening
    the source; sticky positioning keeps the conversation in view while it scrolls.

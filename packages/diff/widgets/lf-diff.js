@@ -807,7 +807,10 @@ async function renderFile(file, overflow) {
     separator.classList.add("lf-ui");
   markSyntax(content, foreground);
   const lines = renderedLines(file, content);
+  // The block is its source's ring frame (surfaces.css, `.lf-ring-frame`): the ring
+  // stands over the rows the source scrolls, outside its scrollport.
   const pre = document.createElement("pre");
+  pre.className = "lf-ring-frame";
   pre.dataset.overflow = overflow;
   const viewport = document.createElement("code");
   viewport.dataset.code = "";
@@ -824,10 +827,7 @@ async function renderFile(file, overflow) {
   rows.style.setProperty("--lf-diff-gutter", `${String(largest).length + 3}ch`);
   rows.append(content);
   viewport.append(rows);
-  const frame = document.createElement("span");
-  frame.className = "lf-diff-frame";
-  frame.setAttribute("aria-hidden", "true");
-  pre.append(viewport, frame);
+  pre.append(viewport);
   return { pre, rows, lines };
 }
 

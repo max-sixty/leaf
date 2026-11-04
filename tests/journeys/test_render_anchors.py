@@ -22,7 +22,6 @@ from render_cases_navigation import (
 )
 from render_harness import (
     INLINE_PAGE,
-    PANEL_THREAD,
     PASSAGE_SOURCES,
     RELEASE_FOCUS,
     command_reference_rows,
@@ -53,6 +52,7 @@ from leaf import service as service_model
 from leaf import structure as structure_model
 from leaf.registry.storage import read_page_registry
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.browser import PANEL_THREAD
 from leaf_dev.example_data import patch_manifest
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -753,7 +753,7 @@ diff --git a/README.md b/README.md
 
     summary.hover(position={"x": 100, "y": 10})
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aim")).to_be_visible()
+    expect(page.locator(".lf-aimed").first).to_be_visible()
     page.keyboard.up("Alt")
     summary.click(modifiers=["Alt"])
     expect(page.locator(".lf-fab-bar")).to_be_visible()

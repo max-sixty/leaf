@@ -259,9 +259,8 @@ export function keyBadgePlacement() {
       const box =
         places.find((place) => free(place) && !coversAnotherControl(place, owner)) ??
         placeAt([corner.left, corner.top]);
-      if (!reserve(box)) {
-        if (chip.style.visibility !== "hidden") chip.style.visibility = "hidden";
-      } else if (chip.style.visibility) chip.style.removeProperty("visibility");
+      if (!reserve(box)) chip.style.visibility = "hidden";
+      else chip.style.removeProperty("visibility");
       seated.push({ seat, target: owner, at: corner, start, box, held: box.held });
     }
     seats.place(seated);

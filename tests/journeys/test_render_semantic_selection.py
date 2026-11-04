@@ -9,7 +9,6 @@ from render_cases_navigation import (
 )
 from render_harness import (
     PANEL,
-    PANEL_THREAD,
     expect_panel_offers,
     open_page,
     panel_control,
@@ -21,6 +20,7 @@ from render_harness import (
 )
 
 from leaf import event_log as events_model
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

@@ -122,9 +122,9 @@ lf-tabs[data-lf-views] > lf-tab {
 @media (prefers-reduced-motion: no-preference) {
   .lf-tabstrip[data-lf-selection-travel] > .lf-tab-selection {
     transition:
-      left 160ms ease,
-      top 160ms ease,
-      width 160ms ease;
+      left var(--lf-motion-mark) ease,
+      top var(--lf-motion-mark) ease,
+      width var(--lf-motion-mark) ease;
   }
 }
 .lf-tabstrip .lf-tab-btn[aria-selected="true"] {
@@ -317,7 +317,7 @@ lf-tabs[data-lf-views] > lf-tab {
      *
      * Summary and outcome each add one line to a horizontal strip, as tall as a line of
      * the font it is set in: the summary's `--font-compact` and the outcome's
-     * `--font-heading` (base.css), each its size times the fonts' shared leading. The
+     * `--font-heading` (tokens.css), each its size times the fonts' shared leading. The
      * same authored declarations reserve those lines before upgrade, so the panel
      * starts in its final position. In a column, summaries can wrap to keep their
      * context. */

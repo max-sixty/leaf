@@ -41,10 +41,10 @@ from .server import read_service, running_server
 from .service import PageTransaction, owned_pages, unacknowledged
 from .state import (
     SESSION_SUFFIX,
+    claims_home,
     session_claims,
     session_file,
     session_record,
-    state_home,
     still_named,
     turn_closed,
 )
@@ -183,9 +183,7 @@ class Watch:
         self._lost: set = set()
         self._check_at: dict = {}
         self.claims = (
-            session_claims(self.session_id)
-            if self.session_id
-            else state_home() / "claims"
+            session_claims(self.session_id) if self.session_id else claims_home()
         )
         self.watched: list[Path] = []
         self.changes = None

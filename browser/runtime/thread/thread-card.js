@@ -61,7 +61,7 @@ import {
   dismissReply,
   threadHoldsDraft,
 } from "./replies.js";
-import { atScrollEnd } from "../scrolling.js";
+import { followsEnd } from "../scrolling.js";
 import { settleThread } from "./folding.js";
 import { answeredInWords } from "../obligations/model.js";
 import { SAY_BOX } from "./selectors.js";
@@ -559,7 +559,7 @@ export class ThreadView {
       if (news.settled) return false;
       const last = this.#model.messages.at(-1);
       const list = this.#transcript.node;
-      const follows = list.scrollHeight > list.clientHeight + 0.5 && atScrollEnd(list);
+      const follows = list.scrollHeight > list.clientHeight + 0.5 && followsEnd(list);
       const atEnd =
         (!news.appended || appendedAtEnd) &&
         !news.summaries &&

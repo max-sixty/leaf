@@ -40,7 +40,7 @@
    reply does not grow twice. Margin location and its keyboard ladder own dismissal
    and target landing; the card keeps Send's focus on the thread that received it. */
 import {
-  atScrollEnd,
+  followsEnd,
   keepFoot,
   moveScrollerBy,
   pageScroller,
@@ -677,7 +677,7 @@ export function createThreadPreview({
             const priorReading =
               session.reading?.input === inputCount() ? session.reading : null;
             reading ??= session.transcript && {
-              end: !fresh && (priorReading?.end ?? atScrollEnd(session.transcript)),
+              end: !fresh && (priorReading?.end ?? followsEnd(session.transcript)),
               scroll: priorReading?.scroll ?? session.transcript.scrollTop,
               keepTop:
                 stationary && !fresh && anchored.edge === "top" && !anchored.writing,
@@ -924,7 +924,7 @@ export function createThreadPreview({
       lastBox.bottom >= listBox.top &&
       lastBox.bottom <= (replyBox?.top ?? listBox.bottom) + 80 &&
       followTranscript &&
-      atScrollEnd(followTranscript)
+      followsEnd(followTranscript)
         ? followTranscript
         : null;
     session.reading = session.transcript && {

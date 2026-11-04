@@ -210,7 +210,8 @@ Declare each custom command in the tag's registry entry:
 reports nothing for a command that reaches no handler, so `page check` refuses a
 `commandfor` naming no element, a `--` command the target's tag doesn't declare, and any
 other command but HTML's own, such as `toggle-popover`. A button in a thread message may
-name a widget on the page.
+name a widget on the page. A press before the target's module has loaded reaches no
+listener and does nothing, as a click on any widget not yet upgraded does.
 
 ## Focus and layers
 

@@ -28,10 +28,13 @@
  * `playhead` is the lines another widget is at, in that grammar too, or null: Leaf sets
  * it from the `playhead` output of the widget `follows` names (registry `x-data`), and
  * a plain host sets the property itself. The block marks the rows those numbers address
- * (`data-lf-at`) in its own face, and as the value moves brings the first into view
- * within the box that scrolls the block, never the page: a reader watching the widget
- * it follows keeps their place while the source moves beside it. Several excerpts of one
- * file can follow one widget, since a number outside an excerpt marks nothing there.
+ * (`data-lf-at`) in its own face, and as the value moves brings the first a third of the
+ * way down the box that scrolls the block, never the page: a reader watching the widget
+ * it follows keeps their place while the source moves beside it, and sees what comes
+ * next. Once the reader scrolls that box, the block leaves it alone until the mark is
+ * back in view, as a terminal stops tailing, since no timeout can tell how long they
+ * are reading. Several excerpts of one file can follow one widget, since a number
+ * outside an excerpt marks nothing there; they share the box's record.
  * It is a `LeafElement` only to be handed that property; it draws no Lit template, and
  * its source draw is the update's completion, so Leaf's first anchor pass waits for the
  * lines.
@@ -50,7 +53,6 @@ import {
   LeafElement,
   setScroll,
   scrollersOf,
-  scrollIntoView,
   bodyText,
   commandsChanged,
   failSoft,
@@ -118,6 +120,11 @@ function* numbering(el) {
   while (true) yield ++last;
 }
 
+// Where each box stood when a block last followed in it, so a box elsewhere is one the
+// reader moved.
+/** @type {WeakMap<Element, number>} */
+const followed = new WeakMap();
+
 customElements.define(
   "lf-code",
   class extends LeafElement {
@@ -184,8 +191,19 @@ customElements.define(
       }
       if (!follow || !first) return;
       const [box] = scrollersOf(first);
-      if (box && box !== document.scrollingElement)
-        scrollIntoView(first, { block: "nearest", within: box });
+      if (!box || box === document.scrollingElement) return;
+      const frame = box.getBoundingClientRect();
+      const { top, bottom } = first.getBoundingClientRect();
+      const placed = followed.get(box);
+      const inView = top >= frame.top && bottom <= frame.bottom;
+      if (placed !== undefined && Math.abs(box.scrollTop - placed) > 1 && !inView)
+        return;
+      if (
+        top < frame.top + frame.height * 0.15 ||
+        bottom > frame.top + frame.height * 0.7
+      )
+        setScroll(box, { top: box.scrollTop + top - frame.top - frame.height / 3 });
+      followed.set(box, box.scrollTop);
     }
 
     async #draw() {

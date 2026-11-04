@@ -197,9 +197,10 @@ summary from before a compaction, doesn't carry its rules.
 - `references/module-authoring.md`: before writing or changing a page-owned or
   package widget, or using a Leaf helper `page-behavior.md` doesn't describe in a page
   script. Then, as the behavior needs them: `references/module-reading.md` for reading the page, content helpers, obligations
-  and history; `references/module-state.md` for recorded state, data, authenticated
-  HTTP connections and LLM generation;
-  `references/module-input.md` for commands, focus and text entry;
+  and history; `references/module-state.md` for recorded state, state shared between
+  widgets, data, authenticated HTTP connections and LLM generation;
+  `references/module-input.md` for commands, one widget asking another to act, focus and
+  text entry;
   `references/module-scroll-and-motion.md` for scrolling, travel and motion; and
   `references/module-annotations.md` for margin entries, visual parts and Threads.
 - `references/interface-goals.md`: before writing a widget, package CSS, or page CSS

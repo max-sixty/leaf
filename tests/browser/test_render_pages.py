@@ -194,6 +194,21 @@ def test_sort_source_marks_the_line_each_step_runs(browser, serve):
             and line["y"] + line["height"] <= pane["y"] + pane["height"]
         )
     assert page.evaluate("document.scrollingElement.scrollTop") == 0
+    # The reader scrolling the pane away holds it there through further steps, and
+    # bringing the mark back into view lets it follow again.
+    source.evaluate("element => { element.scrollTop = 0; }")
+    scrub.focus()
+    page.keyboard.press("ArrowRight")
+    expect(marked.first).to_be_attached()
+    assert source.evaluate("element => element.scrollTop") == 0
+    marked.first.evaluate("element => element.scrollIntoView({block: 'center'})")
+    for _ in range(8):
+        page.keyboard.press("ArrowRight")
+    pane, line = source.bounding_box(), marked.first.bounding_box()
+    assert (
+        pane["y"] <= line["y"]
+        and line["y"] + line["height"] <= pane["y"] + pane["height"]
+    )
     scrub.evaluate(
         "element => { element.value = element.max; element.dispatchEvent(new Event('input', {bubbles: true})); }"
     )

@@ -68,9 +68,12 @@ own (`../SOUL.md`, "Keep the foundation small and extensible").
   landmark (`version.js`). One Leaf hold, acting once in the task that makes a
   re-render's change, keeps what anchoring can't: the control under the user's hands,
   the reading line where growth starts between anchoring's box and it, and a place the
-  change hides. Owner: `user-place.js`, whose header records the costs the user
-  accepted. Check:
-  `test_an_edit_above_the_paragraph_read_holds_it_with_the_reply_box_scrolled_away`.
+  change hides. Every surface's re-render takes it through its focus hold
+  (`holdFocus`), so none decides it for itself; a gesture's own result is its
+  handler's to place. Owner: `user-place.js` (`keepPlace`), whose header records the
+  costs the user accepted. Checks:
+  `test_an_edit_above_the_paragraph_read_holds_it_with_the_reply_box_scrolled_away`,
+  `test_an_action_joining_page_map_above_the_focused_row_leaves_it_still`.
 - **Nothing Leaf draws moves the page's content.** Pins, passage marks and runtime
   controls sit over the page and take no space, and no rule pads or widens a block to
   make room for them. The rail sits right of `main` when the window is wide enough and

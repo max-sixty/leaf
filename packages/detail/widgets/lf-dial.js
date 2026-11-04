@@ -368,7 +368,10 @@ customElements.define(
       return at;
     }
 
-    // Glide the blocks still shown from where they stood; fade in the ones arriving.
+    // Glide the blocks still shown from where they stood; fade in the ones arriving. A
+    // gliding block is no scroll anchor while it glides: Firefox anchors on where a box
+    // is drawn, so anchoring on one the glide carries scrolled the page by its glide,
+    // frame by frame, and took the reader 360px off the line the hold had kept.
     /** @param {Map<Element, number>} before @param {Element} scope */
     #move(before, scope) {
       const duration = foldDuration();
@@ -384,7 +387,14 @@ customElements.define(
         }
         const by = was - top;
         if (Math.abs(by) >= 1)
-          motion(node, [{ translate: `0 ${by}px` }, { translate: "0 0" }], duration);
+          motion(
+            node,
+            [
+              { translate: `0 ${by}px`, overflowAnchor: "none" },
+              { translate: "0 0", overflowAnchor: "none" },
+            ],
+            duration,
+          );
       }
     }
   },

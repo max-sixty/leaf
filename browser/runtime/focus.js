@@ -1270,6 +1270,16 @@ const dropped = () => {
   const node = lastLocation?.deref();
   return node && !drawn(node) ? node : null;
 };
+// Where the user stands on screen across the re-render a hold brackets, kept as its
+// restore runs (user-place.js, `keepPlace`, installed there since it reads geometry,
+// which reads this module). Every Leaf surface's re-render takes its hold here, so the
+// one rule reaches each of them.
+/** @type {(node: Element, scope: Element) => () => void} */
+let keepingPlace = () => () => {};
+/** @param {typeof keepingPlace} keep */
+export function installPlaceKeeping(keep) {
+  keepingPlace = keep;
+}
 // A list of keyed items names its place by `key`, the attribute each item carries. The
 // hold then reads the item the user is in and the order of every item at the hold,
 // and its restore, after the held node, tries the item now carrying the same key, then
@@ -1280,12 +1290,21 @@ const dropped = () => {
 export function holdFocus(scope, { key = null } = {}) {
   const node = heldIn(scope);
   if (!node) return null;
+  const keep = keepingPlace(node, scope);
+  /** @param {FocusRestore} hand @returns {FocusRestore} */
+  const kept =
+    (hand) =>
+    (...standIns) => {
+      const landed = hand(...standIns);
+      keep();
+      return landed;
+    };
   const restore = holdOn(node);
-  if (!key) return restore;
+  if (!key) return kept(restore);
   /** @type {Element | null} */
   let item = node;
   while (item && !item.matches?.(`[${key}]`)) item = renderedParent(item);
-  if (!item || item === scope || !renderedUnder(item, scope)) return restore;
+  if (!item || item === scope || !renderedUnder(item, scope)) return kept(restore);
   // The items are read in the tree the held one stands in, which is the scope's own or a
   // shadow tree inside it.
   const tree = item.getRootNode() === scope.getRootNode() ? scope : item.getRootNode();
@@ -1309,7 +1328,7 @@ export function holdFocus(scope, { key = null } = {}) {
     control.localName +
     [...control.classList].map((name) => `.${CSS.escape(name)}`).join("");
   const [same, ...rest] = order;
-  return (...standIns) => {
+  return kept((...standIns) => {
     // The items now present, by key, read once for the whole restore: a list whose keys
     // all changed tries every held key against it.
     /** @type {Map<string | null | undefined, Element[]> | null} */
@@ -1365,7 +1384,7 @@ export function holdFocus(scope, { key = null } = {}) {
       return landedOn(place);
     };
     return restore(() => find(same), ...rest.map(neighbour), ...standIns);
-  };
+  });
 }
 /** @param {Element} scope */
 const heldIn = (scope) => {

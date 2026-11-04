@@ -39,7 +39,6 @@ import {
   stuckBox,
   userScrollport,
 } from "../geometry.js";
-import { focused } from "../focus.js";
 import { scrollBehavior } from "../motion.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { scrollerFor } from "../reading-regions.js";
@@ -47,7 +46,7 @@ import { edgeAt, returnTo } from "../scroll-containers.js";
 import { under } from "../shadow.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
 import { retainUserIntent } from "../user-intent.js";
-import { focusedInView, holdPlace, readingAt } from "../user-place.js";
+import { standsAt } from "../user-place.js";
 import {
   alreadyShown,
   fitsWhole,
@@ -349,32 +348,9 @@ export function readBoxPlace(input) {
 }
 
 // A render that inserts above the control the user is on, such as an agent's turn
-// arriving in the thread they are writing in (held-news.js) or an edit growing a turn
-// above their box, moves it by what it inserted. `holdBox` holds where the user is
-// across the render (user-place.js, `holdPlace`), so news moves no control under the
-// user's hands. Only one in view is under their hands (user-place.js,
-// `focusedInView`). The control is where the user is, so a message they stand on
-// inside the thread is what stays still, and the reply box below it moves down by the
-// turn. A user on the thread itself, where a send leaves them, waits at its reply box,
-// so the box is what stays still while it is in view, as a chat's composer does. A user
-// who scrolled away from the control reads something else, so what stands at the
-// reading line in the thread's column stays still instead (`readingAt`): the browser's
-// anchoring holds the first box on screen, and an edit growing the first paragraph of
-// the message whose second they read grows inside that box. A control the render
-// replaced, or one that left the thread view it stood in, as a reply going on where its
-// thread now stands does (replies.js, `releaseReplies`), has nothing to hold. The hold
-// scrolls what the boxes scrolling the control can take; where they can't take it all,
-// as on a page shorter than its window or a short panel at the page's foot, whose room
-// the growth fills first, the control moves by the rest.
-/** @param {Element | null | undefined} control */
-export function holdBox(control) {
-  const held = control?.closest(SAYS_IN);
-  if (!control || !held) return () => {};
-  if (control !== focusedInView()) return holdPlace(readingAt(held));
-  const box = control.matches(THREAD) ? control.querySelector(SAY_BOX) : null;
-  const still = box && seenRect(box, new Map()) ? box : control;
-  const restore = holdPlace(still);
-  return () => {
-    if (focused() === control && held.contains(still)) restore();
-  };
-}
+// arriving in the thread they are writing in (held-news.js), keeps that control where it
+// stood, as every surface's re-render does (user-place.js, `keepPlace`). A user on the
+// thread itself, where a send leaves them, waits at its reply box, so the box is what
+// stays still while it is shown, as a chat's composer does, and what stands above it
+// moves up by the turn; a message they stand on stays and the box below it moves down.
+standsAt(THREAD, (thread) => thread.querySelector(SAY_BOX));

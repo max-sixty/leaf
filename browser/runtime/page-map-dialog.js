@@ -26,6 +26,7 @@
 
 import { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
 import { scrollIntoView } from "./landing-scroll.js";
+import { registerReadingRegion } from "./reading-regions.js";
 import { nextRender } from "./rendering.js";
 import { blockAt, says } from "./passages.js";
 import {
@@ -91,6 +92,16 @@ const dialogSearch = searchField("lf-page-map-search", {
 });
 const dialogList = el("div", "lf-page-map-list");
 dialogList.toggleAttribute("data-lf-scroll", true);
+// While the map stands its list scrolls on its own, so it is a reading region then, as
+// the command reference's list is: the list is what scrolls a row, and what keeps the
+// row the user is on where it stood as the sheet re-renders (user-place.js,
+// `keepPlace`).
+/** @type {(() => void) | null} */
+let stopListReading = null;
+dialog.addEventListener("close", () => {
+  stopListReading?.();
+  stopListReading = null;
+});
 const dialogEmpty = el(
   "p",
   "lf-rows-empty",
@@ -388,6 +399,11 @@ export function createPageMapDialog({
     if (!dialog.open) {
       openLayer(dialog, openedFrom);
       dialogSearch.value = "";
+      stopListReading ??= registerReadingRegion({
+        id: "lf-region:page-map",
+        host: dialog,
+        body: dialogList,
+      });
     }
     renderSheet();
     if (!dialog.open) showNativeLayer(dialog);

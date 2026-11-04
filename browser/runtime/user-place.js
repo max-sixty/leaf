@@ -6,8 +6,9 @@
    document order in both Chromium and Firefox, and after the change scrolls by however
    far content above that node moved it. Leaf adds no anchoring of its own to a render,
    and turns the browser's off only on a box that must not be its anchor, as the aside
-   before a sidebar page's body (layouts.css), or while a motion carries a box's content
-   (box-motion.js). A render helps it by keeping the nodes it doesn't change, since a
+   before a sidebar page's body (layouts.css), or on a box while a motion carries it,
+   since Firefox anchors on where a box is drawn (box-motion.js, lf-dial.js). A render
+   helps it by keeping the nodes it doesn't change, since a
    node it replaces is an anchor lost: neither engine anchors again, so whatever grew
    above moves the reader by its full height (dom-children.js, `setRenderedChildren`,
    for a message's words; `x-patch: members` for a widget a revision edits inside). A
@@ -18,12 +19,13 @@
    Anchoring can't hold three places the user relies on, and `holdPlace` holds them,
    once, in the task that makes the change:
    - a control under the user's hands below growth on screen, as an agent's turn
-     arriving just above the reply box they type in, which anchoring keeps still only
-     where its anchor stands below the growth (reply-landing.js, `holdBox`);
+     arriving just above the reply box they type in, or an action joining Page Map
+     just above the row they are on, which anchoring keeps still only where its anchor
+     stands below the growth: every surface's focus hold keeps it (`keepPlace`, below);
    - the reading line, a quarter of the way down the window the page shows, where
      growth starts below the box anchoring holds and above the line, as an edit growing
      the first paragraph of the message whose second the user reads, with the reply box
-     they wrote in scrolled away (`holdBox`, `readingAt`);
+     they wrote in scrolled away (`keepPlace`, `readingAt`);
    - a place the change hides, as Skim folds the paragraph being read, where the node
      standing for it takes its place (lf-dial.js).
    `holdPlace(node, standIn)` reads where `node` stands and returns the step that,
@@ -49,9 +51,10 @@
 import { seenRect, shownWindow, stuckBox } from "./geometry.js";
 import { pageScroller, placeKept } from "./scrolling.js";
 import { edgeAt, returnTo, scrollersOf } from "./scroll-containers.js";
-import { inChrome } from "./shadow-tree.js";
-import { focused, onCurrentLocation } from "./focus.js";
+import { inChrome, renderedParent, renderedUnder } from "./shadow-tree.js";
+import { focused, installPlaceKeeping, onCurrentLocation } from "./focus.js";
 import { watchScrollEnds } from "./arrivals.js";
+import { afterScript } from "./rendering.js";
 
 // The focused control while it marks where the user is: while any of it is in front of
 // them (geometry.js, `seenRect`), and it is not riding in a stuck sticky box
@@ -60,7 +63,7 @@ import { watchScrollEnds } from "./arrivals.js";
 // and a stuck tab strip, title or reply row, like the floating panel's row, stays in
 // view over whatever they scroll to, so it names no place in what it holds. A reflow
 // then holds, and a landing returns them to, what they see instead. A render holding
-// the box they type in (reply-landing.js, `holdBox`), a reading place
+// the box they type in (`keepPlace`), a reading place
 // (reading-place.js, `capturePlace`), and revision continuity (version.js), for the
 // region the user is working and whether a replaced reply box is scrolled back into
 // view, ask this. The Threads list's resize landing (thread/landing.js) asks a question
@@ -145,3 +148,71 @@ export function holdPlace(node, standIn = () => null) {
     );
   };
 }
+
+// What a Leaf surface's re-render keeps where it stood, as its focus hold hands the user
+// back (focus.js, `holdFocus`), so every surface keeps it by one rule and none decides
+// it for itself: the control the user is on, where it is shown and its scroller's flow
+// places it, as a Page Map row or a margin card's message is, which an action joining
+// above it inside the window pushes down, past the first box anchoring holds.
+// A container the user is on stands at the box a rule names for it (`standsAt`), as a
+// thread they sent from waits at its reply box. A user scrolled away from the control
+// reads something else, so what stands at the reading line in the surface's column
+// stays instead (`readingAt`). A box a placer positions, as the margin's rows and the
+// pins are, or one stuck in its scroller, stands where that puts it, and a control
+// the render replaced, or one that left the surface, as a reply going on where its
+// thread now stands does (replies.js, `releaseReplies`), has nothing to keep. Where
+// the boxes scrolling the control can't take all of a move, as on a page shorter than
+// its window, the control moves by the rest. A hold handed back in a later task, as a
+// refused batch's is, keeps nothing, since the user may have scrolled since.
+/** @type {[string, (node: Element) => Element | null][]} */
+const standing = [];
+/** @param {string} selector @param {(node: Element) => Element | null} at */
+export function standsAt(selector, at) {
+  standing.push([selector, at]);
+}
+// Whether the flow of its scroller places `node`: nothing between them is positioned
+// out of flow, and it isn't stuck there.
+/** @param {Element} node */
+const flowPlaced = (node) => {
+  const [box] = scrollersOf(node);
+  if (!box || stuckBox(node, box)) return false;
+  for (
+    let at = /** @type {Element | null} */ (node);
+    at && at !== box;
+    at = renderedParent(at)
+  ) {
+    const { position } = getComputedStyle(at);
+    if (position === "absolute" || position === "fixed") return false;
+  }
+  return true;
+};
+let task = 0;
+const nextTask = () => {
+  task += 1;
+};
+// The user's own gesture places what it changes: a send its landing (reply-landing.js,
+// `sendLanding`), a press in the floating panel the panel (`judgePress`), and a
+// disclosure the layout around it, which keeps its control where the user aimed. So a
+// re-render answering an input the browser is dispatching keeps nothing, and the keep
+// is for changes that arrive without one: news, a state the server read, a revision.
+const GESTURES = new Set(["click", "pointerdown", "pointerup", "keydown", "keyup"]);
+const answeringInput = () => {
+  const event = window.event;
+  return Boolean(event?.isTrusted && GESTURES.has(event.type));
+};
+/** @param {Element} node @param {Element} scope */
+function keepPlace(node, scope) {
+  if (answeringInput()) return () => {};
+  afterScript(nextTask);
+  const at = task;
+  const box = standing.find(([selector]) => node.matches(selector))?.[1](node);
+  const place = box && seenRect(box, new Map()) ? box : node;
+  const shown = seenRect(place, new Map());
+  if (shown && !flowPlaced(place)) return () => {};
+  const hold = holdPlace(shown ? place : readingAt(scope));
+  return () => {
+    if (at !== task) return;
+    if (!shown || (focused() === node && renderedUnder(place, scope))) hold();
+  };
+}
+installPlaceKeeping(keepPlace);

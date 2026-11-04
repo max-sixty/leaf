@@ -293,9 +293,11 @@ class ThreadFold:
     thread's closure is the last of the events that set it which still stands, an
     answer standing while it wins its coordinate, so a move of the winner there
     leaves the thread to be read again rather than stepped. An undo of an event in a
-    thread reads that thread again from its own events (`_Thread.read`), since what
-    the event did may be under what came after it. The threads keep the order their
-    comments opened them in, as a reader of the whole log leaves them."""
+    thread leaves that thread to be read again from its own events (`_Thread.read`),
+    since what the event did may be under what came after it, once, when the fold
+    is next read: the undos a log has collected cost one reading of each thread they
+    touch. The threads keep the order their comments opened them in, as a reader of
+    the whole log leaves them."""
 
     def __init__(self, within: dict):
         self.in_force = InForce(within)
@@ -307,9 +309,11 @@ class ThreadFold:
         # Each thread, in the order its comment opened it, or None once that comment
         # is taken back.
         self.threads: dict[str, _Thread | None] = {}
-        # Each thread as the last reading read it, and the threads changed since.
+        # Each thread as the last reading read it, the threads changed since, and
+        # those of them to read again from their events.
         self.read: dict[str, dict] = {}
         self.changed: set[str] = set()
+        self.stale: set[str] = set()
 
     def _answered(self, change: "Change | None") -> None:
         if change is not None:
@@ -324,8 +328,8 @@ class ThreadFold:
             self.withdrawn.add(undoes)
             self._answered(self.in_force.withdraw(undoes))
             named = self.names.get(undoes) or self.joined.get(undoes)
-            if named is not None and (thread := self.threads[named]) is not None:
-                self.threads[named] = _Thread.read(thread, self)
+            if named is not None and self.threads[named] is not None:
+                self.stale.add(named)
                 self.changed.add(named)
         kind = event["kind"]
         thread_id = None
@@ -355,10 +359,15 @@ class ThreadFold:
                 self.joined[event["id"]] = thread_id
             if (thread := self.threads[thread_id]) is not None:
                 thread.events.append(event)
-                thread.take(event)
+                if thread_id not in self.stale:
+                    thread.take(event)
                 self.changed.add(thread_id)
 
     def reading(self) -> dict:
+        for thread_id in self.stale:
+            if (thread := self.threads[thread_id]) is not None:
+                self.threads[thread_id] = _Thread.read(thread, self)
+        self.stale.clear()
         threads = {}
         for thread_id, thread in self.threads.items():
             if thread is None:
@@ -386,6 +395,7 @@ class ThreadFold:
         }
         twin.read = dict(self.read)
         twin.changed = set(self.changed)
+        twin.stale = set(self.stale)
         return twin
 
 

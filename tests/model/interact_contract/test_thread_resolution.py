@@ -644,16 +644,24 @@ DECISION_COMMENTS = [
 
 
 def _decision_histories():
-    """Every three-step history of answers, non-answers, undos, version notes,
-    replies and rewrites at one coordinate after two comments, each with its log."""
+    """Every three-step history of answers, non-answers, version notes, replies,
+    reactions, rewrites and undos of the newest answer or reaction at one coordinate
+    after two comments, each with its log."""
     steps = [
         ("act", answer, depends)
         for answer in ("c1", "c2", None)
         for depends in ((), ("x",), ("y",))
-    ] + [("undo",), ("note", "x"), ("note", "y"), ("reply", "c1"), ("edit", "c2")]
+    ] + [
+        ("undo",),
+        ("note", "x"),
+        ("note", "y"),
+        ("reply", "c1"),
+        ("react", "c2"),
+        ("edit", "c2"),
+    ]
     for history in itertools.product(steps, repeat=3):
         events: list[dict] = list(DECISION_COMMENTS)
-        revision, in_force = 1, []
+        revision, undoable = 1, []
         for index, step in enumerate(history):
             if step[0] == "act":
                 event = {
@@ -665,11 +673,21 @@ def _decision_histories():
                     "detail": {},
                     "meaning": {"unit": "w", "depends": [*step[2]], "answer": step[1]},
                 }
-                in_force.append(event["id"])
+                undoable.append(event["id"])
             elif step[0] == "undo":
-                if not in_force:
+                if not undoable:
                     break
-                event = {"kind": "undo", "id": f"u{index}", "undoes": in_force.pop()}
+                event = {"kind": "undo", "id": f"u{index}", "undoes": undoable.pop()}
+            elif step[0] == "react":
+                event = {
+                    "kind": "reply",
+                    "id": f"x{index}",
+                    "parent": step[1],
+                    "author": "user",
+                    "ts": "t",
+                    "token": "+1",
+                }
+                undoable.append(event["id"])
             elif step[0] == "reply":
                 event = {
                     "kind": "reply",
@@ -726,7 +744,8 @@ def test_a_fold_kept_with_the_log_reads_as_a_fold_of_the_whole_log():
     """A fold kept with a page's log steps through each append (`event_log.folded`).
     At every prefix of every decision history, the threads and memberships it keeps
     read as folding the whole prefix does, order included, and so does a fork of it
-    reading one more event the log does not hold."""
+    reading one more event the log does not hold, whether the fork is taken before
+    the kept fold's next reading or after it."""
     from leaf.event_log import Log, LogLineage
     from leaf.events import build_threads
     from leaf.thread_context import thread_memberships
@@ -743,7 +762,10 @@ def test_a_fold_kept_with_the_log_reads_as_a_fold_of_the_whole_log():
             log = Log(events[:at], lineage, at)
             wider = log.plus(*events[at : at + 1])
             for read in (build_threads, thread_memberships):
+                whole = read(list(wider), DECISION_WITHIN)
+                forked = read(wider, DECISION_WITHIN, anchor=anchor)
+                assert same(forked, whole), (history, at)
                 kept = read(log, DECISION_WITHIN, anchor=anchor)
                 assert same(kept, read(events[:at], DECISION_WITHIN)), (history, at)
                 forked = read(wider, DECISION_WITHIN, anchor=anchor)
-                assert same(forked, read(list(wider), DECISION_WITHIN)), (history, at)
+                assert same(forked, whole), (history, at)

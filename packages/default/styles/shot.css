@@ -127,6 +127,19 @@ lf-shot {
   .lf-shot-actions {
     justify-content: space-between;
   }
+  /* The views share their row with the tools. A view that wrapped below the others
+     would stand inside their touch targets and push the images down, so here the
+     views give up their gap and, last, a little of their padding. */
+  .lf-shot-views {
+    min-inline-size: 0;
+  }
+  .lf-shot-views::part(form-control-input) {
+    flex-wrap: nowrap;
+    gap: 0;
+  }
+  .lf-shot-views > .lf-shot-view::part(label) {
+    white-space: nowrap;
+  }
   .lf-shot-tools {
     gap: 0;
   }

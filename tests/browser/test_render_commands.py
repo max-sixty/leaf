@@ -162,6 +162,14 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
                 or box["y"] + box["height"] <= other["y"] + 0.5
                 or other["y"] + other["height"] <= box["y"] + 0.5
             ), (box, other)
+    # A narrower phone keeps one row of controls: a view that wrapped would stand inside
+    # the targets of the views above it.
+    resized(page, 360, 844)
+    middles = [control.bounding_box() for control in controls]
+    assert {round(box["y"] + box["height"] / 2) for box in middles} == {
+        round(middles[0]["y"] + middles[0]["height"] / 2)
+    }, middles
+    resized(page, 390, 844)
     captions = toolbar.locator(".lf-shotcap")
     expect(captions).to_have_text(["Before", "After"])
     label_colors = captions.evaluate_all(

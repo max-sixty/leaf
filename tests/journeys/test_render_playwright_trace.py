@@ -2345,9 +2345,14 @@ def test_trace_frames_retain_saved_elements_and_disclosure_stays_closable(
     # Step to a filmstrip frame after this captured tree. Its identity remains
     # the checkpoint that produced it, and the disclosure label never changes.
     timeline.focus()
+    images = widget.locator(".lf-trace-images")
     for _ in range(100):
         timeline.press("ArrowRight")
-        # The caption names a frame once its Viewer commits.
+        # The caption names a frame once its Viewer commits, and the next press
+        # cancels a Viewer still decoding: read each stop's committed capture.
+        rendered(user)
+        expect(images).not_to_have_attribute("aria-busy", "true")
+        rendered(user)
         if "Captured frame" in widget.locator(".lf-trace-caption").inner_text():
             break
     else:

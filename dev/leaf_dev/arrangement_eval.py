@@ -47,6 +47,7 @@ from leaf_dev.arms import (
     LiveSession,
     author_failure,
     environment,
+    live_copies,
     now,
     observed_sum,
     pages,
@@ -56,7 +57,6 @@ from leaf_dev.arms import (
     run_agent,
     run_leaf,
     scratch,
-    serving,
     trace_result,
     trace_summary,
 )
@@ -334,44 +334,36 @@ def restored_page(saved: dict):
     """
     original = Path(saved["page"])
     manifest = original.with_name(f"{original.name}-pages.json")
-    archived = (
+    archived: list[dict] = (
         json.loads(manifest.read_text())
         if manifest.exists()
         else [{"page": original.name, "url": None}]
     )
-    with (
-        tempfile.TemporaryDirectory(prefix="leaf-judge-") as temporary,
-        ExitStack() as stack,
-    ):
-        work = Path(temporary)
-        copies = {}
-        addresses = {}
-        for entry in archived:
-            assert isinstance(entry["page"], str)
-            source = original.parent / entry["page"]
-            copied = work / entry["page"]
-            shutil.copytree(source, copied)
-            url = stack.enter_context(
-                plain_html.serving(copied)
-                if saved["condition"] == "html"
-                else serving(Path(saved["payload"]), work / "state", copied)
-            )
-            copies[source] = (copied, url)
-            if entry["url"]:
-                addresses[entry["url"]] = url
-        for copied, _ in copies.values():
-            document = copied / "index.html"
+    plain = saved["condition"] == "html"
+    with live_copies(
+        [original.parent / entry["page"] for entry in archived],
+        Path(saved["payload"]),
+        plain=plain,
+    ) as copies:
+        addresses = {
+            entry["url"]: copy.address
+            for entry, copy in zip(archived, copies, strict=True)
+            if entry["url"]
+        }
+        for copy in copies:
+            document = copy.directory / "index.html"
             source = document.read_text()
             restored = rebase_page_links(source, addresses)
             if restored != source:
                 document.write_text(restored)
-                if saved["condition"] == "leaf":
-                    state = read_page_state(
-                        Path(saved["payload"]), work / "state", copied
+                if not plain:
+                    state = json.loads(
+                        copy.leaf("page", "state", str(copy.directory)).stdout
                     )
                     if not state["source"]["live"]:
                         raise RuntimeError(state["source"]["error"])
-        yield copies[original][1], addresses
+        [served] = [copy for copy in copies if copy.directory.name == original.name]
+        yield served.address, addresses
 
 
 def latest_seq(page: Path) -> int:
@@ -586,19 +578,14 @@ def capture_phase(run: Run, phase: int, page: Path | None = None) -> dict:
         run.shots.mkdir(parents=True, exist_ok=True)
         with headless_shell() as browser:
             for name, window in run.windows.items():
-                with tempfile.TemporaryDirectory(prefix="leaf-capture-") as temporary:
-                    copied = Path(temporary) / "page"
-                    shutil.copytree(page, copied)
-                    server = (
-                        plain_html.serving(copied)
-                        if html
-                        else serving(run.payload, Path(temporary) / "state", copied)
-                    )
-                    with server as url, tab(browser, window) as view:
-                        (plain_html.load if html else load)(view, url)
-                        image = run.shots / f"p{phase}-{name}-0.png"
-                        image.write_bytes(screenshot(view))
-                        captures[name] = [str(image)]
+                with (
+                    live_copies([page], run.payload, plain=html) as [served],
+                    tab(browser, window) as view,
+                ):
+                    (plain_html.load if html else load)(view, served.address)
+                    image = run.shots / f"p{phase}-{name}-0.png"
+                    image.write_bytes(screenshot(view))
+                    captures[name] = [str(image)]
     except Exception as error:
         result["capture_errors"] = {
             name: f"{type(error).__name__}: {error}"

@@ -44,7 +44,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from collections.abc import Callable, Iterable
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from contextvars import ContextVar
 from datetime import datetime
 from functools import partial
@@ -59,7 +59,7 @@ from leaf.event_log import initialized
 from leaf.harness import IDENTITY_VARIABLES, ClaudeCodeHarness, CodexHarness
 from leaf.render_gate import browser as browser_model
 from leaf.render_gate import command as render_command_model
-from leaf_dev import ROOT
+from leaf_dev import ROOT, plain_html
 from leaf_dev.browser import shell_executable
 from leaf_dev.page_fixtures import (
     admit_events,
@@ -249,8 +249,8 @@ def build_source(arm: Path, state: Path, source: Path, page: Path) -> None:
 
 
 class ServedPage(NamedTuple):
-    """A page `serving_source` serves: its directory, its keyed address, and its arm's
-    launcher under its state home."""
+    """A page `serving_source` or `live_copies` serves: its directory, its address,
+    and its arm's launcher under its state home."""
 
     directory: Path
     address: str
@@ -285,6 +285,30 @@ def serving_source(arm: Path, source: Path, scratch: Path, log: Path | None = No
             yield address
         finally:
             served_page.reset(bound)
+
+
+@contextmanager
+def live_copies(pages: Iterable[Path], arm: Path, *, plain: bool):
+    """Serve a disposable copy of each saved page directory in `pages`, under its own
+    name, and yield their `ServedPage`s in order. What serving writes, and any edit a
+    reader makes, lands in the copies, so the saved pages stay as their author left
+    them. `plain` pages are ordinary HTML, served as written (`plain_html.serving`);
+    any others are Leaf pages, which `arm` serves under one state home, as the pages
+    they were saved from shared one (`serving`)."""
+    with (
+        tempfile.TemporaryDirectory(prefix="leaf-live-copies-") as scratch,
+        ExitStack() as servers,
+    ):
+        state = Path(scratch) / "state"
+        leaf = partial(run_leaf, arm, state, check=True)
+        copies = []
+        for page in pages:
+            copy = shutil.copytree(page, Path(scratch) / "pages" / page.name)
+            address = servers.enter_context(
+                plain_html.serving(copy) if plain else serving(arm, state, copy)
+            )
+            copies.append(ServedPage(copy, address, leaf))
+        yield copies
 
 
 def merge_base(ref: str = "HEAD") -> str:

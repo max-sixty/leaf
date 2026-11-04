@@ -441,8 +441,11 @@ span[data-lf-voice="leaf"] {
   align-self: center;
 }
 /* Scroll surfaces contain out-of-flow descendants and opt into keyboard reach and
- * continuation cues. Their owner declares overflow, including at breakpoints. */
-:where(.scroll, [data-lf-scroll]) {
+ * continuation cues. Their owner declares overflow, including at breakpoints. A text
+ * field holds none: its closed tree lays its words and placeholder in one grid cell
+ * (text-field.js), so it stays unpositioned, which Chromium's hit test, visiting every
+ * positioned box on every call, would otherwise pay for in each field on the page. */
+:where(:is(.scroll, [data-lf-scroll]):not(leaf-text)) {
   position: relative;
 }
 /* The layer's marks for a box that shows less than it holds (reachScrollers, for why the
@@ -873,9 +876,14 @@ wa-copy-button.lf-icon-action {
   background: var(--lf-disc-ground, transparent);
   box-shadow: none;
 }
+/* The disc and the glyph share the symbol's one grid cell, centred, the disc drawn first,
+   so neither is a positioned box, which Chromium's hit test visits on every call. */
+.lf-icon-action[data-lf-disc]::before,
+.lf-icon-action[data-lf-disc] > .lf-action-icon {
+  grid-area: 1 / 1;
+}
 .lf-icon-action[data-lf-disc]::before {
   content: "";
-  position: absolute;
   box-sizing: border-box;
   inline-size: var(--lf-icon-action-face);
   block-size: var(--lf-icon-action-face);
@@ -1348,6 +1356,53 @@ wa-copy-button.lf-icon-action {
   opacity: 0;
   visibility: hidden;
   transition: none;
+}
+/* In the margin's projection a face is drawn with its label only while the label can
+   show: revealed, held, or placed by the geometry owner, which measures it drawn
+   (margin-layout.js, `placeMarginEntryLabel`). Its glyph, unread dot and count share
+   its one grid cell, the dot and count standing in its corner by alignment as their
+   insets stand them elsewhere, so the face is the containing block of its label alone,
+   and only while the label stands: Chromium's hit test visits every positioned box on
+   every call, and a page of 512 questions held a face for each. */
+.lf-margin-projection .lf-margin-face {
+  position: static;
+  display: inline-grid;
+  place-content: normal;
+  place-items: center;
+}
+.lf-margin-projection .lf-margin-face > :not(.lf-margin-entry-label),
+.lf-margin-projection .lf-margin-face[data-lf-unread]::after {
+  grid-area: 1 / 1;
+}
+.lf-margin-projection .lf-margin-face[data-lf-unread]::after {
+  position: static;
+  align-self: start;
+  justify-self: end;
+}
+.lf-margin-projection .lf-margin-face > .lf-margin-count {
+  position: static;
+  align-self: start;
+  justify-self: right;
+  margin: -7px -7px 0 0;
+}
+.lf-margin-projection
+  .lf-margin-face:is(
+    :hover,
+    [data-lf-focus],
+    [data-lf-held-word],
+    [data-lf-label-side]
+  ) {
+  position: relative;
+}
+.lf-margin-projection
+  .lf-margin-face:not(
+    :hover,
+    [data-lf-focus],
+    [data-lf-held-word],
+    [data-lf-label-side]
+  )
+  > .lf-margin-entry-label {
+  display: none;
 }
 .lf-margin-count {
   position: absolute;

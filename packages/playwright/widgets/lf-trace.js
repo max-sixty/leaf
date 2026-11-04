@@ -2249,7 +2249,7 @@ export class Trace extends LeafElement {
             ([value]) => value,
             ([value, label]) =>
               html`<wa-radio
-                ${offered("lf-trace-source")}
+                ${offered("lf-trace-source", true)}
                 appearance="button"
                 value=${value}
                 >${label}</wa-radio

@@ -1096,7 +1096,7 @@ def screenshot_pair(page: Page) -> None:
     """Show both images inside the comparison's shared allocation."""
     screenshot_comparison(page)
     shot = page.locator("#bg-shot")
-    shot.get_by_role("button", name="Pair", exact=True).click()
+    shot.locator(".lf-shot-views").get_by_text("Pair", exact=True).click()
     shot.locator(".lf-shot-toolbar").evaluate(
         "node => node.scrollIntoView({block: 'start'})"
     )
@@ -1107,7 +1107,7 @@ def screenshot_slider_before(page: Page) -> None:
     screenshot_comparison(page)
     shot = page.locator("#bg-shot")
     shot.evaluate("async node => await node.difference")
-    shot.get_by_role("button", name="Slider", exact=True).click()
+    shot.locator(".lf-shot-views").get_by_text("Slider", exact=True).click()
     divider = shot.get_by_role("scrollbar")
     divider.focus()
     page.keyboard.press("End")
@@ -1119,7 +1119,20 @@ def screenshot_pixels(page: Page) -> None:
     """Pixel evidence occupies the image frame without a separate legend row."""
     screenshot_comparison(page)
     shot = page.locator("#bg-shot")
-    shot.get_by_role("button", name="Pixels", exact=True).click()
+    shot.locator(".lf-shot-views").get_by_text("Pixels", exact=True).click()
+
+
+def screenshot_views_keyboard(page: Page) -> None:
+    """The comparison's chosen view holding keyboard focus."""
+    screenshot_comparison(page)
+    page.locator("#bg-shot .lf-shot-views").get_by_text("Slider", exact=True).focus()
+    page.keyboard.press("Shift")  # keyboard modality, so focus is drawn
+
+
+def dial_keyboard(page: Page) -> None:
+    """The detail dial's chosen depth holding keyboard focus."""
+    page.locator("lf-dial").get_by_text("Read", exact=True).focus()
+    page.keyboard.press("Shift")  # keyboard modality, so focus is drawn
 
 
 def screenshot_options(page: Page) -> None:
@@ -2365,6 +2378,13 @@ STATES = (
         screenshot_options,
         region="#bg-shot",
     ),
+    State(
+        "screenshot-views-keyboard",
+        "feature-gallery",
+        screenshot_views_keyboard,
+        region="#bg-shot .lf-shot-toolbar",
+    ),
+    State("dial-keyboard", "detail", dial_keyboard, region="lf-dial"),
     State(
         "image-in-page",
         "feature-gallery",

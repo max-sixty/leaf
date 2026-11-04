@@ -244,12 +244,12 @@ CONTROL_ARCHETYPES = (
     {
         # Switching views must not move the buttons under the pointer.
         "name": "shot-view",
-        "target": "#stable-shot .lf-shot-views button:nth-child(2)",
+        "target": "#stable-shot .lf-shot-views wa-radio:nth-child(2)",
     },
     {
         "name": "visual-review-inspection",
         "source": VISUAL_REVIEW_GALLERY,
-        "target": ".lf-vr-case:not([hidden]) .lf-shot-views button:nth-child(2)",
+        "target": ".lf-vr-case:not([hidden]) .lf-shot-views wa-radio:nth-child(2)",
     },
     {
         "name": "visual-review-approval",
@@ -318,7 +318,7 @@ RING_CASES = (
                     'lf-shot .lf-shotcomparison [part~="handle"]',
                     "wa-comparison::part(",
                 ),
-                (".lf-shot-views button", FLOOR_RING),
+                (".lf-shot-views wa-radio", FLOOR_RING),
             ),
             "wt-merge": (
                 (
@@ -1411,7 +1411,7 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
             expect(page.locator('#merge-steps-pane > [tabindex="0"]')).to_have_count(1)
         if name == "release-notes":
             page.locator("lf-shot").get_by_role(
-                "button", name="Slider", exact=True
+                "radio", name="Slider", exact=True
             ).click()
             # Ordinary element marks need a focusable sample for their conditional ring.
             page.locator("main p").first.evaluate(

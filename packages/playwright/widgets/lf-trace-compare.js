@@ -80,6 +80,8 @@ customElements.define(
           "wa-radio",
           "lf-trace-source",
           recording.getAttribute("label") ?? recording.getAttribute("source"),
+          undefined,
+          true,
         );
         choice.value = String(index);
         choice.appearance = "button";

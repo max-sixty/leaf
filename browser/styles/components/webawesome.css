@@ -109,6 +109,28 @@ wa-comparison::part(lf-focus-visible) {
   outline-offset: var(--focus-ring-gap);
 }
 
+/* A choice among a few views, such as a recording's scope, an image pair's view or a
+   dial's depth, is a radio group of buttons (`appearance="button"`). Each button is a
+   face of its own, a gap from the next, rather than upstream's joined segments; the row
+   wraps where it runs out of room, and a long name wraps inside its button. Its words
+   are set in Leaf's interface type, so they follow the page's density as Leaf's own
+   controls do. A widget sets only the buttons' height. */
+wa-radio-group::part(form-control-input) {
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+wa-radio[appearance="button"] {
+  font: var(--font-ui);
+  margin: 0;
+  border-radius: var(--r);
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  box-sizing: border-box;
+}
+wa-radio[appearance="button"]::part(label) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
 /* A radio's actual focus owner is its host, rather than a native shadow control.
    The generic band surrounds its full face, label included, for both appearances. */
 wa-radio[appearance="button"][data-lf-focus-visible] {

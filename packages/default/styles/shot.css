@@ -25,7 +25,6 @@ lf-shot {
   font: var(--font-compact);
 }
 .lf-shot-actions,
-.lf-shot-views,
 .lf-shot-tools {
   display: flex;
   align-items: center;
@@ -35,7 +34,6 @@ lf-shot {
 .lf-shot-actions {
   grid-area: actions;
 }
-.lf-shot-views > .lf-btn,
 .lf-shot-tools > .lf-btn,
 .lf-shot-scale-options > .lf-btn {
   /* Selection changes the face, never the width of its words. */
@@ -128,9 +126,6 @@ lf-shot {
   }
   .lf-shot-actions {
     justify-content: space-between;
-  }
-  .lf-shot-views {
-    gap: 0;
   }
   .lf-shot-tools {
     gap: 0;

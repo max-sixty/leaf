@@ -9,7 +9,7 @@ import {
   keeps,
 } from "/runtime/widget-api.js";
 
-import { html, nothing, ref, styleMap } from "/vendor/lit.js";
+import { html, live, nothing, ref, styleMap } from "/vendor/lit.js";
 /** @typedef {import("./image-difference.js").Difference} Difference */
 /** @typedef {import("./image-difference.js").Rectangle} Rectangle */
 /** @typedef {import("./image-difference.js").Side} Side */
@@ -271,11 +271,11 @@ export class ShotView {
   render() {
     const { host, optionsId } = this;
 
-    /** @param {string} cls */
-    const offered = (cls) =>
+    /** @param {string} cls @param {boolean} [pressable] */
+    const offered = (cls, pressable = false) =>
       ref((node) => {
         if (!node) return;
-        offerElement(node, cls);
+        offerElement(node, cls, pressable);
       });
     const box = () =>
       ref((node) => {
@@ -307,33 +307,8 @@ export class ShotView {
         >${label}</span
       >`;
     };
-    /** @param {string} label @param {Record<string, string>} values @param {string} selected @param {((value: string, label: string) => void) | undefined} choose @param {string} [cls] */
-    const choices = (label, values, selected, choose, cls = "lf-shot-views") =>
-      html`<div ${offered(cls)} role="group" aria-label=${label}>
-        ${Object.entries(values).map(
-          ([value, text]) =>
-            html`<button
-              ${ref(this.choiceRef)}
-              type="button"
-              aria-pressed=${String(value === selected)}
-              ?disabled=${value === "pixels" && !this.reading}
-              title=${
-                value === "fit"
-                  ? this.geometry
-                    ? `Fit · ${Math.round(this.geometry.fitScale * 100)}%`
-                    : nothing
-                  : value === "actual"
-                    ? this.metadata.pixelRatio
-                      ? "Captured CSS size"
-                      : "One image pixel per CSS pixel"
-                    : nothing
-              }
-              @click=${() => choose?.(value, text)}
-            >
-              ${text}
-            </button>`,
-        )}
-      </div>`;
+    const scales = { fit: "Fit", actual: "100%" };
+    const scale = this.actual ? "actual" : "fit";
     /** @param {Side} state @param {number} index */
     const frame = (state, index) => {
       const alt = host.getAttribute("alt");
@@ -397,7 +372,35 @@ export class ShotView {
       <div ${offered("lf-shot-toolbar lf-ui")}>
         ${caption("before")}
         <div ${offered("lf-shot-actions")}>
-          ${choices("Comparison view", SHOT_VIEWS, this.view, this.chooseView)}
+          <wa-radio-group
+            ${offered("lf-shot-views lf-label-hidden")}
+            label="Comparison view"
+            name=${`${optionsId}-view`}
+            size="s"
+            orientation="horizontal"
+            .value=${live(this.view)}
+            @change=${(
+              /** @type {Event & {currentTarget: HTMLElementTagNameMap["wa-radio-group"]}} */ event,
+            ) => {
+              const view = String(event.currentTarget.value);
+              if (view in SHOT_VIEWS)
+                this.chooseView?.(
+                  view,
+                  SHOT_VIEWS[/** @type {keyof typeof SHOT_VIEWS} */ (view)],
+                );
+            }}
+          >
+            ${Object.entries(SHOT_VIEWS).map(
+              ([value, text]) =>
+                html`<wa-radio
+                  ${offered("lf-shot-view", true)}
+                  appearance="button"
+                  value=${value}
+                  ?disabled=${value === "pixels" && !this.reading}
+                  >${text}</wa-radio
+                >`,
+            )}
+          </wa-radio-group>
           <div ${offered("lf-shot-tools")}>
             <button
               ${offeredAction("symbol", "lf-shot-scale", "Image options", {
@@ -427,13 +430,32 @@ export class ShotView {
               role="group"
               aria-label="Image options"
             >
-              ${choices(
-                "Image scale",
-                { fit: "Fit", actual: "100%" },
-                this.actual ? "actual" : "fit",
-                this.chooseScale,
-                "lf-shot-scale-options",
-              )}
+              <div
+                ${offered("lf-shot-scale-options")}
+                role="group"
+                aria-label="Image scale"
+              >
+                ${Object.entries(scales).map(
+                  ([value, text]) =>
+                    html`<button
+                      ${ref(this.choiceRef)}
+                      type="button"
+                      aria-pressed=${String(value === scale)}
+                      title=${
+                        value === "actual"
+                          ? this.metadata.pixelRatio
+                            ? "Captured CSS size"
+                            : "One image pixel per CSS pixel"
+                          : this.geometry
+                            ? `Fit · ${Math.round(this.geometry.fitScale * 100)}%`
+                            : nothing
+                      }
+                      @click=${() => this.chooseScale?.(value)}
+                    >
+                      ${text}
+                    </button>`,
+                )}
+              </div>
               <label ${offered("choice lf-shotchoice")} ?hidden=${!this.metadata.focus}>
                 <input
                   ${offered("")}

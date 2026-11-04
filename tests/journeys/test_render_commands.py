@@ -734,7 +734,7 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
     )
     page.goto(url)
     render_checks_model.wait_until_ready(page)
-    page.locator("lf-shot").get_by_role("button", name="Slider", exact=True).click()
+    page.locator("lf-shot").get_by_role("radio", name="Slider", exact=True).click()
     comparison = page.locator("lf-shot wa-comparison")
     handle = comparison.get_by_role("scrollbar")
     expect(handle).to_be_visible()
@@ -817,7 +817,7 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
     page.keyboard.up("Shift")
     expect(comparison).to_have_attribute("position", "0")
     comparison.evaluate("node => { node.position = 50; }")
-    view = page.locator("lf-shot").get_by_role("button", name="Slider", exact=True)
+    view = page.locator("lf-shot").get_by_role("radio", name="Slider", exact=True)
     # A second finger does not replace the primary contact's input destination.
     view.focus()
     handle.evaluate("""handle => handle.dispatchEvent(new PointerEvent('pointerdown', {

@@ -89,7 +89,7 @@ lf-trace[hidden="until-found"] {
   justify-content: space-between;
   gap: var(--sp-2);
 }
-/* Keep source names visible and let the shared control own keyboard selection. */
+/* The scope's radio group (webawesome.css) at the recording's control size. */
 .lf-trace-sources {
   --wa-form-control-height: var(--lf-trace-control-size);
   display: block;
@@ -98,21 +98,8 @@ lf-trace[hidden="until-found"] {
   min-inline-size: 0;
   max-inline-size: 100%;
 }
-.lf-trace-sources::part(form-control-input) {
-  flex-wrap: wrap;
-  gap: var(--sp-2);
-}
 .lf-trace-source {
-  margin: 0;
-  border-radius: var(--r);
   min-block-size: var(--lf-trace-control-size);
-  min-inline-size: 0;
-  max-inline-size: 100%;
-  box-sizing: border-box;
-}
-.lf-trace-source::part(label) {
-  white-space: normal;
-  overflow-wrap: anywhere;
 }
 .lf-trace-viewer {
   white-space: nowrap;

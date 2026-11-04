@@ -75,3 +75,33 @@ test("an answer extending a reading the tab did not name is a fault", () => {
     /extends a reading this tab did not name/,
   );
 });
+
+test("an answer that moves every item of a list puts each after the one it names", () => {
+  const ids = Array.from({ length: 4096 }, (_, at) => String(at));
+  const data = { version: "v", sources: {} };
+  // Reversed: the last item stays where it was, and each other one follows the one
+  // before it in the new order.
+  const reversed = ids.toReversed();
+  const after = reversed
+    .slice(0, -1)
+    .map((id, at) => [id, at ? reversed[at - 1] : null]);
+  const held = {
+    browser: { basis: { key: "held" }, list: ids.map((id) => ({ id })) },
+    events: [],
+  };
+  const done = completeState(
+    {
+      since: { key: "held" },
+      patch: [{ at: ["browser", "list"], by: "id", after }],
+      events: [],
+      data,
+    },
+    { data, state: /** @type {never} */ (held) },
+  );
+  assert.deepEqual(
+    /** @type {{list: {id: string}[]}} */ (
+      /** @type {unknown} */ (done.browser)
+    ).list.map(({ id }) => id),
+    reversed,
+  );
+});

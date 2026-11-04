@@ -120,22 +120,24 @@ export const deleted = (message) =>
 export const bareReaction = (thread) => thread.bare_reaction;
 /** @param {Pick<Thread, "bare_reaction">} thread */
 export const discussed = (thread) => !thread.bare_reaction;
+// A thread record's unread versions (`threadRecordReader`), in log order.
+/** @typedef {{readonly unread: readonly unknown[]}} Unread */
 /** Whether a thread holds words the user hasn't read.
- * @param {Pick<Thread, "unread">} thread */
+ * @param {Unread} thread */
 const hasUnread = (thread) => thread.unread.length > 0;
 /**
  * Whether a thread is news: still open and holding words the user hasn't read. A
  * resolved thread's unread words aren't, so the news the panel counts never outnumbers
  * the open threads; a reply reopens its thread, and the user chose on 21 October to
  * leave what reaches a closed one unannounced.
- * @param {Pick<Thread, "resolved" | "unread">} thread */
+ * @param {Pick<Thread, "resolved"> & Unread} thread */
 export const isNews = (thread) => !thread.resolved && hasUnread(thread);
 /**
  * What the panel counts of the threads it lists: those still open, which Threads' tab
  * says, and those that are news (`isNews`), which the On me mark's dot says. A page's
  * served row counts the same way
  * (`served_state.thread.thread_counts`); tests/thread_count_cases.json holds both.
- * @param {readonly Pick<Thread, "bare_reaction" | "resolved" | "unread">[]} threads
+ * @param {readonly (Pick<Thread, "bare_reaction" | "resolved"> & Unread)[]} threads
  */
 export function threadCounts(threads) {
   const listed = threads.filter(discussed);
@@ -279,7 +281,7 @@ export function foldThreads(threads, gestures) {
         bare_reaction: reaction,
         seat: pendingSeat(gesture),
         summaries: [],
-        unread: [],
+        unread: {},
         attention: reaction ? null : sending(gesture),
       };
       opened.push(thread);
@@ -377,8 +379,9 @@ const versionKey = ({ message, version }) => `${message}\u0000${version}`;
    captured words, registry identities and current unit state cross this boundary.
 
    A Thread's `unread` is the server's reading of the agent content versions the user
-   has not taken in, less those this tab is marking read now: the page draws them read
-   in the turn it sends that, and the answer confirms rather than decides it.
+   has not taken in, by message, less those this tab is marking read now: the page
+   draws them read in the turn it sends that, and the answer confirms rather than
+   decides it. A record lists them in its messages' order.
 
    A reader made by `threadRecordReader` keeps each thread's record (`kept.js`), and
    reads it again only where the thread or something it holds has changed: the served
@@ -547,10 +550,18 @@ export function threadRecordReader() {
      * text?: Message["text"], edited?: Message["edited"],
      * provisional?: Message["provisional"], completed_by?: Message["completed_by"]
      * }} PublishedMessage */
-    /** @param {Thread} thread @param {readonly import("../../types/domain.js").ContentVersion[]} unread
+    /** @param {Thread} thread
      * @param {{bases: ReturnType<typeof keptReadings<unknown>>, messages: ReturnType<typeof keptReadings<unknown>>} | undefined} earlier */
-    const readRecord = (thread, unread, earlier) => {
+    const readRecord = (thread, earlier) => {
       const key = threadKey(thread);
+      /** @type {import("../../types/domain.js").ContentVersion[]} */
+      const unread = thread.msgs.flatMap(({ id }) => {
+        const version = thread.unread[id];
+        return version !== undefined &&
+          !locallyRead.has(versionKey({ message: id, version }))
+          ? [{ message: id, version }]
+          : [];
+      });
       const unreadMessages = new Set(unread.map((item) => item.message));
       const bases = earlier?.bases ?? keptReadings();
       const msgs = thread.msgs.map(
@@ -638,39 +649,40 @@ export function threadRecordReader() {
         summaries: thread.summaries,
       };
     };
-    const read = threads.map((thread) => {
-      const unread = thread.unread.filter((item) => !locallyRead.has(versionKey(item)));
-      return /** @type {ReturnType<typeof readRecord>} */ (
-        records.read(
-          thread.id,
-          [
-            thread,
-            ready,
-            tokens,
-            ...unread,
-            BETWEEN,
-            ...(workflowsIn.get(thread.id) ?? NONE),
-            BETWEEN,
-            ...(obligationsIn.get(thread.id) ?? NONE),
-            BETWEEN,
-            ...(agentTodosIn.get(thread.id) ?? NONE),
-            BETWEEN,
-            ...(userTodosIn.get(thread.id) ?? NONE),
-            BETWEEN,
-            ...unitInputs(unitsByThread.get(thread.id)),
-          ],
-          (earlier) => {
-            const bases = earlier?.bases ?? keptReadings();
-            const messages = earlier?.messages ?? keptReadings();
-            return {
-              record: readRecord(thread, unread, { bases, messages }),
-              bases,
-              messages,
-            };
-          },
-        ).record
-      );
-    });
+    const read = threads.map(
+      (thread) =>
+        /** @type {ReturnType<typeof readRecord>} */ (
+          records.read(
+            thread.id,
+            [
+              thread,
+              ready,
+              tokens,
+              // What this tab is marking read, where the thread has something unread.
+              Object.keys(thread.unread).length ? markingRead : null,
+              BETWEEN,
+              ...(workflowsIn.get(thread.id) ?? NONE),
+              BETWEEN,
+              ...(obligationsIn.get(thread.id) ?? NONE),
+              BETWEEN,
+              ...(agentTodosIn.get(thread.id) ?? NONE),
+              BETWEEN,
+              ...(userTodosIn.get(thread.id) ?? NONE),
+              BETWEEN,
+              ...unitInputs(unitsByThread.get(thread.id)),
+            ],
+            (earlier) => {
+              const bases = earlier?.bases ?? keptReadings();
+              const messages = earlier?.messages ?? keptReadings();
+              return {
+                record: readRecord(thread, { bases, messages }),
+                bases,
+                messages,
+              };
+            },
+          ).record
+        ),
+    );
     records.done();
     return read;
   };

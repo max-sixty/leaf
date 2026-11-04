@@ -464,8 +464,16 @@ function changedList(held, { by, items = [], changed = [], dropped = [], after =
 	const kept = new Map(held.map((item) => [name(item), item]));
 	for (const [key, patch] of changed) sent.set(key, patched(kept.get(key), patch));
 	const placed = /* @__PURE__ */ new Set([...dropped, ...after.map(([key]) => key)]);
-	const order = [...kept.keys()].filter((key) => !placed.has(key));
-	for (const [key, before] of after) order.splice(before === null ? 0 : order.indexOf(before) + 1, 0, key);
+	const next = new Map(after.map(([key, before]) => [before, key]));
+	const order = [];
+	const run = (key) => {
+		for (let at = next.get(key); at !== void 0; at = next.get(at)) order.push(at);
+	};
+	run(null);
+	for (const key of kept.keys()) if (!placed.has(key)) {
+		order.push(key);
+		run(key);
+	}
 	return order.map((key) => sent.has(key) ? sent.get(key) : kept.get(key));
 }
 function patched(reading, patch) {

@@ -523,7 +523,9 @@ class PageEndpoint:
         remembering them would only push out the readings the tabs hold."""
         if self.page_snapshot is not None:
             return state
-        return tail_answer(state, self.headers.get("Leaf-Held-Basis"))
+        return tail_answer(
+            state, self.headers.get("Leaf-Held-Basis"), str(self.page_dir)
+        )
 
     def page_browser_view(self, view_revision: int, through_seq: int) -> dict:
         """One revision projected at an exact already-observed log boundary."""

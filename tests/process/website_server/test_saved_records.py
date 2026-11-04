@@ -217,7 +217,8 @@ def test_publishing_saved_responses_keeps_the_reading_a_tab_holds(
     write_manifest(site, {"/example": ("page", "example")})
     assert website_server.activate_source(private).error is None
     service = website_server.PageStateService(private)
-    held = tail.answer(service.page_state(), None)["browser"]["basis"]["key"]
+    page = str(private)
+    held = tail.answer(service.page_state(), None, page)["browser"]["basis"]["key"]
     monkeypatch.setenv("LEAF_SITE_ROOT", str(site))
     with durable_page_store() as (store_url, stored):
         monkeypatch.setenv("LEAF_PAGE_STORE_URL", store_url)
@@ -231,7 +232,7 @@ def test_publishing_saved_responses_keeps_the_reading_a_tab_holds(
         with ThreadPoolExecutor(max_workers=1) as executor:
             executor.submit(commit).result()
         assert stored["publications"]
-    assert "since" in tail.answer(service.page_state(), held)
+    assert "since" in tail.answer(service.page_state(), held, page)
 
 
 def test_saved_website_record_keeps_an_unstamped_revisions_publication_date(

@@ -1659,9 +1659,9 @@
           }
         },
         "unread": {
-          "description": "The content versions the user hasn't read (`read_state.unread_content`).",
-          "type": "array",
-          "items": { "$ref": "#/$defs/ContentVersion" }
+          "description": "The content version of each message the user hasn't read, by the message's id, in log order (`read_state.unread_content`).",
+          "type": "object",
+          "additionalProperties": { "type": "string" }
         },
         "attention": { "$ref": "#/$defs/Attention" }
       },

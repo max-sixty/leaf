@@ -7343,14 +7343,13 @@ function semanticNewsReading(root) {
 	};
 }
 function unreadContent(threadView) {
-	return threadView.threads.flatMap((thread) => thread.unread.map(({ message: id, version }) => {
-		const message = thread.msgs.find((message) => message.id === id);
-		if (!message) throw new Error(`Unread version ${version} names missing message ${id}`);
-		return {
+	return threadView.threads.flatMap((thread) => thread.msgs.flatMap((message) => {
+		const version = thread.unread[message.id];
+		return version === void 0 ? [] : [{
 			thread: thread.id,
 			message,
 			version
-		};
+		}];
 	})).filter(({ message }) => !("failure" in message && message.failure)).sort((a, b) => Number(moved(a.message).seq) - Number(moved(b.message).seq));
 }
 function userObligations(items) {

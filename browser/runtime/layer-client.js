@@ -186,9 +186,21 @@ function changedList(held, { by, items = [], changed = [], dropped = [], after =
   const kept = new Map(held.map((item) => [name(item), item]));
   for (const [key, patch] of changed) sent.set(key, patched(kept.get(key), patch));
   const placed = new Set([...dropped, ...after.map(([key]) => key)]);
-  const order = [...kept.keys()].filter((key) => !placed.has(key));
-  for (const [key, before] of after)
-    order.splice(before === null ? 0 : order.indexOf(before) + 1, 0, key);
+  // Each item `after` places is the one item now right after the one it names, so the
+  // list is the held items that stay, each followed by the run placed after it.
+  const next = new Map(after.map(([key, before]) => [before, key]));
+  /** @type {string[]} */
+  const order = [];
+  /** @param {string | null} key */
+  const run = (key) => {
+    for (let at = next.get(key); at !== undefined; at = next.get(at)) order.push(at);
+  };
+  run(null);
+  for (const key of kept.keys())
+    if (!placed.has(key)) {
+      order.push(key);
+      run(key);
+    }
   return order.map((key) => (sent.has(key) ? sent.get(key) : kept.get(key)));
 }
 

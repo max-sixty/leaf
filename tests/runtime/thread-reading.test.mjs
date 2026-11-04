@@ -49,10 +49,7 @@ test("a thread's unread is the server reading less what this tab is acknowledgin
   const reply = agent("reply", { seq: 2, edited: { id: "edit", seq: 4, ts: "x" } });
   const threads = [
     servedThread([root, reply], {
-      unread: [
-        { message: "root", version: "root" },
-        { message: "reply", version: "edit" },
-      ],
+      unread: { root: "root", reply: "edit" },
     }),
   ];
   const read = (acknowledging) =>

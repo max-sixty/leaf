@@ -732,7 +732,7 @@ function foldThreads(threads, gestures) {
 			bare_reaction: reaction,
 			seat: pendingSeat(gesture),
 			summaries: [],
-			unread: [],
+			unread: {},
 			attention: reaction ? null : sending(gesture)
 		};
 		opened.push(thread);
@@ -866,8 +866,18 @@ function threadRecordReader() {
 				workflows: messageWorkflows(message)
 			};
 		};
-		const readRecord = (thread, unread, earlier) => {
+		const readRecord = (thread, earlier) => {
 			const key = threadKey(thread);
+			const unread = thread.msgs.flatMap(({ id }) => {
+				const version = thread.unread[id];
+				return version !== void 0 && !locallyRead.has(versionKey({
+					message: id,
+					version
+				})) ? [{
+					message: id,
+					version
+				}] : [];
+			});
 			const unreadMessages = new Set(unread.map((item) => item.message));
 			const bases = earlier?.bases ?? keptReadings();
 			const msgs = thread.msgs.map((message) => bases.read(message.id, [
@@ -923,36 +933,33 @@ function threadRecordReader() {
 				summaries: thread.summaries
 			};
 		};
-		const read = threads.map((thread) => {
-			const unread = thread.unread.filter((item) => !locallyRead.has(versionKey(item)));
-			return records.read(thread.id, [
-				thread,
-				ready,
-				tokens,
-				...unread,
-				BETWEEN,
-				...workflowsIn.get(thread.id) ?? NONE,
-				BETWEEN,
-				...obligationsIn.get(thread.id) ?? NONE,
-				BETWEEN,
-				...agentTodosIn.get(thread.id) ?? NONE,
-				BETWEEN,
-				...userTodosIn.get(thread.id) ?? NONE,
-				BETWEEN,
-				...unitInputs(unitsByThread.get(thread.id))
-			], (earlier) => {
-				const bases = earlier?.bases ?? keptReadings();
-				const messages = earlier?.messages ?? keptReadings();
-				return {
-					record: readRecord(thread, unread, {
-						bases,
-						messages
-					}),
+		const read = threads.map((thread) => records.read(thread.id, [
+			thread,
+			ready,
+			tokens,
+			Object.keys(thread.unread).length ? markingRead : null,
+			BETWEEN,
+			...workflowsIn.get(thread.id) ?? NONE,
+			BETWEEN,
+			...obligationsIn.get(thread.id) ?? NONE,
+			BETWEEN,
+			...agentTodosIn.get(thread.id) ?? NONE,
+			BETWEEN,
+			...userTodosIn.get(thread.id) ?? NONE,
+			BETWEEN,
+			...unitInputs(unitsByThread.get(thread.id))
+		], (earlier) => {
+			const bases = earlier?.bases ?? keptReadings();
+			const messages = earlier?.messages ?? keptReadings();
+			return {
+				record: readRecord(thread, {
 					bases,
 					messages
-				};
-			}).record;
-		});
+				}),
+				bases,
+				messages
+			};
+		}).record);
 		records.done();
 		return read;
 	};

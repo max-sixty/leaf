@@ -695,6 +695,48 @@ def tail_cases() -> list[dict]:
         assert "since" in tail, name
         whole = served_reading(TAIL_PAGE, log[:through], presence=presence)
         cases.append({"name": name, "held": reading, "tail": tail, "whole": whole})
+    # A value that is a boolean or an integer, set to `false` and then to `0`, which
+    # Python's own equality takes for the same value.
+    registry = {
+        **model_layer(),
+        "lf-value-ask": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "active": {"type": "boolean"},
+                "value": {"type": ["boolean", "integer"]},
+            },
+            "required": ["id"],
+            "additionalProperties": False,
+            "x-content": "none",
+            "x-awaits": {
+                "when": {"active": [True]},
+                "value": "set",
+                "answered": {"set": {}},
+            },
+            "x-state": {
+                "set": {"unit": "widget", "record": {"kind": "value", "attr": "value"}}
+            },
+        },
+    }
+    typed = leaf_page("Typed", '<lf-value-ask id="typed" active></lf-value-ask>')
+    sets = [
+        {
+            "kind": "action",
+            "widget": "typed",
+            "action": "set",
+            "detail": {"value": value},
+        }
+        for value in (False, 0)
+    ]
+    reading = served_reading(typed, sets[:1], registry=registry)
+    key = reading["browser"]["basis"]["key"]
+    tail = served_reading(typed, sets, registry=registry, held=key)
+    assert "since" in tail
+    whole = served_reading(typed, sets, registry=registry)
+    cases.append(
+        {"name": "false, then 0", "held": reading, "tail": tail, "whole": whole}
+    )
     return cases
 
 

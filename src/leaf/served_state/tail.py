@@ -59,12 +59,16 @@ from collections import OrderedDict
 
 # The parts of a reading the patch leaves to their own mechanism.
 _OWN = frozenset({"events", "data"})
-# How many readings this process remembers: a reading for each of a few tabs, and
-# the answers each received but had not adopted yet when it next asked.
+# How many readings this process remembers of each page: a reading for each of a few
+# tabs, and the answers each received but had not adopted yet when it next asked.
 REMEMBERED = 16
+# How many pages it remembers readings of: a multiplexed server's pages, and the live
+# samples in them, so one page's answers never push out another's readings.
+PAGES = 8
 
-# Each remembered reading's log position and parts (`_parts`), oldest first.
-_served: OrderedDict[str, tuple[int, tuple]] = OrderedDict()
+# Each page's remembered readings, by key, each its log position and parts (`_parts`);
+# pages and their readings both oldest first.
+_served: OrderedDict[str, OrderedDict[str, tuple[int, tuple]]] = OrderedDict()
 _lock = threading.Lock()
 
 
@@ -107,6 +111,14 @@ def _token(part: tuple) -> bytes:
     return part[1]
 
 
+def _same(held: tuple, current: tuple) -> bool:
+    """Whether two parts hold the same JSON: the one comparison this module makes, so a
+    `false` and a `0`, or a `1` and a `1.0`, are never taken for each other."""
+    return held is current or (
+        held[0] == current[0] and _token(held) == _token(current)
+    )
+
+
 def _object(children: dict) -> tuple:
     hasher = hashlib.blake2b(digest_size=16)
     for key, child in children.items():
@@ -136,14 +148,8 @@ def _parts(value, earlier: tuple | None) -> tuple:
             return earlier
         return _object(parts)
     if isinstance(value, _SCALARS):
-        if (
-            earlier is not None
-            and earlier[0] == "scalar"
-            and type(earlier[1]) is type(value)
-            and earlier[1] == value
-        ):
-            return earlier
-        return ("scalar", value)
+        part = ("scalar", value)
+        return earlier if earlier is not None and _same(earlier, part) else part
     named = _named(value) if isinstance(value, list) else None
     if named is None:
         encoded = _json(value)
@@ -204,24 +210,18 @@ def _staying(names: list[str], held_at: dict[str, int]) -> set[str]:
     return staying
 
 
-def _list_change(path, by, held_names, names, items, same, held_item) -> dict | None:
+def _list_change(path, by, held_names, names, items, changes) -> dict | None:
     """The change that makes the held list named `held_names` the list of `items`,
-    named `names`, or None where there is none. `same(before, at)` says whether held
-    item `before` is the current item `at`, and `held_item(before)` gives it."""
+    named `names`, or None where there is none. `changes(before, at)` gives the changes
+    from held item `before` to current item `at`, or None where they are the same."""
     held_at = {name: at for at, name in enumerate(held_names)}
     whole, changed = [], []
     for at, (name, item) in enumerate(zip(names, items, strict=True)):
         before = held_at.get(name)
         if before is None:
             whole.append(item)
-        elif not same(before, at):
-            old = held_item(before)
-            if isinstance(old, dict) and isinstance(item, dict):
-                inner: list = []
-                _value_changes(old, item, [], inner)
-                changed.append([name, inner])
-            else:
-                whole.append(item)
+        elif (inner := changes(before, at)) is not None:
+            changed.append([name, inner])
     current = set(names)
     staying = _staying([name for name in names if name in held_at], held_at)
     after = []
@@ -242,86 +242,57 @@ def _list_change(path, by, held_names, names, items, same, held_item) -> dict | 
     return change if len(change) > 2 else None
 
 
-def _value_changes(held, value, path: list, patch: list) -> None:
-    """Append to `patch` the changes that make `held` `value`, both as read."""
-    if held == value:
-        return
-    if isinstance(held, dict) and isinstance(value, dict):
-        for key, child in value.items():
-            if key in held:
-                _value_changes(held[key], child, [*path, key], patch)
-            else:
-                patch.append({"at": [*path, key], "value": child})
-        patch.extend({"at": [*path, key]} for key in held if key not in value)
-        return
-    if isinstance(held, list) and isinstance(value, list):
-        was, now = _named(held), _named(value)
-        if was is not None and now is not None and was[0] == now[0]:
-            change = _list_change(
-                path,
-                now[0],
-                was[1],
-                now[1],
-                value,
-                lambda before, at: held[before] == value[at],
-                held.__getitem__,
-            )
-            if change is not None:
-                patch.append(change)
-            return
-    patch.append({"at": path, "value": value})
-
-
 def _changes(held: tuple, current: tuple, value, path: list, patch: list) -> None:
     """Append to `patch` the changes that make the held parts `value`, whose parts are
     `current`."""
-    if held is current:
+    if _same(held, current):
         return
     kind = current[0]
-    if held[0] != kind:
+    if (
+        held[0] != kind
+        or kind in ("scalar", "value")
+        or (kind == "list" and held[2] != current[2])
+    ):
         patch.append({"at": path, "value": value})
     elif kind == "object":
-        if held[1] == current[1]:
-            return
         for key, child in current[2].items():
             if key in held[2]:
                 _changes(held[2][key], child, value[key], [*path, key], patch)
             else:
                 patch.append({"at": [*path, key], "value": value[key]})
         patch.extend({"at": [*path, key]} for key in held[2] if key not in current[2])
-    elif kind == "scalar":
-        if type(held[1]) is not type(current[1]) or held[1] != current[1]:
-            patch.append({"at": path, "value": value})
-    elif kind == "value":
-        if held[1] != current[1]:
-            patch.append({"at": path, "value": value})
     elif kind == "names":
         change = _list_change(
-            path, "self", held[1], current[1], value, lambda _before, _at: True, None
+            path, "self", held[1], current[1], value, lambda _before, _at: None
         )
         if change is not None:
             patch.append(change)
-    elif held[2] != current[2]:
-        patch.append({"at": path, "value": value})
-    elif held[1] != current[1]:
+    else:
         held_items, items = held[4], current[4]
-        change = _list_change(
-            path,
-            current[2],
-            held[3],
-            current[3],
-            value,
-            lambda before, at: held_items[before] is items[at],
-            lambda before: json.loads(held_items[before]),
-        )
+
+        # A record the held list had, which is an object, changes from within.
+        def changes(before: int, at: int) -> list | None:
+            if held_items[before] == items[at]:
+                return None
+            inner: list = []
+            _changes(
+                _parts(json.loads(held_items[before]), None),
+                _parts(value[at], None),
+                value[at],
+                [],
+                inner,
+            )
+            return inner
+
+        change = _list_change(path, current[2], held[3], current[3], value, changes)
         if change is not None:
             patch.append(change)
 
 
-def answer(state: dict, held: str | None) -> dict:
-    """Name `state`, a whole reading, in `browser.basis.key`, remember it, and return
-    what a tab holding the reading `held` names is sent: the patch from that reading
-    where this process remembers it, else `state` itself."""
+def answer(state: dict, held: str | None, page: str) -> dict:
+    """Name `state`, a whole reading of `page`, in `browser.basis.key`, remember it, and
+    return what a tab holding the reading `held` names is sent: the patch from that
+    reading where this process remembers it, else `state` itself."""
     browser = state["browser"]
     if browser is None:
         return state
@@ -329,17 +300,21 @@ def answer(state: dict, held: str | None) -> dict:
     basis.pop("key", None)
     patched = {key: value for key, value in state.items() if key not in _OWN}
     with _lock:
-        before = _served.get(held) if held is not None else None
-        latest = next(reversed(_served.values()), None)
+        readings = _served.setdefault(page, OrderedDict())
+        _served.move_to_end(page)
+        while len(_served) > PAGES:
+            _served.popitem(last=False)
+        before = readings.get(held) if held is not None else None
+        latest = next(reversed(readings.values()), None)
     current = _parts(patched, (before or latest or (0, None))[1])
     key = basis["key"] = current[1].hex()
     with _lock:
-        if held is not None and held in _served:
-            _served.move_to_end(held)
-        _served[key] = (basis["through_seq"], current)
-        _served.move_to_end(key)
-        while len(_served) > REMEMBERED:
-            _served.popitem(last=False)
+        if held is not None and held in readings:
+            readings.move_to_end(held)
+        readings[key] = (basis["through_seq"], current)
+        readings.move_to_end(key)
+        while len(readings) > REMEMBERED:
+            readings.popitem(last=False)
     if before is None:
         return state
     through, parts = before

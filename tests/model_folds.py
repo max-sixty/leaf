@@ -185,7 +185,7 @@ def served_reading(
         ),
         view_revision=view_revision,
     ).state
-    sent = answer(state, held)
+    sent = answer(state, held, "model")
     assert (error := served_state_error(sent, ("Reading", "Tail"))) is None, error
     return sent
 

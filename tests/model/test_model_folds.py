@@ -8,6 +8,8 @@ opening Chromium would put a browser between the cause and the claim without
 putting one in the claim.
 """
 
+from copy import deepcopy
+
 import model_folds as model
 from interact_support import page_packages, served_obligations
 
@@ -173,7 +175,7 @@ def test_ephemeral_updates_wait_for_an_answer_and_preserve_user_interjections():
     )
     pending = model.threads(model.reading(HUB, messages))["e1"]
     assert pending["summaries"] == []
-    assert pending["unread"] == []
+    assert pending["unread"] == {}
 
     answer = {"kind": "reply", **identity, "parent": "e1", "text": "Both fit."}
     later_progress = {
@@ -200,7 +202,7 @@ def test_ephemeral_updates_wait_for_an_answer_and_preserve_user_interjections():
         "Both fit.",
         "Checking the next week.",
     ]
-    assert completed["unread"] == [{"message": "e5", "version": "e5"}]
+    assert completed["unread"] == {"e5": "e5"}
 
 
 def test_progress_completion_survives_edits_and_explicit_summaries():
@@ -241,7 +243,7 @@ def test_progress_completion_survives_edits_and_explicit_summaries():
     assert corrected["msgs"][1]["completed_by"] == "e4"
     assert corrected["msgs"][2]["completed_by"] == "e4"
     assert corrected["msgs"][1]["text"] == "Mounts checked."
-    assert corrected["unread"] == [{"message": "e4", "version": "e4"}]
+    assert corrected["unread"] == {"e4": "e4"}
 
     explicit = model.threads(
         model.reading(
@@ -264,7 +266,7 @@ def test_progress_completion_survives_edits_and_explicit_summaries():
     ]
     assert explicit["msgs"][1]["completed_by"] == "e4"
     assert explicit["msgs"][2]["completed_by"] == "e4"
-    assert explicit["unread"] == [{"message": "e4", "version": "e4"}]
+    assert explicit["unread"] == {"e4": "e4"}
 
 
 def test_only_a_main_reply_in_the_same_thread_supersedes_progress():
@@ -286,13 +288,11 @@ def test_only_a_main_reply_in_the_same_thread_supersedes_progress():
     )
     pending = model.threads(model.reading(HUB, messages))["e1"]
     assert pending["summaries"] == []
-    assert pending["unread"] == [{"message": "e4", "version": "e4"}]
+    assert pending["unread"] == {"e4": "e4"}
 
     completed = (*messages, {**reply, "text": "Both mounts fit."})
     thread = model.threads(model.reading(HUB, completed))["e1"]
-    assert thread["unread"] == [
-        {"message": identity, "version": identity} for identity in ("e4", "e8")
-    ]
+    assert thread["unread"] == {"e4": "e4", "e8": "e8"}
     assert thread["summaries"] == []
     assert {
         message["id"]: message["completed_by"]
@@ -310,10 +310,7 @@ def test_only_a_main_reply_in_the_same_thread_supersedes_progress():
             ),
         )
     )["e1"]
-    assert revised["unread"] == [
-        {"message": "e4", "version": "e4"},
-        {"message": "e8", "version": "e10"},
-    ]
+    assert revised["unread"] == {"e4": "e4", "e8": "e10"}
 
 
 def test_a_decision_on_any_message_settles_the_thread_it_belongs_to():
@@ -707,3 +704,19 @@ def test_an_answer_to_a_reading_the_server_does_not_remember_is_whole():
         whole = model.served_reading(page, log, held=key)
         assert "since" not in whole, key
         assert [event["id"] for event in whole["events"]] == ["e1"], key
+
+
+def test_one_pages_answers_leave_another_readings_remembered(monkeypatch):
+    """A process serving several pages, or a page and its live samples, remembers each
+    page's readings apart, so one page's answers never push out the reading another
+    page's tab holds (`served_state.tail.PAGES`)."""
+    from leaf.served_state import tail
+
+    monkeypatch.setattr(tail, "REMEMBERED", 1)
+    page = model.leaf_page("Tail", '<p id="p">One.</p>')
+    log = [{"kind": "comment", "text": "Why?"}]
+    first = model.served_reading(page, log)
+    later = model.served_reading(page, [*log, {"kind": "comment", "text": "And?"}])
+    held = tail.answer(deepcopy(first), None, "page")["browser"]["basis"]["key"]
+    tail.answer(deepcopy(later), None, "sample")
+    assert "since" in tail.answer(deepcopy(later), held, "page")

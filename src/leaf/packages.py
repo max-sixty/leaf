@@ -1,6 +1,5 @@
 """Package authoring commands and filesystem safety gates."""
 
-import contextlib
 import os
 import re
 import secrets
@@ -9,6 +8,7 @@ import sys
 import tempfile
 from pathlib import Path
 
+from .event_log import initialized
 from .files import read_json, replace_files
 from .layer import (
     LayerComposition,
@@ -25,7 +25,7 @@ from .locations import (
     located,
     location_is_within,
     path_location,
-    path_lock_key,
+    path_lock,
     paths_same,
 )
 from .machine import package_store
@@ -33,7 +33,6 @@ from .refusals import Refused
 from .schema import (
     ELEMENT_ID,
     HTML_NAME,
-    LAYER_FILE,
     PACKAGE_DIRS,
     PACKAGE_FILES,
     PAGE_OWNED_DIRS,
@@ -42,35 +41,26 @@ from .schema import (
     WIDGET_NAME,
     WIDGET_NAME_RULE,
 )
-from .state import EVENTS_FILE, flocked, fsync_parents, json_bytes
+from .state import fsync_parents, json_bytes
 from .themes import DEFAULT_THEME
 
 
-@contextlib.contextmanager
 def package_write_lock(*packages: Path):
     """Serialize mutations only where their package contracts share destinations.
 
     Registry read/modify/write and shared member directories stay together. An
-    install holds its source and destination in the same ordered lock set, so source
-    init finishes before copying and destination init cannot race publication.
-    Symlinked contract members use their resolved destinations. Independent packages
-    never hold an exclusive lock in common.
-
-    The lock home is machine-local, independent of XDG_STATE_HOME and TMPDIR: two
-    environments writing the same authored package still share its locks. Nothing
-    is written beside authored code or inside a not-yet-validated package.
+    install holds its source and destination in the same ordered lock set
+    (`locations.path_lock`), so source init finishes before copying and destination
+    init cannot race publication. Symlinked contract members use their resolved
+    destinations. Independent packages never hold an exclusive lock in common.
     """
-    root = Path("/tmp") / f"leaf-package-locks-{os.getuid()}"
-    root.mkdir(mode=0o700, exist_ok=True)
-    keys = {
-        path_lock_key(package / name)
-        for package in packages
-        for name in (*PACKAGE_FILES, *PACKAGE_DIRS, SCRIPTS_DIR)
-    }
-    with contextlib.ExitStack() as held:
-        for key in sorted(keys):
-            held.enter_context(flocked(root / f"{key}.lock"))
-        yield
+    return path_lock(
+        *(
+            package / name
+            for package in packages
+            for name in (*PACKAGE_FILES, *PACKAGE_DIRS, SCRIPTS_DIR)
+        )
+    )
 
 
 def create_package_files(package: Path, files: list[tuple[Path, bytes]]) -> list:
@@ -188,10 +178,9 @@ def initialized_page_owning(path: Path):
     resolved = path.resolve()
     at = path_location(resolved)
     for root in (resolved, *resolved.parents):
-        # The append-only event log is the successful-init marker, beside the layer
-        # record init writes. Disposable runtime state cannot identify the page whose
-        # owned paths this gate protects.
-        if not ((root / EVENTS_FILE).is_file() and (root / LAYER_FILE).is_file()):
+        # Disposable runtime state cannot identify the page whose owned paths this
+        # gate protects.
+        if not initialized(root):
             continue
         if (
             at == path_location(root)

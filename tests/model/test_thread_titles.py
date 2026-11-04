@@ -28,6 +28,7 @@ from leaf import harness as harness_model
 from leaf import inference, thread_titles
 from leaf import interaction_log as interaction_model
 from leaf import state as cleanup_model
+from leaf.thread import fit_title
 
 # What Codex's turn reports when the account cannot use the model it asks for.
 UNAVAILABLE_MODEL = {
@@ -344,6 +345,39 @@ def test_a_generated_title_yields_to_one_the_agent_wrote_first(page_dir):
         if e["kind"] == "thread_title"
     ]
     assert titles == ["Intro"]
+
+
+def test_a_generated_title_is_fitted_to_a_thread_title(page_dir):
+    """A model can't count characters or keep to one line, so a generated title past
+    the limit, or broken over lines, is fitted as the clerk's are rather than refused,
+    which would leave the thread untitled."""
+    comment = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "Tighten the intro"}
+    )
+    codex_model.prepare_codex_delivery(
+        page_dir,
+        harness_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid()),
+    )
+    words = "Tightening\nthe " + "long introduction " * 8
+    records = []
+    thread_titles.name_thread(
+        lambda request, target: {"title": words},
+        page_dir,
+        comment["id"],
+        "hosted-thread",
+        lambda event, **fields: records.append((event, fields)),
+    )
+    wait_for(lambda: records, bool, failure="the title request never reported")
+
+    [(event, fields)] = records
+    assert (event, fields.get("written")) == ("thread_title_generated", True)
+    [title] = [
+        e["title"]
+        for e in events_model.read_events(page_dir)
+        if e["kind"] == "thread_title"
+    ]
+    assert title == fit_title(words)
+    assert title.startswith("Tightening the long introduction") and title.endswith("…")
 
 
 TITLING_CLAUDE = """\

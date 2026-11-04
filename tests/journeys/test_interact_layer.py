@@ -718,8 +718,8 @@ def test_package_writers_only_wait_for_contract_destinations_they_share(
 import contextlib
 import fcntl
 import sys
-from leaf import cli, packages
-real_lock = packages.flocked
+from leaf import cli, locations
+real_lock = locations.flocked
 @contextlib.contextmanager
 def observed(path):
     with open(path, "a+b") as probe:
@@ -729,7 +729,7 @@ def observed(path):
             print("waiting on shared destination", flush=True)
     with real_lock(path) as held:
         yield held
-packages.flocked = observed
+locations.flocked = observed
 cli.cli.main(args=sys.argv[1:], standalone_mode=False)
 """
     routes = [package, alias, registry_alias]

@@ -55,6 +55,7 @@ from urllib.parse import unquote, urljoin, urlsplit
 
 import click
 
+from leaf.event_log import initialized
 from leaf.files import latest_revision, list_revisions
 from leaf.live_shell import write_live_shell
 from leaf.schema import (
@@ -145,7 +146,7 @@ def published_pages(
     examples = [
         (page, f"/examples/{page.name}")
         for page in sorted((out / "examples").iterdir())
-        if (page / "events.jsonl").is_file()
+        if initialized(page)
     ]
     return product + examples
 

@@ -41,6 +41,7 @@ from collections import defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
 
+from .registry.schema import aware_instant
 from .schema import INTERACTIONS_FILE
 from .state import now_iso, session_record
 
@@ -122,9 +123,11 @@ def record_command(command: str) -> None:
         }
     except (OSError, psutil.Error):
         return
+    from .event_log import initialized
+
     for page_dir in pages:
         try:
-            if (page_dir / "events.jsonl").is_file():
+            if initialized(page_dir):
                 append_interactions(page_dir, [record])
         except OSError:
             continue
@@ -205,14 +208,11 @@ def session_context(session: str | None, claim: dict | None = None) -> dict | No
     }
 
 
-def interaction_time(value: object) -> datetime:
-    """Read an ISO timestamp with an explicit offset, including browser UTC Z."""
-    if not isinstance(value, str):
-        raise TypeError("interaction time must be an ISO timestamp string")
-    result = datetime.fromisoformat(value)
-    if result.tzinfo is None:
-        raise ValueError("interaction times require a timezone offset")
-    return result
+def interaction_time(value: str) -> datetime:
+    """Read a timestamp in Leaf's date-time format (`registry.schema.aware_instant`)."""
+    if (instant := aware_instant(value)) is None:
+        raise ValueError(f"{value!r} is not an RFC 3339 time with its timezone offset")
+    return instant
 
 
 def read_interactions(
@@ -231,26 +231,25 @@ def read_interactions(
     filter; an unsent tail leaves no evidence. Server/developer records have
     no browser session association.
     """
-    lines = []
-    for path in (page_dir / "events.jsonl", page_dir / INTERACTIONS_FILE):
-        if not path.exists():
-            continue
-        for seq, line in enumerate(path.read_bytes().split(b"\n"), 1):
+    from .event_log import read_stored_events
+
+    lines: list[dict] = [
+        {
+            "source": "semantic",
+            "type": "event",
+            "context": event.pop("context", None),
+            "ts": event["ts"],
+            "event": event,
+        }
+        for event in read_stored_events(page_dir)
+    ]
+    path = page_dir / INTERACTIONS_FILE
+    if path.exists():
+        for line in path.read_bytes().split(b"\n"):
             try:
-                row = json.loads(line)
+                lines.append(json.loads(line))
             except (json.JSONDecodeError, UnicodeDecodeError):
                 continue
-            if path.name == "events.jsonl":
-                context = row.pop("context", None)
-                row = {
-                    "source": "semantic",
-                    "type": "event",
-                    "context": context,
-                    "ts": row["ts"],
-                    "event": row,
-                    "event_seq": seq,
-                }
-            lines.append(row)
     records = []
     seen = set()
     sessions = defaultdict(list)

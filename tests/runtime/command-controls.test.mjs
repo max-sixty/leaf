@@ -31,6 +31,8 @@ import { commandsChanged } from "../../browser/runtime/widget-upgrade.js";
 import { focused } from "../../browser/runtime/focus.js";
 import { adoptShadowStage } from "../../browser/runtime/shadow-stage.js";
 import { signal } from "/runtime/framework.js";
+import { setFlagsFromString } from "node:v8";
+import { runInNewContext } from "node:vm";
 
 // Ordinary control tests begin with saved input available; startup tests withhold it.
 beforeEach(() => applicationState.setPhase("ready"));
@@ -849,6 +851,223 @@ test("a paint inside a declaring element reaches its query for a replaced button
     assert.equal(count, 1);
   } finally {
     owner.remove();
+  }
+});
+test("paints beside each other read the element around them once", () => {
+  /** @param {number} size */
+  const readsFor = (size) => {
+    const owner = document.createElement("section");
+    const parts = Array.from({ length: size }, () => {
+      const part = document.createElement("div");
+      part.append(document.createElement("button"));
+      return part;
+    });
+    owner.append(...parts);
+    document.body.append(owner);
+    let reads = 0;
+    keys(
+      owner,
+      "Parts",
+      parts.map((part, index) => ({
+        id: `probe.part${index}`,
+        title: "Act",
+        control: () => {
+          reads++;
+          return part.querySelector("button");
+        },
+        run: () => {},
+      })),
+    );
+    reflectFirstScopes();
+    reflectKeys();
+    try {
+      reads = 0;
+      for (const part of parts) paintKeysWithin(part);
+      reflectFirstScopes();
+      reflectKeys();
+      return reads;
+    } finally {
+      owner.remove();
+    }
+  };
+  const small = readsFor(16);
+  const large = readsFor(64);
+  assert.ok(large <= 5 * small, `${small} reads at 16 parts, ${large} at 64`);
+});
+test("a press runs a command whose control moved onto it in the same task", () => {
+  const owner = document.createElement("section");
+  const first = document.createElement("button");
+  const second = document.createElement("button");
+  const other = document.createElement("section");
+  document.body.append(owner, first, second, other);
+  // Another command holds the second button, so it is wired before the move.
+  keys(other, "Other", [
+    {
+      id: "probe.other",
+      title: "Other",
+      control: second,
+      when: () => false,
+      run: () => {},
+    },
+  ]);
+  const target = signal(first);
+  let count = 0;
+  keys(owner, "Moving", [
+    {
+      id: "probe.moving",
+      title: "Act",
+      keys: ["x"],
+      control: () => target.value,
+      run: () => count++,
+    },
+  ]);
+  reflectFirstScopes();
+  reflectKeys();
+  try {
+    target.value = second;
+    second.click();
+    assert.equal(count, 1);
+  } finally {
+    owner.remove();
+    first.remove();
+    second.remove();
+    other.remove();
+  }
+});
+test("a press runs the command of an owner put back in the same task", async () => {
+  const owner = document.createElement("section");
+  const control = document.createElement("button");
+  document.body.append(owner, control);
+  let count = 0;
+  keys(owner, "Returning", [
+    { id: "probe.returning", title: "Act", keys: ["x"], control, run: () => count++ },
+  ]);
+  reflectFirstScopes();
+  reflectKeys();
+  try {
+    owner.remove();
+    await new Promise((resolve) => setTimeout(resolve));
+    reflectKeys();
+    assert.equal(buttonCommand(control), undefined);
+    document.body.append(owner);
+    control.click();
+    assert.equal(count, 1);
+  } finally {
+    owner.remove();
+    control.remove();
+  }
+});
+test("a paint reaches a query inside a closed stage", () => {
+  const host = document.createElement("div");
+  const tree = adoptShadowStage(host.attachShadow({ mode: "closed" }));
+  const owner = document.createElement("section");
+  owner.append(document.createElement("button"));
+  tree.append(owner);
+  document.body.append(host);
+  let count = 0;
+  keys(owner, "Staged", [
+    {
+      id: "probe.staged-query",
+      title: "Act",
+      keys: ["x"],
+      control: () => owner.querySelector("button"),
+      run: () => count++,
+    },
+  ]);
+  reflectFirstScopes();
+  reflectKeys();
+  try {
+    const replacement = document.createElement("button");
+    owner.replaceChildren(replacement);
+    paintKeysWithin(host);
+    reflectFirstScopes();
+    reflectKeys();
+    replacement.click();
+    assert.equal(count, 1);
+  } finally {
+    host.remove();
+  }
+});
+test("an owner that has left the page is not held by its keys", async () => {
+  setFlagsFromString("--expose-gc");
+  const collect = runInNewContext("gc");
+  const ref = (() => {
+    const owner = document.createElement("section");
+    document.body.append(owner);
+    keys(owner, "Keys only", [
+      { id: "probe.keys-only", title: "Act", keys: ["x"], run: () => {} },
+    ]);
+    reflectFirstScopes();
+    reflectKeys();
+    owner.remove();
+    return new WeakRef(owner);
+  })();
+  for (let turn = 0; turn < 12 && ref.deref(); turn++) {
+    await new Promise((resolve) => setTimeout(resolve));
+    reflectFirstScopes();
+    reflectKeys();
+    collect();
+  }
+  assert.equal(ref.deref(), undefined);
+});
+test("a button a widget declared before it was placed answers once it is", async () => {
+  const owner = document.createElement("section");
+  const control = document.createElement("button");
+  owner.append(control);
+  owner.lfCommands = {
+    title: "Early",
+    rows: [
+      { id: "probe.early", title: "Act", control, when: () => false, run: () => {} },
+    ],
+  };
+  commandsChanged(owner);
+  reflectFirstScopes();
+  reflectKeys();
+  document.body.append(owner);
+  try {
+    await new Promise((resolve) => setTimeout(resolve));
+    reflectFirstScopes();
+    reflectKeys();
+    assert.equal(control.getAttribute("aria-disabled"), "true");
+  } finally {
+    owner.remove();
+  }
+});
+test("a widget saying its commands changed reads only its own", () => {
+  const sources = Array.from({ length: 32 }, () => {
+    const owner = document.createElement("section");
+    owner.append(document.createElement("button"));
+    document.body.append(owner);
+    return owner;
+  });
+  let reads = 0;
+  for (const [index, owner] of sources.entries()) {
+    owner.lfCommands = {
+      title: "Widget",
+      rows: [
+        {
+          id: `probe.widget${index}`,
+          title: "Act",
+          control: () => {
+            if (index) reads++;
+            return owner.querySelector("button");
+          },
+          run: () => {},
+        },
+      ],
+    };
+    commandsChanged(owner);
+  }
+  reflectFirstScopes();
+  reflectKeys();
+  try {
+    reads = 0;
+    commandsChanged(sources[0]);
+    reflectFirstScopes();
+    reflectKeys();
+    assert.equal(reads, 0);
+  } finally {
+    for (const owner of sources) owner.remove();
   }
 });
 

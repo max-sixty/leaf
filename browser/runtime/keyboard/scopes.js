@@ -23,7 +23,15 @@
    disabled attributes are outputs. ARIA refusal retains current keyboard location while
    activation checks the current command. Withdrawal returns both original attributes.
    Preserve the order of that list because the dispatcher and hints walk inward to
-   outward while the full reference groups the same scopes for reading. */
+   outward while the full reference groups the same scopes for reading.
+
+   Scopes stand wherever their element does, but this module follows only the trees
+   arrivals.js observes: the document, open shadow trees, and stages (`x-shadow`,
+   `shadowStage`). In a closed tree that isn't a stage, a scope still answers its keys,
+   but `commandsWithin` doesn't find it, and once the tree's host leaves the page a
+   button outside it that the scope names keeps showing that command's availability
+   until a paint or `paintKeys()` reaches it; a press no longer runs it. Nothing in
+   Leaf declares scopes in such a tree. */
 import { focusDestination, focusRevision, followingFocus } from "../focus.js";
 import {
   AsyncDirective,
@@ -64,7 +72,7 @@ import { repaint } from "../repaint.js";
 import { installMoveKeys } from "../dom-move.js";
 import { keeps } from "../keeps.js";
 import { tick } from "../version-signal.js";
-import { stageOf, watchOwner } from "../arrivals.js";
+import { settleArrivals, stageOf, watchOwner } from "../arrivals.js";
 import { COMMANDS, commandsChangedOn, refuseCommands } from "../widget-upgrade.js";
 
 /** @typedef {import("./bindings.js").Command} Command
@@ -115,13 +123,18 @@ export function watchCommandScopes(read) {
   return () => commandScopeReaders.delete(read);
 }
 // Which buttons a source's commands name is one computed reading per source
-// (`readingOf`), read again when a signal its getters read moves, when a declaration,
-// paint, arrival or departure bumps its version, or when `paintKeys()` advances the
-// epoch. The element's reflection keeps membership from it (`nameButtons`), and each
-// button reads only its own slice (`commandsAt`). The page's own scopes stand under
-// `PAGE_SOURCE`, read on every pass: every page has the same few.
+// (`readingOf`), read again when a signal its getters read moves or its version
+// advances. A mechanical change marks its source (`mark`): a declaration attached,
+// withdrawn, projected or said changed, a paint in or around it, its arrival or
+// departure, and `paintKeys()` for every source. Marks gather as a set, and each marked
+// source's version advances once when the frame or a press takes them
+// (`takeChanges`). The element's reflection keeps membership both ways
+// (`nameButtons`), and each button reads only its slice (`commandsAt`). A marked
+// element is tied to its lifetime (`watchOwner`): it holds a reading only while it
+// stands in the page, so its departure ends what subscribed through it, and its
+// placement, the first or a return, marks it. The page's own scopes stand under
+// `PAGE_SOURCE`.
 const PAGE_SOURCE = Object.freeze({ page: true });
-const paintEpoch = signal(0);
 /** @typedef {Element | typeof PAGE_SOURCE} ButtonSource */
 /** @type {WeakMap<ButtonSource, {version: {peek(): number, value: number}, reading: {readonly value: Map<HTMLButtonElement, ButtonCommand[]>}}>} */
 const readings = new WeakMap();
@@ -131,6 +144,8 @@ const named = new WeakMap();
 const namers = new WeakMap();
 /** @type {WeakSet<Element>} */
 const lifetimes = new WeakSet();
+/** @type {Set<ButtonSource>} */
+const marked = new Set();
 // Contribution controls have a native activation adapter that retains the projected
 // surface and gesture intent. Its registration is also the row's semantic callback, so a
 // scope projected onto its own control adds no second activation.
@@ -139,20 +154,17 @@ const projectedOnto = (control, scope) =>
   [...(projectedScopes.get(control)?.values() ?? [])].some(
     (projected) => scopeIdentity(projected) === scopeIdentity(scope),
   );
-// Each row with a handler, under each button it or its routes name; nothing for a
-// source out of the page.
+// Each row with a handler, under each button it or its routes name.
 /** @param {ButtonSource} source */
 function buttonNames(source) {
   const [element, scopes] =
     source instanceof Element
       ? [
           source,
-          source.isConnected
-            ? [
-                ...[elementScopes.get(source) ?? []].flat(),
-                ...(projectedScopes.get(source)?.values() ?? []),
-              ]
-            : [],
+          [
+            ...[elementScopes.get(source) ?? []].flat(),
+            ...(projectedScopes.get(source)?.values() ?? []),
+          ],
         ]
       : [
           document.documentElement,
@@ -192,7 +204,7 @@ const sameNames = (before, after) =>
       )
     );
   });
-// Made on first ask. Its getters may ask where the user is.
+// Made on first ask.
 /** @param {ButtonSource} source */
 function readingOf(source) {
   let held = readings.get(source);
@@ -205,7 +217,6 @@ function readingOf(source) {
     const reading = computed(() =>
       followingFocus(() => {
         version.value;
-        paintEpoch.value;
         const next = buttonNames(source);
         if (!sameNames(last, next)) last = next;
         return last;
@@ -216,17 +227,74 @@ function readingOf(source) {
   }
   return held.reading.value;
 }
-// A mechanical change to `source`: its reading is read again when next asked.
+// A mechanical change to `source`: it and the buttons it names are read again. A mark
+// asks for no frame, since a painter's is read at the tail of the frame it paints in;
+// a change outside the frame asks for one where it is reported.
 /** @param {ButtonSource} source */
-const bump = (source) => {
-  const held = readings.get(source);
-  if (held) tick(held.version);
-};
-// `source` names `control`: a press finds it, and the next pass reads it.
-/** @param {ButtonSource} source @param {HTMLButtonElement} control */
-function join(source, control) {
-  namers.set(control, (namers.get(control) ?? new Set()).add(source));
-  dirtyButtons.add(control);
+function mark(source) {
+  marked.add(source);
+  if (source instanceof Element) {
+    dirtyElements.add(source);
+    stand(source);
+  }
+  for (const control of named.get(source)?.keys() ?? []) dirtyButtons.add(control);
+}
+// Leaving the page or arriving in it marks the source. Registering reads the arrivals
+// already made, whose owners' callbacks no reading may subscribe to.
+/** @param {Element} source */
+function stand(source) {
+  if (lifetimes.has(source)) return;
+  lifetimes.add(source);
+  let registered = false;
+  untracked(() =>
+    watchOwner(source, {
+      connect() {
+        if (registered) reread(source);
+      },
+      disconnect: () => reread(source),
+    }),
+  );
+  registered = true;
+}
+/** @param {ButtonSource} source */
+function reread(source) {
+  mark(source);
+  repaint();
+}
+// Take the marks made since the last take, a full paint's and a paint's included, and
+// advance each marked source's version once; one out of the page is forgotten.
+function takeChanges() {
+  claimPaintedRoots();
+  if (keysDirty) {
+    keysDirty = false;
+    pruneScopedElements();
+    mark(PAGE_SOURCE);
+    for (const ref of scopeRefs) {
+      const scoped = ref.deref();
+      if (!scoped) continue;
+      mark(scoped);
+      dirtyButtons.add(scoped);
+    }
+  }
+  for (const source of marked) {
+    const held = readings.get(source);
+    if (source instanceof Element && !source.isConnected) forget(source);
+    else if (held) tick(held.version);
+  }
+  marked.clear();
+}
+// A source out of the page names nothing and keeps no reading, so nothing that
+// subscribed through it holds it.
+/** @param {Element} source */
+function forget(source) {
+  for (const control of named.get(source)?.keys() ?? []) {
+    namers.get(control)?.delete(source);
+    dirtyButtons.add(control);
+  }
+  named.delete(source);
+  readings.delete(source);
+  tracked.get(source)?.();
+  tracked.delete(source);
 }
 // Keep membership to the source's reading, and mark the buttons it names or stops naming.
 /** @param {ButtonSource} source */
@@ -240,29 +308,9 @@ function nameButtons(source) {
       namers.get(control)?.delete(source);
       dirtyButtons.add(control);
     }
-  for (const control of now.keys()) join(source, control);
-  if (now.size && source instanceof Element && !lifetimes.has(source)) {
-    // Leaving the page or coming back reads it again. Registering reads the arrivals
-    // already made, whose owners' callbacks this reading must not subscribe to.
-    lifetimes.add(source);
-    let left = false;
-    const reread = () => {
-      bump(source);
-      dirtyElements.add(source);
-      repaint();
-    };
-    untracked(() =>
-      watchOwner(source, {
-        disconnect() {
-          left = true;
-          reread();
-        },
-        connect() {
-          if (left) reread();
-          left = false;
-        },
-      }),
-    );
+  for (const control of now.keys()) {
+    namers.set(control, (namers.get(control) ?? new Set()).add(source));
+    dirtyButtons.add(control);
   }
 }
 // The commands `control` can run now: its slice of each naming source's reading, in the
@@ -395,8 +443,12 @@ function wireButton(control) {
   wiredButtons.add(control);
   control.addEventListener("click", (event) => {
     if (event.defaultPrevented || event.button !== 0 || !control.isConnected) return;
-    // A paint made in this task reaches the readings this press reads.
-    claimPaintedRoots();
+    // What this task changed is settled first: arrivals and departures, the marks, and
+    // the membership of every source owed a reading.
+    settleArrivals();
+    takeChanges();
+    for (const source of [...dirtyElements, PAGE_SOURCE])
+      if (!(source instanceof Element) || source.isConnected) nameButtons(source);
     const [first, ...rest] = commandsAt(control);
     if (!first) return;
     const { scope, row, entry, run } = chosenCommand([first, ...rest]);
@@ -409,11 +461,11 @@ function wireButton(control) {
 // A button is pressed as soon as it can be reached, which can be before the frame that
 // paints its declaration: a key run in the same task that focused a new thread card
 // clicked a Resolve the paint had not yet wired, and nothing happened. So a declaration
-// wires the buttons it names as elements when it is made, and joins them, so the press
-// reads its command from the declaration's reading. A control named by a getter may not
-// exist yet, and is wired at the element's reading as before.
-/** @param {Element} source @param {Scope} scope */
-function wireDeclaredButtons(source, scope) {
+// wires the buttons it names as elements when it is made; the press reads its command
+// from the declaration's reading. A control named by a getter may not exist yet, and is
+// wired at the element's reading as before.
+/** @param {Scope} scope */
+function wireDeclaredButtons(scope) {
   if (scope.contextual || scope.sequence) return;
   for (const row of scope.rows) {
     if ((!row.run && !row.runKey) || typeof row.routes === "function") continue;
@@ -421,7 +473,8 @@ function wireDeclaredButtons(source, scope) {
       const control = entry.control ?? row.control;
       if (control instanceof HTMLButtonElement && !projectedOnto(control, scope)) {
         wireButton(control);
-        join(source, control);
+        // The pass reads whether the declaration names it after all.
+        dirtyButtons.add(control);
       }
     }
   }
@@ -681,10 +734,9 @@ function attachScope(where, declaration) {
   unpainted.delete(where);
   elementScopes.set(where, scope);
   unpainted.set(where, scope);
-  wireDeclaredButtons(where, scope);
+  wireDeclaredButtons(scope);
   rememberScopedElement(where);
-  bump(where);
-  repaint();
+  reread(where);
   return scope;
 }
 
@@ -698,8 +750,7 @@ function detachScope(element, scope) {
   unpainted.delete(element);
   elementScopes.delete(element);
   forgetScopedElement(element);
-  bump(element);
-  dirtyElements.add(element);
+  mark(element);
   reflectElementShortcuts(element);
   return true;
 }
@@ -796,17 +847,19 @@ export const commandsOn = directive(
 // widget says when it sets or changes them, or anything its rows read, with
 // `commandsChanged` (widget-upgrade.js), so a page without Leaf, which hears nothing,
 // binds no key. A declaration other than the one standing stands in its place, and none
-// withdraws it; the same one standing means a row's reading moved, so every
-// presentation of the register reads its rows again (`paintKeys`). A malformed
-// declaration is refused where the widget made it, as `keys` refuses one: the refusal
-// goes back on the event, and `commandsChanged` throws it.
+// withdraws it; the same one standing means a row's reading moved, so the element
+// reads its rows again (`mark`), and so does every reader of the register's
+// availability. A malformed declaration is refused where the widget made it, as `keys`
+// refuses one: the refusal goes back on the event, and `commandsChanged` throws it.
 const declared = new WeakMap();
 addEventListener(COMMANDS, (event) => {
   const element = commandsChangedOn(event);
   const declaration = element.lfCommands ?? null;
   const standing = declared.get(element);
   if (declaration === (standing?.declaration ?? null)) {
-    paintKeys();
+    if (standing) mark(element);
+    availabilityDirty = true;
+    repaint();
     return;
   }
   if (!declaration) {
@@ -861,10 +914,12 @@ export function projectCommandScope(control, projector, capability = null) {
   } else {
     projections.set(projector, capability.scope);
     projectedScopes.set(control, projections);
-    wireDeclaredButtons(control, capability.scope);
+    wireDeclaredButtons(capability.scope);
     rememberScopedElement(control);
   }
-  bump(control);
+  // Read at once, so a projector outside the frame needs none.
+  mark(control);
+  takeChanges();
   reflectTracked(control);
 }
 
@@ -874,21 +929,16 @@ export function projectCommandScope(control, projector, capability = null) {
 // This is the shared capability reading: the dispatcher, hints and reference use
 // the same rows directly, while projections such as On me select the role they need.
 // A scope may sit on a nested control rather than the widget itself, so the walk goes
-// down from `root` by the step `renderedParent` takes up (`renderedChildElements`), and
-// into a closed stage by its host (`stageOf`). It costs the widget's size, not the
+// down from `root` as it renders (`eachRendered`). It costs the widget's size, not the
 // page's, and returns the scopes in the order they were declared.
 /** @param {Element} root @param {boolean} activeOnly */
 function scopesWithin(root, activeOnly) {
   /** @type {Element[]} */
   const scopedIn = [];
-  /** @param {Element} node */
-  const visit = (node) => {
-    if (elementScopes.has(node) || projectedScopes.has(node)) scopedIn.push(node);
-    for (const child of renderedChildElements(node)) visit(child);
-    if (!node.shadowRoot)
-      for (const child of stageOf(node)?.children ?? []) visit(child);
-  };
-  if (root.isConnected) visit(root);
+  if (root.isConnected)
+    eachRendered(root, (node) => {
+      if (elementScopes.has(node) || projectedScopes.has(node)) scopedIn.push(node);
+    });
   /** @type {Declaration[]} */
   const found = [];
   const seen = new Set();
@@ -971,6 +1021,7 @@ function reflectElementShortcuts(element) {
 // rather than under whichever surface reads its rows first.
 export function reflectFirstScopes() {
   try {
+    takeChanges();
     for (const [element, scope] of unpainted) {
       unpainted.delete(element);
       reflectTracked(scope.el);
@@ -1036,7 +1087,7 @@ function reflectAvailabilityReaders() {
   if (failure) throw failure;
 }
 function reflectButtonsTracked() {
-  claimPaintedRoots();
+  takeChanges();
   if (!dirtyButtons.size && !availabilityDirty) return;
   // Getter-named buttons may arrive after declaration. Claim their output fields before
   // availability readers project commands; otherwise their initial disabled paint is
@@ -1075,6 +1126,8 @@ function reflectButtonsTracked() {
 }
 /** @param {Element} element */
 function reflectTracked(element) {
+  // This reading answers whatever owed the element one.
+  dirtyElements.delete(element);
   tracked.get(element)?.();
   const ref = new WeakRef(element);
   /** @type {Element | null} */
@@ -1086,7 +1139,7 @@ function reflectTracked(element) {
       initial = null;
       try {
         followingFocus(() => {
-          nameButtons(current);
+          if (current.isConnected) nameButtons(current);
           reflectElementShortcuts(current);
         });
       } catch (error) {
@@ -1104,27 +1157,15 @@ function reflectTracked(element) {
   if (failure) throw failure;
 }
 export function reflectKeys() {
-  claimPaintedRoots();
-  if (!keysDirty && !dirtyElements.size) return;
-  const elements = new Set(dirtyElements);
+  takeChanges();
+  if (!dirtyElements.size) return;
+  const elements = [...dirtyElements];
   dirtyElements.clear();
-  // A full paint reads every element and button again, beside the elements already owed
-  // a reading: one whose declaration was withdrawn has left `scopeRefs`.
-  if (keysDirty) {
-    keysDirty = false;
-    pruneScopedElements();
-    for (const ref of scopeRefs) {
-      const scoped = ref.deref();
-      if (!scoped) continue;
-      elements.add(scoped);
-      dirtyButtons.add(scoped);
-    }
-  }
   for (const scoped of elements) {
     try {
       // One that has left the page only lets its buttons go.
       if (scoped.isConnected) reflectTracked(scoped);
-      else nameButtons(scoped);
+      else forget(scoped);
     } catch (error) {
       reportError(error);
     }
@@ -1134,7 +1175,6 @@ export function reflectKeys() {
 export const paintKeys = () => {
   keysDirty = true;
   availabilityDirty = true;
-  tick(paintEpoch);
   repaint();
 };
 /** Mark for reflection the scoped elements inside `root`, as a renderer that has just
@@ -1159,14 +1199,27 @@ installMoveKeys((node) => {
     if (paintedRoots.has(at)) return markScopedIn(node);
 });
 /** @param {Node} node */
-function markScopedIn(node) {
-  if (isElement(node) && scopeRefFor.has(node)) {
-    bump(node);
-    dirtyElements.add(node);
-    dirtyButtons.add(node);
+const markScopedIn = (node) =>
+  eachRendered(node, (element) => {
+    if (!scopeRefFor.has(element)) return;
+    mark(element);
+    dirtyButtons.add(element);
+  });
+// Each element at or under `node` as it renders: down the step `renderedParent` takes
+// up (`renderedChildElements`), and into a closed stage by its host (`stageOf`). A
+// widget's scopes and a paint's marks are found by the same steps.
+/** @param {Node} node @param {(element: Element) => void} visit */
+function eachRendered(node, visit) {
+  if (!isElement(node)) {
+    // A painted shadow root, or a text node a move carries.
+    const { children = [] } = /** @type {Partial<ParentNode>} */ (node);
+    for (const child of children) eachRendered(child, visit);
+    return;
   }
-  for (const child of node.childNodes) markScopedIn(child);
-  if (isElement(node) && node.shadowRoot) markScopedIn(node.shadowRoot);
+  visit(node);
+  for (const child of renderedChildElements(node)) eachRendered(child, visit);
+  if (!node.shadowRoot)
+    for (const child of stageOf(node)?.children ?? []) eachRendered(child, visit);
 }
 function claimPaintedRoots() {
   if (!paintedRoots.size) return;
@@ -1194,16 +1247,21 @@ function claimPaintedRoots() {
     for (const at of passed) covered.set(at, answer);
     return answer;
   };
+  /** @type {Set<Element>} */
+  const around = new Set();
   for (const root of paintedRoots) {
     if (coveredFrom(composedParentNode(root))) continue;
     markScopedIn(root);
     // A paint changes what the elements around it hold, so a declaration querying its
-    // own subtree for a control reads again.
-    for (let at = renderedParent(root); at; at = renderedParent(at))
-      if (scopeRefFor.has(at)) {
-        bump(at);
-        dirtyElements.add(at);
-      }
+    // own subtree for a control reads again; a shared ancestor is climbed once.
+    for (
+      let at = renderedParent(root);
+      at && !around.has(at);
+      at = renderedParent(at)
+    ) {
+      around.add(at);
+      if (scopeRefFor.has(at)) mark(at);
+    }
   }
   paintedRoots.clear();
 }

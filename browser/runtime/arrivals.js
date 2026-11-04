@@ -24,7 +24,8 @@
    one batch; an explicit offer is a batch of one. `watchArrivals` returns `offer(el)`,
    which decides one element at once rather than at the next mutation delivery. It
    first reads the mutations already made as a batch, so a decision made now never
-   runs ahead of a departure made before it.
+   runs ahead of a departure made before it; `settleArrivals()` reads them for every
+   watch, for a decision, such as a press, that rests on any element's lifetime.
 
    An element's connection lifetime is one such watch over every element:
    `watchOwner(owner, {connect, disconnect})` connects while the owner stands and
@@ -50,7 +51,7 @@
 import { isElement, shadowHost, under } from "./shadow-tree.js";
 import { cancelRender, nextFrame, nextRender } from "./rendering.js";
 
-/** @typedef {{selector: string, attributes: string[], observer: MutationObserver, offerMany: (elements: Iterable<Element>) => void}} ArrivalWatch
+/** @typedef {{selector: string, attributes: string[], observer: MutationObserver, offerMany: (elements: Iterable<Element>) => void, read: (records: MutationRecord[]) => void}} ArrivalWatch
  * @typedef {{connect(): void, disconnect(): void}} Connection */
 /** @type {Set<ArrivalWatch>} */
 const watches = new Set();
@@ -259,13 +260,17 @@ export function watchArrivals(selector, attributes, { arrive, arriveBatch, leave
     offerMany(offered);
   };
   const observer = new MutationObserver(read);
-  const watch = { selector, attributes, observer, offerMany };
+  const watch = { selector, attributes, observer, offerMany, read };
   watches.add(watch);
   for (const root of [document.documentElement, ...liveStages()]) enroll(watch, root);
   return (/** @type {Element} */ el) => {
     read(observer.takeRecords());
     offer(el);
   };
+}
+
+export function settleArrivals() {
+  for (const { observer, read } of watches) read(observer.takeRecords());
 }
 
 /** @param {ArrivalWatch} watch @param {Element | ShadowRoot} root */

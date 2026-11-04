@@ -665,7 +665,6 @@ def test_a_shot_takes_a_view_pressed_as_the_page_shows_and_keeps_its_divider(
     expect(shot.locator(".lf-shot-pixel-mask")).to_have_attribute(
         "style", re.compile(r"--lf-shot-pixels: url\(")
     )
-    expect(shot.locator(".lf-shot-pixel-status")).to_have_count(0)
     views.get_by_role("radio", name="Slider", exact=True).click()
     comparison = shot.locator("wa-comparison")
     expect(comparison).to_have_attribute("position", "50")
@@ -678,92 +677,33 @@ def test_a_shot_takes_a_view_pressed_as_the_page_shows_and_keeps_its_divider(
     expect(comparison).to_have_attribute("position", position)
 
 
-# Each mask waits for its release, so a test decides how long the wait is.
-HOLD_MASKS = """window.lfHeldMasks = [];
-const encode = OffscreenCanvas.prototype.convertToBlob;
-OffscreenCanvas.prototype.convertToBlob = function (...args) {
-  return new Promise((resolve) =>
-    window.lfHeldMasks.push(() => resolve(encode.apply(this, args))));
-};"""
-
-
-@pytest.mark.parametrize("reduced_motion", ["no-preference", "reduce"])
-def test_a_shot_says_it_is_finding_its_mask_once_the_wait_is_long_enough_to_read(
-    browser, serve, reduced_motion
-):
-    """A mask landing within 150ms never shows the word, and a slower one shows it until
-    it lands, under reduced motion too. The test sets the word's age on its own delay, so
-    the reading doesn't depend on how fast the machine runs."""
-    pairs = "".join(
-        f'<lf-shot id="{name}" alt="{name}" before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot>'
-        for name in ("quick", "slow")
-    )
-    source = leaf_page("Wait for a mask", f"<h1>Wait for a mask</h1>{pairs}")
-    url = serve(source, media={SHOT_SRC[n]: data for n, data in SHOTS.items()})
-    context = browser.new_context(
-        viewport={"width": 1200, "height": 900}, reduced_motion=reduced_motion
-    )
-    page = open_page(browser, url, context=context, init_script=HOLD_MASKS)
-
-    def word_at_ages(name, ages):
-        """Press Pixels on one shot, and read the word at each age in the press's task."""
-        return page.locator(f"#{name}").evaluate(
-            """async (shot, ages) => {
-              const views = shot.querySelector('.lf-shot-views');
-              const chosen = new Promise((resolve) =>
-                views.addEventListener('change', resolve, {once: true}));
-              views.querySelector('[value="pixels"]').click();
-              await chosen;
-              const word = shot.querySelector('.lf-shot-pixel-status');
-              const [delay] = word.getAnimations();
-              delay?.pause();
-              return ages.map((age) => {
-                if (delay) delay.currentTime = age;
-                return getComputedStyle(word).visibility;
-              });
-            }""",
-            ages,
-        )
-
-    def release_mask(name):
-        page.wait_for_function("window.lfHeldMasks.length === 1")
-        page.evaluate("window.lfHeldMasks.shift()()")
-        shot = page.locator(f"#{name}")
-        expect(shot.locator(".lf-shot-pixel-mask")).to_have_attribute(
-            "style", re.compile(r"--lf-shot-pixels: url\(")
-        )
-        expect(shot.locator(".lf-shot-pixel-status")).to_have_count(0)
-
-    assert word_at_ages("quick", [149]) == ["hidden"]
-    release_mask("quick")
-    assert word_at_ages("slow", [149, 151]) == ["hidden", "visible"]
-    release_mask("slow")
-
-
-def test_a_shot_keeps_saying_it_is_finding_its_mask_when_a_capture_replaces_the_pair(
-    browser, serve
-):
+def test_a_shot_masks_the_pair_that_replaced_the_one_it_was_masking(browser, serve):
     """Pixels pressed before the first reading, with a capture replaced while its mask
-    runs: the old mask ending leaves the word up, and the new pair gets its own mask."""
+    runs: the old mask ending draws nothing, and the new pair gets its own mask."""
     source = leaf_page(
         "Replace a capture",
         f'<h1>Replace a capture</h1><lf-shot id="replaced-pair" alt="a pair" before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot>',
     )
     url = serve(source, media={SHOT_SRC[n]: data for n, data in SHOTS.items()})
-    # The readings wait behind a held mask, so the page never reads as ready here.
+    # Each mask waits for its release, so the old one is still running as the capture
+    # is replaced. The readings wait behind it, so the page never reads as ready here.
     page = open_page(
         browser,
         url,
         upgraded=False,
-        init_script=HOLD_MASKS
-        + """new MutationObserver((records, observer) => {
+        init_script="""window.lfHeldMasks = [];
+        const encode = OffscreenCanvas.prototype.convertToBlob;
+        OffscreenCanvas.prototype.convertToBlob = function (...args) {
+          return new Promise((resolve) =>
+            window.lfHeldMasks.push(() => resolve(encode.apply(this, args))));
+        };
+        new MutationObserver((records, observer) => {
           if (!document.body?.hasAttribute('data-lf-presented')) return;
           observer.disconnect();
           document.querySelector('lf-shot .lf-shot-views [value="pixels"]').click();
         }).observe(document, {subtree: true, attributeFilter: ['data-lf-presented']});""",
     )
     shot = page.locator("lf-shot")
-    word = shot.locator(".lf-shot-pixel-status")
     mask = shot.locator(".lf-shot-pixel-mask")
     page.wait_for_function("window.lfHeldMasks.length === 1")
     shot.evaluate("node => node.setAttribute('after', node.getAttribute('before'))")
@@ -772,11 +712,9 @@ def test_a_shot_keeps_saying_it_is_finding_its_mask_when_a_capture_replaces_the_
     )
     page.evaluate("window.lfHeldMasks.shift()()")
     page.wait_for_function("window.lfHeldMasks.length === 1")
-    expect(word).to_be_visible()
     expect(mask).not_to_have_attribute("style", re.compile("--lf-shot-pixels"))
     page.evaluate("window.lfHeldMasks.shift()()")
     expect(mask).to_have_attribute("style", re.compile(r"--lf-shot-pixels: url\("))
-    expect(word).to_have_count(0)
 
 
 def test_a_pressed_shot_gets_its_mask_ahead_of_the_other_shots_readings(browser, serve):

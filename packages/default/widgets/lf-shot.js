@@ -35,12 +35,10 @@ import { ShotView } from "./shot-view.js";
  * (`webawesome-views`), so every view takes the first press the reader makes once the
  * page shows. That puts them on the startup path; loading them after presentation
  * kept them off, but left the radios inert until they arrived. Pixels needs only the
- * two images, so choosing it shows the view at once. A greyed image with no mask would
- * read as a pair with no changes, so the view says it is finding the changed pixels for
- * as long as it has neither a mask nor an error, once the wait is long enough to read
- * (`.lf-media-status`). Masks are computed only on selection. The divider's exact
- * position survives switching views. Replacing either capture refreshes evidence
- * inside the retained controls and viewports, preserving the reader's inspection.
+ * two images, so choosing it shows the view at once, and its mask follows. Masks are
+ * computed only on selection. The divider's exact position survives switching views.
+ * Replacing either capture refreshes evidence inside the retained controls and
+ * viewports, preserving the reader's inspection.
  * `difference` reads the requested pair, with its `description` in words; a superseded
  * or refused load resolves null.
  * Pair's images are original-image links using the shared viewer; dragging or
@@ -117,6 +115,8 @@ export class Shot extends HTMLElement {
   #pixelsPainted = null;
   /** @type {Capture | null} */
   #capture = null;
+  /** @type {Element | null} */
+  #error = null;
   /** @type {((promise: Promise<unknown>) => void) | undefined} */
   _lfPresentGenerated;
   static observedAttributes = ["alt", "before", "after"];
@@ -141,15 +141,14 @@ export class Shot extends HTMLElement {
 
   connectedCallback() {
     if (!once(this)) return;
-    const drawing = this.#drawing;
     placesFailure(this, (/** @type {Element} */ box) => {
-      if (drawing.error?.textContent === box.textContent) return true;
-      drawing.error?.remove();
-      drawing.error = box;
+      if (this.#error?.textContent === box.textContent) return true;
+      this.#error?.remove();
+      this.#error = box;
       this.append(box);
-      this.#paint();
       return true;
     });
+    const drawing = this.#drawing;
     render(drawing.render(), this, { host: this });
     drawing.fit();
     render(drawing.render(), this, { host: this });
@@ -298,8 +297,8 @@ export class Shot extends HTMLElement {
     const changed = this.#drawing.images !== capture.images;
     this.#drawing.images = capture.images;
     this.#drawing.metadata = capture.metadata;
-    this.#drawing.error?.remove();
-    this.#drawing.error = null;
+    this.#error?.remove();
+    this.#error = null;
     if (changed) {
       this.#setPixelUrl(pixels);
       this.#pixelsPainted = pixels ? Promise.resolve() : null;

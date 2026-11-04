@@ -2603,11 +2603,7 @@ export class Trace extends LeafElement {
       if (!this.#images.has(image.id)) {
         const figure = el("figure", "lf-trace-image");
         const img = document.createElement("img");
-        const status = el(
-          "span",
-          "lf-trace-image-status lf-media-status",
-          "Loading captured image…",
-        );
+        const status = el("span", "lf-trace-image-status", "Loading captured image…");
         figure.classList.add("lf-trace-image-loading");
 
         const canvas = el("div", "lf-trace-canvas lf-ring-overlay");

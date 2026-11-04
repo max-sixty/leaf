@@ -241,10 +241,29 @@
 }
 /* Where a box's marks stand (:root, "Where it stands"). It has no initial value, so a
  * box that states none reads as stating none, which `outline-offset`'s initial 0 could
- * not say: a field's edge read as nothing stated, and an overlay mark stood 3px out
- * round a field whose focus ring replaces its border. It does not inherit, so a box
+ * not say: a field's edge read as nothing stated, and a mark stood 3px out round a
+ * field whose focus ring replaces its border. It does not inherit, so a box
  * inside a stated one answers for itself. */
 @property --lf-ring-at {
+  syntax: "*";
+  inherits: false;
+}
+/* What a mark drawn on a box is drawn with (surfaces.css): its gap, band, ink and the
+ * room it reaches past the box. None inherits, so a box inside a marked one is marked
+ * only as it is itself. */
+@property --lf-band-gap {
+  syntax: "*";
+  inherits: false;
+}
+@property --lf-band-w {
+  syntax: "*";
+  inherits: false;
+}
+@property --lf-band-ink {
+  syntax: "*";
+  inherits: false;
+}
+@property --lf-band-room {
   syntax: "*";
   inherits: false;
 }
@@ -1293,8 +1312,8 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
  * stands flush with the scrollport of the workspace body holding it, so that ring lost
  * its right and bottom sides to the scrollport's edge and ran over the header's rule.
  * The body's ring is drawn inset instead, on a later box sharing its grid cell, as the
- * Threads list draws its own (chrome.css, .lf-threads-frame): an outline on the body
- * itself paints under whatever positioned content scrolls across its edges. */
+ * floating panel draws its view's (floating-panel.css, `.lf-fp-stage`): an outline on
+ * the body itself paints under whatever positioned content scrolls across its edges. */
 [data-lf-reading-role="pane"] > :not(header, footer)[data-lf-focus-visible] {
   outline: none;
 }

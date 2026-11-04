@@ -8,15 +8,17 @@
  * capabilities before mount binds listeners; `installArrival` restores continuity once
  * the arriving geometry is ready.
  *
- * The picker owns the complete version list. Its focused row selects the comparison
- * base; the row for the displayed version clears comparison. The comparison and the
- * picker's presentation need no application capability, so they live at module scope,
- * one per document, and other surfaces import their readers directly; the controller
- * keeps travel and activation, which do. Block marks show which blocks changed; a change
- * is a hunk of the block diff as the page shows it, its run of changed blocks and the base
- * blocks it took out (`changeRuns`), which a reader counts and visits; `changeCard` /
- * `toggleChangeCard` open what one replaced on request. A base is a stamped version
- * selected in the picker.
+ * The picker owns the complete version list, where each version older than the one
+ * shown offers a Compare that marks what changed since it; `v` marks what changed since
+ * the newest of them. A lit Compare, or `v` again, clears the comparison. The
+ * comparison and the picker's presentation need no application capability, so they
+ * live at module scope, one per document, and other surfaces import their readers
+ * directly; the controller keeps travel and activation, which do. Block marks show
+ * which blocks changed; a change is a hunk of the block diff as the page shows it, its
+ * run of changed blocks and the base blocks it took out (`changeRuns`), which a reader
+ * counts and visits; `changeCard` / `toggleChangeCard` open what one replaced on
+ * request. A base is a stamped version, the one a Compare names or, for `v`, the newest
+ * older one.
  * `comparisonBase` names the current base.
  * `comparisonChanges(owner)` selects the changes inside `owner` from the same comparison
  * reading. Its signal advances after the marked DOM and comparison selection have
@@ -71,7 +73,7 @@ import {
   renderingState,
   sizeObserver,
 } from "./rendering.js";
-import { frameFor } from "./arrivals.js";
+import { frameFor, watchScrollEnds } from "./arrivals.js";
 import { LIVE_ROOT, layerRoot, pageUrl, revisionLabel, runtime } from "./context.js";
 import { servedExecutable } from "./document-identity.js";
 
@@ -95,6 +97,7 @@ import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { focusedInView } from "./user-place.js";
 import { SourcePairs, patchTree, patchRetains } from "./dom-children.js";
 import { savedReadingSettled } from "./keyboard/bindings.js";
+import { pageCommand } from "./keyboard/register.js";
 import { commandSteps } from "./keyboard/control-keys.js";
 import { pruneScopedElements } from "./keyboard/scopes.js";
 import { repaint } from "./repaint.js";
@@ -629,8 +632,8 @@ const diffPaired = new Map();
 const diffWordsOf = new Map();
 // The comparison request that owns the page. Every request takes the next number and every
 // stop takes one too, so a base whose document lands after the user has moved on is
-// dropped rather than painted over the base they are on now. Reachable because the
-// walk asks per row: it is one fetch per press, and the presses come faster than the network.
+// dropped rather than painted over the base they are on now. Reachable because each
+// press of Compare or `v` is one fetch, and the presses come faster than the network.
 let diffRequest = 0;
 // A containing prose block owns its words, not an opaque child's rendered data.
 // Use the same boundary for comparison keys, stored words and inline ranges.
@@ -642,8 +645,8 @@ const comparisonTextNodes = (root, opaque = diffOpaqueSel()) =>
 const comparisonWords = (root, opaque) => quoteFrom(comparisonTextNodes(root, opaque));
 
 // Formatting may render authored words while keeping their source on the formatted
-// island. The keys compare that source; an inline comparison reads the formatted words,
-// which are what the user sees.
+// island. The keys compare that source; the change's card reads the formatted words
+// (`diffWordsOf`), which are what the user sees.
 /** @param {Element} block @param {string} opaque */
 function diffWords(block, opaque) {
   const words = (/** @type {Element} */ root) => comparisonWords(root, opaque);
@@ -1472,14 +1475,12 @@ function setDiff(on, base = null, pendingBase = null) {
     tick(comparisonGeneration);
   });
 }
-// The one way a comparison starts, from a row's press, from the walk through the menu,
-// or from an activation putting back the one it dropped. It states a base rather than
-// toggling one — the toggle is a press's own reading of it, and the walk has none to
-// spend, standing on a row being what makes it the base however many times the user
-// arrives there. Everything touching the live page happens in one synchronous stretch
-// after the single await: the walk asks for a comparison per row, and a marking pass
-// that could interleave with the next row's would leave two bases' marks in place
-// under a picker naming one of them.
+// The one way a comparison starts, from a row's Compare, from `v`, or from an
+// activation putting back the one it dropped. It states a base rather than toggling
+// one — the toggle is each press's own reading of it. Everything touching the live page
+// happens in one synchronous stretch after the single await: presses can ask for a
+// comparison faster than one arrives, and a marking pass that could interleave with the
+// next one's would leave two bases' marks in place under a picker naming one of them.
 /** @param {ComparisonBase} base */
 async function showComparison(base) {
   // Selection is immediate even though its result needs two documents. Clear the prior
@@ -1530,17 +1531,22 @@ async function showComparison(base) {
       : `No text changes since ${base.name}`,
   );
 }
+// A press that ends a comparison says so, as `o` does when it hides annotations, so a
+// screen reader hears the marks go rather than keeping the comparison's count.
+const endComparison = () => {
+  setDiff(false);
+  notice("Changes hidden");
+};
 // A press names one stamped version, so pressing the current one again is the way off
-// it: Compare is a toggle where it is lit and a switch of base where it isn't. The
-// keyboard's way off is the walk itself — up to the version being read, which is
-// comparable with nothing and so stops rather than re-bases.
+// it: Compare is a toggle where it is lit and a switch of base where it isn't. `v` is
+// the keyboard's way off, from whichever base.
 /** @param {number | null} version */
 const pressComparison = (version) => {
   if (version === null) return;
   const entry = stamped(version);
   if (!entry) return;
   return selectedBase()?.revision === entry.revision
-    ? setDiff(false)
+    ? endComparison()
     : showComparison(revisionBase(entry));
 };
 
@@ -1661,6 +1667,32 @@ export function createVersionController({
     // way out is not live over. The walk being empty is the menu's business, not this key's.
     when: versionsOffered,
   };
+  // `v` marks what changed since the newest version older than the one being read, and
+  // takes any comparison off again, whichever press started it. The user chose on 3
+  // November to call the marks up with a key, rather than have a page arrive marked
+  // with what changed since their last visit (removed in #5014), and chose a toggle
+  // over a key that opens Versions and re-marks the page as its rows are walked. An
+  // older base stays with Versions, which `g V` opens.
+  const latestBase = () =>
+    runtime.versions.findLast((entry) => comparable(entry.revision)) ?? null;
+  const since = () => {
+    const latest = latestBase();
+    return latest ? ` since v${latest.version}` : "";
+  };
+  pageCommand({
+    id: "version.compare.latest",
+    ready: savedReadingSettled,
+    keys: ["v"],
+    title: () => (selectedBase() ? "hide changes" : `show changes${since()}`),
+    touch: () => (selectedBase() ? "Hide changes" : `Show changes${since()}`),
+    menu: "annotate",
+    when: () => selectedBase() !== null || latestBase() !== null,
+    run: () => {
+      const latest = latestBase();
+      if (selectedBase()) endComparison();
+      else if (latest) return showComparison(revisionBase(latest));
+    },
+  });
 
   // A stamped version is historical and always pins. The active working document owns
   // the live root, whether or not that revision has already received a stamp.
@@ -2189,8 +2221,8 @@ export function createVersionController({
       activates: () =>
         activates(
           (node) =>
-            // Installation closes inline comparisons, which can own the comment’s
-            // rendered subject independently of the authored patch.
+            // Installation turns a selected comparison off and back on, and its marks
+            // can own the comment’s rendered subject independently of the authored patch.
             selectedBase() === null &&
             patchRetains(outgoing, source, node, patchRules(doc)),
         ),
@@ -2900,21 +2932,17 @@ export function createVersionController({
     document.addEventListener("scroll", scrolled, { capture: true, passive: true });
     // A scroll's end is the reader's choice (scrolling.js), and a place taken before it
     // would read as older than that choice. WebKit, and Chromium for touch, end a scroll
-    // frames after its last scroll event, so the end takes a place of its own.
-    document.addEventListener(
-      "scrollend",
-      (event) => {
-        const box = scrollEventBox(event);
-        if (!box) return;
-        const written = writing.get(box);
-        if (written !== undefined) {
-          if (!inputSince(box, written)) ownEnd.set(box, scrollChoices());
-          writing.delete(box);
-        }
-        nextRender(() => recordPlaces([box]));
-      },
-      { capture: true, passive: true },
-    );
+    // frames after its last scroll event, so the end takes a place of its own. Like the
+    // scroll listener above, it reads the document's own scrollers.
+    watchScrollEnds((box) => {
+      if (box.getRootNode() !== document) return;
+      const written = writing.get(box);
+      if (written !== undefined) {
+        if (!inputSince(box, written)) ownEnd.set(box, scrollChoices());
+        writing.delete(box);
+      }
+      nextRender(() => recordPlaces([box]));
+    });
     for (const type of ["popstate", "hashchange"]) addEventListener(type, releaseHolds);
     // Arriving or editing changes the place even when no scroller moves. Keep the intact
     // place now: an immediate resize can invalidate geometry before a later record runs.

@@ -1,5 +1,5 @@
 /* @noformat Generated from node_modules/@awesome.me/webawesome/dist/styles/native.css, region "Checkboxes + Radios", by build/styles.mjs. */
-@scope (.choice) {
+@scope (.lf-choice, .choice) {
   input[type='checkbox'],
   label:has(input[type='checkbox']),
   input[type='radio'],

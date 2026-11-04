@@ -24,7 +24,9 @@ markup in an agent's message, that message's own markup. `elementById(id, root)`
 or the whole document, including the shadow trees `getElementById` misses.
 `under(node, root)` says whether `node` is in `root` across shadow boundaries, and
 `inChrome(node)` whether it is in Leaf's own interface, as a widget in a Thread reply
-is.
+is. A widget that acts on the document around it, as a contents list or a depth dial
+does, reads it with `viewDocument(node)`: the view member holding the node (`x-views`,
+`module-authoring.md`), else the `main` holding it, else null.
 
 ### Naming elements
 
@@ -137,7 +139,9 @@ pass it as `trigger` instead. Set its `value` before it copies, and it reports
 
 `alignText(before, after)` aligns two texts by words and returns runs `{kind, text}`,
 with `kind` `same`, `delete` or `insert`. To align by sentences, pass an
-`Intl.Segmenter` with `granularity: "sentence"` as the third argument.
+`Intl.Segmenter` with `granularity: "sentence"` as the third argument. Its walk gives
+up after `MAX_EDIT_LENGTH` edits and returns the whole text replaced; a widget that
+walks its own units with jsdiff, such as a document's lines, passes the same cap.
 
 ### Media URLs
 

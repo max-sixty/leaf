@@ -1,7 +1,6 @@
 """A reader can inspect and copy a page without changing the page being inspected."""
 
 import json
-from socket import gethostname
 
 from model_folds import leaf_page
 from playwright.sync_api import expect
@@ -11,6 +10,7 @@ from render_harness import (
     holding,
     http_error_console,
     open_page,
+    over_plain_http,
     panel_control,
     stamp_page,
     wait_for_revision,
@@ -284,18 +284,10 @@ def test_about_combines_page_identity_and_diagnostics_with_copyable_text(
 
 
 def test_about_copy_on_plain_http_machine_name(browser, serve):
-    host = gethostname().lower()
     local_url = live_url(
         serve(leaf_page("About over HTTP", "<h1>Page details</h1>"), packages=())
     )
-    remote_url = local_url.replace("127.0.0.1", host)
-    context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
-
-    def fetch_from_loopback(route):
-        response = route.fetch(url=route.request.url.replace(host, "127.0.0.1"))
-        route.fulfill(response=response)
-
-    context.route(f"http://{host}:**/*", fetch_from_loopback)
+    context, remote_url = over_plain_http(browser, local_url)
     page = open_page(browser, remote_url, context=context)
     assert page.evaluate("!isSecureContext && navigator.clipboard === undefined")
     panel_control(page, "inspection").click()

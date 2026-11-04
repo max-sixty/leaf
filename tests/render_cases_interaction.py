@@ -10,7 +10,6 @@ from render_harness import (
     leaf_page,
 )
 
-from leaf.schema import ELEMENT_ID
 from leaf_dev.example_data import authored_sources, named_source
 
 # A page with an outline: three headings, and passages under each to hang threads on.
@@ -946,13 +945,13 @@ WRAP_TOP = """() => { const r = document.createRange();
 # that matched in width and not in colour would be two rings that look like one.
 RING = """(el) => { const s = getComputedStyle(el);
     return [s.outlineStyle, s.outlineWidth, s.outlineColor]; }"""
-# The location ring drawn over the decision `el` (target-paint.js, `paintLocation`), read
-# as RING reads an outline: its band's style, width and colour, or "none" where no ring
-# stands over `el`.
-LOCATION_RING = """(el) => { const box = document.querySelector('.lf-location');
-    if (!box || box.dataset.lfFor !== el.id || getComputedStyle(box).display === 'none')
+# The location ring round the decision `el` (target-paint.js, `paintLocation`), which
+# `el` draws as its own outline while it wears `lf-projected-location`, read as RING
+# reads an outline: its band's style, width and colour, or "none" where `el` stands in
+# no ring.
+LOCATION_RING = """(el) => { if (!el.classList.contains('lf-projected-location'))
       return ['none'];
-    const s = getComputedStyle(box, '::after');
+    const s = getComputedStyle(el);
     return [s.outlineStyle, s.outlineWidth, s.outlineColor]; }"""
 # One parent over two leaves, so a status report has to move both the marker and
 # the parent's computed done-fraction — the state a stylesheet cannot recount.
@@ -1337,7 +1336,7 @@ SEATED_OBLIGATION_ENTRY = {
     ),
     "type": "object",
     "properties": {
-        "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
+        "id": {"type": "string"},
         "asks": {"type": "boolean"},
         "restated": {"type": "boolean"},
     },

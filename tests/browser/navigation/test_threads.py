@@ -13,7 +13,7 @@ from render_cases_navigation import NOTED_PAGE, compose
 from render_harness import (
     INLINE_PAGE,
     LONG_PAGE,
-    PANEL_THREAD,
+    before_landing_frame,
     command_reference_rows,
     comment_note,
     holding,
@@ -36,6 +36,7 @@ from browser.navigation import READING_REGIONS_PAGE
 from browser.threads import open_panel_thread
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -44,7 +45,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 def test_a_thread_trip_takes_over_an_outgoing_trip_before_its_first_frame(
     browser, serve, return_route
 ):
-    """Returning to a still-visible thread cancels native travel away from it."""
+    """Returning to a still-visible thread cancels the trip away from it."""
     page = open_page(
         browser,
         serve(LONG_PAGE, anchored=[("p3", "Paragraph 3."), ("p41", "Paragraph 41.")]),
@@ -57,29 +58,23 @@ def test_a_thread_trip_takes_over_an_outgoing_trip_before_its_first_frame(
     card = page.locator(f'.lf-margin-preview [data-lf-thread="{nearby}"]')
     page.keyboard.press("t")
     expect(card).to_be_focused()
-    page.evaluate(
-        """async route => {
-      const {executeCommand} = await window.__lfCheckApi();
+    before_landing_frame(
+        page,
+        """window.__lfCheckApi().then(({executeCommand}) => {
       const paragraph = document.querySelector('#p3');
       const range = document.createRange();
       range.selectNodeContents(paragraph);
       const line = range.getClientRects()[0];
-      const scrollTo = Element.prototype.scrollTo;
-      Element.prototype.scrollTo = function(options) {
-        const result = scrollTo.call(this, options);
-        if (this === document.scrollingElement && options.behavior === 'smooth') {
-          Element.prototype.scrollTo = scrollTo;
-          window.returnSubject = document.querySelector('#p3').getBoundingClientRect().toJSON();
-          queueMicrotask(() => {
-            if (route === 'walk') executeCommand('thread.previous');
-            else paragraph.dispatchEvent(new MouseEvent('click', {
-              bubbles: true, button: 0, clientX: line.left + 8, clientY: line.top + 8,
-            }));
-          });
-        }
-        return result;
+      return route => {
+        window.returnSubject = paragraph.getBoundingClientRect().toJSON();
+        queueMicrotask(() => {
+          if (route === 'walk') executeCommand('thread.previous');
+          else paragraph.dispatchEvent(new MouseEvent('click', {
+            bubbles: true, button: 0, clientX: line.left + 8, clientY: line.top + 8,
+          }));
+        });
       };
-    }""",
+    })""",
         return_route,
     )
     page.keyboard.press("t")

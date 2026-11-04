@@ -44,6 +44,7 @@ from contextlib import contextmanager
 from datetime import UTC, datetime
 from functools import cache
 from pathlib import Path
+from socket import gethostname
 from types import SimpleNamespace
 from typing import Protocol, cast
 from urllib.parse import parse_qsl, urlencode, urlsplit
@@ -80,10 +81,18 @@ from leaf.findings import Finding, placed
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import scheme as render_gate_model
 from leaf_dev import browser as dev_browser
-from leaf_dev.browser import ON_ME_MARK, scroll_settled, slow_cpu, threads_tab
+from leaf_dev.browser import (
+    ON_ME_MARK,
+    PANEL,
+    panel_view,
+    scroll_settled,
+    slow_cpu,
+    threads_tab,
+)
 from leaf_dev.example_data import WORKED_EXAMPLES, authored_sources, named_source
 from leaf_dev.page_fixtures import (
     example_media,
+    leaf_in_process,
     prepare_page,
     read_fixture,
     record_run_context,
@@ -565,16 +574,12 @@ def serve(tmp_path, monkeypatch, initialized_page, request):
         )
         d = tmp_path / f"page{len(servers)}"
 
-        def run_leaf(*args, input_text=None):
-            result = CliRunner().invoke(cli_model.cli, list(args), input=input_text)
-            assert result.exit_code == 0, result.output
-
         def prepare(target):
             assert fixture is not None
             prepare_page(
                 target,
                 fixture,
-                run_leaf,
+                leaf_in_process,
                 initialize=False,
                 seed_log=seed_log,
                 final_status=None,
@@ -1739,26 +1744,6 @@ def open_versions(page):
     page.keyboard.press("Shift+v")
 
 
-# The floating panel (runtime/floating-panel.js) is Leaf's one chrome: a row of the leaf,
-# the field and the On me and Threads marks, with a view opened above it, the leaf's
-# menu among them. Its state stands on its host as attributes: `data-lf-open` names the
-# open view (menu, versions, group, errors, threads, thread, queue, leaves) and
-# `data-lf-rest="mark"` the panel folded to the leaf.
-PANEL = ".lf-floating-panel"
-
-
-def panel_view(name: str) -> str:
-    """The selector of the panel's `name` view (`data-lf-open`'s values, above) that
-    stands open. A view put away keeps its node, marked `data-lf-leaving`, until its
-    exit motion ends, so this never matches one: a selector that did would find two
-    views mid-switch, or a view already on its way out."""
-    return f'.lf-fp-view[data-lf-route="{name}"]:not([data-lf-leaving])'
-
-
-# A view of one thread, which names the thread it shows by id in `data-lf-thread`.
-PANEL_THREAD = panel_view("thread")
-
-
 def panel_field(page):
     """The editor standing in the panel's field now: the page comment's (`name` is
     `comment`) or, while a thread's view is open, that thread's reply (`reply`)."""
@@ -2112,6 +2097,48 @@ def open_page(
         upgraded=upgraded,
     )
     return page
+
+
+def before_landing_frame(page, then, arg=None):
+    """Run a JS function once, with `arg`, before the next trip's first frame.
+
+    `then` is a JS expression for the function, or for a promise of it, so it can
+    fetch an API before the trip starts. A trip adds its return stop and sets off its landing in one task, and the landing
+    moves nothing until its first frame, so a call made as the entry is written, or a
+    microtask it queues, comes while the page still stands where the trip left it.
+    """
+    page.evaluate(
+        f"""async arg => {{
+      const then = await ({then});
+      const pushState = history.pushState;
+      history.pushState = function(...args) {{
+        history.pushState = pushState;
+        const result = pushState.apply(this, args);
+        then(arg);
+        return result;
+      }};
+    }}""",
+        arg,
+    )
+
+
+def over_plain_http(browser, local_url):
+    """A context reading `local_url` by this machine's name over plain HTTP, as another
+    machine reads a page `leaf --host` serves, and the URL to open in it. Such a page is
+    no secure context, so it has no Clipboard API; the context may read the clipboard
+    back from `local_url`, which is one.
+
+    The browser lower-cases a URL's host, so the route rewrites that spelling to
+    loopback; the machine's name needn't resolve there, as on CI's macOS runner."""
+    host = gethostname().lower()
+    context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
+
+    def fetch_from_loopback(route):
+        response = route.fetch(url=route.request.url.replace(host, "127.0.0.1"))
+        route.fulfill(response=response)
+
+    context.route(f"http://{host}:**/*", fetch_from_loopback)
+    return context, local_url.replace("127.0.0.1", host)
 
 
 def opened_tab(page, destination, press):
@@ -2976,8 +3003,8 @@ _GESTURE = """async ([scroller, by, sample, frames]) => {
   const start = box.scrollTop;
   const samples = [];
   let frame = 0;
-  const {scrollGlides, watchScrollEnds} = await window.__lfCheckApi();
-  scrollGlides(true);
+  const {holdScroll, watchScrollEnds} = await window.__lfCheckApi();
+  const release = holdScroll(box);
   // A task posted from a frame callback runs once that frame has rendered.
   const rendered = () => new Promise((then) => {
     const {port1, port2} = new MessageChannel();
@@ -2994,9 +3021,9 @@ _GESTURE = """async ([scroller, by, sample, frames]) => {
     samples.push({scrolled: box.scrollTop, read: read()});
   }
   const settled = new Promise((then) => {
-    const stop = watchScrollEnds(() => { stop(); then(); });
+    const stop = watchScrollEnds((ended) => { if (ended === box) { stop(); then(); } });
   });
-  scrollGlides(false);
+  release();
   await settled;
   await new Promise(requestAnimationFrame);
   await rendered();
@@ -3016,10 +3043,9 @@ def gesture_writes(page, by, scroller="document.scrollingElement", sample=None):
     so read in one it stands where the frame before drew it.
 
     The test drives the frames, rather than a smooth `scrollBy`, so a slow host draws
-    as many as a fast one. The runtime settles on each write's own `scrollend`, and
-    between frames further apart than `SETTLE_MS`, so the gesture holds it as the
-    runtime's own frame-by-frame scrolls do (arrivals.js, `scrollGlides`) and lets it
-    settle once, after the last frame."""
+    as many as a fast one. The runtime ends a scroll at each write's own `scrollend`,
+    so the gesture holds the box as the runtime's own glide does (arrivals.js,
+    `holdScroll`) and lets its scroll end once, after the last frame."""
     page.mouse.move(2, 300)
     rendered(page)
     start = page.evaluate(f"() => {scroller}.scrollTop")

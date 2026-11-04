@@ -1,32 +1,21 @@
-/* What `architecture/current-location-reads` refuses: a raw reading of focus outside focus.js (eslint.config.mjs). eslint lives in pre-commit's environment, so the
-   rule's visitors run here over acorn's tree, which is the ESTree eslint hands them. */
+/* What `architecture/current-location-reads` refuses: a raw reading of focus outside
+   focus.js (eslint.config.mjs). */
 
 import assert from "node:assert/strict";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { parse } from "acorn";
 import { currentLocationReadsRule } from "../../eslint.config.mjs";
+import { ruleReports } from "./lint-rule.mjs";
 
 const runtime = (name) =>
   fileURLToPath(new URL(`../../browser/runtime/${name}`, import.meta.url));
 
 // How many times the rule reports on `code` in `file`.
-function reports(code, file = runtime("probe.js")) {
-  let count = 0;
-  const visitors = currentLocationReadsRule.create({
+const reports = (code, file = runtime("probe.js")) =>
+  ruleReports(currentLocationReadsRule, code, {
     filename: file,
     options: [["browser/runtime/focus.js"]],
-    report: () => (count += 1),
-  });
-  const walk = (node) => {
-    visitors[node.type]?.(node);
-    for (const value of Object.values(node))
-      for (const child of Array.isArray(value) ? value : [value])
-        if (child && typeof child.type === "string") walk(child);
-  };
-  walk(parse(code, { ecmaVersion: "latest", sourceType: "module" }));
-  return count;
-}
+  }).length;
 
 test("a raw reading of the document's focus is refused outside the owner", () => {
   assert.equal(reports("const at = document.activeElement;"), 1);

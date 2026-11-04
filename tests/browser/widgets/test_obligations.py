@@ -1584,9 +1584,9 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
     # anchor its controls from — a 2px mark of its own beside the change is not the
     # promise.
     marks = page.evaluate("""() => [...document.querySelectorAll('main [data-lf-obligation]')].map(e => {
-      const ring = document.querySelector('.lf-location');
       return { what: e.id || e.tagName, fragments: e.getClientRects().length,
-               ring: ring?.dataset.lfFor === e.id && getComputedStyle(ring).display !== 'none' };
+               ring: e.classList.contains('lf-projected-location')
+                 && getComputedStyle(e).outlineStyle === 'solid' };
     })""")
     assert [m["what"] for m in marks] == ["sug-refill"]
     assert marks[0]["ring"]
@@ -1671,16 +1671,13 @@ def test_the_walk_travels_to_an_obligation_a_page_left_boxless(browser, serve):
         "LF-NEW",
     ], f"the mark went somewhere else than the decision and its shown boxes: {marks}"
     expect(page.locator(CURRENT_OBLIGATION)).to_have_count(1)
-    # One ring, round every box the decision shows through: rings on the pieces read
-    # as boxes touching rather than as the one decision the user is in.
-    assert page.evaluate("""() => {
-      const ring = document.querySelector('.lf-location[data-lf-for="sug-refill"]');
-      const w = ring.getBoundingClientRect();
-      return ['refill-was', 'refill-now'].every(id => {
-        const r = document.getElementById(id).getBoundingClientRect();
-        return r.top >= w.top - 1 && r.bottom <= w.bottom + 1
-            && r.left >= w.left - 1 && r.right <= w.right + 1; });
-    }"""), "the location ring does not reach round both slots"
+    # The decision draws no box, so each box it shows through draws the location ring
+    # round itself (target-paint.js, `paintLocation`).
+    rings = page.evaluate("""() => ['lf-old', 'lf-new'].map(tag => {
+      const slot = document.querySelector(`#sug-refill > ${tag}`);
+      return slot.classList.contains('lf-projected-location')
+        && getComputedStyle(slot).outlineStyle === 'solid'; })""")
+    assert rings == [True, True], f"a slot of the decision wears no ring: {rings}"
 
 
 def test_a_commented_obligation_does_not_wear_its_ring_on_the_runtime_s_own_note(

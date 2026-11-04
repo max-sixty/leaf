@@ -31,7 +31,6 @@ from render_cases_navigation import (
 from render_harness import (
     FEATURE_GALLERY,
     PANEL,
-    PANEL_THREAD,
     RELEASE_FOCUS,
     command_reference_rows,
     expect_obligations_answered,
@@ -58,7 +57,7 @@ from journeys import expect_showing
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
-from leaf_dev.browser import show_resolved
+from leaf_dev.browser import PANEL_THREAD, show_resolved
 from leaf_dev.example_data import named_source, published_sources
 
 pytestmark = pytest.mark.shifts_unsurveyed

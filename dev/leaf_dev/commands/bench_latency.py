@@ -24,15 +24,22 @@ was admitted and that application reading was presented, and its `answered` time
 when the last byte of that POST's answer arrived, so `Sent` less `answered` is the
 page waiting for its main thread and applying the reading. Who held the main thread
 until the last goal is read from the long animation frames the page reports, by
-script owner, with the style and layout each forced. Requests and bytes, the
-primary comparison, are the resource entries the page started from then until it has
-stayed quiet for SETTLE_MS, or the whole new document after a reload; request bodies
-carry no entry. Completed finite freshness reads do, while an open SSE connection does
-not; `results.json` lists each request's URL, initiator, bytes, and when it
-started and ended beside the transition's `start`, which splits the server's time
-from the page's. Compare the numbers with the objectives in
-`notes/user-feedback-responsiveness.md`, and read the spread and load average before
-a median.
+script owner, with the style and layout each forced.
+
+Requests and bytes, the primary comparison, count what the transition caused. The
+browser reports each request the tab starts in any of its frames, CORS preflights
+included, with the code that started it, its starter (`starter`). After each load a
+run leaves the page alone for ALONE_S. The page keeps starting requests on its own,
+such as its freshness read every 250 ms and its report of the reader's view, and a
+request whose starter also started one while the page was alone, in any run of the
+session, is the page's own. The table counts the requests the tab started from just
+before the transition's input or command until the page had stayed quiet for
+SETTLE_MS, less the page's own. Below the table, it says how many requests and bytes
+the page started each second it was left alone. `results.json` lists each request's
+URL, starter, whether it was the page's own, bytes, and when it started and ended
+beside the transition's `start`, which splits the server's time from the page's.
+Compare the numbers with the objectives in `notes/user-feedback-responsiveness.md`,
+and read the spread and load average before a median.
 
 `--profile` says where that time goes. Each transition runs under a V8 CPU profile and
 a Chrome trace with style invalidation tracking, read over the benchmark's own window:
@@ -61,6 +68,7 @@ from dataclasses import dataclass, field
 from functools import partial
 from itertools import pairwise
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import click
 from playwright.sync_api import Browser, Page
@@ -79,8 +87,7 @@ from leaf_dev.arms import (
     run_leaf,
     serving,
 )
-from leaf_dev.browser import WINDOWS, go_to_threads, headless_shell
-from leaf_dev.commands.distribution import current_kernel
+from leaf_dev.browser import PANEL_THREAD, WINDOWS, go_to_threads, headless_shell
 from leaf_dev.example_data import named_source
 from leaf_dev.main_thread import SCRIPT as MAIN_THREAD_SCRIPT
 from leaf_dev.main_thread import main_thread
@@ -94,6 +101,9 @@ WINDOW_SIZE = WINDOWS["macbook"].size
 DEADLINE_S = 30
 # How long a page must stay quiet before its traffic for a transition is read.
 SETTLE_MS = 250
+# How long each run leaves the page alone once it has loaded, so that the requests it
+# starts on its own name the code that starts them (`Session.alone`).
+ALONE_S = 2
 # How many owners of the main thread to print per transition.
 OWNERS = 6
 # The triage content both sources carry: the passage the comment and the agent thread
@@ -199,6 +209,44 @@ def first_write(path: Path, command: list[str], env: dict) -> float:
 
 
 @dataclass
+class Request:
+    """A request the tab started, as the browser reported it: the code that started it
+    (`starter`), and when it started and ended, in epoch milliseconds."""
+
+    url: str
+    starter: str
+    start: float
+    # Seconds the browser's clock for request events stands behind the epoch.
+    offset: float
+    # The attempt an event POST carries, which `answered` looks for.
+    attempt: str | None = None
+    bytes: int = 0
+    end: float | None = None
+    failed: bool = False
+
+
+def starter(initiator: dict, url: str) -> str:
+    """What started the request for `url`, as the browser's initiator names it: the
+    function that called `fetch` or set a source, with its script's file name and
+    position. A request no script was running for when it started, such as one the
+    parser makes, a preflight, or the image of an element a script made and left,
+    has no stack, and is named by the kind of initiator and its own file name, so it
+    stands only for requests for that file. File names leave out the path, which names
+    the page's revision, so a starter keeps its name across revisions and the live
+    samples that load the same runtime."""
+    for frame in (initiator.get("stack") or {}).get("callFrames", ()):
+        return (
+            f"{frame['functionName'] or '(anonymous)'} {file_name(frame['url'])}"
+            f":{frame['lineNumber'] + 1}:{frame['columnNumber'] + 1}"
+        )
+    return f"{initiator['type']} {file_name(url)}"
+
+
+def file_name(url: str) -> str:
+    return urlsplit(url).path.rsplit("/", 1)[-1]
+
+
+@dataclass
 class Session:
     """One arm's page, its server, and the tab open on it."""
 
@@ -215,17 +263,109 @@ class Session:
     # and what `attribute` read from them, by transition in run order.
     profiled: Path | None = None
     attributed: dict[str, list[dict]] = field(default_factory=dict)
-    # When the last byte of each event POST's answer arrived, by its attempt, in epoch
-    # milliseconds. A retry answers the same attempt; its later answer replaces.
-    answers: dict[str, float] = field(default_factory=dict)
+    # Every request the tab started, in every frame, by the browser's id for it.
+    requests: dict[str, Request] = field(default_factory=dict)
+    # When the page was left alone (`alone`), in epoch milliseconds.
+    alone_spans: list[tuple[float, float]] = field(default_factory=list)
+    # Each transition's result, which `split` completes with its requests.
+    windows: list[dict] = field(default_factory=list)
 
-    def heard(self, request) -> None:
-        if request.method != "POST" or not request.url.endswith("/api/event"):
+    def started(self, event: dict) -> None:
+        """Record a request the browser is about to send. A redirect sends the same
+        request again, which keeps its first start."""
+        url = event["request"]["url"]
+        if event["requestId"] in self.requests or not url.startswith("http"):
             return
-        attempt = (request.post_data_json or {}).get("attempt")
-        if attempt:
-            timing = request.timing
-            self.answers[attempt] = timing["startTime"] + timing["responseEnd"]
+        body = event["request"].get("postData")
+        self.requests[event["requestId"]] = Request(
+            url,
+            starter(event["initiator"], url),
+            event["wallTime"] * 1000,
+            event["wallTime"] - event["timestamp"],
+            json.loads(body).get("attempt")
+            if body and url.endswith("/api/event")
+            else None,
+        )
+
+    def ended(self, event: dict) -> None:
+        """Record when a request's last byte arrived, or it failed, and its bytes."""
+        if request := self.requests.get(event["requestId"]):
+            request.end = (event["timestamp"] + request.offset) * 1000
+            request.bytes = event.get("encodedDataLength", 0)
+            request.failed = "errorText" in event
+
+    def answered(self, attempt: str) -> float | None:
+        """When the last byte of the answer to the event POST of `attempt` arrived. A
+        retry answers the same attempt; its later answer stands."""
+        ends = [
+            request.end
+            for request in self.requests.values()
+            if request.attempt == attempt and request.end and not request.failed
+        ]
+        return max(ends, default=None)
+
+    def alone(self) -> None:
+        """Leave the page alone for ALONE_S, so each request it starts on its own names
+        its starter (`split`)."""
+        began = time.time() * 1000
+        time.sleep(ALONE_S)
+        self.alone_spans.append((began, time.time() * 1000))
+
+    def left_alone(self) -> dict:
+        """What the page started while left alone: for how long, and per second its
+        requests, their bytes and their starters."""
+        seconds = sum(ended - began for began, ended in self.alone_spans) / 1000
+        seen = [
+            request
+            for request in self.requests.values()
+            if any(began <= request.start < ended for began, ended in self.alone_spans)
+        ]
+        return {
+            "seconds": seconds,
+            "requests": len(seen) / seconds,
+            "bytes": sum(request.bytes for request in seen) / seconds,
+            "starters": Counter(request.starter for request in seen),
+        }
+
+    def split(self) -> None:
+        """Split each window's requests into the ones the transition caused and the
+        page's own, which came from a starter the page also started a request from
+        while left alone in any of the session's runs. A window's `requests` and
+        `bytes` count the caused ones, and `own_requests` and `own_bytes` the rest.
+
+        A starter the page uses both on its own and for a transition counts as the
+        page's own in every window once the page has used it alone, as `readState`
+        would be if the page's 2 s clock read state while alone, which it does only to
+        retry or repair a read or when an activity's next transition falls due.
+        `results.json` lists the starters seen alone."""
+        # Playwright delivers the browser's reports only while it talks to the page.
+        self.page.evaluate("0")
+        starters = set(self.left_alone()["starters"])
+        for window in self.windows:
+            inside = [
+                request
+                for request in self.requests.values()
+                if window["opened"] <= request.start < window["closed"]
+            ]
+            caused = [request for request in inside if request.starter not in starters]
+            own = [request for request in inside if request.starter in starters]
+            window.update(
+                requests=len(caused),
+                bytes=sum(request.bytes for request in caused),
+                own_requests=len(own),
+                own_bytes=sum(request.bytes for request in own),
+                entries=[
+                    {
+                        "url": request.url,
+                        "starter": request.starter,
+                        "own": request.starter in starters,
+                        "bytes": request.bytes,
+                        "start": request.start,
+                        "end": request.end,
+                    }
+                    for request in inside
+                ],
+            )
 
     def command(self, *args: str) -> list[str]:
         return [str(self.arm_dir / "bin" / "leaf"), *args]
@@ -241,6 +381,7 @@ class Session:
         self.settle()
         self.threads()
         self.settle()
+        self.alone()
 
     def threads(self) -> None:
         """Open the floating panel's Threads view, listing every thread."""
@@ -276,6 +417,9 @@ class Session:
                 if self.profiled
                 else nullcontext()
             ) as recorded:
+                # On the clock the browser reports requests by, and before a
+                # command's startup, whose requests it can cause before its write.
+                opened = time.time() * 1000
                 start = act()
                 watch = until(
                     self.page,
@@ -295,22 +439,26 @@ class Session:
         # The gesture's own POST: the attempt the probe bound its `delivered` goal to.
         answered = next(
             (
-                self.answers[goal["attempt"]]
+                at
                 for goal in watch["goals"]
-                if goal.get("attempt") in self.answers
+                if goal.get("attempt") and (at := self.answered(goal["attempt"]))
             ),
             None,
         )
-        return {
+        window = {
             "page": self.source,
             "arm": self.arm,
             "transition": transition,
             "start": start,
+            "opened": opened,
+            "closed": time.time() * 1000,
             **{goal["name"]: goal["at"] - start for goal in watch["goals"]},
             **({"answered": answered - start} if answered else {}),
             **main_thread(frames, start, end),
             **traffic,
         }
+        self.windows.append(window)
+        return window
 
     @contextmanager
     def profiling(self, transition: str, directory: Path):
@@ -399,26 +547,22 @@ class Session:
         through the delivery `leaf wait` prints."""
         words = f"Bench reply {run + 1}."
         question = f"Bench question {run + 1}."
-        opened = (
-            "() => document.querySelector("
-            "'.lf-fp-view[data-lf-route=thread]:not([data-lf-leaving]) .lf-msg')"
-            "?.checkVisibility()"
-        )
-        if not self.page.evaluate(opened):
+        opened = "selector => document.querySelector(selector)?.checkVisibility()"
+        message = f"{PANEL_THREAD} .lf-msg"
+        if not self.page.evaluate(opened, message):
             self.threads()
             self.page.locator(f'.lf-fp-thread[data-lf-key="{self.thread}"]').click()
-            until(self.page, opened, "the agent thread never opened")
+            until(self.page, opened, "the agent thread never opened", message)
         # The panel's field is the open thread's reply box.
         self.page.locator(".lf-fp-field leaf-text").focus()
         self.page.keyboard.insert_text(question)
         self.page.keyboard.press("ControlOrMeta+Enter")
         until(
             self.page,
-            "words => [...document.querySelectorAll("
-            "'.lf-fp-view[data-lf-route=thread] .lf-msg')]"
+            "([selector, words]) => [...document.querySelectorAll(selector)]"
             ".some(node => node.textContent.includes(words) && node.checkVisibility())",
             "the user's turn never showed",
-            question,
+            [message, question],
         )
         delivery = run_leaf(
             self.arm_dir, self.state, "wait", str(self.page_dir), check=True
@@ -478,7 +622,6 @@ def served(
 ):
     """Build `source` into a page with `arm_dir`'s launcher, serve it, and open a tab,
     profiling each transition into `profiled` where given."""
-    arm_dir = current_kernel(arm_dir)
     state = scratch / f"{arm}-{source}-state"
     page_dir = scratch / f"{arm}-{source}" / "page"
     build_source(arm_dir, state, named_source(source), page_dir)
@@ -506,7 +649,13 @@ def served(
             session = Session(
                 arm, source, arm_dir, state, page_dir, page, url, thread, task, profiled
             )
-            page.on("requestfinished", session.heard)
+            # The browser's own account of each request, in every frame of the tab,
+            # with the code that started it.
+            network = context.new_cdp_session(page)
+            network.on("Network.requestWillBeSent", session.started)
+            network.on("Network.loadingFinished", session.ended)
+            network.on("Network.loadingFailed", session.ended)
+            network.send("Network.enable")
             yield session
         finally:
             context.close()
@@ -864,6 +1013,8 @@ def bench_latency(
     # Under --profile, what each run's trace and profile held, by page, transition
     # and arm.
     attributed: dict[tuple[str, str, str], list[dict]] = {}
+    # What each page started on its own while left alone, by page and arm.
+    alone: dict[tuple[str, str], dict] = {}
     with tempfile.TemporaryDirectory(prefix="leaf-bench-") as built:
         scratch = Path(built)
         arms = choose_arms(base, scratch)
@@ -890,19 +1041,32 @@ def bench_latency(
                             session.open()
                             for transition in transitions:
                                 result = getattr(session, transition)(run)
-                                results.append({**result, "run": run})
+                                result["run"] = run
+                                results.append(result)
                                 click.echo(
                                     f"{source} {session.arm} run {run + 1} "
                                     f"{transition}: {result['painted']:.0f} ms",
                                     err=True,
                                 )
                     for session in sessions:
+                        session.split()
+                        alone[(source, session.arm)] = session.left_alone()
                         for transition, by in session.attributed.items():
                             attributed[(source, transition, session.arm)] = by
             chrome = browser.version
     commits = {arm: arms[arm].commit for arm in arms}
     (out / "results.json").write_text(
-        json.dumps({"commits": commits, "results": results}, indent=1)
+        json.dumps(
+            {
+                "commits": commits,
+                "alone": [
+                    {"page": source, "arm": arm, **rate}
+                    for (source, arm), rate in alone.items()
+                ],
+                "results": results,
+            },
+            indent=1,
+        )
     )
     click.echo(
         f"{describe(arms)}, {runs} runs, Chrome {chrome}, "
@@ -928,6 +1092,15 @@ def bench_latency(
     ]
     for source, transition, arm, by in selected:
         click.echo(row(source, transition, arm, by))
+    click.echo(
+        "\nrequests the page started on its own, per second left alone"
+        " (left out of every transition's count):"
+    )
+    for (source, arm), rate in alone.items():
+        click.echo(
+            f"  {source:13} {arm:4} {rate['requests']:5.1f} requests"
+            f" {rate['bytes'] / 1000:7.1f} KB"
+        )
     click.echo(
         "\nmain thread in long frames to the last painted goal, mean ms per run:"
         "\n    script forced  owner"

@@ -41,11 +41,11 @@ lf-event::before {
   --lf-timeline-row: 22px;
   --lf-timeline-bar: 22px;
   --lf-timeline-ruler: 22px;
-  --lf-timeline-ground: var(--lf-ground, var(--paper));
+  --lf-timeline-ground: var(--lf-ground);
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
   grid-template-rows: var(--lf-timeline-ruler) repeat(var(--lf-timeline-bands, 1), auto);
-  /* The labels are the drawing's references (base.css, `--font-status`). Each stands in
+  /* The labels are the drawing's references (tokens.css, `--font-status`). Each stands in
      a row of a stated height, so its line is as tall as its words, as a mark's count
      is. */
   font: var(--font-status);
@@ -259,7 +259,7 @@ lf-event::before {
  * reduced-motion guards suppress this transition when the page must appear at rest. */
 @media screen {
   .lf-timeline-playhead-line {
-    transition: left 160ms ease;
+    transition: left var(--lf-motion-mark) ease;
   }
 }
 

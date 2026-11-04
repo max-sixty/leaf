@@ -65,6 +65,7 @@ from leaf_dev.browser import (
     Window,
     headless_shell,
     load,
+    screenshot,
     shell_executable,
     tab,
 )
@@ -374,8 +375,7 @@ def restored_page(saved: dict):
 
 
 def latest_seq(page: Path) -> int:
-    events = read_events(page) if (page / "events.jsonl").exists() else []
-    return max((e["seq"] for e in events), default=0)
+    return max((e["seq"] for e in read_events(page)), default=0)
 
 
 def open_as_user(run: Run, url: str) -> None:
@@ -597,7 +597,7 @@ def capture_phase(run: Run, phase: int, page: Path | None = None) -> dict:
                     with server as url, tab(browser, window) as view:
                         (plain_html.load if html else load)(view, url)
                         image = run.shots / f"p{phase}-{name}-0.png"
-                        view.screenshot(path=image)
+                        image.write_bytes(screenshot(view))
                         captures[name] = [str(image)]
     except Exception as error:
         result["capture_errors"] = {

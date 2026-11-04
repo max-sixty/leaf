@@ -46,6 +46,8 @@ from leaf import render_checks as render_checks_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
+# A box the margin trace stands on (target-paint.js, `paintTrace`).
+TRACED = re.compile(r"\blf-traced\b")
 
 COMMENT_ON_SECOND_SUGGESTION = {
     "kind": "comment",
@@ -975,9 +977,7 @@ def test_margin_entry_order_and_page_map_actions_are_stable_at_both_widths(
         primary = item.locator('[data-lf-margin-entry-key="save"]')
         primary.focus()
         expect(primary).to_be_focused()
-        expect(
-            page.locator(f'.lf-target-trace[data-lf-for="{target}"]')
-        ).to_be_visible()
+        expect(page.locator(f"#{target}")).to_have_class(TRACED)
         primary.hover()
         label = item.locator('[data-lf-margin-entry-key="save"] .lf-margin-entry-label')
         expect(label).to_be_visible()
@@ -1012,10 +1012,10 @@ def test_margin_entry_order_and_page_map_actions_are_stable_at_both_widths(
     save.focus()
     save.hover()
     second.locator('[data-lf-margin-entry-key="save"]').focus()
-    expect(page.locator('.lf-target-trace[data-lf-for="second"]')).to_be_visible()
-    expect(page.locator('.lf-target-trace[data-lf-for="first"]')).to_be_hidden()
+    expect(page.locator("#second")).to_have_class(TRACED)
+    expect(page.locator("#first")).not_to_have_class(TRACED)
     save.hover()
-    expect(page.locator('.lf-target-trace[data-lf-for="first"]')).to_be_visible()
+    expect(page.locator("#first")).to_have_class(TRACED)
     ring = save.evaluate("button => getComputedStyle(button).borderTopWidth")
     page.evaluate("() => window.contributionEntryFixtures[0].busy()")
     expect(save).to_have_attribute("aria-busy", "true")

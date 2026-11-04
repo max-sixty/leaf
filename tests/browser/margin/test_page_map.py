@@ -1226,10 +1226,8 @@ def test_an_open_small_screen_map_reconciles_arriving_meanings(browser, serve):
     expect(actions.first).to_be_focused()
 
 
-def test_a_live_version_keeps_the_user_where_they_stand_in_the_margin(browser, serve):
-    """Replacing authored main must not discard focus held by retained map chrome, on a
-    marker or in the card it opened, and a retained card must mark the new document's
-    matching destination."""
+def test_a_live_version_keeps_the_user_on_the_same_margin_location(browser, serve):
+    """Replacing authored main must not discard focus held by retained map chrome."""
     version_url = serve(
         OBLIGATION_PAGE, events=[ACTION_ON_OBLIGATION, COMMENT_ON_OBLIGATION]
     )
@@ -1246,6 +1244,15 @@ def test_a_live_version_keeps_the_user_where_they_stand_in_the_margin(browser, s
     expect(page.get_by_role("heading", name="Four jobs")).to_be_visible()
     expect(marker).to_be_focused()
 
+
+def test_a_live_version_retargets_an_open_margin_preview(browser, serve):
+    """A retained preview must mark the new document's matching destination."""
+    version_url = serve(
+        OBLIGATION_PAGE, events=[ACTION_ON_OBLIGATION, COMMENT_ON_OBLIGATION]
+    )
+    page = open_page(browser, live_url(version_url))
+    resized(page, 1440, 900)
+    marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     marker.click()
     close = page.locator(".lf-margin-preview-close")
     close.focus()
@@ -1255,10 +1262,10 @@ def test_a_live_version_keeps_the_user_where_they_stand_in_the_margin(browser, s
     expect(marked).to_have_attribute("data-lf-mark", here)
 
     (serve.page_dir / "index.html").write_text(
-        OBLIGATION_PAGE.replace("Three jobs", "Five jobs")
+        OBLIGATION_PAGE.replace("Three jobs", "Four jobs")
     )
     told(page)
-    expect(page.get_by_role("heading", name="Five jobs")).to_be_visible()
+    expect(page.get_by_role("heading", name="Four jobs")).to_be_visible()
     expect(close).to_be_focused()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(marked).to_have_attribute("data-lf-mark", here)

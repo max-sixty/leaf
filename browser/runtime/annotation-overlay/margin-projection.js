@@ -1144,6 +1144,26 @@ export function createMarginProjection({
         host.remove();
         hosts.delete(key);
       }
+    // The host each new one is put before: the next later one already in the toolbar,
+    // read in one walk back over the inventory the first time this render needs it. A
+    // host this render puts in stands earlier than any it is read for, so the walk's
+    // answers hold for the whole render.
+    /** @type {(Host | null)[] | null} */
+    let nextInToolbar = null;
+    /** @param {number} order */
+    const toolbarAfter = (order) => {
+      if (!nextInToolbar) {
+        /** @type {(Host | null)[]} */
+        const after = [];
+        pageInventory.reduceRight((/** @type {Host | null} */ next, entry, at) => {
+          after[at] = next;
+          const later = hosts.get(entry.key);
+          return later?.parentElement === toolbar ? later : next;
+        }, null);
+        nextInToolbar = after;
+      }
+      return nextInToolbar[order] ?? null;
+    };
     // Each row's place among the rows, which an entry with no row of its own leaves
     // the same (margin-layout.js, `registerMarginRow`).
     let rank = 0;
@@ -1199,15 +1219,7 @@ export function createMarginProjection({
       registerMarginRow(host, markerOptions(host, rank++));
       // Insert in inventory order; the theme keeps the row unpainted and measurable
       // until the layout pass assigns its anchored posture.
-      if (!host.isConnected)
-        move(
-          toolbar,
-          host,
-          pageInventory
-            .slice(order + 1)
-            .map((later) => hosts.get(later.key))
-            .find((later) => later?.parentElement === toolbar) ?? null,
-        );
+      if (!host.isConnected) move(toolbar, host, toolbarAfter(order));
       host.lfEntry = entry;
       host.lfTarget = targetFor(entry);
       marker.lfEntry = entry;

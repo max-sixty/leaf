@@ -1400,6 +1400,12 @@ async function showComparison(base) {
       : `No text changes since ${base.name}`,
   );
 }
+// A press that ends a comparison says so, as `o` does when it hides annotations, so a
+// screen reader hears the marks go rather than keeping the comparison's count.
+const endComparison = () => {
+  setDiff(false);
+  notice("Changes hidden");
+};
 // A press names one stamped version, so pressing the current one again is the way off
 // it: Compare is a toggle where it is lit and a switch of base where it isn't. `v` is
 // the keyboard's way off, from whichever base.
@@ -1409,7 +1415,7 @@ const pressComparison = (version) => {
   const entry = stamped(version);
   if (!entry) return;
   return selectedBase()?.revision === entry.revision
-    ? setDiff(false)
+    ? endComparison()
     : showComparison(revisionBase(entry));
 };
 
@@ -1548,7 +1554,7 @@ export function createVersionController({
     when: () => selectedBase() !== null || latestBase() !== null,
     run: () => {
       const latest = latestBase();
-      if (selectedBase()) setDiff(false);
+      if (selectedBase()) endComparison();
       else if (latest) return showComparison(revisionBase(latest));
     },
   });

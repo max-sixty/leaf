@@ -8847,11 +8847,15 @@ async function showComparison(base) {
 	setDiff(true, base);
 	notice(n ? `${n} change${n === 1 ? "" : "s"} since ${base.name}` : `No text changes since ${base.name}`);
 }
+const endComparison = () => {
+	setDiff(false);
+	notice("Changes hidden");
+};
 const pressComparison = (version) => {
 	if (version === null) return;
 	const entry = stamped(version);
 	if (!entry) return;
-	return selectedBase()?.revision === entry.revision ? setDiff(false) : showComparison(revisionBase(entry));
+	return selectedBase()?.revision === entry.revision ? endComparison() : showComparison(revisionBase(entry));
 };
 const comparisonBase = () => diffOn.value ? diffBase.value : null;
 const selectedBase = () => diffPendingBase.value ?? comparisonBase();
@@ -8921,7 +8925,7 @@ function createVersionController({ initialDocument, compositionInput, openThread
 		when: () => selectedBase() !== null || latestBase() !== null,
 		run: () => {
 			const latest = latestBase();
-			if (selectedBase()) setDiff(false);
+			if (selectedBase()) endComparison();
 			else if (latest) return showComparison(revisionBase(latest));
 		}
 	});

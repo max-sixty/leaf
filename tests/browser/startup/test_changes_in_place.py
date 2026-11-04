@@ -121,6 +121,8 @@ def test_v_marks_what_changed_since_the_latest_version_and_takes_marks_off(
     assert marked_ids(page) == ["d"]
     page.keyboard.press("v")
     expect(marked).to_have_count(0)
+    # A screen reader hears the marks go.
+    expect(page.locator(".lf-live")).to_have_text("Changes hidden")
     compare_with(page, 1)
     page.keyboard.press("Escape")
     expect(marked).to_have_count(2)

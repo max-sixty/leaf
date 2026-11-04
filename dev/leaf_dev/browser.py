@@ -412,7 +412,7 @@ def threads_tab(page: Page | FrameLocator):
     rendered(
         page.locator("html").element_handle().owner_frame(), facts=("updatesSettled",)
     )
-    host = page.locator(".lf-floating-panel")
+    host = page.locator(PANEL)
     if host.get_attribute("data-lf-open") not in ("queue", "threads"):
         exit_control = page.locator(".lf-fp-exit")
         if exit_control.count():

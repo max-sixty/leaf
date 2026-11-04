@@ -133,7 +133,7 @@ from leaf.structure import SourceDocument
 from leaf.thread import successful_replies
 from leaf_dev import ROOT
 from leaf_dev.arms import PAYLOAD, PageClient, extract_payload, run_directory, run_leaf
-from leaf_dev.browser import WINDOWS, headless_shell
+from leaf_dev.browser import PANEL, WINDOWS, headless_shell
 from leaf_dev.commands.response_times import Records, page_timings
 from leaf_dev.commands.verify_site import (
     LocalWorker,
@@ -449,7 +449,7 @@ def write_comment(session: Session, text: str, passage: str | None = None) -> Lo
         # The field writes a page comment while no view stands open over it. A send
         # opens its thread there, the field becoming its reply box, so a later page
         # comment closes that view first.
-        if page.locator(".lf-floating-panel[data-lf-open]").count():
+        if page.locator(f"{PANEL}[data-lf-open]").count():
             page.locator(".lf-fp-close").click()
         box = page.locator(".lf-fp-field leaf-text")
         box.click()

@@ -18,7 +18,7 @@ from playwright.sync_api import Locator, Page, expect
 
 from leaf.registry.kernel import kinds_declaring
 from leaf.render_checks import rendered, wait_for_probe
-from leaf_dev.browser import PANEL_THREAD, go_to_threads, scroll_settled
+from leaf_dev.browser import PANEL, PANEL_THREAD, go_to_threads, scroll_settled
 
 WORDS = "Keep the reader's words in the thread while this reply is being sent."
 NEXT_WORDS = "Keep the next draft separate from the reply still being sent."
@@ -115,7 +115,7 @@ def open_surface(page: Page, surface: str) -> ThreadSurface:
                 view.locator(".lf-msg[data-lf-author=user]"),
                 page.locator("body"),
                 f"{PANEL_THREAD} .lf-msg",
-                page.locator(".lf-floating-panel"),
+                page.locator(PANEL),
                 "comment",
             )
         go_to_threads(page)
@@ -127,7 +127,7 @@ def open_surface(page: Page, surface: str) -> ThreadSurface:
             view.locator(".lf-msg"),
             page.locator("body"),
             f"{PANEL_THREAD} .lf-msg",
-            page.locator(".lf-floating-panel"),
+            page.locator(PANEL),
             "reply",
         )
     if surface == "margin":
@@ -276,7 +276,7 @@ def delivery_journey(page: Page, surface: str, checkpoint: Checkpoint) -> dict:
         # Observe feedback in its mutation turn, before transport or capture time
         # can spend its actual four-second interval. The panel says it over the
         # words it returned, or in the leaf's peek while a view stands open.
-        page.locator(".lf-floating-panel").evaluate(
+        page.locator(PANEL).evaluate(
             """node => {
               window.__refusalFeedback = null;
               const observer = new MutationObserver(() => {

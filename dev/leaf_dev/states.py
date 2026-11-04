@@ -31,6 +31,7 @@ from playwright.sync_api import Locator, Page, expect
 from leaf.render_checks import wait_until_ready
 from leaf_dev.arms import PageClient, served_page
 from leaf_dev.browser import (
+    PANEL,
     WINDOWS,
     Window,
     go_to_threads,
@@ -2184,7 +2185,7 @@ STATES = (
         region=".lf-fp-opened",
     ),
     State("panel-new-reply", "ship-review", panel_new_reply, region=".lf-fp-opened"),
-    State("plan-head", "ship-review", plan_head, region=".lf-floating-panel"),
+    State("plan-head", "ship-review", plan_head, region=PANEL),
     State(
         "playground-choice",
         "notification-playground",
@@ -2446,12 +2447,12 @@ STATES = (
     State("gallery-multiline-passage", "feature-gallery", multiline_passage),
     State("plan-execution", "review-a-plan", plan_execution, region="#plan-execute"),
     State("plan-caveat", "review-a-plan", plan_caveat, region="#plan-network"),
-    State("page-search", "review-a-plan", page_search, region=".lf-floating-panel"),
+    State("page-search", "review-a-plan", page_search, region=PANEL),
     State(
         "accepted-page-search",
         "review-a-plan",
         accepted_page_search,
-        region=".lf-floating-panel",
+        region=PANEL,
     ),
     State("selected-passage-responses", "review-a-plan", selected_passage_responses),
     State("command-reference-search", "review-a-plan", command_reference_search),

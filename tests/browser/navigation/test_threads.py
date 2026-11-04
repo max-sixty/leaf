@@ -13,6 +13,7 @@ from render_cases_navigation import NOTED_PAGE, compose
 from render_harness import (
     INLINE_PAGE,
     LONG_PAGE,
+    before_landing_frame,
     command_reference_rows,
     comment_note,
     holding,
@@ -44,7 +45,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 def test_a_thread_trip_takes_over_an_outgoing_trip_before_its_first_frame(
     browser, serve, return_route
 ):
-    """Returning to a still-visible thread cancels native travel away from it."""
+    """Returning to a still-visible thread cancels the trip away from it."""
     page = open_page(
         browser,
         serve(LONG_PAGE, anchored=[("p3", "Paragraph 3."), ("p41", "Paragraph 41.")]),
@@ -57,29 +58,23 @@ def test_a_thread_trip_takes_over_an_outgoing_trip_before_its_first_frame(
     card = page.locator(f'.lf-margin-preview [data-lf-thread="{nearby}"]')
     page.keyboard.press("t")
     expect(card).to_be_focused()
-    page.evaluate(
-        """async route => {
-      const {executeCommand} = await window.__lfCheckApi();
+    before_landing_frame(
+        page,
+        """window.__lfCheckApi().then(({executeCommand}) => {
       const paragraph = document.querySelector('#p3');
       const range = document.createRange();
       range.selectNodeContents(paragraph);
       const line = range.getClientRects()[0];
-      const scrollTo = Element.prototype.scrollTo;
-      Element.prototype.scrollTo = function(options) {
-        const result = scrollTo.call(this, options);
-        if (this === document.scrollingElement && options.behavior === 'smooth') {
-          Element.prototype.scrollTo = scrollTo;
-          window.returnSubject = document.querySelector('#p3').getBoundingClientRect().toJSON();
-          queueMicrotask(() => {
-            if (route === 'walk') executeCommand('thread.previous');
-            else paragraph.dispatchEvent(new MouseEvent('click', {
-              bubbles: true, button: 0, clientX: line.left + 8, clientY: line.top + 8,
-            }));
-          });
-        }
-        return result;
+      return route => {
+        window.returnSubject = paragraph.getBoundingClientRect().toJSON();
+        queueMicrotask(() => {
+          if (route === 'walk') executeCommand('thread.previous');
+          else paragraph.dispatchEvent(new MouseEvent('click', {
+            bubbles: true, button: 0, clientX: line.left + 8, clientY: line.top + 8,
+          }));
+        });
       };
-    }""",
+    })""",
         return_route,
     )
     page.keyboard.press("t")
@@ -657,17 +652,21 @@ def test_go_to_threads_lands_on_threads_from_a_page_thread(browser, serve, width
         if from_thread:
             page.keyboard.press("t")
             page.keyboard.press("t")
-            current_location = page.locator(".lf-margin-preview .lf-page-thread")
+            # A margin card on a wide window; the panel's thread on a phone.
+            current_location = page.locator(
+                f"{PANEL_THREAD}, .lf-margin-preview .lf-page-thread"
+            )
             expect(current_location).to_be_focused()
             # The second of the two threads, so the first row is not the answer.
             stood_in = current_location.get_attribute("data-lf-thread")
         page.keyboard.press("g")
         page.keyboard.press("Shift+t")
-        # From the page the view takes focus; from a page thread, that thread's row.
+        # From the page the view stands on its first row; from a page thread, on that
+        # thread's row.
         expect(
             threads.locator(f'.lf-fp-thread[data-lf-key="{stood_in}"]')
             if from_thread
-            else threads
+            else threads.locator(".lf-fp-thread").first
         ).to_be_focused()
         page.keyboard.press("Escape")
         panel_settled(page, open=False)

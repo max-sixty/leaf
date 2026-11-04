@@ -292,9 +292,9 @@ export function createThreadPreview({
       repeat: true,
       runFromCommandReference: false,
       when: () => atCardEdge(-1),
-      get run() {
+      run: () => {
         const target = opener();
-        return target ? () => focusDestination(target, "step") : undefined;
+        if (target) focusDestination(target, "step");
       },
     },
     {
@@ -305,9 +305,9 @@ export function createThreadPreview({
       repeat: true,
       runFromCommandReference: false,
       when: () => atCardEdge(1),
-      get run() {
+      run: () => {
         const target = opener();
-        return target ? () => focusDestination(target, "return") : undefined;
+        if (target) focusDestination(target, "return");
       },
     },
   ]);
@@ -320,9 +320,9 @@ export function createThreadPreview({
       repeat: true,
       runFromCommandReference: false,
       when: () => onOpener.value && tabStops(preview).length > 0,
-      get run() {
-        const target = tabStops(preview)[0];
-        return target ? () => focusDestination(target, "step") : undefined;
+      run: () => {
+        const [target] = tabStops(preview);
+        if (target) focusDestination(target, "step");
       },
     },
     {

@@ -571,11 +571,9 @@ def panel_dictating(page: Page) -> None:
 
 def comment_on(section: str) -> None:
     """A comment the user left on `section`, posted as another of their tabs would."""
-    client = PageClient(served_page.get().address)
-    client.post(
+    PageClient(served_page.get().address).post(
         {
             "kind": "comment",
-            "revision": client.state()["active"]["revision"],
             "attempt": f"stills-proxy-{section}",
             "text": "Worth a second look.",
             "anchor": {"section": section},
@@ -778,12 +776,10 @@ def held_news(page: Page, thread: Locator) -> None:
     as_agent("thread", "reply", root, "--text", "That one goes first.")
     notice = thread.locator(".lf-thread-news")
     expect(notice).to_have_attribute("title", "1 new reply")
-    client = PageClient(served_page.get().address)
-    client.post(
+    PageClient(served_page.get().address).post(
         {
             "kind": "reply",
             "parent": root,
-            "revision": client.state()["active"]["revision"],
             "attempt": "stills-held-news-other-tab",
             "text": "Sent from my other tab.",
         }
@@ -2007,6 +2003,17 @@ def trace_controls(page: Page) -> None:
     )
 
 
+def trace_image_scale(page: Page) -> None:
+    """A recording's image scale with its choices open, hung below their trigger."""
+    trace = page.locator("#release-trace")
+    scale = trace.get_by_role("button", name="Image scale", exact=True)
+    expect(scale).to_be_enabled()
+    scale.evaluate("node => node.scrollIntoView({block: 'center'})")
+    scale.click()
+    expect(trace.locator(".lf-trace-scale-options:popover-open")).to_be_visible()
+    page.mouse.move(0, 0)
+
+
 def trace_comparison(page: Page) -> None:
     """Recording choice, transport and saved moments in the shared workspace."""
     page.get_by_role("radio", name="Before the fix", exact=True).click()
@@ -2366,6 +2373,7 @@ STATES = (
         trace_controls,
         region=".lf-trace-pace",
     ),
+    State("trace-image-scale", "playwright-trace-gallery", trace_image_scale),
     State(
         "motion-controls",
         "motion",

@@ -1129,6 +1129,20 @@ def refuse(route):
     route.abort("aborted")
 
 
+# A tab names the reading it holds in `Leaf-Held-Basis`, and the server answers it
+# with a `Tail`, a patch against that reading (`served_state/tail.py`). A test that
+# rewrites the reading itself drops the header, so the server answers whole.
+def fetch_whole_state(route):
+    """Fetch this state read as a whole reading; return the response and its body."""
+    headers = {
+        name: value
+        for name, value in route.request.headers.items()
+        if name != "leaf-held-basis"
+    }
+    response = route.fetch(headers=headers)
+    return response, response.json()
+
+
 # A tab a test holds stale is stale only while nothing reaches it: every state
 # application reconciles the draft store against shared storage before it settles
 # anything (settleAcceptedDrafts), so a stale view the assertions take their time
@@ -1813,6 +1827,14 @@ def show_resolved(page):
     return rows
 
 
+def show_done(page):
+    """Unfold what left the open On list (`leaf_dev.browser.show_done`), returning its
+    items once the view's motion ends."""
+    items = dev_browser.show_done(page)
+    panel_settled(page, view="queue")
+    return items
+
+
 # How many open threads the page's reading holds, the number the Threads tab says
 # (thread/model.js, `threadCounts`): those not resolved, a bare reaction being no
 # thread; null until the saved inventory has arrived. It leaves the reading as
@@ -2097,6 +2119,29 @@ def open_page(
         upgraded=upgraded,
     )
     return page
+
+
+def before_landing_frame(page, then, arg=None):
+    """Run a JS function once, with `arg`, before the next trip's first frame.
+
+    `then` is a JS expression for the function, or for a promise of it, so it can
+    fetch an API before the trip starts. A trip adds its return stop and sets off its landing in one task, and the landing
+    moves nothing until its first frame, so a call made as the entry is written, or a
+    microtask it queues, comes while the page still stands where the trip left it.
+    """
+    page.evaluate(
+        f"""async arg => {{
+      const then = await ({then});
+      const pushState = history.pushState;
+      history.pushState = function(...args) {{
+        history.pushState = pushState;
+        const result = pushState.apply(this, args);
+        then(arg);
+        return result;
+      }};
+    }}""",
+        arg,
+    )
 
 
 def over_plain_http(browser, local_url):

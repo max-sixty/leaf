@@ -22,6 +22,7 @@ from render_cases_navigation import (
 )
 from render_harness import (
     RELEASE_FOCUS,
+    held_frames,
     leaf_page,
     open_page,
     open_threads,
@@ -29,13 +30,12 @@ from render_harness import (
     panel_field,
     panel_settled,
     regions_side_by_side,
+    reported_browser_errors,
     resized,
     round_trip,
-    said,
     scroll_settled,
     sending,
     suggestion_control,
-    take_browser_errors,
 )
 
 from browser.navigation import expect_walk_position, walk_position
@@ -406,9 +406,7 @@ def test_a_failed_obligation_reveal_does_not_register_an_arrival(browser, serve)
     rendered(page)
     assert walk_position(page)["text"] == "1 of 4 waiting on me · Options"
     expect(page.locator("#live-question-decision")).to_be_focused()
-    assert [said(error) for error in take_browser_errors(page)] == [
-        "leaf: Presentation failed: obligation reveal probe"
-    ]
+    reported_browser_errors(page, "leaf: Presentation failed: obligation reveal probe")
     round_trip(page)
 
 
@@ -754,7 +752,9 @@ def test_keys_pressed_while_the_page_moves_act_as_if_it_had_landed(browser, serv
     returns to the ask `m` set off from, `j m` beside an ask `j` leaves in view
     moves no further than `j`, Back after `m m` returns to where the first `m` lands,
     and `d`, or `d d`, pressed while the browser's own PageDown still moves the page
-    steps on from where PageDown lands. Each ends where the same keys typed slowly end."""
+    steps on from where PageDown lands. Each ends where the same keys typed slowly end.
+    Home pressed before `d` has moved the page keeps it at the top, though at the top
+    Home itself moves nothing."""
     asks = "".join(
         f'<div style="height:3000px">Reading on</div><lf-ask id="ask-{index}">'
         f'<h2>Which route?</h2><lf-options id="routes-{index}" choose>'
@@ -849,6 +849,13 @@ def test_keys_pressed_while_the_page_moves_act_as_if_it_had_landed(browser, serv
     )
     page.keyboard.press("d")
     assert settled() == pytest.approx(paged_down + 2 * step, abs=2)
+
+    from_the_top()
+    with held_frames(page):
+        page.keyboard.press("d")
+        page.keyboard.press("Home")
+    rendered(page)
+    assert settled() == 0
 
 
 def test_the_obligation_walk_uses_the_visible_reading_after_its_focus_is_released(

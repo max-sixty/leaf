@@ -24,7 +24,7 @@
    activation checks the current command. Withdrawal returns both original attributes.
    Preserve the order of that list because the dispatcher and hints walk inward to
    outward while the full reference groups the same scopes for reading. */
-import { focusDestination, focusRevision } from "../focus.js";
+import { focusDestination, focusRevision, followingFocus } from "../focus.js";
 import {
   AsyncDirective,
   PartType,
@@ -48,7 +48,6 @@ import {
   declaredBindings,
   titleOf,
   descriptionOf,
-  declaresCommandHandler,
   live,
   parsed,
   spokenBinding,
@@ -241,13 +240,15 @@ function reflectButton(control, candidates) {
       const read = reading;
       reading = null;
       try {
-        focusRevision();
-        const command = chosenCommand(read.candidates);
-        const { scope, row, entry } = command;
-        const disabled = Boolean(
-          (scope.when && !scope.when()) ||
-          !commandAvailable(row, entry === row ? null : entry),
-        );
+        const { command, disabled } = followingFocus(() => {
+          const command = chosenCommand(read.candidates);
+          const { scope, row, entry } = command;
+          const disabled = Boolean(
+            (scope.when && !scope.when()) ||
+            !commandAvailable(row, entry === row ? null : entry),
+          );
+          return { command, disabled };
+        });
         keeps(read.control, "aria-disabled", disabled ? "true" : null);
         buttonReadings.set(read.control, command);
       } catch (error) {
@@ -317,11 +318,7 @@ function wireButton(control) {
 function wireDeclaredButtons(scope) {
   if (scope.contextual || scope.sequence) return;
   for (const row of scope.rows) {
-    if (
-      (!declaresCommandHandler(row, "run") && !declaresCommandHandler(row, "runKey")) ||
-      typeof row.routes === "function"
-    )
-      continue;
+    if ((!row.run && !row.runKey) || typeof row.routes === "function") continue;
     for (const entry of row.routes?.length ? row.routes : [row]) {
       const control = entry.control ?? row.control;
       if (control instanceof HTMLButtonElement && !projectedOnto(control, scope))
@@ -878,13 +875,15 @@ export function reflectFirstScopes() {
 // An element's reflection reads its rows' liveness, and that reads two kinds of input.
 // What it reads from the semantic root or from a signal is tracked: each reflection runs
 // as a signals effect, and a publication or signal that moves something it read marks
-// that element alone for the next frame. So a module's own state that a row reads is a
-// signal: a plain variable is read once, and a change to it reaches the element only
-// when something else marks it. What it reads from the document is a mechanical
-// change, and its writer says so: `paintKeys()` marks every element, and
-// `paintKeysWithin(root)` the ones a renderer's paint touched. A publication that moves
-// nothing an element read, and no renderer whose output it reads, leaves its
-// reflection as it is.
+// that element alone for the next frame. Where the user is counts as such a signal for
+// a reflection whose rows asked `focused` (focus.js, `followingFocus`), so a move reads
+// again only those, not every element on the page. So a module's own state that a row
+// reads is a signal, a focus listener's included: a plain variable is read once, and a
+// change to it reaches the element only when something else marks it. What it reads
+// from the document is a mechanical change, and its writer says so: `paintKeys()` marks
+// every element, and `paintKeysWithin(root)` the ones a renderer's paint touched. A
+// publication that moves nothing an element read, and no renderer whose output it reads,
+// leaves its reflection as it is.
 let keysDirty = true;
 /** @type {Set<Element>} */
 const dirtyElements = new Set();
@@ -894,10 +893,10 @@ const tracked = new WeakMap();
 // command names is gathered across every scope on each pass, since a command may name a
 // control outside the element declaring it; each button's availability is its own
 // tracked effect (`reflectButton`), read again when a signal it read moves or a key
-// paint reaches it; where the user is is such a signal (focus.js, `focusRevision`). Every
-// button is read again when a declaration is attached or withdrawn, a command reader
-// registers, and on `paintKeys()`. Contribution projections read the same predicates,
-// as one tracked reader beside them.
+// paint reaches it; where the user is is such a signal for a button whose rows asked
+// (`followingFocus`). Every button is read again when a declaration is attached or
+// withdrawn, a command reader registers, and on `paintKeys()`. Contribution projections
+// read the same predicates, as one tracked reader beside them.
 /** @type {Set<Element>} */
 const dirtyButtons = new Set();
 /** @type {(() => void) | null} */
@@ -980,8 +979,7 @@ function reflectTracked(element) {
       const current = initial;
       initial = null;
       try {
-        focusRevision();
-        reflectElementShortcuts(current);
+        followingFocus(() => reflectElementShortcuts(current));
       } catch (error) {
         failure = error;
       }

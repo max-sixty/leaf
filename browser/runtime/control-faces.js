@@ -8,8 +8,8 @@
    builds wears one (`test_every_press_is_built_by_role`).
 
    - `symbol`: a press drawn as one of Leaf's icons, named by its tooltip and
-     accessible name (browser/AGENTS.md): quiet at rest, the chip under a hovering
-     pointer or visible focus.
+     accessible name (browser/AGENTS.md): quiet at rest, with the library's fill under
+     a hovering pointer (components/controls.css).
    - `word`: a press that says what it does in words, quiet as a symbol is. A toggle
      is a word whose `aria-pressed` the theme draws as selected.
    - `commit`: the one press on a surface that commits the user's work, framed in the

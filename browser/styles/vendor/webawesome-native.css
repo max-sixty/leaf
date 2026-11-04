@@ -193,7 +193,7 @@
 }
 
 /* Region "Text Fields + Textareas + Selects" */
-:where(input:is(.lf-ui, .field):not([type="button"], [type="checkbox"], [type="color"], [type="file"], [type="hidden"], [type="image"], [type="radio"], [type="range"], [type="reset"], [type="submit"])), :where(textarea.field), :where(select:is(.lf-ui, .field):is(:not([size]), [size="0"], [size="1"])) {
+:where(input:is(.lf-ui, .field):not([type="button"], [type="checkbox"], [type="color"], [type="file"], [type="hidden"], [type="image"], [type="radio"], [type="range"], [type="reset"], [type="submit"])), :where(textarea.field), :where(select:is(.lf-ui, .field):not([multiple]):is(:not([size]), [size="0"], [size="1"])) {
   width: 100%;
   height: var(--wa-form-control-height);
   padding: 0 var(--wa-form-control-padding-inline);
@@ -211,13 +211,13 @@
   cursor: text;
 }
 
-:where(:is(input:is(.lf-ui, .field):not([type="button"], [type="checkbox"], [type="color"], [type="file"], [type="hidden"], [type="image"], [type="radio"], [type="range"], [type="reset"], [type="submit"]), textarea.field, select:is(.lf-ui, .field):is(:not([size]), [size="0"], [size="1"])))::placeholder {
+:where(:is(input:is(.lf-ui, .field):not([type="button"], [type="checkbox"], [type="color"], [type="file"], [type="hidden"], [type="image"], [type="radio"], [type="range"], [type="reset"], [type="submit"]), textarea.field, select:is(.lf-ui, .field):not([multiple]):is(:not([size]), [size="0"], [size="1"])))::placeholder {
   color: var(--wa-form-control-placeholder-color);
   -webkit-user-select: none;
   user-select: none;
 }
 
-:where(:is(input:is(.lf-ui, .field):not([type="button"], [type="checkbox"], [type="color"], [type="file"], [type="hidden"], [type="image"], [type="radio"], [type="range"], [type="reset"], [type="submit"]), textarea.field, select:is(.lf-ui, .field):is(:not([size]), [size="0"], [size="1"])):disabled) {
+:where(:is(input:is(.lf-ui, .field):not([type="button"], [type="checkbox"], [type="color"], [type="file"], [type="hidden"], [type="image"], [type="radio"], [type="range"], [type="reset"], [type="submit"]), textarea.field, select:is(.lf-ui, .field):not([multiple]):is(:not([size]), [size="0"], [size="1"])):disabled) {
   opacity: .5;
   cursor: not-allowed;
 }
@@ -230,7 +230,7 @@
   resize: vertical;
 }
 
-:where(select:is(.lf-ui, .field):is(:not([size]), [size="0"], [size="1"])) {
+:where(select:is(.lf-ui, .field):not([multiple]):is(:not([size]), [size="0"], [size="1"])) {
   --icon-caret: url("data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\"><!--! Font Awesome Free 7.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc. --><path fill=\"rgb(180 180 200)\" d=\"M201.4 406.6c12.5 12.5 32.8 12.5 45.3 0l192-192c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L224 338.7 54.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l192 192z\"/></svg>");
   appearance: none;
   background-image: var(--icon-caret), var(--icon-caret);
@@ -246,7 +246,7 @@
   overflow: hidden;
 }
 
-:where(select:is(.lf-ui, .field):is(:not([size]), [size="0"], [size="1"])[multiple]) {
+:where(select:is(.lf-ui, .field):not([multiple]):is(:not([size]), [size="0"], [size="1"])[multiple]) {
   height: auto;
   padding-inline: var(--wa-form-control-padding-inline);
   background-image: none;

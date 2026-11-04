@@ -37,7 +37,7 @@
   --wa-color-neutral-fill-quiet: var(--field);
   /* The vendor's hover and track fill. It stands on --card (a listbox, a slider's
      panel), so --card here drew an option's hover and a slider's unfilled track in the
-     colour of the ground they sit on; --chip is the hover fill .lf-btn uses. */
+     colour of the ground they sit on; --chip is the fill Leaf's own chips wear. */
   --wa-color-neutral-fill-normal: var(--chip);
   --wa-color-neutral-border-normal: var(--border-2);
   /* A control's outline, an unchosen radio's or checkbox's (controls.css, `.choice`):

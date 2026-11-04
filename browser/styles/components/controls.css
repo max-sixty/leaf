@@ -633,7 +633,9 @@ summary,
  * reach (surfaces.css), so a rule restating the padding restates the line with it. A
  * finger leaves the last control it tapped matching :hover until the next tap
  * elsewhere, so the library's hover fill waits for a pointer that hovers; under a
- * finger the press shows its result instead. Visible focus wears the layer's band
+ * finger the press shows its result instead. The fill stands in for the shadow the
+ * layer lays under an offered control's pointer (surfaces.css), so a press built by a
+ * widget looks as an authored one does. Visible focus wears the layer's band
  * (surfaces.css), which the library's own ring would duplicate. Rejected: Leaf's
  * own faces, drawn in the chip under a hovering pointer or visible focus, kept until
  * the user preferred a reasonable design from a UI library to looks of Leaf's own
@@ -657,6 +659,9 @@ summary,
   :where(:is(.lf-btn, .button, .lf-icon-action):hover) {
     background-color: transparent;
   }
+}
+:is(.lf-btn, .button, .lf-icon-action):hover {
+  box-shadow: none;
 }
 /* A native radio or checkbox and its label form one compact target. The mark
  * carries selection; the label supplies the aim floor and focus ring without
@@ -757,7 +762,8 @@ summary,
  * (above). A symbol once also came on the word face's bordered card in some widgets, a
  * second look for the same press, until the two merged here. A control that draws its
  * state in its own ink, such as Send or Resolve (response.css), states that ink after
- * this rule, at least as heavily. */
+ * this rule, at least as heavily. Its grid lays out what it holds, such as the On me
+ * mark's symbol and count, which the library's centring would pack together. */
 .lf-icon-action {
   box-sizing: border-box;
   width: var(--lf-icon-action-hit);
@@ -767,6 +773,7 @@ summary,
   padding: 0;
   display: grid;
   place-items: center;
+  justify-content: normal;
 }
 /* A symbol on a vendor control, Copy, wears the face on its host, which holds no line
    of words of its own; the button inside fills the face and takes the press. The host
@@ -819,11 +826,11 @@ wa-copy-button.lf-icon-action {
   color: var(--ink);
   font: inherit;
   text-align: start;
-  white-space: inherit;
+  white-space: normal;
   cursor: pointer;
 }
 /* It declines the wash every generated press takes under the pointer (surfaces.css),
-   which a finger's tap leaves behind too, for the chip a word takes. */
+   which a finger's tap leaves behind too, for the chip. */
 .lf-answer:hover {
   box-shadow: none;
 }
@@ -1033,9 +1040,11 @@ wa-copy-button.lf-icon-action {
    Awesome's native text field or select, generated onto these elements into
    vendor/webawesome-native.css: the field's frame a line tall (`--lf-line`), and a
    select's chevron, so a row of them beside .lf-btn reads as one set of controls. It
-   stands on the card ground Leaf's wa-input takes, and at its content's width, since
-   it sits in a row beside presses, where the library's fills its form's width. At a
-   class's weight, so a component rule naming its own field still wins by coming later.
+   stands on the card ground Leaf's wa-input takes, at its own width (a select's
+   widest option, a text field's `size`), since it sits in a row beside presses, where
+   the library's fills its form's width, and a line tall wherever a surface sets its
+   line. At a class's weight, so a component rule naming its own field still wins by
+   coming later.
    With no face the browser drew its own: a 2px inset border and square corners, 21px
    tall beside 30px buttons; Leaf drew a frame and chevron of its own until the user
    preferred a reasonable design from a UI library (3 November 2026). An authored
@@ -1056,6 +1065,7 @@ wa-copy-button.lf-icon-action {
   )
 ):is(.lf-ui, .field) {
   --wa-form-control-background-color: var(--card);
+  --wa-form-control-height: var(--lf-line);
   box-sizing: border-box;
   width: auto;
   --lf-ring-at: 0;
@@ -1067,13 +1077,19 @@ textarea.field {
   --wa-form-control-background-color: var(--card);
   box-sizing: border-box;
 }
-/* The library places a select's chevron at the right whatever the text's direction,
-   and paints it as a background a forced palette drops, where the platform's own
-   control takes its place. */
+/* A select's chevron is the library's, set in its `--icon-caret` property, which the
+   library blends against the field's ground so it reads in either scheme. Its grey is
+   the library's cool one, which the blend turned violet on Leaf's warm grounds, so
+   Leaf sets the same chevron in a neutral grey, which the blend turns to a neutral
+   dark grey on a light ground and a light one on a dark ground. The library places
+   the chevron at the right whatever the text's direction. In forced colours the
+   platform's own control takes its place, since the chevron is a picture the palette
+   can't recolour. */
 :where(select:not([multiple]):is(:not([size]), [size="0"], [size="1"])):is(
   .lf-ui,
   .field
 ) {
+  --icon-caret: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc. --><path fill="rgb(180 180 180)" d="M201.4 406.6c12.5 12.5 32.8 12.5 45.3 0l192-192c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L224 338.7 54.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l192 192z"/></svg>');
   &:dir(rtl) {
     background-position: center left var(--wa-form-control-padding-inline);
   }

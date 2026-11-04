@@ -38,9 +38,10 @@ export const styleEntries = [
         // Leaf's own text boxes grow with their words (controls.css), which the
         // library's fixed-height field doesn't; an authored one takes the library's.
         textarea: "textarea.field",
-        // A listbox (`size` over 1) keeps the browser's face: the library draws it as
-        // a closed select a line tall.
-        select: 'select:is(.lf-ui, .field):is(:not([size]), [size="0"], [size="1"])',
+        // A listbox (`multiple`, or `size` over 1) keeps the browser's face: the
+        // library draws it as a closed select that hides what overflows it.
+        select:
+          'select:is(.lf-ui, .field):not([multiple]):is(:not([size]), [size="0"], [size="1"])',
       },
     },
   ],
@@ -200,7 +201,15 @@ function rewrite(selector, map) {
       if (!within.length) return null;
       parts.push({ ...part, selectors: within.map((w) => w.parts) });
       named ||= within.some((w) => w.named);
-    } else parts.push(part);
+    } else if (
+      part.type === "pseudo-class" &&
+      part.kind !== "has" &&
+      (part.selectors || part.of)
+    )
+      // `:has()` asks about other elements, which no face names. Any other selector
+      // argument would need rewriting this code doesn't do, so the build stops.
+      throw new Error(`No rewrite for :${part.kind}() of selectors`);
+    else parts.push(part);
   }
   return { parts, named };
 }

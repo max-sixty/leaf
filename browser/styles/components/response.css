@@ -713,11 +713,10 @@ leaf-composition-field {
   min-height: 0;
   border: 1px solid transparent;
 }
-/* Both wear the symbol's chip on a press (controls.css, `.lf-icon-action`), Save's
-   send glyph included. */
+/* Both wear a symbol's hover fill (controls.css, `.lf-icon-action`) while they hold
+   focus too, as on a press, Save's send glyph included. */
 .lf-msg-edit-actions > .lf-msg-control:is(:hover, [data-lf-focus]) {
-  background: var(--chip);
-  color: var(--ink);
+  background-color: var(--wa-color-fill-quiet, var(--wa-color-neutral-fill-quiet));
 }
 /* The rewrite's field stands just below its head, so Discard and Save reach the floor
    upward, over the head and the room above it, rather than over the field's top. */

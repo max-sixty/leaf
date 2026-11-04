@@ -28,7 +28,8 @@ another. Fitting the cost itself would let fixed work hide that: 30 ms per click
 browser (`leaf_dev.server_scaling` names the paths and how it reads them), and names
 each path that breaks the rule: growth fitting an exponent above SUPERLINEAR, a
 click's path taking more than its budget at REFERENCE, or, on the session's page, an
-append growing past INPUT_CEILING.
+append growing past INPUT_CEILING. The daily `tests/journeys/test_server_scaling.py`
+fails those.
 
 --base also measures the merge base with main (or REF), chosen as every A/B command
 chooses its arms (`arms.choose_arms`), so a change shows its exponents beside the

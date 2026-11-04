@@ -1189,13 +1189,16 @@ def test_align_current_thread_stays_in_its_panel_without_travel(browser, serve):
     )
 
 
-def test_a_box_is_already_shown_whole_where_it_fits_and_in_part_where_it_cannot(
+def test_a_box_is_already_shown_where_a_nearest_landing_would_move_nothing(
     browser, serve
 ):
-    """A landing that follows the user moves nothing for a box already shown: all of it
-    in view where it fits its room, any of it where it does not. A wrapper clipping only
-    sideways bounds no height, so an editor standing in an `overflow-x: clip` row 20px
-    tall still fits, and 30px of it in view is not yet shown."""
+    """Every nearest landing first asks whether its box is already shown, which it is
+    where the landing would move nothing: all of it in view where it fits its room, and
+    filling the room where it is longer. So a box taller than the window that shows only
+    in part still comes in as far as it fits, its opening at the band's top, and is then
+    shown. A wrapper clipping only sideways bounds no height, so an editor standing in an
+    `overflow-x: clip` row 20px tall still fits, and 30px of it in view is not yet
+    shown."""
     source = leaf_page(
         "Room",
         '<div style="height:2000px"></div>'
@@ -1204,18 +1207,23 @@ def test_a_box_is_already_shown_whole_where_it_fits_and_in_part_where_it_cannot(
     )
     page = open_page(browser, serve(source))
     reading = page.evaluate("""async () => {
-      const {alreadyShown, fitsWhole} =
-        await window.__lfCheckApi();
-      const {shownWindow} = await window.__lfWidgetApi();
+      const {alreadyShown, fitsWhole, landingBand} = await window.__lfCheckApi();
+      const {scrollIntoView, shownWindow} = await window.__lfWidgetApi();
       const partly = (node) => {
         const top = node.getBoundingClientRect().top - (shownWindow().bottom - 30);
         scrollBy({top, behavior: 'instant'});
         return [fitsWhole(node), alreadyShown(node)];
       };
-      return [partly(document.querySelector('#box')),
-              partly(document.querySelector('#tall'))];
+      const tall = document.querySelector('#tall');
+      const readings = [partly(document.querySelector('#box')), partly(tall)];
+      scrollIntoView(tall, {block: 'nearest', behavior: 'instant'});
+      return {readings, landed: alreadyShown(tall),
+              top: tall.getBoundingClientRect().top,
+              band: landingBand(document.scrollingElement).top};
     }""")
-    assert reading == [[True, False], [False, True]]
+    assert reading["readings"] == [[True, False], [False, False]], reading
+    assert reading["landed"], reading
+    assert reading["top"] == pytest.approx(reading["band"], abs=1), reading
 
 
 def test_align_current_tall_block_reveals_its_opening_through_outer_scrollers(
@@ -1346,9 +1354,9 @@ def test_vertical_landing_crosses_a_quarter_turn_without_changing_horizontal_rea
         page.keyboard.press("z")
     else:
         page.evaluate("""async () => {
-          const {scrollIntoReadingBand} = await window.__lfWidgetApi();
+          const {scrollIntoView} = await window.__lfWidgetApi();
           const target = document.querySelector('#quarter-target');
-          scrollIntoReadingBand(target, target, 'nearest', 'instant');
+          scrollIntoView(target, {block: 'nearest', behavior: 'instant'});
         }""")
     after = page.evaluate("""async () => {
       const {landingBand} = await window.__lfCheckApi();

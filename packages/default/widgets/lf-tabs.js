@@ -110,7 +110,6 @@ import {
   replaceEntry,
   restorePlace,
   scrollBehavior,
-  scrollIntoReadingBand,
   selectableOffered,
   sizeObserver,
   tabStore,
@@ -556,7 +555,7 @@ export class TabSet extends LeafElement {
         if (name) this.#revealMotion = backgroundFlash(name, flashDuration());
       }
       if (switched) this.#open(active, from);
-      else if (pinnedBox) scrollIntoReadingBand(this, this, "start", "instant");
+      else if (pinnedBox) scrollIntoView(this, { block: "start", behavior: "instant" });
 
       for (const panel of previous ? [previous, active] : [active]) {
         const child = soleSubstantiveElement(panel);

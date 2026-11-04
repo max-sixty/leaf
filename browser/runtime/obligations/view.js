@@ -496,10 +496,10 @@ export function createObligationView({
     // starting below would be a region the change is not in. Document order alone does
     // not promise that — a preceding block can be painted lower — and the span such a
     // region measures is negative, which fits every screen there is.
-    // The screen the user can use is the room a landing at the region's start leaves
-    // for the run down to the obligation's foot (landing-scroll.js, `landingRoom`): clear
-    // of the window's head over its top and the floating panel's room over its bottom,
-    // so an obligation's foot that fits is one the user can read rather than one under the panel.
+    // The screen the user can use is the room a landing has at the region
+    // (landing-scroll.js, `landingRoom`): clear of the window's head over its top and
+    // the floating panel's room over its bottom, so an obligation's foot that fits is
+    // one the user can read rather than one under the panel.
     /** @param {Element | null | undefined} region */
     const fits = (region) => {
       if (!region) return false;
@@ -508,7 +508,7 @@ export function createObligationView({
       return (
         start.height > 0 &&
         start.top <= target.top &&
-        target.bottom - start.top <= landingRoom(region, item).height
+        target.bottom - start.top <= landingRoom(region).height
       );
     };
     // The heading is what names the obligation's part of the page (thread/placement.js,

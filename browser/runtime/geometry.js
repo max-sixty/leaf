@@ -3,16 +3,9 @@
  * document-positioned chrome. */
 import { excludedByInert, renderedParent, uiInside, under } from "./shadow-tree.js";
 import { nativeModalAdmits, watchLayerChanges } from "./keyboard/layer-stack.js";
-import { isNativeLayer } from "./shadow-tree.js";
-import {
-  clippingAxes,
-  hasArea,
-  intersect,
-  overlaps,
-  overlapsAcross,
-  union,
-} from "./rect.js";
-import { cancelRender, nextRender, sizeObserver } from "./rendering.js";
+import { isNativeLayer, nativeLayerHolding } from "./shadow-tree.js";
+import { clippingAxes, hasArea, intersect, overlapsAcross, union } from "./rect.js";
+import { cancelRender, nextRender } from "./rendering.js";
 import { watchScrolls } from "./arrivals.js";
 import { isHTML, isElement } from "./shadow-tree.js";
 import { elementBox } from "./shown-box.js";
@@ -20,9 +13,7 @@ import { elementBox } from "./shown-box.js";
 /** @typedef {import('./rect.js').Box} Box
  * @typedef {{band: Box | null, axes: {x: boolean, y: boolean}, positioned: boolean,
  * block: Element | null | undefined, scrolls: boolean}} ClipEntry
- * @typedef {{surface: HTMLElement, box: Box, level: number}} Occluder
- * @typedef {Map<Element, ClipEntry> & Map<typeof PAST, Set<HTMLElement>> &
- * Map<typeof OCCLUDERS, Occluder[]>} ClipCache
+ * @typedef {Map<Element, ClipEntry>} ClipCache
  * @typedef {{box: Element, axes: {x: boolean, y: boolean}, scrolls: boolean,
  * covered: boolean, footed: boolean, band: Box | null}} ClipCut */
 
@@ -37,11 +28,13 @@ export const visualViewport = nativeViewport;
    `shownBox` returns an element's own box or the union of the boxes its
    `display: contents` descendants paint. `shownParts` returns the visible elements on
    which an outline can be drawn, and `shownExtent` the box they cover together.
-   `shownRect` clips an element's `shownBox` through scrolling ancestors' visible bands (less the sticky headers stuck over their tops) and the viewport,
-   following native positioned containing blocks past intermediate overflow clips,
-   then takes away what a declared occluder stands over (`declareOccluder`). It is what a box may be drawn over, which
-   chrome can be: the floating panel is drawn above the page, not cut out of it. `seenRect` holds that to the room the chrome leaves (`shownWindow`), and it is
-   the one reading of whether the user can see something.
+   `shownRect` clips an element's `shownBox` through scrolling ancestors' visible bands
+   (less the sticky headers stuck over their tops) and the viewport, following native
+   positioned containing blocks past intermediate overflow clips. It is what a box may
+   be drawn over, which chrome can be: the floating panel is drawn above the page, not
+   cut out of it. `seenRect` takes from that the boxes the chrome covers
+   (`declareCover`), and it is the one reading of whether the user can see something, a
+   Range's words included.
    `clippedRect` applies that same clipping walk to a box measured some other way for an
    element, and `clippedContents` to a box measured from a Range, starting at the element
    that holds the Range and counting that element's own clip. Use:
@@ -82,60 +75,6 @@ export const visualViewport = nativeViewport;
 // overhang. The chrome stands over the page and takes none of it.
 export const shellRight = () => document.body.getBoundingClientRect().right;
 
-// How much of the window the page shows: the visible viewport, less the chrome fixed to
-// its edges, the boxes the floating panel stands. Each stands over the page without
-// clipping it, so no clip walk finds it; its owner declares it here
-// (`declareWindowChrome`, floating-panel.js), and every reading of the room the page has
-// starts from `shownWindow` rather than measuring the chrome itself. The chrome is read
-// as the boxes standing in it rather than as a stated height, and each box bounds only
-// the room it stands across, from the edge it stands nearer.
-//
-// The visible viewport is the part of the window the user sees: pinch zoom and a phone's
-// software keyboard shrink it without resizing the layout viewport the page and its fixed
-// chrome are laid out in, and a surface placed in the layout viewport alone can stand
-// under the keyboard. `within` narrows the room to a box the caller keeps to, such as a
-// reading region's shown bounds, and `gap` holds what stands in the room that far inside
-// each of its edges. `viewport: "layout"` reads the room in the layout viewport instead,
-// the window the page scrolls through, for a caller asking whether a scroll has carried
-// something out of the page's room rather than whether the user can see it. `across`
-// names the columns a box asking for its room stands in, where they are narrower than
-// the room: chrome beside those columns takes none of its height, as the floating
-// panel's row under the page column leaves a thread card in the margin the window's
-// whole height.
-//
-// The chrome's owner also hands over the elements it draws, and a change of their size
-// is announced as `ROOM_MOVED` (`watchRoom`), as is an occluder's (`declareOccluder`): a
-// view opens or shuts above the floating panel's row, with no scroll or resize for a
-// reader to hear.
-//
-// Chrome takes room from the page, not from itself: what stands in the chrome's elements
-// is in the room its own chrome leaves (`item`), as the floating panel's field stands in
-// the row it declares. Such a box is in front of the user wherever it is, so it names
-// no place in the page (`inWindowChrome`).
-/** @type {Map<() => readonly Box[], readonly Element[]>} */
-const windowChrome = new Map(); // boxes -> the elements they stand
-const chromeSizes = sizeObserver(() => announceRoom(document));
-/** @param {Element} element */
-const watchChrome = (element) => chromeSizes.observe(element, { box: "border-box" });
-/** @param {() => readonly Box[]} boxes @param {readonly Element[]} elements */
-export const declareWindowChrome = (boxes, elements) => {
-  windowChrome.set(boxes, elements);
-  elements.forEach(watchChrome);
-};
-/** @param {Node | null} node @param {readonly Element[]} elements */
-const standsIn = (node, elements) =>
-  Boolean(node) && elements.some((element) => under(node, element));
-/** @param {Node | null} node */
-export const inWindowChrome = (node) =>
-  [...windowChrome.values()].some((elements) => standsIn(node, elements));
-// Every box the declared window chrome stands now, for a reading that keeps clear of
-// them all, as Go-to's chips and a search's marks do; but for the chrome `item` stands
-// in.
-/** @param {Node | null} [item] */
-export const windowChromeBoxes = (item = null) =>
-  [...windowChrome]
-    .filter(([, elements]) => !standsIn(item, elements))
-    .flatMap(([boxes]) => boxes());
 // The layout viewport's box, less the scrollbars the root draws at its edges, where
 // nothing the page shows stands: `innerWidth` and `innerHeight` count a classic
 // scrollbar. Every reading of the whole window's box starts here, `doc`'s for a sample
@@ -147,14 +86,51 @@ export const layoutWindow = (doc = document) => ({
   right: doc.documentElement.clientWidth,
   bottom: doc.documentElement.clientHeight,
 });
+// The chrome standing over the page: each surface fixed over it, such as the floating
+// panel, declares the one box it covers now (`declareCover`), read when asked. A surface
+// covers what it stands over without clipping it, so no clip walk finds it. What the
+// surface holds is its own to show, so a reading of a node inside it leaves its box out,
+// and the top layer paints over every surface, so nothing covers a node standing in an
+// open native layer, a menu or a modal.
+/** @type {Set<{surface: Element, box: () => Box | null}>} */
+const covers = new Set();
+/** @param {Element} surface @param {() => Box | null} box */
+export function declareCover(surface, box) {
+  const cover = { surface, box };
+  covers.add(cover);
+  return () => void covers.delete(cover);
+}
+// The boxes the declared surfaces cover now over `item`, or over any page box.
+/** @param {Node | null} [item] */
+export const coverBoxes = (item = null) =>
+  isElement(item) && nativeLayerHolding(item)
+    ? []
+    : [...covers].flatMap(({ surface, box }) => {
+        if (item && under(item, surface)) return [];
+        const at = box();
+        return at && hasArea(at) ? [at] : [];
+      });
+// How much of the window the page shows: the visible viewport, less the boxes the chrome
+// covers (`coverBoxes`), each bounding only the room it stands across, from the edge it
+// stands nearer.
+//
+// The visible viewport is the part of the window the user sees: pinch zoom and a phone's
+// software keyboard shrink it without resizing the layout viewport the page and its fixed
+// chrome are laid out in. `within` narrows the room to a box the caller keeps to, such as
+// a reading region's shown bounds, and `gap` holds what stands in the room that far
+// inside each of its edges. `viewport: "layout"` reads the room in the layout viewport
+// instead. `across` names the columns a box asking for its room stands in, where they
+// are narrower than the room: a cover beside them takes none of its height, as the
+// floating panel under the page column leaves a thread card in the margin the window's
+// whole height. A chrome owner that changes the box it covers says so (`announceRoom`),
+// since no scroll or resize tells a reader.
 /** @param {{within?: Partial<import('./rect.js').Box> | null,
- * gap?: number, viewport?: "visual" | "layout", item?: Node | null,
+ * gap?: number, viewport?: "visual" | "layout",
  * across?: {left: number, right: number} | null}} [options] */
 export function shownWindow({
   within = null,
   gap = 0,
   viewport = "visual",
-  item = null,
   across = null,
 } = {}) {
   const layout = layoutWindow();
@@ -167,7 +143,7 @@ export function shownWindow({
   let top = Math.max(offsetTop, within?.top ?? -Infinity);
   let bottom = Math.min(offsetTop + height, within?.bottom ?? Infinity);
   const middle = offsetTop + height / 2;
-  for (const box of windowChromeBoxes(item)) {
+  for (const box of coverBoxes()) {
     if (!overlapsAcross(box, across ?? { left, right })) continue;
     if (box.top + box.bottom < 2 * middle) top = Math.max(top, box.bottom);
     else bottom = Math.min(bottom, box.top);
@@ -547,22 +523,45 @@ export const shownExtent = (el) =>
 export function shownRect(item, clips) {
   return clippedRect(shownBox(item), item, clips);
 }
-// What of an item the user sees: what every box over it lets through, within the room the
-// chrome leaves, but for chrome the item stands in. `within` keeps a bottom-bar box from
-// cutting the item unless it stands across it. The chrome cuts the item's top and foot
-// only; its sides stay shownRect's, the
-// layout viewport's, since a pinch zoom's visual viewport is a pan across the page and not
-// a clip — read with its sides, a message wider than the zoomed view was never seen whole
-// across, and never counted read. Null when none of it shows. `box` is the extent asked
-// about, the item's own by default, or wider, as a focus ring's room is.
+// What of an item the user sees: what every box over it lets through, within the visible
+// viewport's height, less the boxes the chrome covers (`coverBoxes`), or null when none
+// of it shows. A cover reaching into the item's columns takes the band it stands in, and
+// the item keeps the larger of its parts above and below that band, so what is left is
+// one box the user sees whole; a cover beside the item takes nothing. The viewport cuts
+// only the item's top and foot; its sides stay the clip walk's, the layout viewport's,
+// since a pinch zoom's visual viewport is a pan across the page and not a clip, and read
+// with its sides a message wider than the zoomed view was never seen whole across, and
+// never counted read. `item` is an element or a Range, and `box` the extent asked about,
+// the item's own by default, or wider, as a focus ring's room is.
 /** @param {Element | Range} item @param {ClipCache} clips @param {Box} [box] */
 export function seenRect(item, clips, box = placeBox(item)) {
-  const shown = clippedPlace(item, clips, box);
+  const holder = placeHolder(item);
+  const shown = holder && clippedPlace(item, clips, box);
   if (!shown) return null;
-  const room = shownWindow({ within: shown, item: placeHolder(item) });
-  return room.width > 0 && room.height > 0
-    ? { left: shown.left, top: room.top, right: shown.right, bottom: room.bottom }
-    : null;
+  const { offsetTop, height } = visualViewport;
+  return uncovered(
+    {
+      left: shown.left,
+      top: Math.max(shown.top, offsetTop),
+      right: shown.right,
+      bottom: Math.min(shown.bottom, offsetTop + height),
+    },
+    holder,
+  );
+}
+// What of `box` the boxes the chrome covers leave (`coverBoxes`), but for one holding
+// `item`, or null where they leave none of it: a cover reaching into the box's columns
+// takes the band it stands in, and the box keeps the larger of its parts above and below
+// that band. `seenRect` and paint stacked above the chrome (`paintClips`) cut by it.
+/** @param {Box} box @param {Node} item */
+function uncovered({ left, top, right, bottom }, item) {
+  for (const over of coverBoxes(item)) {
+    if (over.left >= right || over.right <= left) continue;
+    if (over.top >= bottom || over.bottom <= top) continue;
+    if (over.top - top >= bottom - over.bottom) bottom = over.top;
+    else top = over.bottom;
+  }
+  return bottom > top ? { left, top, right, bottom } : null;
 }
 // Whether the page draws `node` with what it holds: rendered (`checkVisibility`, with its
 // `options`) and not hidden until found. An element `hidden="until-found"` keeps a box
@@ -592,9 +591,9 @@ export function presented(node) {
 // What this page shows of a sample's frame it holds, in the frame's own viewport
 // coordinates: the frame's `seenRect`, within `within`, the window or what this page's
 // own holder shows of it, or null where the user sees none of it. The sample cannot
-// read this itself: only this page's module knows the chrome and occluders
-// standing over the frame, which cut it as they cut any of this page's boxes. A page in
-// an ordinary iframe reads only its own window.
+// read this itself: only this page knows the boxes its chrome covers over the frame,
+// which cut it as they cut any of this page's boxes. A page in an ordinary iframe reads
+// only its own window.
 /** @param {HTMLIFrameElement} frame @param {Box} within */
 export function frameView(frame, within) {
   const seen = seenRect(frame, new Map());
@@ -622,8 +621,8 @@ export function frameView(frame, within) {
 // is measured against changing size or ending a slide (`ROOM_MOVED`). Returns the call
 // that stops watching.
 const ROOM_MOVED = "lf-room-moved";
-/** @param {EventTarget} target */
-const announceRoom = (target) =>
+/** @param {EventTarget} [target] */
+export const announceRoom = (target = document) =>
   target.dispatchEvent(new Event(ROOM_MOVED, { bubbles: true, composed: true }));
 /** @param {() => void} callback */
 export function watchRoom(callback) {
@@ -782,9 +781,9 @@ export const startsAt = (item, clips) => {
 };
 // The clips standing over a box, applied to it. Taken apart from shownRect because the two
 // readings above and a painted Range want the same walk over different boxes.
-// `stop` reads only native ancestor bands before that boundary. Viewport, occluders
-// and sticky headers belong to the outer plane; margin seats keep their place while
-// their CSS frames apply those cuts.
+// `stop` reads only native ancestor bands before that boundary. The viewport and sticky
+// headers belong to the outer plane; margin seats keep their place while their CSS
+// frames apply those cuts.
 /** @param {Box} box @param {Element} item @param {ClipCache} clips @param {Element} [stop] */
 export const clippedRect = (box, item, clips, stop) =>
   clipped(box, item, clips, false, true, stop);
@@ -794,14 +793,14 @@ export const clippedRect = (box, item, clips, stop) =>
 // the boxes between it and the item whose bands cut it, outermost first, each band less
 // the headers stuck over the item's view of it (`headerInset`); each stands in the plane
 // of the box that holds it, kept where they cut the box whole. `window` is what the
-// window leaves the paint, in the
-// window's plane: the room below a header stuck over the root's top, cut, for paint
-// stacked `aboveSurfaces`, at the edge of each declared occluder standing over what the
-// bands leave of the box, on the side `occluded` keeps, or null where neither cuts it,
-// and empty where a cut hides the box whole. Paint stacked under the surfaces is hidden
-// by them where they stand. The window's own edges cut nothing in the page's plane, since paint past them
-// is not drawn anyway, and cutting it there would move the cut with every scroll. Paint
-// over what `item` holds (`held`), as words inside it, is cut by its own band too.
+// window leaves the paint, in the window's plane: the room below a header stuck over the
+// root's top, cut, for paint stacked `aboveSurfaces`, at the edge of each box the chrome
+// covers over what the bands leave of the box (`uncovered`), or null where neither cuts
+// it, and empty where a cut hides the box whole. Paint stacked under the chrome is hidden
+// by it where it stands. The window's own edges cut nothing in the page's plane, since
+// paint past them is not drawn anyway, and cutting it there would move the cut with every
+// scroll. Paint over what `item` holds (`held`), as words inside it, is cut by its own
+// band too.
 /** @param {Element} item @param {Box} box @param {ClipCache} clips @param {boolean} aboveSurfaces @param {boolean} [held] */
 export function paintClips(item, box, clips, aboveSurfaces, held = false) {
   const walk = clipWalk(item, clips, held);
@@ -817,27 +816,20 @@ export function paintClips(item, box, clips, aboveSurfaces, held = false) {
     if (!band) return hidden;
     if (cut.box !== root) bands.unshift({ ...cut, band });
   }
-  let shown = cutBy(box, walk.cuts, root, false);
   // Cut away by the bands, the box keeps them, which a scroll may bring it into; under
   // headers that cover a band whole, it has none to keep.
-  if (!shown) return { plane, window: window ?? null, bands };
-  for (const { surface, box: over, level } of aboveSurfaces
-    ? openOccluders(clips)
-    : []) {
-    if (!overlaps(shown, over) || under(item, surface) || stackLevel(item) >= level)
-      continue;
-    const left = uncovered(shown, over);
+  const shown = aboveSurfaces ? cutBy(box, walk.cuts, root, false) : null;
+  if (shown) {
+    const left = uncovered(shown, item);
     if (!left) return hidden;
-    window ??= layoutWindow(item.ownerDocument);
-    window = {
-      left: left.left > shown.left ? Math.max(window.left, over.right) : window.left,
-      top: left.top > shown.top ? Math.max(window.top, over.bottom) : window.top,
-      right:
-        left.right < shown.right ? Math.min(window.right, over.left) : window.right,
-      bottom:
-        left.bottom < shown.bottom ? Math.min(window.bottom, over.top) : window.bottom,
-    };
-    shown = left;
+    if (left.top > shown.top || left.bottom < shown.bottom) {
+      window ??= layoutWindow(item.ownerDocument);
+      window = {
+        ...window,
+        top: Math.max(window.top, left.top),
+        bottom: Math.min(window.bottom, left.bottom),
+      };
+    }
   }
   return { plane, window: window ?? null, bands };
 }
@@ -880,13 +872,7 @@ export const clippedContents = (box, holder, clips, stop) =>
 /** @param {Box} box @param {Element} item @param {ClipCache} clips @param {boolean} held @param {boolean} [inWindow] @param {Element} [stop] */
 function clipped(box, item, clips, held, inWindow = true, stop) {
   const root = item.ownerDocument.scrollingElement;
-  const shown = cutBy(
-    box,
-    clipWalk(item, clips, held, stop).cuts,
-    root,
-    inWindow && !stop,
-  );
-  return stop ? shown : shown && occluded(shown, item, clips);
+  return cutBy(box, clipWalk(item, clips, held, stop).cuts, root, inWindow && !stop);
 }
 // `box` less the bands of `cuts`, each on the axes it clips, or null where they leave
 // none of it. In the window's plane the window cuts it; in the page's plane the root's
@@ -989,118 +975,6 @@ function clipWalk(item, clips, held, stop) {
   return { cuts, fixed: escaped && !containing };
 }
 
-// A surface that stands over the page without clipping it: a view open in the floating
-// panel, over the page's foot (floating-panel.js). Nothing in the page's own tree says so,
-// since the surface is fixed chrome beside the page rather than an ancestor of what it
-// stands over, so the surface declares itself. The
-// clip walk then takes what it stands over away from any box stacked beneath it, and a
-// travel destination, an exposure reading, and a badge's placement all read the part
-// under it as hidden. What the surface holds is its own to show, and what stacks above
-// it (a door's menu, the key-badge layer, the top layer) is drawn over it rather than
-// hidden by it.
-//
-// What is left of a box is a box: the largest rectangle of it the occluder leaves, so
-// every pixel of the answer is one the user sees, and a box the occluder reaches into
-// reads as less than whole.
-/** @type {Set<HTMLElement>} */
-const occluders = new Set();
-// Whether a declared occluder stands now: rendered. A disconnected surface has no box,
-// so `checkVisibility` answers for that too.
-/** @param {Element} surface */
-const standsNow = (surface) => surface.checkVisibility();
-// Where an occluder stands, not where its slide has carried it this frame: every declared
-// occluder is fixed to the window or stands in a box that is, so its offsets, summed up
-// to that box, are its viewport box without the slide's transform. Each offset runs
-// from inside its parent's border, which the sum steps across.
-/** @param {HTMLElement} surface */
-function restingBox(surface) {
-  let left = 0,
-    top = 0;
-  /** @type {Element | null} */
-  let at = surface;
-  for (; at && isHTML(at); at = at.offsetParent) {
-    left += at.offsetLeft + (at === surface ? 0 : at.clientLeft);
-    top += at.offsetTop + (at === surface ? 0 : at.clientTop);
-  }
-  return {
-    left,
-    top,
-    right: left + surface.offsetWidth,
-    bottom: top + surface.offsetHeight,
-  };
-}
-/** @param {HTMLElement} surface */
-export const declareOccluder = (surface) => {
-  occluders.add(surface);
-  watchChrome(surface);
-  return () => {
-    occluders.delete(surface);
-    chromeSizes.unobserve(surface);
-    announceRoom(document);
-  };
-};
-// Where the surface standing at the window's right edge begins, or Infinity where none
-// stands. What is laid out beside the page, as the comment box is, keeps left of it.
-export function rightCover() {
-  const edge = layoutWindow().right;
-  let left = Infinity;
-  for (const surface of occluders) {
-    if (!standsNow(surface)) continue;
-    const box = restingBox(surface);
-    if (box.left > 0 && box.right >= edge - 1) left = Math.min(left, box.left);
-  }
-  return left;
-}
-// A clip pass that reads past some occluders. Travel asks what the page shows of a
-// destination beside the surface it leaves open, which is the most any movement of
-// the page can show while that surface stands.
-const PAST = Symbol("past");
-/** @param {Iterable<HTMLElement>} surfaces @returns {ClipCache} */
-const clipsPast = (surfaces) => {
-  /** @type {ClipCache} */
-  const clips = new Map();
-  clips.set(PAST, new Set(surfaces));
-  return clips;
-};
-// A clip pass that reads past every occluder, for what stands above them all: a list in
-// the top layer still hangs from a trigger a panel view stands over.
-export const clipsPastSurfaces = () => clipsPast(occluders);
-// How much of a destination, an element or a Range, an occluder stands over, from 0 to
-// 1: of what the page's clips leave of it, or of the box travel will land it at
-// (`landed`, landing-scroll.js `landedBox`). Travel moves a destination along its
-// scroller's block axis only, so a surface standing the whole height of the room the
-// page shows would cover every place the landing can bring it to, and the share is the
-// inline one, of its width. One scrolled out of the window is asked it at its own box.
-// A surface standing over part of that height, as a view open in the floating panel
-// stands over its foot, covers a destination only where it stands, so the share is of
-// its area there. What holds the surface, as the chrome's dialog holds the panel, is
-// not covered by it. A destination is hidden where more than half of it is covered
-// (`hides`); travel, which promises the whole of it, asks of any part
-// (floating-panel.js, `clearFor`).
-/** @param {HTMLElement} surface @param {Element | Range} where @param {Box | null} [landed] */
-export function coveredShare(surface, where, landed = null) {
-  const holder = placeHolder(where);
-  if (!holder || !occluders.has(surface) || !standsNow(surface)) return 0;
-  if (under(holder, surface) || under(surface, holder)) return 0;
-  if (stackLevel(holder) >= stackLevel(surface)) return 0;
-  const box = landed ?? placeBox(where);
-  const { left, top, right, bottom } =
-    landed ?? clippedPlace(where, clipsPast([surface]), box) ?? box;
-  const over = restingBox(surface);
-  const across = Math.max(0, Math.min(right, over.right) - Math.max(left, over.left));
-  const room = shownWindow({ viewport: "layout" });
-  if (over.top <= room.top + 1 && over.bottom >= room.bottom - 1)
-    return across / (right - left || 1);
-  const down = Math.max(0, Math.min(bottom, over.bottom) - Math.max(top, over.top));
-  return (across * down) / ((right - left) * (bottom - top) || 1);
-}
-/** @param {HTMLElement} surface @param {Element | Range} where */
-const hides = (surface, where) => coveredShare(surface, where) > 0.5;
-// Whether any open occluder hides `where`, by the same measure. A seat a panel stands
-// over is no place to put the user, since the panels dominate what focus reaches.
-/** @param {Element | Range} where */
-export const underOccluder = (where) =>
-  [...occluders].some((surface) => hides(surface, where));
 // The element a destination is measured through: itself, or the element holding a
 // Range's start.
 /** @param {Element | Range} where */
@@ -1115,12 +989,13 @@ export const placeHolder = (where) =>
 export const placeBox = (where) =>
   where instanceof Range ? where.getBoundingClientRect() : shownBox(where);
 // What the page's clips leave of a destination's `box`: a Range's walked from the
-// element holding it (`clippedContents`), an element's from itself (`clippedRect`).
-/** @param {Element | Range} where @param {ClipCache} clips @param {Box} [box] */
-export const clippedPlace = (where, clips, box = placeBox(where)) => {
-  if (!(where instanceof Range)) return clippedRect(box, where, clips);
+// element holding it (`clippedContents`), an element's from itself (`clippedRect`),
+// out to `stop` where one is given.
+/** @param {Element | Range} where @param {ClipCache} clips @param {Box} [box] @param {Element} [stop] */
+export const clippedPlace = (where, clips, box = placeBox(where), stop = undefined) => {
+  if (!(where instanceof Range)) return clippedRect(box, where, clips, stop);
   const holder = placeHolder(where);
-  return holder && clippedContents(box, holder, clips);
+  return holder && clippedContents(box, holder, clips, stop);
 };
 // Where a box stacks among the page's root-level layers: the z-index of its outermost
 // positioned ancestor that sets one, and above all of them in the top layer. Both are
@@ -1141,48 +1016,4 @@ export function stackLevel(node) {
     if (position !== "static" && zIndex !== "auto") level = Number(zIndex);
   }
   return level;
-}
-const OCCLUDERS = Symbol("occluders");
-/** @param {ClipCache} clips */
-function openOccluders(clips) {
-  let open = clips.get(OCCLUDERS);
-  if (open) return open;
-  const past = clips.get(PAST);
-  open = [...occluders]
-    .filter(standsNow)
-    .filter((surface) => !past?.has(surface))
-    .map((surface) => ({
-      surface,
-      box: restingBox(surface),
-      level: stackLevel(surface),
-    }));
-  clips.set(OCCLUDERS, open);
-  return open;
-}
-/** @param {Box} box */
-const area = (box) => (box.right - box.left) * (box.bottom - box.top);
-/** @param {Box} rect @param {Element} item @param {ClipCache} clips */
-function occluded(rect, item, clips) {
-  for (const { surface, box, level } of openOccluders(clips)) {
-    if (!overlaps(rect, box) || under(item, surface) || stackLevel(item) >= level)
-      continue;
-    const remaining = uncovered(rect, box);
-    if (!remaining) return null;
-    rect = remaining;
-  }
-  return rect;
-}
-// The largest part of `rect` that `box` does not stand over, or null where it covers it.
-/** @param {Box} rect @param {Box} box */
-function uncovered(rect, box) {
-  if (!overlaps(rect, box)) return rect;
-  const sides = [
-    { ...rect, right: Math.min(rect.right, box.left) },
-    { ...rect, left: Math.max(rect.left, box.right) },
-    { ...rect, bottom: Math.min(rect.bottom, box.top) },
-    { ...rect, top: Math.max(rect.top, box.bottom) },
-  ].filter((side) => side.right > side.left && side.bottom > side.top);
-  return sides.length
-    ? sides.reduce((most, side) => (area(side) > area(most) ? side : most))
-    : null;
 }

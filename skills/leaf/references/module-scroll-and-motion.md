@@ -103,14 +103,16 @@ reading in and redraws, for a "Show new" control, and `release()` lets the next 
 
 ### Scrolling to a destination
 
-To take the user somewhere, call `scrollIntoView(target, {block, behavior})`, which
-reveals the target inside any box that clips it, then places it in each reading region
-around it; `block` defaults to `start`. To bring an item into its own strip or list and
-leave the page where it is, pass that box as `within`. For a vertical move that keeps
-the sideways scroll, use `scrollIntoReadingBand(target, holder, block, behavior)`, where
-`target` is an element or a Range and `holder` the element whose regions contain it.
-Unlike native `Element.scrollIntoView`, both stay inside a live sample. Use them only
-for a deliberate move; focusing a visible control or redrawing keeps the scroll.
+To take the user somewhere, call `scrollIntoView(target, {block, behavior})`, where
+`target` is an element or a Range, which places it at `block` in every box that
+scrolls it, and at the nearest edge sideways, as native `Element.scrollIntoView` does;
+`block` defaults to `start`. A `nearest` landing moves nothing where the target is
+already shown: the user sees all of it where it fits, and it fills the view where it is
+longer. Pass `sideways: false` to align what the user is reading and keep their place
+across its lines. To bring an item into its own strip or list and leave the page where
+it is, pass that box as `within`. Unlike native `Element.scrollIntoView`, it stays
+inside a live sample. Use it only for a deliberate move; focusing a visible control or
+redrawing keeps the scroll.
 
 A landing keeps the target's `scroll-margin` clear on every side, so a focused
 control's ring shows. `fitsWhole(target)` says whether the target and those margins

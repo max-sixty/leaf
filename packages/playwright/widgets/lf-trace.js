@@ -111,7 +111,7 @@ import {
   scopedMediaUrl,
   retainUserIntent,
   scrollBehavior,
-  scrollIntoReadingBand,
+  scrollIntoView,
   setChildren,
   showReadingSubject,
   sizeObserver,
@@ -1469,17 +1469,15 @@ export class Trace extends LeafElement {
     // and moves nothing that already shows it.
     if (this.#targets.get(id)?.node) {
       const row = this.#inventory.find((part) => part.id === id)?.element;
-      if (row) scrollIntoReadingBand(row, row, "nearest", scrollBehavior());
+      if (row) scrollIntoView(row, { block: "nearest", behavior: scrollBehavior() });
       return;
     }
     const view = this.#nodes.viewport.getBoundingClientRect();
     if (this.#pictureId && !(view.top >= 0 && view.bottom <= innerHeight))
-      scrollIntoReadingBand(
-        this.#nodes.stage,
-        this.#nodes.stage,
-        "center",
-        scrollBehavior(),
-      );
+      scrollIntoView(this.#nodes.stage, {
+        block: "center",
+        behavior: scrollBehavior(),
+      });
   }
 
   #stream() {

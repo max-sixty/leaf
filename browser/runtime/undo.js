@@ -75,13 +75,7 @@ import { threadIdNamed, threadNamed } from "./thread/state.js";
 import { addressableLabel, addressableWord } from "./addressable-names.js";
 import { elementById, inChrome } from "./passages.js";
 import { focusDestination, inputCount, onUserInput } from "./focus.js";
-import {
-  clipsPastSurfaces,
-  placeBox,
-  placeHolder,
-  seenRect,
-  whenNone,
-} from "./geometry.js";
+import { placeBox, placeHolder, seenRect, shownRect, whenNone } from "./geometry.js";
 import { messageHolding, threadName } from "./thread/messages.js";
 import { surfaceFocusTarget } from "./thread/surfaces.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
@@ -468,7 +462,7 @@ export function createUndo({
       stop = whenNone(
         nodes,
         (node) => {
-          const shown = seenRect(node, clipsPastSurfaces());
+          const shown = shownRect(node, new Map());
           landed ||= Boolean(shown);
           return shown;
         },

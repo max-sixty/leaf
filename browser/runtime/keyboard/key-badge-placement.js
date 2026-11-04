@@ -22,8 +22,8 @@
 import { closestAcross, elementFromPointAcross, inChrome } from "../passages.js";
 import { PRESSES } from "../control-selectors.js";
 import {
+  coverBoxes,
   layoutWindow,
-  windowChromeBoxes,
   shownParts,
   shownRect,
   startsAt,
@@ -57,7 +57,7 @@ export function keyBadgePlacement() {
   /** @type {import("../geometry.js").ClipCache} */
   const clips = new Map();
   const room = layoutWindow();
-  const chrome = windowChromeBoxes();
+  const chrome = coverBoxes();
   const kept = [...chrome];
 
   // What the user can see of a box: the window.

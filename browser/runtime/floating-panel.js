@@ -132,7 +132,7 @@
  *   the pointer, and a compact cap with the larger size behind a gesture, which leaves
  *   every long thread scrolling in a small box until the user finds that gesture.
  *   While it stands it covers the page under it, which reads as unseen (geometry.js,
- *   `declareOccluder`).
+ *   `declareCover`).
  *
  * The leaf's menu is the On view's first tab, beside On me, On <agent> and Threads,
  * and the leaf opens the view on it: the full status over the rest of the page's
@@ -321,12 +321,8 @@ import {
   scrollToEnd,
 } from "./scrolling.js";
 import { showReturnTurn } from "./thread/reply-landing.js";
-import {
-  coveredShare,
-  declareOccluder,
-  declareWindowChrome,
-  placeHolder,
-} from "./geometry.js";
+import { announceRoom, declareCover, placeBox, placeHolder } from "./geometry.js";
+import { overlaps } from "./rect.js";
 import { registerReadingRegion } from "./reading-regions.js";
 import { sectionsInView } from "./reading-place.js";
 import { agentName, documentChanged } from "./semantic-state.js";
@@ -729,7 +725,6 @@ export function createFloatingPanel({
   const stage = shell("stage");
   const head = shell("head");
   const controls = shell("controls");
-  const row = shell("row");
   let peekAsked = false; // pointer or focus on the folded leaf
   /** @type {import("./activity-words.js").Words | null} */
   let peekReading = null;
@@ -762,16 +757,10 @@ export function createFloatingPanel({
     pointer = null;
     readCorner();
   });
-  // The row stands over the window's foot, so what the page reveals stands clear of it.
-  // A view opened above it is itself read, and stands over the page only while it is
-  // used, so it leaves the page's room alone; but what it stands over is hidden while it
-  // does (`declareOccluder`), and a landing stands clear of it (`--lf-panel-reach`,
-  // `followBox`).
-  declareWindowChrome(() => {
-    const box = row.getBoundingClientRect();
-    return box.width > 0 && box.height > 0 ? [box] : [];
-  }, [row]);
-  declareOccluder(opened);
+  // The box stands over the window's foot, the row and any view open above it: what it
+  // covers reads as unseen (geometry.js, `declareCover`), and a landing stands clear of
+  // its reach (`--lf-panel-reach`, `followBox`).
+  declareCover(host, () => card.getBoundingClientRect());
 
   const leaf = shell("leaf");
   const field = shell("field");
@@ -1749,11 +1738,13 @@ export function createFloatingPanel({
     // under it. The browser's own reveals read the same padding. CSS can't size the
     // root's padding from a fixed box in the chrome's shadow tree, so the box states it.
     const box = card.getBoundingClientRect();
-    setRuntimeRootStyle(
-      document.documentElement,
-      "--lf-panel-reach",
-      layoutPx(box.height > 0 ? ground.getBoundingClientRect().bottom - box.top : 0),
+    const reach = layoutPx(
+      box.height > 0 ? ground.getBoundingClientRect().bottom - box.top : 0,
     );
+    if (document.documentElement.style.getPropertyValue("--lf-panel-reach") !== reach) {
+      setRuntimeRootStyle(document.documentElement, "--lf-panel-reach", reach);
+      announceRoom();
+    }
     const compact = host.dataset.lfRest === "mark";
     const duration = compact
       ? foldMs()
@@ -5022,19 +5013,25 @@ export function createFloatingPanel({
   );
   // Travel to a place on the page (anchor-travel.js, `arrive`) shows it, so the view
   // open above the row gives way where it would stand over any of that place once
-  // landed (`landed`, landing-scroll.js `landedBox`; geometry.js, `coveredShare`), as
-  // it gives way to a press on the page: a long thread's view covers most of the
-  // window, and a place at the page's foot can't be scrolled above even a short one. A
-  // view the landing clears stays, so a link followed from a thread's view leaves the
-  // thread open for Back to return to. On me stays too where it lists the item travel
-  // lands on (`onMe.lists`), since its card shows that item, ringed where the `m` walk
-  // reached it (`walkedStop`); a thread On me doesn't list, as `t` reaches, has no card
-  // there. A Tab onto a page stop the view would stand over clears it the same way,
-  // since the ring the user follows would stand under it. What the panel holds is its
-  // own to show.
-  /** @param {Parameters<typeof coveredShare>[1]} where @param {DOMRect | null} landed */
-  const standsOver = (where, landed) =>
-    trail.value.length > 0 && coveredShare(opened, where, landed) > 0;
+  // landed (`landed`, landing-scroll.js `landedBox`), as it gives way to a press on the
+  // page: a long thread's view covers most of the window, and a place at the page's foot
+  // can't be scrolled above even a short one. A view the landing clears stays, so a link
+  // followed from a thread's view leaves the thread open for Back to return to. On me
+  // stays too where it lists the item travel lands on (`onMe.lists`), since its card
+  // shows that item, ringed where the `m` walk reached it (`walkedStop`); a thread On me
+  // doesn't list, as `t` reaches, has no card there. A Tab onto a page stop the view
+  // would stand over clears it the same way, since the ring the user follows would stand
+  // under it. What the panel holds is its own to show, and the row stays either way.
+  /** @param {Element | Range} where @param {DOMRect | null} landed */
+  const standsOver = (where, landed) => {
+    const holder = placeHolder(where);
+    return Boolean(
+      trail.value.length &&
+      holder &&
+      !under(holder, host) &&
+      overlaps(landed ?? placeBox(where), opened.getBoundingClientRect()),
+    );
+  };
   /** @type {import("./anchor-travel.js").TravelOptions["clearFor"]} */
   function clearFor({ where, focus }, landed) {
     if (

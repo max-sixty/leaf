@@ -2487,9 +2487,11 @@ FOOT = """([parts, fromEnd]) => {
 
 
 def test_an_open_view_covers_the_page_beneath_it(browser, serve):
-    """What a view open above the row stands over is hidden from every reading of what
-    the user sees (geometry.js, `declareOccluder`): a paragraph under it reads as seen
-    only beside it, and whole again once the view is put away."""
+    """The floating panel declares the one box it covers (geometry.js, `declareCover`),
+    and what a view open above the row covers is hidden from every reading of what the
+    user sees: a paragraph in the band the view stands across reads as unseen while the
+    view is open, though part of it stands beside the view, since the user sees it only
+    in pieces there; and it reads whole again once the view is put away."""
     page = floating(browser, serve(LONG_PAGE, comments=12))
     seen = """async () => {
       const {seenRect} = await window.__lfCheckApi();
@@ -2499,17 +2501,18 @@ def test_an_open_view_covers_the_page_beneath_it(browser, serve):
         return box.top > view.top + 20 && box.bottom < view.bottom - 20;
       });
       window.under = under;
-      const shown = seenRect(under, new Map());
-      return {view: {left: view.left, top: view.top, right: view.right,
-                     bottom: view.bottom}, shown};
+      const box = under.getBoundingClientRect();
+      return {view: {left: view.left, right: view.right},
+              under: {left: box.left, right: box.right},
+              shown: seenRect(under, new Map())};
     }"""
     open_threads(page)
     expect(page.locator(".lf-fp-thread")).to_have_count(12)
     settled(page)
     reading = page.evaluate(seen)
-    view, shown = reading["view"], reading["shown"]
-    assert shown, reading
-    assert shown["right"] <= view["left"] or shown["left"] >= view["right"], reading
+    view, under = reading["view"], reading["under"]
+    assert under["left"] < view["left"] or under["right"] > view["right"], reading
+    assert reading["shown"] is None, reading
 
     page.keyboard.press("Escape")
     expect(page.locator(".lf-fp-view")).to_have_count(0)

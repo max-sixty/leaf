@@ -67,7 +67,7 @@ import {
 import { sameAnchor } from "../anchor-coordinate.js";
 import { CARET_KEYS, selectsAll, WORKS } from "../control-selectors.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
-import { seenRect, underOccluder } from "../geometry.js";
+import { seenRect } from "../geometry.js";
 import { scrollIntoView } from "../landing-scroll.js";
 import { cancelRender, nextRender } from "../rendering.js";
 import {
@@ -267,14 +267,14 @@ export function createResponseSurface({
   /** @param {Element} outlet */
   function seatFab(outlet) {
     if (!(outlet instanceof Element) || !fabAnchor.value || !composerOpen) return false;
-    // A seat a panel stands over cannot take the user even where it paints: the panels
-    // dominate what focus reaches, so the editor stays at its home instead. The seat is
+    // A seat the user can't see, as under the room a panel takes, cannot take the user
+    // even where it paints, so the editor stays at its home instead. The seat is
     // judged, not the editor moved into it, which measures no width until the outlet
     // renders it; a boxless outlet is judged by the box that lays out what it holds.
     /** @type {Element | null} */
     let seat = outlet;
     while (seat && !(seat.getBoundingClientRect().width > 0)) seat = upFrom(seat);
-    if (seat && underOccluder(seat)) return false;
+    if (seat && !seenRect(seat, new Map())) return false;
     // Admit the actual editor after its native move: an empty or display:contents
     // outlet has no visibility of its own. A rejected nomination leaves the previous
     // seat, geometry and held typing place intact so the cohort can try its fallback.

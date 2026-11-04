@@ -118,7 +118,7 @@ import {
   createGoToSequence,
   goToHintLayer,
 } from "./runtime/keyboard/go-to-sequence.js";
-import { presented, windowChromeBoxes } from "./runtime/geometry.js";
+import { coverBoxes, presented } from "./runtime/geometry.js";
 // The page's own keyboard parts join the register as this module evaluates; every other
 // owner contributes its own as it is constructed below.
 import { declareCurrentLocation } from "./runtime/keyboard/page.js";
@@ -257,9 +257,9 @@ async function boot() {
     },
   });
 
-  // The fixed furniture every generated-hint map is spread around: the window's declared
-  // chrome (geometry.js). Both maps read the same boxes.
-  const hintChrome = { barriers: windowChromeBoxes };
+  // The fixed furniture every generated-hint map is spread around: the boxes the chrome
+  // covers (geometry.js, `coverBoxes`). Both maps read the same boxes.
+  const hintChrome = { barriers: () => coverBoxes() };
   const anchorPlacement = createAnchorPlacement();
   /** @type {ReturnType<NonNullable<typeof annotationRenderer>["createVisualMarkPaint"]> | undefined} */
   let visualMarkPaint;
@@ -485,7 +485,6 @@ async function boot() {
     threadPlace: (id) => app.threadDestinations.threadPlace(id),
     prepareNavigationStep: anchorTravel.prepareNavigationStep,
     arrive: anchorTravel.arrive,
-    readableDestination: anchorTravel.readableDestination,
     showOnMe: (obligation) => floatingPanel.showOnMe(obligation),
     announce,
   });

@@ -10,8 +10,10 @@
    the transcript: the caret lives in it, and the browser's own
    caret reveal would scroll the transcript on every keystroke to clear it. A thread too
    tall to show, landed as a whole, lands its reply row where one fits, and otherwise
-   stays where it is while it is already shown (`landing-scroll.js`, `alreadyShown`):
-   the nearest edge of a box taller than its room is a jump to its top.
+   stays where it is while any of it is in front of the user (geometry.js, `seenRect`):
+   the nearest edge of a box taller than its room is a jump to its top, which a landing
+   that takes the user somewhere makes (`landing-scroll.js`, `alreadyShown`) and one
+   that follows them into a thread they see doesn't.
 
    A send moves the box it was sent from, once the user saw it, by no more than the turn
    it adds above it, and no lower than the line typing keeps it within, even once the
@@ -48,7 +50,7 @@ import { focusedInView } from "../user-place.js";
 import {
   alreadyShown,
   fitsWhole,
-  scrollIntoReadingBand,
+  keepInBand,
   scrollIntoView,
 } from "../landing-scroll.js";
 import { aimedTop, moveScrollerBy, scrollToEnd } from "../scrolling.js";
@@ -100,7 +102,7 @@ const landingTarget = (held, control) => {
   if (pinnedReply(reply))
     return control === held ? { node: null } : { node: held, block: "end" };
   if (reply && fitsWhole(reply)) return { node: reply };
-  if (control === held && alreadyShown(held)) return { node: null };
+  if (control === held && seenRect(held, new Map())) return { node: null };
   return { node: control };
 };
 
@@ -282,14 +284,11 @@ const covered = (reply) =>
 // Editing reveals only the writing area. Revealing the whole thread here would pull
 // earlier turns back into view on the first keystroke in an already-visible reply. It
 // follows the area's foot into the band rather than asking whether the area is already
-// shown (landing-scroll.js, `alreadyShown`): a row seen whole but growing into the
-// band's clearance moves with each keystroke, where waiting until it passed under the
-// chrome would jump it by a line and the clearance at once.
+// shown (landing-scroll.js, `keepInBand`).
 /** @param {Element} held @param {Element} input @param {Element | null} reply */
 const revealWritingArea = (held, input, reply) => {
   bringBackSurfaceOf(held, "instant");
-  const target = reply && fitsWhole(reply) ? reply : input;
-  scrollIntoReadingBand(target, target, "nearest", "instant");
+  keepInBand(reply && fitsWhole(reply) ? reply : input);
 };
 // A rewrite opening in its message shows the message whole, its head with Cancel and
 // Save above the words, where the band holds it, and otherwise the line its caret stands
@@ -301,7 +300,7 @@ export function revealEditor(message, caretLine) {
   if (!held) return;
   bringBackSurfaceOf(held, "instant");
   const target = fitsWhole(message) ? message : caretLine;
-  scrollIntoReadingBand(target, target, "nearest", "instant");
+  scrollIntoView(target, { block: "nearest", behavior: "instant" });
   const reply = replyRowOf(held, held);
   const pinned = pinnedReply(reply);
   if (!pinned) return;

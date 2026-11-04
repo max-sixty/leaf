@@ -67,7 +67,6 @@ import {
   reportFailure,
   retainUserIntent,
   scrollBehavior,
-  scrollIntoReadingBand,
   searchField,
   setChildren,
   shadowStage,
@@ -2085,11 +2084,15 @@ customElements.define(
     // already is one, and writing a tabindex of -1 onto it would take it out of the
     // order a user tabs through.
     //
-    // The shared reading-region landing moves only vertically, including through
-    // the shadow host. Neither the file nor a region around it loses its sideways place.
+    // The landing moves only vertically, including through the shadow host, so neither
+    // the file nor a region around it loses its sideways place.
     /** @param {Element} box @param {Element} [node] */
     land(box, node = box) {
-      scrollIntoReadingBand(box, box, "start", scrollBehavior());
+      scrollIntoView(box, {
+        block: "start",
+        behavior: scrollBehavior(),
+        sideways: false,
+      });
       focusDestination(node, "move");
     }
 

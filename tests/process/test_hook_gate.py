@@ -65,13 +65,14 @@ def test_claude_code_runs_the_whole_hook_once_its_session_claims(page_dir):
 
 def test_a_claimed_session_runs_its_gated_hooks_without_uv(claimed, tmp_path):
     """A hook registered `--if-claimed` in a session holding a page runs whole in
-    the interpreter the launcher's gate starts, with no project sync, and a
-    worker's tool batch, which receives nothing, stops before Leaf's imports."""
+    the interpreter the launcher's gate starts, with no uv once uv has synced the
+    environment to the lock, and a worker's tool batch, which receives nothing,
+    stops before Leaf's imports."""
     uv = tmp_path / "uv"
     uv.write_text("#!/bin/sh\nexit 72\n")
     uv.chmod(0o755)
 
-    def run(worker, *, harness="claude-code", event="PostToolBatch"):
+    def run(worker, *, harness="claude-code", event="PostToolBatch", path=None):
         """The hook's exit status and output, and whether it imported Leaf's hooks."""
         ran = subprocess.run(
             [LAUNCHER, "hook", "--harness", harness, "--if-claimed"],
@@ -84,7 +85,7 @@ def test_a_claimed_session_runs_its_gated_hooks_without_uv(claimed, tmp_path):
             ),
             env={
                 **os.environ,
-                "PATH": str(tmp_path) + os.pathsep + os.environ["PATH"],
+                "PATH": path or str(tmp_path) + os.pathsep + os.environ["PATH"],
                 "PYTHONPROFILEIMPORTTIME": "1",
             },
             capture_output=True,
@@ -99,6 +100,9 @@ def test_a_claimed_session_runs_its_gated_hooks_without_uv(claimed, tmp_path):
         }
         return ran.returncode, ran.stdout, "leaf.hooks" in imported
 
+    # With the real uv, which syncs the environment if the lock moved since it
+    # last did.
+    assert run(False, path=os.environ["PATH"]) == (0, "", True)
     assert run(True) == (0, "", False)
     assert run(False) == (0, "", True)
     assert run(True, event="UserPromptSubmit") == (0, "", True)

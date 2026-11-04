@@ -85,26 +85,21 @@ def test_session_selected_runtime_owns_the_whole_native_hook(tmp_path, monkeypat
     The other executable stands for an independently installed Leaf; it records
     what crossed the executable boundary instead of importing this test's runtime.
     A large payload also proves delegation is not bounded by an unwritten pipe.
-    A gated hook handed to a checkout drops its gate, so the checkout syncs its
-    environment, which an update may have left behind its lock; one handed to a
-    copy Claude Code installed keeps it, so that copy runs it without uv
-    (`bin/leaf`).
+    A gated hook keeps its gate, so the checkout's launcher runs it in one
+    interpreter too (`bin/leaf`).
     """
     from leaf.session_runtime import select_launcher
 
-    def recording(launcher):
-        launcher.parent.mkdir(parents=True)
-        launcher.write_text(
-            f"#!{sys.executable}\n"
-            "import json, os, sys\n"
-            "print(json.dumps({'argv': sys.argv[1:], 'payload': json.load(sys.stdin), "
-            "'host': os.environ.get('LEAF_HOST_LAUNCHER')}))\n"
-            "sys.exit(23)\n"
-        )
-        launcher.chmod(0o755)
-        return launcher
-
-    selected = recording(tmp_path / "checkout with spaces" / "bin" / "leaf")
+    selected = tmp_path / "checkout with spaces" / "bin" / "leaf"
+    selected.parent.mkdir(parents=True)
+    selected.write_text(
+        f"#!{sys.executable}\n"
+        "import json, os, sys\n"
+        "print(json.dumps({'argv': sys.argv[1:], 'payload': json.load(sys.stdin), "
+        "'host': os.environ.get('LEAF_HOST_LAUNCHER')}))\n"
+        "sys.exit(23)\n"
+    )
+    selected.chmod(0o755)
     cleanup_model.ensure_session("selected-runtime", {})
     select_launcher("selected-runtime", selected)
     before = cleanup_model.session_record("selected-runtime")
@@ -114,29 +109,21 @@ def test_session_selected_runtime_owns_the_whole_native_hook(tmp_path, monkeypat
         "tool_input": "a" * 256_000,
     }
     monkeypatch.delenv("LEAF_HOST_LAUNCHER", raising=False)
-
-    def handed():
-        result = subprocess.run(
-            [*LEAF_COMMAND, "hook", "--harness", "codex", "--if-claimed"],
-            input=json.dumps(payload),
-            capture_output=True,
-            text=True,
-            timeout=STATED_TIMEOUT,
-            check=False,
-        )
-        assert result.returncode == 23, result.stderr
-        return json.loads(result.stdout)
-
-    assert handed() == {
-        "argv": ["hook", "--harness", "codex"],
+    result = subprocess.run(
+        [*LEAF_COMMAND, "hook", "--harness", "codex", "--if-claimed"],
+        input=json.dumps(payload),
+        capture_output=True,
+        text=True,
+        timeout=STATED_TIMEOUT,
+        check=False,
+    )
+    assert result.returncode == 23, result.stderr
+    assert json.loads(result.stdout) == {
+        "argv": ["hook", "--harness", "codex", "--if-claimed"],
         "payload": payload,
         "host": None,
     }
     assert cleanup_model.session_record("selected-runtime") == before
-    installed = tmp_path / "plugins/cache/leaf/leaf/0a0a0a0a0a0a/bin/leaf"
-    select_launcher("selected-runtime", recording(installed))
-    assert handed()["argv"] == ["hook", "--harness", "codex", "--if-claimed"]
-    select_launcher("selected-runtime", selected)
 
     # A selection whose checkout is gone falls back to the Leaf running, which
     # refuses whatever page it can't read itself.
@@ -454,10 +441,11 @@ def test_codex_tool_hook_runs_leaf_only_for_a_session_that_claimed_a_page(
 ):
     """Codex runs its tool hook after every tool call of every task, and most hold
     no page, so the launcher asks the environment's interpreter first, and only for
-    a session that has claimed one runs the whole hook in that interpreter, without
-    uv. Every other Codex hook runs whole through uv, and so does the tool hook
-    whose payload the question can't be read from: a failure there must not drop
-    it."""
+    a session that has claimed one runs the whole hook in that interpreter. That
+    interpreter starts uv only to sync its environment, the first time and after
+    the lock changes, as an update to a checkout changes it. Every other Codex hook
+    runs whole through uv, and so does the tool hook whose payload the question
+    can't be read from: a failure there must not drop it."""
     project = tmp_path / "plugin"
     launcher = project / "bin/leaf"
     launcher.parent.mkdir(parents=True)
@@ -466,14 +454,29 @@ def test_codex_tool_hook_runs_leaf_only_for_a_session_that_claimed_a_page(
     program = project / "src/leaf/state.py"
     program.parent.mkdir(parents=True)
     program.write_bytes((PLUGIN_ROOT / "src/leaf/state.py").read_bytes())
+    lock = project / "uv.lock"
+    lock.write_text("version = 1\n")
+    (project / "pyproject.toml").write_text("[project]\nname = 'leaf'\n")
     interpreter = project / ".venv/bin/python"
     interpreter.parent.mkdir(parents=True)
     interpreter.symlink_to(sys.executable)
     tools = tmp_path / "tools"
     tools.mkdir()
+    # A stand-in uv records each command. It runs the gate's own hand-off as uv
+    # would once synced, and takes in any other hook's payload.
     uv = tools / "uv"
-    uv.write_text('#!/bin/sh\n/bin/cat > "$UV_CALLED"\n')
+    uv.write_text(
+        "#!/bin/sh\n"
+        'printf "%s\\n" "$*" >> "$UV_CALLS"\n'
+        'case "$*" in *"/state.py synced "*)\n'
+        '    [ -n "$CHANGED_DURING_SYNC" ] && echo "# changed" >> "$CHANGED_DURING_SYNC"\n'
+        '    while [ "$1" != python ]; do shift; done\n'
+        '    shift; exec "$INTERPRETER" "$@";;\n'
+        "esac\n"
+        '/bin/cat > "$UV_CALLED"\n'
+    )
     uv.chmod(0o755)
+    uv_calls = tmp_path / "uv-calls"
     # A stand-in for the package records the hook the gate's interpreter runs.
     stand_in = tmp_path / "stand-in"
     (stand_in / "leaf").mkdir(parents=True)
@@ -487,9 +490,14 @@ def test_codex_tool_hook_runs_leaf_only_for_a_session_that_claimed_a_page(
     )
     uv_called, leaf_called = tmp_path / "uv-called", tmp_path / "leaf-called"
 
-    def run(event, session, payload=None):
+    def run(event, session, payload=None, changed_during_sync=None):
+        """What the hook asked uv for, a sync before the gate ran it again or a
+        run of the whole hook, and where the hook ran: through uv, in the gate's
+        interpreter, or nowhere. `changed_during_sync` is a file the stand-in uv
+        appends to as it syncs."""
         uv_called.unlink(missing_ok=True)
         leaf_called.unlink(missing_ok=True)
+        uv_calls.unlink(missing_ok=True)
         payload = payload or json.dumps(
             {"hook_event_name": event, "session_id": session}
         )
@@ -502,7 +510,10 @@ def test_codex_tool_hook_runs_leaf_only_for_a_session_that_claimed_a_page(
                 "PATH": f"{tools}:/usr/bin:/bin",
                 "PYTHONPATH": str(stand_in),
                 "UV_CALLED": str(uv_called),
+                "UV_CALLS": str(uv_calls),
+                "INTERPRETER": str(interpreter),
                 "LEAF_CALLED": str(leaf_called),
+                "CHANGED_DURING_SYNC": str(changed_during_sync or ""),
             },
             capture_output=True,
             text=True,
@@ -510,29 +521,46 @@ def test_codex_tool_hook_runs_leaf_only_for_a_session_that_claimed_a_page(
             check=False,
         )
         assert (done.returncode, done.stdout, done.stderr) == (0, "", "")
+        calls = uv_calls.read_text().splitlines() if uv_calls.exists() else []
+        verbs = ["sync" if "/state.py synced " in call else "run" for call in calls]
         if uv_called.exists():
-            return "uv", uv_called.read_text()
+            return verbs, ("uv", uv_called.read_text())
         if leaf_called.exists():
             ran = json.loads(leaf_called.read_text())
             assert ran["argv"] == _registered_hook_arguments("codex", event)
-            return "in the gate", ran["stdin"]
-        return None
+            return verbs, ("in the gate", ran["stdin"])
+        return verbs, None
 
     harness_2 = harness_model.session_harness()
     assert harness_2 is not None
     session = harness_2.session
-    assert run("PostToolUse", session) is None
+    assert run("PostToolUse", session) == ([], None)
     stop = json.dumps({"hook_event_name": "Stop", "session_id": session})
-    assert run("Stop", session) == ("uv", stop)
+    assert run("Stop", session) == (["run"], ("uv", stop))
 
     # Claiming a page marks the session for the rest of its generation.
     assert service_model.claim_page(page_dir)
     tool_use = json.dumps({"hook_event_name": "PostToolUse", "session_id": session})
-    assert run("PostToolUse", session) == ("in the gate", tool_use)
-    assert run("PostToolUse", "another-session") is None
+    in_the_gate = ("in the gate", tool_use)
+    assert run("PostToolUse", session) == (["sync"], in_the_gate)
+    assert run("PostToolUse", session) == ([], in_the_gate)
+    assert run("PostToolUse", "another-session") == ([], None)
+
+    # An update that changes the lock syncs the environment before the next hook.
+    lock.write_text("version = 1\nrevision = 2\n")
+    assert run("PostToolUse", session) == (["sync"], in_the_gate)
+    assert run("PostToolUse", session) == ([], in_the_gate)
+
+    # A second update landing while uv syncs for the first leaves the record
+    # behind both, so the next hook syncs again.
+    lock.write_text("version = 1\nrevision = 3\n")
+    synced_first = run("PostToolUse", session, changed_during_sync=lock)
+    assert synced_first == (["sync"], in_the_gate)
+    assert run("PostToolUse", session) == (["sync"], in_the_gate)
+    assert run("PostToolUse", session) == ([], in_the_gate)
 
     # A payload the gate can't read runs the hook whole, which reports it.
-    assert run("PostToolUse", session, "not json") == ("in the gate", "not json")
+    assert run("PostToolUse", session, "not json") == ([], ("in the gate", "not json"))
 
 
 def test_a_hook_in_a_session_holding_no_page_imports_no_page_reading_or_server(

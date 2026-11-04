@@ -405,10 +405,10 @@ def main(
 ) -> None:
     """Read one harness payload and dispatch it.
 
-    The Click hook command is the caller. A hook handed to another copy Claude Code
-    installed keeps its registration's `--if-claimed`, so that copy's gate also
-    runs it without uv; one handed to a checkout drops it, so the checkout's
-    environment syncs to a lock an update may have moved (`bin/leaf`).
+    The Click hook command is the caller. A hook handed to another launcher keeps
+    its registration's `--if-claimed`, so that launcher's gate also runs it in one
+    interpreter, starting uv only where that tree's lock moved
+    (`state.answer_gated_hook`).
     The harness ends a watch and the pages follower with SIGTERM or SIGHUP. Each
     then unwinds, so the watch releases its leases and the follower its lane, and
     exits 128 plus the signal, which Leaf's Claude Code hooks module reads as an
@@ -416,10 +416,9 @@ def main(
     """
     import os
     import sys
-    import tempfile
 
     from .session_runtime import delivering_launcher, own_launcher
-    from .state import plugin_cache_copy
+    from .state import exec_with_input
 
     try:
         payload = json.load(sys.stdin)
@@ -429,31 +428,21 @@ def main(
         ) from error
     launcher = delivering_launcher(payload.get("session_id") or "")
     if launcher != own_launcher():
-        # Delegate the whole hook before publishing lifecycle or pickup. Keeping
-        # the stdin as a file avoids a pipe-size limit on large tool payloads;
-        # exec retains cancellation and the watch's exact lifetime.
-        with tempfile.TemporaryFile() as incoming:
-            incoming.write(json.dumps(payload).encode())
-            incoming.seek(0)
-            os.dup2(incoming.fileno(), 0)
+        # Delegate the whole hook before publishing lifecycle or pickup.
         environment = dict(os.environ)
         environment.pop("LEAF_HOST_LAUNCHER", None)
-        os.execve(
-            launcher,
+        exec_with_input(
             [
                 str(launcher),
                 "hook",
                 "--harness",
                 harness,
-                *(
-                    ["--if-claimed"]
-                    if if_claimed and plugin_cache_copy(launcher.parents[1])
-                    else []
-                ),
+                *(["--if-claimed"] if if_claimed else []),
                 *(["--watch"] if watch else []),
                 *(["--pages"] if pages else []),
                 *(["--fork"] if fork else []),
             ],
+            json.dumps(payload),
             environment,
         )
     if watch or pages:

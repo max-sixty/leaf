@@ -915,13 +915,23 @@ def main() -> None:
         end_harness_instance(payload.get("session_id") or "")
 
 
-def answer_gated_hook(argv: list[str]) -> None:
+def answer_gated_hook(argv: list[str], *, synced: str | None = None) -> None:
     """Answer a hook registered `--if-claimed`, which `bin/leaf` hands here on the
     environment's interpreter, started with -S so no site packages load: return at
     once where the session holds no claim, or where the payload is a worker's tool
     batch, and otherwise run the whole hook in this interpreter. A hook it skips
     takes about 25 ms in place of about 70 for starting the package (measured on
-    macOS). Any failure here runs the hook whole, which reports it."""
+    macOS). Any failure here runs the hook whole, which reports it.
+
+    The environment must first match the project's lock, as `uv run` ensures
+    before each run, but a hook checks only that the lock and project file are as
+    they were when uv last synced the environment for one, which
+    `.venv/leaf-synced` records by each file's modification time and size. Where
+    either has changed, as an update to a checkout changes them, this program
+    hands itself to `uv run`, which syncs the environment, perhaps replacing its
+    interpreter, and starts this program again on it, `synced` to the files as
+    they were before the sync; that run records them only if they still are, so
+    a change during the sync takes another."""
     text = sys.stdin.read()
     try:
         payload = json.loads(text)
@@ -932,6 +942,34 @@ def answer_gated_hook(argv: list[str]) -> None:
         idle = False
     if idle:
         return
+    record = PLUGIN_ROOT / ".venv" / "leaf-synced"
+    inputs = " ".join(
+        f"{info.st_mtime_ns}:{info.st_size}"
+        for info in map(
+            os.stat, (PLUGIN_ROOT / "uv.lock", PLUGIN_ROOT / "pyproject.toml")
+        )
+    )
+    if synced == inputs:
+        replace_bytes([(record, inputs.encode(), False)])
+    elif synced is None and _read_bytes(record) != inputs.encode():
+        exec_with_input(
+            [
+                "uv",
+                "run",
+                "-q",
+                "--no-dev",
+                "--project",
+                str(PLUGIN_ROOT),
+                "python",
+                "-S",
+                "-P",
+                __file__,
+                "synced",
+                inputs,
+                *argv,
+            ],
+            text,
+        )
     import io
     import site
 
@@ -943,8 +981,31 @@ def answer_gated_hook(argv: list[str]) -> None:
     run_leaf()
 
 
+def _read_bytes(path: Path) -> bytes | None:
+    try:
+        return path.read_bytes()
+    except OSError:
+        return None
+
+
+def exec_with_input(
+    argv: list[str], text: str, environment: Mapping[str, str] | None = None
+) -> None:
+    """Replace this process with `argv`, found on the path, reading `text` on
+    stdin. A file rather than a pipe holds the input, so no pipe's size bounds
+    it, and the exec keeps the process the harness started, its cancellation and
+    a watch's exact lifetime."""
+    with tempfile.TemporaryFile() as incoming:
+        incoming.write(text.encode())
+        incoming.seek(0)
+        os.dup2(incoming.fileno(), 0)
+    os.execvpe(argv[0], argv, os.environ if environment is None else environment)
+
+
 if __name__ == "__main__":
     if sys.argv[1:2] == ["hook"]:
         answer_gated_hook(sys.argv[1:])
+    elif sys.argv[1:2] == ["synced"]:
+        answer_gated_hook(sys.argv[3:], synced=sys.argv[2])
     else:
         main()

@@ -51,14 +51,11 @@
 # its session claimed. `-P` keeps the program's own directory off the module
 # path, where `leaf/http` would shadow the standard library's `http`.
 #
-# A gated hook skips uv and its sync. Claude Code installs each version of the
-# plugin into a directory of its own, so the environment uv builds there matches
-# that directory's lock for good. A tree updated in place, such as a checkout
-# loaded with `--plugin-dir` or Codex's plugin copy, can lag a changed lock until
-# something runs uv there: any `leaf` command and the PreToolUse hook before it,
-# or Codex's prompt and Stop hooks. A hook handed on to a checkout the session
-# selected runs through uv there, since an agent may update that checkout
-# mid-session (`hooks.main`).
+# A gated hook goes through uv only where `uv.lock` or `pyproject.toml` changed
+# since uv last synced the environment for a gated hook
+# (`state.answer_gated_hook`). A copy Claude Code installed never changes, so
+# its hooks take uv once; a checkout an agent updates mid-session takes it at
+# the first gated hook after each change, before that hook imports anything.
 #
 # Claude Code's sandbox refuses what a command needs, so where it confines this
 # one (SANDBOX_RUNTIME), the bridge Leaf's hooks keep outside it runs the command

@@ -12,9 +12,15 @@ measures any of them.
 
 For each AXIS it generates a page at each size, serves it from this tree, and reads
 the renderer's main-thread CPU, in thread ticks from `Performance.getMetrics`, for
-each transition: the load until the page settles, a click on an option, a
-keystroke in the page's comment field, and a wheel step down the page. An input's
-cost is the mean over several, less the page's idle CPU over the same time. Beside
+each transition: the load until the page settles and its main thread goes quiet, a
+click on an option, a keystroke in the page's comment field, a Tab from one stop to
+the next, and a wheel step. Each input is one a user makes, the same at every size.
+A click is the mouse's own press and release at the option's centre. A wheel step is
+one NOTCH, with the pointer over the page's content and the scroller beneath it
+halfway down. Tab starts from the first option's control. The wheel and Tab take RUN
+steps one way and RUN back, so they cross the same rows or stops at every size. An
+input's cost is the mean over several, less the page's idle CPU over the same time,
+which is read once the work the load leaves behind has run (`idle_rate`). Beside
 them stand the server's time to start answering each event the clicks posted, whose
 answer carries the server's reading of the page, and that answer's size. Every run
 also measures a page of BASE, whose costs are mostly the runtime's fixed work. It
@@ -40,8 +46,8 @@ nested walk.
 CPU time rather than wall time, so a loaded host spreads the readings less than it
 spreads elapsed time; each exponent still compares sizes within one run. Pages, the
 profiles and `results.json` land in a run directory under `.tmp/scaling/`. The daily
-suite fails growth well past linear on every axis with the same measurement
-(`tests/journeys/test_scaling.py`).
+suite fails growth well past linear on every axis with the same measurement, of
+every cost but Tab's (`tests/journeys/test_scaling.py`).
 """
 
 import json
@@ -50,6 +56,7 @@ import statistics
 import time
 from collections.abc import Callable, Iterable
 from contextlib import contextmanager
+from itertools import cycle
 from pathlib import Path
 from typing import NamedTuple
 
@@ -105,11 +112,23 @@ FLOORS = {"event": 50}
 FLOOR = 10
 KEYS = 20
 CLICKS = 4
-WHEEL_STEPS = 30
+TABS = 16
+WHEEL_STEPS = 32
+# A notch of a mouse wheel, which Chromium scrolls 100 px.
+NOTCH = 100
+# A wheel or Tab takes RUN steps one way and then as many back, so it stays among the
+# same few rows or stops at every size, the smallest page's included.
+RUN = 4
+WAYS = (1,) * RUN + (-1,) * RUN
+# A half second in which the page's main thread spends under this is quiet; two in a
+# row end the load (`idle_rate`), or QUIET_TRIES half seconds on a host too busy for
+# two.
+QUIET_MS = 5
+QUIET_TRIES = 20
 # A function must take this long at the largest size to be listed as growing.
 GROWTH_FLOOR_MS = 20
 DEADLINE_MS = 300_000
-TRANSITIONS = ("load", "click", "key", "scroll")
+TRANSITIONS = ("load", "click", "key", "tab", "scroll")
 # The server's side of a click: how long it took to start answering each event the
 # clicks posted, whose answer carries its reading of the page, and how large that was.
 SERVER = ("event", "event_kb")
@@ -119,6 +138,25 @@ EVENT_POSTS = """() => performance.getEntriesByType("resource")
     ms: entry.responseStart - entry.requestStart,
     kb: entry.encodedBodySize / 1024,
   }))"""
+# Leave nothing focused, put the scroller under the window's centre halfway down, less
+# half of `band`: the page, then any scroller inside it there, as a text document's
+# listing is; and return the centre. The generated pages' article fills the window,
+# so the centre is over the page's content.
+HALFWAY = """(band) => {
+  document.activeElement?.blur();
+  const [x, y] = [innerWidth / 2, innerHeight / 2];
+  const page = document.scrollingElement;
+  const halfway = (scroller) => {
+    scroller.scrollTop = (scroller.scrollHeight - scroller.clientHeight - band) / 2;
+  };
+  halfway(page);
+  let under = document.elementFromPoint(x, y);
+  while (under && under !== page && !(under.scrollHeight > under.clientHeight &&
+      /auto|scroll/.test(getComputedStyle(under).overflowY)))
+    under = under.parentElement;
+  if (under && under !== page) halfway(under);
+  return [x, y];
+}"""
 
 
 def ask(g: int, options: int = 4) -> str:
@@ -398,6 +436,20 @@ def measure(browser, address: str, profiles: Path | None) -> dict:
         profiled = profiler(cdp, profiles)
         quiet = tab_page.wait_for_timeout
 
+        def idle_rate() -> float:
+            """Wait for two quiet half seconds in a row, or QUIET_TRIES, and return
+            the page's CPU per ms over the last two: what it spends with no input
+            once the work a load leaves behind has run, such as the view checks the
+            runtime reads after the page settles, which walk the whole page."""
+            spent: list[float] = []
+            while len(spent) < 2 or (
+                max(spent[-2:]) >= QUIET_MS and len(spent) < QUIET_TRIES
+            ):
+                start = cpu_ms(cdp)
+                quiet(500)
+                spent.append(cpu_ms(cdp) - start)
+            return sum(spent[-2:]) / 1000
+
         # The event answers are read off resource timing, whose buffer holds 250
         # entries by default, and the runtime's own modules fill it before any click.
         tab_page.add_init_script("performance.setResourceTimingBufferSize(100_000)")
@@ -405,14 +457,10 @@ def measure(browser, address: str, profiles: Path | None) -> dict:
         stop = profiled("load")
         tab_page.goto(address)
         settle(tab_page)
-        quiet(600)
+        idle = idle_rate()
         stop()
         costs = {"load": cpu_ms(cdp) - start}
         elements = tab_page.evaluate("document.querySelectorAll('*').length")
-
-        start = cpu_ms(cdp)
-        quiet(1000)
-        idle = (cpu_ms(cdp) - start) / 1000
 
         def per_input(name: str, count: int, act) -> float:
             start, began = cpu_ms(cdp), time.monotonic()
@@ -424,7 +472,13 @@ def measure(browser, address: str, profiles: Path | None) -> dict:
             elapsed = (time.monotonic() - began) * 1000
             return (cpu_ms(cdp) - start - idle * elapsed) / count
 
-        option = tab_page.locator("lf-option").first
+        # The mouse's own press and release, over the option's centre before the
+        # clicks begin, since a locator's click first runs its actionability checks
+        # on the page's main thread.
+        box = tab_page.locator("lf-option").first.bounding_box()
+        assert box is not None
+        tab_page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+        quiet(600)
 
         def click():
             # Each click posts its event; the server's answer arrives before the
@@ -432,7 +486,8 @@ def measure(browser, address: str, profiles: Path | None) -> dict:
             with tab_page.expect_response(
                 lambda response: response.url.endswith("/api/event")
             ):
-                option.click()
+                tab_page.mouse.down()
+                tab_page.mouse.up()
             quiet(400)
 
         posted = len(tab_page.evaluate(EVENT_POSTS))
@@ -451,13 +506,24 @@ def measure(browser, address: str, profiles: Path | None) -> dict:
 
         costs["key"] = per_input("key", KEYS, key)
 
-        tab_page.evaluate("() => { document.activeElement?.blur(); scrollTo(0, 0); }")
-        tab_page.mouse.move(400, 400)
+        # From the first option's control, across the same stops at every size: its
+        # ask's other controls and, after a short ask, the first link or listing.
+        tab_page.locator("lf-option-control").first.focus()
         quiet(600)
-        height = tab_page.evaluate("document.scrollingElement.scrollHeight")
+        ways = cycle(WAYS)
+
+        def step():
+            tab_page.keyboard.press("Tab" if next(ways) > 0 else "Shift+Tab")
+            quiet(100)
+
+        costs["tab"] = per_input("tab", TABS, step)
+
+        tab_page.mouse.move(*tab_page.evaluate(HALFWAY, RUN * NOTCH))
+        quiet(600)
+        ways = cycle(WAYS)
 
         def wheel():
-            tab_page.mouse.wheel(0, height / WHEEL_STEPS)
+            tab_page.mouse.wheel(0, NOTCH * next(ways))
             quiet(50)
 
         costs["scroll"] = per_input("scroll", WHEEL_STEPS, wheel)

@@ -1983,18 +1983,24 @@ function layoutMountedRows(layer) {
     );
     laneFrames.set(lane, { root: frames[0].frame, frames });
   }
-  const byLane = [
-    { lane: layer.root, root: layer.root },
-    ...[...laneFrames].map(([lane, { root }]) => ({ lane, root })),
-  ]
-    .map(({ lane, root }) => ({
-      lane,
-      root,
-      members: orderedReads.filter((read) => read.lane === lane),
-      order: orderedReads.findIndex((read) => read.lane === lane),
-    }))
-    .filter(({ order }) => order >= 0)
-    .sort((a, b) => a.order - b.order);
+  // Each lane's rows in one pass over them, the lanes in the order of their first rows: the
+  // root lane, and each pane lane that has frames this pass.
+  /** @type {Map<HTMLElement, HTMLElement>} */
+  const roots = new Map([[layer.root, layer.root]]);
+  for (const [lane, { root }] of laneFrames) roots.set(lane, root);
+  /** @type {Map<HTMLElement, Read[]>} */
+  const lanes = new Map();
+  for (const read of orderedReads) {
+    if (!read.lane || !roots.has(read.lane)) continue;
+    let members = lanes.get(read.lane);
+    if (!members) lanes.set(read.lane, (members = []));
+    members.push(read);
+  }
+  const byLane = [...lanes].map(([lane, members]) => ({
+    lane,
+    root: /** @type {HTMLElement} */ (roots.get(lane)),
+    members,
+  }));
   let lastLane = layer.root;
   for (const { lane, root, members } of byLane) {
     if (lane !== layer.root) {

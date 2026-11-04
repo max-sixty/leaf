@@ -955,6 +955,13 @@ def on_agent(page: Page) -> None:
     expect(page.locator(panel_view("queue"))).to_be_visible()
 
 
+def threads_scrolled(page: Page) -> None:
+    """Threads scrolled in a short window, with Open's band stuck over its rows."""
+    go_to_threads(page)
+    page.locator(panel_view("threads")).evaluate("view => { view.scrollTop = 30; }")
+    settle(page)
+
+
 def threads_returning(page: Page) -> None:
     """Threads as the user reads it while the agent's reply reopens a resolved thread,
     whose open row would lead the list, and the agent starts a thread on the page."""
@@ -1023,12 +1030,26 @@ def selected_passage_responses(page: Page) -> None:
     expect(page.get_by_role("button", name="Suggest", exact=True)).to_be_visible()
 
 
-def command_reference_search(page: Page) -> None:
-    """Help's focused query above its filtered command results."""
+def command_reference(page: Page) -> None:
+    """The command reference, its sections at rest."""
     page.keyboard.press("Tab")
     page.keyboard.press("?")
-    page.keyboard.press("?")
+    expect(page.locator(".lf-command-reference[open]")).to_be_visible()
+
+
+def command_reference_search(page: Page) -> None:
+    """Help's focused query above its filtered command results."""
+    command_reference(page)
     page.get_by_role("combobox", name="Search commands").fill("comment")
+
+
+def command_reference_scrolled(page: Page) -> None:
+    """The command reference scrolled into a section, whose band stands stuck."""
+    command_reference(page)
+    page.locator(".lf-command-reference-results").evaluate(
+        "list => { list.scrollTop = 420; }"
+    )
+    settle(page)
 
 
 def page_map(page: Page) -> None:
@@ -1038,6 +1059,13 @@ def page_map(page: Page) -> None:
     page.keyboard.press("g")
     page.keyboard.press("Shift+P")
     expect(page.locator(".lf-page-map-dialog[open]")).to_be_visible()
+
+
+def page_map_scrolled(page: Page) -> None:
+    """The Page Map scrolled into a group, whose band stands stuck."""
+    page_map(page)
+    page.locator(".lf-page-map-list").evaluate("list => { list.scrollTop = 60; }")
+    settle(page)
 
 
 def retained_quote(page: Page) -> None:
@@ -2206,6 +2234,13 @@ STATES = (
         region=".lf-fp-opened",
     ),
     State("ship-threads", "ship-review", go_to_threads, region=".lf-fp-opened"),
+    State(
+        "ship-threads-scrolled",
+        "ship-review",
+        threads_scrolled,
+        region=".lf-fp-opened",
+        window=Window((1440, 300)),
+    ),
     State("plan-option-picked", "review-a-plan", option_picked, region=".lf-fp-row"),
     State(
         "plan-option-card-picked",
@@ -2500,8 +2535,17 @@ STATES = (
         region=PANEL,
     ),
     State("selected-passage-responses", "review-a-plan", selected_passage_responses),
+    State("command-reference", "review-a-plan", command_reference),
     State("command-reference-search", "review-a-plan", command_reference_search),
+    State("command-reference-scrolled", "review-a-plan", command_reference_scrolled),
     State("page-map", "review-a-plan", page_map, region=".lf-page-map-dialog"),
+    State(
+        "page-map-scrolled",
+        "ship-review",
+        page_map_scrolled,
+        region=".lf-page-map-dialog",
+        window=Window((1440, 360)),
+    ),
     # Its threads on the user's turn, tinted and saying so at their ends.
     State("page-map-turn", "ship-review", page_map, region=".lf-page-map-dialog"),
     State("plan-card", "review-a-plan", card_by_pointer),

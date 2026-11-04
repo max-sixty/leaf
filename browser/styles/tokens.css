@@ -77,6 +77,10 @@
      at it, and the root's `scroll-padding` adds it where a page tab strip stands over
      the root (`--lf-root-headers`, page-layout.js). */
   --lf-tabstrip-h: calc(9px + max(38px, var(--aim-floor)));
+  /* A list's band, the heading that opens each group of its rows (controls.css,
+     `.lf-rows-group`): a thread head's height, and the aim floor under a finger, since
+     a band that folds its group is a press with no room for a reach. */
+  --lf-rows-band: max(var(--lf-msg-head-height), var(--aim-floor));
   /* Stacking: one ascending ladder for everything the runtime lifts over the page.
      A number local to a component's own stacking context stays where it is written.
      A popover or modal dialog takes no rung: the top layer paints over every z-index,

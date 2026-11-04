@@ -543,7 +543,7 @@ def test_the_chosen_grouping_orders_on_me_and_the_m_walk_alike(browser, serve):
     chooser = page.get_by_role("combobox", name="Group On me")
     expect(chooser).to_have_value("place")
     # Every group has its band, the card alone in its group included.
-    groups = view.locator(".lf-fp-on-group > .lf-rows-head")
+    groups = view.locator(".lf-fp-on-list > .lf-rows-group > .lf-rows-head")
     expect(groups).to_have_text(
         [
             re.compile(r"^\s*Implementation\s*2\s*$"),
@@ -647,7 +647,7 @@ def test_an_answer_in_on_me_keeps_its_groups_and_the_m_walk_in_one_order(
     exit_code.get_by_role("button", name="75").click()
     round_trip(page)
     expect(exit_code.locator(".lf-fp-said")).to_contain_text("Answered: 75")
-    groups = view.locator(".lf-fp-on-group > .lf-rows-head")
+    groups = view.locator(".lf-fp-on-list > .lf-rows-group > .lf-rows-head")
     expect(groups).to_have_text(
         [re.compile(r"^\s*Options\s*1\s*$"), re.compile(r"^\s*Reply\s*1\s*$")]
     )

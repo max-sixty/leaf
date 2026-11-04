@@ -39,7 +39,7 @@
      the list stands on (`aria-current`) wears the accent's stripe and tint. A step
      still ahead of it (`data-lf-ahead`) stands in the muted ink, and the row of the
      thread whose passage the pointer is on (`.lf-mark-hover`) in that passage's
-     wash. A row that is its group's band (`data-lf-band`), as On's Done heading is,
+     wash. A row that is its group's band (`data-lf-band`), as Done and Resolved are,
      takes the band's ink. A thread's row on the user's turn says so in its closing
      words.
    - `answer`: one of the answers a question offers, such as a decision's choices on

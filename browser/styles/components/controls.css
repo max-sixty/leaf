@@ -1850,8 +1850,9 @@ wa-copy-button.lf-icon-action {
 .lf-row[data-lf-ahead] {
   color: var(--muted);
 }
-/* A row that is its group's band, as an On list's Done heading is (floating-panel.js,
-   `settledHeading`), takes the band's ink, so it reads as the list's other bands do. */
+/* A row that is its group's band (`.lf-rows-group`, below), as Done and Resolved are
+   (floating-panel.js, `settledHeading`), takes the band's ink, so it reads as the
+   list's other bands do. */
 .lf-row[data-lf-band] {
   color: inherit;
 }
@@ -1932,39 +1933,123 @@ wa-copy-button.lf-icon-action {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-/* A list's group heading (`.lf-rows-head`) names the rows under it, and says at its
+/* A list's group heading (`.lf-rows-head`) names the rows under it, and can say at its
    end how many they are (`.lf-row-end`). It is the sans at weight 600 in the muted
    ink, a step smaller than the rows so it never reads as one of them, in its author's
    capitalization, since a group is often named in the page's own words, a heading or
-   a goal, which small capitals would mangle ("IOS"). In a list it stands as a line:
-   its name starts where the rows' marks do and its count ends at the rows' end, with
-   more room above it, parting its group from the rows before, than below, tying it to
-   its own. It is no row of the list's columns, since a count there would size the
-   column the rows' ends share, and a list whose ends stand inside their names' column,
-   as On me's lines do, would see every end step back. A heading that folds its group
-   is instead a row press wearing the heading's font, its arrow in the rows' lead; where a list
-   holds each group in a box of its own (`.lf-rows-group`), the room stands above the
-   box; elsewhere a wearer keeps only where it stands. Lists drew their headings four
+   a goal, which small capitals would mangle ("IOS"). Lists drew their headings four
    ways, in small capitals, bold in the ink, muted at the rows' weight and with counts
-   short of the rows' ends, until they shared this one. */
+   short of the rows' ends, until they shared this one. It is no row of the list's
+   columns, since a count there would size the column the rows' ends share, and a list
+   whose ends stand inside their names' column, as On me's lines do, would see every
+   end step back. Outside a group's box, as a tab strip's group or a trace's Moments
+   stand, it is a line of that face where it stands. */
 .lf-rows-head {
-  margin: 0;
-  font: var(--font-heading);
-  color: var(--muted);
-}
-.lf-rows-head:where(:not(:has(> .lf-row))) {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
+  margin: 0;
   padding: 5px 8px 1px;
+  font: var(--font-heading);
+  color: var(--muted);
 }
-.lf-rows > .lf-rows-head:not(:first-child),
+/* A list holds each group in a box of its own (`.lf-rows-group`), and the heading opens
+   the box as its band: across the surface the list stands on (`--lf-rows-bleed`, the
+   padding its scroller keeps inside that surface), `--lf-rows-band` tall (tokens.css),
+   on a ground a shade off the surface's (`--lf-ground`), so every row down to the next
+   band reads as the band's. Its name takes one line, cut where the count begins, so a
+   stuck band always covers the height a landing clears. A row the pointer or the keys
+   stand on wears a wash a shade off the surface too, so the band keeps a gap of the
+   surface below it: the first row's wash met the band, and the two read as one block. The rows of a group inside a list take the
+   list's columns (`subgrid`), so a row's name starts on one edge in every group; a
+   group that holds a list of its own has its rows' columns to itself.
+
+   The band sticks at its scroller's top while its group passes under it, as a message's
+   head sticks in a thread card (annotation-chrome.css), so the group being read is
+   always named; a stuck band needs its ground anyway, since rows pass beneath it. A
+   sticky box moves only inside its parent, so the next group's band pushes it off. A
+   list that keeps every row under one parent, as the command reference does, leaves
+   the box out of the layout, and there the next band slides over the stuck one. The
+   band sticks at the slot it meets, below any header already stuck over the list, and
+   the rows under it take that slot plus the band's height, which the group passes on
+   under a second name (`--lf-rows-slot`), since a custom property cannot read itself
+   (base.css, at `--lf-top`). So what a landing or focus brings into view stands below
+   the band (geometry.js `headerInset`), and a press in the band counts as shown where
+   it sticks (surfaces.css, `--lf-head-inset`).
+
+   A group that folds has a press for its band (floating-panel.js, `settledHeading`),
+   with its arrow hanging in the band's start padding, so its name starts where every
+   other band's does.
+
+   The user chose the bands for On me on 3 November 2026, asking for a group heading
+   that sticks as a thread's author line does, and on 4 November for every list's groups
+   to wear them. Rejected: a rule under each heading and faint rules between items,
+   which tied the first item to the heading and not the rest; groups parted by space
+   alone, as these lists' headings stood until then; each group in a bordered box, the
+   closest but too noisy, and in a tinted well, the same box in other clothes; and every
+   group folding under its band, which hid what the user still owes and which people
+   seldom open. */
+.lf-rows-group {
+  --lf-rows-slot: var(--lf-top);
+}
+.lf-rows-group > :not(.lf-rows-head) {
+  --lf-top: calc(var(--lf-rows-slot) + var(--lf-rows-band));
+}
 .lf-rows-group:not(:first-child) {
   margin-block-start: 10px;
 }
-.lf-rows-head .lf-row-end {
+.lf-rows > .lf-rows-group {
+  display: grid;
+  grid-template-columns: subgrid;
+}
+.lf-rows > .lf-rows-group > * {
+  grid-column: 1 / -1;
+}
+.lf-rows-group > .lf-rows-head {
+  --lf-head-inset: 0px;
+  position: sticky;
+  top: var(--lf-rows-slot);
+  z-index: 2;
+  align-self: start;
+  align-items: center;
+  box-sizing: border-box;
+  block-size: var(--lf-rows-band);
+  margin-inline: calc(-1 * var(--lf-rows-bleed, 0px));
+  padding: 0 calc(var(--lf-rows-bleed, 0px) + 8px);
+  background: color-mix(in srgb, var(--ink) 6%, var(--lf-ground));
+}
+.lf-rows-group > .lf-rows-head:not(:last-child) {
+  margin-block-end: 4px;
+}
+.lf-rows-group > .lf-rows-head .lf-row-main {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lf-rows-group > .lf-rows-head .lf-row-end {
   color: inherit;
-  font-weight: inherit;
+  font-weight: 400;
+}
+.lf-rows-group > .lf-rows-head:has(> .lf-row) {
+  padding: 0;
+}
+.lf-rows-group > .lf-rows-head > .lf-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 0;
+  block-size: 100%;
+  /* The row face's stripe room (`.lf-row`, above) takes 2px of the start. */
+  padding: 0 calc(var(--lf-rows-bleed, 0px) + 8px) 0
+    calc(var(--lf-rows-bleed, 0px) + 6px);
+}
+.lf-rows-group > .lf-rows-head > .lf-row::before {
+  position: absolute;
+  inset-inline-start: 2px;
+  top: 50%;
+  translate: 0 -50%;
+  margin: 0;
 }
 /* What a list says in its rows' place when it has none, such as that nothing matches
    a search or that its rows are still to come (`.lf-rows-empty`): a muted line where

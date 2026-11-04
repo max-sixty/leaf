@@ -456,7 +456,8 @@ html[data-lf-region-capture]
     overflow: hidden;
     display: none;
     margin: 0;
-    background: var(--card);
+    --lf-ground: var(--card);
+    background: var(--lf-ground);
     border: 1px solid var(--border-2);
     border-radius: var(--r-l);
     box-shadow: var(--raise-3);
@@ -665,22 +666,36 @@ html[data-lf-region-capture]
     white-space: nowrap;
     text-overflow: ellipsis;
   }
-  /* The results reach 10px into the dialog's padding, so a row's wash (6px beyond its
-     words) and its focus ring outside that keep their room inside the scroller. */
+  /* The results run the dialog's width, so its sections' bands (controls.css,
+     `.lf-rows-group`) do, and a scroller starts the sticky-header slot and its landing
+     band again at its own top. They keep 10px of the dialog's padding, which with a
+     row's own inset (controls.css, `.lf-row`) makes the dialog's 18px, so the rows'
+     words start where the title and the search do. Every row stays under this one
+     parent (command-reference.js, `commandReferenceItems`), so a section's box holds
+     only its band and takes no box of its own: each row takes its section's band in
+     the slot here, and the band keeps the gap below it that a band keeps over its
+     first row (controls.css). */
   .lf-command-reference-results {
+    --lf-top: 0px;
+    --lf-top-covered: 0px;
+    --lf-landing-room: 0px;
+    --lf-rows-bleed: 10px;
     min-height: 0;
     overflow-y: auto;
-    margin-inline: -10px;
-    padding-inline: 10px;
+    margin-inline: -18px;
+    padding-inline: var(--lf-rows-bleed);
   }
-  /* The reference's rows reach past its words by their wash's room, so its heading and
-     its empty line, standing where the rows' words start, keep no inset of their own. */
-  .lf-command-reference h3 {
-    margin: 16px 0 4px;
-    padding: 0;
+  .lf-command-reference-results > .lf-rows-group {
+    display: contents;
   }
-  .lf-command-reference .lf-rows-empty {
-    padding-inline: 0;
+  .lf-command-reference-results > .lf-rows-group > .lf-rows-head {
+    margin-block-end: 4px;
+  }
+  .lf-command-reference-results > .lf-rows-group:not(:first-child) > .lf-rows-head {
+    margin-block-start: 10px;
+  }
+  .lf-command-reference-results > [role="group"] {
+    --lf-top: var(--lf-rows-band);
   }
   /* The reference is a list a reader scans for a command and then reads its keys, so
      each key leads the words it runs, as Gmail's `?` sets it: its keys, set against
@@ -692,7 +707,7 @@ html[data-lf-region-capture]
      width from their words; and one column after the widest command. Before those, a
      table whose key column was a fixed 104px stood a lone key some 80px from its
      command and wore the document's data-table rule, a hairline under every cell.
-     Rows part by their own room, and a section by the space above its heading.
+     Rows part by their own room, and a section by its band.
 
      A description stays out of sight at rest, as references set none and palettes set
      theirs small and on the title's line: it shows, on its row's one line and cut short
@@ -704,12 +719,11 @@ html[data-lf-region-capture]
 
      Each row is its command's press, an option of the results' listbox
      (command-reference.js), so a press anywhere on it runs the command, and the row
-     face (controls.css, `.lf-row`) draws its wash and its ring inside it. It runs the
-     list's width and 6px past it at either end, as wide as its wash. */
+     face (controls.css, `.lf-row`) draws its wash and its ring inside it. */
   .lf-command-reference-row:not([hidden]) {
     position: relative;
     box-sizing: border-box;
-    width: calc(100% + 12px);
+    width: 100%;
     display: grid;
     grid-template-columns: 5.6em minmax(0, max-content) minmax(0, 1fr);
     grid-template-areas: "key action desc";
@@ -717,9 +731,8 @@ html[data-lf-region-capture]
     align-content: center;
     column-gap: 10px;
     min-height: var(--aim-floor);
-    margin-inline: -6px;
     /* The row face's stripe room (controls.css, `.lf-row`) takes 2px of the start. */
-    padding-inline: 4px 6px;
+    padding-inline: 6px 8px;
   }
   .lf-command-reference-row > * {
     min-width: 0;
@@ -813,8 +826,7 @@ html[data-lf-region-capture]
   .lf-page-map-action:is(button, [role="button"]):not([aria-disabled="true"]) {
     cursor: pointer;
   }
-  .lf-page-map-action-label-word,
-  .lf-page-map-group h3 {
+  .lf-page-map-action-label-word {
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
@@ -837,7 +849,8 @@ html[data-lf-region-capture]
     padding: 14px;
     border: 1px solid var(--border-2);
     border-radius: var(--r-l);
-    background: var(--paper);
+    --lf-ground: var(--paper);
+    background: var(--lf-ground);
     color: var(--ink);
     box-shadow: var(--raise-3);
     /* Its column stands while a closing sheet fades out, after [open] has gone. */
@@ -924,19 +937,23 @@ html[data-lf-region-capture]
     width: 100%;
     margin-top: 10px;
   }
-  /* The list, and the line standing in its rows' place, reach into the sheet's padding
-     by the rows' inset (controls.css, `.lf-row`), so the rows' marks and their group
-     headings start where the title and the search do, and the rows' ends stop where
-     the search does, as the command reference sets its rows; each row's wash keeps
-     that room past its words. */
-  .lf-page-map-list,
-  .lf-page-map-dialog > .lf-rows-empty {
-    margin-inline: -8px;
-  }
+  /* The list runs the sheet's width, so its groups' bands (controls.css,
+     `.lf-rows-group`) do; it scrolls (`data-lf-scroll`), so it starts the sticky-header
+     slot again at its own top. It keeps 6px of the sheet's padding, which with a row's
+     own inset (controls.css, `.lf-row`) makes the sheet's 14px, so the rows' marks and
+     their bands' names start where the title and the search do, and the rows' ends stop
+     where the search does, as the command reference sets its rows. The line standing in
+     the rows' place stands on the same edge. */
   .lf-page-map-list {
-    margin-top: 6px;
+    --lf-rows-bleed: 6px;
+    margin-inline: -14px;
+    padding-inline: var(--lf-rows-bleed);
+    margin-top: 10px;
     overflow: auto;
     min-height: 0;
+  }
+  .lf-page-map-dialog > .lf-rows-empty {
+    margin-inline: -8px;
   }
   .lf-page-map-actions {
     row-gap: 2px;

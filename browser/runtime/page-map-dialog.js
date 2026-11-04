@@ -304,16 +304,21 @@ export function createPageMapDialog({
     </button>`;
   };
 
+  // A group's band cuts its location's name where the band ends (controls.css,
+  // `.lf-rows-group`), in a part with no space around it, so the heading reads as the
+  // name alone.
   /** @param {Group} group @param {string} query */
-  const sheetGroupTemplate = (group, query) => html`
-    <section
-      class="lf-page-map-group lf-rows-group"
-      data-lf-map-group=${group.key}
-      ?hidden=${Boolean(query) && !group.search.includes(query)}
-    >
-      <h3 class="lf-rows-head">${group.entry.title}</h3>
-      <div class="lf-page-map-actions lf-rows">
-        ${repeat(
+  const sheetGroupTemplate = (group, query) => {
+    const name = html`<span class="lf-row-main">${group.entry.title}</span>`;
+    return html`
+      <section
+        class="lf-page-map-group lf-rows-group"
+        data-lf-map-group=${group.key}
+        ?hidden=${Boolean(query) && !group.search.includes(query)}
+      >
+        <h3 class="lf-rows-head">${name}</h3>
+        <div class="lf-page-map-actions lf-rows">
+          ${repeat(
           group.actions,
           ({ key }) => key,
           (action) =>
@@ -321,9 +326,10 @@ export function createPageMapDialog({
               ? sheetItemTemplate(action)
               : sheetControlTemplate(action, group.actions),
         )}
-      </div>
-    </section>
-  `;
+        </div>
+      </section>
+    `;
+  };
 
   function renderSheet() {
     const restoreFocus = holdFocus(dialog);

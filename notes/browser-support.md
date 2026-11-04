@@ -725,6 +725,38 @@ short. To recheck, draw a `content-visibility: auto` box with
 `contain-intrinsic-size: 300px` and read its height a few frames later: 300 px is the
 specified behaviour.
 
+### Styling content Firefox skips
+
+Firefox 157 (Playwright build 1555, macOS) styles every element inside a box whose
+content it skips, a `content-visibility: auto` run out of view and a closed tab's
+`hidden="until-found"` panel included, on each restyle that reaches it. Chromium 156
+leaves skipped content unstyled until it is drawn. So in Firefox a restyle that
+reaches a long text document's listing styles every row and its line number. On
+2026-11-04 the Firefox Profiler's `Styles` marker counted 194,514 elements when the
+runtime's scroll mark changed three inherited values on a listing of 97,000 rows (250
+to 330 ms; 25 to 45 in Chromium), and 2.1 million when a page of 30 documents of
+50,000 lines presented (2.6 s).
+
+Leaf keeps its own writes off the rows while a page loads: a listing states its slot
+restart from the first paint (`text-document.css`), and a closed tab's document draws
+after the page presents (`lf-text-document.js`, `show`). Two restyles still reach
+every row in Firefox. A newly started Firefox restyles every page on each
+`font-info-updated` in its first seconds, 1.4 s each on the page of 30 documents. And
+Gecko answers an insertion into an element whose children a `+`, `~` or
+`:nth-*(… of …)` selector has been matched against by restyling every later
+sibling's subtree. The frame-edge trims in `reading.css` are matched against every
+element, as are `.lf-inspection-body :is(h2, h3) + *` (`chrome.css`) and the reading
+theme's `.eyebrow + :is(h1, h2, h3)` against every heading, so a paragraph added at
+the top of `main` restyled the whole page: 280 to 310 ms over 97,000 rows, and 24 ms
+with the trims written as `:first-child` and `:last-child` and the two sibling rules
+taken out. The first is Firefox's to change; rewriting the rules is
+open (#4781).
+
+To recheck, build a `pre` of 97,000 `div` rows in runs of 128 with
+`content-visibility: auto`, each row numbered by a `::before` counter, let it paint,
+then set an inherited custom property on the `pre` and time the next frame: 70 to 77
+ms in Firefox, 17 to 19 in Chromium.
+
 ### A traversal's own scroll restoration under the Navigation API
 
 Firefox 157 (Playwright build 1555, macOS) applies a same-document traversal after

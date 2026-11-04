@@ -27,7 +27,7 @@ import {
   pageQueryAll,
   renderRetired,
 } from "../passages.js";
-import { isPagePaint, renderQuiet } from "../declared-words.js";
+import { isPagePaint, renderQuietOn } from "../declared-words.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { keeps } from "../keeps.js";
 
@@ -150,12 +150,19 @@ export function createProjectionPresentation() {
       // widget's paint counts as current.
       return projection;
     }
+    /** @type {Element[]} */
+    const restated = [];
     for (const entry of projection.classified.values())
-      for (const id of entry.restated ?? [])
-        keeps(elementById(id), PAGE_PAINT_ATTRIBUTE.restated, "1");
+      for (const id of entry.restated ?? []) {
+        const target = elementById(id);
+        keeps(target, PAGE_PAINT_ATTRIBUTE.restated, "1");
+        if (target) restated.push(target);
+      }
     paintSettlements(widgetStates());
-    const originTargets = paintStateOrigins(projection);
-    renderQuiet(document.body, originTargets);
+    // Every element carrying a provenance mark is one of these: the restated, and those
+    // the origin pass marked or unmarked.
+    const marked = [...restated, ...paintStateOrigins(projection)];
+    renderQuietOn(marked.filter((target) => document.body.contains(target)));
     return projection;
   }
 

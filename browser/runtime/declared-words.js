@@ -460,14 +460,21 @@ function quietFacts(el) {
   return words.join(", ");
 }
 
-/** @param {Scope} root @param {Iterable<Element>} [also] */
-export function renderQuiet(root, also = []) {
+/** @param {Scope} root */
+export function renderQuiet(root) {
   const painting = [
     `[${PAGE_PAINT_ATTRIBUTE.restated}]`,
     `[${PAGE_PAINT_ATTRIBUTE.userOverride}]`,
     `[${PAGE_PAINT_ATTRIBUTE.reported}]`,
   ].join(", ");
-  const targets = new Set(elementsIn(root, painting));
-  for (const el of also) if (el === root || root.contains(el)) targets.add(el);
+  renderQuietOn(elementsIn(root, painting));
+}
+
+// The quiet word of each of `targets`. The projection's repaint passes the elements whose
+// provenance marks it has just written or taken off, which are all the elements carrying
+// one. Asked of the page, the query above visited every element in it on each repaint:
+// 25 ms a repaint beside 30 documents of 50,000 lines.
+/** @param {Iterable<Element>} targets */
+export function renderQuietOn(targets) {
   for (const el of targets) quietWord(el, quietFacts(el));
 }

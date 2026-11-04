@@ -547,6 +547,61 @@ def test_find_reaches_the_text_of_a_document_in_a_tab_nobody_opened(
     assert not page.evaluate(TOKENS_IN, "#doc-1 code")
 
 
+def test_the_page_presents_without_waiting_for_a_closed_tab_s_document(browser, serve):
+    """A document in a tab nobody opened draws once the page has presented, each in a
+    task of its own, so presentation waits only for the document in view. Drawn first,
+    30 tabs of 50,000 lines held presentation for 22 s in Firefox, which then restyled
+    every row of every closed tab as the page presented, a 2.6 s frame."""
+    tabs = "".join(
+        f'<lf-tab id="tab-{at}" label="Doc {at}"><lf-text-document id="doc-{at}" '
+        f'source="text-{at}"></lf-text-document></lf-tab>'
+        for at in range(3)
+    )
+    url = serve(
+        leaf_page("Documents", f'<lf-tabs id="docs" list="side">{tabs}</lf-tabs>')
+    )
+    for at in range(3):
+        data_model.cmd_data_set(serve.page_dir, f"text-{at}", f"document {at}\n" * 40)
+    order = """(() => {
+      window.order = [];
+      new MutationObserver((records) => {
+        for (const {target, attributeName} of records)
+          if (attributeName === 'data-lf-presented') order.push('presented');
+          else if (target.localName === 'lf-text-document'
+                   && target.classList.contains('lf-rendered')
+                   && !order.includes(target.id)) order.push(target.id);
+      }).observe(document, {attributes: true, subtree: true,
+                            attributeFilter: ['class', 'data-lf-presented']});
+    })()"""
+    page = open_page(browser, url, init_script=order)
+    expect(page.locator("lf-text-document.lf-rendered")).to_have_count(3)
+    assert page.evaluate("order") == ["doc-0", "presented", "doc-1", "doc-2"]
+
+
+def test_a_listing_s_scroll_mark_changes_nothing_its_rows_inherit(browser, serve):
+    """The runtime marks a document's listing as a box that scrolls once it has drawn,
+    and the mark restarts the sticky-header slot. The listing states that restart from
+    the first paint, so the mark changes no value its rows inherit: Firefox styles the
+    rows of runs it doesn't draw too, and a mark that changed three of them took a 300
+    to 570 ms frame on a listing of 97,000 rows."""
+    url = serve(
+        leaf_page(
+            "Log", '<lf-text-document id="log" source="log-text"></lf-text-document>'
+        )
+    )
+    data_model.cmd_data_set(serve.page_dir, "log-text", "a line\n" * 400)
+    page = open_page(browser, url)
+    pre = page.locator("#log pre")
+    expect(pre).to_have_attribute("data-lf-scrolls", "")
+    inherited = """pre => Object.fromEntries(
+      ['--lf-top', '--lf-top-covered', '--lf-landing-room', '--lf-track-scroll-behavior']
+        .map((name) => [name, getComputedStyle(pre.querySelector('code'))
+          .getPropertyValue(name).trim()]))"""
+    marked = pre.evaluate(inherited)
+    pre.evaluate("pre => pre.removeAttribute('data-lf-scrolls')")
+    assert pre.evaluate(inherited) == marked
+
+
 # How many syntax-colour ranges stand in the element `selector` names.
 TOKENS_IN = """selector => {
   const box = document.querySelector(selector);

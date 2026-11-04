@@ -52,6 +52,7 @@ import {
   textWidth,
   nextFrame,
   MAX_EDIT_LENGTH,
+  afterPresentation,
 } from "/runtime/widget-api.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
 
@@ -693,8 +694,8 @@ class TextDocument extends LeafElement {
     return result;
   }
 
-  /** @param {string | null} value */
-  async show(value) {
+  /** @param {string | null} value @param {boolean} [presented] whether this draw waited for the page to present */
+  async show(value, presented = false) {
     const rendering = this.rendering + 1;
     this.rendering = rendering;
     const source = value ?? "";
@@ -709,12 +710,22 @@ class TextDocument extends LeafElement {
         if (!(await loadMarkdown((error) => (failure = error)))) throw failure;
       }
       // A document the page shows draws at once; one it doesn't, as in a closed tab,
-      // first draws in a task of its own, so the page paints between them. Drawn in
-      // page order, a reload on the 30th of 30 tabs of 4 MB showed its document only
-      // after the 29 before it: 2.8 s in Chromium, 33 s in Firefox.
+      // first draws once the page has presented, in a task of its own, so the page
+      // paints between them, and this update completes without it: the page counts
+      // the draw as an arrival. Drawn in page order, a reload on the 30th of 30 tabs of
+      // 4 MB showed its document only after the 29 before it: 2.8 s in Chromium, 33 s
+      // in Firefox. Drawn before presentation, they held it back, and Firefox, which
+      // styles a closed tab's rows too, restyled every one of them as the page
+      // presented: 2.6 s for 30 documents of 50,000 lines.
       if (!this.sourceView) {
         this.listed = this.checkVisibility();
-        if (!this.listed) await new Promise((resolve) => setTimeout(resolve));
+        if (!this.listed && !presented) {
+          afterPresentation(async () => {
+            await new Promise((resolve) => setTimeout(resolve));
+            if (rendering === this.rendering) await this.show(value, true);
+          });
+          return;
+        }
       }
       if (rendering !== this.rendering || !this.isConnected) return;
       const { pre: drawnPre, code: drawnCode, text } = listing(source);

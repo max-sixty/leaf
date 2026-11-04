@@ -93,7 +93,6 @@ from leaf import event_log as events_model
 from leaf import structure as structure_model
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import rendered
-from leaf.schema import ELEMENT_ID
 from leaf_dev.example_data import named_source, patch_manifest
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -3870,7 +3869,7 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
             "lf-decoration": {
                 "description": "Generated prose and a graphic with its own marker.",
                 "type": "object",
-                "properties": {"id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"}},
+                "properties": {"id": {"type": "string"}},
                 "required": ["id"],
                 "additionalProperties": False,
                 "x-content": "markup",

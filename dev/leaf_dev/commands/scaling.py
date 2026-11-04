@@ -185,6 +185,25 @@ def prose_sections(n: int) -> str:
     return page("Prose", question + sections)
 
 
+def document_lines(n: int) -> str:
+    """One ask and a text document of `n` × 64 lines of Python, written in its `<pre>`:
+    the document's text grows, and the widgets don't."""
+    question = (
+        '<lf-ask id="q0"><h3>Question</h3><lf-options id="o0" choose multiple>'
+        '<lf-option id="o0-1">One</lf-option><lf-option id="o0-2">Two</lf-option>'
+        "</lf-options></lf-ask>"
+    )
+    lines = "".join(
+        f'def step_{g}(value):  # step {g}\n    return value * {g} + "{g}"\n'
+        for g in range(n * 32)
+    )
+    document = (
+        '<lf-text-document id="listing" label="steps.py" language="python">'
+        f"<pre>{lines}</pre></lf-text-document>"
+    )
+    return page("Document", question + document)
+
+
 def page(title: str, body: str) -> str:
     return (
         f'<!doctype html><html lang="en"><head><title>{title}</title></head><body>'
@@ -301,6 +320,7 @@ class Collection(NamedTuple):
 # Every page `leaf-dev scaling` generates, by the collection that grows with `n`.
 COLLECTIONS: dict[str, Collection] = {
     "asks": Collection(ask_sections),
+    "document": Collection(document_lines),
     "prose": Collection(prose_sections),
     "widgets": Collection(
         ask_sections, lambda n: [pick(g, g % 4 + 1) for g in range(1, n + 1)]
@@ -341,7 +361,7 @@ COLLECTIONS: dict[str, Collection] = {
     ),
 }
 # The pages the browser measures; any other collection is one more name here.
-AXES = {name: COLLECTIONS[name] for name in ("asks", "prose", "threads")}
+AXES = {name: COLLECTIONS[name] for name in ("asks", "document", "prose", "threads")}
 
 
 def cpu_ms(cdp) -> float:
@@ -378,6 +398,9 @@ def measure(browser, address: str, profiles: Path | None) -> dict:
         profiled = profiler(cdp, profiles)
         quiet = tab_page.wait_for_timeout
 
+        # The event answers are read off resource timing, whose buffer holds 250
+        # entries by default, and the runtime's own modules fill it before any click.
+        tab_page.add_init_script("performance.setResourceTimingBufferSize(100_000)")
         start = cpu_ms(cdp)
         stop = profiled("load")
         tab_page.goto(address)

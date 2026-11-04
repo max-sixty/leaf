@@ -110,9 +110,12 @@ changing prose repaints then.
 
 ### Code
 
-`syntax(source, lang)` resolves to the code's tokens, `[{text, style}]`, coloured by the
-page's syntax theme. `synNodes(tokens)` turns them into nodes, and `tokenLines(tokens)`
-splits them by line. `lang` is a registry `$languages` name; `langForPath(path)` derives
+`syntax(source, lang)` resolves to `{tokens, state}`: the code's tokens,
+`[{text, style}]`, coloured by the page's syntax theme, and the grammar state its last
+line ends in. `synNodes(tokens)` turns the tokens into nodes, and `tokenLines(tokens)`
+splits them by line. To colour a long text a part at a time, pass each part the state
+the part before it ended in, `syntax(part, lang, state)`, and it is coloured as it would
+be in the whole text. `lang` is a registry `$languages` name; `langForPath(path)` derives
 one from a file name, and `ensureSyntaxLanguage(lang)` loads one ahead of time.
 `highlightBlocks(root)` colours each `pre > code` in `root` whose `language-…` class
 names a language and that wears the reading face

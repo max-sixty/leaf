@@ -136,7 +136,7 @@ needs nothing: Leaf fades its content at any edge with more beyond.
 
 Leaf rings every box that holds visible focus, at a control's gap outside it. A box
 whose ring belongs elsewhere declares `--lf-ring-at` in its face's rule, as the token of
-its kind (`base.css`, "Where it stands"): `--focus-region-gap` for a block of the page,
+its kind (`styles/tokens.css`, "Where it stands"): `--focus-region-gap` for a block of the page,
 `0` for a box that draws its own edge, and `--focus-ring-inset` for a row packed edge to
 edge with others or a box whose clip leaves no room outside it. Leaf stands the box's
 outline there, and its marks over the page read the same declaration, so a comment's
@@ -212,7 +212,7 @@ package the page keeps: `leaf page init <page> --package diff --package ./chrome
 ## Theme colors
 
 Use independent inputs where the foreground and background need a deliberate contrast
-choice. The default palette is declared in `browser/base.css`:
+choice. The default palette is declared in `browser/styles/tokens.css`:
 
 | Surface                  | Inputs                                                                                                                                                                                |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

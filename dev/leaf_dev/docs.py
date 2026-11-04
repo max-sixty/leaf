@@ -34,10 +34,10 @@ from leaf.schema import MEDIA_DIR
 from leaf.state import KERNEL_REGISTRY
 from leaf.structure import SourceDocument
 from leaf_dev import ROOT, declared_records
-from leaf_dev.example_data import WORKED_EXAMPLES, document_metadata
+from leaf_dev.example_data import PRODUCT_DOCS, WORKED_EXAMPLES, document_metadata
 from leaf_dev.leaf_assets import pinned_assets
 
-DOCS = ROOT / "docs"
+DOCS = ROOT / PRODUCT_DOCS
 EXAMPLES = ROOT / WORKED_EXAMPLES
 ASSETS = ROOT / "browser"
 PACKAGES = ROOT / "packages"

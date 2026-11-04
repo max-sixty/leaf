@@ -19,7 +19,6 @@ from render_cases_widgets import (
 )
 from render_harness import (
     ANCHOR_SOURCES,
-    CORPUS_SOURCES,
     INLINE_PAGE,
     PANEL_THREAD,
     leaf_page,
@@ -43,7 +42,7 @@ from leaf.passages import enclosing_ids, page_passages
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate import version as render_gate_model
-from leaf_dev.example_data import named_source
+from leaf_dev.example_data import authored_sources, named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -142,7 +141,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
 
     Looped rather than parametrized so an empty corpus fails here instead of
     collecting no tests and reporting green."""
-    seeded = [p for p in CORPUS_SOURCES if p.with_suffix(".jsonl").exists()]
+    seeded = [p for p in authored_sources() if p.with_suffix(".jsonl").exists()]
     assert seeded, "no corpus source ships a log; this gate is reading nothing"
     drawn = []
     replied = []

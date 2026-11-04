@@ -11,7 +11,6 @@ from journeys.test_render_export import (  # noqa: F401 (fixtures)
     OFFLINE_WIDGET,
     PIXEL,
     POLICY_ATTEMPTS,
-    ROOT,
     _reachable,
     requested_documents,
 )

@@ -19,7 +19,6 @@ from contextlib import ExitStack
 import pytest
 
 from leaf_dev import ROOT
-from leaf_dev.arms import serving_source
 from leaf_dev.commands.scaling import (
     AXES,
     BASE,
@@ -28,6 +27,7 @@ from leaf_dev.commands.scaling import (
     TRANSITIONS,
     exponent,
     measure,
+    serving_collection,
 )
 
 SIZES = [BASE, 64, 128, 256]
@@ -36,22 +36,13 @@ ROUNDS = 2
 
 @pytest.mark.parametrize("axis", sorted(AXES))
 def test_no_cost_grows_faster_than_the_page(axis, tmp_path, browser):
-    authored, log = AXES[axis]
     with ExitStack() as serving:
-        addresses = []
-        for n in SIZES:
-            source = tmp_path / f"{axis}{n}.html"
-            source.write_text(authored(n))
-            seed = None
-            if log is not None:
-                # Not the source's stem, which would make it the page's own history.
-                seed = tmp_path / f"seed{n}.jsonl"
-                seed.write_text(log(n))
-            addresses.append(
-                serving.enter_context(
-                    serving_source(ROOT, source, tmp_path / str(n), seed)
-                )
+        addresses = [
+            serving.enter_context(
+                serving_collection(ROOT, AXES[axis], n, tmp_path / str(n))
             )
+            for n in SIZES
+        ]
         rounds = [
             [measure(browser, address, None) for address in addresses]
             for _ in range(ROUNDS)

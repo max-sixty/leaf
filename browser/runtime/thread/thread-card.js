@@ -333,7 +333,6 @@ export function threadReading(thread, surface, commands) {
         // Where a message's widgets stand when several drawings show it (messages.js,
         // `authoredHolders`): the primary reader's, then a margin card, then a seat.
         authoredRank: commands.authoredRank ?? (surface === "margin" ? 2 : 1),
-        reactions: surface === "outlet" ? message.reactions : null,
         workflows: message.workflows,
         leaves: leaves(message),
       }),

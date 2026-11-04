@@ -36,6 +36,7 @@ from leaf import render_checks as render_checks_model
 from leaf import user_views
 from leaf.render_gate.command import PIN_VARIABLE
 from leaf.render_gate.page_code import run_page_code
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -283,7 +284,6 @@ def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_sh
     a Chromium and no Chrome meets it, and its result names that executable rather
     than Chrome; the default channel's Chrome is
     `test_check_render_refuses_what_only_a_browser_can_see`'s."""
-    root = Path(__file__).parents[2]
     installed = install_payload(tmp_path / "host" / "leaf")
     launcher = installed / "bin" / "leaf"
     elsewhere = tmp_path / "unrelated-project"
@@ -309,9 +309,7 @@ def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_sh
     installed_registry = json.loads(vocabulary.stdout)
     assert "lf-diagram" in installed_registry
     assert installed_registry["$layer"]["packages"] == ["diagram"]
-    (page_dir / "index.html").write_text(
-        (root / "examples" / "release-notes.html").read_text()
-    )
+    (page_dir / "index.html").write_text(named_source("release-notes").read_text())
     shutil.copytree(example_media(), page_dir / "media", dirs_exist_ok=True)
     stamp = subprocess.run(
         [

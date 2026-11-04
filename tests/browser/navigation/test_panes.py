@@ -583,6 +583,29 @@ def test_a_wheel_in_a_box_is_no_choice_of_the_page_around_it(
     expect(page.locator(f"#{read}")).to_be_in_viewport()
 
 
+def test_workspace_scroll_behavior_changes_keep_each_panes_reading(browser, serve):
+    page = open_page(browser, serve(READING_REGIONS_PAGE))
+    left = page.locator("#left-reading > :not(header, footer)")
+    right = page.locator("#right-reading > :not(header, footer)")
+    pane_scroll_behavior(page, page.locator("#left-reading"), "bounded")
+    left.evaluate("el => el.scrollTop = 180")
+    right.evaluate("el => el.scrollTop = 380")
+    page.locator("#right-subject").focus()
+
+    resized(page, 520, 900)
+    pane_scroll_behavior(page, page.locator("#left-reading"), "flow")
+    expect(page.locator("#right-subject")).to_be_focused()
+    resized(page, 1200, 900)
+    pane_scroll_behavior(page, page.locator("#left-reading"), "bounded")
+    readings = [
+        left.evaluate("el => el.scrollTop"),
+        right.evaluate("el => el.scrollTop"),
+    ]
+    assert readings[0] > 100 and readings[1] > 250, readings
+    assert abs(readings[0] - readings[1]) > 100, readings
+    expect(page.locator("#right-subject")).to_be_focused()
+
+
 def test_a_tall_local_comment_survives_its_panes_scroll_behavior_and_return(
     browser, serve
 ):

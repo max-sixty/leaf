@@ -842,6 +842,10 @@ def test_a_stale_response_cannot_rewind_timestamp_aging(browser, serve):
     ticked(page)
     assert len(crossed) == 1
     expect(timestamp).to_have_text("1h ago")
+    # With no newer state at all, the panel's thread still ages by the clock.
+    page.clock.set_fixed_time(datetime.now().astimezone() + timedelta(hours=3))
+    ticked(page)
+    expect(timestamp).to_have_text("4h ago")
 
 
 def test_a_data_widget_draws_each_publication_and_recovers(browser, serve):

@@ -1595,6 +1595,7 @@ def test_a_bad_source_save_keeps_the_last_revision_live_and_reports_the_error(
         ["page", "stamp", str(page_dir), "--text", "must not fall back"],
     )
     assert stamp.exit_code != 0
+    assert "refusing to stamp" in stamp.output
     assert files_model.list_revisions(page_dir) == [1]
     assert live_versions(page_dir) == []
     assert event_model.read_events(page_dir) == []

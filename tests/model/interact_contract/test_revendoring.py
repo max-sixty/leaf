@@ -63,7 +63,19 @@ def test_init_allows_a_log_the_incoming_layer_no_longer_speaks(page_dir):
             },
         },
     )
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    # A selection that changes the layer, since an unchanged one returns before reading.
+    overlay = page_dir.parent / ".leaf"
+    overlay.mkdir(parents=True)
+    (overlay / "registry.json").write_text("{}")
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "page",
+            "init",
+            *package_selection_args((*page_packages(), "./.leaf")),
+            str(page_dir),
+        ],
+    )
     assert result.exit_code == 0, result.output
 
     assert events_model.read_events(page_dir)

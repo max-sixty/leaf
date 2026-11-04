@@ -644,13 +644,13 @@ DECISION_COMMENTS = [
 
 
 def _decision_histories():
-    """Every three-step history of answers, non-answers, undos, version notes and
-    replies at one coordinate after two comments, each with its log."""
+    """Every three-step history of answers, non-answers, undos, version notes,
+    replies and rewrites at one coordinate after two comments, each with its log."""
     steps = [
         ("act", answer, depends)
         for answer in ("c1", "c2", None)
         for depends in ((), ("x",), ("y",))
-    ] + [("undo",), ("note", "x"), ("note", "y"), ("reply", "c1")]
+    ] + [("undo",), ("note", "x"), ("note", "y"), ("reply", "c1"), ("edit", "c2")]
     for history in itertools.product(steps, repeat=3):
         events: list[dict] = list(DECISION_COMMENTS)
         revision, in_force = 1, []
@@ -678,6 +678,16 @@ def _decision_histories():
                     "author": "user",
                     "ts": "t",
                     "text": "again",
+                }
+            elif step[0] == "edit":
+                event = {
+                    "kind": "edit",
+                    "id": f"e{index}",
+                    "seq": len(events) + 1,
+                    "message": step[1],
+                    "author": "user",
+                    "ts": "t",
+                    "text": "rewritten",
                 }
             else:
                 revision += 1

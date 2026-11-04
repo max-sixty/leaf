@@ -19,10 +19,11 @@ agent that reached for the wrong id where the right one goes.
 from pathlib import Path
 
 from .data import read_contracts, read_data
+from .events import build_threads
 from .files import list_revisions
 from .passages import SourceReading, enclosing_ids
 from .registry.storage import page_vocabulary
-from .revision_artifact import active_enclosing, read_revision
+from .revision_artifact import active_enclosing, active_reading, read_revision
 from .structure import SourceDocument
 
 
@@ -61,6 +62,14 @@ class PageView:
     def within(self) -> dict:
         """Where every id sits on the page the user is looking at."""
         return active_enclosing(self._page_dir)
+
+    def threads(self, events: list) -> dict:
+        """The log's threads, folded under `within` and kept with the log beside the
+        reading that holds it (`events.build_threads`)."""
+        reading = active_reading(self._page_dir)
+        if reading is None:
+            return build_threads(events, {})
+        return build_threads(events, reading.enclosing, anchor=reading)
 
     @property
     def contracts(self) -> dict[str, str]:
@@ -118,6 +127,9 @@ class CandidatePageView(PageView):
     def within(self) -> dict:
         return self._reading.within
 
+    def threads(self, events: list) -> dict:
+        return build_threads(events, self._reading.within, anchor=self._reading)
+
 
 class InitialPageView:
     """A fresh single-revision page, before its directory is allocated.
@@ -148,6 +160,9 @@ class InitialPageView:
     @property
     def within(self) -> dict:
         return enclosing_ids(self._document)
+
+    def threads(self, events: list) -> dict:
+        return build_threads(events, self.within)
 
     @property
     def contracts(self) -> dict:

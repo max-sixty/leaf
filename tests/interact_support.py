@@ -52,6 +52,7 @@ from leaf import data as data_model
 from leaf import delivery as delivery_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
+from leaf import events as event_folds_model
 from leaf import files as files_model
 from leaf import harness as harness_model
 from leaf import hosting as hosting_model
@@ -279,6 +280,9 @@ class ModelPage:
     @property
     def within(self) -> dict:
         return passages_model.enclosing_ids(self.documents[max(self.documents)])
+
+    def threads(self, events: list) -> dict:
+        return event_folds_model.build_threads(events, self.within)
 
     def responses(self, events: list) -> dict:
         raise NotImplementedError(

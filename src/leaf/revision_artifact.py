@@ -1447,15 +1447,18 @@ class _CompactReadings:
             return value
 
 
-def active_enclosing(page_dir: Path) -> dict:
-    """Where every id sits on the page the user is looking at.
-
-    The newest valid revision is the live page. A page with no valid revision has
-    nowhere for an element to sit."""
+def active_reading(page_dir: Path) -> RevisionReading | None:
+    """The page the user is looking at: the newest valid revision, or None on a page
+    with none."""
     revision = latest_revision(page_dir)
-    if revision is None:
-        return {}
-    return read_revision(page_dir, revision).enclosing
+    return None if revision is None else read_revision(page_dir, revision)
+
+
+def active_enclosing(page_dir: Path) -> dict:
+    """Where every id sits on the page the user is looking at. A page with no valid
+    revision has nowhere for an element to sit."""
+    reading = active_reading(page_dir)
+    return {} if reading is None else reading.enclosing
 
 
 def _bundle_vocabulary(bundle: Path) -> dict:

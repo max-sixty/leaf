@@ -544,7 +544,7 @@ def batch_data(
     from .gesture_words import GestureWords, revisions_on_disk
     from .obligations import waiting_about, waiting_in_thread
     from .registry.contract import event_spec
-    from .revision_artifact import active_enclosing
+    from .revision_artifact import active_reading
     from .served_state.context import read_page
     from .thread_context import (
         batch_threads,
@@ -554,8 +554,9 @@ def batch_data(
 
     registry = _registry(page_dir)
     events = transaction.events
-    within = active_enclosing(page_dir)
-    memberships = thread_memberships(events, within)
+    active = active_reading(page_dir)
+    within = active.enclosing if active is not None else {}
+    memberships = thread_memberships(events, within, anchor=active)
     # The obligations are read only where an event can carry `waiting`: an action,
     # or the user's reply on a page whose agent messages carry markup that may ask.
     reads_obligations = any(event["kind"] == "action" for event in batch) or (
@@ -576,7 +577,7 @@ def batch_data(
     )
     revisions = {
         revision["id"]: revision
-        for thread in build_threads(events, within).values()
+        for thread in build_threads(events, within, anchor=active).values()
         for revision in thread["revisions"]
     }
     by_id = {event["id"]: event for event in events}

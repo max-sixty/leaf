@@ -4,7 +4,7 @@ from collections.abc import Callable
 from functools import lru_cache
 from typing import NamedTuple
 
-from leaf.event_log import folded
+from leaf.event_log import PLAIN, folded
 from leaf.events import (
     InForce,
     action_retracted,
@@ -291,9 +291,12 @@ def thread_memberships(
     (`thread_names`, `thread_widgets`), which are the names the whole log gives it,
     since a message names a parent logged before it and an action a widget
     declared before it, and no fragment declares an id another already holds
-    (`validation.admission.check_markup`). Given `anchor`, the reading `within`
-    belongs to, the walk is kept with a page's log (`event_log.folded`)."""
-    return folded(events, anchor, "memberships", lambda: MembershipFold(within))
+    (`validation.admission.check_markup`). Given `anchor`, the reading that holds
+    `within`, the walk is kept with a page's log under that containment
+    (`event_log.folded`)."""
+    return folded(
+        events, anchor, ("memberships", id(within)), lambda: MembershipFold(within)
+    )
 
 
 class MembershipFold:
@@ -301,37 +304,34 @@ class MembershipFold:
 
     def __init__(self, within: dict):
         self.in_force = InForce(within)
+        self.changes = PLAIN
         self.names: dict[str, str] = {}
         self.widgets: dict[str, str] = {}
         self.memberships: dict[str, list[str]] = {}
 
-    def copy(self) -> "MembershipFold":
-        twin = MembershipFold.__new__(MembershipFold)
-        twin.in_force = self.in_force.copy()
-        twin.names = dict(self.names)
-        twin.widgets = dict(self.widgets)
-        twin.memberships = dict(self.memberships)
-        return twin
+    def use(self, changes) -> None:
+        self.changes = self.in_force.changes = changes
 
     def step(self, event: dict) -> None:
+        changes = self.changes
         kind = event["kind"]
         if kind == "comment":
-            self.names[event["id"]] = event["id"]
+            changes.put(self.names, event["id"], event["id"])
         elif kind == "reply":
-            self.names[event["id"]] = self.names[event["parent"]]
+            changes.put(self.names, event["id"], self.names[event["parent"]])
         if event.get("markup"):
             thread = self.names.get(event["id"])
             for widget in logged_fragment(event).by_id:
-                if thread is None:
-                    self.widgets.pop(widget, None)
-                else:
-                    self.widgets[widget] = thread
+                if thread is not None:
+                    changes.put(self.widgets, widget, thread)
+                elif widget in self.widgets:
+                    changes.remove(self.widgets, widget, keep_order=False)
         if kind == "undo":
             named = self.memberships.get(event["undoes"], [])
-            changes = [self.in_force.withdraw(event["undoes"])]
+            moved = [self.in_force.withdraw(event["undoes"])]
         else:
             named = event_threads(event, self.names, self.widgets)
-            changes = (
+            moved = (
                 [self.in_force.admit(event)]
                 if kind == "action"
                 else self.in_force.restate(event)
@@ -342,13 +342,13 @@ class MembershipFold:
             *named,
             *(
                 answer
-                for change in changes
+                for change in moved
                 if change is not None
                 for winner in (change.before, change.after)
                 if winner is not None and (answer := winner["meaning"].get("answer"))
             ),
         ]
-        self.memberships[event["id"]] = list(dict.fromkeys(named))
+        changes.put(self.memberships, event["id"], list(dict.fromkeys(named)))
 
     def reading(self) -> dict[str, list[str]]:
         return dict(self.memberships)

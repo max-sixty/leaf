@@ -738,8 +738,10 @@ def test_z_puts_a_card_back_where_the_version_had_it(browser, serve):
     expect(grip).to_be_focused()
     log = events_model.read_events(serve.page_dir)
     (moved,) = actions(serve.page_dir)
-    rank = moved["detail"].pop("rank")
-    assert moved["detail"] == {"unit": "card-baffle", "value": "col-done"}
+    # A copy: the log this process reads is the one it keeps (`event_log.LogMemory`).
+    detail = dict(moved["detail"])
+    rank = detail.pop("rank")
+    assert detail == {"unit": "card-baffle", "value": "col-done"}
     assert re.fullmatch(RANK, rank)
     assert [(e["kind"], e.get("undoes")) for e in log if e["kind"] == "undo"] == [
         ("undo", moved["id"])

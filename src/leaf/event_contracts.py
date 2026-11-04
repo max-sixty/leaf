@@ -13,7 +13,6 @@ from pathlib import Path
 from leaf.event_log import APPEND_STAMPED, EventRefused, extended, new_event_id
 from leaf.event_meaning import AdmissionReadings, admit_widget_event
 from leaf.events import (
-    build_threads,
     note_settlements,
     spoken_turns,
     taken_back,
@@ -652,7 +651,7 @@ def _edit_error(event: dict, events: list) -> Finding | None:
 def _thread_presentation_error(view, event: dict, events: list) -> Finding | None:
     if event["kind"] not in {"summary", "thread_title"}:
         return None
-    threads = build_threads(events, view.within)
+    threads = view.threads(events)
     thread = threads.get(event["thread"])
     named = {"thread": event["thread"]}
     if thread is None:
@@ -819,7 +818,7 @@ def _reanchor_error(view, event: dict, events: list) -> Finding | None:
     if event["kind"] != "reanchor":
         return None
     named = {"thread": event["thread"]}
-    thread = build_threads(events, view.within).get(event["thread"])
+    thread = view.threads(events).get(event["thread"])
     if thread is None or thread["resolved"] or not thread["anchor"]:
         return Finding("reanchor-thread", values=named)
     section = thread["anchor"].get("section")

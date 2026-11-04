@@ -1,12 +1,11 @@
 """Declaration-driven state and retirement projections."""
 
 from collections.abc import Callable, Iterable
-from copy import copy
 from dataclasses import dataclass, replace
 from functools import cached_property
 from typing import NamedTuple
 
-from leaf.event_log import folded
+from leaf.event_log import PLAIN, folded
 from leaf.events import (
     InForce,
     event_coordinate,
@@ -349,19 +348,10 @@ class ProjectionFold:
         # document and vocabulary decide alone.
         self.definitions: dict[tuple, tuple | None] = {}
         self._orders = None
+        self.changes = PLAIN
 
-    def copy(self) -> "ProjectionFold":
-        twin = copy(self)
-        twin.in_force = self.in_force.copy()
-        twin.classified = dict(self.classified)
-        twin.position = dict(self.position)
-        twin.specs = dict(self.specs)
-        twin.reports = {
-            coordinate: dict(entries) for coordinate, entries in self.reports.items()
-        }
-        twin.report_at = dict(self.report_at)
-        twin.absorbed = set(self.absorbed)
-        return twin
+    def use(self, changes) -> None:
+        self.changes = self.in_force.changes = changes
 
     def _definition(self, event: dict) -> tuple | None:
         key = (event["widget"], event["action"], event["kind"])
@@ -397,8 +387,11 @@ class ProjectionFold:
             if self.retracting:
                 self.in_force.restate(event)
             for identity in note_settlements(event, "report"):
-                if (coordinate := self.report_at.pop(identity, None)) is not None:
-                    del self.reports[coordinate][identity]
+                if identity in self.report_at:
+                    coordinate = self.changes.remove(
+                        self.report_at, identity, keep_order=False
+                    )
+                    self.changes.remove(self.reports[coordinate], identity)
             return
         if event["widget"] not in self.byid:
             return
@@ -415,21 +408,24 @@ class ProjectionFold:
             recorded.get("detail"), current["detail"]
         ) and schema_error(current["detail"], event["detail"]):
             return
+        changes = self.changes
         coordinate = event_coordinate(event)
         entry = (event, spec)
-        self.position[event["id"]] = len(self.classified)
-        self.classified[event["id"]] = (coordinate, entry)
+        changes.put(self.position, event["id"], len(self.classified))
+        changes.put(self.classified, event["id"], (coordinate, entry))
         if kind == "action":
             if self.in_force.admit(event):
-                self.specs[event["id"]] = spec
+                changes.put(self.specs, event["id"], spec)
             if event["meaning"].get("among") is not None:
                 if self._orders is None:
                     self._orders = AuthoredOrders(self.byid, self.registry)
                 if move_absorbed(event, spec, self._orders):
-                    self.absorbed.add(event["id"])
+                    changes.add(self.absorbed, event["id"])
         else:
-            self.reports.setdefault(coordinate, {})[event["id"]] = entry
-            self.report_at[event["id"]] = coordinate
+            if coordinate not in self.reports:
+                changes.put(self.reports, coordinate, {})
+            changes.put(self.reports[coordinate], event["id"], entry)
+            changes.put(self.report_at, event["id"], coordinate)
 
     def reading(self) -> StateProjection:
         actions = {

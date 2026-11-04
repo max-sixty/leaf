@@ -26,8 +26,9 @@
    first reads the mutations already made as a batch, so a decision made now never
    runs ahead of a departure made before it.
 
-   An element's connection lifetime is one such watch over every element:
-   `watchOwner(owner, {connect, disconnect})` connects while the owner stands and
+   An element's connection lifetime is one such watch over the elements a subscription
+   stands on, which can be any element: `watchOwner(owner, {connect, disconnect})`
+   connects while the owner stands and
    disconnects once a batch shows it gone, so a move within one batch keeps it. A new
    owner connects through `offer`, and a batch decides its departures before its
    arrivals, so whatever left before an owner connects has released first: a revision
@@ -50,7 +51,9 @@
 import { isElement, under } from "./shadow-tree.js";
 import { cancelRender, nextFrame, nextRender } from "./rendering.js";
 
-/** @typedef {{selector: string, attributes: string[], observer: MutationObserver, offerMany: (elements: Iterable<Element>) => void}} ArrivalWatch
+/** The elements a watch holds: whether `is` one, and every one `within` a tree.
+ * @typedef {{is: (el: Element) => boolean, within: (root: Element | ShadowRoot) => Iterable<Element>}} Kind
+ * @typedef {{kind: Kind, attributes: string[], observer: MutationObserver, offerMany: (elements: Iterable<Element>) => void}} ArrivalWatch
  * @typedef {{connect(): void, disconnect(): void}} Connection */
 /** @type {Set<ArrivalWatch>} */
 const watches = new Set();
@@ -103,7 +106,7 @@ export function watchOwner(owner, lifecycle) {
         }
       }
     };
-    offerOwner = watchArrivals("*", [], {
+    offerOwner = watchKind(ownerKind, [], {
       arrive: (element) => notify(element, "connect"),
       leave: (element) => notify(element, "disconnect"),
     });
@@ -184,32 +187,58 @@ const stands = (el) => {
   return root === document || (isStage(root) && root.host.isConnected);
 };
 
+// An owner (`watchOwner`) can be any element, so finding the owners in what a mutation
+// added visits every element there, and offers only the owners. Watched as `*`, every
+// row of a long text document was offered and held, though no subscription stood on
+// it: in Chromium, 0.9 s of loading 30 documents of 50,000 lines.
+/** @type {Kind} */
+const ownerKind = {
+  is: (el) => owners.has(el),
+  *within(root) {
+    for (const el of root.querySelectorAll("*")) if (owners.has(el)) yield el;
+  },
+};
+
 // Every match in what a record names, the stages inside it included.
-/** @param {Node | null} node @param {string} selector @returns {Generator<Element>} */
-function* matching(node, selector) {
+/** @param {Node | null} node @param {Kind} kind @returns {Generator<Element>} */
+function* matching(node, kind) {
   if (!isElement(node)) return;
-  if (node.matches(selector)) yield node;
-  yield* node.querySelectorAll(selector);
+  if (kind.is(node)) yield node;
+  yield* kind.within(node);
   for (const stage of liveStages())
-    if (under(stage.host, node)) yield* stage.querySelectorAll(selector);
+    if (under(stage.host, node)) yield* kind.within(stage);
 }
 
 /**
  * @param {string} selector
  * @param {string[]} attributes
- * @param {{
+ * @param {Watcher} watcher Each arrival goes to `arriveBatch` where there is one, else to `arrive`.
+ */
+export const watchArrivals = (selector, attributes, watcher) =>
+  watchKind(
+    {
+      is: (el) => el.matches(selector),
+      within: (root) => root.querySelectorAll(selector),
+    },
+    attributes,
+    watcher,
+  );
+
+/**
+ * @typedef {{
  *   leave: (element: Element) => void,
  * } & ({arrive: (element: Element) => void, arriveBatch?: never}
- * | {arrive?: never, arriveBatch: (elements: Element[]) => void})} watcher Each arrival goes to `arriveBatch` where there is one, else to `arrive`.
+ * | {arrive?: never, arriveBatch: (elements: Element[]) => void})} Watcher
+ * @param {Kind} kind @param {string[]} attributes @param {Watcher} watcher
  */
-export function watchArrivals(selector, attributes, { arrive, arriveBatch, leave }) {
+function watchKind(kind, attributes, { arrive, arriveBatch, leave }) {
   const arrived = new WeakSet();
   // Every departure a batch shows is decided before any arrival in it.
   /** @param {Iterable<Element>} elements */
   const offerMany = (elements) => {
     const present = [];
     for (const el of elements) {
-      if (stands(el) && el.matches(selector)) present.push(el);
+      if (stands(el) && kind.is(el)) present.push(el);
       else if (arrived.delete(el)) leave(el);
     }
     if (!arriveBatch) for (const el of present) offer(el);
@@ -220,7 +249,7 @@ export function watchArrivals(selector, attributes, { arrive, arriveBatch, leave
   };
   /** @param {Element} el */
   const offer = (el) => {
-    if (stands(el) && el.matches(selector)) {
+    if (stands(el) && kind.is(el)) {
       arrived.add(el);
       if (arriveBatch) arriveBatch([el]);
       else arrive(el);
@@ -228,7 +257,7 @@ export function watchArrivals(selector, attributes, { arrive, arriveBatch, leave
   };
   /** @param {Node | null} node */
   const beside = (node) =>
-    isElement(node) && (arrived.has(node) || node.matches(selector)) ? [node] : [];
+    isElement(node) && (arrived.has(node) || kind.is(node)) ? [node] : [];
   /** @param {MutationRecord[]} records */
   const read = (records) => {
     /** @type {Set<Element>} */
@@ -245,14 +274,14 @@ export function watchArrivals(selector, attributes, { arrive, arriveBatch, leave
       ])
         offered.add(el);
       for (const node of record.addedNodes)
-        for (const el of matching(node, selector)) offered.add(el);
+        for (const el of matching(node, kind)) offered.add(el);
       for (const node of record.removedNodes)
-        for (const el of matching(node, selector)) if (arrived.has(el)) offered.add(el);
+        for (const el of matching(node, kind)) if (arrived.has(el)) offered.add(el);
     }
     offerMany(offered);
   };
   const observer = new MutationObserver(read);
-  const watch = { selector, attributes, observer, offerMany };
+  const watch = { kind, attributes, observer, offerMany };
   watches.add(watch);
   for (const root of [document.documentElement, ...liveStages()]) enroll(watch, root);
   return (/** @type {Element} */ el) => {
@@ -262,14 +291,14 @@ export function watchArrivals(selector, attributes, { arrive, arriveBatch, leave
 }
 
 /** @param {ArrivalWatch} watch @param {Element | ShadowRoot} root */
-function enroll({ selector, attributes, observer, offerMany }, root) {
+function enroll({ kind, attributes, observer, offerMany }, root) {
   observer.observe(root, {
     childList: true,
     subtree: true,
     attributes: true,
     attributeFilter: attributes,
   });
-  offerMany(root.querySelectorAll(selector));
+  offerMany(kind.within(root));
 }
 
 /** @param {ShadowRoot} stage */

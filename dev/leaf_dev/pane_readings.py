@@ -29,6 +29,7 @@ measurement values, so partial collection cannot favor one compared page.
 """
 
 import json
+from dataclasses import replace
 
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
@@ -174,13 +175,13 @@ def tab_reach(view, regions: list[dict]) -> None:
 
 def read(url: str, widths: dict) -> dict:
     """Each viewport's readings of the page at `url`, at `widths` as either judge
-    names them: a size, or a size under `viewport`, each under its window's pointer
-    (`WINDOWS`)."""
+    names them: a size, or a size under `viewport`, each in the named window
+    (`WINDOWS`) at that size."""
     readings = {}
     with headless_shell() as browser:
         for name, size in widths.items():
             viewport = tuple(size["viewport"] if isinstance(size, dict) else size)
-            with tab(browser, viewport=viewport, touch=WINDOWS[name].touch) as view:
+            with tab(browser, replace(WINDOWS[name], size=viewport)) as view:
                 try:
                     load(view, url)
                     reading = view.evaluate(READINGS)

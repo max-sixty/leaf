@@ -161,6 +161,14 @@ class Run:
         return selected_viewports(self.viewports)
 
     @property
+    def journey_window(self) -> Window:
+        """The window the user's comment and decision open the page in: the first
+        selected window's size, under a mouse. The scripted comment selects with
+        mouse events, and a coarse pointer changes how the composer keeps a
+        selection (`composing/surface.js`)."""
+        return Window(self.windows[self.viewports[0]].size)
+
+    @property
     def leaf_condition(self) -> bool:
         return self.condition == "leaf"
 
@@ -381,8 +389,7 @@ def open_as_user(run: Run, url: str) -> None:
     while the user's stated window was 1600×1000: authors hunted for a way to
     change it, setting `LEAF_RENDER_VIEWPORT=1600x1000` and grepping Leaf's source,
     in 8 of 12 width revisions on 2026-10-24."""
-    viewport = next(iter(run.windows.values())).size
-    with headless_shell() as browser, tab(browser, viewport=viewport) as view:
+    with headless_shell() as browser, tab(browser, run.journey_window) as view:
         load(view, url)
         deadline = time.monotonic() + 20
         while not read_user_views(run.authored_page, None)["sessions"]:
@@ -480,7 +487,7 @@ def comment(run: Run, live: LiveSession):
             remark.text,
             comment_message(remark),
             scenario.reveal,
-            viewport=next(iter(run.windows.values())).size,
+            window=run.journey_window,
         )
     )
     live.note({"type": "eval_post", **posted, "received_at": now()})
@@ -519,16 +526,19 @@ def decision_round(run: Run, live: LiveSession) -> None:
     page = run.authored_page
     before = latest_seq(page)
 
-    viewport = next(iter(run.windows.values())).size
-
     def deciding():
         if run.leaf_condition:
             assert live.url is not None
             return decide(
-                live.url, decision.task, run.directory / "user", viewport=viewport
+                live.url,
+                decision.task,
+                run.directory / "user",
+                window=run.journey_window,
             )
         with plain_html.serving(page) as url:
-            return decide(url, decision.task, run.directory / "user", viewport=viewport)
+            return decide(
+                url, decision.task, run.directory / "user", window=run.journey_window
+            )
 
     made = live.during(deciding)
     # What the page sent the agent: the user's inputs admission marked as owing it
@@ -584,10 +594,7 @@ def capture_phase(run: Run, phase: int, page: Path | None = None) -> dict:
                         if html
                         else serving(run.payload, Path(temporary) / "state", copied)
                     )
-                    with (
-                        server as url,
-                        tab(browser, viewport=window.size, touch=window.touch) as view,
-                    ):
+                    with server as url, tab(browser, window) as view:
                         (plain_html.load if html else load)(view, url)
                         image = run.shots / f"p{phase}-{name}-0.png"
                         view.screenshot(path=image)

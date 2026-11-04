@@ -44,23 +44,23 @@ from leaf.thread import post_reply
 from leaf.todos import cmd_start
 from leaf.vendoring import cmd_init
 from leaf_dev import LEAF_COMMAND
-from leaf_dev.browser import headless_shell, open_threads, settle, tab
+from leaf_dev.browser import Window, headless_shell, open_threads, settle, tab
 from leaf_dev.leaf_assets import publish, stage
 from leaf_dev.page_fixtures import fixture_environment
 from leaf_dev.recording import write_gif
 
-GIF_SIZE = (1120, 700)
-# The viewport used for the README's representative stills.
-STILL_SIZE = (1280, 953)
+GIF_WINDOW = Window((1120, 700))
+# The window the README's representative stills are shot in.
+STILL_WINDOW = Window((1280, 953))
 # The card a shared link unfurls into, shot at the 1.91:1 an unfurler draws rather
 # than cropped from a still, which cut off Leaf's chrome.
-CARD_SIZE = (1200, 630)
+CARD_WINDOW = Window((1200, 630))
 # What one staged scene is photographed as: the README's light and dark stills,
 # and the card.
 STILLS = (
-    ("session-light", STILL_SIZE, "light"),
-    ("session-dark", STILL_SIZE, "dark"),
-    ("session-card", CARD_SIZE, "light"),
+    ("session-light", STILL_WINDOW, "light"),
+    ("session-dark", STILL_WINDOW, "dark"),
+    ("session-card", CARD_WINDOW, "light"),
 )
 
 
@@ -434,8 +434,8 @@ def shoot_stills(browser, url: str, page_dir: Path, into: Path) -> None:
     cmd_stamp(page_dir, "On-call staffing moved into During, as the board now reads")
     cmd_waiting(page_dir)
 
-    for name, size, scheme in STILLS:
-        with tab(browser, size, scheme) as page:
+    for name, window, scheme in STILLS:
+        with tab(browser, window, scheme) as page:
             page.goto(url)
             # Hold the server's state and authored revision before taking the still.
             state = wait_for_listening(page)
@@ -503,7 +503,7 @@ def record_demo(output: Path | None) -> None:
         try:
             with (
                 headless_shell() as browser,
-                tab(browser, GIF_SIZE) as page,
+                tab(browser, GIF_WINDOW) as page,
             ):
                 page.goto(url)
                 frames, durations = record(page, waiter, page_dir)

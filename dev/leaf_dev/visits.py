@@ -36,7 +36,7 @@ from leaf.findings import Finding
 from leaf.render_gate.scheme import collect_page_exceptions, console_finding
 from leaf_dev import ios_safari
 from leaf_dev.arms import Arm, own_source, served_page, serving_source
-from leaf_dev.browser import load, settle, slow_cpu, tab
+from leaf_dev.browser import Window, load, settle, slow_cpu, tab
 from leaf_dev.main_thread import SCRIPT as MAIN_THREAD_SCRIPT
 from leaf_dev.main_thread import reading as main_thread_reading
 from leaf_dev.startup import layout_shifts_reading, observe_startup, startup_reading
@@ -77,7 +77,8 @@ def visits(
     source: Path | str,
     scratch: Path,
     *,
-    window: tuple[tuple[int, int], str, bool],
+    window: Window,
+    scheme: str,
     read: Callable[[str, Visit], None],
     motion: str = "reduce",
     scale: int = 1,
@@ -94,8 +95,8 @@ def visits(
 
     `source` is an authored page, served from the arm (its own copy when `authored`,
     `own_source`, with `log`'s events admitted), or a URL, opened as it is. The tab
-    opens in `window`, at `scale` device pixels to a CSS pixel and with `motion`, unless
-    `browser` is the simulator's Safari. After the state's input, each of `steps` runs,
+    opens in `window` and `scheme`, at `scale` device pixels to a CSS pixel and with
+    `motion`, unless `browser` is the simulator's Safari. After the state's input, each of `steps` runs,
     then `run`, whose return is the reading's `result`, and once the page has settled,
     `read(arm, visit)`. `record(page, arm)` wraps the tab's visit, as a recording
     does; `throttle` slows Chromium's CPU from before the page loads."""
@@ -138,7 +139,7 @@ def visits(
                 read(arm, visit)
                 return visit
             visit.page = page = held.enter_context(
-                tab(browser, *window, motion=motion, scale=scale)
+                tab(browser, window, scheme, motion=motion, scale=scale)
             )
             with record(page, arm) if record else nullcontext():
                 reading["console"] = console_findings(page)

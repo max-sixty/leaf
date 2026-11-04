@@ -7,9 +7,10 @@ composes, named after its file (`corpus.sources`), and the surfaces a user reach
 acting. Where a change touches a surface no state reaches, add one state for it, never
 one per size, scheme or pointer: `--viewport`, `--scheme` and `--touch` choose those
 for every state a run opens, in stills and probe alike, and a surface laid out
-differently on a phone is still one state. A state names its own viewport or pointer
-only where its surface appears at no other, such as a card in a short window or the
-floating panel's view of a thread on a phone; `--viewport` and `--touch` override it.
+differently on a phone is still one state. A state names its own window only where
+its surface appears in no other, such as a card in a short window or the floating
+panel's view of a thread on a phone; `--viewport` replaces it, and `--touch` sets its
+pointer (`browser.chosen_window`).
 A state may name a region whose before/after bounds frame stills' comparison,
 retaining related controls without shrinking their details behind unrelated viewport
 changes.
@@ -30,8 +31,8 @@ from playwright.sync_api import Locator, Page, expect
 from leaf.render_checks import wait_until_ready
 from leaf_dev.arms import PageClient, served_page
 from leaf_dev.browser import (
-    DESKTOP,
-    PHONE,
+    WINDOWS,
+    Window,
     go_to_threads,
     load,
     scroll_settled,
@@ -2087,18 +2088,9 @@ class State:
     name: str
     source: str
     drive: Callable[[Page], None] | None = None
-    viewport: tuple[int, int] = DESKTOP
-    touch: bool = False
+    window: Window = WINDOWS["macbook"]
     region: str | None = None
     activated: bool = True
-
-    def window(
-        self, viewport: tuple[int, int] | None, scheme: str, touch: bool | None
-    ) -> tuple[tuple[int, int], str, bool]:
-        """The viewport, scheme and pointer to open this state's tab in, as the run
-        gave them (`tab_options`), with the state's own viewport and pointer where it
-        gave none."""
-        return viewport or self.viewport, scheme, self.touch if touch is None else touch
 
 
 STATES = (
@@ -2109,7 +2101,7 @@ STATES = (
         region="#leaf-request-document",
     ),
     State("printed-exhibit", "lost-update", printed_exhibit, region="main"),
-    State("failed-widget", "review-a-plan", failed_widget, viewport=(1600, 900)),
+    State("failed-widget", "review-a-plan", failed_widget, window=Window((1600, 900))),
     State("page-about", "review-a-plan", page_about, region=".lf-inspection-dialog"),
     State(
         "authored-timeline-keyboard",
@@ -2209,7 +2201,7 @@ STATES = (
         "film-inspector",
         "wt-merge",
         film_inspector,
-        viewport=(900, 900),
+        window=Window((900, 900)),
         region="#merge-film .film-stage",
     ),
     State(
@@ -2234,7 +2226,7 @@ STATES = (
         "trace-comparison-header",
         "review-a-fix",
         trace_comparison,
-        viewport=(900, 900),
+        window=Window((900, 900)),
         region="#fix-before",
     ),
     State("drawing-photo-comment", "feature-gallery", drawing_photo_comment),
@@ -2415,20 +2407,21 @@ STATES = (
         "contents-over-reading",
         "sidebar-contents",
         contents_over_reading,
-        viewport=(1100, 900),
+        window=Window((1100, 900)),
         region=".lf-toc-start a",
     ),
     State("playground-controls", "notification-playground", playground_controls),
     State("playground-instruction", "notification-playground", playground_instruction),
     State("playground-inline-end", "motion-playground", page_end),
     State("playground-tall-stage", "alert-thresholds", playground_tall_stage),
-    State("playground-short-window", "data-explorer", page_end, viewport=(844, 390)),
+    State(
+        "playground-short-window", "data-explorer", page_end, window=Window((844, 390))
+    ),
     State(
         "margin-gallery",
         "feature-gallery",
         margin_gallery,
-        viewport=PHONE,
-        touch=True,
+        window=WINDOWS["phone"],
     ),
     State("release-draft", "release-notes", draft_edit),
     State("release-draft-long", "release-notes", draft_long_edit),
@@ -2454,7 +2447,7 @@ STATES = (
         "gallery-wide-schedule",
         "feature-gallery",
         wide_schedule,
-        viewport=(1726, 900),
+        window=Window((1726, 900)),
     ),
     State("gallery-multiline-passage", "feature-gallery", multiline_passage),
     State("plan-execution", "review-a-plan", plan_execution, region="#plan-execute"),
@@ -2481,7 +2474,7 @@ STATES = (
         "thread-choice-hints-card",
         "thread-choice-hints",
         card_by_keyboard,
-        viewport=(1000, 838),
+        window=Window((1000, 838)),
         region=".lf-margin-preview",
     ),
     State("plan-card-reply", "review-a-plan", card_reply),
@@ -2517,29 +2510,33 @@ STATES = (
         region="#goal-parser .lf-page-thread",
     ),
     State(
-        "plan-card-reply-large", "review-a-plan", card_reply_large, viewport=(1440, 600)
+        "plan-card-reply-large",
+        "review-a-plan",
+        card_reply_large,
+        window=Window((1440, 600)),
     ),
     State("plan-panel", "review-a-plan", go_to_threads),
     State("plan-panel-keyboard", "review-a-plan", panel_by_keyboard),
-    State("plan-go-to", "review-a-plan", go_to, viewport=(1024, 768)),
+    State("plan-go-to", "review-a-plan", go_to, window=Window((1024, 768))),
     State(
         "plan-thread-in-panel",
         "review-a-plan",
         thread_by_marker,
-        viewport=PHONE,
-        touch=True,
+        window=WINDOWS["phone"],
     ),
     State("plan-more", "review-a-plan", more_menu),
     State("plan-capture", "review-a-plan", capture_area),
     State(
-        "plan-capture-drag", "review-a-plan", capture_small_drag, viewport=(390, 740)
+        "plan-capture-drag",
+        "review-a-plan",
+        capture_small_drag,
+        window=Window((390, 740)),
     ),
     State(
         "plan-versions-touch",
         "review-a-plan",
         versions_menu,
-        viewport=PHONE,
-        touch=True,
+        window=WINDOWS["phone"],
     ),
     State("plan-card-reply-long", "review-a-plan", card_reply_long),
     State("plan-panel-reply-long", "review-a-plan", panel_reply_long),
@@ -2616,7 +2613,12 @@ STATES = (
         composer_caret_motion,
         region=".lf-fab-bar",
     ),
-    State("triage-composer-space", "triage-board", composer_space, viewport=(362, 900)),
+    State(
+        "triage-composer-space",
+        "triage-board",
+        composer_space,
+        window=Window((362, 900)),
+    ),
     State(
         "triage-composer-scrolling",
         "triage-board",
@@ -2629,7 +2631,7 @@ STATES = (
         "plan-composer-sent-zoomed",
         "review-a-plan",
         composer_sent_zoomed,
-        viewport=(1200, 900),
+        window=Window((1200, 900)),
     ),
     State("alert-queue-tally", "alert-review", tally_after_an_answer),
     State(
@@ -2664,13 +2666,13 @@ STATES = (
         "breakout-captions-scrolled",
         "breakout-table-caption",
         breakout_captions_scrolled,
-        viewport=PHONE,
+        window=Window(WINDOWS["phone"].size),
     ),
     State(
         "table-scrolled-sideways",
         "security-boundary",
         table_scrolled_sideways,
-        viewport=PHONE,
+        window=Window(WINDOWS["phone"].size),
         region="#security-vendor-table",
     ),
     State("triage-grabbed", "triage-board", card_grabbed),
@@ -2679,12 +2681,13 @@ STATES = (
         "triage-moved-touch",
         "triage-board",
         card_moved_by_destination,
-        viewport=PHONE,
-        touch=True,
+        window=WINDOWS["phone"],
         region="#col-blocking",
     ),
     State("walkthrough-body", "pr-walkthrough", into_the_body),
-    State("progress-body-short", "live-progress", into_the_body, viewport=(900, 600)),
+    State(
+        "progress-body-short", "live-progress", into_the_body, window=Window((900, 600))
+    ),
     State("walkthrough-calls", "pr-walkthrough", call_tree, region="#pr-call-diagram"),
     State("diagram-flow", "pr-walkthrough", diagram_flow, region="#pr-flow-diagram"),
     State("diagram-shape-comment", "pr-walkthrough", diagram_shape_comment),
@@ -2696,28 +2699,27 @@ STATES = (
         "walkthrough-path-keyboard",
         "pr-walkthrough",
         diff_path_by_keyboard,
-        viewport=PHONE,
+        window=Window(WINDOWS["phone"].size),
     ),
     State(
         "walkthrough-diff-source-pointer",
         "pr-walkthrough",
         diff_source_by_pointer,
-        viewport=(600, 900),
+        window=Window((600, 900)),
         region="#pr-exact-patch .lf-diff-file:has(code[data-code])",
     ),
     State(
         "walkthrough-diff-source-keyboard",
         "pr-walkthrough",
         diff_source_by_keyboard,
-        viewport=(600, 900),
+        window=Window((600, 900)),
         region="#pr-exact-patch .lf-diff-file:has(code[data-code])",
     ),
     State(
         "walkthrough-source-touch",
         "pr-walkthrough",
         code_source_by_touch,
-        viewport=PHONE,
-        touch=True,
+        window=WINDOWS["phone"],
     ),
     State("ship-thread", "ship-review", element_thread),
     State(
@@ -2737,9 +2739,14 @@ STATES = (
         option_thread_open,
         region="#off-workaround-review",
     ),
-    State("ship-card-more-room", "ship-review", card_more_room, viewport=(1440, 600)),
     State(
-        "ship-card-short-window", "ship-review", card_by_pointer, viewport=(1440, 480)
+        "ship-card-more-room", "ship-review", card_more_room, window=Window((1440, 600))
+    ),
+    State(
+        "ship-card-short-window",
+        "ship-review",
+        card_by_pointer,
+        window=Window((1440, 480)),
     ),
     State("on-me-todo", "review-a-plan", on_me_todo),
     State("on-me", "corpus", on_me),

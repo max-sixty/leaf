@@ -31,8 +31,7 @@ from pathlib import Path
 import click
 
 from leaf_dev import ROOT
-from leaf_dev.arms import copy_working
-from leaf_dev.suite import collect, run
+from leaf_dev.suite import collect, run, snapshot
 
 COPIES = 18
 WORKERS = 6
@@ -63,33 +62,8 @@ def flake(selection: tuple[str, ...], throttle: float | None) -> None:
     out = Path(tempfile.mkdtemp(prefix=stamp, dir=OUT))
     with tempfile.TemporaryDirectory(prefix="leaf-flake-") as directory:
         scratch = Path(directory)
-        snapshot = scratch / "snapshot"
-        subprocess.run(
-            ["git", "clone", "-q", "--no-checkout", ROOT, snapshot], check=True
-        )
-        copy_working((".",), snapshot)
-        subprocess.run(["git", "-C", snapshot, "add", "--all"], check=True)
-        subprocess.run(
-            [
-                "git",
-                "-C",
-                snapshot,
-                "-c",
-                "core.hooksPath=/dev/null",
-                "-c",
-                "commit.gpgsign=false",
-                "-c",
-                "user.name=Leaf flake",
-                "-c",
-                "user.email=flake@localhost",
-                "commit",
-                "-q",
-                "--allow-empty",
-                "-m",
-                "Candidate snapshot",
-            ],
-            check=True,
-        )
+        candidate = scratch / "snapshot"
+        snapshot(candidate)
         ignored = subprocess.check_output(
             [
                 "git",
@@ -111,7 +85,7 @@ def flake(selection: tuple[str, ...], throttle: float | None) -> None:
         ]
 
         def checkout(target: Path):
-            subprocess.run(["git", "clone", "-q", snapshot, target], check=True)
+            subprocess.run(["git", "clone", "-q", candidate, target], check=True)
             for dependency in dependencies:
                 (target / dependency).symlink_to(
                     ROOT / dependency, target_is_directory=True

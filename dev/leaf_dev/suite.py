@@ -1,7 +1,7 @@
 """Run a selection of the suite in a checkout and read what each test did.
 
-`leaf-dev flake` and `leaf-dev bugback` run tests here, and `leaf-dev suite-profile`
-reads a run's junit report through `junit_cases`.
+`leaf-dev flake` and `leaf-dev bugback` run tests here, in a `snapshot` of the working
+tree, and `leaf-dev suite-profile` reads a run's junit report through `junit_cases`.
 
 `collect` expands a selection of pytest node ids to the items it names and refuses one
 pytest would not run whole: piped or summarized, a selection that collects nothing
@@ -27,6 +27,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import click
+
+from leaf_dev import ROOT
+from leaf_dev.arms import copy_working
 
 # xdist's `loadgroup` appends `@<group>` to the node id of a test in an xdist_group.
 XDIST_GROUP = re.compile(r"@[^@\]]+$")
@@ -61,6 +64,33 @@ def pytest(root: Path, *args: str, out: Path) -> int:
             # The Ctrl-C reached pytest too; let it finish its teardowns.
             proc.wait()
             raise
+
+
+def snapshot(dest: Path) -> None:
+    """Make `dest` a clone of this repository whose HEAD is a commit of the working
+    tree as it stands, uncommitted edits included (`arms.copy_working`), so a run
+    there sees no edit made after it starts, and git can compare or restore its paths
+    against another commit.
+
+    The clone starts no background git work, which would go on writing into it after
+    the caller removes it: no maintenance after a commit (a commit graph, under git
+    2.56) and no file-system monitor."""
+    subprocess.run(
+        ["git", "clone", "-q", "--no-checkout", "-c", "maintenance.auto=false"]
+        + ["-c", "core.fsmonitor=false", ROOT, dest],
+        check=True,
+    )
+    copy_working((".",), dest)
+    subprocess.run(["git", "-C", dest, "add", "--all"], check=True)
+    subprocess.run(
+        [
+            "git", "-C", dest, "-c", "core.hooksPath=/dev/null",
+            "-c", "commit.gpgsign=false", "-c", "user.name=Leaf snapshot",
+            "-c", "user.email=snapshot@localhost",
+            "commit", "-q", "--allow-empty", "-m", "Working tree snapshot",
+        ],
+        check=True,
+    )  # fmt: skip
 
 
 def collect(root: Path, selection: tuple[str, ...], out: Path) -> list[str]:

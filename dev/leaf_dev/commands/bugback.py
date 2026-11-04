@@ -3,17 +3,23 @@
     uv run leaf-dev bugback NODEID...
 
 A test earns its place when it fails without the change it pins. This runs the named
-tests on HEAD as a control, then again with the branch's change reverted, and reports
-each as `caught` (its call failed reverted) or `blind` (it passed reverted); any other
-reading is the test's outcome (`leaf_dev.suite`) with its message, such as `error`
-where the revert broke its setup or its module's import, which is red but not by its
-own assertion. The revert restores, from the merge base with `main`, every path but
-the tests, the tooling they import, and the environment's manifests and locks
-(`KEPT`). Compiled bundles are committed, so they revert with their sources.
+tests on the working tree as it stands, uncommitted edits included, as a control, then
+again with the branch's change reverted, and reports each as `caught` (its call failed
+reverted) or `blind` (it passed reverted); any other reading is the test's outcome
+(`leaf_dev.suite`) with its message, such as `error` where the revert broke its setup
+or its module's import, which is red but not by its own assertion. The revert
+restores, from the merge base with `main`, every path but the tests, the tooling they
+import, and the environment's manifests and locks (`KEPT`). Compiled bundles are
+committed, so they revert with their sources.
 
-Both runs happen in a scratch worktree detached at HEAD, removed when the command ends,
-so commit first. Output and reports stay under `.tmp/bugback/`. Exits 1 unless every
-test is caught.
+Both runs happen in a snapshot of the working tree taken as the command starts
+(`suite.snapshot`) and removed when it ends, so an edit made during the runs reaches
+neither. Output and reports stay under `.tmp/bugback/`. Exits 1 unless every test is
+caught.
+
+This keeps its own revert rather than taking a base from `arms.choose_arms`: that base
+is the whole tree at the merge base, tests included, while the reverted run needs this
+working tree's tests over the merge base's code.
 """
 
 import subprocess
@@ -25,18 +31,18 @@ import click
 
 from leaf_dev import ROOT
 from leaf_dev.arms import merge_base
-from leaf_dev.suite import collect, run
+from leaf_dev.suite import collect, run, snapshot
 
 OUT = ROOT / ".tmp" / "bugback"
-# What the revert leaves at HEAD: the tests, the tooling they import, and the
-# environment the runs share.
+# What the revert leaves as the working tree has it: the tests, the tooling they
+# import, and the environment the runs share.
 KEPT = (
     "tests", "dev", "pyproject.toml", "uv.lock", "package.json", "pnpm-lock.yaml",
     "pnpm-workspace.yaml",
 )  # fmt: skip
 
 
-def git(*args: str, cwd: Path = ROOT) -> str:
+def git(*args: str, cwd: Path) -> str:
     proc = subprocess.run(
         ["git", "-C", cwd, *args], capture_output=True, text=True, check=False
     )
@@ -50,27 +56,23 @@ def git(*args: str, cwd: Path = ROOT) -> str:
 def bugback(selection: tuple[str, ...]) -> None:
     """Prove tests go red with the branch's change reverted.
 
-    Runs SELECTION, pytest node ids, on HEAD and again with every non-test path
-    since the merge base with main reverted, and reports per test whether it was
-    caught. Runs in a scratch worktree at HEAD, so commit first. Exits 1 unless
-    every test is caught.
+    Runs SELECTION, pytest node ids, on the working tree, uncommitted edits included,
+    and again with every non-test path since the merge base with main reverted, and
+    reports per test whether it was caught. Exits 1 unless every test is caught.
     """
-    if dirty := git("status", "--porcelain"):
-        raise click.ClickException(
-            f"bugback runs HEAD in a scratch worktree; commit first:\n{dirty}"
-        )
     base = merge_base()
     OUT.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().astimezone().strftime("%Y%m%d-%H%M%S-")
     out = Path(tempfile.mkdtemp(prefix=stamp, dir=OUT))
     kept = [f":(exclude){path}" for path in KEPT]
-    if not git("diff", "--name-only", base, "HEAD", "--", ".", *kept):
-        raise click.ClickException(
-            f"the branch changes nothing outside {', '.join(KEPT)} since {base[:12]}"
-        )
-    scratch = Path(tempfile.mkdtemp(prefix="leaf-bugback-"))
-    git("worktree", "add", "--detach", str(scratch), "HEAD")
-    try:
+    with tempfile.TemporaryDirectory(prefix="leaf-bugback-") as directory:
+        scratch = Path(directory) / "checkout"
+        snapshot(scratch)
+        if not git("diff", "--name-only", base, "HEAD", "--", ".", *kept, cwd=scratch):
+            raise click.ClickException(
+                f"the working tree changes nothing outside {', '.join(KEPT)} "
+                f"since {base[:12]}"
+            )
         items = collect(scratch, selection, out / "collect.log")
         control = run(scratch, selection, items, out / "control")
         git("restore", f"--source={base}", "--", ".", *kept, cwd=scratch)
@@ -78,9 +80,6 @@ def bugback(selection: tuple[str, ...]) -> None:
             scratch, selection, items, out / "reverted",
             "--continue-on-collection-errors",
         )  # fmt: skip
-    finally:
-        remove = ["git", "-C", ROOT, "worktree", "remove", "--force", scratch]
-        subprocess.run(remove, check=False)
 
     def verdict(item: str) -> str:
         if control[item].result != "passed":

@@ -1729,8 +1729,13 @@ export function createFloatingPanel({
   // covers reads as unseen (geometry.js, `declareCover`), and a landing stands clear of
   // its reach (`--lf-panel-reach`, `followBox`). It covers where its surface is drawn
   // (box-motion.js, `outline`): while the box moves, the card stands transparent at its
-  // rest and the surface carries the panel from where it stood.
-  declareCover(host, () => following.outline());
+  // rest and the surface carries the panel from where it stood. The card's own box is
+  // where that motion ends, which a landing about to show a place asks (`standsOver`).
+  declareCover(
+    host,
+    () => following.outline(),
+    () => card.getBoundingClientRect(),
+  );
   // A send is the user's change joining the stream the box shows (box-motion.js,
   // "send"): the box reads where that stream stands before the send draws, and the
   // readings until the send's rendering settles carry it from there on the box's own

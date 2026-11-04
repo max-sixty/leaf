@@ -2563,6 +2563,44 @@ def test_a_tab_into_a_popover_over_an_open_view_leaves_the_view_open(browser, se
     expect(page.locator(".lf-fp-view:not([data-lf-leaving])")).to_have_count(1)
 
 
+def test_an_arrival_the_opening_view_will_cover_puts_it_away(browser, serve):
+    """Whether the panel stands over an arrival is read where its box comes to rest, not
+    where its motion has drawn it so far (geometry.js, `covered`): a Tab's arrival at a
+    stop at the page's foot while Threads is still opening over it puts the view away,
+    as it does once the view stands open, and the stop ends in sight."""
+    foot = '<p><button id="foot" style="width:100%">At the foot</button></p></main>'
+    page = floating(browser, serve(LONG_PAGE.replace("</main>", foot, 1), comments=12))
+    page.evaluate(
+        "() => scrollTo({top: document.scrollingElement.scrollHeight,"
+        " behavior: 'instant'})"
+    )
+    scroll_settled(page)
+    page.locator(".lf-floating-panel").evaluate(
+        """host => {
+          for (const motion of ["--lf-motion-disclosure", "--lf-motion-box-resize",
+                                "--lf-motion-view-in"])
+            host.style.setProperty(motion, "3s");
+        }"""
+    )
+    dev_browser.open_threads(page)
+    page.evaluate(
+        """async () => {
+          const {focusDestination} = await window.__lfWidgetApi();
+          focusDestination(document.querySelector('#foot'), 'step');
+        }"""
+    )
+    expect(page.locator(".lf-fp-view:not([data-lf-leaving])")).to_have_count(0)
+    seen = page.evaluate(
+        """async () => {
+          await Promise.all(document.getAnimations().map((motion) => motion.finished
+            .catch(() => {})));
+          const {seenRect} = await window.__lfCheckApi();
+          return Boolean(seenRect(document.querySelector('#foot'), new Map()));
+        }"""
+    )
+    assert seen
+
+
 def test_a_page_s_own_conversation_reader_takes_the_panel_s_threads(browser, serve):
     """A package that draws the page's conversations itself keeps that place under the
     panel (application.js, `registerThreadPresentation`, `yields`): the page starts

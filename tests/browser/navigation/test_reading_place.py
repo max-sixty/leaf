@@ -1278,6 +1278,73 @@ def test_a_landing_on_a_fixed_box_moves_nothing_around_it(browser, serve):
     assert reading == 100
 
 
+def test_align_current_tall_block_in_a_pane_in_a_pane_lands_its_opening(browser, serve):
+    """`g z` on a tall item in a pane that stands in another pane, both partly above the
+    window, aligns the item's opening in its own pane and then brings that opening to
+    the page's band: each box around reads where the boxes inside it have just put the
+    item, so the opening is not left above the window."""
+    source = leaf_page(
+        "A tall item two panes deep",
+        '<h1>Read the opening</h1><div style="height:700px"></div>'
+        '<div id="outer" data-bound="start" style="height:300px;overflow:auto">'
+        '<div style="height:200px"></div>'
+        '<div id="inner" data-bound="start" style="height:250px;overflow:auto">'
+        '<pre id="tall" tabindex="0" style="margin:0">'
+        + "A line in the current item.\n"
+        * 80
+        + '</pre><div style="height:600px"></div></div>'
+        '<div style="height:1000px"></div></div><div style="height:3000px"></div>',
+    )
+    page = open_page(browser, serve(source))
+    page.set_viewport_size({"width": 1440, "height": 900})
+    page.emulate_media(reduced_motion="reduce")
+    page.locator("#tall").evaluate("el => el.focus({preventScroll: true})")
+    page.evaluate(
+        """() => {
+          const outer = document.querySelector('#outer');
+          scrollTo({top: outer.getBoundingClientRect().top + scrollY + 100,
+                    behavior: 'instant'});
+          document.querySelector('#inner').scrollTop = 300;
+        }"""
+    )
+    scroll_settled(page)
+    assert page.locator("#tall").bounding_box()["y"] < 0
+    page.keyboard.press("g")
+    page.keyboard.press("z")
+    scroll_settled(page)
+    _expect_aligned(page, "#tall")
+    assert page.locator("#inner").evaluate("box => box.scrollTop") == 0
+    expect(page.locator("#tall")).to_be_focused()
+
+
+def test_a_landing_brings_in_a_fixed_box_a_transformed_box_holds(browser, serve):
+    """A fixed box a transformed box holds is placed in that box, not the window, so it
+    rides the page's scroll and a landing scrolls the page to show it; one fixed in the
+    window is left where it stands (`test_a_landing_on_a_fixed_box_moves_nothing_around_it`)."""
+    source = leaf_page(
+        "A fixed box carried",
+        '<div style="height:100px"></div><div style="transform:translateZ(0)">'
+        '<button id="carried" style="position:fixed;left:20px;top:1300px">Carried'
+        '</button></div><div style="height:4000px"></div>',
+    )
+    page = open_page(browser, serve(source))
+    page.set_viewport_size({"width": 1280, "height": 900})
+    reading = page.evaluate("""async () => {
+      const {landingBand, seenRect} = await window.__lfCheckApi();
+      const {scrollIntoView} = await window.__lfWidgetApi();
+      const carried = document.querySelector('#carried');
+      const before = carried.getBoundingClientRect().top;
+      scrollIntoView(carried, {block: 'nearest', behavior: 'instant'});
+      const box = carried.getBoundingClientRect();
+      return {before, bottom: box.bottom, y: scrollY, seen: Boolean(seenRect(carried, new Map())),
+              band: landingBand(document.scrollingElement).bottom};
+    }""")
+    assert reading["before"] > 900, reading
+    assert reading["y"] > 0, reading
+    assert reading["seen"], reading
+    assert reading["bottom"] <= reading["band"] + 1, reading
+
+
 def test_align_current_tall_block_reveals_its_opening_through_outer_scrollers(
     browser, serve
 ):

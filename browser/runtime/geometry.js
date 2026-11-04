@@ -87,27 +87,29 @@ export const layoutWindow = (doc = document) => ({
   bottom: doc.documentElement.clientHeight,
 });
 // The chrome standing over the page: each surface fixed over it, such as the floating
-// panel, declares the one box it covers now (`declareCover`), read when asked. A surface
-// covers what it stands over without clipping it, so no clip walk finds it. What the
-// surface holds is its own to show, so a reading of a node inside it leaves its box out,
-// and the top layer paints over every surface, so nothing covers a node standing in an
-// open native layer, a menu or a modal.
-/** @type {Set<{surface: Element, box: () => Box | null}>} */
+// panel, declares the one box it covers (`declareCover`), read when asked: where it is
+// drawn now (`box`), and where it comes to rest (`rest`), which differ while it moves. A
+// surface covers what it stands over without clipping it, so no clip walk finds it.
+// What the surface holds is its own to show, so a reading of a node inside it leaves its
+// box out, and the top layer paints over every surface, so nothing covers a node
+// standing in an open native layer, a menu or a modal.
+/** @type {Set<{surface: Element, box: () => Box | null, rest: () => Box | null}>} */
 const covers = new Set();
-/** @param {Element} surface @param {() => Box | null} box */
-export function declareCover(surface, box) {
-  const cover = { surface, box };
+/** @param {Element} surface @param {() => Box | null} box @param {() => Box | null} [rest] */
+export function declareCover(surface, box, rest = box) {
+  const cover = { surface, box, rest };
   covers.add(cover);
   return () => void covers.delete(cover);
 }
-// The boxes the declared surfaces cover now over `item`, or over any page box.
-/** @param {Node | null} [item] */
-export const coverBoxes = (item = null) =>
+// The boxes the declared surfaces cover over `item`, or over any page box: where they
+// are drawn now, or with `rest`, where they will stand once their motion ends.
+/** @param {Node | null} [item] @param {{rest?: boolean}} [options] */
+export const coverBoxes = (item = null, { rest = false } = {}) =>
   isElement(item) && nativeLayerHolding(item)
     ? []
-    : [...covers].flatMap(({ surface, box }) => {
-        if (item && under(item, surface)) return [];
-        const at = box();
+    : [...covers].flatMap((cover) => {
+        if (item && under(item, cover.surface)) return [];
+        const at = rest ? cover.rest() : cover.box();
         return at && hasArea(at) ? [at] : [];
       });
 // How much of the window the page shows: the visible viewport, less the boxes the chrome
@@ -383,13 +385,17 @@ export function stuckBox(node, within = null) {
   return null;
 }
 // A fixed box stands in the window where nothing around it holds it instead, which
-// leaves it no offset parent, and no anchor positions it.
+// leaves it no offset parent: a transformed, filtered or contained ancestor holds it as
+// its containing block, and the box then rides every scroll that moves that ancestor,
+// as an absolute one does. Such an ancestor is its offset parent in Chromium and
+// Firefox alike.
+/** @param {Element} el @param {CSSStyleDeclaration} [style] */
+export const fixedInWindow = (el, style = getComputedStyle(el)) =>
+  style.position === "fixed" && (!isHTML(el) || el.offsetParent === null);
+// A box stuck in the window: fixed there, and placed by no anchor.
 /** @param {Element} el @param {CSSStyleDeclaration} style */
 const inWindow = (el, style) =>
-  style.position === "fixed" &&
-  isHTML(el) &&
-  el.offsetParent === null &&
-  !style.positionAnchor.startsWith("--");
+  isHTML(el) && fixedInWindow(el, style) && !style.positionAnchor.startsWith("--");
 // Whether `sticky` stands where sticking holds it, in the scroller around it. A sticky
 // box that clips what it holds, as a tab strip does, still sticks in that scroller.
 /** @param {Element} sticky */
@@ -561,9 +567,9 @@ export function inFront(box, item) {
 // `item`, or null where they leave none of it: a cover reaching into the box's columns
 // takes the band it stands in, and the box keeps the larger of its parts above and below
 // that band. `seenRect` and paint stacked above the chrome (`paintClips`) cut by it.
-/** @param {Box} box @param {Node} item */
-function uncovered({ left, top, right, bottom }, item) {
-  for (const over of coverBoxes(item)) {
+/** @param {Box} box @param {Node} item @param {boolean} [rest] */
+function uncovered({ left, top, right, bottom }, item, rest = false) {
+  for (const over of coverBoxes(item, { rest })) {
     if (over.left >= right || over.right <= left) continue;
     if (over.top >= bottom || over.bottom <= top) continue;
     if (over.top - top >= bottom - over.bottom) bottom = over.top;
@@ -571,12 +577,13 @@ function uncovered({ left, top, right, bottom }, item) {
   }
   return bottom > top ? { left, top, right, bottom } : null;
 }
-// Whether the boxes the chrome covers stand over any of `box` for `item`, by the rule
-// `seenRect` cuts with: a surface asks it before giving way to a place it would stand
-// over (floating-panel.js, `clearFor`).
+// Whether the boxes the chrome covers will stand over any of `box` for `item`, by the
+// rule `seenRect` cuts with, read where each comes to rest: a surface asks it before
+// giving way to a place a landing is about to show (floating-panel.js, `clearFor`), and
+// a view still opening will cover what its drawn box doesn't reach yet.
 /** @param {Box} box @param {Node} item */
 export function covered(box, item) {
-  const left = uncovered(box, item);
+  const left = uncovered(box, item, true);
   return !left || left.top > box.top || left.bottom < box.bottom;
 }
 // Whether the page draws `node` with what it holds: rendered (`checkVisibility`, with its

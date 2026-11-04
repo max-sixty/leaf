@@ -97,9 +97,10 @@ SUPERLINEAR = 1.5
 INPUT_CEILING = 0.5
 # How many of the largest sizes the exponent is fitted over.
 FITTED = 3
-# A cost that grows by less than this above BASE has no exponent: what little it grew
-# is the host's noise. Milliseconds of CPU, kilobytes for the event answer's size, and
-# for the server's time to answer, which is elapsed time, milliseconds.
+# Where a cost grows by less than this above BASE, what little it grew is the host's
+# noise, and its exponent leaves that size out. Milliseconds of CPU, kilobytes for the
+# event answer's size, and for the server's time to answer, which is elapsed time,
+# milliseconds.
 FLOORS = {"event": 50}
 FLOOR = 10
 KEYS = 20
@@ -445,16 +446,17 @@ def exponent(
 ) -> float | None:
     """The least-squares slope of log growth on log size over the `fitted` largest
     sizes, where a cost's growth is what it adds to its cost at the first size,
-    BASE; None for growth under the cost's floor."""
-    fixed = costs[0]
-    if costs[-1] - fixed < FLOORS.get(cost, FLOOR):
-        return None
+    BASE. A size whose growth is under the cost's floor is left out, its growth the
+    host's noise. With fewer than all but one of the fitted sizes left, or fewer
+    than two, there is no exponent: the two largest of four server sizes stand
+    1.56 apart, and a slope across them reads a loaded host's noise as growth."""
+    fixed, floor = costs[0], FLOORS.get(cost, FLOOR)
     pairs = [
         (math.log(n), math.log(c - fixed))
         for n, c in list(zip(sizes, costs, strict=True))[-fitted:]
-        if c > fixed
+        if c - fixed >= floor
     ]
-    if len(pairs) < 2:
+    if len(pairs) < max(2, fitted - 1):
         return None
     mean_x = sum(x for x, _ in pairs) / len(pairs)
     mean_y = sum(y for _, y in pairs) / len(pairs)

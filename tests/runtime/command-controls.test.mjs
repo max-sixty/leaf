@@ -32,6 +32,8 @@ import { commandsChanged } from "../../browser/runtime/widget-upgrade.js";
 import { focused } from "../../browser/runtime/focus.js";
 import { adoptShadowStage } from "../../browser/runtime/shadow-stage.js";
 import { watchOwner } from "../../browser/runtime/arrivals.js";
+import { mountRepaint } from "../../browser/runtime/repaint.js";
+import { nextRender } from "../../browser/runtime/rendering.js";
 import { signal } from "/runtime/framework.js";
 import { setFlagsFromString } from "node:v8";
 import { runInNewContext } from "node:vm";
@@ -1102,6 +1104,83 @@ test("a paint reaches a page command whose control moved", () => {
     paintKeys();
     reflectKeys();
     around.remove();
+  }
+});
+test("a press runs no arrival's callback, a paint's included", async () => {
+  const owner = document.createElement("section");
+  const control = document.createElement("button");
+  owner.append(control);
+  document.body.append(owner);
+  keys(owner, "Painted", [
+    {
+      id: "probe.painted",
+      title: "Act",
+      keys: ["x"],
+      control: () => control,
+      run: () => {},
+    },
+  ]);
+  reflectFirstScopes();
+  reflectKeys();
+  await new Promise((resolve) => setTimeout(resolve));
+  const other = document.createElement("div");
+  let arrived = 0;
+  watchOwner(other, { connect: () => arrived++ });
+  try {
+    document.body.append(other);
+    paintKeysWithin(owner);
+    control.click();
+    assert.equal(arrived, 0);
+    await new Promise((resolve) => setTimeout(resolve));
+    assert.equal(arrived, 1);
+  } finally {
+    other.remove();
+    owner.remove();
+  }
+});
+test("a painter projecting an equal command every frame asks for no next frame", async () => {
+  const control = document.createElement("button");
+  document.body.append(control);
+  const projector = Symbol("every frame");
+  const project = () =>
+    projectCommandScope(
+      control,
+      projector,
+      commandScope(null, [
+        {
+          id: "probe.local",
+          title: "Act",
+          keys: ["x"],
+          // Fresh, equal routes on every reading.
+          routes: () => [
+            { id: "probe.local.route", title: "Act here", binding: "x", control },
+          ],
+          run: () => {},
+        },
+      ]),
+    );
+  let frames = 0;
+  const frame = () => new Promise((resolve) => nextRender(resolve));
+  mountRepaint({
+    reflectFirstScopes,
+    paintCommandHints: () => {
+      frames++;
+      project();
+    },
+    reflectKeys,
+  });
+  try {
+    await frame();
+    // One more frame asked for, as any change does.
+    paintKeysWithin(control);
+    for (let turn = 0; turn < 3; turn++) await frame();
+    const settled = frames;
+    for (let turn = 0; turn < 3; turn++) await frame();
+    assert.equal(frames, settled);
+  } finally {
+    mountRepaint({});
+    projectCommandScope(control, projector, null);
+    control.remove();
   }
 });
 test("a button a widget declared before it was placed answers once it is", async () => {

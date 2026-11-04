@@ -46,7 +46,6 @@ import {
   directive,
   effect,
   nothing,
-  signal,
   untracked,
 } from "/runtime/framework.js";
 import {
@@ -77,7 +76,6 @@ import { isElement, renderedChildElements } from "../shadow-tree.js";
 import { repaint } from "../repaint.js";
 import { installMoveKeys } from "../dom-move.js";
 import { keeps } from "../keeps.js";
-import { tick } from "../version-signal.js";
 import { stageOf, watchOwner } from "../arrivals.js";
 import { COMMANDS, commandsChangedOn, refuseCommands } from "../widget-upgrade.js";
 
@@ -129,22 +127,24 @@ export function watchCommandScopes(read) {
   return () => commandScopeReaders.delete(read);
 }
 // Which buttons a source's commands name is one computed reading per source
-// (`readingOf`), read again when a signal its getters read moves or its version
-// advances. A mechanical change marks its source (`mark`): a declaration attached,
-// withdrawn, projected or said changed, a paint in or around it, its arrival or
-// departure, and `paintKeys()` for every source. Marks gather as a set, and each marked
-// source's version advances once when the frame or a press takes them
-// (`takeChanges`). The element's reflection keeps membership both ways
+// (`readingOf`), read again when a signal its getters read moves. A mechanical change
+// marks its source (`mark`): a declaration attached, withdrawn, projected or said
+// changed, a paint in or around it, its arrival or departure, and `paintKeys()` for
+// every source. Marks gather as a set, which the frame or a press takes
+// (`takeChanges`): each marked source's reading is retired once, after what read it is
+// disposed, so a take notifies nothing and asks for no frame, and the next ask makes it
+// again. The element's reflection keeps membership both ways
 // (`nameButtons`), and each button reads only its slice (`commandsAt`). Membership is a
 // record of what each source last named, whether or not it stood, held weakly; a
 // source counts only while it stands, which is read when it is asked, so a press reads
-// established state and runs no lifecycle callback. A marked element is tied to its
-// lifetime (`watchOwner`): its departure ends what subscribed through it, and its
-// placement, the first or a return, marks it. The page's own scopes stand under
+// established state and runs no lifecycle callback. An element that declares or
+// carries a projection is tied to its lifetime (`watchOwner`) when it does: its
+// departure ends what subscribed through it, and its placement, the first or a return,
+// marks it. The page's own scopes stand under
 // `PAGE_SOURCE`, which every paint marks, since their getters may read anywhere.
 const PAGE_SOURCE = Object.freeze({ page: true });
 /** @typedef {Element | typeof PAGE_SOURCE} ButtonSource */
-/** @type {WeakMap<ButtonSource, {version: {peek(): number, value: number}, reading: {readonly value: Map<HTMLButtonElement, ButtonCommand[]>}}>} */
+/** @type {WeakMap<ButtonSource, {readonly value: Map<HTMLButtonElement, ButtonCommand[]>}>} */
 const readings = new WeakMap();
 /** @type {WeakMap<ButtonSource, Map<HTMLButtonElement, ButtonCommand[]>>} */
 const named = new WeakMap();
@@ -223,25 +223,22 @@ const sameNames = (before, after) =>
 // Made on first ask.
 /** @param {ButtonSource} source */
 function readingOf(source) {
-  let held = readings.get(source);
-  if (!held) {
-    const version = signal(0);
+  let reading = readings.get(source);
+  if (!reading) {
     // The same names as before stay the same reading, so its readers read again only
     // when one moved.
     /** @type {Map<HTMLButtonElement, ButtonCommand[]>} */
     let last = new Map();
-    const reading = computed(() =>
+    reading = computed(() =>
       followingFocus(() => {
-        version.value;
         const next = buttonNames(source);
         if (!sameNames(last, next)) last = next;
         return last;
       }),
     );
-    held = { version, reading };
-    readings.set(source, held);
+    readings.set(source, reading);
   }
-  return held.reading.value;
+  return reading.value;
 }
 // A mechanical change to `source`: it and the buttons it names are read again. A mark
 // asks for no frame, since a painter's is read at the tail of the frame it paints in;
@@ -249,10 +246,7 @@ function readingOf(source) {
 /** @param {ButtonSource} source */
 function mark(source) {
   marked.add(source);
-  if (source instanceof Element) {
-    dirtyElements.add(source);
-    stand(source);
-  }
+  if (source instanceof Element) dirtyElements.add(source);
   for (const control of named.get(source)?.keys() ?? []) dirtyButtons.add(control);
 }
 // Leaving the page or arriving in it marks the source. Registering reads the arrivals
@@ -278,7 +272,7 @@ function reread(source) {
   repaint();
 }
 // Take the marks made since the last take, a full paint's and a paint's included, and
-// advance each marked source's version once.
+// retire each marked source's reading.
 function takeChanges() {
   claimPaintedRoots();
   if (keysDirty) {
@@ -292,11 +286,22 @@ function takeChanges() {
       dirtyButtons.add(scoped);
     }
   }
-  for (const source of marked) {
-    const held = readings.get(source);
-    if (held) tick(held.version);
-  }
+  for (const source of marked) retire(source);
   marked.clear();
+}
+// What read the source's reading stops first, its element's reflection and its buttons'
+// availability, which its mark owes a reading again, so dropping it notifies nothing.
+/** @param {ButtonSource} source */
+function retire(source) {
+  if (!readings.delete(source)) return;
+  if (source instanceof Element) {
+    tracked.get(source)?.();
+    tracked.delete(source);
+  }
+  for (const control of named.get(source)?.keys() ?? []) {
+    buttonAvailability.get(control)?.();
+    buttonAvailability.delete(control);
+  }
 }
 // Keep membership to the source's reading, and mark the buttons it names or stops naming.
 /** @param {ButtonSource} source */
@@ -740,6 +745,7 @@ function attachScope(where, declaration) {
   unpainted.set(where, scope);
   wireDeclaredButtons(scope);
   rememberScopedElement(where);
+  stand(where);
   reread(where);
   return scope;
 }
@@ -920,6 +926,7 @@ export function projectCommandScope(control, projector, capability = null) {
     projectedScopes.set(control, projections);
     wireDeclaredButtons(capability.scope);
     rememberScopedElement(control);
+    stand(control);
   }
   // Read at once, so a projector outside the frame needs none.
   mark(control);

@@ -352,9 +352,7 @@ def test_the_g_chord_reaches_the_all_leaves_panel(browser, serve, live_leaf):
 
     panel_settled(page, view="leaves")
     leaves = page.locator(panel_view("leaves"))
-    expect(leaves).to_be_focused()
     expect(leaves.locator(".lf-fp-page[href]")).to_have_count(2)
-    page.keyboard.press("ArrowDown")
     expect(leaves.locator(".lf-fp-page[href]").first).to_be_focused()
     expect(page.locator(CHIPS)).to_have_count(0)
 
@@ -1345,10 +1343,10 @@ def test_a_panel_thread_closes_with_the_panel_as_go_to_threads_does(browser, ser
     panel_settled(page, open=False)
     assert page.evaluate("() => document.activeElement === document.body")
 
-    # From the page, Threads holds focus itself.
+    # From the page, Threads stands on its first row.
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(threads).to_be_focused()
+    expect(threads.locator(".lf-fp-thread").first).to_be_focused()
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
     assert page.evaluate("() => document.activeElement === document.body")
@@ -1728,25 +1726,22 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     expect(page.locator(".lf-live")).to_contain_text("visible targets")
     expect(page.locator(".lf-live")).to_contain_text("type a hint")
 
-    # A panel mnemonic completes the sequence and leaves the user in that view of the
-    # panel, where its own scoped keys are immediately available.
+    # A panel mnemonic completes the sequence and leaves the user on that view's first
+    # row, where its own scoped keys are immediately available.
     threads = page.locator(panel_view("threads"))
     page.keyboard.press("Shift+t")
-    expect(threads).to_be_focused()
+    expect(threads.locator(".lf-fp-thread").first).to_be_focused()
     expect(page.locator(CHIPS)).to_have_count(0)
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
     assert page.evaluate("() => document.activeElement === document.body")
 
-    # The On me sequence follows the same contract: open the view, whose walk's first
-    # step lands on its first card.
+    # The On me sequence follows the same contract: the view opens on its first card.
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     panel_settled(page, view="queue")
-    expect(page.locator(panel_view("queue"))).to_be_focused()
-    expect(page.locator(CHIPS)).to_have_count(0)
-    page.keyboard.press("ArrowDown")
     expect(page.locator(".lf-fp-on-item").first).to_be_focused()
+    expect(page.locator(CHIPS)).to_have_count(0)
 
     # Replacing one view with another is lateral: Threads replaces On me while it
     # stands, and the Escape out of Threads lands on the page rather than putting On me
@@ -1944,7 +1939,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     # A panel mnemonic completes the sequence directly wherever the user is on the page.
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(threads).to_be_focused()
+    expect(threads.locator(".lf-fp-thread").first).to_be_focused()
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
 

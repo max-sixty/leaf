@@ -48,52 +48,94 @@ lf-text-document pre {
   border-radius: 0;
   white-space: pre-wrap;
 }
-/* Pierre's file box uses the same type and paper as Leaf's code blocks. Its scoped
-   vendor sheet supplies the line grid and wrapping; these are the theme's tokens. */
-lf-text-document .lf-text-document-listing {
-  color-scheme: inherit;
-  --diffs-font-family: var(--mono);
-  --diffs-font-size: var(--code-size);
-  --diffs-line-height: var(--code-line);
-  --diffs-bg: var(--pre-bg);
-  --diffs-bg-buffer: var(--pre-bg);
-  --diffs-fg: var(--code-ink);
-  --diffs-fg-number: var(--code-muted);
+/* The listing (lf-text-document.js, `listing`) takes the type and paper of Leaf's code
+   blocks. Each row is one line, wrapped under its own start, with its number in the
+   gutter before it: generated content counted from its run's first line, which
+   selecting or copying never takes. Every number takes the width of the text's widest
+   one (`--lf-number-digits`), so every row's text starts at the same x. */
+lf-text-document .lf-text-document-listing > pre {
+  font-family: var(--mono);
+  font-size: var(--code-size);
+  line-height: var(--code-line);
+  color: var(--code-ink);
+  background: var(--pre-bg);
+  tab-size: 2;
+  word-break: break-word;
 }
-lf-text-document [data-lf-number]::before {
-  content: attr(data-lf-number);
+lf-text-document .lf-text-document-listing code {
+  display: block;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
 }
-/* A run of rows (lf-text-document.js, `inRuns`) spans the listing's grid and lays out
-   Pierre's two columns itself, and the browser draws it only while it is in view. Each
-   run sizes its number column to its own numbers, so every number takes the width of
-   the text's widest one (Pierre's `--diffs-min-number-column-width-default`), and
-   every run's lines start at the same x. */
-lf-text-document [data-lf-number] {
-  display: inline-block;
-  min-inline-size: var(--diffs-min-number-column-width-default);
+lf-text-document .lf-text-document-run > * {
+  position: relative;
+  min-block-size: 1lh;
+  padding-inline: calc((var(--lf-number-digits) + 4) * 1ch + 2px) 1ch;
+  counter-increment: lf-line;
 }
+/* A run counts on from the lines before it. The count starts on its first row: a
+   skipped run's style containment keeps a count its own box starts from its rows, and
+   every run after the first numbered its rows from 1. */
+lf-text-document .lf-text-document-run > :first-child {
+  counter-reset: lf-line var(--lf-lines-before);
+}
+lf-text-document .lf-text-document-run > *::before {
+  content: counter(lf-line) / "";
+  position: absolute;
+  inset-inline-start: 2ch;
+  inline-size: calc(var(--lf-number-digits) * 1ch);
+  color: var(--code-muted);
+  text-align: end;
+}
+/* Syntax colour on a listing's text (lf-text-document.js, `tokenHighlight`): one
+   highlight for each colour of the token theme (build/entries/syntax/entry.mjs,
+   `leafTheme`), named by its variable. A test holds this list to the theme's. */
+::highlight(lf-token-syn-comment) {
+  color: var(--syn-comment);
+}
+::highlight(lf-token-syn-keyword) {
+  color: var(--syn-keyword);
+}
+::highlight(lf-token-syn-string) {
+  color: var(--syn-string);
+}
+::highlight(lf-token-syn-number) {
+  color: var(--syn-number);
+}
+::highlight(lf-token-syn-name) {
+  color: var(--syn-name);
+}
+::highlight(lf-token-syn-type) {
+  color: var(--syn-type);
+}
+::highlight(lf-token-ok-ink) {
+  color: var(--ok-ink);
+}
+::highlight(lf-token-danger-ink) {
+  color: var(--danger-ink);
+}
+/* A folded panel's rows (`hidden="until-found"`, as a closed tab's) count no numbers
+   until it opens. Firefox styles and builds the generated content of rows it doesn't
+   draw: in a folded document of 70,000 lines the numbers took about 120 of the 150 ms
+   its styling cost. */
+:where([hidden="until-found"]) lf-text-document .lf-text-document-run > * {
+  counter-increment: none;
+  &::before {
+    content: none;
+  }
+}
+/* A run of rows (lf-text-document.js, `inRuns`) is drawn only while it is in view. */
 lf-text-document .lf-text-document-run {
-  grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: var(--diffs-code-grid);
-  grid-auto-flow: dense;
   content-visibility: auto;
 }
 /* A short text is one run, which skipping would leave undrawn for the frames after the
    document scrolls into view, and save nothing. */
 lf-text-document .lf-text-document-run:only-child {
   content-visibility: visible;
-}
-/* The listing owns source scroll, including when Preview and Source have separate
-   fixed viewports. Pierre's own horizontal trap must not swallow document scrolling. */
-lf-text-document code[data-code] {
-  display: grid;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: none;
-  font: inherit;
-  overscroll-behavior: auto;
 }
 /* A document scrolls its listing in a box `--lf-bound` tall under a caption that
    stays put: the Source tab's box with a preview, the listing's own without one. The
@@ -181,10 +223,9 @@ lf-text-document:has(> [data-lf-prepaint]) {
 }
 /* A long capture's `pre` becomes a keyboard-reachable scroller inside the evidence
    frame. Its lines are positioned boxes on the capture's ground, which paint over an
-   outline on the `pre` itself, so the ring is drawn on a later box over it, as the
-   floating panel draws its view's (floating-panel.css, `.lf-fp-stage`); the `pre`'s
-   zero layer keeps its lines under that box. The ring stands inside, since the figure
-   clips at its rounded corners. */
+   outline on the `pre` itself, so the listing is its ring frame (surfaces.css,
+   `.lf-ring-frame`), and the `pre`'s zero layer keeps its lines under the frame's
+   ring. The ring stands inside, since the figure clips at its rounded corners. */
 lf-text-document .lf-text-document-listing {
   position: relative;
 }
@@ -192,20 +233,8 @@ lf-text-document .lf-text-document-listing > pre {
   position: relative;
   z-index: 0;
 }
-lf-text-document .lf-text-document-listing > pre[data-lf-focus-visible] {
-  outline: none;
-}
-lf-text-document .lf-text-document-listing:has(> pre[data-lf-focus-visible])::after {
-  content: "";
-  position: absolute;
-  inset: 0;
+lf-text-document .lf-text-document-listing::after {
   z-index: 1;
-  pointer-events: none;
-  outline: var(--focus-ring);
-  outline-offset: var(--focus-ring-inset);
-}
-lf-text-document .lf-text-document-listing:has(> pre[data-lf-focus-visible]) {
-  --lf-wears-ring: 1;
 }
 
 /* Source and preview share one inspection viewport. Its height doesn't follow the tab

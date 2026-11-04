@@ -86,54 +86,13 @@ lf-event::before {
 .lf-timeline-ruler {
   grid-row: 1;
   grid-column: 2;
-  position: relative;
-  color: var(--muted);
 }
-/* Each position is a fraction of the track (--lf-timeline-at, set by the drawing)
-   inside its edge inset, so it holds at any width, a printed page's included. */
-.lf-timeline-tick {
-  position: absolute;
-  left: calc(
-    var(--lf-timeline-edge) + var(--lf-timeline-at) *
-      (100% - 2 * var(--lf-timeline-edge))
-  );
-  inset-block-end: 0;
-  block-size: 4px;
-  border-inline-start: 1px solid var(--border-2);
-  white-space: nowrap;
-}
-.lf-timeline-tick[data-lf-major] {
-  block-size: 100%;
-  box-sizing: border-box;
-  padding-inline-start: 3px;
-  padding-block-start: 3px;
-  border-inline-start-color: var(--muted);
-  font-weight: 400;
-  font-variant-numeric: tabular-nums;
-}
-/* The last label reads back from its tick, inside the scale. */
-.lf-timeline-tick[data-lf-flip] {
-  translate: -100% 0;
-  padding-inline: 0 3px;
-  border-inline-start: 0;
-  border-inline-end: 1px solid var(--muted);
-}
-/* A faint line at each labelled time runs down every lane, so a mark far below the
-   ruler, in a later lane or run, still reads against it. */
+/* The axis's gridlines (controls.css, `.lf-axis-grid`) run from the ruler's foot down
+   every lane and run, as the playhead does. */
 .lf-timeline-grid {
   grid-row: 2 / -1;
   grid-column: 2;
   position: relative;
-  pointer-events: none;
-}
-.lf-timeline-gridline {
-  position: absolute;
-  left: calc(
-    var(--lf-timeline-edge) + var(--lf-timeline-at) *
-      (100% - 2 * var(--lf-timeline-edge))
-  );
-  inset-block: 0;
-  border-inline-start: 1px dotted var(--rule);
 }
 .lf-timeline-lane {
   grid-column: 2;
@@ -144,8 +103,9 @@ lf-event::before {
   );
   border-block-start: 1px solid var(--rule);
 }
-/* One event's label and mark. The group spans its lane so that each part is
-   positioned in the lane's coordinates; only the label and mark take presses. */
+/* One event's label and mark. The group spans its lane so that each part stands at
+   the event's time on the axis in the lane's coordinates (controls.css,
+   `.lf-on-axis`); only the label and mark take presses. */
 .lf-timeline-event {
   position: absolute;
   inset: 0;
@@ -161,11 +121,6 @@ lf-event::before {
 /* Label row 0 sits nearest the bar row. Labels stand in front of the playhead on
    the chart's ground, so the line passes behind words rather than through them. */
 .lf-timeline-label {
-  position: absolute;
-  left: calc(
-    var(--lf-timeline-edge) + var(--lf-timeline-at) *
-      (100% - 2 * var(--lf-timeline-edge))
-  );
   inset-block-start: calc(
     (var(--lf-timeline-rows) - 1 - var(--lf-timeline-row-index, 0)) *
       var(--lf-timeline-row) + 3px
@@ -200,11 +155,6 @@ lf-event::before {
   font-weight: 600;
 }
 .lf-timeline-mark {
-  position: absolute;
-  left: calc(
-    var(--lf-timeline-edge) + var(--lf-timeline-at) *
-      (100% - 2 * var(--lf-timeline-edge))
-  );
   z-index: 2;
   pointer-events: auto;
   cursor: pointer;
@@ -212,7 +162,7 @@ lf-event::before {
 .lf-timeline-mark[data-lf-kind="span"] {
   inset-block-end: 6px;
   block-size: 10px;
-  inline-size: max(4px, var(--lf-timeline-span) * (100% - 2 * var(--lf-timeline-edge)));
+  inline-size: max(4px, var(--lf-timeline-span) * (100% - 2 * var(--lf-axis-edge)));
   border-radius: 3px;
   border: 1px solid var(--lf-timeline-tone);
   box-sizing: border-box;
@@ -245,11 +195,6 @@ lf-event::before {
   pointer-events: none;
 }
 .lf-timeline-playhead-line {
-  position: absolute;
-  left: calc(
-    var(--lf-timeline-edge) + var(--lf-timeline-at) *
-      (100% - 2 * var(--lf-timeline-edge))
-  );
   inset-block: 0;
   inline-size: 2px;
   margin-inline-start: -1px;
@@ -270,16 +215,13 @@ lf-event::before {
   font: var(--font-compact);
 }
 /* Each step is a row (controls.css, `.lf-row`), led by its time, the step shown its
- * current row; a step still ahead of it stands in the muted ink. */
+ * current row; a step still ahead of it stands in the muted ink (`data-lf-ahead`). */
 .lf-timeline-step {
   cursor: pointer;
 }
 /* A step's events stay on one sheet of paper together. */
 .lf-timeline-steps > li {
   break-inside: avoid;
-}
-.lf-timeline-step:not([data-lf-past], [aria-current]) {
-  color: var(--muted);
 }
 .lf-timeline-step-lane {
   font-weight: 600;

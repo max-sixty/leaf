@@ -51,21 +51,14 @@ import {
   revealAddressed,
   sectionOf,
 } from "./anchor-resolution.js";
-import {
-  clippedPlace,
-  landingBand,
-  placeBox,
-  placeHolder,
-  showsContents,
-  shownBox,
-} from "./geometry.js";
+import { placeHolder, showsContents } from "./geometry.js";
 import { scrollBehavior } from "./motion.js";
 import { renderedParent, under } from "./shadow-tree.js";
 import { nextFrame } from "./rendering.js";
-import { scrollersOf, unconcealedReadingRegions } from "./reading-regions.js";
+import { unconcealedReadingRegions } from "./reading-regions.js";
 import { prepareEntry, replaceEntry } from "./history.js";
-import { pageScroller, scrollGoal, stopScroll } from "./scrolling.js";
-import { landedBox, scrollIntoView } from "./landing-scroll.js";
+import { pageScroller, stopScroll } from "./scrolling.js";
+import { alreadyShown, landedBox, scrollIntoView } from "./landing-scroll.js";
 import { reveal } from "./widget-elements.js";
 import { threadNamed } from "./thread/state.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
@@ -73,9 +66,6 @@ import { targetElement, targetPlace, targetSegments } from "./resolved-target.js
 import { rangeOf } from "./passages.js";
 import { livePoint } from "./pointed-place.js";
 import { notice } from "./notifications.js";
-
-/** @param {Element} element */
-const scrollingBoxFor = (element) => scrollersOf(element).next().value ?? null;
 
 // The browser's rule for landing the element a fragment names: its start at its
 // scroller's landing edge, which a sticky header's stated height keeps clear. Travel
@@ -264,8 +254,7 @@ export function createAnchorTravel({
                 {
                   at: current.where,
                   behavior: "instant",
-                  when: () =>
-                    !readableDestination(current.where) || !readableDestination(input),
+                  when: () => !alreadyShown(current.where) || !alreadyShown(input),
                 },
                 // The subject and editor can occupy different parts of a tall
                 // page. Finish on the box the user asked to write in.
@@ -307,9 +296,7 @@ export function createAnchorTravel({
     let moving;
     return {
       plan(where, { there } = {}) {
-        moving = !(
-          where && (there ? there(readableDestination) : readableDestination(where))
-        );
+        moving = !(where && (there ? there(alreadyShown) : alreadyShown(where)));
         return moving;
       },
       commit() {
@@ -430,9 +417,7 @@ export function createAnchorTravel({
           where && {
             where,
             focus: focus ? where : null,
-            scroll: [
-              { at: where, block: "start", when: () => !readableDestination(where) },
-            ],
+            scroll: [{ at: where, block: "start", when: () => !alreadyShown(where) }],
           }
         );
       },
@@ -516,47 +501,6 @@ export function createAnchorTravel({
     placeScroll({ at: element, behavior, block }, replacedView);
   }
 
-  // A destination's box and what of it the user can see, which is that box less the
-  // window and whatever clips it, or null when none of it shows.
-  /** @param {Destination} where */
-  function seenOf(where) {
-    const holder = placeHolder(where);
-    if (!holder) return null;
-    const destination = placeBox(where);
-    const seen = clippedPlace(where, new Map(), destination);
-    return seen && { holder, destination, seen };
-  }
-
-  // Whether travel to `where` would leave the page as it stands: the destination stands
-  // whole inside the band a landing aims for (`landingBand`) and nothing cuts it. Being
-  // in front of the user (`seenRect`) is not enough, since a destination half cut off or
-  // pressed against the window's head is one a landing still moves. A key pressed while
-  // Leaf still moves the destination's box acts as if the motion had landed, so the band
-  // is asked of where that box's motion will leave the destination (scrolling.js,
-  // `scrollGoal`): `Shift+m` pressed just after `m` finds the obligation `m` is leaving
-  // already gone. What cuts the destination is read where it stands, so one the motion
-  // would bring in from beyond the window's edge still counts as one travel moves to.
-  /** @param {Destination} where */
-  function readableDestination(where) {
-    const shown = seenOf(where);
-    if (!shown) return false;
-    const { holder, destination, seen } = shown;
-    const box = scrollingBoxFor(holder);
-    const band = box ? landingBand(box) : shownBox(pageScroller);
-    if (!band) return false;
-    const rise = box ? scrollGoal(box) - box.scrollTop : 0;
-    /** @param {number} a @param {number} b */
-    const close = (a, b) => Math.abs(a - b) <= 0.5;
-    return (
-      destination.top - rise >= band.top - 0.5 &&
-      destination.bottom - rise <= band.bottom + 0.5 &&
-      close(seen.top, destination.top) &&
-      close(seen.right, destination.right) &&
-      close(seen.bottom, destination.bottom) &&
-      close(seen.left, destination.left)
-    );
-  }
-
   /** @param {Range} where @param {ScrollBehavior} [behavior] */
   function scrollToRange(where, behavior = scrollBehavior()) {
     const holder = placeHolder(where);
@@ -637,14 +581,12 @@ export function createAnchorTravel({
         /** @type {ScrollPlacement[]} */
         const scroll = [];
         if (target) scroll.push({ at: target, block: "nearest" });
-        // Then the place lands in the reading band if the window can't show it whole.
-        // A part inside the place, as a seat's thread is inside its element, skips that
-        // landing, since landing a place taller than the window scrolls the part back
-        // out of view.
+        // Then the place lands unless it already shows. A part inside the place, as a
+        // seat's thread is inside its element, skips that landing, since landing a
+        // place taller than the window scrolls the part back out of view.
         const inside =
           target !== where && where instanceof Element && under(target, where);
-        if (!inside)
-          scroll.push({ at: where, when: () => !readableDestination(where) });
+        if (!inside) scroll.push({ at: where, when: () => !alreadyShown(where) });
         return { where, focus: target, scroll };
       },
       {
@@ -667,7 +609,6 @@ export function createAnchorTravel({
     returnToFragment,
     navigateToDatum,
     scrollToElement,
-    readableDestination,
     scrollToRange,
     scrollToThread,
     threadDestination,

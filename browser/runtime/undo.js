@@ -3,8 +3,9 @@
    The server's view of the shown revision lists, newest first, the user's gestures this
    document can take back (`served_state/document.py`); nothing here judges a candidate
    again. `z` takes the head of that list only when the server marks it `newest`, the
-   user's newest gesture, so a reply sent since ends the walk, unless the press before
-   armed another gesture (below), which it then takes; a widget's Undo, a
+   user's newest gesture, so a gesture the list doesn't hold, such as a move a later
+   revision's markup places, ends the walk, unless the press before armed another
+   gesture (below), which it then takes; a widget's Undo, a
    reaction chip, and a reaction strip each name an exact entry, and a notice's Undo
    takes the gesture it reports by `z`'s rules (`offerUndo`). All of them withdraw
    through `withdraw`.
@@ -13,23 +14,22 @@
    floating panel's menu row and the notice its undo leaves ("Undo: resolved “Rollout
    safety” · 3d ago", then "Undid: resolved “Rollout safety” · 3d ago"), in
    every tab and after a reload. A thread goes by its name as it stands now, a rewrite
-   by the words it replaced, a to-do by its title and a reaction by where it stands, all
-   of which the page already holds. An action's ids are words only in
-   the document it was made in, so the server serves what the head did in that
-   document's words (`gesture`, `GestureWords.gesture`), and the widget goes by its
-   name on this page.
+   by the words it replaced, a message by the words it was sent with and a reaction by
+   where it stands, all of which the page already holds. An action's ids are words only
+   in the document it was made in, so the server serves what the head did in that
+   document's words (`gesture`, `GestureWords.gesture`), and the widget goes by its name
+   on this page.
    An exact control's older entry carries no such reading, so its undo names only the
    widget. The age is the gesture's own `ts`, worded by the page's one clock (`ago`).
 
    `z` leaves the user at what it takes back, the gesture's place: the thread a
-   settlement or reaction is in, the message a rewrite changed, the message holding a
-   widget an agent sent, or the element changed. A to-do's Done changes only the leaf's own rows, which stand in
-   front of the user, so it has none. A press reaches the place one of three ways:
+   settlement or reaction is in, the message a rewrite changed or the user sent, the
+   message holding a widget an agent sent, or the element changed. A press reaches the
+   place one of three ways:
 
    - Where the user sees it, the press takes the gesture there.
-   - Where the place is out of view, or the agent has picked the gesture up
-     (`picked_up`, served from the opened pickups), the press shows it and takes
-     nothing, so `z` never takes back what the user cannot see. It shows the place the
+   - Where the place is out of view, the press shows it and takes nothing, so `z`
+     never takes back what the user cannot see. It shows the place the
      way an `lf-activity` row's link does, a thread opening and an element travelled
      to as its fragment, and arms, saying "Press again to undo: …". The second press
      takes it back. Any key between, a press on the page, or a scroll taking what the
@@ -41,6 +41,12 @@
      at it was the gesture itself, so the press takes it at once. The gesture arms the
      press as a showing press does, and the same inputs clear it; after one, the rules
      above apply.
+
+   Only what the user sees decides which: what the agent has received or done with the
+   gesture doesn't, so `z` works the same before and after the agent reads it (the
+   user's decision, 3 November 2026). Rejected: showing a gesture the agent had picked
+   up first wherever it stood, part of the design chosen on 21 October, which made `z`
+   depend on delivery the user can't see happen.
 
    Showing is a navigation step, so Back returns to where the user pressed. The rule is
    the same for every gesture; only a place's kind decides how it is shown. An exact
@@ -75,13 +81,7 @@ import { threadIdNamed, threadNamed } from "./thread/state.js";
 import { addressableLabel, addressableWord } from "./addressable-names.js";
 import { elementById, inChrome } from "./passages.js";
 import { focusDestination, inputCount, onUserInput } from "./focus.js";
-import {
-  clipsPastSurfaces,
-  placeBox,
-  placeHolder,
-  seenRect,
-  whenNone,
-} from "./geometry.js";
+import { placeBox, placeHolder, seenRect, shownRect, whenNone } from "./geometry.js";
 import { messageHolding, threadName } from "./thread/messages.js";
 import { surfaceFocusTarget } from "./thread/surfaces.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
@@ -92,7 +92,7 @@ import { eventSource } from "./pointer.js";
 import { raiseError } from "./errors.js";
 
 /** @template E
- * @typedef {E extends unknown ? Pick<E, Extract<keyof E, "id" | "kind" | "attempt" | "token" | "anchor" | "parent" | "message" | "text" | "widget" | "todo" | "outcome" | "ts">> : never} GestureFields
+ * @typedef {E extends unknown ? Pick<E, Extract<keyof E, "id" | "kind" | "attempt" | "token" | "anchor" | "parent" | "message" | "text" | "widget" | "ts">> : never} GestureFields
  */
 /** The fields a withdrawal reads, shared by an admitted event and a locally drawn gesture.
  * @typedef {import("../types/contract.js").CompleteUnion<GestureFields<ReturnType<typeof import("./thread/state.js").allThreads>[number]["root"] | import("./pending/dispatch.js").UndoCandidate | import("./framework/snapshot.js").Immutable<import("../types/domain.js").Event | import("../types/domain.js").Message>>>} UndoEvent
@@ -138,13 +138,6 @@ function actionWords(event, gesture) {
   }
 }
 
-/** @type {Record<"done" | "failed" | "dropped", (title: string) => string>} */
-const TODO_ENDINGS = {
-  done: (title) => `marked ${title} done`,
-  failed: (title) => `marked ${title} failed`,
-  dropped: (title) => `dropped ${title}`,
-};
-
 // What a gesture did, in the words the page holds for it now.
 /** @param {UndoEvent} event @param {Gesture | undefined} gesture */
 function gestureWords(event, gesture) {
@@ -164,30 +157,32 @@ function gestureWords(event, gesture) {
       const was = message?.edited?.id === event.id ? message.edited.was : null;
       return `${event.text ? "edited" : "deleted"} ${was ? quoted(was, 48) : "a message"}`;
     }
-    case "todo_end": {
-      const todo = runtime.todos.find(({ id }) => id === event.todo);
-      return TODO_ENDINGS[event.outcome](todo ? quoted(todo.title) : "a to-do");
-    }
+    case "comment":
+    case "reply":
+      return `${event.kind === "comment" ? "commented" : "replied"} ${event.text ? quoted(event.text, 48) : "with a drawing"}`;
     default:
       return actionWords(event, gesture);
   }
 }
 
 // Where taking `event` back shows on the page: the thread it settled or reacted in, the
-// message a rewrite changed, a widget an agent sent in a message (its message is its
-// place), or the element it changed. A to-do's Done changes only the leaf's own rows,
-// which stand in front of the user, so it has no place. A rewrite changes only its
-// message's words, so the thread's passage or marker in view doesn't show it.
+// message a rewrite changed or the user sent, a widget an agent sent in a message (its
+// message is its place), or the element it changed. A rewrite changes only its message's
+// words, so the thread's passage or marker in view doesn't show it.
 /** @param {UndoEvent} event @returns {UndoPlace | null} */
 function placeOf(event) {
-  if (event.kind === "edit")
+  const message =
+    event.kind === "edit"
+      ? event.message
+      : (event.kind === "comment" || event.kind === "reply") && !event.token
+        ? event.id
+        : null;
+  if (message)
     return {
       thread: null,
-      message: event.message,
+      message,
       nodes: [
-        ...document.querySelectorAll(
-          `.lf-msg[data-lf-event="${CSS.escape(event.message)}"]`,
-        ),
+        ...document.querySelectorAll(`.lf-msg[data-lf-event="${CSS.escape(message)}"]`),
       ],
     };
   // A reaction in a thread is a reply naming the message it reacts to.
@@ -391,7 +386,6 @@ export function createUndo({
   // Whether `z` shows the gesture of the undo list's `entry` before taking it.
   /** @param {UndoEntry} entry */
   function needsShowing(entry) {
-    if (entry.picked_up) return true;
     const place = placeOf(entry.event);
     return place !== null && !inView(place);
   }
@@ -467,7 +461,7 @@ export function createUndo({
       stop = whenNone(
         nodes,
         (node) => {
-          const shown = seenRect(node, clipsPastSurfaces());
+          const shown = shownRect(node, new Map());
           landed ||= Boolean(shown);
           return shown;
         },
@@ -494,10 +488,8 @@ export function createUndo({
   /** @param {UndoEntry} entry */
   function walkTo(entry) {
     const { event } = entry;
-    // A landing's arm never stands in for showing what the agent has picked up.
     const heldArm = armedFor(event);
-    const taking = heldArm && !(heldArm.landing && entry.picked_up);
-    if (!taking && needsShowing(entry)) {
+    if (!heldArm && needsShowing(entry)) {
       arm(event);
       return null;
     }

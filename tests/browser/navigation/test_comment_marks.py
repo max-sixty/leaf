@@ -627,7 +627,7 @@ def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
     expect(note).to_be_focused()
     assert note.evaluate("el => getComputedStyle(el).opacity") == "0"
     expect(page.locator("#p1")).to_be_in_viewport()
-    expect(page.locator(".lf-proxied")).to_have_count(1)
+    expect(page.locator("[data-lf-proxied]")).to_have_count(1)
     assert _ring_round(page, "#p1")
     page.locator("#p1").evaluate("p => { p.style.marginTop = ''; }")
     note.press("Enter")
@@ -714,11 +714,11 @@ def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
 
 
 def _ring_round(page, selector):
-    """Whether the element `selector` names wears the proxy ring (`lf-proxied`), which
+    """Whether the element `selector` names wears the proxy ring (`data-lf-proxied`), which
     it draws whole round itself in the accent, outside its edge at its gap
     (surfaces.css)."""
     block = page.locator(selector)
-    expect(block).to_have_class(re.compile(r"\blf-proxied\b"))
+    expect(block).to_have_attribute("data-lf-proxied", "")
     mark = block.evaluate(MARK)
     return (
         mark is not None
@@ -757,13 +757,13 @@ def test_any_focus_on_a_note_rings_its_block_and_follows_it_redrawn(browser, ser
     # grey the ring's accent outranks.
     page.keyboard.press("Tab")
     note.focus()
-    expect(page.locator("#p1")).to_have_class(re.compile(r"\blf-traced\b"))
+    expect(page.locator("#p1")).to_have_attribute("data-lf-traced", "")
     assert _ring_round(page, "#p1")
 
     # The copy leaves the ring's class behind, so the ring on it is the runtime's doing.
     page.locator("#p1").evaluate(
         "p => { const copy = p.cloneNode(true); copy.dataset.redrawn = '';"
-        " copy.classList.remove('lf-proxied'); p.replaceWith(copy); }"
+        " copy.removeAttribute('data-lf-proxied'); p.replaceWith(copy); }"
     )
     expect_comment_notes(page, "#p1[data-redrawn]", 1)
     expect(note).to_be_focused()
@@ -800,7 +800,7 @@ def test_notes_of_one_passage_across_two_blocks_each_follow_their_block_redrawn(
             const copy = block.cloneNode(true);
             copy.dataset.redrawn = "";
             // Left behind, so the ring on the copy is the runtime's doing.
-            copy.classList.remove("lf-proxied");
+            copy.removeAttribute("data-lf-proxied");
             block.replaceWith(copy);
           }
         }"""
@@ -847,7 +847,7 @@ def test_a_focused_note_rings_its_block_where_the_page_draws_its_own_annotations
     assert _ring_round(page, "#p1")
     # Leaving the note takes its ring down.
     note.evaluate("note => note.blur()")
-    expect(page.locator(".lf-proxied")).to_have_count(0)
+    expect(page.locator("[data-lf-proxied]")).to_have_count(0)
 
 
 def test_a_revision_keeps_a_block_naming_its_comment_note(browser, serve):

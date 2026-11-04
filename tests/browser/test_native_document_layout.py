@@ -1,7 +1,8 @@
-"""Document geometry is complete before runtime modules activate."""
+"""Document geometry the Layouts give natively: complete before runtime modules
+activate, and keeping the browser's own behavior, such as scroll anchoring."""
 
 import pytest
-from render_harness import displayed, leaf_page, open_page, wait_until_ready
+from render_harness import displayed, leaf_page, open_page, resized, wait_until_ready
 
 DOCUMENT = """
 <aside id="route"><div class="layout-track">
@@ -45,6 +46,41 @@ def test_native_sidebar_and_note_are_placed_before_widget_activation(browser, se
         page.unroute("**/leaf.js")
         wait_until_ready(page)
         assert page.evaluate(read) == before
+
+
+def test_growth_above_the_window_moves_nothing_read_in_a_sidebar_body(browser, serve):
+    """The browser's scroll anchoring takes growth above the window into what was
+    scrolled past, so the line read in a sidebar page's body stays put, as a thread's
+    new reply above the screen relies on (held-news.js). The aside stands first in the
+    tree and stretches along the body, holding only a sticky track, so anchoring must
+    pass over it to the body: anchored on the aside, the line moved by the growth."""
+    paragraphs = "".join(
+        f'<p id="p{number}">Paragraph {number} of the evidence.</p>'
+        for number in range(80)
+    )
+    source = leaf_page(
+        "sidebar anchoring",
+        '<aside id="route"><div class="layout-track"><p>The route.</p></div></aside>'
+        f'<div class="layout-column" id="body">{paragraphs}</div>',
+        layout="sidebar",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1280, 800)
+    moved = page.evaluate("""async () => {
+      const frame = () => new Promise(requestAnimationFrame);
+      const grown = document.getElementById('p20');
+      const read = document.getElementById('p26');
+      scrollBy({top: grown.getBoundingClientRect().bottom + 100, behavior: 'instant'});
+      await frame();
+      const before = read.getBoundingClientRect().top;
+      const growth = document.createElement('div');
+      growth.style.blockSize = '90px';
+      grown.after(growth);
+      await frame();
+      return {before, moved: read.getBoundingClientRect().top - before};
+    }""")
+    assert 0 < moved["before"] < 800, moved
+    assert moved["moved"] == pytest.approx(0, abs=0.5), moved
 
 
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])

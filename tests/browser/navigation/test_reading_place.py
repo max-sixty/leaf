@@ -1189,13 +1189,16 @@ def test_align_current_thread_stays_in_its_panel_without_travel(browser, serve):
     )
 
 
-def test_a_box_is_already_shown_whole_where_it_fits_and_in_part_where_it_cannot(
+def test_a_box_is_already_shown_where_a_nearest_landing_would_move_nothing(
     browser, serve
 ):
-    """A landing that follows the user moves nothing for a box already shown: all of it
-    in view where it fits its room, any of it where it does not. A wrapper clipping only
-    sideways bounds no height, so an editor standing in an `overflow-x: clip` row 20px
-    tall still fits, and 30px of it in view is not yet shown."""
+    """Every nearest landing first asks whether its box is already shown, which it is
+    where the landing would move nothing: all of it in view where it fits its room, and
+    filling the room where it is longer. So a box taller than the window that shows only
+    in part still comes in as far as it fits, its opening at the band's top, and is then
+    shown. A wrapper clipping only sideways bounds no height, so an editor standing in an
+    `overflow-x: clip` row 20px tall still fits, and 30px of it in view is not yet
+    shown."""
     source = leaf_page(
         "Room",
         '<div style="height:2000px"></div>'
@@ -1204,18 +1207,184 @@ def test_a_box_is_already_shown_whole_where_it_fits_and_in_part_where_it_cannot(
     )
     page = open_page(browser, serve(source))
     reading = page.evaluate("""async () => {
-      const {alreadyShown, fitsWhole} =
-        await window.__lfCheckApi();
-      const {shownWindow} = await window.__lfWidgetApi();
+      const {alreadyShown, fitsWhole, landingBand} = await window.__lfCheckApi();
+      const {scrollIntoView, shownWindow} = await window.__lfWidgetApi();
       const partly = (node) => {
         const top = node.getBoundingClientRect().top - (shownWindow().bottom - 30);
         scrollBy({top, behavior: 'instant'});
         return [fitsWhole(node), alreadyShown(node)];
       };
-      return [partly(document.querySelector('#box')),
-              partly(document.querySelector('#tall'))];
+      const tall = document.querySelector('#tall');
+      const readings = [partly(document.querySelector('#box')), partly(tall)];
+      scrollIntoView(tall, {block: 'nearest', behavior: 'instant'});
+      return {readings, landed: alreadyShown(tall),
+              top: tall.getBoundingClientRect().top,
+              band: landingBand(document.scrollingElement).top};
     }""")
-    assert reading == [[True, False], [False, True]]
+    assert reading["readings"] == [[True, False], [False, False]], reading
+    assert reading["landed"], reading
+    assert reading["top"] == pytest.approx(reading["band"], abs=1), reading
+
+
+def test_a_box_whole_in_a_pane_below_the_window_is_not_yet_shown(browser, serve):
+    """The room a box has is what a landing could give it, not what the boxes around it
+    show where they stand now: a 250px box a 300px pane holds whole, the pane's foot
+    below the window, fits the pane, so it is not yet shown, and a nearest landing
+    brings the page up until all of it is."""
+    source = leaf_page(
+        "Room in a pane",
+        '<div style="height:1200px"></div>'
+        '<div id="pane" style="height:300px;overflow:auto">'
+        '<div id="box" style="height:250px"></div><div style="height:600px"></div>'
+        '</div><div style="height:1600px"></div>',
+    )
+    page = open_page(browser, serve(source))
+    page.set_viewport_size({"width": 1280, "height": 900})
+    reading = page.evaluate("""async () => {
+      const {alreadyShown, landingBand} = await window.__lfCheckApi();
+      const {scrollIntoView} = await window.__lfWidgetApi();
+      const pane = document.querySelector('#pane');
+      const box = document.querySelector('#box');
+      scrollBy({top: pane.getBoundingClientRect().top - (innerHeight - 200),
+                behavior: 'instant'});
+      const before = {shown: alreadyShown(box), bottom: box.getBoundingClientRect().bottom};
+      scrollIntoView(box, {block: 'nearest', behavior: 'instant'});
+      return {before, after: alreadyShown(box), bottom: box.getBoundingClientRect().bottom,
+              band: landingBand(document.scrollingElement).bottom};
+    }""")
+    assert reading["before"]["bottom"] > reading["band"], reading
+    assert reading["before"]["shown"] is False, reading
+    assert reading["bottom"] <= reading["band"] + 1, reading
+    assert reading["after"] is True, reading
+
+
+def test_a_box_longer_than_its_pane_is_not_shown_while_its_pane_could_show_more(
+    browser, serve
+):
+    """A 300px box 100px down a 250px pane that stands 100px above the band shows 150px
+    of itself. A nearest landing scrolls the pane 100px to show 250px, and the page back
+    100px to keep the pane's top in the band, so the box stands where it stood: the two
+    moves cancel on screen but not in what the user sees, so it is not yet shown, and
+    the landing makes both."""
+    source = leaf_page(
+        "A box longer than its pane",
+        '<div style="height:1200px"></div>'
+        '<div id="pane" style="height:250px;overflow:auto">'
+        '<div style="height:100px"></div><div id="box" style="height:300px"></div>'
+        '<div style="height:600px"></div></div><div style="height:1600px"></div>',
+    )
+    page = open_page(browser, serve(source))
+    page.set_viewport_size({"width": 1280, "height": 900})
+    reading = page.evaluate("""async () => {
+      const {alreadyShown, landingBand, seenRect} = await window.__lfCheckApi();
+      const {scrollIntoView} = await window.__lfWidgetApi();
+      const pane = document.querySelector('#pane');
+      const box = document.querySelector('#box');
+      const band = landingBand(document.scrollingElement).top;
+      scrollBy({top: pane.getBoundingClientRect().top - (band - 100), behavior: 'instant'});
+      const seenHeight = () => {
+        const seen = seenRect(box, new Map());
+        return seen ? Math.round(seen.bottom - seen.top) : 0;
+      };
+      const before = {shown: alreadyShown(box), seen: seenHeight(),
+                      top: Math.round(box.getBoundingClientRect().top)};
+      scrollIntoView(box, {block: 'nearest', behavior: 'instant'});
+      return {before, pane: pane.scrollTop, seen: seenHeight(),
+              top: Math.round(box.getBoundingClientRect().top), after: alreadyShown(box)};
+    }""")
+    assert reading["before"]["seen"] == 150, reading
+    assert reading["before"]["shown"] is False, reading
+    assert reading["pane"] == 100, reading
+    assert reading["seen"] == 250, reading
+    assert reading["top"] == reading["before"]["top"], reading
+    assert reading["after"] is True, reading
+
+
+def test_a_landing_on_a_fixed_box_moves_nothing_around_it(browser, serve):
+    """A fixed box stands still while every box around it scrolls, so a landing on one
+    the window doesn't show, as a Tab's arrival makes, moves none of them."""
+    source = leaf_page(
+        "A fixed box",
+        '<button id="fixed" style="position:fixed;left:20px;top:1200px">Fixed</button>'
+        '<div style="height:3000px"></div>',
+    )
+    page = open_page(browser, serve(source))
+    page.set_viewport_size({"width": 1280, "height": 900})
+    reading = page.evaluate("""async () => {
+      const {scrollIntoView} = await window.__lfWidgetApi();
+      scrollTo({top: 100, behavior: 'instant'});
+      const fixed = document.querySelector('#fixed');
+      scrollIntoView(fixed, {block: 'nearest', behavior: 'instant'});
+      return scrollY;
+    }""")
+    assert reading == 100
+
+
+def test_align_current_tall_block_in_a_pane_in_a_pane_lands_its_opening(browser, serve):
+    """`g z` on a tall item in a pane that stands in another pane, both partly above the
+    window, aligns the item's opening in its own pane and then brings that opening to
+    the page's band: each box around reads where the boxes inside it have just put the
+    item, so the opening is not left above the window."""
+    source = leaf_page(
+        "A tall item two panes deep",
+        '<h1>Read the opening</h1><div style="height:700px"></div>'
+        '<div id="outer" data-bound="start" style="height:300px;overflow:auto">'
+        '<div style="height:200px"></div>'
+        '<div id="inner" data-bound="start" style="height:250px;overflow:auto">'
+        '<pre id="tall" tabindex="0" style="margin:0">'
+        + "A line in the current item.\n"
+        * 80
+        + '</pre><div style="height:600px"></div></div>'
+        '<div style="height:1000px"></div></div><div style="height:3000px"></div>',
+    )
+    page = open_page(browser, serve(source))
+    page.set_viewport_size({"width": 1440, "height": 900})
+    page.emulate_media(reduced_motion="reduce")
+    page.locator("#tall").evaluate("el => el.focus({preventScroll: true})")
+    page.evaluate(
+        """() => {
+          const outer = document.querySelector('#outer');
+          scrollTo({top: outer.getBoundingClientRect().top + scrollY + 100,
+                    behavior: 'instant'});
+          document.querySelector('#inner').scrollTop = 300;
+        }"""
+    )
+    scroll_settled(page)
+    assert page.locator("#tall").bounding_box()["y"] < 0
+    page.keyboard.press("g")
+    page.keyboard.press("z")
+    scroll_settled(page)
+    _expect_aligned(page, "#tall")
+    assert page.locator("#inner").evaluate("box => box.scrollTop") == 0
+    expect(page.locator("#tall")).to_be_focused()
+
+
+def test_a_landing_brings_in_a_fixed_box_a_transformed_box_holds(browser, serve):
+    """A fixed box a transformed box holds is placed in that box, not the window, so it
+    rides the page's scroll and a landing scrolls the page to show it; one fixed in the
+    window is left where it stands (`test_a_landing_on_a_fixed_box_moves_nothing_around_it`)."""
+    source = leaf_page(
+        "A fixed box carried",
+        '<div style="height:100px"></div><div style="transform:translateZ(0)">'
+        '<button id="carried" style="position:fixed;left:20px;top:1300px">Carried'
+        '</button></div><div style="height:4000px"></div>',
+    )
+    page = open_page(browser, serve(source))
+    page.set_viewport_size({"width": 1280, "height": 900})
+    reading = page.evaluate("""async () => {
+      const {landingBand, seenRect} = await window.__lfCheckApi();
+      const {scrollIntoView} = await window.__lfWidgetApi();
+      const carried = document.querySelector('#carried');
+      const before = carried.getBoundingClientRect().top;
+      scrollIntoView(carried, {block: 'nearest', behavior: 'instant'});
+      const box = carried.getBoundingClientRect();
+      return {before, bottom: box.bottom, y: scrollY, seen: Boolean(seenRect(carried, new Map())),
+              band: landingBand(document.scrollingElement).bottom};
+    }""")
+    assert reading["before"] > 900, reading
+    assert reading["y"] > 0, reading
+    assert reading["seen"], reading
+    assert reading["bottom"] <= reading["band"] + 1, reading
 
 
 def test_align_current_tall_block_reveals_its_opening_through_outer_scrollers(
@@ -1346,9 +1515,9 @@ def test_vertical_landing_crosses_a_quarter_turn_without_changing_horizontal_rea
         page.keyboard.press("z")
     else:
         page.evaluate("""async () => {
-          const {scrollIntoReadingBand} = await window.__lfWidgetApi();
+          const {scrollIntoView} = await window.__lfWidgetApi();
           const target = document.querySelector('#quarter-target');
-          scrollIntoReadingBand(target, target, 'nearest', 'instant');
+          scrollIntoView(target, {block: 'nearest', behavior: 'instant'});
         }""")
     after = page.evaluate("""async () => {
       const {landingBand} = await window.__lfCheckApi();

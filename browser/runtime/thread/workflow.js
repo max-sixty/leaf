@@ -24,11 +24,11 @@ import { agentSays, leafSays } from "../voice.js";
  * @returns {workflow is Extract<Workflow, {subject: {kind: "widget"}}>} */
 const widgetWorkflow = (workflow) => workflow.subject.kind === "widget";
 
-// The server chooses the first open agent to-do in this thread, and publication
-// retains that same order. User gestures can end only user-owned to-dos, which
-// live in userTodos, so local folding cannot remove the to-do this reading names.
+// The server chooses the first open to-do in this thread, and publication retains
+// that same order. Only the agent ends a to-do, so no local gesture removes the one
+// this reading names.
 /** @param {ThreadRecord} thread
- * @returns {thread is ThreadRecord & {todos: readonly [import("../framework/application.js").WireTodo, ...import("../framework/application.js").WireTodo[]]}} */
+ * @returns {thread is ThreadRecord & {todos: readonly [import("../../types/contract.js").ServedTodo, ...import("../../types/contract.js").ServedTodo[]]}} */
 const todoAttention = (thread) =>
   thread.attention?.kind === "waiting" && thread.attention.reason === "todo";
 
@@ -154,7 +154,7 @@ export function strongestWorkflow(workflows) {
 // An open to-do's word, wherever it stands, in the agent's voice since it opened the
 // to-do: On it while a start runs on it, else what it means for the user's request,
 // which the user chose over "To-do open" (2026-10-27).
-/** @param {import("../framework/application.js").WireTodo["running"]} running */
+/** @param {import("../../types/contract.js").ServedTodo["running"]} running */
 export const todoWord = (running) => agentSays(running ? "On it" : "Still to do");
 
 // A thread's state while it isn't resolved, and its `word`.

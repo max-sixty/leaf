@@ -30,7 +30,7 @@ const STATE_PRIORITY = Object.freeze({ idle: 3, engaged: 2, busy: 1, failed: 0 }
  * state?: ContributionState, visible?: boolean, disabled?: boolean, count?: number,
  * pressed?: boolean | null, workflowReceipt?: import("./framework/application.js").Workflow | null | undefined,
  * relation?: EntryRelationInput | null, activation?: string | null, title?: string | null,
- * className?: string | null, scope?: import("./keyboard/scopes.js").CommandCapability | null | undefined}} EntryInput
+ * scope?: import("./keyboard/scopes.js").CommandCapability | null | undefined}} EntryInput
  * @typedef {ReturnType<typeof contributionEntry>} ContributionEntry
  * @typedef {ContributionEntry & {owner?: string}} BrandedEntry
  * @typedef {ContributionEntry & {owner: string}} OwnedEntry
@@ -76,7 +76,6 @@ const ENTRY_OPTIONS = new Set([
   "relation",
   "activation",
   "title",
-  "className",
   "scope",
 ]);
 // What a contribution reading or contribution is, and the face and word it wears. A
@@ -218,7 +217,6 @@ export function contributionEntry(offered) {
     relation = null,
     activation = key,
     title = null,
-    className = null,
     scope = null,
   } = offered;
   if (!text(key)) throw new TypeError("A contribution entry needs a key");
@@ -265,7 +263,6 @@ export function contributionEntry(offered) {
     workflowReceipt,
     relation: freezeRelation(relation),
     title: text(title) || null,
-    className: text(className) || null,
   };
   const record =
     behavior === "status"

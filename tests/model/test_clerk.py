@@ -39,7 +39,6 @@ def reply(page, *titles: str, passage: str = "") -> str:
             "asks": [
                 {
                     "page": str(page),
-                    "kind": "question",
                     "title": title,
                     "text": f"{title}: which would you like?",
                     "passage": passage,
@@ -165,73 +164,13 @@ def test_an_ask_about_a_passage_stands_on_it_or_else_on_the_page(claimed, capsys
     assert f'"The retry budget" On me, in a new thread on {page} as a whole,' in context
 
 
-def test_a_step_goes_on_me_as_a_todo_titled_as_the_action(claimed, capsys):
-    """A step the user takes and confirms with Done goes On me as the agent's to-do on
-    the user, on the element holding the passage it concerns or else on the page, and
-    the agent hears its id. A step the agent already put on the user isn't put there
-    again, open or ended."""
-    page = claimed.resolve()
-    hook(capsys, "UserPromptSubmit")
-    basis = asked()["basis"]
-
-    def step(title, passage=""):
-        return {
-            "page": str(page),
-            "kind": "step",
-            "title": title,
-            "text": "",
-            "passage": passage,
-            "quote": title,
-        }
-
-    answer = {
-        "asks": [
-            step("Run the backfill job on staging", "The cutoff lives in"),
-            step("Run /reload-plugins in this Claude session"),
-        ],
-        "findings": [],
-    }
-    wrote = clerk_model.take_answer("s1", json.dumps(answer), basis)["wrote"]
-    assert [
-        (record["kind"], record["owner"], record["subject"]) for record in wrote
-    ] == [
-        ("todo", "user", {"kind": "element", "id": "plan"}),
-        ("todo", "user", {"kind": "page"}),
-    ]
-    assert {(record["author"], record["session"]) for record in wrote} == {
-        ("agent", "s1")
-    }
-    on_me = cmd_page_state(claimed)["queues"]["on_user"]
-    assert [row["id"] for row in on_me] == [record["id"] for record in wrote]
-    context = hook(capsys, "PostToolBatch")
-    assert (
-        f'Leaf put the step "Run /reload-plugins in this Claude session" On me as your '
-        f"to-do {wrote[1]['id']} on the user, on {page} as a whole." in context
-    )
-    assert f"leaf task end {page} {wrote[0]['id']} dropped" in context
-
-    append_carried_log_record(
-        claimed,
-        {
-            "kind": "todo_end",
-            "author": "agent",
-            "agent": "Claude",
-            "session": "s1",
-            "todo": wrote[1]["id"],
-            "outcome": "dropped",
-        },
-    )
-    again = clerk_model.take_answer("s1", json.dumps(answer), asked()["basis"])
-    assert again["wrote"] == []
-
-
 def test_the_fork_is_asked_the_skills_account_of_the_check(claimed, capsys):
     """The fork reads the check as the skill ships it, Leaf's rule for On me as the
     agent reads it, then each page's facts, among
     them each item the agent has started with its line, which tells the fork what the
     page shows under way."""
     hook(capsys, "UserPromptSubmit")
-    todo = todos_model.cmd_create(claimed, "page", "Revise the plan", "agent")
+    todo = todos_model.cmd_create(claimed, "page", "Revise the plan")
     todos_model.cmd_start(claimed, todo["id"], "revising the plan")
     prompt = asked()["prompt"]
     assert clerk_model.REFERENCE.read_text().strip() in prompt
@@ -679,7 +618,9 @@ def test_each_fork_leaves_a_note_in_the_pages_diagnostics(claimed, capsys):
         '{"asks": [], "findings": [{"kind": "stale", "page": "p", "summary": "s", '
         '"quote": "", "edit": {"words": " ", "replacement": "x"}}]}',
         '{"asks": [{"page": "p", "title": "x"}]}',
-        '{"asks": [{"page": "p", "kind": "question", "title": "x", "text": "", '
+        '{"asks": [{"page": "p", "title": "x", "text": "", "passage": "", '
+        '"quote": ""}]}',
+        '{"asks": [{"page": "p", "kind": "step", "title": "x", "text": "Run it.", '
         '"passage": "", "quote": ""}]}',
     ],
 )

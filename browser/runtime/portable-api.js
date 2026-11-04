@@ -57,7 +57,13 @@ export { measure } from "./shown-box.js";
 export { registerVisualParts } from "./visual-parts.js";
 export { inBaseLayer } from "./base-layer.js";
 export { tabStore } from "./tab-store.js";
-export { ensureSyntaxLanguage, synNodes, syntax, tokenLines } from "./syntax-tokens.js";
+export {
+  ensureSyntaxLanguage,
+  synNodes,
+  syntax,
+  syntaxState,
+  tokenLines,
+} from "./syntax-tokens.js";
 export { actionName } from "./icon-paths.js";
 export { onMotionPreferenceChange, reducedMotion } from "./motion.js";
 // The time axis the Playwright timeline and lf-timeline both draw on.

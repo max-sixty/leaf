@@ -40,10 +40,17 @@ export function ensureSyntaxLanguage(lang) {
 // emits one span per token, while lf-code interleaves the line spans it numbers.
 // A declared language is validated by page check
 // against the registry's $languages.names.
-/** @param {string} source @param {string} lang */
-export async function syntax(source, lang) {
+//
+// A long text can be coloured a part at a time: `syntaxState(tokens)` is the grammar
+// state the tokens' last line ends in, and `state` continues the source from one, so
+// each part takes the state the part before it ended in and is coloured as it would be
+// in the whole text. Begun afresh, a part starting inside a docstring read its rest as
+// code.
+/** @param {string} source @param {string} lang @param {SyntaxState} [state] */
+export async function syntax(source, lang, state) {
   const shared = await ensureSyntaxLanguage(lang);
-  const tokens = await shared.tokenize(source, lang);
+  const { tokens, state: end } = await shared.tokenize(source, lang, state);
+  if (end) states.set(tokens, end);
   // The vendored tokenizer's output is data entering, so it is checked once, here, and
   // indexed everywhere after: that the tokens partition the source exactly. Three things
   // rest on it — lf-code numbers its lines by counting newlines in them, `hi` and each
@@ -57,11 +64,18 @@ export async function syntax(source, lang) {
   return tokens;
 }
 
+/** @typedef {Awaited<ReturnType<typeof import("/vendor/syntax.esm.js").tokenize>>} Tokenized */
+/** @typedef {NonNullable<Tokenized["state"]>} SyntaxState */
+/** @typedef {Tokenized["tokens"][number]} SyntaxToken */
+/** @type {WeakMap<readonly SyntaxToken[], SyntaxState>} */
+const states = new WeakMap();
+/** @param {readonly SyntaxToken[]} tokens */
+export const syntaxState = (tokens) => states.get(tokens);
+
 // Tokens as nodes: one span per style, and the bare text where none applies, so nothing
 // lands in the DOM that says nothing. Callers build from here — plain code replacing its
 // own children, lf-code appending into the line it is numbering — because a second place
 // writing the same span is a second place to forget the attribute.
-/** @typedef {Awaited<ReturnType<typeof import("/vendor/syntax.esm.js").tokenize>>[number]} SyntaxToken */
 /** @param {readonly SyntaxToken[]} tokens */
 export const synNodes = (tokens) =>
   tokens.map(({ text, style }) => {

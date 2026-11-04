@@ -519,18 +519,24 @@ class PageEndpoint:
         (`served_state.tail`). Without this every gesture's answer would carry back
         every record and past event the tab already holds. The answer goes out as
         it stands (`_json_body`), since addressing it again would address its
-        markup twice.
+        markup twice. The log travels apart from the reading, as only the events
+        after the held reading's, so only the events sent are addressed, rather than
+        every message's markup the session has logged.
 
         A capture's readings are whole and unnamed: a render check reads them, or
         leaf.page saves them as a published page's responses, one for each revision,
         and none is a reading a tab goes on to extend from this process, so
         remembering them would only push out the readings the tabs hold."""
-        scoped = scope_page_urls(state, self.page_root)
-        if self.page_snapshot is not None:
-            return scoped
-        return tail_answer(
-            scoped, self.headers.get("Leaf-Held-Basis"), str(self.page_dir)
+        reading = {key: value for key, value in state.items() if key != "events"}
+        scoped = {**scope_page_urls(reading, self.page_root), "events": state["events"]}
+        answer = (
+            scoped
+            if self.page_snapshot is not None
+            else tail_answer(
+                scoped, self.headers.get("Leaf-Held-Basis"), str(self.page_dir)
+            )
         )
+        return {**answer, "events": scope_page_urls(answer["events"], self.page_root)}
 
     def page_browser_view(self, view_revision: int, through_seq: int) -> dict:
         """One revision projected at an exact already-observed log boundary."""

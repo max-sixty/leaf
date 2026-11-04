@@ -119,6 +119,13 @@ def long_source_selected(page: Page) -> None:
     page.mouse.up()
 
 
+def captured_source_by_keyboard(page: Page) -> None:
+    """The captured source's scroller focused by keyboard, its ring over the lines."""
+    captured_source(page)
+    page.keyboard.press("Tab")
+    page.locator("#bg-source-live .lf-text-document-listing > pre").focus()
+
+
 def native_code(page: Page) -> None:
     """Native fenced code using short language labels."""
     page.locator("#bg-gallery-tabs").get_by_role(
@@ -198,6 +205,13 @@ def boxed_tab_by_keyboard(page: Page) -> None:
     page.locator("#bg-tabs").scroll_into_view_if_needed()
     page.keyboard.press("Tab")
     page.locator("#bg-tabs .lf-tab-btn").first.focus()
+
+
+def boxed_tab_panel_by_keyboard(page: Page) -> None:
+    """A boxed tab set's open panel focused by keyboard, ringed inside its border."""
+    boxed_tab_by_keyboard(page)
+    page.keyboard.press("Tab")
+    expect(page.locator("#bg-tabs > lf-tab:not([hidden])")).to_be_focused()
 
 
 def drawing_comment(page: Page) -> None:
@@ -2126,6 +2140,13 @@ def live_sample_full_view(page: Page) -> None:
     expect(sample.get_by_role("dialog", name="practice release note")).to_be_visible()
 
 
+def trace_image_by_keyboard(page: Page) -> None:
+    """The recording's captured image focused by keyboard, its ring over the marks."""
+    trace_controls(page)
+    page.keyboard.press("Tab")
+    page.locator("#release-trace .lf-trace-canvas").first.focus()
+
+
 def trace_timeline_by_keyboard(page: Page) -> None:
     """The timeline focused, after tabbing away from it and back."""
     trace_controls(page)
@@ -2212,6 +2233,12 @@ STATES = (
         "feature-gallery",
         captured_source,
         region="#bg-source-captures",
+    ),
+    State(
+        "captured-source-keyboard",
+        "feature-gallery",
+        captured_source_by_keyboard,
+        region="#bg-source-live",
     ),
     State(
         "recorded-video",
@@ -2463,6 +2490,12 @@ STATES = (
         "playwright-trace-gallery",
         trace_timeline_by_keyboard,
     ),
+    State(
+        "trace-image-keyboard",
+        "playwright-trace-gallery",
+        trace_image_by_keyboard,
+        region="#release-trace .lf-trace-canvas",
+    ),
     State("retained-quote", "feature-gallery", retained_quote),
     State("retained-quote-full", "feature-gallery", retained_quote_full),
     State(
@@ -2510,6 +2543,12 @@ STATES = (
     State("gallery-tab-focus", "feature-gallery", tab_by_keyboard),
     State("gallery-tab-hover", "feature-gallery", tab_by_pointer),
     State("gallery-boxed-tab-focus", "feature-gallery", boxed_tab_by_keyboard),
+    State(
+        "boxed-tab-panel-keyboard",
+        "feature-gallery",
+        boxed_tab_panel_by_keyboard,
+        region="#bg-tabs",
+    ),
     State("side-tab-focus", "alert-review", tab_by_keyboard),
     State("frame-edges", "feature-gallery", frame_edges),
     State("gallery-metrics", "feature-gallery", gallery_metrics),

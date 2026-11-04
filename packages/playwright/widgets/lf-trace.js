@@ -2605,7 +2605,7 @@ export class Trace extends LeafElement {
         const status = el("span", "lf-trace-image-status", "Loading captured image…");
         figure.classList.add("lf-trace-image-loading");
 
-        const canvas = el("div", "lf-trace-canvas");
+        const canvas = el("div", "lf-trace-canvas lf-ring-frame");
         canvas.tabIndex = 0;
         canvas.setAttribute("role", "group");
         canvas.setAttribute(

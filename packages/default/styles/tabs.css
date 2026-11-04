@@ -252,12 +252,13 @@ lf-tabs[data-lf-views] > lf-tab {
       --lf-end-room: inherit;
       --lf-block-frame: 1;
     }
-    /* The set carries its panel's ring, anchored to the panel's border box.
-     An outline on the panel paints below positioned reading content; an absolute
-     overlay inside it scrolls with that content. Keeping the frame outside the
-     reader handles both without reserving space or clipping wide page exhibits.
-     Each set scopes its anchor so nested sets keep independent frames. A page's
-     parts are the same set (lf-parts.js), so the open part's ring is this one too. */
+    /* The set is its panel's ring frame (surfaces.css, `.lf-ring-frame`), and its
+     ring stands on the panel's border box, by anchor. An outline on the panel paints
+     below positioned reading content; an absolute overlay inside it scrolls with that
+     content. Keeping the frame outside the reader handles both without reserving
+     space or clipping wide page exhibits. Each set scopes its anchor so nested sets
+     keep independent frames. A page's parts are the same set (lf-parts.js), so the
+     open part's ring is this one too. */
     :is(lf-tabs, lf-parts)[data-lf-views] {
       position: relative;
       anchor-scope: --lf-tab-panel;
@@ -267,26 +268,9 @@ lf-tabs[data-lf-views] > lf-tab {
       z-index: 0;
       anchor-name: --lf-tab-panel;
     }
-    :is(lf-tabs, lf-parts)[data-lf-views]
-      > :is(lf-tab, lf-part)[data-lf-focus-visible] {
-      outline: none;
-    }
-    :is(lf-tabs, lf-parts)[data-lf-views]:has(
-        > :is(lf-tab, lf-part)[data-lf-focus-visible]
-      ) {
-      --lf-wears-ring: 1;
-    }
-    :is(lf-tabs, lf-parts)[data-lf-views]:has(
-        > :is(lf-tab, lf-part)[data-lf-focus-visible]
-      )::after {
-      content: "";
-      position: absolute;
+    :is(lf-tabs, lf-parts)[data-lf-views]::after {
       position-anchor: --lf-tab-panel;
       inset: anchor(top) anchor(right) anchor(bottom) anchor(left);
-      z-index: 1;
-      pointer-events: none;
-      outline: var(--focus-ring);
-      outline-offset: var(--focus-ring-inset);
     }
     /* until-found keeps the element's own box in flow; zero it so inactive panels
      * leave no stray gap below the active one. */
@@ -861,7 +845,7 @@ lf-tabs[data-lf-views] > lf-tab {
     @scope (lf-tabs.layout-flow) {
       /* Page tabs have no panel padding. Keep the ring outside the three text edges,
      * with its top on the strip's rule; boxed sets and parts keep their inset ring. */
-      :scope:is(lf-tabs)[data-lf-views]:has(> lf-tab[data-lf-focus-visible])::after {
+      :scope:is(lf-tabs)[data-lf-views]::after {
         inset: anchor(top) calc(anchor(right) - var(--focus-region-room))
           calc(anchor(bottom) - var(--focus-region-room))
           calc(anchor(left) - var(--focus-region-room));

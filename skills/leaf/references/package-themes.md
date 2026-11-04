@@ -148,6 +148,13 @@ A rule that draws a control's focus ring on a box around it, such as a choice's 
 holding its radio and words, declares `--lf-wears-ring: 1` beside the ring, so Leaf
 scrolls that box rather than the control into view with room for its ring.
 
+Where the positioned content a box holds would paint over its own ring, as a scroller's
+positioned lines do, give the box, or the box whose child it is, the class
+`lf-ring-frame`. That frame draws the ring one band inside its edge on its `::after`,
+above what it holds, and declares `--lf-wears-ring` itself; a rule of yours on the
+frame's `::after` sets only where the ring stands, when that isn't the frame's edge,
+and its `z-index`.
+
 Turn off a widget's interactive styling inside `[data-lf-exhibit]`, where it is quoted
 rather than offered. An export inlines the stylesheet and opens offline, so use fonts on
 the user's machine, not remote ones.

@@ -3989,7 +3989,7 @@ def test_a_press_on_a_passage_opens_its_thread_where_it_stands(browser, serve):
     # 10px into the band keeps the line's middle, where the press lands, off the panel.
     covered = place_bottom(10)
     page.mouse.click(*mark_point(page, "lf-mark"))
-    expect(page.locator(".lf-page-thread")).to_be_focused()
+    expect(page.locator(".lf-page-thread leaf-text")).to_be_focused()
     # A trip waits on the thread refresh before it decides to move, and that same
     # refresh is what writes this card's placement (`scrollToThread`, anchor-travel.js).
     # So the card standing where the pass put it is the edge a travel would have been
@@ -4014,7 +4014,7 @@ def test_a_pinned_row_opens_its_card_clear_of_the_passage(browser, serve):
     )
     place_bottom(-560)
     page.mouse.click(*mark_point(page, "lf-mark"))
-    expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
+    expect(page.locator(".lf-margin-preview .lf-page-thread leaf-text")).to_be_focused()
     boxes = page.evaluate(
         """() => {
           const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();

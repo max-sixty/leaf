@@ -146,7 +146,11 @@ import { paintTrace } from "../target-paint.js";
 import { outlineChange } from "../margin-bars.js";
 
 import { threadNamed } from "../thread/state.js";
-import { carryingThreadPlace, currentLocationThreadId } from "../thread/focus.js";
+import {
+  carryingThreadPlace,
+  currentLocationThreadId,
+  openingPart,
+} from "../thread/focus.js";
 
 import { claimed, revealHeld } from "../thread/surfaces.js";
 import { releaseReplies } from "../thread/replies.js";
@@ -1431,7 +1435,8 @@ export function createMarginProjection({
 
   // A press on a marker opens its card, or puts away the card it already shows. Where
   // no card stands, as on a window with no room for the rail (header), the thread opens
-  // where every other route opens it (thread/destination.js): the floating panel.
+  // where every other route opens it (thread/destination.js): the floating panel. Either
+  // way the user lands where every opening puts them (thread/focus.js, `openingPart`).
   /** @param {Entry} entry @param {ThreadChoice} choice @param {Element} button */
   function togglePinned(entry, choice, button) {
     const selected = card.selection();
@@ -1441,7 +1446,8 @@ export function createMarginProjection({
     }
     const positioned = showPreview(entry, choice, button);
     if (positioned) card.focusThread(positioned);
-    else void openPageThread(threadIdOf(choice), { part: "thread", travel: false });
+    else
+      void openPageThread(threadIdOf(choice), { part: openingPart(), travel: false });
   }
 
   // Closing the card hands a user who was in it on (focus.js, `closeLayer`). A close

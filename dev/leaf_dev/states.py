@@ -571,7 +571,7 @@ def thread_by_marker(page: Page) -> None:
     settle(page)
     marker.click()
     page.wait_for_function(
-        "() => document.activeElement?.closest('.lf-margin-preview, .lf-fp-view')"
+        "() => document.activeElement?.closest('.lf-margin-preview, .lf-fp-opened')"
     )
     page.mouse.move(0, 0)
 

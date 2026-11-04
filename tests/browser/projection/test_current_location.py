@@ -807,8 +807,8 @@ def test_a_thread_about_an_ask_stands_at_the_ask_from_the_panel(browser, serve):
 def test_a_thread_opened_in_the_panel_by_the_keyboard_opens_no_card_beside_it(
     browser, serve
 ):
-    """A thread the keyboard opens from Threads shows in the panel alone, and Escape
-    from its reply leaves it so. Its view stands at the ask the thread is about, and the
+    """A thread the keyboard opens from Threads shows in the panel alone, on its view,
+    and Escape from its reply leaves it so. Its view stands at the ask the thread is about, and the
     margin read the keyboard arriving there as an arrival at the ask, so it opened the
     thread's card beside the ask as well: the same thread twice, the card left standing
     after the panel closed."""
@@ -822,6 +822,8 @@ def test_a_thread_opened_in_the_panel_by_the_keyboard_opens_no_card_beside_it(
     row.focus()
     page.keyboard.press("Enter")
     panel_settled(page, view="thread")
+    expect(page.locator(".lf-fp-view[data-lf-thread='t-open']")).to_be_focused()
+    page.keyboard.press("Enter")
     expect(page.locator(PANEL_REPLY)).to_be_focused()
     expect(page.locator("#store-ask")).to_have_attribute("data-lf-obligation", "1")
     page.keyboard.press("Escape")

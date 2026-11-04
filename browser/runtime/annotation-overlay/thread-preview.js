@@ -76,7 +76,7 @@ import { paintKeysWithin } from "../keyboard/scopes.js";
 import { closestAcross } from "../passages.js";
 import { drawnThreadsWithId } from "../thread/selectors.js";
 import { threadIdNamed } from "../thread/state.js";
-import { turns } from "../thread/model.js";
+import { threadKey, turns } from "../thread/model.js";
 import { anchorLabel, releaseAuthoredUnder } from "../thread/messages.js";
 import { coarsePointer } from "../pointer.js";
 import {
@@ -95,9 +95,9 @@ import { placeKeeper } from "../user-place.js";
 import { renderedOrder, renderedUnder, under } from "../shadow.js";
 import { keys } from "../keyboard/scopes.js";
 import { retainUserIntent } from "../user-intent.js";
-import { threadFocusDestination } from "../thread/focus.js";
+import { openingPart, threadFocusDestination } from "../thread/focus.js";
 import { claimSeatReplies } from "../thread/inline.js";
-import { releaseReplies } from "../thread/replies.js";
+import { dismissReply, releaseReplies } from "../thread/replies.js";
 import { keepThreadLanding, showReturnTurn } from "../thread/reply-landing.js";
 import { CardAnchor } from "../thread/card-anchor.js";
 
@@ -114,7 +114,7 @@ import { CardAnchor } from "../thread/card-anchor.js";
  * focusPending: {holding: Element | null} | null, withheldFocus: ReturnType<typeof holdFocus>,
  * transcript: HTMLElement | null, place: ReturnType<typeof placeKeeper> | null,
  * stopRegion: (() => void) | null, stopFoot: (() => void) | null, side: ReturnType<typeof commentPlacement>, anchor: CardAnchor,
- * reading: {input: number, scroll: number, end: boolean} | null, itemView: {node: HTMLElement, body: HTMLElement} | null, width: number | null, scroller: Element, followed: boolean}} Session
+ * opened: number, reading: {input: number, scroll: number, end: boolean} | null, itemView: {node: HTMLElement, body: HTMLElement} | null, width: number | null, scroller: Element, followed: boolean}} Session
  * @typedef {{latest: boolean, end: boolean, scroll: number, keepTop: boolean, transcript: HTMLElement}} Reading
  */
 
@@ -892,6 +892,9 @@ export function createThreadPreview({
     // field, rather than fade in (annotation-chrome.css).
     keeps(preview, "data-lf-grows", origin ? "" : null);
     return session;
+      // The user's inputs as this selection opened, which a caret landing in its reply
+      // before any more of them is the opening's (`mount`).
+      opened: inputCount(),
   }
 
   /** @param {Entry} entry @param {Choice} choice @param {Session} current @param {string | null} [requestedItem] */
@@ -996,7 +999,13 @@ export function createThreadPreview({
     const next = Math.max(0, Math.min(threadItems.length - 1, current + step));
     const item = threadItems[next];
     if (next === current || !item) return;
-    void openPageThread(item.thread.id, { part: "thread" });
+    // Stepping away from a thread ends the editing of its reply, keeping its draft, as
+    // the floating panel's leaving a thread does: a press on the card's head line is a
+    // press in the thread, which keeps it (thread/replies.js), and the reply going on
+    // would carry the card back to the thread it stood in. The step lands where every
+    // opening of a thread does (thread/focus.js, `openingPart`).
+    dismissReply(threadKey(session.item.thread));
+    void openPageThread(item.thread.id, { part: openingPart() });
   }
   /** @param {Item} item @param {Session} session */
   function previewItemNode(item, session) {
@@ -1187,10 +1196,14 @@ export function createThreadPreview({
     deferThreadPreviewFocus(
       positioned,
       () => {
-        const target = closeControl
-          ? previewClose
-          : previewList.querySelector(".lf-page-thread");
-        if (!target) return;
+        if (closeControl) {
+          focusDestination(previewClose, cause);
+          return;
+        }
+        const thread = previewList.querySelector(".lf-page-thread");
+        if (!thread) return;
+        const target =
+          threadFocusDestination(thread, { part: openingPart() }) ?? thread;
         focusDestination(target, cause);
         if (!closeControl) scrollThreadIntoView(target, target);
       },
@@ -1218,10 +1231,16 @@ export function createThreadPreview({
         node &&
         under(node, preview) &&
         closestAcross(node, ".lf-thread-reply") &&
+  // The card a press on its marker opened takes the user where every opening does
+  // (thread/focus.js, `openingPart`): into its reply, or onto its thread. Either way the
+  // thread lands whole: landing on its reply box would take its transcript to its end,
+  // past the turn the card opened on (`showArrival`).
         cause !== "return" &&
         cause !== "drop"
       ) {
-        previewSession?.anchor.writing();
+        // Before any input since the card opened, the caret is the opening's.
+        if (previewSession?.opened === inputCount()) previewSession.anchor.opened();
+        else previewSession?.anchor.writing();
         scheduleThreadPreviewPosition();
       }
       const row =

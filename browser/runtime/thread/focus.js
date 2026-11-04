@@ -5,7 +5,9 @@ import {
   holdCurrentLocation,
   focused,
   onPress,
+  pressLed,
 } from "../focus.js";
+import { coarsePointer } from "../pointer.js";
 import { shownBox } from "../geometry.js";
 import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
 import { closestAcross } from "../passages.js";
@@ -25,6 +27,17 @@ import { replyControlDestination, replyIsEditing, replyThreadKey } from "./repli
 export function focusThread(thread, cause) {
   focusDestination(thread, cause);
 }
+
+// Where opening a thread puts the user, on every surface a press opens one on, a margin
+// card as the floating panel's view: a fine pointer's press puts the caret in its reply,
+// so what they type answers at once, and Escape stands them on the thread
+// (landing.js); a key puts them on the thread, where keys act, and so does a finger,
+// since the keyboard that a box takes would rise over what they opened to read. The user
+// chose this on 4 November 2026 over opening on the thread wherever a press opened it,
+// as the card did, where `r`, `t` and the other keys act at once and `c` starts a reply.
+/** @returns {"reply" | "thread"} */
+export const openingPart = () =>
+  pressLed() && !coarsePointer.matches ? "reply" : "thread";
 
 /** @param {Element | null | undefined} thread */
 export const threadReplyInput = (thread) => {

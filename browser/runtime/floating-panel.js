@@ -247,6 +247,7 @@ import {
   titlePending,
 } from "./thread/messages.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
+import { openingPart } from "./thread/focus.js";
 import { declareThreadParts } from "./thread/selectors.js";
 import { quoteReading } from "./thread/thread-card.js";
 import { inPageOrder } from "./thread/placement.js";
@@ -301,6 +302,7 @@ import {
   onPressAway,
   onUserInput,
   pressHolds,
+  pressLed,
   pressRecords,
   rove,
   currentLocationIn,
@@ -2207,22 +2209,23 @@ export function createFloatingPanel({
   function focusView(route, drawn, stoodIn = null) {
     if (!route) return;
     const view = shownView();
-    // A thread opens with the caret in its reply, as the one field means, once Leaf's
-    // reader has drawn the reply there; one taking no reply, as a resolved thread does,
-    // holds focus itself, so the user is in it. A list stands on the row of the
-    // thread the user was in, where it lists it, as `g T` from a thread does; else,
-    // opened by a key, in the panel or on the page as `g T` is, on its first row, or its
-    // first control where it has none, or itself where it holds neither, as an empty
-    // Threads does, so the key's landing wears a ring; opened by a pointer, it holds
-    // focus itself. The user chose this on 31 October, after `g T` from the page left
-    // focus on the list's view, where nothing showed it and Enter went nowhere seen.
+    // A thread opens where every opening of one puts the user (thread/focus.js,
+    // `openingPart`), once Leaf's reader has drawn it: a pointer's press puts the caret
+    // in its reply in the field, and a key or a finger stands them on the view. A list
+    // stands on the row of the thread the user was in, where it lists it, as `g T` from
+    // a thread does; else, opened by a key, in the panel or on the page as `g T` is, on
+    // its first row, or its first control where it has none, or itself where it holds
+    // neither, as an empty Threads does, so the key's landing wears a ring; opened by a
+    // pointer, it holds focus itself. The user chose this on 31 October, after `g T`
+    // from the page left focus on the list's view, where nothing showed it and Enter
+    // went nowhere seen.
     if (route.thread) {
       // A finger opening a thread reads it first, standing in the view, whose box
       // raises no keyboard; the keyboard rises when they tap in.
       const intent = retainUserIntent();
       void Promise.resolve(drawn).then(() => {
         const at = shownView();
-        const target = at && ((!coarsePointer.matches && viewParts.reply(at)) || at);
+        const target = at && ((openingPart() === "reply" && viewParts.reply(at)) || at);
         if (target && trail.value.at(-1) === route && intent())
           focusDestination(target, "move");
       });
@@ -2234,17 +2237,9 @@ export function createFloatingPanel({
       rows.find((row) => threadByKey(row.getAttribute("data-lf-key"))?.id === stoodIn);
     const target =
       stoodRow ||
-      (keyed ? (rows[0] ?? view?.querySelector("button, input") ?? view) : view);
+      (pressLed() ? view : (rows[0] ?? view?.querySelector("button, input") ?? view));
     if (target) focusDestination(target, "move");
   }
-
-  // How the gesture now under way began: a key, wherever pressed, stands a view it
-  // opens on its first control, and a pointer leaves the view holding focus itself.
-  let keyed = false;
-  onUserInput((event) => {
-    if (["keydown", "pointerdown"].includes(event.type))
-      keyed = event.type === "keydown";
-  });
 
   // ---------- the leaf's menu ----------
   // A row that opens a list of its own ends in a chevron, past its value, so the user

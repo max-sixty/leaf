@@ -545,8 +545,7 @@ def test_a_pin_on_a_contents_target_stands_at_its_last_part(browser, serve):
     marker.click()
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
-    thread = preview.locator(".lf-margin-thread .lf-page-thread")
-    expect(thread).to_be_focused()
+    expect(preview.locator(".lf-margin-thread leaf-text")).to_be_focused()
 
 
 def test_a_contents_target_reply_observes_visibility_without_layout(browser, serve):

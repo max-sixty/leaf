@@ -86,6 +86,7 @@ import {
 } from "./selection.js";
 
 import { paintBarReactions, reactionAvailable } from "../reactions.js";
+import { openingPart } from "../thread/focus.js";
 import { threadInput, currentLocationThread } from "../thread/landing.js";
 import { replyDraftContext } from "../thread/replies.js";
 import { activeCommandLabel } from "../keyboard/dispatch.js";
@@ -1243,7 +1244,10 @@ export function createResponseSurface({
         : pointerAt();
       const threadId = markAt?.(point.x, point.y);
       if (threadId)
-        return void openPageThread(threadId, { part: "thread", travel: false });
+        return void openPageThread(threadId, {
+          part: openingPart(),
+          travel: false,
+        });
     });
     wireFabInput();
   }

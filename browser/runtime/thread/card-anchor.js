@@ -7,7 +7,8 @@
    also ends that hold. The empty box a send leaves the caret in (replies.js) is no
    writing until the user types there or comes back to it, so the answer they wait for
    shows as it did when Send left them on the thread; once they have, it is writing
-   until the next send, empty or not. A press instead keeps the control it
+   until the next send, empty or not. So is the empty box a click's opening leaves the
+   caret in (thread/focus.js, `openingPart`). A press instead keeps the control it
    acted on through that change's fitting, until another input or unrelated change.
    These lifetimes belong to the conversation, not the physical placement solver.
    Above its subject, a card keeps its foot, read or written in, so a growing draft
@@ -76,6 +77,12 @@ export class CardAnchor {
   writing() {
     this.#sent = null;
     if (this.#sentFrom) this.#sentFrom = "typed";
+  }
+
+  // The opening put the caret in the box, which is no draft being written until they
+  // type in it, as with the box a send leaves it in.
+  opened() {
+    this.#sentFrom = "untyped";
   }
 
   // The user left the reply, so coming back into it is writing again.
@@ -197,10 +204,10 @@ export class CardAnchor {
     return this.#writing() || this.#side === "top" || this.#keepsSend(joined);
   }
 
+  // What the placement held. Whether the box holds what the user typed outlasts it.
   forget() {
     this.#sent = null;
     this.#press = null;
     this.#side = null;
-    this.#sentFrom = null;
   }
 }

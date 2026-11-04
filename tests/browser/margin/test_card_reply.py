@@ -130,6 +130,10 @@ def test_floating_thread_pages_on_to_its_page(browser, serve, long):
     page.locator("#open").scroll_into_view_if_needed()
     page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
     card = page.locator(".lf-margin-preview")
+    expect(card.locator("leaf-text")).to_be_focused()
+    # The click puts the caret in the reply (thread/focus.js, `openingPart`); Escape
+    # stands the user on the thread.
+    page.keyboard.press("Escape")
     expect(card.locator(".lf-page-thread")).to_be_focused()
     transcript = card.locator(".lf-thread-transcript")
     assert (
@@ -317,9 +321,9 @@ SHOWN_ABOVE_THE_REPLY = """message => {
 
 
 def long_thread_in_reply(browser, serve):
-    """The long thread's margin card with the user in its reply box, entered by
-    Enter on the thread. Scroll anchoring is off on the transcript, so every move read
-    is the runtime's own."""
+    """The long thread's margin card with the user in its reply box, where the click
+    that opened it put them. Scroll anchoring is off on the transcript, so every move
+    read is the runtime's own."""
     page, preview, transcript = open_long_thread(browser, serve)
     transcript.evaluate("list => list.style.overflowAnchor = 'none'")
     thread = preview.locator(".lf-page-thread").first
@@ -332,6 +336,43 @@ def long_thread_in_reply(browser, serve):
 
 
 def test_replying_on_a_long_margin_card_keeps_the_turn_being_read(browser, serve):
+def test_news_shows_in_a_card_whose_opening_left_the_caret_in_its_box(browser, serve):
+    """The caret a click's opening leaves in the empty box is no draft being written, so
+    the answer the user waits for shows at once, as on the thread a key's opening stands
+    them on; once they type there, news waits behind the card's notice
+    (card-anchor.js)."""
+    page = open_page(browser, serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT]))
+    resized(page, 1440, 900)
+    page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
+    preview = page.locator(".lf-margin-preview")
+    box = preview.locator(".lf-thread-reply leaf-text")
+    expect(box).to_be_focused()
+    rendered(page)
+
+    def agent_says(words):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Claude",
+                "parent": LONG_THREAD_ROOT["id"],
+                "revision": 1,
+                "text": words,
+            },
+        )
+        told(page)
+
+    agent_says("They are hard to follow because each closes elsewhere.")
+    expect(preview.locator(".lf-msg", has_text="each closes elsewhere")).to_be_visible()
+    expect(preview.locator(".lf-thread-news:visible")).to_have_count(0)
+
+    page.keyboard.type("Which")
+    agent_says("One more thing about the second layer.")
+    expect(preview.locator(".lf-thread-news")).to_have_text("1 new")
+    expect(preview.locator(".lf-msg", has_text="One more thing")).to_have_count(0)
+
+
     """Entering the visible reply box preserves the earlier transcript reading."""
     page, preview, transcript = open_long_thread(browser, serve)
     transcript.evaluate("list => list.style.overflowAnchor = 'none'")
@@ -373,6 +414,9 @@ CARD_DRAWN = """card => {
               : card.getBoundingClientRect().top,
           card.querySelector('.lf-margin-thread-controls').getBoundingClientRect().top,
           ...[...card.querySelectorAll('.lf-thread-transcript > .lf-msg')]
+    page.keyboard.press("Escape")
+    expect(preview.locator(".lf-page-thread")).to_be_focused()
+    rendered(page)
             .map(turn => turn.getBoundingClientRect().top)];
 }"""
 
@@ -1303,6 +1347,10 @@ def test_a_sent_comment_keeps_its_text_viewport(browser, serve, text, zoom):
     page = open_page(browser, serve(OBLIGATION_PAGE), init_script=MARGIN_EDITOR_ROOTS)
     resized(page, 1200, 900)
     page.evaluate("zoom => document.documentElement.style.zoom = zoom", zoom)
+    expect(preview.locator("leaf-text")).to_be_focused()
+    # The click puts the caret in the reply (thread/focus.js, `openingPart`); Escape
+    # stands the user on the thread.
+    page.keyboard.press("Escape")
     send_anchored_comment(page, text.rstrip())
     reading = page.locator(".lf-margin-preview")
     overflow = reading.evaluate("""card => [...card.querySelectorAll('*')]

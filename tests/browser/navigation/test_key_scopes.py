@@ -238,15 +238,17 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
     # element that thread is about: the marker the card hangs from is not a landing.
     marker.click()
     expect(preview).to_be_visible()
-    expect(threads[0]).to_be_focused()
+    expect(preview.locator("leaf-text")).to_be_focused()
     rendered(page)
-    # The pointer route keeps keyboard standing without showing a keyboard ring.
+    # The pointer route shows no keyboard ring around the card.
     assert (
         preview.locator(".lf-margin-preview-card").evaluate(
             "node => getComputedStyle(node).outlineStyle"
         )
         == "none"
     )
+    page.keyboard.press("Escape")
+    expect(threads[0]).to_be_focused()
     page.keyboard.press("t")
     expect(threads[1]).to_be_focused()
     out()
@@ -254,6 +256,8 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
     # The mark on the page is the same door and the same way out.
     page.mouse.click(*mark_point(page, "lf-mark"))
     expect(preview).to_be_visible()
+    expect(preview.locator("leaf-text")).to_be_focused()
+    page.keyboard.press("Escape")
     expect(threads[0]).to_be_focused()
     out()
 

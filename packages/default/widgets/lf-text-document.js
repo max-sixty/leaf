@@ -46,6 +46,7 @@ import {
   layoutPx,
   textWidth,
   nextFrame,
+  MAX_EDIT_LENGTH,
 } from "/runtime/widget-api.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
 import { pierre, markSyntax } from "./pierre.js";
@@ -177,7 +178,7 @@ function inRuns(code) {
 // one for one, so an edited line keeps the row of the line it replaced. Exported for
 // its test.
 /** @param {readonly string[]} before @param {readonly string[]} after @param {number} [maxEditLength] @returns {number[] | null} */
-export function keptLines(before, after, maxEditLength = 1_000) {
+export function keptLines(before, after, maxEditLength = MAX_EDIT_LENGTH) {
   const changes = diffArrays([...before], [...after], { maxEditLength });
   if (!changes) return null;
   const kept = after.map(() => -1);

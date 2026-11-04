@@ -387,7 +387,9 @@ mediaViewer.addEventListener("close", () => {
   );
 });
 document.addEventListener("click", (event) => {
-  if (event.defaultPrevented || !plainPress(event)) return;
+  // Startup seats the viewer in the chrome after this module loads; until then a
+  // press keeps the link's own destination.
+  if (event.defaultPrevented || !plainPress(event) || !mediaViewer.isConnected) return;
   // The path ends at the document and the window, and an element whose id is
   // `matches` puts an object at `window.matches`, so only elements are asked.
   const path = event.composedPath();

@@ -5,11 +5,10 @@ Click parses and dispatches every command here, the harness entries `leaf hook` 
 (measured on macOS), which is accepted so that one parser owns every command's
 arguments, usage and errors rather than a second hand-rolled one for the hooks.
 
-Two paths stay off this entry and Click: `bin/leaf` runs cold SessionEnd cleanup
-through `state.py` without a managed environment, and runs a sandboxed command through
-the bridge client (`bridge.py`), which forwards its arguments to Leaf unparsed. A hook
-registered `--if-claimed` starts in `state.py` too, which starts this entry only in a
-session that holds a claim.
+Two paths stay off this entry and Click: `bin/leaf` runs cold SessionEnd cleanup and
+its gate for hooks registered `--if-claimed` through `state.py` without a managed
+environment, and runs a sandboxed command through the bridge client (`bridge.py`),
+which forwards its arguments to Leaf unparsed.
 """
 
 from leaf.cli import cli

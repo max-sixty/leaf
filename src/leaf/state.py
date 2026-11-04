@@ -915,77 +915,14 @@ def main() -> None:
         end_harness_instance(payload.get("session_id") or "")
 
 
-def answer_gated_hook(argv: list[str], *, synced: str | None = None) -> None:
-    """Answer a hook registered `--if-claimed`, which `bin/leaf` hands here on the
-    environment's interpreter, started with -S so no site packages load. Where the
-    session holds no claim, or the payload is a worker's tool batch, it returns at
-    once: a hook it skips takes about 25 ms in place of about 70 for starting the
-    package (measured on macOS). Otherwise it starts Leaf on that interpreter
-    (`python -m leaf`) with the payload, as `uv run` would without uv's own start,
-    and with -P, so a `leaf.py` in the harness's working directory can't stand in
-    for the package. A payload it can't read runs the hook whole, which reports it.
-
-    `uv run` syncs the environment to the lock before each run. This program goes
-    through it only where `uv.lock` or `pyproject.toml` differs, by modification
-    time or size, from `.venv/leaf-synced`: it hands itself to `uv run`, which
-    syncs, takes the harness's signals and starts this program again, `synced` to
-    the two files as they were before the sync. That run records them only if
-    they still are, so a change landing during the sync takes another. A copy
-    Claude Code installed never changes, so it syncs once; a checkout syncs after
-    an update changes its lock."""
-    text = sys.stdin.read()
-    try:
-        payload = json.loads(text)
-        idle = worker_tool_batch(argv[2], payload) or not held_claims(
-            payload.get("session_id") or ""
-        )
-    except Exception:
-        idle = False
-    if idle:
-        return
-    environment = PLUGIN_ROOT / ".venv"
-    record = environment / "leaf-synced"
-    inputs = " ".join(
-        f"{info.st_mtime_ns}:{info.st_size}"
-        for info in map(
-            os.stat, (PLUGIN_ROOT / "uv.lock", PLUGIN_ROOT / "pyproject.toml")
-        )
-    )
-    if synced == inputs:
-        replace_bytes([(record, inputs.encode(), False)])
-    elif synced is None and _read_bytes(record) != inputs.encode():
-        uv_run = ["uv", "run", "-q", "--no-dev", "--project", str(PLUGIN_ROOT)]
-        gate = ["python", "-S", __file__, "synced", inputs]
-        exec_with_input([*uv_run, *gate, *argv], text)
-    python = str(environment / "bin" / "python")
-    exec_with_input([python, "-P", "-m", "leaf", *argv], text)
-
-
-def _read_bytes(path: Path) -> bytes | None:
-    try:
-        return path.read_bytes()
-    except OSError:
-        return None
-
-
-def exec_with_input(
-    argv: list[str], text: str, environment: Mapping[str, str] | None = None
-) -> None:
-    """Replace this process with `argv`, found on the path, reading `text` on
-    stdin. A file rather than a pipe holds the input, so no pipe's size bounds
-    it, and the exec keeps the process the harness started, its cancellation and
-    a watch's exact lifetime."""
-    with tempfile.TemporaryFile() as incoming:
-        incoming.write(text.encode())
-        incoming.seek(0)
-        os.dup2(incoming.fileno(), 0)
-    os.execvpe(argv[0], argv, os.environ if environment is None else environment)
-
-
 if __name__ == "__main__":
-    if sys.argv[1:2] == ["hook"]:
-        answer_gated_hook(sys.argv[1:])
-    elif sys.argv[1:2] == ["synced"]:
-        answer_gated_hook(sys.argv[3:], synced=sys.argv[2])
-    else:
-        main()
+    # `bin/leaf` asks this before starting uv for a hook registered `--if-claimed`,
+    # with -S, so no site packages load. A hook it skips takes about 25 ms in
+    # place of about 70 for starting the package (measured on macOS). Only status
+    # 3 skips the hook; any failure runs it whole.
+    if len(sys.argv) == 3 and sys.argv[1] == "hook-gate":
+        payload = json.load(sys.stdin)
+        if worker_tool_batch(sys.argv[2], payload):
+            sys.exit(3)
+        sys.exit(0 if held_claims(payload.get("session_id") or "") else 3)
+    main()

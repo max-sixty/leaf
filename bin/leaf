@@ -33,9 +33,9 @@
 # uv writes the console script as a `/bin/sh` trampoline, and `-m` leaves no
 # trampoline to reason about. `__main__.py` fixes `prog_name`, so usage lines
 # still read `leaf`. `-P` keeps the caller's working directory off the module
-# path, where a `leaf.py` would stand in for the package. Which harness session is running, and under what id, is the
-# hook registration's and payload's to say, or a shell command's environment's
-# (`harness.py`), never this launcher's.
+# path, where a `leaf.py` would stand in for the package. Which harness session
+# is running, and under what id, is the hook registration's and payload's to
+# say, or a shell command's environment's (`harness.py`), never this launcher's.
 #
 # SessionEnd must release claims within the harness's shutdown deadline even before
 # this install has an environment. Its canonical cleanup is a standalone stdlib
@@ -44,13 +44,12 @@
 # Codex runs its tool hook after every tool call, and Claude Code its prompt and
 # Stop hooks in every session the plugin is installed in, and these have nothing to
 # do in a session that holds no claim. Each such registration says so
-# (`hook --harness NAME --if-claimed`), so where the environment exists the same
-# standalone program answers the hook on that environment's interpreter
-# (`state.answer_gated_hook`). In a session holding no claim it returns before
-# the package's imports; otherwise it starts the whole hook on that interpreter,
-# going through uv first only where the lock changed since uv last synced it.
-# Worker tool batches also stop at this gate: only the parent receives the input
-# its session claimed.
+# (`hook --harness NAME --if-claimed`), so where the environment exists the hook
+# first asks the same standalone program, on that environment's interpreter,
+# whether the session holds one (`state.py hook-gate`). That spares uv and the
+# package's imports wherever no page was claimed. Without the environment, or with
+# any answer but "nothing", the hook runs whole. Worker tool batches also stop
+# at this gate: only the parent receives the input its session claimed.
 #
 # Claude Code's sandbox refuses what a command needs, so where it confines this
 # one (SANDBOX_RUNTIME), the bridge Leaf's hooks keep outside it runs the command
@@ -71,6 +70,11 @@ if [ -n "${SANDBOX_RUNTIME:-}" ] && [ -x "$python" ]; then
     exec "$python" -I -m leaf.bridge run "$@"
 fi
 if [ "${1:-}" = hook ] && [ "${4:-}" = --if-claimed ] && [ -x "$python" ]; then
-    exec "$python" -S "$state" "$@"
+    payload=$(cat)
+    printf '%s' "$payload" | "$python" -S "$state" hook-gate "$3"
+    [ "$?" -eq 3 ] && exit 0
+    exec uv run -q --no-dev --project "$root" python -P -m leaf "$@" <<EOF
+$payload
+EOF
 fi
 exec uv run -q --no-dev --project "$root" python -P -m leaf "$@"

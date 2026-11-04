@@ -94,7 +94,11 @@ async function regions(source, faces) {
   const components = (selector) => {
     /** @type {any[]} */
     let found = [];
-    parse(`${selector} {}`, { Rule: { style: (/** @type {any} */ rule) => void (found = rule.value.selectors[0]) } });
+    parse(`${selector} {}`, {
+      Rule: {
+        style: (/** @type {any} */ rule) => void (found = rule.value.selectors[0]),
+      },
+    });
     return found;
   };
   let out = `/* @noformat Generated from ${source} by build/styles.mjs. */\n`;
@@ -103,7 +107,10 @@ async function regions(source, faces) {
     const end = text.indexOf("/* #endregion */", start);
     if (start < 0 || end < 0) throw new Error(`No region "${name}" in ${source}`);
     const map = new Map(
-      Object.entries(select).map(([from, to]) => [from, to === null ? null : components(to)]),
+      Object.entries(select).map(([from, to]) => [
+        from,
+        to === null ? null : components(to),
+      ]),
     );
     const flat = parse(text.slice(text.indexOf("\n", start) + 1, end));
     const rules = parse(flat, {
@@ -117,16 +124,20 @@ async function regions(source, faces) {
             list.filter((d) => !LEAF_OWNS.test(declared(d)));
           const declarations = {
             declarations: kept(rule.value.declarations.declarations ?? []),
-            importantDeclarations: kept(rule.value.declarations.importantDeclarations ?? []),
+            importantDeclarations: kept(
+              rule.value.declarations.importantDeclarations ?? [],
+            ),
           };
           const count =
-            declarations.declarations.length + declarations.importantDeclarations.length;
+            declarations.declarations.length +
+            declarations.importantDeclarations.length;
           if (!selectors.length || !count) return [];
           // lightningcss 1.33 hands optional fields over as null and refuses them
           // back unless the key is absent.
           return JSON.parse(
-            JSON.stringify({ ...rule, value: { ...rule.value, selectors, declarations } }, (key, value) =>
-              value === null ? undefined : value,
+            JSON.stringify(
+              { ...rule, value: { ...rule.value, selectors, declarations } },
+              (key, value) => (value === null ? undefined : value),
             ),
           );
         },
@@ -158,24 +169,32 @@ function rewrite(selector, map) {
   let named = false;
   for (const part of selector) {
     const key =
-      part.type === "type" ? part.name
-      : part.type === "class" ? `.${part.name}`
-      : part.type === "pseudo-class" ? `:${part.kind}`
-      : part.type === "pseudo-element" ? `::${part.kind}`
-      : null;
+      part.type === "type"
+        ? part.name
+        : part.type === "class"
+          ? `.${part.name}`
+          : part.type === "pseudo-class"
+            ? `:${part.kind}`
+            : part.type === "pseudo-element"
+              ? `::${part.kind}`
+              : null;
     const face = key === null ? undefined : map.get(key);
     if (face === null) return null;
     if (face) {
       parts.push(...structuredClone(face));
       named = true;
     } else if (part.type === "type" || part.type === "class") return null;
-    else if (part.type === "pseudo-class" && ["is", "where", "not"].includes(part.kind)) {
+    else if (
+      part.type === "pseudo-class" &&
+      ["is", "where", "not"].includes(part.kind)
+    ) {
       const within = part.selectors
         .map((/** @type {any[]} */ inner) => rewrite(inner, map))
         .filter(Boolean);
       // `:not()` of what matches no face holds for every face.
       if (part.kind === "not") {
-        if (within.length) parts.push({ ...part, selectors: within.map((w) => w.parts) });
+        if (within.length)
+          parts.push({ ...part, selectors: within.map((w) => w.parts) });
         continue;
       }
       if (!within.length) return null;

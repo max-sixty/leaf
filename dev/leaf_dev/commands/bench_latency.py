@@ -87,7 +87,7 @@ from leaf_dev.arms import (
     run_leaf,
     serving,
 )
-from leaf_dev.browser import WINDOWS, go_to_threads, headless_shell
+from leaf_dev.browser import PANEL_THREAD, WINDOWS, go_to_threads, headless_shell
 from leaf_dev.example_data import named_source
 from leaf_dev.main_thread import SCRIPT as MAIN_THREAD_SCRIPT
 from leaf_dev.main_thread import main_thread
@@ -547,26 +547,22 @@ class Session:
         through the delivery `leaf wait` prints."""
         words = f"Bench reply {run + 1}."
         question = f"Bench question {run + 1}."
-        opened = (
-            "() => document.querySelector("
-            "'.lf-fp-view[data-lf-route=thread]:not([data-lf-leaving]) .lf-msg')"
-            "?.checkVisibility()"
-        )
-        if not self.page.evaluate(opened):
+        opened = "selector => document.querySelector(selector)?.checkVisibility()"
+        message = f"{PANEL_THREAD} .lf-msg"
+        if not self.page.evaluate(opened, message):
             self.threads()
             self.page.locator(f'.lf-fp-thread[data-lf-key="{self.thread}"]').click()
-            until(self.page, opened, "the agent thread never opened")
+            until(self.page, opened, "the agent thread never opened", message)
         # The panel's field is the open thread's reply box.
         self.page.locator(".lf-fp-field leaf-text").focus()
         self.page.keyboard.insert_text(question)
         self.page.keyboard.press("ControlOrMeta+Enter")
         until(
             self.page,
-            "words => [...document.querySelectorAll("
-            "'.lf-fp-view[data-lf-route=thread] .lf-msg')]"
+            "([selector, words]) => [...document.querySelectorAll(selector)]"
             ".some(node => node.textContent.includes(words) && node.checkVisibility())",
             "the user's turn never showed",
-            question,
+            [message, question],
         )
         delivery = run_leaf(
             self.arm_dir, self.state, "wait", str(self.page_dir), check=True

@@ -5,9 +5,9 @@
    share changes in one place. Nothing here reads or writes the document; page-status.js
    and live-leaves.js read what these return, the floating panel draws it, and
    `tests/runtime/activity-words.test.mjs` holds each sentence. */
+import { counted } from "./words.js";
 import { ago } from "./presence.js";
 import { itemNoun } from "./queues.js";
-import { hasObligationSource } from "./obligations/source.js";
 import { agentSays, leafSays, saidBy, wordsText } from "./voice.js";
 
 /** @typedef {import("../types/contract.js").ServedActivity} Activity */
@@ -44,8 +44,6 @@ const WORK_WORDS = {
   awaiting_user: "Question waiting",
   replying: "Writing a reply",
 };
-/** @param {number} count */
-const countResponses = (count) => `${count} response${count === 1 ? "" : "s"}`;
 // What each canonical count says the agent owes, in the order a reader is told.
 const COUNT_PHRASES = {
   active: "being worked on",
@@ -58,7 +56,7 @@ const COUNT_PHRASES = {
 const phrased = (counts, kinds) =>
   kinds
     .filter((kind) => counts[kind])
-    .map((kind) => `${countResponses(counts[kind])} ${COUNT_PHRASES[kind]}`);
+    .map((kind) => `${counted(counts[kind], "response")} ${COUNT_PHRASES[kind]}`);
 // What the status and an All pages row both read off one page's server-owned `activity`
 // before either words it. Each seat keeps its own sentences; a fact they share changes
 // here once:
@@ -372,19 +370,21 @@ export function pageStatus(state, options = {}) {
 // left to answer, since only a row or the walk names it by its widget (`obligationWord`).
 // A question asked in a message is counted with them, so kinds that share words share
 // one count.
-const TO_ANSWER = Object.freeze(["to answer", "to answer"]);
-const TODO = Object.freeze(["to-do", "to-dos"]);
-const QUEUE_WORDS = Object.freeze({
-  widget: TO_ANSWER,
-  message: TO_ANSWER,
-  resend: ["update to send again", "updates to send again"],
-  answer: ["answer", "answers"],
-  reply: ["reply", "replies"],
-  todo: TODO,
-});
+const TO_ANSWER = Object.freeze(/** @type {const} */ (["to answer", "to answer"]));
+const TODO = Object.freeze(/** @type {const} */ (["to-do", "to-dos"]));
+const QUEUE_WORDS = Object.freeze(
+  /** @type {const} */ ({
+    widget: TO_ANSWER,
+    message: TO_ANSWER,
+    resend: ["update to send again", "updates to send again"],
+    answer: ["answer", "answers"],
+    reply: ["reply", "replies"],
+    todo: TODO,
+  }),
+);
 /** @param {readonly QueueItem[]} items */
 function queueKinds(items) {
-  /** @type {Map<readonly string[], {count: number, titles: Said[]}>} */
+  /** @type {Map<readonly [string, string], {count: number, titles: Said[]}>} */
   const byWords = new Map();
   for (const item of items) {
     const nouns = QUEUE_WORDS[itemNoun(item)];
@@ -394,20 +394,14 @@ function queueKinds(items) {
       byWords.set(nouns, group);
     }
     group.count++;
-    // To-do records keep the agent's title for either owner. A user's to-do is
-    // carried as its obligation; an agent's as its native to-do record.
-    const title = item.todo
-      ? item.todo.title
-      : hasObligationSource(item.obligation, "todo")
-        ? item.obligation.prompt.text
-        : null;
+    const title = item.todo ? item.todo.title : null;
     if (title !== null) {
       if (group.titles.length) group.titles.push(leafSays(" · "));
       group.titles.push(agentSays(title));
     }
   }
   return [...byWords].map(([nouns, { count: size, titles }]) => {
-    const count = `${size} ${nouns[size === 1 ? 0 : 1]}`;
+    const count = counted(size, nouns[0], nouns[1]);
     if (nouns !== TODO) return [leafSays(count)];
     // A to-do outlasts the turns and the thread that opened it (`todos.py`), so each
     // open one is named, including one on a thread the user has resolved.

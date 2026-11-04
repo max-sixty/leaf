@@ -141,6 +141,7 @@ import { repaint } from "../repaint.js";
 import { chromeRoot, chromeForeground } from "../chrome.js";
 import { arrivalOf, declareSide } from "../current-target.js";
 import { closestAcross, inChrome } from "../passages.js";
+import { drawnThreadId, drawnThreadsWithId } from "../thread/selectors.js";
 import { visualAt } from "../anchor-resolution.js";
 import { paintTrace } from "../target-paint.js";
 import { outlineChange } from "../margin-bars.js";
@@ -156,7 +157,7 @@ import { createMarginClusterViews } from "./margin-cluster-view.js";
 import { seenRect, shownWindow, watchRoom } from "../geometry.js";
 import { skipped } from "../shown-box.js";
 
-import { hostIn, renderedUnder, under } from "../shadow.js";
+import { renderedOrder, renderedUnder, under } from "../shadow.js";
 import { retainUserIntent } from "../user-intent.js";
 
 /** @typedef {import("../annotation-inventory.js").InventoryEntry} Entry
@@ -331,6 +332,9 @@ export function createMarginProjection({
   let expandedOptionsOwner = null;
   /** @type {Element | null} */
   let hoveredHost = null;
+  // The control under the pointer in that cluster.
+  /** @type {Element | null} */
+  let hoveredControl = null;
   /** @type {Element | null} */
   let highlighted = null;
   let highlightFrame = 0;
@@ -837,10 +841,8 @@ export function createMarginProjection({
     if (!(standsFoldedNow || optionsOffered(current, primary))) return;
     if (expandedOptionsKey === current.key && expandedOptionsOwner) return;
     if (entryEngaged(current)) return;
-    const from = left && hostIn(left, host.getRootNode());
-    const back = Boolean(
-      from && host.compareDocumentPosition(from) & Node.DOCUMENT_POSITION_FOLLOWING,
-    );
+    // The node the user left may have left the page, and stands in no order then.
+    const back = Boolean(left?.isConnected && renderedOrder(host, left) < 0);
     setOptionsOpen(current, true, {
       focusOption:
         control === host.more ? (standsFoldedNow && !back ? "first" : "last") : null,
@@ -1174,6 +1176,7 @@ export function createMarginProjection({
             .elementFromPoint(event.clientX, event.clientY)
             ?.closest?.(".lf-margin-entry");
           hoveredHost = control && created.contains(control) ? created : null;
+          hoveredControl = hoveredHost ? (control ?? null) : null;
           refreshHighlight();
         };
         created.addEventListener("pointermove", takePointerOwnership);
@@ -1358,9 +1361,15 @@ export function createMarginProjection({
     const obligationShown = target && target === currentLocationObligation();
     // A Change entry under the pointer or focus outlines its whole change, every block
     // and its gap, in place of the brackets round its first block (margin-bars.js), until
-    // its card stands open over the change.
+    // its card stands open over the change. A reading names its own change, as each of
+    // two gaps beside one block does.
+    const control = /** @type {Partial<ReadingNode> | null} */ (
+      pointerHost ? hoveredControl : active
+    );
     const changeSource = marker
-      ? entry?.items.map((item) => sourceItem(item)).find((source) => source?.change)
+      ? (control?.lfChoice?.items ?? entry?.items ?? [])
+          .map((item) => sourceItem(item))
+          .find((source) => source?.change)
       : null;
     outlineChange(
       changeSource?.change && !changeSource.discloses?.()?.open
@@ -1454,7 +1463,7 @@ export function createMarginProjection({
   // (thread/replies.js, `releaseReplies`), or the thread. A widened window gives it back
   // (thread/destination.js, `returnToPage`).
   function yieldPreview() {
-    const id = card.thread()?.getAttribute("data-lf-thread");
+    const id = drawnThreadId(card.thread());
     const inCard = currentLocationIn(preview);
     const replying = card.replying();
     const intent = retainUserIntent();
@@ -1791,11 +1800,9 @@ export function createMarginProjection({
   /** @param {string} id */
   const seatedOnPage = (id) =>
     claimed(id) ||
-    [
-      ...document.querySelectorAll(
-        `.lf-page-thread[data-lf-thread="${CSS.escape(id)}"]`,
-      ),
-    ].some((seat) => closestAcross(seat, ".lf-thread-seat[data-lf-thread-seat]"));
+    [...drawnThreadsWithId(document, id)].some((seat) =>
+      closestAcross(seat, ".lf-thread-seat[data-lf-thread-seat]"),
+    );
   // The innermost target holding the node whose threads the card would show. A thread is
   // about exactly its anchor's target (header), reached from anywhere
   // inside it and never from outside: after `m` the user is on the obligation element, so

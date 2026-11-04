@@ -80,15 +80,18 @@ export const threadKey = (thread) => thread.root.attempt ?? thread.id;
 /** @param {Pick<Message, "id" | "key" | "attempt">} message */
 export const messageKey = (message) => message.key ?? message.attempt ?? message.id;
 
-// Every name that reaches a thread: its own id, the id of each message in it, which a
-// reply or settlement names as its `parent`, and the pending id a message this tab sent
-// went by before the log named it.
-/** @template {{id: string, msgs: readonly {id: string, attempt?: string}[]}} T
+// Every name that reaches a thread: its key (`threadKey`), its own id, the id of each
+// message in it, which a reply or settlement names as its `parent`, and the pending id
+// a message this tab sent went by before the log named it. A key that is an attempt
+// can't be another thread's name: an attempt is 32 hex digits (ids.js) or one of the
+// server's prefixed ones, and the log's ids are 8 (`event_log.new_event_id`).
+/** @template {{id: string, root: {attempt?: string}, msgs: readonly {id: string, attempt?: string}[]}} T
  * @param {readonly T[]} threads */
 export function threadNames(threads) {
   /** @type {Map<string, T>} */
   const byName = new Map();
   for (const thread of threads) {
+    byName.set(threadKey(thread), thread);
     byName.set(thread.id, thread);
     for (const message of thread.msgs) {
       byName.set(message.id, thread);
@@ -220,8 +223,8 @@ export function foldThreads(threads, gestures) {
     const msgs = thread.msgs
       .filter((message) => !withdrawn.has(message.id))
       .map((message) => unedited(thread, message, withdrawn));
-    // A thread whose closing event the user is taking back stands open again, as a
-    // to-do whose Done they undo does; the log's answer restores any earlier closure.
+    // A thread whose closing event the user is taking back stands open again; the
+    // log's answer restores any earlier closure.
     const reopened = Boolean(
       thread.resolved && "id" in thread.resolved && withdrawn.has(thread.resolved.id),
     );
@@ -424,8 +427,8 @@ export function threadRecordReader() {
    * @param {import("../framework/application.js").SemanticDocument} document
    * @param {ReturnType<typeof import("../projection/model.js").foldWidgetStates>} widgets
    * @param {import("../framework/application.js").Workflow[]} workflows
-   * @param {readonly import("../framework/application.js").WireTodo[]} todos
-   *   the open to-dos, of which each thread holds the agent's and the user's on it apart
+   * @param {readonly import("../../types/contract.js").ServedTodo[]} todos
+   *   the open to-dos, of which each thread holds those on it
    * @param {readonly import("../framework/application.js").ObligationRecord[]} obligations
    *   the view's obligations, of which each thread holds those its messages make
    * @param {import("../../types/domain.js").ContentVersion[]} markingRead
@@ -479,14 +482,7 @@ export function threadRecordReader() {
       workflow.subject.kind === "widget" ? workflow.subject.id : null,
     );
     const obligationsIn = grouped(obligations, (obligation) => obligation.thread);
-    const agentTodosIn = grouped(
-      todos.filter((todo) => todo.owner === "agent"),
-      (todo) => todo.thread,
-    );
-    const userTodosIn = grouped(
-      todos.filter((todo) => todo.owner === "user"),
-      (todo) => todo.thread,
-    );
+    const todosIn = grouped(todos, (todo) => todo.thread);
     // The message's own inputs, its first words and each rewrite of them, and the
     // actions on widgets frozen into it, in the published order `strongestWorkflow`
     // reads.
@@ -639,11 +635,7 @@ export function threadRecordReader() {
         // still open (a to-do a reply opens takes the reply's id, `todos.py`), the
         // first is the one a thread waiting on a to-do waits on, and a running one is
         // work the thread's working message reads whoever's turn the thread is.
-        todos: agentTodosIn.get(thread.id) ?? [],
-        // The user's open to-dos on the thread, which its head names with their Done:
-        // a to-do on a thread has no place on the page (obligations/place.js), so the
-        // thread draws it.
-        userTodos: userTodosIn.get(thread.id) ?? [],
+        todos: todosIn.get(thread.id) ?? [],
         workflows: workflowsIn.get(thread.id) ?? [],
         bare_reaction: thread.bare_reaction,
         seat: thread.seat,
@@ -666,9 +658,7 @@ export function threadRecordReader() {
               BETWEEN,
               ...(obligationsIn.get(thread.id) ?? NONE),
               BETWEEN,
-              ...(agentTodosIn.get(thread.id) ?? NONE),
-              BETWEEN,
-              ...(userTodosIn.get(thread.id) ?? NONE),
+              ...(todosIn.get(thread.id) ?? NONE),
               BETWEEN,
               ...unitInputs(unitsByThread.get(thread.id)),
             ],

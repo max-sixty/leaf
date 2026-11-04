@@ -83,6 +83,7 @@ from .schema import (
     BINARY_TYPES,
     CONTENT_TYPES,
     KEY_COOKIE_MAX_AGE,
+    MEDIA_DIR,
     NO_KEY,
     REVISION_NAME,
     SERVED_PATH,
@@ -274,6 +275,11 @@ class PageEndpoint:
     # what the page directory already holds in plain files, for the same user. leaf.page
     # overrides it (`WebsitePageEndpoint`).
     cache_control = "no-cache"
+    # Page media is named by a digest of its bytes (`media.media_name`), so a name never
+    # changes what it answers, and a revision naming the same image reuses the copy.
+    # Starlette's file answer ignores a validator, so `no-cache` here would fetch every
+    # image whole on every load.
+    media_cache_control = "private, max-age=31536000, immutable"
 
     def __init__(
         self,
@@ -1120,7 +1126,10 @@ class PageEndpoint:
                 path,
                 DeliveryAddress(self.page_root, self.page_root),
             )
-            return self._resource_content(resource)
+            response = self._resource_content(resource)
+            if path.startswith(f"/{MEDIA_DIR}/"):
+                response.headers["Cache-Control"] = self.media_cache_control
+            return response
         return None
 
     def _get(self) -> Response:
@@ -1481,6 +1490,7 @@ class SampleEndpoint(PageEndpoint):
         self.retained_samples = parent.retained_samples
         # A child is stored on its parent's terms, which on leaf.page are the site's.
         self.cache_control = parent.cache_control
+        self.media_cache_control = parent.media_cache_control
         # The address inside the child, below the capability its parent matched.
         self.path = path
         self.asset_root = asset_root

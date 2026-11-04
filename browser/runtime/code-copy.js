@@ -27,6 +27,7 @@
    it covers the first line's last words only while it shows. The control takes no
    room, since room made for it would move the page's content (`../AGENTS.md`,
    "Nothing Leaf draws moves the page's content"). */
+import { capitalized } from "./words.js";
 import { copyControl, copyTrigger } from "./copy-control.js";
 import { watchArrivals } from "./arrivals.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
@@ -88,9 +89,12 @@ function prepareCodeBlock(pre, source, noun) {
     const control = copyControl("lf-code-copy", {
       role: "mark",
       label: `Copy ${noun}`,
-      success: `${noun.charAt(0).toUpperCase()}${noun.slice(1)} copied`,
+      success: `${capitalized(noun)} copied`,
       error: `Unable to copy ${noun}`,
     });
+    // Alone, the mark is a toolbar of its own (controls.css); a seat that holds it
+    // among other marks, as a draft's toolbar does, takes this away.
+    control.toggleAttribute("data-lf-bar", true);
     control.addEventListener(
       "click",
       (event) => {
@@ -129,10 +133,8 @@ function declareCopy(pre, copy, noun) {
         id: "code.copy",
         keys: ["Enter"],
         title: `copy ${noun}`,
-        get run() {
-          const trigger = copyTrigger(copy);
-          return trigger ? () => trigger.click() : undefined;
-        },
+        when: () => Boolean(copyTrigger(copy)),
+        run: () => copyTrigger(copy)?.click(),
       },
     ]),
   );

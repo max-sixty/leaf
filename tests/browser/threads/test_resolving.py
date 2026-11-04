@@ -19,7 +19,6 @@ from render_cases_interaction import (
 from render_harness import (
     LONG_PAGE,
     PANEL,
-    PANEL_THREAD,
     expect_open_threads,
     holding,
     leaf_page,
@@ -41,6 +40,7 @@ from browser.threads import (
 )
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -405,6 +405,14 @@ def test_a_thread_resolved_in_the_panel_comes_back_to_the_panel(browser, serve):
     expect_open_threads(page, 1)
     expect(page.locator(PANEL_THREAD)).to_have_attribute("data-lf-thread", root)
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
+
+    # The refusal's error stands in the field, and the next Resolve closes the view whose
+    # reply editor stood there: the leaf's error dot stays as it was, unwritten.
+    page.unroute_all(behavior="wait")
+    with sending(page, "the resolve again"):
+        page.keyboard.press("r")
+    round_trip(page)
+    expect_open_threads(page, 0)
 
 
 def test_z_shows_a_thread_resolved_in_its_card_by_its_passage(browser, serve):

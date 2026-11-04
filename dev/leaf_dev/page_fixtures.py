@@ -20,7 +20,9 @@ from pathlib import Path
 from typing import Literal, Protocol
 
 import click
+from click.testing import CliRunner
 
+from leaf.cli import cli
 from leaf.event_log import read_events
 from leaf.interaction_log import append_interactions
 from leaf.media import media_name
@@ -226,6 +228,16 @@ class LeafRunner(Protocol):
     directory and failure report."""
 
     def __call__(self, *args: str, input_text: str | None = None) -> object: ...
+
+
+def leaf_in_process(*args: str, input_text: str | None = None) -> None:
+    """The `LeafRunner` that runs a command in this process, with its environment
+    and working directory, failing with the command's output."""
+    result = CliRunner().invoke(cli, list(args), input=input_text)
+    if result.exit_code:
+        raise click.ClickException(
+            f"leaf {' '.join(args)}: {result.output}"
+        ) from result.exception
 
 
 def import_referenced_media(

@@ -18,7 +18,6 @@ from render_cases_interaction import (
 from render_cases_layout import current_location_ring, rings_drawn
 from render_harness import (
     PANEL,
-    PANEL_THREAD,
     RELEASE_FOCUS,
     comment_note,
     leaf_page,
@@ -59,6 +58,7 @@ from browser.margin import (
 from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
 from leaf.render_checks import rendered
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -1404,7 +1404,9 @@ def test_an_open_thread_refresh_keeps_the_current_margin_entry_target_highlighte
     suggestion.locator(".lf-margin-more").click()
     suggestion.locator('.lf-margin-reading-option[data-lf-kinds="comment"]').click()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
-    page.locator('[data-lf-margin-for="sug-thistle"] .lf-sug-accept').focus()
+    page.locator(
+        '[data-lf-margin-for="sug-thistle"] [data-lf-margin-entry-key=accept]'
+    ).focus()
     # This suggestion is the current obligation, so its ring identifies the target
     # instead of the duplicate margin trace, even while another card stays open.
     drawn = rings_drawn(page)

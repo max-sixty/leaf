@@ -39,7 +39,6 @@ from render_harness import (
     FEATURE_GALLERY,
     LONG_PAGE,
     PANEL,
-    PANEL_THREAD,
     RELEASE_FOCUS,
     Traffic,
     any_draft_control,
@@ -69,6 +68,7 @@ from render_harness import (
 
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.browser import PANEL_THREAD
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -1691,9 +1691,10 @@ def test_every_control_the_layer_offers_is_a_box_the_user_can_hit(
 
 from render_harness import (
     EXAMPLES,
-    PANEL_THREAD,
     leaf_page,
 )
+
+from leaf_dev.browser import PANEL_THREAD
 
 
 @pytest.mark.shifts_unsurveyed

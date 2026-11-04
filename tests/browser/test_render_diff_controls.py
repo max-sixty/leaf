@@ -8,6 +8,7 @@ import pytest
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
+    before_landing_frame,
     consume_browser_errors,
     holding,
     leaf_page,
@@ -295,21 +296,15 @@ def test_a_visible_datum_takes_over_pending_thread_motion(browser, serve):
     datum = page.locator('lf-diff [data-lf-datum=\'["app.py","new",1]\']')
     expect(datum).to_be_in_viewport()
     page.locator("h1").click()
-    page.evaluate("""async () => {
-      const {navigateToDatum} = await window.__lfWidgetApi();
-      const scrollTo = Element.prototype.scrollTo;
-      Element.prototype.scrollTo = function(options) {
-        const result = scrollTo.call(this, options);
-        if (this === document.scrollingElement && options.behavior === 'smooth') {
-          Element.prototype.scrollTo = scrollTo;
+    before_landing_frame(
+        page,
+        """window.__lfWidgetApi().then(({navigateToDatum}) => () => {
           queueMicrotask(async () => {
             window.datumArrived = await navigateToDatum(document.querySelector('#files'),
               'for', '["app.py","new",1]');
           });
-        }
-        return result;
-      };
-    }""")
+        })""",
+    )
     page.keyboard.press("t")
     page.wait_for_function("window.datumArrived !== undefined")
     assert page.evaluate("datumArrived")
@@ -859,7 +854,7 @@ def test_phone_diff_headers_keep_distinguishing_parent_folder_readable(
         release: () => release(),
       };
       diff.prepareEntry = async function(...args) {
-        if (args[1].path.endsWith('/dispatch/CLAUDE.md')) {
+        if (args[0].path.endsWith('/dispatch/CLAUDE.md')) {
           const held = new Promise(resolve => { release = resolve; });
           window.lfDiffPreparationStarted = true;
           await held;

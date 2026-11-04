@@ -276,8 +276,8 @@ preparation, gesture holds and semantic presentation proof.
 A gesture's own result shows in the task that sends it, before the server
 answers ("Responsiveness"); a disabled control, spinner or delivery status is
 not that result. The browser adds only what a gesture decides by itself: a
-to-do the user ends, a thread the user opens, the user's own reply and its wait
-for an answer, and the resend a refused send leaves. A refusal restores the
+thread the user opens, the user's own reply and its wait for an answer, and the
+resend a refused send leaves. A refusal restores the
 server's state.
 
 Focus, scroll, selection, open disclosures, a draft being typed, a drag and
@@ -312,6 +312,14 @@ segments that Python and the browser collapse and resolve by the same rules.
 `says` is visible text; `wrote` is authored text. Python never accepts an anchor
 the rendered page can't resolve. Repeated text with no context to pick one copy
 detaches instead of falling back to order or offsets.
+
+Each fact Leaf derives about the page is derived once, and each place that
+reports the page selects what its purpose needs. Whatever a delivery tells the
+agent about an event, apart from what it asks of the agent at the time (`answer`,
+`handling`, `waiting`), `leaf page state` tells a later session about the same
+event, or the message as it now reads, under the same name and from the same code
+(`event_facts.py`). A fact about the past, such as the settings the user had open
+when they wrote, is derived from the log and never stored as a second copy.
 
 ### Keep the layer open
 

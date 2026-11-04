@@ -16,7 +16,6 @@ from render_cases_interaction import (
 from render_cases_widgets import PAGE_DECLARATION, PAGE_WIDGET
 from render_harness import (
     PANEL,
-    PANEL_THREAD,
     consume_browser_errors,
     expect_obligations_answered,
     expect_open_threads,
@@ -31,8 +30,8 @@ from render_harness import (
     panel_menu,
     panel_settled,
     refuse,
+    reported_browser_errors,
     round_trip,
-    said,
     sending,
     stamp_page,
     stored_draft_text,
@@ -47,6 +46,7 @@ from leaf import event_log as events_model
 from leaf import interaction_log as interaction_model
 from leaf import thread as thread_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
+from leaf_dev.browser import PANEL_THREAD
 
 THREAD_READER = r"""
 import {LeafElement, html, readThreads, threadSummary, threadTurns} from '/runtime/widget-api.js';
@@ -784,31 +784,16 @@ def test_a_returning_widget_repaints_to_restore_subscriptions(browser, serve):
     assert page.evaluate(leave_and_return) == {"drawn": 1, "failed": 0, "pending": []}
 
     # Resuming a deferral draws the same reading again, and this draw fails.
-    # Fault reporting waits until after the native operation; presentation completion
-    # alone does not mean the console has received the report.
-    failure = 'leaf: <lf-local id="page-local"> failed: deliberate render failure'
-    with page.expect_console_message(
-        predicate=lambda message: message.text.startswith(failure)
-    ):
-        page.evaluate(
-            "globalThis.__failLocalRender = true; "
-            "document.querySelector('#page-local').controller.defer()(); true"
-        )
+    page.evaluate(
+        "globalThis.__failLocalRender = true; "
+        "document.querySelector('#page-local').controller.defer()(); true"
+    )
     expect(page.locator("#page-local .lf-error")).to_have_text(
         "<lf-local> failed: deliberate render failure"
     )
-    with page.expect_console_message(
-        predicate=lambda message: message.text.startswith(failure)
-    ):
-        assert page.evaluate(leave_and_return) == {
-            "drawn": 0,
-            "failed": 2,
-            "pending": [],
-        }
-    errors = take_browser_errors(page)
-    assert [said(error) for error in errors] == [
-        'leaf: <lf-local id="page-local"> failed: deliberate render failure'
-    ] * 2
+    assert page.evaluate(leave_and_return) == {"drawn": 0, "failed": 2, "pending": []}
+    failure = 'leaf: <lf-local id="page-local"> failed: deliberate render failure'
+    reported_browser_errors(page, failure, failure)
 
 
 @pytest.mark.parametrize("lifetime", ["light", "shadow-child", "shadow-host"])
@@ -1055,10 +1040,9 @@ customElements.define('lf-controller-stage', class extends HTMLElement {
     )
     page.wait_for_function("readLeafPresentation().pending.length === 0")
     assert page.evaluate("window.__failedLocalRenders") == 1
-    errors = take_browser_errors(page)
-    assert [said(error) for error in errors] == [
-        'leaf: <lf-local id="page-local"> failed: deliberate render failure'
-    ]
+    reported_browser_errors(
+        page, 'leaf: <lf-local id="page-local"> failed: deliberate render failure'
+    )
 
 
 @pytest.mark.parametrize(
@@ -1335,9 +1319,9 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
     page.wait_for_function("threadReady")
     expect(page.locator(".lf-floating-panel #thread-failing")).to_have_count(1)
     expect_open_threads(page, 2)
-    assert [said(error) for error in take_browser_errors(page)] == [
-        "leaf: Presentation failed: frozen descendant failure"
-    ]
+    reported_browser_errors(
+        page, "leaf: Presentation failed: frozen descendant failure"
+    )
 
 
 THREAD_ACTIONS = r"""
@@ -1547,16 +1531,6 @@ def package_workspace(serve, *, before_reader="", primary=True):
             "parent": "opening",
             "text": "One paragraph.",
         },
-        {
-            "id": "proofread",
-            "kind": "todo",
-            "author": "agent",
-            "agent": "Agent",
-            "session": "proofread",
-            "owner": "user",
-            "subject": {"kind": "element", "id": "notes"},
-            "title": "Proofread announcement",
-        },
     ]:
         append_carried_log_record(serve.page_dir, event)
     return url
@@ -1581,62 +1555,12 @@ def test_package_answer_summary_waits_for_widget_completion(browser, serve):
     counts = workspace.locator(".counts")
     workspace.get_by_role("button", name="Which extras? Chat", exact=True).click()
     expect(workspace.locator("#extra-chat").get_by_role("checkbox")).to_be_checked()
-    expect(counts).to_have_text("3 waiting on me")
+    expect(counts).to_have_text("2 waiting on me")
     with sending(page, "complete the selected extras"):
         workspace.locator("#extras").get_by_role(
             "button", name="Done: these picks are complete", exact=True
         ).click()
-    expect(counts).to_have_text("2 waiting on me · 1 answered · Chat")
-
-
-def test_public_queue_commands_recheck_membership_and_restore_refusals(browser, serve):
-    page = open_page(browser, package_workspace(serve))
-    page.evaluate("async () => { window.api = await window.__lfWidgetApi(); }")
-    key = page.evaluate(
-        "api.queueItemKey(api.readQueues().on_user.find(item => item.id === 'proofread'))"
-    )
-    assert page.evaluate(
-        "api.queueActions.done(api.queueItemKey(api.readQueues().on_user.find(item => item.obligation?.source.kind === 'widget'))) === null"
-    )
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
-    page.evaluate("key => { window.doneDelivery = api.queueActions.done(key); }", key)
-    holding(page, held, 1, "a package Done awaiting admission")
-    assert page.evaluate(
-        "!api.readQueues().on_user.some(item => item.id === 'proofread')"
-    )
-    assert page.evaluate("api.readQueues().done.some(item => item.id === 'proofread')")
-    assert page.evaluate("key => api.queueActions.done(key) === null", key)
-    held[0].fulfill(
-        status=200,
-        content_type="application/json",
-        body=json.dumps(
-            {
-                "ok": False,
-                "final": True,
-                "attempt": held[0].request.post_data_json["attempt"],
-                "error": "Deliberate refusal",
-            }
-        ),
-    )
-    page.unroute("**/api/event")
-    assert page.evaluate("doneDelivery") is None
-    round_trip(page)
-    assert page.evaluate(
-        "api.readQueues().on_user.some(item => item.id === 'proofread')"
-    )
-    with sending(page, "a current package Done"):
-        page.locator("#workspace").get_by_role(
-            "button", name="Done", exact=True
-        ).click()
-    assert page.evaluate("key => api.queueActions.done(key) === null", key)
-    assert page.evaluate("key => api.queueActions.open(key)", key)
-    expect(page.locator("#notes")).to_be_focused()
-    assert [
-        event["kind"]
-        for event in events_model.read_events(serve.page_dir)
-        if event.get("todo") == "proofread"
-    ] == ["todo_end"]
+    expect(counts).to_have_text("1 waiting on me · 1 answered · Chat")
 
 
 def test_failed_primary_reader_restores_the_same_native_obligation_in_core(

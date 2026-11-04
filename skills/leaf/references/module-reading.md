@@ -24,7 +24,9 @@ markup in an agent's message, that message's own markup. `elementById(id, root)`
 or the whole document, including the shadow trees `getElementById` misses.
 `under(node, root)` says whether `node` is in `root` across shadow boundaries, and
 `inChrome(node)` whether it is in Leaf's own interface, as a widget in a Thread reply
-is.
+is. A widget that acts on the document around it, as a contents list or a depth dial
+does, reads it with `viewDocument(node)`: the view member holding the node (`x-views`,
+`module-authoring.md`), else the `main` holding it, else null.
 
 ### Naming elements
 
@@ -137,7 +139,9 @@ pass it as `trigger` instead. Set its `value` before it copies, and it reports
 
 `alignText(before, after)` aligns two texts by words and returns runs `{kind, text}`,
 with `kind` `same`, `delete` or `insert`. To align by sentences, pass an
-`Intl.Segmenter` with `granularity: "sentence"` as the third argument.
+`Intl.Segmenter` with `granularity: "sentence"` as the third argument. Its walk gives
+up after `MAX_EDIT_LENGTH` edits and returns the whole text replaced; a widget that
+walks its own units with jsdiff, such as a document's lines, passes the same cap.
 
 ### Media URLs
 
@@ -245,14 +249,13 @@ through `answer`, so the view records nothing of its own.
 
 `readQueues()` returns the `{phase, on_user, on_agent, done}` lists Leaf's panel shows
 under On me and On <agent>. Each row has a `kind`, which is its obligation's
-`source.kind` (with the obligation as `obligation`) or `todo` (with the to-do as
-`todo`), and an `owner`, `user` or `agent`. An obligation's row lists in `also` the ids
-of the other obligations the user answers at the same place, such as the agent's answer
-in a thread about it. Rows not done carry `offers: {open, done}`.
+`source.kind` (with the obligation as `obligation`) or, on the agent's list, `todo`
+(with the to-do as `todo`), and an `owner`, `user` or `agent`, naming its list. An
+obligation's row lists in `also` the ids of the other obligations the user answers at
+the same place, such as the agent's answer in a thread about it.
 `queueItemKey(row)` names a row across moves between lists, and `queueTitle(row)` gives
-its title. `queueActions.open(key)` goes to a row. `queueActions.done(key)` ends a to-do
-the agent opened on the user, returning its admission promise, and returns `null` for
-any other row. Act on a collection only when its `phase` is `ready`.
+its title. `queueActions.open(key)` goes to a row; an obligation is answered only
+through its widget or thread. Act on a collection only when its `phase` is `ready`.
 
 ### Work hierarchies
 
@@ -295,9 +298,11 @@ rewritten section is, together with the blocks the earlier version had there. A
 paragraph removed with nothing in its place is a change too, with no elements. Each
 change is an object: `blocks`, its elements inside `owner` in page order; `removed`,
 what the earlier version's blocks said (`{id, tag, word, words}`); and `at`, the
-element it stands by, its first block or the block after its gap. The result's length
-counts changes as the reader does. Reading it during a `LeafElement` render subscribes
-that render to comparison changes.
+element it stands by: its first block, or for a removal the element beside its gap, or
+the element the removal emptied of every block. A removal's `at` is in the part of the
+page the blocks were taken from, so a paragraph removed from a tab counts in that tab.
+The result's length counts changes as the reader does. Reading it during a
+`LeafElement` render subscribes that render to comparison changes.
 
 `revisionLabel(event.revision)` is the page's name for the version an event was
 recorded in.

@@ -480,7 +480,9 @@ def test_the_obligation_reading_counts_completed_obligations_against_the_active_
     # is in the log alone, so that one follows the round trip.
     page.locator("#lq-token").click()
     expect_obligations_answered(page, "2/5")
-    page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
+    page.locator(
+        "[data-lf-margin-for='sug-refill'] [data-lf-margin-entry-key=accept]"
+    ).click()
     expect_obligations_answered(page, "3/5")
     expect_accept_all(page, 0)
 
@@ -566,7 +568,9 @@ def test_a_key_walks_the_page_s_open_obligations(browser, serve):
     # the user now stands, and the next press reaches what followed it rather than the
     # change they have just settled. The control the user answered from keeps the
     # focus. It leaves the open walk while the completed/total count advances.
-    page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
+    page.locator(
+        "[data-lf-margin-for='sug-refill'] [data-lf-margin-entry-key=accept]"
+    ).click()
     expect_obligations_answered(page, "2/5")
     page.keyboard.press("m")
     expect(page.locator("#t-baffles-decision[data-lf-obligation]")).to_have_count(1)
@@ -742,10 +746,14 @@ def test_the_obligation_itself_binds_each_contributed_action(browser, serve):
     expect(page.locator("#sug-refill")).to_be_focused()
     assert active_digit_bindings(page) == "1–2"
     expect(
-        page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept")
+        page.locator(
+            "[data-lf-margin-for='sug-refill'] [data-lf-margin-entry-key=accept]"
+        )
     ).to_have_attribute("aria-keyshortcuts", "1")
     expect(
-        page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-reject")
+        page.locator(
+            "[data-lf-margin-for='sug-refill'] [data-lf-margin-entry-key=reject]"
+        )
     ).to_have_attribute("aria-keyshortcuts", "2")
     page.keyboard.press("2")
     round_trip(page)

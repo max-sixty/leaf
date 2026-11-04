@@ -1,82 +1,22 @@
 /* The queue walk repaints the keys as On me empties or fills.
 
-   The m/M row stands on On me, and Done on the to-dos it holds, so the walk watches
-   the queues the publication serves (`readQueues`) and asks for the frame that
-   repaints the keys when what it offers changes. */
+   The m/M row stands on On me, so the walk watches the queues the publication serves
+   (`readQueues`) and asks for the frame that repaints the keys when the list empties
+   or fills. */
 import assert from "node:assert/strict";
 import test from "node:test";
 import { applicationState } from "/runtime/semantic-state.js";
 import { mountRepaint } from "/runtime/repaint.js";
 import { nextRender } from "/runtime/rendering.js";
 import { createQueueWalk } from "/runtime/queue-walk.js";
+import { servedReading, servedState } from "../served.mjs";
 
-const noObligations = () => ({ all: [], user: [], unanswered: [] });
-let taken = 0;
-// A reading whose view lists `onUser` on the user's list, each a to-do the log holds open.
-const reading = (onUser) => ({
-  taken: ++taken,
-  layer: { generation: "test" },
-  active: { revision: 1 },
-  events: [],
-  files: {},
-  workflows: [],
-  activity: null,
-  browser: {
-    basis: { through_seq: 0 },
-    thread_memberships: {},
-    todos: onUser.map((item) => ({
-      ...item,
-      state: "open",
-      ts: "2026-10-13T00:00:00Z",
-      revision: 1,
-      running: null,
-      agent: null,
-      session: null,
-      outcome: null,
-    })),
-    version_notes: {},
-    views: {
-      1: {
-        basis: { revision: 1, through_seq: 0 },
-        obligations: onUser.map((item) => ({
-          id: item.id,
-          source: { kind: "todo", id: item.id, subject: item.subject },
-          thread: item.thread,
-          message: null,
-          prompt: { text: item.title, target: null },
-          status: "open",
-          next_actor: "user",
-          answer: null,
-          end: null,
-        })),
-        thread: {
-          threads: [],
-          projection: { entries: [], actions: [], reports: [], desired: [] },
-          obligations: noObligations(),
-        },
-        undo: [],
-        reports: [],
-        queues: { on_user: onUser, on_agent: [], done: [] },
-        document: {
-          obligations: noObligations(),
-          projection: { entries: [], actions: [], reports: [], desired: [] },
-        },
-      },
-    },
-  },
-});
-const todo = {
-  kind: "todo",
-  id: "t1",
-  owner: "user",
-  subject: { kind: "page" },
-  thread: null,
-  live: false,
-  title: "Check the release",
-};
+// A page with nothing on On me, then the same page once the agent asked a question there.
+const empty = servedState();
+const filled = servedReading("question");
 const frame = () => new Promise((resolve) => nextRender(resolve));
 
-test("a to-do arriving on On me repaints the keys", async () => {
+test("an item arriving on On me repaints the keys", async () => {
   applicationState.identify(1);
   applicationState.captureDocument({
     ...applicationState.read().document,
@@ -84,17 +24,17 @@ test("a to-do arriving on On me repaints the keys", async () => {
     authored: new Map(),
     descriptors: new Map(),
   });
-  applicationState.adopt(reading([]));
+  applicationState.adopt(empty);
   let frames = 0;
   mountRepaint({ reflectFirstScopes: () => frames++ });
   createQueueWalk({}).mount();
   await frame();
   const before = frames;
 
-  applicationState.adopt(reading([todo]));
+  applicationState.adopt(filled);
   assert.equal(applicationState.read().effective.queues.on_user.length, 1);
   // The walk's watcher reads the queues on the microtask after the publication.
   await null;
   await frame();
-  assert.ok(frames > before, "the keys repaint once On me holds the to-do");
+  assert.ok(frames > before, "the keys repaint once On me holds the item");
 });

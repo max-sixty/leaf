@@ -16,7 +16,13 @@ import { agentName, readPart } from "./semantic-state.js";
 import { livePoint } from "./pointed-place.js";
 import { ago } from "./presence.js";
 import { runtime } from "./context.js";
-import { elementById, inChrome, quoteFrom, textNodesUnder } from "./passages.js";
+import {
+  elementById,
+  GENERATED,
+  inChrome,
+  quoteFrom,
+  textNodesUnder,
+} from "./passages.js";
 import { addressableLabel, addressableWord } from "./addressable-names.js";
 import { threadList } from "./thread/state.js";
 import { threadKey } from "./thread/model.js";
@@ -44,7 +50,7 @@ import { scrollBehavior } from "./motion.js";
 import {
   changeAccount,
   changeCard,
-  comparisonBase,
+  changeSince,
   comparisonChanges,
   toggleChangeCard,
 } from "./version.js";
@@ -132,9 +138,7 @@ export function createAnnotationInventory({
         (node.parentNode instanceof ShadowRoot ? node.parentNode : null);
       if (!parent) break;
       const siblings = [...parent.children].filter(
-        (candidate) =>
-          !candidate.classList.contains("lf-ui") &&
-          !candidate.hasAttribute("data-lf-gen"),
+        (candidate) => !candidate.matches(GENERATED),
       );
       steps.push(`${node.localName}:${siblings.indexOf(node)}`);
       if (node.localName === "body" || parent instanceof ShadowRoot) break;
@@ -421,8 +425,8 @@ export function createAnnotationInventory({
       );
     }
 
-    // A widget's obligation and a to-do on the user have a place on the page
-    // (obligations/place.js); the rest have no node.
+    // A widget's obligation has a place on the page (obligations/place.js); the rest
+    // have no node.
     /** @param {import("./framework/application.js").ObligationRecord} item
      * @returns {item is import("./obligations/answer.js").AnswerableObligation} */
     const hasPlace = (item) => Boolean(obligationPlace(item).node);
@@ -438,11 +442,8 @@ export function createAnnotationInventory({
         text: "Waiting on me",
         words: leafSays("Waiting on me"),
         // The marker's own label is the question, which says more than the kind its
-        // glyph already shows: a widget's name, or a to-do's title, which the element
-        // it is on does not say.
-        label:
-          (item.source.kind === "todo" ? item.prompt.text : addressableLabel(target)) ||
-          null,
+        // glyph already shows: the widget's name.
+        label: addressableLabel(target) || null,
         activate: () => {
           const items = placed();
           const next = items.find((candidate) => candidate.id === id);
@@ -518,15 +519,14 @@ export function createAnnotationInventory({
       });
     }
 
-    const base = comparisonBase();
     // One entry per change (version.js, `changeRuns`), beside the block the change starts
-    // with, or the block after the gap where it only took blocks out, so a section
+    // with, or the block beside its gap where it only took blocks out, so a section
     // rewritten whole gets one entry rather than one per paragraph. It says what the
     // change did in blocks (`changeAccount`): "2 paragraphs replaced by 3".
     comparisonChanges().forEach((change, index) => {
       const target = change.at;
       const did = changeAccount(change);
-      const account = `${did}${base == null ? "" : ` since ${base.name}`}`;
+      const account = changeSince(change);
       const card = changeCard(change);
       const mapAccount = card ? did : account;
       add(groups, target, {
@@ -568,11 +568,10 @@ export function createAnnotationInventory({
 
     // A to-do the agent opened on a page widget or element stands beside it, as Working
     // with the line of the start running on it, or as an open to-do under its title.
-    // A thread's to-do is its thread's attention (above); the page's is the floating panel's. A
-    // to-do on the user is on their list, On me, instead.
+    // A thread's to-do is its thread's attention (above); the page's is the floating
+    // panel's.
     for (const todo of runtime.todos) {
       if (
-        todo.owner !== "agent" ||
         todo.state !== "open" ||
         (todo.subject.kind !== "widget" && todo.subject.kind !== "element") ||
         Number(todo.revision) > Number(runtime.currentRevision)

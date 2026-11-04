@@ -2,7 +2,6 @@
 
 import re
 from html import escape
-from socket import gethostname
 
 import pytest
 from playwright.sync_api import expect
@@ -11,6 +10,7 @@ from render_harness import (
     consume_browser_errors,
     leaf_page,
     open_page,
+    over_plain_http,
     panel_menu,
     scroll_settled,
     told,
@@ -25,18 +25,8 @@ def test_code_copy_on_plain_http_machine_name(browser, serve, gesture):
         "Code copy over HTTP",
         "<h1>Code copy over HTTP</h1><pre><code>echo hello</code></pre>",
     )
-    # The browser lower-cases a URL's host, so the route rewrites that spelling to
-    # loopback; the machine's name needn't resolve there, as on CI's macOS runner.
-    host = gethostname().lower()
     local_url = live_url(serve(source))
-    remote_url = local_url.replace("127.0.0.1", host)
-    context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
-
-    def fetch_from_loopback(route):
-        response = route.fetch(url=route.request.url.replace(host, "127.0.0.1"))
-        route.fulfill(response=response)
-
-    context.route(f"http://{host}:**/*", fetch_from_loopback)
+    context, remote_url = over_plain_http(browser, local_url)
     page = open_page(browser, remote_url, context=context)
     assert page.evaluate("!isSecureContext && navigator.clipboard === undefined")
     if gesture == "click":
@@ -113,7 +103,7 @@ def test_code_wrapping_keeps_source_copy_and_reader_choice(browser, serve):
     # A finger starts at the source, then uses the existing command reference.
     pre.tap(position={"x": 30, "y": 20})
     open_keyboard_shortcuts(page)
-    page.get_by_role("button", name="Unwrap lines", exact=True).tap()
+    page.get_by_role("option", name="Unwrap lines", exact=True).tap()
     expect(pre).to_be_focused()
     assert pre.evaluate("e => e.scrollWidth > e.clientWidth")
     assert pre.evaluate("e => e.clientHeight") < before["height"]
@@ -137,7 +127,7 @@ def test_code_wrapping_keeps_source_copy_and_reader_choice(browser, serve):
     assert pre.evaluate("e => e.scrollLeft") >= horizontal
     open_keyboard_shortcuts(page)
     page.locator(".lf-command-reference").get_by_role(
-        "button", name="Copy code", exact=True
+        "option", name="Copy code", exact=True
     ).tap()
     expect(pre).to_be_focused()
     assert page.evaluate("navigator.clipboard.readText()") == code.rstrip("\n")

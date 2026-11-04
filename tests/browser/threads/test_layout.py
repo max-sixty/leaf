@@ -1031,7 +1031,7 @@ def test_words_scrolled_past_a_card_head_show_nowhere_above_it(
                 "text": f"Turn {turn}. " + LANDING_WORDS,
             },
         )
-        for turn in range(1, 8)
+        for turn in range(1, 10)
     ]
     # A summary's words have no head of their own, and pass beneath the actions too.
     summarize_thread(serve.page_dir, turns[0]["id"], turns[1]["id"], LANDING_WORDS)

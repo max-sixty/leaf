@@ -3,7 +3,7 @@
 Each invocation emits records exactly as `/api/state` serves them, folded here
 through `model_folds.served_reading` rather than written by hand, so a Node test starts from
 every field the server sends and cannot omit one the runtime relies on. `thread`,
-`workflow` and `activity` are one record of each, which `served.mjs` hands out for a
+`workflow` and `activity` are one record of each, and `state` a whole answer, which `served.mjs` hands out for a
 test to change only the fields the server sends; `gestures` holds an admitted edit, undo, refusal
 and revision sequence shared across runtimes; `tails` holds answers that complete a
 reading the browser holds, each beside that reading and the whole answer;
@@ -18,7 +18,7 @@ import json
 from pathlib import Path
 
 from interact_support import model_layer, served_thread
-from model_folds import NOW, UNCLAIMED, leaf_page, served_reading
+from model_folds import NOW, UNCLAIMED, leaf_page, served_answer, served_reading
 
 from leaf.event_log import EventRefused
 from leaf.passages import SourceReading
@@ -43,9 +43,19 @@ def _served(events: tuple[dict, ...]) -> dict:
     }
 
 
-# Something of every kind on each list: a widget obligation, a question, a to-do the agent put
-# on the user, a reply that failed and a page action whose pickup failed are on On me;
-# a comment owed a reply and a to-do the agent has in hand are on On <agent>.
+# A question the agent asked in a thread of its own, about the page.
+QUESTION = {
+    "kind": "comment",
+    "author": "agent",
+    "agent": "Agent",
+    "session": "served-records",
+    "text": "Can you try the build on a phone, and reply once it opens?",
+    "obligation": True,
+}
+
+# Something of every kind on each list: a widget obligation, a question, a reply that
+# failed and a page action whose pickup failed are on On me; a comment owed a reply and
+# a to-do the agent has in hand are on On <agent>.
 BOTH_SIDES = (
     {"kind": "comment", "text": "Weekly?"},
     {
@@ -103,15 +113,6 @@ BOTH_SIDES = (
         "item": "e5",
         "text": "Redrawing the chart",
     },
-    {
-        "kind": "todo",
-        "author": "agent",
-        "agent": "Agent",
-        "session": "served-records",
-        "owner": "user",
-        "subject": {"kind": "page"},
-        "title": "Try the build on a phone",
-    },
 )
 
 
@@ -167,6 +168,8 @@ def build() -> dict:
         "obligation_values": obligation_value_cases(),
         "thread": threads["e1"],
         "workflow": workflows["e4"],
+        # The whole answer for a page with an empty log.
+        "state": served_answer(PAGE),
         # The page-wide activity of a page a live session holds, owing nothing.
         "activity": served_reading(PAGE, presence=HELD)["activity"],
         "gestures": gesture_sequence(),
@@ -213,17 +216,11 @@ def build() -> dict:
                     ),
                 )
             },
+            # The agent asked the user a question, the only thing On me holds.
+            "question": served_answer(PAGE, (QUESTION,)),
             "queues on both sides": served_reading(
                 OBLIGATION_PAGE,
                 BOTH_SIDES,
-            ),
-            # The same page once the user has marked their to-do done.
-            "user done": served_reading(
-                OBLIGATION_PAGE,
-                (
-                    *BOTH_SIDES,
-                    {"kind": "todo_end", "todo": "e11", "outcome": "done"},
-                ),
             ),
             # Two to-dos the agent holds on a page it is working on: a start running
             # on one went quiet past the working grace, and the other's is current.
@@ -236,7 +233,6 @@ def build() -> dict:
                             "author": "agent",
                             "agent": "Agent",
                             "session": "served-records",
-                            "owner": "agent",
                             "subject": {"kind": "page"},
                             "title": title,
                         }

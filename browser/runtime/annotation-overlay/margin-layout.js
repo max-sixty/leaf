@@ -679,9 +679,8 @@ function placeMarginEntryLabel(control) {
 // What reveals a margin entry's label, as the theme's rules for it say: a press held on
 // it (held-word.js), and focus or hover where the pointer really hovers. Elsewhere a
 // tap leaves the entry hovered and focused, so only the keyboard's focus reveals it.
-// Arriving at the entry's target, as `m` does, leaves the label hidden. An ask's
-// heading already says its question, and `m` opens On me on a to-do, whose card shows
-// the title its subject doesn't (queue-walk.js).
+// Arriving at the entry's target, as `m` does, leaves the label hidden, since an
+// ask's heading already says its question.
 const revealsLabel = () =>
   hoveringPointer.matches
     ? ':is(:hover, [data-lf-focus]):not([aria-expanded="true"]), [data-lf-held-word]'

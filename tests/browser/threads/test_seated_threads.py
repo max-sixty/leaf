@@ -10,7 +10,6 @@ from render_cases_interaction import OBLIGATION_PAGE, panel_comment
 from render_cases_navigation import source_revision
 from render_harness import (
     PANEL,
-    PANEL_THREAD,
     RELEASE_FOCUS,
     consume_browser_errors,
     http_error_console,
@@ -42,6 +41,7 @@ from browser.threads import (
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -105,8 +105,9 @@ def test_a_resolution_from_elsewhere_moves_nothing_after_a_diff_thread(browser, 
         {"kind": "resolve", "author": "agent", "agent": "Codex", "parent": root},
     )
     told(page)
-    notice = thread.get_by_role("button", name="Resolved", exact=True)
+    notice = thread.get_by_role("button", name="1 new", exact=True)
     expect(notice).to_be_visible()
+    expect(notice).to_have_attribute("title", "Resolved")
     rendered(page)
     assert after.bounding_box() == before
     notice.click()
@@ -926,7 +927,9 @@ def test_a_thread_resolved_while_its_reply_is_written_keeps_the_user_on_it(
         else:
             # A seat in the flow holds the resolution behind its notice while the
             # thread is on screen.
-            expect(thread.locator(".lf-thread-news")).to_contain_text("Resolved")
+            notice = thread.locator(".lf-thread-news")
+            expect(notice).to_have_text("1 new")
+            expect(notice).to_have_attribute("title", "Resolved")
             expect(thread).to_have_attribute("data-lf-resolved", "false")
         return
     page.keyboard.type(" tr")

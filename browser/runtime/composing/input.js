@@ -42,6 +42,7 @@
 // retained as a Node part: rendering chrome never replaces its words, caret or history.
 // Local draft and dictation callbacks request Lit updates; shared readings subscribe
 // through SignalWatcher, including focus and errors, without a repaint registry.
+import { capitalized, counted } from "../words.js";
 import { describeFailure } from "../exception.js";
 import { rememberWriting } from "../drafts.js";
 import { keys, paintKeysWithin } from "../keyboard/scopes.js";
@@ -150,9 +151,10 @@ function mediaTemplate({ drawing, media, sent, removeMedia }) {
           <span class="lf-composer-media-item lf-composer-drawing">
             <button
               type="button"
-              ${offeredAction("picture", "lf-media-open lf-composer-media-open lf-media-frame")}
+              ${offeredAction("picture", "lf-media-open lf-composer-media-open")}
+              data-lf-frame
               data-lf-media-canvas
-              aria-label=${`Inspect drawing, ${strokes} ${strokes === 1 ? "stroke" : "strokes"}`}
+              aria-label=${`Inspect drawing, ${counted(strokes, "stroke")}`}
               title="Inspect drawing"
               @click=${
                 /** @param {MouseEvent & {currentTarget: HTMLButtonElement & {firstElementChild: HTMLCanvasElement}}} event */ (
@@ -187,12 +189,14 @@ function mediaTemplate({ drawing, media, sent, removeMedia }) {
               })}
             </button>
             <button
-              ${offeredAction("mark", "lf-corner-mark lf-composer-drawing-undo", "Undo last stroke", { action: "undo" })}
+              ${offeredAction("mark", "lf-composer-drawing-undo", "Undo last stroke", { action: "undo" })}
+              data-lf-corner
               @mousedown=${/** @param {MouseEvent} event */ (event) => event.preventDefault()}
               @click=${drawing.undoStroke}
             ></button>
             <button
-              ${offeredAction("mark", "lf-corner-mark", "Remove drawing", { action: "remove" })}
+              ${offeredAction("mark", "", "Remove drawing", { action: "remove" })}
+              data-lf-corner
               @mousedown=${/** @param {MouseEvent} event */ (event) => event.preventDefault()}
               @click=${drawing.removeDrawing}
             ></button>
@@ -201,7 +205,8 @@ function mediaTemplate({ drawing, media, sent, removeMedia }) {
       : null,
     media.map(({ index, url }) => {
       const remove = html`<button
-        ${offeredAction("mark", "lf-corner-mark lf-composer-media-remove", `Remove attached image ${index + 1}`, { action: "remove" })}
+        ${offeredAction("mark", "lf-composer-media-remove", `Remove attached image ${index + 1}`, { action: "remove" })}
+        data-lf-corner
         @click=${() => removeMedia(index)}
       ></button>`;
       // A sent message's picture is the one its message draws (markdown.js, the image
@@ -221,7 +226,8 @@ function mediaTemplate({ drawing, media, sent, removeMedia }) {
         : html`<span class="lf-composer-media-item">
             <button
               type="button"
-              ${offeredAction("picture", "lf-media-open lf-composer-media-open lf-media-frame")}
+              ${offeredAction("picture", "lf-media-open lf-composer-media-open")}
+              data-lf-frame
               data-lf-media-url=${url}
               aria-label=${`View attached image ${index + 1}`}
             >
@@ -396,11 +402,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         shelfSeen = { drawing: drawn, media: [...attachedMedia] };
         drawing.replace(drawn);
         const strokes = drawn?.strokes.length ?? 0;
-        announce(
-          strokes
-            ? `Drawing, ${strokes} stroke${strokes === 1 ? "" : "s"}.`
-            : "No drawing.",
-        );
+        announce(strokes ? `Drawing, ${counted(strokes, "stroke")}.` : "No drawing.");
       });
     /** @param {readonly string[]} media */
     const putMedia = (media) => {
@@ -464,10 +466,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     const initialName = name();
     if (initialName) keeps(ta, "aria-label", initialName);
     const sendWord = () => (typeof sends === "function" ? sends() : sends);
-    const sendLabel = () => {
-      const word = sendWord();
-      return word.charAt(0).toUpperCase() + word.slice(1);
-    };
+    const sendLabel = () => capitalized(sendWord());
     // Once words reach Send's corner, Send shows there as the pointer comes to it, and
     // takes presses only once the pointer has rested on it (response.css), so a quick
     // press at the words' end places the caret. Typing, or a press on the words, puts
@@ -583,6 +582,8 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
           action: actionWord(),
           title: sendKeys ? `${action} (${sendKeys})${newline}` : action,
         })}
+        ?data-lf-disc=${!submitIn}
+        data-lf-tone="accent"
         aria-disabled=${String(!canSend())}
         ?data-lf-empty=${!hasWords}
         ?hidden=${micShown}
@@ -634,6 +635,8 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
               title: live || !status ? micAction : `${micAction} (${status})`,
             })}
             ?hidden=${!micShown}
+            data-lf-disc
+            data-lf-tone=${dictationState === "failed" ? "negative" : nothing}
             data-lf-dictation=${dictationState}
             aria-pressed=${String(live)}
             aria-description=${status || nothing}

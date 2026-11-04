@@ -45,8 +45,10 @@ Usage: leaf page state [OPTIONS] PAGE [MESSAGE_OR_WIDGET]
   MESSAGE_OR_WIDGET narrows the output to what it names. A message, or a widget
   frozen into one, names its thread: the output is that thread with a page of
   its messages, their frozen markup, and the state of its widgets, paged by
-  --after and --limit. A widget on the page names itself: its element, its
-  current actions and reports, its obligations and to-dos, and its workflows.
+  --after and --limit. Each action in force and each message carries what its
+  delivery added to it, such as a choice's words and a message's `unsent`. A
+  widget on the page names itself: its element, its current actions and reports,
+  its obligations and to-dos, and its workflows.
 
 Options:
   --after SEQ            a thread's history after this sequence (default: from
@@ -199,8 +201,8 @@ Usage: leaf task end [OPTIONS] PAGE ID {done|failed|dropped}
 
   End the to-do or conversational obligation named by ID in `page state`.
 
-  A to-do, yours or the user's, ends done, failed or dropped. --text says where
-  the result is, such as the version or reply holding it, or why there is none.
+  A to-do ends done, failed or dropped. --text says where the result is, such as
+  the version or reply holding it, or why there is none.
 
   For a message obligation (`message:<id>`) or a question widget answered in
   words (`widget:<id>`), done records that the user answered elsewhere, --text

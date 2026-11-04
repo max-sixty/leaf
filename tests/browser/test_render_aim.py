@@ -58,7 +58,6 @@ from render_harness import (
     FOLLOWER_MARK,
     LONG_PAGE,
     PANEL,
-    PANEL_THREAD,
     RELEASE_FOCUS,
     REPLAYED_PAGE,
     SUBJECT_MARK,
@@ -101,6 +100,7 @@ from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate.scheme import collect_page_exceptions
 from leaf.served_state import context as served_context
 from leaf.validation import composition as validation_model
+from leaf_dev.browser import PANEL_THREAD
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -2699,9 +2699,11 @@ def test_design_mode_settles_on_a_page_with_marked_elements(browser, serve):
             },
         )
     page = open_page(browser, url)
-    expect(page.locator('[data-lf-margin-for="reacted"] .lf-react-mark')).to_have_count(
-        1
-    )
+    expect(
+        page.locator(
+            '[data-lf-margin-for="reacted"] [data-lf-margin-entry-owner="reactions"][data-lf-behavior="disclosure"]'
+        )
+    ).to_have_count(1)
     expect(page.locator("#commented.lf-mark-el")).to_have_count(1)
     page.keyboard.press("l")
     expect(page.locator('.lf-legend-box[data-lf-for="reacted"]')).to_be_visible()

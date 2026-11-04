@@ -23,9 +23,10 @@
    its own padding; a box whose edge touches something that paints draws its ring inset.
    A large composite region paints a quiet ground inside its box instead.
 
-   The response bar (`.lf-fab-bar`): `.lf-response-control` keeps the field and every
-   choice on one baseline with one type, border, corner and elevation; the bar keeps its
-   DOM owner and accessible name while its contents change. */
+   The response bar (`.lf-fab-bar`): its field (`.lf-response-control`) and every
+   choice (the response face, controls.css) stand on one baseline with one type,
+   border, corner and elevation; the bar keeps its DOM owner and accessible name while
+   its contents change. */
 /* Page-attached chrome is absolute against the chrome's root, which stands at the
    initial containing block's origin and takes no room (base.css), so its coordinates
    are the document's, not body's. Body is the page shell and may move or narrow, as
@@ -35,7 +36,7 @@
    the root cannot place a box the root contains (integration.css, `.lf-block-controls`). */
 /* Shared vocabulary. This sheet is adopted after the theme and every package, so a
    shared face stated here would outrank each component's own rule. The vocabulary's
-   faces are therefore stated page-side (the margin entries in base.css; .lf-key-badge,
+   faces are therefore stated page-side (the margin entries in controls.css; .lf-key-badge,
    .lf-ui, .lf-btn and the aim floor in shadow.css, which also reaches
    widget trees). What stays here is paint the runtime lays over the page, which has to
    beat page and widget alike, and the `box-sizing` reset. test_interact_layer.py holds
@@ -116,11 +117,6 @@ html[data-lf-region-capture]
   :not(.lf-chrome, .lf-chrome *, [data-lf-runtime], [data-lf-runtime] *) {
   cursor: crosshair !important;
 }
-/* The glyphs of the reactions in force on a target — a margin entry per reaction,
-   revealing a separately named removal action. */
-.lf-react-mark {
-  text-align: center;
-}
 /* A change's mark is an annotation, so hiding annotations (`o`) hides its bar
    (margin-bars.js) too. */
 :root[data-lf-annotations="hidden"] {
@@ -128,7 +124,7 @@ html[data-lf-region-capture]
 }
 /* The unanswered decision the user is in (markHere) wears the location ring
    (`[data-lf-projected-location]`, surfaces.css). The ring stands outside the decision, so a
-   landing keeps its room at the scroller's edge, as a margin entry's does (base.css): an obligation
+   landing keeps its room at the scroller's edge, as a margin entry's does (controls.css): an obligation
    landed at the top of a scrolling pane stood flush with it, the top of its ring cut
    off under the pane's header rule. */
 [data-lf-obligation] {
@@ -803,12 +799,9 @@ html[data-lf-region-capture]
     font: var(--font-title);
   }
   /* A press here is a row (controls.css, `.lf-row`), and a status beside it lays out
-     as one (`.lf-row-plain`), so their words share one edge. The user's turn paints
-     the row's ground as it paints its margin entry, in one rule set in base.css, and
-     the row's wash under the pointer lies over it. */
+     as one (`.lf-row-plain`), so their words share one edge. A row on the user's turn
+     stands on the turn's wash, as its margin entry does (controls.css). */
   .lf-page-map-action {
-    background-color: var(--lf-entry-tint, transparent);
-    color: inherit;
     cursor: default;
   }
   /* Each group is a list of its own, so a kind's symbol, an icon, a glyph or an emoji,
@@ -1058,6 +1051,10 @@ html[data-lf-region-capture]
     box-sizing: border-box;
     border-radius: var(--r);
     outline: var(--focus-ring-w) solid var(--target-trace-ink);
+    /* The gap whose stand-in holds focus, ringed as a focused block is. */
+    &.lf-change-ring {
+      outline: var(--focus-ring);
+    }
   }
   /* What a change replaced, over the change (margin-bars.js): a card lifted over the
      page, its words in a widget's font, the old struck as an edit's deletion and the

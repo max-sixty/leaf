@@ -46,6 +46,20 @@ export const shadowHost = (root) => (isShadowRoot(root) ? root.host : null);
 // instead.
 /** @param {Node | null | undefined} node @returns {Element | null} */
 export const upFrom = (node) => node?.parentElement ?? shadowHost(node?.getRootNode());
+// What stands for `node` in the tree `root` roots (a Document or a ShadowRoot): the node
+// itself when it is in that tree, else the host of the shadow tree holding it, climbed
+// out until one is. Null when none is: a detached node, or one outside `root`
+// altogether. A shadow tree renders where its host stands, so a range question, which
+// the platform answers only within one tree, is asked of this; an order question asks
+// `renderedOrder`, which also follows slots.
+/** @template {Node} N @param {N | null | undefined} node @param {Node} root
+ * @returns {N | Element | null} */
+export const hostIn = (node, root) => {
+  /** @type {N | Element | null} */
+  let at = node ?? null;
+  while (at && at.getRootNode() !== root) at = shadowHost(at.getRootNode());
+  return at;
+};
 /** Native inline style belongs to HTML, SVG and MathML elements, in any window.
  * @param {Element} node @returns {node is HTMLElement | SVGElement | MathMLElement} */
 export const isStyledElement = (node) =>

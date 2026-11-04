@@ -2033,9 +2033,13 @@ def trace_comparison(page: Page) -> None:
 
 
 def film_inspector(page: Page) -> None:
-    """Details beside the selected SVG commit in the merge film."""
+    """Details beside the selected SVG commit in the merge film. The pointer leaves
+    before the stage scrolls into place: one the scroll left over the stage would close
+    the details at its next `pointermove`, which WebKit sends by itself after a
+    scroll."""
     page.get_by_role("button", name="Inspect next element", exact=True).click()
     expect(page.locator("#merge-film .film-inspect")).to_be_visible()
+    page.mouse.move(0, 0)
     page.locator("#merge-film .film-stage").evaluate(
         "node => node.scrollIntoView({block: 'center'})"
     )

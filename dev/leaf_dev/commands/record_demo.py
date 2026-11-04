@@ -318,9 +318,18 @@ def wait_for_title(page_dir: Path) -> None:
     request recorded. The model words the title afresh each run; a request ends within
     three minutes, its retries for rate limits included."""
     deadline = time.monotonic() + 180
-    while not (ended := read_interactions(page_dir, types=TITLE_ENDS)):
+    # The reader keeps its own gap rows under any type filter.
+    while not (
+        ended := [
+            row
+            for row in read_interactions(page_dir, types=TITLE_ENDS)
+            if row["type"] in TITLE_ENDS
+        ]
+    ):
         if time.monotonic() > deadline:
-            raise click.ClickException("no request for the thread's title ended in 180 s")
+            raise click.ClickException(
+                "no request for the thread's title ended in 180 s"
+            )
         time.sleep(0.2)
     if ended[0]["type"] != "thread_title_generated":
         raise click.ClickException(f"the demo's thread got no title: {ended[0]}")
@@ -359,13 +368,14 @@ def record(
 
     field.press("ControlOrMeta+Enter")
     page.wait_for_selector(".lf-margin-thread")
-    # The agent takes the comment and listens again, and Leaf titles its thread, before
-    # the frame, so no frame catches the agent between waits or the title on its way.
+    # The agent takes the comment and waits again, and Leaf titles its thread, before
+    # the frame. The wait ends the moment the comment arrives, so a frame taken sooner
+    # read Ready or Away by how far it had got, and later ones caught the title on its
+    # way.
     comment_id = next(
         event["id"] for event in waiter.receive() if event["kind"] == "comment"
     )
     wait_for_title(page_dir)
-    wait_for_listening(page, client)
     shot(1500)
     open_threads(page)
     thread = page.locator(f"{panel_view('threads')} .lf-fp-thread").first

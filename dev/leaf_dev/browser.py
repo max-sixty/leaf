@@ -332,42 +332,64 @@ def settle(page: Page) -> None:
         settle(page)
 
 
-# Where a mouse last moved over a frame, in the frame's own viewport, and when: each
-# frame of a `tab` keeps this.
-POINTER = """addEventListener("pointermove", (event) => {
-  if (event.pointerType === "mouse")
-    globalThis.__lfPointer = {x: event.clientX, y: event.clientY, at: Date.now()};
-}, {capture: true, passive: true});"""
+# Where a mouse was last over a frame, in the frame's own viewport, which of its
+# buttons it held, and when: each frame of a `tab` keeps this.
+POINTER = """for (const type of ["pointermove", "pointerdown", "pointerup"])
+  addEventListener(type, (event) => {
+    if (event.pointerType === "mouse")
+      globalThis.__lfPointer = {
+        x: event.clientX, y: event.clientY, buttons: event.buttons, at: Date.now(),
+      };
+  }, {capture: true, passive: true});"""
 
-# Where the pointer rests, if the element under it doesn't match `:hover`.
-HOVER_BEHIND = """() => {
+# Whether the hover ends at the deepest element under a resting mouse, through open
+# shadow roots, or no mouse rests here. A held button keeps the hover where the press
+# began.
+HOVER_CAUGHT_UP = """() => {
   const at = globalThis.__lfPointer;
-  const under = at && document.elementFromPoint(at.x, at.y);
-  return under && !under.matches(":hover") ? at : null;
+  if (!at || at.buttons) return true;
+  let under = document.elementFromPoint(at.x, at.y);
+  for (let inner; (inner = under?.shadowRoot?.elementFromPoint(at.x, at.y)) &&
+    inner !== under; ) under = inner;
+  return !under || (under.matches(":hover") &&
+    ![under, under.shadowRoot].some((root) => root?.querySelector(":hover")));
 }"""
 
 
 def catch_up_hover(page: Page) -> bool:
-    """Move the hover to the element under a resting pointer, if it still stands on an
-    element the pointer has left, and say whether the pointer moved to do so.
+    """Wait until the hover is on the element under a resting pointer, and say whether
+    it had to move there.
 
-    Content that scrolls under a resting pointer leaves the hover where it was until the
-    engine looks again. Chromium moves it within the frame. On 2026-11-03 Playwright's
-    Firefox (build 1555) and WebKit (build 2370) moved it 60 to 120 ms later, so a
-    capture taken first drew the button a state's driver had pressed still hovered.
-    Moving the pointer to where it already is moves the hover at once in every engine.
-    The move also dispatches `pointermove`, so the page may answer it, and `settle`
-    settles again after one.
+    Content that scrolls under a resting pointer keeps the old element hovered until
+    the engine hit-tests again on a timer of its own, dispatching `pointerover` as the
+    hover moves. On 2026-11-04 Playwright's Firefox (build 1555) took about 100 ms,
+    its WebKit (build 2370) 20 to 120 ms, and its Chromium about a frame, though on a
+    loaded host sometimes longer than the rest of `settle`, so a capture taken first
+    drew the button a state's driver had pressed still hovered. The page may answer
+    `pointerover`, so `settle` settles again after a hover moved.
+
+    Moving the pointer to where it already is would move the hover at once, but every
+    engine dispatches `pointermove` for the move, which a page answers as it would a
+    hand: the merge film closes the details its Inspect button opened. WebKit also
+    dispatches `pointermove` itself, about 100 ms after the scroll, which this wait
+    doesn't cover; a state whose driver presses and then scrolls can see a WebKit
+    capture change with it.
 
     The top document can't tell where a pointer in a child frame rests, so a pointer
-    that last moved in one is left alone."""
-    at = page.evaluate(HOVER_BEHIND)
-    if not at or any(
-        frame.evaluate("() => globalThis.__lfPointer?.at ?? 0") > at["at"]
-        for frame in page.frames
-    ):
+    that last moved in one is left to the engine."""
+    if page.evaluate(HOVER_CAUGHT_UP):
         return False
-    page.mouse.move(at["x"], at["y"])
+    heard = "() => globalThis.__lfPointer?.at ?? 0"
+    own = page.evaluate(heard)
+    if any(frame.evaluate(heard) > own for frame in page.frames):
+        return False
+    try:
+        page.wait_for_function(HOVER_CAUGHT_UP)
+    except PlaywrightTimeout:
+        at = page.evaluate("() => globalThis.__lfPointer")
+        raise AssertionError(
+            f"the hover never reached the element under the pointer at {at}"
+        ) from None
     return True
 
 

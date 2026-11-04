@@ -129,10 +129,8 @@ function declareCopy(pre, copy, noun) {
         id: "code.copy",
         keys: ["Enter"],
         title: `copy ${noun}`,
-        get run() {
-          const trigger = copyTrigger(copy);
-          return trigger ? () => trigger.click() : undefined;
-        },
+        when: () => Boolean(copyTrigger(copy)),
+        run: () => copyTrigger(copy)?.click(),
       },
     ]),
   );

@@ -713,20 +713,12 @@ export function createGoToSequence({
   // Every named capability stays invocable by id outside the armed sequence. Native
   // control activation and generated touch controls remain separate from that route:
   // a run-less row delegates to its control without replacing its native default.
-  for (const destination of destinations) {
-    const registered = {
+  for (const destination of destinations)
+    pageCommand({
       ...destination,
       keys: [],
       touch: destination.touch ?? false,
-    };
-    // Invocation is a live capability. Spreading a destination would freeze an
-    // unavailable getter at registration, before its owner can offer the action.
-    for (const name of ["run", "runKey"]) {
-      const handler = Object.getOwnPropertyDescriptor(destination, name);
-      if (handler) Object.defineProperty(registered, name, handler);
-    }
-    pageCommand(registered);
-  }
+    });
 
   return {
     goToStatus,

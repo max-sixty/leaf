@@ -17,7 +17,6 @@
 import {
   bindings,
   checked,
-  declaresCommandHandler,
   declareCommandReadiness,
   touchPresses as pressesOf,
   titleOf,
@@ -239,9 +238,7 @@ const BACK_OUT = {
     return step ? descriptionOf(step) : undefined;
   },
   when: () => Boolean(rung()),
-  get run() {
-    return rung()?.out;
-  },
+  run: () => rung()?.out(),
 };
 
 function assemble() {
@@ -258,12 +255,7 @@ function assemble() {
     );
   const scopeRows = [...scopes.values()].flat().flatMap((scope) => scope.rows);
   const unreached = scopeRows
-    .filter(
-      (row) =>
-        (declaresCommandHandler(row, "run") || declaresCommandHandler(row, "runKey")) &&
-        !row.exit &&
-        row.touch !== false,
-    )
+    .filter((row) => (row.run || row.runKey) && !row.exit && row.touch !== false)
     .map((row) => row.id);
   if (unreached.length)
     throw new Error(

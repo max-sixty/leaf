@@ -1375,7 +1375,6 @@ export default [
       ".tmp/**",
       ".venv/**",
       "browser/vendor/**",
-      "dist/kernel/**",
       "packages/*/vendor/**",
       "evals/ui-review-detection/fixtures/**",
     ],

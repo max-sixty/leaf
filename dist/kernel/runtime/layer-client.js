@@ -1,3 +1,0 @@
-import { LayerRefused, RequestError, admitReading, admitResponse, completeState, heldHeaders, heldReading, layerHeaders, postEvent, reportCarried, reportPageError, requestJson, revealLayer, sameLayer, sessionIsActive, uploadMedia } from "./bundle-layer-client.js";
-
-export { LayerRefused, RequestError, admitReading, admitResponse, completeState, heldHeaders, heldReading, layerHeaders, postEvent, reportCarried, reportPageError, requestJson, revealLayer, sameLayer, sessionIsActive, uploadMedia };

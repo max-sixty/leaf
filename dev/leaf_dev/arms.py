@@ -87,7 +87,6 @@ PAYLOAD = (
     "src",
     "browser",
     "packages",
-    "dist",
     "package.json",
     "leaf-distribution.json",
     "pyproject.toml",
@@ -236,9 +235,8 @@ def serving(arm: Path, state: Path, page: Path):
 
 def build_source(arm: Path, state: Path, source: Path, page: Path) -> None:
     """Build the authored `source` into the page directory `page` with the arm's own
-    launcher under the state home `state`. Callers make the arm's kernel current
-    before building (`current_kernel`), then serve or check the page from that arm.
-    A generated source, such as the corpus, is generated first (`refresh_composition`).
+    launcher under the state home `state`, to serve or check from that arm. A
+    generated source, such as the corpus, is generated first (`refresh_composition`).
     """
     refresh_composition(source)
     prepare_page(
@@ -267,11 +265,7 @@ served_page: ContextVar[ServedPage] = ContextVar("served_page")
 def serving_source(arm: Path, source: Path, scratch: Path, log: Path | None = None):
     """Build `source` into a page under `scratch` (`build_source`), admit `log`'s
     events after its own history, unacknowledged as a writer's would be
-    (`admit_events`), serve it (`serving`), and yield the address, all from `arm`
-    with its kernel current (`current_kernel`)."""
-    from leaf_dev.commands.distribution import current_kernel
-
-    arm = current_kernel(arm)
+    (`admit_events`), serve it (`serving`), and yield the address, all from `arm`."""
     state, page = scratch / "state", scratch / "page"
     build_source(arm, state, source, page)
     if log is not None:

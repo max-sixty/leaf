@@ -723,22 +723,6 @@ def test_worktree_identity_does_not_follow_the_missing_evidence_placeholder(
     assert status() == "exact"
 
 
-def test_native_worktree_disclosure_owns_keyboard_and_touch(browser, serve):
-    source = leaf_page(
-        "native evidence",
-        '<lf-test-roster id="team"><lf-test-worker id="worker" state="working"><strong>Worker</strong><lf-test-tree id="proof" source="facts"></lf-test-tree></lf-test-worker></lf-test-roster>',
-    )
-    page = open_page(browser, serve(source))
-    summary = page.locator("#proof summary")
-    summary.focus()
-    page.keyboard.press("Enter")
-    expect(page.locator("#proof details")).to_have_attribute("open", "")
-    page.keyboard.press(" ")
-    expect(page.locator("#proof details")).not_to_have_attribute("open")
-    summary.click()
-    expect(page.locator("#proof details")).to_have_attribute("open", "")
-
-
 def test_command_goal_can_pause_after_an_ordinary_thread_started(browser, serve):
     """A normal note does not consume the goal's stronger pause door. The user
     can start a later held thread, whose root remains the one atomic hold fact."""

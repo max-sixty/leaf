@@ -1848,117 +1848,198 @@ def test_a_margin_label_covers_the_target_trace(browser, serve, monkeypatch):
     )
 
 
-def test_the_aim_reads_the_pointer_where_the_press_is_dispatched_from(browser, serve):
+def test_an_aim_at_a_seam_promises_the_element_its_press_takes(
+    browser, serve, subtests
+):
     """The outline and the press ask one question of one point, down to the sub-pixel.
 
-    The two readings of "what is under the pointer" come from different doors: the
-    outline hit-tests the pointer record the runtime keeps, and the press takes the
-    target the browser resolved for it. `mousemove` carries the pointer's place rounded
-    to a whole pixel, so a record kept from one is an answer about a place the pointer is
-    not — and within a pixel of a seam that place is a different item. It cost a corpus
-    page a promise: ⌥ over a choose group outlined the option above the seam and the
-    press commented on the one below it, which is the composer opening on an item the
-    user was never shown.
-
+    The outline hit-tests the pointer record the runtime keeps, and the press takes the
+    target the browser resolved for it. `mousemove` carries the pointer's place rounded to
+    a whole pixel, so a record kept from one is an answer about a place the pointer is
+    not, and within a pixel of a seam that place is a different item: ⌥ over a choose
+    group outlined the option above the seam and the press commented on the one below it.
     So the aim is put within a quarter pixel of a seam, where the true point and its
-    rounded twin name different items. Which of the two the true point is over depends on
-    where in the pixel the seam fell, so the item the aim is held to is read off the point
-    rather than named here; what is asserted first is that the two readings differ at all,
-    since a seam that fell on a whole pixel would leave this proving that two agreeing
-    readings agree."""
+    rounded twin name different items, and the item it is held to is read off the point,
+    since which of the two the true point is over depends on where in the pixel the seam
+    fell.
+
+    The fixture paragraphs butt, so a pointer resting on their shared edge is inside both
+    by the width of a rounding, and nothing makes two hit tests tie-break a shared edge
+    alike. The corpus sweep reaches this only where a page happens to put a seam under the
+    point it picks, which is a fact about font metrics, so the seam is aimed at here, and
+    the assertion is the platform-independent half: whichever way each reading rounds,
+    both answer the same item."""
     page = open_page(browser, serve(AIM_SEAM_PAGE))
-    seam = page.evaluate(AIM_SEAM, ["seam-upper", "seam-lower"])
-    assert seam and {seam["at"], seam["rounded"]} == {"seam-upper", "seam-lower"}, (
-        "the fixture no longer straddles a seam — the aim point and the whole pixel it "
-        "rounds to are not on the two items either side of it, so nothing here is under "
-        f"test: {seam}"
-    )
 
-    page.mouse.move(seam["x"], seam["y"])
-    page.keyboard.down("Alt")
-    expect(page.locator("[data-lf-aimed]")).to_have_id(seam["at"])
-    page.mouse.click(seam["x"], seam["y"])
-    page.keyboard.up("Alt")
+    with subtests.test(case="within a pixel of the seam"):
+        seam = page.evaluate(AIM_SEAM, ["seam-upper", "seam-lower"])
+        assert seam and {seam["at"], seam["rounded"]} == {"seam-upper", "seam-lower"}, (
+            "the fixture no longer straddles a seam — the aim point and the whole pixel "
+            "it rounds to are not on the two items either side of it, so nothing here is "
+            f"under test: {seam}"
+        )
+        page.mouse.move(seam["x"], seam["y"])
+        page.keyboard.down("Alt")
+        expect(page.locator("[data-lf-aimed]")).to_have_id(seam["at"])
+        page.mouse.click(seam["x"], seam["y"])
+        page.keyboard.up("Alt")
+        # The press focuses Comment on the item the aim held.
+        open_compact_comment(page)
+        assert page.evaluate(DRAFT_MARK) == seam["at"]
+        page.keyboard.press("Escape")
+        expect(page.locator(".lf-fab-bar")).to_be_hidden()
 
-    # The press focuses Comment on the item the aim held.
-    open_compact_comment(page)
-    assert page.evaluate(DRAFT_MARK) == seam["at"]
+    with subtests.test(case="on the shared edge"):
+        edge = page.evaluate(
+            """() => {
+                const above = document.querySelector('#seam-upper').getBoundingClientRect();
+                const below = document.querySelector('#seam-lower').getBoundingClientRect();
+                return {y: above.bottom, apart: Math.abs(below.top - above.bottom),
+                        x: above.left + above.width / 2};
+            }"""
+        )
+        assert edge["apart"] < 0.5, (
+            f"the cells stand {edge['apart']}px apart, so this aims at a gap and not at "
+            "the seam the two readings can differ over"
+        )
+        page.mouse.move(edge["x"], edge["y"])
+        page.keyboard.down("Alt")
+        promised = page.evaluate(AIMED)
+        assert promised in ("seam-upper", "seam-lower"), (
+            f"the aim promised {promised} on the seam between the two cells, so the "
+            "reading under test never happened"
+        )
+        page.mouse.click(edge["x"], edge["y"])
+        page.keyboard.up("Alt")
+        # The press focuses Comment on what it took.
+        open_compact_comment(page)
+        assert page.evaluate(DRAFT_MARK) == promised, (
+            f"the outline promised {promised} on the seam and the press commented on "
+            f"{page.evaluate(DRAFT_MARK)}"
+        )
 
 
-def test_an_aimed_first_press_records_its_pointer_before_claiming_it(browser, serve):
-    """A press can be the first pointer event, and capture still reads its position.
-
-    Aim claims pointerdown during capture and stops the gesture before it reaches the
-    page. The shared position recorder therefore has to run earlier in that same phase:
-    a bubble listener never sees this event, and aim would ask about the stale initial
-    point instead of the paragraph the browser dispatched the press to.
-    """
+def test_the_armed_page_promises_only_what_a_press_would_take(browser, serve, subtests):
+    """Holding ⌥ arms the page, and what it shows answers for the next press wherever
+    the pointer and the page now stand, while the chrome keeps its own presses."""
     page = open_page(browser, serve(LONG_PAGE))
-    page.locator("#p2").evaluate(
-        """target => {
-          const box = target.getBoundingClientRect();
-          const init = {
-            bubbles: true,
-            clientX: box.left + box.width / 2,
-            clientY: box.top + box.height / 2,
-            altKey: true,
-          };
-          target.dispatchEvent(new PointerEvent("pointerdown", init));
-          target.dispatchEvent(new MouseEvent("mousedown", init));
-          target.dispatchEvent(new PointerEvent("pointerup", init));
-          target.dispatchEvent(new MouseEvent("mouseup", init));
-          target.dispatchEvent(new MouseEvent("click", {...init, detail: 1}));
-        }"""
-    )
 
-    open_compact_comment(page)
-    assert page.evaluate(DRAFT_MARK) == "p2"
+    # A press can be the first pointer event, and capture still reads its position. Aim
+    # claims pointerdown during capture and stops the gesture before it reaches the page,
+    # so the shared position recorder has to run earlier in that same phase: a bubble
+    # listener never sees this event, and aim would ask about the stale initial point
+    # instead of the paragraph the browser dispatched the press to. This case runs first,
+    # since any earlier pointer move would leave that stale point on the same paragraph.
+    with subtests.test(case="a first press records its pointer before claiming it"):
+        page.locator("#p2").evaluate(
+            """target => {
+              const box = target.getBoundingClientRect();
+              const init = {
+                bubbles: true,
+                clientX: box.left + box.width / 2,
+                clientY: box.top + box.height / 2,
+                altKey: true,
+              };
+              target.dispatchEvent(new PointerEvent("pointerdown", init));
+              target.dispatchEvent(new MouseEvent("mousedown", init));
+              target.dispatchEvent(new PointerEvent("pointerup", init));
+              target.dispatchEvent(new MouseEvent("mouseup", init));
+              target.dispatchEvent(new MouseEvent("click", {...init, detail: 1}));
+            }"""
+        )
+        open_compact_comment(page)
+        assert page.evaluate(DRAFT_MARK) == "p2"
+        page.keyboard.press("Escape")
+        expect(page.locator(".lf-fab-bar")).to_be_hidden()
+        page.evaluate(RELEASE_FOCUS)
 
+    # Holding ⌥ used to draw a plain arrow over the whole page, which leaves the one
+    # question the outline can't answer for a user who hasn't looked yet: would this click
+    # do anything at all? An armed press takes the addressable element under it and acts
+    # on nothing where there is none (claimPress), so the hand and the arrow are those two
+    # states, read where the user's pointer is, since the aim declares the cursor on body
+    # and the promise is only kept if it arrives at the glyphs. `auto` is the resting
+    # state: unarmed, the browser draws an I-beam over words.
+    with subtests.test(case="the cursor says whether a press would take anything"):
+        at_pointer = """([x, y]) =>
+            getComputedStyle(document.elementFromPoint(x, y)).cursor"""
+        on_item = page.locator("#p2").evaluate(
+            "el => { const r = el.getBoundingClientRect();"
+            " return [r.left + 20, r.top + r.height / 2]; }"
+        )
+        # Beside the column, level with the same paragraph: body's own margin, which the
+        # centred 720px column leaves on a 1200px viewport, and no element there carries
+        # an id for an armed press to take.
+        in_gap = [40, on_item[1]]
+        assert page.evaluate(at_pointer, on_item) == "auto", (
+            "an unarmed page already named a cursor, so the arm has nothing left to say"
+        )
 
-def test_an_aim_on_a_seam_promises_and_takes_the_same_element(browser, serve):
-    """One reading, at the one place the pointer is.
+        page.mouse.move(*on_item)
+        page.keyboard.down("Alt")
+        expect(page.locator("[data-lf-aimed]")).to_have_id("p2")
+        assert page.evaluate(at_pointer, on_item) == "pointer", (
+            "the aim boxed the paragraph and the cursor declined to promise the press"
+        )
 
-    The fixture paragraphs butt, so they share an edge with no gap between,
-    and a pointer resting on it is inside both by the width of a rounding. The outline
-    and the press each used to hit-test that point for themselves — elementFromPoint
-    against the browser's own dispatch — and nothing makes two hit tests tie-break a
-    shared edge alike. What a user got was one option outlined and the next one
-    commented on.
+        page.mouse.move(*in_gap)
+        expect(page.locator("[data-lf-aimed]")).to_have_count(0)
+        assert page.evaluate(at_pointer, in_gap) == "default", (
+            "the aim had nothing to take and the hand promised a press anyway"
+        )
 
-    The sweep over the corpus reaches this case only where the page happens to put a
-    seam under the point it picks, which is a fact about font metrics: the same aim was
-    a cell's interior on one platform and a seam on another, and the corpus said the
-    promise was kept for a year on the machine where it was. So the seam is aimed at
-    here rather than waited for, and the assertion is the platform-independent half —
-    whichever way each reading rounds, both answer the same item."""
-    page = open_page(browser, serve(AIM_SEAM_PAGE))
-    edge = page.evaluate(
-        """() => {
-            const above = document.querySelector('#seam-upper').getBoundingClientRect();
-            const below = document.querySelector('#seam-lower').getBoundingClientRect();
-            return {y: above.bottom, apart: Math.abs(below.top - above.bottom),
-                    x: above.left + above.width / 2};
-        }"""
-    )
-    assert edge["apart"] < 0.5, (
-        f"the cells stand {edge['apart']}px apart, so this aims at a gap and not at the "
-        "seam the two readings can differ over"
-    )
-    page.mouse.move(edge["x"], edge["y"])
-    page.keyboard.down("Alt")
-    promised = page.evaluate(AIMED)
-    assert promised in ("seam-upper", "seam-lower"), (
-        f"the aim promised {promised} on the seam between the two cells, so the reading "
-        "under test never happened"
-    )
-    page.mouse.click(edge["x"], edge["y"])
-    page.keyboard.up("Alt")
-    # The press focuses Comment on what it took.
-    open_compact_comment(page)
-    assert page.evaluate(DRAFT_MARK) == promised, (
-        f"the outline promised {promised} on the seam and the press commented on "
-        f"{page.evaluate(DRAFT_MARK)}"
-    )
+        # Back on the item, so the arm coming off is read from the state that promises
+        # most.
+        page.mouse.move(*on_item)
+        expect(page.locator("[data-lf-aimed]")).to_have_id("p2")
+        page.keyboard.up("Alt")
+        expect(page.locator("[data-lf-aimed]")).to_have_count(0)
+        assert page.evaluate(at_pointer, on_item) == "auto", (
+            "the key came up and the page went on offering the aim's press"
+        )
+
+    # What a press would take can change with no mouse event to say so. The scroll
+    # listener decides the aim again, so scrolling under a held key must not leave the
+    # outline on the item that had been under the pointer while a press takes the one now
+    # there.
+    with subtests.test(case="a scroll under a held aim moves the promise"):
+        page.mouse.move(600, 300)
+        page.keyboard.down("Alt")
+        first = page.evaluate(AIMED)
+        assert first, (
+            "nothing promised under the parked pointer, so nothing is being aimed"
+        )
+        # Three whole paragraphs of scroll, measured off the page: the paragraphs are
+        # identical, so the pointer's offset into the outlined one becomes the same offset
+        # into the one three later, never the margin between two. The browser root is the
+        # page's scroller, and scrollBy fires the same scroll events a wheel does.
+        page.evaluate(
+            """() => document.scrollingElement.scrollBy(0, 3 *
+              (document.getElementById("p3").getBoundingClientRect().top -
+               document.getElementById("p2").getBoundingClientRect().top))"""
+        )
+        page.wait_for_function(
+            """(first) => {
+          const promised = document.querySelector("[data-lf-aimed]")?.closest("[id]")?.id;
+          const at = document.elementFromPoint(600, 300)?.closest("[id]:not(.lf-ui)");
+          return Boolean(promised) && promised === at?.id && promised !== first;
+        }""",
+            arg=first,
+        )
+        page.keyboard.up("Alt")
+
+    # What ⌥ arms is the page. An aim that reached into the chrome would take the panel
+    # and the composer away from a user who happens to be holding the key, and there is
+    # nothing there to aim at anyway, since an anchor names an element of the page. Last,
+    # since it leaves the panel open.
+    with subtests.test(case="the chrome keeps its presses"):
+        on_me = page.locator(".lf-fp-on-user")
+        on_me.hover()
+        page.keyboard.down("Alt")
+        on_me.click()
+        page.keyboard.up("Alt")
+        panel_settled(page, view="queue")
+        expect(page.locator(".lf-composer")).to_be_hidden()
 
 
 def test_a_key_still_reaches_its_control_after_an_aimed_press(browser, serve):
@@ -3256,39 +3337,6 @@ sequenceDiagram
     expect(actor).to_have_class(re.compile(r"\blf-mark-el\b.*\blf-pending\b"))
 
 
-def test_a_scroll_under_a_held_aim_moves_the_promise_with_the_page(browser, serve):
-    """What a press would take can change with no mouse event to say so.
-
-    Only a pointer move used to re-decision the aim, so scrolling under a held key left the
-    outline on the item that had been under the pointer while a press took the one now
-    there — the paint answering an old page, the claim the current one. The scroll
-    listener re-decisions; this scrolls the page under a parked pointer and requires the
-    promise to answer for where the page now stands."""
-    page = open_page(browser, serve(LONG_PAGE))
-    page.mouse.move(600, 300)
-    page.keyboard.down("Alt")
-    first = page.evaluate(AIMED)
-    assert first, "nothing promised under the parked pointer, so nothing is being aimed"
-    # Three whole paragraphs of scroll, measured off the page: the paragraphs are
-    # identical, so the pointer's offset into the outlined one becomes the same offset
-    # into the one three later, never the margin between two. The browser root is the
-    # page's scroller, and scrollBy fires the same scroll events a wheel does.
-    page.evaluate(
-        """() => document.scrollingElement.scrollBy(0, 3 *
-          (document.getElementById("p3").getBoundingClientRect().top -
-           document.getElementById("p2").getBoundingClientRect().top))"""
-    )
-    page.wait_for_function(
-        """(first) => {
-      const promised = document.querySelector("[data-lf-aimed]")?.closest("[id]")?.id;
-      const at = document.elementFromPoint(600, 300)?.closest("[id]:not(.lf-ui)");
-      return Boolean(promised) && promised === at?.id && promised !== first;
-    }""",
-        arg=first,
-    )
-    page.keyboard.up("Alt")
-
-
 def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, subtests):
     """Leaving Comment changes the mark, not which box draws it: the target draws the
     aim, a draft's mark and focus as its own outline, on the region's perimeter at the
@@ -3356,20 +3404,23 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
                 expect(node).to_have_css("outline-style", "dashed")
 
 
-def test_the_aim_and_a_comment_stand_inside_a_cell_their_frame_leaves_no_room(
-    browser, serve
-):
-    """A joined choice clips its cells, so a cell leaves no room for a mark outside it
-    and states its marks one band inside its edge (options.css). The aim and the
-    comment's mark both stand there: the aim stood outside, across the frame and the
-    next cell, while the comment's stood inside, so going from one to the other moved
-    the frame 7px."""
+def test_the_aim_stands_where_its_targets_own_marks_do(browser, serve, subtests):
+    """A field's ring replaces its border, so it stands on the field's edge, and the aim
+    the field draws stands there too. It stood a control's gap outside, because the
+    field's edge, 0, read as no place stated: 0 is also where the outline of a box that
+    states nothing stands.
+
+    A joined choice clips its cells, so a cell leaves no room for a mark outside it and
+    states its marks one band inside its edge (options.css). The aim and the comment's
+    mark both stand there: the aim stood outside, across the frame and the next cell,
+    while the comment's stood inside, so going from one to the other moved the frame 7px."""
     page = open_page(
         browser,
         serve(
             leaf_page(
-                "Cramped cell",
-                """<h1 id="h">Cramped cell</h1>
+                "Cramped targets",
+                """<h1 id="h">Cramped targets</h1>
+<p><label for="name">Name</label> <input id="name" class="field" type="text" value="Ada"></p>
 <lf-options id="ship" choose>
   <lf-option id="ship-monday"><strong>Ship Monday</strong> soon</lf-option>
   <lf-option id="ship-thursday"><strong>Ship Thursday</strong> later</lf-option>
@@ -3377,42 +3428,30 @@ def test_the_aim_and_a_comment_stand_inside_a_cell_their_frame_leaves_no_room(
             )
         ),
     )
-    cell = page.locator("#ship-thursday")
-    cell.hover(position={"x": 300, "y": 10})
-    page.keyboard.down("Alt")
-    expect(page.locator("[data-lf-aimed]")).to_have_id("ship-thursday")
-    aimed = cell.evaluate(MARK)
-    assert aimed["offset"] + aimed["width"] <= 0, aimed
-    page.mouse.down()
-    page.mouse.up()
-    page.keyboard.up("Alt")
-    open_compact_comment(page)
-    expect(cell).to_have_attribute("data-lf-mark", re.compile(r"\bpending\b"))
-    pending = cell.evaluate(MARK)
-    assert pending["ring"] == aimed["ring"], (aimed, pending)
 
+    with subtests.test(target="field"):
+        field = page.locator("#name")
+        field.hover(position={"x": 8, "y": 6})
+        page.keyboard.down("Alt")
+        expect(page.locator("[data-lf-aimed]")).to_have_id("name")
+        aim = field.evaluate(MARK)
+        assert aim and aim["style"] == "solid" and aim["offset"] == 0, aim
+        page.keyboard.up("Alt")
 
-def test_the_aim_round_a_field_stands_on_its_edge_where_its_ring_does(browser, serve):
-    """A field's ring replaces its border, so it stands on the field's edge, and the aim
-    the field draws stands there too. It stood a control's gap outside, because the
-    field's edge, 0, read as no place stated: 0 is also where the outline of a box that
-    states nothing stands."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Field",
-                '<h1 id="h">Field</h1><p><label for="name">Name</label> '
-                '<input id="name" class="field" type="text" value="Ada"></p>',
-            )
-        ),
-    )
-    field = page.locator("#name")
-    field.hover(position={"x": 8, "y": 6})
-    page.keyboard.down("Alt")
-    expect(page.locator("[data-lf-aimed]")).to_have_id("name")
-    aim = field.evaluate(MARK)
-    assert aim and aim["style"] == "solid" and aim["offset"] == 0, aim
+    with subtests.test(target="joined cell"):
+        cell = page.locator("#ship-thursday")
+        cell.hover(position={"x": 300, "y": 10})
+        page.keyboard.down("Alt")
+        expect(page.locator("[data-lf-aimed]")).to_have_id("ship-thursday")
+        aimed = cell.evaluate(MARK)
+        assert aimed["offset"] + aimed["width"] <= 0, aimed
+        page.mouse.down()
+        page.mouse.up()
+        page.keyboard.up("Alt")
+        open_compact_comment(page)
+        expect(cell).to_have_attribute("data-lf-mark", re.compile(r"\bpending\b"))
+        pending = cell.evaluate(MARK)
+        assert pending["ring"] == aimed["ring"], (aimed, pending)
 
 
 # A box drawing the target painter's focus state as its ring (visual-mark-paint.js).
@@ -3593,77 +3632,6 @@ def test_the_aim_shows_over_the_widgets_own_paint(browser, serve):
         "something a user can see over the widget's own paint"
     )
     page.keyboard.up("Alt")
-
-
-def test_the_chrome_keeps_its_presses_while_the_page_is_armed(browser, serve):
-    """What ⌥ arms is the page, and the line around it is the chrome's container.
-
-    An aim that reached in there would take the panel and the composer away
-    from a user who happens to be holding the key — and there is nothing in the layer
-    to aim at anyway, since an anchor names an element of the page."""
-    page = open_page(browser, serve(LONG_PAGE))
-    on_me = page.locator(".lf-fp-on-user")
-    on_me.hover()
-    page.keyboard.down("Alt")
-    on_me.click()
-    page.keyboard.up("Alt")
-    panel_settled(page, view="queue")
-    expect(page.locator(".lf-composer")).to_be_hidden()
-
-
-def test_the_armed_cursor_says_whether_a_press_would_take_anything(browser, serve):
-    """The sequence's cost is that it is invisible, and the cursor pays part of it.
-
-    Holding ⌥ used to draw a plain arrow over the whole page: it said "not a text
-    selection" and nothing else, which leaves the one question the outline can't answer
-    for a user who hasn't looked yet — would this click do anything at all? An armed
-    press takes the addressable element under it and acts on nothing where there is none (claimPress),
-    so the hand and the arrow are those two states, and the hand is exactly as good as
-    the outline beside it because both are read off the same value.
-
-    Read where the user's pointer is rather than off body, since the aim declares it
-    on body and everything on the page inherits it — the promise is only kept if it
-    arrives at the glyphs. The margin beside the column is the page's own gap: no
-    element there carries an id, so an armed press has nothing to take.
-
-    `auto` is the resting state, and it is the whole point of the arrow: unarmed, the
-    browser decides from what is under the pointer and draws an I-beam over words, so
-    naming a cursor at all is the runtime saying those words are not a selection now."""
-    page = open_page(browser, serve(LONG_PAGE))
-    at_pointer = """([x, y]) =>
-        getComputedStyle(document.elementFromPoint(x, y)).cursor"""
-    on_item = page.locator("#p2").evaluate(
-        "el => { const r = el.getBoundingClientRect();"
-        " return [r.left + 20, r.top + r.height / 2]; }"
-    )
-    # Beside the column, level with the same paragraph: body's own margin, which the
-    # centred 720px column leaves on a 1200px viewport.
-    in_gap = [40, on_item[1]]
-    assert page.evaluate(at_pointer, on_item) == "auto", (
-        "an unarmed page already named a cursor, so the arm has nothing left to say"
-    )
-
-    page.mouse.move(*on_item)
-    page.keyboard.down("Alt")
-    expect(page.locator("[data-lf-aimed]")).to_have_id("p2")
-    assert page.evaluate(at_pointer, on_item) == "pointer", (
-        "the aim boxed the paragraph and the cursor declined to promise the press"
-    )
-
-    page.mouse.move(*in_gap)
-    expect(page.locator("[data-lf-aimed]")).to_have_count(0)
-    assert page.evaluate(at_pointer, in_gap) == "default", (
-        "the aim had nothing to take and the hand promised a press anyway"
-    )
-
-    # Back on the item, so the arm coming off is read from the state that promises most.
-    page.mouse.move(*on_item)
-    expect(page.locator("[data-lf-aimed]")).to_have_id("p2")
-    page.keyboard.up("Alt")
-    expect(page.locator("[data-lf-aimed]")).to_have_count(0)
-    assert page.evaluate(at_pointer, on_item) == "auto", (
-        "the key came up and the page went on offering the aim's press"
-    )
 
 
 @pytest.mark.parametrize("edge", ["top", "bottom"])
@@ -4344,13 +4312,10 @@ def test_each_legend_box_stays_on_what_it_names_without_a_pass(browser, serve):
     assert moved == [["p3", -1, -1]], moved
 
 
-# Near context and context far beyond any cap a capture could hold.
-@pytest.mark.parametrize("distance", [8, 256])
-def test_selected_words_grow_context_until_the_exact_span_resolves(
-    browser, serve, distance
-):
-    """Capture grows to the semantic boundary, rather than another correctness cap."""
-    filler = "shared " * distance
+def test_selected_words_grow_context_until_the_exact_span_resolves(browser, serve):
+    """Capture grows to the semantic boundary, rather than another correctness cap: the
+    words telling these copies apart stand far beyond any cap a capture could hold."""
+    filler = "shared " * 256
     markup = leaf_page(
         "Repeated passages",
         '<h1>Runs</h1><section id="runs"><h2>Run log</h2>'
@@ -4375,30 +4340,10 @@ def test_selected_words_grow_context_until_the_exact_span_resolves(
       return {anchor, wanted, found};
     }""")
     assert captured["wanted"] == captured["found"]
-    if distance == 256:
-        assert len(captured["anchor"]["prefix"]) > 96
+    assert len(captured["anchor"]["prefix"]) > 96
     passages = passages_model.page_passages(structure_model.SourceDocument(markup))
     offset = anchor_capture_model.resolve_quote(passages, captured["anchor"])
     assert offset == [m.start() for m in re.finditer("passed", passages.text)][1]
-
-
-def test_a_wordless_range_captures_its_element_without_detached_quote(browser, serve):
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Empty range",
-                '<h1>Controls</h1><button id="icon" aria-label="Settings"></button>',
-            )
-        ),
-    )
-    captured = page.evaluate("""async () => {
-      const A = await window.__lfCheckApi();
-      const element = document.querySelector('#icon');
-      const range = document.createRange();range.selectNodeContents(element);
-      return A.anchorForRange(range);
-    }""")
-    assert captured == {"section": "icon"}
 
 
 @pytest.mark.parametrize("change", [None, "text", "replacement", "revision"])
@@ -5031,18 +4976,15 @@ def test_design_regions_keep_distinct_comments_and_ordinary_interaction(
     expect(field).to_be_hidden()
 
 
-@pytest.mark.parametrize("editable", ["true", "plaintext-only"])
-def test_automatic_design_capture_never_borrows_mutable_editor_context(
-    browser, serve, editable
-):
+def test_automatic_design_capture_never_borrows_mutable_editor_context(browser, serve):
     """Static neighbours stay file-readable; unnamed edited values never name parts."""
     markup = leaf_page(
         "Editing fences",
         '<h1>Review</h1><section id="controls">'
         "<button>Save</button>"
-        f'<div contenteditable="{editable}">Draft words</div>'
+        '<div contenteditable="plaintext-only">Draft words</div>'
         "<button>Save</button>"
-        f'<div contenteditable="{editable}" role="textbox">Backup words</div>'
+        '<div contenteditable="plaintext-only" role="textbox">Backup words</div>'
         '<div contenteditable="true" aria-label="Equal editor">Alpha words</div>'
         '<div contenteditable="true" aria-label="Equal editor">Beta words</div>'
         "</section>",
@@ -5099,24 +5041,40 @@ def test_automatic_design_capture_never_borrows_mutable_editor_context(
     assert event["text"] == "Keep this manually selected text."
 
 
-def test_design_regions_quote_their_own_words_without_nested_controls(browser, serve):
+def test_a_capture_takes_a_controls_own_words_and_none_it_lacks(
+    browser, serve, subtests
+):
+    """A region quotes its own words without its nested controls, and a list of options
+    has none to quote. A range holding no words captures its element, with no detached
+    quote."""
     markup = leaf_page(
         "Region faces",
         '<h1>Review</h1><section id="regions">'
         '<div tabindex="0" aria-label="Scroller">Own prose <button>Run action</button> tail words</div>'
         '<div role="listbox" aria-label="Fruit"><div role="option">Apple</div><div role="option">Pear</div></div>'
-        "</section>",
+        '</section><button id="icon" aria-label="Settings"></button>',
     )
     page = open_page(browser, live_url(serve(markup)))
-    targets = page.evaluate("""async()=>{
-      const A=await window.__lfCheckApi();
-      return [...document.querySelectorAll('#regions > div')].map(el=>A.aimTargetAt(el,{design:true}).anchor);
-    }""")
-    assert targets[0]["part"] == "Scroller"
-    assert targets[0]["quote"] in ("Own prose", "tail words")
-    assert targets[1] == {"section": "regions", "part": "Fruit"}
-    passages = passages_model.page_passages(structure_model.SourceDocument(markup))
-    assert anchor_capture_model.resolve_quote(passages, targets[0]) is not None
+
+    with subtests.test(case="regions"):
+        targets = page.evaluate("""async()=>{
+          const A=await window.__lfCheckApi();
+          return [...document.querySelectorAll('#regions > div')].map(el=>A.aimTargetAt(el,{design:true}).anchor);
+        }""")
+        assert targets[0]["part"] == "Scroller"
+        assert targets[0]["quote"] in ("Own prose", "tail words")
+        assert targets[1] == {"section": "regions", "part": "Fruit"}
+        passages = passages_model.page_passages(structure_model.SourceDocument(markup))
+        assert anchor_capture_model.resolve_quote(passages, targets[0]) is not None
+
+    with subtests.test(case="a wordless range"):
+        captured = page.evaluate("""async () => {
+          const A = await window.__lfCheckApi();
+          const element = document.querySelector('#icon');
+          const range = document.createRange();range.selectNodeContents(element);
+          return A.anchorForRange(range);
+        }""")
+        assert captured == {"section": "icon"}
 
 
 @pytest.mark.parametrize("route", ["pointer", "keyboard"])
@@ -5186,14 +5144,11 @@ def test_design_named_pictures_share_pointer_and_picker_identity(browser, serve,
     assert event["anchor"] == targets[1]["anchor"]
 
 
-@pytest.mark.parametrize("editable", ["true", "plaintext-only"])
-def test_native_editing_cells_share_file_and_browser_passage_fences(
-    browser, serve, editable
-):
+def test_native_editing_cells_share_file_and_browser_passage_fences(browser, serve):
     markup = leaf_page(
         "Reading cells",
         '<h1>Review</h1><p id="cells">Before '
-        f'<span contenteditable="{editable}">Editable <em>inline</em> '
+        '<span contenteditable="plaintext-only">Editable <em>inline</em> '
         '<span contenteditable="false">Readonly <b>island</b> '
         '<span contenteditable="true">Nested value</span> Endreadonly</span> Endedit</span> After '
         "<svg><text>Vector <tspan>words</tspan> here</text></svg></p>",

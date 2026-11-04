@@ -485,21 +485,37 @@ FACE = "el => { const s = getComputedStyle(el); return [s.backgroundColor, s.out
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_a_pressed_quiet_action_looks_like_its_neighbour(request, serve, engine):
-    """A press leaves focus on a quiet action, as on any button, and leaves its face
-    alone: once the pointer goes, it matches the action beside it until a key moves
-    focus there, which wears the band."""
+def test_a_quiet_action_keeps_its_face_and_a_toggle_shows_its_mode(
+    request, serve, subtests, engine
+):
+    """What quiet words and symbols wear under a press and at rest, on one page."""
     page = open_page(request.getfixturevalue(engine), _button_pairs(serve))
-    back, forward = page.locator("#quiet-back"), page.locator("#quiet-next")
-    forward.click()
-    page.mouse.move(0, 0)
-    expect(forward).to_be_focused()
-    rendered(page)
-    assert forward.evaluate(FACE) == back.evaluate(FACE)
-    page.keyboard.press("Shift+Tab")
-    expect(back).to_be_focused()
-    rendered(page)
-    assert back.evaluate(FACE) != forward.evaluate(FACE)
+
+    with subtests.test("a pressed quiet action looks like its neighbour"):
+        # A press leaves focus on a quiet action, as on any button, and leaves its face
+        # alone: once the pointer goes, it matches the action beside it until a key
+        # moves focus there, which wears the band.
+        back, forward = page.locator("#quiet-back"), page.locator("#quiet-next")
+        forward.click()
+        page.mouse.move(0, 0)
+        expect(forward).to_be_focused()
+        rendered(page)
+        assert forward.evaluate(FACE) == back.evaluate(FACE)
+        page.keyboard.press("Shift+Tab")
+        expect(back).to_be_focused()
+        rendered(page)
+        assert back.evaluate(FACE) != forward.evaluate(FACE)
+
+    with subtests.test("a quiet toggle still shows its chosen mode"):
+        # Words are quiet, with no frame at rest, so a mode toggle's chosen mode draws
+        # its own selected face: a frame and ground the unchosen word beside it lacks.
+        page.mouse.move(0, 0)
+        rendered(page)
+        face = "el => [getComputedStyle(el).borderTopColor, getComputedStyle(el).backgroundColor]"
+        chosen = page.locator("#mode-on").evaluate(face)
+        other = page.locator("#mode-off").evaluate(face)
+        assert other == page.locator("#plain-back").evaluate(face)
+        assert chosen[0] != other[0] and chosen[1] != other[1], (chosen, other)
 
 
 def test_a_tapped_button_looks_like_its_neighbour(browser, serve):
@@ -1304,19 +1320,6 @@ def test_the_ring_reading_measures_a_displaced_pseudo_element(browser, serve):
         width: 120px; height: 2px;`;
     }""")
     assert any("top edge is under" in c for c in current_location_ring(page)["covers"])
-
-
-def test_a_quiet_toggle_still_shows_its_chosen_mode(browser, serve):
-    """Words are quiet, with no frame at rest, so a mode toggle's chosen mode draws its
-    own selected face: a frame and ground the unchosen word beside it lacks."""
-    page = open_page(browser, _button_pairs(serve))
-    page.mouse.move(0, 0)
-    rendered(page)
-    face = "el => [getComputedStyle(el).borderTopColor, getComputedStyle(el).backgroundColor]"
-    chosen = page.locator("#mode-on").evaluate(face)
-    other = page.locator("#mode-off").evaluate(face)
-    assert other == page.locator("#plain-back").evaluate(face)
-    assert chosen[0] != other[0] and chosen[1] != other[1], (chosen, other)
 
 
 def test_an_obligations_margin_marker_keeps_its_location_ring_whole(browser, serve):

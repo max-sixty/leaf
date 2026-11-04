@@ -1112,25 +1112,6 @@ RAIL_BANDS = """() => {
 }"""
 
 
-DRAWN_PAST_A_RAIL_PAGE = leaf_page(
-    "drawn past a rail",
-    """
-<h1 id="t">Flow</h1>
-<lf-suggestion id="sug-copy">
-  <lf-old><p id="old-line">Refill every feeder each morning.</p></lf-old>
-  <lf-new><p>Refill a feeder when its camera shows it half-empty.</p></lf-new>
-</lf-suggestion>
-<p id="gap" style="margin-block: 600px">Prose far enough below the change that its row
-reaches nothing here.</p>
-<lf-diagram id="flow"><pre>
-graph LR
-  R[request] --> C{cookie valid?}
-  C -->|yes| S[read session from Redis]
-  S -->|hit| H[handle]
-  C -->|no| L[login]
-</pre></lf-diagram>
-""",
-)
 # A drawing inside a tab panel: the panel's card is the frame a wide exhibit may not
 # leave, the graph is drawn wider than the frame's own inset, and no room the page has
 # can be given to it — so scrolling is the layer's honest answer. Beside it a line of

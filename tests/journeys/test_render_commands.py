@@ -56,7 +56,7 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve):
     CHROME_BIN, so unnaming leaf's alone is not unnaming. A clean result has to name
     the browser that drew the page: a clean gate telling a Chromium host that Chrome
     drew it is the same false claim on the way out that the failure messages stopped
-    making."""
+    making. Findings leave the author pictures of the page that needs fixing."""
     serve(LONG_PAGE)
     d = serve.page_dir
 
@@ -87,21 +87,6 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve):
     [scrolls] = [f for f in report["findings"] if f["code"] == "page-scrolls"]
     assert scrolls["widths"] == [360, 1920], report
     assert scrolls["severity"] == "error" and scrolls["values"]["past"] > 0, scrolls
-
-
-def test_a_failing_render_check_saves_screens(serve, headless_shell):
-    """Findings leave the author pictures of the page that needs fixing."""
-    serve(LONG_PAGE.replace("</main>", "<div style='width:150vw'>wide</div></main>"))
-    ran = subprocess.run(
-        [*LEAF_COMMAND, "page", "check", str(serve.page_dir), "--render"],
-        capture_output=True,
-        text=True,
-        check=False,
-        env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": headless_shell},
-    )
-    assert ran.returncode == 1, ran.stdout + ran.stderr
-    report = json.loads(ran.stdout)
-    assert any(f["code"] == "page-scrolls" for f in report["findings"]), report
     screens = report["browser"]["screens"]
     into = Path(screens["directory"])
     names = {screen["file"] for screen in screens["files"]}

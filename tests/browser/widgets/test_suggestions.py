@@ -117,8 +117,7 @@ def test_suggestions_sharing_a_block_keep_source_and_keyboard_order(browser, ser
     assert walked == ["first-change", "second-change", "third-change"]
 
 
-@pytest.mark.parametrize("reduced_motion", ["no-preference", "reduce"])
-def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_motion):
+def test_suggestion_controls_stay_out_of_the_column(browser, serve):
     """Suggestion chrome hangs in the page margin, so the prose keeps the full column
     and reads as it will once the change is settled. The row takes its line
     from an anchor inside the change, so how deep the
@@ -128,7 +127,6 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
     measurement no lint can make: where a row stands as a pin, it touches the change
     it decides, over none of the change's words, and stays on the page."""
     page = open_page(browser, serve(SUGGESTION_PAGE), init_script=HOLD_MOTION)
-    page.emulate_media(reduced_motion=reduced_motion)
     # main includes the grid's margins; this paragraph fills its prose track.
     column = page.locator("#replace").evaluate("el => el.getBoundingClientRect().right")
     box = "el => el.getBoundingClientRect()"

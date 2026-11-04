@@ -522,7 +522,9 @@ def test_a_page_s_reaction_to_a_runtime_mark_moves_a_pin_clear(
 
 def test_a_pin_on_a_contents_target_stands_at_its_last_part(browser, serve):
     """A `display: contents` target anchors through its first shown part, but its pin
-    stands at the top-right corner of every part together, and shows while they do."""
+    stands at the top-right corner of every part together, and shows while they do. The
+    card it opens follows descendant visibility alone, without a resize or render
+    request to wake it, and keeps the reply being written."""
     source = leaf_page(
         "a contents target",
         '<div><h1 id="t">Pair</h1><div style="display: flex; gap: 24px">'
@@ -548,24 +550,6 @@ def test_a_pin_on_a_contents_target_stands_at_its_last_part(browser, serve):
     thread = preview.locator(".lf-margin-thread .lf-page-thread")
     expect(thread).to_be_focused()
 
-
-def test_a_contents_target_reply_observes_visibility_without_layout(browser, serve):
-    """A reply withheld by its display: contents subject follows descendant visibility
-    alone, without a resize or render request to wake its floating card."""
-    source = leaf_page(
-        "a contents target reply",
-        '<h1>Reply visibility</h1><div id="pair" style="display: contents">'
-        "<p><span>The first half.</span></p><p><span>The second half.</span></p></div>",
-        layout="sidebar",
-    )
-    page = open_page(browser, serve(source, events=[_comment_on("pair")]))
-    resized(page, 1440, 900)
-    margins_laid_out(page)
-    row = page.locator('.lf-margin-cluster[data-lf-margin-for="pair"]')
-    marker = row.get_by_role("button", name=re.compile(r"^Thread,"))
-    marker.click()
-    preview = page.locator(".lf-margin-preview")
-    expect(preview).to_be_visible()
     reply = preview.get_by_role("textbox", name="Reply", exact=True)
     reply.click()
     expect(reply).to_be_focused()
@@ -613,7 +597,8 @@ def test_o_hides_what_is_drawn_over_the_page_and_moves_nothing(browser, serve):
     the durable marks, while the rail and what stands in it stay, since the rail covers
     nothing. Nothing in the layer takes up room, so no box of the page moves. A press on
     a passage whose mark is hidden opens nothing, and the choice is the tab's, so a
-    reload keeps it."""
+    reload keeps it. An obligation walk reveals the pin it lands on for as long as the
+    user stands there."""
     page = open_page(
         browser,
         serve(
@@ -653,33 +638,8 @@ def test_o_hides_what_is_drawn_over_the_page_and_moves_nothing(browser, serve):
     margins_laid_out(page)
     expect(page.locator("html")).to_have_attribute("data-lf-annotations", "hidden")
     expect(pin).to_be_hidden()
-    page.evaluate(RELEASE_FOCUS)
-    page.keyboard.press("o")
-    expect(pin).to_be_visible()
-    assert page.evaluate(wash) == ""
 
-
-def test_an_obligation_arrival_reveals_its_pin_while_annotations_are_hidden(
-    browser, serve
-):
-    """An explicit obligation walk reveals its pin until the user leaves that obligation."""
-    page = open_page(
-        browser,
-        serve(
-            RAIL_BAND_PAGE,
-            events=[_comment_on("gap", quote="Prose far enough below the changes")],
-        ),
-    )
-    resized(page, 1440, 900)
-    margins_laid_out(page)
-    pin = page.locator('.lf-margin-cluster[data-lf-margin-for="sug-card"]')
-    expect(pin).to_have_attribute("data-lf-place", "pin")
-    expect(pin).to_be_visible()
-    page.evaluate(RELEASE_FOCUS)
-    page.keyboard.press("o")
-    expect(page.locator("html")).to_have_attribute("data-lf-annotations", "hidden")
-    expect(pin).to_be_hidden()
-
+    # An explicit obligation walk reveals its pin until the user leaves that obligation.
     # The passage follows both obligations, so a step back lands on the last one.
     page.locator("#gap").click()
     page.keyboard.press("Shift+m")
@@ -689,6 +649,10 @@ def test_an_obligation_arrival_reveals_its_pin_while_annotations_are_hidden(
     page.evaluate(RELEASE_FOCUS)
     expect(pin).to_be_hidden()
     expect(page.locator("html")).to_have_attribute("data-lf-annotations", "hidden")
+
+    page.keyboard.press("o")
+    expect(pin).to_be_visible()
+    assert page.evaluate(wash) == ""
 
 
 def test_a_finger_hides_the_annotations_from_the_leaf_s_menu(browser, serve):

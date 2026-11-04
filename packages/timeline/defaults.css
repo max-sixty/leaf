@@ -54,9 +54,6 @@ lf-event::before {
   user-select: none;
   /* Marks and done spans are painted backgrounds, which paper otherwise drops. */
   print-color-adjust: exact;
-  /* The ruler's lines run down every lane and end at the chart's foot (controls.css,
-     `.lf-axis-tick`). */
-  overflow-y: clip;
 }
 /* A run's name heads its lanes across the chart. The playhead passes behind it, as
    it passes through every run, so one moment reads down all of them. */
@@ -90,8 +87,13 @@ lf-event::before {
   grid-row: 1;
   grid-column: 2;
 }
-/* A mark's position is a fraction of the track (--lf-timeline-at, set by the drawing)
-   inside the axis's edge, so it holds at any width, a printed page's included. */
+/* The axis's gridlines (controls.css, `.lf-axis-grid`) run from the ruler's foot down
+   every lane and run, as the playhead does. */
+.lf-timeline-grid {
+  grid-row: 2 / -1;
+  grid-column: 2;
+  position: relative;
+}
 .lf-timeline-lane {
   grid-column: 2;
   position: relative;
@@ -101,8 +103,9 @@ lf-event::before {
   );
   border-block-start: 1px solid var(--rule);
 }
-/* One event's label and mark. The group spans its lane so that each part is
-   positioned in the lane's coordinates; only the label and mark take presses. */
+/* One event's label and mark. The group spans its lane so that each part stands at
+   the event's time on the axis in the lane's coordinates (controls.css,
+   `.lf-on-axis`); only the label and mark take presses. */
 .lf-timeline-event {
   position: absolute;
   inset: 0;
@@ -118,10 +121,6 @@ lf-event::before {
 /* Label row 0 sits nearest the bar row. Labels stand in front of the playhead on
    the chart's ground, so the line passes behind words rather than through them. */
 .lf-timeline-label {
-  position: absolute;
-  left: calc(
-    var(--lf-axis-edge) + var(--lf-timeline-at) * (100% - 2 * var(--lf-axis-edge))
-  );
   inset-block-start: calc(
     (var(--lf-timeline-rows) - 1 - var(--lf-timeline-row-index, 0)) *
       var(--lf-timeline-row) + 3px
@@ -156,10 +155,6 @@ lf-event::before {
   font-weight: 600;
 }
 .lf-timeline-mark {
-  position: absolute;
-  left: calc(
-    var(--lf-axis-edge) + var(--lf-timeline-at) * (100% - 2 * var(--lf-axis-edge))
-  );
   z-index: 2;
   pointer-events: auto;
   cursor: pointer;
@@ -200,10 +195,6 @@ lf-event::before {
   pointer-events: none;
 }
 .lf-timeline-playhead-line {
-  position: absolute;
-  left: calc(
-    var(--lf-axis-edge) + var(--lf-timeline-at) * (100% - 2 * var(--lf-axis-edge))
-  );
   inset-block: 0;
   inline-size: 2px;
   margin-inline-start: -1px;

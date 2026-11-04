@@ -1075,21 +1075,16 @@ wa-copy-button.lf-icon-action {
 }
 textarea.field {
   --wa-form-control-background-color: var(--card);
+  --wa-form-control-height: var(--lf-line);
   box-sizing: border-box;
 }
-/* A select's chevron is the library's, set in its `--icon-caret` property, which the
-   library blends against the field's ground so it reads in either scheme. Its grey is
-   the library's cool one, which the blend turned violet on Leaf's warm grounds, so
-   Leaf sets the same chevron in a neutral grey, which the blend turns to a neutral
-   dark grey on a light ground and a light one on a dark ground. The library places
-   the chevron at the right whatever the text's direction. In forced colours the
-   platform's own control takes its place, since the chevron is a picture the palette
-   can't recolour. */
+/* The library places a select's chevron at the right whatever the text's direction.
+   In forced colours the platform's own control takes its place, since the chevron is a
+   picture the palette can't recolour. */
 :where(select:not([multiple]):is(:not([size]), [size="0"], [size="1"])):is(
   .lf-ui,
   .field
 ) {
-  --icon-caret: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc. --><path fill="rgb(180 180 180)" d="M201.4 406.6c12.5 12.5 32.8 12.5 45.3 0l192-192c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L224 338.7 54.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l192 192z"/></svg>');
   &:dir(rtl) {
     background-position: center left var(--wa-form-control-padding-inline);
   }

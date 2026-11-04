@@ -38,10 +38,10 @@ export const styleEntries = [
         // Leaf's own text boxes grow with their words (controls.css), which the
         // library's fixed-height field doesn't; an authored one takes the library's.
         textarea: "textarea.field",
-        // A listbox (`multiple`, or `size` over 1) keeps the browser's face: the
-        // library draws it as a closed select that hides what overflows it.
+        // A single-choice listbox (`size` over 1) keeps the browser's face: the
+        // library draws every select but a multiple one as closed, a line tall.
         select:
-          'select:is(.lf-ui, .field):not([multiple]):is(:not([size]), [size="0"], [size="1"])',
+          'select:is(.lf-ui, .field):is([multiple], :not([size]), [size="0"], [size="1"])',
       },
     },
   ],
@@ -57,9 +57,17 @@ export async function styleOutputs() {
   return outputs;
 }
 
-/** Leaf owns the type and the focus band of every control (surfaces.css), so the
- * rules taken from a dependency leave these properties out. */
-const LEAF_OWNS = /^(font|line-height|outline)(-|$)/;
+/** Leaf owns the type and the focus band of every control (surfaces.css), and its
+ * motion (`--lf-motion-*`), so the rules taken from a dependency leave these
+ * properties out. A transition would also report a control's old colour to whatever
+ * reads it during the fade, as a test reading a state just set does. */
+const LEAF_OWNS = /^(font|line-height|outline|transition)(-|$)/;
+
+/** Values in the library's rules that Leaf sets otherwise. A select's chevron is drawn
+ * in the library's cool grey, which its blend against the field's ground turned violet
+ * on Leaf's warm grounds; a neutral grey blends to a neutral grey in either scheme. A
+ * value the library no longer writes fails the build. */
+const LEAF_SETS = { "rgb(180 180 200)": "rgb(180 180 180)" };
 
 /** Regions of a dependency's sheet, each with its rules rewritten onto the Leaf faces
  * that take them. Web Awesome ships its styles for native controls only in
@@ -149,6 +157,11 @@ async function regions(source, faces) {
     });
     out += `\n/* Region "${name}" */\n${rules.trim()}\n`;
   }
+  for (const [from, to] of Object.entries(LEAF_SETS)) {
+    if (!out.includes(from))
+      throw new Error(`No ${from} in the regions taken from ${source}`);
+    out = out.replaceAll(from, to);
+  }
   return out;
 }
 
@@ -202,12 +215,14 @@ function rewrite(selector, map) {
       parts.push({ ...part, selectors: within.map((w) => w.parts) });
       named ||= within.some((w) => w.named);
     } else if (
-      part.type === "pseudo-class" &&
-      part.kind !== "has" &&
-      (part.selectors || part.of)
+      (part.type === "pseudo-class" &&
+        part.kind !== "has" &&
+        (part.selectors || part.of)) ||
+      (part.type === "pseudo-element" && part.selector)
     )
       // `:has()` asks about other elements, which no face names. Any other selector
-      // argument would need rewriting this code doesn't do, so the build stops.
+      // argument, such as `::slotted()`'s, would need rewriting this code doesn't do,
+      // so the build stops.
       throw new Error(`No rewrite for :${part.kind}() of selectors`);
     else parts.push(part);
   }

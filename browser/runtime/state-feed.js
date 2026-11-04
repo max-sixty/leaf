@@ -111,12 +111,14 @@ export function beginRead() {
 // cannot guarantee its state read succeeded. Healthy pages read state only on change.
 /** @param {{
  * stateApplying: () => boolean,
+ * readingInHand: () => string | null,
  * invalidateDom: () => Promise<unknown>,
  * receiveState: (state: import("./layer-client.js").CompletedState) => Promise<unknown>,
  * prepareActivation: ReturnType<typeof import("./version.js").createVersionController>["prepareActivation"]
  * }} dependencies */
 export function createStateFeed({
   stateApplying,
+  readingInHand,
   invalidateDom,
   receiveState,
   prepareActivation,
@@ -299,6 +301,10 @@ export function createStateFeed({
     let listening = null;
     /** @type {string | null} */
     let freshness = null;
+    // What the page had in hand when the last look heard the news name another
+    // reading, or null when the two agreed. The page may hold no reading yet.
+    /** @type {{held: string | null} | null} */
+    let crossed = null;
     /** @type {ReturnType<typeof setTimeout> | undefined} */
     let nextLook;
     const stopListening = () => {
@@ -307,6 +313,7 @@ export function createStateFeed({
       listening?.abort();
       listening = null;
       freshness = null;
+      crossed = null;
     };
     const listen = () => {
       if (!feedStarted || !pageIsVisible() || !sessionIsActive() || listening) return;
@@ -329,7 +336,9 @@ export function createStateFeed({
           if (!response.ok) throw new Error(`news returned HTTP ${response.status}`);
           const observed = await response.text();
           if (listening === interval) {
-            if (observed !== freshness && observed !== runtime.reading) item();
+            const held = readingInHand();
+            crossed = observed === held ? null : { held };
+            if (observed !== freshness && observed !== held) item();
             else if (returned !== null && observed === runtime.reading && feedQuiet()) {
               // There is no newer state to ask for. Still present what this tab
               // held before the absence, then protect its new baseline again.
@@ -376,14 +385,17 @@ export function createStateFeed({
       // One shared clock serves temporal paint, deferred work, and failed reads.
       setInterval(() => {
         if (!pageIsVisible()) return;
-        // A state read can cross a short-lived process lease and name a different
-        // observation than the unchanged freshness token. Repair that crossing on
-        // the same clock as failed reads, rather than repeating state at every look.
+        // The last look heard the news name a reading other than the one the page
+        // still has in hand: a state read crossed a short-lived process lease the
+        // news never named, or the page dropped an answer it could not adopt.
+        // Repair either on the same clock as failed reads, rather than repeating
+        // state at every look. A read in flight, or an answer handed in since that
+        // look, settles it instead.
         if (
           readAnswered &&
           sessionIsActive() &&
           (activityTransitionDue(runtime.state) ||
-            (freshness !== null && freshness !== runtime.reading))
+            (!reading && crossed !== null && crossed.held === readingInHand()))
         )
           void item();
         else if (readAnswered) void heartbeat();

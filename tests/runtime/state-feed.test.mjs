@@ -16,6 +16,15 @@ document.head.append(canonical);
 const { beginRead, createStateFeed } = await import("/runtime/state-feed.js");
 const { readingIsContinuous, readingReturn, completeReadingReturn } =
   await import("/runtime/reading-continuity.js");
+const { runtime } = await import("/runtime/context.js");
+// The feed's answers are adopted into one identified document.
+applicationState.identify(1);
+applicationState.captureDocument({
+  ...applicationState.read().document,
+  registry: {},
+  authored: new Map(),
+  descriptors: new Map(),
+});
 
 let taken = 0;
 const emptyProjection = () => ({ entries: [], actions: [], reports: [], desired: [] });
@@ -74,13 +83,6 @@ test("an earlier return cannot close a later absence", (t) => {
 
 test("a return stays interrupted until its refreshed reading is actually presented", async (t) => {
   t.after(() => window.happyDOM.cancelAsync());
-  applicationState.identify(1);
-  applicationState.captureDocument({
-    ...applicationState.read().document,
-    registry: {},
-    authored: new Map(),
-    descriptors: new Map(),
-  });
   for (const mode of ["painting", "overtaken", "offline", "rejected"]) {
     await t.test(mode, async (t) => {
       let visible = "visible";
@@ -150,6 +152,7 @@ test("a return stays interrupted until its refreshed reading is actually present
       };
       const feed = createStateFeed({
         stateApplying: () => applying,
+        readingInHand: () => runtime.reading,
         invalidateDom: async () => {},
         receiveState,
         prepareActivation: async () => null,
@@ -187,6 +190,105 @@ test("a return stays interrupted until its refreshed reading is actually present
   }
 });
 
+test("the page asks for no reading it already has in hand", async (t) => {
+  t.after(() => window.happyDOM.cancelAsync());
+  const listeners = [];
+  const add = document.addEventListener.bind(document);
+  t.mock.method(document, "addEventListener", (name, listener, options) => {
+    listeners.push([name, listener, options]);
+    add(name, listener, options);
+  });
+  t.after(() => {
+    for (const args of listeners) document.removeEventListener(...args);
+  });
+  const looks = [];
+  let clock;
+  t.mock.method(globalThis, "setTimeout", (callback, delay) => {
+    if (delay === 250) looks.push(callback);
+    return 1;
+  });
+  t.mock.method(globalThis, "clearTimeout", () => {});
+  t.mock.method(globalThis, "setInterval", (callback, delay) => {
+    if (delay === 2000) clock = callback;
+    return 1;
+  });
+  let news = "initial";
+  const answers = [];
+  t.mock.method(globalThis, "fetch", async (url) => {
+    const path = new URL(url).pathname;
+    if (path === "/api/news") return new Response(news);
+    assert.equal(path, "/api/state", `unexpected feed request: ${url}`);
+    return Response.json(state(answers.shift()));
+  });
+  const reads = () =>
+    globalThis.fetch.mock.calls.filter(
+      (call) => new URL(call.arguments[0]).pathname === "/api/state",
+    ).length;
+  // An answer is prepared before the page adopts it, which is when `runtime.reading`
+  // names it; until then the answer is in hand, as `state-application.js` keeps it.
+  const preparing = new Map();
+  let inHand = null;
+  const receiveState = async (answer) => {
+    inHand = answer;
+    await preparing.get(answer.reading)?.promise;
+    applicationState.adopt(answer);
+    if (inHand === answer) inHand = null;
+  };
+  const prepare = (reading) => {
+    preparing.set(reading, Promise.withResolvers());
+    return () => preparing.get(reading).resolve();
+  };
+  createStateFeed({
+    stateApplying: () => false,
+    readingInHand: () => inHand?.reading ?? runtime.reading,
+    invalidateDom: async () => {},
+    receiveState,
+    prepareActivation: async () => null,
+  }).startFeed(async () => {}, Promise.resolve({ state: state("initial") }));
+  await setImmediate();
+  assert.equal(reads(), 0);
+
+  // A saved revision: the look asks once, and neither the clock nor the next look
+  // asks again while its answer is prepared.
+  const revised = prepare("revised");
+  news = "revised";
+  answers.push("revised");
+  looks.at(-1)();
+  await setImmediate();
+  assert.equal(reads(), 1);
+  clock();
+  looks.at(-1)();
+  await setImmediate();
+  assert.equal(reads(), 1, "the page asked again for the revision being prepared");
+  revised();
+  await setImmediate();
+
+  // A gesture's POST answer arrives outside the feed, and the news names it.
+  const posted = prepare("posted");
+  const applying = receiveState(state("posted"));
+  news = "posted";
+  clock();
+  looks.at(-1)();
+  await setImmediate();
+  clock();
+  await setImmediate();
+  assert.equal(reads(), 1, "the page asked again for the gesture's own answer");
+  posted();
+  await applying;
+
+  // A read that crossed a short-lived lease named a reading the news never did.
+  answers.push("crossed", "leased");
+  news = "leased";
+  looks.at(-1)();
+  await setImmediate();
+  assert.equal(reads(), 2);
+  looks.at(-1)();
+  await setImmediate();
+  clock();
+  await setImmediate();
+  assert.equal(reads(), 3, "the clock left a crossed reading standing");
+});
+
 test("a matching response completes from its held data after a newer admission", async (t) => {
   const held = {
     version: "initial",
@@ -196,7 +298,6 @@ test("a matching response completes from its held data after a newer admission",
     version: "new",
     sources: { builds: { contract: "c", value: "new" } },
   };
-  const { runtime } = await import("/runtime/context.js");
   const { acceptData } = await import("/runtime/data.js");
   applicationState.acceptData(held, ++taken);
   t.mock.method(globalThis.AbortSignal, "timeout", () => new AbortController().signal);

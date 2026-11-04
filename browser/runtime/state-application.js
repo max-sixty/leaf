@@ -16,6 +16,7 @@ import {
   whenDocumentPresented,
   readApplication,
 } from "./semantic-state.js";
+import { runtime } from "./context.js";
 import { reportCarried, sameLayer } from "./layer-client.js";
 import { observeServerNow, observeWorkingGrace } from "./presence.js";
 import { settleAcceptedDrafts } from "./drafts.js";
@@ -51,6 +52,12 @@ export function createStateApplication({
   let presentedNews = null;
   let stateApplying = false;
   let admission = Promise.resolve();
+  // Every answer handed in through any door, a state read or a gesture's POST, while
+  // it is still being prepared or applied. Until one is adopted or dropped,
+  // `runtime.reading` names the reading before it, so whoever asks whether the page
+  // already has a reading asks `readingInHand`.
+  /** @type {Set<import("./layer-client.js").CompletedState>} */
+  const inHand = new Set();
 
   /** @template T @param {() => T | Promise<T>} operation */
   async function runSerialized(operation) {
@@ -68,6 +75,25 @@ export function createStateApplication({
 
   /** @param {import("./layer-client.js").CompletedState} state */
   async function receiveState(state) {
+    inHand.add(state);
+    try {
+      return await applyState(state);
+    } finally {
+      inHand.delete(state);
+    }
+  }
+
+  // The newest reading, by when the server took it, of those the page has adopted or
+  // has in hand.
+  function readingInHand() {
+    let newest = runtime.state;
+    for (const state of inHand)
+      if (!newest || state.taken > newest.taken) newest = state;
+    return newest?.reading ?? null;
+  }
+
+  /** @param {import("./layer-client.js").CompletedState} state */
+  async function applyState(state) {
     if (!sameLayer(state.layer.generation)) return;
     // Data is ordered by when the server took the reading, even in a crossed older log read.
     const dataChanged = acceptData(state.data, state.taken);
@@ -221,5 +247,10 @@ export function createStateApplication({
     });
   }
 
-  return { isApplying: () => stateApplying, receiveState, runSerialized };
+  return {
+    isApplying: () => stateApplying,
+    readingInHand,
+    receiveState,
+    runSerialized,
+  };
 }

@@ -149,9 +149,9 @@ def test_a_presence_read_crossing_freshness_returns_to_the_current_lease(
 ):
     """A short-lived real wait lease inside a state read cannot strand its answer.
 
-    Presence may return to the same cached freshness token after state captured a
-    different live lock observation. The shared recovery clock must reconcile the
-    mismatch even though no page file or subsequent token changes.
+    The state read sees the lease held, and once it is released the page comes back
+    to the current lease. This page is unclaimed, so its wait lease is a file in the
+    page directory: taking it moves the news token, and the look asks again.
     """
     url = live_url(serve(LONG_PAGE))
     lease_path = waiter_lease_path(serve.page_dir, None)
@@ -170,8 +170,15 @@ def test_a_presence_read_crossing_freshness_returns_to_the_current_lease(
                 route.continue_()
                 return
             assert lease_path is not None
+            # Ask for a whole answer, which says whether the lease was held, rather
+            # than a patch from the reading the tab holds (`served_state.tail`).
+            headers = {
+                name: value
+                for name, value in route.request.headers.items()
+                if name != "leaf-held-basis"
+            }
             with take_wait_lease(lease_path):
-                response = route.fetch()
+                response = route.fetch(headers=headers)
                 assert response.json()["listening"] is True
             crossed.append(response.json()["reading"])
             route.fulfill(response=response)

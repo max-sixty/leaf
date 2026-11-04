@@ -483,10 +483,10 @@ def reference_errors(
                 owners.setdefault((rec["tag"], attr, target), []).append(rec)
         for input_name, spec in registry.get(rec["tag"], {}).get("x-data", {}).items():
             target = rec["attrs"].get(spec.get("reference"))
-            producer = by_id.get(target)
-            if not target or not producer:
+            if not target or target not in ids:
                 continue  # The ordinary relation check names a missing target.
-            outputs = registry.get(producer["tag"], {}).get("x-output", {})
+            producer = registry.get(by_id.get(target, {}).get("tag"), {})
+            outputs = producer.get("x-output", {})
             matching = [
                 name
                 for name, output in outputs.items()

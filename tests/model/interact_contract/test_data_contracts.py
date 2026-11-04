@@ -594,15 +594,18 @@ def test_widget_data_inputs_accept_typed_outputs_and_refuse_ambiguous_bindings()
 
     def errors(binding):
         document = SourceDocument(
-            f'<lf-producer id="feed"></lf-producer><lf-consumer id="consumer" {binding}></lf-consumer>'
+            '<lf-producer id="feed"></lf-producer><p id="plain">Words</p>'
+            f'<lf-consumer id="consumer" {binding}></lf-consumer>'
         )
         records = document.lf_elements
         by_id = {rec["attrs"]["id"]: rec for rec in records}
         return widget_errors(records, registry) + reference_errors(
-            records, registry, set(by_id), by_id, thread_ids=set()
+            records, registry, document.ids, by_id, thread_ids=set()
         )
 
     assert errors('for="feed"') == []
+    assert [finding.code for finding in errors('for="plain"')] == ["output-contract"]
+    assert [finding.code for finding in errors('for="gone"')] == ["unknown-reference"]
     assert errors('source="external"') == []
     assert [finding.code for finding in errors('for="feed" source="external"')] == [
         "ambiguous-data-binding"

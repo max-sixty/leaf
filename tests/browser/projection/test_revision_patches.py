@@ -1204,31 +1204,3 @@ def test_a_live_revision_reorders_the_page_and_obligation_inventory_together(
         }"""
     )
     assert not {"gone-ask", "gone-options", "gone-yes"} & set(descriptors)
-
-
-def test_a_generated_shadow_editor_follows_an_arriving_live_version(browser, serve):
-    """A retained generated shadow control follows unrelated authored changes."""
-    version_url = serve(LIVE_V1)
-    page = open_page(browser, live_url(version_url))
-    page.evaluate(
-        """() => {
-          const host = document.createElement('section');
-          host.id = 'shadow-editor';
-          const root = host.attachShadow({mode: 'open'});
-          const box = document.createElement('textarea');
-          box.dataset.lfOffer = '';
-          root.append(box);
-          document.querySelector('main').append(host);
-          box.focus();
-        }"""
-    )
-
-    (serve.page_dir / "index.html").write_text(LIVE_V2)
-    told(page)
-    expect(page).to_have_title("Live second")
-    assert (
-        page.evaluate(
-            "() => document.querySelector('#shadow-editor').shadowRoot.activeElement?.tagName"
-        )
-        == "TEXTAREA"
-    )

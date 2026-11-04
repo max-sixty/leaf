@@ -27,6 +27,7 @@ from browser.startup import (
 )
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -370,7 +371,13 @@ def test_a_key_pressed_before_presentation_runs_once_the_page_presents(
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
 
     release()
-    expect(page.locator('[data-lf-thread="held-thread"]').first).to_be_focused()
+    # A margin card on a wide window; the panel's thread on a phone.
+    expect(
+        page.locator(
+            f'{PANEL_THREAD}[data-lf-thread="held-thread"], '
+            '.lf-margin-preview .lf-page-thread[data-lf-thread="held-thread"]'
+        )
+    ).to_be_focused()
     expect(echo).to_have_count(0)
 
 

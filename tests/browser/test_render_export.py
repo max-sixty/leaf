@@ -401,7 +401,7 @@ def test_an_export_keeps_visual_review_images_and_inspection_offline(
             "async images => { await Promise.all(images.map(image => image.decode())); return true; }"
         )
     shot = selected.locator("lf-shot")
-    shot.get_by_role("button", name="Slider", exact=True).click()
+    shot.get_by_role("radio", name="Slider", exact=True).click()
     comparison = shot.locator("wa-comparison")
     handle = comparison.get_by_role("scrollbar")
     handle.press("Home")

@@ -1697,7 +1697,7 @@ def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
     option = page.locator("#ro-column")
     picked = "el => el.hasAttribute('chosen')"
 
-    page.locator("#ro-shot").get_by_role("button", name="Slider", exact=True).click()
+    page.locator("#ro-shot").get_by_role("radio", name="Slider", exact=True).click()
     comparison = page.locator("#ro-shot wa-comparison")
     comparison.scroll_into_view_if_needed()
     bounds = comparison.bounding_box()
@@ -1705,7 +1705,7 @@ def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
     page.mouse.click(bounds["x"] + bounds["width"] / 4, bounds["y"] + 80)
     expect(comparison).to_have_attribute("position", "100")
     assert not option.evaluate(picked), "clicking the shot answered the question"
-    page.locator("#ro-shot").get_by_role("button", name="Pair", exact=True).click()
+    page.locator("#ro-shot").get_by_role("radio", name="Pair", exact=True).click()
     expect(page.locator("#ro-shot")).to_have_attribute("data-lf-shot-mode", "compare")
     assert not option.evaluate(picked), "changing the shot view answered the question"
 

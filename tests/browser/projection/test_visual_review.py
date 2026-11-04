@@ -347,7 +347,7 @@ def test_visual_review_preserves_capture_reading_when_returning_to_a_case(
     resized(page, 1366, 700)
     widget = page.locator("#visual-review-run")
     case = widget.locator(SELECTED)
-    case.get_by_role("button", name="Pair", exact=True).click()
+    case.get_by_role("radio", name="Pair", exact=True).click()
     case.get_by_role("button", name="Image options").click()
     case.get_by_role("checkbox", name="Full frame").check()
     page.keyboard.press("Escape")

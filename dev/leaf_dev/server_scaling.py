@@ -41,13 +41,23 @@ from collections.abc import Callable, Generator, Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-from leaf_dev.commands.scaling import REFERENCE, SUPERLINEAR, Collection, exponent
+from leaf_dev.commands.scaling import (
+    INPUT_CEILING,
+    REFERENCE,
+    SUPERLINEAR,
+    Collection,
+    exponent,
+)
 
 PATHS = ("state", "append", "delivery", "agent", "thread", "activate")
 # A click's paths: admitting its event and the reading the server answers with. Root
 # `AGENTS.md`, "Responsiveness", puts that reading on screen within `BUDGET_MS`, and
 # holds the agent's paths only to growing no faster than the page.
 CLICK = ("append", "state")
+# Admitting the click's event: the input's own work, which doesn't grow with how long
+# the session has run. The reading it answers with may grow as a reading of the page
+# does, the events among what the page holds.
+INPUT = "append"
 RUNS = 3
 BUDGET_MS = 100
 
@@ -312,10 +322,12 @@ def measure(
     return rows, {path: (before, after) for path, (before, after) in profiled.items()}
 
 
-def failures(rows: list[dict]) -> dict[str, dict]:
-    """Each path of `rows` that breaks root `AGENTS.md`, "Responsiveness", with its
-    readings and why: growth above the smallest page fitting an exponent past
-    `SUPERLINEAR`, or a click's path taking more than `BUDGET_MS` at `REFERENCE`."""
+def failures(collection: Collection, rows: list[dict]) -> dict[str, dict]:
+    """Each path of `collection`'s `rows` that breaks root `AGENTS.md`,
+    "Responsiveness", with its readings and why: growth above the smallest page
+    fitting an exponent past `SUPERLINEAR`; a click's path taking more than
+    `BUDGET_MS` at `REFERENCE`; or, on the session's page, where only the session
+    grows, the input's own work growing past `INPUT_CEILING`."""
     sizes = [row["n"] for row in rows]
     failed = {}
     for path in PATHS:
@@ -324,9 +336,10 @@ def failures(rows: list[dict]) -> dict[str, dict]:
         readings = [row[path] for row in rows]
         slope = exponent(path, sizes, readings)
         at = dict(zip(sizes, readings, strict=True))
+        ceiling = INPUT_CEILING if collection.session and path == INPUT else SUPERLINEAR
         why = []
-        if slope is not None and slope > SUPERLINEAR:
-            why.append(f"growth fits exponent {slope:.2f}, past {SUPERLINEAR}")
+        if slope is not None and slope > ceiling:
+            why.append(f"growth fits exponent {slope:.2f}, past {ceiling}")
         if path in CLICK and at.get(REFERENCE, 0) > BUDGET_MS:
             why.append(f"{at[REFERENCE]:.0f} ms at {REFERENCE}, over {BUDGET_MS} ms")
         if why:

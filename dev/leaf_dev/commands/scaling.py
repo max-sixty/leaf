@@ -26,8 +26,9 @@ another. Fitting the cost itself would let fixed work hide that: 30 ms per click
 
 --server times the server's paths on each page instead, in this process with no
 browser (`leaf_dev.server_scaling` names the paths and how it reads them), and names
-each path whose growth fits an exponent above SUPERLINEAR, and each of a click's paths
-that takes more than its budget at REFERENCE.
+each path that breaks the rule: growth fitting an exponent above SUPERLINEAR, a
+click's path taking more than its budget at REFERENCE, or, on the session's page, an
+append growing past INPUT_CEILING.
 
 --base also measures the merge base with main (or REF), chosen as every A/B command
 chooses its arms (`arms.choose_arms`), so a change shows its exponents beside the
@@ -90,6 +91,10 @@ BASE = 8
 # An exponent above this is superlinear growth. It stands halfway between linear and
 # quadratic: above BASE, linear growth fits about 1.07 over 64-256, and n log n 1.25.
 SUPERLINEAR = 1.5
+# An input's work whose growth fits an exponent above this grows with what the page
+# holds or how long the session has run, and an input's work does neither (root
+# `AGENTS.md`, "Responsiveness"); halfway between flat and linear.
+INPUT_CEILING = 0.5
 # How many of the largest sizes the exponent is fitted over.
 FITTED = 3
 # A cost that grows by less than this above BASE has no exponent: what little it grew
@@ -271,11 +276,14 @@ def exchange(m: int) -> list[dict]:
 class Collection(NamedTuple):
     """A page that holds `n` of one collection and a fixed amount of the rest: its
     authored markup, the events its log holds after it, and how many versions of
-    the page are saved before the log."""
+    the page are saved before the log. `session` marks the page that holds the same
+    at every size while its log grows, so what grows with `n` is only how long the
+    session has run."""
 
     authored: Callable[[int], str]
     log: Callable[[int], list[dict]] = lambda _: []
     versions: Callable[[int], int] = lambda _: 1
+    session: bool = False
 
     def sources(self, n: int) -> list[str]:
         """Each saved version's markup, oldest first: the authored page, its heading
@@ -320,6 +328,7 @@ COLLECTIONS: dict[str, Collection] = {
     "events": Collection(
         lambda _: ask_sections(16),
         lambda n: [pick(k % 16 + 1, k % 4 + 1) for k in range(n)],
+        session=True,
     ),
     "revisions": Collection(
         lambda _: ask_sections(16),
@@ -607,7 +616,8 @@ def scaling(
 
 def scale_server(axes: Iterable[str], sizes: list[int], profile: bool, run: Path):
     """Time each server path on each axis's pages in this process, as `--server`
-    does (`leaf_dev.server_scaling`), and mark each path over its budget."""
+    does (`leaf_dev.server_scaling`), and name each path that breaks the rule
+    (`server_scaling.failures`)."""
     from leaf_dev.server_scaling import PATHS, RUNS, failures, measure
 
     click.echo(f"Server paths of this checkout, least CPU of {RUNS} runs\n")
@@ -617,7 +627,7 @@ def scale_server(axes: Iterable[str], sizes: list[int], profile: bool, run: Path
         results[axis] = rows
         paths = {path: f"{path} ms" for path in PATHS if path in rows[0]}
         click.echo(table(axis, rows, "events", paths))
-        for path, failure in failures(rows).items():
+        for path, failure in failures(COLLECTIONS[axis], rows).items():
             click.echo(f"  {path}: {failure['why']}")
         click.echo()
         if profile:

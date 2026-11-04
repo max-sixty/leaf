@@ -86,7 +86,7 @@ export function createSinceSeen({ markSeen }) {
   tabStore.set(HANDOFF_KEY, null);
   // The newest revision this tab has posted, so a blur and the hide after it send once.
   let posted = 0;
-  // Which arrival a count in flight answers, so a later one's news replaces it.
+  // Counts arrivals, so a count in flight answers only the arrival that started it.
   let arrival = 0;
   // The version the user last saw, as their arrival found it.
   const lastSeen = signal(/** @type {Version | null} */ (null));
@@ -137,9 +137,8 @@ export function createSinceSeen({ markSeen }) {
   // The notice of what changed since `since`, said once the count is in and while it
   // holds: no later arrival, nothing marked meanwhile, `v` still comparing with that
   // version, and the revision counted still the one being read.
-  /** @param {Version} since */
-  async function tell(since) {
-    const mine = ++arrival;
+  /** @param {Version} since @param {number} mine */
+  async function tell(since, mine) {
     const holds = () =>
       mine === arrival && !selectedBase() && base()?.revision === since.revision;
     await whenDocumentPresented();
@@ -166,11 +165,12 @@ export function createSinceSeen({ markSeen }) {
     if (!takesPart() || current === null || !runtime.showsActive || !attended()) return;
     if (arriving) {
       arriving = false;
+      const mine = ++arrival;
       const seen = newestSeen();
       const since = versionAt(seen);
       lastSeen.value = since;
       if (since && seen && seen.revision < current && comparable(since.revision))
-        void tell(since);
+        void tell(since, mine);
     }
     if (runtime.active && (shown?.revision ?? 0) < current) shown = runtime.active;
   }

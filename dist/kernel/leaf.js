@@ -5,12 +5,12 @@ import { ADDRESSABLE, PAGE_CONTROL_RANK, PRESENTATION, UPGRADE, addressableLabel
 import { activeCommandLabel, annotationMarkSheets, annotationSheets, answerCloseRequest, availableCommandRoutes, chromeSheet, dispatchKey, escapeTakesAStep, executeCommand, innermostStance, invokePress, keyReady, marksSheet, onSampleNotice, registerSampleCommand, restoreUserView, sampleNotice, userIn } from "./runtime/bundle-restore-state.js";
 import { LEAF_SURFACE, authoredScope, blockAt, contextAround, elementById, elementFromPointAcross, elementOver, excerptWords, findText, inPage, leafSurface, pageDocument, pageParts, pageQueryAll, pageReadingVersion, pageText, pageWords, quoteFrom, rangeOf, says, segmentBlock, showsWords, watchPassageRoot } from "./runtime/bundle-passages.js";
 import { DESIGN_MODE_KEY, ELEMENTS, OBLIGATION_CONTROL, ON_CARD, PAGE_DRAFT, RESOLVED, THREAD, acceptData, allButCommandReference, allThreads, anchorLabel, answeredInWords, bringBackSurfaceOf, claimTraversals, commandSteps, comparisonBase, comparisonChanges, copyControl, createAnchorTravel, createPassageSelection, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareSide, declareThreadParts, designName, dismissReply, draftHasContent, drawnThreadId, focusScrolledAway, focusedThreadTarget, followBoxGrowth, gesturedOn, heldObligation, heldPagePlace, heldThread, holdPagePlace, initializeServedDocument, isExternalPageLink, landingPlace, leftThePage, loadDraft, messageHolding, messageReading, messageText, mirrorDraft, mountHistory, newsCount, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, placeKeeper, placeOf, prepareDocument, quoteReading, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, releaseReplies, rememberWriting, replaceEntry, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, returnPlace, rowWalk, saveDraft, scrollThreadIntoView, sectionsInView, selectionAnchor, sendMessage, settleThread, showHeld, showReturnTurn, snapSelection, stepFrom, subjectPlace, takeInitialDocument, tellDraft, threadAttention, threadHeading, threadIn, threadList, threadName, threadNamed, threadTodos, titlePending, todoWord, touchPresses, upgradeWidgets, userChoice, versionPicker, versionsReading, walkOrigin, workflowStep, workflowWord } from "./runtime/bundle-data.js";
-import { DRAWING_COORDINATE_LIMIT, KINDS, MAX_DRAWING_FRAME_DEPTH, MAX_DRAWING_POINTS, MAX_DRAWING_SAYS_LENGTH, MAX_DRAWING_STROKES, annotationItems, beginRead, clearContributionControls, composerOpen, composerQuote, contributionHost, contributionItemKey, contributionReceipts, createPageLayout, createReactionController, createSelectionComposer, createThreadLanding, currentLocationThread, declareThreadKeys, entryControls, fabBar, fabInput, fabOptionsTrigger, inPageOrder, leavesBox, marginBarLayer, mountApplication, obligationEnding, obligationWord, ownedObligationControl, paintBarReactions, paintSet, partOver, pendingAbout, pendingAnchor, pendingDrawing, queueItemKey, queueTitle, reactionAvailable, reactionTokens, readPlan, readQueues, registerContribution, sendReaction, spokenSubject, textField, threadInput, visibleContributionEntryLabel } from "./runtime/bundle-page-layout.js";
+import { DRAWING_COORDINATE_LIMIT, KINDS, MAX_DRAWING_FRAME_DEPTH, MAX_DRAWING_POINTS, MAX_DRAWING_SAYS_LENGTH, MAX_DRAWING_STROKES, aimLayer, annotationItems, beginRead, clearAim, clearContributionControls, composerOpen, composerQuote, contributionHost, contributionItemKey, contributionReceipts, createPageLayout, createReactionController, createSelectionComposer, createThreadLanding, currentLocationThread, declareThreadKeys, entryControls, fabBar, fabInput, fabOptionsTrigger, geometryChanged, inPageOrder, labelAim, leavesBox, locationLayer, marginBarLayer, mountApplication, mountTargetPaint, obligationEnding, obligationWord, ownedObligationControl, paintAim, paintBarReactions, paintLocation, paintSet, partOver, pendingAbout, pendingAnchor, pendingDrawing, proxyRingLayer, queueItemKey, queueTitle, reactionAvailable, reactionTokens, readPlan, readQueues, registerContribution, removalProxy, sendReaction, shelve, shifted, spokenSubject, targetTraceLayer, textField, threadInput, unshelve, visibleContributionEntryLabel } from "./runtime/bundle-page-layout.js";
 import { mediaViewer, readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "./runtime/media.js";
 import { visibleTargetParts } from "./runtime/bundle-visible-target-parts.js";
 import { pageImage, pageRenderer } from "./runtime/bundle-page-image.js";
 import { pageIdentity, shownScheme } from "./runtime/bundle-page-identity.js";
-import { aimLayer, boxMotion, clearAim, geometryChanged, labelAim, locationLayer, mountTargetPaint, paintAim, paintLocation, paintProxyRing, proxyRingLayer, shifted, targetTraceLayer } from "./runtime/bundle-box-motion.js";
+import { boxMotion } from "./runtime/bundle-box-motion.js";
 import "/vendor/webawesome-chrome.js";
 
 //#region runtime/keyboard/disclosure.js
@@ -3555,97 +3555,6 @@ function createAnchorPlacement() {
 		},
 		pendingAt: () => pendingPlaced
 	});
-}
-
-//#endregion
-//#region runtime/details-shelf.js
-const records = /* @__PURE__ */ new Map();
-const owners = /* @__PURE__ */ new WeakMap();
-let shelf = null;
-function standsFor(node) {
-	let at = node;
-	for (; at && at !== shelf; at = upFrom(at)) {
-		const owner = owners.get(at);
-		if (owner) return owner.standsFor(node) ?? owner.element;
-	}
-	return null;
-}
-declareSide(standsFor);
-let ringed = null;
-function ring() {
-	const node = focused();
-	const target = node && standsFor(node);
-	if (target === ringed && (!target || target.isConnected)) return;
-	ringed = target;
-	const part = target && visualAt(target, { unclaimed: false })?.part;
-	paintProxyRing(target, part?.element === target ? part.surface : target);
-}
-onCurrentLocation((node) => {
-	if (node && standsFor(node)) {
-		reveal(standsFor(node), retainUserIntent());
-		scrollIntoView(standsFor(node), {
-			behavior: "instant",
-			block: "nearest"
-		});
-	}
-	ring();
-});
-const same$2 = (left, right) => left.length === right.length && left.every((node, index) => node === right[index]);
-const authoredDetails = (element, value) => {
-	const root = element.getRootNode();
-	if (!("getElementById" in root)) return [];
-	return (value ?? "").split(/\s+/).filter(Boolean).flatMap((id) => {
-		const node = root.getElementById(id);
-		return node ? [node] : [];
-	});
-};
-const written = (element) => element.getAttribute("aria-details") === "";
-function name(element, record) {
-	if (!written(element)) record.authored = element.getAttribute("aria-details");
-	const wanted = [...authoredDetails(element, record.authored), ...record.notes];
-	if (written(element) && same$2(element.ariaDetailsElements ?? [], wanted)) return;
-	element.ariaDetailsElements = wanted;
-}
-function shelve(element, note, standsFor = () => null) {
-	shelf ??= offer("div", "lf-details-shelf");
-	if (!shelf.isConnected) chromeRoot.append(shelf);
-	if (note.parentNode !== shelf) move(shelf, note, null);
-	const before = owners.get(note)?.element;
-	if (before && before !== element) forget(before, note);
-	owners.set(note, {
-		element,
-		standsFor
-	});
-	let record = records.get(element);
-	if (!record) {
-		record = {
-			notes: [],
-			authored: null
-		};
-		records.set(element, record);
-	}
-	if (!record.notes.includes(note)) record.notes.push(note);
-	name(element, record);
-	ring();
-}
-function unshelve(element, note) {
-	forget(element, note);
-	note.remove();
-	owners.delete(note);
-}
-function forget(element, note) {
-	const record = records.get(element);
-	if (record?.notes.includes(note)) {
-		record.notes = record.notes.filter((held) => held !== note);
-		if (record.notes.length) name(element, record);
-		else {
-			if (written(element)) {
-				if (record.authored === null) element.removeAttribute("aria-details");
-				else element.setAttribute("aria-details", record.authored);
-			}
-			records.delete(element);
-		}
-	}
 }
 
 //#endregion
@@ -9262,12 +9171,13 @@ function createObligationView({ prepareNavigationStep, arrive, openPageThread, f
 //#endregion
 //#region runtime/change-walk.js
 const start = (change) => change.at;
-const currentChange = (list, origin = currentLocationOrigin()) => origin?.kind === "current-location" ? list.find((change) => (change.blocks.length ? change.blocks : [change.at]).some((block) => renderedUnder(origin.node, block))) ?? null : null;
+const landing = (change) => change.blocks[0] ?? removalProxy(change) ?? change.at;
+const currentChange = (list, origin = currentLocationOrigin()) => origin?.kind === "current-location" ? list.find((change) => change.blocks.length ? change.blocks.some((block) => renderedUnder(origin.node, block)) : origin.node === removalProxy(change)) ?? null : null;
 const position = () => {
 	const list = comparisonChanges();
 	const base = comparisonBase();
 	return listWalkPosition(list, currentChange(list), {
-		identity: start,
+		identity: landing,
 		qualifier: base ? `since ${base.name}` : ""
 	});
 };
@@ -9277,12 +9187,11 @@ function step(dir) {
 	const current = currentChange(list, origin);
 	const change = current ? cycledRow(list, current, dir) : stepFrom(list, origin, dir, start);
 	if (!change) return;
-	const next = start(change);
-	if (!alreadyShown(next)) scrollIntoView(next, {
+	if (change.blocks.length && !alreadyShown(change.at)) scrollIntoView(change.at, {
 		behavior: scrollBehavior(),
 		block: "start"
 	});
-	focusDestination(next, "move");
+	focusDestination(landing(change), "move");
 	const said = beginWalk("change", "Change", position);
 	if (said) announce(said);
 }

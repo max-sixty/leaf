@@ -20,7 +20,7 @@
 
     "runtime/anchor-travel.js": "187fbe97836671099bed09b7dc26736f63d8f832ce94e13c932f02855faf8825",
 
-    "runtime/annotation-inventory.js": "03318a2c81e7cf6a79a21291449aef3d8dcf9dbf761e32011c952c755b97313d",
+    "runtime/annotation-inventory.js": "b60868733ac5f698639bcf669222d79e8fe63c5882ebe2be9ba0db42ac949d21",
 
     "runtime/annotation-overlay/anchor-paint.js": "3ead2423eb5280061cccc4f6cbb1706f1884a8637caa21d64aa6df36a129340d",
 
@@ -44,7 +44,7 @@
 
     "runtime/annotation-overlay/margin-placement.js": "7eb32b30afc9432946f2ecd3ff60535ab3c1ff4ed4646fca1f5445bffb91de22",
 
-    "runtime/annotation-overlay/margin-projection.js": "28e8e41ca29bf6539d9cc65e043a242c1635d54a1d3b42f8b3e5885427003231",
+    "runtime/annotation-overlay/margin-projection.js": "0084cfdd14854eb6f41756e3f88a943d9c9571d0f8a1800a470833473a728811",
 
     "runtime/annotation-overlay/surface-grip.js": "fcaae3d4a8967c133989238e9a284830e72fda427d2cf71ec6919d394e18fd00",
 
@@ -72,7 +72,7 @@
 
     "runtime/carry.js": "b56796dafceeb930b409af5c88e94d9c76f9833bd35d519d2513e449b578f20c",
 
-    "runtime/change-walk.js": "88fb607e5ed9a76af9e9d2751005301109c027e10c727e1f3674802f3e360b3e",
+    "runtime/change-walk.js": "8bb6ff9eac90a4475892256164ca94dd4d6eb11b388e3b6c244e556be9b35fbd",
 
     "runtime/check-api.js": "7ea2fd886611d70f6c9cacf93fea9bd8df257c3e5dfabb96639aa3c1bc683b4c",
 
@@ -158,7 +158,7 @@
 
     "runtime/design.js": "0a12c596efdcb357647d8fb4577d322a4c7d3affd01cbacb1572b82c68abf256",
 
-    "runtime/details-shelf.js": "988e8567cfd8d029fcdab6bfd98c9763ff937b4515dcb54231ca7da5f6f0ebf7",
+    "runtime/details-shelf.js": "89bf4faaf2c1ac582ae4cfe3f846d025049e5fdef44a8350326854a6ca241a91",
 
     "runtime/document-identity.js": "e55efc5db5e30033407623ca1178bd6edc57ca78840a0f77a6a87c8f3058ef22",
 
@@ -286,7 +286,7 @@
 
     "runtime/llm-api.js": "a1d45811caba7e683fca30326d7a5b0c6f483e6f90067d35e138f822b38780c1",
 
-    "runtime/margin-bars.js": "96043bd4294b95f4dd38ba559b1d96095944bfebe84fcf8789c9f8e35a9fc1c2",
+    "runtime/margin-bars.js": "c83bf47aa67951292f14b83bcea624f675fd2549f16fad61999aa1a118eb124d",
 
     "runtime/margin-map-model.js": "942b6caaba45dc8744c8164b631d1663875790ef71f0d56cf3926c2312a3b455",
 
@@ -538,7 +538,7 @@
 
     "runtime/version-signal.js": "2fd7de64264ad0318dbb2e7e8e44ec4a576f84c4f8f128e240f57f595dbedbeb",
 
-    "runtime/version.js": "3b04a0961f3a334c5d6edde57d8112dc9c7ba7304c837628bf18d31b99aff101",
+    "runtime/version.js": "d7c624bb68da41c61d08272711d785f5f7ae148d3356dde229e1ba203906668b",
 
     "runtime/video-controls.js": "a538fc11fe727d447816f0209a7f4c157c7361b034da02ad6be03e6d1afcaf13",
 

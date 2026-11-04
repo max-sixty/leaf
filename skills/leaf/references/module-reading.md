@@ -295,9 +295,10 @@ rewritten section is, together with the blocks the earlier version had there. A
 paragraph removed with nothing in its place is a change too, with no elements. Each
 change is an object: `blocks`, its elements inside `owner` in page order; `removed`,
 what the earlier version's blocks said (`{id, tag, word, words}`); and `at`, the
-element it stands by, its first block or the block after its gap. The result's length
-counts changes as the reader does. Reading it during a `LeafElement` render subscribes
-that render to comparison changes.
+element it stands by, its first block or the element beside its gap, in the part of the
+page the blocks were taken from, so a paragraph removed from a tab counts in that tab.
+The result's length counts changes as the reader does. Reading it during a
+`LeafElement` render subscribes that render to comparison changes.
 
 `revisionLabel(event.revision)` is the page's name for the version an event was
 recorded in.

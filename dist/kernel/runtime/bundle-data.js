@@ -8496,6 +8496,11 @@ const heldAnywhere = (before, after) => {
 		};
 	});
 };
+const around = (one, other) => {
+	let at = one.parentElement;
+	while (at && !at.contains(other)) at = at.parentElement;
+	return at;
+};
 function changedSince(base, current = currentSource()) {
 	const baseBlocks = diffBlocks(base.root);
 	const before = baseBlocks.map(([, key]) => key);
@@ -8506,8 +8511,65 @@ function changedSince(base, current = currentSource()) {
 	const changed = /* @__PURE__ */ new Set();
 	const kept = /* @__PURE__ */ new Set();
 	const moved = /* @__PURE__ */ new Map();
-	const removedAt = /* @__PURE__ */ new Map();
+	const gapBefore = /* @__PURE__ */ new Map();
+	const gapAfter = /* @__PURE__ */ new Map();
+	const gapIn = /* @__PURE__ */ new Map();
+	const emptied = (taken, beside) => {
+		for (let at = taken.parentElement; at; at = at.parentElement) {
+			if (beside.some(({ was }) => was && at.contains(was))) return null;
+			const same = at.id ? current.doc.getElementById(at.id) : null;
+			const live = same && standingFor(same, current);
+			if (live && !beside.some((each) => live.contains(each.live))) return live;
+		}
+		return null;
+	};
+	const sharedWith = (by, near) => {
+		let child = by.source;
+		const shared = by.was && around(near, by.was);
+		if (shared) for (let up = by.was; up?.parentElement && up.parentElement !== shared;) {
+			up = up.parentElement;
+			child = child.parentElement ?? child;
+		}
+		return {
+			holder: child.parentElement,
+			child
+		};
+	};
+	const stand = (gaps, key, at, gone) => {
+		const gap = gaps.get(key);
+		if (gap) gap.gone.push(...gone);
+		else gaps.set(key, {
+			gone,
+			at
+		});
+	};
 	let pending = [];
+	const flush = (last, next) => {
+		const flanks = [last, next].filter((each) => each !== null);
+		const groups = [];
+		for (const entry of pending) {
+			const [taken] = entry;
+			const inside = emptied(taken, flanks);
+			const behind = last && (!next || last.was && !sharedWith(last, taken).holder?.contains(next.source));
+			const [gaps, by] = inside ? [gapIn, inside] : behind ? [gapAfter, last] : [gapBefore, next];
+			if (!by) continue;
+			const group = groups.at(-1);
+			if (group?.gaps === gaps && group.by === by) group.gone.push(entry);
+			else groups.push({
+				gaps,
+				by,
+				gone: [entry]
+			});
+		}
+		for (const { gaps, by, gone } of groups) if (by instanceof Element) stand(gaps, by, by, gone);
+		else {
+			const near = gaps === gapAfter ? gone[0] : gone.at(-1);
+			const child = near && sharedWith(by, near[0]).child;
+			stand(gaps, by.live, (child && standingFor(child, current)) ?? by.live, gone);
+		}
+		pending = [];
+	};
+	let last = null;
 	let next = 0;
 	let gone = 0;
 	for (const part of parts) {
@@ -8515,32 +8577,46 @@ function changedSince(base, current = currentSource()) {
 			pending.push(...baseBlocks.slice(gone, gone += part.value.length));
 			continue;
 		}
+		const from = gone;
 		if (!part.added) gone += part.value.length;
-		const blocks = after.slice(next, next += part.value.length).map(([block]) => standingFor(block, current));
-		part.value.forEach((key, i) => {
-			const block = blocks[i];
-			if (!block) return;
-			if (!part.added) kept.add(block);
+		const sources = after.slice(next, next += part.value.length);
+		for (const [i, key] of part.value.entries()) {
+			const source = sources[i]?.[0];
+			const block = source && standingFor(source, current);
+			if (!source || !block) continue;
+			const was = part.added ? null : baseBlocks[from + i]?.[0] ?? null;
+			if (was) kept.add(block);
 			else if (removed.get(key)) {
 				removed.set(key, (removed.get(key) ?? 0) - 1);
 				moved.set(key, (moved.get(key) ?? 0) + 1);
-				return;
+				continue;
 			} else changed.add(block);
-			if (pending.length) removedAt.set(block, [...removedAt.get(block) ?? [], ...pending]);
-			pending = [];
-		});
+			const placed = {
+				live: block,
+				source,
+				was
+			};
+			flush(last, placed);
+			last = placed;
+		}
 	}
+	flush(last, null);
 	const takenOut = (list) => list.flatMap(([block, key]) => {
 		const left = moved.get(key) ?? 0;
 		if (!left) return [block];
 		moved.set(key, left - 1);
 		return [];
 	});
+	const taken = (gaps) => new Map([...gaps].map(([block, gap]) => [block, {
+		at: gap.at,
+		gone: takenOut(gap.gone)
+	}]));
 	return {
 		changed,
 		kept,
-		removedAt: new Map([...removedAt].map(([block, list]) => [block, takenOut(list)])),
-		trailing: takenOut(pending),
+		gapBefore: taken(gapBefore),
+		gapAfter: taken(gapAfter),
+		gapIn: taken(gapIn),
 		order: new Map(baseBlocks.map(([block], i) => [block, i]))
 	};
 }
@@ -8554,47 +8630,54 @@ function viewOf(block, controls) {
 	}
 	return null;
 }
-function changeRuns(marked, kept, removedAt, trailing) {
+function changeRuns(marked, kept, { gapBefore, gapAfter, gapIn }) {
 	const runs = [];
 	let run = null;
+	let view = null;
 	const controls = /* @__PURE__ */ new Map();
 	for (const control of document.querySelectorAll("[aria-expanded][aria-controls]")) for (const id of (control.getAttribute("aria-controls") ?? "").split(/\s+/)) controls.set(id, control);
-	const ordered = byRenderedOrder([.../* @__PURE__ */ new Set([...marked, ...kept])], (n) => n);
-	for (const node of ordered) {
-		const gone = removedAt.get(node) ?? [];
-		const joins = run && viewOf(node, controls) === viewOf(run.at, controls);
-		if (marked.has(node)) {
-			if (run && joins) {
-				run.blocks.push(node);
-				run.removed.push(...gone);
-			} else runs.push(run = {
-				blocks: [node],
-				removed: [...gone],
-				at: node,
-				after: false
-			});
-			continue;
-		}
-		if (gone.length) {
-			if (run && joins) run.removed.push(...gone);
-			else runs.push({
-				blocks: [],
-				removed: [...gone],
-				at: node,
-				after: false
-			});
-		}
-		if (!run?.blocks.some((block) => under(node, block))) run = null;
-	}
-	const last = ordered.at(-1);
-	if (trailing.length && last) {
-		if (run) run.removed.push(...trailing);
+	const place = (found, gap) => {
+		if (!found?.gone.length) return;
+		const { at, gone } = found;
+		if (run && view === viewOf(gapHolder({
+			at,
+			gap
+		}), controls)) run.removed.push(...gone);
 		else runs.push({
 			blocks: [],
-			removed: [...trailing],
-			at: last,
-			after: true
+			removed: [...gone],
+			at,
+			gap
 		});
+	};
+	const ordered = byRenderedOrder([.../* @__PURE__ */ new Set([
+		...marked,
+		...kept,
+		...gapIn.keys()
+	])], (n) => n);
+	for (const node of ordered) {
+		const found = gapBefore.get(node);
+		if (marked.has(node)) {
+			const here = viewOf(node, controls);
+			const gone = found?.gone ?? [];
+			if (run && view === here) {
+				run.blocks.push(node);
+				run.removed.push(...gone);
+			} else {
+				runs.push(run = {
+					blocks: [node],
+					removed: [...gone],
+					at: node,
+					gap: null
+				});
+				view = here;
+			}
+		} else {
+			place(found, "before");
+			if (!run?.blocks.some((block) => under(node, block))) run = null;
+		}
+		place(gapIn.get(node), "in");
+		place(gapAfter.get(node), "after");
 	}
 	return runs.map((each) => {
 		const ids = new Set(each.blocks.map((block) => block.id).filter(Boolean));
@@ -8637,7 +8720,7 @@ function applyDiff(doc, baseAuthored, baseRevision, baseReading) {
 	if (!source) throw new Error("A comparison revision must contain its authored document");
 	const base = paintedSource(source, baseWidgets);
 	const current = currentSource();
-	const { changed, kept, removedAt, trailing, order } = changedSince(base, current);
+	const { changed, kept, gapBefore, gapAfter, gapIn, order } = changedSince(base, current);
 	for (const block of changed) mark(block);
 	for (const [id, now] of readApplication().effective.widgets) {
 		const before = baseWidgets.get(id);
@@ -8688,7 +8771,15 @@ function applyDiff(doc, baseAuthored, baseRevision, baseReading) {
 		stoodAt.set(record, order.get(block));
 		return record;
 	});
-	diffChanges = changeRuns(diffMarked, kept, new Map([...removedAt].map(([block, gone]) => [block, takenOut(gone)])), takenOut(trailing));
+	const read = (gaps) => new Map([...gaps].map(([block, { at, gone }]) => [block, {
+		at,
+		gone: takenOut(gone)
+	}]));
+	diffChanges = changeRuns(diffMarked, kept, {
+		gapBefore: read(gapBefore),
+		gapAfter: read(gapAfter),
+		gapIn: read(gapIn)
+	});
 	return diffChanges.length;
 }
 function blockWords(target) {
@@ -8736,6 +8827,10 @@ function changeAccount({ blocks, removed }) {
 		"changed"
 	]);
 	return parts.map(([n, noun, verb], i) => parts[i - 1]?.[1] === noun ? `${n} ${verb}` : `${plural(noun, n)} ${verb}`).join(", ");
+}
+function changeSince(change) {
+	const base = comparisonBase();
+	return `${changeAccount(change)}${base ? ` since ${base.name}` : ""}`;
 }
 const shows = ({ blocks, removed }) => removed.length > 0 || blocks.some((block) => {
 	const words = blockWords(block);
@@ -8860,13 +8955,14 @@ const pressComparison = (version) => {
 };
 const comparisonBase = () => diffOn.value ? diffBase.value : null;
 const selectedBase = () => diffPendingBase.value ?? comparisonBase();
+const gapHolder = ({ at, gap }) => gap === "in" ? at : at.parentElement ?? at;
 function comparisonChanges(owner = null) {
 	comparisonGeneration.value;
 	const changes = diffOn.value ? diffChanges : [];
 	if (!owner) return changes;
 	const inside = (node) => node !== owner && under(node, owner);
 	return changes.flatMap((change) => {
-		if (!change.blocks.length) return inside(change.at) ? [change] : [];
+		if (!change.blocks.length) return under(gapHolder(change), owner) ? [change] : [];
 		const blocks = change.blocks.filter(inside);
 		const [at] = blocks;
 		return at ? [Object.freeze({
@@ -9942,4 +10038,4 @@ async function readDeferred(manifest, key) {
 }
 
 //#endregion
-export { CHANGE_CARD, DESIGN_MODE_KEY, ELEMENTS, HeldNews, HeldReading, MessageView, NOT_ANSWERED, OBLIGATION_CONTROL, ON_CARD, PAGE_DRAFT, PAGE_SCOPE, RESOLVED, SAYS_IN, SAY_BOX, THREAD, ThreadView, Transcript, acceptData, allButCommandReference, allThreads, anchorLabel, answeredInWords, arrivalOf, authoredHolder, awaitsData, beginThreadSeats, bindsInput, blocksOnScreen, bringBackSurfaceOf, captureDraftEditing, capturePlace, carryingThreadPlace, changeAccount, changeCard, changeRedline, claimSeatReplies, claimTraversals, claimed$1 as claimed, clearDraft, closeChangeCard, commandSteps, commitThreadSeats, comparisonBase, comparisonChanges, completeReadingReturn, copyBlock, copyControl, copyTrigger, createAnchorTravel, createPassageSelection, createProjectionPresentation, createReplyView, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, dataReader, declareOffFlowSurface, declareSide, declareThreadParts, designName, dismissReply, dismissReplyAt, draftContexts, draftHasContent, draftStore, drawnThreadId, externalMark, focusScrolledAway, focusThread, focusedThreadTarget, followBoxGrowth, gesturedOn, heldGrowth, heldObligation, heldOut, heldPagePlace, heldThread, highlightBlocks, holdPagePlace, holdReplyCompositions, holdThreadPlace, initializeServedDocument, inlineMarkdownFragment, isBlockPlacement, isExternalPageLink, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, keepThreadLanding, keepView, landingPlace, leftThePage, loadDraft, loadMarkdown, loadMessageMarkdown, markdownReady, markdownSourceOffset, markdownWords, messageHolding, messageReading, messageText, mirrorDraft, mountFirstMessage, mountHistory, newsCount, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, observeOutputs, onReadingInterrupted, openMessageEditIn, openedChange, openingView, opensElsewhere, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, paintMarkdown, placeKeeper, placeNode, placeOf, placePageThreads, placedMarkdownTokens, prepareAuthoredMessage, prepareDocument, progressFace, pushEntry, quoteReading, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, readingReturn, registerWritingDestination, releaseAuthoredUnder, releaseReplies, rememberWriting, renderMarginThread, renderMarkdown, renderSeats, renderSurfaces, replaceEntry, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, replyIsEditing, replyThreadKey, restorePlace, retainThreadSeats, returnPlace, revealHeld, rowWalk, saveDraft, scrollThreadIntoView, sectionsInView, selectionAnchor, sendDraft, sendLanding, sendMessage, servedElements, settleAcceptedDrafts, settleThread, shallowSigs, showHeld, showHeldThread, showReturnTurn, snapSelection, stances, stepFrom, storedDraft, strongestWorkflow, subjectPlace, suppliedSnapshot, surfaceFocusTarget, takeInitialDocument, tellDraft, textEntryScopes, threadAttention, threadDraft, threadFocusDestination, threadHeading, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, threadSummary, threadTodos, titlePending, todoWord, toggleChangeCard, touchPresses, transferDraft, universalCommandReference, upgradeWidgets, userChoice, userStore, versionPicker, versionsReading, viewMembers, walkOrigin, watchDraft, watchDrafts, watchThreadSurfaces, whereDraft, wholeThread, workflowStep, workflowWord };
+export { CHANGE_CARD, DESIGN_MODE_KEY, ELEMENTS, HeldNews, HeldReading, MessageView, NOT_ANSWERED, OBLIGATION_CONTROL, ON_CARD, PAGE_DRAFT, PAGE_SCOPE, RESOLVED, SAYS_IN, SAY_BOX, THREAD, ThreadView, Transcript, acceptData, allButCommandReference, allThreads, anchorLabel, answeredInWords, arrivalOf, authoredHolder, awaitsData, beginThreadSeats, bindsInput, blocksOnScreen, bringBackSurfaceOf, captureDraftEditing, capturePlace, carryingThreadPlace, changeAccount, changeCard, changeRedline, changeSince, claimSeatReplies, claimTraversals, claimed$1 as claimed, clearDraft, closeChangeCard, commandSteps, commitThreadSeats, comparisonBase, comparisonChanges, completeReadingReturn, copyBlock, copyControl, copyTrigger, createAnchorTravel, createPassageSelection, createProjectionPresentation, createReplyView, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, dataReader, declareOffFlowSurface, declareSide, declareThreadParts, designName, dismissReply, dismissReplyAt, draftContexts, draftHasContent, draftStore, drawnThreadId, externalMark, focusScrolledAway, focusThread, focusedThreadTarget, followBoxGrowth, gapHolder, gesturedOn, heldGrowth, heldObligation, heldOut, heldPagePlace, heldThread, highlightBlocks, holdPagePlace, holdReplyCompositions, holdThreadPlace, initializeServedDocument, inlineMarkdownFragment, isBlockPlacement, isExternalPageLink, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, keepThreadLanding, keepView, landingPlace, leftThePage, loadDraft, loadMarkdown, loadMessageMarkdown, markdownReady, markdownSourceOffset, markdownWords, messageHolding, messageReading, messageText, mirrorDraft, mountFirstMessage, mountHistory, newsCount, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, observeOutputs, onReadingInterrupted, openMessageEditIn, openedChange, openingView, opensElsewhere, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, paintMarkdown, placeKeeper, placeNode, placeOf, placePageThreads, placedMarkdownTokens, prepareAuthoredMessage, prepareDocument, progressFace, pushEntry, quoteReading, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, readingReturn, registerWritingDestination, releaseAuthoredUnder, releaseReplies, rememberWriting, renderMarginThread, renderMarkdown, renderSeats, renderSurfaces, replaceEntry, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, replyIsEditing, replyThreadKey, restorePlace, retainThreadSeats, returnPlace, revealHeld, rowWalk, saveDraft, scrollThreadIntoView, sectionsInView, selectionAnchor, sendDraft, sendLanding, sendMessage, servedElements, settleAcceptedDrafts, settleThread, shallowSigs, showHeld, showHeldThread, showReturnTurn, snapSelection, stances, stepFrom, storedDraft, strongestWorkflow, subjectPlace, suppliedSnapshot, surfaceFocusTarget, takeInitialDocument, tellDraft, textEntryScopes, threadAttention, threadDraft, threadFocusDestination, threadHeading, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, threadSummary, threadTodos, titlePending, todoWord, toggleChangeCard, touchPresses, transferDraft, universalCommandReference, upgradeWidgets, userChoice, userStore, versionPicker, versionsReading, viewMembers, walkOrigin, watchDraft, watchDrafts, watchThreadSurfaces, whereDraft, wholeThread, workflowStep, workflowWord };

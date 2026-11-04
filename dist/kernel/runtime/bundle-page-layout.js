@@ -1,10 +1,10 @@
-import { HOLDS_WORD, LAYOUT, PENDING_TASK, PRESS, PRESSES, TEXT_FIELD, Z, actionIcon, afterScript, agentArrivalDuration, alreadyShown, atLayoutPrecision, beginWalk, bindQueuedWork, blurFocused, byRenderedOrder, canPlaceFocus, cancelRender, clamp, clippedContents, clipsPastSurfaces, closeLayer, closeNativeLayer, closestAcross, composedParentNode, currentLocationIn, d, dataBody, drawn, elementDirective, eventSource, failSoft, failSoftUnreported, fitsWhole, focusDestination, focused, frameVisibility, generatedElement, growthIsSeen, handBack, hasArea, headerCuts, holdFocus, holdRendering, iconTemplate, inChrome, inlineStyle, inputCount, installElementIntegration, intersect, isNativeLayer, keepFieldKeys, keeps, keepsHidden, layoutPx, layoutWindow, listWalkPosition, move, moveScrollerBy, nativeFocusTarget, nearObserver, nearWindow, nextRender, offer, offerAction, offeredActionElement, onCurrentLocation, onFrameVisibility, onUserInput, openLayer, openerOf, orderChildren, paintClips, placeBox, placeHolder, presented as presented$1, pressIsKeyboardActivation, readSampleVisibility, reducedMotion, renderedOrder, renderedParent, renderedUnder, restrictUserIntent, retainUserIntent, rowArrows, scrollBehavior, scrollIntoReadingBand, scrollIntoView, scrollsContent, seenRect, setChildren, setScroll, shadowHost, showNativeLayer, shownBox, shownWindow, sizeObserver, takesLetters, under, union, upFrom, watchOwner, watchRoom, whenLeft, whenNone, whileConnected, x } from "./bundle-portable.js";
+import { HOLDS_WORD, LAYOUT, PENDING_TASK, PRESS, PRESSES, TEXT_FIELD, Z, actionIcon, afterScript, agentArrivalDuration, alreadyShown, atLayoutPrecision, beginWalk, bindQueuedWork, blurFocused, byRenderedOrder, canPlaceFocus, cancelRender, clamp, clippedContents, clipsPastSurfaces, closeLayer, closeNativeLayer, closestAcross, composedParentNode, currentLocationIn, d, dataBody, drawn, elementDirective, eventSource, failSoft, failSoftUnreported, fitsWhole, focusDestination, focused, frameVisibility, generatedElement, growthIsSeen, handBack, hasArea, headerCuts, holdFocus, holdRendering, iconTemplate, inChrome, inlineStyle, inputCount, installElementIntegration, intersect, isNativeLayer, keepFieldKeys, keeps, keepsHidden, layoutPx, layoutWindow, listWalkPosition, locationStandsDown, move, moveScrollerBy, nativeFocusTarget, nativeLayerHolding, nearObserver, nearWindow, nextRender, offer, offerAction, offeredActionElement, onCurrentLocation, onFrameVisibility, onUserInput, openLayer, openerOf, orderChildren, paintClips, placeBox, placeHolder, presented as presented$1, pressIsKeyboardActivation, readSampleVisibility, reducedMotion, renderedOrder, renderedParent, renderedUnder, restrictUserIntent, retainUserIntent, rowArrows, scrollBehavior, scrollContainer, scrollIntoReadingBand, scrollIntoView, scrollsContent, seenRect, setChildren, setScroll, shadowHost, showNativeLayer, shownBox, shownParts, shownWindow, sizeObserver, takesLetters, under, union, upFrom, watchOwner, watchRoom, whenLeft, whenNone, whileConnected, x } from "./bundle-portable.js";
 import { DRAFT_FORMAT, PENDING, PRESENTATION_DOM, TEXT_ENTRY, actionForWidget, agentName, agentSays, anchorKey, annotationMode, announce, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, claimsEsc, commandAvailable, commandBinding, commandRoutes, commandRun, controlAvailabilityOutput, cycledRow, discussed, documentChanged, drawingSchema, editable, el, hasObligationSource, hasRows, holdingError, html, isCommandScope, isMessageEvent, isThreadEvent, keys, leafSays, matchesWhen, moved, nativePress, notice, offlineInteractive, offlineState, pageUrl, paintKeys, paintKeysWithin, presentDocument, projectCommandScope, projectionOrigins, queueWidgetUpdate, raiseError, reactionsAt, readApplication, readPart, registry, render, repaint, responseAction, reveal, runtime, saidBy, savedReadingSettled, saying, setPresentationFailureReporter, shadowRootsIn, tagsDeclaring, threadKey, tokenChoices, turns, voiced, watchCommandAvailability, watchPresentation, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented, wordsText } from "./bundle-errors.js";
 import { admitResponse, completeState, countTraffic, heldHeaders, heldReading, layerHeaders, postEvent, randomId, recordInteraction, removeRuntimeRootStyle, reportCarried, reportPageError, sameLayer, sessionIsActive, setRuntimeRootStyle, watchPendingTraffic } from "./bundle-layer-client.js";
-import { activityTransitionDue, addressableLabel, addressableWord, afterPresentation, ago, anchorAt, anchorBox, anchorElement, anchorForRange, anchorReaches, anchorReading, anchoringIsReady, commitPoint, cutFrames, declaredName, livePoint, markStateApplied, nameAnchor, observeServerNow, observeWorkingGrace, reachScrollers, readingRegionFor, saidNow, scheduleDocumentLayout, scrollsWith, sectionOf, settlePageInterface, targetSegments, tickClock, visualPartLabel, widgetWord } from "./bundle-content-layout.js";
+import { activityTransitionDue, addressableLabel, addressableWord, afterPresentation, ago, anchorAt, anchorBox, anchorElement, anchorForRange, anchorReaches, anchorReading, anchoringIsReady, chromeRoot, commitPoint, cutFrames, declaredName, livePoint, markStateApplied, nameAnchor, observeServerNow, observeWorkingGrace, reachScrollers, readingRegionFor, saidNow, scheduleDocumentLayout, scrollsWith, sectionOf, settlePageInterface, targetSegments, tickClock, visualAt, visualPartLabel, widgetWord } from "./bundle-content-layout.js";
 import { elementById, excerptWords, labelWords, leafSurface, pageParts, pageReadingVersion, quoteFrom, quotedWords, textNodesUnder } from "./bundle-passages.js";
 import { aborted, authoredStates, commitWidgetDescriptors, descriptorStillMatches, quoted, widgetDescriptor } from "./bundle-abort.js";
-import { CHANGE_CARD, HeldNews, MessageView, NOT_ANSWERED, SAYS_IN, THREAD, ThreadView, Transcript, allButCommandReference, allThreads, anchorLabel, answeredInWords, authoredHolder, awaitsData, beginThreadSeats, bindsInput, bringBackSurfaceOf, changeAccount, changeCard, changeRedline, claimed, clearDraft, closeChangeCard, commitThreadSeats, comparisonBase, comparisonChanges, completeReadingReturn, copyTrigger, createProjectionPresentation, createReplyView, dataReader, declareSide, dismissReplyAt, draftContexts, drawnThreadId, externalMark, focusThread, focusedThreadTarget, heldOut, heldThread, holdReplyCompositions, holdThreadPlace, isBlockPlacement, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, loadDraft, loadMarkdown, loadMessageMarkdown, markdownReady, messageHolding, messageReading, messageText, mountFirstMessage, newsNotice, obligationHolding, obligationPlace, openMessageEditIn, openedChange, opensElsewhere, pageCommand, pageRung, pageScope, pageSelection, placeOf as placeOf$1, placePageThreads as placePageThreads$1, placedMarkdownTokens, prepareAuthoredMessage, progressFace, readObligations, readThreads, readingReturn, registerWritingDestination, rememberWriting, renderMarginThread, renderSeats, renderSurfaces, replyDraftContext, replyIsEditing, replyThreadKey, retainThreadSeats, revealHeld, saveDraft, sendLanding, sendMessage, settleAcceptedDrafts, showHeld, showHeldThread, strongestWorkflow, suppliedSnapshot, surfaceFocusTarget, threadAttention, threadDraft, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading as threadReading$1, threadReplyInput, threadRewrites, threadState, todoWord, toggleChangeCard, transferDraft, watchDraft, watchDrafts, watchThreadSurfaces, wholeThread, workflowWord } from "./bundle-data.js";
+import { CHANGE_CARD, HeldNews, MessageView, NOT_ANSWERED, SAYS_IN, THREAD, ThreadView, Transcript, allButCommandReference, allThreads, anchorLabel, answeredInWords, authoredHolder, awaitsData, beginThreadSeats, bindsInput, bringBackSurfaceOf, changeAccount, changeCard, changeRedline, changeSince, claimed, clearDraft, closeChangeCard, commitThreadSeats, comparisonChanges, completeReadingReturn, copyTrigger, createProjectionPresentation, createReplyView, dataReader, declareSide, dismissReplyAt, draftContexts, drawnThreadId, externalMark, focusThread, focusedThreadTarget, gapHolder, heldOut, heldThread, holdReplyCompositions, holdThreadPlace, isBlockPlacement, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, loadDraft, loadMarkdown, loadMessageMarkdown, markdownReady, messageHolding, messageReading, messageText, mountFirstMessage, newsNotice, obligationHolding, obligationPlace, openMessageEditIn, openedChange, opensElsewhere, pageCommand, pageRung, pageScope, pageSelection, placeOf as placeOf$1, placePageThreads as placePageThreads$1, placedMarkdownTokens, prepareAuthoredMessage, progressFace, readObligations, readThreads, readingReturn, registerWritingDestination, rememberWriting, renderMarginThread, renderSeats, renderSurfaces, replyDraftContext, replyIsEditing, replyThreadKey, retainThreadSeats, revealHeld, saveDraft, sendLanding, sendMessage, settleAcceptedDrafts, showHeld, showHeldThread, strongestWorkflow, suppliedSnapshot, surfaceFocusTarget, threadAttention, threadDraft, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading as threadReading$1, threadReplyInput, threadRewrites, threadState, todoWord, toggleChangeCard, transferDraft, watchDraft, watchDrafts, watchThreadSurfaces, wholeThread, workflowWord } from "./bundle-data.js";
 import { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
 import { visibleTargetParts } from "./bundle-visible-target-parts.js";
 
@@ -610,7 +610,7 @@ function normalizeReading(reading, owner, previous = null) {
 const contributionControls = /* @__PURE__ */ new WeakMap();
 let relationOrdinal = 0;
 const presented = /* @__PURE__ */ new WeakMap();
-const records = /* @__PURE__ */ new WeakMap();
+const records$1 = /* @__PURE__ */ new WeakMap();
 const controlContributions = /* @__PURE__ */ new WeakMap();
 const contributorClasses = /* @__PURE__ */ new WeakMap();
 function createContributionControl(record, className = "") {
@@ -618,7 +618,7 @@ function createContributionControl(record, className = "") {
 }
 const contributionControlMatches = (control, record) => record.behavior === "status" ? control instanceof HTMLSpanElement : control instanceof HTMLButtonElement;
 function contributionEntryRecord(control) {
-	const record = records.get(control);
+	const record = records$1.get(control);
 	if (!record) throw new TypeError("A presented margin control needs a margin entry record");
 	return record;
 }
@@ -679,7 +679,7 @@ function paintAgentDescription(control) {
 		paintLabelMore(control, null);
 		return;
 	}
-	const record = records.get(control);
+	const record = records$1.get(control);
 	paintLabelMore(control, [
 		reading.title !== record?.label && reading.title,
 		reading.stage && reading.word,
@@ -743,7 +743,7 @@ function presentContributionHost(control, offered, { accessibleLabel = null, rel
 		disabled: control instanceof HTMLButtonElement,
 		ariaDisabled: true
 	} : null);
-	records.set(control, record);
+	records$1.set(control, record);
 	keeps(control, "data-lf-margin-entry-key", record.key);
 	keeps(control, "data-lf-margin-entry-owner", record.owner || null);
 	keeps(control, "data-lf-margin-entry-identity", JSON.stringify([record.owner, record.key]));
@@ -4133,11 +4133,10 @@ function createAnnotationInventory({ readObligations, placedAt, openThread, goTo
 				activate: () => revealTarget(target, `${face.label}: ${addressableLabel(target) || addressableWord(target)}`, scrollToElement)
 			});
 		}
-		const base = comparisonBase();
 		comparisonChanges().forEach((change, index) => {
 			const target = change.at;
 			const did = changeAccount(change);
-			const account = `${did}${base == null ? "" : ` since ${base.name}`}`;
+			const account = changeSince(change);
 			const card = changeCard(change);
 			const mapAccount = card ? did : account;
 			add(groups, target, {
@@ -7025,6 +7024,330 @@ function placement(surface, shaped, aboveSurfaces, clips = /* @__PURE__ */ new M
 }
 
 //#endregion
+//#region runtime/target-paint.js
+const aimBox = el("div", "lf-ui lf-aim");
+const locationBox = el("div", "lf-ui lf-location");
+const aimStand = paintStand(aimBox);
+const locationStand = paintStand(locationBox);
+const aimLayer = aimStand.root;
+const locationLayer = locationStand.root;
+const aimShape = document.createElementNS(SVG_NS, "svg");
+aimShape.classList.add("lf-aim-shape");
+aimShape.setAttribute("aria-hidden", "true");
+const aimMaskId = "lf-runtime-aim-shape-mask";
+let aimed = null;
+let locationElement = null;
+let locationFrame = 0;
+let locationProjected = [];
+const PROJECTED_LOCATION = "lf-projected-location";
+function clearAim() {
+	aimed = null;
+	vacate(aimStand);
+	aimBox.style.display = "none";
+	aimBox.classList.toggle("lf-shaped", false);
+	aimShape.replaceChildren();
+	aimBox.removeAttribute("data-lf-for");
+	delete aimStand.root.dataset.lfPaintPlane;
+}
+function paintAim(element, surface) {
+	if (!element) {
+		clearAim();
+		return null;
+	}
+	surface ??= element;
+	const geometry = surface && paintGeometry(surface);
+	const placed = element && placement(surface, Boolean(geometry), inChrome(element));
+	if (!placed?.shown) {
+		clearAim();
+		return null;
+	}
+	const shaped = paintShape(aimShape, geometry, placed.rect, {
+		maskId: aimMaskId,
+		veil: true
+	});
+	aimBox.classList.toggle("lf-shaped", shaped);
+	if (!shaped) aimShape.replaceChildren();
+	keeps(aimBox, "data-lf-for", element.id);
+	keeps(aimStand.root, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
+	const stood = standOver(aimStand, placed, shaped ? null : getComputedStyle(surface).borderRadius);
+	aimed = {
+		placed: {
+			...placed,
+			shown: placed.shown
+		},
+		stood
+	};
+	return placed.shown;
+}
+function labelAim(node) {
+	if (!aimed) return;
+	const { placed: { rect, shown, levels }, stood } = aimed;
+	const above = shown.top - node.offsetHeight - stood.room;
+	const room = Math.max(0, ...levels.filter(({ axes }) => axes.y).map(({ band }) => band.top));
+	const cutTop = shown.top > rect.top;
+	const at = {
+		left: Math.max(2, shown.left),
+		top: !cutTop && above >= room ? above : shown.top + 2
+	};
+	const cut = cutTop ? aimStand.frames.findLast(({ level: { axes, band } }) => axes.y && band.top === shown.top) : shown.left > rect.left ? aimStand.frames.findLast(({ level: { axes, band } }) => axes.x && band.left === shown.left) : void 0;
+	if (cut) {
+		const { frame, level: { band } } = cut;
+		if (node.parentElement !== frame) move(frame, node, null);
+		standBox(node, at, {
+			anchored: false,
+			origin: {
+				x: band.left,
+				y: band.top
+			}
+		});
+		return;
+	}
+	if (node.parentElement !== aimStand.carrier) move(aimStand.carrier, node, null);
+	standBox(node, at, stood, stood.anchor, stood.at);
+}
+function createTrace(className) {
+	const box = el("div", `lf-ui ${className}`);
+	const stand = paintStand(box);
+	const shape = document.createElementNS(SVG_NS, "svg");
+	shape.classList.add(`${className}-shape`);
+	shape.setAttribute("aria-hidden", "true");
+	let traced = null;
+	let tracedSurface = null;
+	let tracedGeometry = null;
+	let shapeKeyDrawn = "";
+	let placementFrame = 0;
+	let geometryFrame = 0;
+	let geometryDirty = false;
+	function clear() {
+		traced = null;
+		tracedSurface = null;
+		tracedGeometry = null;
+		shapeKeyDrawn = "";
+		vacate(stand);
+		box.style.display = "none";
+		box.classList.toggle("lf-shaped", false);
+		shape.replaceChildren();
+	}
+	function draw(element = traced, surface = tracedSurface, rebuildGeometry = true) {
+		if (!(element instanceof Element) || !(surface instanceof Element) || !element.isConnected || !surface.isConnected) {
+			clear();
+			return;
+		}
+		const changed = element !== traced || surface !== tracedSurface;
+		const geometry = changed || rebuildGeometry ? paintGeometry(surface) : tracedGeometry;
+		const placed = placement(surface, Boolean(geometry), inChrome(element));
+		traced = element;
+		tracedSurface = surface;
+		tracedGeometry = geometry;
+		if (!placed.shown) {
+			box.style.display = "none";
+			return;
+		}
+		const { rect, shapeKey } = placed;
+		let shaped = Boolean(geometry);
+		if (shaped && (changed || rebuildGeometry || shapeKey !== shapeKeyDrawn)) shaped = paintShape(shape, geometry, rect);
+		if (!shaped) shape.replaceChildren();
+		shapeKeyDrawn = shaped ? shapeKey : "";
+		box.classList.toggle("lf-shaped", shaped);
+		keeps(box, "data-lf-for", element.id || null);
+		keeps(stand.root, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
+		standOver(stand, placed, shaped ? null : getComputedStyle(surface).borderRadius);
+	}
+	return {
+		layer: stand.root,
+		paint(element, surface = element) {
+			if (!element) {
+				clear();
+				return;
+			}
+			const rebuild = geometryDirty || element !== traced || surface !== tracedSurface;
+			if (geometryDirty) {
+				if (geometryFrame) cancelRender(geometryFrame);
+				if (placementFrame) cancelRender(placementFrame);
+				geometryFrame = placementFrame = 0;
+				geometryDirty = false;
+			}
+			draw(element, surface, rebuild);
+		},
+		shifted() {
+			if (placementFrame || geometryFrame || !traced) return;
+			placementFrame = nextRender(() => {
+				placementFrame = 0;
+				if (traced) draw(traced, tracedSurface, false);
+			});
+		},
+		geometryChanged() {
+			geometryDirty = true;
+			if (placementFrame) cancelRender(placementFrame);
+			placementFrame = 0;
+			if (geometryFrame || !traced) return;
+			geometryFrame = nextRender(() => {
+				geometryFrame = 0;
+				if (!geometryDirty) return;
+				geometryDirty = false;
+				if (traced) draw(traced, tracedSurface, true);
+			});
+		},
+		mount() {
+			box.append(shape);
+		}
+	};
+}
+const targetTrace = createTrace("lf-target-trace");
+const proxyRing = createTrace("lf-proxy-ring");
+const targetTraceLayer = targetTrace.layer;
+const proxyRingLayer = proxyRing.layer;
+const paintTrace = targetTrace.paint;
+const paintProxyRing = proxyRing.paint;
+function shifted() {
+	relocate();
+	targetTrace.shifted();
+	proxyRing.shifted();
+}
+function geometryChanged() {
+	relocate();
+	targetTrace.geometryChanged();
+	proxyRing.geometryChanged();
+}
+function paintLocation(element) {
+	locationElement = element;
+	drawLocation();
+}
+const paintsOver = (element) => {
+	const layer = nativeLayerHolding(element);
+	return !layer || layer === nativeLayerHolding(locationStand.root);
+};
+function drawLocation() {
+	const element = locationElement;
+	const placed = element?.isConnected && !locationStandsDown(element) && paintsOver(element) ? placement(element, false, inChrome(element)) : null;
+	if (!element || !placed?.shown) {
+		projectLocation([]);
+		vacate(locationStand);
+		locationBox.style.display = "none";
+		locationBox.removeAttribute("data-lf-for");
+		delete locationStand.root.dataset.lfPaintPlane;
+		return;
+	}
+	projectLocation([element, ...shownParts(element)]);
+	keeps(locationBox, "data-lf-for", element.id || null);
+	keeps(locationStand.root, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
+	standOver(locationStand, placed, getComputedStyle(element).borderRadius);
+}
+function projectLocation(boxes) {
+	for (const box of locationProjected) if (!boxes.includes(box)) box.classList.toggle(PROJECTED_LOCATION, false);
+	for (const box of boxes) box.classList.toggle(PROJECTED_LOCATION, true);
+	locationProjected = boxes;
+}
+function relocate() {
+	if (locationFrame || !locationElement) return;
+	locationFrame = nextRender(() => {
+		locationFrame = 0;
+		drawLocation();
+	});
+}
+function mountTargetPaint() {
+	aimBox.append(aimShape);
+	targetTrace.mount();
+	proxyRing.mount();
+}
+
+//#endregion
+//#region runtime/details-shelf.js
+const records = /* @__PURE__ */ new Map();
+const owners = /* @__PURE__ */ new WeakMap();
+let shelf = null;
+function noteOf(node) {
+	let at = node;
+	for (; at && at !== shelf; at = upFrom(at)) {
+		const owner = owners.get(at);
+		if (owner) return owner;
+	}
+	return null;
+}
+function standsFor(node) {
+	const owner = noteOf(node);
+	return owner && (owner.standsFor(node) ?? owner.element);
+}
+declareSide(standsFor);
+let ringed = null;
+function ring() {
+	const node = focused();
+	const target = node && noteOf(node)?.presents ? standsFor(node) : null;
+	if (target === ringed && (!target || target.isConnected)) return;
+	ringed = target;
+	const part = target && visualAt(target, { unclaimed: false })?.part;
+	paintProxyRing(target, part?.element === target ? part.surface : target);
+}
+onCurrentLocation((node) => {
+	if (node && noteOf(node)?.presents && standsFor(node)) {
+		reveal(standsFor(node), retainUserIntent());
+		scrollIntoView(standsFor(node), {
+			behavior: "instant",
+			block: "nearest"
+		});
+	}
+	ring();
+});
+const same = (left, right) => left.length === right.length && left.every((node, index) => node === right[index]);
+const authoredDetails = (element, value) => {
+	const root = element.getRootNode();
+	if (!("getElementById" in root)) return [];
+	return (value ?? "").split(/\s+/).filter(Boolean).flatMap((id) => {
+		const node = root.getElementById(id);
+		return node ? [node] : [];
+	});
+};
+const written = (element) => element.getAttribute("aria-details") === "";
+function name(element, record) {
+	if (!written(element)) record.authored = element.getAttribute("aria-details");
+	const wanted = [...authoredDetails(element, record.authored), ...record.notes];
+	if (written(element) && same(element.ariaDetailsElements ?? [], wanted)) return;
+	element.ariaDetailsElements = wanted;
+}
+function shelve(element, note, standsFor = () => null, { presents = true } = {}) {
+	shelf ??= offer("div", "lf-details-shelf");
+	if (!shelf.isConnected) chromeRoot.append(shelf);
+	if (note.parentNode !== shelf) move(shelf, note, null);
+	const before = owners.get(note)?.element;
+	if (before && before !== element) forget(before, note);
+	owners.set(note, {
+		element,
+		standsFor,
+		presents
+	});
+	let record = records.get(element);
+	if (!record) {
+		record = {
+			notes: [],
+			authored: null
+		};
+		records.set(element, record);
+	}
+	if (!record.notes.includes(note)) record.notes.push(note);
+	name(element, record);
+	ring();
+}
+function unshelve(element, note) {
+	forget(element, note);
+	note.remove();
+	owners.delete(note);
+}
+function forget(element, note) {
+	const record = records.get(element);
+	if (record?.notes.includes(note)) {
+		record.notes = record.notes.filter((held) => held !== note);
+		if (record.notes.length) name(element, record);
+		else {
+			if (written(element)) {
+				if (record.authored === null) element.removeAttribute("aria-details");
+				else element.setAttribute("aria-details", record.authored);
+			}
+			records.delete(element);
+		}
+	}
+}
+
+//#endregion
 //#region runtime/margin-bars.js
 const BAR = 3;
 const KINDS = {
@@ -7048,6 +7371,9 @@ const OUTLINE = {
 const CARD_INSET = 13;
 const marginBarLayer = el("div", "lf-ui lf-margin-bars");
 const outlined = Z(null);
+const proxies = /* @__PURE__ */ new Map();
+const proxied = /* @__PURE__ */ new WeakMap();
+const removalProxy = (change) => proxies.get(change) ?? null;
 function outlineChange(change) {
 	outlined.value = change;
 }
@@ -7055,15 +7381,56 @@ function barLeft(target, rect, gap) {
 	const edge = (target.closest("table") ?? target).getBoundingClientRect();
 	return target.matches(":dir(rtl)") ? Math.min(Math.max(rect.right, edge.right) + gap, document.documentElement.clientWidth - BAR) : Math.max(Math.min(rect.left, edge.left) - gap - BAR, 0);
 }
-function gapOf({ at, after }, rect) {
-	const other = (after ? at.nextElementSibling : at.previousElementSibling)?.getBoundingClientRect();
+function gapOf({ at, gap }, rect) {
+	if (gap === "in") return {
+		top: rect.top,
+		bottom: Math.max(rect.bottom, rect.top + GAP_BAR.min)
+	};
+	const after = gap === "after";
+	const reach = after ? rect.bottom + GAP_BAR.max : rect.top - GAP_BAR.max;
+	const across = (edge) => after ? edge > rect.bottom : edge < rect.top;
+	let far = reach;
+	for (let box = at; box.parentElement && box !== document.body;) {
+		let sibling = after ? box.nextElementSibling : box.previousElementSibling;
+		while (sibling && !sibling.getClientRects().length) sibling = after ? sibling.nextElementSibling : sibling.previousElementSibling;
+		if (sibling) {
+			const edge = sibling.getBoundingClientRect()[after ? "top" : "bottom"];
+			if (across(edge)) far = edge;
+			break;
+		}
+		box = box.parentElement;
+		const own = box.getBoundingClientRect()[after ? "bottom" : "top"];
+		if (across(own)) {
+			far = after ? Math.min(own, reach) : Math.max(own, reach);
+			break;
+		}
+	}
 	return after ? {
 		top: rect.bottom,
-		bottom: other && other.top > rect.bottom ? other.top : rect.bottom + GAP_BAR.max
+		bottom: far
 	} : {
-		top: other && other.bottom < rect.top ? other.bottom : rect.top - GAP_BAR.max,
+		top: far,
 		bottom: rect.top
 	};
+}
+function gapRange(change) {
+	const { at, gap } = change;
+	if (gap === "in") return at;
+	let within = gapHolder(change);
+	while (within !== document.body && !scrollContainer(within) && within.parentElement) within = within.parentElement;
+	const words = document.createTreeWalker(within, NodeFilter.SHOW_TEXT, { acceptNode: (node) => /\S/.test(node.nodeValue ?? "") ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP });
+	let edge = at;
+	if (gap === "after") while (edge.lastChild) edge = edge.lastChild;
+	words.currentNode = edge;
+	const before = gap === "after" && edge instanceof Text && /\S/.test(edge.data) ? edge : words.previousNode();
+	words.currentNode = edge;
+	const after = words.nextNode();
+	const range = document.createRange();
+	if (before instanceof Text) range.setStart(before, before.length);
+	else range.setStartBefore(at);
+	if (after instanceof Text) range.setEnd(after, 0);
+	else range.setEndAfter(at);
+	return range;
 }
 function extentOf(change, rect) {
 	if (!change.blocks.length) return {
@@ -7103,8 +7470,10 @@ function createMarginBars(inventory) {
 	};
 	const gaps = /* @__PURE__ */ new Map();
 	const outline = el("span", "lf-change-outline");
+	const ring = el("span", "lf-change-outline lf-change-ring");
 	let card = null;
 	let pointed = null;
+	let ringed = null;
 	let frame = 0;
 	function items() {
 		const barsOf = (kind) => [...drawn[kind]].map(([target, node]) => ({
@@ -7136,20 +7505,20 @@ function createMarginBars(inventory) {
 				};
 			}
 		}));
-		const reach = pointed;
-		const round = reach ? [{
-			node: outline,
+		const round = [[pointed, outline], [ringed === card?.change ? null : ringed, ring]].flatMap(([reach, node]) => reach ? [{
+			node,
 			target: reach.at,
 			rect: ({ rect }) => {
 				const box = extentOf(reach, rect);
+				const y = reach.blocks.length ? OUTLINE.y : 0;
 				return {
 					left: box.left - OUTLINE.x,
 					right: box.right + OUTLINE.x,
-					top: box.top - OUTLINE.y,
-					bottom: box.bottom + OUTLINE.y
+					top: box.top - y,
+					bottom: box.bottom + y
 				};
 			}
-		}] : [];
+		}] : []);
 		const open = card;
 		const over = open ? [{
 			node: open.node,
@@ -7192,6 +7561,7 @@ function createMarginBars(inventory) {
 		const targets = new Set(items().flatMap(({ target }) => target));
 		for (const target of card?.change.blocks ?? []) targets.add(target);
 		for (const target of pointed?.blocks ?? []) targets.add(target);
+		if (ringed) targets.add(ringed.at);
 		for (const target of observed) if (!targets.has(target)) sizes.unobserve(target);
 		for (const target of targets) if (!observed.has(target)) sizes.observe(target);
 		observed = targets;
@@ -7232,16 +7602,40 @@ function createMarginBars(inventory) {
 		let changed = false;
 		for (const change of gaps.keys()) if (!empty.has(change)) {
 			gaps.delete(change);
+			const proxy = proxies.get(change);
+			if (proxy) unshelve(change.at, proxy);
+			proxies.delete(change);
 			changed = true;
 		}
 		for (const change of empty) if (!gaps.has(change)) {
 			const node = el("span", "lf-change-bar");
 			keeps(node, "data-lf-for", change.at.id || null);
-			node.dataset.lfGap = change.after ? "after" : "before";
+			node.dataset.lfGap = change.gap ?? "";
 			gaps.set(change, node);
+			const proxy = offerAction("proxy", "lf-change-gap", changeSince(change));
+			proxy.tabIndex = -1;
+			keeps(proxy, "aria-controls", CHANGE_CARD);
+			keeps(proxy, "aria-expanded", "false");
+			proxy.addEventListener("click", () => toggleChangeCard(change));
+			shelve(change.at, proxy, () => null, { presents: false });
+			proxies.set(change, proxy);
+			proxied.set(proxy, change);
 			changed = true;
 		}
 		if (changed) redraw();
+	});
+	onCurrentLocation((node) => {
+		const change = (node && proxied.get(node)) ?? null;
+		if (change) {
+			reveal(gapHolder(change), retainUserIntent());
+			scrollIntoView(gapRange(change), {
+				behavior: scrollBehavior(),
+				block: "nearest"
+			});
+		}
+		if (change === ringed) return;
+		ringed = change;
+		redraw();
 	});
 	x(() => {
 		pointed = outlined.value;
@@ -7249,6 +7643,7 @@ function createMarginBars(inventory) {
 	});
 	x(() => {
 		const change = openedChange();
+		for (const [each, proxy] of proxies) keeps(proxy, "aria-expanded", String(each === change));
 		if (card?.change === change) return;
 		const node = change ? cardFor(change) : null;
 		card = change && node ? {
@@ -8832,4 +9227,4 @@ function createPageLayout({ scheduleThreadPreviewPosition, syncReactLayout, refr
 }
 
 //#endregion
-export { CONTRIBUTION_ENTRY_SCHEMA, DRAWING_COORDINATE_LIMIT, KINDS$1 as KINDS, MAX_DRAWING_FRAME_DEPTH, MAX_DRAWING_POINTS, MAX_DRAWING_SAYS_LENGTH, MAX_DRAWING_STROKES, SVG_NS, activateContributionControl, annotationItems, answerWords, awaitingUser, beginRead, canFold, choosePrimary, clearContributionControls, clusterProjection, composerOpen, composerQuote, consumeAnnotations, contributionEntry, contributionEntryRecord, contributionEntrySource, contributionHost, contributionItemKey, contributionReceipts, createPageLayout, createReactionController, createSelectionComposer, createThreadLanding, currentLocationThread, currentProjection, declareThreadKeys, dropStand, entryControls, entryEngaged, entryHasMarginHost, fabBar, fabInput, fabOptionsTrigger, focusedOfferOf, inPageOrder, landInThread, leafEditorView, leavesBox, marginBarLayer, markerFace, materializeContributionControls, mountApplication, navigateToDatum, obligationActions, obligationEnding, obligationWord, optionsOffered, outlineChange, ownedObligationControl, paintBarReactions, paintGeometry, paintSet, paintShape, paintStand, partOver, pendingAbout, pendingAnchor, pendingDrawing, placePageThreads, placement, presentContributionEntry, presentContributionReceipts, primaryReading, queueActions, queueItemKey, queueTitle, reactionAvailable, reactionTokens, readPlan, readQueues, readingBehavior, readingChoices, readingContext, readingFace, readingKey, readingLabel, readingState, registerContribution, registerRootHeader, registerThreadPresentation, sendReaction, spokenContext, spokenSubject, standBox, standOver, syncContributionSelection, syncContributionUnread, textField, threadActions, threadBox, threadInput, threadReading, unreadIn, vacate, visibleContributionEntryLabel, widgetController, wireInput };
+export { CONTRIBUTION_ENTRY_SCHEMA, DRAWING_COORDINATE_LIMIT, KINDS$1 as KINDS, MAX_DRAWING_FRAME_DEPTH, MAX_DRAWING_POINTS, MAX_DRAWING_SAYS_LENGTH, MAX_DRAWING_STROKES, SVG_NS, activateContributionControl, aimLayer, annotationItems, answerWords, awaitingUser, beginRead, canFold, choosePrimary, clearAim, clearContributionControls, clusterProjection, composerOpen, composerQuote, consumeAnnotations, contributionEntry, contributionEntryRecord, contributionEntrySource, contributionHost, contributionItemKey, contributionReceipts, createPageLayout, createReactionController, createSelectionComposer, createThreadLanding, currentLocationThread, currentProjection, declareThreadKeys, dropStand, entryControls, entryEngaged, entryHasMarginHost, fabBar, fabInput, fabOptionsTrigger, focusedOfferOf, geometryChanged, inPageOrder, labelAim, landInThread, leafEditorView, leavesBox, locationLayer, marginBarLayer, markerFace, materializeContributionControls, mountApplication, mountTargetPaint, navigateToDatum, obligationActions, obligationEnding, obligationWord, optionsOffered, outlineChange, ownedObligationControl, paintAim, paintBarReactions, paintGeometry, paintLocation, paintSet, paintShape, paintStand, paintTrace, partOver, pendingAbout, pendingAnchor, pendingDrawing, placePageThreads, placement, presentContributionEntry, presentContributionReceipts, primaryReading, proxyRingLayer, queueActions, queueItemKey, queueTitle, reactionAvailable, reactionTokens, readPlan, readQueues, readingBehavior, readingChoices, readingContext, readingFace, readingKey, readingLabel, readingState, registerContribution, registerRootHeader, registerThreadPresentation, removalProxy, sendReaction, shelve, shifted, spokenContext, spokenSubject, standOver, syncContributionSelection, syncContributionUnread, targetTraceLayer, textField, threadActions, threadBox, threadInput, threadReading, unreadIn, unshelve, visibleContributionEntryLabel, widgetController, wireInput };

@@ -5,8 +5,8 @@ import { chromeForeground, chromeRoot, exactTarget, passageGeometry, pointBand, 
 import { ANNOTATIONS_KEY } from "./bundle-restore-state.js";
 import { blockAt, elementFromPointAcross, labelWords, pageWords, quoteFrom, rangeOf, segmentsIn } from "./bundle-passages.js";
 import { anchorLabel, arrivalOf, carryingThreadPlace, claimSeatReplies, claimed, currentLocationThreadId, declareOffFlowSurface, declareSide, keepThreadLanding, pageCommand, pageRung, pageScope, pageSelection, placeKeeper, releaseAuthoredUnder, releaseReplies, revealHeld, rowWalk, selectionAnchor, showReturnTurn, threadFocusDestination, threadIdNamed, threadNamed } from "./bundle-data.js";
-import { SVG_NS, activateContributionControl, awaitingUser, canFold, choosePrimary, clearContributionControls, clusterProjection, contributionEntry, contributionEntryRecord, contributionEntrySource, dropStand, entryEngaged, entryHasMarginHost, focusedOfferOf, markerFace, materializeContributionControls, optionsOffered, outlineChange, paintGeometry, paintShape, paintStand, placement, presentContributionEntry, presentContributionReceipts, primaryReading, readingBehavior, readingChoices, readingContext, readingFace, readingKey, readingLabel, readingState, spokenContext, spokenSubject, standOver, syncContributionSelection, syncContributionUnread, threadReading, unreadIn } from "./bundle-page-layout.js";
-import { boxMotion, paintTrace } from "./bundle-box-motion.js";
+import { SVG_NS, activateContributionControl, awaitingUser, canFold, choosePrimary, clearContributionControls, clusterProjection, contributionEntry, contributionEntryRecord, contributionEntrySource, dropStand, entryEngaged, entryHasMarginHost, focusedOfferOf, markerFace, materializeContributionControls, optionsOffered, outlineChange, paintGeometry, paintShape, paintStand, paintTrace, placement, presentContributionEntry, presentContributionReceipts, primaryReading, readingBehavior, readingChoices, readingContext, readingFace, readingKey, readingLabel, readingState, spokenContext, spokenSubject, standOver, syncContributionSelection, syncContributionUnread, threadReading, unreadIn } from "./bundle-page-layout.js";
+import { boxMotion } from "./bundle-box-motion.js";
 import { THREAD_CARD, cardMeasure, cardMinimum, commentAttachment, commentBoundary, commentPlacement, commentReference, floatingGeometry, floatingPlacement, floatingSelections, floatingUi, layoutMarginRows, makeRoom, marginColumn, mountMarginLayer, paintedBox, registerMarginRow, scheduleMarginEntryLabels, scheduleMarginLayout, standsFolded, standsWithheld, syncMarginContentLayout, unregisterMarginRow } from "./bundle-comment-placement.js";
 
 //#region runtime/annotation-overlay/surface-grip.js
@@ -1255,6 +1255,7 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 	let refoldQueued = false;
 	let expandedOptionsOwner = null;
 	let hoveredHost = null;
+	let hoveredControl = null;
 	let highlighted = null;
 	let highlightFrame = 0;
 	let rovingFrame = 0;
@@ -1746,6 +1747,7 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 				const takePointerOwnership = (event) => {
 					const control = document.elementFromPoint(event.clientX, event.clientY)?.closest?.(".lf-margin-entry");
 					hoveredHost = control && created.contains(control) ? created : null;
+					hoveredControl = hoveredHost ? control ?? null : null;
 					refreshHighlight();
 				};
 				created.addEventListener("pointermove", takePointerOwnership);
@@ -1842,7 +1844,7 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 		const currentLocationShown = !marker && entry && marksFor(currentLocation).length > 0 && threadReading(entry)?.items.some((item) => item.thread.id === currentLocation);
 		const target = targetFor(entry) ?? null;
 		const obligationShown = target && target === currentLocationObligation();
-		const changeSource = marker ? entry?.items.map((item) => sourceItem(item)).find((source) => source?.change) : null;
+		const changeSource = marker ? ((pointerHost ? hoveredControl : active)?.lfChoice?.items ?? entry?.items ?? []).map((item) => sourceItem(item)).find((source) => source?.change) : null;
 		outlineChange(changeSource?.change && !changeSource.discloses?.()?.open ? changeSource.change : null);
 		highlight(changeSource || drawingOnly || currentLocationShown || obligationShown ? null : target);
 	}

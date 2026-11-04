@@ -948,10 +948,14 @@ export function createFloatingPanel({
   // The errors the field can say now, newest first (errors.js): about nothing, not yet
   // edited past, while the editor standing in the field is empty. An error about the
   // editor covers it instead, as at any box (composing/input.js). A folded panel, or a
-  // view with no editor in the field, can say none.
+  // view with no editor in the field, can say none. The editor is the one this paint
+  // stands in the field, whether or not it stands there yet: the paint that closes a
+  // thread's view reads before it moves the page's editor in, and read from the DOM,
+  // the error went unsaid for that paint, and the leaf's dot was set and cleared in
+  // one task.
   function sayable() {
     const input = host.dataset.lfRest === "mark" ? null : fieldInput();
-    if (!input?.isConnected || draftOf(input) !== "") return [];
+    if (!input || draftOf(input) !== "") return [];
     return errorsReading().filter((error) => !error.passed && error.subject === null);
   }
   // The words selected on the page that a press on the page's field comments on, as

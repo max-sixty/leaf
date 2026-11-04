@@ -22,7 +22,7 @@ import { setChildren } from "../dom-children.js";
 import { generatedElement } from "../widget-elements.js";
 import { html, render } from "/runtime/framework.js";
 import { seatRoot, threadKey } from "./model.js";
-import { ThreadView, apartPlaces, threadReading } from "./thread-card.js";
+import { ThreadView, threadReading } from "./thread-card.js";
 import { holdFocus, focused, focusDestination, currentLocationIn } from "../focus.js";
 import { registry } from "../registry.js";
 import { loadDraft } from "../drafts.js";
@@ -37,7 +37,7 @@ import { foldBlock } from "../motion.js";
 /** @typedef {import("./thread-card.js").ThreadRecord} ThreadRecord */
 /** @typedef {import("./thread-card.js").ThreadReading} ThreadReading */
 /** @typedef {import("./thread-card.js").ThreadViewModel} ThreadViewModel */
-/** @typedef {import("./thread-card.js").ThreadOutlets} ThreadOutlets */
+/** @typedef {import("./thread-card.js").ViewOutlets} ViewOutlets */
 /** @typedef {{threads: readonly ThreadReading[], response: boolean, surface?: string, news?: null}} SeatReading */
 /** @typedef {{threads: readonly ThreadViewModel[], response: boolean, surface?: string,
  * news?: import("./held-news.js").NewsNotice | null}} SeatShowing */
@@ -129,8 +129,8 @@ class ThreadSeat {
   // one drawn but not yet placed is kept for its owner.
   #connected = false;
   // Where the margin's floating card stands its thread's parts (thread-card.js,
-  // `ThreadOutlets`); a seat in the page's flow gives none.
-  /** @type {ThreadOutlets} */
+  // `ViewOutlets`); a seat in the page's flow gives none.
+  /** @type {ViewOutlets} */
   #outlets = {};
 
   /** @param {Element} node @param {ThreadCommands} commands */
@@ -138,7 +138,7 @@ class ThreadSeat {
     this.node = node;
     this.#commands = commands;
   }
-  /** @param {() => HTMLElement | null} response @param {ThreadOutlets} outlets */
+  /** @param {() => HTMLElement | null} response @param {ViewOutlets} outlets */
   configure(response, outlets = {}) {
     this.#response = response;
     this.#outlets = outlets;
@@ -237,10 +237,6 @@ class ThreadSeat {
         );
       const resolved = settled.includes(descriptor);
       view.setOutlets(this.#outlets);
-      // The parts the thread draws apart stand in their places before it draws them, so
-      // what reads them as drawn reads them placed, as a primary reader places them.
-      for (const [place, part] of apartPlaces(this.#outlets))
-        setChildren(place, [view.apart[part]]);
       view.present(descriptor);
       view.setFoldedInto(
         resolved ? (this.#resolved?.node ?? null) : null,
@@ -405,7 +401,7 @@ class ThreadSeat {
 }
 
 /** @param {Element} host @param {ThreadCommands} commands
- * @param {() => HTMLElement | null} response @param {ThreadOutlets} outlets */
+ * @param {() => HTMLElement | null} response @param {ViewOutlets} outlets */
 function seatFor(host, commands, response = () => null, outlets = {}) {
   let seat = seats.get(host);
   if (!seat) {
@@ -468,7 +464,7 @@ export function renderSeats(threads, commands) {
 }
 
 /** @param {HTMLElement} host @param {ThreadRecord} thread @param {ThreadCommands} commands
- * @param {ThreadOutlets} outlets */
+ * @param {ViewOutlets} outlets */
 export function renderMarginThread(host, thread, commands, outlets) {
   return seatFor(host, commands, () => null, outlets)
     .present(seatReading([thread], "margin", commands, false))

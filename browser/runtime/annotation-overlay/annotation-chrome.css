@@ -706,8 +706,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item ~ .lf-chrome .lf-mark-el
      focused control's ring stays whole. A notice of held news stands first in the
      row (thread-preview.js); the card keeps its width while it holds news, so the
      notice takes its room from the heads' track, and the actions after it keep their
-     places. The places the thread draws its notice and settlement in lay out as what
-     they hold. */
+     places. */
   /* The row is a message head's line, so Reopen taking Resolve's place is as tall as
      Resolve was. */
   .lf-margin-thread .lf-page-thread > .lf-margin-thread-controls {
@@ -721,9 +720,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item ~ .lf-chrome .lf-mark-el
     gap: 4px;
     min-height: var(--lf-msg-head-height);
     padding-inline-start: var(--sp-2);
-  }
-  .lf-margin-thread-place {
-    display: contents;
   }
   /* The notice takes at most a notice's room beside a head's words (`--lf-news-width`,
      surfaces.css), and no more than the heads leave beside each one's name and time

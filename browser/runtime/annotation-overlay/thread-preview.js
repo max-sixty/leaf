@@ -130,7 +130,7 @@ const CUT_EDGES = [
 ];
 
 /** @param {{inventory: ReturnType<typeof import("../annotation-inventory.js").createAnnotationInventory>,
- * renderMarginThread: (host: HTMLElement, thread: ThreadRecord, outlets: import("../thread/thread-card.js").ThreadOutlets) => ReturnType<typeof import("../thread/inline.js").renderMarginThread>,
+ * renderMarginThread: (host: HTMLElement, thread: ThreadRecord, outlets: import("../thread/thread-card.js").ViewOutlets) => ReturnType<typeof import("../thread/inline.js").renderMarginThread>,
  * placedAt: ReturnType<typeof import("../anchor-placement.js").createAnchorPlacement>["placedAt"],
  * scrollThreadIntoView: typeof import("../thread/reply-landing.js").scrollThreadIntoView,
  * scrollToElement: ReturnType<typeof import("../anchor-travel.js").createAnchorTravel>["scrollToElement"],
@@ -192,13 +192,11 @@ export function createThreadPreview({
   );
   // The card's head line: the thread's notice of held news, Previous and Next, Open in
   // panel, the thread's Resolve or Reopen, and Close. It stands in the thread, over its
-  // first message's head, whose track it shares (annotation-chrome.css), and the thread
-  // draws its notice and its settlement in their places on it (thread-card.js,
-  // `ThreadOutlets`, `head`).
+  // first message's head, whose track it shares (annotation-chrome.css), and holds the
+  // boxes the thread draws its notice and its settlement in (thread-card.js,
+  // `CardOutlets`, `line`).
   const previewHead = el("div", "lf-margin-thread-controls");
   const previewActions = el("span", "lf-thread-meta-actions");
-  const previewNews = el("span", "lf-margin-thread-place");
-  const previewSettles = el("span", "lf-margin-thread-place");
   previewHead.append(previewActions);
   const previewList = el("div", "lf-margin-preview-list");
   let dismiss = () => {};
@@ -1017,19 +1015,24 @@ export function createThreadPreview({
       dismiss();
       openInPanel(shownThread.id);
     };
-    setChildren(previewActions, [
-      previewNews,
-      ...(previewNav.hidden ? [] : [previewNav]),
-      previewOpenInPanel,
-      previewSettles,
-      previewClose,
-    ]);
     const rendered = renderMarginThread(body, shownThread, {
-      head: { line: previewHead, news: previewNews, controls: previewSettles },
+      line: (apart) => {
+        setChildren(previewActions, [
+          apart.news,
+          ...(previewNav.hidden ? [] : [previewNav]),
+          previewOpenInPanel,
+          apart.controls,
+          previewClose,
+        ]);
+        return previewHead;
+      },
       // A send from the card is the user's change joining the stream the card shows
       // (box-motion.js, "send"), read before the send draws.
       reply: { options: { sending: following.stream } },
       anchor: session.anchor,
+      // The card stands for the thread on the page, where taking back a settlement made
+      // in it opens the thread again.
+      reader: "page",
       // A resolved thread with no draft has no margin card, so resolving closes it and
       // hands the user to its target. Reopen lands as the thread's own does.
       landing: (resolved) => {

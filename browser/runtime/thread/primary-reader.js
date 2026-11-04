@@ -4,7 +4,7 @@
 import { aborted } from "../abort.js";
 import { randomId } from "../ids.js";
 import { under, renderedUnder, shadowHost } from "../shadow.js";
-import { ThreadView, apartPlaces, threadReading } from "./thread-card.js";
+import { ThreadView, threadReading } from "./thread-card.js";
 import { MessageView, messageReading } from "./messages.js";
 import { createReplyView } from "./replies.js";
 import { keeps, keepsHidden } from "../keeps.js";
@@ -73,11 +73,12 @@ const placesOf = (item) => {
   /** @type {[Element, (view: RetainedPart) => Element][]} */
   const places = [[item.outlet, (view) => view.node]];
   if (item.kind !== "thread") return places;
-  for (const [place, part] of apartPlaces(item.options))
-    places.push([
-      place,
-      (view) => (view.kind === "thread" ? view.apart[part] : view.node),
-    ]);
+  /** @param {keyof ThreadView["apart"]} part @returns {(view: RetainedPart) => Element} */
+  const apart = (part) => (view) =>
+    view.kind === "thread" ? view.apart[part] : view.node;
+  const { head, reply } = item.options;
+  if (head) places.push([head.news, apart("news")], [head.controls, apart("controls")]);
+  if (reply?.outlet) places.push([reply.outlet, apart("reply")]);
   return places;
 };
 // What a part stands in its places: its own box, and a whole thread's boxes apart.
@@ -539,7 +540,20 @@ export function createPrimaryReader(
     // (thread-card.js, `#retainHeaderSlot`).
     for (const { item, view, reading } of drawing) {
       if (view.kind === "thread") {
-        if (item.kind === "thread") view.setOutlets(item.options);
+        if (item.kind === "thread") {
+          // Only what a nomination may ask of its thread (module-annotations.md), so
+          // nothing else it passed reaches the view, as a margin card's own head line
+          // would move the package's element into the thread (thread-card.js,
+          // `CardOutlets`). A nomination that lands the user elsewhere is where taking
+          // back the settlement opens the thread again (`ViewOutlets`, `reader`).
+          const { head, reply, quote, landing } = item.options;
+          view.setOutlets({
+            ...(head && { head: { news: head.news, controls: head.controls } }),
+            ...(reply && { reply }),
+            ...(quote && { quote }),
+            ...(landing && { landing, reader: /** @type {const} */ ("primary") }),
+          });
+        }
         view.present(reading);
         view.commit();
       } else {

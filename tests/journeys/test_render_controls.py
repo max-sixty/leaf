@@ -308,14 +308,11 @@ RING_CASES = (
             ),
             "pr-walkthrough": (
                 ("#pr-path-tree > summary", "[data-lf-mark]"),
-                (
-                    "#pr-flow-tab",
-                    "[data-lf-views]:has(> :is(lf-tab, lf-part)",
-                ),
+                ("#pr-flow-tab", ".lf-ring-frame"),
                 ("lf-gloss:visible > .lf-gloss-mark", ".lf-gloss-mark"),
                 (".lf-diff-search input", "wa-input::part"),
                 ("lf-diff summary", FLOOR_RING),
-                ("lf-diff code", ".lf-diff-frame"),
+                ("lf-diff code", ".lf-ring-frame"),
             ),
             "release-notes": (
                 ("main p.lf-mark-el", "[data-lf-mark]"),
@@ -489,7 +486,6 @@ RING_EXAMPLE_FILES = {
 # paint so an unrelated ring drawn by the same rule cannot credit the sample.
 RING_REMOTE_CARRIER = {
     ".lf-key-hint.lf-current": ".lf-target-picker-hint.lf-current",
-    ".lf-diff-frame": "lf-diff code[data-lf-focus-visible] + .lf-diff-frame",
     # A pane draws its focused body's band inset over the body's cell (base.css).
     "[data-lf-reading-role=pane]": '[data-lf-reading-role="pane"]:has(> [data-lf-focus])',
 }

@@ -3,6 +3,8 @@
    drive arrival delivery; only rendering frames are advanced explicitly. */
 import assert from "node:assert/strict";
 import test from "node:test";
+import { setFlagsFromString } from "node:v8";
+import { runInNewContext } from "node:vm";
 
 const frames = new Map();
 let nextFrame = 0;
@@ -47,6 +49,24 @@ async function renderFrame() {
   await Promise.all(due.map((callback) => callback(0)));
   await new Promise((resolve) => setTimeout(resolve, 0));
 }
+
+// First in the file, so its owner is the first the shared watch serves.
+test("the first owner the shared watch serves is collected once it leaves", async () => {
+  setFlagsFromString("--expose-gc");
+  const collect = runInNewContext("gc");
+  const ref = (() => {
+    const owner = document.createElement("section");
+    document.body.append(owner);
+    whileConnected(owner, () => {});
+    owner.remove();
+    return new WeakRef(owner);
+  })();
+  for (let turn = 0; turn < 12 && ref.deref(); turn++) {
+    await new Promise((resolve) => setTimeout(resolve));
+    collect();
+  }
+  assert.equal(ref.deref(), undefined);
+});
 
 test("resources survive a move, release on departure, and restart with a fresh signal", async () => {
   const owner = document.createElement("section");

@@ -223,10 +223,9 @@ lf-text-document:has(> [data-lf-prepaint]) {
 }
 /* A long capture's `pre` becomes a keyboard-reachable scroller inside the evidence
    frame. Its lines are positioned boxes on the capture's ground, which paint over an
-   outline on the `pre` itself, so the ring is drawn on a later box over it, as the
-   floating panel draws its view's (floating-panel.css, `.lf-fp-stage`); the `pre`'s
-   zero layer keeps its lines under that box. The ring stands inside, since the figure
-   clips at its rounded corners. */
+   outline on the `pre` itself, so the listing is its ring frame (surfaces.css,
+   `.lf-ring-frame`), and the `pre`'s zero layer keeps its lines under the frame's
+   ring. The ring stands inside, since the figure clips at its rounded corners. */
 lf-text-document .lf-text-document-listing {
   position: relative;
 }
@@ -234,20 +233,8 @@ lf-text-document .lf-text-document-listing > pre {
   position: relative;
   z-index: 0;
 }
-lf-text-document .lf-text-document-listing > pre[data-lf-focus-visible] {
-  outline: none;
-}
-lf-text-document .lf-text-document-listing:has(> pre[data-lf-focus-visible])::after {
-  content: "";
-  position: absolute;
-  inset: 0;
+lf-text-document .lf-text-document-listing::after {
   z-index: 1;
-  pointer-events: none;
-  outline: var(--focus-ring);
-  outline-offset: var(--focus-ring-inset);
-}
-lf-text-document .lf-text-document-listing:has(> pre[data-lf-focus-visible]) {
-  --lf-wears-ring: 1;
 }
 
 /* Source and preview share one inspection viewport. Its height doesn't follow the tab

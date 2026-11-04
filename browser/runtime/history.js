@@ -72,6 +72,7 @@ import { unconcealedReadingRegions } from "./reading-regions.js";
 import { readingBlock } from "./reading-place.js";
 import { pageScroller, scrollGoal, stopScroll } from "./scrolling.js";
 import { nextRender } from "./rendering.js";
+import { aborted } from "./abort.js";
 
 /** @typedef {[WeakRef<Node>, number]} HeldSelectionEnd
  * @typedef {{focus: WeakRef<Element> | null, place: WeakRef<Element> | null,
@@ -318,13 +319,14 @@ export function mountHistory({ followFragment, returnToFragment }) {
 // before the next paint.
 /** @param {AbortSignal} signal @returns {Promise<void>} */
 function traversalApplied(signal) {
-  return new Promise((resolve) => {
+  /** @type {Promise<void>} */
+  const applied = new Promise((resolve) =>
     addEventListener("popstate", () => nextRender(() => resolve()), {
       once: true,
       signal,
-    });
-    signal.addEventListener("abort", () => resolve(), { once: true });
-  });
+    }),
+  );
+  return Promise.race([applied, aborted(signal)]);
 }
 
 /** @param {URL} url */

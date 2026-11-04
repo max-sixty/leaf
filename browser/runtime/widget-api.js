@@ -138,7 +138,7 @@ export {
 } from "./reading-regions.js";
 export { notice } from "./notifications.js";
 export { raiseError } from "./errors.js";
-export { alignText } from "./text-alignment.js";
+export { alignText, MAX_EDIT_LENGTH } from "./text-alignment.js";
 export { says, wrote } from "./passages.js";
 export { ago, clockValue, quietSince, shortAgo } from "./presence.js";
 export { revisionLabel } from "./context.js";
@@ -177,7 +177,7 @@ export { copyControl } from "./copy-control.js";
 // and whether a click came from the keyboard rather than a pointer.
 export { plainPress, pressIsKeyboardActivation } from "./pointer.js";
 export { onUserInput } from "./focus.js";
-export { keepView, openingView, viewMembers } from "./storage.js";
+export { keepView, openingView, viewDocument, viewMembers } from "./storage.js";
 export { highlightBlocks } from "./syntax.js";
 export {
   saidAt,

@@ -9,7 +9,6 @@ from playwright.sync_api import expect
 from render_cases_interaction import MARKDOWN_REPLY, THREAD_OBLIGATIONS, live_url
 from render_cases_navigation import actions
 from render_harness import (
-    PANEL_THREAD,
     RELEASE_FOCUS,
     REPLY_HOST_PAGE,
     SAMPLE_MARKUP,
@@ -34,6 +33,7 @@ from render_harness import (
 from browser.threads import open_panel_thread
 from leaf import event_log as events_model
 from leaf.render_checks import one_frame
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

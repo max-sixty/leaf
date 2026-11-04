@@ -206,6 +206,58 @@ def test_codex_trace_keeps_subagent_activity_without_inventing_tool_calls():
     assert trace == activities
 
 
+def test_fork_replay_hands_the_answer_through_the_arms_leaf(tmp_path, monkeypatch):
+    # No model runs: a stand-in for Claude Code reads the turn-end check's prompt
+    # and answers it, so this shows the question reaching the fork and the answer
+    # reaching the grader through the arm's Leaf, its edit landing on the page.
+    import os
+
+    from leaf_dev import ROOT, fork_eval
+
+    work = tmp_path / "work"
+    asked = tmp_path / "prompt"
+    answer = {
+        "asks": [],
+        "findings": [
+            {
+                "kind": "stale",
+                "page": str(work / "page"),
+                "summary": "The lede still says 2 of 5 shards are rebuilt.",
+                "quote": "all 5 shards rebuilt; alias search -> search-v7",
+                "edit": {
+                    "words": "2 of 5 shards are rebuilt",
+                    "replacement": "all 5 shards are rebuilt",
+                },
+            }
+        ],
+    }
+    result = {"type": "result", "subtype": "success", "result": json.dumps(answer)}
+    program = (
+        f"import sys; open({str(asked)!r}, 'w').write(sys.stdin.read()); "
+        f"print({json.dumps(result)!r})"
+    )
+
+    def child(cwd, *args, **kwargs):
+        home = cwd.with_name("home")
+        return {
+            "args": [sys.executable, "-c", program],
+            "cwd": cwd,
+            "env": {**os.environ, "HOME": str(home)},
+        }
+
+    monkeypatch.setattr(fork_eval, "claude_child", child)
+    response = fork_eval.execute_scenario("stale-edit", ROOT, work)
+    metadata = response["metadata"]
+    assert metadata["checks"] == {
+        "answered": True,
+        "labels-found": True,
+        "edits-land": True,
+    }
+    assert "<leaf-fork-check>" in asked.read_text()
+    assert (work / "transcript.jsonl").is_file()
+    assert "all 5 shards are rebuilt" in metadata["texts"]["judge"]
+
+
 def test_catalog_builds_native_and_workflow_promptfoo_tests(tmp_path, monkeypatch):
     # Configuration shares the external login; no native provider is invoked.
     login = tmp_path / "login"

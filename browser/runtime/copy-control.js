@@ -19,6 +19,12 @@ import { nativeLayerHolding } from "./shadow-tree.js";
 // Plain HTTP on a machine name has no Clipboard API. A copy press can still use the
 // browser's selection command there. Embedded samples deliberately cannot write the
 // clipboard, so a frame never bypasses its own permission path.
+const copiesThroughSelection = () =>
+  !navigator.clipboard?.writeText && window === window.top;
+/** Whether a copy control can copy here, through the Clipboard API or the selection
+ * command; a surface that offers a copy only where one can work asks this. */
+export const canCopy = () =>
+  Boolean(navigator.clipboard?.writeText) || copiesThroughSelection();
 /** @param {string} value @param {Element} trigger */
 function copyThroughSelection(value, trigger) {
   if (!value) return false;
@@ -29,14 +35,18 @@ function copyThroughSelection(value, trigger) {
   const before = focused();
   const field = document.createElement("textarea");
   field.value = value;
-  field.style.cssText = "position: fixed; left: -9999px; top: 0";
+  // iOS Safari raises the keyboard for an editable field and zooms into one set
+  // smaller than 16px, and its `select()` can select nothing, so the field is read-only
+  // at 16px and selected by range, as clipboard.js and copy-text-to-clipboard do.
+  field.readOnly = true;
+  field.style.cssText = "position: fixed; left: -9999px; top: 0; font-size: 16px";
   // Leaf's own, wherever it stands, so the moment it holds focus isn't the page's.
   field.dataset.lfRuntime = "";
   // A modal makes the rest of the document inert, including a field at body level.
   (nativeLayerHolding(trigger) ?? document.body).append(field);
   try {
     focusDestination(field, "return");
-    field.select();
+    field.setSelectionRange(0, value.length);
     return document.execCommand("copy");
   } catch {
     return false;
@@ -97,8 +107,7 @@ export function copyControl(
     copy.addEventListener(
       "click",
       (event) => {
-        if (window.isSecureContext || window !== window.top || navigator.clipboard)
-          return;
+        if (!copiesThroughSelection()) return;
         event.stopPropagation();
         if (event.defaultPrevented || copy.disabled || copy.isCopying) return;
         copy.isCopying = true;

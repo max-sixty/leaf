@@ -9,7 +9,6 @@ from render_cases_interaction import OBLIGATIONS_PAGE
 from render_cases_navigation import CONTROL_LABEL_PAGE, NOTED_PAGE
 from render_harness import (
     LONG_PAGE,
-    PANEL_THREAD,
     open_page,
     panel_control,
     panel_field,
@@ -20,6 +19,7 @@ from render_harness import (
 )
 
 from leaf.render_checks import rendered
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

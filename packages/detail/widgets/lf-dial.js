@@ -49,6 +49,7 @@ import {
   scrollerFor,
   shownWindow,
   tabStore,
+  viewDocument,
   whileConnected,
   commandsChanged,
 } from "/runtime/widget-api.js";
@@ -114,7 +115,7 @@ customElements.define(
     get #scope() {
       const scope = authoredScope(this);
       return (
-        this.closest("[data-lf-views] > *, main") ??
+        viewDocument(this) ??
         (scope === this.ownerDocument.body
           ? scope.querySelector(":scope > main")
           : scope)
@@ -133,9 +134,11 @@ customElements.define(
       }
       this.append(group);
       const [back, ahead] = rowArrows(this);
+      // The depth one step from the current one; each end has none past it.
+      const beside = (/** @type {number} */ by) =>
+        DEPTHS[DEPTHS.findIndex((depth) => depth.name === this.#depth) + by];
       const step = (/** @type {number} */ by) => {
-        const at = DEPTHS.findIndex((depth) => depth.name === this.#depth);
-        const next = DEPTHS[at + by];
+        const next = beside(by);
         if (!next) return;
         this.turn(next.name);
         const button = this.#buttons.get(next.name);
@@ -144,11 +147,22 @@ customElements.define(
       this.lfCommands = {
         title: "In the detail dial",
         rows: [
-          { id: "dial.less", keys: [back], title: "Less detail", run: () => step(-1) },
-          { id: "dial.more", keys: [ahead], title: "More detail", run: () => step(1) },
+          {
+            id: "dial.less",
+            keys: [back],
+            title: "Less detail",
+            when: () => Boolean(beside(-1)),
+            run: () => step(-1),
+          },
+          {
+            id: "dial.more",
+            keys: [ahead],
+            title: "More detail",
+            when: () => Boolean(beside(1)),
+            run: () => step(1),
+          },
         ],
       };
-      commandsChanged(this);
       this.#draw();
       whileConnected(this, (signal) => {
         // A revision applied in place rebuilds the folds over its new structure.
@@ -177,9 +191,12 @@ customElements.define(
       this.#apply(name, { moving: true });
     }
 
+    // The depth decides which of the dial's commands are available, so drawing a depth
+    // has Leaf read them again.
     #draw() {
       for (const [name, button] of this.#buttons)
         keeps(button, "aria-pressed", String(name === this.#depth));
+      commandsChanged(this);
     }
 
     /** @param {string} name @param {{moving: boolean}} options */

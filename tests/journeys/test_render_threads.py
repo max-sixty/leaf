@@ -23,7 +23,6 @@ from render_cases_interaction import (
 )
 from render_harness import (
     LONG_PAGE,
-    PANEL_THREAD,
     consume_browser_errors,
     example_media,
     expect_panel_says,
@@ -41,6 +40,7 @@ from render_harness import (
 
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.browser import PANEL_THREAD
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed

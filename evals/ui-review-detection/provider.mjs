@@ -574,12 +574,6 @@ export default class UiReviewDetectionProvider {
       ((manifest.images ?? []).length || !manifest.sources?.length)
     )
       throw new Error("Code-only requires source files and zero images");
-    if (
-      !["gpt-6.1-sol", "gpt-6-astra", "claude-opus-5-5", "claude-fable-5-1"].includes(
-        config.model,
-      )
-    )
-      throw new Error("Use a pinned supported evaluation model");
     const root = path.resolve(config.evidenceDir ?? ".tmp/ui-review-detection/samples");
     await mkdir(root, { recursive: true });
     const evidenceDir = await mkdtemp(path.join(root, "sample-"));

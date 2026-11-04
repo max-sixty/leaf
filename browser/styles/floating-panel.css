@@ -4,12 +4,12 @@
 
    The panel stands on the page's own ground, set off by a hairline and the faintest
    shadow, with 12px corners: part of the page rather than a widget laid on it. Its
-   controls are set in the interface's compact font (`--font-compact`, base.css), with
+   controls are set in the interface's compact font (`--font-compact`, tokens.css), with
    the small font for what qualifies them, as every other list's ends and headings do,
    and what anyone wrote (questions, messages, a plan) in a thread's,
    `--font-message`; none of it takes the page's prose face. It once set its own 13px and
    12px, which put its qualifiers half a pixel larger than the headings and statuses
-   it shares with the other lists. Three inks: the ink, the muted (`--muted`, base.css)
+   it shares with the other lists. Three inks: the ink, the muted (`--muted`, tokens.css)
    for what qualifies a line, as every list's does, and the
    accent for what is on the user, with the empty field's status a step dimmer at 62%
    (`--lf-fp-quiet`). The status is as dim as WCAG AA's 4.5:1 for text lets it be on the
@@ -1170,7 +1170,13 @@
   .lf-fp-stage:empty {
     display: none;
   }
+  /* A view scrolls, so it starts the sticky-header slot and its landing band again at
+     its own top (state.css, `[data-lf-scrolls]`), rather than reading the page's head
+     room and tab strip, which stand nowhere over it. */
   .lf-fp-view {
+    --lf-top: 0px;
+    --lf-top-covered: 0px;
+    --lf-landing-room: 0px;
     grid-area: 1 / 1;
     min-height: 0;
     max-height: 100%;
@@ -1533,6 +1539,94 @@
   .lf-fp-on-item > * {
     grid-column: 1 / -1;
   }
+  /* Each group opens with its band (floating-panel.js, `groupedItems`): its name and
+     count across the panel, a thread head's height, on a ground a shade off the
+     panel's, so every item down to the next band reads as the band's. The band sticks
+     at the view's top while its group passes under it, as a message's head sticks in a
+     thread card (annotation-chrome.css), so the group being read is always named; a
+     stuck band needs its ground anyway, since items pass beneath it. A sticky box moves
+     only inside its parent, so each group is a box of its own: its band sticks while
+     the group passes, and the next group's band pushes it off. The groups and the lines
+     in them take the list's columns (`subgrid`), so every line's title starts on one
+     edge in every group. The view's top padding goes, so a band sticks at the panel's
+     top edge; what stands first in place of the list keeps that room. What a landing
+     or focus brings into view stands below the stuck band (`--lf-top`; geometry.js
+     `headerInset`, surfaces.css). */
+  .lf-floating-panel {
+    --lf-fp-band: color-mix(in srgb, var(--ink) 6%, var(--lf-fp-surface));
+    --lf-fp-band-height: var(--lf-msg-head-height);
+  }
+  .lf-fp-view[data-lf-route="queue"] {
+    padding-top: 0;
+  }
+  .lf-fp-view[data-lf-route="queue"] > :first-child:not(.lf-fp-on-list) {
+    margin-block-start: 8px;
+  }
+  .lf-fp-on-list {
+    --lf-top: var(--lf-fp-band-height);
+  }
+  .lf-fp-on-group,
+  .lf-fp-on-group > .lf-fp-on-item:not([data-lf-card]),
+  .lf-fp-on-group > .lf-fp-on-item > .lf-row {
+    display: grid;
+    grid-template-columns: subgrid;
+  }
+  .lf-fp-on-group > *,
+  .lf-fp-on-group > .lf-fp-on-item > .lf-row {
+    grid-column: 1 / -1;
+  }
+  /* The band sticks at the slot's start, so it reads that slot, and a press in it
+     counts as shown where it sticks (surfaces.css, `--lf-head-inset`). */
+  .lf-fp-on-group > .lf-rows-head {
+    --lf-top: 0px;
+    --lf-head-inset: 0px;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    align-self: start;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-sizing: border-box;
+    block-size: var(--lf-fp-band-height);
+    margin-inline: -6px;
+    padding: 0 14px;
+    background: var(--lf-fp-band);
+  }
+  .lf-fp-on-group > .lf-rows-head .lf-row-end {
+    font-weight: 400;
+  }
+  /* Done's band is the press that unfolds it (`settledHeading`), its arrow hanging in
+     the band's start padding, so its name starts where every other band's does. */
+  .lf-fp-on-group > .lf-rows-head:has(> .lf-row) {
+    padding: 0;
+  }
+  .lf-fp-on-group > .lf-rows-head > .lf-fp-settled {
+    position: relative;
+    display: flex;
+    align-items: center;
+    min-height: 0;
+    block-size: 100%;
+    /* The row face's stripe room (controls.css, `.lf-row`) takes 2px of the start. */
+    padding: 0 14px 0 12px;
+    border-radius: 0;
+    color: inherit;
+  }
+  .lf-fp-on-group > .lf-rows-head > .lf-fp-settled > .lf-row-end {
+    margin-inline-start: auto;
+  }
+  .lf-fp-on-group > .lf-rows-head > .lf-fp-settled::before {
+    position: absolute;
+    inset-inline-start: 2px;
+    top: 50%;
+    translate: 0 -50%;
+    margin: 0;
+  }
+  /* A line of the user's under Done names no kind (floating-panel.js, `onItemCard`),
+     so it gives the lead column no room. */
+  .lf-fp-on-noun:empty {
+    display: none;
+  }
   /* An item open in place stands on the panel's faintest ground, so its answers read as
      its own. */
   .lf-fp-on-item[data-lf-open] {
@@ -1581,12 +1675,17 @@
   .lf-fp-on-item[data-lf-card] {
     display: flex;
     flex-direction: column;
-    padding: 10px 8px 12px;
+    padding: 8px 8px 10px;
   }
-  /* A card's question stands as close under its group's heading as a lone card's
-     stands under the group's name, so a group's name sits one way over its card. */
-  .lf-rows-head + .lf-fp-on-item[data-lf-card] {
-    padding-top: 2px;
+  .lf-fp-on-group > .lf-rows-head + .lf-fp-on-item[data-lf-card] {
+    padding-top: 10px;
+  }
+  /* The message a card quotes from its thread stands as a quote, a stripe in the
+     ring's ink down its start edge, so its author's line reads as part of the card
+     rather than the start of the next one. */
+  .lf-fp-on-item .lf-fp-asked:not(:empty) {
+    border-inline-start: 2px solid var(--lf-fp-ring);
+    padding-inline-start: 10px;
   }
   /* What left a list, folded under its group heading (floating-panel.js,
      `settledHeading`): the heading is the press, a row of the list (controls.css,
@@ -1615,9 +1714,9 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  /* A card alone in its group names the group over its question in the group heading's
-     font (controls.css, `.lf-rows-head`), as a heading names the group of two or more,
-     standing where the card's words start. */
+  /* A card names where its item stands over its question, where its band doesn't say
+     it, in the group heading's font (controls.css, `.lf-rows-head`), standing where the
+     card's words start. */
   .lf-fp-on-place {
     display: block;
     padding: 0;
@@ -1648,13 +1747,32 @@
     min-height: var(--lf-fp-press);
   }
   /* The card keeps its height after an answer; keep its answers at the foot too,
-     so Show stays put when described choices give way to the result and Undo. */
+     so the result and Undo stand where the described choices ended. */
   .lf-fp-on-item[data-lf-card] > .lf-fp-answers {
     margin-top: auto;
     padding-top: 9px;
   }
   .lf-fp-show {
     margin-inline-start: auto;
+  }
+  /* A card's first line ends in its Show (floating-panel.js, `cardHead`), centred on
+     a line that holds one, else on the first line of the message's face. */
+  .lf-fp-on-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font: var(--font-message);
+  }
+  .lf-fp-on-head > :first-child {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .lf-fp-on-head > .lf-fp-show {
+    flex: none;
+    margin-block: calc((1lh - var(--lf-fp-press)) / 2);
+  }
+  .lf-fp-on-head:has(> :is(.lf-fp-on-place, .lf-fp-on-title):first-child) {
+    align-items: center;
   }
   /* A commit among the answers, a group's Done (floating-panel.js, `commits`), stands
      as tall as the answers beside it, inside its one-pixel contour. */

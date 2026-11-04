@@ -47,7 +47,6 @@ import re
 import statistics
 import sys
 import time
-import xml.etree.ElementTree as ET
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -55,13 +54,13 @@ import click
 import pytest
 
 from leaf_dev import ROOT
+from leaf_dev.suite import junit_cases, outcome
 
 PLAYWRIGHT_DIR = f"{os.sep}playwright{os.sep}"
 # The seconds a test in each tier directory may take on CI's runner: a test that
 # crosses nothing outside pytest, or a real process, costs about what opening a page
 # does, and a browser test that page and a few gestures. `journeys` has no budget.
 BUDGETS = {"model": 3.0, "process": 3.0, "browser": 8.0}
-GROUP_SUFFIX = re.compile(r"@[^@\[\]]+$")
 PHASES = ("setup", "call", "teardown")
 # py-spy's raw format: one stack per line, `;`-separated frames and its sample count,
 # rooted at its process and that process's ancestors, `process PID:"COMMAND LINE"`.
@@ -232,38 +231,33 @@ def suite_profile(directory: Path, rate: float | None, top: int) -> None:
 
 
 def read_cases(report: Path) -> list[dict]:
-    """Each test case's file, seconds, profile, and whether it passed. A failed call
-    whose teardown also failed is reported as two cases, the profile on the second;
-    they are one test here. A case without a profile, a collection error, has none.
-    A profiled test's seconds are its phases': junit adds each subtest's duration to
-    the test's time, though the call phase already holds it."""
-    cases = {}
-    for case in ET.parse(report).iter("testcase"):
-        key = (case.get("classname", ""), case.get("name", ""))
-        entry = cases.setdefault(
-            key,
+    """Each test's node id (`suite.junit_cases`), file, seconds, profile, and whether
+    it passed. A failed call whose teardown also failed carries its profile on its
+    second case. A test without a profile, a collection error, has none. A profiled
+    test's seconds are its phases': junit adds each subtest's duration to the test's
+    time, though the call phase already holds it."""
+    cases = []
+    for test, junit in junit_cases(report).items():
+        profile = None
+        for case in junit:
+            if (prop := case.find("properties/property[@name='profile']")) is not None:
+                value = prop.get("value")
+                assert value is not None
+                profile = json.loads(value)
+        cases.append(
             {
-                "file": key[0].replace(".", "/") + ".py",
-                "name": key[1],
-                "seconds": 0.0,
-                "profile": None,
-                "passed": True,
-            },
+                "test": test,
+                "file": test.partition("::")[0],
+                "seconds": (
+                    sum(profile.get(p, 0) for p in PHASES)
+                    if profile
+                    else sum(float(case.get("time", 0)) for case in junit)
+                ),
+                "profile": profile,
+                "passed": outcome(junit).result == "passed",
+            }
         )
-        entry["seconds"] += float(case.get("time", 0))
-        if any(
-            case.find(outcome) is not None
-            for outcome in ("failure", "error", "skipped")
-        ):
-            entry["passed"] = False
-        if (prop := case.find("properties/property[@name='profile']")) is not None:
-            value = prop.get("value")
-            assert value is not None
-            entry["profile"] = json.loads(value)
-    for entry in cases.values():
-        if entry["profile"]:
-            entry["seconds"] = sum(entry["profile"].get(p, 0) for p in PHASES)
-    return list(cases.values())
+    return cases
 
 
 def report_cases(cases: list[dict], top: int) -> float | None:
@@ -365,9 +359,7 @@ def report_budgets(cases: list[dict]) -> None:
         if not case["passed"] or len(parts) < 3:
             continue
         directory = parts[1]
-        # The node id pytest selects by, without the `@group` xdist's `loadgroup`
-        # appends to a grouped test's name.
-        test = f"{case['file']}::{GROUP_SUFFIX.sub('', case['name'])}"
+        test = case["test"]
         seconds = case["seconds"] / (case["profile"] or {}).get("cases", 1)
         if (budget := BUDGETS.get(directory)) and seconds >= budget:
             over.append((seconds, budget, test))

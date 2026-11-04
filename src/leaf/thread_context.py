@@ -555,18 +555,24 @@ def unsent_at_messages(
     for each widget, the coordinates whose winner records unsent work, updated at
     each step that moves a winner, so an input reads only the work it carries, in
     the order `InForce.winners` keeps it."""
+    spoken = [
+        event
+        for event in batch
+        if event["author"] == "user"
+        and (event["kind"] in kinds_declaring("message") or event["kind"] == "edit")
+    ]
+    if not spoken:
+        return {}
     names = thread_names(events)
     sent = {}
     for widget, holder in thread_widgets(thread_structure(events), names).items():
         sent.setdefault(holder, set()).add(widget)
-    inputs = {}
-    for event in batch:
-        if event["author"] != "user":
-            continue
-        if event["kind"] in kinds_declaring("message"):
-            inputs[event["id"]] = names.get(event["id"])
-        elif event["kind"] == "edit":
-            inputs[event["id"]] = names.get(event["message"])
+    inputs = {
+        event["id"]: names.get(
+            event["message"] if event["kind"] == "edit" else event["id"]
+        )
+        for event in spoken
+    }
     anchors = {}
     about = {}
     for event in events:

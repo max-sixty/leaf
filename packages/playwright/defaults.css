@@ -22,7 +22,10 @@ lf-trace {
   border: 1px solid var(--border-2);
   border-radius: var(--r);
   padding: var(--sp-3);
-  background: var(--paper);
+  /* A solid surface, so it names its ground, and its opaque parts, the sticky heading
+     among them, paint it (package-themes.md). */
+  --lf-ground: var(--paper);
+  background: var(--lf-ground);
   font: var(--font-ui);
   overflow-wrap: anywhere;
 }
@@ -174,7 +177,7 @@ lf-trace[hidden="until-found"] {
   display: grid;
   align-content: start;
   border-inline-end: 1px solid var(--border-2);
-  background: var(--paper);
+  background: var(--lf-ground);
   color: var(--muted);
 }
 .lf-trace-lane-name {
@@ -323,7 +326,7 @@ lf-trace[hidden="until-found"] {
 .lf-trace-input-label {
   inset-block-start: 3px;
   padding: 2px 4px 2px 0;
-  background: var(--paper);
+  background: var(--lf-ground);
   color: var(--ink);
   font-weight: 600;
   white-space: nowrap;
@@ -348,7 +351,7 @@ lf-trace[hidden="until-found"] {
   padding-inline: 4px;
   padding-block: calc((var(--lf-trace-row-h) - 4px - 1lh) / 2);
   border-radius: 0 var(--r-s) var(--r-s) 0;
-  background: var(--paper);
+  background: var(--lf-ground);
   border: 1px solid var(--border-2);
   border-inline-start: 0;
   font-weight: 600;
@@ -403,7 +406,7 @@ lf-trace[hidden="until-found"] {
   margin-inline-start: 2px;
   padding-inline: 3px;
   border-radius: var(--r-s);
-  background: var(--paper);
+  background: var(--lf-ground);
   color: var(--ink);
   font-weight: 600;
 }
@@ -471,7 +474,7 @@ lf-trace[hidden="until-found"] {
   position: relative;
   block-size: var(--lf-trace-overview-h);
   border-block-start: 1px solid var(--border-2);
-  background: var(--paper);
+  background: var(--lf-ground);
   touch-action: none;
 }
 .lf-trace-overview-window {
@@ -640,7 +643,7 @@ lf-trace[hidden="until-found"] {
   display: grid;
   place-items: center;
   box-sizing: border-box;
-  background: var(--paper);
+  background: var(--lf-ground);
 }
 .lf-trace-missing-image {
   padding: var(--sp-4);
@@ -669,7 +672,7 @@ lf-trace[hidden="until-found"] {
   position: sticky;
   --lf-head-inset: 0px;
   inset-block-start: var(--lf-top);
-  background: var(--paper);
+  background: var(--lf-ground);
   z-index: 1;
 }
 .lf-trace-tree-clock {
@@ -710,7 +713,7 @@ lf-trace-bookmark {
   box-sizing: border-box;
   border: 1px solid var(--border-2);
   border-radius: 999px;
-  background: var(--paper);
+  background: var(--lf-ground);
   font-weight: 600;
 }
 .lf-trace-full-image {
@@ -726,7 +729,7 @@ lf-trace-bookmark {
   inset-block-start: var(--sp-2);
   inset-inline-start: var(--sp-2);
   padding: var(--sp-1) var(--sp-2);
-  background: var(--paper);
+  background: var(--lf-ground);
   color: var(--muted);
 }
 .lf-trace-image-loading .lf-trace-image-status {
@@ -739,7 +742,7 @@ lf-trace-bookmark {
   top: var(--lf-top);
   --lf-head-inset: var(--sp-1);
   z-index: 3;
-  background: var(--paper);
+  background: var(--lf-ground);
   margin-block-end: var(--sp-2);
 }
 .lf-trace-toolbar {
@@ -815,7 +818,7 @@ lf-trace-bookmark {
   overflow: hidden;
   border: 1px solid var(--border-2);
   box-sizing: border-box;
-  background: var(--paper);
+  background: var(--lf-ground);
   z-index: 0;
 }
 /* The canvas frames its capture with its own border, so the capture wears no picture
@@ -834,7 +837,7 @@ lf-trace-bookmark {
   border: 0;
 }
 .lf-trace-canvas .viewer-container {
-  background: var(--paper);
+  background: var(--lf-ground);
   touch-action: pan-y;
 }
 .lf-trace-canvas .viewer-canvas {
@@ -920,7 +923,7 @@ lf-trace-bookmark {
   border: 1px solid var(--accent);
   border-radius: var(--r);
   padding: var(--sp-1) var(--sp-2);
-  background: var(--paper);
+  background: var(--lf-ground);
   color: var(--accent);
   font: var(--font-heading);
   pointer-events: none;
@@ -934,7 +937,7 @@ lf-trace-bookmark {
   border-radius: 50%;
   background: var(--accent-tint);
   transform: translate(-50%, -50%);
-  box-shadow: 0 0 0 2px var(--paper);
+  box-shadow: 0 0 0 2px var(--lf-ground);
   pointer-events: none;
 }
 
@@ -961,7 +964,7 @@ lf-trace-compare > :not(.lf-trace-compare-controls) {
   top: var(--lf-top);
   --lf-head-inset: var(--sp-2);
   z-index: 4;
-  background: var(--paper);
+  background: var(--lf-ground);
   padding-block: var(--lf-trace-chooser-padding);
   border-block-end: 1px solid var(--border-2);
 }
@@ -996,23 +999,14 @@ lf-trace-compare lf-trace {
   inline-size: 10ch;
   font-variant-numeric: tabular-nums;
 }
+/* The scale's choices hang below their trigger, or above it where the window has no
+   room below, on the popover face (controls.css, `.lf-popover`). */
 .lf-trace-scale-options {
   position: fixed;
-  inset: 0;
-  margin: auto;
+  position-anchor: --lf-trace-scale;
+  position-area: bottom span-right;
+  position-try-fallbacks: flip-block;
+  inset: auto;
+  margin: var(--sp-2) 0;
   padding: var(--sp-2);
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  background: var(--paper);
-  color: var(--ink);
-  box-shadow: var(--raise-2);
-}
-@supports (position-area: bottom) {
-  .lf-trace-scale-options {
-    position-anchor: --lf-trace-scale;
-    position-area: bottom span-right;
-    inset: auto;
-    margin: var(--sp-2) 0;
-    position-try-fallbacks: flip-block;
-  }
 }

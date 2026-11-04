@@ -12,11 +12,17 @@ import { KINDS } from "./contribution-model.js";
 import { excerptWords, labelWords } from "./words.js";
 import { contributionEntries } from "./contributions.js";
 import { marginInventory, threadMarks } from "./margin-model.js";
-import { agentName } from "./semantic-state.js";
+import { agentName, readPart } from "./semantic-state.js";
 import { livePoint } from "./pointed-place.js";
 import { ago } from "./presence.js";
 import { runtime } from "./context.js";
-import { elementById, inChrome, quoteFrom, textNodesUnder } from "./passages.js";
+import {
+  elementById,
+  GENERATED,
+  inChrome,
+  quoteFrom,
+  textNodesUnder,
+} from "./passages.js";
 import { addressableLabel, addressableWord } from "./addressable-names.js";
 import { threadList } from "./thread/state.js";
 import { threadKey } from "./thread/model.js";
@@ -44,10 +50,21 @@ import { scrollBehavior } from "./motion.js";
 import {
   changeAccount,
   changeCard,
-  comparisonBase,
+  changeSince,
   comparisonChanges,
   toggleChangeCard,
 } from "./version.js";
+
+// Where each published workflow still in progress stands in the published order, by
+// its id.
+const inProgress = readPart(
+  (root) =>
+    new Map(
+      root.effective.workflows.flatMap((workflow, at) =>
+        isWorkflowProgress(workflow) ? [[workflow.id, at]] : [],
+      ),
+    ),
+);
 
 /** @typedef {import("./margin-model.js").AnnotationItem} AnnotationItem
  * @typedef {import("./contributions.js").ContributionSource} ContributionSource
@@ -121,9 +138,7 @@ export function createAnnotationInventory({
         (node.parentNode instanceof ShadowRoot ? node.parentNode : null);
       if (!parent) break;
       const siblings = [...parent.children].filter(
-        (candidate) =>
-          !candidate.classList.contains("lf-ui") &&
-          !candidate.hasAttribute("data-lf-gen"),
+        (candidate) => !candidate.matches(GENERATED),
       );
       steps.push(`${node.localName}:${siblings.indexOf(node)}`);
       if (node.localName === "body" || parent instanceof ShadowRoot) break;
@@ -198,14 +213,21 @@ export function createAnnotationInventory({
 
   const workflows = () => runtime.workflows;
   // Selected from the published workflows rather than gathered from the items, whose
-  // order is the margin's, so the strongest is the server's.
+  // order is the margin's, so the strongest is the server's. A receipt is looked up by
+  // its id among those still in progress, so each item costs what it holds rather than
+  // every workflow on the page.
   /** @param {readonly AnnotationItem[]} items */
   const workflowReceipt = (items) => {
-    const receipts = new Set(items.map((item) => item.workflowReceipt?.id));
+    const at = inProgress();
+    const published = workflows();
+    /** @type {Set<number>} */
+    const receipts = new Set();
+    for (const { workflowReceipt } of items) {
+      const index = workflowReceipt ? at.get(workflowReceipt.id) : undefined;
+      if (index !== undefined) receipts.add(index);
+    }
     return strongestWorkflow(
-      workflows().filter(
-        (workflow) => receipts.has(workflow.id) && isWorkflowProgress(workflow),
-      ),
+      [...receipts].sort((a, b) => a - b).flatMap((index) => published[index] ?? []),
     );
   };
   // One group per target, one more for each row inside it that pointing gestures stood
@@ -500,15 +522,14 @@ export function createAnnotationInventory({
       });
     }
 
-    const base = comparisonBase();
     // One entry per change (version.js, `changeRuns`), beside the block the change starts
-    // with, or the block after the gap where it only took blocks out, so a section
+    // with, or the block beside its gap where it only took blocks out, so a section
     // rewritten whole gets one entry rather than one per paragraph. It says what the
     // change did in blocks (`changeAccount`): "2 paragraphs replaced by 3".
     comparisonChanges().forEach((change, index) => {
       const target = change.at;
       const did = changeAccount(change);
-      const account = `${did}${base == null ? "" : ` since ${base.name}`}`;
+      const account = changeSince(change);
       const card = changeCard(change);
       const mapAccount = card ? did : account;
       add(groups, target, {

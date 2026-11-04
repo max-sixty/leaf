@@ -36,7 +36,6 @@ from render_harness import (
     EXAMPLE_PACKAGES,
     INLINE_PAGE,
     LONG_PAGE,
-    PANEL_THREAD,
     RELEASE_FOCUS,
     REPLAYED_PAGE,
     SETTLED_PAGE,
@@ -67,7 +66,6 @@ from render_harness import (
     resized,
     root_overflow,
     round_trip,
-    said,
     scroll_settled,
     sending,
     stamp_page,
@@ -90,7 +88,7 @@ from leaf import service as service_model
 from leaf.registry.contract import RANK
 from leaf.render_checks import rendered
 from leaf.render_gate.scheme import console_finding
-from leaf_dev.browser import threads_tab
+from leaf_dev.browser import PANEL_THREAD, threads_tab
 
 DRAG_HELD = "async () => (await window.__lfCheckApi()).dragHeld()"
 
@@ -3104,10 +3102,10 @@ def test_an_optimistic_presentation_fault_does_not_change_delivery_result(
     # One fault, one report, from the widget paint that raised it. The gesture's own
     # promise carries the same rejection for a caller that restores a draft from it, and
     # accounts for it no second time.
-    errors = take_browser_errors(page)
-    assert [said(error) for error in errors] == [
-        'leaf: <lf-suggestion id="sug-refill"> failed: injected optimistic presentation fault'
-    ], errors
+    reported_browser_errors(
+        page,
+        'leaf: <lf-suggestion id="sug-refill"> failed: injected optimistic presentation fault',
+    )
 
 
 def test_a_draft_that_outlives_its_passage_returns_with_that_passage(browser, serve):

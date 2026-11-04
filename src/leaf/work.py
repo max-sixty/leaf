@@ -5,12 +5,7 @@ from pathlib import Path
 from .files import latest_revision
 from .findings import Finding
 from .obligations import quoted_in
-from .passages import page_passages
-from .projection import (
-    PageReading,
-    retirement_outcomes,
-    rewritten_bodies,
-)
+from .projection import PageReading
 from .revision_artifact import read_revision
 from .thread_context import id_subject, thread_names, thread_structure, thread_widgets
 
@@ -28,12 +23,7 @@ def widget_seat_error(
     rec = page.document.by_id.get(widget)
     if rec is None or rec["tag"] not in page.registry:
         return Finding("not-a-widget", values=named)
-    passages = page_passages(
-        page.document,
-        page.registry,
-        retirement_outcomes(page.projection.actions),
-        rewritten_bodies(page.projection.actions),
-    )
+    passages = page.passages()
     if widget in passages.retired or widget in passages.gone:
         return Finding("hidden-widget", values=named)
     if quoted_in(rec, page.registry):

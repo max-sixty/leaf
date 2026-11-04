@@ -36,6 +36,7 @@
  * such as an image or a frame.
  */
 import { canvas2D } from "../canvas.js";
+import { overlaps } from "../rect.js";
 import { describeFailure } from "../exception.js";
 /** @param {Blob} blob */
 const asDataUrl = async (blob) =>
@@ -55,9 +56,6 @@ export const pageRenderer = async () => {
 };
 
 /** @typedef {{left: number, right: number, top: number, bottom: number}} Bounds */
-/** @param {Bounds} a @param {Bounds} b */
-const meets = (a, b) =>
-  a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
 /** @param {Bounds} a @param {Bounds} b */
 const holds = (a, b) =>
   a.left <= b.left && a.top <= b.top && a.right >= b.right && a.bottom >= b.bottom;
@@ -111,7 +109,7 @@ function captureRoot(region, skip) {
     let holder = null;
     for (const child of laidOut(root, skip)) {
       const box = child.getBoundingClientRect();
-      if (!meets(box, region)) continue;
+      if (!overlaps(box, region)) continue;
       if (holder || !holds(box, region)) {
         holder = null;
         break;

@@ -888,9 +888,10 @@ export function createMarginProjection({
   // Every cluster declares the margin's keys, and what they ask of where the user is has
   // one answer for all of them: whether focus is on an entry of a cluster with more than
   // one, and whether it is on a marker. Each answer is one computed the clusters'
-  // reflections share, so a focus move that leaves it as it was reads no cluster's keys
-  // again (keyboard/scopes.js). Which entries a cluster offers changes as the margin
-  // renders (`drawnMargin`).
+  // reflections share, worked out once for a focus move rather than once for each
+  // cluster. Each cluster's reflection still reads its keys again on every focus move,
+  // since keyboard/scopes.js has every scope follow `focusRevision`. Which entries a
+  // cluster offers changes as the margin renders (`drawnMargin`).
   const drawnMargin = signal(0);
   const onSteppableEntry = computed(() => {
     focusRevision();

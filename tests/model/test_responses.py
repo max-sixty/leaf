@@ -38,6 +38,7 @@ from leaf import cli as cli_model
 from leaf import codex as codex_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
+from leaf import events as event_folds_model
 from leaf import files as files_model
 from leaf import harness as harness_model
 from leaf import revisioning as revisioning_model
@@ -798,7 +799,7 @@ def test_provider_response_commits_full_content_before_reconnect(
     assert json.loads(retried.output) == reply
     assert not thread_model.delivery_reply_reserved("codex-thread", delivery_id, target)
     assert (
-        thread_model.build_threads(events_model.read_events(page_dir), {})[
+        event_folds_model.build_threads(events_model.read_events(page_dir), {})[
             comment["id"]
         ]["title"]
         == "Storage choice"

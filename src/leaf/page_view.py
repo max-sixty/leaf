@@ -27,6 +27,15 @@ from .revision_artifact import active_enclosing, active_reading, read_revision
 from .structure import SourceDocument
 
 
+def published_threads(page_dir: Path, events: list) -> dict:
+    """The log's threads under the containment of the page the user is looking at,
+    kept with the log beside that page's reading (`events.build_threads`)."""
+    reading = active_reading(page_dir)
+    if reading is None:
+        return build_threads(events, {})
+    return build_threads(events, reading.enclosing, anchor=reading)
+
+
 class PageView:
     """One page directory's answers, each read when a gate asks for it.
 
@@ -64,12 +73,8 @@ class PageView:
         return active_enclosing(self._page_dir)
 
     def threads(self, events: list) -> dict:
-        """The log's threads, folded under `within` and kept with the log beside the
-        reading that holds it (`events.build_threads`)."""
-        reading = active_reading(self._page_dir)
-        if reading is None:
-            return build_threads(events, {})
-        return build_threads(events, reading.enclosing, anchor=reading)
+        """The log's threads, folded under `within` (`published_threads`)."""
+        return published_threads(self._page_dir, events)
 
     @property
     def contracts(self) -> dict[str, str]:

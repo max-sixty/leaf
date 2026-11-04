@@ -2336,7 +2336,9 @@ def test_undo_candidates_keep_only_user_gestures_in_force():
         source, empty, {}, passages, {}, {}, {}
     )
     undo_reading = event_folds_model.UndoReading(
-        events, within={}, absorbed=frozenset()
+        events,
+        threads=event_folds_model.build_threads(events, {}),
+        absorbed=frozenset(),
     )
 
     candidates = served_document.browser_undo_candidates(
@@ -2377,7 +2379,9 @@ def test_undo_walk_ends_at_the_users_newest_gesture():
             document,
             empty,
             undo_reading=event_folds_model.UndoReading(
-                log, within={}, absorbed=frozenset()
+                log,
+                threads=event_folds_model.build_threads(log, {}),
+                absorbed=frozenset(),
             ),
             words=gesture_words_model.GestureWords(log, {}, {}.__getitem__),
         )
@@ -2427,7 +2431,9 @@ def test_undo_candidates_say_which_gestures_the_agent_picked_up():
         document,
         empty,
         undo_reading=event_folds_model.UndoReading(
-            events, within={}, absorbed=frozenset()
+            events,
+            threads=event_folds_model.build_threads(events, {}),
+            absorbed=frozenset(),
         ),
         words=gesture_words_model.GestureWords(events, {}, {}.__getitem__),
     )

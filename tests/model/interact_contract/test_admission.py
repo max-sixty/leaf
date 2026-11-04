@@ -727,9 +727,9 @@ def test_two_concurrent_undos_cannot_both_take_back_one_gesture(
     )
     validation_calls = 0
 
-    def expose_validation_gap(event, events, within, absorbed):
+    def expose_validation_gap(event, events, threads, absorbed):
         nonlocal validation_calls
-        error = real_undo_error(event, events, within, absorbed)
+        error = real_undo_error(event, events, threads, absorbed)
         with validation_lock:
             validation_calls += 1
             call = validation_calls

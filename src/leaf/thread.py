@@ -16,7 +16,7 @@ from leaf.delivery import (
 )
 from leaf.event_contracts import append_admitted
 from leaf.event_log import read_events
-from leaf.events import build_threads, is_answer
+from leaf.events import is_answer
 from leaf.files import (
     latest_revision,
     require_revision,
@@ -25,6 +25,7 @@ from leaf.findings import Finding, Rejected, note
 from leaf.harness import message_identity
 from leaf.leases import contract_writer
 from leaf.obligations import local_obligation_entry, shown_in
+from leaf.page_view import published_threads
 from leaf.passages import SourceReading
 from leaf.projection import (
     generated_children,
@@ -34,7 +35,7 @@ from leaf.projection import (
 )
 from leaf.registry.contract import matches_when
 from leaf.registry.kernel import kinds_declaring
-from leaf.revision_artifact import active_enclosing, read_revision
+from leaf.revision_artifact import read_revision
 from leaf.service import PageTransaction, delivery_reply_attempt, same_claim
 from leaf.thread_context import thread_message, thread_names
 from leaf.validation.admission import (
@@ -784,9 +785,7 @@ def _compose_and_append(
     if relocating and opening.get("holds"):
         raise Rejected([Finding("held-anchor", values={"thread": thread_id})])
     current_thread = (
-        build_threads(events, active_enclosing(page_dir)).get(thread_id)
-        if detach
-        else None
+        published_threads(page_dir, events).get(thread_id) if detach else None
     )
     if detach and (current_thread is None or current_thread["anchor"] is None):
         raise Rejected([Finding("no-anchor", values={"thread": thread_id})])
@@ -1063,10 +1062,7 @@ def name_untitled(page, thread: str, title: str, identity: dict) -> dict | None:
     """Append `thread`'s first title in the voice of `identity`, within the caller's
     page transaction, or nothing where it has one: a name given once stands until
     someone renames the thread on purpose (`cmd_edit`)."""
-    if (
-        build_threads(page.events, active_enclosing(page.page_dir))[thread]["title"]
-        is not None
-    ):
+    if published_threads(page.page_dir, page.events)[thread]["title"] is not None:
         return None
     return append_admitted(page, title_event(thread, title, identity))[0]
 

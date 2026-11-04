@@ -16,7 +16,6 @@ from leaf.projection import (
     with_action,
 )
 from leaf.registry.contract import deciding_verb, matches_when, state_definition
-from leaf.thread_context import thread_structure
 
 
 class AdmissionReadings:
@@ -185,11 +184,11 @@ def admit_widget_event(sender, event: dict, readings: AdmissionReadings) -> dict
     """Stamp server-owned meaning after command validation, under the append lock.
 
     `sender` is the authored document of the revision the command names."""
-    events, registry = readings.events, readings.registry
+    registry = readings.registry
     record = sender.by_id.get(event["widget"])
     scope = "page"
     if record is None:
-        record = thread_structure(events).by_id[event["widget"]]
+        record = readings.thread.by_id[event["widget"]]
         scope = "thread"
     entry = registry[record["tag"]]
     admitted = dict(event)

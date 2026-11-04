@@ -254,8 +254,7 @@ def moved_threads(
     or taking back the reaction that opened it leaves the move out. `page check` asks for the moves at the active revision,
     and the first reply on a revision (`thread._revision_advice`) for those since
     the agent's last reply."""
-    from leaf.events import build_threads
-    from leaf.revision_artifact import active_enclosing
+    from leaf.page_view import published_threads
 
     pending = {finding.values["thread"]: finding for finding in checked.advice}
     names = thread_names(events)
@@ -263,7 +262,7 @@ def moved_threads(
     for event in events:
         if event["kind"] != "comment" and (thread := placed_thread(event, names)):
             placed[thread] = event
-    threads = build_threads(events, active_enclosing(page_dir))
+    threads = published_threads(page_dir, events)
     recorded = [
         Finding(
             "relocated-anchor",

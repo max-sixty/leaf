@@ -80,10 +80,10 @@ from pathlib import Path
 
 from . import inference
 from .event_log import EventRefused
-from .events import build_threads, spoken_turns
+from .events import spoken_turns
 from .inference import RateLimited
 from .interaction_log import append_interactions
-from .revision_artifact import active_enclosing
+from .page_view import published_threads
 from .service import PageTransaction
 from .thread import name_untitled
 from .thread_context import thread_names
@@ -134,7 +134,7 @@ def title_request(page_dir: Path, message: str) -> tuple[str, str] | None:
     with PageTransaction(page_dir) as page:
         events = page.events
     thread_id = thread_names(events).get(message)
-    thread = build_threads(events, active_enclosing(page_dir)).get(thread_id)
+    thread = published_threads(page_dir, events).get(thread_id)
     if thread_id is None or thread is None or thread["title"] is not None:
         return None
     parts = []

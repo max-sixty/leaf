@@ -677,7 +677,7 @@ def _withdrawal_error(
         return None
     newest = view.revisions[-1]
     absorbed = readings.page(newest).projection.absorbed
-    return undo_error(event, events, view.within, absorbed)
+    return undo_error(event, events, view.threads(events), absorbed)
 
 
 def admission_error(

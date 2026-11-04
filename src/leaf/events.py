@@ -112,43 +112,23 @@ class UndoReading:
     on. The append door uses the same reading for its authoritative check, while
     callers that only have one candidate can keep using :func:`undo_error`.
 
-    ``threads`` may be supplied by a caller that already folded the same log.
-    Otherwise, ``within`` is required to fold the threads; it is not read when
-    threads are supplied. This is a reading rather than another source of state:
-    the event log and page containment remain the authorities, and this object
-    only indexes their validated projection.
+    ``threads`` is `build_threads` of the same log, which every caller holds
+    already. This is a reading rather than another source of state: the event log
+    and page containment remain the authorities, and this object only indexes their
+    validated projection.
     """
 
     def __init__(
         self,
         events: list,
         *,
-        threads: dict | None = None,
-        within: dict | None = None,
+        threads: dict,
         withdrawn: set | None = None,
         absorbed: frozenset,
     ):
         self.events_by_id = {event["id"]: event for event in events}
         self.withdrawn = taken_back(events) if withdrawn is None else withdrawn
         self.absorbed = absorbed
-        if threads is None:
-            if within is None:
-                raise TypeError("within is required when threads are not supplied")
-            # Only reactions and rewrites ask about thread state. Keeping this fold
-            # lazy also preserves the boundary's ability to reject another gesture
-            # without interpreting unrelated, already-validated records.
-            threads = (
-                build_threads(events, within)
-                if any(
-                    event["kind"] == "edit"
-                    or (
-                        event["kind"] in kinds_declaring("message")
-                        and event.get("token")
-                    )
-                    for event in events
-                )
-                else {}
-            )
         answered_reactions = set()
         resolved_reactions = set()
         reaction_ids = {
@@ -226,7 +206,7 @@ class UndoReading:
 def undo_error(
     event: dict,
     events: list,
-    within: dict,
+    threads: dict,
     absorbed: frozenset,
 ) -> Finding | None:
     """Why this undo may not take back the event it names, or None.
@@ -248,12 +228,12 @@ def undo_error(
     browser offers exactly the gestures this reading admits
     (`served_state.document.browser_undo_candidates`).
 
-    `within` is the published page's containment, as every other fold of the
-    threads takes it: a thread an action settled, and a version's `restated`
-    inside that widget reopened, is open here as it is in `page state`.
+    `threads` are the log's threads folded under the published page's containment,
+    as every other reading of them is: a thread an action settled, and a version's
+    `restated` inside that widget reopened, is open here as it is in `page state`.
     `absorbed` is the newest revision's absorbed moves, whose units its markup
     places."""
-    return UndoReading(events, within=within, absorbed=absorbed).error(event)
+    return UndoReading(events, threads=threads, absorbed=absorbed).error(event)
 
 
 def build_threads(events: list, within: dict, *, anchor: object | None = None) -> dict:

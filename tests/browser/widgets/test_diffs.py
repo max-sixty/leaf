@@ -735,31 +735,28 @@ def diff_refresh_keeps_selection(page, serve, diff, source, value, edit):
     told(page)
     rendered(page)
     assert page.evaluate("() => getSelection().toString()") == before, diff
-    gutters = page.evaluate(
-        """diff => {
-      const widget = document.querySelector(diff);
-      const entry = widget.fileEntries[0];
-      return entry.rendered.lines.map(line => {
-        const row = line.node.parentElement;
-        const comment = row.querySelector('.lf-diff-line-comment');
-        const number = String(line.side === 'old' ? line.oldLine : line.newLine);
-        return {
-          datum: line.node.dataset.lfDatum,
-          commentInRow: comment.isConnected && comment.nextElementSibling === line.node,
-          label: comment.textContent,
-          expected: number,
-          lineTypeMatches: row.dataset.lineType === line.node.dataset.lineType,
-          commentCount: row.querySelectorAll('.lf-diff-line-comment').length,
-        };
-      });
-    }""",
-        diff,
+    # Each drawn row pairs its own numbered control with its source line: the
+    # number is the line's own in its datum (the new number for a context line).
+    gutters = page.locator(f"{diff} .lf-diff-line").evaluate_all(
+        """rows => rows.map(row => {
+      const comments = row.querySelectorAll('.lf-diff-line-comment');
+      const line = comments[0]?.nextElementSibling;
+      const datum = JSON.parse(line?.dataset.lfDatum ?? 'null');
+      return {
+        datum: line?.dataset.lfDatum,
+        commentCount: comments.length,
+        label: comments[0]?.textContent,
+        expected: datum && String(datum.at(-1)),
+        lineTypeMatches: row.dataset.lineType === line?.dataset.lineType,
+      };
+    })"""
     )
+    assert gutters, diff
     assert all(
-        gutter["commentInRow"]
+        gutter["commentCount"] == 1
+        and gutter["datum"]
         and gutter["label"] == gutter["expected"]
         and gutter["lineTypeMatches"]
-        and gutter["commentCount"] == 1
         for gutter in gutters
     ), gutters
 

@@ -547,7 +547,7 @@ def test_an_independent_verb_leaves_a_decisions_thread_resolved(page_dir):
     assert winner["id"] == "accept1"
     threads = event_folds_model.build_threads(events, page.within)
     assert threads["c1"]["resolved"]["id"] == "accept1"
-    memberships = thread_memberships(events, {"c1": "c1"}, {}, {})
+    memberships = thread_memberships(events, {})
     assert memberships["label1"] == []
 
 
@@ -570,7 +570,6 @@ def test_a_gesture_at_a_coordinate_reaches_only_the_answers_still_in_force_there
         }
 
     comments = [{"kind": "comment", "id": "c1"}, {"kind": "comment", "id": "c2"}]
-    names = {"c1": "c1", "c2": "c2"}
     replaced = thread_memberships(
         [
             *comments,
@@ -578,8 +577,6 @@ def test_a_gesture_at_a_coordinate_reaches_only_the_answers_still_in_force_there
             decide("reject", "reject", None),
             {"kind": "undo", "id": "unreject", "undoes": "reject"},
         ],
-        names,
-        {},
         {},
     )
     assert (replaced["reject"], replaced["unreject"]) == (["c1"], ["c1"])
@@ -590,8 +587,6 @@ def test_a_gesture_at_a_coordinate_reaches_only_the_answers_still_in_force_there
             {"kind": "undo", "id": "unaccept", "undoes": "accept"},
             decide("reject", "reject", None),
         ],
-        names,
-        {},
         {},
     )
     assert (taken_back["unaccept"], taken_back["reject"]) == (["c1"], [])
@@ -602,8 +597,6 @@ def test_a_gesture_at_a_coordinate_reaches_only_the_answers_still_in_force_there
             {"kind": "note", "id": "v2", "revision": 2, "restated": ["sug-a"]},
             decide("again", "accept", "c2", revision=2),
         ],
-        names,
-        {},
         {},
     )
     assert (restated["v2"], restated["again"]) == (["c1"], ["c2"])
@@ -614,8 +607,6 @@ def test_a_gesture_at_a_coordinate_reaches_only_the_answers_still_in_force_there
             decide("stale", "accept", "c1"),
             decide("again", "accept", "c2", revision=2),
         ],
-        names,
-        {},
         {},
     )
     assert (late["stale"], late["again"]) == (["c1"], ["c2"])
@@ -628,8 +619,6 @@ def test_a_gesture_at_a_coordinate_reaches_only_the_answers_still_in_force_there
             decide("reject", "reject", None, depends=("sug-a", "sug-note")),
             {"kind": "note", "id": "v2", "revision": 2, "restated": ["sug-note"]},
         ],
-        names,
-        {},
         {"sug-note": ["sug-a", "sug-note"]},
     )
     assert (restored["reject"], restored["v2"]) == (["c1"], ["c1"])
@@ -642,8 +631,6 @@ def test_a_gesture_at_a_coordinate_reaches_only_the_answers_still_in_force_there
             decide("again", "accept", "c2"),
             {"kind": "undo", "id": "unaccept", "undoes": "accept"},
         ],
-        names,
-        {},
         {},
     )
     assert behind["unaccept"] == ["c1"]
@@ -702,7 +689,7 @@ def test_every_change_to_a_threads_resolution_reaches_its_membership():
                 }
             assert event is not None
             events.append(event)
-        memberships = thread_memberships(events, {"c1": "c1", "c2": "c2"}, {}, within)
+        memberships = thread_memberships(events, within)
         for at in range(len(comments), len(events)):
             before, after = resolved(events[:at]), resolved(events[: at + 1])
             changed = {thread for thread in after if before[thread] != after[thread]}

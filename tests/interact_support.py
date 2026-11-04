@@ -1214,16 +1214,10 @@ def thread_records(page_dir, name: str) -> list[str]:
     log order: the join a delivery reads to say which threads an event lands in
     (`thread_context.thread_memberships`)."""
     events = events_model.read_events(page_dir)
-    names = thread_context_model.thread_names(events)
     memberships = thread_context_model.thread_memberships(
-        events,
-        names,
-        thread_context_model.thread_widgets(
-            thread_context_model.thread_structure(events), names
-        ),
-        active_enclosing(page_dir),
+        events, active_enclosing(page_dir)
     )
-    thread = names[name]
+    thread = thread_context_model.thread_names(events)[name]
     return [event["id"] for event in events if thread in memberships[event["id"]]]
 
 

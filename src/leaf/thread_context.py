@@ -4,6 +4,7 @@ from collections.abc import Callable
 from functools import lru_cache
 from typing import NamedTuple
 
+from leaf.event_log import folded
 from leaf.events import (
     InForce,
     action_retracted,
@@ -41,11 +42,8 @@ def sample_events(
     not been written into yet: `leaf-dev corpus` selects against a history it is
     generating from, where every declared thread exists by construction, and refuses
     one that names nothing."""
-    names = thread_names(events)
     within = enclosing_ids(document)
-    memberships = thread_memberships(
-        events, names, thread_widgets(thread_structure(events), names), within
-    )
+    memberships = thread_memberships(events, within)
     # A coordinate a selected thread's action stands at is copied whole, so the
     # child folds the same winner there: an action that changed no thread, such as
     # the one a retracted answer had superseded, still decides the widget.
@@ -126,7 +124,7 @@ def id_subject(
             return id_subject(
                 events, page_widgets, thread_by_widget, within, event["undoes"]
             )
-        memberships = thread_memberships(events, names, thread_by_widget, within)
+        memberships = thread_memberships(events, within)
         thread = next(iter(memberships[name]), None)
     return {"kind": "thread", "id": thread} if thread is not None else None
 
@@ -269,7 +267,7 @@ def event_threads(event: dict, names: dict, widgets: dict) -> list:
 
 
 def thread_memberships(
-    events: list, names: dict, widgets: dict, within: dict
+    events: list, within: dict, *, anchor: object | None = None
 ) -> dict[str, list[str]]:
     """Event id → every thread whose history that event changes.
 
@@ -288,20 +286,55 @@ def thread_memberships(
     raw records explain that fold rather than becoming another state projection.
     Read state and the history feed read the direct relation, `event_threads`: an
     update the user made in a thread, rather than every thread it changed.
-    """
-    memberships: dict[str, list[str]] = {}
-    in_force = InForce(within)
-    for event in events:
+
+    The walk reads each event's names as the log has them at that event
+    (`thread_names`, `thread_widgets`), which are the names the whole log gives it,
+    since a message names a parent logged before it and an action a widget
+    declared before it, and no fragment declares an id another already holds
+    (`validation.admission.check_markup`). Given `anchor`, the reading `within`
+    belongs to, the walk is kept with a page's log (`event_log.folded`)."""
+    return folded(events, anchor, "memberships", lambda: MembershipFold(within))
+
+
+class MembershipFold:
+    """`thread_memberships`' walk over the log, one event at a time."""
+
+    def __init__(self, within: dict):
+        self.in_force = InForce(within)
+        self.names: dict[str, str] = {}
+        self.widgets: dict[str, str] = {}
+        self.memberships: dict[str, list[str]] = {}
+
+    def copy(self) -> "MembershipFold":
+        twin = MembershipFold.__new__(MembershipFold)
+        twin.in_force = self.in_force.copy()
+        twin.names = dict(self.names)
+        twin.widgets = dict(self.widgets)
+        twin.memberships = dict(self.memberships)
+        return twin
+
+    def step(self, event: dict) -> None:
         kind = event["kind"]
+        if kind == "comment":
+            self.names[event["id"]] = event["id"]
+        elif kind == "reply":
+            self.names[event["id"]] = self.names[event["parent"]]
+        if event.get("markup"):
+            thread = self.names.get(event["id"])
+            for widget in logged_fragment(event).by_id:
+                if thread is None:
+                    self.widgets.pop(widget, None)
+                else:
+                    self.widgets[widget] = thread
         if kind == "undo":
-            named = memberships.get(event["undoes"], [])
-            changes = [in_force.withdraw(event["undoes"])]
+            named = self.memberships.get(event["undoes"], [])
+            changes = [self.in_force.withdraw(event["undoes"])]
         else:
-            named = event_threads(event, names, widgets)
+            named = event_threads(event, self.names, self.widgets)
             changes = (
-                [in_force.admit(event)]
+                [self.in_force.admit(event)]
                 if kind == "action"
-                else in_force.restate(event)
+                else self.in_force.restate(event)
                 if kind == "note"
                 else []
             )
@@ -315,8 +348,10 @@ def thread_memberships(
                 if winner is not None and (answer := winner["meaning"].get("answer"))
             ),
         ]
-        memberships[event["id"]] = list(dict.fromkeys(named))
-    return memberships
+        self.memberships[event["id"]] = list(dict.fromkeys(named))
+
+    def reading(self) -> dict[str, list[str]]:
+        return dict(self.memberships)
 
 
 # What one message is, to a wait consumer holding no page: who said it, what they said,
@@ -445,7 +480,7 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
     names = thread_names(events)
     structure = thread_structure(events)
     widgets = thread_widgets(structure, names)
-    memberships = thread_memberships(events, names, widgets, within)
+    memberships = thread_memberships(events, within)
     named = dict.fromkeys(
         thread for event in batch for thread in memberships[event["id"]]
     )

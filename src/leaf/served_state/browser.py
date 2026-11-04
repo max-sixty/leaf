@@ -238,10 +238,7 @@ def browser_state(
         "thread_memberships": {
             identity: threads
             for identity, threads in thread_memberships(
-                events,
-                durable.thread.thread_by_name,
-                durable.thread.thread_by_widget,
-                active_page.within,
+                events, active_page.within, anchor=active_page.reading
             ).items()
             if threads
         },

@@ -28,7 +28,7 @@ class WorkReading:
         registry: dict,
         page=None,
         *,
-        within=None,
+        published=None,
         thread=None,
         log=None,
         data=None,
@@ -37,11 +37,10 @@ class WorkReading:
         self.registry = registry
         self.page = page
         self.data = data or {"sources": {}}
-        # The published page's containment, which every fold of the threads takes,
+        # The published page, whose containment every fold of the threads takes,
         # whichever revision's document this reading reads them beside.
-        self.within = (
-            within if within is not None else page.within if page is not None else {}
-        )
+        self.published = published if published is not None else page
+        self.within = self.published.within if self.published is not None else {}
         self.log = log or TodoReading(events)
         self._thread = thread
 
@@ -58,14 +57,18 @@ class WorkReading:
             self.events,
             page.registry,
             page,
-            within=self.within,
+            published=self.published,
             log=self.log,
             data=self.data,
         )
 
     @cached_property
     def threads(self) -> dict:
-        return build_threads(self.events, self.within, withdrawn=self.log.withdrawn)
+        return build_threads(
+            self.events,
+            self.within,
+            anchor=self.published.reading if self.published is not None else None,
+        )
 
     @cached_property
     def thread(self):

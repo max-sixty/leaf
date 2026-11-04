@@ -549,22 +549,13 @@ def batch_data(
     from .thread_context import (
         batch_threads,
         thread_memberships,
-        thread_names,
-        thread_structure,
-        thread_widgets,
         unsent_at_messages,
     )
 
     registry = _registry(page_dir)
     events = transaction.events
     within = active_enclosing(page_dir)
-    names = thread_names(events)
-    memberships = thread_memberships(
-        events,
-        names,
-        thread_widgets(thread_structure(events), names),
-        within,
-    )
+    memberships = thread_memberships(events, within)
     # The obligations are read only where an event can carry `waiting`: an action,
     # or the user's reply on a page whose agent messages carry markup that may ask.
     reads_obligations = any(event["kind"] == "action" for event in batch) or (

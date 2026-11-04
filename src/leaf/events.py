@@ -1,8 +1,10 @@
 """Pure folds over the append-only event model."""
 
 from collections import OrderedDict
+from copy import copy
 from typing import NamedTuple
 
+from leaf.event_log import folded
 from leaf.findings import Finding
 from leaf.registry.kernel import kinds_declaring
 
@@ -136,7 +138,7 @@ class UndoReading:
             # lazy also preserves the boundary's ability to reject another gesture
             # without interpreting unrelated, already-validated records.
             threads = (
-                build_threads(events, within, withdrawn=self.withdrawn)
+                build_threads(events, within)
                 if any(
                     event["kind"] == "edit"
                     or (
@@ -254,7 +256,7 @@ def undo_error(
     return UndoReading(events, within=within, absorbed=absorbed).error(event)
 
 
-def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -> dict:
+def build_threads(events: list, within: dict, *, anchor: object | None = None) -> dict:
     """Fold threads using the admitted answer coordinate.
 
     Answer effects survive retirement of their source widget. An unrelated action
@@ -274,23 +276,104 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     opened it, its ``root``: the name every obligation, workflow, summary, and title
     uses for it. Admission keeps each message's parent in force while the message is
     (`event_contracts._parent_error`), so each reply it admits lands in a thread.
-    """
-    if withdrawn is None:
-        withdrawn = taken_back(events)
-    # Every action at a coordinate competes, including a non-answer. Thread
-    # settlement and visible state therefore read the same winning gesture.
-    in_force = InForce(within, retractions(events), withdrawn)
-    for e in events:
-        if e["kind"] == "action":
-            in_force.admit(e)
-    winners = in_force.winners()
-    threads = {}
+
+    Given the function's own `anchor`, the reading `within` belongs to, the fold is
+    kept with a page's log and steps through only what was appended since
+    (`event_log.folded`). A reader keeps the threads it is handed as they are."""
+    return folded(events, anchor, "threads", lambda: ThreadFold(within))
+
+
+class ThreadFold:
+    """`build_threads`' walk over the log, one event at a time.
+
+    Every action at a coordinate competes, including a non-answer, so thread
+    settlement and visible state read the same winning gesture (`InForce`). Each
+    event joins the one thread it names, and a thread is read again from its own
+    events (`_thread`) when one joins it, when an undo takes one of them back, and
+    when the winner moves at the coordinate of an action answering it. A step
+    therefore costs the threads it changes, and the threads keep the order their
+    comments opened them in, as a reader of the whole log leaves them."""
+
+    def __init__(self, within: dict):
+        self.in_force = InForce(within)
+        self.withdrawn: set[str] = set()
+        # Each message → the thread it is in.
+        self.names: dict[str, str] = {}
+        # Each thread → the events naming it, in log order.
+        self.members: dict[str, list[dict]] = {}
+        self.joined: dict[str, str] = {}
+        self.threads: dict[str, dict] = {}
+
+    def copy(self) -> "ThreadFold":
+        twin = copy(self)
+        twin.in_force = self.in_force.copy()
+        twin.withdrawn = set(self.withdrawn)
+        twin.names = dict(self.names)
+        twin.members = {thread: list(named) for thread, named in self.members.items()}
+        twin.joined = dict(self.joined)
+        twin.threads = dict(self.threads)
+        return twin
+
+    def _answered(self, change: "Change | None") -> list[str]:
+        if change is None:
+            return []
+        return [
+            answer
+            for winner in (change.before, change.after)
+            if winner is not None
+            and (answer := winner["meaning"].get("answer")) in self.members
+        ]
+
+    def step(self, event: dict) -> None:
+        changed = []
+        if undoes := event.get("undoes"):
+            self.withdrawn.add(undoes)
+            changed += self._answered(self.in_force.withdraw(undoes))
+            if undoes in self.joined:
+                changed.append(self.joined[undoes])
+        kind = event["kind"]
+        thread = None
+        if kind == "comment":
+            thread = self.names[event["id"]] = event["id"]
+            self.members[thread] = []
+        elif kind == "reply":
+            thread = self.names[event["id"]] = self.names[event["parent"]]
+        elif kind == "edit":
+            thread = self.names.get(event["message"])
+        elif kind in {"resolve", "unresolve"}:
+            thread = self.names.get(event["parent"])
+        elif kind in {"thread_title", "reanchor"}:
+            thread = event["thread"]
+        elif kind == "action":
+            changed += self._answered(self.in_force.admit(event))
+            thread = event["meaning"].get("answer")
+        elif kind == "note":
+            for change in self.in_force.restate(event):
+                changed += self._answered(change)
+        if thread in self.members:
+            self.members[thread].append(event)
+            self.joined[event["id"]] = thread
+            changed.append(thread)
+        for thread in dict.fromkeys(changed):
+            if (reading := _thread(self.members[thread], self)) is None:
+                self.threads.pop(thread, None)
+            else:
+                self.threads[thread] = reading
+
+    def reading(self) -> dict:
+        return dict(self.threads)
+
+
+def _thread(events: list[dict], fold: ThreadFold) -> dict | None:
+    """One thread read from the events naming it, or None while its comment is
+    taken back."""
+    thread = None
     thread_for = {}
     messages = {}
     for e in events:
         # A gesture the user took back settles nothing, whichever way it settled:
         # the log holds it and no reading of the log stands on it.
-        if e["id"] in withdrawn:
+        if e["id"] in fold.withdrawn:
             continue
         if e["kind"] == "comment":
             message = dict(e)
@@ -306,22 +389,20 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                 "revisions": [],
                 "resolved": None,
             }
-            threads[e["id"]] = thread
             thread_for[e["id"]] = thread
             continue
         # Read the effect at its own log position, so a person's intervening
         # resolve remains the latest closure even after an answer is superseded.
         if e["kind"] == "action":
-            answered = threads.get(e["meaning"].get("answer"))
-            if answered and winners.get(event_coordinate(e)) is e:
-                answered["resolved"] = e
+            if thread and fold.in_force.winner(event_coordinate(e)) is e:
+                thread["resolved"] = e
             continue
         if e["kind"] == "thread_title":
-            if thread := threads.get(e["thread"]):
+            if thread:
                 thread["title"] = e["title"]
             continue
         if e["kind"] == "reanchor":
-            if thread := threads.get(e["thread"]):
+            if thread:
                 previous = thread["anchor"]
                 thread["rewritten_from"] = previous if e["anchor"] else None
                 thread["detached_from"] = previous if e["anchor"] is None else None
@@ -334,9 +415,9 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                 # revision keeps the words it replaced, which answers already given
                 # were about.
                 if e["author"] != "agent":
-                    thread = thread_for[e["message"]]
-                    thread["revisions"].append({**e, "was": message["text"]})
-                    thread["resolved"] = None
+                    owner = thread_for[e["message"]]
+                    owner["revisions"].append({**e, "was": message["text"]})
+                    owner["resolved"] = None
                 # The message says when it was last rewritten, and what it said before,
                 # so a reader of the thread alone sees which answers were about other
                 # words.
@@ -347,28 +428,28 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                 message["text"] = e["text"]
             continue
         if e["kind"] == "reply":
-            thread = thread_for[e["parent"]]
+            owner = thread_for[e["parent"]]
             message = dict(e)
             messages[e["id"]] = message
-            thread["msgs"].append(message)
-            if thread["title"] is None and "title" in e:
-                thread["title"] = e["title"]
+            owner["msgs"].append(message)
+            if owner["title"] is None and "title" in e:
+                owner["title"] = e["title"]
             if "token" not in e and "failure" not in e and not e.get("ephemeral"):
-                thread["resolved"] = None
+                owner["resolved"] = None
             if "anchor" in e:
-                thread["detached_from"] = (
-                    thread["anchor"] if e["anchor"] is None else None
+                owner["detached_from"] = (
+                    owner["anchor"] if e["anchor"] is None else None
                 )
-                thread["anchor"] = e["anchor"]
-                thread["rewritten_from"] = None
-            thread_for[e["id"]] = thread
+                owner["anchor"] = e["anchor"]
+                owner["rewritten_from"] = None
+            thread_for[e["id"]] = owner
         # A resolve names a message the user may later take back — a reaction opening
         # its thread, withdrawn once the thread reopened — and then closes nothing.
-        elif e["kind"] == "resolve" and (thread := thread_for.get(e["parent"])):
-            thread["resolved"] = e
-        elif e["kind"] == "unresolve" and (thread := thread_for.get(e["parent"])):
-            thread["resolved"] = None
-    return threads
+        elif e["kind"] == "resolve" and (owner := thread_for.get(e["parent"])):
+            owner["resolved"] = e
+        elif e["kind"] == "unresolve" and (owner := thread_for.get(e["parent"])):
+            owner["resolved"] = None
+    return thread
 
 
 def active_summaries(events: list, threads: dict) -> dict[str, list[dict]]:

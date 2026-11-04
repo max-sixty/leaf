@@ -37,7 +37,7 @@ import hashlib
 import json
 from bisect import bisect_right
 from collections.abc import Callable
-from functools import partial
+from functools import cache, partial
 from math import inf
 from typing import TYPE_CHECKING, NamedTuple
 from urllib.parse import quote
@@ -815,14 +815,21 @@ class _ObligationReducer:
         settled_at = {}
         history_readings = {}
         history_keys = {}
-        # Only writers in the exact historical revision can originate a request
-        # there (`previously_requested`). Other log entries need no historical parse.
-        written = {}
-        for event in self.events:
-            if event["kind"] in verb_writers():
-                written.setdefault((event["revision"], event["widget"]), set()).add(
-                    event["action"]
-                )
+
+        # The readings of the whole log below serve only a record an earlier revision
+        # may have registered, so they are taken when one asks.
+        @cache
+        def written() -> dict:
+            """Only writers in the exact historical revision can originate a request
+            there (`previously_requested`). Other log entries need no historical
+            parse."""
+            index = {}
+            for event in self.events:
+                if event["kind"] in verb_writers():
+                    index.setdefault((event["revision"], event["widget"]), set()).add(
+                        event["action"]
+                    )
+            return index
 
         def settled(revision):
             """The seq each report is first settled at through `revision`."""
@@ -846,16 +853,19 @@ class _ObligationReducer:
                 settled(old_revision),
             )
 
-        # A historical fold reads writers and notes through its revision, plus
-        # withdrawals from the complete log. Later page gestures and conversation
-        # updates cannot change it. Hash the complete event contents, since test
-        # readings and regenerated logs may reuse identities with different values.
-        state_events = [
-            event
-            for event in self.events
-            if event["kind"] in verb_writers() or event["kind"] == "note"
-        ]
-        withdrawals = sorted(taken_back(self.events))
+        @cache
+        def state_history() -> tuple[list, list]:
+            """A historical fold reads writers and notes through its revision, plus
+            withdrawals from the complete log. Later page gestures and conversation
+            updates cannot change it. Hash the complete event contents, since test
+            readings and regenerated logs may reuse identities with different
+            values."""
+            return [
+                event
+                for event in self.events
+                if event["kind"] in verb_writers() or event["kind"] == "note"
+            ], sorted(taken_back(self.events))
+
         earlier = []
         remaining = iter(prior()) if prior is not None else iter(())
 
@@ -899,8 +909,11 @@ class _ObligationReducer:
                     if registration.asking:
                         registered = True
                         break
-                    if registration.triggers & written.get((old_revision, unit), set()):
+                    if registration.triggers & written().get(
+                        (old_revision, unit), set()
+                    ):
                         if old_revision not in history_keys:
+                            state_events, withdrawals = state_history()
                             history_keys[old_revision] = hashlib.sha256(
                                 json.dumps(
                                     (

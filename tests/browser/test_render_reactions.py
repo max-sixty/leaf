@@ -2095,7 +2095,7 @@ def test_a_message_reaction_trigger_meets_its_header_and_covers_no_words(
           const metadata = [
             ...message.querySelectorAll('.lf-msg-head > :not(.lf-msg-control-room)'),
           ].map(node => node.getBoundingClientRect());
-          const resolve = document.querySelector('.lf-fp-settle');
+          const resolve = document.querySelector('.lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)');
           const action = resolve.getBoundingClientRect();
           const range = document.createRange();
           range.selectNodeContents(message.querySelector('.lf-msg-text'));
@@ -2137,7 +2137,7 @@ def test_a_message_reaction_trigger_meets_its_header_and_covers_no_words(
         expect(message.locator(".lf-react-palette:popover-open")).to_have_count(0)
 
     with sending(page, "resolve beside the agent-root reaction"):
-        activate(page.locator(".lf-fp-settle"))
+        activate(page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)"))
     expect(card).to_have_count(0)
 
 

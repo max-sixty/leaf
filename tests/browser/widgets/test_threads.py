@@ -438,7 +438,7 @@ def test_a_detached_thread_on_a_widget_an_agent_sent_stays_detached(browser, ser
     page = open_page(browser, url)
     resized(page, 1200, 900)
     thread = open_panel_thread(page, "c-lost")
-    expect(thread.locator(".lf-fp-quote")).to_have_attribute("data-lf-detached", "")
+    expect(thread.locator(".lf-thread-quote")).to_have_attribute("data-lf-detached", "")
     expect(
         page.locator(".lf-fp-aux").get_by_role("button", name="Show in message")
     ).to_have_count(0)
@@ -465,7 +465,7 @@ def test_a_thread_on_a_widget_an_agent_sent_names_it_and_stands_apart(browser, s
     page = open_page(browser, url)
     resized(page, 1200, 900)
     thread = open_panel_thread(page, "c-on-sent")
-    label = thread.locator(".lf-fp-quote").inner_text()
+    label = thread.locator(".lf-thread-quote").inner_text()
     assert "Which store should I write up?" in label, label
     assert "ps-decision-region" not in label, label
 
@@ -483,7 +483,7 @@ def test_a_thread_on_a_widget_an_agent_sent_stands_in_its_message(browser, serve
     page = open_page(browser, url)
     resized(page, 1200, 900)
     thread = open_panel_thread(page, "c-on-sent")
-    quote = thread.locator(".lf-fp-quote")
+    quote = thread.locator(".lf-thread-quote")
     expect(quote).to_contain_text("Which store should I write up?")
     expect(quote).not_to_have_attribute("data-lf-detached", "")
 

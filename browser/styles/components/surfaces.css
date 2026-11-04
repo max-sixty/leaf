@@ -662,6 +662,12 @@ summary {
   margin-top: var(--sp-2);
   overflow-wrap: anywhere;
 }
+/* A box a thread draws one of its parts in where its container stands the part
+   apart, as the floating panel stands Resolve on its head line (thread-card.js,
+   `apart`), lays out as what it holds, in the container's place. */
+.lf-thread-apart {
+  display: contents;
+}
 .lf-page-thread {
   box-sizing: border-box;
   min-width: 0;
@@ -673,9 +679,11 @@ summary {
 }
 /* A whole thread holding focus wears a quiet ground. A primary reader's part is one
    message of a thread its presentation draws whole around it (`.lf-primary-part`
-   below), so focus inside a part leaves that ground to the drawing and the focused
+   below), and a thread drawn in a view that stands for it whole, as the floating
+   panel's is (`data-lf-thread-view`, thread/selectors.js), is drawn inside that
+   drawing, so focus inside either leaves that ground to the drawing and the focused
    control to its own ring. */
-.lf-page-thread:not(.lf-primary-part)[data-lf-focus-within] {
+.lf-page-thread:not(.lf-primary-part, [data-lf-thread-view] *)[data-lf-focus-within] {
   outline: none;
   border-radius: var(--r);
   --lf-ground: var(--focus-surface);
@@ -692,7 +700,7 @@ summary {
 /* A forced palette paints every ground in Canvas, so the quiet ground of a thread
    holding focus would vanish; the thread wears the ring instead. */
 @media (forced-colors: active) {
-  .lf-page-thread:not(.lf-primary-part)[data-lf-focus-within] {
+  .lf-page-thread:not(.lf-primary-part, [data-lf-thread-view] *)[data-lf-focus-within] {
     outline: var(--focus-ring);
     --lf-ring-at: var(--focus-ring-inset);
   }
@@ -869,11 +877,10 @@ summary {
 .lf-msg-head > .lf-msg-meta {
   margin-inline-end: auto;
 }
-/* A primary reader's first message part, or the first message of its transcript part,
-   holds its thread's news notice at the head's end, before the message's own controls
-   (controls.css), unless its presentation stands the notice elsewhere
-   (thread/primary-reader.js). It stays positioned, at no offset, so its reach
-   (`::after`) covers the notice rather than the whole message. */
+/* A primary reader's first message part holds its thread's news notice at the head's
+   end, before the message's own controls (controls.css; thread/primary-reader.js). It
+   stays positioned, at no offset, so its reach (`::after`) covers the notice rather
+   than the whole message. */
 .lf-msg-head > .lf-primary-news {
   position: relative;
 }
@@ -1253,4 +1260,78 @@ button.lf-thread-news {
 /* What an answer leaves standing reads beside its time like a receipt. */
 .lf-msg-head .lf-msg-leaves {
   color: var(--ink-2);
+}
+/* A quote of the words a comment is about: the comment box's (composing/selection.js),
+   and a thread's where its container asks for one, as the floating panel's view does
+   (thread-card.js, `#drawQuote`). Both stand in the chrome and a thread drawn by a
+   package's reader stands in the page, so the face is stated here, where every surface
+   reads it. */
+.lf-quote-label {
+  min-width: 0;
+}
+.lf-anchor-status {
+  margin-inline-start: 7px;
+  color: var(--muted);
+  font: var(--font-status);
+}
+.lf-quote {
+  margin: 0 0 12px;
+  padding: 2px 8px 2px 10px;
+  border-inline-start: 1px solid var(--border-2);
+  color: var(--muted);
+  font: var(--font-compact);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.lf-quote:is(:hover, [data-lf-focus]) {
+  color: var(--ink-2);
+}
+.lf-quote[data-lf-detached] {
+  border-inline-start-color: var(--border-2);
+  color: var(--muted);
+  cursor: default;
+}
+/* A thread's quote stands over its messages in the quote's face: three lines, the whole
+   on Full quote, its press above the words it grows. It only says what the thread is
+   about, since the container's way to the words, as the panel's Show on page, goes
+   there: it takes no press, no aim's room and no title naming a jump, though a
+   detached quote's title still says where its words went. Its words start on the
+   thread's edge, the 1px rule before them included. */
+.lf-thread-quote-head:not([hidden]) {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+  margin: 0 0 12px;
+  font: var(--font-compact);
+}
+.lf-thread-quote-head > .lf-thread-quote {
+  margin: 0;
+  padding-inline-start: calc(var(--lf-thread-text-inset) - 1px);
+  min-width: 0;
+  min-height: 0;
+  cursor: default;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+.lf-thread-quote[data-lf-expanded="true"] {
+  display: block;
+  overflow: visible;
+}
+/* Full quote, an inline press (controls.css) at the quote's size, its disclosure's
+   marker before its word. Its reach (the aim floor, above) lies inside the scroller
+   holding the thread, as the panel's view, which clips what passes its 8px top
+   padding, so under a finger it stands low enough for the reach above it. */
+.lf-thread-quote-head > .lf-quote-expand {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-block-start: max(0px, (var(--aim-floor) - 1lh) / 2 - 8px);
+  min-height: 0;
+  padding: 0;
+}
+.lf-thread-quote-head > .lf-quote-expand::before {
+  inline-size: 1em;
+  text-align: center;
 }

@@ -907,8 +907,8 @@ def test_a_thread_resolved_while_its_reply_is_written_keeps_the_user_on_it(
         wait_until_ready(page)
         # A resolved thread the page draws nowhere opens in the panel.
         open_panel_thread(page, root)
-        settle = page.locator(".lf-fp-settle")
-        expect(settle).to_have_accessible_name("Reopen")
+        settle = page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)")
+        expect(settle).to_have_accessible_name("✓ Resolved by Codex · Reopen")
         with sending(page, "reopen the thread with the saved reply"):
             settle.click()
         round_trip(page)

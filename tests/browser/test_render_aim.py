@@ -2128,7 +2128,7 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     # on the thread in the panel's thread view.
     panel = page.locator(PANEL_THREAD)
     expect(panel).to_be_visible()
-    expect(page.locator(".lf-fp-quote")).to_contain_text(
+    expect(page.locator(".lf-thread-quote")).to_contain_text(
         "design · lf-option · opt-shim"
     )
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
@@ -3189,7 +3189,7 @@ def test_a_declared_flowchart_node_keeps_its_comment_across_renderings(browser, 
         {"section": "flow", "visual": "node:S"}
     ]
     open_panel_thread(page, posted[0]["id"])
-    expect(page.locator(".lf-fp-quote")).to_have_text("§ diagram · Start request")
+    expect(page.locator(".lf-thread-quote")).to_have_text("§ diagram · Start request")
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
     expect_comment_notes(page, "#flow", 1)

@@ -70,7 +70,15 @@ import {
   stuckBox,
   visibleBand,
 } from "./geometry.js";
-import { aimedTop, moveScrollerBy, placeKept, scrollLimit } from "./scrolling.js";
+import {
+  aimedTop,
+  moveScrollerBy,
+  pageScroller,
+  placeKept,
+  scrollLimit,
+} from "./scrolling.js";
+import { scrollersOf } from "./scroll-containers.js";
+import { inChrome } from "./shadow-tree.js";
 import { pointerAt } from "./pointer.js";
 import { recentPlaceInput, focused, onCurrentLocation } from "./focus.js";
 import { watchScrollEnds } from "./arrivals.js";
@@ -103,6 +111,9 @@ export function focusedInView() {
 // the stop; the control is measured when asked, since what rides a scroll is placed
 // again as it settles. Unlike `focusedInView`, a control in the chrome or a stuck box is
 // not away: the user sees what a key there acts on, though it names no place in the page.
+// Nor is a row the user scrolled out of a list of Leaf's own, such as Threads: the list
+// still shows where they are, and its arrows move on from that row into view, so it is
+// the list that must leave the screen.
 let settledSinceArrival = false;
 watchScrollEnds(() => {
   settledSinceArrival = true;
@@ -115,7 +126,10 @@ onCurrentLocation((node, cause) => {
 export function focusScrolledAway() {
   if (!settledSinceArrival) return false;
   const node = focused();
-  return Boolean(node && node !== document.body && !seenRect(node, new Map()));
+  if (!node || node === document.body) return false;
+  const [list] = scrollersOf(node);
+  const place = list && list !== pageScroller && inChrome(list) ? list : node;
+  return !seenRect(place, new Map());
 }
 
 // The candidates in the order they may hold the place, each once: an inherited

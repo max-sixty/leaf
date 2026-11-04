@@ -92,6 +92,7 @@ const exactClosures = {
     "language-paths.js",
     "syntax-languages.js",
     "shadow-tree.js",
+    "scroll-containers.js",
     "keeps.js",
     "keyboard/bindings.js",
     "keyboard/layer-stack.js",

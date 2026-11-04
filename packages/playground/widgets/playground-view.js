@@ -321,9 +321,6 @@ export function createPlayground(host) {
         ? (view.given?.reset ?? null)
         : (actions()?.querySelector(":scope > .lf-playground-reset") ?? null);
     },
-    get reveal() {
-      return actions()?.querySelector(":scope > .lf-playground-reveal") ?? null;
-    },
     /** @returns {HTMLElement | null} */
     get instruction() {
       return actions()?.querySelector(":scope > .lf-playground-instruction") ?? null;
@@ -543,7 +540,7 @@ export function createPlayground(host) {
             ${submitWords(chosen())}
           </button>
           <div
-            class="lf-playground-instruction"
+            class="lf-playground-instruction lf-popover"
             id=${instructionId}
             popover="auto"
             role="dialog"

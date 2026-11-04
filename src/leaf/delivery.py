@@ -69,7 +69,6 @@ from .event_log import jsonl_line
 from .harness import session_harness
 from .interaction_log import acting_on
 from .refusals import Refused
-from .registry.kernel import verb_writers
 from .service import (
     PageTransaction,
     may_receive,
@@ -502,19 +501,6 @@ def _registry(page_dir: Path):
         return None
 
 
-def _subject(event: dict, threads: list[str], by_id: dict[str, dict]) -> dict:
-    """Name what one event changes without using prose as an identifier."""
-    if event["kind"] in verb_writers():
-        return {"kind": "widget", "id": event["widget"]}
-    if event["kind"] == "undo":
-        original = by_id.get(event["undoes"])
-        if original is not None:
-            return _subject(original, threads, by_id)
-    if threads:
-        return {"kind": "thread", "id": threads[0]}
-    return {"kind": "page"}
-
-
 def current_responses(
     page_dir: Path, events: list[dict], reading=None
 ) -> dict[str, dict]:
@@ -546,31 +532,14 @@ def batch_data(
     """Capture one complete ordered page batch, less what `freeze_delivery` writes
     for its transport: the address of a thread reply, and the `handling` that follows
     from it."""
-    from .events import build_threads
-    from .gesture_words import GestureWords, revisions_on_disk
+    from .event_facts import EventFacts
     from .obligations import waiting_about, waiting_in_thread
-    from .registry.contract import event_spec
-    from .revision_artifact import active_enclosing
     from .served_state.context import read_page
-    from .thread_context import (
-        batch_threads,
-        thread_memberships,
-        thread_names,
-        thread_structure,
-        thread_widgets,
-        unsent_at_messages,
-    )
+    from .thread_context import batch_threads
 
-    registry = _registry(page_dir)
     events = transaction.events
-    within = active_enclosing(page_dir)
-    names = thread_names(events)
-    memberships = thread_memberships(
-        events,
-        names,
-        thread_widgets(thread_structure(events), names),
-        within,
-    )
+    reader = EventFacts(page_dir, events, _registry(page_dir))
+    facts = reader(batch)
     # The obligations are read only where an event can carry `waiting`: an action,
     # or the user's reply on a page whose agent messages carry markup that may ask.
     reads_obligations = any(event["kind"] == "action" for event in batch) or (
@@ -589,53 +558,14 @@ def batch_data(
     durable = (
         reading.work.durable if reading is not None and reads_obligations else None
     )
-    revisions = {
-        revision["id"]: revision
-        for thread in build_threads(events, within).values()
-        for revision in thread["revisions"]
-    }
-    by_id = {event["id"]: event for event in events}
-    words = GestureWords(events, registry, revisions_on_disk(page_dir))
-
-    def records_unsent(action: dict) -> bool:
-        # Which verbs record unsent work is the vocabulary's word, as `says` is, and
-        # the word of the document the user acted in.
-        spec = event_spec(words.declaration(action), action)
-        return bool(spec and spec.get("unsent"))
-
-    unsent = (
-        {}
-        if registry is None
-        else unsent_at_messages(events, batch, within, records_unsent)
-    )
 
     captured = []
     for event in batch:
-        threads = memberships.get(event["id"], [])
-        entry = {
-            **event,
-            "subject": _subject(event, threads, by_id),
-            "threads": threads,
-        }
+        known = facts[event["id"]]
+        entry = {**event, **known}
         # The browser's retry key: the log keeps it to recognise a resent post, and
         # the agent has no use for it.
         entry.pop("attempt", None)
-        # What an element says is a registry's word, and a page whose active layer
-        # does not read is not read for its words at all.
-        if registry is not None and (says := words.says(event)):
-            entry["says"] = says
-            entry["names"] = {
-                identity: words.name(event, identity) for identity in says
-            }
-        if revision := revisions.get(event["id"]):
-            # The thread's digest already reads the new wording; the agent answering
-            # a revision needs to see what it replaced, and whether those words are a
-            # suggestion's exact replacement text.
-            entry["was"] = revision["was"]
-            if by_id[revision["message"]].get("suggestion"):
-                entry["suggestion"] = True
-        if work := unsent.get(event["id"]):
-            entry["unsent"] = work
         if (answer := responses.get(event["id"])) is not None:
             entry["answer"] = answer
         if durable is not None and (
@@ -648,7 +578,7 @@ def batch_data(
             if event["kind"] == "action"
             else [
                 question
-                for thread in threads
+                for thread in known["threads"]
                 for question in waiting_in_thread(
                     thread,
                     event["seq"],
@@ -665,7 +595,7 @@ def batch_data(
         "page": str(page_dir),
         "claim": transaction.delivery_owner,
         "through_seq": max(event["seq"] for event in batch),
-        "threads": batch_threads(events, batch, within),
+        "threads": batch_threads(events, batch, reader.within),
         "events": captured,
     }
 

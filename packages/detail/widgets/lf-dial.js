@@ -49,6 +49,7 @@ import {
   scrollerFor,
   shownWindow,
   tabStore,
+  viewDocument,
   whileConnected,
   commandsChanged,
 } from "/runtime/widget-api.js";
@@ -114,7 +115,7 @@ customElements.define(
     get #scope() {
       const scope = authoredScope(this);
       return (
-        this.closest("[data-lf-views] > *, main") ??
+        viewDocument(this) ??
         (scope === this.ownerDocument.body
           ? scope.querySelector(":scope > main")
           : scope)

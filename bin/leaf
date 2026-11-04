@@ -46,16 +46,10 @@
 # (`hook --harness NAME --if-claimed`), so where the environment exists the same
 # standalone program answers the hook on that environment's interpreter
 # (`state.answer_gated_hook`). In a session holding no claim it returns before
-# the package's imports; otherwise it runs the whole hook in that interpreter.
+# the package's imports; otherwise it starts the whole hook on that interpreter,
+# running `uv sync` first only where the lock changed since its last sync.
 # Worker tool batches also stop at this gate: only the parent receives the input
-# its session claimed. `-P` keeps the program's own directory off the module
-# path, where `leaf/http` would shadow the standard library's `http`.
-#
-# A gated hook goes through uv only where `uv.lock` or `pyproject.toml` changed
-# since uv last synced the environment for a gated hook
-# (`state.answer_gated_hook`). A copy Claude Code installed never changes, so
-# its hooks take uv once; a checkout an agent updates mid-session takes it at
-# the first gated hook after each change, before that hook imports anything.
+# its session claimed.
 #
 # Claude Code's sandbox refuses what a command needs, so where it confines this
 # one (SANDBOX_RUNTIME), the bridge Leaf's hooks keep outside it runs the command
@@ -76,6 +70,6 @@ if [ -n "${SANDBOX_RUNTIME:-}" ] && [ -x "$python" ]; then
     exec "$python" -I -m leaf.bridge run "$@"
 fi
 if [ "${1:-}" = hook ] && [ "${4:-}" = --if-claimed ] && [ -x "$python" ]; then
-    exec "$python" -S -P "$state" "$@"
+    exec "$python" -S "$state" "$@"
 fi
 exec uv run -q --no-dev --project "$root" python -m leaf "$@"

@@ -1,6 +1,6 @@
 """Hooks registered `--if-claimed`, which the launcher answers without uv
 (`bin/leaf`): without starting Leaf in unclaimed sessions and for worker tool
-batches, and in the gate's own interpreter otherwise."""
+batches, and on the environment's interpreter otherwise."""
 
 import json
 import os
@@ -64,10 +64,10 @@ def test_claude_code_runs_the_whole_hook_once_its_session_claims(page_dir):
 
 
 def test_a_claimed_session_runs_its_gated_hooks_without_uv(claimed, tmp_path):
-    """A hook registered `--if-claimed` in a session holding a page runs whole in
-    the interpreter the launcher's gate starts, with no uv once uv has synced the
-    environment to the lock, and a worker's tool batch, which receives nothing,
-    stops before Leaf's imports."""
+    """A hook registered `--if-claimed` in a session holding a page runs whole on
+    the environment's interpreter, with no uv once uv has synced the environment
+    to the lock, and a worker's tool batch, which receives nothing, stops before
+    Leaf's imports."""
     uv = tmp_path / "uv"
     uv.write_text("#!/bin/sh\nexit 72\n")
     uv.chmod(0o755)

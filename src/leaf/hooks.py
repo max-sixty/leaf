@@ -406,8 +406,8 @@ def main(
     """Read one harness payload and dispatch it.
 
     The Click hook command is the caller. A hook handed to another launcher keeps
-    its registration's `--if-claimed`, so that launcher's gate also runs it in one
-    interpreter, starting uv only where that tree's lock moved
+    its registration's `--if-claimed`, so that launcher's gate also starts it on
+    its environment's interpreter, running uv only where that tree's lock moved
     (`state.answer_gated_hook`).
     The harness ends a watch and the pages follower with SIGTERM or SIGHUP. Each
     then unwinds, so the watch releases its leases and the follower its lane, and

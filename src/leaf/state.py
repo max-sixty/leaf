@@ -915,23 +915,21 @@ def main() -> None:
         end_harness_instance(payload.get("session_id") or "")
 
 
-def answer_gated_hook(argv: list[str], *, synced: str | None = None) -> None:
+def answer_gated_hook(argv: list[str]) -> None:
     """Answer a hook registered `--if-claimed`, which `bin/leaf` hands here on the
-    environment's interpreter, started with -S so no site packages load: return at
-    once where the session holds no claim, or where the payload is a worker's tool
-    batch, and otherwise run the whole hook in this interpreter. A hook it skips
-    takes about 25 ms in place of about 70 for starting the package (measured on
-    macOS). Any failure here runs the hook whole, which reports it.
+    environment's interpreter, started with -S so no site packages load. Where the
+    session holds no claim, or the payload is a worker's tool batch, it returns at
+    once: a hook it skips takes about 25 ms in place of about 70 for starting the
+    package (measured on macOS). Otherwise it starts Leaf on that interpreter
+    (`python -m leaf`) with the payload, as `uv run` would without uv's own start.
+    A payload it can't read runs the hook whole, which reports it.
 
-    The environment must first match the project's lock, as `uv run` ensures
-    before each run, but a hook checks only that the lock and project file are as
-    they were when uv last synced the environment for one, which
-    `.venv/leaf-synced` records by each file's modification time and size. Where
-    either has changed, as an update to a checkout changes them, this program
-    hands itself to `uv run`, which syncs the environment, perhaps replacing its
-    interpreter, and starts this program again on it, `synced` to the files as
-    they were before the sync; that run records them only if they still are, so
-    a change during the sync takes another."""
+    `uv run` syncs the environment to the lock before each run. This program runs
+    `uv sync` only where `uv.lock` or `pyproject.toml` differs, by modification
+    time or size, from `.venv/leaf-synced`, which records both as they were
+    before the last sync it ran, so a change landing during that sync takes
+    another. A copy Claude Code installed never changes, so it syncs once; a
+    checkout syncs after an update changes its lock."""
     text = sys.stdin.read()
     try:
         payload = json.loads(text)
@@ -942,43 +940,23 @@ def answer_gated_hook(argv: list[str], *, synced: str | None = None) -> None:
         idle = False
     if idle:
         return
-    record = PLUGIN_ROOT / ".venv" / "leaf-synced"
+    environment = PLUGIN_ROOT / ".venv"
+    record = environment / "leaf-synced"
     inputs = " ".join(
         f"{info.st_mtime_ns}:{info.st_size}"
         for info in map(
             os.stat, (PLUGIN_ROOT / "uv.lock", PLUGIN_ROOT / "pyproject.toml")
         )
-    )
-    if synced == inputs:
-        replace_bytes([(record, inputs.encode(), False)])
-    elif synced is None and _read_bytes(record) != inputs.encode():
-        exec_with_input(
-            [
-                "uv",
-                "run",
-                "-q",
-                "--no-dev",
-                "--project",
-                str(PLUGIN_ROOT),
-                "python",
-                "-S",
-                "-P",
-                __file__,
-                "synced",
-                inputs,
-                *argv,
-            ],
-            text,
-        )
-    import io
-    import site
+    ).encode()
+    if _read_bytes(record) != inputs:
+        import subprocess
 
-    site.main()
-    sys.argv = ["leaf", *argv]
-    sys.stdin = io.StringIO(text)
-    from leaf.__main__ import main as run_leaf
-
-    run_leaf()
+        sync = ["uv", "sync", "--inexact", "-q", "--no-dev", "--project"]
+        synced = subprocess.run([*sync, str(PLUGIN_ROOT)], stdout=sys.stderr)
+        if synced.returncode:
+            sys.exit(synced.returncode)
+        replace_bytes([(record, inputs, False)])
+    exec_with_input([str(environment / "bin" / "python"), "-m", "leaf", *argv], text)
 
 
 def _read_bytes(path: Path) -> bytes | None:
@@ -1005,7 +983,5 @@ def exec_with_input(
 if __name__ == "__main__":
     if sys.argv[1:2] == ["hook"]:
         answer_gated_hook(sys.argv[1:])
-    elif sys.argv[1:2] == ["synced"]:
-        answer_gated_hook(sys.argv[3:], synced=sys.argv[2])
     else:
         main()

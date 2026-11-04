@@ -38,10 +38,10 @@
  *   the ✕ standing before both marks, which kept them still but stood it between the
  *   field and the marks. Beside the seat stands at most one small notice for a state
  *   the user should not miss, such as reading an older version, tinted by its tone and
- *   with at most one press (`olderVersion`), or, while it passes, a notice with its
- *   one press (notifications.js), such as a Resolve's Undo (`rowNotice`), chosen on 31
- *   October so a Resolve that moves the panel on says which thread it resolved and
- *   offers its undo there; the field gives it room, so the seat keeps
+ *   with at most one press (`olderVersion`), or, while it passes, a notice of the user's
+ *   own gesture with the press that takes it back, as a Resolve's Undo (`rowNotice`),
+ *   chosen on 31 October so a Resolve that moves the panel on says which thread it
+ *   resolved and offers its undo there; the field gives it room, so the seat keeps
  *   its place, but only while it holds no words, which a narrower field would rewrap
  *   under the reader; the notice waits while words stand there. The empty field says
  *   what the agent is doing or wants, in the status's words

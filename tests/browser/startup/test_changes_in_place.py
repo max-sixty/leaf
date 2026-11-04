@@ -191,7 +191,7 @@ def test_coming_back_says_how_much_changed_and_v_marks_it(browser, serve):
     revise(d, DELTA)
 
     visibility(page, "visible")
-    expect(page.locator(".lf-live")).to_have_text("2 changes since v1")
+    expect(page.locator(".lf-live")).to_have_text("2 changes since v1 — v shows them")
     expect(marked).to_have_count(0)
     page.keyboard.press("v")
     expect(marked).to_have_count(2)
@@ -202,7 +202,7 @@ def test_what_lands_while_the_user_works_elsewhere_counts_when_they_return(
     browser, serve
 ):
     """The browser beside the terminal: visible, but the user is typing elsewhere. What
-    lands then is news when they come back, and the notice's Show marks it."""
+    lands then is news when they come back, and `v` marks it."""
     url = live_url(serve(PAGE))
     d = serve.page_dir
     page = open_page(browser, url)
@@ -216,8 +216,8 @@ def test_what_lands_while_the_user_works_elsewhere_counts_when_they_return(
     wait_for_revision(page, 3)
 
     attention(page, True)
-    expect(page.locator(".lf-live")).to_have_text("1 change since v2")
-    page.locator("[data-lf-notice-press]").click()
+    expect(page.locator(".lf-live")).to_have_text("1 change since v2 — v shows them")
+    page.keyboard.press("v")
     expect(page.locator("main .lf-ins-block")).to_have_count(1)
     assert marked_ids(page) == ["d"]
 
@@ -243,7 +243,7 @@ def test_a_draft_the_user_watched_land_is_no_news_when_they_return(browser, serv
     revise(d, DELTA)
     wait_for_revision(page, 3)
     attention(page, True)
-    expect(page.locator(".lf-live")).to_have_text("2 changes since v1")
+    expect(page.locator(".lf-live")).to_have_text("2 changes since v1 — v shows them")
     assert len(counts) == 1, "a return to the draft the user watched counted changes"
 
 

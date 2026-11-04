@@ -5,16 +5,15 @@
    moment's news, such as an arrived version or an undo, and it stands in
    one seat: the floating panel's seat for passing words, in place of the current walk
    position, which returns when the notice's time is up (floating-panel.js, `passing`). The
-   live region hears the same words. It is text, but for the one press a notice may
-   carry (`press`): on a notice of the user's own gesture, the press that takes that
-   gesture back (undo.js's `offerUndo`), and on a return's news, the press that shows
-   what it counts (since-seen.js). The floating panel draws the press beside the words
-   with the key of the page command that makes it too, as "Resolved “One reconnect in
-   about 40” · Undo z" (floating-panel.js, `rowNotice`). The notice stands no longer
-   than its press can act, so its press never acts on anything else. The user chose the
-   undo on 31 October, after a Resolve that moved the panel on left nothing there
-   offering to take it back, and the return's Show on 4 November; until then a notice
-   was text alone, and what it named the panel's own controls reached. There is no second surface for news, so nothing floats in a corner
+   live region hears the same words. It is text, but for the one press a notice of the
+   user's own gesture may carry: the press that takes that gesture back (`press`,
+   undo.js's `offerUndo`), which the floating panel draws beside the words with the key
+   of the page command that makes it too, as "Resolved “One reconnect in about 40” ·
+   Undo z" (floating-panel.js, `rowNotice`). The notice stands no longer than its
+   gesture does, so its press never takes back anything else. The user chose that on
+   31 October, after a Resolve that moved the panel on left nothing there offering to
+   take it back; until then a notice was text alone, and what it named the panel's own
+   controls reached. There is no second surface for news, so nothing floats in a corner
    to become a stale pointer target. A failure is no news: it goes through errors.js,
    which keeps it until the user has dealt with it. */
 import { el } from "./widget-elements.js";

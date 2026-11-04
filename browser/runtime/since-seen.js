@@ -24,16 +24,21 @@
 
    When the user comes back, by a load, a return to a hidden tab once its first
    refreshed reading is in, or focus returning to the window, to a revision newer than
-   any they saw, a notice says how much changed since the version they last saw ("3
-   changes since v12") and offers `v`. A return to a draft they watched land says
-   nothing, though it differs from that version, since nothing in it is news. The notice
-   stands until their next input, as a notice offering a press does (notifications.js),
-   and no longer than its count holds: a revision landing takes it away, and one landing
-   while it is counted starts the count again. The page arrives unmarked: the user chose on 3 November to call
-   the marks up with a key rather than have them waiting, and on 4 November took up
-   being told on return that there is something to call up. The count waits until the
-   document is presented, so the comparison it runs (version.js, `changesSince`) stays
-   off the path to first showing the page.
+   any they saw, a notice says how much changed since the version they last saw and
+   names the key that marks it ("3 changes since v12 — v shows them"). A return to a
+   draft they watched land says nothing, though it differs from that version, since
+   nothing in it is news. The notice is news, as a version's arrival is: it waits behind
+   the user's own commands and passes after a notice's time (notifications.js), naming
+   its key in words as "Draft kept — g i resumes writing" does, and the leaf's menu
+   keeps Show changes as the lasting route. A revision landing while the notice is
+   counted starts the count again. The page arrives unmarked: the user chose on 3
+   November to call the marks up with a key rather than have them waiting, and on 4
+   November took up being told on return that there is something to call up, in a
+   notice that passes like the others. Rejected: a notice standing until the user's
+   next input with a Show press, as an Undo does, which held the panel's seat for the
+   agent's status until the user acted. The count waits until the document is
+   presented, so the comparison it runs (version.js, `changesSince`) stays off the path
+   to first showing the page.
 
    `v` marks what changed since the version the user last saw while the page holds
    changes since then, and otherwise since the newest version older than the one being
@@ -66,7 +71,6 @@ import {
 import { counted } from "./words.js";
 
 const HANDOFF_KEY = "lf-seen-handoff";
-const CHANGES = "changes.toggle";
 
 /** @typedef {import("../types/contract.js").ServedRevision} Seen
  * @typedef {import("../types/contract.js").ServedReading["versions"][number]} Version */
@@ -124,7 +128,7 @@ export function createSinceSeen({ markSeen }) {
     return since ? ` since v${since.version}` : "";
   };
   pageCommand({
-    id: CHANGES,
+    id: "changes.toggle",
     ready: savedReadingSettled,
     keys: ["v"],
     title: () => (selectedBase() ? "hide changes" : `show changes${named()}`),
@@ -134,9 +138,9 @@ export function createSinceSeen({ markSeen }) {
     run: toggle,
   });
 
-  // The notice of what changed since `since`, said once the count is in and while it
-  // holds: no later arrival, nothing marked meanwhile, `v` still comparing with that
-  // version, and the revision counted still the one being read.
+  // The notice of what changed since `since`, said once the count of the revision
+  // being read is in, and only while no later arrival has come, nothing is marked
+  // meanwhile and `v` still compares with that version.
   /** @param {Version} since @param {number} mine */
   async function tell(since, mine) {
     const holds = () =>
@@ -148,13 +152,8 @@ export function createSinceSeen({ markSeen }) {
       if (n === undefined) return;
       if (n === null || runtime.currentRevision !== revision) continue;
       if (n && holds())
-        notice(`${counted(n, "change")} since v${since.version}`, {
-          press: {
-            action: "show",
-            command: CHANGES,
-            run: toggle,
-            stands: () => holds() && runtime.currentRevision === revision,
-          },
+        notice(`${counted(n, "change")} since v${since.version} — v shows them`, {
+          background: true,
         });
       return;
     }

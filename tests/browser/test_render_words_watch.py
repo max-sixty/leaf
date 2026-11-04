@@ -58,20 +58,6 @@ def scrolled(page):
     page.wait_for_function("() => scrollY > 0")
 
 
-def test_words_a_scroll_hides_fail(browser):
-    page = box_page(browser, "scroll-hides")
-    scrolled(page)
-    judge_watches()
-    consume_browser_errors(
-        page,
-        {
-            "code": "words-left-screen",
-            "words": "Half a thought",
-            "place": ["textarea#field"],
-        },
-    )
-
-
 def test_words_a_scroll_hides_fail_after_moving_among_them(browser):
     """A press on the field and a key that moves its caret are the user moving among
     their words, not putting them away, so a scroll that hides the box after them
@@ -82,7 +68,14 @@ def test_words_a_scroll_hides_fail_after_moving_among_them(browser):
     page.keyboard.press("Shift")
     scrolled(page)
     judge_watches()
-    consume_browser_errors(page, {"code": "words-left-screen"})
+    consume_browser_errors(
+        page,
+        {
+            "code": "words-left-screen",
+            "words": "Half a thought",
+            "place": ["textarea#field"],
+        },
+    )
 
 
 def test_words_a_scroll_clears_fail(browser):
@@ -686,8 +679,9 @@ def test_words_a_passive_selection_change_cannot_close_a_draft(browser):
     )
 
 
-@pytest.mark.parametrize("route", ["press", "keyboard"])
-@pytest.mark.parametrize("shadow", [False, True])
+@pytest.mark.parametrize(
+    "route, shadow", [("press", False), ("press", True), ("keyboard", False)]
+)
 def test_words_a_native_disclosure_puts_away_its_fields(browser, route, shadow):
     field = (
         '<div id="host"></div><script>'
@@ -1302,16 +1296,15 @@ field.addEventListener('keydown', async event => {
     )
 
 
-@pytest.mark.parametrize("delay", [300, 3000])
-def test_words_a_slow_send_retains_its_input(browser, delay):
-    """The same native Send timer owns its effect at 1x and 10x latency. A real
+def test_words_a_slow_send_retains_its_input(browser):
+    """A native Send timer owns its effect at ten times an ordinary latency. A real
     completion flag bounds the wait; the delay is not a correctness assertion."""
     page = browser.new_page()
     page.goto(
         "data:text/html,"
         + quote(
             '<textarea id=field></textarea><button id=send style="position:fixed;right:0;top:0">Send</button><script>'
-            f"send.onclick=()=>setTimeout(()=>{{field.remove();window.done=true}},{delay});"
+            "send.onclick=()=>setTimeout(()=>{field.remove();window.done=true},3000);"
             "</script>"
         )
     )

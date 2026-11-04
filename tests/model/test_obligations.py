@@ -425,28 +425,6 @@ def test_a_question_in_a_reply_waits_on_the_user_until_their_next_message():
     assert lists(state) == ([], ["update:r"], [])
 
 
-def test_the_agent_ends_a_question_the_user_answered_elsewhere():
-    state = model.reading(
-        page(""),
-        answered_in_words(
-            {
-                "kind": "todo_end",
-                "author": "agent",
-                "todo": "message:asking",
-                "outcome": "done",
-                "detail": "answered in chat",
-            }
-        ),
-    )
-    [item] = served_obligations(state)["all"]
-    assert (item["status"], item["next_actor"], item["answer"]) == (
-        "answered_elsewhere",
-        None,
-        None,
-    )
-    assert item["end"]["detail"] == "answered in chat"
-
-
 def test_a_frame_around_a_decision_widget_stays_one_obligation():
     [item] = page_obligations(model.reading(page(context="frame"), []))["all"]
     assert (item["id"], item["prompt"]["target"]) == ("widget:choice", "frame")

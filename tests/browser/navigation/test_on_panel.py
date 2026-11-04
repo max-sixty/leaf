@@ -7,7 +7,6 @@ import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import live_url, panel_comment
-from render_cases_layout import toggle_queue
 from render_harness import (
     PANEL,
     holding,
@@ -594,8 +593,8 @@ def test_an_m_step_newer_focus_cancels_at_a_thread_claims_no_arrival(browser, se
 
 @pytest.mark.parametrize("width", [1200, 390])
 def test_a_completed_obligation_stays_reachable_through_on_me(browser, serve, width):
-    """An answered obligation stays in On me under Done, which closes and reopens through its
-    routes."""
+    """An answered obligation stays in On me under Done, which closes and reopens through
+    its routes, and finishing the page preserves the route back through the answer."""
     page = open_page(
         browser,
         serve(
@@ -610,51 +609,13 @@ def test_a_completed_obligation_stays_reachable_through_on_me(browser, serve, wi
     )
 
     resized(page, width, 844)
-    page.keyboard.press("m")
-    expect(page.locator("#only-decision")).to_be_focused()
-    page.keyboard.press("Tab")
-    expect(page.locator("#only .lf-pick").first).to_be_focused()
-    page.keyboard.press("1")
-    round_trip(page)
-
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
-    panel_settled(page, view="queue")
-    done = show_done(page)
-    expect(done).to_have_count(1)
-    expect(done).to_contain_text("Pick one")
-    expect(page.locator('.lf-fp-on-item[data-lf-list="you"]')).to_have_count(0)
-
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
-    panel_settled(page, open=False)
-
-    # With nothing left on the user, On me opens on its folded Done.
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
-    panel_settled(page, view="queue")
-    expect(show_done(page)).to_have_count(1)
-
-
-def test_a_completed_obligation_keeps_its_answer_in_the_on_panel(browser, serve):
-    """Finishing a page preserves the On panel's route back through the answer."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "One decision",
-                '<h1>One decision</h1><lf-ask id="only-decision"><h2>Pick one</h2>'
-                '<lf-options id="only" choose>'
-                '<lf-option id="first">First</lf-option>'
-                '<lf-option id="second">Second</lf-option></lf-options></lf-ask>',
-            )
-        ),
-    )
     # `m` travels to the obligation and Tab steps onto a mark, whose digit answers it. Tab
     # rather than the digit straight off the arrival, because where an arrival lands is
     # not this test's subject and it should not go red when that moves.
     page.keyboard.press("m")
+    expect(page.locator("#only-decision")).to_be_focused()
     page.keyboard.press("Tab")
+    expect(page.locator("#only .lf-pick").first).to_be_focused()
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     page.keyboard.press("1")
@@ -676,10 +637,15 @@ def test_a_completed_obligation_keeps_its_answer_in_the_on_panel(browser, serve)
     for route in held:
         route.continue_()
     round_trip(page)
-    toggle_queue(page)
+
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    panel_settled(page, view="queue")
     done = show_done(page)
     expect(done).to_have_count(1)
+    expect(done).to_contain_text("Pick one")
     expect(done).to_contain_text("First")
+    expect(page.locator('.lf-fp-on-item[data-lf-list="you"]')).to_have_count(0)
 
     reading = page.evaluate(
         """async () => {
@@ -701,6 +667,20 @@ def test_a_completed_obligation_keeps_its_answer_in_the_on_panel(browser, serve)
         "value": ["first"],
         "status": "answered",
     }
+
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    panel_settled(page, open=False)
+
+    # With nothing left on the user, On me opens on its folded Done.
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    panel_settled(page, view="queue")
+    expect(show_done(page)).to_have_count(1)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    panel_settled(page, open=False)
+
     page.locator("h1").focus()
     assert page.evaluate(
         """async () => {

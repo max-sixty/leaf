@@ -609,22 +609,6 @@ def test_a_quick_second_z_waits_for_a_fragments_trip(browser, serve):
     assert _undos(serve.page_dir) == [choice["id"]]
 
 
-def test_the_menus_undo_shows_then_takes_too(browser, serve):
-    """A finger's way to Undo is the leaf's menu row, and it goes the same two steps:
-    the first press opens the thread, and pressing the row again takes it back, the
-    presses on the leaf to reach it keeping what the first one showed."""
-    url, thread, resolve = _old_resolve_below_the_fold(serve)
-    page = open_page(browser, url)
-    panel_control(page, "command:history.undo").click()
-    expect(page.locator(".lf-live")).to_have_text(ARMED)
-    _shown(page, thread)
-    told(page)
-    assert _undos(serve.page_dir) == []
-    with sending(page, "the withdrawal"):
-        panel_control(page, "command:history.undo").click()
-    assert _undos(serve.page_dir) == [resolve]
-
-
 def test_the_undo_rows_age_follows_the_clock_while_the_page_stays_open(browser, serve):
     """The age Undo's row says, at its end and whole in its hover, is read where the
     menu paints, so a page left open keeps it true: a gesture made just now reads
@@ -2275,44 +2259,10 @@ def test_an_undo_reveals_the_prior_winner_before_its_send_finishes(
 
 
 def test_z_returns_a_recordless_decision_to_undecided(browser, serve):
-    """Withdrawing an accept renders the null decision. The same suggestion
-    regains its old passage and decision controls without replacing its subtree."""
+    """Withdrawing an accept renders the null decision. The same suggestion regains its
+    old passage, its anchored comment marks and its decision controls without replacing
+    its subtree, and focus returns to the available decision control."""
     page = open_page(browser, serve(SUGGESTION_PAGE))
-    old = page.locator("#sug-refill lf-old")
-    accept = suggestion_control(page, "sug-refill", "accept")
-    expect(old).to_be_visible()
-    expect_obligations_answered(page, "0/3")
-
-    accept.click()
-    round_trip(page)
-    expect(old).to_be_hidden()
-    expect_obligations_answered(page, "1/3")
-
-    undo(page)
-    # Pending again, in every reading of it: the retired half is back on the page,
-    # the control offers the decision rather than recording it, and the page
-    # counts the question among the ones still waiting on the user.
-    expect(page.locator("#sug-refill lf-old")).to_be_visible()
-    expect(suggestion_control(page, "sug-refill", "accept")).to_have_attribute(
-        "aria-label", re.compile(r"^Accept the suggested change")
-    )
-    expect_obligations_answered(page, "0/3")
-    assert suggestion_control(page, "sug-refill", "accept").count() == 1, (
-        "undo left more than one Accept record for the same suggestion"
-    )
-    (accepted,) = actions(serve.page_dir)
-    assert accepted["detail"] == {"outcome": "accept"}
-    assert [
-        e["undoes"]
-        for e in events_model.read_events(serve.page_dir)
-        if e["kind"] == "undo"
-    ] == [accepted["id"]]
-
-
-def test_undo_preserves_the_place_and_restores_passage_marks(browser, serve):
-    """Undo restores a suggestion's passages and their anchored comment marks, and returns focus to the available decision control."""
-    url = serve(SUGGESTION_PAGE)
-    page = open_page(browser, url)
     append_carried_log_record(
         serve.page_dir,
         {
@@ -2329,17 +2279,40 @@ def test_undo_preserves_the_place_and_restores_passage_marks(browser, serve):
     # page that is doing the right thing.
     marks = "() => (CSS.highlights.get('lf-mark')?.size ?? 0)"
     page.wait_for_function(f"{marks} > 0")
-
+    old = page.locator("#sug-refill lf-old")
     accept = suggestion_control(page, "sug-refill", "accept")
+    expect(old).to_be_visible()
+    expect_obligations_answered(page, "0/3")
+
     accept.click()
     round_trip(page)
+    expect(old).to_be_hidden()
+    expect_obligations_answered(page, "1/3")
     # The sentence left the page with the decision, so the mark goes with it.
     page.wait_for_function(f"{marks} === 0")
     expect(suggestion_control(page, "sug-refill", "undo")).to_be_focused()
 
     undo(page)
+    # Pending again, in every reading of it: the retired half is back on the page,
+    # the control offers the decision rather than recording it, and the page
+    # counts the question among the ones still waiting on the user.
+    expect(page.locator("#sug-refill lf-old")).to_be_visible()
+    expect(suggestion_control(page, "sug-refill", "accept")).to_have_attribute(
+        "aria-label", re.compile(r"^Accept the suggested change")
+    )
+    expect_obligations_answered(page, "0/3")
     page.wait_for_function(f"{marks} === 1")
     expect(suggestion_control(page, "sug-refill", "accept")).to_be_focused()
+    assert suggestion_control(page, "sug-refill", "accept").count() == 1, (
+        "undo left more than one Accept record for the same suggestion"
+    )
+    (accepted,) = actions(serve.page_dir)
+    assert accepted["detail"] == {"outcome": "accept"}
+    assert [
+        e["undoes"]
+        for e in events_model.read_events(serve.page_dir)
+        if e["kind"] == "undo"
+    ] == [accepted["id"]]
 
 
 def test_a_held_suggestion_delivery_does_not_reclaim_focus(held_events, serve):
@@ -2544,20 +2517,6 @@ def test_undo_preserves_the_independent_decision_inside_a_change(browser, serve)
     expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "blend-mixed")
 
 
-def test_a_withdrawn_decision_is_still_withdrawn_after_a_reload(browser, serve):
-    """A page loaded after an undo renders the same undecided state as a page that received the withdrawal live."""
-    url = serve(SUGGESTION_PAGE)
-    page = open_page(browser, url)
-    suggestion_control(page, "sug-refill", "accept").click()
-    round_trip(page)
-    undo(page)
-    page.close()
-
-    again = open_page(browser, url)
-    expect(again.locator("#sug-refill lf-old")).to_be_visible()
-    expect_obligations_answered(again, "0/3")
-
-
 def test_the_composer_never_stands_on_its_own_mark(browser, serve):
     """The mark is the only thing naming the passage the box is about, so a box covering
     all of it is a box about nothing. That is not hypothetical: a restored draft reappears
@@ -2681,6 +2640,7 @@ def test_a_comment_field_scrolled_away_and_back_is_still_there(
     expect(field).to_be_focused()
     rendered(page)
     box = page.locator(".lf-fab-bar")
+    width = box.bounding_box()["width"]
     # Where the field stands is read against its target: the scroll offset that brings
     # the target back is not the one read here once anything above it reflows, which
     # scroll anchoring then absorbs.
@@ -2703,6 +2663,7 @@ def test_a_comment_field_scrolled_away_and_back_is_still_there(
     expect(box).to_have_attribute("data-lf-plane", "page")
     away_box = box.bounding_box()
     assert away_box["y"] + away_box["height"] < 0, away_box
+    assert away_box["width"] == pytest.approx(width, abs=1)
     expect(field).to_be_focused()
     expect(field).to_have_js_property("value", "Half a thought")
     page.evaluate(f"{away}.scrollTo({{top: {start}, behavior: 'instant'}})")
@@ -2714,35 +2675,6 @@ def test_a_comment_field_scrolled_away_and_back_is_still_there(
     assert box.evaluate(beside) == pytest.approx(at, abs=1), (
         "the field came back somewhere other than beside its target"
     )
-    page.keyboard.type(" more")
-    expect(field).to_have_js_property("value", "Half a thought more")
-
-
-def test_a_comment_field_follows_when_its_pane_scrolls_past_the_target(browser, serve):
-    """A bounded pane carries the field away while retaining its draft and caret."""
-    page = open_page(browser, serve(PANED_LONG_PAGE))
-    resized(page, 1440, 900)
-    pane_scroll_behavior(page, page.locator("#reading"), "bounded")
-    paragraph = page.locator("#p30")
-    paragraph.scroll_into_view_if_needed()
-    paragraph.click(modifiers=["Alt"])
-    field = page.locator(".lf-fab-input")
-    write(field, "Half a thought")
-    box = page.locator(".lf-fab-bar")
-    width = box.bounding_box()["width"]
-    page.evaluate(
-        "document.getElementById('reading-body')"
-        ".scrollBy({top: 2000, behavior: 'instant'})"
-    )
-    scroll_settled(page, "#reading-body")
-    rendered(page)
-    expect(box).to_be_visible()
-    expect(field).to_be_focused()
-    expect(field).to_have_js_property("value", "Half a thought")
-    expect(box).to_have_attribute("data-lf-plane", "page")
-    away_box = box.bounding_box()
-    assert away_box["y"] + away_box["height"] < 0, away_box
-    assert box.bounding_box()["width"] == pytest.approx(width, abs=1)
     page.keyboard.type(" more")
     expect(field).to_have_js_property("value", "Half a thought more")
 

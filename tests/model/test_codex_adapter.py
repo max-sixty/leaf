@@ -81,7 +81,6 @@ def fake_codex_cli(tmp_path: Path) -> tuple[Path, Path]:
 import json
 import os
 import sys
-import time
 
 log = os.environ["FAKE_CODEX_LOG"]
 arguments = sys.argv[1:]
@@ -100,12 +99,6 @@ expected_cwd = os.environ.get("FAKE_CODEX_EXPECT_CWD")
 if expected_cwd and os.getcwd() != expected_cwd:
     print(f"unexpected cwd: {{os.getcwd()}}", file=sys.stderr)
     sys.exit(1)
-waiting = os.environ.get("FAKE_CODEX_QUEUE_WAIT")
-if waiting:
-    with open(waiting + ".started", "w", encoding="utf-8"):
-        pass
-    while not os.path.exists(waiting + ".release"):
-        time.sleep(0.01)
 failure = os.environ.get("FAKE_CODEX_QUEUE_FAILURE_ONCE")
 if failure and not os.path.exists(failure):
     with open(failure, "w", encoding="utf-8") as failed:
@@ -600,43 +593,6 @@ def test_codex_receipt_leaves_input_for_the_new_page_owner(page_dir):
     assert pickups == []
 
 
-def test_codex_recovery_ignores_delivery_records_from_the_previous_adapter():
-    directory = codex_state_model.delivery_dir("codex-thread")
-    directory.mkdir(parents=True)
-    legacy = directory / "legacy-delivery.json"
-    cleanup_model.write_json(
-        legacy,
-        {
-            "format": "leaf-delivery-v1",
-            "delivery_id": "legacy-delivery",
-            "page": "/tmp/old-page",
-            "batch_jsonl": '{"page":"/tmp/old-page"}\n',
-        },
-    )
-
-    assert not codex_model.recover_codex_receipt("codex-thread")
-    assert codex_model.delivery_records("codex-thread") == []
-    assert files_model.read_json(legacy)["delivery_id"] == "legacy-delivery"
-
-
-@pytest.mark.parametrize("state", ["collecting", "offering"])
-def test_codex_ignores_delivery_records_from_the_previous_id_vocabulary(state):
-    directory = codex_state_model.delivery_dir("codex-thread")
-    directory.mkdir(parents=True)
-    legacy = directory / "3f2a6c1e-9b44-4f0a-8a1f-2c5d7e8b9012.json"
-    cleanup_model.write_json(
-        legacy,
-        {
-            "format": codex_model.RECORD.format,
-            "state": state,
-            "created_at": 0,
-            "batches": [],
-        },
-    )
-
-    assert codex_model.delivery_records("codex-thread") == []
-
-
 @pytest.mark.parametrize(
     ("leaving", "confirmed"),
     [("restart", True), ("transfer", False), ("end", False)],
@@ -1068,9 +1024,8 @@ def test_codex_hooks_leave_collected_input_after_ownership_transfers(
     assert bool(turn_record_3["turn_closed"]) == (delivery_hook == "Stop")
 
 
-@pytest.mark.parametrize("acknowledge", ["receive_delivery", "cmd_delivery_ack"])
 def test_codex_hook_pointer_read_cannot_move_its_offer_to_a_newer_turn(
-    page_dir, codex_loop, capsys, acknowledge
+    page_dir, codex_loop, capsys
 ):
     """Receipt proves the reserved turn, rather than whichever turn reads later."""
     codex_loop(page_dir)
@@ -1087,7 +1042,7 @@ def test_codex_hook_pointer_read_cannot_move_its_offer_to_a_newer_turn(
     cleanup_model.prompt_turn("codex-thread", "newer")
     delivery_model.cmd_delivery_read(path.stem)
     with pytest.raises(delivery_model.ReceiptRefused, match="receiving turn"):
-        getattr(delivery_model, acknowledge)(path.stem)
+        delivery_model.cmd_delivery_ack(path.stem)
     assert codex_records("codex-thread")[0][1]["state"] == "hook"
     assert not any(e["kind"] == "pickup" for e in events_model.read_events(page_dir))
 

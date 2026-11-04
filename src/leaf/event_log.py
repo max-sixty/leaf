@@ -22,7 +22,9 @@ identity (device and inode), its size, which only grows, and the bytes that ende
 the last reading, still where they were. A log written anew fails one of them:
 `start_log` replaces the file, and the replacement may reuse the inode number its
 predecessor freed, while a fixture that rewrites the file in place fails the last.
-Either starts a new lineage, whose folds start again from the first event.
+Either starts a new lineage, whose folds start again from the first event. Only an
+edit that left those bytes where they were would read as an extension, and nothing
+writes the log but an append under its lease and `start_log`.
 """
 
 import json

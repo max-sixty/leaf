@@ -3,7 +3,9 @@
 Some readings of a page are dear to repeat: a revision's parse, a candidate's capture
 and check, the page's vocabulary, the activation answer, the presence token. Each is
 kept between reads and checked against the stamps of the files it read, so a kept
-reading is never stale, only dropped. They are kept in a `PageMemory`. A process
+reading is never stale, only dropped. The log, which only grows, is kept with the
+folds of it its readers keep, and each read extends them by what was appended
+(`event_log.LogMemory`). They are kept in a `PageMemory`. A process
 keeps the memories of the eight pages it read most recently (`PageMemories`), and any
 memory something else still references (`memory_of`): a sample holds its own and its
 parent's for its life (`samples.Sample`), however many sibling samples a gallery opens.

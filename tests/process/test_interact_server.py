@@ -3746,6 +3746,36 @@ def test_a_torn_tail_is_isolated_and_the_log_keeps_reading(page_dir):
     ]
 
 
+def test_a_log_written_anew_is_read_anew(page_dir):
+    """A process keeps the log it last read and reads only what is appended to it
+    (`event_log.LogMemory`). A log written over in place, though longer, or replaced
+    by another file, extends nothing kept: the next reading is the new file's."""
+    log = page_dir / "events.jsonl"
+
+    def lines(*texts):
+        return "".join(
+            json.dumps({"kind": "comment", "author": "user", "id": f"c{n}", "text": t})
+            + "\n"
+            for n, t in enumerate(texts)
+        )
+
+    log.write_text(lines("first"))
+    assert [e["text"] for e in event_model.read_events(page_dir)] == ["first"]
+    log.write_text(lines("other", "second"))
+    assert [e["text"] for e in event_model.read_events(page_dir)] == [
+        "other",
+        "second",
+    ]
+    replacement = page_dir / "replacement.jsonl"
+    replacement.write_text(lines("third", "fourth", "fifth"))
+    os.replace(replacement, log)
+    assert [e["text"] for e in event_model.read_events(page_dir)] == [
+        "third",
+        "fourth",
+        "fifth",
+    ]
+
+
 def test_a_transaction_reloads_after_an_append_fault_that_may_have_landed(
     page_dir, monkeypatch
 ):

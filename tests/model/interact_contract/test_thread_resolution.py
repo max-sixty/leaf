@@ -636,32 +636,23 @@ def test_a_gesture_at_a_coordinate_reaches_only_the_answers_still_in_force_there
     assert behind["unaccept"] == ["c1"]
 
 
-def test_every_change_to_a_threads_resolution_reaches_its_membership():
-    """Membership names every thread whose resolution an event changes, as
-    `build_threads` reads it before and after that event, over every three-step
-    history of answers, non-answers, undos, and version notes at one coordinate."""
-    from leaf.events import build_threads
-    from leaf.thread_context import thread_memberships
+DECISION_WITHIN = {"x": ("w", "x"), "y": ("w", "y")}
+DECISION_COMMENTS = [
+    {"kind": "comment", "id": thread, "author": "user", "ts": "t", "text": thread}
+    for thread in ("c1", "c2")
+]
 
-    within = {"x": ("w", "x"), "y": ("w", "y")}
-    comments = [
-        {"kind": "comment", "id": thread, "author": "user", "ts": "t", "text": thread}
-        for thread in ("c1", "c2")
-    ]
+
+def _decision_histories():
+    """Every three-step history of answers, non-answers, undos, version notes and
+    replies at one coordinate after two comments, each with its log."""
     steps = [
         ("act", answer, depends)
         for answer in ("c1", "c2", None)
         for depends in ((), ("x",), ("y",))
-    ] + [("undo",), ("note", "x"), ("note", "y")]
-
-    def resolved(events):
-        return {
-            thread: folded["resolved"] and folded["resolved"]["id"]
-            for thread, folded in build_threads(events, within).items()
-        }
-
+    ] + [("undo",), ("note", "x"), ("note", "y"), ("reply", "c1")]
     for history in itertools.product(steps, repeat=3):
-        events: list[dict] = list(comments)
+        events: list[dict] = list(DECISION_COMMENTS)
         revision, in_force = 1, []
         for index, step in enumerate(history):
             if step[0] == "act":
@@ -679,6 +670,15 @@ def test_every_change_to_a_threads_resolution_reaches_its_membership():
                 if not in_force:
                     break
                 event = {"kind": "undo", "id": f"u{index}", "undoes": in_force.pop()}
+            elif step[0] == "reply":
+                event = {
+                    "kind": "reply",
+                    "id": f"r{index}",
+                    "parent": step[1],
+                    "author": "user",
+                    "ts": "t",
+                    "text": "again",
+                }
             else:
                 revision += 1
                 event = {
@@ -687,10 +687,53 @@ def test_every_change_to_a_threads_resolution_reaches_its_membership():
                     "revision": revision,
                     "restated": [step[1]],
                 }
-            assert event is not None
             events.append(event)
-        memberships = thread_memberships(events, within)
-        for at in range(len(comments), len(events)):
+        yield history, events
+
+
+def test_every_change_to_a_threads_resolution_reaches_its_membership():
+    """Membership names every thread whose resolution an event changes, as
+    `build_threads` reads it before and after that event, over every three-step
+    history of answers, non-answers, undos, and version notes at one coordinate."""
+    from leaf.events import build_threads
+    from leaf.thread_context import thread_memberships
+
+    def resolved(events):
+        return {
+            thread: folded["resolved"] and folded["resolved"]["id"]
+            for thread, folded in build_threads(events, DECISION_WITHIN).items()
+        }
+
+    for history, events in _decision_histories():
+        memberships = thread_memberships(events, DECISION_WITHIN)
+        for at in range(len(DECISION_COMMENTS), len(events)):
             before, after = resolved(events[:at]), resolved(events[: at + 1])
             changed = {thread for thread in after if before[thread] != after[thread]}
             assert changed <= set(memberships[events[at]["id"]]), (history, at)
+
+
+def test_a_fold_kept_with_the_log_reads_as_a_fold_of_the_whole_log():
+    """A fold kept with a page's log steps through each append (`event_log.folded`).
+    At every prefix of every decision history, the threads and memberships it keeps
+    read as folding the whole prefix does, order included, and so does a fork of it
+    reading one more event the log does not hold."""
+    from leaf.event_log import Log, LogLineage
+    from leaf.events import build_threads
+    from leaf.thread_context import thread_memberships
+
+    class Reading:
+        """The document reading a kept fold is held beside."""
+
+    def same(kept, whole):
+        return list(kept.items()) == list(whole.items())
+
+    for history, events in _decision_histories():
+        lineage, anchor = LogLineage(), Reading()
+        for at in range(1, len(events) + 1):
+            log = Log(events[:at], lineage, at)
+            wider = log.plus(*events[at : at + 1])
+            for read in (build_threads, thread_memberships):
+                kept = read(log, DECISION_WITHIN, anchor=anchor)
+                assert same(kept, read(events[:at], DECISION_WITHIN)), (history, at)
+                forked = read(wider, DECISION_WITHIN, anchor=anchor)
+                assert same(forked, read(list(wider), DECISION_WITHIN)), (history, at)

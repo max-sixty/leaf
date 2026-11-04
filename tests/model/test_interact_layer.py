@@ -4766,7 +4766,7 @@ def instruction_page(tmp_path: Path, monkeypatch):
             },
         }
     )
-    owner["properties"]["source"] = {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"}
+    owner["properties"]["source"] = {"type": "string"}
     registry["lf-instruction-owner"] = owner
     registry[".instruction-summary"] = {
         "description": "A summary of the selected inputs.",

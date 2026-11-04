@@ -112,10 +112,7 @@
     "x-name": "label",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
+      "id": { "type": "string" },
       "label": {
         "type": "string"
       },
@@ -138,10 +135,7 @@
     "description": "One goal or piece of work, with ownership, status, and optional nested subgoals.",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
+      "id": { "type": "string" },
       "status": {
         "enum": ["planned", "active", "blocked", "review", "stalled", "done"]
       },
@@ -196,17 +190,11 @@
     "description": "One worker\u2019s identity, durable remit, current state, and reported activity.",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
+      "id": { "type": "string" },
       "state": {
         "enum": ["working", "waiting", "blocked", "idle", "reaped", "done"]
       },
-      "on": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
+      "on": { "type": "string" },
       "overruled": {
         "type": "boolean"
       }
@@ -240,14 +228,8 @@
     "description": "A stable, commentable address for observed worktree evidence supplied by the harness.",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
-      "source": {
-        "type": "string",
-        "pattern": "^[a-z][a-z0-9-]*$"
-      }
+      "id": { "type": "string" },
+      "source": { "type": "string" }
     },
     "required": ["id", "source"],
     "additionalProperties": false,

@@ -4607,10 +4607,7 @@ def test_projected_verbatim_includes_generated_children():
                     "detail": {
                         "type": "object",
                         "properties": {
-                            "item": {
-                                "type": "string",
-                                "pattern": f"^{schema_model.ELEMENT_ID}$",
-                            },
+                            "item": {"type": "string"},
                             "text": {"type": "string", "minLength": 1},
                         },
                         "required": ["item", "text"],

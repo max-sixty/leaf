@@ -450,7 +450,7 @@ export function mountFirstMessage(host, editor) {
 
 // The card a page-owned seat (`renderSeats`) draws for the thread `id`, open or in its
 // Resolved disclosure, or null.
-/** @param {string} id @returns {HTMLElement | null} */
+/** @param {string} id @returns {Element | null} */
 export const pageSeatThread = (id) =>
   [...drawnThreadsWithId(document, id)].find((thread) =>
     closestAcross(thread, ".lf-thread-seat[data-lf-thread-seat]"),

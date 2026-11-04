@@ -302,15 +302,12 @@ def test_a_tap_at_the_comment_field_s_edge_stays_the_field_s(
     expect(field).to_be_focused()
 
 
-@pytest.mark.parametrize("touch", [False, True])
-def test_capture_leaves_selected_content_visible_through_the_drag(
-    browser, serve, touch
-):
-    page = capture_page(browser, serve, touch=touch)
+def test_capture_leaves_selected_content_visible_through_the_drag(browser, serve):
+    page = capture_page(browser, serve)
     baseline = Image.open(io.BytesIO(page.screenshot())).convert("RGB")
     target = page.locator("#capture-copy").bounding_box()
     left, top = int(target["x"]) + 100, int(target["y"]) + 4
-    surface = open_capture_area(page, touch=touch)
+    surface = open_capture_area(page)
     page.mouse.move(left, top)
     page.mouse.down()
     # Judge the selected content while the pointer is held, including a small

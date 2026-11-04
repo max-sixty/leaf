@@ -397,7 +397,7 @@ export class ShotView {
                   ${offered(actionClass("word", "lf-shot-view"), true)}
                   appearance="button"
                   value=${value}
-                  ?disabled=${value === "pixels" && !this.reading}
+                  ?disabled=${value === "pixels" && this.images.length !== 2}
                   >${text}</wa-radio
                 >`,
             )}

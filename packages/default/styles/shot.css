@@ -290,17 +290,7 @@ lf-shot:not([data-lf-shot-mode="compare"]) .lf-shotcanvas {
   grid-template-columns: calc(var(--lf-shot-frame-width) + 2px);
   gap: 0;
 }
-lf-shot:not([data-lf-shot-mode="compare"]) .lf-shotcanvas > .lf-shotframe {
-  grid-area: 1 / 1;
-}
 @media screen {
-  lf-shot[data-lf-shot-mode="flip"]
-    .lf-shotcanvas
-    > .lf-shotframe[data-lf-state="before"] {
-    /* Match the first slider drawing while its deferred control loads. */
-    clip-path: inset(0 50% 0 0);
-    z-index: 1;
-  }
   lf-shot[data-lf-shot-mode="pixels"] .lf-shotframe {
     display: none;
   }
@@ -488,6 +478,5 @@ lf-shot[data-lf-shot-focus="true"][data-lf-shot-crop="false"]
   }
   .lf-shotframe {
     margin-block-end: var(--sp-3);
-    clip-path: none;
   }
 }

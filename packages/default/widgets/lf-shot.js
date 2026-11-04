@@ -28,13 +28,14 @@ import { ShotView } from "./shot-view.js";
  * Images and their source-coordinate marks share one clipped plane. Cropping moves
  * that plane, including pixel masks, rather than having each renderer reinterpret
  * the focus rectangle. Pixel comparison runs after presentation, one pair per
- * frame. Slider is the first view; its two native planes reserve and draw the same
- * half-reveal while Web Awesome loads after presentation. The views are Web Awesome's
- * radios, which wear the word face before Web Awesome defines them (webawesome.css),
- * so its arrival moves nothing; they take a press once it has. Pixel masks load only
- * on selection. The divider's exact position survives switching views. Replacing either
- * capture refreshes evidence inside the retained controls and viewports, preserving
- * the reader's inspection.
+ * frame. Slider is the first view. The divider and the view radios are Web Awesome's,
+ * and this module loads Web Awesome with itself, so every view takes the first press
+ * the reader makes once the page shows. That puts Web Awesome's bundle on the startup
+ * path; loading it after presentation kept it off, but left the radios inert until it
+ * arrived. Pixels needs only the two images, so choosing it shows the view at once,
+ * and the view paints its mask when that is computed; masks are computed only on
+ * selection. The divider's exact position survives switching views. Replacing either capture refreshes evidence inside the
+ * retained controls and viewports, preserving the reader's inspection.
  * `difference` reads the requested pair, with its `description` in words; a superseded
  * or refused load resolves null.
  * Pair's images are original-image links using the shared viewer; dragging or
@@ -68,6 +69,7 @@ import {
   compoundReadingRegionId,
   commandsChanged,
 } from "/runtime/widget-api.js";
+import "/vendor/webawesome.esm.js";
 
 /** @type {Promise<unknown>} */
 let comparing = Promise.resolve();
@@ -79,9 +81,6 @@ const inTurn = (work) => {
   comparing = turn.catch(() => {});
   return turn;
 };
-/** @type {Promise<typeof import("/vendor/webawesome.esm.js")> | undefined} */
-let comparisonReady;
-const loadComparison = () => (comparisonReady ??= import("/vendor/webawesome.esm.js"));
 import { shotBox } from "./shot-view.js";
 import {
   compareImagePixels,
@@ -215,7 +214,6 @@ export class Shot extends HTMLElement {
       };
     });
     this.#loadImages();
-    this.#requestComparison();
   }
 
   #loadImages() {
@@ -320,7 +318,6 @@ export class Shot extends HTMLElement {
     else {
       this.#drawing.view = view;
       this.#fit();
-      if (view === "flip") this.#requestComparison();
     }
     announce(`Showing ${label.toLowerCase()}`);
   }
@@ -335,11 +332,7 @@ export class Shot extends HTMLElement {
       this.#comparison.remove();
       this.#comparison = null;
     }
-    if (
-      this.#drawing.view === "flip" &&
-      !this.#comparison &&
-      customElements.get("wa-comparison")
-    ) {
+    if (this.#drawing.view === "flip" && !this.#comparison) {
       const comparison = shotBox("wa-comparison", "lf-shotcomparison lf-media-frame");
       comparison.position = this.#drawing.position;
       const handle = offer("span", "lf-shot-handle");
@@ -397,15 +390,6 @@ export class Shot extends HTMLElement {
       this.#comparison = comparison;
       void comparison.updateComplete.then(() => this.#paintHandle());
     }
-  }
-
-  #requestComparison() {
-    void afterPresentation(async () => {
-      await loadComparison();
-      if (this.isConnected && this.#drawing.view === "flip") {
-        this.#fit();
-      }
-    }).catch((/** @type {unknown} */ reason) => failSoft(this, reason));
   }
 
   #paintHandle() {

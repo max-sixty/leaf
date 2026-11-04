@@ -45,11 +45,8 @@ wa-comparison::part(lf-focus-visible) {
    with no frame, the chosen one wearing a toggle's selected face, rather than
    upstream's framed and joined segments. Their words take the choice type, whose width
    that face leaves alone; the row wraps where it runs out of room, and a long name
-   wraps inside its radio. A widget sets only the radios' height. Since the word role's
-   face, not Web Awesome, sizes each radio, a group stands in the same row before Web
-   Awesome defines it, so a widget can load Web Awesome after presentation. */
-wa-radio-group::part(form-control-input),
-wa-radio-group:not(:defined) {
+   wraps inside its radio. A widget sets only the radios' height. */
+wa-radio-group::part(form-control-input) {
   display: flex;
   flex-wrap: wrap;
   gap: var(--sp-1);

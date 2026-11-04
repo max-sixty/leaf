@@ -617,42 +617,41 @@ def test_a_shot_keeps_its_reserved_frame_while_images_load(browser, serve):
     assert complete == pytest.approx(before, abs=1), (before, complete)
 
 
-def test_a_shot_holds_its_toolbar_while_the_divider_loads_and_keeps_it_across_views(
+def test_a_shot_takes_a_view_pressed_as_the_page_shows_and_keeps_its_divider(
     browser, serve
 ):
-    """Slider reserves one image from first drawing, and its views stand in their final
-    face before Web Awesome defines them, so its arrival moves no control; Pixels and
-    back keep the divider where the reader moved it."""
+    """Pixels, pressed the moment the page shows, is the view the next frame draws.
+    Back on Slider the divider stands halfway, and Pixels and back keep it where the
+    reader moved it."""
     source = leaf_page(
-        "Request a divider",
-        f'<h1>Request a divider</h1><lf-shot id="deferred-pair" alt="a pair" before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot>',
+        "Press a view",
+        f'<h1>Press a view</h1><lf-shot id="pressed-pair" alt="a pair" before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot>',
     )
     url = serve(source, media={SHOT_SRC[n]: data for n, data in SHOTS.items()})
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
-    held = []
-    page.route("**/vendor/webawesome.esm.js", lambda route: held.append(route))
-    page.goto(url, wait_until="domcontentloaded")
-    holding(page, held, 1, "the default comparison divider")
+    # The press lands the moment the page shows, ahead of any work the page starts only
+    # once it shows; on a slow network a reader's press can land there too.
+    page = open_page(
+        browser,
+        url,
+        init_script="""new MutationObserver((records, observer) => {
+          if (!document.body?.hasAttribute('data-lf-presented')) return;
+          observer.disconnect();
+          const shot = document.querySelector('lf-shot');
+          shot.querySelector('.lf-shot-views [value="pixels"]').click();
+          requestAnimationFrame(() => { window.lfShownView = shot.dataset.lfShotMode; });
+        }).observe(document, {subtree: true, attributeFilter: ['data-lf-presented']});""",
+    )
+    page.wait_for_function("window.lfShownView !== undefined")
+    assert page.evaluate("window.lfShownView") == "pixels"
     shot = page.locator("lf-shot")
-    expect(shot).to_have_attribute("data-lf-shot-mode", "flip")
-    expect(shot.locator("wa-comparison")).to_have_count(0)
-    controls = shot.locator(".lf-shot-views wa-radio, .lf-shot-tools > button")
-    expect(controls).to_have_count(5)
-    pending = [control.bounding_box() for control in controls.all()]
-    reserved = shot.bounding_box()
-    for route in held:
-        route.continue_()
-    page.unroute("**/vendor/webawesome.esm.js")
-    render_checks_model.wait_until_ready(page)
     views = shot.locator(".lf-shot-views")
-    expect(views.get_by_role("radio", name="Slider", exact=True)).to_have_attribute(
+    expect(views.get_by_role("radio", name="Pixels", exact=True)).to_have_attribute(
         "aria-checked", "true"
     )
+    expect(shot.locator(".lf-shotpixels")).to_be_visible()
+    views.get_by_role("radio", name="Slider", exact=True).click()
     comparison = shot.locator("wa-comparison")
     expect(comparison).to_have_attribute("position", "50")
-    assert shot.bounding_box() == pytest.approx(reserved, abs=1)
-    for control, box in zip(controls.all(), pending, strict=True):
-        assert control.bounding_box() == pytest.approx(box, abs=0.5)
     handle = comparison.get_by_role("scrollbar")
     handle.press("Home")
     handle.press("ArrowRight")

@@ -425,6 +425,95 @@ def test_a_question_in_a_reply_waits_on_the_user_until_their_next_message():
     assert lists(state) == ([], ["update:r"], [])
 
 
+def reopened(*later):
+    """The question above answered by a reply that asks back, the agent's reply
+    reopening it, then `later`."""
+    return answered_in_words(
+        {
+            "kind": "reply",
+            "id": "r",
+            "author": "user",
+            "parent": "t",
+            "text": "What's the difference?",
+        },
+        {
+            "kind": "reply",
+            "id": "again",
+            "author": "agent",
+            "parent": "r",
+            "responds": "r",
+            "text": "Daily costs more. Weekly or daily?",
+            "obligation": True,
+            "reopens": ["message:asking"],
+        },
+        *later,
+    )
+
+
+def test_a_reopened_question_keeps_its_id_and_words_and_stands_on_the_reply():
+    """A question the agent reopens waits on the user again under the id and words it
+    had, so a plan step naming it keeps its title, and stands on the reopening reply:
+    what they said before it no longer answers it, and their next message does."""
+    state = model.reading(page(""), reopened())
+    [item] = served_obligations(state)["all"]
+    assert (item["id"], item["status"], item["next_actor"]) == (
+        "message:asking",
+        "open",
+        "user",
+    )
+    assert item["message"] == "again"
+    assert item["prompt"]["text"] == "Weekly or daily?"
+    assert item["answer"] is None
+    assert lists(state)[0] == ["message:asking"]
+
+    state = model.reading(
+        page(""),
+        reopened(
+            {
+                "kind": "reply",
+                "id": "settled",
+                "author": "user",
+                "parent": "again",
+                "text": "Weekly",
+            }
+        ),
+    )
+    [item] = served_obligations(state)["all"]
+    assert (item["id"], item["status"]) == ("message:asking", "answered")
+    assert item["answer"]["value"] == {"text": "Weekly"}
+
+
+def test_a_reopening_outlasts_an_end_before_it_and_can_be_ended_again():
+    """An end retires the question it names as it then stood, so a later reopening
+    stands, and the agent can end the question again."""
+    ended = {
+        "kind": "todo_end",
+        "id": "first-end",
+        "author": "agent",
+        "todo": "message:asking",
+        "outcome": "dropped",
+    }
+    again = {
+        "kind": "reply",
+        "id": "again",
+        "author": "agent",
+        "parent": "t",
+        "text": "Weekly or daily, after all?",
+        "obligation": True,
+        "reopens": ["message:asking"],
+    }
+    state = model.reading(page(""), answered_in_words(ended, again))
+    [item] = served_obligations(state)["all"]
+    assert (item["status"], item["end"]) == ("open", None)
+    state = model.reading(
+        page(""),
+        answered_in_words(ended, again, {**ended, "id": "second-end"}),
+    )
+    [item] = served_obligations(state)["all"]
+    assert item["status"] == "withdrawn"
+    assert item["end"]["event"]["id"] == "second-end"
+
+
 def test_the_agent_ends_a_question_the_user_answered_elsewhere():
     state = model.reading(
         page(""),

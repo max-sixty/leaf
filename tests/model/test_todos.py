@@ -1439,6 +1439,215 @@ def test_a_decision_ends_through_its_state_and_the_agent_ends_a_question(page_di
     assert answered.code == "widget-obligation"
 
 
+def test_a_reply_clears_a_question_until_the_agent_reopens_it(page_dir):
+    """The user's reply takes a step off On me at once, whatever it says, and its
+    delivery names the step in `settled`. Where the reply only asked back, the agent's
+    `--reopen` returns the same item to On me, and a plan step naming it follows, until
+    their next reply answers it."""
+
+    def on_me():
+        return kinds(state_json(page_dir)["queues"]["on_user"])
+
+    def step_state():
+        [goal] = state_json(page_dir)["plan"]["steps"]
+        return goal["state"]
+
+    publish(page_dir)
+    asked = append_command(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Is it ready?"},
+    )
+    question = written(
+        leaf(
+            "thread",
+            "reply",
+            response_reference(page_dir, asked["id"]),
+            "--obligation",
+            "--text",
+            "Can you try the build on your phone?",
+        )
+    )
+    item = f"message:{question['id']}"
+    written(
+        CliRunner().invoke(
+            cli_model.cli,
+            ["task", "plan", str(page_dir)],
+            input=json.dumps([{"depth": 0, "item": item}]),
+        )
+    )
+    assert on_me() == [("message", item)]
+    assert step_state() == "open"
+
+    said = append_command(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": question["id"],
+            "text": "Where do I get it?",
+        },
+    )
+    assert on_me() == []
+    assert step_state() == "done"
+    [batch] = freeze_events(page_dir, [said])["batches"]
+    [delivered] = batch["events"]
+    assert delivered["settled"] == [
+        {"id": item, "text": "Can you try the build on your phone?"}
+    ]
+    assert any(
+        "--reopen" in batch["handling"][clause] for clause in delivered["handling"]
+    )
+
+    again = written(
+        leaf(
+            "thread",
+            "reply",
+            response_reference(page_dir, said["id"]),
+            "--reopen",
+            item,
+            "--text",
+            "It is at /builds. Reply once it opens.",
+        )
+    )
+    assert on_me() == [("message", item)]
+    assert step_state() == "open"
+    [record] = [r for r in state_json(page_dir)["obligations"] if r["id"] == item]
+    assert record["message"] == again["id"]
+    assert record["prompt"]["text"] == "Can you try the build on your phone?"
+
+    append_command(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": again["id"],
+            "text": "It opens.",
+        },
+    )
+    assert on_me() == []
+    assert step_state() == "done"
+
+
+def test_one_reply_reopens_each_question_the_users_message_answered(page_dir):
+    """The user's message answers every question before it in its thread, so the
+    agent's reply can reopen each that still stands, and they wait on the user
+    again together."""
+    publish(page_dir)
+    root = append_command(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Ready?"},
+    )
+    first = written(
+        leaf(
+            "thread",
+            "reply",
+            response_reference(page_dir, root["id"]),
+            "--obligation",
+            "--text",
+            "Can you try the build?",
+        )
+    )
+    second = written(
+        leaf(
+            "thread",
+            "reply",
+            page_dir,
+            first["id"],
+            "--obligation",
+            "--text",
+            "And the docs preview?",
+        )
+    )
+    said = append_command(
+        page_dir,
+        {"kind": "reply", "author": "user", "parent": second["id"], "text": "Where?"},
+    )
+    asked = [f"message:{first['id']}", f"message:{second['id']}"]
+    [delivered] = freeze_events(page_dir, [said])["batches"][0]["events"]
+    assert [question["id"] for question in delivered["settled"]] == asked
+    written(
+        leaf(
+            "thread",
+            "reply",
+            response_reference(page_dir, said["id"]),
+            *[flag for question in asked for flag in ("--reopen", question)],
+            "--text",
+            "Both are under /previews. Can you try them?",
+        )
+    )
+    state = state_json(page_dir)
+    records = {record["id"]: record for record in state["obligations"]}
+    assert [(records[q]["status"], records[q]["next_actor"]) for q in asked] == [
+        ("open", "user"),
+        ("open", "user"),
+    ]
+    # One reply answers both, so they share the thread's row on On me.
+    assert len(state["queues"]["on_user"]) == 1
+
+
+def test_reopen_names_a_question_its_own_thread_asks(page_dir):
+    """`--reopen` takes the id a question keeps, from its own thread: a message that
+    reopened a question has no id of its own to name, and neither has another thread's
+    question, so the writer learns at once rather than putting nothing back on On me."""
+
+    def asked_in_a_thread(text):
+        root = append_command(
+            page_dir,
+            {"kind": "comment", "author": "user", "revision": 1, "text": "Ready?"},
+        )
+        return root, written(
+            leaf(
+                "thread",
+                "reply",
+                response_reference(page_dir, root["id"]),
+                "--obligation",
+                "--text",
+                text,
+            )
+        )
+
+    publish(page_dir)
+    _, elsewhere = asked_in_a_thread("Which store?")
+    _, here = asked_in_a_thread("Which queue?")
+    said = append_command(
+        page_dir,
+        {"kind": "reply", "author": "user", "parent": here["id"], "text": "What for?"},
+    )
+    reference = response_reference(page_dir, said["id"])
+    [refused] = command_findings(
+        "thread",
+        "reply",
+        reference,
+        "--reopen",
+        f"message:{elsewhere['id']}",
+        "--text",
+        "Which store?",
+    )
+    assert refused.code == "unasked-reopen"
+    again = written(
+        leaf(
+            "thread",
+            "reply",
+            reference,
+            "--reopen",
+            f"message:{here['id']}",
+            "--text",
+            "For sessions. Which queue?",
+        )
+    )
+    [refused] = command_findings(
+        "thread",
+        "reply",
+        page_dir,
+        again["id"],
+        "--reopen",
+        f"message:{again['id']}",
+        "--text",
+        "Which queue, still?",
+    )
+    assert refused.code == "unasked-reopen"
+
+
 def test_the_agent_ends_a_choice_the_user_answered_in_words(page_dir):
     """A choice sent in a reply stays the user's after they answer it in words, since
     no revision can write a frozen widget's state. The delivery of their words names

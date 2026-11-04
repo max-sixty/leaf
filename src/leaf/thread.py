@@ -431,6 +431,7 @@ def post_reply(
     todo: str | None = None,
     asks_back: bool = False,
     obligation: bool = False,
+    reopen: tuple[str, ...] = (),
     ephemeral: bool = False,
     quote: str = "",
     section: str = "",
@@ -503,7 +504,8 @@ def post_reply(
                 ephemeral,
                 failure is not None,
                 todo,
-                obligation,
+                obligation or bool(reopen),
+                reopen,
             )
         ):
             return repeated
@@ -528,7 +530,8 @@ def post_reply(
             validate_source=validate_source,
             todo=todo,
             asks_back=asks_back,
-            explicit_obligation=obligation,
+            explicit_obligation=obligation or bool(reopen),
+            reopen=reopen,
             ephemeral=ephemeral,
             quote=quote,
             section=section,
@@ -593,6 +596,7 @@ def _repeated_reply(
     failed: bool,
     todo: str | None,
     obligation: bool,
+    reopen: tuple[str, ...],
 ) -> dict | None:
     """The reply an earlier write with this `attempt` appended, or None; refuses an
     attempt that named another kind of write: progress, a failure receipt and an
@@ -616,7 +620,11 @@ def _repeated_reply(
         or not same_scope
     ):
         raise Rejected([Finding("attempt-conflict", values={"attempt": attempt})])
-    if existing.get("todo") != todo or bool(existing.get("obligation")) != obligation:
+    if (
+        existing.get("todo") != todo
+        or bool(existing.get("obligation")) != obligation
+        or existing.get("reopens", []) != list(reopen)
+    ):
         # A repeat that promises differently would otherwise return the first
         # answer and drop what this one declares.
         raise Rejected(
@@ -741,6 +749,7 @@ def _compose_and_append(
     todo: str | None,
     asks_back: bool,
     explicit_obligation: bool,
+    reopen: tuple[str, ...],
     ephemeral: bool,
     quote: str,
     section: str,
@@ -884,6 +893,8 @@ def _compose_and_append(
         }
     if explicit_obligation:
         event["obligation"] = True
+    if reopen:
+        event["reopens"] = list(reopen)
     if todo is not None:
         event["todo"] = todo
     if markup:

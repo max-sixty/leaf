@@ -1821,6 +1821,11 @@ _TEXT = {
     "ended-obligation": lambda at, v: (
         f"obligation {v['todo']!r} is already {v['status']}"
     ),
+    "unasked-reopen": lambda at, v: (
+        f"no message in this thread asks the question {v['question']!r}; --reopen names"
+        " an id from the delivery's `settled` or `leaf page state`, and --obligation"
+        " asks a new question"
+    ),
     "failed-question": lambda at, v: (
         "a question asked in words ends `done` when the user answered it elsewhere,"
         " or `dropped` when it no longer applies"

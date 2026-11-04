@@ -143,11 +143,11 @@ Usage: leaf thread reply [OPTIONS] REFERENCE_OR_PAGE [MESSAGE]
   Answer a delivered update by its `answer.ref` alone, or post into the thread
   PAGE MESSAGE names, which is refused while that thread owes an answer.
 
-  An answer declares what it leaves with --done, --todo or --obligation, or
-  carries a widget in --markup that asks; --ephemeral progress declares nothing,
-  and --done needs a reference. The reply publishes your saved page edits,
-  checked as `page check` checks them without a browser. The Leaf skill's
-  references/threads.md says which to use and what each leaves.
+  An answer declares what it leaves with --done, --todo, --obligation or
+  --reopen, or carries a widget in --markup that asks; --ephemeral progress
+  declares nothing, and --done needs a reference. The reply publishes your saved
+  page edits, checked as `page check` checks them without a browser. The Leaf
+  skill's references/threads.md says which to use and what each leaves.
 
 Options:
   --done         the reply delivers what the message asked for
@@ -161,6 +161,9 @@ Options:
   --title TEXT   name the thread for the panel unless it has a name: a few
                  words, at most 80 characters
   --obligation   put this message on On me until the user replies or settles it
+  --reopen ID    put the question ID back on On me, standing on this message,
+                 where the user's reply left it standing; repeat it for each
+                 such question
   --quote TEXT   new passage text to move this thread onto
   --section ID   new element ID, or scope for --quote
   --part ID      new declared visual part within --section

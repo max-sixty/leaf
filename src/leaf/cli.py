@@ -1385,6 +1385,15 @@ def thread_create(
 @click.option("--ephemeral", is_flag=True, help="one-line progress, without answering")
 @_title_option
 @_obligation_option
+@click.option(
+    "--reopen",
+    metavar="ID",
+    multiple=True,
+    help=(
+        "put the question ID back on On me, standing on this message, where the "
+        "user's reply left it standing; repeat it for each such question"
+    ),
+)
 @click.option("--quote", help="new passage text to move this thread onto")
 @click.option("--section", metavar="ID", help="new element ID, or scope for --quote")
 @click.option("--part", metavar="ID", help="new declared visual part within --section")
@@ -1398,8 +1407,8 @@ def thread_reply(
     """Answer a delivered update by its `answer.ref` alone, or post into the
     thread PAGE MESSAGE names, which is refused while that thread owes an answer.
 
-    An answer declares what it leaves with --done, --todo or --obligation, or
-    carries a widget in --markup that asks; --ephemeral progress declares nothing,
+    An answer declares what it leaves with --done, --todo, --obligation or --reopen,
+    or carries a widget in --markup that asks; --ephemeral progress declares nothing,
     and --done needs a reference. The reply
     publishes your saved page edits, checked as `page check` checks them without a
     browser. The Leaf skill's references/threads.md says which to use and what
@@ -1428,6 +1437,7 @@ def thread_reply(
             ("--done", done),
             ("--todo", options["todo"] is not None),
             ("--obligation", options["obligation"]),
+            ("--reopen", bool(options["reopen"])),
         )
         if given
     ]

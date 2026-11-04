@@ -1828,6 +1828,14 @@ def show_resolved(page):
     return rows
 
 
+def show_done(page):
+    """Unfold what left the open On list (`leaf_dev.browser.show_done`), returning its
+    items once the view's motion ends."""
+    items = dev_browser.show_done(page)
+    panel_settled(page, view="queue")
+    return items
+
+
 # How many open threads the page's reading holds, the number the Threads tab says
 # (thread/model.js, `threadCounts`): those not resolved, a bare reaction being no
 # thread; null until the saved inventory has arrived. It leaves the reading as

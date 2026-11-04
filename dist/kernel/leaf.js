@@ -6334,7 +6334,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			draw: () => onView(),
 			controls: () => queueControls(),
 			nominate: (_route, collection, parts) => nominateAsked(collection, parts),
-			rows: ".lf-fp-on-item[data-lf-card], .lf-fp-on-line"
+			rows: ".lf-fp-on-item[data-lf-card], .lf-fp-on-line, .lf-fp-settled"
 		},
 		leaves: {
 			title: () => "All pages",
@@ -7530,7 +7530,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			within: view
 		});
 	}
-	function onItemCard(item, list, { card = false, says = null, group = null, leads = true, also = item.also } = {}) {
+	function onItemCard(item, list, { card = false, says = null, leads = true, also = item.also } = {}) {
 		const record = carriesObligation(item) ? item.obligation : null;
 		const thread = item.thread ? threadByKey(item.thread) : null;
 		const inWords = record !== null && answeredInWords(record);
@@ -7653,12 +7653,10 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const key = queueItemKey(item);
 		const opened = opening.openItem === key;
 		const stop = queueStop(item);
-		const kind = item.owner === "user" ? stop.noun : agentNoun(item);
+		const kind = item.owner === "user" ? list === "done" ? "" : stop.noun : agentNoun(item);
 		const where = says === "place" ? "" : onMe.place(item);
 		const walked = leads && queueTab === "you" && walkedStop() === stop.key;
-		if (card) {
-			const about = [.../* @__PURE__ */ new Set([group, where])].filter(Boolean);
-			return html`<section
+		if (card) return html`<section
         class="lf-fp-on-item"
         data-lf-card
         data-lf-list=${list}
@@ -7667,7 +7665,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
         ?data-lf-walked=${walked}
         style=${opening.seatHeights.has(key) ? `min-height: ${opening.seatHeights.get(key)}px` : ""}
       >
-        ${about.length ? html`<p class="lf-fp-on-place lf-rows-head">${about.join(" · ")}</p>` : nothing}${message ? html`${title ? html`<h3 class="lf-fp-on-title">${heading}</h3>` : nothing}
+        ${where ? html`<p class="lf-fp-on-place lf-rows-head">${where}</p>` : nothing}${message ? html`${title ? html`<h3 class="lf-fp-on-title">${heading}</h3>` : nothing}
                 <div
                   class="lf-fp-asked lf-fp-outlet"
                   data-lf-thread=${message.thread.key}
@@ -7684,7 +7682,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
           ${answers}${discussHere ? discuss : nothing}${show}
         </div>
       </section>`;
-		}
 		let end = nothing;
 		if (list === "agent") {
 			const work = workOn(item);
@@ -7731,32 +7728,17 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
     </section>`;
 	}
 	function groupedItems(groups, line) {
-		const rows = [];
-		let running = false;
-		for (const group of groups) {
-			const headed = group.headed !== false;
-			if (rows.length && !headed && !running) rows.push({
-				key: `rule:${group.key}`,
-				rule: true
-			});
-			running = !headed;
-			if (headed) rows.push({
-				key: group.key,
-				group
-			});
-			for (const item of group.items) rows.push({
-				key: queueItemKey(item),
-				item,
-				group
-			});
-		}
 		return html`<div class="lf-fp-on-list lf-rows">
-      ${repeat(rows, (row) => row.key, (row) => row.rule ? html`<hr class="lf-fp-rule lf-fp-on-rule" />` : row.item ? line(row.item, row.group) : html`<h3 class="lf-rows-head">
-                  <span class="lf-fp-label">${row.group.title}</span
-                  ><span class="lf-row-end"
-                    >${row.group.count ?? row.group.items.length}</span
-                  >
-                </h3>`)}
+      ${repeat(groups, (group) => group.key, (group) => {
+			const count = group.count ?? group.items.length;
+			const folded = group.folds && !unfolded.has(String(group.key));
+			return html`<section class="lf-fp-on-group lf-rows-group">
+            ${group.folds ? settledHeading(String(group.key), group.title, count) : html`<h3 class="lf-rows-head">
+                    <span class="lf-fp-label">${group.title}</span
+                    ><span class="lf-row-end">${count}</span>
+                  </h3>`}${folded ? nothing : repeat(group.items, queueItemKey, (item) => line(item, group))}
+          </section>`;
+		})}
     </div>`;
 	}
 	declareSide((node) => {
@@ -7803,19 +7785,19 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const held = new Set(items.flatMap((item) => carrying.get(queueItemKey(item)) ?? []));
 		const finished = lists.done.filter((item) => !seatedKeys.has(queueItemKey(item)) && !held.has(item.id));
 		const waits = (item) => lists.you.some((current) => current === item);
+		forgetOpened(unfolded.has("done:you") ? finished : []);
 		const groups = onMe.groups(items, grouping, held).map((group) => ({
 			...group,
-			headed: group.items.length > 1,
 			count: group.items.filter(waits).length
 		}));
 		return html`${items.length ? nothing : html`<p class="lf-rows-empty">Nothing waiting on me.</p>`}${keyed(grouping, groupedItems([...groups, ...finished.length ? [{
-			key: "done",
+			key: "done:you",
 			title: "Done",
-			items: finished
-		}] : []], (item, group) => !("leads" in group) ? onItemCard(item, "done", { card: true }) : onItemCard(item, listOf(item), {
+			items: finished,
+			folds: true
+		}] : []], (item, group) => !("leads" in group) ? onItemCard(item, "done") : onItemCard(item, listOf(item), {
 			card: true,
-			says: group.headed ? says : null,
-			group: group.headed ? null : group.title,
+			says,
 			leads: group.leads.has(item),
 			also: carrying.get(queueItemKey(item))
 		})))}`;
@@ -7835,13 +7817,14 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 				items: queued
 			},
 			{
-				key: "done",
+				key: "done:agent",
 				title: "Done",
-				items: lists.done
+				items: lists.done,
+				folds: true
 			}
 		].filter((group) => group.items.length);
-		forgetOpened([...lists.agent, ...lists.done]);
-		return html`${opening.planShown ? planCards() : nothing}${layoutOf() === "summary" ? workSummary(inHand, queued, lists.done) : html`${inHand.length || queued.length ? nothing : html`<p class="lf-rows-empty">Nothing waiting on ${agentName()}.</p>`}${groupedItems(groups, (item, group) => onItemCard(item, group.key === "done" ? "done" : "agent"))}`}`;
+		forgetOpened(layoutOf() === "summary" ? [] : [...lists.agent, ...unfolded.has("done:agent") ? lists.done : []]);
+		return html`${opening.planShown ? planCards() : nothing}${layoutOf() === "summary" ? workSummary(inHand, queued, lists.done) : html`${inHand.length || queued.length ? nothing : html`<p class="lf-rows-empty">Nothing waiting on ${agentName()}.</p>`}${groupedItems(groups, (item, group) => onItemCard(item, group.folds ? "done" : "agent"))}`}`;
 	}
 	function workSummary(inHand, queued, done) {
 		const work = inHand.map(workOn);

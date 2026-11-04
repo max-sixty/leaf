@@ -35,6 +35,7 @@ from render_harness import (
     scroll_settled,
     select,
     sending,
+    show_done,
     suggestion_control,
     told,
     write,
@@ -490,6 +491,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     expect(card("shape")).to_have_count(0)
     expect(card("sug-window")).to_have_count(1)
     # The picked group has left the user's list for its Done.
+    show_done(page)
     expect(card("picked")).to_have_attribute("data-lf-list", "done")
     page.locator(".lf-fp-filters button").nth(2).click()
     agent_rows = page.locator('.lf-fp-on-item[data-lf-list="agent"]')

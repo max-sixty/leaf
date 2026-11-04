@@ -915,14 +915,36 @@ def main() -> None:
         end_harness_instance(payload.get("session_id") or "")
 
 
+def answer_gated_hook(argv: list[str]) -> None:
+    """Answer a hook registered `--if-claimed`, which `bin/leaf` hands here on the
+    environment's interpreter, started with -S so no site packages load: return at
+    once where the session holds no claim, or where the payload is a worker's tool
+    batch, and otherwise run the whole hook in this interpreter. A hook it skips
+    takes about 25 ms in place of about 70 for starting the package (measured on
+    macOS). Any failure here runs the hook whole, which reports it."""
+    text = sys.stdin.read()
+    try:
+        payload = json.loads(text)
+        idle = worker_tool_batch(argv[2], payload) or not held_claims(
+            payload.get("session_id") or ""
+        )
+    except Exception:
+        idle = False
+    if idle:
+        return
+    import io
+    import site
+
+    site.main()
+    sys.argv = ["leaf", *argv]
+    sys.stdin = io.StringIO(text)
+    from leaf.__main__ import main as run_leaf
+
+    run_leaf()
+
+
 if __name__ == "__main__":
-    # `bin/leaf` asks this before starting uv for a hook registered `--if-claimed`,
-    # with -S, so no site packages load. A hook it skips takes about 25 ms in
-    # place of about 70 for starting the package (measured on macOS). Only status
-    # 3 skips the hook; any failure runs it whole.
-    if len(sys.argv) == 3 and sys.argv[1] == "hook-gate":
-        payload = json.load(sys.stdin)
-        if worker_tool_batch(sys.argv[2], payload):
-            sys.exit(3)
-        sys.exit(0 if held_claims(payload.get("session_id") or "") else 3)
-    main()
+    if sys.argv[1:2] == ["hook"]:
+        answer_gated_hook(sys.argv[1:])
+    else:
+        main()

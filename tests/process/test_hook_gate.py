@@ -1,8 +1,10 @@
-"""Hooks the launcher answers without starting Leaf: unclaimed sessions and worker
-tool batches registered `--if-claimed` (`bin/leaf`)."""
+"""Hooks registered `--if-claimed`, which the launcher answers without uv
+(`bin/leaf`): without starting Leaf in unclaimed sessions and for worker tool
+batches, and in the gate's own interpreter otherwise."""
 
 import json
 import os
+import signal
 import subprocess
 
 from interact_support import ROOT, STATED_TIMEOUT
@@ -61,14 +63,17 @@ def test_claude_code_runs_the_whole_hook_once_its_session_claims(page_dir):
     assert turn_record_2["turn_closed"] is not None
 
 
-def test_worker_batch_skips_uv_even_when_parent_holds_a_page(claimed, tmp_path):
-    """Ignored worker batches need no project sync or managed Leaf imports."""
+def test_a_claimed_session_runs_its_gated_hooks_without_uv(claimed, tmp_path):
+    """A hook registered `--if-claimed` in a session holding a page runs whole in
+    the interpreter the launcher's gate starts, with no project sync, and a
+    worker's tool batch, which receives nothing, stops before Leaf's imports."""
     uv = tmp_path / "uv"
     uv.write_text("#!/bin/sh\nexit 72\n")
     uv.chmod(0o755)
 
     def run(worker, *, harness="claude-code", event="PostToolBatch"):
-        return subprocess.run(
+        """The hook's exit status and output, and whether it imported Leaf's hooks."""
+        ran = subprocess.run(
             [LAUNCHER, "hook", "--harness", harness, "--if-claimed"],
             input=json.dumps(
                 {
@@ -77,18 +82,51 @@ def test_worker_batch_skips_uv_even_when_parent_holds_a_page(claimed, tmp_path):
                     **({"agent_id": "worker"} if worker else {}),
                 }
             ),
-            env={**os.environ, "PATH": str(tmp_path) + os.pathsep + os.environ["PATH"]},
+            env={
+                **os.environ,
+                "PATH": str(tmp_path) + os.pathsep + os.environ["PATH"],
+                "PYTHONPROFILEIMPORTTIME": "1",
+            },
             capture_output=True,
             text=True,
             timeout=STATED_TIMEOUT,
             check=False,
         )
+        imported = {
+            line.rsplit("|", 1)[1].strip()
+            for line in ran.stderr.splitlines()
+            if line.startswith("import time:")
+        }
+        return ran.returncode, ran.stdout, "leaf.hooks" in imported
 
-    worker = run(True)
-    assert (worker.returncode, worker.stdout, worker.stderr) == (0, "", "")
-    parent = run(False)
-    assert parent.returncode == 72, (parent.stdout, parent.stderr)
-    prompt = run(True, event="UserPromptSubmit")
-    assert prompt.returncode == 72, (prompt.stdout, prompt.stderr)
-    codex = run(True, harness="codex")
-    assert codex.returncode == 72, (codex.stdout, codex.stderr)
+    assert run(True) == (0, "", False)
+    assert run(False) == (0, "", True)
+    assert run(True, event="UserPromptSubmit") == (0, "", True)
+    assert run(True, harness="codex") == (0, "", True)
+
+
+def test_a_terminated_pages_follower_exits_with_its_signal(claimed, spawn):
+    """Leaf's Claude Code hooks module ends the pages follower with SIGTERM while a
+    session sits idle, and reads an exit of 128 plus the signal as that ending
+    rather than a failure to show the user (`report` in `hooks/claude-code.ts`)."""
+    follower = spawn(
+        [LAUNCHER, "hook", "--harness", "claude-code", "--if-claimed", "--pages"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    # As the module asks, the follower is also the session's forks lane, so it
+    # waits on the page's changes between reads.
+    follower.stdin.write(
+        json.dumps({"hook_event_name": "Pages", "session_id": "s1", "forks": True})
+    )
+    follower.stdin.close()
+    # The claimed page has no server, so the follower lists nothing and goes on
+    # following it.
+    assert json.loads(follower.stdout.readline()) == []
+    assert follower.poll() is None
+    follower.send_signal(signal.SIGTERM)
+    assert follower.wait(timeout=STATED_TIMEOUT) == 128 + signal.SIGTERM, (
+        follower.stderr.read()
+    )

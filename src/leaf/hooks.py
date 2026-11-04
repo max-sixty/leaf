@@ -287,7 +287,7 @@ def cmd_pages(payload: dict) -> None:
     if forking:
         from .file_changes import FileChanges, page_changes, wait
         from .forks import lane_path, take_lane
-        from .leases import release_lease
+        from .leases import end_if_terminated, release_lease
         from .page_memory import memory_of
 
         lane = take_lane(sid)
@@ -347,6 +347,9 @@ def cmd_pages(payload: dict) -> None:
                     default=float("inf"),
                 )
                 remaining = presence_due - time.monotonic()
+                # A stop whose raise a page memory's finalizer discarded ends the
+                # follower here (`release_on_termination`).
+                end_if_terminated()
                 wait(marks, max(0.0, min(remaining, bound - time.time())))
                 if time.monotonic() >= presence_due:
                     break
@@ -393,18 +396,30 @@ def _forks(sid: str, page_dir, looked: dict) -> list[dict]:
 
 
 def main(
-    harness: str, *, watch: bool = False, pages: bool = False, fork: bool = False
+    harness: str,
+    *,
+    if_claimed: bool = False,
+    watch: bool = False,
+    pages: bool = False,
+    fork: bool = False,
 ) -> None:
     """Read one harness payload and dispatch it.
 
-    The Click hook command is the caller.
-    A watch owns leases, so it releases them when the harness terminates it.
+    The Click hook command is the caller. A hook handed to another copy Claude Code
+    installed keeps its registration's `--if-claimed`, so that copy's gate also
+    runs it without uv; one handed to a checkout drops it, so the checkout's
+    environment syncs to a lock an update may have moved (`bin/leaf`).
+    The harness ends a watch and the pages follower with SIGTERM or SIGHUP. Each
+    then unwinds, so the watch releases its leases and the follower its lane, and
+    exits 128 plus the signal, which Leaf's Claude Code hooks module reads as an
+    ending from outside.
     """
     import os
     import sys
     import tempfile
 
     from .session_runtime import delivering_launcher, own_launcher
+    from .state import plugin_cache_copy
 
     try:
         payload = json.load(sys.stdin)
@@ -430,12 +445,21 @@ def main(
                 "hook",
                 "--harness",
                 harness,
+                *(
+                    ["--if-claimed"]
+                    if if_claimed and plugin_cache_copy(launcher.parents[1])
+                    else []
+                ),
                 *(["--watch"] if watch else []),
                 *(["--pages"] if pages else []),
                 *(["--fork"] if fork else []),
             ],
             environment,
         )
+    if watch or pages:
+        from .leases import release_on_termination
+
+        release_on_termination()
     if pages:
         cmd_pages(payload)
         return
@@ -451,9 +475,6 @@ def main(
             print(json.dumps(answered, ensure_ascii=False), flush=True)
         return
     if watch:
-        from .leases import release_on_termination
-
-        release_on_termination()
         if woke := cmd_watch(harness, payload):
             print(woke, flush=True)
         return

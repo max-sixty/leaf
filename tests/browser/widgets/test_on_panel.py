@@ -114,7 +114,9 @@ def test_on_me_lists_open_and_answered_obligations(browser, serve):
         "Answered: Signed tokens"
     ), answered
 
-    page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
+    page.locator(
+        "[data-lf-margin-for='sug-refill'] [data-lf-margin-entry-key=accept]"
+    ).click()
     round_trip(page)
     open_on_me(page)
     show_done(page)
@@ -332,7 +334,9 @@ def test_an_answered_boxless_obligation_is_taken_back_from_its_card(browser, ser
     resized(page, 560, 620)
     expect_obligations_answered(page, "0/4")
 
-    page.locator("[data-lf-margin-for='sug-delete'] .lf-sug-accept").click()
+    page.locator(
+        "[data-lf-margin-for='sug-delete'] [data-lf-margin-entry-key=accept]"
+    ).click()
     round_trip(page)
     expect(page.locator("#sug-delete")).to_be_hidden()
     expect_obligations_answered(page, "1/4")

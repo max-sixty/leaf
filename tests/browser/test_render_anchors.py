@@ -672,7 +672,9 @@ def test_a_selection_around_a_targets_buttons_does_not_deaden_them(browser, serv
     expect(item.locator(":scope > .lf-margin-more")).to_be_hidden()
     item.get_by_role("button", name=re.compile(r"Reject")).click()
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "reject")
-    page.locator("[data-lf-margin-for='sug-in-card'] .lf-sug-accept").focus()
+    page.locator(
+        "[data-lf-margin-for='sug-in-card'] [data-lf-margin-entry-key=accept]"
+    ).focus()
     page.keyboard.press("Enter")
     expect(page.locator("#sug-in-card")).to_have_attribute("data-lf-state", "accept")
 
@@ -719,7 +721,9 @@ def test_the_comment_button_stands_on_no_control(browser, serve):
         .map(c => c.className)""")
     assert under == [], f"floating chrome is standing on controls: {under}"
 
-    page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
+    page.locator(
+        "[data-lf-margin-for='sug-refill'] [data-lf-margin-entry-key=accept]"
+    ).click()
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
     expect(
         page.locator(".lf-composer")
@@ -772,7 +776,9 @@ def test_focusing_a_selected_comment_field_keeps_its_captured_passage(browser, s
     assert page.evaluate("getSelection().isCollapsed")
     expect(page.locator(".lf-composer")).to_be_visible()
     write(page.locator(".lf-composer leaf-text"), "Keep this note")
-    page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").focus()
+    page.locator(
+        "[data-lf-margin-for='sug-refill'] [data-lf-margin-entry-key=accept]"
+    ).focus()
     page.locator("#replace").select_text()
     page.evaluate("getSelection().removeAllRanges()")
     expect(page.locator(".lf-composer")).to_be_visible()

@@ -705,9 +705,10 @@ export function createFloatingPanel({
         ${peek?.content ?? nothing}
       </div>
       <button
-        ${offeredAction("mark", "lf-corner-mark lf-fp-minimize", "Fold to the leaf", {
+        ${offeredAction("mark", "lf-fp-minimize", "Fold to the leaf", {
           action: "minimize",
         })}
+        data-lf-corner
         tabindex="-1"
         @click=${() =>
           rows()
@@ -1183,7 +1184,7 @@ export function createFloatingPanel({
   // the user expected on 27 October and as every thread card does since 28 October.
   // The field once took no words there and said only Resolved, so writing in a
   // resolved thread took Reopen first.
-  const replyOutlet = el("div", "lf-fp-reply");
+  const replyOutlet = el("div", "lf-fp-reply-outlet");
   const replyInput = () => replyOutlet.querySelector(TEXT_FIELD);
   /** @type {Map<string, import("./thread/replies.js").ReplyOptions>} */
   const replyOptions = new Map();
@@ -2853,13 +2854,16 @@ export function createFloatingPanel({
   // do. The user chose the fold on 27 October over the newest three resolved with the
   // rest behind a row, which put a second order in a list read in the page's, and over
   // resolved threads only searched for, which left them nothing to browse.
-  /** @param {string} key @param {string} title @param {number} count */
-  function settledHeading(key, title, count) {
+  // In an On list the heading is its group's band, and takes the band's ink
+  // (controls.css, `data-lf-band`).
+  /** @param {string} key @param {string} title @param {number} count @param {boolean} [band] */
+  function settledHeading(key, title, count, band = false) {
     const open = unfolded.has(key);
     return html`<h3 class="lf-rows-head">
       <button
         type="button"
         ${offeredAction("row", "lf-fp-settled lf-disclosure-marker")}
+        ?data-lf-band=${band}
         aria-expanded=${open ? "true" : "false"}
         @click=${() => {
           if (open) unfolded.delete(key);
@@ -3931,7 +3935,7 @@ export function createFloatingPanel({
           return html`<section class="lf-fp-on-group lf-rows-group">
             ${
               group.folds
-                ? settledHeading(String(group.key), group.title, count)
+                ? settledHeading(String(group.key), group.title, count, true)
                 : html`<h3 class="lf-rows-head">
                     <span class="lf-fp-label">${group.title}</span
                     ><span class="lf-row-end">${count}</span>
@@ -4444,6 +4448,8 @@ export function createFloatingPanel({
           thread.resolved ? "Reopen" : "Resolve thread",
           { action: thread.resolved ? "reopen" : "resolve" },
         )}
+        data-lf-disc
+        data-lf-tone=${thread.resolved ? "positive" : "ink"}
         @click=${() => {
           if (!thread.resolved) dismissReply(thread.key);
           void settleThread({

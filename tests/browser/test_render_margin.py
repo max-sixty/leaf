@@ -105,7 +105,12 @@ def test_a_settled_page_with_a_reaction_in_force_stops_rendering_its_margin(
     page = open_page(browser, serve(MARGIN_ACTIONS_PAGE, events=MARGIN_ACTIONS_EVENTS))
     resized(page, 1280, 900)
     margins_laid_out(page)
-    assert page.locator(".lf-react-mark").count() >= 1
+    assert (
+        page.locator(
+            '[data-lf-margin-entry-owner="reactions"][data-lf-behavior="disclosure"]'
+        ).count()
+        >= 1
+    )
 
     layouts = page.evaluate(
         """async frames => {

@@ -374,6 +374,12 @@ EXTENSION_SCHEMA = {
                 "additionalProperties": False,
             },
         },
+        "x-commands": {
+            "type": "object",
+            "minProperties": 1,
+            "propertyNames": {"pattern": r"^--\S+$"},
+            "additionalProperties": {"type": "string", "pattern": r"\S"},
+        },
         "x-example": {"type": "string"},
         "x-example-data": {
             "type": "object",

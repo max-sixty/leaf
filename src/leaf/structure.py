@@ -586,6 +586,8 @@ class Authoring:
         self.resource_refs = set()
         self.style_blocks = []  # {css, line, attrs} per independent <style> sheet
         self.inline_styles = []  # {tag, line, style} per style="" declaration list
+        # {tag, line, target, command} per element with a commandfor attribute.
+        self.invokers = []
         # {tag, line, attr, value} per authored allocation: a data-width or data-bound.
         self.authored_allocations = []
         self.title = ""  # what <title> says, for the transcript's heading
@@ -724,6 +726,15 @@ class Authoring:
         if attrs.get("style"):
             self.inline_styles.append(
                 {"tag": tag, "line": line, "style": attrs["style"]}
+            )
+        if "commandfor" in attrs:
+            self.invokers.append(
+                {
+                    "tag": tag,
+                    "line": line,
+                    "target": attrs["commandfor"],
+                    "command": attrs.get("command") or "",
+                }
             )
         for attr in AUTHORED_ALLOCATIONS:
             if attr in attrs and not (

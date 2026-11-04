@@ -33,6 +33,7 @@ from leaf.thread_context import (
 )
 from leaf.validation.instances import (
     instance_errors,
+    invoker_errors,
     reference_errors,
     suggestion_errors,
 )
@@ -124,6 +125,7 @@ def _instance_errors(
             thread_ids=thread_ids,
         )
     )
+    errors.extend(invoker_errors(parser, registry, parser.ids, parser.by_id))
     errors.extend(suggestion_errors(parser.lf_elements, registry))
     taken = sorted(parser.ids & thread_structure(events).ids)
     if taken:

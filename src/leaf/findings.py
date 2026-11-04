@@ -912,6 +912,14 @@ _TEXT = {
         f"{_line(at, v)}: input {v['input']!r} reads the one output of {v['target']!r} with contract {v['contract']!r}, and it declares "
         + (", ".join(repr(name) for name in v["outputs"]) or "none")
     ),
+    "undeclared-command": lambda at, v: (
+        f'{_line(at, v)}: command="{v["command"]}" isn\'t in the x-commands of '
+        f"{v['target']!r}, which declares {', '.join(v['declared']) or 'none'}"
+    ),
+    "unknown-command": lambda at, v: (
+        f'{_line(at, v)}: command="{v["command"]}" is neither one of HTML\'s commands '
+        "nor a custom command, which starts with --, so the button would do nothing"
+    ),
     "shows-outside": lambda at, v: (
         f'{_line(at, v)}: {v["attr"]}="{v["target"]}" names a widget outside its own'
         " document; a view shows answers in the page or message it stands in"

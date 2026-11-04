@@ -23,6 +23,7 @@ from leaf.thread_context import thread_ids, thread_names, thread_structure
 
 from ..refusals import Refused
 from .instances import (
+    invoker_errors,
     reference_errors,
     thread_markup_contract_errors,
 )
@@ -213,13 +214,11 @@ def message_markup_errors(
     thread = thread_structure(events)
     if clash := sorted(frag.ids & (prior_ids | page.ids | thread.ids)):
         return [Finding("ids-taken", values={"ids": clash})]
+    ids = page.ids | thread.ids | frag.ids
+    by_id = {**page.by_id, **thread.by_id, **frag.by_id}
     if reference_errs := reference_errors(
-        frag.lf_elements,
-        registry,
-        page.ids | thread.ids | frag.ids,
-        {**page.by_id, **thread.by_id, **frag.by_id},
-        thread_ids=thread_ids(events),
-    ):
+        frag.lf_elements, registry, ids, by_id, thread_ids=thread_ids(events)
+    ) + invoker_errors(frag, registry, ids, by_id):
         return reference_errs
     # A child selecting the thread this message joins would hold this sample again,
     # and its child the same, without end.

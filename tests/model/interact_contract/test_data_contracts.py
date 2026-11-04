@@ -129,9 +129,7 @@ def test_the_registry_door_validates_data_contracts(page_dir, contracts, code, v
         ),
         (lambda entry: entry["properties"].pop("source"), "data-source"),
         (
-            lambda entry: entry["properties"]["source"].update(
-                {"pattern": "^anything$"}
-            ),
+            lambda entry: entry["properties"].update({"source": {"type": "number"}}),
             "data-source",
         ),
         (lambda entry: entry.update({"x-instructions": ""}), "invalid-extensions"),
@@ -149,8 +147,9 @@ def test_a_widget_data_input_is_one_complete_contract(page_dir, change, code):
 
 
 def test_a_data_source_attribute_can_carry_ordinary_schema_metadata(page_dir):
-    """x-data requires the canonical string contract, not one byte-for-byte schema;
-    packages remain free to document or further constrain the attribute."""
+    """x-data requires the source attribute to be a string, not one byte-for-byte
+    schema: a package may describe it or make it optional, and Leaf supplies its
+    grammar."""
     declare_data_input(page_dir, "project-feed", {"type": "array"})
     registry = vocabulary(page_dir)
     registry["lf-test-data"]["properties"]["source"]["description"] = (
@@ -323,10 +322,7 @@ def _page_owned_deferred_source(page_dir):
         "records": {"items": "files", "key": "key", "deferred": "patch"},
     }
     widget = element_declaration("lf-local-data")
-    widget["properties"]["source"] = {
-        "type": "string",
-        "pattern": "^[a-z][a-z0-9-]*$",
-    }
+    widget["properties"]["source"] = {"type": "string"}
     widget["required"].append("source")
     widget["x-data"] = {"document": {"contract": "local-files", "source": "source"}}
     widget["x-example"] = (

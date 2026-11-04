@@ -170,10 +170,11 @@ widget can't answer.
 ## Instance input contracts
 
 A custom-detail verb can declare `contract: {"field": "values", "attribute": "contract"}`.
-The widget's `contract` attribute is a string matching the data contract name pattern
-from `schema.DATA_CONTRACT_NAME`. Its authored value selects a `$data.contracts` entry
-whose `schema` validates the complete `detail.values`, alongside the package's base
-schema. The field and attribute names belong to the package; core reads the declaration.
+The widget declares its `contract` attribute a string, and Leaf gives it the data
+contract name grammar ([packages.md, "A widget"](packages.md#a-widget)). Its authored
+value selects a `$data.contracts` entry whose `schema` validates the complete
+`detail.values`, alongside the package's base schema. The field and attribute names
+belong to the package; core reads the declaration.
 
 For example, two Playgrounds can use `contract="release-query"` and
 `contract="notification"`. Their page declares those contracts in
@@ -273,8 +274,8 @@ other unbound input to the widget. Tell page authors how to bind it in
   "lf-builds": {
     "type": "object",
     "properties": {
-      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
-      "source": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" }
+      "id": { "type": "string" },
+      "source": { "type": "string" }
     },
     "required": ["id", "source"],
     "additionalProperties": false,

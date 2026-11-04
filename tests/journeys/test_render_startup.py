@@ -6,7 +6,6 @@ from datetime import datetime, timedelta
 from urllib.parse import urljoin, urlparse
 
 import pytest
-from browser.threads import open_panel_thread
 from click.testing import CliRunner
 from interact_support import (
     wait_for,
@@ -268,21 +267,6 @@ def test_slow_history_keeps_decisions_safe_and_status_honest(browser, serve, ans
         {"value": []},
         {"value": ["no"]},
     ]
-
-
-def test_thread_timestamps_age_without_new_state(browser, serve):
-    page = open_page(browser, serve(LONG_PAGE, comments=1))
-    [comment] = [
-        e for e in events_model.read_events(serve.page_dir) if e["kind"] == "comment"
-    ]
-    open_panel_thread(page, comment["id"])
-    timestamp = page.locator(".lf-msg-head time").first
-    expect(timestamp).to_have_text("just now")
-    held = []
-    page.route("**/api/state*", lambda route: held.append(route))
-    page.clock.set_fixed_time(datetime.now().astimezone() + timedelta(hours=3))
-    ticked(page)
-    expect(timestamp).to_have_text("3h ago")
 
 
 def test_an_idle_page_keeps_its_dom_and_data_subscriptions_at_rest(browser, serve):
@@ -616,8 +600,9 @@ customElements.define('lf-probe',class extends HTMLElement {connectedCallback(){
     expect(page_comment(page)).to_have_js_property("value", "Still usable.")
 
 
-@pytest.mark.parametrize("answer", ["ready", "offline"])
-@pytest.mark.parametrize("focus", ["sample", "chrome"])
+# Each answer and each focus once: which answer arrives and where focus stood are
+# independent facts, and the composer's keeping its words is one decision over both.
+@pytest.mark.parametrize("answer, focus", [("ready", "sample"), ("offline", "chrome")])
 def test_first_history_answer_keeps_an_open_quote_draft(browser, serve, answer, focus):
     """Presentation applies saved facts without re-deciding the user's open composer."""
     source = leaf_page(

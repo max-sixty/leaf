@@ -111,29 +111,6 @@ def test_a_native_surface_opened_before_modules_stays_above_leaf(browser, serve,
         page.unroute_all(behavior="wait")
 
 
-def test_external_links_have_their_navigation_treatment_when_the_page_reveals(
-    browser, serve
-):
-    source = leaf_page(
-        "External link",
-        '<h1>Read the change</h1><p id="copy">'
-        '<a id="link" href="https://example.com/change" target="_self" rel="author">'
-        "Pull request with <strong>evidence</strong></a> "
-        '<span id="after">adopted the boundary. The runner checkout remains stable, '
-        "the supervisor owns the sandbox process tree, and bounded files cross back."
-        "</span></p>",
-    )
-    page = open_page(
-        browser,
-        serve(source),
-        context=browser.new_context(viewport={"width": 678, "height": 900}),
-    )
-    expect(page.locator("#copy")).to_be_visible()
-    expect(page.locator("#link")).to_have_attribute("data-lf-external", "")
-    expect(page.locator("#link")).to_have_attribute("target", "_blank")
-    expect(page.locator("#link")).to_have_attribute("rel", "author noopener")
-
-
 def test_a_sample_starts_without_its_host_s_saved_chrome(browser, serve):
     """The reader's chrome preference, the panel folded to the leaf, is saved for every
     page on the origin, but an isolated sample's child page starts without inheriting

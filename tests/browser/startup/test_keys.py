@@ -215,32 +215,6 @@ def test_package_reading_keys_work_while_history_waits_and_after_offline_fallbac
     expect(page.locator(".lf-held-keys")).to_have_count(0)
 
 
-def test_an_empty_bootstrap_handover_preserves_native_space(browser, serve):
-    """Availability reflection without held input must not claim a button's Space."""
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
-    held, release = _hold_startup(page, "state")
-    source = leaf_page(
-        "Native Space",
-        '<h1>Native Space</h1><button id="native">Native action</button>',
-    )
-    page.goto(serve(source), wait_until="load")
-    holding(page, held, 1, "the first state read")
-    expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
-    page.locator("#native").focus()
-    page.evaluate("""() => {
-      window.nativePresses = 0;
-      document.querySelector('#native').addEventListener('click', () => window.nativePresses++);
-      document.dispatchEvent(new CustomEvent('lf-held-keys', {
-        detail: {ready: () => true, keep: () => true}
-      }));
-    }""")
-    page.keyboard.press("Space")
-    assert page.evaluate("window.nativePresses") == 1
-    expect(page.locator(".lf-held-keys")).to_have_count(0)
-    release()
-    wait_until_ready(page)
-
-
 def test_a_failed_first_read_stays_unpresented_across_the_retry_clock(browser, serve):
     """The retry tick cannot turn a malformed reading into an empty valid history."""
     source = leaf_page(

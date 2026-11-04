@@ -26,9 +26,10 @@ holds its title and list fixed at the window's top, so it takes nothing beside `
 Keep the page's
 title, and a Layout's `header` and `footer`, inside `main`, and lay out what stands
 beside it with the page's own CSS, such as a grid on `body`. A site header the page
-fixes or sticks at the window's top covers what lands under it, so give the page's
-targets `scroll-margin-top` its height (`module-scroll-and-motion.md`, "Sticky
-headers").
+fixes at the window's top, or makes the sticky first thing in `body` or `main`, needs
+no `scroll-margin-top` or `scroll-padding-top`: Leaf lands links below it, and its
+comment marks and controls pass under it (`module-scroll-and-motion.md`, "Headers
+over the document").
 
 On a column page, a board, diagram or diff declares its own width, and any other block,
 such as a table, a trace or a playground, can ask for one with `data-width` ("Bounds and

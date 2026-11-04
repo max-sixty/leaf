@@ -179,6 +179,13 @@ when the header becomes local navigation. Only a header over the document belong
 here: a nested scroller uses the local sticky and landing inputs above. Packages own
 where their headers are positioned; Leaf owns the aggregate root landing inset.
 
+A header the page itself fixes at the window's top, or makes the sticky first thing in
+`body` or `main`, such as a site header, is the page's head, which Leaf finds without a
+declaration. Its height, `--lf-page-head`, starts the sticky-header slot below it for
+everything in the page but the head, so a package's header sticking at `var(--lf-top)`
+sticks below it. The root landing inset clears it too, so a `scroll-margin-top` the
+page gives its targets for that header adds to the room rather than making it.
+
 ### Sideways scrollers and container queries
 
 Give a box a package scrolls sideways the class `lf-text-scroller`, and Leaf leaves room

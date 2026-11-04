@@ -38,7 +38,7 @@ export { navigateToDatum } from "./application.js";
 // `growthIsSeen(element)`: whether the element changing size now would move what the
 // user sees, as scroll anchoring and the chrome leave it.
 export { growthIsSeen, landingInsets, shownWindow } from "./geometry.js";
-export { registerRootHeader } from "./page-layout.js";
+export { registerRootHeader } from "./root-headers.js";
 // Holding the user's place in a scroller whose contents a widget re-renders.
 export { placeKeeper } from "./user-place.js";
 export { under } from "./shadow.js";

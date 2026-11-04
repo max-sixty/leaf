@@ -297,7 +297,7 @@ body {
     height: 100%;
     overflow-y: scroll;
     /* A sticky header over the whole root, a page tab strip, adds its stated height as
-     * `--lf-root-headers` (page-layout.js). */
+     * `--lf-root-headers`, and the page's own head as `--lf-page-head` (root-headers.js). */
     scroll-padding-top: calc(var(--lf-top-covered) + var(--lf-landing-room));
     /* The floating panel's box reaches from the window's foot to its top, a view open
      * above the row included (`--lf-panel-reach`, floating-panel.js), and every landing
@@ -514,6 +514,17 @@ main {
   syntax: "<length>";
   inherits: true;
   initial-value: 0px;
+}
+/* The page's own head, the header it fixes or sticks at the window's top over the
+ * whole page, which the runtime finds and measures (`--lf-page-head`, root-headers.js),
+ * stands over everything in the page but itself, so the slot starts below it there,
+ * and the root's landing band covers it (`--lf-top-covered`, tokens.css). Leaf's
+ * chrome, after `body`, keeps the root's slot. */
+body {
+  --lf-top: calc(var(--lf-head-room) + var(--lf-page-head, 0px));
+}
+[data-lf-page-head] {
+  --lf-top: var(--lf-head-room);
 }
 /* Lengths a script reads (box-motion.js reads a floating box's lift to cut its
  * surface; margin-layout.js reads the rail's hang), registered so it gets resolved

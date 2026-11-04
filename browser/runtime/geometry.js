@@ -402,14 +402,14 @@ export function stuckBox(node, within = null) {
   let el = node;
   for (; el?.nodeType === 1 && el !== within; el = renderedParent(el)) {
     const style = getComputedStyle(el);
-    if (style.position === "sticky" ? sticks(el) : inWindow(el, style)) return el;
+    if (style.position === "sticky" ? sticks(el) : fixedInWindow(el, style)) return el;
   }
   return null;
 }
 // A fixed box stands in the window where nothing around it holds it instead, which
 // leaves it no offset parent, and no anchor positions it.
-/** @param {Element} el @param {CSSStyleDeclaration} style */
-const inWindow = (el, style) =>
+/** @param {Element} el @param {CSSStyleDeclaration} [style] */
+export const fixedInWindow = (el, style = getComputedStyle(el)) =>
   style.position === "fixed" &&
   isHTML(el) &&
   el.offsetParent === null &&

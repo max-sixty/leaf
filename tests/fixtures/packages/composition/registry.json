@@ -3,10 +3,7 @@
     "description": "A review checklist with a recorded pass or fail result, keeping authored evidence and nested widgets readable.",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
+      "id": { "type": "string" },
       "restated": {
         "type": "boolean"
       }

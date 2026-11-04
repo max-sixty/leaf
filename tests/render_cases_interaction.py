@@ -10,7 +10,6 @@ from render_harness import (
     leaf_page,
 )
 
-from leaf.schema import ELEMENT_ID
 from leaf_dev.example_data import authored_sources, named_source
 
 # A page with an outline: three headings, and passages under each to hang threads on.
@@ -1337,7 +1336,7 @@ SEATED_OBLIGATION_ENTRY = {
     ),
     "type": "object",
     "properties": {
-        "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
+        "id": {"type": "string"},
         "asks": {"type": "boolean"},
         "restated": {"type": "boolean"},
     },

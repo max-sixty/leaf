@@ -6,7 +6,6 @@ import pytest
 from playwright.sync_api import expect
 from render_harness import (
     LANDING_TOP,
-    ROOT,
     leaf_page,
     open_page,
     resized,
@@ -14,6 +13,7 @@ from render_harness import (
 )
 
 from leaf.render_checks import one_frame, rendered
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -194,7 +194,7 @@ def test_a_page_read_from_its_top_stays_at_its_top_as_the_window_narrows(
     into the flow above it; the page stays at its top with the title in view, rather
     than scrolling to keep that section's first line where it stood. A page landed
     partway down still keeps the line it was read at across the same narrowing."""
-    page = open_page(browser, serve(ROOT / "tests/fixtures/pages/root-parts.html"))
+    page = open_page(browser, serve(named_source("root-parts")))
     title = page.locator("main > header h1")
     heading = (
         "async () => document.querySelector('#part-plan-stages h2')"

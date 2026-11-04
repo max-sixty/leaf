@@ -8,12 +8,13 @@ from interact_support import append_command
 from playwright.sync_api import expect
 from render_cases_interaction import CHIP_PAGE
 from render_cases_layout import rings_drawn
-from render_harness import ROOT, displayed, leaf_page, open_page, told
+from render_harness import displayed, leaf_page, open_page, told
 
 from browser.widgets import (
     _bound_diff,
 )
 from leaf.render_checks import wait_until_ready
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -384,7 +385,7 @@ def test_reopening_a_library_select_keeps_its_options_visible(browser, serve, mo
 
 def test_library_copy_feedback_finishes_after_its_tooltip_reopens(browser, serve):
     """The copy button consumes the tooltip's completion to release its copy lock."""
-    source = ROOT / "examples" / "developer" / "visual-review-gallery.html"
+    source = named_source("visual-review-gallery")
     page = open_page(browser, serve(source))
     page.emulate_media(reduced_motion="no-preference")
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])

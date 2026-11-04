@@ -57,6 +57,7 @@
    `commentPlacement` holds the side (`side-held`) until the boundary's `key` or
    `extent`'s width changes.
 
+   On every side it stands clear of what it is about by `subjectGap` (`place-clear`).
    Beside (`place-beside`), message width takes priority over keeping the margin row
    clear: where clearing it would narrow the message, the surface stands over the row,
    and the card carries its own close and step controls, so the row shows again once
@@ -248,6 +249,8 @@ export function commentReference(place, reference) {
   };
 }
 
+// The gap a surface keeps from the edge of its room, and beside its text, from above
+// the text's first line.
 export const COMMENT_GAP = 8;
 // The least room a surface stands in: a floor chosen to hold the comment box's words
 // and its controls over a few lines, which the room under the words must reach for a
@@ -354,16 +357,17 @@ function roomTravel(side, scroller) {
 // travel `scroller` has left that way, never more than the boundary holds.
 /** @param {Side} side @param {Extent} extent @param {Boundary} boundary @param {Element} scroller */
 function reachableRoom(side, extent, boundary, scroller) {
+  const gap = subjectGap();
   const shown =
     side === "top"
-      ? extent.top - boundary.top - COMMENT_GAP
-      : boundary.bottom - extent.bottom - COMMENT_GAP;
+      ? extent.top - boundary.top - gap
+      : boundary.bottom - extent.bottom - gap;
   const { available: travel } = roomTravel(side, scroller);
   return {
     shown,
     reachable: Math.max(
       0,
-      Math.min(boundary.height - extent.height - COMMENT_GAP, shown + travel),
+      Math.min(boundary.height - extent.height - gap, shown + travel),
     ),
   };
 }
@@ -374,11 +378,12 @@ function reachableRoom(side, extent, boundary, scroller) {
 // then holds the surface over its subject instead of scrolling the subject away.
 /** @param {Side} side @param {Extent} clear @param {Extent} extent @param {number} height @param {Boundary} boundary @param {Element} scroller */
 export function makeRoom(side, clear, extent, height, boundary, scroller) {
-  if (extent.height + COMMENT_GAP + height > boundary.height) return false;
+  const gap = subjectGap();
+  if (extent.height + gap + height > boundary.height) return false;
   const overflow =
     side === "top"
-      ? boundary.top - (clear.top - COMMENT_GAP - height)
-      : clear.bottom + COMMENT_GAP + height - boundary.bottom;
+      ? boundary.top - (clear.top - gap - height)
+      : clear.bottom + gap + height - boundary.bottom;
   const { available: travel, projection, direction } = roomTravel(side, scroller);
   const movement = Math.max(0, Math.min(overflow, travel));
   if (movement <= 0.5) return false;
@@ -392,8 +397,9 @@ export function makeRoom(side, clear, extent, height, boundary, scroller) {
 export function commentSide({ clear, extent, boundary, width, scroller, coarse }) {
   /** @param {number} room */
   const fits = (room) => Math.ceil(room) >= Math.ceil(width);
-  if (fits(boundary.right - clear.right - COMMENT_GAP)) return "right";
-  if (fits(clear.left - boundary.left - COMMENT_GAP)) return "left";
+  const gap = subjectGap();
+  if (fits(boundary.right - clear.right - gap)) return "right";
+  if (fits(clear.left - boundary.left - gap)) return "left";
   const below = reachableRoom("bottom", extent, boundary, scroller);
   const above = reachableRoom("top", extent, boundary, scroller);
   // Prefer a side that already shows the compact surface. Reachable room breaks
@@ -416,6 +422,12 @@ const rootLength = (name) =>
   parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
 export const cardMinimum = () => rootLength("--thread-card-min");
 export const cardMeasure = () => rootLength("--thread-card");
+// How far a surface stands from what it is about (`place-clear`): the room a mark on a
+// region takes (`--focus-region-room`), then the gap it keeps from the edge of its room,
+// so the mark's line and the surface's edge have that gap between them too. It holds
+// whether or not a mark shows, since one comes and goes under the pointer and the
+// surface stays where it stands.
+export const subjectGap = () => rootLength("--focus-region-room") + COMMENT_GAP;
 
 // The block edge a surface on `side` is attached by, which it holds as it grows unless
 // asked to hold another (`edge`): its foot above what it is about, its top elsewhere.
@@ -511,6 +523,7 @@ export function commentPlacement() {
     },
   ) {
     const minimumWidth = cardMinimum();
+    const gap = subjectGap();
     const across = vertical(side);
     const unanchored = !clear;
     // Floating UI reads a window attachment point for the unanchored posture,
@@ -523,7 +536,7 @@ export function commentPlacement() {
       side === "right" &&
       margin &&
       margin.right > clear.right + 0.5 &&
-      boundary.right - margin.right - COMMENT_GAP >= cardMeasure() * scale.x
+      boundary.right - margin.right - gap >= cardMeasure() * scale.x
         ? margin.right
         : null;
     const box = new DOMRect(
@@ -655,8 +668,8 @@ export function commentPlacement() {
             : across
               ? boundary.right - (inlineStart + (inline ?? 0) * scale.x)
               : side === "right"
-                ? boundary.right - box.right - COMMENT_GAP
-                : clear.left - boundary.left - COMMENT_GAP;
+                ? boundary.right - box.right - gap
+                : clear.left - boundary.left - gap;
         fit({
           side,
           width: Math.max(
@@ -700,7 +713,7 @@ export function commentPlacement() {
         const edge = across && heldEdge;
         // Declare the held separation to offset itself, so the attachment limiter
         // follows the same edge instead of pulling a shorter card toward its target.
-        let mainAxis = COMMENT_GAP / (across ? scale.y : scale.x);
+        let mainAxis = gap / (across ? scale.y : scale.x);
         if (edge) {
           const top =
             measure(state).line -

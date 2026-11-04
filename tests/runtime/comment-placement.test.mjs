@@ -14,9 +14,11 @@ import {
 } from "/runtime/annotation-overlay/comment-placement.js";
 import { floatingPlacement } from "/runtime/annotation-overlay/floating.js";
 
-// The card's widths as tokens.css declares them, which the placement reads off the root.
+// The card's widths and the room a mark takes, as tokens.css declares them, which the
+// placement reads off the root.
 document.documentElement.style.setProperty("--thread-card-min", "320px");
 document.documentElement.style.setProperty("--thread-card", "592px");
+document.documentElement.style.setProperty("--focus-region-room", "8px");
 
 // A window boundary, keyed by its edges as commentBoundary keys one, with no chrome
 // beside any columns, so its room across them is itself.
@@ -61,8 +63,8 @@ const side = (clear, { scrolled = 1000, document = 3000, coarse = false } = {}) 
   });
 
 test("beside needs room for the card, not only the box", () => {
-  // 326px right of the paragraph holds the card's 320 and the gap: beside.
-  assert.equal(side(block(300, 660, 300, 500)), "right");
+  // 336px right of the paragraph holds the card's 320 and its 16 from the words: beside.
+  assert.equal(side(block(300, 656, 300, 500)), "right");
   // 300px would hold a comment box but not the card, so neither stands there.
   assert.notEqual(side(block(300, 686, 300, 500)), "right");
 });
@@ -98,8 +100,8 @@ test("where both sides can make the whole room, the one that shows more takes it
 
 test("a touch screen takes under wherever the page can make a surface's least room", () => {
   // At the document's foot, only what shows under the paragraph is room there: 847, the
-  // boundary's foot, less the gap, less the paragraph's foot.
-  const under = (room) => block(40, 1240, 847 - 8 - room - 200, 847 - 8 - room);
+  // boundary's foot, less the card's 16 from the words, less the paragraph's foot.
+  const under = (room) => block(40, 1240, 847 - 16 - room - 200, 847 - 16 - room);
   assert.equal(side(under(LEAST_HEIGHT), { scrolled: 2150 }), "top");
   assert.equal(side(under(LEAST_HEIGHT), { scrolled: 2150, coarse: true }), "bottom");
   assert.equal(side(under(LEAST_HEIGHT - 1), { scrolled: 2150, coarse: true }), "top");
@@ -216,15 +218,15 @@ test("beside, clearing a margin row never costs the card width", async () => {
     });
   };
   const reference = (rowRight) => options(rowRight).reference;
-  // Exactly the preferred 592px remains beyond the row and the 8px gap.
-  assert.equal(reference(692).right, 692);
+  // Exactly the preferred 592px remains beyond the row and the 16px gap.
+  assert.equal(reference(684).right, 684);
   // Even one pixel of lost message width puts the card over the row.
-  assert.equal(reference(693).right, clear.right);
+  assert.equal(reference(685).right, clear.right);
   // A readable but narrower lane still gives its space back to the message.
   assert.equal(reference(964).right, clear.right);
 
   // 600 client pixels do not hold a 592 CSS-pixel card at 120% zoom.
-  const zoomed = options(684);
+  const zoomed = options(676);
   const state = {
     rects: { reference: { x: clear.left, y: clear.top } },
     elements: { floating: {} },
@@ -243,7 +245,7 @@ test("beside, clearing a margin row never costs the card width", async () => {
   assert.equal(settled.reset, undefined);
   assert.deepEqual(settled.data.scale, { x: 1.2, y: 1.2 });
 
-  // At 75%, the same 484 client-pixel lane holds the full 444px footprint.
+  // At 75%, a 476 client-pixel lane holds the full 444px footprint.
   const smaller = options(800);
   const reduced = {
     ...state,
@@ -266,8 +268,8 @@ test("zoom clearance reaches the solver through the floating driver", async () =
   const ui = await import("/vendor/floating-ui.esm.js");
   const clear = block(300, 300, 300, 500);
   for (const { scale, rowRight, expected } of [
-    { scale: 1.2, rowRight: 684, expected: clear.right + 8 },
-    { scale: 0.75, rowRight: 800, expected: 808 },
+    { scale: 1.2, rowRight: 676, expected: clear.right + 16 },
+    { scale: 0.75, rowRight: 800, expected: 816 },
   ]) {
     const floating = document.createElement("div");
     document.body.append(floating);
@@ -344,8 +346,8 @@ test("zoom clearance reaches the solver through the floating driver", async () =
       null,
     );
     assert.ok(answer);
-    assert.notEqual(referenceRights[0], expected - 8);
-    assert.equal(referenceRights.at(-1), expected - 8);
+    assert.notEqual(referenceRights[0], expected - 16);
+    assert.equal(referenceRights.at(-1), expected - 16);
     assert.ok(
       Math.abs(answer.x * scale - expected) < 0.01,
       `${scale}: ${answer.x * scale}`,
@@ -545,7 +547,7 @@ test("chrome beside a card's columns leaves it the window's height", async () =>
   };
   // Beside words that end at 600, the card stands in the margin, past the row.
   const margin = await placed(block(100, 500, 300, 330));
-  assert.equal(margin.x, 608);
+  assert.equal(margin.x, 616);
   assert.equal(margin.room, whole);
   assert.equal(margin.foot, whole.bottom);
   // Beside words that end at 500, it reaches over the row's columns and stops above it.

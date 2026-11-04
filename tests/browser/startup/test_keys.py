@@ -39,6 +39,10 @@ HELD_KEYS_THREAD = {
     "text": "Walk to me.",
     "anchor": {"section": "said"},
 }
+# The user standing on that thread, wherever the window opens it: its margin card on a
+# desktop, the panel's view of it on a phone (#5039). The panel's head names the thread
+# too, ahead of the view, so this asks which one holds focus rather than taking the first.
+ON_HELD_THREAD = '[data-lf-thread="held-thread"]:focus'
 
 
 @pytest.mark.parametrize("command", ["unread", "reaction", "version"])
@@ -306,37 +310,96 @@ def test_a_failed_first_read_stays_unpresented_across_the_retry_clock(browser, s
     consume_browser_errors(page, "read failed: Unexpected token")
 
 
-def test_upgrade_relinquishes_the_bootstrap_timeout_for_held_keys(browser, serve):
-    """The runtime owns the queue after upgrade, even across bootstrap's deadline."""
+def test_held_keys_outlast_any_wait_for_the_runtime(browser, serve):
+    """The notice says held keys run when the page is ready, so no clock lets them go:
+    a `t` held while the runtime takes half a minute to arrive still walks to the
+    thread once the page presents."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.clock.install(time=0)
-    # Pause the empty page before product timers start. A time sampled from a
-    # running page can already be in the past when the driver delivers pause_at.
-    page.clock.pause_at("2025-01-01T00:00:00Z")
-    page.add_init_script("""window.navigationTime = Date.now();
-      document.addEventListener('lf-page-interface', event =>
-        event.detail.present(new Promise(resolve => window.releaseInterface = resolve)));
-    """)
-    held, release = _hold_startup(page, "state")
-    page.goto(serve(HELD_KEYS_PAGE, events=[HELD_KEYS_THREAD]), wait_until="load")
-    page.wait_for_function("() => Boolean(window.releaseInterface)")
-    page.clock.run_for(3000)
-    page.evaluate("() => window.releaseInterface()")
-    page.clock.run_for(100)
-    expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
-    holding(page, held, 1, "the first private-state read")
+    page.clock.pause_at(1)
+    watched(page)
+    held, release = _hold_startup(page, "module")
+    page.goto(serve(HELD_KEYS_PAGE, events=[HELD_KEYS_THREAD]), wait_until="commit")
+    holding(page, held, 1, "the runtime module")
+    expect(page.locator("#said")).to_be_attached()
     page.keyboard.press("t")
-    page.clock.run_for(200)
+    page.clock.run_for(30_000)
     expect(page.locator(".lf-held-keys kbd")).to_have_text("t")
-    page.clock.run_for(
-        page.evaluate("() => Math.max(0, window.navigationTime + 11000 - Date.now())")
-    )
-    expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
-    expect(page.locator(".lf-held-keys kbd")).to_have_text("t")
-    release()
     page.clock.resume()
-    expect(page.locator('[data-lf-thread="held-thread"]').first).to_be_focused()
+    release()
+    expect(page.locator(ON_HELD_THREAD)).to_have_count(1)
     expect(page.locator(".lf-held-keys")).to_have_count(0)
+
+
+def test_a_page_that_cannot_start_lets_its_held_keys_go(browser, serve):
+    """A runtime that will never arrive takes nothing: once the page reports it could
+    not start, what was held is dropped, its notice goes, and later presses reach the
+    page as they come."""
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    watched(page)
+    held, _ = _hold_startup(page, "module")
+    page.goto(serve(HELD_KEYS_PAGE), wait_until="commit")
+    holding(page, held, 1, "the runtime module")
+    expect(page.locator("#said")).to_be_attached()
+    page.evaluate(
+        "() => { window.heard = [];"
+        " document.addEventListener('keydown', (e) => heard.push(e.key)); }"
+    )
+    page.keyboard.press("t")
+    echo = page.locator(".lf-held-keys")
+    expect(echo).to_be_visible()
+    assert page.evaluate("heard") == [], "the positive control: the press was held"
+
+    held.pop().abort()
+    expect(
+        page.get_by_text("Leaf couldn't start. Waiting for Leaf to update.")
+    ).to_be_visible()
+    expect(echo).to_have_count(0)
+    page.keyboard.press("x")
+    assert page.evaluate("heard") == ["x"]
+    consume_browser_errors(page, "leaf.js", "net::ERR_FAILED")
+
+
+def test_a_document_the_runtime_gives_up_on_lets_its_held_keys_go(browser, serve):
+    """A runtime that finds the server on another layer as it starts gives this document
+    up and waits for a reload rather than upgrading it, so nothing will run what was
+    held: the keys are dropped, the notice goes, and later presses reach the page."""
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    watched(page)
+    answered = []
+
+    # The runtime's own read of the registry names another layer. The source it asks
+    # next has not moved, so the page waits on this document rather than reloading.
+    def foreign(route):
+        if answered:
+            route.continue_()
+            return
+        answered.append(route)
+        route.fulfill(
+            status=200,
+            headers={"Content-Type": "application/json", "Leaf-Layer": "another-layer"},
+            body="{}",
+        )
+
+    page.route("**/registry.json", foreign)
+    held, release = _hold_startup(page, "module")
+    page.goto(serve(HELD_KEYS_PAGE), wait_until="commit")
+    holding(page, held, 1, "the runtime module")
+    expect(page.locator("#said")).to_be_attached()
+    page.evaluate(
+        "() => { window.heard = [];"
+        " document.addEventListener('keydown', (e) => heard.push(e.key)); }"
+    )
+    page.keyboard.press("t")
+    echo = page.locator(".lf-held-keys")
+    expect(echo).to_be_visible()
+
+    release()
+    expect(echo).to_have_count(0)
+    assert answered, "the runtime read the registry"
+    expect(page.locator("body")).not_to_have_attribute("data-lf-upgraded", "1")
+    page.keyboard.press("x")
+    assert page.evaluate("heard") == ["x"]
 
 
 @pytest.mark.parametrize("stage", ["module", "state"])
@@ -370,7 +433,7 @@ def test_a_key_pressed_before_presentation_runs_once_the_page_presents(
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
 
     release()
-    expect(page.locator('[data-lf-thread="held-thread"]').first).to_be_focused()
+    expect(page.locator(ON_HELD_THREAD)).to_have_count(1)
     expect(echo).to_have_count(0)
 
 
@@ -388,7 +451,7 @@ def test_a_checkbox_keeps_page_keys_after_reveal(browser, serve):
     page = open_page(browser, url)
     page.locator("#box").focus()
     page.keyboard.press("t")
-    expect(page.locator('[data-lf-thread="held-thread"]').first).to_be_focused()
+    expect(page.locator(ON_HELD_THREAD)).to_have_count(1)
 
 
 def test_editors_and_select_typeahead_keep_letters_while_history_waits(browser, serve):
@@ -420,7 +483,7 @@ def test_editors_and_select_typeahead_keep_letters_while_history_waits(browser, 
     page.keyboard.press("t")
     expect(page.locator(".lf-held-keys kbd")).to_have_text("t")
     release()
-    expect(page.locator('[data-lf-thread="held-thread"]').first).to_be_focused()
+    expect(page.locator(ON_HELD_THREAD)).to_have_count(1)
     expect(page.locator("#editor")).to_have_value("c")
 
 
@@ -442,7 +505,7 @@ def test_disabled_quick_shortcuts_are_not_held_before_presentation(
     expect(page.locator(".lf-held-keys")).to_have_count(0)
     release()
     wait_until_ready(page)
-    expect(page.locator('[data-lf-thread="held-thread"]:focus')).to_have_count(0)
+    expect(page.locator(ON_HELD_THREAD)).to_have_count(0)
     expect(page.locator(".lf-held-keys")).to_have_count(0)
 
 
@@ -458,6 +521,7 @@ def test_disabling_quick_shortcuts_discards_keys_already_held(browser, serve):
     held, release = _hold_startup(page, "module")
     page.goto(serve(HELD_KEYS_PAGE, events=[HELD_KEYS_THREAD]), wait_until="commit")
     holding(page, held, 1, "the runtime module")
+    expect(page.locator("#said")).to_be_attached()
     page.keyboard.press("g")
     page.keyboard.press("Shift+T")
     try:
@@ -468,7 +532,7 @@ def test_disabling_quick_shortcuts_discards_keys_already_held(browser, serve):
     expect(page.locator(".lf-held-keys")).to_have_count(0)
     expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", "threads")
     page.keyboard.press("t")
-    expect(page.locator('[data-lf-thread="held-thread"]:focus')).to_have_count(0)
+    expect(page.locator(ON_HELD_THREAD)).to_have_count(0)
 
 
 def test_a_key_pressed_while_held_keys_run_waits_its_turn(browser, serve):
@@ -489,6 +553,7 @@ def test_a_key_pressed_while_held_keys_run_waits_its_turn(browser, serve):
     held, release = _hold_startup(page, "module")
     page.goto(url, wait_until="commit")
     holding(page, held, 1, "the runtime module")
+    expect(page.locator("#said")).to_be_attached()
     page.keyboard.press("g")
     expect(page.locator(".lf-held-keys kbd")).to_have_text("g")
 
@@ -507,6 +572,7 @@ def test_held_keys_after_one_that_opens_a_box_are_typed_into_it(browser, serve):
     held, release = _hold_startup(page, "module")
     page.goto(url, wait_until="commit")
     holding(page, held, 1, "the runtime module")
+    expect(page.locator("#said")).to_be_attached()
     for key in ["c", "h", "i", "Space", "x"]:
         page.keyboard.press(key)
     expect(page.locator(".lf-held-keys kbd")).to_have_text(
@@ -530,6 +596,7 @@ def test_a_key_that_is_not_printed_ends_the_held_run(browser, serve, ending):
     held, release = _hold_startup(page, "module")
     page.goto(url, wait_until="commit")
     holding(page, held, 1, "the runtime module")
+    expect(page.locator("#said")).to_be_attached()
     for key in ["c", "h", "i"]:
         page.keyboard.press(key)
     echo = page.locator(".lf-held-keys")
@@ -573,7 +640,7 @@ def test_escape_or_a_pointer_press_lets_go_of_held_keys(browser, serve, gesture)
     assert page.evaluate("() => !document.activeElement?.closest('[data-lf-thread]')")
     # The positive control: the same key on the presented page walks to the thread.
     page.keyboard.press("t")
-    expect(page.locator('[data-lf-thread="held-thread"]').first).to_be_focused()
+    expect(page.locator(ON_HELD_THREAD)).to_have_count(1)
 
 
 def test_the_help_overlay_answers_to_one_owner(browser, serve):

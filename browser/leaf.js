@@ -126,7 +126,7 @@ import { presented, windowChromeBoxes } from "./runtime/geometry.js";
 // The page's own keyboard parts join the register as this module evaluates; every other
 // owner contributes its own as it is constructed below.
 import { declareCurrentLocation } from "./runtime/keyboard/page.js";
-import { mountKeyboard } from "./runtime/keyboard/controller.js";
+import { letHeldKeysGo, mountKeyboard } from "./runtime/keyboard/controller.js";
 import { paintCoreControls } from "./runtime/keyboard/control-keys.js";
 import { paintTouchControls } from "./runtime/keyboard/touch-controls.js";
 import { paintCloseRequests } from "./runtime/keyboard/close-requests.js";
@@ -172,7 +172,7 @@ async function boot() {
   initializeServedDocument();
   const initialStateRead = beginRead();
   const initialDocument = takeInitialDocument();
-  if (!(await prepareDocument(initialDocument))) return;
+  if (!(await prepareDocument(initialDocument))) return letHeldKeysGo();
   holdArrivingBounds();
 
   // A published shell may bundle the entry without publishing its source modules beside

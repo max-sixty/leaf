@@ -27,7 +27,6 @@ from render_harness import (
     INLINE_PAGE,
     LONG_PAGE,
     PANEL,
-    PANEL_THREAD,
     available_commands,
     consume_browser_errors,
     draft_control,
@@ -52,6 +51,7 @@ from browser.threads import open_panel_thread
 from browser.threads.test_rewrites import _rewrite_surface
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

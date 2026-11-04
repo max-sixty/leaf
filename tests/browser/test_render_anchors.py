@@ -58,7 +58,6 @@ from render_harness import (
     INLINE_PAGE,
     LONG_PAGE,
     PANEL,
-    PANEL_THREAD,
     SAID_PAGE,
     _traffic,
     compare_with,
@@ -94,6 +93,7 @@ from leaf import structure as structure_model
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import rendered
 from leaf.schema import ELEMENT_ID
+from leaf_dev.browser import PANEL_THREAD
 from leaf_dev.example_data import named_source, patch_manifest
 
 pytestmark = pytest.mark.shifts_unsurveyed

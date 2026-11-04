@@ -19,7 +19,6 @@ from render_cases_navigation import (
     OVER_WORDS,
 )
 from render_harness import (
-    PANEL_THREAD,
     RELEASE_FOCUS,
     leaf_page,
     open_page,
@@ -41,6 +40,7 @@ from browser.navigation import expect_walk_position, walk_position
 from browser.threads import open_panel_thread
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
+from leaf_dev.browser import PANEL_THREAD
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed

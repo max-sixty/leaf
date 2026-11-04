@@ -11,7 +11,6 @@ from render_cases_interaction import OBLIGATIONS_PAGE, live_url
 from render_cases_navigation import NOTED_PAGE
 from render_harness import (
     INLINE_PAGE,
-    PANEL_THREAD,
     expect_open_threads,
     open_page,
     page_comment,
@@ -24,6 +23,7 @@ from render_harness import (
 from browser.navigation import expect_walk_position
 from browser.threads import open_panel_thread
 from leaf.render_checks import rendered
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

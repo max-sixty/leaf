@@ -80,7 +80,14 @@ from leaf.findings import Finding, placed
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import scheme as render_gate_model
 from leaf_dev import browser as dev_browser
-from leaf_dev.browser import ON_ME_MARK, scroll_settled, slow_cpu, threads_tab
+from leaf_dev.browser import (
+    ON_ME_MARK,
+    PANEL,
+    panel_view,
+    scroll_settled,
+    slow_cpu,
+    threads_tab,
+)
 from leaf_dev.example_data import WORKED_EXAMPLES, authored_sources, named_source
 from leaf_dev.page_fixtures import (
     example_media,
@@ -1734,26 +1741,6 @@ def open_versions(page):
     """Open the Versions destination through its complete keyboard route."""
     page.keyboard.press("g")
     page.keyboard.press("Shift+v")
-
-
-# The floating panel (runtime/floating-panel.js) is Leaf's one chrome: a row of the leaf,
-# the field and the On me and Threads marks, with a view opened above it, the leaf's
-# menu among them. Its state stands on its host as attributes: `data-lf-open` names the
-# open view (menu, versions, group, errors, threads, thread, queue, leaves) and
-# `data-lf-rest="mark"` the panel folded to the leaf.
-PANEL = ".lf-floating-panel"
-
-
-def panel_view(name: str) -> str:
-    """The selector of the panel's `name` view (`data-lf-open`'s values, above) that
-    stands open. A view put away keeps its node, marked `data-lf-leaving`, until its
-    exit motion ends, so this never matches one: a selector that did would find two
-    views mid-switch, or a view already on its way out."""
-    return f'.lf-fp-view[data-lf-route="{name}"]:not([data-lf-leaving])'
-
-
-# A view of one thread, which names the thread it shows by id in `data-lf-thread`.
-PANEL_THREAD = panel_view("thread")
 
 
 def panel_field(page):

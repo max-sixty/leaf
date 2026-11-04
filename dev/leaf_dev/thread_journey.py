@@ -18,7 +18,7 @@ from playwright.sync_api import Locator, Page, expect
 
 from leaf.registry.kernel import kinds_declaring
 from leaf.render_checks import rendered, wait_for_probe
-from leaf_dev.browser import go_to_threads, scroll_settled
+from leaf_dev.browser import PANEL_THREAD, go_to_threads, scroll_settled
 
 WORDS = "Keep the reader's words in the thread while this reply is being sent."
 NEXT_WORDS = "Keep the next draft separate from the reply still being sent."
@@ -31,8 +31,6 @@ STAGES = (
     "accepted",
 )
 Checkpoint = Callable[[str, Page, dict], None]
-# The floating panel's view of a thread, rather than one still leaving.
-THREAD_VIEW = ".lf-fp-view[data-lf-route=thread]:not([data-lf-leaving])"
 # Where the floating panel says a passing notice: in its empty field's place, on the
 # line over its field, or, while a view stands open, in the leaf's peek.
 NOTICE = (
@@ -107,7 +105,7 @@ def open_surface(page: Page, surface: str) -> ThreadSurface:
     starts a page thread; either way the panel's field is the box written in."""
     if surface in {"panel", "general"}:
         field = page.locator(".lf-fp-field leaf-text")
-        view = page.locator(THREAD_VIEW)
+        view = page.locator(PANEL_THREAD)
         if surface == "general":
             # The send opens its new thread's view over the field, which shows it
             # arrive, the field becoming its reply box.
@@ -116,7 +114,7 @@ def open_surface(page: Page, surface: str) -> ThreadSurface:
                 field,
                 view.locator(".lf-msg[data-lf-author=user]"),
                 page.locator("body"),
-                f"{THREAD_VIEW} .lf-msg",
+                f"{PANEL_THREAD} .lf-msg",
                 page.locator(".lf-floating-panel"),
                 "comment",
             )
@@ -128,7 +126,7 @@ def open_surface(page: Page, surface: str) -> ThreadSurface:
             field,
             view.locator(".lf-msg"),
             page.locator("body"),
-            f"{THREAD_VIEW} .lf-msg",
+            f"{PANEL_THREAD} .lf-msg",
             page.locator(".lf-floating-panel"),
             "reply",
         )
@@ -211,8 +209,8 @@ def delivery_journey(page: Page, surface: str, checkpoint: Checkpoint) -> dict:
         )
         # Send/open has already initiated any landing scroll. Scroll belongs to
         # the browser, and its smooth travel is not a Web Animation.
-        if page.locator(THREAD_VIEW).count():
-            scroll_settled(page, THREAD_VIEW)
+        if page.locator(PANEL_THREAD).count():
+            scroll_settled(page, PANEL_THREAD)
         scroll_settled(page)
         reading = {
             "intent": intent,

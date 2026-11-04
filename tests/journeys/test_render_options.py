@@ -19,7 +19,6 @@ from render_cases_interaction import (
     live_url,
 )
 from render_harness import (
-    PANEL_THREAD,
     SAMPLE_PAGE,
     active_digit_bindings,
     available_commands,
@@ -31,6 +30,8 @@ from render_harness import (
     wait_for_revision,
     write,
 )
+
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

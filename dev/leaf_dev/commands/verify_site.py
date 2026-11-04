@@ -59,7 +59,7 @@ from leaf_dev.arms import (
     install_codex_plugin,
     run_directory,
 )
-from leaf_dev.browser import go_to_threads, headless_shell
+from leaf_dev.browser import go_to_threads, headless_shell, panel_view
 from leaf_dev.commands.site import asset_site, install_tree
 from leaf_dev.startup import observe_startup as record_startup
 from leaf_dev.startup import startup_reading
@@ -855,7 +855,7 @@ def verify_saved_state(browser, worker: LocalWorker) -> dict[str, dict]:
     page.locator("#heat-opt-window[chosen]").wait_for(state="visible")
     go_to_threads(page)
     page.locator(f'.lf-fp-thread[data-lf-key="{seeded["comment"]}"]').click()
-    page.locator(".lf-fp-view[data-lf-route=thread]").get_by_text(
+    page.locator(panel_view("thread")).get_by_text(
         "Saved before the container stopped.", exact=True
     ).wait_for(state="visible")
     state_response = read_state(context.request, state_url)

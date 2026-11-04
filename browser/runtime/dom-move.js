@@ -37,11 +37,21 @@ export const installMoveSelection = (owner) => {
 // The page selection where moving `placed` would reset it, and what puts it back.
 /** @param {Iterable<Node>} placed */
 export const holdSelection = (placed) => selectionOwner?.(placed) ?? null;
+// Leaf's keys mark what a renderer painted by its root and read the root's contents
+// at the frame (keyboard/scopes.js, `paintKeysWithin`); a placed node is shown to
+// them before it moves, so a control leaving a painted root keeps its mark.
+/** @type {((node: Node) => void) | null} */
+let keysOwner = null;
+/** @param {(node: Node) => void} owner */
+export const installMoveKeys = (owner) => {
+  keysOwner = owner;
+};
 
 /** @template {Node} T @param {Node & ParentNode} parent @param {T} node @param {Node | null} [before] */
 export function move(parent, node, before = null) {
   if (node.parentNode === parent && (before === node || node.nextSibling === before))
     return node;
+  if (node.isConnected) keysOwner?.(node);
   // A retained move can enter another shadow root without a focus event. Subscribe
   // before placement, so connectedMoveCallback and the caller's next move are heard.
   if (parent.isConnected) focusOwner?.watch(parent.getRootNode());

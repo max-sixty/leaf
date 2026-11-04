@@ -13,7 +13,6 @@ from render_cases_widgets import (
     chart_markup,
 )
 from render_harness import (
-    ROOT,
     consume_browser_errors,
     leaf_page,
     names,
@@ -24,6 +23,7 @@ from render_harness import (
 
 from browser.threads import open_panel_thread
 from leaf import render_checks as render_checks_model
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -31,7 +31,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 @pytest.mark.watch_shifts
 def test_merge_film_inspection_has_touch_and_keyboard_routes(browser, serve):
     """Readable part details survive a tap, including a move across commit branches."""
-    example = ROOT / "examples" / "wt-merge.html"
+    example = named_source("wt-merge")
     context = browser.new_context(
         viewport={"width": 320, "height": 844}, has_touch=True
     )

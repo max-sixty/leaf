@@ -57,7 +57,6 @@ import subprocess
 import sys
 import threading
 import time
-from http.client import HTTPConnection
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
@@ -311,6 +310,8 @@ def connect(port: int) -> socket.socket:
     proxy = os.environ.get("HTTP_PROXY") or os.environ.get("http_proxy")
     if not proxy:
         return socket.create_connection(("127.0.0.1", port))
+    from http.client import HTTPConnection
+
     via = urlsplit(proxy)
     assert via.hostname is not None
     tunnel = HTTPConnection(via.hostname, via.port)

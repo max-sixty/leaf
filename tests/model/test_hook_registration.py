@@ -591,6 +591,41 @@ def test_the_hook_transport_imports_no_page_model():
     } & loaded == set()
 
 
+def test_a_hook_reading_a_page_it_holds_loads_no_schema_validator(claimed):
+    """A prompt or Stop hook in a session holding a page reads the page in its
+    layer's vocabulary, which is merged and stamped but not validated: `page init`
+    validated it, and `page check` and serving validate it again
+    (`layer-registry.md`). So the hook loads none of the schema validator's
+    modules, which cost each such hook tens of milliseconds to import. Run in a
+    fresh interpreter, whose `sys.modules` is the hook's."""
+    subprocess.run(
+        [*LEAF_COMMAND, "page", "stamp", str(claimed), "--text", "v1"],
+        capture_output=True,
+        timeout=STATED_TIMEOUT,
+        check=True,
+    )
+    probe = """\
+import io, json, runpy, sys
+sys.argv = ["leaf", "hook", "--harness", "claude-code"]
+sys.stdin = io.StringIO(json.dumps({"hook_event_name": "Stop", "session_id": "s1"}))
+try:
+    runpy.run_module("leaf", run_name="__main__")
+except SystemExit as error:
+    assert not error.code, error.code
+print(json.dumps(sorted(sys.modules)))
+"""
+    done = subprocess.run(
+        [sys.executable, "-c", probe],
+        capture_output=True,
+        text=True,
+        timeout=STATED_TIMEOUT,
+        check=True,
+    )
+    loaded = set(json.loads(done.stdout.splitlines()[-1]))
+    assert "leaf.served_state.context" in loaded, "the hook read no page"
+    assert {"jmespath", "jsonschema", "referencing", "regress"} & loaded == set()
+
+
 @pytest.mark.parametrize(
     ("native_session", "started"),
     [("dispatched-chat", True), ("dispatched-chat", False), ("another-chat", True)],

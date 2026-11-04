@@ -301,6 +301,7 @@ class _PassageParser:
         # attribute copies the whole string and makes a large page's reading quadratic.
         self.chars = []
         self.owner = []  # per character: the tuple of enclosing ids
+        self.spans = {}  # id → [first, end): the characters it holds
         self.fences = set()  # indices a quote may not span
         self.breaks = set()  # indices of the spaces that end one block's words
         self.retired = {}  # id under a retired slot → the suggestion whose decision did it
@@ -334,6 +335,7 @@ class _PassageParser:
         if self.chars and block != self._block:
             self._space = self._break = True
         self._block = block
+        start = len(self.chars)
         for ch in data:
             if ch in COLLAPSE_CHARS:
                 self._space = bool(self.chars)
@@ -346,6 +348,9 @@ class _PassageParser:
                 self._space = self._break = False
             self.chars.append(ch)
             self.owner.append(ids)
+        if (end := len(self.chars)) > start:
+            for wid in ids:
+                self.spans.setdefault(wid, [start, end])[1] = end
         for frame in reversed(self.stack):
             if frame["verbatim"]:
                 self.verbatim[frame["verbatim"]].write(data, block)
@@ -574,6 +579,10 @@ class Passages(NamedTuple):
     enclosing: dict  # id → the ids enclosing it, outermost first, itself last
     verbatim: dict  # source provenance → compositional words with upgraded descendants as boundaries
     breaks: set  # indices of the spaces that end one block's words and start the next's
+    # id → the half-open range of characters inside it, for each id with text in it.
+    # An element is contiguous in document order, so its characters are too, which
+    # is what lets a search be scoped by slicing.
+    spans: dict
 
 
 def _walk(parser: "_PassageParser", node) -> None:
@@ -621,15 +630,8 @@ def page_passages(
         parser.enclosing,
         {wid: reading.reading() for wid, reading in parser.verbatim.items()},
         parser.breaks,
+        {wid: (lo, hi) for wid, (lo, hi) in parser.spans.items()},
     )
-
-
-def section_span(owner: list, section: str):
-    """The half-open range of characters inside `section`, or None when the version has
-    no such element with text in it. An element is contiguous in document order, so its
-    characters are too — which is what lets a search be scoped by slicing."""
-    inside = [i for i, ids in enumerate(owner) if section in ids]
-    return (inside[0], inside[-1] + 1) if inside else None
 
 
 class Spoken(NamedTuple):
@@ -648,15 +650,10 @@ EMPTY = Spoken("", ())
 def _spoken(p: Passages) -> dict:
     """id → Spoken, for every element the reading `p` carries: the passage reading
     sliced by id rather than a second walk (see `SourceReading.spoken`)."""
-    first, last = {}, {}
-    for i, ids in enumerate(p.owner):
-        for wid in ids:
-            first.setdefault(wid, i)
-            last[wid] = i
     # Stripped: the separator `_write` puts between blocks lands inside whichever
     # element the next block opens, so a slice can start or end on one. It marks a
     # boundary rather than saying anything.
-    said = {wid: p.text[lo : last[wid] + 1].strip() for wid, lo in first.items()}
+    said = {wid: p.text[lo:hi].strip() for wid, (lo, hi) in p.spans.items()}
     return {wid: Spoken(said.get(wid, ""), chain) for wid, chain in p.enclosing.items()}
 
 
@@ -729,8 +726,8 @@ class SourceReading:
         to mean the same text a user could have selected, or the question is about
         something else.
 
-        `section_span` answers this for one id by scanning the page; every id at
-        once is that same scan, done once.
+        Each id's words are its `Passages.spans` slice of the text, the range a
+        quote scoped to that id searches.
 
         The two halves come from different readings because they are different
         facts, and taking both off the character scan cost the second one. Words

@@ -29,7 +29,7 @@ from leaf.obligations import (
 from leaf.page_view import CandidatePageView, PageView
 from leaf.plans import plan_error
 from leaf.projection import (
-    authored_positions,
+    AuthoredOrders,
     generated_children,
     projected_action_holders,
     record_members,
@@ -412,8 +412,8 @@ def record_contract_error(view, event, spec, readings, page_owned=True):
         ):
             return error.but(values=record)
     if record_kind == "attribute":
-        members = record_members(
-            event["widget"], spec["record"], projection, byid, registry
+        members = record_members(spec["record"], projection, byid, registry).get(
+            event["widget"], set()
         )
         named = event["detail"]["value"]
         if strangers := sorted(set(named) - members):
@@ -436,11 +436,9 @@ def stale_move_error(view, event: dict, spec: dict, reading, readings):
     owner, container = event["widget"], event["detail"]["value"]
     registry = readings.registry
     now = readings.page(newest)
-    if authored_positions(
-        owner, record, reading.document.by_id, reading.spoken, registry
-    ).get(container) == authored_positions(
-        owner, record, now.document.by_id, now.spoken, registry
-    ).get(container):
+    if AuthoredOrders(reading.document.by_id, registry).of(owner, record).get(
+        container
+    ) == AuthoredOrders(now.document.by_id, registry).of(owner, record).get(container):
         return None
     return Finding(
         "stale-move",

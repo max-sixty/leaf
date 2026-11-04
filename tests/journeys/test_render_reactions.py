@@ -29,7 +29,7 @@ def test_a_target_hint_opens_comment_and_a_token_seats_only_its_glyph(browser, s
     expect(page.locator(".lf-composer")).to_be_visible()
     expect(bar.locator(".lf-fab-input")).to_be_focused()
     page.keyboard.press("Tab")
-    reaction = bar.locator('.lf-react[data-token="prioritize"]')
+    reaction = bar.locator('.lf-react[data-lf-token="prioritize"]')
     reaction.focus()
     expect(reaction).to_be_focused()
     with sending(page, "the prioritize reaction"):
@@ -39,7 +39,7 @@ def test_a_target_hint_opens_comment_and_a_token_seats_only_its_glyph(browser, s
     shown = painted(page, [["prose", "prioritize"]])
     assert shown["washed"] == "", shown
     expect(page.locator("#prose")).to_be_focused()
-    focus = page.locator('.lf-visual-mark-focus[data-for="prose"]')
+    focus = page.locator('.lf-visual-mark-focus[data-lf-for="prose"]')
     expect(focus).to_be_visible()
     assert (
         focus.evaluate("node => getComputedStyle(node, '::after').outlineStyle")

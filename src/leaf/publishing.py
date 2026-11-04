@@ -24,7 +24,7 @@ from pathlib import Path
 from leaf.event_log import read_events
 from leaf.files import stamped_version
 from leaf.leases import contract_writer
-from leaf.projection import folded_value, markup_value, page_reading
+from leaf.projection import attribute_marks, folded_value, markup_value, page_reading
 from leaf.refusals import Refused
 from leaf.revisioning import (
     hold_published,
@@ -168,10 +168,12 @@ def _completed_tasks(
 
 def _settled_reports(projection, parser, spk: dict, registry: dict) -> list[str]:
     settled = []
+    byid = parser.by_id
+    marks = attribute_marks(byid, spk, registry)
     for (_widget, unit, _verb), reports in projection.reports.items():
         last, spec = reports[-1]
         if unit in parser.overruled or markup_value(
-            unit, spec, parser.by_id, spk, registry
+            unit, spec, byid, marks
         ) == folded_value(last, spec):
             settled.extend(report["id"] for report, _ in reports)
     return settled

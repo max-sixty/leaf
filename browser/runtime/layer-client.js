@@ -134,24 +134,89 @@ export function layerHeaders(headers) {
   return result;
 }
 
-// A state request names the data reading the tab holds, and an answer whose data is
-// still that version leaves out its sources (http.py, `page_state`): data moves only
-// when an agent sets it, so a gesture's answer need not carry back every source value.
-// The answer's reader restores them from the reading its request named.
-/** @param {{version: string | null}} held */
-export const dataHeaders = (held) =>
-  held.version === null ? {} : { "Leaf-Data-Version": held.version };
 /** @typedef {import("../types/contract.js").ServedState & {
  * active: NonNullable<import("../types/contract.js").ServedState["active"]>,
  * browser: NonNullable<import("../types/contract.js").ServedState["browser"]>
  * }} StateAnswer
- * @typedef {ReturnType<typeof completeData<StateAnswer>>} CompletedState */
-/** @template {{data: {version: string, sources?: Record<string, import("./data.js").SourceReading>}}} S
- * @param {S} state @param {{sources: Record<string, import("./data.js").SourceReading>}} held */
-export const completeData = (state, held) => ({
-  ...state,
-  data: { ...state.data, sources: state.data.sources ?? held.sources },
+ * @typedef {Omit<StateAnswer, "since" | "data"> & {
+ * data: {version: string, sources: Record<string, import("./data.js").SourceReading>}
+ * }} CompletedState
+ * @typedef {{
+ * data: {version: string | null, sources: Record<string, import("./data.js").SourceReading>},
+ * state: CompletedState | null
+ * }} Held */
+
+// A state request names what the tab holds, and the answer leaves that out for its
+// reader to restore from the same holding (http.py, `page_state`). An answer at the
+// data version the tab names leaves out its sources, since data moves only when an
+// agent sets it. An answer that can extend the reading the tab adopted, named by its
+// `browser.basis.key`, carries `since` and only the history after that reading
+// (`served_state/tail.py`): the log and each view's entries and undo list grow with
+// every event. A newer reading can be adopted while a request is out, so its reader
+// captures the holding before asking and completes the answer from that.
+/** @returns {Held} */
+export const heldReading = () => ({ data: runtime.data, state: runtime.state });
+/** @param {Held} held */
+export const heldHeaders = ({ data, state }) => ({
+  ...(data.version !== null && { "Leaf-Data-Version": data.version }),
+  ...(state && { "Leaf-Held-Basis": state.browser.basis.key }),
 });
+
+// An entry list `since` extended: the held entries it neither changed nor dropped,
+// beside the ones it sent, in the order of their events.
+/** @template {{event: {id: string, seq?: number}}} E
+ * @param {readonly E[]} held @param {readonly E[]} sent @param {readonly string[]} dropped
+ * @param {1 | -1} [order] 1 for log order, -1 for newest first */
+const extended = (held, sent, dropped, order = 1) => {
+  const replaced = new Set([...dropped, ...sent.map(({ event }) => event.id)]);
+  return [...held.filter(({ event }) => !replaced.has(event.id)), ...sent].sort(
+    (a, b) => order * ((a.event.seq ?? 0) - (b.event.seq ?? 0)),
+  );
+};
+
+// The whole answer: its data sources and its history restored from the holding its
+// request named, which is exactly the answer the server would have sent whole.
+/** @param {StateAnswer} answer @param {Held} held @returns {CompletedState} */
+export function completeState(answer, held) {
+  const { since, ...rest } = answer;
+  const data = { ...rest.data, sources: rest.data.sources ?? held.data.sources };
+  if (!since) return { ...rest, data };
+  const prior = held.state;
+  if (prior?.browser.basis.through_seq !== since.through_seq)
+    throw new Error("The state answer extends a reading this tab did not name");
+  const views = Object.fromEntries(
+    Object.entries(rest.browser.views).map(([revision, view]) => {
+      const before = prior.browser.views[revision];
+      const dropped = since.dropped[revision];
+      if (!before || !dropped)
+        throw new Error(`The state answer extends a view r${revision} this tab lacks`);
+      /** @param {"document" | "thread"} part */
+      const projection = (part) => ({
+        ...view[part].projection,
+        entries: extended(
+          before[part].projection.entries,
+          view[part].projection.entries,
+          dropped[part],
+        ),
+      });
+      return [
+        revision,
+        {
+          ...view,
+          document: { ...view.document, projection: projection("document") },
+          thread: { ...view.thread, projection: projection("thread") },
+          undo: extended(before.undo, view.undo, dropped.undo, -1),
+        },
+      ];
+    }),
+  );
+  return {
+    ...rest,
+    data,
+    events: [...prior.events, ...rest.events],
+    browser: { ...rest.browser, views },
+  };
+}
 
 // An answer `admitResponse` refused: it came from another delivery, and whether the page
 // reloads is already settled there. Each caller says what that means for its request.
@@ -326,7 +391,7 @@ const KEEPALIVE_BYTES = 60_000;
 // moved would move for all of them. Whether a send waits on the one before it belongs
 // to the caller.
 /** @param {import("../types/contract.js").BrowserCommand} event */
-export const postEvent = async (event, held = runtime.data) => {
+export const postEvent = async (event, held = heldReading()) => {
   if (offlineInteractive)
     throw new Error("no agent or server is available in an interactive export");
   if (!layerKnown) await layerReady;
@@ -339,7 +404,7 @@ export const postEvent = async (event, held = runtime.data) => {
       method: "POST",
       headers: layerHeaders({
         "Content-Type": "application/json",
-        ...dataHeaders(held),
+        ...heldHeaders(held),
       }),
       body,
       // A gesture sent as the tab closes, such as the edit a playground records on

@@ -39,7 +39,7 @@ from leaf_dev.arms import (
     trace_result,
     trace_summary,
 )
-from leaf_dev.browser import headless_shell, load, settle, tab
+from leaf_dev.browser import Window, headless_shell, load, settle, tab
 from leaf_dev.eval_cases import definition
 
 # A decision can leave the page through Copy. User and judge browsers accept that
@@ -199,16 +199,16 @@ def comment_on_passage(
     fallback: str,
     target: str = "",
     *,
-    viewport: tuple[int, int],
+    window: Window,
 ) -> dict:
-    """Comment as the reader of the Leaf page at `url`: on the first drawn
-    occurrence of the first of `quotes` the page draws, which the selection's own
-    context anchors, opening `target` first where none is drawn, or otherwise
+    """Comment as the reader of the Leaf page at `url`, in `window`: on the first
+    drawn occurrence of the first of `quotes` the page draws, which the selection's
+    own context anchors, opening `target` first where none is drawn, or otherwise
     on the page whole with `fallback`. Return the route, the quote, and the
     `attempt` key that finds the admitted comment in the log."""
     with (
         headless_shell() as browser,
-        tab(browser, viewport=viewport) as view,
+        tab(browser, window) as view,
     ):
         load(view, url)
         quote = view.evaluate(SELECT, list(quotes))
@@ -218,7 +218,7 @@ def comment_on_passage(
             quote = view.evaluate(SELECT, list(quotes))
         if quote is not None:
             view.dispatch_event("body", "mouseup")
-            view.locator('.lf-fp-field leaf-text[data-says="selection"]').click()
+            view.locator('.lf-fp-field leaf-text[data-lf-says="selection"]').click()
             box = view.locator(".lf-composer leaf-text")
         else:
             box = view.locator(".lf-fp-field leaf-text")
@@ -266,18 +266,17 @@ def cli() -> list[str]:
     return [node, str(script), "cli"]
 
 
-def decide(url: str, task: str, evidence: Path, *, viewport: tuple[int, int]) -> dict:
+def decide(url: str, task: str, evidence: Path, *, window: Window) -> dict:
     """Have the user agent make the decision `task` on the page at `url`, in a
-    tab at the declared viewport. Return what it reported (`made`, `copied`,
-    `notes`), what the page put on the clipboard (`copies`), and what the agent
-    spent (`trace`)."""
+    tab in `window`. Return what it reported (`made`, `copied`, `notes`), what the
+    page put on the clipboard (`copies`), and what the agent spent (`trace`)."""
     evidence.mkdir(parents=True, exist_ok=True)
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))
         port = probe.getsockname()[1]
     with (
         headless_shell(args=[f"--remote-debugging-port={port}"]) as browser,
-        tab(browser, viewport=viewport, motion="no-preference") as view,
+        tab(browser, window, motion="no-preference") as view,
         scratch() as cwd,
         tempfile.TemporaryDirectory(prefix="leaf-pw-", dir="/tmp") as sockets,
     ):

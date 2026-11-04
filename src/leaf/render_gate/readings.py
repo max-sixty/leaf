@@ -400,14 +400,23 @@ def settle_at(page, width: int, height: int) -> None:
     360px, and rust-sort over 1000px down at 680px, with their sticky header over the
     words beneath it. So once the resize has settled the page jumps back to its top,
     without the smooth scrolling a page can ask for, which would still be on its way
-    when the reading is taken."""
+    when the reading is taken.
+
+    The motion the resize started is finished first (`finishMoving`, runtime.js), so
+    the reading is the page it ends on. A sidebar's contents map fades its labels out
+    over the column when the window grows wide enough to lay the map in the margin,
+    and a reading mid-fade reported them covering the column's words."""
     page.set_viewport_size({"width": width, "height": height})
     # What the resize set moving in script (an observer, the layout that observer's
     # write causes, and whatever that chains into) has run and been laid out.
     rendered(page)
-    if page.evaluate(
-        "() => { const down = scrollY;"
-        " scrollTo({ top: 0, left: 0, behavior: 'instant' }); return down; }"
+    finished = evaluate_probe(page, "finishMoving")
+    if (
+        page.evaluate(
+            "() => { const down = scrollY;"
+            " scrollTo({ top: 0, left: 0, behavior: 'instant' }); return down; }"
+        )
+        or finished
     ):
         rendered(page)
 

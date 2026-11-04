@@ -125,7 +125,7 @@ def test_a_refused_reply_folds_away_and_its_words_return_whole(browser, serve, s
     write(box, words)
     page.keyboard.press("Enter")
     holding(page, held, 1, "the reply")
-    sent = card.locator('.lf-msg[data-event^="pending:"]')
+    sent = card.locator('.lf-msg[data-lf-event^="pending:"]')
     expect(sent).to_be_visible()
     rendered(page)
     space = card.locator(".lf-reply-space")
@@ -156,7 +156,7 @@ def test_a_refused_reply_folds_away_and_its_words_return_whole(browser, serve, s
     expect(folding).to_have_count(1)
     expect(sent).to_have_count(0)
     assert folding.evaluate(
-        "node => node.matches(':not([data-event], [data-message])')"
+        "node => node.matches(':not([data-lf-event], [data-lf-message])')"
     )
     page.evaluate(
         "() => window.retirement.currentTime ="
@@ -198,7 +198,7 @@ def test_a_new_sent_message_does_not_hide_work_on_an_earlier_message(browser, se
     )
     told(page)
     workflow = page.locator(
-        f'.lf-margin-preview .lf-msg[data-event="{later["id"]}"] .lf-msg-sending'
+        f'.lf-margin-preview .lf-msg[data-lf-event="{later["id"]}"] .lf-msg-sending'
     )
     expect(workflow).to_have_text(re.compile(r"^Queued for "))
     assert workflow.evaluate(
@@ -209,7 +209,7 @@ def test_a_new_sent_message_does_not_hide_work_on_an_earlier_message(browser, se
     # is set larger (surfaces.css, the name's strut).
     baselines = workflow.evaluate(
         """node => [...node.closest('.lf-msg-head').querySelectorAll(
-          ':scope > b, :scope > .lf-msg-meta > time, [data-voice]')].map(words => {
+          ':scope > b, :scope > .lf-msg-meta > time, [data-lf-voice]')].map(words => {
           const mark = words.appendChild(document.createElement('span'));
           mark.style.cssText = 'display: inline-block; block-size: 0';
           const y = mark.getBoundingClientRect().top;
@@ -293,7 +293,7 @@ def test_escape_from_a_box_leaves_it_where_it_stood(browser, serve):
     url, root = long_seated_thread(serve)
     page = open_page(browser, url)
     resized(page, 1200, 560)
-    thread = page.locator(f'.lf-page-thread[data-thread="{root}"]')
+    thread = page.locator(f'.lf-page-thread[data-lf-thread="{root}"]')
     box = thread.locator("leaf-text")
     expect(box).to_be_visible()
     box.click()

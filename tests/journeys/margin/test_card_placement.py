@@ -20,6 +20,7 @@ from render_harness import (
 
 from leaf import thread as thread_model
 from leaf.render_checks import rendered
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -314,7 +315,7 @@ SWEEP_PAGES = {
         ),
         ["find-20", "wlog-6", "wnote"],
     ),
-    "screenshot": (ROOT / "examples/release-notes.html", ["rn-console-shot"]),
+    "screenshot": (named_source("release-notes"), ["rn-console-shot"]),
 }
 
 # What the page shows of the row and the card, in client pixels: the row's box cut by

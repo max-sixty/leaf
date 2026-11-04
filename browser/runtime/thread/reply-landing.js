@@ -124,7 +124,7 @@ const returnTurn = (transcript, unread) => {
     ...transcript.querySelectorAll(":scope > :is(.lf-msg, .lf-thread-checkpoint)"),
   ];
   let start = unread
-    ? (turns.find((node) => node.getAttribute("data-message") === unread) ?? null)
+    ? (turns.find((node) => node.getAttribute("data-lf-message") === unread) ?? null)
     : null;
   while (start && !showsContents(start)) start = start.previousElementSibling;
   return start ?? turns.findLast((node) => showsContents(node)) ?? null;

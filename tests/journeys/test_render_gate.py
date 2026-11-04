@@ -61,9 +61,7 @@ from render_cases_widgets import (
     TYPED_PARTS_PAGE,
 )
 from render_harness import (
-    CORPUS_SOURCES,
     EXAMPLE_PACKAGES,
-    EXAMPLES,
     INLINE_PAGE,
     LONG_PAGE,
     at_rest,
@@ -86,7 +84,7 @@ from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.preview import preview_server
 from leaf.revision_artifact import read_revision
-from leaf_dev.example_data import named_source
+from leaf_dev.example_data import authored_sources, named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -607,7 +605,7 @@ def test_rest_watches_a_frame_created_by_contained_arrival(browser, serve):
     assert any("data-late" in finding for finding in at_rest(page))
 
 
-@pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
+@pytest.mark.parametrize("source", authored_sources(), ids=lambda p: p.stem)
 def test_page_fixture_renders(browser, serve, source):
     """Every shipped example and developer page passes the render gate, and a
     still_page of it comes back from every journey as it was.
@@ -703,7 +701,7 @@ def test_page_fixture_renders(browser, serve, source):
     )
 
 
-@pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
+@pytest.mark.parametrize("source", authored_sources(), ids=lambda p: p.stem)
 def test_page_fixture_opens_without_firefox_console_warnings(
     firefox_browser, serve, source
 ):
@@ -844,7 +842,7 @@ def test_the_runtime_holds_a_declared_scroll_surface(browser, serve):
     )
     page.close()
 
-    example = next(e for e in EXAMPLES if e.stem == "pr-walkthrough")
+    example = named_source("pr-walkthrough")
     page = open_page(browser, serve(example))
     # The lines a diff has drawn, which is not every diff on the page: the shipped patch
     # stands collapsed and fetches one file when it is asked for, so its shadow tree
@@ -1536,9 +1534,6 @@ body { max-width: 768px; margin-inline: auto; }
 from browser.test_render_gate import _panel
 from render_cases_widgets import (
     PART_DIAGRAM_PAGE,
-)
-from render_harness import (
-    CORPUS_SOURCES,
 )
 
 

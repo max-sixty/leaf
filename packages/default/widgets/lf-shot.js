@@ -31,15 +31,15 @@ import { ShotView } from "./shot-view.js";
  * time and a frame apart, so a page of shots stays responsive. A difference reading
  * waits its turn; a mask the reader pressed for goes to the front and waits only for
  * the comparison already running. Slider is the first view. The divider and the view
- * radios are Web Awesome's, and this module loads Web Awesome with itself, so every
- * view takes the first press the reader makes once the page shows. That puts Web
- * Awesome's bundle on the startup path; loading it after presentation kept it off, but
- * left the radios inert until it arrived. Pixels needs only the two images, so choosing
- * it shows the view at once and says it is finding the changed pixels until the mask is
- * computed, since a greyed image with no mask would read as a pair with no changes.
- * Masks are computed only on selection. The divider's exact position survives switching
- * views. Replacing either capture refreshes evidence inside the retained controls and
- * viewports, preserving the reader's inspection.
+ * radios are Web Awesome's, and this module loads those three controls with itself
+ * (`webawesome-views`), so every view takes the first press the reader makes once the
+ * page shows. That puts them on the startup path; loading them after presentation
+ * kept them off, but left the radios inert until they arrived. Pixels needs only the
+ * two images, so choosing it shows the view at once and says it is finding the changed
+ * pixels until the mask is computed, since a greyed image with no mask would read as
+ * a pair with no changes. Masks are computed only on selection. The divider's exact
+ * position survives switching views. Replacing either capture refreshes evidence
+ * inside the retained controls and viewports, preserving the reader's inspection.
  * `difference` reads the requested pair, with its `description` in words; a superseded
  * or refused load resolves null.
  * Pair's images are original-image links using the shared viewer; dragging or
@@ -73,7 +73,7 @@ import {
   compoundReadingRegionId,
   commandsChanged,
 } from "/runtime/widget-api.js";
-import "/vendor/webawesome.esm.js";
+import "/vendor/webawesome-views.js";
 
 /** @type {(() => Promise<void>)[]} */
 const turns = [];

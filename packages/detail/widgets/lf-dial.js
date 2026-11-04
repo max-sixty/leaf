@@ -53,7 +53,7 @@ import {
   viewDocument,
   whileConnected,
 } from "/runtime/widget-api.js";
-import "/vendor/webawesome.esm.js";
+import "/vendor/webawesome-views.js";
 
 const DEPTHS = [
   { name: "skim", label: "Skim", title: "Headings and each section's gist" },

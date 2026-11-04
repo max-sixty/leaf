@@ -935,6 +935,41 @@ def test_the_reading_map_returns_when_a_hidden_sidebar_comes_back(browser, serve
     assert rows() == laid, "the map came back without its rows"
 
 
+def test_a_status_line_in_the_map_s_track_stands_clear_of_its_spine(browser, serve):
+    """`page-authoring.md` keeps a short status beside the contents in the track, but
+    the margin map stands over the track's start edge and reserves no room there: its
+    spine ran down the status's first letters, and a press on them opened the map
+    instead of reaching the words."""
+    source = leaf_page(
+        "status beside the map",
+        '<aside><div class="layout-track"><lf-toc id="contents"></lf-toc>'
+        '<p id="status">Two branches wait on review.</p></div></aside>'
+        '<div class="layout-column"><h1>A migration</h1>'
+        + "".join(
+            f'<section><h2 id="{name}">{name}</h2><div style="height: 900px"></div>'
+            "</section>"
+            for name in ("prepare", "move", "verify")
+        )
+        + "</div>",
+        layout="sidebar",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1400, 900)
+    expect(page.locator("#contents")).to_have_css("position", "fixed")
+    pressed = page.locator("#status").evaluate(
+        """status => {
+            const range = document.createRange();
+            range.setStart(status.firstChild, 0);
+            range.setEnd(status.firstChild, 1);
+            const {left, top, height} = range.getBoundingClientRect();
+            return document.elementFromPoint(left + 1, top + height / 2)?.id;
+        }"""
+    )
+    assert pressed == "status", (
+        f"a press on the status's first letter reached {pressed!r}"
+    )
+
+
 def test_a_crowded_document_map_reveals_every_heading_on_one_fitted_scale(
     browser, serve
 ):

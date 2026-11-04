@@ -1,7 +1,8 @@
 // @ts-check
 /* Words as a label reads them: whitespace collapsed with the one collapse class
-   (kernel-facts.js), and an excerpt cut at a word boundary. Pure, so the record folds,
-   the passage reader and a package's widgets share one truncation rule. */
+   (kernel-facts.js), an excerpt cut at a word boundary, a count with its noun, and a
+   label's first letter capitalized to open a sentence. Pure, so the record folds, the
+   passage reader and a package's widgets share one truncation rule. */
 import { COLLAPSE } from "./kernel-facts.js";
 
 /** @param {unknown} value */
@@ -27,3 +28,12 @@ export function excerptWords(value, cap) {
 // “Rollout safety”.
 /** @param {unknown} value @param {number} [cap] */
 export const quotedWords = (value, cap = 60) => `“${excerptWords(value, cap)}”`;
+
+// A count with its noun, singular for one: "1 reply", "3 replies", "0 replies".
+/** @param {number} count @param {string} one @param {string} [many] */
+export const counted = (count, one, many = `${one}s`) =>
+  `${count} ${count === 1 ? one : many}`;
+
+// Words with their first letter capitalized, as a label opens a sentence or a title.
+/** @param {string} words */
+export const capitalized = (words) => words.charAt(0).toUpperCase() + words.slice(1);

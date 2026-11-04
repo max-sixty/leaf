@@ -29,6 +29,7 @@ from leaf import server_rows as server_rows_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf.harness import NUDGE_WORDS
+from leaf.interaction_log import read_interactions
 
 DRIVER = Path(__file__).parents[1].joinpath("claude_code_driver.mjs")
 
@@ -319,6 +320,36 @@ def test_a_follower_terminated_from_outside_stays_out_of_the_conversation(
     driven.quit()
 
 
+# The main thread's last request as a fork's diagnostics name it: the newest row
+# stored as it went out, and the newest by the time of the fork, such as its reply.
+RESENT = {
+    "model": "claude-opus-5-5",
+    "effort": "xhigh",
+    "messages": 12,
+    "sent": "r1",
+    "row": "r2",
+}
+
+
+def main_thread_request(driven) -> None:
+    """The main thread's request and the rows it stored, which a fork resends, with a
+    subagent's after them, which it doesn't."""
+    row = {
+        "message": {"type": "assistant", "role": "assistant", "content": []},
+        "door": "model",
+        "origin": {"kind": "model", "model": "claude-opus-5-5"},
+    }
+    driven.emit("session.append", {**row, "uuid": "r1"})
+    step = {"turnId": "t1", "index": 0, "model": "claude-opus-5-5", "effort": "xhigh"}
+    driven.emit("turn.step", {**step, "messageCount": 12})
+    driven.emit("session.append", {**row, "uuid": "r2"})
+    driven.emit(
+        "turn.step",
+        {**step, "model": "claude-haiku-5-5", "messageCount": 3, "agentId": "a1"},
+    )
+    driven.emit("session.append", {**row, "uuid": "r3", "agentId": "a1"})
+
+
 def test_a_turn_end_forks_the_conversation_for_the_clerk(
     page_dir, monkeypatch, spawn, sessionless
 ):
@@ -338,7 +369,8 @@ def test_a_turn_end_forks_the_conversation_for_the_clerk(
                     "passage": "",
                     "quote": "Should the retry limit be 3 or 5?",
                 }
-            ]
+            ],
+            "findings": [],
         }
     )
     driven = ClaudeCode(spawn, "cc-fork", {"forkReply": reply})
@@ -352,6 +384,7 @@ def test_a_turn_end_forks_the_conversation_for_the_clerk(
         bool,
         failure="the band never showed the page",
     )
+    main_thread_request(driven)
     ended = {"answer": "Done.", "durationMs": 1, "isAborted": False, "turnId": "t1"}
     driven.emit("turn.complete", {**ended, "reason": "answer", "agentId": "a1"})
     driven.emit("turn.complete", {**ended, "reason": "aborted", "isAborted": True})
@@ -362,7 +395,7 @@ def test_a_turn_end_forks_the_conversation_for_the_clerk(
         lambda line: line.startswith("Leaf: the clerk"),
         failure=lambda: f"the clerk never reported: {list(driven.diagnostics.queue)}",
     )
-    assert "added 1 to On me" in told, told
+    assert "wrote 1 record, changed 0 passages and told the agent 1 line" in told, told
     assert driven.forks.empty()
     [asked] = [
         event
@@ -374,6 +407,8 @@ def test_a_turn_end_forks_the_conversation_for_the_clerk(
         "The retry limit",
         True,
     )
+    [note] = read_interactions(page_dir, types=("turn_end_check",))
+    assert note["request"] == RESENT, note
     driven.quit()
 
 
@@ -429,6 +464,7 @@ def test_a_held_thread_message_is_answered_by_a_fork_of_the_conversation(
         bool,
         failure="the band never showed the page",
     )
+    main_thread_request(driven)
     asked = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Why 2 s?"}
     )
@@ -451,5 +487,7 @@ def test_a_held_thread_message_is_answered_by_a_fork_of_the_conversation(
         "Because 2 s is stale.",
         "cc-reply",
     )
+    [note] = read_interactions(page_dir, types=("fork_reply",))
+    assert note["request"] == RESENT, note
     assert driven.diagnostics.empty()
     driven.quit()

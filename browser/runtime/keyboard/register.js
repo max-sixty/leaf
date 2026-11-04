@@ -121,6 +121,8 @@ const PAGE_COMMANDS = [
   "draw.mode.enter",
   "capture.region.open",
   "design.mode.enter",
+  // Beside `o`, so the Annotations list reads its two hides together.
+  "version.compare.latest",
   "annotations.toggle",
   "panel.floating.fold",
   COMMAND_REFERENCE,

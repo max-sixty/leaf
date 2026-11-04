@@ -3,6 +3,7 @@
    reading regions without changing the landing arithmetic or fixed-box boundary. */
 import { renderedParent } from "./shadow-tree.js";
 import { pageScroller } from "./scrolling.js";
+import { userScrollport } from "./geometry.js";
 
 /** @type {(node: Node | null | undefined) => Element} */
 let lookup = (node) => {
@@ -11,7 +12,7 @@ let lookup = (node) => {
     at;
     at = renderedParent(at)
   ) {
-    if (at === pageScroller || /^(auto|scroll)$/.test(getComputedStyle(at).overflowY))
+    if (at === pageScroller || userScrollport(getComputedStyle(at).overflowY))
       return at;
   }
   return pageScroller;

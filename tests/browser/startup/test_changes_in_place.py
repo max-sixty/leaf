@@ -1,6 +1,6 @@
-"""Changes in place: what changed since a version the user compares with in Versions,
-marked with a bar and walked with `h`, and where the agent is at work while it works
-(change-walk.js, margin-bars.js)."""
+"""Changes in place: what changed since a version, which `v` or a Compare in Versions
+marks with a bar and `h` walks, and where the agent is at work while it works
+(version.js, change-walk.js, margin-bars.js)."""
 
 import re
 from datetime import UTC, datetime, timedelta
@@ -10,7 +10,7 @@ from interact_support import append_command
 from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
-from render_harness import compare_with, open_page, wait_for_revision
+from render_harness import compare_with, open_page, stamp_page, wait_for_revision
 
 from leaf import event_log as events_model
 from leaf import revisioning as revisioning_model
@@ -100,6 +100,34 @@ def test_a_comparison_marks_each_change_with_a_bar_and_h_walks_them(browser, ser
         }"""
     )
     assert lanes, "the change bar and the at-work bar don't stand in lanes of their own"
+
+
+def test_v_marks_what_changed_since_the_latest_version_and_takes_marks_off(
+    browser, serve
+):
+    """`v` compares with the newest version older than the one being read, and takes
+    any comparison off again, one a Compare in Versions started included."""
+    url = live_url(serve(PAGE))
+    d = serve.page_dir
+    page = open_page(browser, url)
+    stamp_page(d, revised(PAGE, BETA), "rewrote Beta")
+    wait_for_revision(page, 2)
+    revise(d, DELTA)
+    wait_for_revision(page, 3)
+    marked = page.locator("main .lf-ins-block")
+    # Since v2, not v1: only Delta changed.
+    page.keyboard.press("v")
+    expect(page.locator('.lf-change-bar[data-lf-for="d"]')).to_have_count(1)
+    assert marked_ids(page) == ["d"]
+    page.keyboard.press("v")
+    expect(marked).to_have_count(0)
+    # A screen reader hears the marks go.
+    expect(page.locator(".lf-live")).to_have_text("Changes hidden")
+    compare_with(page, 1)
+    page.keyboard.press("Escape")
+    expect(marked).to_have_count(2)
+    page.keyboard.press("v")
+    expect(marked).to_have_count(0)
 
 
 SECTION = "<h2>Routes</h2>\n<p>The old rule.</p>\n<p>The old reason.</p>"

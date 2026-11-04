@@ -39,7 +39,6 @@ from render_harness import (
     FEATURE_GALLERY,
     LONG_PAGE,
     PANEL,
-    PANEL_THREAD,
     RELEASE_FOCUS,
     Traffic,
     any_draft_control,
@@ -69,6 +68,7 @@ from render_harness import (
 
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.browser import PANEL_THREAD
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -299,13 +299,13 @@ RING_CASES = (
             ),
             # A picture's response proxy, which a screen reader reaches from the
             # picture, rings the picture (details-shelf.js).
-            "heat-loss": ((".lf-visual-action", ".lf-proxy-ring"),),
+            "heat-loss": ((".lf-visual-action", ".lf-proxied"),),
             # Working density, where a choice's gap is narrowest beside the next face.
             "notification-playground": (
                 ("lf-playground input[type=radio]", ":is(.lf-choice, .choice):has"),
             ),
             "pr-walkthrough": (
-                ("#pr-path-tree > summary", ".lf-visual-mark"),
+                ("#pr-path-tree > summary", "[data-lf-mark]"),
                 (
                     "#pr-flow-tab",
                     "[data-lf-views]:has(> :is(lf-tab, lf-part)",
@@ -316,7 +316,7 @@ RING_CASES = (
                 ("lf-diff code", ".lf-diff-frame"),
             ),
             "release-notes": (
-                ("main p.lf-mark-el", ".lf-visual-mark"),
+                ("main p.lf-mark-el", "[data-lf-mark]"),
                 (
                     'lf-shot .lf-shotcomparison [part~="handle"]',
                     "wa-comparison::part(",
@@ -1689,9 +1689,10 @@ def test_every_control_the_layer_offers_is_a_box_the_user_can_hit(
 
 from render_harness import (
     EXAMPLES,
-    PANEL_THREAD,
     leaf_page,
 )
+
+from leaf_dev.browser import PANEL_THREAD
 
 
 @pytest.mark.shifts_unsurveyed

@@ -36,7 +36,6 @@ from render_harness import (
     EXAMPLE_PACKAGES,
     INLINE_PAGE,
     LONG_PAGE,
-    PANEL_THREAD,
     RELEASE_FOCUS,
     REPLAYED_PAGE,
     SETTLED_PAGE,
@@ -90,7 +89,7 @@ from leaf import service as service_model
 from leaf.registry.contract import RANK
 from leaf.render_checks import rendered
 from leaf.render_gate.scheme import console_finding
-from leaf_dev.browser import threads_tab
+from leaf_dev.browser import PANEL_THREAD, threads_tab
 
 DRAG_HELD = "async () => (await window.__lfCheckApi()).dragHeld()"
 

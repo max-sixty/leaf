@@ -303,7 +303,9 @@ let forkAgain = false;
  * no answer schema, so Leaf checks the answer against its own (`read_answer`).
  * What Leaf wrote goes to the debug log, beside Claude Code's own line for the
  * fork's tokens (`Forked agent [plugin_model_fork] finished`); the module logs no
- * usage of its own, since the debug log redacts a `*_tokens` field. In the
+ * usage of its own, since the debug log redacts a `*_tokens` field, and hands the
+ * fork's usage and time, or why it gave no answer, to Leaf, which notes them with
+ * the answer in each page's diagnostics. In the
  * claude-code journey on 2026-10-29, twelve forks over a 46–77k-token
  * conversation read it all from the cache, cost $0.015–0.026 each at list price and
  * took 1–6 s. */
@@ -319,19 +321,28 @@ async function clerk($: EngineInterface, session: string) {
       try {
         const asked = await forkStep($, session, {});
         if (!asked) continue;
+        const resent = request();
+        const started = await $.clock.now();
         const reply = await $.model.fork({ prompt: asked.prompt });
+        const run = {
+          basis: asked.basis,
+          elapsed_ms: (await $.clock.now()) - started,
+          ...("usage" in reply ? { usage: reply.usage } : {}),
+          ...(resent ? { request: resent } : {}),
+        };
         if (!reply.isAnswered) {
+          await forkStep($, session, { ...run, failed: reply.reason });
           $.ui.log(`Leaf: the clerk's fork gave no answer (${reply.reason})`, {
             to: "debug",
           });
           continue;
         }
-        const applied = await forkStep($, session, {
-          answer: reply.text,
-          basis: asked.basis,
-        });
+        const applied = await forkStep($, session, { ...run, answer: reply.text });
+        const wrote = applied.wrote.length;
+        const changed = applied.changed.length;
+        const told = applied.told.length;
         $.ui.log(
-          `Leaf: the clerk added ${applied.wrote.length} to On me${applied.dropped ? `, then dropped the rest: ${applied.dropped}` : ""}`,
+          `Leaf: the clerk wrote ${wrote} record${wrote === 1 ? "" : "s"}, changed ${changed} passage${changed === 1 ? "" : "s"} and told the agent ${told} line${told === 1 ? "" : "s"}${applied.dropped ? `, and wrote no records on a page where ${applied.dropped}` : ""}`,
           { to: "debug" },
         );
       } catch (error) {
@@ -344,6 +355,26 @@ async function clerk($: EngineInterface, session: string) {
   } finally {
     forking = false;
   }
+}
+
+// The main thread's last request, which `$.model.fork` resends: the model and effort
+// it named, how many messages it carried and the newest row stored as it went out
+// (`turn.step`, `sent`), with the newest row stored by the time of the fork (`row`),
+// each the transcript's id from `session.append`. The fork reads the conversation as
+// it would next go out: with a tool call running, to `sent`, since the call's
+// tool_use can't go out before its result; otherwise to `row`, a turn's final reply
+// included (`notes/fork-replies.md`, under the fork probes, and a turn-end ask in the
+// claude-code journey on 2026-11-01 that quoted only that reply). Each fork hands
+// this to Leaf, so a fork's diagnostics say where a replay cuts the conversation.
+let lastStep:
+  | { model: string; effort?: string | number; messages: number; sent?: string }
+  | undefined;
+let lastRow: string | undefined;
+
+function request() {
+  return (
+    lastStep && { ...lastStep, ...(lastRow === undefined ? {} : { row: lastRow }) }
+  );
 }
 
 // The tool calls the main thread is running, by their tool_use ids, which a fork
@@ -372,6 +403,7 @@ function forkReply($: EngineInterface, session: string, held: Held) {
       const calls = [...running.values()];
       const asked = await forkStep($, session, { thread: held, running: calls });
       if (!asked) return;
+      const resent = request();
       const started = await $.clock.now();
       let answered: Record<string, unknown>;
       try {
@@ -389,6 +421,7 @@ function forkReply($: EngineInterface, session: string, held: Held) {
         thread: held,
         running: calls,
         elapsed_ms: (await $.clock.now()) - started,
+        ...(resent ? { request: resent } : {}),
         ...answered,
       });
       $.ui.log(`Leaf: a fork took thread ${held.thread}: ${outcome?.outcome}`, {
@@ -438,6 +471,23 @@ export const register: Register = (on) => {
     } finally {
       running.delete(e.tool_use_id);
     }
+  });
+
+  on("turn.step", async function* ($, e, next) {
+    if (e.agentId === undefined)
+      lastStep = {
+        model: e.model,
+        messages: e.messageCount,
+        ...(e.effort === undefined ? {} : { effort: e.effort }),
+        ...(lastRow === undefined ? {} : { sent: lastRow }),
+      };
+    return yield* next(e);
+  });
+
+  on("session.append", async ($, e, next) => {
+    const stored = await next(e);
+    if (e.agentId === undefined && stored.deny === undefined) lastRow = stored.uuid;
+    return stored;
   });
 
   // A resumed or cleared session raises no session.start, so its first turn follows.

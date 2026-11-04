@@ -394,7 +394,8 @@ or a dependency's internals.
 Feature-detect only what a current stable engine lacks, and name that engine beside
 the check (`// Firefox lacks ScrollTimeline.`), so the check goes when the engine ships
 it. Call an API every engine ships directly, with no fallback, and record remaining
-browser gaps in `notes/browser-support.md`.
+browser gaps in `notes/browser-support.md`, whose "Recording and assessing a gap" says
+which ones Leaf's code corrects.
 
 Two script answers already exist. `focus.js` sets `data-lf-focus` and
 `data-lf-focus-within`, because native `:focus` also matches retargeted shadow hosts
@@ -460,6 +461,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | The page place focus or selection identifies, or none                                                 | `current-target.js` `currentLocationOrigin`                                        |
 | Where a page walk starts, whether the user is on a stop or at it, and which item it steps to          | `current-target.js` `walkOrigin`, `stepFrom`                                       |
 | Which of two nodes the reader reaches first, across shadow trees                                      | `shadow-tree.js` `renderedOrder`, `byRenderedOrder`                                |
+| What stands for a node in one tree: the node, or the host of the shadow tree holding it               | `shadow-tree.js` `hostIn`                                                          |
 | Whether a node is inside another across shadow trees                                                  | `shadow-tree.js` `under`, `renderedUnder`, `composedParentNode`                    |
 | Put the user on an element, saying what moved them                                                    | `focus.js` `focusDestination(node, cause)` (_lint_)                                |
 | Move a node, keeping the user's place in it                                                           | `dom-move.js` `move(parent, node, before)` (_lint_)                                |
@@ -488,7 +490,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | When a box's scroll ends, a glide's counted once, and whether the browser or a script moves it        | `arrivals.js` `watchScrollEnds`, `holdScroll`, `browserScrolls` (_lint_)           |
 | Whether the reader or layout chose a box's scroll position                                            | `scrolling.js` `chosenSince`, `placeKept`                                          |
 | The authored body, excluding Leaf's runtime surfaces                                                  | `passages.js` `pageDocument`, `inPage`                                             |
-| The box the page's Layout arranges, and the shell it stands in (its parent)                           | `passages.js` `layoutBox`                                                          |
+| The box the page's Layout arranges, the shell it stands in (its parent), and a page of parts' views   | `passages.js` `layoutBox`, `layoutParts`                                           |
 | Whether a place is already shown, and the space a landing needs                                       | `landing-scroll.js` `alreadyShown`, `landingRoom`                                  |
 | Bring something into view without scrolling the page around it, or only inside one box (its `within`) | `landing-scroll.js` `scrollIntoView` (_lint_)                                      |
 | Move a box to its end, or by an amount                                                                | `scrolling.js` `scrollToEnd`, `moveScrollerBy` (_lint_)                            |
@@ -500,15 +502,17 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | The address a heading's link names                                                                    | `heading-links.js` `headingAddress`                                                |
 | The language a file path means                                                                        | `language-paths.js` `langForPath`, from the registry's `$languages`                |
 | Paint on the next frame, or watch a size                                                              | `rendering.js` `nextRender`, `nextFrame`, `sizeObserver` (_lint_)                  |
-| Write a DOM value only when it changed                                                                | `keeps.js` `keeps`                                                                 |
+| Write a DOM value only when it changed; a style property needs no guard (`keeps.js` header)           | `keeps.js` `keeps`                                                                 |
 | Threads, workflow, attention, obligations, and whether they are answered                              | the server's state, under "One writer for each fact"                               |
 | Who says a word a seat shows about the work, and the face it says it in                               | `voice.js` `agentSays`, `leafSays`, `voiced`                                       |
+| Words as a label reads them, a count with its noun, and a label opening a sentence                    | `words.js` `labelWords`, `counted`, `capitalized`                                  |
+| Whether the page can copy here, with or without the Clipboard API                                     | `copy-control.js` `canCopy`                                                        |
 | A workflow's word, and its progress face on a control; an open to-do's word                           | `thread/workflow.js` `workflowWord`, `progressFace`, `todoWord`                    |
 | A thread's word, which Threads states as its status                                                   | `thread/workflow.js` `threadAttention`                                             |
 | What a thread's margin entry and Page Map row say of it: its line, turn and receipt                   | `margin-model.js` `threadMarks`                                                    |
 | A thread's name, on every surface that names it                                                       | `thread/messages.js` `threadName` (`threadSummary(thread).topic` for packages)     |
-| The thread a name names: its id, a message's, or this tab's attempt                                   | `thread/state.js` `threadNamed`, `threadIdNamed`                                   |
-| The thread id a drawn thread carries                                                                  | `thread/selectors.js` `drawnThreadId`                                              |
+| The thread a name names: its key, its id, a message's, or this tab's attempt                          | `thread/state.js` `threadNamed`, `threadIdNamed`                                   |
+| The thread id a drawn thread carries, and the page threads drawn with an id                           | `thread/selectors.js` `drawnThreadId`, `drawnThreadsWithId`                        |
 | The draft a thread holds: its reply box or a rewrite                                                  | `drafts.js` `replyContext`, `rewriteContext`, `threadDraft`                        |
 | Which obligations a region of the page holds                                                          | `obligations/place.js` `obligationsIn`                                             |
 | What names the part of the page a node stands in: its heading, or a named region                      | `thread/placement.js` `partOver`                                                   |

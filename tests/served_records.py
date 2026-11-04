@@ -3,7 +3,7 @@
 Each invocation emits records exactly as `/api/state` serves them, folded here
 through `model_folds.served_reading` rather than written by hand, so a Node test starts from
 every field the server sends and cannot omit one the runtime relies on. `thread`,
-`workflow` and `activity` are one record of each, which `served.mjs` hands out for a
+`workflow` and `activity` are one record of each, and `state` a whole answer, which `served.mjs` hands out for a
 test to change only the fields the server sends; `gestures` holds an admitted edit, undo, refusal
 and revision sequence shared across runtimes; `tails` holds answers that complete a
 reading the browser holds, each beside that reading and the whole answer;
@@ -18,7 +18,7 @@ import json
 from pathlib import Path
 
 from interact_support import model_layer, served_thread
-from model_folds import NOW, UNCLAIMED, leaf_page, served_reading
+from model_folds import NOW, UNCLAIMED, leaf_page, served_answer, served_reading
 
 from leaf.event_log import EventRefused
 from leaf.passages import SourceReading
@@ -42,6 +42,17 @@ def _served(events: tuple[dict, ...]) -> dict:
         "workflows": state["workflows"],
     }
 
+
+# A to-do the agent put on the user, about the page.
+USER_TODO = {
+    "kind": "todo",
+    "author": "agent",
+    "agent": "Agent",
+    "session": "served-records",
+    "owner": "user",
+    "subject": {"kind": "page"},
+    "title": "Try the build on a phone",
+}
 
 # Something of every kind on each list: a widget obligation, a question, a to-do the agent put
 # on the user, a reply that failed and a page action whose pickup failed are on On me;
@@ -103,15 +114,7 @@ BOTH_SIDES = (
         "item": "e5",
         "text": "Redrawing the chart",
     },
-    {
-        "kind": "todo",
-        "author": "agent",
-        "agent": "Agent",
-        "session": "served-records",
-        "owner": "user",
-        "subject": {"kind": "page"},
-        "title": "Try the build on a phone",
-    },
+    USER_TODO,
 )
 
 
@@ -167,6 +170,8 @@ def build() -> dict:
         "obligation_values": obligation_value_cases(),
         "thread": threads["e1"],
         "workflow": workflows["e4"],
+        # The whole answer for a page with an empty log.
+        "state": served_answer(PAGE),
         # The page-wide activity of a page a live session holds, owing nothing.
         "activity": served_reading(PAGE, presence=HELD)["activity"],
         "gestures": gesture_sequence(),
@@ -213,6 +218,8 @@ def build() -> dict:
                     ),
                 )
             },
+            # The agent put a to-do on the user, the only thing On me holds.
+            "user to-do": served_answer(PAGE, (USER_TODO,)),
             "queues on both sides": served_reading(
                 OBLIGATION_PAGE,
                 BOTH_SIDES,

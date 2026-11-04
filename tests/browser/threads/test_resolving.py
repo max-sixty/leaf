@@ -371,6 +371,75 @@ def test_z_shows_a_settlement_the_user_left_before_taking_it(browser, serve, ges
     expect(page.locator(PANEL_THREAD)).to_have_attribute("data-lf-thread", root)
 
 
+def test_a_thread_resolved_in_the_panel_comes_back_to_the_panel(browser, serve):
+    """A thread about a passage opens in a card beside it, but the user read this one
+    in the panel's view and resolved it there, so that view is what `z` and a refusal
+    give back. A route to the thread chose for it as it stood, and put it in a card."""
+    comment = {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "text": "Check whether these jobs can share one visit.",
+        "anchor": {"section": "bracket"},
+    }
+    page = open_page(browser, serve(OBLIGATION_PAGE, events=[comment]))
+    root = events_model.read_events(serve.page_dir)[0]["id"]
+    resized(page, 1440, 900)
+    open_panel_thread(page, root).focus()
+    with sending(page, "the resolve"):
+        page.keyboard.press("r")
+    round_trip(page)
+    expect_open_threads(page, 0)
+    undo(page)
+    round_trip(page)
+    expect_open_threads(page, 1)
+    expect(page.locator(PANEL_THREAD)).to_have_attribute("data-lf-thread", root)
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    page.keyboard.press("r")
+    holding(page, held, 1, "the resolve")
+    expect_open_threads(page, 0)
+    held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
+    expect_open_threads(page, 1)
+    expect(page.locator(PANEL_THREAD)).to_have_attribute("data-lf-thread", root)
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+
+
+def test_z_shows_a_thread_resolved_in_its_card_by_its_passage(browser, serve):
+    """No card draws a resolved thread, so a route to one opens the panel's view. The
+    user resolved this one in its card and went back to the top, so `z` shows it first:
+    by its passage, where they had it, and the press that takes the Resolve back opens
+    the card there again, with no turn through the panel."""
+    page = open_page(browser, serve(LONG_PAGE, anchored=(("p55", "Paragraph 55."),)))
+    resized(page, 1440, 900)
+    page.keyboard.press("Shift+t")
+    card = page.locator(".lf-margin-thread .lf-page-thread")
+    expect(card).to_be_focused()
+    # The card takes focus before the page has scrolled to it; a Home pressed while
+    # that scroll runs can lose to it.
+    expect(page.locator("#p55")).to_be_in_viewport()
+    scroll_settled(page)
+    with sending(page, "the resolve"):
+        page.keyboard.press("r")
+    round_trip(page)
+    expect_open_threads(page, 0)
+    page.keyboard.press("Home")
+    scroll_settled(page)
+    expect(page.locator("#p55")).not_to_be_in_viewport()
+
+    page.keyboard.press("z")
+    expect(page.locator(".lf-live")).to_contain_text("Press again to undo")
+    expect(page.locator("#p55")).to_be_in_viewport()
+    expect(page.locator(PANEL_THREAD)).to_have_count(0)
+    undo(page)
+    round_trip(page)
+    expect_open_threads(page, 1)
+    expect(card).to_be_focused()
+    expect(page.locator(PANEL_THREAD)).to_have_count(0)
+
+
 def test_resolving_one_of_two_threads_leaves_the_user_in_the_card(browser, serve):
     """Resolving a thread the card outlives keeps focus in the card.
 

@@ -1,12 +1,18 @@
-"""Measure how a page's main-thread cost grows with the page, for this checkout.
+"""Measure how a page's costs grow with the page, in a browser or on the server.
 
     uv run leaf-dev scaling [AXIS ...] [--sizes 32,64,128,256] [--base [REF]] [--profile]
+    uv run leaf-dev scaling --server [AXIS ...] [--sizes 128,...,1600] [--profile]
 
 Root `AGENTS.md`, "Responsiveness", sets the rule this checks: no cost grows faster
-than the page, and an input's should hardly grow at all. For each AXIS (every one by
-default) it generates a page at each size (`AXES`), serves it from this tree, and
-reads the renderer's main-thread CPU, in thread ticks from `Performance.getMetrics`,
-for each transition: the load until the page settles, a click on an option, a
+than the page, and an input's should hardly grow at all. Each AXIS names a page in
+`COLLECTIONS` that grows one of its collections with its size and holds the rest
+fixed: its authored markup, the log admitted after it and the versions saved before
+it. The browser measures `AXES` by default, and the server `SERVER_AXES`; either
+measures any of them.
+
+For each AXIS it generates a page at each size, serves it from this tree, and reads
+the renderer's main-thread CPU, in thread ticks from `Performance.getMetrics`, for
+each transition: the load until the page settles, a click on an option, a
 keystroke in the page's comment field, and a wheel step down the page. An input's
 cost is the mean over several, less the page's idle CPU over the same time. Beside
 them stand the server's time to start answering each event the clicks posted, whose
@@ -17,6 +23,12 @@ over the largest sizes (least squares of log growth on log size), and marks an
 exponent above SUPERLINEAR, which is a step nesting one walk of the page inside
 another. Fitting the cost itself would let fixed work hide that: 30 ms per click plus
 20/80/320 ms of quadratic work fits 1.4 over 64-256, and its growth fits 2.0.
+
+--server times the server's paths on each page instead, in this process with no
+browser (`leaf_dev.server_scaling` names the paths and how it reads them), and names
+each path that breaks the rule: growth fitting an exponent above SUPERLINEAR, a
+click's path taking more than its budget at REFERENCE, or, on the session's page, an
+append growing past INPUT_CEILING.
 
 --base also measures the merge base with main (or REF), chosen as every A/B command
 chooses its arms (`arms.choose_arms`), so a change shows its exponents beside the
@@ -36,8 +48,10 @@ import json
 import math
 import statistics
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
+from contextlib import contextmanager
 from pathlib import Path
+from typing import NamedTuple
 
 import click
 
@@ -54,17 +68,39 @@ from leaf_dev.commands.bench_latency import Profile
 
 OUT = ROOT / ".tmp" / "scaling"
 SIZES = (32, 64, 128, 256)
+# A server path takes a browser input's time on a page several times the size, so
+# the server's pages reach further in the same time.
+SERVER_SIZES = (128, 256, 512, 1024, 1600)
+SERVER_AXES = (
+    "widgets",
+    "boards",
+    "cards",
+    "options",
+    "threads",
+    "messages",
+    "events",
+    "revisions",
+    "batch",
+)
+# The page size a server path is held to its budget at: the size the browser's
+# inputs are held to theirs at, where a click shows the server's reading.
+REFERENCE = 512
 # The page size whose costs stand for the runtime's fixed work. Each exponent fits a
 # cost's growth above it, so it is a small fraction of the sizes fitted.
 BASE = 8
 # An exponent above this is superlinear growth. It stands halfway between linear and
 # quadratic: above BASE, linear growth fits about 1.07 over 64-256, and n log n 1.25.
 SUPERLINEAR = 1.5
+# An input's work whose growth fits an exponent above this grows with what the page
+# holds or how long the session has run, and an input's work does neither (root
+# `AGENTS.md`, "Responsiveness"); halfway between flat and linear.
+INPUT_CEILING = 0.5
 # How many of the largest sizes the exponent is fitted over.
 FITTED = 3
-# A cost that grows by less than this above BASE has no exponent: what little it grew
-# is the host's noise. Milliseconds of CPU, kilobytes for the event answer's size, and
-# for the server's time to answer, which is elapsed time, milliseconds.
+# Where a cost grows by less than this above BASE, what little it grew is the host's
+# noise, and its exponent leaves that size out. Milliseconds of CPU, kilobytes for the
+# event answer's size, and for the server's time to answer, which is elapsed time,
+# milliseconds.
 FLOORS = {"event": 50}
 FLOOR = 10
 KEYS = 20
@@ -85,27 +121,56 @@ EVENT_POSTS = """() => performance.getEntriesByType("resource")
   }))"""
 
 
-def ask_sections(n: int) -> str:
-    """`n` sections, each a heading, a paragraph and an `lf-ask` of four options, so
-    widgets, obligations on the user, headings and margin pins all grow with `n`."""
-    sections = "".join(
+def ask(g: int, options: int = 4) -> str:
+    """Section `g`: a heading, a paragraph and an `lf-ask` of `options` options."""
+    return (
         f'<section id="s{g}"><h2>Section {g}</h2><p>Some words about section {g}.</p>'
         f'<lf-ask id="q{g}"><h3>Question {g}</h3><lf-options id="o{g}" choose multiple>'
         + "".join(
             f'<lf-option id="o{g}-{i}"><strong>Option {i}</strong> a short description.'
             "</lf-option>"
-            for i in range(1, 5)
+            for i in range(1, options + 1)
         )
         + "</lf-options></lf-ask></section>"
-        for g in range(1, n + 1)
     )
-    return page("Questions", sections)
+
+
+def ask_sections(n: int) -> str:
+    """`n` sections, each an `ask`, so widgets, obligations on the user, headings and
+    margin pins all grow with `n`."""
+    return page("Questions", "".join(ask(g) for g in range(1, n + 1)))
+
+
+def board_sections(boards: int, cards: int, done: int = 0) -> str:
+    """`boards` sections, each an `lf-board` of `cards` cards to do and `done` done."""
+
+    def column(b: int, name: str, count: int) -> str:
+        return (
+            f'<lf-column id="b{b}-{name}" label="{name.title()}">'
+            + "".join(
+                f'<lf-card id="b{b}-{name}{j}"><strong>Card {j}</strong> of board {b}.'
+                "</lf-card>"
+                for j in range(1, count + 1)
+            )
+            + "</lf-column>"
+        )
+
+    return page(
+        "Boards",
+        "".join(
+            f'<section id="s{b}"><h2>Board {b}</h2><lf-board id="b{b}">'
+            + column(b, "todo", cards)
+            + column(b, "done", done)
+            + "</lf-board></section>"
+            for b in range(1, boards + 1)
+        ),
+    )
 
 
 def prose_sections(n: int) -> str:
     """`n` sections of headings and paragraphs after one ask: the document grows, and
     the widgets don't."""
-    ask = (
+    question = (
         '<lf-ask id="q0"><h3>Question</h3><lf-options id="o0" choose multiple>'
         '<lf-option id="o0-1">One</lf-option><lf-option id="o0-2">Two</lf-option>'
         "</lf-options></lf-ask>"
@@ -117,35 +182,7 @@ def prose_sections(n: int) -> str:
         "</section>"
         for g in range(1, n + 1)
     )
-    return page("Prose", ask + sections)
-
-
-def thread_log(n: int) -> str:
-    """`n` comment threads across `prose_sections(64)`, each answered once, so the log
-    and the threads grow while the document stays."""
-    events = []
-    for t in range(n):
-        events.append(
-            {
-                "kind": "comment",
-                "author": "user",
-                "revision": 1,
-                "id": f"c{t}",
-                "text": f"A question {t} about this section?",
-                "anchor": {"section": f"s{t % 64 + 1}"},
-            }
-        )
-        events.append(
-            {
-                "kind": "reply",
-                "author": "agent",
-                "agent": "Codex",
-                "parent": f"c{t}",
-                "revision": 1,
-                "text": f"Answer {t}.",
-            }
-        )
-    return "".join(json.dumps(event) + "\n" for event in events)
+    return page("Prose", question + sections)
 
 
 def page(title: str, body: str) -> str:
@@ -156,12 +193,155 @@ def page(title: str, body: str) -> str:
     )
 
 
-# Each axis: the authored page at a size, and the log admitted after it, if any.
-AXES: dict[str, tuple[Callable[[int], str], Callable[[int], str] | None]] = {
-    "asks": (ask_sections, None),
-    "prose": (prose_sections, None),
-    "threads": (lambda _: prose_sections(64), thread_log),
+def pick(g: int, *options: int, revision: int = 1) -> dict:
+    """The user choosing `options` in section `g`'s ask."""
+    return {
+        "kind": "action",
+        "author": "user",
+        "revision": revision,
+        "widget": f"o{g}",
+        "action": "choose",
+        "detail": {"value": [f"o{g}-{i}" for i in options]},
+    }
+
+
+def move(b: int, j: int, k: int) -> dict:
+    """The user moving card `j` of board `b` to its Done column, to the `k`th place
+    there, since ranks order a column as strings do."""
+    return {
+        "kind": "action",
+        "author": "user",
+        "revision": 1,
+        "widget": f"b{b}",
+        "action": "move",
+        "detail": {"unit": f"b{b}-todo{j}", "value": f"b{b}-done", "rank": f"{k:05d}i"},
+    }
+
+
+def comment(t: int) -> dict:
+    """The user opening thread `t` on one of `prose_sections(64)`."""
+    return {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "id": f"c{t}",
+        "text": f"A question {t} about this section?",
+        "anchor": {"section": f"s{t % 64 + 1}"},
+    }
+
+
+def answer(t: int) -> dict:
+    """The agent answering thread `t`."""
+    return {
+        "kind": "reply",
+        "author": "agent",
+        "agent": "Codex",
+        "parent": f"c{t}",
+        "revision": 1,
+        "text": f"Answer {t}.",
+    }
+
+
+def exchange(m: int) -> list[dict]:
+    """Message `m` after thread 0's comment: the agent's answer, which asks the user
+    a question in turn, or the user's reply, which asks one back; and after each
+    fourth, the agent's summary of the four."""
+    if m % 2:
+        message = {
+            **answer(0),
+            "id": f"m{m}",
+            "text": f"Answer {m}, and a question: which way?",
+            "obligation": True,
+        }
+    else:
+        message = {
+            "kind": "reply",
+            "author": "user",
+            "id": f"m{m}",
+            "parent": "c0",
+            "text": f"This way. Why {m}?",
+        }
+    if m % 4:
+        return [message]
+    summary = {
+        "kind": "summary",
+        "author": "agent",
+        "thread": "c0",
+        "from": f"m{m - 3}",
+        "through": f"m{m}",
+        "text": f"Messages {m - 3} to {m}, in a line.",
+    }
+    return [message, summary]
+
+
+class Collection(NamedTuple):
+    """A page that holds `n` of one collection and a fixed amount of the rest: its
+    authored markup, the events its log holds after it, and how many versions of
+    the page are saved before the log. `session` marks the page that holds the same
+    at every size while its log grows, so what grows with `n` is only how long the
+    session has run."""
+
+    authored: Callable[[int], str]
+    log: Callable[[int], list[dict]] = lambda _: []
+    versions: Callable[[int], int] = lambda _: 1
+    session: bool = False
+
+    def sources(self, n: int) -> list[str]:
+        """Each saved version's markup, oldest first: the authored page, its heading
+        numbered where there are several."""
+        authored, versions = self.authored(n), self.versions(n)
+        if versions == 1:
+            return [authored]
+        return [
+            authored.replace("</h1>", f", version {version}</h1>", 1)
+            for version in range(1, versions + 1)
+        ]
+
+
+# Every page `leaf-dev scaling` generates, by the collection that grows with `n`.
+COLLECTIONS: dict[str, Collection] = {
+    "asks": Collection(ask_sections),
+    "prose": Collection(prose_sections),
+    "widgets": Collection(
+        ask_sections, lambda n: [pick(g, g % 4 + 1) for g in range(1, n + 1)]
+    ),
+    "boards": Collection(
+        lambda n: board_sections(n, 3),
+        lambda n: [move(b, 1, 1) for b in range(1, n + 1)],
+    ),
+    # A move records the authored cards it lies among, here the n done already.
+    "cards": Collection(
+        lambda n: board_sections(1, n, done=n),
+        lambda n: [move(1, j, j) for j in range(1, n + 1)],
+    ),
+    "options": Collection(
+        lambda n: page("Options", ask(1, options=n)),
+        lambda n: [pick(1, *range(1, n + 1))],
+    ),
+    "threads": Collection(
+        lambda _: prose_sections(64),
+        lambda n: [event for t in range(n) for event in (comment(t), answer(t))],
+    ),
+    "messages": Collection(
+        lambda _: prose_sections(64),
+        lambda n: [comment(0), *(e for m in range(1, n) for e in exchange(m))],
+    ),
+    "events": Collection(
+        lambda _: ask_sections(16),
+        lambda n: [pick(k % 16 + 1, k % 4 + 1) for k in range(n)],
+        session=True,
+    ),
+    "revisions": Collection(
+        lambda _: ask_sections(16),
+        lambda n: [pick(1, 1, revision=n)],
+        lambda n: n,
+    ),
+    "batch": Collection(
+        lambda _: prose_sections(64), lambda n: list(map(comment, range(n)))
+    ),
 }
+# The pages the browser measures; any other collection is one more name here.
+AXES = {name: COLLECTIONS[name] for name in ("asks", "prose", "threads")}
 
 
 def cpu_ms(cdp) -> float:
@@ -261,19 +441,22 @@ def measure(browser, address: str, profiles: Path | None) -> dict:
         return {"elements": elements, **costs}
 
 
-def exponent(cost: str, sizes: list[int], costs: list[float]) -> float | None:
-    """The least-squares slope of log growth on log size over the largest sizes,
-    where a cost's growth is what it adds to its cost at the first size, BASE; None
-    for growth under the cost's floor."""
-    fixed = costs[0]
-    if costs[-1] - fixed < FLOORS.get(cost, FLOOR):
-        return None
+def exponent(
+    cost: str, sizes: list[int], costs: list[float], fitted: int = FITTED
+) -> float | None:
+    """The least-squares slope of log growth on log size over the `fitted` largest
+    sizes, where a cost's growth is what it adds to its cost at the first size,
+    BASE. A size whose growth is under the cost's floor is left out, its growth the
+    host's noise. With fewer than all but one of the fitted sizes left, or fewer
+    than two, there is no exponent: the two largest of four server sizes stand
+    1.56 apart, and a slope across them reads a loaded host's noise as growth."""
+    fixed, floor = costs[0], FLOORS.get(cost, FLOOR)
     pairs = [
         (math.log(n), math.log(c - fixed))
-        for n, c in list(zip(sizes, costs, strict=True))[-FITTED:]
-        if c > fixed
+        for n, c in list(zip(sizes, costs, strict=True))[-fitted:]
+        if c - fixed >= floor
     ]
-    if len(pairs) < 2:
+    if len(pairs) < max(2, fitted - 1):
         return None
     mean_x = sum(x for x, _ in pairs) / len(pairs)
     mean_y = sum(y for _, y in pairs) / len(pairs)
@@ -281,27 +464,40 @@ def exponent(cost: str, sizes: list[int], costs: list[float]) -> float | None:
     return sum((x - mean_x) * (y - mean_y) for x, y in pairs) / spread
 
 
-COLUMNS = (*(f"{t} ms" for t in TRANSITIONS), "event ms", "event KB")
-
-
-def table(axis: str, arm: str, rows: list[dict]) -> str:
+def table(
+    title: str,
+    rows: list[dict],
+    count: str,
+    costs: dict[str, str],
+    fitted: int = FITTED,
+) -> str:
+    """`rows` by size, with the `count` each page held and each of `costs` under its
+    label, then each cost's exponent over the `fitted` largest sizes, marked `!`
+    above SUPERLINEAR."""
     sizes = [row["n"] for row in rows]
     lines = [
-        f"{axis} ({arm})",
-        f"{'n':>6} {'elements':>9}" + "".join(f" {name:>10}" for name in COLUMNS),
+        title,
+        f"{'n':>6} {count:>9}" + "".join(f" {label:>10}" for label in costs.values()),
     ]
     for row in rows:
         lines.append(
-            f"{row['n']:>6} {row['elements']:>9}"
-            + "".join(f" {row[t]:>10.1f}" for t in (*TRANSITIONS, *SERVER))
+            f"{row['n']:>6} {row[count]:>9}"
+            + "".join(f" {row[cost]:>10.1f}" for cost in costs)
         )
     cells = []
-    for transition in (*TRANSITIONS, *SERVER):
-        slope = exponent(transition, sizes, [row[transition] for row in rows])
+    for cost in costs:
+        slope = exponent(cost, sizes, [row[cost] for row in rows], fitted)
         mark = "!" if slope is not None and slope > SUPERLINEAR else " "
         cells.append(f" {'-' if slope is None else f'{slope:.2f}':>9}{mark}")
     lines.append(f"{'exponent':>16}" + "".join(cells))
     return "\n".join(lines)
+
+
+COLUMNS = {
+    **{transition: f"{transition} ms" for transition in TRANSITIONS},
+    "event": "event ms",
+    "event_kb": "event KB",
+}
 
 
 def function_times(path: Path) -> dict[str, float]:
@@ -314,9 +510,11 @@ def function_times(path: Path) -> dict[str, float]:
     return times
 
 
-def growth(small: Path, large: Path, ratio: float) -> list[str]:
-    """The functions whose time grew superlinearly from `small` to `large`."""
-    before, after = function_times(small), function_times(large)
+def growth(
+    before: dict[str, float], after: dict[str, float], ratio: float
+) -> list[str]:
+    """The functions whose inclusive ms grew superlinearly from `before` to `after`,
+    profiles of the smallest and largest page, whose sizes stand at `ratio`."""
     grown = []
     for name, ms in after.items():
         if ms < GROWTH_FLOOR_MS or name.startswith(("(root)", "(program)", "(idle)")):
@@ -331,59 +529,119 @@ def growth(small: Path, large: Path, ratio: float) -> list[str]:
     ]
 
 
+@contextmanager
+def serving_collection(arm: Path, collection: Collection, n: int, scratch: Path):
+    """Write `collection`'s page of size `n` as an authored source under `scratch`,
+    its earlier versions where a fixture keeps them, serve it from `arm` with its log
+    admitted (`serving_source`), and yield the address."""
+    *earlier, authored = collection.sources(n)
+    source = scratch / "source" / "page.html"
+    (source.parent / "versions").mkdir(parents=True)
+    source.write_text(authored)
+    for version, markup in enumerate(earlier, 1):
+        (source.parent / "versions" / f"page.v{version}.html").write_text(markup)
+    seed = None
+    if events := collection.log(n):
+        # Not the source's stem, which would make it the page's own history.
+        seed = scratch / "seed.jsonl"
+        seed.write_text("".join(json.dumps(event) + "\n" for event in events))
+    with serving_source(arm, source, scratch / "page", seed) as address:
+        yield address
+
+
+def report_growth(title: str, profiles: dict, ratio: float) -> None:
+    """Echo the functions that grew superlinearly in each of `profiles`, a pair of
+    function times (smallest page, largest) by what was profiled."""
+    for name, (before, after) in profiles.items():
+        if lines := growth(before, after, ratio):
+            click.echo(f"{title} {name}: superlinear functions")
+            click.echo("\n".join(lines) + "\n")
+
+
 @click.command()
-@click.argument("axes", nargs=-1, type=click.Choice(sorted(AXES)))
+@click.argument("axes", nargs=-1, type=click.Choice(sorted(COLLECTIONS)))
+@click.option(
+    "--server",
+    is_flag=True,
+    help="Time the server's paths in this process, without a browser.",
+)
 @click.option(
     "--sizes",
-    default=",".join(map(str, SIZES)),
-    show_default=True,
-    help="Comma-separated page sizes, measured beside the page of BASE.",
+    help="Comma-separated page sizes, measured beside the page of BASE "
+    f"[default: {','.join(map(str, SIZES))}, or with --server "
+    f"{','.join(map(str, SERVER_SIZES))}].",
 )
 @base_option()
 @click.option("--profile", is_flag=True, help="Profile the smallest and largest size.")
-def scaling(axes: tuple[str, ...], sizes: str, base: str | None, profile: bool) -> None:
-    sized = sorted({BASE, *(int(size) for size in sizes.split(","))})
+def scaling(
+    axes: tuple[str, ...],
+    server: bool,
+    sizes: str | None,
+    base: str | None,
+    profile: bool,
+) -> None:
+    chosen_sizes = sizes.split(",") if sizes else SERVER_SIZES if server else SIZES
+    sized = sorted({BASE, *map(int, chosen_sizes)})
     run = run_directory(OUT)
+    if server:
+        if base is not None:
+            raise click.UsageError("--server measures this checkout only")
+        scale_server(axes or SERVER_AXES, sized, profile, run)
+        return
     arms = choose_arms(base, run)
     click.echo(describe(arms) + "\n")
     results: dict[str, dict[str, list[dict]]] = {}
     with headless_shell() as browser:
         for axis in axes or tuple(AXES):
-            authored, log = AXES[axis]
             for arm, chosen in arms.items():
                 rows = []
                 for n in sized:
                     scratch = run / f"{axis}-{arm}-{n}"
-                    scratch.mkdir(parents=True)
-                    source = scratch / f"{axis}{n}.html"
-                    source.write_text(authored(n))
-                    seed = None
-                    if log is not None:
-                        seed = scratch / "seed.jsonl"
-                        seed.write_text(log(n))
                     profiles = (
                         scratch if profile and n in (sized[0], sized[-1]) else None
                     )
-                    with serving_source(
-                        chosen.directory, source, scratch / "page", seed
+                    with serving_collection(
+                        chosen.directory, COLLECTIONS[axis], n, scratch
                     ) as address:
                         rows.append({"n": n, **measure(browser, address, profiles)})
                 results.setdefault(axis, {})[arm] = rows
-                click.echo(table(axis, arm, rows) + "\n")
+                click.echo(table(f"{axis} ({arm})", rows, "elements", COLUMNS) + "\n")
                 if profile:
                     first, last = (
                         run / f"{axis}-{arm}-{n}" for n in (sized[0], sized[-1])
                     )
-                    for transition in TRANSITIONS:
-                        lines = growth(
-                            first / f"{transition}.cpuprofile",
-                            last / f"{transition}.cpuprofile",
-                            sized[-1] / sized[0],
-                        )
-                        if lines:
-                            click.echo(
-                                f"{axis} ({arm}) {transition}: superlinear functions"
+                    report_growth(
+                        f"{axis} ({arm})",
+                        {
+                            transition: tuple(
+                                function_times(scratch / f"{transition}.cpuprofile")
+                                for scratch in (first, last)
                             )
-                            click.echo("\n".join(lines) + "\n")
+                            for transition in TRANSITIONS
+                        },
+                        sized[-1] / sized[0],
+                    )
+    (run / "results.json").write_text(json.dumps(results, indent=1))
+    click.echo(f"Results in {run.relative_to(ROOT)}")
+
+
+def scale_server(axes: Iterable[str], sizes: list[int], profile: bool, run: Path):
+    """Time each server path on each axis's pages in this process, as `--server`
+    does (`leaf_dev.server_scaling`), and name each path that breaks the rule
+    (`server_scaling.failures`)."""
+    from leaf_dev.server_scaling import FITTED, PATHS, RUNS, failures, measure
+
+    click.echo(f"Server paths of this checkout, least CPU of {RUNS} runs\n")
+    results = {}
+    for axis in axes:
+        rows, profiles = measure(COLLECTIONS[axis], sizes, run / axis, profile)
+        results[axis] = rows
+        paths = {path: f"{path} ms" for path in PATHS if path in rows[0]}
+        click.echo(table(axis, rows, "events", paths, FITTED))
+        for path, failure in failures(COLLECTIONS[axis], rows).items():
+            click.echo(f"  {path}: {failure['why']}")
+        click.echo()
+        if profile:
+            report_growth(axis, profiles, sizes[-1] / sizes[0])
     (run / "results.json").write_text(json.dumps(results, indent=1))
     click.echo(f"Results in {run.relative_to(ROOT)}")

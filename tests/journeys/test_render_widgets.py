@@ -368,7 +368,11 @@ def test_pr_walkthrough_moves_from_semantic_call_to_exact_patch_comment(
     line = page.locator(
         '#pr-exact-patch [data-lf-datum=\'["src/summary.rs","new",259]\']'
     )
-    expect(page).to_have_url(re.compile(r"#pr-exact-patch$"))
+    # The URL names the line by its source key, so a reload or a copied URL reaches it.
+    source_key = '["src/summary.rs","source","new",259]'.replace('"', "%22")
+    expect(page).to_have_url(
+        re.compile(re.escape(f"#pr-exact-patch:{source_key}") + "$")
+    )
     expect(line).to_be_in_viewport()
     expect(page.locator(".lf-live")).to_have_text(
         "Opened src/summary.rs:259 in the exact patch"

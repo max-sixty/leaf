@@ -152,21 +152,15 @@ const rows = new Map();
 // Withhold its row at the mutation checkpoint, before another frame can paint it.
 /** @type {WeakMap<HTMLElement, Element>} */
 const anchors = new WeakMap();
-// The withheld rows a scroll of the document can bring back, kept where they are
-// withheld, so that scroll, which carries every other row, reads only these again
-// (`scheduleStirReading`). A scroll can draw a target the window only kept from showing,
-// or one in content the browser skips until it nears the window (`content-visibility:
-// auto`), which `checkVisibility` counts as drawn. It draws none that has left the page,
-// or that stands in a closed disclosure, a tab not chosen or a hidden box; the change
-// that reveals one brings its own pass.
+// The rows withheld now, kept where they are withheld, so a scroll of the document,
+// which carries every other row, reads only these again (`scheduleStirReading`).
 /** @type {Set<HTMLElement>} */
-const scrollReveals = new Set();
+const withheldRows = new Set();
 /** @param {HTMLElement} row @param {boolean} on */
 function withhold(row, on) {
   row.classList.toggle("lf-withheld", on);
-  const target = on ? rows.get(row)?.anchor() : null;
-  if (target?.isConnected && target.checkVisibility()) scrollReveals.add(row);
-  else scrollReveals.delete(row);
+  if (on) withheldRows.add(row);
+  else withheldRows.delete(row);
 }
 /** @param {Element} target */
 const targetBox = (target) => shownParts(target)[0] ?? target;
@@ -792,8 +786,9 @@ const faces = new MutationObserver((records) => {
 });
 
 // What changed in the page, on the document or a shadow tree holding a target. A change on
-// Leaf's own surfaces moves no seat. The runtime's own paint on page boxes, its marks and
-// anchor names, stands in attributes and rules this does not hear (page-paint.js).
+// Leaf's own surfaces moves no seat. The marks the runtime draws on page boxes stand in
+// attributes this does not hear (page-paint.js); an anchor name it writes inline into a
+// box's style is heard as any other restyle.
 /** @param {MutationRecord[]} records */
 function heardPage(records) {
   const page = records.filter((record) => !onSurface(record.target));
@@ -1490,7 +1485,7 @@ export function unregisterMarginRow(row) {
   registered.delete(row);
   restyled.delete(row);
   anchors.delete(row);
-  scrollReveals.delete(row);
+  withheldRows.delete(row);
   pushes.delete(row);
   folded.delete(row);
   if (!rows.size) {
@@ -1587,7 +1582,7 @@ function scheduleStirReading() {
     // The document carries ordinary rows and their lanes together, and scrolls every
     // target, so its scroll alone reads again only the rows it may bring back.
     const documentOnly = boxes.every((box) => box === pageScroller);
-    for (const row of documentOnly ? [...scrollReveals] : [...rows.keys()]) {
+    for (const row of documentOnly ? [...withheldRows] : [...rows.keys()]) {
       const options = rows.get(row);
       const target = options?.anchor();
       if (!options || !target?.isConnected) continue;

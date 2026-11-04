@@ -190,7 +190,7 @@ def test_thread_code_block_copies_just_its_source(browser, serve, surface):
     block = thread.locator("pre")
     expect(block).to_have_text("echo hello\n")
     block.hover()
-    anchor = block.evaluate("e => getComputedStyle(e).anchorName")
+    anchor = block.evaluate("e => e.style.anchorName")
     copy = page.locator(f'.lf-code-copy[style*="position-anchor: {anchor};"]')
     assert copy.count() == 1
     copy.evaluate("e => e.feedbackDuration = 0")

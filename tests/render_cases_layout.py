@@ -945,10 +945,10 @@ PAGE_MARKUP = r"""() => [...document.body.children]
                 "lf-binding-seat",
             );
             for (const paint of ["data-lf-mark", "data-lf-aimed", "data-lf-traced",
-                "data-lf-proxied", "data-lf-projected-location", "data-lf-anchor"])
+                "data-lf-proxied", "data-lf-projected-location"])
                 el.removeAttribute?.(paint);
-            // Anchor naming is presentation state. The layout names a box the
-            // author names too inline, beside the author's name.
+            // Anchor naming is presentation state. The layout may copy a name
+            // from a stylesheet into inline style while positioning a comment.
             el.style?.removeProperty("anchor-name");
             if (!el.getAttribute("style")) el.removeAttribute("style");
         }

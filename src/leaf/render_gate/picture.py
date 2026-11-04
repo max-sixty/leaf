@@ -43,18 +43,15 @@ CONTEXT = 120
 # their own and open scrolled elsewhere. The ink is not inside them, since it is painted
 # over the page, so each pane from the element outward is scrolled to put the ink's
 # middle at its own, reading the ink at its fixed offset from the element; then the
-# window does the same. The element is the one the ink's `position-anchor` names: through
-# the runtime's attribute for its own rule, or inline where the author names the box too
-# (`css-anchors.js`, `nameAnchor`).
+# window does the same. The element is the one whose inline anchor name the ink's
+# `position-anchor` names (`css-anchors.js`).
 CENTER = """(el) => {
   const middle = (box) => [box.left + box.width / 2, box.top + box.height / 2];
   const toMiddle = (scroller, [x, y], [left, top]) =>
     scroller.scrollBy({ left: x - left, top: y - top, behavior: "instant" });
   const name = el.style.positionAnchor;
-  const holder =
-    document.querySelector(`[data-lf-anchor="${name.slice(2)}"]`) ??
-    [...document.querySelectorAll("[style]")].find((node) =>
-      node.style.anchorName.split(",").some((part) => part.trim() === name));
+  const holder = [...document.querySelectorAll("[style]")].find((node) =>
+    node.style.anchorName.split(",").some((part) => part.trim() === name));
   const [x, y] = middle(el.getBoundingClientRect());
   const at = holder.getBoundingClientRect();
   const ink = () => {

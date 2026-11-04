@@ -67,12 +67,11 @@ import { watchArrivals } from "./arrivals.js";
 import { inlineStyle, keeps, layoutPx } from "./keeps.js";
 import { move } from "./dom-move.js";
 import { chromeRoot } from "./chrome.js";
-import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
 
 /** @typedef {import("./rect.js").Box} Box
  * @typedef {{scroller: Element, name: string, getBoundingClientRect(): DOMRect}} ContentStart
  * @typedef {Element | ContentStart} Anchor
- * @typedef {{el: Element, name: string, write?: string, part?: boolean, rule?: boolean} | {el?: never, name: string, write?: never, part?: never, rule?: never}} AnchorReading
+ * @typedef {{el: Element, name: string, write?: string, part?: boolean} | {el?: never, name: string, write?: never, part?: never}} AnchorReading
  * @typedef {{left: number, top: number} & ({right: number, bottom: number} | {right?: never, bottom?: never})} PaintBox
  * @typedef {{x: boolean, y: boolean}} Axes
  * @typedef {{anchor: Anchor | null, band: Box, axes: Axes, at?: Box | null, reading?: AnchorReading | null}} CutLevel
@@ -83,16 +82,6 @@ import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
 // go on the heartbeat and a name written each time would restyle the target each time.
 // The pass reads what a box is named before it writes any name (`anchorReading`), since
 // reading the author's name is a style read.
-//
-// A box in the document the author names nowhere is named by a rule in the runtime's own
-// sheet, keyed by an attribute of the runtime's (`data-lf-anchor`, page-paint.js), so the
-// page's style and classes stay the author's, and an observer of them, such as the
-// margin's, hears only the author's changes. The rule is important, as an inline name
-// would be over the page's stylesheets. A box the author names, inline or from a
-// stylesheet, takes both names inline instead, since a rule would replace the author's:
-// CSS has no way to add a name to one a box already has. An inline name the author
-// writes later moves the box to that path, without the attribute, whose important rule
-// would otherwise hide the author's name.
 //
 // A name reaches only the tree whose style declares it, and a widget's shadow tree is not
 // the chrome's. A box in a shadow tree whose host stands in the document is named from the
@@ -117,24 +106,10 @@ const partNamed = (el) => {
   const name = anchorNames.get(el);
   return name !== undefined && el.part.contains(partOf(name));
 };
-// The runtime's own sheet of names, which the document adopts: one rule per selector.
 /** @type {CSSStyleSheet | null} */
-let nameRules = null;
+let partRules = null;
 /** @type {Set<string>} */
 const declared = new Set();
-/** @param {string} selector @param {string} declarations */
-function declare(selector, declarations) {
-  if (declared.has(selector)) return;
-  if (!nameRules) {
-    nameRules = new CSSStyleSheet();
-    document.adoptedStyleSheets = [...document.adoptedStyleSheets, nameRules];
-  }
-  nameRules.insertRule(`${selector} { ${declarations} }`, nameRules.cssRules.length);
-  declared.add(selector);
-}
-const ANCHOR = RUNTIME_PAINT_ATTRIBUTE.anchor;
-/** @param {Element} el @param {string} name */
-const ruleNamed = (el, name) => el.getAttribute(ANCHOR) === partOf(name);
 /** @type {WeakMap<Element, Set<string>>} */
 const given = new WeakMap(); // element → the anchor parts it was given
 /** @type {WeakSet<Node>} */
@@ -156,10 +131,18 @@ function keepParts(root) {
 // Names `el`, or its `::before` where `pseudo` says so, through the part `name` spells.
 /** @param {Element} el @param {string} name @param {string} [pseudo] */
 function namePart(el, name, pseudo = "") {
-  declare(
-    `::part(${partOf(name)})${pseudo}`,
-    `${pseudo ? 'content: "";' : ""} anchor-name: ${name};`,
-  );
+  if (!partRules) {
+    partRules = new CSSStyleSheet();
+    document.adoptedStyleSheets = [...document.adoptedStyleSheets, partRules];
+  }
+  if (!declared.has(name)) {
+    const content = pseudo ? 'content: "";' : "";
+    partRules.insertRule(
+      `::part(${partOf(name)})${pseudo} { ${content} anchor-name: ${name}; }`,
+      partRules.cssRules.length,
+    );
+    declared.add(name);
+  }
   given.set(el, new Set([...(given.get(el) ?? []), partOf(name)]));
   keepParts(el.getRootNode());
   restoreParts(el);
@@ -174,27 +157,21 @@ export function anchorReading(el, name) {
     return partNamed(el) ? { el, name } : { el, name, write: name, part: true };
   const written = inlineStyle(el).anchorName;
   if (written.split(",").some((part) => part.trim() === name)) return { el, name };
-  if (!written && ruleNamed(el, name)) return { el, name };
-  // What the author's stylesheet names this box, read only where the runtime has not
-  // already named it: a revision patch that rewrote the box's attributes has taken the
-  // name away.
+  // What the author's stylesheet names this box, read only where this pass has not already
+  // written: a revision patch that rewrote the style attribute has taken the name away.
   const authored = written || getComputedStyle(el).anchorName;
-  return !authored || authored === "none"
-    ? { el, name, write: name, rule: true }
-    : { el, name, write: `${authored}, ${name}` };
+  return {
+    el,
+    name,
+    write: !authored || authored === "none" ? name : `${authored}, ${name}`,
+  };
 }
 /** @param {ReturnType<typeof anchorReading>} reading */
-export function nameAnchor({ el, name, write, part, rule }) {
+export function nameAnchor({ el, name, write, part }) {
   // Two readings of one box can both find it unnamed before either names it.
   if (write && part) {
     if (!partNamed(el)) namePart(el, name);
-  } else if (write && rule) {
-    declare(`[${ANCHOR}="${partOf(name)}"]`, `anchor-name: ${name} !important;`);
-    keeps(el, ANCHOR, partOf(name));
-  } else if (write) {
-    keeps(el, ANCHOR, null);
-    inlineStyle(el).anchorName = write;
-  }
+  } else if (write) inlineStyle(el).anchorName = write;
   return name;
 }
 

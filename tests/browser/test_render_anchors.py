@@ -1350,13 +1350,14 @@ def test_code_copy_reads_sources_before_positioning_many_controls(browser, serve
               events.push('read');
             return rect.apply(this, args);
           };
-          // A code block the author names nowhere is named through the runtime's
-          // attribute, which its own rule reads (css-anchors.js, `nameAnchor`).
-          const set = Element.prototype.setAttribute;
-          Element.prototype.setAttribute = function (name, value) {
-            if (name === 'data-lf-anchor') events.push('write');
-            return set.call(this, name, value);
-          };
+          Object.defineProperty(CSSStyleDeclaration.prototype, 'anchorName', {
+            configurable: true,
+            get() { return this.getPropertyValue('anchor-name'); },
+            set(value) {
+              if (value?.startsWith('--lf-a')) events.push('write');
+              this.setProperty('anchor-name', value);
+            },
+          });
         })()""",
     )
     expect(page.locator(".lf-chrome .lf-code-copy")).to_have_count(60)

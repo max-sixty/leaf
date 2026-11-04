@@ -46,9 +46,6 @@ export const RUNTIME_PAINT_ATTRIBUTE = Object.freeze({
   traced: "data-lf-traced",
   proxied: "data-lf-proxied",
   location: "data-lf-projected-location",
-  // The anchor name the runtime gives a box in the document, which a rule of its own
-  // declares (css-anchors.js, `nameAnchor`).
-  anchor: "data-lf-anchor",
 });
 
 export const PAGE_PAINT_ATTRIBUTE = Object.freeze({

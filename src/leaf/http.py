@@ -1490,6 +1490,7 @@ class SampleEndpoint(PageEndpoint):
         self.retained_samples = parent.retained_samples
         # A child is stored on its parent's terms, which on leaf.page are the site's.
         self.cache_control = parent.cache_control
+        self.media_cache_control = parent.media_cache_control
         # The address inside the child, below the capability its parent matched.
         self.path = path
         self.asset_root = asset_root

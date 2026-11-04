@@ -904,14 +904,17 @@ const COLLAPSIBLE = new RegExp(`^(?:${COLLAPSE.source})$`, "u");
 // so a consumer that paints a reading cannot disagree with `quoteFrom` about its words.
 // `visit` hears where each character stands and how much text precedes it, before the
 // character is read: a space a collapsed run or a block's edge leaves goes in ahead of the
-// next word, so it falls after that word's place.
+// next word, so it falls after that word's place. `after` continues a reading past the
+// segment it names: the first segment's edge is weighed against it, and whitespace at the
+// start owes a space as it would with words behind it. Where none stand behind, that space
+// is at the reading's start, which a reader of a span drops.
 /** @typedef {{node: Text, offset: number}} TextPoint
  * @typedef {{text: string, start: TextPoint, end: TextPoint}} TextUnit
  * @typedef {(node: Text, offset: number, length: number) => void} Visit */
-/** @overload @param {readonly Segment[]} segments @param {false} mapCharacters @param {Visit} [visit] @returns {string} */
+/** @overload @param {readonly Segment[]} segments @param {false} mapCharacters @param {Visit} [visit] @param {Segment} [after] @returns {string} */
 /** @overload @param {readonly Segment[]} segments @param {true} mapCharacters @returns {{text: string, units: TextUnit[]}} */
-/** @param {readonly Segment[]} segments @param {boolean} mapCharacters @param {Visit} [visit] */
-function readSegments(segments, mapCharacters, visit) {
+/** @param {readonly Segment[]} segments @param {boolean} mapCharacters @param {Visit} [visit] @param {Segment} [after] */
+function readSegments(segments, mapCharacters, visit, after) {
   let text = "";
   /** @type {TextUnit[]} */
   const units = [];
@@ -920,7 +923,7 @@ function readSegments(segments, mapCharacters, visit) {
   /** @param {string} character @param {TextPoint} start @param {TextPoint} end */
   const push = (character, start, end) => {
     if (COLLAPSIBLE.test(character)) {
-      if (text)
+      if (text || after)
         pendingSpace = pendingSpace
           ? { start: pendingSpace.start, end }
           : { start, end };
@@ -934,8 +937,7 @@ function readSegments(segments, mapCharacters, visit) {
     text += character;
     if (mapCharacters) units.push({ text: character, start, end });
   };
-  /** @type {Segment | undefined} */
-  let previous;
+  let previous = after;
   for (const seg of segments) {
     if (
       previous &&
@@ -1218,12 +1220,14 @@ function wordsPiece(reading, k) {
   if (kept) return kept;
   const lo = k * PIECE;
   const hi = Math.min(raw.length, lo + PIECE);
-  // The read starts at the last word character before the piece, so it reaches the piece as
-  // the whole reading does: owing a space or not, after the same block.
-  let from = lo;
-  while (from > 0 && (raw[from - 1] === EDGE || COLLAPSIBLE.test(raw.charAt(from - 1))))
-    from--;
-  if (from > 0) from -= isPair(raw, from - 2) ? 2 : 1;
+  // The read starts at the last character before the piece and continues the whole reading
+  // after the segment that reading read before it, so it reaches the piece as that reading
+  // does: owing a space or not, after the same block.
+  let held = segmentAt(reading, lo - 1);
+  let last;
+  while ((last = segments[held]) && last.end === last.start) held--;
+  let from = last ? Math.min(lo, last.rawStart + last.end - last.start) - 1 : lo;
+  if (isPair(raw, from - 1)) from -= 1;
   // A pair the piece's end divides is read whole here, and its second half is the next
   // piece's start, where the words after the pair begin.
   const end = isPair(raw, hi - 1) ? hi + 1 : hi;
@@ -1231,11 +1235,14 @@ function wordsPiece(reading, k) {
   /** @type {Text | undefined} */
   let node;
   let base = 0;
-  const text = readSegments(spanOf(reading, from, end), false, (at, offset, length) => {
+  /** @param {Text} at @param {number} offset @param {number} length */
+  const visit = (at, offset, length) => {
     if (at !== node) base = /** @type {number} */ (reading.positions.get((node = at)));
     const place = base + offset - lo;
     if (place >= 0 && place < places.length) places[place] = length;
-  });
+  };
+  const after = segments[segmentAt(reading, from - 1)];
+  const text = readSegments(spanOf(reading, from, end), false, visit, after);
   // A place that holds no character — an edge between segments, a pair's second half, the
   // piece's end — falls where the next character does.
   let next = text.length;
